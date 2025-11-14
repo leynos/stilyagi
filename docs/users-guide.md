@@ -45,3 +45,81 @@ cover Markdown, AsciiDoc, and text files.
    expected style list and vocabulary.
 3. Validate the package inside a consumer repository by running
    `vale sync --packages dist/<archive>.zip`.
+
+## Release
+
+The `release` GitHub Actions workflow at `.github/workflows/release.yml` keeps
+the Concordat Vale package in sync with tagged releases. It runs whenever a
+GitHub release is published or when a maintainer manually dispatches the
+workflow. The job resolves the correct archive version, installs the UV tool
+chain, packages the styles with `stilyagi zip --archive-version <version>`, and
+publishes the resulting ZIP straight to the matching release.
+
+### Workflow overview
+
+1. Trigger: either publishing a GitHub release (`release.published`) or a
+   manual `workflow_dispatch`. Dispatchers must provide an existing release tag
+   (for example `v0.1.0`) and may override the archive version.
+2. Metadata: the `Resolve release metadata` step reads the event payload (or
+   the dispatch inputs) to derive `tag` and `version`. When `archive_version`
+   is omitted, the workflow strips the leading `v`/`V` from the tag and uses
+   what remains.
+3. Packaging: dependencies are installed via `uv sync --group dev --frozen`,
+   then `uv run stilyagi zip --force` emits `dist/concordat-<version>.zip` and
+   records the artefact path for later steps.
+4. Upload: `gh release upload` attaches the freshly generated archive to the
+   release that supplied the tag, replacing any older asset with the same name.
+
+### Triggering a new Concordat release
+
+1. Update `pyproject.toml` with the desired semantic version, document the
+   changes, and land the pull request.
+2. Create and push an annotated tag that matches the published version
+   (for example
+   `git tag -a v0.2.0 -m "Concordat v0.2.0" && git push origin v0.2.0`).
+3. Draft a GitHub release that references the tag, add the release notes, and
+   press **Publish release**. Publishing automatically starts the workflow and
+   attaches `concordat-0.2.0.zip` to the release once it finishes.
+4. To re-run the packaging step (for example if an upload was removed), open
+   the workflow’s **Run workflow** form, supply the same `release_tag`, and
+   optionally pass a replacement `archive_version`.
+
+## Consuming the Concordat Vale style
+
+Releases expose a ready-to-sync ZIP that contains `.vale.ini`, the Concordat
+style files, and the supporting vocabulary. Consumers should download the
+artefact from <https://github.com/leynos/concordat-vale/releases>, run
+`vale sync --packages <url>`, then reference the style in their configuration.
+
+### Example `.vale.ini`
+
+```ini
+StylesPath = styles
+MinAlertLevel = suggestion
+Packages = https://github.com/leynos/concordat-vale/releases/download/v0.1.0/concordat-0.1.0.zip
+
+[*.{md,adoc,txt}]
+BasedOnStyles = Vale, concordat
+```
+
+This configuration downloads the `v0.1.0` artefact into `styles/` (when
+`vale sync --packages ...` is executed) and enables the Concordat checks for
+Markdown, AsciiDoc, and plain-text files alongside Vale’s defaults.
+
+### Example `vale` Makefile target
+
+```makefile
+VALE ?= vale
+VALE_PACKAGES ?= https://github.com/leynos/concordat-vale/releases/download/v0.1.0/concordat-0.1.0.zip
+VALE_TARGETS ?= docs/**/*.md README.md
+
+.PHONY: vale
+vale:
+	$(VALE) sync --packages $(VALE_PACKAGES)
+	$(VALE) --minAlertLevel suggestion $(VALE_TARGETS)
+```
+
+Running `make vale` synchronises the packaged Concordat release before linting
+the selected documentation paths. Override `VALE_PACKAGES` (for example in CI)
+to pin a different release URL, and adjust `VALE_TARGETS` to match the files in
+your repository.
