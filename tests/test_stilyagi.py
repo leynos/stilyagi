@@ -70,12 +70,15 @@ def test_package_styles_builds_archive_with_ini_and_files(sample_project: Path) 
             "Missing styles/concordat/Rule.yml in archive"
         )
         ini_body = archive.read(_zip_member(archive_path, ".vale.ini")).decode("utf-8")
-        assert "BasedOnStyles = concordat" in ini_body, (
-            "Expected 'BasedOnStyles = concordat' in .vale.ini"
-        )
-        assert "Vocab = concordat" in ini_body, (
-            "Expected 'Vocab = concordat' in .vale.ini"
-        )
+    assert "BasedOnStyles = concordat" in ini_body, (
+        "Expected 'BasedOnStyles = concordat' in .vale.ini"
+    )
+    assert "Vocab = concordat" in ini_body, (
+        "Expected 'Vocab = concordat' in .vale.ini"
+    )
+    assert "StylesPath = styles\nVocab = concordat\n\n[" in ini_body, (
+        "Vocab should live in the global section before the target block"
+    )
 
 
 def test_package_styles_refuses_to_overwrite_without_force(
@@ -170,6 +173,9 @@ def test_package_styles_omits_vocab_when_unavailable(
     with ZipFile(archive_path) as archive:
         ini_body = archive.read(_zip_member(archive_path, ".vale.ini")).decode("utf-8")
     assert "Vocab =" not in ini_body, "Expected .vale.ini to omit Vocab entries"
+    assert "StylesPath = styles\n\n[" in ini_body, (
+        "Expected a blank line between the global section and target block"
+    )
 
 
 def test_package_styles_omits_vocab_when_multiple_present(

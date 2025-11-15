@@ -119,15 +119,17 @@ def _build_ini(
     vocabulary: str | None,
 ) -> str:
     based_on = ", ".join(styles)
-    body = [
-        f"StylesPath = {styles_path_entry}",
-        "",
-        f"[{target_glob}]",
-        f"BasedOnStyles = {based_on}",
-    ]
+    body = [f"StylesPath = {styles_path_entry}"]
     if vocabulary:
         body.append(f"Vocab = {vocabulary}")
-    body.append("")
+    body.extend(
+        [
+            "",
+            f"[{target_glob}]",
+            f"BasedOnStyles = {based_on}",
+            "",
+        ]
+    )
     return "\n".join(body)
 
 

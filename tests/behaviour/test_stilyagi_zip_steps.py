@@ -24,6 +24,7 @@ class ScenarioState(typ.TypedDict, total=False):
     expected_styles_path: str
     expected_style_name: str
     expected_target_glob: str
+    expected_vocab: str
 
 
 scenarios(str(FEATURE_PATH))
@@ -55,6 +56,7 @@ def staging_project(
     staging.mkdir()
     shutil.copytree(repo_root / "styles", staging / "styles")
     scenario_state["project_root"] = staging
+    scenario_state["expected_vocab"] = "concordat"
     return staging
 
 
@@ -143,6 +145,7 @@ def archive_has_ini(scenario_state: ScenarioState) -> None:
     archive_path = scenario_state["archive_path"]
     expected_styles_path = scenario_state.get("expected_styles_path", "styles")
     expected_style = scenario_state.get("expected_style_name", "concordat")
+    expected_vocab = scenario_state.get("expected_vocab")
     with ZipFile(archive_path) as archive:
         ini_body = archive.read(_archive_member(archive_path, ".vale.ini")).decode(
             "utf-8"
@@ -153,6 +156,18 @@ def archive_has_ini(scenario_state: ScenarioState) -> None:
     assert f"BasedOnStyles = {expected_style}" in ini_body, (
         f"Generated ini should enable the {expected_style} style"
     )
+    if expected_vocab:
+        assert f"Vocab = {expected_vocab}" in ini_body, (
+            f"Generated ini should reference the {expected_vocab} vocabulary"
+        )
+        assert (
+            f"StylesPath = {expected_styles_path}\nVocab = {expected_vocab}\n\n["
+            in ini_body
+        ), "Expected Vocab to live in the global section"
+    else:
+        assert (
+            f"StylesPath = {expected_styles_path}\n\n[" in ini_body
+        ), "Expected a blank line between core settings and the target block"
 
 
 @then("the archive .vale.ini uses the STILYAGI_ environment variable values")
