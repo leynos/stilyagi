@@ -6,11 +6,11 @@ import http.server
 import os
 import shutil
 import subprocess
+import textwrap
 import threading
 import typing as typ
 from functools import partial
 from pathlib import Path
-import textwrap
 
 import pytest
 
@@ -20,30 +20,31 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 VALE_BIN = shutil.which("vale")
 
 
-def _run_vale_sync(env: dict[str, str], cwd: Path) -> subprocess.CompletedProcess[str]:
+def _run_vale_command(
+    args: list[str], env: dict[str, str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
+    """Run a vale command with common configuration."""
     assert VALE_BIN is not None, "vale binary must be available to run this test"
     return subprocess.run(  # noqa: S603 - repository-controlled command invocation
-        [VALE_BIN, "sync"],
+        [VALE_BIN, *args],
         cwd=str(cwd),
         env=env,
         text=True,
         capture_output=True,
         check=False,
     )
+
+
+def _run_vale_sync(env: dict[str, str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Run vale sync command."""
+    return _run_vale_command(["sync"], env, cwd)
 
 
 def _run_vale_lint(
     target: Path, env: dict[str, str], cwd: Path
 ) -> subprocess.CompletedProcess[str]:
-    assert VALE_BIN is not None, "vale binary must be available to run this test"
-    return subprocess.run(  # noqa: S603 - repository-controlled command invocation
-        [VALE_BIN, str(target)],
-        cwd=str(cwd),
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    """Run vale lint command on a target file."""
+    return _run_vale_command([str(target)], env, cwd)
 
 
 @pytest.fixture
@@ -114,6 +115,69 @@ BasedOnStyles = concordat
     )
 
 
+def _create_test_style_and_vocab(styles_root: Path) -> tuple[Path, Path]:
+    style_dir = styles_root / "simple-style"
+    style_dir.mkdir(parents=True)
+    style_path = style_dir / "SimpleSpelling.yml"
+    style_path.write_text(
+        textwrap.dedent(
+            """
+            extends: spelling
+            message: "Spell-check project-specific words."
+            level: error
+            locale: en-US
+            """
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    vocab_dir = styles_root / "config" / "vocabularies" / "simple"
+    vocab_dir.mkdir(parents=True)
+    vocab_path = vocab_dir / "accept.txt"
+    vocab_path.write_text("foobarium\n", encoding="utf-8")
+    return style_path, vocab_path
+
+
+def _setup_vale_environment(
+    workspace: Path, base_url: str, archive_name: str, tmp_path: Path
+) -> dict[str, str]:
+    vale_ini = workspace / ".vale.ini"
+    vale_ini.write_text(
+        textwrap.dedent(
+            f"""
+            StylesPath = styles
+            Packages = {base_url}/{archive_name}
+            Vocab = simple
+
+            [*.md]
+            BasedOnStyles = simple-style
+            """
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    vale_home = tmp_path / ".vale-home"
+    env["VALE_HOME"] = str(vale_home)
+    env["VALE_CONFIG_PATH"] = str(vale_ini)
+    return env
+
+
+def _verify_synced_files(workspace: Path) -> None:
+    synced_style = workspace / "styles" / "simple-style" / "SimpleSpelling.yml"
+    assert synced_style.exists(), (
+        f"vale sync did not install the packaged style at {synced_style}"
+    )
+    synced_vocab = (
+        workspace / "styles" / "config" / "vocabularies" / "simple" / "accept.txt"
+    )
+    assert synced_vocab.exists(), (
+        f"vale sync did not unpack the vocabulary file at {synced_vocab}"
+    )
+
+
 @pytest.mark.slow
 def test_vale_lint_succeeds_after_installing_packaged_style(
     tmp_path: Path, http_server: tuple[str, Path]
@@ -129,24 +193,7 @@ def test_vale_lint_succeeds_after_installing_packaged_style(
     workspace.mkdir()
 
     styles_root = project_root / "styles"
-    style_dir = styles_root / "simple-style"
-    style_dir.mkdir(parents=True)
-    (style_dir / "SimpleSpelling.yml").write_text(
-        textwrap.dedent(
-            """
-            extends: spelling
-            message: "Spell-check project-specific words."
-            level: error
-            locale: en-US
-            """
-        ).strip()
-        + "\n",
-        encoding="utf-8",
-    )
-
-    vocab_dir = styles_root / "config" / "vocabularies" / "simple"
-    vocab_dir.mkdir(parents=True)
-    (vocab_dir / "accept.txt").write_text("foobarium\n", encoding="utf-8")
+    _create_test_style_and_vocab(styles_root)
 
     archive_path = package_styles(
         project_root=project_root,
@@ -160,29 +207,9 @@ def test_vale_lint_succeeds_after_installing_packaged_style(
     served_archive = serve_dir / archive_path.name
     shutil.copy2(archive_path, served_archive)
 
-    vale_ini = workspace / ".vale.ini"
-    vale_ini.write_text(
-        textwrap.dedent(
-            f"""
-            StylesPath = styles
-            Packages = {base_url}/{archive_path.name}
-            Vocab = simple
-
-            [*.md]
-            BasedOnStyles = simple-style
-            """
-        ).strip()
-        + "\n",
-        encoding="utf-8",
-    )
-
+    env = _setup_vale_environment(workspace, base_url, archive_path.name, tmp_path)
     sample_doc = workspace / "doc.md"
     sample_doc.write_text("Our codename is foobarium.\n", encoding="utf-8")
-
-    env = os.environ.copy()
-    vale_home = tmp_path / ".vale-home"
-    env["VALE_HOME"] = str(vale_home)
-    env["VALE_CONFIG_PATH"] = str(vale_ini)
 
     sync_result = _run_vale_sync(env, workspace)
     assert sync_result.returncode == 0, (
@@ -190,14 +217,7 @@ def test_vale_lint_succeeds_after_installing_packaged_style(
         f"STDOUT:\n{sync_result.stdout}\n\nSTDERR:\n{sync_result.stderr}"
     )
 
-    synced_style = workspace / "styles" / "simple-style" / "SimpleSpelling.yml"
-    assert synced_style.exists(), (
-        "vale sync did not install the packaged style at " f"{synced_style}"
-    )
-    synced_vocab = workspace / "styles" / "config" / "vocabularies" / "simple" / "accept.txt"
-    assert synced_vocab.exists(), (
-        "vale sync did not unpack the vocabulary file at " f"{synced_vocab}"
-    )
+    _verify_synced_files(workspace)
 
     lint_result = _run_vale_lint(sample_doc, env, workspace)
     assert lint_result.returncode == 0, (
