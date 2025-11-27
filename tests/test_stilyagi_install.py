@@ -20,6 +20,21 @@ class _ExpectedManifest:
     style: str
     vocab: str
     min_alert: str
+    post_sync_steps: tuple[str, ...] = ()
+
+
+DEFAULT_MANIFEST = stilyagi_install.InstallManifest(
+    style_name="concordat",
+    vocab_name="concordat",
+    min_alert_level="warning",
+)
+
+
+def _assert_default_manifest(manifest: stilyagi_install.InstallManifest) -> None:
+    assert manifest.style_name == "concordat"
+    assert manifest.vocab_name == "concordat"
+    assert manifest.min_alert_level == "warning"
+    assert manifest.post_sync_steps == ()
 
 
 def test_update_vale_ini_merges_existing_values(tmp_path: Path) -> None:
@@ -100,13 +115,13 @@ lint:
         encoding="utf-8",
     )
 
-    stilyagi._update_makefile(makefile)  # type: ignore[attr-defined]
+    stilyagi._update_makefile(  # type: ignore[attr-defined]
+        makefile, manifest=DEFAULT_MANIFEST
+    )
 
     contents = makefile.read_text(encoding="utf-8")
     assert ".PHONY: test vale" in contents, ".PHONY should include vale"
-    assert "vale: $(VALE) $(ACRONYM_SCRIPT) ## Check prose" in contents, (
-        "vale target should be rewritten"
-    )
+    assert "vale: $(VALE) ## Check prose" in contents, "vale target should be rewritten"
     assert "\t$(VALE) sync" in contents, "vale target should sync before linting"
     assert "\t$(VALE) --no-global ." in contents, "vale target should lint workspace"
     assert "lint:" in contents, "Other targets should remain intact"
@@ -115,16 +130,14 @@ lint:
 def test_update_makefile_creates_when_missing(tmp_path: Path) -> None:
     """Create Makefile with VALE variable, .PHONY, and target when absent."""
     makefile = tmp_path / "Makefile"
-    stilyagi._update_makefile(makefile)  # type: ignore[attr-defined]
+    stilyagi._update_makefile(makefile, manifest=DEFAULT_MANIFEST)  # type: ignore[attr-defined]
 
     contents = makefile.read_text(encoding="utf-8")
     assert "VALE ?= vale" in contents, "VALE variable should default to vale"
     assert any(line.lstrip().startswith(".PHONY") for line in contents.splitlines()), (
         ".PHONY line should be present"
     )
-    assert "vale: $(VALE) $(ACRONYM_SCRIPT) ## Check prose" in contents, (
-        "vale target should be added"
-    )
+    assert "vale: $(VALE) ## Check prose" in contents, "vale target should be added"
 
 
 def test_update_makefile_does_not_duplicate_phony(tmp_path: Path) -> None:
@@ -135,11 +148,11 @@ def test_update_makefile_does_not_duplicate_phony(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    stilyagi._update_makefile(makefile)  # type: ignore[attr-defined]
+    stilyagi._update_makefile(makefile, manifest=DEFAULT_MANIFEST)  # type: ignore[attr-defined]
 
     contents = makefile.read_text(encoding="utf-8")
     assert contents.count(".PHONY") == 1, ".PHONY should not be duplicated"
-    assert "vale: $(VALE) $(ACRONYM_SCRIPT) ## Check prose" in contents, (
+    assert "vale: $(VALE) ## Check prose" in contents, (
         "vale target should remain present"
     )
 
@@ -149,14 +162,49 @@ def test_update_makefile_adds_phony_when_absent(tmp_path: Path) -> None:
     makefile = tmp_path / "Makefile"
     makefile.write_text("lint:\n\t@echo lint\n", encoding="utf-8")
 
-    stilyagi._update_makefile(makefile)  # type: ignore[attr-defined]
+    stilyagi._update_makefile(makefile, manifest=DEFAULT_MANIFEST)  # type: ignore[attr-defined]
 
     contents = makefile.read_text(encoding="utf-8")
     assert any(line.lstrip().startswith(".PHONY") for line in contents.splitlines()), (
         ".PHONY should be inserted when absent"
     )
-    assert "vale: $(VALE) $(ACRONYM_SCRIPT) ## Check prose" in contents, (
+    assert "vale: $(VALE) ## Check prose" in contents, (
         "vale target should be added when missing"
+    )
+
+
+def test_update_makefile_includes_post_sync_steps(tmp_path: Path) -> None:
+    """Insert manifest-driven steps between sync and lint."""
+    makefile = tmp_path / "Makefile"
+    manifest = stilyagi_install.InstallManifest(
+        style_name="concordat",
+        vocab_name="concordat",
+        min_alert_level="warning",
+        post_sync_steps=(
+            "uv run stilyagi update-tengo-map --source one --dest two --type true",
+            "uv run stilyagi update-tengo-map --source three --dest four --type =",
+        ),
+    )
+
+    stilyagi._update_makefile(makefile, manifest=manifest)  # type: ignore[attr-defined]
+
+    contents = makefile.read_text(encoding="utf-8").splitlines()
+    assert (
+        "\tuv run stilyagi update-tengo-map --source one --dest two --type true"
+        in contents
+    ), "post sync steps should be added"
+    assert (
+        "\tuv run stilyagi update-tengo-map --source three --dest four --type ="
+        in contents
+    ), "multiple steps should be preserved"
+
+    sync_idx = contents.index("\t$(VALE) sync")
+    first_step_idx = contents.index(
+        "\tuv run stilyagi update-tengo-map --source one --dest two --type true"
+    )
+    lint_idx = contents.index("\t$(VALE) --no-global .")
+    assert sync_idx < first_step_idx < lint_idx, (
+        "steps should sit between sync and lint"
     )
 
 
@@ -206,9 +254,7 @@ def test_parse_install_manifest_defaults() -> None:
         default_style_name="concordat",
     )
 
-    assert manifest.style_name == "concordat"
-    assert manifest.vocab_name == "concordat"
-    assert manifest.min_alert_level == "warning"
+    _assert_default_manifest(manifest)
 
 
 @pytest.mark.parametrize(
@@ -268,6 +314,32 @@ def test_parse_install_manifest_defaults() -> None:
                 style="concordat", vocab="concordat", min_alert="warning"
             ),
         ),
+        (
+            "captures_post_sync_steps",
+            {
+                "install": {
+                    "post_sync_steps": [
+                        {
+                            "action": "update-tengo-map",
+                            "source": " a ",
+                            "dest": " b ",
+                            "type": "=n",
+                        }
+                    ]
+                }
+            },
+            _ExpectedManifest(
+                style="concordat",
+                vocab="concordat",
+                min_alert="warning",
+                post_sync_steps=(
+                    (
+                        "uv run stilyagi update-tengo-map --source ' a ' "
+                        "--dest ' b ' --type =n"
+                    ),
+                ),
+            ),
+        ),
     ],
 )
 def test_parse_install_manifest_overrides(
@@ -284,6 +356,7 @@ def test_parse_install_manifest_overrides(
     assert manifest.style_name == expected.style
     assert manifest.vocab_name == expected.vocab
     assert manifest.min_alert_level == expected.min_alert
+    assert manifest.post_sync_steps == expected.post_sync_steps
 
 
 def test_parse_install_manifest_non_mapping_raw_uses_defaults() -> None:
@@ -293,9 +366,7 @@ def test_parse_install_manifest_non_mapping_raw_uses_defaults() -> None:
         default_style_name="concordat",
     )
 
-    assert manifest.style_name == "concordat"
-    assert manifest.vocab_name == "concordat"
-    assert manifest.min_alert_level == "warning"
+    _assert_default_manifest(manifest)
 
 
 def test_parse_install_manifest_non_mapping_install_section_uses_defaults() -> None:
@@ -305,9 +376,79 @@ def test_parse_install_manifest_non_mapping_install_section_uses_defaults() -> N
         default_style_name="concordat",
     )
 
-    assert manifest.style_name == "concordat"
-    assert manifest.vocab_name == "concordat"
-    assert manifest.min_alert_level == "warning"
+    _assert_default_manifest(manifest)
+
+
+def test_parse_install_manifest_rejects_string_post_sync_step() -> None:
+    """String post_sync_steps are rejected as invalid."""
+    with pytest.raises(TypeError):
+        stilyagi_install._parse_install_manifest(  # type: ignore[attr-defined]
+            raw={"install": {"post_sync_steps": " echo me "}},
+            default_style_name="concordat",
+        )
+
+
+def test_parse_install_manifest_rejects_non_list_post_sync_steps() -> None:
+    """Non-list post_sync_steps raises a clear error."""
+    with pytest.raises(TypeError, match=r"list of tables"):
+        stilyagi_install._parse_install_manifest(  # type: ignore[attr-defined]
+            raw={"install": {"post_sync_steps": 123}},
+            default_style_name="concordat",
+        )
+
+
+def test_parse_install_manifest_rejects_non_string_list_entries() -> None:
+    """Lists must contain only tables."""
+    with pytest.raises(TypeError, match=r"list of tables"):
+        stilyagi_install._parse_install_manifest(  # type: ignore[attr-defined]
+            raw={"install": {"post_sync_steps": ["ok"]}},
+            default_style_name="concordat",
+        )
+
+
+def test_parse_install_manifest_allows_explicit_empty_list() -> None:
+    """Empty list normalises to an empty tuple."""
+    manifest = stilyagi_install._parse_install_manifest(  # type: ignore[attr-defined]
+        raw={"install": {"post_sync_steps": []}},
+        default_style_name="concordat",
+    )
+
+    assert manifest.post_sync_steps == ()
+
+
+def test_parse_install_manifest_rejects_unknown_action() -> None:
+    """Only update-tengo-map actions are supported."""
+    with pytest.raises(ValueError, match=r"update-tengo-map"):
+        stilyagi_install._parse_install_manifest(  # type: ignore[attr-defined]
+            raw={
+                "install": {
+                    "post_sync_steps": [
+                        {"action": "something-else", "source": "a", "dest": "b"}
+                    ]
+                }
+            },
+            default_style_name="concordat",
+        )
+
+
+def test_parse_install_manifest_rejects_invalid_value_type() -> None:
+    """Value type must be among the allowed Tengo update options."""
+    with pytest.raises(ValueError, match=r"one of"):
+        stilyagi_install._parse_install_manifest(  # type: ignore[attr-defined]
+            raw={
+                "install": {
+                    "post_sync_steps": [
+                        {
+                            "action": "update-tengo-map",
+                            "source": "a",
+                            "dest": "b",
+                            "type": "invalid",
+                        }
+                    ]
+                }
+            },
+            default_style_name="concordat",
+        )
 
 
 def test_perform_install_honours_manifest_settings(
@@ -328,6 +469,7 @@ def test_perform_install_honours_manifest_settings(
         style_name="custom-style",
         vocab_name="custom-vocab",
         min_alert_level="error",
+        post_sync_steps=("echo prepare custom",),
     )
 
     monkeypatch.setattr(
@@ -362,6 +504,10 @@ def test_perform_install_honours_manifest_settings(
     assert "Vocab = custom-vocab" in body, "Manifest should override vocab"
     assert "BasedOnStyles = custom-style" in body, (
         "Style name should come from manifest"
+    )
+    makefile_body = makefile_path.read_text(encoding="utf-8")
+    assert "\techo prepare custom" in makefile_body, (
+        "Manifest post-sync steps should be written to the Makefile"
     )
     assert "custom-style 2.0.0" in message, (
         "Message should reflect manifest style/version"

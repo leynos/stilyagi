@@ -460,7 +460,7 @@ def _values_equal(existing: object, new_value: object) -> bool:
     """Check semantic equality between existing and new values."""
     match (existing, new_value):
         case (int() | float(), int() | float()):
-            return float(existing) == float(new_value)
+            return float(existing) == float(new_value)  # type: ignore[arg-type]
         case _:
             return existing == new_value
 

@@ -200,6 +200,12 @@ def run_install_with_manifest(
 style_name = "concordat"
 vocab = "manifest-vocab"
 min_alert_level = "error"
+
+[[install.post_sync_steps]]
+action = "update-tengo-map"
+type = "true"
+source = ".config/common-acronyms"
+dest = ".vale/styles/config/scripts/AcronymsFirstUse.tengo"
 """
 
     archive_path = _build_manifest_archive(
@@ -248,6 +254,12 @@ min_alert_level = "error"
     scenario_state["expected_packages_url"] = packages_url
     scenario_state["expected_vocab"] = "manifest-vocab"
     scenario_state["expected_min_alert_level"] = "error"
+    scenario_state["expected_post_sync_steps"] = [
+        (
+            "uv run stilyagi update-tengo-map --source .config/common-acronyms "
+            "--dest .vale/styles/config/scripts/AcronymsFirstUse.tengo --type true"
+        )
+    ]
 
 
 @then("the external repository has a configured .vale.ini")
@@ -284,11 +296,36 @@ def verify_makefile(external_repo: Path) -> None:
     assert ".PHONY: test vale" in makefile or ".PHONY: vale test" in makefile, (
         ".PHONY line should include vale"
     )
-    assert "vale: $(VALE) $(ACRONYM_SCRIPT) ## Check prose" in makefile, (
-        "vale target should be present"
-    )
+    assert "vale: $(VALE) ## Check prose" in makefile, "vale target should be present"
     assert "\t$(VALE) sync" in makefile, "vale target should sync first"
     assert "\t$(VALE) --no-global ." in makefile, "vale target should lint workspace"
+
+
+@then("the Makefile exposes manifest-defined post-sync steps")
+def verify_post_sync_steps(
+    external_repo: Path, scenario_state: dict[str, object]
+) -> None:
+    """Ensure manifest-defined shell snippets are included in the vale target."""
+    raw_steps = scenario_state.get("expected_post_sync_steps")
+    assert raw_steps, "expected_post_sync_steps must be provided for this step"
+    assert isinstance(raw_steps, (list, tuple)), (
+        "expected_post_sync_steps should be a list or tuple"
+    )
+
+    expected_steps = [step for step in raw_steps if isinstance(step, str) and step]
+    assert expected_steps, "expected_post_sync_steps must contain string steps"
+
+    lines = (external_repo / "Makefile").read_text(encoding="utf-8").splitlines()
+    sync_idx = lines.index("\t$(VALE) sync")
+    lint_idx = lines.index("\t$(VALE) --no-global .")
+
+    for step in expected_steps:
+        line = f"\t{step}"
+        assert line in lines, "Manifest steps should be embedded in the target"
+        step_idx = lines.index(line)
+        assert sync_idx < step_idx < lint_idx, (
+            "Steps should run after sync and before lint"
+        )
 
 
 @then("the install command fails with a release error")

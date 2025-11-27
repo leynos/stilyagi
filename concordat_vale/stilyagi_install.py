@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import tomllib
 import typing as typ
 from urllib import error as urlerror
@@ -23,6 +24,7 @@ if typ.TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 FOOTNOTE_REGEX = r"(?m)^\[\^\d+\]:[^\n]*(?:\n[ \t]+[^\n]*)*"
+VALID_TENGO_VALUE_TYPES: tuple[str, ...] = ("true", "=", "=b", "=n")
 
 
 def _strip_version_prefix(tag: str) -> str:
@@ -151,6 +153,7 @@ class InstallManifest:
     style_name: str
     vocab_name: str
     min_alert_level: str
+    post_sync_steps: tuple[str, ...] = dc.field(default_factory=tuple)
 
 
 def _parse_install_manifest(
@@ -169,10 +172,24 @@ def _parse_install_manifest(
     vocab_name = _pick(install_section.get("vocab"), style_name)
     min_alert_level = _pick(install_section.get("min_alert_level"), "warning")
 
+    raw_steps = install_section.get("post_sync_steps")
+    steps: list[str] = []
+    if raw_steps is None:
+        pass
+    elif isinstance(raw_steps, list):
+        steps = _parse_post_sync_steps_list(raw_steps)
+    else:
+        msg = (
+            "install.post_sync_steps must be a list of tables; "
+            f"got {type(raw_steps).__name__}"
+        )
+        raise TypeError(msg)
+
     return InstallManifest(
         style_name=style_name,
         vocab_name=vocab_name,
         min_alert_level=min_alert_level,
+        post_sync_steps=tuple(steps),
     )
 
 
@@ -229,6 +246,104 @@ def _load_install_manifest(
     return _parse_install_manifest(
         raw=raw_manifest, default_style_name=default_style_name
     )
+
+
+def _validate_update_tengo_map_step(step: dict[str, object]) -> tuple[str, str, str]:
+    """Validate and extract fields for an update-tengo-map action.
+
+    Parameters
+    ----------
+    step
+        Table entry from ``install.post_sync_steps``.
+
+    Returns
+    -------
+    tuple[str, str, str]
+        The (source, dest, value_type) strings used when rendering commands.
+
+    Raises
+    ------
+    ValueError
+        If the action or value type is invalid.
+    TypeError
+        If any required field is not a string.
+    """
+    action = step.get("action")
+    if action != "update-tengo-map":
+        msg = (
+            "install.post_sync_steps action must be 'update-tengo-map' "
+            f"(got {action!r})"
+        )
+        raise ValueError(msg)
+
+    source = step.get("source")
+    dest = step.get("dest")
+    value_type = step.get("type", "true")
+
+    for key, value in {"source": source, "dest": dest, "type": value_type}.items():
+        if not isinstance(value, str):
+            msg = f"install.post_sync_steps.{key} must be a string"
+            raise TypeError(msg)
+
+    source_str = typ.cast("str", source)
+    dest_str = typ.cast("str", dest)
+    value_type_str = typ.cast("str", value_type)
+
+    if value_type_str not in VALID_TENGO_VALUE_TYPES:
+        msg = (
+            "install.post_sync_steps.type must be one of "
+            f"{', '.join(VALID_TENGO_VALUE_TYPES)}"
+        )
+        raise ValueError(msg)
+
+    return source_str, dest_str, value_type_str
+
+
+def _parse_post_sync_steps_list(raw_steps: list[object]) -> list[str]:
+    """Normalise trusted post-sync actions into Makefile-safe commands.
+
+    Parameters
+    ----------
+    raw_steps
+        Sequence of tables from ``install.post_sync_steps``.
+
+    Returns
+    -------
+    list[str]
+        Rendered commands for the supported actions.
+
+    Raises
+    ------
+    TypeError
+        If the list items or required fields are not strings.
+    ValueError
+        If an unsupported action or value type is supplied.
+    """
+    commands: list[str] = []
+    for step in raw_steps:
+        if not isinstance(step, dict):
+            msg = (
+                "install.post_sync_steps must be a list of tables; "
+                f"got {type(step).__name__} element"
+            )
+            raise TypeError(msg)
+
+        typed_step = typ.cast("dict[str, object]", step)
+        source_str, dest_str, value_type_str = _validate_update_tengo_map_step(
+            typed_step
+        )
+
+        command = " ".join(
+            [
+                "uv run stilyagi update-tengo-map",
+                f"--source {shlex.quote(source_str)}",
+                f"--dest {shlex.quote(dest_str)}",
+                f"--type {shlex.quote(value_type_str)}",
+            ]
+        )
+        commands.append(command)
+
+    return commands
 
 
 def _render_root_options(
@@ -416,21 +531,30 @@ def _append_with_spacing(lines: list[str], recipe: list[str]) -> list[str]:
     return [*lines, "", *recipe] if lines and lines[-1].strip() else lines + recipe
 
 
-def _replace_vale_target(lines: list[str]) -> list[str]:
-    """Swap any existing vale target with the canonical recipe."""
+def _build_vale_recipe(manifest: InstallManifest) -> list[str]:
+    """Construct the vale target recipe from the install manifest."""
     recipe = [
-        "vale: $(VALE) $(ACRONYM_SCRIPT) ## Check prose",
+        "vale: $(VALE) ## Check prose",
         "\t$(VALE) sync",
-        "\t$(VALE) --no-global .",
     ]
+
+    recipe.extend(f"\t{step}" for step in manifest.post_sync_steps)
+
+    recipe.append("\t$(VALE) --no-global .")
+    return recipe
+
+
+def _replace_vale_target(lines: list[str], *, manifest: InstallManifest) -> list[str]:
+    """Swap any existing vale target with the manifest-driven recipe."""
+    recipe = _build_vale_recipe(manifest)
     start_idx, end_idx = _find_target_bounds(lines, "vale:")
     if start_idx is None:
         return _append_with_spacing(lines, recipe)
     return lines[:start_idx] + recipe + lines[end_idx:]
 
 
-def _update_makefile(makefile_path: Path) -> None:
-    """Ensure the Makefile exposes a vale target that syncs Concordat."""
+def _update_makefile(makefile_path: Path, *, manifest: InstallManifest) -> None:
+    """Expose a vale target that syncs Concordat and runs manifest steps."""
     if makefile_path.exists():
         lines = makefile_path.read_text(encoding="utf-8").splitlines()
     else:
@@ -438,7 +562,7 @@ def _update_makefile(makefile_path: Path) -> None:
 
     lines = _ensure_variable(lines, "VALE", "VALE ?= vale")
     lines = _ensure_phony(lines, "vale")
-    lines = _replace_vale_target(lines)
+    lines = _replace_vale_target(lines, manifest=manifest)
 
     makefile_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
@@ -505,7 +629,7 @@ def _perform_install(
         packages_url=packages_url,
         manifest=manifest,
     )
-    _update_makefile(config.makefile_path)
+    _update_makefile(config.makefile_path, manifest=manifest)
 
     message = (
         f"Installed {manifest.style_name} {version_str} from "
