@@ -6,7 +6,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from concordat_vale.acronym_allowlist import (
+from stilyagi.acronym_allowlist import (
     AcronymAllowlistError,
     load_project_acronyms,
     update_allow_map,

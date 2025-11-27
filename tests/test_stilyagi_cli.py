@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -11,7 +10,6 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-STYLES_DIR = REPO_ROOT / "styles"
 
 
 def _invoke_cli(
@@ -26,7 +24,7 @@ def _invoke_cli(
     command = [
         sys.executable,
         "-m",
-        "concordat_vale.stilyagi",
+        "stilyagi.stilyagi",
         "zip",
         *args,
     ]
@@ -40,9 +38,15 @@ def _invoke_cli(
 
 @pytest.fixture
 def staged_project(tmp_path: Path) -> Path:
-    """Copy the repository styles directory into a temporary staging tree."""
+    """Create a minimal style tree in a temporary staging directory."""
     project_root = tmp_path / "staging"
-    shutil.copytree(STYLES_DIR, project_root / "styles")
+    rule = project_root / "styles" / "concordat" / "Rule.yml"
+    rule.parent.mkdir(parents=True, exist_ok=True)
+    rule.write_text("extends: existence\n", encoding="utf-8")
+
+    vocab = project_root / "styles" / "config" / "vocabularies" / "concordat"
+    vocab.mkdir(parents=True, exist_ok=True)
+    (vocab / "accept.txt").write_text("allowlist\n", encoding="utf-8")
     return project_root
 
 

@@ -7,7 +7,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from concordat_vale.stilyagi_packaging import (
+from stilyagi.stilyagi_packaging import (
     PackagingPaths,
     StyleConfig,
     package_styles,

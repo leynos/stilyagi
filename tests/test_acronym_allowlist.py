@@ -7,7 +7,7 @@ import typing as typ
 
 import pytest
 
-from concordat_vale import acronym_allowlist as al
+from stilyagi import acronym_allowlist as al
 
 if typ.TYPE_CHECKING:
     from pathlib import Path

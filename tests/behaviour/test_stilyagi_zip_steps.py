@@ -34,6 +34,32 @@ def _archive_member(archive_path: Path, relative: str) -> str:
     return f"{archive_path.stem}/{relative.lstrip('/')}"
 
 
+def _create_sample_style(root: Path, *, style_name: str = "concordat") -> None:
+    """Create a minimal style tree and vocabulary under *root*."""
+    style_dir = root / "styles" / style_name
+    style_dir.mkdir(parents=True, exist_ok=True)
+    (style_dir / "OxfordComma.yml").write_text("extends: existence\n", encoding="utf-8")
+
+    vocab_dir = root / "styles" / "config" / "vocabularies" / style_name
+    vocab_dir.mkdir(parents=True, exist_ok=True)
+    (vocab_dir / "accept.txt").write_text("allowlist\n", encoding="utf-8")
+
+
+def _write_manifest(project_root: Path, *, style_name: str = "concordat") -> None:
+    """Write a simple stilyagi manifest for packaging tests."""
+    manifest = project_root / "stilyagi.toml"
+    manifest.write_text(
+        f"""
+        [install]
+        style_name = "{style_name}"
+        vocab = "{style_name}"
+        min_alert_level = "warning"
+        """.strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 @pytest.fixture
 def repo_root() -> Path:
     """Return the repository root so the CLI can run via python -m."""
@@ -50,15 +76,14 @@ def scenario_state() -> ScenarioState:
 def staging_project(
     tmp_path: Path, repo_root: Path, scenario_state: ScenarioState
 ) -> Path:
-    """Copy the repository styles directory into a temporary staging area."""
+    """Create a temporary project with a minimal style and manifest."""
     staging = tmp_path / "staging"
     staging.mkdir()
-    shutil.copytree(repo_root / "styles", staging / "styles")
-    manifest = repo_root / "stilyagi.toml"
-    if manifest.exists():
-        shutil.copy(manifest, staging / "stilyagi.toml")
+    style_name = "concordat"
+    _create_sample_style(staging, style_name=style_name)
+    _write_manifest(staging, style_name=style_name)
     scenario_state["project_root"] = staging
-    scenario_state["expected_vocab"] = "concordat"
+    scenario_state["expected_vocab"] = style_name
     return staging
 
 
@@ -88,7 +113,7 @@ def run_stilyagi_zip(repo_root: Path, scenario_state: ScenarioState) -> None:
     command = [
         sys.executable,
         "-m",
-        "concordat_vale.stilyagi",
+        "stilyagi.stilyagi",
         "zip",
         "--project-root",
         str(project_root),
@@ -210,15 +235,18 @@ def test_stilyagi_zip_cli_errors(tmp_path: Path, repo_root: Path, case: str) -> 
     elif case == "overwrite":
         project_root = tmp_path / "staging"
         project_root.mkdir()
-        shutil.copytree(repo_root / "styles", project_root / "styles")
+        _create_sample_style(project_root)
         dist_dir = project_root / "dist"
         dist_dir.mkdir()
-        (dist_dir / "concordat-0.1.0.zip").write_bytes(b"placeholder")
+        expected_version = "9.9.9-test"
+        (dist_dir / f"concordat-{expected_version}.zip").write_bytes(b"placeholder")
         args = [
             "--project-root",
             str(project_root),
             "--output-dir",
             str(dist_dir),
+            "--archive-version",
+            expected_version,
         ]
         expected_error = "already exists"
     else:  # pragma: no cover - defensive fallback
@@ -227,7 +255,7 @@ def test_stilyagi_zip_cli_errors(tmp_path: Path, repo_root: Path, case: str) -> 
     command = [
         sys.executable,
         "-m",
-        "concordat_vale.stilyagi",
+        "stilyagi.stilyagi",
         "zip",
         *args,
     ]

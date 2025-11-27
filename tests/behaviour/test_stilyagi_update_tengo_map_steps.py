@@ -161,7 +161,7 @@ def _run_update_tengo_map(
     command = [
         sys.executable,
         "-m",
-        "concordat_vale.stilyagi",
+        "stilyagi.stilyagi",
         "update-tengo-map",
         "--project-root",
         str(project_root),

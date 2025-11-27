@@ -10,7 +10,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from concordat_vale import stilyagi, stilyagi_install
+from stilyagi import stilyagi, stilyagi_install
 
 
 @dc.dataclass

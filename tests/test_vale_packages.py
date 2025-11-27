@@ -14,14 +14,15 @@ from pathlib import Path
 
 import pytest
 
-from concordat_vale.stilyagi_packaging import (
+from stilyagi.stilyagi_packaging import (
     PackagingPaths,
     StyleConfig,
     package_styles,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 VALE_BIN = shutil.which("vale")
+SAMPLE_STYLE_NAME = "simple-style"
+SAMPLE_VOCAB_NAME = "simple"
 
 
 def _run_vale_command(
@@ -40,12 +41,17 @@ def _run_vale_command(
 
 
 def _verify_synced_files(workspace: Path) -> None:
-    synced_style = workspace / "styles" / "simple-style" / "SimpleSpelling.yml"
+    synced_style = workspace / "styles" / SAMPLE_STYLE_NAME / "SimpleSpelling.yml"
     assert synced_style.exists(), (
         f"vale sync did not install the packaged style at {synced_style}"
     )
     synced_vocab = (
-        workspace / "styles" / "config" / "vocabularies" / "simple" / "accept.txt"
+        workspace
+        / "styles"
+        / "config"
+        / "vocabularies"
+        / SAMPLE_VOCAB_NAME
+        / "accept.txt"
     )
     assert synced_vocab.exists(), (
         f"vale sync did not unpack the vocabulary file at {synced_vocab}"
@@ -94,15 +100,19 @@ def http_server(
 def test_vale_sync_accepts_packaged_archive(
     tmp_path: Path, http_server: tuple[str, Path]
 ) -> None:
-    """Package Concordat, host it over HTTP, and verify `vale sync` downloads it."""
+    """Package a sample style, host it, and verify `vale sync` downloads it."""
     if VALE_BIN is None:
         pytest.skip("vale CLI not installed")
 
     base_url, serve_dir = http_server
     version = "sync-test"
+    project_root = tmp_path / "package-src"
+    project_root.mkdir()
+    styles_root = project_root / "styles"
+    _create_test_style_and_vocab(styles_root)
     archive_path = package_styles(
         paths=PackagingPaths(
-            project_root=REPO_ROOT,
+            project_root=project_root,
             styles_path=Path("styles"),
             output_dir=tmp_path,
         ),
@@ -114,12 +124,13 @@ def test_vale_sync_accepts_packaged_archive(
     shutil.copy2(archive_path, served_archive)
 
     vale_ini = tmp_path / ".vale.ini"
+    style_name = SAMPLE_STYLE_NAME
     vale_ini.write_text(
         f"""StylesPath = styles
 Packages = {base_url}/{archive_path.name}
 
 [*.md]
-BasedOnStyles = concordat
+BasedOnStyles = {style_name}
 """,
         encoding="utf-8",
     )
@@ -136,7 +147,7 @@ BasedOnStyles = concordat
 
 
 def _create_test_style_and_vocab(styles_root: Path) -> tuple[Path, Path]:
-    style_dir = styles_root / "simple-style"
+    style_dir = styles_root / SAMPLE_STYLE_NAME
     style_dir.mkdir(parents=True)
     style_path = style_dir / "SimpleSpelling.yml"
     style_path.write_text(
@@ -152,7 +163,7 @@ def _create_test_style_and_vocab(styles_root: Path) -> tuple[Path, Path]:
         encoding="utf-8",
     )
 
-    vocab_dir = styles_root / "config" / "vocabularies" / "simple"
+    vocab_dir = styles_root / "config" / "vocabularies" / SAMPLE_VOCAB_NAME
     vocab_dir.mkdir(parents=True)
     vocab_path = vocab_dir / "accept.txt"
     vocab_path.write_text("foobarium\n", encoding="utf-8")
@@ -168,10 +179,10 @@ def _setup_vale_environment(
             f"""
             StylesPath = styles
             Packages = {base_url}/{archive_name}
-            Vocab = simple
+            Vocab = {SAMPLE_VOCAB_NAME}
 
             [*.md]
-            BasedOnStyles = simple-style
+            BasedOnStyles = {SAMPLE_STYLE_NAME}
             """
         ).strip()
         + "\n",

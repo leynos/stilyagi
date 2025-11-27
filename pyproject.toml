@@ -1,7 +1,7 @@
 [project]
-name = "concordat-vale"
+name = "stilyagi"
 version = "0.1.0"
-description = "Concordat Vale Rules"
+description = "CLI utilities for packaging and installing Vale styles"
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "ISC" }
@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
-stilyagi = "concordat_vale.stilyagi:main"
+stilyagi = "stilyagi.stilyagi:main"
 
 [dependency-groups]
 dev = [
@@ -21,7 +21,6 @@ dev = [
     "pytest-timeout",
     "pytest-bdd",
     "parse_type",
-    "valedate==0.1.0b1",
 ]
 
 [tool.ruff]

@@ -8,7 +8,7 @@ import typing as typ
 
 import pytest
 
-from concordat_vale.tengo_map import (
+from stilyagi.tengo_map import (
     MapValueType,
     TengoMapError,
     parse_source_entries,

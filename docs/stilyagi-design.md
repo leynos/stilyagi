@@ -2,20 +2,22 @@
 
 ## Purpose
 
-- Provide a reproducible zip builder for the Vale assets shipped in `styles/`.
-- Include a self-contained `.vale.ini` so consumers can `vale sync` the archive
-  without extra wiring.
+- Provide a reproducible zip builder for Vale style repositories that expose a
+  `styles/` tree, while keeping the CLI separate from the style content.
+- Include a self-contained `.vale.ini` so consumers can `vale sync` the
+  archive without extra wiring.
 - Follow the scripting standards by centring Cyclopts and environment-first
   configuration.
 
 ## CLI surface
 
 - `stilyagi` is exposed via `pyproject.toml` as an entry point that calls
-  `concordat_vale.stilyagi:main`.
+  `stilyagi.stilyagi:main`.
 - Cyclopts drives the CLI with an `STILYAGI_` environment prefix, so every flag
   can also be injected via CI inputs.
-- The `zip` sub-command is focused on packaging. Other automation should be
-  added as additional sub-commands rather than new binaries.
+- The `zip` sub-command is focused on packaging a supplied style checkout.
+  Other automation should be added as additional sub-commands rather than new
+  binaries.
 - The `install` sub-command wires a consumer repository for Concordat by
   fetching the latest GitHub release (unless `--release-version`/`--tag` is
   supplied), writing the required `Packages`, `MinAlertLevel`, `Vocab`, and
@@ -37,8 +39,8 @@
   directories under that path (excluding `config`) unless `--style` is
   specified.
 - `--style` is repeatable and allows packaging a subset of styles when more are
-  added later. When omitted, discovery keeps the tool zero-config for the
-  single `concordat` style that exists today.
+  added later. When omitted, discovery keeps the tool zero-config when a single
+  style directory exists.
 - `--output-dir` defaults to `dist` so artefacts do not clutter the repo root.
 - `--ini-styles-path` defaults to `styles` and sets both the `StylesPath`
   entry inside `.vale.ini` and the directory name used for archived files. This
@@ -65,9 +67,10 @@
 
 ## Archive layout & naming
 
-- The archive embeds the entire `styles/` tree (including `config/`) and a
-  generated `.vale.ini` at the root. This mirrors the workflow depicted in the
-  packaging guide and keeps auxiliary assets with their rules.
+- The archive embeds the entire `styles/` tree (including `config/`) from the
+  provided project and a generated `.vale.ini` at the root. This mirrors the
+  workflow depicted in the packaging guide and keeps auxiliary assets with
+  their rules.
 - Archives are written to `<output-dir>/<style-names-joined>-<version>.zip`. The
   joined style names keep the filename descriptive without requiring extra CLI
   flags.
@@ -77,7 +80,7 @@
 
 ## stilyagi.toml manifest
 
-- Lives at the repository root alongside `styles/` and is packaged when
+- Lives at the style repository root alongside `styles/` and is packaged when
   present. The manifest is intended to be a single source of truth for install
   defaults as the rule set evolves.
 - The `install` command downloads the packaged archive, extracts
@@ -108,8 +111,8 @@
   generation, vocabulary selection, rejection of missing directories, and both
   overwrite paths (`--force` and refusal without it).
 - Behavioural tests (`pytest-bdd`) exercise the CLI end-to-end by running
-  `python -m concordat_vale.stilyagi zip` against a staged copy of the real
-  `styles/` tree. Scenarios now cover successful packaging plus environment
-  overrides, asserting that the archive contains both the rules/config and that
-  the generated `.vale.ini` only exposes the core settings. Direct subprocess
-  tests validate error reporting and exit codes.
+  `python -m stilyagi.stilyagi zip` against a staged style checkout. The
+  scenarios cover successful packaging plus environment overrides, asserting
+  that the archive contains both the rules/config and that the generated
+  `.vale.ini` only exposes the core settings. Direct subprocess tests validate
+  error reporting and exit codes.
