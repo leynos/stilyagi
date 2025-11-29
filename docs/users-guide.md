@@ -15,6 +15,7 @@ Default workflow:
    uv run stilyagi zip --project-root ../concordat-style \
      --archive-version 1.2.3
    ```
+
 3. Retrieve the ZIP from the printed path (defaults to
    `dist/<style>-<version>.zip`) and attach it to the style repository's
    release.
@@ -51,8 +52,8 @@ Manifest handling:
   defaults such as `style_name`, `vocab`, `min_alert_level`, and
   `post_sync_steps`.
 - When the manifest is missing or download is skipped, the installer falls back
-  to `style_name = concordat`, `vocab = concordat`, `min_alert_level =
-  warning`, and no post-sync steps.
+  to `style_name = concordat`, `vocab = concordat`,
+  `min_alert_level = warning`, and no post-sync steps.
 
 Example:
 
