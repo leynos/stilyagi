@@ -534,13 +534,13 @@ def _append_with_spacing(lines: list[str], recipe: list[str]) -> list[str]:
 def _build_vale_recipe(manifest: InstallManifest) -> list[str]:
     """Construct the vale target recipe from the install manifest."""
     recipe = [
-        "vale: $(VALE) ## Check prose",
+        "vale: ## Check prose",
         "\t$(VALE) sync",
     ]
 
     recipe.extend(f"\t{step}" for step in manifest.post_sync_steps)
 
-    recipe.append("\t$(VALE) --no-global .")
+    recipe.append("\t$(VALE) --no-global --output line .")
     return recipe
 
 
