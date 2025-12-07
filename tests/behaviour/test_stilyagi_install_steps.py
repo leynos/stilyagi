@@ -14,6 +14,8 @@ from zipfile import ZipFile
 import pytest
 from pytest_bdd import given, scenarios, then, when
 
+from stilyagi import stilyagi_install
+
 FEATURE_PATH = (
     Path(__file__).resolve().parents[2] / "features" / "stilyagi_install.feature"
 )
@@ -108,7 +110,7 @@ def _run_install_with_mocked_release(
     owner, repo_name, style_name = stilyagi_module._parse_repo_reference(  # type: ignore[attr-defined]
         "leynos/concordat-vale"
     )
-    _, ini_path, makefile_path = install_module._resolve_install_paths(  # type: ignore[attr-defined]
+    resolved_root, ini_path, makefile_path = install_module._resolve_install_paths(  # type: ignore[attr-defined]
         cwd=paths.repo_root,
         project_root=paths.external_repo,
         vale_ini=Path(".vale.ini"),
@@ -118,6 +120,7 @@ def _run_install_with_mocked_release(
         owner=owner,
         repo_name=repo_name,
         style_name=style_name,
+        project_root=resolved_root,
         ini_path=ini_path,
         makefile_path=makefile_path,
     )
@@ -235,7 +238,7 @@ dest = ".vale/styles/config/scripts/AcronymsFirstUse.tengo"
     owner, repo_name, style_name = install_module._parse_repo_reference(  # type: ignore[attr-defined]
         "leynos/concordat-vale"
     )
-    _, ini_path, makefile_path = install_module._resolve_install_paths(  # type: ignore[attr-defined]
+    resolved_root, ini_path, makefile_path = install_module._resolve_install_paths(  # type: ignore[attr-defined]
         cwd=test_paths.repo_root,
         project_root=test_paths.external_repo,
         vale_ini=Path(".vale.ini"),
@@ -245,6 +248,7 @@ dest = ".vale/styles/config/scripts/AcronymsFirstUse.tengo"
         owner=owner,
         repo_name=repo_name,
         style_name=style_name,
+        project_root=resolved_root,
         ini_path=ini_path,
         makefile_path=makefile_path,
     )
@@ -302,6 +306,29 @@ def verify_makefile(external_repo: Path) -> None:
     assert "\t$(VALE) --no-global --output line ." in makefile, (
         "vale target should lint workspace"
     )
+
+
+@then("the style path is added to .gitignore")
+def verify_gitignore(external_repo: Path) -> None:
+    """Ensure the synced style directory is ignored by git."""
+
+    gitignore_path = external_repo / ".gitignore"
+    assert gitignore_path.exists(), ".gitignore should be created"
+
+    root_options, _sections = stilyagi_install._parse_ini(external_repo / ".vale.ini")  # type: ignore[attr-defined]
+    styles_path = root_options.get("StylesPath", "styles")
+    expected_entry = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
+        styles_path=styles_path,
+        ini_path=external_repo / ".vale.ini",
+        project_root=external_repo,
+    )
+
+    entries = {
+        line.rstrip("/")
+        for line in gitignore_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+    assert expected_entry.rstrip("/") in entries, "StylesPath should be ignored"
 
 
 @then("the Makefile exposes manifest-defined post-sync steps")

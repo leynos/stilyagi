@@ -491,6 +491,7 @@ def test_perform_install_honours_manifest_settings(
         owner="example",
         repo_name="custom-style",
         style_name="default-style",
+        project_root=project_root,
         ini_path=ini_path,
         makefile_path=makefile_path,
     )
@@ -510,6 +511,8 @@ def test_perform_install_honours_manifest_settings(
     assert "custom-style 2.0.0" in message, (
         "Message should reflect manifest style/version"
     )
+    gitignore_body = (project_root / ".gitignore").read_text(encoding="utf-8")
+    assert "styles/" in gitignore_body, ".gitignore should include StylesPath"
 
 
 def test_load_install_manifest_skips_download_when_env_set(

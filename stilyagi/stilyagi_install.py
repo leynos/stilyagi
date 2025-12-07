@@ -11,14 +11,12 @@ import re
 import shlex
 import tomllib
 import typing as typ
+from pathlib import Path
 from urllib import error as urlerror
 from urllib import request as urlrequest
 from zipfile import ZipFile
 
 from .stilyagi_packaging import _resolve_project_path
-
-if typ.TYPE_CHECKING:
-    from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -567,6 +565,49 @@ def _update_makefile(makefile_path: Path, *, manifest: InstallManifest) -> None:
     makefile_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def _normalise_styles_path(
+    *, styles_path: str, ini_path: Path, project_root: Path
+) -> str:
+    """Return a canonical gitignore entry for *styles_path*.
+
+    Paths are normalised relative to the project root when possible and
+    suffixed with ``/`` so the ignore rule targets the directory rather than
+    individual files.
+    """
+
+    path = Path(styles_path)
+    if not path.is_absolute():
+        path = (ini_path.parent / path).resolve()
+
+    try:
+        entry = path.relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        entry = path.as_posix()
+
+    return f"{entry.rstrip('/')}/"
+
+
+def _ensure_gitignore_entry(*, gitignore_path: Path, entry: str) -> None:
+    """Append *entry* to .gitignore if a compatible rule is absent."""
+
+    if gitignore_path.exists():
+        lines = gitignore_path.read_text(encoding="utf-8").splitlines()
+    else:
+        lines = []
+
+    normalized_existing = {
+        line.rstrip("/")
+        for line in lines
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+    if entry.rstrip("/") in normalized_existing:
+        return
+
+    lines.append(entry)
+    gitignore_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
 def _parse_repo_reference(repo: str) -> tuple[str, str, str]:
     """Parse and validate a GitHub repository reference."""
     if repo.count("/") != 1:
@@ -601,6 +642,7 @@ class InstallConfig:
     owner: str
     repo_name: str
     style_name: str
+    project_root: Path
     ini_path: Path
     makefile_path: Path
     override_version: str | None = None
@@ -630,6 +672,18 @@ def _perform_install(
         manifest=manifest,
     )
     _update_makefile(config.makefile_path, manifest=manifest)
+
+    root_options, _sections = _parse_ini(config.ini_path)
+    styles_path = root_options.get("StylesPath", "styles")
+    gitignore_entry = _normalise_styles_path(
+        styles_path=styles_path,
+        ini_path=config.ini_path,
+        project_root=config.project_root,
+    )
+    _ensure_gitignore_entry(
+        gitignore_path=config.project_root / ".gitignore",
+        entry=gitignore_entry,
+    )
 
     message = (
         f"Installed {manifest.style_name} {version_str} from "
