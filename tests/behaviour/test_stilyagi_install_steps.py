@@ -297,9 +297,11 @@ def verify_makefile(external_repo: Path) -> None:
     assert ".PHONY: test vale" in makefile or ".PHONY: vale test" in makefile, (
         ".PHONY line should include vale"
     )
-    assert "vale: $(VALE) ## Check prose" in makefile, "vale target should be present"
+    assert "vale: ## Check prose" in makefile, "vale target should be present"
     assert "\t$(VALE) sync" in makefile, "vale target should sync first"
-    assert "\t$(VALE) --no-global ." in makefile, "vale target should lint workspace"
+    assert "\t$(VALE) --no-global --output line ." in makefile, (
+        "vale target should lint workspace"
+    )
 
 
 @then("the Makefile exposes manifest-defined post-sync steps")
@@ -319,7 +321,7 @@ def verify_post_sync_steps(
 
     lines = (external_repo / "Makefile").read_text(encoding="utf-8").splitlines()
     sync_idx = lines.index("\t$(VALE) sync")
-    lint_idx = lines.index("\t$(VALE) --no-global .")
+    lint_idx = lines.index("\t$(VALE) --no-global --output line .")
 
     for step in expected_steps:
         line = f"\t{step}"

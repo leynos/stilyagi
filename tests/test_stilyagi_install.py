@@ -121,9 +121,11 @@ lint:
 
     contents = makefile.read_text(encoding="utf-8")
     assert ".PHONY: test vale" in contents, ".PHONY should include vale"
-    assert "vale: $(VALE) ## Check prose" in contents, "vale target should be rewritten"
+    assert "vale: ## Check prose" in contents, "vale target should be rewritten"
     assert "\t$(VALE) sync" in contents, "vale target should sync before linting"
-    assert "\t$(VALE) --no-global ." in contents, "vale target should lint workspace"
+    assert "\t$(VALE) --no-global --output line ." in contents, (
+        "vale target should lint workspace"
+    )
     assert "lint:" in contents, "Other targets should remain intact"
 
 
@@ -137,7 +139,7 @@ def test_update_makefile_creates_when_missing(tmp_path: Path) -> None:
     assert any(line.lstrip().startswith(".PHONY") for line in contents.splitlines()), (
         ".PHONY line should be present"
     )
-    assert "vale: $(VALE) ## Check prose" in contents, "vale target should be added"
+    assert "vale: ## Check prose" in contents, "vale target should be added"
 
 
 def test_update_makefile_does_not_duplicate_phony(tmp_path: Path) -> None:
@@ -152,9 +154,7 @@ def test_update_makefile_does_not_duplicate_phony(tmp_path: Path) -> None:
 
     contents = makefile.read_text(encoding="utf-8")
     assert contents.count(".PHONY") == 1, ".PHONY should not be duplicated"
-    assert "vale: $(VALE) ## Check prose" in contents, (
-        "vale target should remain present"
-    )
+    assert "vale: ## Check prose" in contents, "vale target should remain present"
 
 
 def test_update_makefile_adds_phony_when_absent(tmp_path: Path) -> None:
@@ -168,9 +168,7 @@ def test_update_makefile_adds_phony_when_absent(tmp_path: Path) -> None:
     assert any(line.lstrip().startswith(".PHONY") for line in contents.splitlines()), (
         ".PHONY should be inserted when absent"
     )
-    assert "vale: $(VALE) ## Check prose" in contents, (
-        "vale target should be added when missing"
-    )
+    assert "vale: ## Check prose" in contents, "vale target should be added when missing"
 
 
 def test_update_makefile_includes_post_sync_steps(tmp_path: Path) -> None:
@@ -202,7 +200,7 @@ def test_update_makefile_includes_post_sync_steps(tmp_path: Path) -> None:
     first_step_idx = contents.index(
         "\tuv run stilyagi update-tengo-map --source one --dest two --type true"
     )
-    lint_idx = contents.index("\t$(VALE) --no-global .")
+    lint_idx = contents.index("\t$(VALE) --no-global --output line .")
     assert sync_idx < first_step_idx < lint_idx, (
         "steps should sit between sync and lint"
     )
