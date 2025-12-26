@@ -727,95 +727,94 @@ class TestNormaliseStylesPath:
 class TestEnsureGitignoreEntry:
     """Unit tests for _ensure_gitignore_entry."""
 
-    def test_creates_gitignore_when_missing(self, tmp_path: Path) -> None:
-        """Create .gitignore with entry when file does not exist."""
+    @pytest.mark.parametrize(
+        ("test_id", "initial_content", "entry", "expected_checks"),
+        [
+            (
+                "creates_gitignore_when_missing",
+                None,
+                "styles/",
+                {"file_exists": True, "exact_content": "styles/\n"},
+            ),
+            (
+                "appends_entry_when_absent",
+                "node_modules/\n",
+                "styles/",
+                {"contains": ["node_modules/", "styles/"]},
+            ),
+            (
+                "does_not_duplicate_existing_entry",
+                "styles/\n",
+                "styles/",
+                {"count": {"styles/": 1}},
+            ),
+            (
+                "recognises_entry_without_trailing_slash",
+                "styles\n",
+                "styles/",
+                {"count": {"styles": 1}},
+            ),
+            (
+                "ignores_commented_lines",
+                "# styles/\n",
+                "styles/",
+                {"contains": ["# styles/"], "exact_line_count": {"styles/": 1}},
+            ),
+            (
+                "ignores_blank_lines",
+                "\n\n\n",
+                "styles/",
+                {"contains": ["styles/"]},
+            ),
+            (
+                "handles_trailing_whitespace_on_entry",
+                "styles/   \n",
+                "styles/",
+                {"count": {"styles": 1}},
+            ),
+        ],
+    )
+    def test_gitignore_entry_handling(
+        self,
+        tmp_path: Path,
+        test_id: str,
+        initial_content: str | None,
+        entry: str,
+        expected_checks: dict[str, object],
+    ) -> None:
+        """Verify .gitignore entry handling for various scenarios."""
         gitignore_path = tmp_path / ".gitignore"
+
+        if initial_content is not None:
+            gitignore_path.write_text(initial_content, encoding="utf-8")
 
         stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
             gitignore_path=gitignore_path,
-            entry="styles/",
+            entry=entry,
         )
 
-        assert gitignore_path.exists()
-        assert gitignore_path.read_text(encoding="utf-8") == "styles/\n"
-
-    def test_appends_entry_when_absent(self, tmp_path: Path) -> None:
-        """Append entry to existing .gitignore."""
-        gitignore_path = tmp_path / ".gitignore"
-        gitignore_path.write_text("node_modules/\n", encoding="utf-8")
-
-        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
-            gitignore_path=gitignore_path,
-            entry="styles/",
-        )
+        if expected_checks.get("file_exists"):
+            assert gitignore_path.exists(), f"{test_id}: file should exist"
 
         content = gitignore_path.read_text(encoding="utf-8")
-        assert "node_modules/" in content
-        assert "styles/" in content
 
-    def test_does_not_duplicate_existing_entry(self, tmp_path: Path) -> None:
-        """Skip adding entry that already exists."""
-        gitignore_path = tmp_path / ".gitignore"
-        gitignore_path.write_text("styles/\n", encoding="utf-8")
+        if "exact_content" in expected_checks:
+            assert content == expected_checks["exact_content"], (
+                f"{test_id}: content mismatch"
+            )
 
-        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
-            gitignore_path=gitignore_path,
-            entry="styles/",
-        )
+        for substring in expected_checks.get("contains", []):
+            assert substring in content, f"{test_id}: should contain {substring!r}"
 
-        content = gitignore_path.read_text(encoding="utf-8")
-        assert content.count("styles/") == 1
+        for substring, expected_count in expected_checks.get("count", {}).items():
+            assert content.count(substring) == expected_count, (
+                f"{test_id}: {substring!r} count mismatch"
+            )
 
-    def test_recognises_entry_without_trailing_slash(self, tmp_path: Path) -> None:
-        """Entry without trailing slash is treated as duplicate."""
-        gitignore_path = tmp_path / ".gitignore"
-        gitignore_path.write_text("styles\n", encoding="utf-8")
-
-        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
-            gitignore_path=gitignore_path,
-            entry="styles/",
-        )
-
-        content = gitignore_path.read_text(encoding="utf-8")
-        assert content.count("styles") == 1
-
-    def test_ignores_commented_lines(self, tmp_path: Path) -> None:
-        """Commented lines are not treated as existing entries."""
-        gitignore_path = tmp_path / ".gitignore"
-        gitignore_path.write_text("# styles/\n", encoding="utf-8")
-
-        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
-            gitignore_path=gitignore_path,
-            entry="styles/",
-        )
-
-        content = gitignore_path.read_text(encoding="utf-8")
-        assert "# styles/" in content
-        lines = [ln for ln in content.splitlines() if ln.strip() == "styles/"]
-        assert len(lines) == 1
-
-    def test_ignores_blank_lines(self, tmp_path: Path) -> None:
-        """Blank lines do not affect duplicate detection."""
-        gitignore_path = tmp_path / ".gitignore"
-        gitignore_path.write_text("\n\n\n", encoding="utf-8")
-
-        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
-            gitignore_path=gitignore_path,
-            entry="styles/",
-        )
-
-        content = gitignore_path.read_text(encoding="utf-8")
-        assert "styles/" in content
-
-    def test_handles_trailing_whitespace_on_entry(self, tmp_path: Path) -> None:
-        """Entries with trailing whitespace are treated as duplicates."""
-        gitignore_path = tmp_path / ".gitignore"
-        gitignore_path.write_text("styles/   \n", encoding="utf-8")
-
-        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
-            gitignore_path=gitignore_path,
-            entry="styles/",
-        )
-
-        content = gitignore_path.read_text(encoding="utf-8")
-        assert content.count("styles") == 1
+        for pattern, expected_count in expected_checks.get(
+            "exact_line_count", {}
+        ).items():
+            lines = [ln for ln in content.splitlines() if ln.strip() == pattern]
+            assert len(lines) == expected_count, (
+                f"{test_id}: exact line count for {pattern!r} mismatch"
+            )

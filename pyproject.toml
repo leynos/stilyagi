@@ -30,6 +30,7 @@ dev = [
 [tool.ruff]
 line-length = 88
 target-version = "py313"
+preview = true
 
 [tool.ruff.lint]
 select = [
@@ -67,9 +68,30 @@ select = [
     "ANN",
     "C90",
     "PLR",
+    "PLE4703",
+    "PLR0202",
+    "PLR0203",
+    "PLR0914",
+    "PLR0916",
+    "PLR1702",
+    "PLR6104",
+    "PLR6201",
+    "PLR6301",
+    "PLW0108",
+    "RUF036",
+    "RUF053",
+    "RUF055",
+    "RUF064",
+    "RUF066",
 ]
-per-file-ignores = {"**/test_*.py" = ["S101", "PLR2004"]}
-ignore = ["D203", "D213"]
+extend-ignore = [
+    "D203",  # Conflicts with D211; prefer enforcing no blank line before class docstring.
+    "D213",  # Conflicts with D212; keep summary on the first line.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/test_*.py" = ["S101", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
+"tests/steps/*.py" = ["S101", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
 
 [tool.ruff.lint.flake8-import-conventions]
 # Declare the banned `from` imports.
@@ -102,10 +124,12 @@ typing = "typ"
 convention = "numpy"
 
 [tool.ruff.lint.mccabe]
-max-complexity = 9
+max-complexity = 8
 
 [tool.ruff.lint.pylint]
 max-args = 4
+max-bool-expr = 2
+max-locals = 10
 
 [tool.pytest.ini_options]
 # Tests automatically killed after seconds elapsed
