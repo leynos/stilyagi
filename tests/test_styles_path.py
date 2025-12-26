@@ -4,99 +4,70 @@ from __future__ import annotations
 
 import typing as typ
 
+import pytest
+
 from stilyagi import stilyagi_install
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     from pathlib import Path
 
 
 class TestNormaliseStylesPath:
     """Unit tests for _normalise_styles_path."""
 
-    def test_relative_path_within_project(self, tmp_path: Path) -> None:
-        """Relative path inside project root normalises to repo-relative entry."""
+    @pytest.mark.parametrize(
+        ("styles_path_input", "expected_result", "extra_setup"),
+        [
+            ("styles", "styles/", None),
+            (".vale/styles", ".vale/styles/", None),
+            (
+                lambda tmp_path, project_root: str(project_root / "custom-styles"),
+                "custom-styles/",
+                lambda tmp_path, project_root: (project_root / "custom-styles").mkdir(),
+            ),
+            (
+                lambda tmp_path, project_root: str(tmp_path / "external-styles"),
+                None,
+                lambda tmp_path, project_root: (tmp_path / "external-styles").mkdir(),
+            ),
+            ("../sibling/styles", None, None),
+            ("styles/", "styles/", None),
+        ],
+        ids=[
+            "relative_path_within_project",
+            "nested_relative_path",
+            "absolute_path_within_project",
+            "path_outside_project_returns_none",
+            "relative_path_escaping_project_returns_none",
+            "trailing_slash_normalised",
+        ],
+    )
+    def test_styles_path_normalisation(
+        self,
+        tmp_path: Path,
+        styles_path_input: str | cabc.Callable[[Path, Path], str],
+        expected_result: str | None,
+        extra_setup: cabc.Callable[[Path, Path], None] | None,
+    ) -> None:
+        """Verify styles path normalisation for various scenarios."""
         project_root = tmp_path / "project"
         project_root.mkdir()
         ini_path = project_root / ".vale.ini"
 
+        if extra_setup is not None:
+            extra_setup(tmp_path, project_root)
+
+        styles_path = (
+            styles_path_input(tmp_path, project_root)
+            if callable(styles_path_input)
+            else styles_path_input
+        )
+
         result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
-            styles_path="styles",
+            styles_path=styles_path,
             ini_path=ini_path,
             project_root=project_root,
         )
 
-        assert result == "styles/"
-
-    def test_nested_relative_path(self, tmp_path: Path) -> None:
-        """Nested relative path is normalised correctly."""
-        project_root = tmp_path / "project"
-        project_root.mkdir()
-        ini_path = project_root / ".vale.ini"
-
-        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
-            styles_path=".vale/styles",
-            ini_path=ini_path,
-            project_root=project_root,
-        )
-
-        assert result == ".vale/styles/"
-
-    def test_absolute_path_within_project(self, tmp_path: Path) -> None:
-        """Absolute path inside project root normalises to repo-relative entry."""
-        project_root = tmp_path / "project"
-        project_root.mkdir()
-        ini_path = project_root / ".vale.ini"
-        styles_dir = project_root / "custom-styles"
-        styles_dir.mkdir()
-
-        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
-            styles_path=str(styles_dir),
-            ini_path=ini_path,
-            project_root=project_root,
-        )
-
-        assert result == "custom-styles/"
-
-    def test_path_outside_project_returns_none(self, tmp_path: Path) -> None:
-        """Path outside project root returns None to skip gitignore update."""
-        project_root = tmp_path / "project"
-        project_root.mkdir()
-        external_styles = tmp_path / "external-styles"
-        external_styles.mkdir()
-        ini_path = project_root / ".vale.ini"
-
-        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
-            styles_path=str(external_styles),
-            ini_path=ini_path,
-            project_root=project_root,
-        )
-
-        assert result is None
-
-    def test_relative_path_escaping_project_returns_none(self, tmp_path: Path) -> None:
-        """Relative path that escapes project root returns None."""
-        project_root = tmp_path / "project"
-        project_root.mkdir()
-        ini_path = project_root / ".vale.ini"
-
-        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
-            styles_path="../sibling/styles",
-            ini_path=ini_path,
-            project_root=project_root,
-        )
-
-        assert result is None
-
-    def test_trailing_slash_normalised(self, tmp_path: Path) -> None:
-        """Trailing slash in input is normalised to single slash."""
-        project_root = tmp_path / "project"
-        project_root.mkdir()
-        ini_path = project_root / ".vale.ini"
-
-        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
-            styles_path="styles/",
-            ini_path=ini_path,
-            project_root=project_root,
-        )
-
-        assert result == "styles/"
+        assert result == expected_result
