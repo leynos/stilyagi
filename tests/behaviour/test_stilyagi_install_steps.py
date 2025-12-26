@@ -311,7 +311,6 @@ def verify_makefile(external_repo: Path) -> None:
 @then("the style path is added to .gitignore")
 def verify_gitignore(external_repo: Path) -> None:
     """Ensure the synced style directory is ignored by git."""
-
     gitignore_path = external_repo / ".gitignore"
     assert gitignore_path.exists(), ".gitignore should be created"
 
