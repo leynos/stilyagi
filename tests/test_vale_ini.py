@@ -71,3 +71,28 @@ def test_update_vale_ini_creates_file_and_orders_sections(tmp_path: Path) -> Non
         body.index("[README.md]"),
     ]
     assert section_positions == sorted(section_positions), "Sections should be ordered"
+
+
+def test_update_vale_ini_strips_inline_comments_from_styles_path(
+    tmp_path: Path,
+) -> None:
+    """Inline comments after StylesPath should be stripped."""
+    ini_path = tmp_path / ".vale.ini"
+    ini_path.write_text(
+        "StylesPath = custom-styles  # project specific\n",
+        encoding="utf-8",
+    )
+
+    stilyagi._update_vale_ini(  # type: ignore[attr-defined]
+        ini_path=ini_path,
+        packages_url="https://example.test/v1.0.0/concordat-1.0.0.zip",
+        manifest=stilyagi_install.InstallManifest(
+            style_name="concordat",
+            vocab_name="concordat",
+            min_alert_level="warning",
+        ),
+    )
+
+    body = ini_path.read_text(encoding="utf-8")
+    assert "StylesPath = custom-styles" in body, "StylesPath value should be preserved"
+    assert "# project specific" not in body, "Inline comment should be stripped"

@@ -55,6 +55,14 @@ Manifest handling:
   to `style_name = concordat`, `vocab = concordat`,
   `min_alert_level = warning`, and no post-sync steps.
 
+Side effects:
+
+- The install command appends the `StylesPath` directory (e.g. `styles/`) to
+  `.gitignore` when the path is relative to the project root. This prevents
+  checked-in style archives from bloating the repository after `vale sync`
+  unpacks them. Paths outside the project (absolute paths pointing elsewhere or
+  relative paths that escape via `..`) are not added.
+
 Example:
 
 ```bash
