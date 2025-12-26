@@ -567,36 +567,39 @@ def _update_makefile(makefile_path: Path, *, manifest: InstallManifest) -> None:
 
 def _normalise_styles_path(
     *, styles_path: str, ini_path: Path, project_root: Path
-) -> str:
+) -> str | None:
     """Return a canonical gitignore entry for *styles_path*.
 
-    Paths are normalised relative to the project root when possible and
-    suffixed with ``/`` so the ignore rule targets the directory rather than
-    individual files.
+    Paths are normalised relative to the project root and suffixed with ``/``
+    so the ignore rule targets the directory rather than individual files.
+
+    Returns ``None`` when *styles_path* resolves outside *project_root*. Git
+    treats ``.gitignore`` entries as repo-relative patterns, so absolute paths
+    would not match anything and should be skipped.
     """
+    resolved_root = project_root.resolve()
 
     path = Path(styles_path)
     if not path.is_absolute():
         path = (ini_path.parent / path).resolve()
 
     try:
-        entry = path.relative_to(project_root.resolve()).as_posix()
+        entry = path.relative_to(resolved_root).as_posix()
     except ValueError:
-        entry = path.as_posix()
+        return None
 
     return f"{entry.rstrip('/')}/"
 
 
 def _ensure_gitignore_entry(*, gitignore_path: Path, entry: str) -> None:
     """Append *entry* to .gitignore if a compatible rule is absent."""
-
     if gitignore_path.exists():
         lines = gitignore_path.read_text(encoding="utf-8").splitlines()
     else:
         lines = []
 
     normalized_existing = {
-        line.rstrip("/")
+        line.rstrip().rstrip("/")
         for line in lines
         if line.strip() and not line.lstrip().startswith("#")
     }
@@ -680,10 +683,11 @@ def _perform_install(
         ini_path=config.ini_path,
         project_root=config.project_root,
     )
-    _ensure_gitignore_entry(
-        gitignore_path=config.project_root / ".gitignore",
-        entry=gitignore_entry,
-    )
+    if gitignore_entry is not None:
+        _ensure_gitignore_entry(
+            gitignore_path=config.project_root / ".gitignore",
+            entry=gitignore_entry,
+        )
 
     message = (
         f"Installed {manifest.style_name} {version_str} from "
