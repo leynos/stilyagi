@@ -168,7 +168,9 @@ def test_update_makefile_adds_phony_when_absent(tmp_path: Path) -> None:
     assert any(line.lstrip().startswith(".PHONY") for line in contents.splitlines()), (
         ".PHONY should be inserted when absent"
     )
-    assert "vale: ## Check prose" in contents, "vale target should be added when missing"
+    assert "vale: ## Check prose" in contents, (
+        "vale target should be added when missing"
+    )
 
 
 def test_update_makefile_includes_post_sync_steps(tmp_path: Path) -> None:
