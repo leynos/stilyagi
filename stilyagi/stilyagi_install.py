@@ -11,15 +11,12 @@ import re
 import shlex
 import tomllib
 import typing as typ
+from pathlib import Path
 from urllib import error as urlerror
 from urllib import request as urlrequest
 from zipfile import ZipFile
 
 from .stilyagi_packaging import _resolve_project_path
-
-if typ.TYPE_CHECKING:
-    from pathlib import Path
-
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +48,7 @@ def _fetch_latest_release(repo: str) -> dict[str, typ.Any]:
     if token := os.environ.get("GITHUB_TOKEN"):
         headers["Authorization"] = f"Bearer {token}"
 
-    request = urlrequest.Request(  # noqa: S310 - controlled https URL with optional token
+    request = urlrequest.Request(
         url,
         headers=headers,
     )
@@ -90,21 +87,32 @@ def _find_asset_by_name(assets: list[typ.Any], expected_name: str) -> str | None
     return None
 
 
-def _find_zip_asset(assets: list[typ.Any]) -> str | None:
-    """Find any asset with a .zip extension."""
+def _collect_zip_assets(assets: list[typ.Any]) -> list[str]:
+    """Return all asset names with a .zip extension."""
+    result: list[str] = []
     for asset in assets:
         name = asset.get("name") if isinstance(asset, dict) else None
         if isinstance(name, str) and name.endswith(".zip"):
-            return name
-    return None
+            result.append(name)
+    return result
+
+
+class AssetSelectionError(Exception):
+    """Raised when the release asset cannot be determined unambiguously."""
 
 
 def _pick_asset_name(
     *,
     payload: dict[str, typ.Any],
     expected_name: str,
+    style_name: str,
 ) -> str:
-    """Prefer *expected_name* when present, otherwise fall back to any .zip asset."""
+    """Select release asset, preferring *expected_name* with cautious fallback.
+
+    When *expected_name* is missing, auto-select only if exactly one zip asset
+    exists or one matches the *style_name* prefix. Otherwise raise with a list
+    of available assets.
+    """
     assets = payload.get("assets")
     if not isinstance(assets, list):
         return expected_name
@@ -113,8 +121,23 @@ def _pick_asset_name(
     if found:
         return found
 
-    found = _find_zip_asset(assets)
-    return found if found else expected_name
+    zip_assets = _collect_zip_assets(assets)
+    if len(zip_assets) == 1:
+        return zip_assets[0]
+
+    prefix_matches = [z for z in zip_assets if z.startswith(f"{style_name}-")]
+    if len(prefix_matches) == 1:
+        return prefix_matches[0]
+
+    if zip_assets:
+        asset_list = ", ".join(sorted(zip_assets))
+        msg = (
+            f"Expected asset {expected_name!r} not found and multiple zip assets "
+            f"exist: {asset_list}. Specify --release-version explicitly."
+        )
+        raise AssetSelectionError(msg)
+
+    return expected_name
 
 
 def _build_packages_url(repo: str, tag: str, asset: str) -> str:
@@ -140,6 +163,7 @@ def _resolve_release(
         asset_name = _pick_asset_name(
             payload=payload,
             expected_name=f"{style_name}-{version}.zip",
+            style_name=style_name,
         )
 
     packages_url = _build_packages_url(repo, tag, asset_name)
@@ -333,14 +357,12 @@ def _parse_post_sync_steps_list(raw_steps: list[object]) -> list[str]:
             typed_step
         )
 
-        command = " ".join(
-            [
-                "uv run stilyagi update-tengo-map",
-                f"--source {shlex.quote(source_str)}",
-                f"--dest {shlex.quote(dest_str)}",
-                f"--type {shlex.quote(value_type_str)}",
-            ]
-        )
+        command = " ".join([
+            "uv run stilyagi update-tengo-map",
+            f"--source {shlex.quote(source_str)}",
+            f"--dest {shlex.quote(dest_str)}",
+            f"--type {shlex.quote(value_type_str)}",
+        ])
         commands.append(command)
 
     return commands
@@ -416,6 +438,15 @@ def _render_ini(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _strip_inline_comment(value: str) -> str:
+    """Remove trailing inline comment (# or ;) from a value."""
+    for marker in ("#", ";"):
+        idx = value.find(marker)
+        if idx != -1:
+            value = value[:idx]
+    return value.strip()
+
+
 def _parse_ini(path: Path) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
     """Parse a Vale ini file into (root_options, sections)."""
     if not path.exists():
@@ -436,7 +467,7 @@ def _parse_ini(path: Path) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
             continue
         if "=" in line:
             key, _, value = line.partition("=")
-            current[key.strip()] = value.strip()
+            current[key.strip()] = _strip_inline_comment(value)
 
     return root_options, sections
 
@@ -456,13 +487,11 @@ def _update_vale_ini(
 ) -> None:
     """Ensure ``.vale.ini`` advertises the Concordat package and sections."""
     root_options, sections = _parse_ini(ini_path)
-    root_options.update(
-        {
-            "Packages": packages_url,
-            "MinAlertLevel": manifest.min_alert_level,
-            "Vocab": manifest.vocab_name,
-        }
-    )
+    root_options.update({
+        "Packages": packages_url,
+        "MinAlertLevel": manifest.min_alert_level,
+        "Vocab": manifest.vocab_name,
+    })
 
     required_sections: dict[str, dict[str, str]] = {
         "docs/**/*.{md,markdown,mdx}": {
@@ -534,13 +563,13 @@ def _append_with_spacing(lines: list[str], recipe: list[str]) -> list[str]:
 def _build_vale_recipe(manifest: InstallManifest) -> list[str]:
     """Construct the vale target recipe from the install manifest."""
     recipe = [
-        "vale: $(VALE) ## Check prose",
+        "vale: ## Check prose",
         "\t$(VALE) sync",
     ]
 
     recipe.extend(f"\t{step}" for step in manifest.post_sync_steps)
 
-    recipe.append("\t$(VALE) --no-global .")
+    recipe.append("\t$(VALE) --no-global --output line .")
     return recipe
 
 
@@ -565,6 +594,52 @@ def _update_makefile(makefile_path: Path, *, manifest: InstallManifest) -> None:
     lines = _replace_vale_target(lines, manifest=manifest)
 
     makefile_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def _normalise_styles_path(
+    *, styles_path: str, ini_path: Path, project_root: Path
+) -> str | None:
+    """Return a canonical gitignore entry for *styles_path*.
+
+    Paths are normalised relative to the project root and suffixed with ``/``
+    so the ignore rule targets the directory rather than individual files.
+
+    Returns ``None`` when *styles_path* resolves outside *project_root*. Git
+    treats ``.gitignore`` entries as repo-relative patterns, so absolute paths
+    would not match anything and should be skipped.
+    """
+    resolved_root = project_root.resolve()
+
+    path = Path(styles_path)
+    if not path.is_absolute():
+        path = (ini_path.parent / path).resolve()
+
+    try:
+        entry = path.relative_to(resolved_root).as_posix()
+    except ValueError:
+        return None
+
+    return f"{entry.rstrip('/')}/"
+
+
+def _ensure_gitignore_entry(*, gitignore_path: Path, entry: str) -> None:
+    """Append *entry* to .gitignore if a compatible rule is absent."""
+    if gitignore_path.exists():
+        lines = gitignore_path.read_text(encoding="utf-8").splitlines()
+    else:
+        lines = []
+
+    normalized_existing = {
+        line.rstrip().rstrip("/")
+        for line in lines
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+    if entry.rstrip("/") in normalized_existing:
+        return
+
+    lines.append(entry)
+    gitignore_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
 def _parse_repo_reference(repo: str) -> tuple[str, str, str]:
@@ -601,6 +676,7 @@ class InstallConfig:
     owner: str
     repo_name: str
     style_name: str
+    project_root: Path
     ini_path: Path
     makefile_path: Path
     override_version: str | None = None
@@ -630,6 +706,19 @@ def _perform_install(
         manifest=manifest,
     )
     _update_makefile(config.makefile_path, manifest=manifest)
+
+    root_options, _sections = _parse_ini(config.ini_path)
+    styles_path = root_options.get("StylesPath", "styles")
+    gitignore_entry = _normalise_styles_path(
+        styles_path=styles_path,
+        ini_path=config.ini_path,
+        project_root=config.project_root,
+    )
+    if gitignore_entry is not None:
+        _ensure_gitignore_entry(
+            gitignore_path=config.project_root / ".gitignore",
+            entry=gitignore_entry,
+        )
 
     message = (
         f"Installed {manifest.style_name} {version_str} from "

@@ -139,14 +139,12 @@ def _run_release_workflow(
     action_cache.mkdir(parents=True, exist_ok=True)
     cache_server_path = cache_dir / "cache-server"
     cache_server_path.mkdir(parents=True, exist_ok=True)
-    cmd.extend(
-        [
-            "--action-cache-path",
-            str(action_cache),
-            "--cache-server-path",
-            str(cache_server_path),
-        ]
-    )
+    cmd.extend([
+        "--action-cache-path",
+        str(action_cache),
+        "--cache-server-path",
+        str(cache_server_path),
+    ])
     completed = subprocess.run(  # noqa: S603 - executes the checked-in workflow via act
         cmd,
         cwd=str(workspace_root),
