@@ -18,7 +18,6 @@ from zipfile import ZipFile
 
 from .stilyagi_packaging import _resolve_project_path
 
-
 logger = logging.getLogger(__name__)
 
 FOOTNOTE_REGEX = r"(?m)^\[\^\d+\]:[^\n]*(?:\n[ \t]+[^\n]*)*"
