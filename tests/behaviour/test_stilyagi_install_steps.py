@@ -326,8 +326,9 @@ def verify_gitignore(external_repo: Path) -> None:
     entries = {
         line.rstrip("/")
         for line in gitignore_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
+        if line.strip() and not line.lstrip().startswith("#")
     }
+    assert expected_entry is not None, "StylesPath should be within project"
     assert expected_entry.rstrip("/") in entries, "StylesPath should be ignored"
 
 
