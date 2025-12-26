@@ -628,3 +628,192 @@ def test_load_install_manifest_falls_back_on_download_error(
     assert manifest.style_name == "concordat"
     assert manifest.vocab_name == "concordat"
     assert manifest.min_alert_level == "warning"
+
+
+class TestNormaliseStylesPath:
+    """Unit tests for _normalise_styles_path."""
+
+    def test_relative_path_within_project(self, tmp_path: Path) -> None:
+        """Relative path inside project root normalises to repo-relative entry."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        ini_path = project_root / ".vale.ini"
+
+        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
+            styles_path="styles",
+            ini_path=ini_path,
+            project_root=project_root,
+        )
+
+        assert result == "styles/"
+
+    def test_nested_relative_path(self, tmp_path: Path) -> None:
+        """Nested relative path is normalised correctly."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        ini_path = project_root / ".vale.ini"
+
+        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
+            styles_path=".vale/styles",
+            ini_path=ini_path,
+            project_root=project_root,
+        )
+
+        assert result == ".vale/styles/"
+
+    def test_absolute_path_within_project(self, tmp_path: Path) -> None:
+        """Absolute path inside project root normalises to repo-relative entry."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        ini_path = project_root / ".vale.ini"
+        styles_dir = project_root / "custom-styles"
+        styles_dir.mkdir()
+
+        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
+            styles_path=str(styles_dir),
+            ini_path=ini_path,
+            project_root=project_root,
+        )
+
+        assert result == "custom-styles/"
+
+    def test_path_outside_project_returns_none(self, tmp_path: Path) -> None:
+        """Path outside project root returns None to skip gitignore update."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        external_styles = tmp_path / "external-styles"
+        external_styles.mkdir()
+        ini_path = project_root / ".vale.ini"
+
+        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
+            styles_path=str(external_styles),
+            ini_path=ini_path,
+            project_root=project_root,
+        )
+
+        assert result is None
+
+    def test_relative_path_escaping_project_returns_none(self, tmp_path: Path) -> None:
+        """Relative path that escapes project root returns None."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        ini_path = project_root / ".vale.ini"
+
+        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
+            styles_path="../sibling/styles",
+            ini_path=ini_path,
+            project_root=project_root,
+        )
+
+        assert result is None
+
+    def test_trailing_slash_normalised(self, tmp_path: Path) -> None:
+        """Trailing slash in input is normalised to single slash."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        ini_path = project_root / ".vale.ini"
+
+        result = stilyagi_install._normalise_styles_path(  # type: ignore[attr-defined]
+            styles_path="styles/",
+            ini_path=ini_path,
+            project_root=project_root,
+        )
+
+        assert result == "styles/"
+
+
+class TestEnsureGitignoreEntry:
+    """Unit tests for _ensure_gitignore_entry."""
+
+    def test_creates_gitignore_when_missing(self, tmp_path: Path) -> None:
+        """Create .gitignore with entry when file does not exist."""
+        gitignore_path = tmp_path / ".gitignore"
+
+        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
+            gitignore_path=gitignore_path,
+            entry="styles/",
+        )
+
+        assert gitignore_path.exists()
+        assert gitignore_path.read_text(encoding="utf-8") == "styles/\n"
+
+    def test_appends_entry_when_absent(self, tmp_path: Path) -> None:
+        """Append entry to existing .gitignore."""
+        gitignore_path = tmp_path / ".gitignore"
+        gitignore_path.write_text("node_modules/\n", encoding="utf-8")
+
+        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
+            gitignore_path=gitignore_path,
+            entry="styles/",
+        )
+
+        content = gitignore_path.read_text(encoding="utf-8")
+        assert "node_modules/" in content
+        assert "styles/" in content
+
+    def test_does_not_duplicate_existing_entry(self, tmp_path: Path) -> None:
+        """Skip adding entry that already exists."""
+        gitignore_path = tmp_path / ".gitignore"
+        gitignore_path.write_text("styles/\n", encoding="utf-8")
+
+        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
+            gitignore_path=gitignore_path,
+            entry="styles/",
+        )
+
+        content = gitignore_path.read_text(encoding="utf-8")
+        assert content.count("styles/") == 1
+
+    def test_recognises_entry_without_trailing_slash(self, tmp_path: Path) -> None:
+        """Entry without trailing slash is treated as duplicate."""
+        gitignore_path = tmp_path / ".gitignore"
+        gitignore_path.write_text("styles\n", encoding="utf-8")
+
+        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
+            gitignore_path=gitignore_path,
+            entry="styles/",
+        )
+
+        content = gitignore_path.read_text(encoding="utf-8")
+        assert content.count("styles") == 1
+
+    def test_ignores_commented_lines(self, tmp_path: Path) -> None:
+        """Commented lines are not treated as existing entries."""
+        gitignore_path = tmp_path / ".gitignore"
+        gitignore_path.write_text("# styles/\n", encoding="utf-8")
+
+        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
+            gitignore_path=gitignore_path,
+            entry="styles/",
+        )
+
+        content = gitignore_path.read_text(encoding="utf-8")
+        assert "# styles/" in content
+        lines = [ln for ln in content.splitlines() if ln.strip() == "styles/"]
+        assert len(lines) == 1
+
+    def test_ignores_blank_lines(self, tmp_path: Path) -> None:
+        """Blank lines do not affect duplicate detection."""
+        gitignore_path = tmp_path / ".gitignore"
+        gitignore_path.write_text("\n\n\n", encoding="utf-8")
+
+        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
+            gitignore_path=gitignore_path,
+            entry="styles/",
+        )
+
+        content = gitignore_path.read_text(encoding="utf-8")
+        assert "styles/" in content
+
+    def test_handles_trailing_whitespace_on_entry(self, tmp_path: Path) -> None:
+        """Entries with trailing whitespace are treated as duplicates."""
+        gitignore_path = tmp_path / ".gitignore"
+        gitignore_path.write_text("styles/   \n", encoding="utf-8")
+
+        stilyagi_install._ensure_gitignore_entry(  # type: ignore[attr-defined]
+            gitignore_path=gitignore_path,
+            entry="styles/",
+        )
+
+        content = gitignore_path.read_text(encoding="utf-8")
+        assert content.count("styles") == 1
