@@ -5,7 +5,7 @@ use pyo3::types::PyModule;
 
 /// Return a simple Rust-side greeting for smoke-testing the extension bridge.
 #[pyfunction]
-fn hello() -> &'static str {
+const fn hello() -> &'static str {
     "hello from Rust"
 }
 

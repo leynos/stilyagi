@@ -1,100 +1,81 @@
-MDLINT ?= $(shell which markdownlint-cli2)
-NIXIE ?= $(shell which nixie)
-MDFORMAT_ALL ?= $(shell which mdformat-all)
-TOOLS = $(MDFORMAT_ALL) ruff ty $(MDLINT) $(NIXIE) uv
-VENV_TOOLS = pytest
+MDLINT ?= markdownlint-cli2
+NIXIE ?= nixie
+MDFORMAT_ALL ?= mdformat-all
+CARGO ?= cargo
+RUST_MANIFEST ?= rust_extension/Cargo.toml
+BUILD_JOBS ?=
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
-PYTHON ?= python3
-VALE ?= vale
-VALE_CONFIG ?= .vale.ini
-VALE_TARGETS ?= README.md docs/**/*.md
-ALLOW_EMPTY_TEST_SUITE ?= 0
+CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
-        markdownlint nixie test typecheck \
-        $(TOOLS) $(VENV_TOOLS)
+        markdownlint nixie test typecheck tools release
 
 .DEFAULT_GOAL := all
 
-all: build check-fmt test typecheck
+all: release ## Build the release artifact
 
-.venv: pyproject.toml
-	$(UV_ENV) uv venv --clear
+build: ## Build dev artifact and install into venv
+	UV_VENV_CLEAR=1 $(UV_ENV) uv venv
+	$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev
+	$(CARGO_BUILD_ENV) $(UV_ENV) uv run maturin develop --manifest-path $(RUST_MANIFEST)
 
-build: uv .venv ## Build virtual-env and install deps
-	$(UV_ENV) uv sync --group dev
+release: ## Build the release artifact
+	$(CARGO_BUILD_ENV) $(CARGO) build $(BUILD_JOBS) --manifest-path $(RUST_MANIFEST) --release
 
-build-release: ## Build artefacts (sdist & wheel)
-	python -m build --sdist --wheel
+build-release: release ## Backward-compatible alias for release
 
 clean: ## Remove build artifacts
+	$(CARGO) clean --manifest-path $(RUST_MANIFEST)
 	rm -rf build dist *.egg-info \
 	  .mypy_cache .pytest_cache .coverage coverage.* \
 	  lcov.info htmlcov .venv
 	find . -type d -name '__pycache__' -print0 | xargs -0 -r rm -rf
+	find . -type f -name '*.log' -not -path './rust_extension/target/*' -delete
 
 define ensure_tool
-	@command -v $(1) >/dev/null 2>&1 || { \
-	  printf "Error: '%s' is required, but not installed\n" "$(1)" >&2; \
-	  exit 1; \
-	}
+$(if $(shell command -v $(1) >/dev/null 2>&1 && echo y),,\
+$(error $(1) is required but not installed))
 endef
 
-define ensure_tool_venv
-	$(UV_ENV) uv run which $(1) >/dev/null 2>&1 || { \
-	  printf "Error: '%s' is required in the virtualenv, but is not installed\n" "$(1)" >&2; \
-	  exit 1; \
-	}
-endef
+tools:
+	$(call ensure_tool,$(MDFORMAT_ALL))
+	$(call ensure_tool,$(CARGO))
+	$(call ensure_tool,rustfmt)
+	$(call ensure_tool,uv)
+	$(call ensure_tool,ruff)
+	$(call ensure_tool,ty)
 
-ifneq ($(strip $(TOOLS)),)
-$(TOOLS): ## Verify required CLI tools
-	$(call ensure_tool,$@)
-endif
-
-
-ifneq ($(strip $(VENV_TOOLS)),)
-.PHONY: $(VENV_TOOLS)
-$(VENV_TOOLS): ## Verify required CLI tools in venv
-	$(call ensure_tool_venv,$@)
-endif
-
-fmt: ruff $(MDFORMAT_ALL) ## Format sources
+fmt: tools ## Format sources
 	ruff format
 	ruff check --select I --fix
 	$(MDFORMAT_ALL)
+	$(CARGO) fmt --manifest-path $(RUST_MANIFEST)
 
-check-fmt: ruff ## Verify formatting
+check-fmt: tools ## Verify formatting
 	ruff format --check
-	# mdformat-all doesn't currently do checking
+	$(CARGO) fmt --manifest-path $(RUST_MANIFEST) -- --check
 
-lint: ruff ## Run linters
+lint: tools ## Run linters
 	ruff check
+	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(RUST_MANIFEST) -- -D warnings
 
-typecheck: build ty ## Run typechecking
+typecheck: build tools ## Run typechecking
 	ty --version
 	ty check
 
-markdownlint: $(MDLINT) ## Lint Markdown files
-	$(MDLINT) '**/*.md'
+markdownlint: tools ## Lint Markdown files
+	find . -type f -name '*.md' -not -path './rust_extension/target/*' -print0 | xargs -0 $(MDLINT)
 
-nixie: $(NIXIE) ## Validate Mermaid diagrams
-	$(NIXIE) --no-sandbox
+nixie: tools ## Validate Mermaid diagrams
+	find . -type f -name '*.md' -not -path './rust_extension/target/*' -print0 | xargs -0 $(NIXIE) --no-sandbox
 
-test: build uv $(VENV_TOOLS) ## Run tests
-	@set +e; \
-	$(UV_ENV) uv run pytest -v -n auto; \
-	rc=$$?; \
-	if [ $$rc -eq 5 ]; then \
-	  if [ "$(ALLOW_EMPTY_TEST_SUITE)" = "1" ]; then \
-	    printf "No Python tests collected; continuing because ALLOW_EMPTY_TEST_SUITE=1.\n"; \
-	  else \
-	    printf "Error: no Python tests were collected. Set ALLOW_EMPTY_TEST_SUITE=1 to allow this.\n" >&2; \
-	    exit 5; \
-	  fi; \
-	elif [ $$rc -ne 0 ]; then \
-	  exit $$rc; \
-	fi
+test: build tools ## Run tests
+	$(CARGO) fmt --manifest-path $(RUST_MANIFEST) -- --check
+	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(RUST_MANIFEST) -- -D warnings
+	$(CARGO_BUILD_ENV) $(CARGO) test --manifest-path $(RUST_MANIFEST)
+	# Run pytest through the venv interpreter so the maturin-developed extension
+	# remains installed instead of being replaced by the uv_build wheel.
+	.venv/bin/python -m pytest -v
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

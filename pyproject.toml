@@ -16,6 +16,7 @@ Repository = "https://github.com/leynos/stilyagi"
 
 [dependency-groups]
 dev = [
+    "maturin",
     "pytest",
     "pytest-xdist",
     "ruff",
