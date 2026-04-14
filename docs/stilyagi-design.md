@@ -8,6 +8,7 @@
   - [RFC 0001: Stilyagi Intermediate Representation](rfcs/0001-stilyagi-intermediate-representation.md)
   - [RFC 0002: Stilyagi Python rule API](rfcs/0002-stilyagi-python-rule-api.md)
   - [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md)
+  - [RFC 0004: Stilyagi rule testing framework](rfcs/0004-stilyagi-rule-testing-framework.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,

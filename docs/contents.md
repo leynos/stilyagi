@@ -21,3 +21,6 @@
   - [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md)
     proposes the command surface, config discovery rules, and suppression
     semantics.
+  - [RFC 0004: Stilyagi rule testing framework](rfcs/0004-stilyagi-rule-testing-framework.md)
+    proposes a first-party pytest plugin for exercising rules, temporary packs,
+    diagnostics, fixes, and IR output against the real Stilyagi engine.
