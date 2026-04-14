@@ -226,40 +226,39 @@ package = true
 
 1. **Metadata under `[project]`:**
 
-   - `name`, `version` (mandatory per PEP 621) (Python Packaging[^4],
-     Reddit[^5])
-   - `description`, `readme`, `requires-python`: provide clarity about the
-     project and help tools like PyPI. (Python Packaging[^4], Reddit[^5])
-   - `license`, `authors`, `keywords`, `classifiers`: standardised metadata,
-     which improves discoverability. (Python Packaging[^4], Reddit[^5])
-   - `dependencies`: runtime requirements, expressed in PEP 508 syntax.
-     (Astral Docs[^1], RidgeRun.ai[^2])
+- `name`, `version` (mandatory per PEP 621) (Python Packaging[^4], Reddit[^5])
+- `description`, `readme`, `requires-python`: provide clarity about the
+  project and help tools like PyPI. (Python Packaging[^4], Reddit[^5])
+- `license`, `authors`, `keywords`, `classifiers`: standardized metadata,
+  which improves discoverability. (Python Packaging[^4], Reddit[^5])
+- `dependencies`: runtime requirements, expressed in PEP 508 syntax.
+  (Astral Docs[^1], RidgeRun.ai[^2])
 
-2. **Optional Dependencies (`[project.optional-dependencies]`):**
+1. **Optional Dependencies (`[project.optional-dependencies]`):**
 
-   - Grouped as `dev` (for testing + linting) and `docs` (for documentation).
-     Installation is as simple as `uv add --group dev` or
-     `uv sync --include dev`. (Python Packaging[^4], DevsJC[^6])
+- Grouped as `dev` (for testing + linting) and `docs` (for documentation).
+  Installation is as simple as `uv add --group dev` or `uv sync --include dev`.
+  (Python Packaging[^4], DevsJC[^6])
 
-3. **Entry Points (`[project.scripts]`):**
+1. **Entry Points (`[project.scripts]`):**
 
-   - Defines a console command `mycli` that maps to `my_project/cli.py:main`.
-     Invoking `uv run mycli` will run the `main()` function. (Astral Docs[^8])
+- Defines a console command `mycli` that maps to `my_project/cli.py:main`.
+  Invoking `uv run mycli` will run the `main()` function. (Astral Docs[^8])
 
-4. **Build System:**
+1. **Build system:**
 
-   - `setuptools>=61.0` plus `wheel` ensures both legacy and editable installs
-     work. ✱ Newer versions of setuptools support PEP 660 editable installs
-     without a `setup.py` stub. (Python Packaging[^4], Astral Docs[^8])
-   - `build-backend = "setuptools.build_meta"` tells `uv` how to compile the
-     package. (Python Packaging[^4], Astral Docs[^8])
+- `setuptools>=61.0` plus `wheel` ensures both legacy and editable installs
+  work. ✱ Newer versions of setuptools support PEP 660 editable installs
+  without a `setup.py` stub. (Python Packaging[^4], Astral Docs[^8])
+- `build-backend = "setuptools.build_meta"` tells `uv` how to compile the
+  package. (Python Packaging[^4], Astral Docs[^8])
 
-5. **`[tool.uv]`:**
+1. **`[tool.uv]`:**
 
-   - `package = true` ensures that `uv sync` builds and installs the local
-     project (in editable mode) every time dependencies change. Otherwise, `uv`
-     treats the project as a collection of scripts only (no package).
-     (Astral Docs[^8])
+- `package = true` ensures that `uv sync` builds and installs the local
+  project (in editable mode) every time dependencies change. Otherwise, `uv`
+  treats the project as a collection of scripts only (no package).
+  (Astral Docs[^8])
 
 ______________________________________________________________________
 

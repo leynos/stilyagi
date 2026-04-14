@@ -38,7 +38,7 @@ annotations. That gives Stilyagi Vale's structural awareness without Vale's
 YAML rule ceiling, and it keeps the tool deterministic enough for continuous
 integration (CI), editors, and agentic workflows.[^9]
 
-## 2. WHY - VISION & PURPOSE
+## 2. Why - vision and purpose
 
 ### Problem and audience
 
@@ -85,6 +85,8 @@ spans. Output renderers never invent diagnostics of their own.
 
 ### Who will use it?
 
+Table: primary user personas and their main concerns.
+
 | Persona                                                           | What they care about                                                                                                   | What they will ignore                            |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | Documentation and tooling engineers                               | Deterministic CI, rule packs, Static Analysis Results Interchange Format (SARIF), stable spans, repository-wide policy | Fancy linguistic research features that slow CI  |
@@ -129,7 +131,7 @@ Those are acceptable costs. The product wins or loses on expressiveness,
 debuggability, and adoption, not on shaving the last few milliseconds off a
 single regex rule.
 
-## 3. WHAT - CORE REQUIREMENTS
+## 3. What - core requirements
 
 ### Core requirements
 
@@ -217,7 +219,7 @@ The system-level outcomes must be:
 - A repository layout and packaging strategy that supports Linux, macOS, and
   Windows wheel builds.
 
-## 4. HOW - PLANNING & IMPLEMENTATION
+## 4. How - planning and implementation
 
 ### What are the required stack components?
 
@@ -574,7 +576,7 @@ Implementation consequences:
 - Suppression state must be visible in IR and debug output.
 - Blanket inline suppression remains forbidden in v1.
 
-## 5. BUSINESS REQUIREMENTS
+## 5. Business requirements
 
 ### What business rules must be followed?
 
@@ -626,6 +628,8 @@ linting and source-fidelity are the foundation. Without them, higher-order NLP
 is irrelevant.
 
 ### Paths to customer value
+
+Table: vertical delivery slices and the user value each one unlocks.
 
 | Slice   | User problem solved                                     | Layers touched                                               | Major interfaces                  | Measurable value                                                        | Deliberately left out    |
 | ------- | ------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
@@ -819,7 +823,9 @@ V1 sufficiency:
 - The CLI contract is largely sufficient once scope is trimmed and cache
   controls are made explicit.
 
-## 8. Risks, Failure Modes, and Trade-offs
+## 8. Risks, failure modes, and trade-offs
+
+Table: principal technical risks, mitigations, and early validation checks.
 
 | Risk                                         | Why it matters                                          | Severity | Mitigation                                                          | Early test                                                    |
 | -------------------------------------------- | ------------------------------------------------------- | -------- | ------------------------------------------------------------------- | ------------------------------------------------------------- |

@@ -1,6 +1,12 @@
 # RFC 0002: Stilyagi Python rule API
 
-**Status:** Draft **Target:** Stilyagi 0.1 **Depends on:** RFC 0001
+## Preamble
+
+- RFC: 0002
+- Status: Proposed
+- Created: 2026-04-15
+- Target: Stilyagi 0.1
+- Depends on: RFC 0001
 
 ## 1. Summary
 

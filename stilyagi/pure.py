@@ -1,7 +1,5 @@
 """Pure-Python helpers for the Stilyagi package."""
 
-from __future__ import annotations
-
 
 def hello() -> str:
     """Return a friendly greeting from Python."""

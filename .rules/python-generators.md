@@ -1,11 +1,11 @@
-# Prefer Generators Over Complex Loop Logic
+# Prefer generators over complex loop logic
 
 Using generators improves readability, composability, and memory efficiency.
 Functions built as generators are often simpler to test, debug, and refactor.
 This guidance encourages breaking apart complex `for`-loops into generator
 expressions or functions using `yield`.
 
-## Why Prefer Generators?
+## Why prefer generators?
 
 - **Clarity:** Isolating data flow from control flow clarifies logic.
 - **Efficiency:** Generators are lazy; they avoid building intermediate data
@@ -13,9 +13,9 @@ expressions or functions using `yield`.
 - **Composability:** Generators can be pipelined with other iterators using
   `itertools` or comprehensions.
 
-## Example: Filtering and Transforming
+## Example: filtering and transforming
 
-### Complex Loop (harder to read/test)
+### Complex loop (harder to read/test)
 
 ```python
 def get_names(users):
@@ -26,7 +26,7 @@ def get_names(users):
     return result
 ```
 
-### Generator-Based Version (clearer)
+### Generator-based version (clearer)
 
 ```python
 def iter_user_names(users):
@@ -46,7 +46,7 @@ def get_names(users):
     return [user.name.upper() for user in users if user.active and user.name]
 ```
 
-## Example: Chaining Filters and Mappings
+## Example: chaining filters and mappings
 
 ```python
 from itertools import islice
@@ -65,7 +65,7 @@ def top_active_emails(users):
 - Early returns or short-circuit behaviour need clearer structure.
 - The function logically produces a sequence over time.
 
-## Avoid Overcomplicating
+## Avoid overcomplicating
 
 Don't convert everything into generators unnecessarily. Use them to simplify
 logic—not obscure it.

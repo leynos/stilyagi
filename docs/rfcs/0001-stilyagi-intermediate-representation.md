@@ -1,6 +1,12 @@
 # RFC 0001: Stilyagi Intermediate Representation
 
-**Status:** Draft **Target:** Stilyagi 0.1 **Depends on:** None
+## Preamble
+
+- RFC: 0001
+- Status: Proposed
+- Created: 2026-04-15
+- Target: Stilyagi 0.1
+- Depends on: None
 
 ## 1. Summary
 

@@ -1,6 +1,12 @@
 # RFC 0003: Stilyagi CLI contract
 
-**Status:** Draft **Target:** Stilyagi 0.1 **Depends on:** RFC 0001, RFC 0002
+## Preamble
+
+- RFC: 0003
+- Status: Proposed
+- Created: 2026-04-15
+- Target: Stilyagi 0.1
+- Depends on: RFC 0001, RFC 0002
 
 ## 1. Summary
 

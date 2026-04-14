@@ -8,12 +8,10 @@ PYTHON ?= python3
 VALE ?= vale
 VALE_CONFIG ?= .vale.ini
 VALE_TARGETS ?= README.md docs/**/*.md
-VALE_ARCHIVE ?= dist/concordat-dev.zip
-
-ACT_WORKFLOW_TESTS ?= 0
+ALLOW_EMPTY_TEST_SUITE ?= 0
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
-        markdownlint nixie test typecheck vale-archive vale-sync vale \
+        markdownlint nixie test typecheck \
         $(TOOLS) $(VENV_TOOLS)
 
 .DEFAULT_GOAL := all
@@ -83,27 +81,20 @@ markdownlint: $(MDLINT) ## Lint Markdown files
 nixie: $(NIXIE) ## Validate Mermaid diagrams
 	$(NIXIE) --no-sandbox
 
-vale-archive: build ## Build the dev Concordat archive for local linting
-	$(UV_ENV) uv run stilyagi zip --archive-version dev --force
-
-vale-sync: vale-archive ## Sync Concordat into .vale/styles
-	$(VALE) sync --config $(VALE_CONFIG)
-
-vale: vale-sync ## Lint docs with Vale after syncing and patching acronyms
-	$(VALE) --config $(VALE_CONFIG) --minAlertLevel suggestion $(VALE_TARGETS)
-
 test: build uv $(VENV_TOOLS) ## Run tests
 	@set +e; \
 	$(UV_ENV) uv run pytest -v -n auto; \
 	rc=$$?; \
 	if [ $$rc -eq 5 ]; then \
-	  printf "No Python tests collected; treating as success after legacy suite removal.\n"; \
+	  if [ "$(ALLOW_EMPTY_TEST_SUITE)" = "1" ]; then \
+	    printf "No Python tests collected; continuing because ALLOW_EMPTY_TEST_SUITE=1.\n"; \
+	  else \
+	    printf "Error: no Python tests were collected. Set ALLOW_EMPTY_TEST_SUITE=1 to allow this.\n" >&2; \
+	    exit 5; \
+	  fi; \
 	elif [ $$rc -ne 0 ]; then \
 	  exit $$rc; \
 	fi
-ifeq ($(ACT_WORKFLOW_TESTS),1)
-	$(UV_ENV) uv run pytest tests/workflows/test_release_workflow.py -vv
-endif
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

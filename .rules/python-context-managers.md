@@ -8,7 +8,7 @@ Context managers can be written either with `contextlib.contextmanager` (for
 simple procedural control flow) or by implementing `__enter__` and `__exit__`
 in a class (for more complex or stateful use cases).
 
-## Why Use Context Managers?
+## Why use context managers?
 
 - **Safety:** Ensures cleanup occurs even if an exception is raised.
 - **Clarity:** Reduces boilerplate and visually scopes side effects.
@@ -16,7 +16,7 @@ in a class (for more complex or stateful use cases).
 
 ______________________________________________________________________
 
-## Example: Using `contextlib.contextmanager`
+## Example: using `contextlib.contextmanager`
 
 Use this for straightforward procedural setup/teardown:
 
@@ -42,7 +42,7 @@ This avoids repeating `try/finally` in every file access.
 
 ______________________________________________________________________
 
-## Example: Using a Class-Based Context Manager
+## Example: using a class-based context manager
 
 Use this when state or lifecycle logic spans methods:
 
@@ -65,7 +65,7 @@ This keeps state encapsulated and makes testing easier.
 
 ______________________________________________________________________
 
-## When to Use Which
+## When to use which
 
 - Use `@contextmanager` when control flow is linear and no persistent state is
   required.
@@ -77,7 +77,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Common Use Cases
+## Common use cases
 
 - File or network resource handling
 - Lock acquisition and release
@@ -87,7 +87,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Don't Do This
+## Don't do this
 
 ```python
 f = open("file.txt")
@@ -97,7 +97,7 @@ finally:
     f.close()
 ```
 
-## Do This Instead
+## Do this instead
 
 ```python
 with open("file.txt") as f:
