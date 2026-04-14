@@ -222,15 +222,15 @@ The system-level outcomes must be:
 
 The recommended stack is:
 
-- Rust crates for parsing, extraction, source maps, IR construction, and cache
-  serialization.
+- Rust 2024 crates for parsing, extraction, source maps, IR construction, and
+  cache serialization.
 - `markdown-rs` for Markdown parsing and mdast-compatible AST
   generation.[^1][^2]
 - tree-sitter for host-language parsing, error-tolerant extraction, and
   comment or docstring discovery.[^3]
 - PyO3 for the Rust to Python extension boundary, packaged with
   `maturin`.[^11][^12]
-- Python 3.12+ runtime for CLI, config, rule execution, and plugin loading.
+- Python 3.14+ runtime for CLI, config, rule execution, and plugin loading.
 - spaCy as the default NLP provider behind a capability interface, not as the
   public API itself.[^4][^5]
 - Python entry points for rule-pack discovery.[^10]
