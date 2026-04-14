@@ -4,11 +4,13 @@ MDFORMAT_ALL ?= mdformat-all
 CARGO ?= cargo
 RUST_MANIFEST ?= rust_extension/Cargo.toml
 BUILD_JOBS ?=
+RUST_FLAGS ?=
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
+TEST_FLAGS ?= --manifest-path $(RUST_MANIFEST)
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
-        markdownlint nixie test typecheck tools release
+        markdownlint nixie test test-ci test-quick typecheck tools release
 
 .DEFAULT_GOAL := all
 
@@ -69,13 +71,24 @@ markdownlint: tools ## Lint Markdown files
 nixie: tools ## Validate Mermaid diagrams
 	find . -type f -name '*.md' -not -path './rust_extension/target/*' -print0 | xargs -0 $(NIXIE) --no-sandbox
 
-test: build tools ## Run tests
+test: build tools ## Run tests (nextest if available, otherwise cargo test)
 	$(CARGO) fmt --manifest-path $(RUST_MANIFEST) -- --check
 	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(RUST_MANIFEST) -- -D warnings
-	$(CARGO_BUILD_ENV) $(CARGO) test --manifest-path $(RUST_MANIFEST)
+	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS); \
+	else \
+		echo "cargo-nextest not installed, falling back to cargo test"; \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) test $(TEST_FLAGS) $(BUILD_JOBS); \
+	fi
 	# Run pytest through the venv interpreter so the maturin-developed extension
 	# remains installed instead of being replaced by the uv_build wheel.
 	.venv/bin/python -m pytest -v
+
+test-ci: build tools ## Run Rust tests with the CI nextest profile
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile ci --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS)
+
+test-quick: build tools ## Run Rust library tests only with nextest
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass --lib $(TEST_FLAGS) $(BUILD_JOBS)
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
