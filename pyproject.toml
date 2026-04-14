@@ -14,9 +14,6 @@ dependencies = [
 Homepage = "https://df12.studio/docs.html"
 Repository = "https://github.com/leynos/stilyagi"
 
-[project.scripts]
-stilyagi = "stilyagi.stilyagi:main"
-
 [dependency-groups]
 dev = [
     "pytest",

@@ -4,11 +4,14 @@
 > practices to improve clarity, correctness, and tooling support. Use these
 > features to write expressive, modern Python.
 
+Python Enhancement Proposal (PEP) numbers are used throughout this guide for
+the relevant typing changes.
+
 ## `enum.Enum`, `enum.IntEnum`, `enum.StrEnum`
 
 Use `Enum` for fixed sets of related constants. Use `enum.auto()` to avoid
 repeating values manually. Use `IntEnum` or `StrEnum` when interoperability
-with integers or strings is required (e.g. for database or JSON serialisation).
+with integers or strings is required (e.g. for database or JSON serialization).
 
 ```python
 import enum
@@ -29,8 +32,8 @@ class Role(enum.StrEnum):
     GUEST = enum.auto()
 ```
 
-Use `auto()` when exact values are unimportant and you want to avoid
-duplication. Avoid `auto()` in `IntEnum` where numeric meaning matters.
+Use `auto()` when exact values are unimportant and duplication adds no value.
+Avoid `auto()` in `IntEnum` where numeric meaning matters.
 
 ## `match` / `case` (Structural Pattern Matching)
 

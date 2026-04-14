@@ -175,10 +175,10 @@ decision, and an RFC to propose a change.
 ### Design document
 
 Use a dedicated design document, conventionally named
-`docs/<product-or-topic>-design.md`, to explain the architecture,
-constraints, rationale, and intended evolution of a system or subsystem. This
-document is the correct location for design intent; that material must not be
-buried in the user's guide or developer's guide.
+`docs/<product-or-topic>-design.md`, to explain the architecture, constraints,
+rationale, and intended evolution of a system or subsystem. This document is
+the correct location for design intent; that material must not be buried in the
+user's guide or developer's guide.
 
 - Start with a concise front matter section that states status, scope, primary
   audience, and the decision records or other documents that take precedence.
@@ -605,7 +605,8 @@ navigability:
 - Tasks (execution units) – Small, measurable pieces of work with clear
   acceptance criteria. How it gets done.
 
-This hierarchy should align with the GIST framework:
+This hierarchy should align with the GIST (Goals, Ideas, Steps, Tasks)
+framework:
 
 - Phases correspond to strategic themes or milestones.
 - Steps correspond to GIST-style workstreams. A step must describe a coherent

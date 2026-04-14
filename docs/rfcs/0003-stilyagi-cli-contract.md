@@ -320,7 +320,7 @@ v1 SHALL support:
 
 - `text`
 - `json`
-- `sarif`
+- `sarif`, the Static Analysis Results Interchange Format
 
 `text` SHALL be the default.
 

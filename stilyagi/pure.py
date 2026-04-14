@@ -1,3 +1,5 @@
+"""Pure-Python helpers for the Stilyagi package."""
+
 from __future__ import annotations
 
 

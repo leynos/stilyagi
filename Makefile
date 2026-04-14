@@ -9,7 +9,6 @@ VALE ?= vale
 VALE_CONFIG ?= .vale.ini
 VALE_TARGETS ?= README.md docs/**/*.md
 VALE_ARCHIVE ?= dist/concordat-dev.zip
-ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 
 ACT_WORKFLOW_TESTS ?= 0
 
@@ -91,11 +90,17 @@ vale-sync: vale-archive ## Sync Concordat into .vale/styles
 	$(VALE) sync --config $(VALE_CONFIG)
 
 vale: vale-sync ## Lint docs with Vale after syncing and patching acronyms
-	$(UV_ENV) uv run --script $(ACRONYM_SCRIPT)
 	$(VALE) --config $(VALE_CONFIG) --minAlertLevel suggestion $(VALE_TARGETS)
 
 test: build uv $(VENV_TOOLS) ## Run tests
-	$(UV_ENV) uv run pytest -v -n auto
+	@set +e; \
+	$(UV_ENV) uv run pytest -v -n auto; \
+	rc=$$?; \
+	if [ $$rc -eq 5 ]; then \
+	  printf "No Python tests collected; treating as success after legacy suite removal.\n"; \
+	elif [ $$rc -ne 0 ]; then \
+	  exit $$rc; \
+	fi
 ifeq ($(ACT_WORKFLOW_TESTS),1)
 	$(UV_ENV) uv run pytest tests/workflows/test_release_workflow.py -vv
 endif

@@ -40,7 +40,7 @@ integration (CI), editors, and agentic workflows.[^9]
 
 ## 2. WHY - VISION & PURPOSE
 
-### What problem are you solving and for whom?
+### Problem and audience
 
 Stilyagi solves the gap between simplistic prose linters and real
 documentation-analysis needs.
@@ -62,11 +62,11 @@ Existing tools fall into four weak camps.
 
 The target users are engineers and technically literate writers maintaining
 documentation inside source repositories. Their pain is not "English is hard".
-Their pain is "our documentation policy is real, our files are structured, our
-CI needs determinism, and our current linting surface is either too dumb or too
-awkward to encode what we mean".
+Their pain is "documentation policy is real, files are structured, CI needs
+determinism, and the current linting surface is either too dumb or too awkward
+to encode the intended policy".
 
-### What does your application do?
+### Application responsibilities
 
 Stilyagi performs six distinct jobs.
 
@@ -85,13 +85,13 @@ spans. Output renderers never invent diagnostics of their own.
 
 ### Who will use it?
 
-| Persona                                                           | What they care about                                                                          | What they will ignore                            |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Documentation and tooling engineers                               | Deterministic CI, rule packs, SARIF, stable spans, repository-wide policy                     | Fancy linguistic research features that slow CI  |
-| Teams maintaining API docs and SDK docs                           | Markdown structure, terminology, heading policy, code-adjacent prose, per-file ignores        | Academic NLP purity                              |
-| Python and Rust developers who care about docstrings and comments | Docstring summary rules, comment extraction, source-owner metadata, safe fixes                | Deep support for every markup dialect on day one |
-| Technically opinionated solo developers                           | Fast CLI, expressive Python rules, debug visibility, local configuration                      | Enterprise plugin governance                     |
-| Agentic coding environments and CI systems                        | JSON output, stdin support, exit-code discipline, predictable cache and suppression behaviour | Interactive UI affordances                       |
+| Persona                                                           | What they care about                                                                                                   | What they will ignore                            |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Documentation and tooling engineers                               | Deterministic CI, rule packs, Static Analysis Results Interchange Format (SARIF), stable spans, repository-wide policy | Fancy linguistic research features that slow CI  |
+| Teams maintaining API docs and SDK docs                           | Markdown structure, terminology, heading policy, code-adjacent prose, per-file ignores                                 | Academic NLP purity                              |
+| Python and Rust developers who care about docstrings and comments | Docstring summary rules, comment extraction, source-owner metadata, safe fixes                                         | Deep support for every markup dialect on day one |
+| Technically opinionated solo developers                           | Fast CLI, expressive Python rules, debug visibility, local configuration                                               | Enterprise plugin governance                     |
+| Agentic coding environments and CI systems                        | JSON output, stdin support, exit-code discipline, predictable cache and suppression behaviour                          | Interactive UI affordances                       |
 
 The first group needs robust automation. The second needs documentation-aware
 policy. The third needs comment and docstring extraction that does not lie
@@ -131,7 +131,7 @@ single regex rule.
 
 ## 3. WHAT - CORE REQUIREMENTS
 
-### What must your application do?
+### Core requirements
 
 The system must satisfy the following v1 requirements.
 
@@ -156,7 +156,8 @@ The system must satisfy the following v1 requirements.
   prefix.
 - System must support file-level and range-level suppression directives in
   syntax-native comments, with comment syntax chosen per host language.
-- System must support machine-readable output in JSON and SARIF.
+- System must support machine-readable output in JSON and Static Analysis
+  Results Interchange Format (SARIF).
 - System must preserve region `segments` mappings, including synthetic
   insertions such as soft-break spaces, so fixes cannot target text that did
   not originate in source bytes.
@@ -293,8 +294,8 @@ The v1 non-requirements are also important.
 
 - V1 does not need editor daemon mode.
 - V1 does not need cross-file semantic inference.
-- V1 does not need full MDX support as a stable promise, though the parser can
-  be designed so MDX lands later.
+- V1 does not need full MDX (Markdown with embedded JSX) support as a stable
+  promise, though the parser can be designed so MDX lands later.
 - V1 does not need multiprocessing NLP. spaCy's own documentation warns that
   process spawning on macOS and Windows can be expensive, so batching with
   `nlp.pipe` in one process is the default plan.[^4]
@@ -595,7 +596,7 @@ These rules are non-negotiable.
 - The replacement must not preserve the current Vale-packaging CLI out of
   nostalgia or sunk-cost bias.
 
-### What are your implementation priorities?
+### Implementation priorities
 
 High priority:
 
@@ -624,7 +625,7 @@ This ordering is based on time to value and dependency structure. Structural
 linting and source-fidelity are the foundation. Without them, higher-order NLP
 is irrelevant.
 
-### What are your path to customer value?
+### Paths to customer value
 
 | Slice   | User problem solved                                     | Layers touched                                               | Major interfaces                  | Measurable value                                                        | Deliberately left out    |
 | ------- | ------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
