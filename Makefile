@@ -46,6 +46,7 @@ tools:
 	$(call ensure_tool,uv)
 	$(call ensure_tool,ruff)
 	$(call ensure_tool,ty)
+	$(call ensure_tool,whitaker)
 
 fmt: tools ## Format sources
 	ruff format
@@ -60,6 +61,8 @@ check-fmt: tools ## Verify formatting
 lint: tools ## Run linters
 	ruff check
 	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(RUST_MANIFEST) -- -D warnings
+	# Whitaker resolves cargo metadata from the crate directory in this repo.
+	cd rust_extension && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all
 
 typecheck: build tools ## Run typechecking
 	ty --version
