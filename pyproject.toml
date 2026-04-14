@@ -1,9 +1,9 @@
 [project]
 name = "stilyagi"
 version = "0.1.0"
-description = "CLI utilities for packaging and installing Vale styles"
+description = "Prose linter for Markdown and doc comments"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 license = { text = "ISC" }
 authors = [{ name = "Payton McIntosh", email = "pmcintosh@df12.net" }]
 dependencies = [
@@ -29,7 +29,6 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
 preview = true
 
 [tool.ruff.lint]
@@ -48,7 +47,6 @@ select = [
     "TID",      # Some good import practices
     "TC",       # Enforce importing certain types in a TYPE_CHECKING block
     "PTH",      # Use pathlib instead of os.path
-    "TD",       # Be diligent with TODO comments
     "A",        # detect shadowed builtins
     "BLE",      # disallow catch-all exceptions
     "S",        # disallow things like "exec"; also restricts "assert" but I just NOQA it when I really need it
@@ -146,5 +144,5 @@ package = true
 module-root = ""
 
 [build-system]
-requires = ["uv_build>=0.9.18,<0.10.0"]
+requires = ["uv_build>=0.11.6,<0.12.0"]
 build-backend = "uv_build"

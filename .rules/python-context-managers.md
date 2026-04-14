@@ -1,14 +1,14 @@
-# Use context managers for cleanup and resource management
+# Using Context Managers for Cleanup and Resource Management
 
 Use context managers to encapsulate setup and teardown logic cleanly and
-safely. This reduces the risk of forgetting to release resources such as files,
-locks, and connections, and it simplifies error handling.
+safely. This reduces the risk of forgetting to release resources (files, locks,
+connections, etc.) and simplifies error handling.
 
 Context managers can be written either with `contextlib.contextmanager` (for
 simple procedural control flow) or by implementing `__enter__` and `__exit__`
 in a class (for more complex or stateful use cases).
 
-## Why use context managers?
+## Why Use Context Managers?
 
 - **Safety:** Ensures cleanup occurs even if an exception is raised.
 - **Clarity:** Reduces boilerplate and visually scopes side effects.
@@ -16,12 +16,13 @@ in a class (for more complex or stateful use cases).
 
 ______________________________________________________________________
 
-## Example: using `contextlib.contextmanager`
+## Example: Using `contextlib.contextmanager`
 
 Use this for straightforward procedural setup/teardown:
 
 ```python
 from contextlib import contextmanager
+
 
 @contextmanager
 def managed_file(path: str, mode: str):
@@ -30,6 +31,7 @@ def managed_file(path: str, mode: str):
         yield f
     finally:
         f.close()
+
 
 # Usage:
 with managed_file("/tmp/data.txt", "w") as f:
@@ -40,7 +42,7 @@ This avoids repeating `try/finally` in every file access.
 
 ______________________________________________________________________
 
-## Example: using a class-based context manager
+## Example: Using a Class-Based Context Manager
 
 Use this when state or lifecycle logic spans methods:
 
@@ -53,6 +55,7 @@ class Resource:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.conn.close()
 
+
 # Usage:
 with Resource() as conn:
     conn.send("ping")
@@ -62,7 +65,7 @@ This keeps state encapsulated and makes testing easier.
 
 ______________________________________________________________________
 
-## When to use which
+## When to Use Which
 
 - Use `@contextmanager` when control flow is linear and no persistent state is
   required.
@@ -70,21 +73,21 @@ ______________________________________________________________________
 - Use a class when:
 
   - There is internal state or methods tied to the resource lifecycle.
-  - The design must support re-entry or more advanced context features.
+  - You need to support re-entry or more advanced context features.
 
 ______________________________________________________________________
 
-## Common use cases
+## Common Use Cases
 
 - File or network resource handling
 - Lock acquisition and release
 - Temporary changes to environment (e.g., `os.chdir`, `patch`, `tempfile`)
-- Logging scope control and tracing
-- Transaction control in databases and services
+- Logging scope control or tracing
+- Transaction control in databases or services
 
 ______________________________________________________________________
 
-## Don't do this
+## Don't Do This
 
 ```python
 f = open("file.txt")
@@ -94,12 +97,12 @@ finally:
     f.close()
 ```
 
-## Do this instead
+## Do This Instead
 
 ```python
 with open("file.txt") as f:
     process(f)
 ```
 
-Context managers make intent and error handling explicit. Prefer them over
+Context managers make your intent and error handling explicit. Prefer them over
 manual `try/finally` for clearer, safer code.

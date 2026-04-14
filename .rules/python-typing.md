@@ -1,36 +1,36 @@
-# Advanced Typing and Language Features (Python 3.13)
+# Advanced Typing and Language Features (Python 3.14)
 
-> This section documents forward-looking Python 3.13 typing features and best
+> This section documents forward-looking Python 3.14 typing features and best
 > practices to improve clarity, correctness, and tooling support. Use these
 > features to write expressive, modern Python.
-
-This reference cites several Python Enhancement Proposals (PEPs) that define
-the underlying typing semantics.
 
 ## `enum.Enum`, `enum.IntEnum`, `enum.StrEnum`
 
 Use `Enum` for fixed sets of related constants. Use `enum.auto()` to avoid
 repeating values manually. Use `IntEnum` or `StrEnum` when interoperability
-with integers or strings is required (e.g. for database or JSON serialization).
+with integers or strings is required (e.g. for database or JSON serialisation).
 
 ```python
 import enum
+
 
 class Status(enum.Enum):
     PENDING = enum.auto()
     COMPLETE = enum.auto()
 
+
 class ErrorCode(enum.IntEnum):
     OK = 0
     NOT_FOUND = 404
+
 
 class Role(enum.StrEnum):
     ADMIN = enum.auto()
     GUEST = enum.auto()
 ```
 
-Use `auto()` when exact values are unimportant and duplication should be
-avoided. Avoid `auto()` in `IntEnum` where numeric meaning matters.
+Use `auto()` when exact values are unimportant and you want to avoid
+duplication. Avoid `auto()` in `IntEnum` where numeric meaning matters.
 
 ## `match` / `case` (Structural Pattern Matching)
 
@@ -47,7 +47,7 @@ def handle_status(status: Status) -> str:
             return "Done"
 ```
 
-## Generic Class Declarations (Python Enhancement Proposal 695)
+## Generic Class Declarations (PEP 695)
 
 Use bracketed class-level type variables directly for generic class
 declarations.
@@ -60,13 +60,14 @@ class Box[T]:
 
 This is cleaner and avoids the indirection of separate `TypeVar` declarations.
 
-## `Self` Type (Python Enhancement Proposal 673)
+## `Self` Type (PEP 673)
 
 Use `Self` in fluent interfaces and builder-style APIs to indicate the method
 returns the same instance.
 
 ```python
 import typing
+
 
 class Builder:
     def add(self, value: int) -> typing.Self:
@@ -76,7 +77,7 @@ class Builder:
 
 This improves tool support and enforces correct chaining semantics.
 
-## `@override` Decorator  (Python Enhancement Proposal 698)
+## `@override` Decorator (PEP 698)
 
 Use `@override` to indicate that a method overrides one from a superclass. This
 enables static analysis tools to detect typos and signature mismatches.
@@ -84,9 +85,10 @@ enables static analysis tools to detect typos and signature mismatches.
 ```python
 import typing
 
+
 class Base:
-    def run(self) -> None:
-        ...
+    def run(self) -> None: ...
+
 
 class Child(Base):
     @typing.override
@@ -96,13 +98,14 @@ class Child(Base):
 
 This decorator is a no-op at runtime but improves tooling correctness.
 
-## `TypeIs`  (Python Enhancement Proposal 742)
+## `TypeIs` (PEP 742)
 
 Use `TypeIs[T]` to define custom runtime type guards that narrow types in type
 checkers.
 
 ```python
 import typing
+
 
 def is_str_list(val: list[object]) -> typing.TypeIs[list[str]]:
     return all(isinstance(x, str) for x in val)
@@ -111,13 +114,14 @@ def is_str_list(val: list[object]) -> typing.TypeIs[list[str]]:
 Unlike `isinstance`, this informs the type checker that `val` is now
 `list[str]`.
 
-## Defaults for TypeVars  (Python Enhancement Proposal 696)
+## Defaults for TypeVars (PEP 696)
 
 Allow generic classes/functions to fall back to default types when no specific
 type is provided.
 
 ```python
 T = typing.TypeVar("T", default=int)
+
 
 class Box[T]:
     def __init__(self, value: T | None = None):
@@ -127,7 +131,7 @@ class Box[T]:
 
 This makes APIs more ergonomic while retaining type safety.
 
-## Standard Library Generics  (Python Enhancement Proposal 585)
+## Standard Library Generics (PEP 585)
 
 Use built-in generics from the standard library (`list`, `dict`, `tuple`, etc.)
 instead of `typing.List`, `typing.Dict`, etc.
@@ -138,7 +142,7 @@ names: list[str] = ["Alice", "Bob"]
 
 This reduces imports and reflects the modern style.
 
-## Union Syntax and Optional  (Python Enhancement Proposal 604)
+## Union Syntax and Optional (PEP 604)
 
 Use `|` to write union types, and `A | None` instead of `Optional[A]`.
 
@@ -166,15 +170,24 @@ Place alias definitions after the import block and group shared aliases in
 
 ## `from __future__ import annotations`
 
-Use this import in modules with type annotations to defer evaluation of
-annotation expressions to runtime. This prevents issues with forward references
-and circular imports.
+Python 3.14 defers annotation evaluation by default, so this import is no
+longer required in project modules.
 
 ```python
 from __future__ import annotations
 ```
 
-Recommended in all modern Python files using type hints.
+For this repository, do not add `from __future__ import annotations` in new
+or modified files. The project baseline is `>=3.14`.
+
+Repository exception: existing pytest-bdd step modules under
+`tests/steps/test_*_steps.py` deliberately keep this import because step
+discovery inspects annotations at runtime and deferred evaluation would cause
+`NameError` for types imported only under `TYPE_CHECKING` blocks, so
+`from __future__ import annotations` must be retained in those step modules.
+
+Use this import only in external or legacy code that must remain compatible
+with Python versions earlier than 3.14.
 
 ## `if typing.TYPE_CHECKING`
 
