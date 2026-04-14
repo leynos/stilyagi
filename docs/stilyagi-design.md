@@ -141,21 +141,29 @@ The system must satisfy the following v1 requirements.
   source-fidelity rules.[^3]
 - System must preserve source-faithful byte spans and line or column mappings
   for every reported diagnostic and every applied edit.
+- System must carry a line index or equivalent byte-to-line mapping in the IR
+  so byte spans can be converted without reparsing source text.
 - System must analyse prose as regions, not as undifferentiated file text.
 - Users must be able to author rules in Python against typed runtime objects.
 - Rules must declare required capabilities so the engine can avoid loading
   unnecessary NLP components.
 - System must support diagnostics with optional fixes and explicit fix
-  applicability.
+  applicability classified as `safe`, `unsafe`, or `manual`.
 - Users must be able to discover configuration from `pyproject.toml`,
   `stilyagi.toml`, or `.stilyagi.toml`, with explicit override behaviour.
 - Users must be able to select or ignore rules by full code and by stable
   prefix.
 - System must support file-level and range-level suppression directives in
-  syntax-native comments.
+  syntax-native comments, with comment syntax chosen per host language.
 - System must support machine-readable output in JSON and SARIF.
-- System must cache extraction and analysis work using versioned cache keys.
-- System must discover enabled third-party rule packs via Python entry points.
+- System must preserve region `segments` mappings, including synthetic
+  insertions such as soft-break spaces, so fixes cannot target text that did
+  not originate in source bytes.
+- System must cache extraction and analysis work using versioned cache keys
+  that include source content hash, effective config hash, extractor version,
+  enabled rule-pack versions, and NLP model signature where relevant.
+- System must discover enabled third-party rule packs and capability providers
+  via Python entry points.
 - System must run without network access once installed.
 - System must degrade gracefully on malformed input where the underlying parser
   can recover.
@@ -266,6 +274,9 @@ The v1 technical requirements are:
   concatenation into one giant NLP document.
 - Rule execution must be deterministic by default. Sort rules by pack name then
   code, and sort files by normalised path before execution.
+- Capability planning must honour provider dependency chains. For example,
+  lemmatisation may require POS tagging, and dependency parsing implies
+  sentence segmentation.
 - Safe fixes must preserve syntax and target only source-backed spans.
 - Malformed Markdown, docstrings, or comments must produce partial extraction
   plus recoverable errors where possible, rather than aborting the whole run.
@@ -380,6 +391,9 @@ Implementation consequences:
 - `dump-ir` is mandatory because the architecture depends on extracted regions.
 - The existing `install`, `zip`, and `update-tengo-map` surfaces are removed as
   part of the replacement, not preserved behind compatibility aliases.
+- `--no-cache` belongs in v1 because cache debugging is part of real operation.
+- `server`, `doctor`, and `migrate-config` remain reserved names, not shipping
+  commands.
 
 #### Config file schema
 
@@ -433,6 +447,7 @@ User-facing contract:
     "encoding": "utf-8",
     "content_hash": "sha256:..."
   },
+  "line_index": [0, 24, 51],
   "regions": [
     {
       "id": "r42",
@@ -441,7 +456,8 @@ User-facing contract:
       "natural_language": "en",
       "text": "Use explicit trade-offs.",
       "segments": [
-        { "text_start": 0, "text_end": 24, "source": { "start": 128, "end": 152 } }
+        { "text_start": 0, "text_end": 24, "source": { "start": 128, "end": 152 } },
+        { "text_start": 24, "text_end": 25, "source": null, "synthetic": "soft_break_space" }
       ],
       "owner": { "kind": "section", "heading_depth": 2, "heading_text": "Principles" }
     }
@@ -454,6 +470,8 @@ Implementation consequences:
 - Define the IR as a logical schema first.
 - Provide canonical JSON for `dump-ir`, schema tests, and golden fixtures.
 - Do not force JSON as the only internal transport between Rust and Python.
+- Make `line_index`, `content_hash`, and `segments` first-class schema
+  features rather than optional convenience fields.
 
 #### Python rule API
 
@@ -526,7 +544,8 @@ User-facing contract:
 Implementation consequences:
 
 - Edits target original bytes only.
-- Safe and unsafe fixes stay separate.
+- `manual` means "fixable in principle, but not as an automatic edit in v1".
+- Safe, unsafe, and manual fixes stay separate.
 - Overlapping edits from different diagnostics fail conflict resolution unless
   identical.
 
@@ -549,6 +568,7 @@ def f():
 Implementation consequences:
 
 - Suppression parsing belongs in extraction.
+- Markdown uses HTML comments; Python uses `#`; Rust and JavaScript use `//`.
 - Suppression state must be visible in IR and debug output.
 - Blanket inline suppression remains forbidden in v1.
 
@@ -559,11 +579,13 @@ Implementation consequences:
 These rules are non-negotiable.
 
 - Source spans must remain faithful to original bytes.
+- IR line indexes and segment maps must remain faithful to original bytes.
 - Fixes must never target synthetic spans.
-- Safe and unsafe fixes must remain distinct.
+- Safe, unsafe, and manual fix states must remain distinct.
 - Third-party plugins are trusted code and must not be marketed as sandboxed.
 - Rule execution must be deterministic by default.
 - Configuration precedence must be legible and inspectable.
+- User-level configuration must not be auto-loaded in v1.
 - Core functionality must not require network access.
 - Built-in rules and providers must never auto-download NLP models.
 - Malformed source must degrade gracefully where practical.
@@ -648,6 +670,8 @@ The recommended subsystems are:
   parsing, region extraction, owner metadata, suppression parsing, source maps,
   and extraction errors.
 - IR generation: logical schema plus canonical JSON serializer.
+- IR generation: logical schema plus canonical JSON serializer, `line_index`
+  construction, content hashes, and segment-map invariants.
 - Python analysis engine: wraps IR into `Document`, `Region`, `Sentence`, and
   `Token` objects.
 - Capability planner: computes the minimum provider plan from selected rules,
@@ -658,6 +682,8 @@ The recommended subsystems are:
   and applies or prints patches.
 - Config loader: resolves nearest config, `extend` chains, and CLI overrides.
 - Plugin loader: loads rule packs and provider plugins via entry points.
+- Plugin loader: loads `stilyagi.rules` and `stilyagi.capabilities` entry
+  points, validates metadata, and keeps installed but unconfigured packs inert.
 - Cache manager: maintains separate extraction and analysis caches.
 - Output renderers: text, JSON, and SARIF.
 
@@ -695,6 +721,8 @@ Recommended revisions:
 - Rename source syntax to `syntax`.
 - Add optional `natural_language`.
 - Add explicit `owner` metadata to regions for docstrings and comments.
+- Add required `line_index` and make `segments` capable of representing
+  synthetic insertions explicitly.
 - Keep full structural trees internal or debug-only for non-Markdown sources in
   v1; expose only what rules need.
 - Treat JSON as the canonical serialisation, not the mandatory hot-path
@@ -777,7 +805,7 @@ Recommended revisions:
   as preview-only until proven.
 - Keep `check`, `rule`, `rules`, `config`, `clean`, and `dump-ir`.
 - Add `--no-cache` in v1 because cache debugging is unavoidable.
-- Keep `server` reserved.
+- Keep `server`, `doctor`, and `migrate-config` reserved.
 
 Compatibility risks:
 
@@ -900,7 +928,7 @@ testable without Python.
 The design must be validated with the following test classes.
 
 - Golden extraction tests: canonical IR JSON for Markdown, Python, and Rust
-  fixtures.
+  fixtures, with Rust-side snapshot tests using `insta` where helpful.
 - Malformed input tests: broken Markdown, partial MDX, invalid Python, and
   incomplete Rust comments.
 - Performance baselines: cold and warm runs for structural-only and NLP-backed
@@ -911,6 +939,8 @@ The design must be validated with the following test classes.
   overlapping edits are rejected or merged deterministically.
 - Cache correctness tests: change content, config, parser version, rule-pack
   version, and NLP profile independently and verify invalidation.
+- Property tests: use `proptest` on Rust span or segment invariants and
+  `hypothesis` on Python rule-engine invariants where that buys real coverage.
 - Contract tests: CLI help snapshots, JSON schema validation, SARIF smoke
   tests, and rule metadata rendering.
 - Compatibility tests: Linux, macOS, and Windows wheel builds and smoke
