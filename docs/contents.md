@@ -5,6 +5,9 @@
 - [Stilyagi design](stilyagi-design.md) is the primary technical design for the
   wholesale replacement of the current Vale-oriented repository with the new
   prose, documentation, comment, and docstring linter.
+- [Developer's guide](developers-guide.md) describes the maintainer-facing
+  environment setup, Rust and Python boundaries, build workflow, and
+  verification flow for the mixed PyO3 package.
 - [Documentation style guide](documentation-style-guide.md) defines the
   repository-wide writing and Markdown conventions.
 - [Scripting standards](scripting-standards.md) describes the expectations for
