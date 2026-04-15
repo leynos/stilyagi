@@ -149,8 +149,8 @@ Their responsibilities are:
   - run `cargo clippy` with warnings denied
   - run Whitaker from `rust_extension/`
 - `make typecheck`
-  - rebuild the editable environment if needed
-  - run `ty check` through `uv`
+  - rebuilds the editable environment if needed
+  - runs `ty check` through `uv`
 - `make test`
   - verify Rust formatting
   - rerun `cargo clippy`
