@@ -4,7 +4,7 @@
 
 - RFC: 0003
 - Status: Proposed
-- Created: 2026-04-15
+- Created: 2026-04-14
 - Target: Stilyagi 0.1
 - Depends on: RFC 0001, RFC 0002
 
@@ -128,7 +128,7 @@ debugging.
 
 ## 4. Configuration files
 
-Stilyagi SHALL recognise exactly these configuration files:
+Stilyagi SHALL recognize exactly these configuration files:
 
 - `pyproject.toml`
 - `stilyagi.toml`
@@ -318,7 +318,7 @@ prose itself.
 `--diff` SHALL print a patch instead of mutating files.
 
 This contract follows Ruff’s fix model closely, because the safe or unsafe
-split is one of Ruff’s more civilised design choices.[^2]
+split is one of Ruff’s more civilized design choices.[^2]
 
 ## 11. Output formats
 
@@ -334,7 +334,7 @@ v1 SHALL support:
 
 `sarif` SHALL conform to the SARIF 2.1.0 family of expectations closely enough
 to interoperate with downstream static-analysis consumers. SARIF exists
-specifically to standardise static-analysis output interchange, which is
+specifically to standardize static-analysis output interchange, which is
 exactly the job here.[^3]
 
 ## 12. Exit codes
@@ -394,7 +394,7 @@ stilyagi clean
 
 ## 17. Rationale
 
-The CLI should feel small enough to memorise and strict enough to trust.
+The CLI should feel small enough to memorize and strict enough to trust.
 
 Ruff’s command surface proves that a linter can stay compact without becoming
 anaemic, and its config semantics avoid the usual nested-TOML ghost stories.

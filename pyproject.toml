@@ -6,10 +6,6 @@ readme = "README.md"
 requires-python = ">=3.14"
 license = { text = "ISC" }
 authors = [{ name = "Payton McIntosh", email = "pmcintosh@df12.net" }]
-dependencies = [
-    "cyclopts>=2.9",
-]
-
 [project.urls]
 Homepage = "https://df12.studio/docs.html"
 Repository = "https://github.com/leynos/stilyagi"

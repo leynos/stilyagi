@@ -4,7 +4,7 @@
 
 - RFC: 0001
 - Status: Proposed
-- Created: 2026-04-15
+- Created: 2026-04-14
 - Target: Stilyagi 0.1
 - Depends on: None
 
@@ -44,7 +44,7 @@ language with field constraints and error nodes.[^3]
 Third, it needs to expose lintable prose as regions rather than force every
 rule to re-flatten AST nodes into text.
 
-Fourth, it needs to remain boring enough to serialise, diff, debug, and cache
+Fourth, it needs to remain boring enough to serialize, diff, debug, and cache
 reliably.
 
 ## 3. Non-goals
@@ -284,11 +284,11 @@ pretending malformed files do not exist.[^5]
 
 ## 9. Serialisation and compatibility
 
-v1 SHALL require a canonical JSON serialisation for the IR.
+v1 SHALL require a canonical JSON serialization for the IR.
 
 The Rust frontend MAY later expose MessagePack or another binary format, but
 JSON is the mandatory interchange contract for the first stable version.
-`markdown-rs` already supports optional `serde` serialisation for abstract
+`markdown-rs` already supports optional `serde` serialization for abstract
 syntax trees (ASTs) and configuration, which makes a JSON-first contract a
 pragmatic starting point.[^1]
 

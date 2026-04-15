@@ -54,7 +54,10 @@ from itertools import islice
 
 def top_active_emails(users):
     emails = (
-        user.email.lower() for user in users if user.active and user.email is not None
+        user.email.lower()
+        for user in users
+        if user.active
+        if user.email is not None
     )
     return list(islice(emails, 10))
 ```
@@ -70,14 +73,14 @@ def top_active_emails(users):
 Don't convert everything into generators unnecessarily. Use them to simplify
 logic—not obscure it.
 
-### BAD
+### Bad
 
 ```python
 def iter_numbers():
     yield from (x * 2 for x in range(10) if x % 2 == 0)
 ```
 
-### BETTER
+### Better
 
 ```python
 def iter_even_doubles():

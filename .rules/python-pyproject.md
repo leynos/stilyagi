@@ -34,7 +34,7 @@ name = "my_project"            # Project name (PEP 621 requirement)
 version = "0.1.0"              # Initial semantic version
 description = "A brief overview"       # Short summary
 readme = "README.md"           # Path to the README file (automatically included)
-requires-python = ">=3.10"     # Restrict Python versions, if needed
+requires-python = ">=3.14"     # Restrict Python versions, if needed
 license = { text = "MIT" }     # Software Package Data Exchange (SPDX)-compatible license expression or file
 authors = [
   { name = "Alice Example", email = "alice@example.org" }
@@ -58,7 +58,7 @@ dependencies = [
   include the README as the long description. (Astral Docs[^1], Python
   Packaging[^4])
 - **`requires-python`:** Constrains which Python interpreters a package
-  supports (e.g. `>=3.10`). (Python Packaging[^4], Reddit[^5])
+  supports (e.g. `>=3.14`). (Python Packaging[^4], Reddit[^5])
 - **`license`:** Specify a licence as an SPDX identifier (via
   `license = { text = "ISC" }`) or point to a file (e.g.
   `license = { file = "LICENSE" }`). (Python Packaging[^4], Reddit[^5])
@@ -93,11 +93,12 @@ docs = [
 ```
 
 - **`[project.optional-dependencies]`:** Each table key (e.g. `dev`, `docs`)
-  defines a "dependency group." A maintainer can install a group via
-  `uv add --group dev` or `uv sync --include dev`. (Python Packaging[^4],
-  DevsJC[^6])
-- **Why use groups?** The lockfile remains deterministic (via `uv.lock`) while
-  still separating concerns (test‐only vs. production). (Medium[^7], DevsJC[^6])
+  defines a published extra. A maintainer can add an extra dependency via
+  `uv add --optional dev pytest` and install that extra with
+  `uv sync --extra dev`. (Python Packaging[^4], DevsJC[^6])
+- **Why use extras?** The lockfile remains deterministic (via `uv.lock`) while
+  still separating concerns (test-only vs. production), and the published
+  package exposes those optional features clearly. (Medium[^7], DevsJC[^6])
 
 ______________________________________________________________________
 
@@ -184,7 +185,7 @@ name = "my_project"
 version = "0.1.0"
 description = "An illustrative example for Astral uv"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [
   { name = "Alice Example", email = "alice@example.org" }
@@ -237,8 +238,9 @@ package = true
 1. **Optional Dependencies (`[project.optional-dependencies]`):**
 
 - Grouped as `dev` (for testing + linting) and `docs` (for documentation).
-  Installation is as simple as `uv add --group dev` or `uv sync --include dev`.
-  (Python Packaging[^4], DevsJC[^6])
+  These keys are published as extras. Installation is as simple as
+  `uv add --optional dev pytest` or `uv sync --extra dev`. (Python
+  Packaging[^4], DevsJC[^6])
 
 1. **Entry Points (`[project.scripts]`):**
 

@@ -4,7 +4,7 @@
 
 - RFC: 0002
 - Status: Proposed
-- Created: 2026-04-15
+- Created: 2026-04-14
 - Target: Stilyagi 0.1
 - Depends on: RFC 0001
 
@@ -23,7 +23,7 @@ The API SHALL not sandbox third-party Python code.
 
 The rule API takes inspiration from two places.
 
-From spaCy, it takes the idea that annotation is componentised,
+From spaCy, it takes the idea that annotation is componentized,
 order-sensitive, selectively enabled, and attached to `Doc`, `Span`, and
 `Token`-like objects rather than passed around as disconnected side tables.
 From astroid, it takes the idea that nodes should be traversable,
@@ -56,7 +56,7 @@ The public API SHALL define these primary runtime types:
 `Document`, `Region`, and `NodeRef` SHALL wrap RFC 0001 IR objects.
 
 `Sentence` and `Token` SHALL exist only when sentence and token capabilities
-have been materialised.
+have been materialized.
 
 `NodeRef` SHALL expose, at minimum:
 
@@ -201,14 +201,14 @@ The engine SHALL plan annotation work from the union of requested capabilities.
 This is where spaCy matters. spaCy documents that components are optional, can
 be enabled or disabled, and can be swapped or removed. It also documents that
 sentence segmentation can come from the dependency parser, a dedicated sentence
-recogniser, or the rule-based `Sentencizer`; and it documents that lemmas are
+recognizer, or the rule-based `Sentencizer`; and it documents that lemmas are
 not present by default in v3, requiring an explicit lemmatiser component, with
-rule-based lemmatisation depending on POS tags. That makes capability planning
+rule-based lemmatization depending on POS tags. That makes capability planning
 a first-class design requirement rather than a decorative flourish.[^1]
 
 The engine SHOULD satisfy `SENTENCES` with the lightest provider that meets all
 active rules. A sentence-only run SHOULD prefer a sentencizer or sentence
-recogniser over a full dependency parse. A dependency-aware run MAY use the
+recognizer over a full dependency parse. A dependency-aware run MAY use the
 parser and let sentence boundaries fall out of it.
 
 ## 7. Runtime objects and backend escape hatches
@@ -363,7 +363,7 @@ rule-prefix ergonomics explicit, and it is worth stealing.[^3]
 
 Stilyagi SHALL use Python entry points for plugin discovery.
 
-The engine SHALL recognise at least these groups:
+The engine SHALL recognize at least these groups:
 
 - `stilyagi.rules`
 - `stilyagi.capabilities`
@@ -423,7 +423,7 @@ rules grotesque.
 
 A raw-spaCy API would overfit the public contract to one backend. spaCy is
 excellent, but Stilyagi should use it as a powerful engine component, not as
-the sole shape of the public world. The documentation itself emphasises
+the sole shape of the public world. The documentation itself emphasizes
 pipeline composition, extension attributes, hooks, and component
 variability.[^1]
 

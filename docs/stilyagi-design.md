@@ -33,7 +33,7 @@ fixes, and plugin loading.[^1][^2][^3][^4][^5][^6][^7][^8]
 
 The key design decision is to separate extraction from analysis. Rules must not
 parse Markdown, walk tree-sitter nodes, or boot spaCy independently. They must
-receive a stable region-oriented model plus selectively materialised linguistic
+receive a stable region-oriented model plus selectively materialized linguistic
 annotations. That gives Stilyagi Vale's structural awareness without Vale's
 YAML rule ceiling, and it keeps the tool deterministic enough for continuous
 integration (CI), editors, and agentic workflows.[^9]
@@ -277,9 +277,9 @@ The v1 technical requirements are:
 - Memory use must scale with batches of regions, not with whole-repository
   concatenation into one giant NLP document.
 - Rule execution must be deterministic by default. Sort rules by pack name then
-  code, and sort files by normalised path before execution.
+  code, and sort files by normalized path before execution.
 - Capability planning must honour provider dependency chains. For example,
-  lemmatisation may require POS tagging, and dependency parsing implies
+  lemmatization may require POS tagging, and dependency parsing implies
   sentence segmentation.
 - Safe fixes must preserve syntax and target only source-backed spans.
 - Malformed Markdown, docstrings, or comments must produce partial extraction
@@ -731,7 +731,7 @@ Recommended revisions:
   synthetic insertions explicitly.
 - Keep full structural trees internal or debug-only for non-Markdown sources in
   v1; expose only what rules need.
-- Treat JSON as the canonical serialisation, not the mandatory hot-path
+- Treat JSON as the canonical serialization, not the mandatory hot-path
   transport.
 
 Compatibility risks:
@@ -780,7 +780,7 @@ Compatibility risks:
 - Exposing too much raw spaCy or tree-sitter surface will freeze backend
   details prematurely.
 - Allowing plugin packs to register arbitrary hook shapes will make engine
-  scheduling harder to stabilise.
+  scheduling harder to stabilize.
 
 V1 sufficiency:
 

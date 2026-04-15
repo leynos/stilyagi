@@ -1,4 +1,4 @@
-# Using Context Managers for Cleanup and Resource Management
+# Using context managers for cleanup and resource management
 
 Use context managers to encapsulate setup and teardown logic cleanly and
 safely. This reduces the risk of forgetting to release resources (files, locks,
@@ -73,7 +73,7 @@ ______________________________________________________________________
 - Use a class when:
 
   - There is internal state or methods tied to the resource lifecycle.
-  - You need to support re-entry or more advanced context features.
+  - Support for re-entry and more advanced context features is required.
 
 ______________________________________________________________________
 
