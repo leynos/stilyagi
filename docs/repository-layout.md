@@ -70,7 +70,8 @@ new maintainer needs to recognize quickly and omits transient cache contents.
     layer can technically reimplement it.
 - `rust_extension/`
   - PyO3-based Rust extension crate.
-  - Owns the compiled `_stilyagi_rs` module and Rust-side tests.
+  - Owns the compiled `_stilyagi_rs` module and is responsible for
+    Rust-side tests, including the current `hello` unit test.
   - `src/` contains the Rust implementation; `target/` is generated build
     output and should not be treated as authored source.
 
@@ -126,7 +127,7 @@ there rather than embedded ad hoc in unrelated modules.
 
 ## 7. Generated and transient paths
 
-The following paths are operationally useful but are not authoritative source:
+The following paths are operationally useful but are not authoritative sources:
 
 - `.venv/`
   - Local virtual environment created by `make build` or `make typecheck`.
