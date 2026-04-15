@@ -1,10 +1,10 @@
 # Stilyagi roadmap
 
 This roadmap translates the current design and RFC set into an outcome-oriented
-delivery sequence. It does not promise dates. Phase 1 establishes the minimum
-shared foundations. From Phase 2 onward, each step is framed as a testable
-idea: a hypothesis to validate, a question to answer, and an increment that
-leaves behind usable functionality rather than another horizontal layer.
+delivery sequence. It does not promise dates. Each phase carries one testable
+idea at the GIST level. The steps underneath that phase work toward validating
+or falsifying the idea, answering specific sequencing questions, and leaving
+behind usable functionality rather than another horizontal layer.
 
 The roadmap follows the recommended order in
 [Stilyagi design](stilyagi-design.md) §§5-13: build the structural core first,
@@ -13,15 +13,15 @@ then add richer language features and ecosystem surfaces.
 
 ## 1. Foundational contracts and build spine
 
+Idea: if Stilyagi settles its core contracts, packaging boundary, and build
+spine before feature work starts, later slices can converge on one coherent v1
+architecture instead of repeatedly reworking interfaces and test scaffolding.
+
 This phase removes the open questions that would otherwise churn every later
 slice. It also establishes the smallest mixed Rust and Python build spine that
 can support the vertical slices that follow.
 
 ### 1.1. Ratify the v1 contracts that would otherwise force rework
-
-Idea: if the project resolves the packaging, syntax-scope, transport, and
-locale-policy questions up front, later implementation can converge on one v1
-contract instead of repeatedly rewriting interfaces and tests.
 
 This step answers what Stilyagi v1 will and will not promise. Its outcome
 informs the repository layout, the public interfaces, and the first release
@@ -50,10 +50,6 @@ scope. See [Stilyagi design](stilyagi-design.md) §§7, 12-13 and
 
 ### 1.2. Establish the mixed-package skeleton and PyO3 bridge
 
-Idea: if the repository adopts the target Python and Rust layout early, later
-features can accrete around a stable ownership boundary instead of reworking
-paths, packaging, and imports mid-stream.
-
 This step answers whether the recommended layout in
 [Stilyagi design](stilyagi-design.md) §10 can support a reproducible local
 development loop and a release build without compatibility shims.
@@ -80,9 +76,6 @@ development loop and a release build without compatibility shims.
 
 ### 1.3. Build the shared validation corpus and contract-test scaffolding
 
-Idea: if the project invests early in fixtures and contract tests, later slices
-can move quickly without losing trust in spans, output schemas, or packaging.
-
 This step answers which artefacts and checks must exist before the first
 meaningful feature slice can be trusted. See
 [Stilyagi design](stilyagi-design.md) §11 and
@@ -108,15 +101,15 @@ meaningful feature slice can be trusted. See
 
 ## 2. Vertical slice 1: Markdown linting with real spans and safe fixes
 
+Idea: if the first vertical slice can lint Markdown with trustworthy spans,
+conservative fixes, and inspectable IR output, Stilyagi will already solve a
+real repository problem before docstrings, plugins, or heavier NLP land.
+
 This phase delivers the first usable Stilyagi product: lint Markdown files,
 report source-faithful diagnostics, apply conservative fixes, and inspect the
 underlying IR when behaviour looks wrong.
 
 ### 2.1. Prove that Markdown can be flattened into a trustworthy IR
-
-Idea: if Markdown extraction can produce stable regions and `segments` for real
-documents, the rest of the engine can treat the IR as the sole analysis
-substrate rather than letting rules parse Markdown for themselves.
 
 This step answers whether Markdown-specific structure, flattening, and
 suppression handling are sufficient for v1. The result informs rule design, fix
@@ -142,10 +135,6 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
 
 ### 2.2. Deliver the day-one Markdown CLI loop
 
-Idea: if Markdown linting, config discovery, fixes, and debug output work
-end-to-end from the main CLI, Stilyagi becomes useful before docstrings,
-plugins, or heavy NLP land.
-
 This step answers whether the v1 CLI contract is already strong enough to
 support normal repository linting and debugging for Markdown-only users. See
 [Stilyagi design](stilyagi-design.md) §§4, 7.3, 13 and
@@ -168,10 +157,6 @@ support normal repository linting and debugging for Markdown-only users. See
     extraction without special scripts.
 
 ### 2.3. Ship the first builtin rules that make the slice worth adopting
-
-Idea: if the first slice ships a small set of structural and lightweight text
-rules with clear docs, teams can adopt Stilyagi before the rule API or NLP
-surfaces become broad.
 
 This step answers which non-NLP rules provide immediate value while exercising
 the rule engine, diagnostics model, and safe-fix machinery. See
@@ -197,15 +182,16 @@ the rule engine, diagnostics model, and safe-fix machinery. See
 
 ## 3. Vertical slice 2: Docstrings and documentation comments in source trees
 
+Idea: if the same extraction and analysis loop can extend cleanly from Markdown
+into Python and Rust documentation surfaces, Stilyagi will prove that its
+architecture scales by domain rather than by piling on syntax-specific side
+paths.
+
 This phase extends the same extractor, IR, rule, and fix loop into mixed code
 repositories so Stilyagi becomes a prose linter for source trees, not just for
 standalone Markdown.
 
 ### 3.1. Prove owner-aware extraction for Python and Rust
-
-Idea: if tree-sitter-backed extraction can attach docstrings and documentation
-comments to stable owners, doc-focused rules can stay structural and avoid
-re-parsing source code.
 
 This step answers whether the extractor can recover the owner metadata and
 source maps that docstring rules need across Python and Rust. See
@@ -231,10 +217,6 @@ source maps that docstring rules need across Python and Rust. See
 
 ### 3.2. Reuse the Markdown rule loop inside mixed repositories
 
-Idea: if the same CLI and rule engine can lint Markdown, Python docstrings, and
-Rust documentation comments, Stilyagi proves that its main boundary is between
-extraction and analysis rather than between file types.
-
 This step answers how much of the first slice survives unchanged once the
 extractor surface grows. See [Stilyagi design](stilyagi-design.md) §§3-4, 7.2,
 13 and [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
@@ -255,10 +237,6 @@ extractor surface grows. See [Stilyagi design](stilyagi-design.md) §§3-4, 7.2,
     debugging Markdown.
 
 ### 3.3. Harden cache, fix, and correctness behaviour for mixed-source runs
-
-Idea: if mixed-source runs can remain deterministic and cache-correct, Stilyagi
-can grow into normal repository workflows without hiding correctness problems
-behind stale artefacts or syntax-specific edge cases.
 
 This step answers which correctness and invalidation rules must hold once more
 than one extractor family exists. See [Stilyagi design](stilyagi-design.md)
@@ -281,14 +259,16 @@ than one extractor family exists. See [Stilyagi design](stilyagi-design.md)
 
 ## 4. Vertical slice 3: Capability-planned language-aware rules
 
+Idea: if optional language enrichment can be planned precisely and paid for
+only when rules demand it, Stilyagi can offer smarter editorial analysis
+without destroying the structural fast path that makes the earlier slices
+usable in CI and local workflows.
+
 This phase adds smarter rules without sacrificing the structural fast path. The
 goal is not "add spaCy everywhere", but "prove that optional enrichment can be
 planned, paid for selectively, and hidden behind a stable rule API".
 
 ### 4.1. Validate the cheapest useful capability planner
-
-Idea: if Stilyagi can satisfy sentence and token needs with the lightest viable
-provider, structural runs can stay fast while richer rules remain possible.
 
 This step answers whether capability declarations are sufficient to select the
 minimum enrichment plan per run. See [Stilyagi design](stilyagi-design.md) §§4,
@@ -308,10 +288,6 @@ minimum enrichment plan per run. See [Stilyagi design](stilyagi-design.md) §§4
     lands.
 
 ### 4.2. Add richer rule APIs and showcase language-aware rules
-
-Idea: if the rule API can expose stable sentence and token abstractions without
-leaking backend internals, Stilyagi can support meaningful editorial policy
-checks without freezing itself to one NLP engine forever.
 
 This step answers what the stable public rule surface should look like once
 language-aware features exist. See [Stilyagi design](stilyagi-design.md) §§7.2,
@@ -336,9 +312,6 @@ language-aware features exist. See [Stilyagi design](stilyagi-design.md) §§7.2
 
 ### 4.3. Stabilize performance and debugging for enriched runs
 
-Idea: if enriched runs stay observable and bounded, teams can opt into smarter
-rules without treating them as a black-box performance gamble.
-
 This step answers what batching, logging, and profiling surfaces must exist
 before language-aware rules are safe to recommend broadly. See
 [Stilyagi design](stilyagi-design.md) §§4, 8, 11.
@@ -358,14 +331,15 @@ before language-aware rules are safe to recommend broadly. See
 
 ## 5. Vertical slice 4: Team adoption and extension ecosystem
 
+Idea: if Stilyagi exposes a deliberate extension surface, a real rule-author
+test workflow, and CI-friendly machine interfaces, it can graduate from a
+useful core tool into something teams can adopt and extend without treating it
+as an internal prototype.
+
 This phase turns Stilyagi from a useful core tool into something teams can
 adopt in CI, extend safely, and test against the real product surface.
 
 ### 5.1. Expose third-party rule packs and capability providers
-
-Idea: if installed packs remain inert until configured and startup rejects bad
-metadata loudly, Stilyagi can be extensible without becoming operationally
-chaotic.
 
 This step answers whether the extension surface is stable enough for external
 consumers and safe enough for teams to adopt deliberately. See
@@ -387,10 +361,6 @@ consumers and safe enough for teams to adopt deliberately. See
 
 ### 5.2. Ship the rule-author testing and documentation workflow
 
-Idea: if rule authors can test against the real engine with a thin pytest
-fixture and typed result model, the extension story becomes practical instead
-of ceremonial.
-
 This step answers whether RFC 0004 can make rule-pack development ergonomic
 without inventing a second test-only universe. See
 [RFC 0004](rfcs/0004-stilyagi-rule-testing-framework.md) and
@@ -411,10 +381,6 @@ without inventing a second test-only universe. See
   - Success: external pack authors know what is supported and what is unstable.
 
 ### 5.3. Harden reporting, CI adoption, and release readiness
-
-Idea: if Stilyagi can emit the right machine-readable output and install
-cleanly across supported platforms, teams can adopt it as CI infrastructure
-rather than as a local experiment.
 
 This step answers what must be true before the first release candidate is worth
 publishing. See [Stilyagi design](stilyagi-design.md) §§5, 8, 11, 13 and
@@ -439,14 +405,14 @@ publishing. See [Stilyagi design](stilyagi-design.md) §§5, 8, 11, 13 and
 
 ## 6. Deferred extensions after the core v1 promise
 
+Idea: if the core v1 promise is already trustworthy and boring to operate, the
+project can evaluate broader extractor, semantic, and editor-facing extensions
+on their product value instead of letting them destabilize the main release.
+
 These items matter, but they should not block the first meaningful release.
 They stay on the roadmap precisely so the v1 scope stays disciplined.
 
 ### 6.1. Evaluate MDX support and extractor plugins deliberately
-
-Idea: if the Markdown, Python, and Rust extractors are already trustworthy,
-then MDX and extractor-plugin work can be assessed against a stable baseline
-instead of being used as an excuse to delay v1.
 
 - [ ] 6.1.1. Decide whether MDX graduates from preview-only support.
   - Requires 5.3.3.
@@ -456,10 +422,6 @@ instead of being used as an excuse to delay v1.
 
 ### 6.2. Explore cross-file and semantic policy after single-file trust exists
 
-Idea: if single-file diagnostics are already trustworthy, then cross-file
-terminology and semantic-similarity rules can be evaluated on product value
-rather than mistaken for core correctness work.
-
 - [ ] 6.2.1. Prototype cross-file terminology and acronym inference.
   - Requires 5.3.3.
 - [ ] 6.2.2. Prototype vector-backed or semantic-similarity rules behind an
@@ -467,10 +429,6 @@ rather than mistaken for core correctness work.
   - Requires 4.2.3 and 6.2.1.
 
 ### 6.3. Revisit daemon-mode and editor protocol work after the CLI stabilizes
-
-Idea: if the CLI, IR, caches, and provider planning are already stable, then a
-daemon or Language Server Protocol (LSP) surface can reuse proven contracts
-instead of inventing new ones under pressure.
 
 - [ ] 6.3.1. Draft an RFC for daemon mode and incremental update semantics.
   - Requires 5.3.3.
