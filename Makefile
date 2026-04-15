@@ -6,6 +6,7 @@ RUST_MANIFEST ?= rust_extension/Cargo.toml
 BUILD_JOBS ?=
 RUST_FLAGS ?=
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+UV_RUN = $(UV_ENV) uv run --group dev
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(RUST_MANIFEST)
 
@@ -19,10 +20,10 @@ all: release ## Build the release artifact
 build: ## Build dev artifact and install into venv
 	UV_VENV_CLEAR=1 $(UV_ENV) uv venv
 	$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev
-	$(CARGO_BUILD_ENV) $(UV_ENV) uv run maturin develop --manifest-path $(RUST_MANIFEST)
+	$(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(RUST_MANIFEST)
 
 release: ## Build the release artifact
-	$(CARGO_BUILD_ENV) $(CARGO) build $(BUILD_JOBS) --manifest-path $(RUST_MANIFEST) --release
+	$(CARGO_BUILD_ENV) $(UV_RUN) maturin build --release --manifest-path $(RUST_MANIFEST)
 
 build-release: release ## Backward-compatible alias for release
 
@@ -44,29 +45,27 @@ tools:
 	$(call ensure_tool,$(CARGO))
 	$(call ensure_tool,rustfmt)
 	$(call ensure_tool,uv)
-	$(call ensure_tool,ruff)
-	$(call ensure_tool,ty)
 	$(call ensure_tool,whitaker)
 
 fmt: tools ## Format sources
-	ruff format
-	ruff check --select I --fix
+	$(UV_RUN) ruff format
+	$(UV_RUN) ruff check --select I --fix
 	$(MDFORMAT_ALL)
 	$(CARGO) fmt --manifest-path $(RUST_MANIFEST)
 
 check-fmt: tools ## Verify formatting
-	ruff format --check
+	$(UV_RUN) ruff format --check
 	$(CARGO) fmt --manifest-path $(RUST_MANIFEST) -- --check
 
 lint: tools ## Run linters
-	ruff check
+	$(UV_RUN) ruff check
 	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(RUST_MANIFEST) -- -D warnings
 	# Whitaker resolves cargo metadata from the crate directory in this repo.
 	cd rust_extension && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all
 
 typecheck: build tools ## Run typechecking
-	ty --version
-	ty check
+	$(UV_RUN) ty --version
+	$(UV_RUN) ty check
 
 markdownlint: tools ## Lint Markdown files
 	find . -type f -name '*.md' -not -path './rust_extension/target/*' -print0 | xargs -0 $(MDLINT)

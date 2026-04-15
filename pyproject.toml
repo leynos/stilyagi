@@ -16,6 +16,7 @@ dev = [
     "pytest",
     "pytest-xdist",
     "ruff",
+    "ty",
     "pytest-timeout",
     "pytest-bdd",
     "parse_type",
@@ -73,7 +74,6 @@ select = [
     "RUF053",
     "RUF055",
     "RUF064",
-    "RUF066",
 ]
 extend-ignore = [
     "D203",  # Conflicts with D211; prefer enforcing no blank line before class docstring.
