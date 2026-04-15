@@ -282,7 +282,7 @@ and additionally record anomalies in `errors`. tree-sitter explicitly exposes
 `ERROR` and `MISSING` nodes, and Stilyagi should use that rather than
 pretending malformed files do not exist.[^5]
 
-## 9. Serialisation and compatibility
+## 9. Serialization and compatibility
 
 v1 SHALL require a canonical JSON serialization for the IR.
 

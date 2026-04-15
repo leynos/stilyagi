@@ -223,9 +223,9 @@ build-backend = "setuptools.build_meta"
 package = true
 ```
 
-**Explanation of key points:**
+### Explanation of key points
 
-1. **Metadata under `[project]`:**
+### Metadata under `[project]`
 
 - `name`, `version` (mandatory per PEP 621) (Python Packaging[^4], Reddit[^5])
 - `description`, `readme`, `requires-python`: provide clarity about the
@@ -235,19 +235,19 @@ package = true
 - `dependencies`: runtime requirements, expressed in PEP 508 syntax.
   (Astral Docs[^1], RidgeRun.ai[^2])
 
-1. **Optional Dependencies (`[project.optional-dependencies]`):**
+### Optional dependencies (`[project.optional-dependencies]`)
 
 - Grouped as `dev` (for testing + linting) and `docs` (for documentation).
   These keys are published as extras. Installation is as simple as
   `uv add --optional dev pytest` or `uv sync --extra dev`. (Python
   Packaging[^4], DevsJC[^6])
 
-1. **Entry Points (`[project.scripts]`):**
+### Entry points (`[project.scripts]`)
 
 - Defines a console command `mycli` that maps to `my_project/cli.py:main`.
   Invoking `uv run mycli` will run the `main()` function. (Astral Docs[^8])
 
-1. **Build system:**
+### Build system
 
 - `setuptools>=61.0` plus `wheel` ensures both legacy and editable installs
   work. ✱ Newer versions of setuptools support PEP 660 editable installs
@@ -255,7 +255,7 @@ package = true
 - `build-backend = "setuptools.build_meta"` tells `uv` how to compile the
   package. (Python Packaging[^4], Astral Docs[^8])
 
-1. **`[tool.uv]`:**
+### `[tool.uv]`
 
 - `package = true` ensures that `uv sync` builds and installs the local
   project (in editable mode) every time dependencies change. Otherwise, `uv`

@@ -130,6 +130,19 @@ markers = [
     "slow: exercises that take longer or require heavyweight tooling",
 ]
 
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+include = ["stilyagi"]
+exclude = [
+    "tests",
+    "build",
+    "dist",
+    ".venv",
+    "rust_extension/target",
+]
+
 [tool.uv]
 package = true
 

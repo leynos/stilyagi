@@ -675,7 +675,6 @@ The recommended subsystems are:
 - Rust extraction pipeline: file reading, Markdown parsing, tree-sitter
   parsing, region extraction, owner metadata, suppression parsing, source maps,
   and extraction errors.
-- IR generation: logical schema plus canonical JSON serializer.
 - IR generation: logical schema plus canonical JSON serializer, `line_index`
   construction, content hashes, and segment-map invariants.
 - Python analysis engine: wraps IR into `Document`, `Region`, `Sentence`, and
@@ -687,9 +686,9 @@ The recommended subsystems are:
 - Fix planner and conflict resolver: validates edits, filters by applicability,
   and applies or prints patches.
 - Config loader: resolves nearest config, `extend` chains, and CLI overrides.
-- Plugin loader: loads rule packs and provider plugins via entry points.
-- Plugin loader: loads `stilyagi.rules` and `stilyagi.capabilities` entry
-  points, validates metadata, and keeps installed but unconfigured packs inert.
+- Plugin loader: loads rule packs and provider plugins via the
+  `stilyagi.rules` and `stilyagi.capabilities` entry points, validates
+  metadata, and keeps installed but unconfigured packs inert.
 - Cache manager: maintains separate extraction and analysis caches.
 - Output renderers: text, JSON, and SARIF.
 

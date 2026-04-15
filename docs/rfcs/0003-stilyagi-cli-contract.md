@@ -34,7 +34,7 @@ commands such as `check`, `rule`, `config`, `clean`, and `server`; “closest
 config wins” behaviour with explicit `extend`; safe versus unsafe fixes;
 per-file ignores; suppressions; and exit codes `0/1/2`.[^1]
 
-Stilyagi will intentionally diverge in one place: v1 SHALL NOT auto-load
+Stilyagi will intentionally diverge in one place: v1 SHALL NOT autoload
 user-level configuration. Prose linting is taste-heavy enough already; hidden
 personal defaults would turn continuous integration (CI) parity into soup. Ruff
 does support a user-level fallback, but Stilyagi should not copy that part in
@@ -402,7 +402,7 @@ Stilyagi should imitate that restraint, then add one debug-first command,
 `dump-ir`, because prose linting over reconstructed regions and mixed parse
 frontends needs visibility into the intermediate state.[^1]
 
-One deliberate deviation bears repeating: no user-level config auto-loading in
+One deliberate deviation bears repeating: no user-level config autoloading in
 v1. That is not asceticism. It is damage control.
 
 [^1]: <https://docs.astral.sh/ruff/configuration/>

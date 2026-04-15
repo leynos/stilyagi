@@ -104,5 +104,5 @@ with open("file.txt") as f:
     process(f)
 ```
 
-Context managers make your intent and error handling explicit. Prefer them over
+Context managers make intent and error handling explicit. Prefer them over
 manual `try/finally` for clearer, safer code.

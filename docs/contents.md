@@ -12,8 +12,9 @@
   repository-wide writing and Markdown conventions.
 - [Scripting standards](scripting-standards.md) describes the expectations for
   shell and automation scripts in this repository.
-- [Local validation with act and pytest](local-validation-of-github-actions-with-act-and-pytest.md)
-  explains the current local workflow for validating GitHub Actions behaviour.
+- [Local validation with act and pytest](
+  local-validation-of-github-actions-with-act-and-pytest.md) explains the
+  current local workflow for validating GitHub Actions behaviour.
 - [RFCs](rfcs/) capture narrower draft contracts and design inputs that feed the
   main design:
   - [RFC 0001: Stilyagi IR](rfcs/0001-stilyagi-intermediate-representation.md)
