@@ -23,12 +23,10 @@ command interception is intentionally avoided; containers execute in isolation.
   container runtime socket is reachable. On Fedora/Podman that normally means:
   1. `systemctl --user status podman.socket` reports `active (listening)`.
   2. Commands that talk to the socket (such as `podman info`, `act ...`, or the
-     pytest harness) run with escalated permissions. In this repo, use
-     `ACT_WORKFLOW_TESTS=1 sudo -E make test` to exercise the workflow harness.
-  3. The release workflow now redirects `uv` caches and the project virtualenv
-     to `/tmp` when it detects it is running under `act`, so the container no
-     longer leaves root-owned files in the workspace. If residue from older runs
-     remains, remove the `.venv` or `.uv-*` directories once, then re-run.
+     pytest harness) run with escalated permissions if the local runtime
+     requires them.
+  3. If residue from older runs remains, remove the `.venv` or `.uv-*`
+     directories once, then re-run.
 - Optional but recommended: pin an image to reduce drift:
 
   ```bash
@@ -168,30 +166,6 @@ def test_workflow_produces_expected_artefact_and_logs(tmp_path: Path) -> None:
             break
     assert saw_greeting, "expected greeting in structured logs"
 ```
-
-### Concordat release workflow harness
-
-`tests/workflows/test_release_workflow.py` applies the pattern above to
-`.github/workflows/release.yml`. The test:
-
-- synthesises a `workflow_dispatch` event fixture,
-- invokes `act workflow_dispatch` against the real release workflow,
-- captures the JSON logs (`act --json`), and
-- asserts that a ZIP artefact is built and logged exactly once.
-
-Because the test launches containers, it requires the same Podman/Docker setup
-described in the prerequisites. The harness skips automatically when the
-runtime or socket is unavailable, but to _run_ it you must opt in:
-
-```bash
-# Inside a sandbox where podman requires sudo:
-ACT_WORKFLOW_TESTS=1 sudo -E make test
-```
-
-That target first runs the regular test suite as the invoking user, then
-re-runs only the workflow harness when `ACT_WORKFLOW_TESTS=1`. After running
-with sudo, remove the root-owned `.venv` (`sudo rm -rf .venv`) so future
-non-root commands can recreate it.
 
 ## Record -> replay -> verify (closing the loop)
 

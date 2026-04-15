@@ -34,6 +34,7 @@ def iter_user_names(users):
         if user.active and user.name:
             yield user.name.upper()
 
+
 def get_names(users):
     return list(iter_user_names(users))
 ```
@@ -50,19 +51,21 @@ def get_names(users):
 ```python
 from itertools import islice
 
+
 def top_active_emails(users):
     emails = (
         user.email.lower()
         for user in users
-        if user.active and user.email is not None
+        if user.active
+        if user.email is not None
     )
     return list(islice(emails, 10))
 ```
 
 ## Use generators when
 
-- Generators suit iterating while filtering or mapping data.
-- Generators make early returns or short-circuit behaviour clearer.
+- Iterating while filtering or mapping data.
+- Early returns or short-circuit behaviour need clearer structure.
 - The function logically produces a sequence over time.
 
 ## Avoid overcomplicating
@@ -88,7 +91,7 @@ def iter_even_doubles():
 
 ______________________________________________________________________
 
-**Rule of thumb:** If a `for` loop has multiple branches, mutations, or is hard
-to explain in one sentence—rewrite it as a generator.
+**Rule of thumb:** If a `for` loop has multiple branches, mutations, or is
+hard to explain in one sentence, try rewriting it as a generator.
 
 Prefer clear, linear data flows over deeply nested conditionals and loop bodies.

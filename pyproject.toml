@@ -1,27 +1,22 @@
 [project]
 name = "stilyagi"
 version = "0.1.0"
-description = "CLI utilities for packaging and installing Vale styles"
+description = "Prose linter for Markdown and doc comments"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 license = { text = "ISC" }
 authors = [{ name = "Payton McIntosh", email = "pmcintosh@df12.net" }]
-dependencies = [
-    "cyclopts>=2.9",
-]
-
 [project.urls]
 Homepage = "https://df12.studio/docs.html"
 Repository = "https://github.com/leynos/stilyagi"
 
-[project.scripts]
-stilyagi = "stilyagi.stilyagi:main"
-
 [dependency-groups]
 dev = [
+    "maturin",
     "pytest",
     "pytest-xdist",
     "ruff",
+    "ty",
     "pytest-timeout",
     "pytest-bdd",
     "parse_type",
@@ -29,7 +24,6 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
 preview = true
 
 [tool.ruff.lint]
@@ -40,7 +34,6 @@ select = [
     "I",        # Sort imports properly
     "UP",       # Warn if certain things can changed due to newer Python versions
     "C4",       # Catch incorrect use of comprehensions, dict, list, etc
-    "FA",       # Enforce from __future__ import annotations
     "ISC",      # Good use of string concatenation
     "ICN",      # Use common import conventions
     "RET",      # Good return practices
@@ -48,7 +41,6 @@ select = [
     "TID",      # Some good import practices
     "TC",       # Enforce importing certain types in a TYPE_CHECKING block
     "PTH",      # Use pathlib instead of os.path
-    "TD",       # Be diligent with TODO comments
     "A",        # detect shadowed builtins
     "BLE",      # disallow catch-all exceptions
     "S",        # disallow things like "exec"; also restricts "assert" but I just NOQA it when I really need it
@@ -82,7 +74,6 @@ select = [
     "RUF053",
     "RUF055",
     "RUF064",
-    "RUF066",
 ]
 extend-ignore = [
     "D203",  # Conflicts with D211; prefer enforcing no blank line before class docstring.
@@ -139,6 +130,19 @@ markers = [
     "slow: exercises that take longer or require heavyweight tooling",
 ]
 
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+include = ["stilyagi"]
+exclude = [
+    "tests",
+    "build",
+    "dist",
+    ".venv",
+    "rust_extension/target",
+]
+
 [tool.uv]
 package = true
 
@@ -146,5 +150,5 @@ package = true
 module-root = ""
 
 [build-system]
-requires = ["uv_build>=0.9.18,<0.10.0"]
+requires = ["uv_build>=0.11.6,<0.12.0"]
 build-backend = "uv_build"

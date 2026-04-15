@@ -1,7 +1,7 @@
-# flake8-return Style Guide (Python 3.13)
+# flake8-return Style Guide (Python 3.14)
 
-The `flake8-return` rules ensure consistent and explicit return behaviour while
-keeping functions clear in intent and free from unnecessary control flow.
+The `flake8-return` rules ensure consistent and explicit return behaviour,
+ensuring functions are clear in intent and free from unnecessary control flow.
 Follow these rules:
 
 ## R501 — Avoid Explicit `return None` if It's the Only Return
@@ -10,6 +10,7 @@ Follow these rules:
 # BAD:
 def func():
     return None
+
 
 # GOOD:
 def func():
@@ -29,6 +30,7 @@ def func(x):
     if x > 0:
         return x
     # implicitly returns None (bad)
+
 
 # GOOD:
 def func(x):
@@ -50,6 +52,7 @@ def func(x):
         return x
     # no return (bad)
 
+
 # GOOD:
 def func(x):
     if x > 0:
@@ -68,6 +71,7 @@ ______________________________________________________________________
 def func():
     result = compute()
     return result
+
 
 # GOOD:
 def func():
@@ -114,9 +118,9 @@ for x in xs:
     log()
 ```
 
-These rules apply to regular, and `async def` functions alike.
+These rules apply to regular and `async def` functions alike.
 
 ______________________________________________________________________
 
-Use the `flake8-return` rules to enforce predictable return logic. Doing so
-enhances readability and correctness.
+Use the `flake8-return` rules to enforce predictable and clean return logic,
+enhancing readability and correctness.

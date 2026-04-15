@@ -1,104 +1,96 @@
-MDLINT ?= $(shell which markdownlint-cli2)
-NIXIE ?= $(shell which nixie)
-MDFORMAT_ALL ?= $(shell which mdformat-all)
-TOOLS = $(MDFORMAT_ALL) ruff ty $(MDLINT) $(NIXIE) uv
-VENV_TOOLS = pytest
+MDLINT ?= markdownlint-cli2
+NIXIE ?= nixie
+MDFORMAT_ALL ?= mdformat-all
+CARGO ?= cargo
+RUST_MANIFEST ?= rust_extension/Cargo.toml
+BUILD_JOBS ?=
+RUST_FLAGS ?=
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
-PYTHON ?= python3
-VALE ?= vale
-VALE_CONFIG ?= .vale.ini
-VALE_TARGETS ?= README.md docs/**/*.md
-VALE_ARCHIVE ?= dist/concordat-dev.zip
-ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
-
-ACT_WORKFLOW_TESTS ?= 0
+UV_RUN = $(UV_ENV) uv run --group dev
+CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
+TEST_FLAGS ?= --manifest-path $(RUST_MANIFEST)
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
-        markdownlint nixie test typecheck vale-archive vale-sync vale \
-        $(TOOLS) $(VENV_TOOLS)
+        markdownlint nixie test test-ci test-quick typecheck tools release
 
 .DEFAULT_GOAL := all
 
-all: build check-fmt test typecheck
+all: release ## Build the release artifact
 
-.venv: pyproject.toml
-	$(UV_ENV) uv venv --clear
+build: ## Build dev artifact and install into venv
+	UV_VENV_CLEAR=1 $(UV_ENV) uv venv
+	$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev
+	$(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(RUST_MANIFEST)
 
-build: uv .venv ## Build virtual-env and install deps
-	$(UV_ENV) uv sync --group dev
+release: ## Build the release artifact
+	$(CARGO_BUILD_ENV) $(UV_RUN) maturin build --release --manifest-path $(RUST_MANIFEST)
 
-build-release: ## Build artefacts (sdist & wheel)
-	python -m build --sdist --wheel
+build-release: release ## Backward-compatible alias for release
 
 clean: ## Remove build artifacts
+	$(CARGO) clean --manifest-path $(RUST_MANIFEST)
 	rm -rf build dist *.egg-info \
 	  .mypy_cache .pytest_cache .coverage coverage.* \
 	  lcov.info htmlcov .venv
 	find . -type d -name '__pycache__' -print0 | xargs -0 -r rm -rf
+	find . -type f -name '*.log' -not -path './rust_extension/target/*' -delete
 
 define ensure_tool
-	@command -v $(1) >/dev/null 2>&1 || { \
-	  printf "Error: '%s' is required, but not installed\n" "$(1)" >&2; \
-	  exit 1; \
-	}
+$(if $(shell command -v $(1) >/dev/null 2>&1 && echo y),,\
+$(error $(1) is required but not installed))
 endef
 
-define ensure_tool_venv
-	$(UV_ENV) uv run which $(1) >/dev/null 2>&1 || { \
-	  printf "Error: '%s' is required in the virtualenv, but is not installed\n" "$(1)" >&2; \
-	  exit 1; \
-	}
-endef
+tools:
+	$(call ensure_tool,$(MDFORMAT_ALL))
+	$(call ensure_tool,$(CARGO))
+	$(call ensure_tool,rustfmt)
+	$(call ensure_tool,uv)
+	$(call ensure_tool,whitaker)
 
-ifneq ($(strip $(TOOLS)),)
-$(TOOLS): ## Verify required CLI tools
-	$(call ensure_tool,$@)
-endif
-
-
-ifneq ($(strip $(VENV_TOOLS)),)
-.PHONY: $(VENV_TOOLS)
-$(VENV_TOOLS): ## Verify required CLI tools in venv
-	$(call ensure_tool_venv,$@)
-endif
-
-fmt: ruff $(MDFORMAT_ALL) ## Format sources
-	ruff format
-	ruff check --select I --fix
+fmt: tools ## Format sources
+	$(UV_RUN) ruff format
+	$(UV_RUN) ruff check --select I --fix
 	$(MDFORMAT_ALL)
+	$(CARGO) fmt --manifest-path $(RUST_MANIFEST)
 
-check-fmt: ruff ## Verify formatting
-	ruff format --check
-	# mdformat-all doesn't currently do checking
+check-fmt: tools ## Verify formatting
+	$(UV_RUN) ruff format --check
+	$(CARGO) fmt --manifest-path $(RUST_MANIFEST) -- --check
 
-lint: ruff ## Run linters
-	ruff check
+lint: tools ## Run linters
+	$(UV_RUN) ruff check
+	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(RUST_MANIFEST) -- -D warnings
+	# Whitaker resolves cargo metadata from the crate directory in this repo.
+	cd rust_extension && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all
 
-typecheck: build ty ## Run typechecking
-	ty --version
-	ty check
+typecheck: build tools ## Run typechecking
+	$(UV_RUN) ty --version
+	$(UV_RUN) ty check
 
-markdownlint: $(MDLINT) ## Lint Markdown files
-	$(MDLINT) '**/*.md'
+markdownlint: tools ## Lint Markdown files
+	find . -type f -name '*.md' -not -path './rust_extension/target/*' -print0 | xargs -0 $(MDLINT)
 
-nixie: $(NIXIE) ## Validate Mermaid diagrams
-	$(NIXIE) --no-sandbox
+nixie: tools ## Validate Mermaid diagrams
+	find . -type f -name '*.md' -not -path './rust_extension/target/*' -print0 | xargs -0 $(NIXIE) --no-sandbox
 
-vale-archive: build ## Build the dev Concordat archive for local linting
-	$(UV_ENV) uv run stilyagi zip --archive-version dev --force
+test: build tools ## Run tests (nextest if available, otherwise cargo test)
+	$(CARGO) fmt --manifest-path $(RUST_MANIFEST) -- --check
+	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(RUST_MANIFEST) -- -D warnings
+	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS); \
+	else \
+		echo "cargo-nextest not installed, falling back to cargo test"; \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) test $(TEST_FLAGS) $(BUILD_JOBS); \
+	fi
+	# Run pytest through the venv interpreter so the maturin-developed extension
+	# remains installed instead of being replaced by the uv_build wheel.
+	.venv/bin/python -m pytest -v
 
-vale-sync: vale-archive ## Sync Concordat into .vale/styles
-	$(VALE) sync --config $(VALE_CONFIG)
+test-ci: build tools ## Run Rust tests with the CI nextest profile
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile ci --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS)
 
-vale: vale-sync ## Lint docs with Vale after syncing and patching acronyms
-	$(UV_ENV) uv run --script $(ACRONYM_SCRIPT)
-	$(VALE) --config $(VALE_CONFIG) --minAlertLevel suggestion $(VALE_TARGETS)
-
-test: build uv $(VENV_TOOLS) ## Run tests
-	$(UV_ENV) uv run pytest -v -n auto
-ifeq ($(ACT_WORKFLOW_TESTS),1)
-	$(UV_ENV) uv run pytest tests/workflows/test_release_workflow.py -vv
-endif
+test-quick: build tools ## Run Rust library tests only with nextest
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass --lib $(TEST_FLAGS) $(BUILD_JOBS)
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

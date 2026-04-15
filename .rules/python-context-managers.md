@@ -1,8 +1,8 @@
-# Use context managers for cleanup and resource management
+# Using context managers for cleanup and resource management
 
 Use context managers to encapsulate setup and teardown logic cleanly and
-safely. This reduces the risk of forgetting to release resources such as files,
-locks, and connections, and it simplifies error handling.
+safely. This reduces the risk of forgetting to release resources (files, locks,
+connections, etc.) and simplifies error handling.
 
 Context managers can be written either with `contextlib.contextmanager` (for
 simple procedural control flow) or by implementing `__enter__` and `__exit__`
@@ -23,6 +23,7 @@ Use this for straightforward procedural setup/teardown:
 ```python
 from contextlib import contextmanager
 
+
 @contextmanager
 def managed_file(path: str, mode: str):
     f = open(path, mode)
@@ -30,6 +31,7 @@ def managed_file(path: str, mode: str):
         yield f
     finally:
         f.close()
+
 
 # Usage:
 with managed_file("/tmp/data.txt", "w") as f:
@@ -53,6 +55,7 @@ class Resource:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.conn.close()
 
+
 # Usage:
 with Resource() as conn:
     conn.send("ping")
@@ -70,7 +73,7 @@ ______________________________________________________________________
 - Use a class when:
 
   - There is internal state or methods tied to the resource lifecycle.
-  - The design must support re-entry or more advanced context features.
+  - Support for re-entry and more advanced context features is required.
 
 ______________________________________________________________________
 
@@ -79,8 +82,8 @@ ______________________________________________________________________
 - File or network resource handling
 - Lock acquisition and release
 - Temporary changes to environment (e.g., `os.chdir`, `patch`, `tempfile`)
-- Logging scope control and tracing
-- Transaction control in databases and services
+- Logging scope control or tracing
+- Transaction control in databases or services
 
 ______________________________________________________________________
 
