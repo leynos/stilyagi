@@ -8,6 +8,9 @@
 - [Developer's guide](developers-guide.md) describes the maintainer-facing
   environment setup, Rust and Python boundaries, build workflow, and
   verification flow for the mixed PyO3 package.
+- [Repository layout](repository-layout.md) maps the major repository paths,
+  their responsibilities, and the generated or constrained directories that
+  contributors should treat carefully.
 - [Documentation style guide](documentation-style-guide.md) defines the
   repository-wide writing and Markdown conventions.
 - [Scripting standards](scripting-standards.md) describes the expectations for
