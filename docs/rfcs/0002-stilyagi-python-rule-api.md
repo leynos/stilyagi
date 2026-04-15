@@ -202,7 +202,7 @@ This is where spaCy matters. spaCy documents that components are optional, can
 be enabled or disabled, and can be swapped or removed. It also documents that
 sentence segmentation can come from the dependency parser, a dedicated sentence
 recognizer, or the rule-based `Sentencizer`. It also documents that lemmas are
-not present by default in v3, requiring an explicit lemmatiser component; with
+not present by default in v3, requiring an explicit lemmatizer component; with
 rule-based lemmatization depending on POS tags. That makes capability planning
 a first-class design requirement rather than a decorative flourish.[^1]
 

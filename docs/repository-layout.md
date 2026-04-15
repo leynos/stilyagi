@@ -14,7 +14,7 @@ explains where things live.
 ## 1. Repository map
 
 The tree below is illustrative rather than exhaustive. It includes the paths a
-new maintainer needs to recognise quickly and omits transient cache contents.
+new maintainer needs to recognize quickly and omits transient cache contents.
 
 ```plaintext
 .
