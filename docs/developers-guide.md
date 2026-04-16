@@ -15,6 +15,9 @@ narrower contracts live in:
   interface (CLI)
 - [RFC 0004](rfcs/0004-stilyagi-rule-testing-framework.md) for the
   rule-testing framework
+- [Roadmap](roadmap.md) for the ordered implementation sequence across the six
+  phases, including which architectural questions should be settled before
+  later slices are expanded
 
 Documentation changes in this repository must also follow the
 [documentation style guide](documentation-style-guide.md).
@@ -74,7 +77,64 @@ This boundary is deliberate. Rules should never parse source files for
 themselves, and the Rust layer should not absorb policy decisions that belong
 in the rule engine.
 
-## 3. Rust and PyO3 integration
+## 3. Roadmap-aligned implementation boundaries
+
+The [roadmap](roadmap.md) is the maintainer view of build order. It is not just
+a delivery checklist. It records the architectural questions that each phase is
+supposed to settle before the later ones rely on them.
+
+The six phases currently break down into:
+
+- Phase 1: ratify v1 contracts, packaging, repository layout, and shared test
+  scaffolding
+- Phase 2: deliver the first Markdown slice with real spans, suppression
+  handling, and conservative fixes
+- Phase 3: extend the same loop into Python docstrings and Rust documentation
+  comments
+- Phase 4: add capability-planned language-aware enrichment without breaking
+  the structural fast path
+- Phase 5: stabilize extension, testing, CI, and release-facing surfaces for
+  team adoption
+- Phase 6: evaluate Markdown with JSX (MDX), semantic, and editor-facing
+  extensions only after the core v1 promise is already stable
+
+For the near-term phases, developers should preserve four boundaries in
+particular.
+
+- IR structure
+  - The near-term extractor contract is a stable, region-oriented IR with
+    canonical JSON debug output, `line_index`, `content_hash`, `segments`,
+    owner metadata, and explicit extraction errors or suppressions where they
+    exist.
+  - The in-process Rust to Python boundary may become more efficient than JSON,
+    but JSON remains the canonical debug and test form for `dump-ir`, golden
+    fixtures, and contract review.
+- Suppression semantics
+  - Suppression state is extracted once and carried in the IR rather than
+    inferred ad hoc by individual rules.
+  - V1 suppression remains syntax-native and deliberately narrow: configuration
+    ignores, file-level directives, and named inline or range directives in
+    host-language comments. Blanket inline suppression remains out of scope.
+- Safe-fix planning
+  - Fix planning stays source-faithful and conservative. Safe fixes may target
+    only source-backed spans, must reject overlapping non-identical edits, and
+    must not mutate synthetic spans introduced during flattening.
+  - The CLI surfaces for this work are `check --fix`, `check --diff`, and
+    `dump-ir`, because maintainers need both mutation and inspection paths
+    while the core slices are still settling.
+- Capability planning
+  - Language-aware rules declare capabilities up front, and the runtime plans
+    the cheapest provider set that satisfies the active rules.
+  - Structural-only runs must continue to avoid natural language processing
+    (NLP) startup entirely. Sentence and token enrichment should land before
+    heavier part-of-speech, lemma, or dependency features, and backend escape
+    hatches remain explicitly unstable.
+
+When implementation work crosses one of those boundaries, update the design,
+the relevant RFC, and the roadmap together. The roadmap is part of the current
+maintainer contract, not a disposable planning artefact.
+
+## 4. Rust and PyO3 integration
 
 The Rust extension crate lives under `rust_extension/` and is built as the
 `_stilyagi_rs` Python extension module. PyO3 provides the binding layer, while
@@ -93,7 +153,7 @@ source-fidelity primitives, extraction results, and other stable engine
 building blocks. A bad boundary exports policy-heavy convenience wrappers that
 would force rule-engine churn into the extension crate.
 
-## 4. Build workflow
+## 5. Build workflow
 
 The standard development and release workflows are:
 
@@ -118,7 +178,7 @@ output, which is the expected distribution surface for the mixed package.
 The `build-release` target exists as a compatibility alias and should remain
 behaviourally identical to `release`.
 
-## 5. Lint, typecheck, and test workflow
+## 6. Lint, typecheck, and test workflow
 
 The Makefile is the canonical workflow entrypoint. The current checks are:
 
@@ -161,7 +221,7 @@ The Python tools are intentionally run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
 the host `PATH`.
 
-## 6. Development responsibilities
+## 7. Development responsibilities
 
 Maintainer responsibilities in this repository are stricter than a normal
 single-language package.
@@ -181,7 +241,7 @@ Substantial architecture changes should update both the code and the documents
 that define the current contracts. Stale documentation is treated as a defect,
 not as optional follow-up work.
 
-## 7. API boundaries
+## 8. API boundaries
 
 The most important API boundaries are:
 
@@ -202,7 +262,7 @@ When a change crosses one of these boundaries, the change should be treated as
 contract work rather than a local refactor. That usually means tests,
 documentation, and compatibility review all need to move together.
 
-## 8. Debugging and verification workflow
+## 9. Debugging and verification workflow
 
 When behaviour looks wrong, debugging should start at the boundary most likely
 to be at fault.
@@ -222,7 +282,7 @@ For verification, prefer the Makefile targets over ad hoc tool runs. The
 targets encode the repository's intended order of operations and catch
 cross-language regressions that isolated commands can miss.
 
-## 9. Release expectations
+## 10. Release expectations
 
 Release work should assume wheel artefacts are the primary distributable output
 of the mixed package.
