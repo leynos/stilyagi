@@ -26,19 +26,20 @@ can support the vertical slices that follow.
 This step answers what Stilyagi v1 will and will not promise. Its outcome
 informs the repository layout, the public interfaces, and the first release
 scope. See [Stilyagi design](stilyagi-design.md) §§7, 12-13 and
-[`docs/rfcs/`](rfcs/).
+[`rfcs/`](rfcs/).
 
-- [ ] 1.1.1. Record the packaging-boundary decision as an ADR.
+- [ ] 1.1.1. Record the packaging-boundary decision as an Architecture
+  Decision Record (ADR).
   - Decide between the recommended PyO3 plus `maturin` extension path and any
     alternative helper-binary transport.
   - Success: one accepted ADR defines the build and runtime boundary for all
     later work.
-- [ ] 1.1.2. Record the v1 syntax-scope, IR-transport, and locale-policy
-  decisions.
+- [ ] 1.1.2. Record the v1 syntax-scope, intermediate-representation (IR)
+  transport, and locale-policy decisions.
   - Requires 1.1.1.
-  - Confirm whether MDX stays preview-only, whether JSON is canonical debug
-    output rather than the only in-process transport, and whether English-only
-    support is the formal v1 policy.
+  - Confirm whether Markdown with JSX (MDX) stays preview-only, whether JSON is
+    canonical debug output rather than the only in-process transport, and
+    whether English-only support is the formal v1 policy.
   - Success: the v1 promises match [Stilyagi design](stilyagi-design.md)
     §12.
 - [ ] 1.1.3. Amend RFC 0001, RFC 0002, and RFC 0003 so the design and the
@@ -95,15 +96,16 @@ meaningful feature slice can be trusted. See
     cheaply.
 - [ ] 1.3.3. Add baseline performance probes for cold and warm structural runs.
   - Requires 1.2.3 and 1.3.1.
-  - Record the current repository-local measurement method before richer NLP
-    features land.
+  - Record the current repository-local measurement method before richer
+    natural language processing (NLP) features land.
   - Success: later steps can prove that they preserved the structural fast path.
 
 ## 2. Vertical slice 1: Markdown linting with real spans and safe fixes
 
 Idea: if the first vertical slice can lint Markdown with trustworthy spans,
 conservative fixes, and inspectable IR output, Stilyagi will already solve a
-real repository problem before docstrings, plugins, or heavier NLP land.
+real repository problem before docstrings, plugins, or heavier NLP-backed work
+land.
 
 This phase delivers the first usable Stilyagi product: lint Markdown files,
 report source-faithful diagnostics, apply conservative fixes, and inspect the
@@ -118,7 +120,7 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
 
 - [ ] 2.1.1. Implement the Markdown IR envelope, `line_index`, region text, and
   `segments` mappings.
-  - Requires steps 1.1-1.3.
+  - Requires 1.1.3, 1.2.2, and 1.3.1.
   - Include source-backed positions, synthetic insertions, and content hashes.
   - Success: canonical IR JSON round-trips representative Markdown fixtures
     without span drift.
@@ -397,7 +399,7 @@ publishing. See [Stilyagi design](stilyagi-design.md) §§5, 8, 11, 13 and
   - Success: mixed Rust and Python packaging works on every supported platform.
 - [ ] 5.3.3. Define release-candidate criteria for the first meaningful v1
   release.
-  - Requires phase 2 through phase 5 task completion evidence.
+  - Requires 2.3.3, 3.3.3, 4.3.3, 5.1.3, 5.2.3, and 5.3.2.
   - Include required commands, supported syntaxes, rule discoverability, debug
     surfaces, and fix safety guarantees.
   - Success: the project can decide objectively when the core v1 promise has
