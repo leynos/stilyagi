@@ -29,13 +29,14 @@ scope. See [Stilyagi design](stilyagi-design.md) §§7, 12-13 and
 [`rfcs/`](rfcs/).
 
 - [ ] 1.1.1. Record the packaging-boundary decision as an Architecture
-  Decision Record (ADR).
+  Decision Record (ADR). See Stilyagi design (stilyagi-design.md) §7.1.
   - Decide between the recommended PyO3 plus `maturin` extension path and any
     alternative helper-binary transport.
   - Success: one accepted ADR defines the build and runtime boundary for all
     later work.
 - [ ] 1.1.2. Record the v1 syntax-scope, intermediate-representation (IR)
-  transport, and locale-policy decisions.
+  transport, and locale-policy decisions. See Stilyagi design
+  (stilyagi-design.md) §7.1.
   - Requires 1.1.1.
   - Confirm whether Markdown with JSX (MDX) stays preview-only, whether JSON is
     canonical debug output rather than the only in-process transport, and
@@ -43,7 +44,9 @@ scope. See [Stilyagi design](stilyagi-design.md) §§7, 12-13 and
   - Success: the v1 promises match [Stilyagi design](stilyagi-design.md)
     §12.
 - [ ] 1.1.3. Amend RFC 0001, RFC 0002, and RFC 0003 so the design and the
-  narrower contracts agree.
+  narrower contracts agree. See Stilyagi design (stilyagi-design.md) §7.1. See
+  Stilyagi design (stilyagi-design.md) §7.2. See Stilyagi design
+  (stilyagi-design.md) §7.3.
   - Requires 1.1.1 and 1.1.2.
   - Align the RFCs with the design's narrowed terminology and scope, including
     `syntax` naming, `RegionTarget` primacy, and trimmed v1 discovery support.
@@ -56,20 +59,22 @@ This step answers whether the recommended layout in
 development loop and a release build without compatibility shims.
 
 - [ ] 1.2.1. Create the Python package and Rust crate structure described in
-  [Stilyagi design](stilyagi-design.md) §10.
+  [Stilyagi design](stilyagi-design.md) §10. See Stilyagi design
+  (stilyagi-design.md) §7.1.
   - Requires 1.1.3.
   - Include the PyO3 bridge crate, the Python source root, and the initial
     engine or model package boundaries.
   - Success: the repository shape matches the intended long-lived architecture.
 - [ ] 1.2.2. Expose a minimal Rust-to-Python extraction call through the PyO3
-  extension.
+  extension. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 1.2.1.
   - The first bridge may return a trivial or partial IR payload, but it must
     exercise the real extension boundary.
   - Success: Python can call into Rust without shelling out to an external
     helper.
 - [ ] 1.2.3. Wire the Makefile and continuous integration (CI) smoke path to
-  the new mixed-package structure.
+  the new mixed-package structure. See Stilyagi design (stilyagi-design.md)
+  §7.3.
   - Requires 1.2.1 and 1.2.2.
   - Keep `make build` and `make release` as the canonical workflows.
   - Success: development installs and release artefacts exercise the same
@@ -83,18 +88,21 @@ meaningful feature slice can be trusted. See
 [RFC 0004](rfcs/0004-stilyagi-rule-testing-framework.md).
 
 - [ ] 1.3.1. Assemble representative Markdown, Python, and Rust fixtures,
-  including malformed-input cases.
+  including malformed-input cases. See Stilyagi design (stilyagi-design.md)
+  §7.1.
   - Requires 1.1.3.
   - Cover headings, tables, links, docstrings, documentation comments,
     suppressions, and error recovery cases.
   - Success: every later slice can anchor its tests in shared fixtures rather
     than ad hoc strings.
-- [ ] 1.3.2. Add golden IR, CLI snapshot, and fix round-trip test helpers.
+- [ ] 1.3.2. Add golden IR, CLI snapshot, and fix round-trip test helpers. See
+  Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 1.2.2 and 1.3.1.
   - Keep the helpers internal at first; the public pytest plugin comes later.
   - Success: spans, `segments`, diagnostics, and edits can be regression-tested
     cheaply.
 - [ ] 1.3.3. Add baseline performance probes for cold and warm structural runs.
+  See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 1.2.3 and 1.3.1.
   - Record the current repository-local measurement method before richer
     natural language processing (NLP) features land.
@@ -119,17 +127,19 @@ planning, and cache keys. See [Stilyagi design](stilyagi-design.md) §§6-7.1, 1
 and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
 
 - [ ] 2.1.1. Implement the Markdown IR envelope, `line_index`, region text, and
-  `segments` mappings.
+  `segments` mappings. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 1.1.3, 1.2.2, and 1.3.1.
   - Include source-backed positions, synthetic insertions, and content hashes.
   - Success: canonical IR JSON round-trips representative Markdown fixtures
     without span drift.
 - [ ] 2.1.2. Cover headings, lists, blockquotes, tables, links, frontmatter,
-  inline markup, and malformed Markdown with golden fixtures.
+  inline markup, and malformed Markdown with golden fixtures. See Stilyagi
+  design (stilyagi-design.md) §7.1.
   - Requires 2.1.1.
   - Success: every promised v1 Markdown region kind is exercised by at least
     one fixture.
-- [ ] 2.1.3. Parse Markdown suppression directives into the IR.
+- [ ] 2.1.3. Parse Markdown suppression directives into the IR. See Stilyagi
+  design (stilyagi-design.md) §7.1.
   - Requires 2.1.1.
   - Do not let later rules infer suppression state ad hoc.
   - Success: `dump-ir` exposes suppressions and later steps can trust one
@@ -143,17 +153,19 @@ support normal repository linting and debugging for Markdown-only users. See
 [RFC 0003](rfcs/0003-stilyagi-cli-contract.md).
 
 - [ ] 2.2.1. Implement `stilyagi check` for Markdown files with nearest-config
-  discovery, deterministic file order, and JSON or text diagnostics.
+  discovery, deterministic file order, and JSON or text diagnostics. See
+  Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 2.1.1 and 1.2.3.
   - Keep discovery scope limited to Markdown in this slice.
   - Success: `stilyagi check .` is useful on documentation repositories.
 - [ ] 2.2.2. Implement safe-fix planning, conflict resolution, `--diff`, and
-  `--fix` for Markdown-only source-backed edits.
+  `--fix` for Markdown-only source-backed edits. See Stilyagi design
+  (stilyagi-design.md) §7.3.
   - Requires 2.1.1 and 2.2.1.
   - Reject edits against synthetic spans and overlapping non-identical edits.
   - Success: safe fixes are conservative and auditable.
 - [ ] 2.2.3. Implement `stilyagi config`, `clean`, `dump-ir`, and `--no-cache`
-  for the Markdown slice.
+  for the Markdown slice. See Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 2.1.1 and 2.2.1.
   - Success: maintainers can inspect effective config, clear caches, and debug
     extraction without special scripts.
@@ -165,19 +177,21 @@ the rule engine, diagnostics model, and safe-fix machinery. See
 [Stilyagi design](stilyagi-design.md) §§3-5, 7.2 and
 [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
 
-- [ ] 2.3.1. Implement a starter pack of builtin Markdown rules.
+- [ ] 2.3.1. Implement a starter pack of builtin Markdown rules. See Stilyagi
+  design (stilyagi-design.md) §7.2.
   - Requires 2.1.2 and 2.2.1.
   - Prioritize structural and lightweight text rules such as heading depth,
     list punctuation, or other policy checks that do not require spaCy.
   - Success: the slice solves real documentation linting problems on day one.
 - [ ] 2.3.2. Implement `stilyagi rule CODE` and `stilyagi rules` for builtin
-  rules.
+  rules. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 2.3.1.
   - Include metadata, fixability, examples, and machine-readable output where
     practical.
   - Success: maintainers can discover and debug the shipped rules without
     reading source.
 - [ ] 2.3.3. Document the Markdown slice in the user's and developer's guides.
+  See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 2.2.3 and 2.3.2.
   - Success: the first supported workflow is described as a supported product
     surface rather than a design aspiration.
@@ -201,18 +215,19 @@ source maps that docstring rules need across Python and Rust. See
 [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
 
 - [ ] 3.1.1. Implement Python docstring extraction with owner metadata for
-  modules, classes, and functions.
+  modules, classes, and functions. See Stilyagi design (stilyagi-design.md)
+  §7.1.
   - Requires 2.1.1 and 1.3.1.
   - Cover nested declarations, decorators, and malformed files.
   - Success: IR fixtures identify both the prose region and its owning symbol.
 - [ ] 3.1.2. Implement Rust documentation-comment extraction with equivalent
-  owner metadata.
+  owner metadata. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 2.1.1 and 1.3.1.
   - Cover module, type, function, and item-level documentation comments.
   - Success: Rust doc comments participate in the same IR contract as Markdown
     prose and Python docstrings.
 - [ ] 3.1.3. Extend suppression parsing to Python and Rust syntax-native
-  comments.
+  comments. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 3.1.1 and 3.1.2.
   - Success: suppression state is extracted once and applied consistently
     across all v1 source syntaxes.
@@ -223,17 +238,19 @@ This step answers how much of the first slice survives unchanged once the
 extractor surface grows. See [Stilyagi design](stilyagi-design.md) §§3-4, 7.2,
 13 and [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
 
-- [ ] 3.2.1. Expand discovery defaults to `*.md`, `*.py`, and `*.rs`.
+- [ ] 3.2.1. Expand discovery defaults to `*.md`, `*.py`, and `*.rs`. See
+  Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 2.2.1.
   - Success: `stilyagi check .` works on mixed documentation and source trees.
 - [ ] 3.2.2. Add builtin docstring and documentation-comment rules that reuse
-  the shared region-oriented API.
+  the shared region-oriented API. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 3.1.1, 3.1.2, and 2.3.1.
   - Focus on summary-line, punctuation, and owner-aware rules that benefit from
     the new metadata.
   - Success: the second slice provides new value instead of merely exposing IR.
 - [ ] 3.2.3. Extend `dump-ir`, diagnostics, and fixes so mixed-source output is
-  still deterministic and source-faithful.
+  still deterministic and source-faithful. See Stilyagi design
+  (stilyagi-design.md) §7.1.
   - Requires 3.1.3, 3.2.1, and 2.2.2.
   - Success: debugging a docstring false positive follows the same workflow as
     debugging Markdown.
@@ -245,16 +262,17 @@ than one extractor family exists. See [Stilyagi design](stilyagi-design.md)
 §§5, 8, 11.
 
 - [ ] 3.3.1. Separate extraction and analysis cache keys by syntax, extractor
-  version, config, rule-pack version, and NLP profile.
+  version, config, rule-pack version, and NLP profile. See Stilyagi design
+  (stilyagi-design.md) §7.1.
   - Requires 3.2.1 and 2.2.3.
   - Success: cache invalidation is explainable and testable.
 - [ ] 3.3.2. Add mixed-source fix safety tests for source-backed edits and
-  conflict resolution.
+  conflict resolution. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 3.2.3.
   - Success: docstring fixes remain conservative even when markup or comments
     were flattened during analysis.
 - [ ] 3.3.3. Measure mixed-source performance and error recovery against the
-  design targets.
+  design targets. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 3.3.1 and 3.3.2.
   - Success: the second slice remains fast enough for normal use and degrades
     gracefully on malformed input.
@@ -276,15 +294,18 @@ This step answers whether capability declarations are sufficient to select the
 minimum enrichment plan per run. See [Stilyagi design](stilyagi-design.md) §§4,
 6, 7.2, 8 and [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
 
-- [ ] 4.1.1. Implement rule-declared capabilities and planner union logic.
+- [ ] 4.1.1. Implement rule-declared capabilities and planner union logic. See
+  Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 3.2.2 and 3.3.1.
   - Success: the engine can explain why a provider was or was not selected.
 - [ ] 4.1.2. Add the first sentence and token provider path for English text.
+  See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.1.1.
   - Prefer the lightest provider that satisfies the active rules.
   - Success: sentence-aware rules can run without paying for dependency parses
     when they are unnecessary.
 - [ ] 4.1.3. Prove that structural-only runs still avoid NLP startup entirely.
+  See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 2.3.1 and 3.2.2.
   - Success: the structural fast path remains intact after capability planning
     lands.
@@ -296,17 +317,17 @@ language-aware features exist. See [Stilyagi design](stilyagi-design.md) §§7.2
 8 and [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
 
 - [ ] 4.2.1. Add sentence, token, and locale-aware convenience wrappers to the
-  rule API.
+  rule API. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.1.2.
   - Keep backend escape hatches explicitly unstable.
   - Success: common rule authors do not need direct spaCy objects to be
     productive.
 - [ ] 4.2.2. Add part-of-speech, lemma, and dependency capabilities behind the
-  planner.
+  planner. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.1.2.
   - Success: richer rules can request only the annotations they truly need.
 - [ ] 4.2.3. Implement a small set of showcase language-aware rules that prove
-  the model.
+  the model. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.2.1 and 4.2.2.
   - Success: the slice ships at least one sentence-level rule and one
     syntax-aware editorial rule that would be awkward in the structural-only
@@ -319,15 +340,16 @@ before language-aware rules are safe to recommend broadly. See
 [Stilyagi design](stilyagi-design.md) §§4, 8, 11.
 
 - [ ] 4.3.1. Batch enriched analysis by regions rather than concatenating whole
-  repositories into one giant document.
+  repositories into one giant document. See Stilyagi design
+  (stilyagi-design.md) §7.2.
   - Requires 4.1.2.
   - Success: memory use scales with batches, not repository size.
 - [ ] 4.3.2. Expose verbose debugging for provider selection, cache hits, and
-  extraction anomalies.
+  extraction anomalies. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.1.1 and 3.2.3.
   - Success: maintainers can explain slow or surprising enriched runs.
 - [ ] 4.3.3. Capture structural-versus-enriched performance baselines and guard
-  rails.
+  rails. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.2.3 and 4.3.1.
   - Success: regressions are visible before users experience them in CI.
 
@@ -349,14 +371,15 @@ consumers and safe enough for teams to adopt deliberately. See
 [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
 
 - [ ] 5.1.1. Implement entry-point-based discovery for rule packs and
-  capability providers.
+  capability providers. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.2.1 and 2.3.2.
   - Success: installed but unconfigured packs remain inert by default.
 - [ ] 5.1.2. Reject duplicate pack names, duplicate rule codes, and invalid
-  provider metadata at startup.
+  provider metadata at startup. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 5.1.1.
   - Success: extension failures are explicit and deterministic.
-- [ ] 5.1.3. Add synthetic external-pack integration tests to CI.
+- [ ] 5.1.3. Add synthetic external-pack integration tests to CI. See Stilyagi
+  design (stilyagi-design.md) §7.2.
   - Requires 5.1.2.
   - Success: the public extension story is verified against the real packaging
     path.
@@ -369,16 +392,17 @@ without inventing a second test-only universe. See
 [Stilyagi design](stilyagi-design.md) §11.
 
 - [ ] 5.2.1. Implement the `stilyagi_path` pytest fixture and subprocess-backed
-  runner contract.
+  runner contract. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 5.1.1 and 3.2.3.
   - Success: tests can create isolated temporary projects and run the real CLI.
 - [ ] 5.2.2. Expose typed result objects and common assertion helpers for
-  diagnostics, fixes, and IR output.
+  diagnostics, fixes, and IR output. See Stilyagi design (stilyagi-design.md)
+  §7.2.
   - Requires 5.2.1.
   - Success: rule-pack tests stop copy-pasting JSON parsing and path
     normalization code.
 - [ ] 5.2.3. Document the rule-author workflow, plugin trust model, and stable
-  v1 API surface.
+  v1 API surface. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 5.1.2 and 5.2.2.
   - Success: external pack authors know what is supported and what is unstable.
 
@@ -389,16 +413,17 @@ publishing. See [Stilyagi design](stilyagi-design.md) §§5, 8, 11, 13 and
 [RFC 0003](rfcs/0003-stilyagi-cli-contract.md).
 
 - [ ] 5.3.1. Implement Static Analysis Results Interchange Format (SARIF)
-  rendering from the shared diagnostic model.
+  rendering from the shared diagnostic model. See Stilyagi design
+  (stilyagi-design.md) §7.3.
   - Requires 3.2.3.
   - Success: JSON and SARIF stay consistent because they derive from the same
     facts.
 - [ ] 5.3.2. Add Linux, macOS, and Windows wheel smoke tests plus installation
-  checks to CI.
+  checks to CI. See Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 1.2.3 and 5.1.3.
   - Success: mixed Rust and Python packaging works on every supported platform.
 - [ ] 5.3.3. Define release-candidate criteria for the first meaningful v1
-  release.
+  release. See Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 2.3.3, 3.3.3, 4.3.3, 5.1.3, 5.2.3, and 5.3.2.
   - Include required commands, supported syntaxes, rule discoverability, debug
     surfaces, and fix safety guarantees.
@@ -416,24 +441,27 @@ They stay on the roadmap precisely so the v1 scope stays disciplined.
 
 ### 6.1. Evaluate MDX support and extractor plugins deliberately
 
-- [ ] 6.1.1. Decide whether MDX graduates from preview-only support.
+- [ ] 6.1.1. Decide whether MDX graduates from preview-only support. See
+  Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 5.3.3.
 - [ ] 6.1.2. Prototype extractor-plugin boundaries against the settled IR and
-  cache contracts.
+  cache contracts. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 5.1.1 and 6.1.1.
 
 ### 6.2. Explore cross-file and semantic policy after single-file trust exists
 
-- [ ] 6.2.1. Prototype cross-file terminology and acronym inference.
+- [ ] 6.2.1. Prototype cross-file terminology and acronym inference. See
+  Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 5.3.3.
 - [ ] 6.2.2. Prototype vector-backed or semantic-similarity rules behind an
-  explicit preview gate.
+  explicit preview gate. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.2.3 and 6.2.1.
 
 ### 6.3. Revisit daemon-mode and editor protocol work after the CLI stabilizes
 
 - [ ] 6.3.1. Draft an RFC for daemon mode and incremental update semantics.
+  See Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 5.3.3.
 - [ ] 6.3.2. Prototype an editor-facing transport on top of the settled CLI and
-  IR contracts.
+  IR contracts. See Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 6.3.1 and 5.3.3.
