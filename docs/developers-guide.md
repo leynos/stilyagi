@@ -93,10 +93,10 @@ The six phases currently break down into:
   comments
 - Phase 4: add capability-planned language-aware enrichment without breaking
   the structural fast path
-- Phase 5: stabilise extension, testing, CI, and release-facing surfaces for
+- Phase 5: stabilize extension, testing, CI, and release-facing surfaces for
   team adoption
-- Phase 6: evaluate MDX, semantic, and editor-facing extensions only after the
-  core v1 promise is already stable
+- Phase 6: evaluate Markdown with JSX (MDX), semantic, and editor-facing
+  extensions only after the core v1 promise is already stable
 
 For the near-term phases, developers should preserve four boundaries in
 particular.

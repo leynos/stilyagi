@@ -44,9 +44,7 @@ scope. See [Stilyagi design](stilyagi-design.md) §§7, 12-13 and
   - Success: the v1 promises match [Stilyagi design](stilyagi-design.md)
     §12.
 - [ ] 1.1.3. Amend RFC 0001, RFC 0002, and RFC 0003 so the design and the
-  narrower contracts agree. See Stilyagi design (stilyagi-design.md) §7.1. See
-  Stilyagi design (stilyagi-design.md) §7.2. See Stilyagi design
-  (stilyagi-design.md) §7.3.
+  narrower contracts agree. See Stilyagi design (stilyagi-design.md) §§7.1-7.3.
   - Requires 1.1.1 and 1.1.2.
   - Align the RFCs with the design's narrowed terminology and scope, including
     `syntax` naming, `RegionTarget` primacy, and trimmed v1 discovery support.
