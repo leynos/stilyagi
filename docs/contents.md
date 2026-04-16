@@ -6,7 +6,7 @@
   wholesale replacement of the current Vale-oriented repository with the new
   prose, documentation, comment, and docstring linter.
 - [Roadmap](roadmap.md) sequences the implementation work into foundations and
-  vertical slices so the project can deliver useful functionality before the
+  vertical slices, so the project can deliver useful functionality before the
   full architecture is complete.
 - [Developer's guide](developers-guide.md) describes the maintainer-facing
   environment setup, Rust and Python boundaries, build workflow, and
