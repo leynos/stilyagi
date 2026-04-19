@@ -687,6 +687,34 @@ flowchart LR
   FIX --> OUT
 ```
 
+Figure 2: Capability-planned enrichment flow from source text through
+extraction, grammar and spelling providers, rule execution, and source-mapped
+diagnostics. The diagram shows the ADR 001 spelling-provider path alongside the
+grammar-provider path, with both feeding validated analysis results back into
+the same rule-engine and diagnostics pipeline.
+
+```mermaid
+sequenceDiagram
+  participant Source as Source Text
+  participant Extractor as Extraction Layer
+  participant GrammarProv as GrammarProvider
+  participant SpellProv as SpellingProvider (ADR 001)
+  participant Planner as Planner/Validator
+  participant RuleEngine as Rule Engine
+  participant Diagnostics as Diagnostics/Output
+
+  Source->>Extractor: extract IR / tokens
+  Extractor->>GrammarProv: annotate(IR, locale)
+  GrammarProv-->>Extractor: return GrammarDocument (GrammarNode tree)
+  Extractor->>SpellProv: check(region text, locale, dictionaries)
+  SpellProv-->>Extractor: return spelling annotations
+  Extractor->>Planner: supply GrammarDocument + spelling annotations + rule capability requirements
+  Planner-->>Planner: validate provider capabilities vs rule requirements
+  Planner->>RuleEngine: hand off validated GrammarDocument + spelling annotations
+  RuleEngine->>Diagnostics: emit diagnostics, suggestions, fixes
+  Diagnostics-->>Source: map spans to original source via SourceSpan
+```
+
 The recommended subsystems are:
 
 - Rust extraction pipeline: file reading, Markdown parsing, tree-sitter
