@@ -85,6 +85,9 @@ rule-engine-facing runtime.
   - Maintainer and reviewer documentation.
   - Holds the documentation index, style guide, developer guide, design
     document, and other long-lived reference material.
+- `docs/execplans/`
+  - Living execution plans for scoped pieces of work that need explicit
+    approval, milestones, and validation notes before implementation.
 - `docs/rfcs/`
   - Draft contract and proposal documents.
   - Use this directory for RFCs that still need review or that record narrower

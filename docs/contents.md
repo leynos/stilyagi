@@ -11,6 +11,12 @@
 - [Developer's guide](developers-guide.md) describes the maintainer-facing
   environment setup, Rust and Python boundaries, build workflow, and
   verification flow for the mixed PyO3 package.
+- [ExecPlans](execplans/) records approved and in-progress execution plans for
+  substantial repository work:
+  - [1.1.1 packaging boundary decision ADR](
+    execplans/1-1-1-packaging-boundary-decision-adr.md)
+    drafts the work needed to ratify the v1 packaging boundary with an
+    accepted architecture decision record before later build-spine work lands.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
