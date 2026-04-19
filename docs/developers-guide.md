@@ -15,6 +15,8 @@ narrower contracts live in:
   interface (CLI)
 - [RFC 0004](rfcs/0004-stilyagi-rule-testing-framework.md) for the
   rule-testing framework
+- [RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md) for
+  the grammar layer, grammar-node model, and syntax-aware rule extensions
 - [Roadmap](roadmap.md) for the ordered implementation sequence across the six
   phases, including which architectural questions should be settled before
   later slices are expanded
@@ -262,7 +264,57 @@ When a change crosses one of these boundaries, the change should be treated as
 contract work rather than a local refactor. That usually means tests,
 documentation, and compatibility review all need to move together.
 
-## 9. Debugging and verification workflow
+## 9. Grammar layer and capability planning
+
+RFC 0005 extends the narrower rule API contract with a grammar layer for
+sentence-aware and syntax-aware rules. Maintainers should treat this as an
+analysis-layer extension, not as an extractor-level replacement for the
+region-oriented IR.
+
+The grammar layer has five key moving parts:
+
+- grammar-node hierarchy
+  - `GrammarNode` is the shared source-backed base for derived grammar
+    objects.
+  - `TokenNode` and `SentenceNode` are the first compatibility wave and should
+    land before higher-order helpers.
+  - `NounPhraseNode`, `ClauseNode`, and `CoordinationNode` are higher-order
+    abstractions built on top of token and dependency data rather than
+    extractor-owned base facts.
+- `GrammarProvider` protocol
+  - Providers annotate extracted regions after capability planning has decided
+    what enrichment is required.
+  - The provider contract should remain narrow: take regions plus required
+    capabilities, then return grammar-aware document views.
+  - Backend-owned objects such as spaCy tokens may exist behind explicit
+    unstable escape hatches, but they are not the public maintainer contract.
+- visitor hooks
+  - Rules may implement `visit_token`, `visit_sentence`,
+    `visit_noun_phrase`, `visit_clause`, and `visit_coordination`.
+  - The runtime should only invoke hooks whose required capabilities were
+    materialized for the current run.
+  - New hook types should be treated as public rule-API work and reviewed with
+    the same care as new CLI or IR fields.
+- capability relationships
+  - RFC 0002 remains the current canonical planner vocabulary until the
+    implementation and RFCs are updated together.
+  - RFC 0005 adds grammar-facing names and explicitly maps them onto the
+    existing planner terms so maintainers can avoid shipping parallel public
+    constant sets.
+  - Dependency-heavy capabilities must continue to preserve the structural fast
+    path for runs that only need structural or lightweight text analysis.
+- debug surfaces
+  - `dump-ir` remains the canonical extractor debug view.
+  - Grammar-aware debugging should be additive, for example
+    `dump-ir --include-grammar`, rather than by baking provider-owned grammar
+    objects into the base IR schema.
+
+The practical rule for maintainers is simple: extracted regions and source
+spans come first, provider-backed grammar objects come second, and rule hooks
+sit on top of both. If a change tries to invert that order, it is almost
+certainly crossing the wrong boundary.
+
+## 10. Debugging and verification workflow
 
 When behaviour looks wrong, debugging should start at the boundary most likely
 to be at fault.
@@ -282,7 +334,7 @@ For verification, prefer the Makefile targets over ad hoc tool runs. The
 targets encode the repository's intended order of operations and catch
 cross-language regressions that isolated commands can miss.
 
-## 10. Release expectations
+## 11. Release expectations
 
 Release work should assume wheel artefacts are the primary distributable output
 of the mixed package.
