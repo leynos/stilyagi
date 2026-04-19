@@ -15,6 +15,8 @@ narrower contracts live in:
   interface (CLI)
 - [RFC 0004](rfcs/0004-stilyagi-rule-testing-framework.md) for the
   rule-testing framework
+- [RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md) for
+  the grammar layer, grammar-node model, and syntax-aware rule extensions
 - [Roadmap](roadmap.md) for the ordered implementation sequence across the six
   phases, including which architectural questions should be settled before
   later slices are expanded
@@ -262,7 +264,267 @@ When a change crosses one of these boundaries, the change should be treated as
 contract work rather than a local refactor. That usually means tests,
 documentation, and compatibility review all need to move together.
 
-## 9. Debugging and verification workflow
+## 9. Grammar layer and capability planning
+
+RFC 0005 extends the narrower rule API contract with a grammar layer for
+sentence-aware and syntax-aware rules. Maintainers should treat this as an
+analysis-layer extension, not as an extractor-level replacement for the
+region-oriented IR.
+
+The grammar layer has six maintainer-facing pieces that should move together:
+the `GrammarNode` hierarchy, normalized enums, morphology access, pattern
+objects, capability planning, and visitor hooks.
+
+### 9.1 GrammarNode hierarchy
+
+`GrammarNode` is the shared source-backed base for derived grammar objects:
+
+```python
+class GrammarNode:
+    span: SourceSpan
+    text: str
+    region: RegionNode
+    document: DocumentNode
+
+    def walk(self) -> Iterable["GrammarNode"]: ...
+    def nearest(self, kind: type[T]) -> T | None: ...
+```
+
+`TokenNode` and `SentenceNode` are the first compatibility wave and should land
+before higher-order helpers such as `NounPhraseNode`, `ClauseNode`, and
+`CoordinationNode`.
+
+```python
+class TokenNode(GrammarNode):
+    index: int
+
+    lemma: str | None
+    pos: UPos | None
+    fine_pos: str | None
+    morph: MorphFeatures
+
+    dep: Dep | None
+    raw_dep: str | None
+
+    head: TokenNode | None
+    children: tuple[TokenNode, ...]
+
+    prev: TokenNode | None
+    next: TokenNode | None
+
+    confidence: float | None
+    provider: str
+
+    def ancestors(self) -> tuple[TokenNode, ...]: ...
+    def descendants(self) -> tuple[TokenNode, ...]: ...
+    def subtree(self) -> SpanNode: ...
+    def next_content(self) -> TokenNode | None: ...
+    def prev_content(self) -> TokenNode | None: ...
+    def children_with_dep(self, *deps: Dep) -> tuple[TokenNode, ...]: ...
+    def has_child(
+        self,
+        *,
+        dep: Dep | None = None,
+        pos: UPos | None = None,
+    ) -> bool: ...
+    def subject(self) -> TokenNode | None: ...
+    def object(self) -> TokenNode | None: ...
+    def governing_verb(self) -> TokenNode | None: ...
+    def is_finite_verb(self) -> bool: ...
+    def is_content(self) -> bool: ...
+    def is_coordinated(self) -> bool: ...
+
+
+class SentenceNode(GrammarNode):
+    tokens: tuple[TokenNode, ...]
+
+    def content_tokens(self) -> tuple[TokenNode, ...]: ...
+    def first_content_token(self) -> TokenNode | None: ...
+    def roots(self) -> tuple[TokenNode, ...]: ...
+    def verbs(self) -> tuple[TokenNode, ...]: ...
+    def finite_verbs(self) -> tuple[TokenNode, ...]: ...
+    def noun_phrases(self) -> tuple[NounPhraseNode, ...]: ...
+    def clauses(self) -> tuple[ClauseNode, ...]: ...
+    def coordinations(self) -> tuple[CoordinationNode, ...]: ...
+    def main_clause(self) -> ClauseNode | None: ...
+    def leading_modifier_clause(self) -> ClauseNode | None: ...
+    def fronted_subordinate_clauses(self) -> tuple[ClauseNode, ...]: ...
+```
+
+Maintainers should preserve three behavioural points from RFC 0005:
+
+- `next_content()` and `prev_content()` skip non-content tokens according to
+  `is_content()` and must not cross sentence boundaries.
+- `is_coordinated()` is the published guard for tokens participating in
+  coordination structures that agreement-sensitive rules should treat as
+  syntactically plural or multi-headed.
+- Higher-order nodes are analysis-layer views derived from token and dependency
+  data, not extractor-owned base facts persisted into the IR by default.
+
+### 9.2 Canonical enums and morphology
+
+`UPos` and `Dep` are the normalized enums that make the public grammar API
+backend-neutral. `UPos` represents canonical universal part-of-speech tags,
+while `Dep` represents normalized dependency relations. Rules should match on
+these enums rather than on backend-owned labels. Raw backend labels still
+matter, but they stay in `fine_pos` and `raw_dep` for debugging and provider
+escape hatches.
+
+`MorphFeatures` is the normalized morphology wrapper that preserves raw feature
+data while exposing typed accessors for common cases:
+
+```python
+class MorphFeatures:
+    raw: Mapping[str, tuple[str, ...]]
+
+    @property
+    def number(self) -> str | None: ...
+
+    @property
+    def person(self) -> str | None: ...
+
+    @property
+    def tense(self) -> str | None: ...
+
+    @property
+    def verb_form(self) -> str | None: ...
+
+    @property
+    def voice(self) -> str | None: ...
+
+    def has(self, feature: str, value: str) -> bool: ...
+    def has_any(self, feature: str, values: set[str]) -> bool: ...
+```
+
+When maintainers add provider support, they should normalize onto these fields
+instead of re-exporting backend morphology objects directly.
+
+### 9.3 Pattern APIs
+
+RFC 0005 defines two Stilyagi-owned pattern layers:
+
+- `TokenPattern`
+  - matches linear token sequences against normalized token fields
+  - example shape:
+
+    ```python
+    TokenPattern([
+        {"POS": UPos.ADV, "LEMMA": {"IN": {"very", "really"}}},
+        {"POS": UPos.ADJ},
+    ])
+    ```
+
+- `DependencyPattern`
+  - matches syntactic relations anchored on normalized dependency data
+  - example shape:
+
+    ```python
+    DependencyPattern(
+        anchor={"POS": UPos.VERB},
+        children=[
+            {"DEP": Dep.NSUBJ_PASS},
+            {"DEP": Dep.AUX_PASS, "OPTIONAL": True},
+        ],
+    )
+    ```
+
+Providers may compile these patterns into backend matchers internally, but the
+rule-facing contract stays Stilyagi-owned.
+
+### 9.4 Capability enum and provider protocol
+
+RFC 0005's grammar capability model currently defines the following public
+names:
+
+```python
+class Capability(Enum):
+    SENTENCES = "sentences"
+    TOKENS = "tokens"
+    POS = "pos"
+    FINE_POS = "fine_pos"
+    LEMMA = "lemma"
+    MORPH = "morph"
+    DEPENDENCY = "dependency"
+    NOUN_PHRASES = "noun_phrases"
+    CLAUSES = "clauses"
+    COORDINATION = "coordination"
+    COREFERENCE = "coreference"  # reserved, not v1
+    SEMANTIC_LEXICON = "semantic_lexicon"
+```
+
+The normative planner relationships are:
+
+- `POS` implies `TOKENS`.
+- `FINE_POS` implies `POS`.
+- `DEPENDENCY` implies `TOKENS` and `SENTENCES`.
+- `NOUN_PHRASES`, `CLAUSES`, and `COORDINATION` require `DEPENDENCY` or a
+  provider-specific equivalent.
+- `MORPH` may imply `POS` for some providers, but rules must still declare both
+  when they need both.
+
+The planner must reject a rule when the configured provider cannot satisfy its
+declared capabilities. RFC 0002 remains the current canonical planner
+vocabulary until implementation and RFC wording converge, so maintainers should
+avoid shipping parallel public constant sets.
+
+The `GrammarProvider` protocol should remain narrow:
+
+```python
+class GrammarProvider(Protocol):
+    name: str
+    capabilities: frozenset[Capability]
+
+    def annotate(
+        self,
+        regions: Sequence[RegionNode],
+        required: set[Capability],
+    ) -> GrammarDocument:
+        ...
+```
+
+Providers annotate extracted regions after capability planning has decided what
+enrichment is required. Backend-owned objects such as spaCy tokens may exist
+behind explicit unstable escape hatches, but they are not the public maintainer
+contract.
+
+### 9.5 Visitor hook signatures
+
+Rules may implement the following grammar-aware hooks:
+
+```python
+def visit_token(self, ctx, token: TokenNode): ...
+def visit_sentence(self, ctx, sentence: SentenceNode): ...
+def visit_noun_phrase(self, ctx, noun_phrase: NounPhraseNode): ...
+def visit_clause(self, ctx, clause: ClauseNode): ...
+def visit_coordination(self, ctx, coordination: CoordinationNode): ...
+```
+
+These hooks extend, rather than replace, the base visitor surface from RFC 0002:
+
+- `prepare(ctx, document)`
+- `visit_document(ctx, document)`
+- `visit_region(ctx, region)`
+- `visit_node(ctx, node)`
+- `visit_sentence(ctx, sentence)`
+- `visit_token(ctx, token)`
+- `finalize(ctx, document)`
+
+The runtime should only invoke hooks whose required capabilities were
+materialized for the current run. New hook types should be treated as public
+rule-API work and reviewed with the same care as new CLI or IR fields.
+
+### 9.6 Debug surfaces and maintainer rule
+
+`dump-ir` remains the canonical extractor debug view. Grammar-aware debugging
+should be additive, for example `dump-ir --include-grammar`, rather than by
+baking provider-owned grammar objects into the base IR schema.
+
+The practical rule for maintainers is simple: extracted regions and source
+spans come first, provider-backed grammar objects come second, and rule hooks
+sit on top of both. If a change tries to invert that order, it is almost
+certainly crossing the wrong boundary.
+
+## 10. Debugging and verification workflow
 
 When behaviour looks wrong, debugging should start at the boundary most likely
 to be at fault.
@@ -282,7 +544,7 @@ For verification, prefer the Makefile targets over ad hoc tool runs. The
 targets encode the repository's intended order of operations and catch
 cross-language regressions that isolated commands can miss.
 
-## 10. Release expectations
+## 11. Release expectations
 
 Release work should assume wheel artefacts are the primary distributable output
 of the mixed package.

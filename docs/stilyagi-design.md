@@ -1,7 +1,7 @@
 # Stilyagi design
 
 - Status: Draft
-- Updated: 2026-04-14
+- Updated: 2026-04-19
 - Audience: Maintainers and reviewers implementing Stilyagi as a wholesale
   replacement for the current Vale-oriented repository.
 - Companion documents:
@@ -9,6 +9,10 @@
   - [RFC 0002: Stilyagi Python rule API](rfcs/0002-stilyagi-python-rule-api.md)
   - [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md)
   - [RFC 0004: Stilyagi rule testing framework](rfcs/0004-stilyagi-rule-testing-framework.md)
+  - [RFC 0005: Grammar capability and syntactic API extensions](
+    rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
+  - [ADR 001: Select a spell checking provider](
+    adr-001-spell-checking-provider.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,
@@ -150,6 +154,12 @@ The system must satisfy the following v1 requirements.
 - Users must be able to author rules in Python against typed runtime objects.
 - Rules must declare required capabilities so the engine can avoid loading
   unnecessary NLP components.
+- System must expose provider-neutral `SentenceNode` and `TokenNode` wrappers
+  before grammar-aware rules touch backend objects directly.
+- System must normalize canonical POS and dependency enums while preserving raw
+  provider labels for debugging.
+- Higher-order noun phrase, clause, and coordination helpers must remain
+  analysis-layer abstractions rather than extractor-owned base IR facts.
 - System must support diagnostics with optional fixes and explicit fix
   applicability classified as `safe`, `unsafe`, or `manual`.
 - Users must be able to discover configuration from `pyproject.toml`,
@@ -236,6 +246,9 @@ The recommended stack is:
 - Python 3.14+ runtime for CLI, config, rule execution, and plugin loading.
 - spaCy as the default NLP provider behind a capability interface, not as the
   public API itself.[^4][^5]
+- A pure-Rust spell checking provider behind the same internal capability
+  boundary, with ADR 001 currently proposing `spellbook` and keeping `zspell`
+  as the fallback backend.
 - Python entry points for rule-pack discovery.[^10]
 - A Ruff-inspired CLI contract and configuration model.[^6][^7]
 
@@ -610,7 +623,11 @@ High priority:
 
 Medium priority:
 
+- RFC 0005's grammar-node layer: `TokenNode` and `SentenceNode` first, then
+  higher-order clause and coordination helpers.
 - spaCy-backed sentence, lemma, part-of-speech, and dependency capabilities.
+- Built-in dictionary-based spelling support behind a Stilyagi-owned provider
+  facade, following ADR 001's `spellbook`-first plan and `zspell` fallback.
 - Third-party rule packs and capability plugins.
 - SARIF output.
 - MDX and additional host-language support after extractor tests exist.
@@ -631,12 +648,12 @@ is irrelevant.
 
 Table: vertical delivery slices and the user value each one unlocks.
 
-| Slice   | User problem solved                                     | Layers touched                                               | Major interfaces                  | Measurable value                                                        | Deliberately left out    |
-| ------- | ------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
-| Slice 1 | "Lint my Markdown docs with real spans and safe fixes." | Rust Markdown extractor, Python CLI, builtin rules, renderer | `check`, config, JSON diagnostics | Useful on day one for docs repositories                                 | Docstrings, plugins, NLP |
-| Slice 2 | "Lint my Python and Rust docstrings and doc comments."  | tree-sitter extraction, owner metadata, doc rules            | IR, `check`, `dump-ir`            | Brings prose linting into source trees                                  | Complex linguistic rules |
-| Slice 3 | "Run smarter sentence and syntax-aware prose rules."    | capability planner, spaCy provider, richer rule API          | rule API, NLP config              | Enables real editorial policy such as passive voice or list punctuation | Cross-file semantics     |
-| Slice 4 | "Adopt this in CI and extend it with our own packs."    | entry-point plugins, SARIF, rule docs                        | `rules`, `rule`, SARIF            | Team adoption and ecosystem value                                       | Daemon mode              |
+| Slice   | User problem solved                                           | Layers touched                                                             | Major interfaces                    | Measurable value                                                        | Deliberately left out    |
+| ------- | ------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
+| Slice 1 | "Lint my Markdown docs with real spans and safe fixes."       | Rust Markdown extractor, Python CLI, built-in rules, renderer              | `check`, config, JSON diagnostics   | Useful on day one for documentation repositories                        | Docstrings, plugins, NLP |
+| Slice 2 | "Lint my Python and Rust docstrings and doc comments."        | tree-sitter extraction, owner metadata, doc rules                          | IR, `check`, `dump-ir`              | Brings prose linting into source trees                                  | Complex linguistic rules |
+| Slice 3 | "Run smarter sentence and syntax-aware prose rules."          | capability planner, spaCy provider, grammar-node wrappers, richer rule API | rule API, grammar nodes, NLP config | Enables real editorial policy such as passive voice or list punctuation | Cross-file semantics     |
+| Slice 4 | "Adopt this in CI and extend it with project-specific packs." | entry-point plugins, SARIF, rule docs                                      | `rules`, `rule`, SARIF              | Team adoption and ecosystem value                                       | Daemon mode              |
 
 The path is intentionally vertical. Every slice leaves behind a usable product.
 
@@ -670,6 +687,34 @@ flowchart LR
   FIX --> OUT
 ```
 
+Figure 2: Capability-planned enrichment flow from source text through
+extraction, grammar and spelling providers, rule execution, and source-mapped
+diagnostics. The diagram shows the ADR 001 spelling-provider path alongside the
+grammar-provider path, with both feeding validated analysis results back into
+the same rule-engine and diagnostics pipeline.
+
+```mermaid
+sequenceDiagram
+  participant Source as Source Text
+  participant Extractor as Extraction Layer
+  participant GrammarProv as GrammarProvider
+  participant SpellProv as SpellingProvider (ADR 001)
+  participant Planner as Planner/Validator
+  participant RuleEngine as Rule Engine
+  participant Diagnostics as Diagnostics/Output
+
+  Source->>Extractor: extract IR / tokens
+  Extractor->>GrammarProv: annotate(IR, locale)
+  GrammarProv-->>Extractor: return GrammarDocument (GrammarNode tree)
+  Extractor->>SpellProv: check(region text, locale, dictionaries)
+  SpellProv-->>Extractor: return spelling annotations
+  Extractor->>Planner: supply GrammarDocument + spelling annotations + rule capability requirements
+  Planner-->>Planner: validate provider capabilities vs rule requirements
+  Planner->>RuleEngine: hand off validated GrammarDocument + spelling annotations
+  RuleEngine->>Diagnostics: emit diagnostics, suggestions, fixes
+  Diagnostics-->>Source: map spans to original source via SourceSpan
+```
+
 The recommended subsystems are:
 
 - Rust extraction pipeline: file reading, Markdown parsing, tree-sitter
@@ -677,8 +722,9 @@ The recommended subsystems are:
   and extraction errors.
 - IR generation: logical schema plus canonical JSON serializer, `line_index`
   construction, content hashes, and segment-map invariants.
-- Python analysis engine: wraps IR into `Document`, `Region`, `Sentence`, and
-  `Token` objects.
+- Python analysis engine: wraps IR into `Document`, `Region`, and the
+  provider-neutral grammar objects used by rules, including `SentenceNode`,
+  `TokenNode`, and later clause or coordination helpers.
 - Capability planner: computes the minimum provider plan from selected rules,
   locales, and region targets.
 - Rule execution engine: schedules rules, batches regions, and collects
@@ -785,6 +831,84 @@ V1 sufficiency:
 
 - The current rule API is directionally good, but it needs narrowing and
   stronger performance semantics before implementation.
+
+#### Grammar-capability extension
+
+Strong points in RFC 0005:
+
+- It keeps grammar support behind explicit capabilities rather than making NLP
+  state globally available.
+- It uses provider-neutral grammar wrappers instead of freezing the public API
+  to spaCy classes.
+- It distinguishes sentence and token foundations from higher-order
+  noun-phrase, clause, and coordination helpers.
+- It keeps advisory grammar diagnostics and fix safety tied to source-backed
+  spans.
+
+Recommended revisions:
+
+- Treat `TokenNode`, `SentenceNode`, `UPos`, `Dep`, and `MorphFeatures` as the
+  first compatibility wave for grammar-aware rules.
+- Add `NounPhraseNode`, `ClauseNode`, `CoordinationNode`, token patterns, and
+  dependency patterns only after the lower-level wrappers are stable.
+- Keep grammar nodes as analysis-layer objects derived from IR plus provider
+  annotations rather than as mandatory extractor-level JSON fields.
+- Reserve backend escape hatches such as `token.backend("spacy")` for unstable
+  APIs only.
+- Require `dump-ir --include-grammar` or an equivalent debug surface once the
+  grammar layer exists so maintainers can inspect derived syntax state without
+  reverse-engineering provider internals.
+
+Compatibility risks:
+
+- If the public API exposes raw spaCy labels or classes too early, Stilyagi
+  will inherit backend churn directly.
+- If higher-order clause and coordination nodes are treated as guaranteed facts
+  rather than advisory analysis views, rules will overclaim certainty.
+
+V1 sufficiency:
+
+- RFC 0005 is a good fit for the architecture, but it should land in phases:
+  first `TokenNode` and `SentenceNode` plus core dependency access, then the
+  higher-order convenience nodes and richer rule helpers.
+
+#### Spelling-capability extension
+
+Strong points in ADR 001:
+
+- It keeps built-in spelling support behind the same provider-neutral boundary
+  as the rest of the rule engine.
+- It selects a pure-Rust backend path that fits the PyO3 plus `maturin`
+  packaging model.
+- It treats spelling as a sibling capability to grammar analysis, not as a
+  disguised Vale-compatibility layer.
+- It keeps the first delivery wave focused on correctness checks, span
+  fidelity, and personal-dictionary support rather than suggestion quality.
+
+Recommended revisions:
+
+- Add spelling-capability names and planner semantics to the Python rule API
+  before implementation work starts, so grammar and spelling providers share
+  one canonical planning vocabulary.
+- Keep dictionary loading and offset mapping on the Rust side, close to the
+  extraction and `segments` machinery.
+- Treat `spellbook` as the first provider spike, but keep the fallback path to
+  `zspell` explicit until the acceptance gates pass.
+- Expose spelling diagnostics through the same diagnostic and fix-applicability
+  model used by structural and grammar-aware rules.
+
+Compatibility risks:
+
+- If spelling exposes backend-owned types or raw dictionary handles publicly,
+  Stilyagi will freeze the wrong surface too early.
+- If spelling suggestions are treated as mandatory in the first wave, provider
+  churn will dominate what should be a narrow correctness feature.
+
+V1 sufficiency:
+
+- ADR 001 gives the project a concrete provider direction, but the capability
+  names, planner integration, and acceptance gates still need implementation
+  work before built-in spelling support becomes part of the stable v1 surface.
 
 ### 7.3 CLI contract
 
@@ -971,6 +1095,11 @@ The design must be validated with the following test classes.
 
 - Exact owner metadata shape for docstrings and comments. Recommendation:
   implementation spike plus RFC amendment.
+- Spelling capability names, planner semantics, and acceptance gates after ADR
+  001's provider selection. Recommendation: implementation spike plus RFC
+  amendment.
+- Exact dependency-label normalization table and the grammar debug-output
+  schema. Recommendation: implementation spike plus RFC 0005 follow-up.
 - Whether extractor plugins land in v1 or immediately after. Recommendation:
   implementation spike.
 - Exact cache encoding for on-disk analysis artefacts. Recommendation:
@@ -991,16 +1120,21 @@ Build this in the following order.
 
 - Build first: a Python-distributed replacement product with a Rust extraction
   extension, Markdown extraction, Python and Rust docstring or doc comment
-  extraction, a stable region-oriented IR, builtin structural rules, safe
+  extraction, a stable region-oriented IR, built-in structural rules, safe
   fixes, and a Ruff-like CLI.
-- Postpone: heavy NLP, MDX as a stable promise, SARIF polish, extractor plugins,
-  and daemon mode.
+- Add next: the RFC 0005 grammar layer in two waves, with `TokenNode` and
+  `SentenceNode` plus selective POS or dependency capabilities first, then
+  higher-order clause and coordination helpers after the low-level model has
+  proven stable.
+- Postpone: full semantic inference, MDX as a stable promise, SARIF polish,
+  extractor plugins, and daemon mode.
 - Reject outright: Vale-compatibility baggage, LLM-assisted core analysis,
   auto-downloading models, and any claim that third-party plugins are sandboxed.
 - First meaningful release: `stilyagi check`, `rule`, `rules`, `config`,
   `clean`, and `dump-ir`, with Markdown plus Python and Rust docstring or
-  doc-comment support, stable JSON diagnostics, safe fixes, and a documented
-  Python rule-pack story.
+  doc-comment support, stable JSON diagnostics, safe fixes, a documented Python
+  rule-pack story, and an implementation path for RFC 0005's provider-neutral
+  grammar nodes.
 
 The product should earn complexity, not assume it. A precise structural core
 with a disciplined Python rule API will deliver customer value faster than a

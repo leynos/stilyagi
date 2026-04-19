@@ -43,11 +43,13 @@ scope. See [Stilyagi design](stilyagi-design.md) §§7, 12-13 and
     whether English-only support is the formal v1 policy.
   - Success: the v1 promises match [Stilyagi design](stilyagi-design.md)
     §12.
-- [ ] 1.1.3. Amend RFC 0001, RFC 0002, and RFC 0003 so the design and the
-  narrower contracts agree. See Stilyagi design (stilyagi-design.md) §§7.1-7.3.
+- [ ] 1.1.3. Amend RFC 0001, RFC 0002, RFC 0003, and RFC 0005 so the design
+  and the narrower contracts agree. See Stilyagi design (stilyagi-design.md)
+  §§7.1-7.3.
   - Requires 1.1.1 and 1.1.2.
   - Align the RFCs with the design's narrowed terminology and scope, including
-    `syntax` naming, `RegionTarget` primacy, and trimmed v1 discovery support.
+    `syntax` naming, `RegionTarget` primacy, trimmed v1 discovery support, and
+    the staged grammar-node plan.
   - Success: maintainers can implement from one coherent contract set.
 
 ### 1.2. Establish the mixed-package skeleton and PyO3 bridge
@@ -284,13 +286,15 @@ usable in CI and local workflows.
 
 This phase adds smarter rules without sacrificing the structural fast path. The
 goal is not "add spaCy everywhere", but "prove that optional enrichment can be
-planned, paid for selectively, and hidden behind a stable rule API".
+planned, paid for selectively, and hidden behind a stable rule API". RFC 0005
+defines the target grammar-capability surface for this phase.
 
 ### 4.1. Validate the cheapest useful capability planner
 
 This step answers whether capability declarations are sufficient to select the
 minimum enrichment plan per run. See [Stilyagi design](stilyagi-design.md) §§4,
-6, 7.2, 8 and [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
+6, 7.2, 8, [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md), and
+[RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md).
 
 - [ ] 4.1.1. Implement rule-declared capabilities and planner union logic. See
   Stilyagi design (stilyagi-design.md) §7.2.
@@ -301,7 +305,8 @@ minimum enrichment plan per run. See [Stilyagi design](stilyagi-design.md) §§4
   - Requires 4.1.1.
   - Prefer the lightest provider that satisfies the active rules.
   - Success: sentence-aware rules can run without paying for dependency parses
-    when they are unnecessary.
+    when they are unnecessary, and the provider can expose `SentenceNode` and
+    `TokenNode` wrappers without leaking backend classes.
 - [ ] 4.1.3. Prove that structural-only runs still avoid NLP startup entirely.
   See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 2.3.1 and 3.2.2.
@@ -312,21 +317,27 @@ minimum enrichment plan per run. See [Stilyagi design](stilyagi-design.md) §§4
 
 This step answers what the stable public rule surface should look like once
 language-aware features exist. See [Stilyagi design](stilyagi-design.md) §§7.2,
-8 and [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
+8, [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md), and
+[RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md).
 
-- [ ] 4.2.1. Add sentence, token, and locale-aware convenience wrappers to the
-  rule API. See Stilyagi design (stilyagi-design.md) §7.2.
+- [ ] 4.2.1. Add `UPos`, `Dep`, `MorphFeatures`, `SentenceNode`, and
+  `TokenNode` to the rule API as the first grammar-capability wave. See
+  Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.1.2.
   - Keep backend escape hatches explicitly unstable.
   - Success: common rule authors do not need direct spaCy objects to be
     productive.
-- [ ] 4.2.2. Add part-of-speech, lemma, and dependency capabilities behind the
-  planner. See Stilyagi design (stilyagi-design.md) §7.2.
+- [ ] 4.2.2. Add noun-phrase, clause, and coordination helpers plus token and
+  dependency pattern support as the second grammar-capability wave. See
+  Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.1.2.
-  - Success: richer rules can request only the annotations they truly need.
+  - Success: richer rules can request higher-order syntax helpers without
+    rebuilding them from raw dependency edges.
 - [ ] 4.2.3. Implement a small set of showcase language-aware rules that prove
   the model. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.2.1 and 4.2.2.
+  - Include at least one POS-only rule, one morphology-plus-dependency rule,
+    and one higher-order coordination or clause rule from RFC 0005.
   - Success: the slice ships at least one sentence-level rule and one
     syntax-aware editorial rule that would be awkward in the structural-only
     model.
@@ -345,11 +356,51 @@ before language-aware rules are safe to recommend broadly. See
 - [ ] 4.3.2. Expose verbose debugging for provider selection, cache hits, and
   extraction anomalies. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.1.1 and 3.2.3.
+  - Include `dump-ir --include-grammar` or an equivalent grammar-debug view.
   - Success: maintainers can explain slow or surprising enriched runs.
 - [ ] 4.3.3. Capture structural-versus-enriched performance baselines and guard
   rails. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.2.3 and 4.3.1.
   - Success: regressions are visible before users experience them in CI.
+
+### 4.4. Add dictionary-based spelling as a sibling provider capability
+
+This step answers whether Stilyagi can add a first-party spelling capability
+without turning grammar support and dictionary checks into one tangled provider
+surface. See
+[ADR 001](adr-001-spell-checking-provider.md), [Stilyagi design](stilyagi-design.md)
+ §§4, 6-8, 11, and
+[RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md).
+
+- [ ] 4.4.1. Build the Rust-side `spellbook` spike described in ADR 001. See
+  Stilyagi design (stilyagi-design.md) §7.2.
+  - Requires 4.1.1, 3.1.1, 3.1.2, and 3.2.3.
+  - Prove dictionary loading, region-scoped checking, and source-backed span
+    mapping for Markdown, Python docstrings, and Rust documentation comments.
+  - Success: the proposed provider works end to end without leaking backend
+    types into the public rule API and operates fully offline, with no network
+    access, runtime auto-downloads, or reliance on system package managers.
+- [ ] 4.4.2. Add a diagnostic-only spelling capability behind the provider
+  planner. See ADR 001 (adr-001-spell-checking-provider.md). See
+  stilyagi-design.md §7.2.
+  - Requires 4.4.1.
+  - Include repo-local personal-dictionary support and keep suggestions out of
+    scope for the first wave.
+  - Success: builtin spelling checks behave like other Stilyagi diagnostics,
+    preserve the structural fast path when disabled, and continue to run fully
+    offline with no network access, runtime auto-downloads, or system package
+    manager dependencies.
+- [ ] 4.4.3. Accept `spellbook` or switch to the `zspell` fallback using the
+  ADR 001 gate criteria. See ADR 001 (adr-001-spell-checking-provider.md). See
+  stilyagi-design.md §11.
+  - Requires 4.4.2 and 4.3.3.
+  - Measure correctness, performance, and offset fidelity before freezing the
+    provider choice. Treat the offline constraint as part of the ADR 001 gate:
+    no network access, no runtime auto-downloads, and no reliance on system
+    package managers.
+  - Success: the spelling capability lands behind one documented provider
+    decision rather than an open-ended experiment, and the accepted provider
+    clears the offline gate alongside the other ADR 001 acceptance criteria.
 
 ## 5. Vertical slice 4: Team adoption and extension ecosystem
 
