@@ -640,12 +640,12 @@ is irrelevant.
 
 Table: vertical delivery slices and the user value each one unlocks.
 
-| Slice   | User problem solved                                     | Layers touched                                                             | Major interfaces                    | Measurable value                                                        | Deliberately left out    |
-| ------- | ------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
-| Slice 1 | "Lint my Markdown docs with real spans and safe fixes." | Rust Markdown extractor, Python CLI, builtin rules, renderer               | `check`, config, JSON diagnostics   | Useful on day one for docs repositories                                 | Docstrings, plugins, NLP |
-| Slice 2 | "Lint my Python and Rust docstrings and doc comments."  | tree-sitter extraction, owner metadata, doc rules                          | IR, `check`, `dump-ir`              | Brings prose linting into source trees                                  | Complex linguistic rules |
-| Slice 3 | "Run smarter sentence and syntax-aware prose rules."    | capability planner, spaCy provider, grammar-node wrappers, richer rule API | rule API, grammar nodes, NLP config | Enables real editorial policy such as passive voice or list punctuation | Cross-file semantics     |
-| Slice 4 | "Adopt this in CI and extend it with our own packs."    | entry-point plugins, SARIF, rule docs                                      | `rules`, `rule`, SARIF              | Team adoption and ecosystem value                                       | Daemon mode              |
+| Slice   | User problem solved                                           | Layers touched                                                             | Major interfaces                    | Measurable value                                                        | Deliberately left out    |
+| ------- | ------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
+| Slice 1 | "Lint my Markdown docs with real spans and safe fixes."       | Rust Markdown extractor, Python CLI, builtin rules, renderer               | `check`, config, JSON diagnostics   | Useful on day one for docs repositories                                 | Docstrings, plugins, NLP |
+| Slice 2 | "Lint my Python and Rust docstrings and doc comments."        | tree-sitter extraction, owner metadata, doc rules                          | IR, `check`, `dump-ir`              | Brings prose linting into source trees                                  | Complex linguistic rules |
+| Slice 3 | "Run smarter sentence and syntax-aware prose rules."          | capability planner, spaCy provider, grammar-node wrappers, richer rule API | rule API, grammar nodes, NLP config | Enables real editorial policy such as passive voice or list punctuation | Cross-file semantics     |
+| Slice 4 | "Adopt this in CI and extend it with project-specific packs." | entry-point plugins, SARIF, rule docs                                      | `rules`, `rule`, SARIF              | Team adoption and ecosystem value                                       | Daemon mode              |
 
 The path is intentionally vertical. Every slice leaves behind a usable product.
 

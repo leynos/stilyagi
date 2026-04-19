@@ -138,6 +138,39 @@ Rule GRAM301 requires DEPENDENCY and MORPH, but provider "nltk" supplies only
 TOKENS, POS, and FINE_POS.
 ```
 
+#### Mapping to the existing planner vocabulary
+
+RFC 0002 already defines the current capability-planner vocabulary. Until the
+planner implementation and RFC 0002 are amended in the same change, that older
+surface remains the canonical source of truth for shipped capability
+constants.[^1]
+
+This RFC proposes the grammar-facing extension to that vocabulary. The names
+map as follows:
+
+| RFC 0005 name      | Current RFC 0002 planner name | Relationship                                            |
+| ------------------ | ----------------------------- | ------------------------------------------------------- |
+| `SENTENCES`        | `SENTENCES`                   | Same meaning                                            |
+| `TOKENS`           | `TOKENS`                      | Same meaning                                            |
+| `POS`              | `POS`                         | Same meaning                                            |
+| `MORPH`            | `MORPH`                       | Same meaning                                            |
+| `LEMMA`            | `LEMMAS`                      | Same capability, singularized for grammar-node examples |
+| `DEPENDENCY`       | `DEPENDENCIES`                | Same capability, singularized for grammar-node examples |
+| `FINE_POS`         | No current equivalent         | New capability proposed by this RFC                     |
+| `NOUN_PHRASES`     | No current equivalent         | New capability proposed by this RFC                     |
+| `CLAUSES`          | No current equivalent         | New capability proposed by this RFC                     |
+| `COORDINATION`     | No current equivalent         | New capability proposed by this RFC                     |
+| `COREFERENCE`      | No current equivalent         | Reserved for later work                                 |
+| `SEMANTIC_LEXICON` | No current equivalent         | Optional later capability                               |
+
+_Table 1: Mapping between RFC 0005 capability names and the existing RFC 0002
+planner vocabulary._
+
+The implementation should not ship both plural and singular spellings as
+independent public constants. When this RFC is implemented, the planner types,
+constants, and RFC 0002 should be updated together so one canonical enum or
+constant set remains visible to rule authors.
+
 ### 5.2. Canonical enums
 
 #### `UPos`
@@ -414,7 +447,7 @@ materialized for the current run.
 
 ```python
 class OxfordCommaRule(Rule):
-    requires = {Cap.COORDINATION}
+    requires = {Capability.COORDINATION}
 
     def visit_coordination(self, ctx, coordination):
         ...
@@ -703,7 +736,7 @@ dependency structure.
 class WeakIntensifierRule(Rule):
     code = "STY104"
     name = "weak-intensifier"
-    requires = {Cap.TOKENS, Cap.POS, Cap.LEMMA}
+    requires = {Capability.TOKENS, Capability.POS, Capability.LEMMA}
 
     intensifiers = {"very", "really", "quite", "rather", "pretty", "fairly"}
     weak_adjectives = {"nice", "good", "bad", "great", "fine", "interesting"}
@@ -756,7 +789,12 @@ dependency parse.
 class ImperativeDocstringSummaryRule(Rule):
     code = "PYDOC210"
     name = "imperative-docstring-summary"
-    requires = {Cap.TOKENS, Cap.POS, Cap.FINE_POS, Cap.LEMMA}
+    requires = {
+        Capability.TOKENS,
+        Capability.POS,
+        Capability.FINE_POS,
+        Capability.LEMMA,
+    }
 
     non_imperative_fine_tags = {"VBZ", "VBD", "VBG"}
 
@@ -803,7 +841,12 @@ constructions.[^5]
 class PassiveVoiceRule(Rule):
     code = "STY201"
     name = "passive-voice"
-    requires = {Cap.TOKENS, Cap.POS, Cap.MORPH, Cap.DEPENDENCY}
+    requires = {
+        Capability.TOKENS,
+        Capability.POS,
+        Capability.MORPH,
+        Capability.DEPENDENCY,
+    }
 
     def visit_sentence(self, ctx, sentence):
         for verb in sentence.verbs():
@@ -852,7 +895,12 @@ the grammatical subject.[^9]
 class SubjectVerbAgreementRule(Rule):
     code = "GRAM301"
     name = "subject-verb-agreement"
-    requires = {Cap.TOKENS, Cap.POS, Cap.MORPH, Cap.DEPENDENCY}
+    requires = {
+        Capability.TOKENS,
+        Capability.POS,
+        Capability.MORPH,
+        Capability.DEPENDENCY,
+    }
 
     def visit_sentence(self, ctx, sentence):
         for verb in sentence.finite_verbs():
@@ -905,7 +953,12 @@ usable punctuation API and a pile of repeated dependency-tree plumbing.
 class OxfordCommaRule(Rule):
     code = "PUN201"
     name = "oxford-comma"
-    requires = {Cap.TOKENS, Cap.POS, Cap.DEPENDENCY, Cap.COORDINATION}
+    requires = {
+        Capability.TOKENS,
+        Capability.POS,
+        Capability.DEPENDENCY,
+        Capability.COORDINATION,
+    }
 
     def visit_sentence(self, ctx, sentence):
         for coordination in sentence.coordinations():
