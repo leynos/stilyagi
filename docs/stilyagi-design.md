@@ -10,6 +10,7 @@
   - [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md)
   - [RFC 0004: Stilyagi rule testing framework](rfcs/0004-stilyagi-rule-testing-framework.md)
   - [RFC 0005: Grammar capability and syntactic API extensions](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
+  - [ADR 001: Select a spell checking provider](adr-001-spell-checking-provider.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,
@@ -243,6 +244,9 @@ The recommended stack is:
 - Python 3.14+ runtime for CLI, config, rule execution, and plugin loading.
 - spaCy as the default NLP provider behind a capability interface, not as the
   public API itself.[^4][^5]
+- A pure-Rust spell checking provider behind the same internal capability
+  boundary, with ADR 001 currently proposing `spellbook` and keeping `zspell`
+  as the fallback backend.
 - Python entry points for rule-pack discovery.[^10]
 - A Ruff-inspired CLI contract and configuration model.[^6][^7]
 
@@ -620,6 +624,8 @@ Medium priority:
 - RFC 0005's grammar-node layer: sentence and token wrappers first, then
   higher-order clause and coordination helpers.
 - spaCy-backed sentence, lemma, part-of-speech, and dependency capabilities.
+- Builtin dictionary-based spelling support behind a Stilyagi-owned provider
+  facade, following ADR 001's `spellbook`-first plan and `zspell` fallback.
 - Third-party rule packs and capability plugins.
 - SARIF output.
 - MDX and additional host-language support after extractor tests exist.
@@ -836,6 +842,44 @@ V1 sufficiency:
   first token and sentence wrappers plus core dependency access, then the
   higher-order convenience nodes and richer rule helpers.
 
+#### Spelling-capability extension
+
+Strong points in ADR 001:
+
+- It keeps builtin spelling support behind the same provider-neutral boundary
+  as the rest of the rule engine.
+- It selects a pure-Rust backend path that fits the PyO3 plus `maturin`
+  packaging model.
+- It treats spelling as a sibling capability to grammar analysis, not as a
+  disguised Vale-compatibility layer.
+- It keeps the first delivery wave focused on correctness checks, span
+  fidelity, and personal-dictionary support rather than suggestion quality.
+
+Recommended revisions:
+
+- Add spelling-capability names and planner semantics to the Python rule API
+  before implementation work starts, so grammar and spelling providers share
+  one canonical planning vocabulary.
+- Keep dictionary loading and offset mapping on the Rust side, close to the
+  extraction and `segments` machinery.
+- Treat `spellbook` as the first provider spike, but keep the fallback path to
+  `zspell` explicit until the acceptance gates pass.
+- Expose spelling diagnostics through the same diagnostic and fix-applicability
+  model used by structural and grammar-aware rules.
+
+Compatibility risks:
+
+- If spelling exposes backend-owned types or raw dictionary handles publicly,
+  Stilyagi will freeze the wrong surface too early.
+- If spelling suggestions are treated as mandatory in the first wave, provider
+  churn will dominate what should be a narrow correctness feature.
+
+V1 sufficiency:
+
+- ADR 001 gives the project a concrete provider direction, but the capability
+  names, planner integration, and acceptance gates still need implementation
+  work before builtin spelling support becomes part of the stable v1 surface.
+
 ### 7.3 CLI contract
 
 Strong points in RFC 0003:
@@ -1021,8 +1065,9 @@ The design must be validated with the following test classes.
 
 - Exact owner metadata shape for docstrings and comments. Recommendation:
   implementation spike plus RFC amendment.
-- Spell checking provider selection for a future builtin spelling capability.
-  Recommendation: ADR.
+- Spelling capability names, planner semantics, and acceptance gates after ADR
+  001's provider selection. Recommendation: implementation spike plus RFC
+  amendment.
 - Exact dependency-label normalization table and the grammar debug-output
   schema. Recommendation: implementation spike plus RFC 0005 follow-up.
 - Whether extractor plugins land in v1 or immediately after. Recommendation:

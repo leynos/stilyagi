@@ -363,6 +363,37 @@ before language-aware rules are safe to recommend broadly. See
   - Requires 4.2.3 and 4.3.1.
   - Success: regressions are visible before users experience them in CI.
 
+### 4.4. Add dictionary-based spelling as a sibling provider capability
+
+This step answers whether Stilyagi can add a first-party spelling capability
+without turning grammar support and dictionary checks into one tangled provider
+surface. See
+[ADR 001](adr-001-spell-checking-provider.md), [Stilyagi design](stilyagi-design.md)
+ §§4, 6-8, 11, and
+[RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md).
+
+- [ ] 4.4.1. Build the Rust-side `spellbook` spike described in ADR 001. See
+  Stilyagi design (stilyagi-design.md) §7.2.
+  - Requires 4.1.1, 3.1.1, 3.1.2, and 3.2.3.
+  - Prove dictionary loading, region-scoped checking, and source-backed span
+    mapping for Markdown, Python docstrings, and Rust documentation comments.
+  - Success: the proposed provider works end to end without leaking backend
+    types into the public rule API.
+- [ ] 4.4.2. Add a diagnostic-only spelling capability behind the provider
+  planner. See ADR 001 (adr-001-spell-checking-provider.md).
+  - Requires 4.4.1.
+  - Include repo-local personal-dictionary support and keep suggestions out of
+    scope for the first wave.
+  - Success: builtin spelling checks behave like other Stilyagi diagnostics and
+    preserve the structural fast path when disabled.
+- [ ] 4.4.3. Accept `spellbook` or switch to the `zspell` fallback using the
+  ADR 001 gate criteria. See ADR 001 (adr-001-spell-checking-provider.md).
+  - Requires 4.4.2 and 4.3.3.
+  - Measure correctness, performance, and offset fidelity before freezing the
+    provider choice.
+  - Success: the spelling capability lands behind one documented provider
+    decision rather than an open-ended experiment.
+
 ## 5. Vertical slice 4: Team adoption and extension ecosystem
 
 Idea: if Stilyagi exposes a deliberate extension surface, a real rule-author

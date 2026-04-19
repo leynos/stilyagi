@@ -5,9 +5,6 @@
 - [Stilyagi design](stilyagi-design.md) is the primary technical design for the
   wholesale replacement of the current Vale-oriented repository with the new
   prose, documentation, comment, and docstring linter.
-- [ADR 001: Select a spell checking provider](adr-001-spell-checking-provider.md)
-  records the proposed backend choice for dictionary-based spelling support and
-  the fallback path if the first provider spike fails.
 - [Roadmap](roadmap.md) sequences the implementation work into foundations and
   vertical slices, so the project can deliver useful functionality before the
   full architecture is complete.
@@ -24,6 +21,17 @@
 - [Local validation with act and pytest](
   local-validation-of-github-actions-with-act-and-pytest.md) explains the
   current local workflow for validating GitHub Actions behaviour.
+
+## Architecture decision records (ADRs)
+
+- ADRs record narrower implementation and architecture choices that refine the
+  main design:
+  - [ADR 001: Select a spell checking provider](adr-001-spell-checking-provider.md)
+    records the proposed backend choice for dictionary-based spelling support
+    and the fallback path if the first provider spike fails.
+
+## Requests for comments (RFCs)
+
 - [RFCs](rfcs/) capture narrower draft contracts and design inputs that feed the
   main design:
   - [RFC 0001: Stilyagi IR](rfcs/0001-stilyagi-intermediate-representation.md)
