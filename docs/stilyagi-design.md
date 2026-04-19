@@ -154,8 +154,8 @@ The system must satisfy the following v1 requirements.
 - Users must be able to author rules in Python against typed runtime objects.
 - Rules must declare required capabilities so the engine can avoid loading
   unnecessary NLP components.
-- System must expose provider-neutral sentence and token wrappers before
-  grammar-aware rules touch backend objects directly.
+- System must expose provider-neutral `SentenceNode` and `TokenNode` wrappers
+  before grammar-aware rules touch backend objects directly.
 - System must normalize canonical POS and dependency enums while preserving raw
   provider labels for debugging.
 - Higher-order noun phrase, clause, and coordination helpers must remain
