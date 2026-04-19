@@ -26,7 +26,8 @@
 
 - ADRs record narrower implementation and architecture choices that refine the
   main design:
-  - [ADR 001: Select a spell checking provider](adr-001-spell-checking-provider.md)
+  - [ADR 001: Select a spell checking provider](
+    adr-001-spell-checking-provider.md)
     records the proposed backend choice for dictionary-based spelling support
     and the fallback path if the first provider spike fails.
 
@@ -42,9 +43,11 @@
   - [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md)
     proposes the command surface, config discovery rules, and suppression
     semantics.
-  - [RFC 0004: Stilyagi rule tests](rfcs/0004-stilyagi-rule-testing-framework.md)
+  - [RFC 0004: Stilyagi rule tests](
+    rfcs/0004-stilyagi-rule-testing-framework.md)
     proposes a first-party pytest plugin for exercising rules, temporary
     packs, diagnostics, fixes, and IR output against the real Stilyagi engine.
-  - [RFC 0005: Grammar capability and syntactic API extensions](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
+  - [RFC 0005: Grammar capability and syntactic API extensions](
+    rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
     proposes the provider-neutral grammar-node API, capability model, and
     syntax-aware rule helpers for richer editorial analysis.

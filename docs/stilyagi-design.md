@@ -9,8 +9,10 @@
   - [RFC 0002: Stilyagi Python rule API](rfcs/0002-stilyagi-python-rule-api.md)
   - [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md)
   - [RFC 0004: Stilyagi rule testing framework](rfcs/0004-stilyagi-rule-testing-framework.md)
-  - [RFC 0005: Grammar capability and syntactic API extensions](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
-  - [ADR 001: Select a spell checking provider](adr-001-spell-checking-provider.md)
+  - [RFC 0005: Grammar capability and syntactic API extensions](
+    rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
+  - [ADR 001: Select a spell checking provider](
+    adr-001-spell-checking-provider.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,
@@ -693,8 +695,8 @@ The recommended subsystems are:
 - IR generation: logical schema plus canonical JSON serializer, `line_index`
   construction, content hashes, and segment-map invariants.
 - Python analysis engine: wraps IR into `Document`, `Region`, and the
-  provider-neutral grammar objects used by rules, including `Sentence`,
-  `Token`, and later clause or coordination helpers.
+  provider-neutral grammar objects used by rules, including `SentenceNode`,
+  `TokenNode`, and later clause or coordination helpers.
 - Capability planner: computes the minimum provider plan from selected rules,
   locales, and region targets.
 - Rule execution engine: schedules rules, batches regions, and collects

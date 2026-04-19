@@ -378,21 +378,29 @@ surface. See
   - Prove dictionary loading, region-scoped checking, and source-backed span
     mapping for Markdown, Python docstrings, and Rust documentation comments.
   - Success: the proposed provider works end to end without leaking backend
-    types into the public rule API.
+    types into the public rule API and operates fully offline, with no network
+    access, runtime auto-downloads, or reliance on system package managers.
 - [ ] 4.4.2. Add a diagnostic-only spelling capability behind the provider
-  planner. See ADR 001 (adr-001-spell-checking-provider.md).
+  planner. See ADR 001 (adr-001-spell-checking-provider.md). See
+  stilyagi-design.md §7.2.
   - Requires 4.4.1.
   - Include repo-local personal-dictionary support and keep suggestions out of
     scope for the first wave.
-  - Success: builtin spelling checks behave like other Stilyagi diagnostics and
-    preserve the structural fast path when disabled.
+  - Success: builtin spelling checks behave like other Stilyagi diagnostics,
+    preserve the structural fast path when disabled, and continue to run fully
+    offline with no network access, runtime auto-downloads, or system package
+    manager dependencies.
 - [ ] 4.4.3. Accept `spellbook` or switch to the `zspell` fallback using the
-  ADR 001 gate criteria. See ADR 001 (adr-001-spell-checking-provider.md).
+  ADR 001 gate criteria. See ADR 001 (adr-001-spell-checking-provider.md). See
+  stilyagi-design.md §11.
   - Requires 4.4.2 and 4.3.3.
   - Measure correctness, performance, and offset fidelity before freezing the
-    provider choice.
+    provider choice. Treat the offline constraint as part of the ADR 001 gate:
+    no network access, no runtime auto-downloads, and no reliance on system
+    package managers.
   - Success: the spelling capability lands behind one documented provider
-    decision rather than an open-ended experiment.
+    decision rather than an open-ended experiment, and the accepted provider
+    clears the offline gate alongside the other ADR 001 acceptance criteria.
 
 ## 5. Vertical slice 4: Team adoption and extension ecosystem
 
