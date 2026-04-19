@@ -1,7 +1,7 @@
 # Stilyagi design
 
 - Status: Draft
-- Updated: 2026-04-14
+- Updated: 2026-04-19
 - Audience: Maintainers and reviewers implementing Stilyagi as a wholesale
   replacement for the current Vale-oriented repository.
 - Companion documents:
@@ -9,6 +9,7 @@
   - [RFC 0002: Stilyagi Python rule API](rfcs/0002-stilyagi-python-rule-api.md)
   - [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md)
   - [RFC 0004: Stilyagi rule testing framework](rfcs/0004-stilyagi-rule-testing-framework.md)
+  - [RFC 0005: Grammar capability and syntactic API extensions](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,
@@ -150,6 +151,12 @@ The system must satisfy the following v1 requirements.
 - Users must be able to author rules in Python against typed runtime objects.
 - Rules must declare required capabilities so the engine can avoid loading
   unnecessary NLP components.
+- System must expose provider-neutral sentence and token wrappers before
+  grammar-aware rules touch backend objects directly.
+- System must normalize canonical POS and dependency enums while preserving raw
+  provider labels for debugging.
+- Higher-order noun phrase, clause, and coordination helpers must remain
+  analysis-layer abstractions rather than extractor-owned base IR facts.
 - System must support diagnostics with optional fixes and explicit fix
   applicability classified as `safe`, `unsafe`, or `manual`.
 - Users must be able to discover configuration from `pyproject.toml`,
@@ -610,6 +617,8 @@ High priority:
 
 Medium priority:
 
+- RFC 0005's grammar-node layer: sentence and token wrappers first, then
+  higher-order clause and coordination helpers.
 - spaCy-backed sentence, lemma, part-of-speech, and dependency capabilities.
 - Third-party rule packs and capability plugins.
 - SARIF output.
@@ -631,12 +640,12 @@ is irrelevant.
 
 Table: vertical delivery slices and the user value each one unlocks.
 
-| Slice   | User problem solved                                     | Layers touched                                               | Major interfaces                  | Measurable value                                                        | Deliberately left out    |
-| ------- | ------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
-| Slice 1 | "Lint my Markdown docs with real spans and safe fixes." | Rust Markdown extractor, Python CLI, builtin rules, renderer | `check`, config, JSON diagnostics | Useful on day one for docs repositories                                 | Docstrings, plugins, NLP |
-| Slice 2 | "Lint my Python and Rust docstrings and doc comments."  | tree-sitter extraction, owner metadata, doc rules            | IR, `check`, `dump-ir`            | Brings prose linting into source trees                                  | Complex linguistic rules |
-| Slice 3 | "Run smarter sentence and syntax-aware prose rules."    | capability planner, spaCy provider, richer rule API          | rule API, NLP config              | Enables real editorial policy such as passive voice or list punctuation | Cross-file semantics     |
-| Slice 4 | "Adopt this in CI and extend it with our own packs."    | entry-point plugins, SARIF, rule docs                        | `rules`, `rule`, SARIF            | Team adoption and ecosystem value                                       | Daemon mode              |
+| Slice   | User problem solved                                     | Layers touched                                                             | Major interfaces                    | Measurable value                                                        | Deliberately left out    |
+| ------- | ------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
+| Slice 1 | "Lint my Markdown docs with real spans and safe fixes." | Rust Markdown extractor, Python CLI, builtin rules, renderer               | `check`, config, JSON diagnostics   | Useful on day one for docs repositories                                 | Docstrings, plugins, NLP |
+| Slice 2 | "Lint my Python and Rust docstrings and doc comments."  | tree-sitter extraction, owner metadata, doc rules                          | IR, `check`, `dump-ir`              | Brings prose linting into source trees                                  | Complex linguistic rules |
+| Slice 3 | "Run smarter sentence and syntax-aware prose rules."    | capability planner, spaCy provider, grammar-node wrappers, richer rule API | rule API, grammar nodes, NLP config | Enables real editorial policy such as passive voice or list punctuation | Cross-file semantics     |
+| Slice 4 | "Adopt this in CI and extend it with our own packs."    | entry-point plugins, SARIF, rule docs                                      | `rules`, `rule`, SARIF              | Team adoption and ecosystem value                                       | Daemon mode              |
 
 The path is intentionally vertical. Every slice leaves behind a usable product.
 
@@ -677,8 +686,9 @@ The recommended subsystems are:
   and extraction errors.
 - IR generation: logical schema plus canonical JSON serializer, `line_index`
   construction, content hashes, and segment-map invariants.
-- Python analysis engine: wraps IR into `Document`, `Region`, `Sentence`, and
-  `Token` objects.
+- Python analysis engine: wraps IR into `Document`, `Region`, and the
+  provider-neutral grammar objects used by rules, including `Sentence`,
+  `Token`, and later clause or coordination helpers.
 - Capability planner: computes the minimum provider plan from selected rules,
   locales, and region targets.
 - Rule execution engine: schedules rules, batches regions, and collects
@@ -785,6 +795,46 @@ V1 sufficiency:
 
 - The current rule API is directionally good, but it needs narrowing and
   stronger performance semantics before implementation.
+
+#### Grammar-capability extension
+
+Strong points in RFC 0005:
+
+- It keeps grammar support behind explicit capabilities rather than making NLP
+  state globally available.
+- It uses provider-neutral grammar wrappers instead of freezing the public API
+  to spaCy classes.
+- It distinguishes sentence and token foundations from higher-order
+  noun-phrase, clause, and coordination helpers.
+- It keeps advisory grammar diagnostics and fix safety tied to source-backed
+  spans.
+
+Recommended revisions:
+
+- Treat `TokenNode`, `SentenceNode`, `UPos`, `Dep`, and `MorphFeatures` as the
+  first compatibility wave for grammar-aware rules.
+- Add `NounPhraseNode`, `ClauseNode`, `CoordinationNode`, token patterns, and
+  dependency patterns only after the lower-level wrappers are stable.
+- Keep grammar nodes as analysis-layer objects derived from IR plus provider
+  annotations rather than as mandatory extractor-level JSON fields.
+- Reserve backend escape hatches such as `token.backend("spacy")` for unstable
+  APIs only.
+- Require `dump-ir --include-grammar` or an equivalent debug surface once the
+  grammar layer exists, so maintainers can inspect derived syntax state without
+  reverse-engineering provider internals.
+
+Compatibility risks:
+
+- If the public API exposes raw spaCy labels or classes too early, Stilyagi
+  will inherit backend churn directly.
+- If higher-order clause and coordination nodes are treated as guaranteed facts
+  rather than advisory analysis views, rules will overclaim certainty.
+
+V1 sufficiency:
+
+- RFC 0005 is a good fit for the architecture, but it should land in phases:
+  first token and sentence wrappers plus core dependency access, then the
+  higher-order convenience nodes and richer rule helpers.
 
 ### 7.3 CLI contract
 
@@ -971,6 +1021,8 @@ The design must be validated with the following test classes.
 
 - Exact owner metadata shape for docstrings and comments. Recommendation:
   implementation spike plus RFC amendment.
+- Exact dependency-label normalization table and the grammar debug-output
+  schema. Recommendation: implementation spike plus RFC 0005 follow-up.
 - Whether extractor plugins land in v1 or immediately after. Recommendation:
   implementation spike.
 - Exact cache encoding for on-disk analysis artefacts. Recommendation:
@@ -993,14 +1045,19 @@ Build this in the following order.
   extension, Markdown extraction, Python and Rust docstring or doc comment
   extraction, a stable region-oriented IR, builtin structural rules, safe
   fixes, and a Ruff-like CLI.
-- Postpone: heavy NLP, MDX as a stable promise, SARIF polish, extractor plugins,
-  and daemon mode.
+- Add next: the RFC 0005 grammar layer in two waves, with sentence and token
+  wrappers plus selective POS or dependency capabilities first, then
+  higher-order clause and coordination helpers after the low-level model has
+  proven stable.
+- Postpone: full semantic inference, MDX as a stable promise, SARIF polish,
+  extractor plugins, and daemon mode.
 - Reject outright: Vale-compatibility baggage, LLM-assisted core analysis,
   auto-downloading models, and any claim that third-party plugins are sandboxed.
 - First meaningful release: `stilyagi check`, `rule`, `rules`, `config`,
   `clean`, and `dump-ir`, with Markdown plus Python and Rust docstring or
-  doc-comment support, stable JSON diagnostics, safe fixes, and a documented
-  Python rule-pack story.
+  doc-comment support, stable JSON diagnostics, safe fixes, a documented Python
+  rule-pack story, and an implementation path for RFC 0005's provider-neutral
+  grammar nodes.
 
 The product should earn complexity, not assume it. A precise structural core
 with a disciplined Python rule API will deliver customer value faster than a
