@@ -626,7 +626,7 @@ Medium priority:
 - RFC 0005's grammar-node layer: `TokenNode` and `SentenceNode` first, then
   higher-order clause and coordination helpers.
 - spaCy-backed sentence, lemma, part-of-speech, and dependency capabilities.
-- Builtin dictionary-based spelling support behind a Stilyagi-owned provider
+- Built-in dictionary-based spelling support behind a Stilyagi-owned provider
   facade, following ADR 001's `spellbook`-first plan and `zspell` fallback.
 - Third-party rule packs and capability plugins.
 - SARIF output.
@@ -828,7 +828,7 @@ Recommended revisions:
 - Reserve backend escape hatches such as `token.backend("spacy")` for unstable
   APIs only.
 - Require `dump-ir --include-grammar` or an equivalent debug surface once the
-  grammar layer exists, so maintainers can inspect derived syntax state without
+  grammar layer exists so maintainers can inspect derived syntax state without
   reverse-engineering provider internals.
 
 Compatibility risks:
