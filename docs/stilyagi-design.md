@@ -1021,6 +1021,8 @@ The design must be validated with the following test classes.
 
 - Exact owner metadata shape for docstrings and comments. Recommendation:
   implementation spike plus RFC amendment.
+- Spell checking provider selection for a future builtin spelling capability.
+  Recommendation: ADR.
 - Exact dependency-label normalization table and the grammar debug-output
   schema. Recommendation: implementation spike plus RFC 0005 follow-up.
 - Whether extractor plugins land in v1 or immediately after. Recommendation:

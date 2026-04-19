@@ -5,6 +5,9 @@
 - [Stilyagi design](stilyagi-design.md) is the primary technical design for the
   wholesale replacement of the current Vale-oriented repository with the new
   prose, documentation, comment, and docstring linter.
+- [ADR 001: Select a spell checking provider](adr-001-spell-checking-provider.md)
+  records the proposed backend choice for dictionary-based spelling support and
+  the fallback path if the first provider spike fails.
 - [Roadmap](roadmap.md) sequences the implementation work into foundations and
   vertical slices, so the project can deliver useful functionality before the
   full architecture is complete.
