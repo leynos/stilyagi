@@ -650,7 +650,7 @@ Table: vertical delivery slices and the user value each one unlocks.
 
 | Slice   | User problem solved                                           | Layers touched                                                             | Major interfaces                    | Measurable value                                                        | Deliberately left out    |
 | ------- | ------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- | ------------------------ |
-| Slice 1 | "Lint my Markdown docs with real spans and safe fixes."       | Rust Markdown extractor, Python CLI, builtin rules, renderer               | `check`, config, JSON diagnostics   | Useful on day one for docs repositories                                 | Docstrings, plugins, NLP |
+| Slice 1 | "Lint my Markdown docs with real spans and safe fixes."       | Rust Markdown extractor, Python CLI, built-in rules, renderer              | `check`, config, JSON diagnostics   | Useful on day one for documentation repositories                        | Docstrings, plugins, NLP |
 | Slice 2 | "Lint my Python and Rust docstrings and doc comments."        | tree-sitter extraction, owner metadata, doc rules                          | IR, `check`, `dump-ir`              | Brings prose linting into source trees                                  | Complex linguistic rules |
 | Slice 3 | "Run smarter sentence and syntax-aware prose rules."          | capability planner, spaCy provider, grammar-node wrappers, richer rule API | rule API, grammar nodes, NLP config | Enables real editorial policy such as passive voice or list punctuation | Cross-file semantics     |
 | Slice 4 | "Adopt this in CI and extend it with project-specific packs." | entry-point plugins, SARIF, rule docs                                      | `rules`, `rule`, SARIF              | Team adoption and ecosystem value                                       | Daemon mode              |
@@ -869,14 +869,14 @@ Compatibility risks:
 V1 sufficiency:
 
 - RFC 0005 is a good fit for the architecture, but it should land in phases:
-  first token and sentence wrappers plus core dependency access, then the
+  first `TokenNode` and `SentenceNode` plus core dependency access, then the
   higher-order convenience nodes and richer rule helpers.
 
 #### Spelling-capability extension
 
 Strong points in ADR 001:
 
-- It keeps builtin spelling support behind the same provider-neutral boundary
+- It keeps built-in spelling support behind the same provider-neutral boundary
   as the rest of the rule engine.
 - It selects a pure-Rust backend path that fits the PyO3 plus `maturin`
   packaging model.
@@ -908,7 +908,7 @@ V1 sufficiency:
 
 - ADR 001 gives the project a concrete provider direction, but the capability
   names, planner integration, and acceptance gates still need implementation
-  work before builtin spelling support becomes part of the stable v1 surface.
+  work before built-in spelling support becomes part of the stable v1 surface.
 
 ### 7.3 CLI contract
 
@@ -1120,7 +1120,7 @@ Build this in the following order.
 
 - Build first: a Python-distributed replacement product with a Rust extraction
   extension, Markdown extraction, Python and Rust docstring or doc comment
-  extraction, a stable region-oriented IR, builtin structural rules, safe
+  extraction, a stable region-oriented IR, built-in structural rules, safe
   fixes, and a Ruff-like CLI.
 - Add next: the RFC 0005 grammar layer in two waves, with `TokenNode` and
   `SentenceNode` plus selective POS or dependency capabilities first, then
