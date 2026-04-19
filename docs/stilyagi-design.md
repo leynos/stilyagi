@@ -623,7 +623,7 @@ High priority:
 
 Medium priority:
 
-- RFC 0005's grammar-node layer: sentence and token wrappers first, then
+- RFC 0005's grammar-node layer: `TokenNode` and `SentenceNode` first, then
   higher-order clause and coordination helpers.
 - spaCy-backed sentence, lemma, part-of-speech, and dependency capabilities.
 - Builtin dictionary-based spelling support behind a Stilyagi-owned provider
@@ -1094,8 +1094,8 @@ Build this in the following order.
   extension, Markdown extraction, Python and Rust docstring or doc comment
   extraction, a stable region-oriented IR, builtin structural rules, safe
   fixes, and a Ruff-like CLI.
-- Add next: the RFC 0005 grammar layer in two waves, with sentence and token
-  wrappers plus selective POS or dependency capabilities first, then
+- Add next: the RFC 0005 grammar layer in two waves, with `TokenNode` and
+  `SentenceNode` plus selective POS or dependency capabilities first, then
   higher-order clause and coordination helpers after the low-level model has
   proven stable.
 - Postpone: full semantic inference, MDX as a stable promise, SARIF polish,
