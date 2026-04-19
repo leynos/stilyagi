@@ -296,12 +296,19 @@ class TokenNode(GrammarNode):
 
     def is_finite_verb(self) -> bool: ...
     def is_content(self) -> bool: ...
+    def is_coordinated(self) -> bool: ...
 ```
 
 `next_content()` and `prev_content()` should walk forward or backward from the
 current token and return the nearest token that the provider classifies as
 content-bearing according to `is_content()`. They should skip punctuation and
 other non-content tokens but must not cross sentence boundaries.
+
+`is_coordinated()` should return `True` when the token participates in a
+coordination structure that should be treated as syntactically plural or
+multi-headed for agreement-sensitive rules. At minimum, that includes tokens
+linked through coordination relations such as `conj` or `cc`, whether the token
+is the coordination head or one of its coordinated peers.
 
 #### `SentenceNode`
 
