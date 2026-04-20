@@ -55,7 +55,7 @@ That target performs three steps:
 
 1. Recreate `.venv`
 2. Sync the `dev` dependency group with `uv`
-3. Run `maturin develop` against `rust_extension/Cargo.toml`
+3. Run `maturin develop` against `crates/stilyagi-pyext/Cargo.toml`
 
 Developers should prefer the Makefile targets over ad hoc command sequences so
 the PyO3 build flags and tool invocation paths stay consistent across local
@@ -69,7 +69,7 @@ extraction and analysis.
 The accepted packaging boundary is a Python-distributed application with an
 embedded PyO3 extension built through `maturin`. Stilyagi does not use a
 separate helper binary for normal v1 execution; the Rust extractor lives inside
-the Python runtime as `_stilyagi_rs`.[^1]
+the Python runtime as `stilyagi._stilyagi_rs`.[^1]
 
 The accepted v1 contract scope is narrower than the architecture's long-term
 extension points. Stable v1 syntax support covers Markdown, Python docstrings,
@@ -238,13 +238,19 @@ maintainer contract, not a disposable planning artefact.
 
 ## 4. Rust and PyO3 integration
 
-The Rust extension crate lives under `rust_extension/` and is built as the
-`_stilyagi_rs` Python extension module. PyO3 provides the binding layer, while
-`maturin` handles development installs and wheel builds.
+The Rust code now lives in a root Cargo workspace declared by `Cargo.toml`,
+with the PyO3 bridge in `crates/stilyagi-pyext/` and the first shared library
+boundary in `crates/stilyagi-core/`. The Python package source root lives under
+`python/stilyagi/`.
+
+The bridge crate builds as the package-scoped `stilyagi._stilyagi_rs` extension
+module. PyO3 provides the binding layer, while `maturin` handles development
+installs and wheel builds.
 
 The current integration contract is intentionally small:
 
-- Rust exports Python-callable functions through the `_stilyagi_rs` module.
+- Rust exports Python-callable functions through the `stilyagi._stilyagi_rs`
+  module.
 - Python package code imports and orchestrates the extension rather than
   duplicating Rust-owned logic.
 - Rust tests cover Rust-only behaviour, while Python tests cover package-level
@@ -275,7 +281,7 @@ the repository ready for local linting and tests.
 `make release` is the release artefact path. It runs:
 
 ```bash
-uv run --group dev maturin build --release --manifest-path rust_extension/Cargo.toml
+uv run --group dev maturin build --release --manifest-path crates/stilyagi-pyext/Cargo.toml
 ```
 
 That command produces Python wheel artefacts under the Rust target wheels
@@ -313,7 +319,7 @@ Their responsibilities are:
 - `make lint`
   - run Ruff checks through `uv`
   - run `cargo clippy` with warnings denied
-  - run Whitaker from `rust_extension/`
+  - run Whitaker from `crates/stilyagi-pyext/`
 - `make typecheck`
   - rebuilds the editable environment if needed
   - runs `ty check` through `uv`
@@ -667,7 +673,7 @@ of the mixed package.
 - Use `make release` for release builds.
 - Keep the Python package metadata and the Rust extension build path in sync.
 - Treat release-affecting changes to the Makefile, `pyproject.toml`, or
-  `rust_extension/Cargo.toml` as coupled changes that need end-to-end
+  `crates/stilyagi-pyext/Cargo.toml` as coupled changes that need end-to-end
   verification.
 
 If release packaging changes, this guide, the design document, and the relevant

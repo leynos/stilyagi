@@ -20,6 +20,9 @@ For users, that means:
 - normal execution does not depend on launching a helper process for every
   extraction call.
 
+In editable development installs, the embedded extension now lives under the
+package as `stilyagi._stilyagi_rs` rather than as a separate top-level module.
+
 ## 2. What this does and does not promise
 
 The accepted v1 contract is narrower than the architecture's long-term
@@ -80,8 +83,9 @@ expectations in the first releases are defined around English only.
 ## 5. Current state of the product
 
 The repository already uses `maturin` to build and develop the embedded
-extension, but Stilyagi is still in the roadmap phase where architectural
-contracts are being ratified before feature-complete releases land.[^2][^3]
+extension from the `python/` plus `crates/` mixed-package skeleton, but
+Stilyagi is still in the roadmap phase where architectural contracts are being
+ratified before feature-complete releases land.[^2][^3]
 
 Until the command-line interface (CLI) and feature slices are implemented,
 treat this guide as a record of the stable user-facing v1 contract rather than

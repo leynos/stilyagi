@@ -1,0 +1,3 @@
+"""Typing stub for the package-scoped Rust extension."""
+
+def hello() -> str: ...

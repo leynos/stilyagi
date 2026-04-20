@@ -22,20 +22,25 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 │   └── common-acronyms/
 ├── .github/
 │   └── workflows/
+├── crates/
+│   ├── stilyagi-core/
+│   ├── stilyagi-extract/
+│   ├── stilyagi-ir/
+│   ├── stilyagi-markdown/
+│   ├── stilyagi-pyext/
+│   └── stilyagi-tree-sitter/
 ├── .rules/
 ├── docs/
 │   └── rfcs/
 ├── features/
 ├── image_out/
-├── rust_extension/
-│   └── src/
+├── python/
+│   └── stilyagi/
 ├── scripts/
-├── stilyagi/
 ├── tests/
-│   ├── behaviour/
-│   ├── fixtures/
-│   └── workflows/
+│   └── fixtures/
 ├── AGENTS.md
+├── Cargo.toml
 ├── Makefile
 ├── pyproject.toml
 └── uv.lock
@@ -49,9 +54,11 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 - `Makefile`
   - Canonical maintainer entrypoint for build, format, lint, typecheck, test,
     and release workflows.
+- `Cargo.toml`
+  - Root Cargo workspace manifest for the Rust crate graph under `crates/`.
 - `pyproject.toml`
   - Python package metadata, Ruff configuration, `ty` configuration, pytest
-    settings, and `uv` package behaviour.
+    settings, `uv` package behaviour, and `maturin` mixed-package settings.
 - `uv.lock`
   - Locked Python dependency graph. Update this when Python dependency changes
     are made through `uv`.
@@ -63,17 +70,22 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 
 ## 3. Source code and runtime boundaries
 
-- `stilyagi/`
-  - Python package source.
-  - Owns package-level orchestration and the Python-visible runtime surface.
-  - Should not absorb Rust-owned extraction logic merely because the Python
-    layer can technically reimplement it.
-- `rust_extension/`
-  - PyO3-based Rust extension crate.
-  - Owns the compiled `_stilyagi_rs` module and is responsible for
-    Rust-side tests, including the current `hello` unit test.
-  - `src/` contains the Rust implementation; `target/` is generated build
-    output and should not be treated as authored source.
+- `python/stilyagi/`
+  - Python package source root.
+  - Owns package-level orchestration, the Python-visible runtime surface, and
+    the initial `engine/`, `model/`, `nlp/`, and `rules/` package boundaries.
+  - Hosts the editable-install location for the package-scoped
+    `stilyagi._stilyagi_rs` extension module produced by `maturin develop`.
+- `crates/stilyagi-pyext/`
+  - PyO3-based Rust bridge crate.
+  - Owns the compiled `_stilyagi_rs` module and the Rust-side bridge tests.
+- `crates/stilyagi-core/`
+  - Shared Rust core boundary for smoke-tested bridge logic and future engine
+    building blocks.
+- `crates/stilyagi-ir/`, `crates/stilyagi-markdown/`,
+  `crates/stilyagi-tree-sitter/`, and `crates/stilyagi-extract/`
+  - Long-lived skeleton crates reserved for the future IR, Markdown,
+    tree-sitter, and extraction boundaries described by the design.
 
 The ownership boundary matters. Rust is the home for source-fidelity and
 extension-boundary concerns. Python is the home for package integration and the
@@ -100,14 +112,12 @@ repository root or hidden in issue threads.
 
 - `tests/`
   - Python-level tests and integration checks.
-- `tests/behaviour/`
-  - Behaviour-oriented tests and scenarios.
 - `tests/fixtures/`
   - Static fixture inputs used by tests.
-- `tests/workflows/`
-  - Workflow-focused test support.
 - `features/`
   - Behaviour-driven development feature files used by the Python test stack.
+- `crates/stilyagi-pyext/tests/features/`
+  - Behaviour-driven development feature files used by the Rust bridge tests.
 
 Fixture and scenario paths are semantically important. Test data should be kept
 there rather than embedded ad hoc in unrelated modules.
@@ -140,9 +150,11 @@ The following paths are operationally useful but are not authoritative sources:
   - Local Ruff cache data.
 - `.pytest_cache/`
   - Local pytest cache data.
-- `rust_extension/target/`
-  - Cargo build artefacts, including compiled outputs and wheel-build
-    intermediates.
+- `target/`
+  - Cargo workspace build artefacts for the crates under `crates/`.
+- `crates/stilyagi-pyext/target/`
+  - Legacy member-local Cargo artefacts that may exist from pre-workspace
+    builds and should not be treated as authored source.
 
 These directories should generally remain untracked and should not be treated
 as inputs when documenting the repository structure.
