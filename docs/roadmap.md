@@ -43,7 +43,7 @@ scope. See [Stilyagi design](stilyagi-design.md) §§7, 12-13 and
     whether English-only support is the formal v1 policy.
   - Success: the v1 promises match [Stilyagi design](stilyagi-design.md)
     §12.
-- [ ] 1.1.3. Amend RFC 0001, RFC 0002, RFC 0003, and RFC 0005 so the design
+- [x] 1.1.3. Amend RFC 0001, RFC 0002, RFC 0003, and RFC 0005 so the design
   and the narrower contracts agree. See Stilyagi design (stilyagi-design.md)
   §§7.1-7.3.
   - Requires 1.1.1 and 1.1.2.

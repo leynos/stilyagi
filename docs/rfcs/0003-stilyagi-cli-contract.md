@@ -24,6 +24,9 @@ command surface inspired by Ruff:
 
 `server` SHALL be reserved for a later RFC.
 
+A global `-V` / `--version` flag SHALL be supported in addition to the explicit
+`version` subcommand.
+
 ## 2. Goals
 
 The CLI needs to feel crisp in daily use and debuggable when things go sideways.
@@ -55,7 +58,7 @@ stilyagi check [FILES]...
 If `FILES` is omitted, the default target SHALL be `.`.
 
 The command SHALL accept `-` for stdin. When reading from stdin, callers SHOULD
-pass `--stdin-filename` so that Stilyagi can infer language, apply per-file
+pass `--stdin-filename` so that Stilyagi can infer syntax, apply per-file
 configuration, and report a plausible path.
 
 Guaranteed options in v1:
@@ -69,6 +72,7 @@ Guaranteed options in v1:
 - `--output-format`
 - `--config`
 - `--isolated`
+- `--no-cache`
 - `--stdin-filename`
 - `--quiet`
 - `--verbose`
@@ -120,11 +124,15 @@ documents `clean` as a top-level cache-clearing command.[^1]
 
 ### 3.6 `stilyagi dump-ir [FILES]...`
 
-Emit RFC 0001 IR as JSON.
+Emit RFC 0001 IR as canonical JSON.
 
 This is the one major addition beyond the Ruff-like surface. A parser-heavy
 prose linter without an IR dump command would be begging for séance-grade
 debugging.
+
+The runtime MAY use a more efficient in-process transport internally, but
+`dump-ir` is the stable serialized and debug form for fixtures, compatibility
+review, and false-positive investigation.
 
 ## 4. Configuration files
 
@@ -223,12 +231,12 @@ Files passed explicitly on the command line SHALL still be analysed unless
 v1 built-in discovery SHOULD include at least:
 
 - `*.md`
-- `*.mdx`
 - `*.py`
 - `*.rs`
-- `*.js`
-- `*.ts`
-- `*.tsx`
+
+MDX is not part of the stable default discovery surface in v1. Preview support
+for `*.mdx` MAY land later behind explicit preview configuration, but stable
+recursive discovery should assume only Markdown, Python, and Rust.
 
 ## 8. Rule selection
 
@@ -273,9 +281,9 @@ stilyagi: ignore-file CODE[,CODE...]
 Range and inline directives MUST name at least one code or prefix. Blanket
 inline suppression is forbidden in v1.
 
-### 9.2 Markdown / MDX form
+### 9.2 Markdown form and MDX preview behaviour
 
-In Markdown-family documents, directives SHALL use HTML comments:
+In Markdown documents, directives SHALL use HTML comments:
 
 ```md
 <!-- stilyagi: ignore-next PUN201 -->
@@ -287,6 +295,9 @@ A whole questionable section.
 
 <!-- stilyagi: ignore-file MD,DOC -->
 ```
+
+If MDX preview support is enabled in a later slice, it SHOULD reuse the same
+logical directive form rather than inventing a second suppression grammar.
 
 ### 9.3 Source-code form
 

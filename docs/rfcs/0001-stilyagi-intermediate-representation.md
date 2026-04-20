@@ -81,15 +81,26 @@ A Stilyagi IR document SHALL contain these top-level fields:
 
 - `uri`
 - `path`
-- `language`
+- `syntax`
 - `encoding`
 - `content_hash`
+
+`document` MAY also include `natural_language` when the source document's
+dominant human language is known. `syntax` identifies the source format, such
+as Markdown, Python, or Rust. It MUST NOT be overloaded to mean the prose
+locale inside the extracted regions.
+
+In v1, `natural_language` formally supports only the `en` locale. Broader
+locale or multilingual guarantees are deferred to later roadmap slices and the
+tests that will justify them.
 
 `producers` SHALL record the toolchain used to create the IR, including parser
 names, versions, and relevant parse options. This requirement exists so that
 cache keys and bug reports stay honest.
 
-A minimal envelope looks like this:
+A minimal envelope looks like this. The example shows the smallest complete IR
+document, including document metadata, one producer record, and the top-level
+collections that later sections populate in more detail:
 
 ```json
 {
@@ -97,7 +108,8 @@ A minimal envelope looks like this:
   "document": {
     "uri": "file:///repo/docs/guide.md",
     "path": "docs/guide.md",
-    "language": "markdown",
+    "syntax": "markdown",
+    "natural_language": "en",
     "encoding": "utf-8",
     "content_hash": "sha256:..."
   },
@@ -133,7 +145,7 @@ Each tree SHALL contain:
 
 - `id`
 - `family`, one of `mdast`, `tree-sitter`, or `synthetic`
-- `language`
+- `syntax`
 - `root`
 
 Each node SHALL contain:
@@ -181,6 +193,13 @@ verbatim, `fields` SHOULD preserve grammar field names, and `flags.error` /
 language already treats fields and error nodes as first-class concepts, so the
 IR should not throw that information away.[^5]
 
+For v1, Markdown trees are part of the stable debug and analysis contract.
+Tree-sitter-backed source trees MAY appear in `dump-ir` output or internal
+transport, but Stilyagi does not promise a stable full-node public surface for
+non-Markdown syntaxes in v1. Rules that need Python or Rust context SHALL rely
+on regions plus explicit owner metadata instead of binding to raw source-tree
+shapes.
+
 ## 6. Regions
 
 A region is the actual unit of prose analysis.
@@ -192,11 +211,12 @@ Each region SHALL contain:
 - `id`
 - `kind`
 - `scope`
-- `language`
-- `host_language`
+- `syntax`
+- optional `natural_language`
 - `text`
 - `segments`
 - `origin_nodes`
+- `owner`
 - `attrs`
 - `parent_region`
 
@@ -212,11 +232,13 @@ these kinds:
 - `frontmatter_field`
 - `image_alt`
 - `link_title`
-- `comment_block`
 - `python_docstring`
 - `rust_doc_comment`
-- `jsdoc_block`
-- `summary_line`
+
+`summary_line` is a derived analysis view, not an extractor-level region kind
+in v1. Rules that care about summary lines SHALL derive them from a docstring
+or paragraph region, or request an analysis-layer helper from the Python rule
+API.
 
 `scope` SHALL be an extensible list of tags, for example:
 
@@ -230,6 +252,13 @@ these kinds:
 slice. In Markdown, that means markup delimiters disappear and prose becomes
 inspectable as prose. When the frontend inserts a synthetic character, such as
 a space for a soft line break, `segments` SHALL record that fact.
+
+Regions use `syntax` for the source surface that produced the text and
+`natural_language` for the prose locale when known. These fields SHALL stay
+separate so rules can distinguish source format from editorial language. For
+v1, consumers SHOULD expect `natural_language` to be `en` when it is present.
+Broader locale support is out of scope until later slices and their test corpus
+ratify it.
 
 Each `segments` entry SHALL map a span of region text back to original source
 bytes or declare it synthetic. For example:
@@ -247,6 +276,20 @@ bytes or declare it synthetic. For example:
 This rule is the heart of the design. It lets Stilyagi analyse rendered prose
 while still issuing byte-accurate diagnostics and edits against the underlying
 file.
+
+`owner` SHALL be `null` for regions with no meaningful enclosing owner. For
+docstrings and documentation comments, `owner` SHALL capture the owning code
+entity so rules do not need to reconstruct it from raw syntax trees. v1 owner
+objects SHALL include at least:
+
+- `kind`, such as `module`, `class`, `function`, or `item`
+- optional `name` when the source syntax supplies a stable owner name
+- optional `qualname` when the source syntax supplies a stable qualified name
+
+`owner` is a code-entity contract in v1 and MUST NOT be repurposed for Markdown
+section context or other non-code ancestry. If a region needs heading or
+debugging context, that information SHOULD live in `attrs` or in a separate
+dedicated field rather than overloading `owner`.
 
 ## 7. Region invariants
 
@@ -284,13 +327,15 @@ pretending malformed files do not exist.[^5]
 
 ## 9. Serialization and compatibility
 
-v1 SHALL require a canonical JSON serialization for the IR.
+v1 SHALL define a canonical JSON serialization for the IR.
 
-The Rust frontend MAY later expose MessagePack or another binary format, but
-JSON is the mandatory interchange contract for the first stable version.
-`markdown-rs` already supports optional `serde` serialization for abstract
-syntax trees (ASTs) and configuration, which makes a JSON-first contract a
-pragmatic starting point.[^1]
+`dump-ir`, golden fixtures, and compatibility review SHALL use that JSON form.
+The Rust frontend MAY use MessagePack or another representation for the
+in-process Rust-to-Python boundary so long as it preserves the same logical IR
+content. `markdown-rs` already supports optional `serde` serialization for
+abstract syntax trees (ASTs) and configuration, which makes canonical JSON a
+pragmatic serialized and debug contract without forcing it as the only hot-path
+transport.[^1]
 
 Compatibility rules:
 
@@ -301,13 +346,18 @@ Compatibility rules:
 
 ## 10. Example
 
+This example shows a Markdown-backed IR document after extraction, with one
+mdast tree, one heading region, and source-backed span metadata that ties the
+region text back to original bytes:
+
 ```json
 {
   "schema_version": "1.0.0",
   "document": {
     "uri": "file:///repo/docs/guide.md",
     "path": "docs/guide.md",
-    "language": "markdown",
+    "syntax": "markdown",
+    "natural_language": "en",
     "encoding": "utf-8",
     "content_hash": "sha256:abc123"
   },
@@ -321,7 +371,7 @@ Compatibility rules:
   ],
   "line_index": [0, 17, 38, 75],
   "trees": [
-    {"id": "t1", "family": "mdast", "language": "markdown", "root": "n0"}
+    {"id": "t1", "family": "mdast", "syntax": "markdown", "root": "n0"}
   ],
   "nodes": [
     {
@@ -352,8 +402,8 @@ Compatibility rules:
       "id": "r1",
       "kind": "heading",
       "scope": ["markdown", "heading", "h2"],
-      "language": "en",
-      "host_language": "markdown",
+      "syntax": "markdown",
+      "natural_language": "en",
       "text": "How Stilyagi Works",
       "segments": [
         {
@@ -365,6 +415,7 @@ Compatibility rules:
         }
       ],
       "origin_nodes": ["n1"],
+      "owner": null,
       "attrs": {"depth": 2},
       "parent_region": null
     }

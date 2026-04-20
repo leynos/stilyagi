@@ -24,6 +24,10 @@
     execplans/1-1-2-record-the-v1-syntax-scope.md)
     plans the documentation-first work that ratifies the remaining v1 syntax,
     IR transport, and locale-policy promises before RFC alignment begins.
+  - [1.1.3 harmonize RFC design contracts](
+    execplans/1-1-3-harmonize-rfc-design-contracts.md)
+    plans the RFC amendment pass that aligns RFCs 0001, 0002, 0003, and 0005
+    with the ratified v1 design and ADR contract set.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.

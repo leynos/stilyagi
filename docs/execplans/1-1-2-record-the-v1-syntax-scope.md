@@ -1,9 +1,9 @@
 # Ratify the v1 syntax scope, IR transport, and locale policy
 
 This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises &
-Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up
-to date as work proceeds.
+`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
+`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
+proceeds.
 
 Status: COMPLETE
 
@@ -27,8 +27,9 @@ questions plainly:
 The observable outcome is contractual clarity rather than new runtime
 behaviour. A reviewer should be able to read the new ADR, the design document,
 the developer's guide, the user's guide, and the roadmap together and see one
-coherent v1 promise that matches [docs/stilyagi-design.md](../stilyagi-design.md)
-§12's recommendation and §13's final recommendation.
+coherent v1 promise that matches
+[docs/stilyagi-design.md](../stilyagi-design.md) §12's recommendation and §13's
+final recommendation.
 
 ## Orientation
 
@@ -46,12 +47,13 @@ The design document already points strongly toward the likely answers:
 - English is the only locale with an explicit v1 performance and support story.
 
 The complication is that the narrower contract documents do not yet all agree
-with that design direction. [RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md)
-still says JSON is the mandatory interchange contract, and
+with that design direction.
+[RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md) still says
+JSON is the mandatory interchange contract, and
 [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) still speaks about Markdown
-and MDX together in places where the design now recommends MDX as
-preview-only. That mismatch is expected to be cleaned up in roadmap item 1.1.3
-instead of being silently folded into this slice.
+and MDX together in places where the design now recommends MDX as preview-only.
+That mismatch is expected to be cleaned up in roadmap item 1.1.3 instead of
+being silently folded into this slice.
 
 This means the work here is not a broad rewrite. It is a ratification step:
 record the accepted v1 promise in one place, align the governing design and
@@ -81,8 +83,9 @@ The implementer should keep these documents open while executing the plan:
   documentation conventions.
 - [docs/rfcs/0001-stilyagi-intermediate-representation.md](../rfcs/0001-stilyagi-intermediate-representation.md),
   [docs/rfcs/0002-stilyagi-python-rule-api.md](../rfcs/0002-stilyagi-python-rule-api.md),
-  and [docs/rfcs/0003-stilyagi-cli-contract.md](../rfcs/0003-stilyagi-cli-contract.md)
-  as the draft contracts that this slice must not contradict silently, even if
+   and
+  [docs/rfcs/0003-stilyagi-cli-contract.md](../rfcs/0003-stilyagi-cli-contract.md)
+   as the draft contracts that this slice must not contradict silently, even if
   their normative text is only amended in 1.1.3.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](../complexity-antipatterns-and-refactoring-strategies.md)
   as a reminder to keep the contract story narrow and explicit rather than
@@ -91,8 +94,9 @@ The implementer should keep these documents open while executing the plan:
   [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md),
   [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), and
   [docs/reliable-testing-in-rust-via-dependency-injection.md](../reliable-testing-in-rust-via-dependency-injection.md)
-  for the validation standards later executable slices must follow, even though
-  this documentation-first slice is not expected to introduce new runtime code.
+   for the validation standards later executable slices must follow, even
+  though this documentation-first slice is not expected to introduce new
+  runtime code.
 
 The relevant skills for the person executing this plan are:
 
@@ -141,8 +145,8 @@ The relevant skills for the person executing this plan are:
   why. The intended touch-set is one new ADR, this ExecPlan, `docs/roadmap.md`,
   and a small number of supporting documentation files.
 - Interface: if the work appears to require any public command-line interface
-  (CLI), Python API, Rust API, config-schema, or build-command change, stop
-  and ask for confirmation because that is no longer a documentation-only
+  (CLI), Python API, Rust API, config-schema, or build-command change, stop and
+  ask for confirmation because that is no longer a documentation-only
   ratification slice.
 - Dependencies: if the work appears to need any new Rust crate, Python package,
   or documentation tool, stop and escalate.
@@ -162,45 +166,35 @@ The relevant skills for the person executing this plan are:
 
 - Risk: the generic implementation boilerplate in the task asks for new unit
   tests and behavioural tests, even though this roadmap step records
-  documentation contracts rather than executable behaviour.
-  Severity: high
-  Likelihood: high
-  Mitigation: treat this slice as documentation-first. Run the repository gate
-  suite exactly as requested, but do not invent synthetic `rstest`,
-  `rstest-bdd`, `pytest`, or `pytest-bdd` cases unless the work widens into
-  real code changes. If real code changes become necessary, stop and request
-  approval for the broader scope.
+  documentation contracts rather than executable behaviour. Severity: high
+  Likelihood: high Mitigation: treat this slice as documentation-first. Run the
+  repository gate suite exactly as requested, but do not invent synthetic
+  `rstest`, `rstest-bdd`, `pytest`, or `pytest-bdd` cases unless the work
+  widens into real code changes. If real code changes become necessary, stop
+  and request approval for the broader scope.
 
 - Risk: the design document, RFCs, and guides do not yet all agree on MDX,
   JSON transport, or locale support, so this slice may temporarily increase the
-  visible mismatch until roadmap item 1.1.3 lands.
-  Severity: high
-  Likelihood: high
-  Mitigation: make the new ADR explicit about which RFCs still need
+  visible mismatch until roadmap item 1.1.3 lands. Severity: high Likelihood:
+  high Mitigation: make the new ADR explicit about which RFCs still need
   follow-on alignment, and keep RFC edits intentionally narrow or absent in
   this slice.
 
 - Risk: locale-policy wording could accidentally promise more than the product
-  can support, especially if "English-only" is written imprecisely.
-  Severity: medium
-  Likelihood: medium
-  Mitigation: use exact wording that distinguishes formal v1 support from
-  future architecture readiness. The contract should say Stilyagi is designed
-  so other locales can land later, but only English is supported and validated
-  in v1.
+  can support, especially if "English-only" is written imprecisely. Severity:
+  medium Likelihood: medium Mitigation: use exact wording that distinguishes
+  formal v1 support from future architecture readiness. The contract should say
+  Stilyagi is designed so other locales can land later, but only English is
+  supported and validated in v1.
 
 - Risk: users' and developers' guides may drift into too much future-facing
   speculation while trying to explain syntax scope and transport policy.
-  Severity: medium
-  Likelihood: medium
-  Mitigation: keep the guides focused on present guarantees, defaults, and
-  explicit non-promises. Put design rationale in the ADR and design document,
-  not in the operational guides.
+  Severity: medium Likelihood: medium Mitigation: keep the guides focused on
+  present guarantees, defaults, and explicit non-promises. Put design rationale
+  in the ADR and design document, not in the operational guides.
 
 - Risk: the roadmap step could be marked done before the validation gates prove
-  the documentation set remains healthy.
-  Severity: low
-  Likelihood: medium
+  the documentation set remains healthy. Severity: low Likelihood: medium
   Mitigation: treat the roadmap update as the final action after validation and
   document reread, not as an early bookkeeping change.
 
@@ -220,16 +214,15 @@ disagree or remain ambiguous. Capture a short working matrix that answers:
 4. which mismatches must be left for roadmap item 1.1.3 rather than "fixed"
    now.
 
-At the end of this milestone, the implementer should be able to state the
-three intended decisions and the minimum documentation touch-set needed to
-ratify them.
+At the end of this milestone, the implementer should be able to state the three
+intended decisions and the minimum documentation touch-set needed to ratify
+them.
 
 ### Milestone 2: draft the accepted ADR for the three remaining v1 contract decisions
 
-Create the next sequential ADR under `docs/`. With ADR 002 already present,
-the expected filename is `docs/adr-003-v1-contract-scope.md`. If another ADR
-lands first, use the next free zero-padded number and update references
-accordingly.
+Create the next sequential ADR under `docs/`. With ADR 002 already present, the
+expected filename is `docs/adr-003-v1-contract-scope.md`. If another ADR lands
+first, use the next free zero-padded number and update references accordingly.
 
 Write one accepted ADR that records the three decisions together because they
 jointly define the remaining v1 contract boundary after packaging:
@@ -351,17 +344,16 @@ claimed complete without clean validation evidence.
 ## Progress
 
 - [x] 2026-04-20 00:00Z: Reviewed the roadmap entry, design sections 7.1, 12,
-  and 13, ADR 002, the developer's guide, the user's guide, RFC 0001, RFC
-  0002, RFC 0003, the Makefile, and the documentation style guide to draft
-  this plan.
+  and 13, ADR 002, the developer's guide, the user's guide, RFC 0001, RFC 0002,
+  RFC 0003, the Makefile, and the documentation style guide to draft this plan.
 - [x] 2026-04-20 00:00Z: Identified the main contradiction set that this slice
   must narrow without overreaching: the design already recommends MDX
   preview-only and JSON as canonical debug output, while RFC 0001 and RFC 0003
   still need later alignment.
 - [x] 2026-04-20 00:00Z: Wrote this draft plan to
   `docs/execplans/1-1-2-record-the-v1-syntax-scope.md` and updated
-  `docs/contents.md` so the new ExecPlan is discoverable from the
-  documentation index.
+  `docs/contents.md` so the new ExecPlan is discoverable from the documentation
+  index.
 - [x] 2026-04-20 00:00Z: Validated the planning change with `make markdownlint`,
   `make nixie`, `make check-fmt`, `make lint`, and `make test`, with logs
   written under `/tmp/*-stilyagi-feat_plan-v1-syntax-scope.out`.
@@ -395,8 +387,7 @@ claimed complete without clean validation evidence.
   passes cleanly on the branch, so later implementation work can treat current
   failures as regressions rather than inherited baseline noise.
 - ADR 002 already models the right tone and structure for this slice, so ADR
-  003 can stay parallel in shape without inventing a new decision-record
-  format.
+  003 can stay parallel in shape without inventing a new decision-record format.
 - `make test` creates an untracked `rust_extension/Cargo.lock` in this
   repository. It is not tracked in Git and should be removed after validation
   so documentation-only changes stay atomic.
@@ -404,21 +395,20 @@ claimed complete without clean validation evidence.
 ## Decision Log
 
 - 2026-04-20: Treat roadmap item 1.1.2 as a documentation-first contract
-  ratification slice rather than an implementation spike.
-  Rationale: the roadmap success criterion is a recorded decision set that
-  aligns the v1 promise before later feature work depends on it.
+  ratification slice rather than an implementation spike. Rationale: the
+  roadmap success criterion is a recorded decision set that aligns the v1
+  promise before later feature work depends on it.
 
 - 2026-04-20: Plan for one ADR that records syntax scope, transport policy, and
-  locale policy together.
-  Rationale: after ADR 002 fixed the packaging boundary, these three remaining
-  decisions jointly define the rest of the v1 contract surface described in
-  design section 12.
+  locale policy together. Rationale: after ADR 002 fixed the packaging
+  boundary, these three remaining decisions jointly define the rest of the v1
+  contract surface described in design section 12.
 
 - 2026-04-20: Treat the test requirement for this slice as repository-gate
-  execution rather than new unit or behavioural test authoring.
-  Rationale: documentation changes alone do not create new executable
-  behaviour. If execution uncovers code changes, that is a scope expansion and
-  should be approved explicitly.
+  execution rather than new unit or behavioural test authoring. Rationale:
+  documentation changes alone do not create new executable behaviour. If
+  execution uncovers code changes, that is a scope expansion and should be
+  approved explicitly.
 
 - 2026-04-20: Defer substantive RFC amendments to roadmap item 1.1.3.
   Rationale: the roadmap already allocates that work to a dedicated alignment
@@ -431,18 +421,18 @@ claimed complete without clean validation evidence.
 
 - 2026-04-20: Keep transport-policy clarification in the user's guide limited
   to canonical JSON debug output rather than exposing maintainer-only transport
-  details.
-  Rationale: users need to know what `dump-ir` emits, but not the internal
-  Rust-to-Python object-shape debate that remains implementation-owned.
+  details. Rationale: users need to know what `dump-ir` emits, but not the
+  internal Rust-to-Python object-shape debate that remains implementation-owned.
 
 ## Outcomes & Retrospective
 
 Completed on 2026-04-20.
 
-The final ADR is [docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md).
-It records the accepted v1 syntax support matrix, keeps MDX preview-only,
-keeps JSON canonical for debug and compatibility rather than mandatory as the
-only hot-path transport, and limits formal v1 locale support to English.
+The final ADR is
+[docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md). It
+records the accepted v1 syntax support matrix, keeps MDX preview-only, keeps
+JSON canonical for debug and compatibility rather than mandatory as the only
+hot-path transport, and limits formal v1 locale support to English.
 
 The supporting documentation now tells one coherent story:
 

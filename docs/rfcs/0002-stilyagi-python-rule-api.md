@@ -11,9 +11,9 @@
 ## 1. Summary
 
 Stilyagi SHALL expose a Python-first rule application programming interface
-(API) built around rich document, region, sentence, token, and node objects.
-Rules SHALL declare the capabilities they require, the targets they want to
-visit, and the diagnostics and fixes they may emit.
+(API) built around rich document, region, sentence, token, and selective node
+objects. Rules SHALL declare the capabilities they require, the targets they
+want to visit, and the diagnostics and fixes they may emit.
 
 The API SHALL favour explicitness over magic.
 
@@ -76,6 +76,12 @@ API exposes parent or child traversal, positional data, sibling navigation, and
 helper methods such as `nodes_of_class()` and `infer()`. Stilyagi should copy
 the ergonomic lesson, not the entire semantic machinery.[^2]
 
+For Markdown trees, this surface is part of the stable public contract. For
+non-Markdown source trees, `NodeRef` remains available but its `kind`,
+`fields`, and `props` values are a narrow v1 surface intended for debugging and
+careful preview use. Stable v1 rule packs SHALL prefer regions plus owner
+metadata over raw source-node traversal for Python and Rust.
+
 ## 4. Rule declaration
 
 A rule SHALL be a Python class that subclasses `Rule`.
@@ -92,7 +98,8 @@ Each rule SHALL define:
 A rule MAY additionally define:
 
 - `explanation`
-- `languages`
+- `syntaxes`
+- `locales`
 - `tags`
 - `config_model`
 - `preview`
@@ -161,10 +168,16 @@ class OxfordCommaRule(Rule[OxfordCommaConfig]):
 v1 SHALL define at least:
 
 - `DocumentTarget()`
-- `RegionTarget(kind=..., scope_has=..., language=...)`
+- `RegionTarget(kind=..., scope_has=..., syntax=..., natural_language=..., owner_kind=...)`
 - `NodeTarget(family=..., kind=..., predicate=...)`
 - `SentenceTarget(within=...)`
 - `TokenTarget(within=...)`
+
+`RegionTarget` is the primary stable v1 targeting surface. Markdown, docstring,
+and documentation-comment rules SHOULD default to it. `NodeTarget` and
+`visit_node` are stable for Markdown node traversal, but for non-Markdown
+syntaxes they remain a narrow or preview-only surface and MUST NOT be required
+by stable v1 rule packs.
 
 The engine SHALL only call hooks that correspond to declared targets.
 
@@ -179,6 +192,10 @@ Supported hooks SHALL include:
 - `finalize(ctx, document)`
 
 Hooks SHALL yield diagnostics. The engine SHALL collect them.
+
+The engine SHALL execute rules in deterministic order, sorted first by pack
+name and then by rule code, and SHALL visit document targets in deterministic
+document order.
 
 ## 6. Capabilities
 
@@ -216,6 +233,13 @@ parser and let sentence boundaries fall out of it.
 `Sentence` and `Token` SHALL expose a stable Stilyagi API first, not raw spaCy
 objects first.
 
+`Region` SHALL expose at least:
+
+- `syntax`
+- `natural_language`
+- `owner`
+- convenience accessors such as `owner_kind` and `owner_name`
+
 For example, `Token` SHALL expose:
 
 - `text`
@@ -237,7 +261,8 @@ For example, `Token` SHALL expose:
 
 A backend escape hatch MAY exist as `sentence.backend`, `region.backend_doc`,
 or equivalent, but rules SHOULD not depend on backend-specific internals unless
-they explicitly opt into unstable APIs.
+they explicitly opt into unstable APIs. Any such escape hatch SHALL be
+documented as outside the stable compatibility promise.
 
 This design keeps the public contract stable even if Stilyagi later swaps
 providers or composes non-spaCy enrichment.
@@ -257,6 +282,10 @@ Stilyagi SHOULD support annotation namespaces in the style of spaCy’s extensio
 attributes. spaCy already treats `Doc._`, `Span._`, and `Token._` as the place
 for application-specific metadata and hooks, and that model fits Stilyagi
 nicely.[^1]
+
+`regions(...)` SHOULD support filters for `kind`, `syntax`, `natural_language`,
+and `owner_kind` so docstring and documentation-comment rules do not need to
+reverse-engineer enclosing code structure from raw nodes.
 
 Example:
 
@@ -314,7 +343,8 @@ treats unsafe fixes as opt-in; Stilyagi should do the same, because prose
 rewrites are even more semantically slippery than source rewrites.[^3]
 
 The engine MUST reject overlapping applied edits from distinct diagnostics
-unless it can prove they are identical or mergeable.
+unless it can prove they are identical or mergeable. Identical overlaps MAY
+coalesce, but non-identical overlaps MUST be rejected deterministically.
 
 ## 11. Configuration model
 

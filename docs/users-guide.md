@@ -32,6 +32,8 @@ It does promise:
 - one in-process runtime boundary between Python orchestration and Rust
   extraction;
 - no mandatory helper-binary management in normal use;
+- a global `-V` / `--version` flag alongside the `version` subcommand;
+- a `--no-cache` option for `stilyagi check`;
 - stable support for Markdown documents, Python docstrings, and Rust
   documentation comments; and
 - English as the only formally supported v1 locale.[^1][^4]
@@ -60,6 +62,11 @@ The stable v1 support matrix currently covers these prose surfaces:
 MDX remains preview-only. That means the architecture may continue to explore
 it, but users should not yet depend on MDX behaviour as part of Stilyagi's
 stable v1 contract.[^4]
+
+When the command-line interface (CLI) discovery contract lands, the stable
+default recursive file set will cover `*.md`, `*.py`, and `*.rs`. MDX stays
+outside that default set until preview behaviour graduates into the stable
+support matrix.
 
 ## 4. Locale policy in v1
 
