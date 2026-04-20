@@ -12,11 +12,12 @@ implementation of this plan.
 
 ## Purpose / big picture
 
-Roadmap item 1.2.1 exists to turn the accepted PyO3 packaging decision into a
-repository shape that later slices can build on without more path churn. After
-this work is complete, Stilyagi should no longer look like a provisional
-top-level Python package plus one `rust_extension/` crate. Instead, it should
-look like the long-lived mixed-language architecture described in
+Roadmap item 1.2.1 exists to turn the accepted PyO3 (Rust-Python bindings
+library) packaging decision into a repository shape that later slices can
+build on without more path churn. After this work is complete, Stilyagi should
+no longer look like a provisional top-level Python package plus one
+`rust_extension/` crate. Instead, it should look like the long-lived
+mixed-language architecture described in
 [docs/stilyagi-design.md](../stilyagi-design.md) §10: a `python/` source root,
 a `crates/` workspace, and explicit Python package boundaries for the engine,
 model, natural language processing (NLP), plugin, and rule surfaces.
@@ -32,13 +33,13 @@ surface.
 
 ## Orientation
 
-The prerequisite contract work is already complete.
-[ADR 002]( ../adr-002-packaging-boundary.md) fixes the v1 build and runtime
-boundary as a single Python package with an embedded PyO3 extension built
-through `maturin`. [ADR 003](../adr-003-v1-contract-scope.md) narrows the
-stable v1 scope to Markdown, Python docstrings, Rust documentation comments,
-canonical JSON for debug and fixture flows, and English-only locale support.
-Roadmap item 1.1.3 then aligned the RFC set with those decisions.
+The prerequisite contract work is already complete. [Architecture Decision
+Record (ADR) 002]( ../adr-002-packaging-boundary.md) fixes the v1 build and
+runtime boundary as a single Python package with an embedded PyO3 extension
+built through `maturin`. [ADR 003](../adr-003-v1-contract-scope.md) narrows
+the stable v1 scope to Markdown, Python docstrings, Rust documentation
+comments, canonical JSON for debug and fixture flows, and English-only locale
+support. Roadmap item 1.1.3 then aligned the RFC set with those decisions.
 
 The repository, however, is still on the pre-skeleton layout. The current tree
 has a top-level `stilyagi/` Python package, a `rust_extension/` crate, no root
@@ -62,8 +63,9 @@ The implementer should keep these documents open while executing the plan:
 - [docs/roadmap.md](../roadmap.md) for the step definition, dependency on
   1.1.3, and the final "done" update.
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 7.1,
-  10, 11, and 13, for the target repository layout, IR ownership split, test
-  classes, and final architecture recommendation.
+  10, 11, and 13, for the target repository layout, intermediate
+  representation (IR) ownership split, test classes, and final architecture
+  recommendation.
 - [docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md) for
   the accepted PyO3 plus `maturin` boundary and the explicit rejection of the
   helper-binary transport model.
@@ -154,7 +156,7 @@ The relevant skills for the person executing this plan are:
 - Dependencies: adding Rust dev-dependencies for `rstest` and `rstest-bdd` is
   expected for this slice. If any additional Rust or Python dependency is
   needed, stop and justify it before proceeding.
-- Build spine: if `uv`, `uv_build`, `maturin`, and the `python/` source-root
+- Build spine: if `uv`, `uv_build`, `maturin`, and the `python/` source root
   layout cannot be made to work together without a deeper packaging redesign,
   stop and surface the exact incompatibility rather than improvising a second
   build path.
@@ -330,7 +332,7 @@ Update the documentation that now describes the current repository shape:
    workspace and `python/` source root, including the updated build and test
    paths.
 2. [docs/users-guide.md](../users-guide.md) must reflect any user-visible
-   packaging or installation implications of the source-root move, while
+   packaging or installation implications of the source root move, while
    preserving the accepted one-package promise.
 3. [docs/repository-layout.md](../repository-layout.md) must describe the new
    tree instead of the old `rust_extension/` plus top-level `stilyagi/`
@@ -387,7 +389,7 @@ repository. The preferred sequence is:
 
 Every commit must pass the relevant validation for the files it changes before
 it is created. Do not create a commit that leaves the repository between the
-old and new source-root models.
+old and new source root models.
 
 ## Progress
 
@@ -468,7 +470,7 @@ old and new source-root models.
   to `crates/` is therefore not a rename alone; it also changes how Rust
   formatting, linting, and tests are targeted.
 - `pyproject.toml` currently sets `tool.uv.build-backend.module-root = ""`,
-  which means the Python source-root move is not just a directory rename. The
+  which means the Python source root move is not just a directory rename. The
   packaging metadata must change with it.
 - [docs/repository-layout.md](../repository-layout.md) still documents the old
   `rust_extension/` and top-level `stilyagi/` tree, so documentation drift will
@@ -486,7 +488,7 @@ old and new source-root models.
    fails because `stilyagi.engine` is missing and `stilyagi.pure` is still
   importable, while `cargo test --manifest-path rust_extension/Cargo.toml`
   fails because `../crates/stilyagi-core/Cargo.toml` does not exist yet.
-- `maturin` required one packaging adjustment after the source-root move. With
+- `maturin` required one packaging adjustment after the source root move. With
   `python-source = "python"`, it expects the extension module to live inside
   the Python package, so the working configuration is
   `module-name = "stilyagi._stilyagi_rs"` together with
@@ -568,7 +570,7 @@ boundaries and reports the Rust smoke greeting, while the unhappy path proves
 that the legacy pure-Python fallback is gone.
 
 The biggest packaging lesson from this slice is that the mixed `python/`
-source-root layout needs the extension to install inside the package namespace,
+source root layout needs the extension to install inside the package namespace,
 not at top level. `maturin` therefore needs
 `module-name = "stilyagi._stilyagi_rs"` in addition to
 `python-source = "python"`. Once that adjustment was in place, the full local
