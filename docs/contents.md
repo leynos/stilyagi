@@ -20,6 +20,10 @@
     execplans/1-1-1-packaging-boundary-decision-adr.md)
     tracks the implementation work that ratifies the v1 packaging boundary
     before later build-spine work lands.
+  - [1.1.2 record the v1 syntax scope](
+    execplans/1-1-2-record-the-v1-syntax-scope.md)
+    plans the documentation-first work that ratifies the remaining v1 syntax,
+    IR transport, and locale-policy promises before RFC alignment begins.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
