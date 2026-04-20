@@ -1,7 +1,5 @@
 """spaCy-provider placeholders for Stilyagi."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 
 
@@ -9,7 +7,7 @@ class InvalidSpacyModelError(ValueError):
     """Raised when the spaCy model identifier is blank."""
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class SpacyProviderConfig:
     """Placeholder configuration for the future spaCy provider.
 

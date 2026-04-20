@@ -1,11 +1,9 @@
 """Execution-planning placeholders for Stilyagi."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class ExecutionPlan:
     """Placeholder execution plan for the engine boundary.
 

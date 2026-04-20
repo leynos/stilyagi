@@ -1,7 +1,5 @@
 """Behaviour tests for the mixed-package repository skeleton."""
 
-from __future__ import annotations
-
 import json
 import subprocess  # noqa: S404
 import sys
@@ -112,5 +110,5 @@ def run_python_snippet(source: str) -> PythonCommandResult:
 
 def require_result(result: PythonCommandResult | None) -> PythonCommandResult:
     """Fail fast if the scenario forgot to populate a subprocess result."""
-    assert result is not None
+    assert result is not None, "expected PythonCommandResult but got None"
     return result

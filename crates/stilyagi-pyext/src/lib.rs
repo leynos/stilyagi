@@ -6,7 +6,11 @@ use stilyagi_core::smoke_hello;
 
 /// Return a simple Rust-side greeting for smoke-testing the extension bridge.
 #[pyfunction]
-const fn hello() -> &'static str {
+#[expect(
+    clippy::missing_const_for_fn,
+    reason = "#[pyfunction] requires a normal fn for runtime bindings"
+)]
+fn hello() -> &'static str {
     smoke_hello()
 }
 

@@ -156,5 +156,5 @@ module-name = "stilyagi._stilyagi_rs"
 python-source = "python"
 
 [build-system]
-requires = ["uv_build>=0.11.6,<0.12.0"]
-build-backend = "uv_build"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"

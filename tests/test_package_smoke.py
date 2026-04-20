@@ -15,5 +15,5 @@ def test_hello_uses_rust_extension() -> None:
 
 def test_legacy_pure_python_fallback_is_not_importable() -> None:
     """The long-lived package surface should not expose ``stilyagi.pure``."""
-    with pytest.raises(ModuleNotFoundError):
+    with pytest.raises(ModuleNotFoundError, match=r"stilyagi\.pure"):
         importlib.import_module("stilyagi.pure")

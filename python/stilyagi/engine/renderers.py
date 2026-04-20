@@ -1,11 +1,9 @@
 """Renderer placeholders for Stilyagi."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class RendererRegistry:
     """Placeholder renderer registry for the package skeleton.
 

@@ -1,11 +1,9 @@
 """Region model placeholders for Stilyagi."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class Region:
     """Placeholder region model for the package skeleton.
 

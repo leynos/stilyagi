@@ -13,9 +13,9 @@ implementation of this plan.
 ## Purpose / big picture
 
 Roadmap item 1.2.1 exists to turn the accepted PyO3 (Rust-Python bindings
-library) packaging decision into a repository shape that later slices can
-build on without more path churn. After this work is complete, Stilyagi should
-no longer look like a provisional top-level Python package plus one
+library) packaging decision into a repository shape that later slices can build
+on without more path churn. After this work is complete, Stilyagi should no
+longer look like a provisional top-level Python package plus one
 `rust_extension/` crate. Instead, it should look like the long-lived
 mixed-language architecture described in
 [docs/stilyagi-design.md](../stilyagi-design.md) §10: a `python/` source root,
@@ -33,13 +33,14 @@ surface.
 
 ## Orientation
 
-The prerequisite contract work is already complete. [Architecture Decision
-Record (ADR) 002](../adr-002-packaging-boundary.md) fixes the v1 build and
-runtime boundary as a single Python package with an embedded PyO3 extension
-built through `maturin`. [ADR 003](../adr-003-v1-contract-scope.md) narrows
-the stable v1 scope to Markdown, Python docstrings, Rust documentation
-comments, canonical JSON for debug and fixture flows, and English-only locale
-support. Roadmap item 1.1.3 then aligned the RFC set with those decisions.
+The prerequisite contract work is already complete.
+[Architecture Decision Record (ADR) 002](../adr-002-packaging-boundary.md)
+fixes the v1 build and runtime boundary as a single Python package with an
+embedded PyO3 extension built through `maturin`.
+[ADR 003](../adr-003-v1-contract-scope.md) narrows the stable v1 scope to
+Markdown, Python docstrings, Rust documentation comments, canonical JSON for
+debug and fixture flows, and English-only locale support. Roadmap item 1.1.3
+then aligned the RFC set with those decisions.
 
 The repository, however, is still on the pre-skeleton layout. The current tree
 has a top-level `stilyagi/` Python package, a `rust_extension/` crate, no root
@@ -63,9 +64,8 @@ The implementer should keep these documents open while executing the plan:
 - [docs/roadmap.md](../roadmap.md) for the step definition, dependency on
   1.1.3, and the final "done" update.
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 7.1,
-  10, 11, and 13, for the target repository layout, intermediate
-  representation (IR) ownership split, test classes, and final architecture
-  recommendation.
+  10, 11, and 13, for the target repository layout, intermediate representation
+  (IR) ownership split, test classes, and final architecture recommendation.
 - [docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md) for
   the accepted PyO3 plus `maturin` boundary and the explicit rejection of the
   helper-binary transport model.
@@ -79,15 +79,15 @@ The implementer should keep these documents open while executing the plan:
 - [docs/contents.md](../contents.md) for documentation-set bookkeeping when
   adding this ExecPlan and, later, when the repository-shape docs change.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](../
-  complexity-antipatterns-and-refactoring-strategies.md) to keep the
-  skeleton narrow, explicit, and resistant to speculative placeholder logic.
+  complexity-antipatterns-and-refactoring-strategies.md) to keep the skeleton
+  narrow, explicit, and resistant to speculative placeholder logic.
 - [docs/rust-testing-with-rstest-fixtures.md](../
   rust-testing-with-rstest-fixtures.md),
-  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md),
-  [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), and
-  [docs/reliable-testing-in-rust-via-dependency-injection.md](../
-  reliable-testing-in-rust-via-dependency-injection.md) for the required
-  Rust-side unit, behaviour, doctest, and dependency-injection testing style.
+  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md),
+   and
+  [docs/reliable-testing-in-rust-via-dependency-injection.md](../ reliable-testing-in-rust-via-dependency-injection.md)
+   for the required Rust-side unit, behaviour, doctest, and
+  dependency-injection testing style.
 - [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../
   rfcs/0004-stilyagi-rule-testing-framework.md) for the long-lived testing
   direction that later slices will extend from the skeleton laid down here.
@@ -454,12 +454,18 @@ old and new source root models.
 - [x] 2026-04-21 00:31 CEST: reran the full validation sequence after the
   review-driven Python and documentation hardening. `make fmt`,
   `make markdownlint`, `make nixie`, `make typecheck`, `make check-fmt`,
-  `make lint`, and `make test` all pass with the added Python unit coverage
-  and guide updates in place.
+  `make lint`, and `make test` all pass with the added Python unit coverage and
+  guide updates in place.
 - [x] 2026-04-21 00:37 CEST: created the review-follow-up commit from the
   fully green tree. The additional Python unit coverage, CLI and config
   hardening, expanded module docstrings, and guide updates now live in commit
   `5ad4a6e`.
+- [x] 2026-04-21 01:16 CEST: verified a broader review batch against the live
+  tree before editing. The execplan link-spacing complaint was already stale,
+  so it was left unchanged, while the remaining live findings were fixed
+  across the Rust bridge, Python skeleton modules, tests, and the build-system
+  backend. `make fmt`, `make markdownlint`, `make nixie`, `make typecheck`,
+  `make check-fmt`, `make lint`, `make test`, and `make build` all pass.
 
 ## Surprises & discoveries
 
@@ -500,6 +506,9 @@ old and new source root models.
   contract legibility. Even a placeholder skeleton needs clear user guidance,
   explicit maintainer boundary notes, and direct unit coverage for the new
   Python data surfaces.
+- Not every later review comment stayed current. The execplan link-spacing
+  report no longer matched the live file when rechecked, so the correct action
+  was to leave that section alone rather than re-edit already-valid links.
 
 ## Decision log
 
@@ -569,13 +578,12 @@ tests prove both sides of that contract: the happy path imports the new package
 boundaries and reports the Rust smoke greeting, while the unhappy path proves
 that the legacy pure-Python fallback is gone.
 
-The biggest packaging lesson from this slice is that the mixed `python/`
-source root layout needs the extension to install inside the package namespace,
-not at top level. `maturin` therefore needs
-`module-name = "stilyagi._stilyagi_rs"` in addition to
-`python-source = "python"`. Once that adjustment was in place, the full local
-development loop and the release-style build both worked without a second build
-path or compatibility shim.
+The biggest packaging lesson from this slice is that the mixed `python/` source
+root layout needs the extension to install inside the package namespace, not at
+top level. `maturin` therefore needs `module-name = "stilyagi._stilyagi_rs"` in
+addition to `python-source = "python"`. Once that adjustment was in place, the
+full local development loop and the release-style build both worked without a
+second build path or compatibility shim.
 
 The review follow-up sharpened the same lesson from a different angle: even a
 structural skeleton should behave like a real package where it already exposes
