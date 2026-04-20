@@ -11,6 +11,15 @@
 - [Developer's guide](developers-guide.md) describes the maintainer-facing
   environment setup, Rust and Python boundaries, build workflow, and
   verification flow for the mixed PyO3 package.
+- [User's guide](users-guide.md) records the current user-facing promises for
+  Stilyagi, starting with the accepted packaging and installation boundary for
+  v1.
+- [ExecPlans](execplans/) records approved and in-progress execution plans for
+  substantial repository work:
+  - [1.1.1 packaging boundary decision ADR](
+    execplans/1-1-1-packaging-boundary-decision-adr.md)
+    tracks the implementation work that ratifies the v1 packaging boundary
+    before later build-spine work lands.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
@@ -30,6 +39,10 @@
     adr-001-spell-checking-provider.md)
     records the proposed backend choice for dictionary-based spelling support
     and the fallback path if the first provider spike fails.
+  - [ADR 002: Ratify the packaging boundary](
+    adr-002-packaging-boundary.md)
+    records the accepted v1 build and runtime boundary between the Python
+    package and the embedded Rust extension.
 
 ## Requests for comments (RFCs)
 
