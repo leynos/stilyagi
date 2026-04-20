@@ -428,11 +428,11 @@ old and new source-root models.
   `.venv/bin/python -m pytest -q tests/test_package_smoke.py tests/test_package_structure_bdd.py`
    now passes.
 - [x] 2026-04-20 22:37 CEST: updated the repository-shape documentation and
-  bookkeeping. `docs/developers-guide.md`,
-  `docs/users-guide.md`, `docs/repository-layout.md`,
-  `docs/adr-002-packaging-boundary.md`, and `docs/roadmap.md` now describe the
-  `python/` source root, the `crates/` workspace, the package-scoped
-  `stilyagi._stilyagi_rs` extension, and the completion of roadmap item 1.2.1.
+  bookkeeping. `docs/developers-guide.md`, `docs/users-guide.md`,
+  `docs/repository-layout.md`, `docs/adr-002-packaging-boundary.md`, and
+  `docs/roadmap.md` now describe the `python/` source root, the `crates/`
+  workspace, the package-scoped `stilyagi._stilyagi_rs` extension, and the
+  completion of roadmap item 1.2.1.
 - [x] 2026-04-20 22:49 CEST: completed the full validation sequence and
   confirmed the new build spine stays green. `make check-fmt`, `make lint`,
   `make typecheck`, `make markdownlint`, `make nixie`, `make test`, and
@@ -440,6 +440,21 @@ old and new source-root models.
 - [x] 2026-04-20 22:56 CEST: created the implementation commit from the fully
   green tree. The structural migration, tests, documentation updates, and
   roadmap completion now live together in commit `7c88506`.
+- [x] 2026-04-21 00:11 CEST: review follow-up identified four remaining gaps:
+  the new Python skeleton needed broader unit coverage, the CLI placeholder
+  needed a non-zero failure path, the config placeholders needed minimal input
+  validation, and the user and developer guides needed more explicit boundary
+  documentation.
+- [x] 2026-04-21 00:18 CEST: added `tests/test_package_skeleton_units.py` and
+  confirmed the intended red state. The new tests failed because blank config
+  values were accepted and the CLI placeholder did not yet emit output or
+  surface output failures.
+- [x] 2026-04-21 00:31 CEST: reran the full validation sequence after the
+  review-driven Python and documentation hardening. `make fmt`,
+  `make markdownlint`, `make nixie`, `make typecheck`, `make check-fmt`,
+  `make lint`, and `make test` all pass with the added Python unit coverage
+  and guide updates in place.
+- [ ] Create and push the review-follow-up commit.
 
 ## Surprises & discoveries
 
@@ -476,6 +491,10 @@ old and new source-root models.
 - Ruff's `S603` suppression needs to sit on the exact `subprocess.run(...)`
   call line. Placing `# noqa: S603` on the closing parenthesis leaves the lint
   failure in place and adds an `RUF100` unused-directive error.
+- The review warnings were not about architecture drift so much as about
+  contract legibility. Even a placeholder skeleton needs clear user guidance,
+  explicit maintainer boundary notes, and direct unit coverage for the new
+  Python data surfaces.
 
 ## Decision log
 
@@ -520,9 +539,14 @@ old and new source-root models.
   without a second build path.
 - 2026-04-20 22:33 CEST: kept the Python BDD boundary probe as a subprocess
   test rather than collapsing it into an in-process import-only assertion. The
-  subprocess keeps the behavioural check aligned with the real installed-package
-  workflow that this slice is supposed to validate, and an inline Ruff waiver
-  is narrower than weakening the test.
+  subprocess keeps the behavioural check aligned with the real
+  installed-package workflow that this slice is supposed to validate, and an
+  inline Ruff waiver is narrower than weakening the test.
+- 2026-04-21 00:18 CEST: chose to harden the placeholder Python boundaries
+  instead of dismissing the review warnings as scaffolding noise. Minimal
+  validation in `StilyagiConfig` and `SpacyProviderConfig`, explicit CLI error
+  handling, and direct unit coverage are cheap now and reduce future churn in
+  the same files.
 
 ## Outcomes & retrospective
 
@@ -547,3 +571,10 @@ not at top level. `maturin` therefore needs
 `python-source = "python"`. Once that adjustment was in place, the full local
 development loop and the release-style build both worked without a second build
 path or compatibility shim.
+
+The review follow-up sharpened the same lesson from a different angle: even a
+structural skeleton should behave like a real package where it already exposes
+code. The Python placeholders now have direct unit coverage, the CLI skeleton
+returns a non-zero status when output fails, configuration placeholders reject
+blank values, and the guides now explain the concrete mixed-package boundaries
+that users and maintainers can already import today.

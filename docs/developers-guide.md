@@ -265,6 +265,68 @@ The repository should also resist any drift toward a subprocess helper model
 unless a later ADR explicitly reopens that question. The accepted v1 boundary
 is in-process, and later roadmap steps may assume that constraint.[^1]
 
+### 4a. Current mixed-package skeleton
+
+The general architecture above now maps to concrete repository modules and
+crates. Maintainers should use these names when discussing or extending the
+current skeleton:
+
+- `crates/stilyagi-pyext`
+  - PyO3 bridge crate that builds the package-scoped
+    `stilyagi._stilyagi_rs` extension module
+  - should stay thin and delegate executable logic into library crates
+- `crates/stilyagi-core`
+  - smallest shared Rust library boundary used by the bridge today
+  - current home of the Rust-backed smoke behaviour
+- `crates/stilyagi-ir`
+  - reserved home for the stable intermediate representation (IR) types and
+    adapters described by RFC 0001
+- `crates/stilyagi-markdown`
+  - reserved home for Markdown-specific extraction and flattening logic
+- `crates/stilyagi-tree-sitter`
+  - reserved home for tree-sitter integration and syntax-tree helpers
+- `crates/stilyagi-extract`
+  - reserved home for cross-syntax extraction orchestration that composes the
+    lower-level crates
+- `python/stilyagi/__init__.py`
+  - public Python package surface that re-exports the supported package
+    boundaries and imports the embedded Rust extension
+- `python/stilyagi/cli.py`
+  - command-line entrypoint placeholder for the future CLI contract from
+    RFC 0003
+- `python/stilyagi/config.py`
+  - configuration boundary for Python-side runtime settings and validation
+- `python/stilyagi/diagnostics.py`
+  - diagnostic object boundary for future reporting and fix planning
+- `python/stilyagi/engine/`
+  - future execution planner, runner, fix-planning, and renderer surfaces
+- `python/stilyagi/model/`
+  - future document, region, sentence, and token runtime types
+- `python/stilyagi/nlp/`
+  - future NLP provider protocols and provider-specific configuration surfaces
+- `python/stilyagi/plugins.py`
+  - source of truth for Python entry-point group names such as
+    `stilyagi.rules` and `stilyagi.capabilities`
+- `python/stilyagi/rules/`
+  - rule namespace root for bundled and third-party rules
+
+Those boundaries deliberately mirror the ownership split in section 2. When a
+change belongs to extraction fidelity, syntax parsing, or source mapping, it
+should usually start in one of the Rust crates. When a change belongs to
+configuration discovery, diagnostics, plugin registration, capability planning,
+or rule orchestration, it should usually start in one of the Python modules
+above.
+
+There are also two concrete cross-boundary rules worth preserving:
+
+- Python package code should import the embedded extension through
+  `stilyagi._stilyagi_rs` and then expose user-facing orchestration from the
+  `stilyagi` package surface, rather than letting callers bind to a second
+  top-level module.
+- The Rust workspace should not depend on Python package modules for policy or
+  plugin decisions. Python owns orchestration and registration; Rust owns
+  extraction and source fidelity.
+
 ## 5. Build workflow
 
 The standard development and release workflows are:
