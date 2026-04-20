@@ -454,7 +454,10 @@ old and new source-root models.
   `make markdownlint`, `make nixie`, `make typecheck`, `make check-fmt`,
   `make lint`, and `make test` all pass with the added Python unit coverage
   and guide updates in place.
-- [ ] Create and push the review-follow-up commit.
+- [x] 2026-04-21 00:37 CEST: created the review-follow-up commit from the
+  fully green tree. The additional Python unit coverage, CLI and config
+  hardening, expanded module docstrings, and guide updates now live in commit
+  `5ad4a6e`.
 
 ## Surprises & discoveries
 
