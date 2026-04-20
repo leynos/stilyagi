@@ -10,6 +10,8 @@ narrower contracts live in:
 
 - [ADR 002](adr-002-packaging-boundary.md) for the accepted build and runtime
   boundary between the Python package and the embedded Rust engine
+- [ADR 003](adr-003-v1-contract-scope.md) for the accepted v1 syntax scope, IR
+  transport policy, and locale support boundary
 - [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md) for the
   intermediate representation (IR)
 - [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md) for the Python rule API
@@ -69,6 +71,12 @@ embedded PyO3 extension built through `maturin`. Stilyagi does not use a
 separate helper binary for normal v1 execution; the Rust extractor lives inside
 the Python runtime as `_stilyagi_rs`.[^1]
 
+The accepted v1 contract scope is narrower than the architecture's long-term
+extension points. Stable v1 syntax support covers Markdown, Python docstrings,
+and Rust documentation comments. Markdown with JSX (MDX) remains preview-only,
+canonical JSON remains required for `dump-ir`, fixtures, and compatibility
+review, and English is the only formally supported v1 locale.[^2]
+
 - Rust owns source-oriented work:
   - file-format-aware parsing
   - Markdown and host-language extraction
@@ -110,6 +118,15 @@ The six phases currently break down into:
 For the near-term phases, developers should preserve four boundaries in
 particular.
 
+- Syntax and locale scope
+  - Stable v1 syntax support covers Markdown, Python docstrings, and Rust
+    documentation comments.
+  - MDX remains preview-only until later evidence upgrades it into the stable
+    support matrix.
+  - English is the only formally supported locale in v1. Architecture may stay
+    locale-aware, but maintainers must not imply broader support before the
+    product earns it through later slices and tests.
+
 - IR structure
   - The near-term extractor contract is a stable, region-oriented IR with
     canonical JSON debug output, `line_index`, `content_hash`, `segments`,
@@ -118,6 +135,9 @@ particular.
   - The in-process Rust to Python boundary may become more efficient than JSON,
     but JSON remains the canonical debug and test form for `dump-ir`, golden
     fixtures, and contract review.
+  - RFC 0001 still needs explicit wording alignment in roadmap item 1.1.3, so
+    maintainers should treat ADR 003 plus the design document as the current
+    source of truth for transport policy until that amendment lands.
 - Suppression semantics
   - Suppression state is extracted once and carried in the IR rather than
     inferred ad hoc by individual rules.
@@ -253,6 +273,7 @@ single-language package.
 ## References
 
 [^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
+[^2]: [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
 
 Substantial architecture changes should update both the code and the documents
 that define the current contracts. Stale documentation is treated as a defect,

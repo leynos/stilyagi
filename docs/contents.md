@@ -12,14 +12,18 @@
   environment setup, Rust and Python boundaries, build workflow, and
   verification flow for the mixed PyO3 package.
 - [User's guide](users-guide.md) records the current user-facing promises for
-  Stilyagi, starting with the accepted packaging and installation boundary for
-  v1.
+  Stilyagi, including the accepted packaging boundary, supported syntax
+  surfaces, and current locale policy for v1.
 - [ExecPlans](execplans/) records approved and in-progress execution plans for
   substantial repository work:
   - [1.1.1 packaging boundary decision ADR](
     execplans/1-1-1-packaging-boundary-decision-adr.md)
     tracks the implementation work that ratifies the v1 packaging boundary
     before later build-spine work lands.
+  - [1.1.2 record the v1 syntax scope](
+    execplans/1-1-2-record-the-v1-syntax-scope.md)
+    plans the documentation-first work that ratifies the remaining v1 syntax,
+    IR transport, and locale-policy promises before RFC alignment begins.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
@@ -43,6 +47,9 @@
     adr-002-packaging-boundary.md)
     records the accepted v1 build and runtime boundary between the Python
     package and the embedded Rust extension.
+  - [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
+    records the accepted v1 syntax support matrix, IR transport policy, and
+    locale boundary that later roadmap slices may assume.
 
 ## Requests for comments (RFCs)
 

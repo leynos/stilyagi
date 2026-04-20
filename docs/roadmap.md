@@ -34,7 +34,7 @@ scope. See [Stilyagi design](stilyagi-design.md) §§7, 12-13 and
     alternative helper-binary transport.
   - Success: one accepted ADR defines the build and runtime boundary for all
     later work.
-- [ ] 1.1.2. Record the v1 syntax-scope, intermediate-representation (IR)
+- [x] 1.1.2. Record the v1 syntax-scope, intermediate-representation (IR)
   transport, and locale-policy decisions. See Stilyagi design
   (stilyagi-design.md) §7.1.
   - Requires 1.1.1.
