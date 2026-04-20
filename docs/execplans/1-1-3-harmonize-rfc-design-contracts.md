@@ -391,6 +391,11 @@ number of RFC files touched.
   and guides changed the stated contract, but no runtime behaviour or test
   fixture changed, so no new `rstest`, `rstest-bdd`, `pytest`, or `pytest-bdd`
   cases were warranted for this slice.
+- 2026-04-20 20:52 CEST: applied review follow-ups to RFC 0001 only where the
+  findings were still true in the current text. The follow-up clarifies the v1
+  `natural_language` policy as `en`-only, narrows `owner` to code entities
+  only, and adds short accessibility-oriented descriptions before the complex
+  JSON examples.
 
 ## Outcomes & Retrospective
 
@@ -399,13 +404,16 @@ The repository now has one coherent documented v1 contract set.
 RFC 0001 now uses `syntax` and `natural_language` terminology, makes owner
 metadata explicit, removes `summary_line` from the base region vocabulary, and
 describes canonical JSON as the required serialized and debug form rather than
-the only in-process transport. RFC 0002 now makes `RegionTarget` the primary
-stable v1 target, narrows non-Markdown node guarantees, adds owner and locale
-convenience surfaces, and spells out deterministic rule and fix behaviour. RFC
-0003 now narrows stable discovery to `*.md`, `*.py`, and `*.rs`, keeps MDX
-preview-only, adds `--no-cache`, and describes `dump-ir` as canonical JSON. RFC
-0005 now states the grammar rollout in two explicit waves, keeping `TokenNode`
-and `SentenceNode` first and higher-order helpers later.
+the only in-process transport. The follow-up review pass also makes the RFC
+0001 `natural_language` contract explicitly `en`-only for v1, narrows `owner`
+to code-entity metadata, and adds short prose descriptions before the large
+JSON examples. RFC 0002 now makes `RegionTarget` the primary stable v1 target,
+narrows non-Markdown node guarantees, adds owner and locale convenience
+surfaces, and spells out deterministic rule and fix behaviour. RFC 0003 now
+narrows stable discovery to `*.md`, `*.py`, and `*.rs`, keeps MDX preview-only,
+adds `--no-cache`, and describes `dump-ir` as canonical JSON. RFC 0005 now
+states the grammar rollout in two explicit waves, keeping `TokenNode` and
+`SentenceNode` first and higher-order helpers later.
 
 Supporting documentation changed only where the repository contract would have
 remained visibly stale. The user's guide now records the narrowed default

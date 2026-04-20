@@ -90,11 +90,17 @@ dominant human language is known. `syntax` identifies the source format, such
 as Markdown, Python, or Rust. It MUST NOT be overloaded to mean the prose
 locale inside the extracted regions.
 
+In v1, `natural_language` formally supports only the `en` locale. Broader
+locale or multilingual guarantees are deferred to later roadmap slices and the
+tests that will justify them.
+
 `producers` SHALL record the toolchain used to create the IR, including parser
 names, versions, and relevant parse options. This requirement exists so that
 cache keys and bug reports stay honest.
 
-A minimal envelope looks like this:
+A minimal envelope looks like this. The example shows the smallest complete IR
+document, including document metadata, one producer record, and the top-level
+collections that later sections populate in more detail:
 
 ```json
 {
@@ -249,7 +255,10 @@ a space for a soft line break, `segments` SHALL record that fact.
 
 Regions use `syntax` for the source surface that produced the text and
 `natural_language` for the prose locale when known. These fields SHALL stay
-separate so rules can distinguish source format from editorial language.
+separate so rules can distinguish source format from editorial language. For
+v1, consumers SHOULD expect `natural_language` to be `en` when it is present.
+Broader locale support is out of scope until later slices and their test corpus
+ratify it.
 
 Each `segments` entry SHALL map a span of region text back to original source
 bytes or declare it synthetic. For example:
@@ -277,8 +286,10 @@ objects SHALL include at least:
 - optional `name` when the source syntax supplies a stable owner name
 - optional `qualname` when the source syntax supplies a stable qualified name
 
-Markdown regions MAY also carry owner-style context when it is useful for
-debugging or rule ergonomics, for example the nearest section heading.
+`owner` is a code-entity contract in v1 and MUST NOT be repurposed for Markdown
+section context or other non-code ancestry. If a region needs heading or
+debugging context, that information SHOULD live in `attrs` or in a separate
+dedicated field rather than overloading `owner`.
 
 ## 7. Region invariants
 
@@ -334,6 +345,10 @@ Compatibility rules:
 - Optional fields MAY be added in minor versions.
 
 ## 10. Example
+
+This example shows a Markdown-backed IR document after extraction, with one
+mdast tree, one heading region, and source-backed span metadata that ties the
+region text back to original bytes:
 
 ```json
 {
