@@ -11,7 +11,7 @@ Accepted.
 ## Context and problem statement
 
 Stilyagi is intended to ship as a mixed Rust and Python tool: Rust owns
-source-faithful extraction, spans, and intermediate-representation (IR)
+source-faithful extraction, spans, and intermediate representation (IR)
 construction, while Python owns configuration, rule execution, plugin loading,
 diagnostics, and output rendering.[^1]
 

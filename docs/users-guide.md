@@ -47,9 +47,9 @@ The repository already uses `maturin` to build and develop the embedded
 extension, but Stilyagi is still in the roadmap phase where architectural
 contracts are being ratified before feature-complete releases land.[^2][^3]
 
-Until the CLI and feature slices are implemented, treat this guide as a record
-of the stable user-facing packaging promise rather than as a complete operating
-manual.
+Until the command-line interface (CLI) and feature slices are implemented,
+treat this guide as a record of the stable user-facing packaging promise
+rather than as a complete operating manual.
 
 ## References
 

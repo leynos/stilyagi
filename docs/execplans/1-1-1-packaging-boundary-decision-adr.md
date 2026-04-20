@@ -264,7 +264,7 @@ is truncated.
 The canonical validation sequence is:
 
 ```bash
-branch_slug=$(git branch --show | tr '/' '_')
+branch_slug=$(git branch --show-current | tr '/' '_')
 make markdownlint 2>&1 | tee /tmp/markdownlint-stilyagi-${branch_slug}.out
 make nixie 2>&1 | tee /tmp/nixie-stilyagi-${branch_slug}.out
 make check-fmt 2>&1 | tee /tmp/check-fmt-stilyagi-${branch_slug}.out
@@ -327,6 +327,9 @@ help make the reasoning tangible.
   under `/tmp/*-stilyagi-feat_adr-packaging-plan.out`.
 - [x] 2026-04-20 00:00Z: Updated the roadmap, finalized this plan's living
   sections, and marked the slice complete.
+- [x] 2026-04-20 00:00Z: Addressed review follow-up on ADR terminology, first
+  use of "CLI" in the user's guide, and the validation snippet's branch-name
+  command.
 
 ## Surprises & Discoveries
 
@@ -379,6 +382,12 @@ help make the reasoning tangible.
   Rationale: this repository uses branch names such as
   `feat/adr-packaging-plan`, and the raw slash causes `tee` to treat the log
   filename as a nested path under `/tmp`.
+
+- 2026-04-20: Use `git branch --show-current` in the validation snippet rather
+  than `git branch --show`.
+  Rationale: the review correctly noted that the longer form is the supported
+  command spelling on current Git versions, so the documented logging recipe
+  should use it directly.
 
 ## Outcomes & Retrospective
 
