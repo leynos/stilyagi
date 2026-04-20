@@ -13,6 +13,8 @@
     rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
   - [ADR 001: Select a spell checking provider](
     adr-001-spell-checking-provider.md)
+  - [ADR 002: Ratify the packaging boundary](
+    adr-002-packaging-boundary.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,
@@ -1082,8 +1084,10 @@ The design must be validated with the following test classes.
 
 ### Must resolve before implementation
 
-- Packaging boundary: PyO3 extension with `maturin` versus helper binary.
-  Recommendation: ADR.
+- Packaging boundary: resolved by
+  [ADR 002](adr-002-packaging-boundary.md), which accepts the PyO3 plus
+  `maturin` extension boundary and rejects helper-binary transport for normal
+  v1 execution.
 - V1 syntax scope: whether MDX is preview-only or fully supported on day one.
   Recommendation: ADR or RFC amendment.
 - IR transport policy: canonical JSON only versus JSON for debug plus faster
@@ -1119,9 +1123,10 @@ The design must be validated with the following test classes.
 Build this in the following order.
 
 - Build first: a Python-distributed replacement product with a Rust extraction
-  extension, Markdown extraction, Python and Rust docstring or doc comment
-  extraction, a stable region-oriented IR, built-in structural rules, safe
-  fixes, and a Ruff-like CLI.
+  extension, ratified by [ADR 002](adr-002-packaging-boundary.md), Markdown
+  extraction, Python and Rust docstring or doc comment extraction, a stable
+  region-oriented IR, built-in structural rules, safe fixes, and a Ruff-like
+  CLI.
 - Add next: the RFC 0005 grammar layer in two waves, with `TokenNode` and
   `SentenceNode` plus selective POS or dependency capabilities first, then
   higher-order clause and coordination helpers after the low-level model has

@@ -28,7 +28,7 @@ informs the repository layout, the public interfaces, and the first release
 scope. See [Stilyagi design](stilyagi-design.md) §§7, 12-13 and
 [`rfcs/`](rfcs/).
 
-- [ ] 1.1.1. Record the packaging-boundary decision as an Architecture
+- [x] 1.1.1. Record the packaging-boundary decision as an Architecture
   Decision Record (ADR). See Stilyagi design (stilyagi-design.md) §7.1.
   - Decide between the recommended PyO3 plus `maturin` extension path and any
     alternative helper-binary transport.

@@ -8,6 +8,8 @@ with the normative design.
 The primary design reference is [Stilyagi design](stilyagi-design.md). The
 narrower contracts live in:
 
+- [ADR 002](adr-002-packaging-boundary.md) for the accepted build and runtime
+  boundary between the Python package and the embedded Rust engine
 - [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md) for the
   intermediate representation (IR)
 - [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md) for the Python rule API
@@ -61,6 +63,11 @@ development and continuous integration (CI).
 
 Stilyagi is a mixed Rust and Python codebase with a strict boundary between
 extraction and analysis.
+
+The accepted packaging boundary is a Python-distributed application with an
+embedded PyO3 extension built through `maturin`. Stilyagi does not use a
+separate helper binary for normal v1 execution; the Rust extractor lives inside
+the Python runtime as `_stilyagi_rs`.[^1]
 
 - Rust owns source-oriented work:
   - file-format-aware parsing
@@ -155,6 +162,10 @@ source-fidelity primitives, extraction results, and other stable engine
 building blocks. A bad boundary exports policy-heavy convenience wrappers that
 would force rule-engine churn into the extension crate.
 
+The repository should also resist any drift toward a subprocess helper model
+unless a later ADR explicitly reopens that question. The accepted v1 boundary
+is in-process, and later roadmap steps may assume that constraint.[^1]
+
 ## 5. Build workflow
 
 The standard development and release workflows are:
@@ -238,6 +249,10 @@ single-language package.
   sandboxing that does not exist.
 - Keep documentation current when toolchain, workflow, or ownership boundaries
   change.
+
+## References
+
+[^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
 
 Substantial architecture changes should update both the code and the documents
 that define the current contracts. Stale documentation is treated as a defect,

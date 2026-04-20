@@ -5,10 +5,10 @@ This ExecPlan (execution plan) is a living document. The sections
 Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up
 to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
-Approval gate: do not implement this plan until the user explicitly approves
-it.
+Approval gate: satisfied on 2026-04-20 when the user explicitly approved
+implementation of this plan.
 
 ## Purpose / big picture
 
@@ -264,11 +264,12 @@ is truncated.
 The canonical validation sequence is:
 
 ```bash
-make markdownlint 2>&1 | tee /tmp/markdownlint-stilyagi-$(git branch --show).out
-make nixie 2>&1 | tee /tmp/nixie-stilyagi-$(git branch --show).out
-make check-fmt 2>&1 | tee /tmp/check-fmt-stilyagi-$(git branch --show).out
-make lint 2>&1 | tee /tmp/lint-stilyagi-$(git branch --show).out
-make test 2>&1 | tee /tmp/test-stilyagi-$(git branch --show).out
+branch_slug=$(git branch --show | tr '/' '_')
+make markdownlint 2>&1 | tee /tmp/markdownlint-stilyagi-${branch_slug}.out
+make nixie 2>&1 | tee /tmp/nixie-stilyagi-${branch_slug}.out
+make check-fmt 2>&1 | tee /tmp/check-fmt-stilyagi-${branch_slug}.out
+make lint 2>&1 | tee /tmp/lint-stilyagi-${branch_slug}.out
+make test 2>&1 | tee /tmp/test-stilyagi-${branch_slug}.out
 ```
 
 After the gates pass:
@@ -312,12 +313,20 @@ help make the reasoning tangible.
 - [x] 2026-04-20 00:00Z: Recorded two repository discoveries that affect scope:
   `docs/execplans/` did not yet exist, and `docs/users-guide.md` is currently
   absent.
-- [ ] Await user approval of this plan.
-- [ ] Execute Milestone 1 and capture the evidence set in working notes.
-- [ ] Execute Milestones 2 and 3 to create the ADR and align the narrow
-  documentation set.
-- [ ] Run the validation sequence, update the roadmap, and complete the living
-  sections.
+- [x] 2026-04-20 00:00Z: User approved the plan and authorized implementation.
+- [x] 2026-04-20 00:00Z: Re-checked the evidence set during execution. The
+  current design, Makefile, and developer guide all already assume the PyO3
+  plus `maturin` path, so the ADR can ratify that direction without widening
+  scope into executable packaging work.
+- [x] 2026-04-20 00:00Z: Executed Milestones 2 and 3 by drafting
+  `docs/adr-002-packaging-boundary.md`, creating `docs/users-guide.md`, and
+  aligning the design, developer guide, contents index, and roadmap around the
+  accepted boundary.
+- [x] 2026-04-20 00:00Z: Ran `make markdownlint`, `make nixie`,
+  `make check-fmt`, `make lint`, and `make test` successfully with logs written
+  under `/tmp/*-stilyagi-feat_adr-packaging-plan.out`.
+- [x] 2026-04-20 00:00Z: Updated the roadmap, finalized this plan's living
+  sections, and marked the slice complete.
 
 ## Surprises & Discoveries
 
@@ -328,6 +337,15 @@ help make the reasoning tangible.
   traceable, not to explore the architecture from scratch.
 - The repository did not yet have a `docs/execplans/` directory, so the
   documentation index needs to account for that subtree when plans are added.
+- The Makefile and developer guide are stronger evidence than the design
+  document alone because they show the already-adopted local build and release
+  workflow rather than only the target architecture.
+- A minimal users' guide is worthwhile even before the feature slices land,
+  because the packaging boundary is already a user-visible promise about how
+  Stilyagi will install and run.
+- The original `tee` filename template from the draft plan breaks on branch
+  names that contain `/`, so future runs should sanitize the branch name before
+  constructing `/tmp` log paths.
 
 ## Decision Log
 
@@ -347,8 +365,51 @@ help make the reasoning tangible.
   Rationale: the roadmap already allocates RFC alignment to item 1.1.3, and
   collapsing the two steps would make completion criteria blurry.
 
+- 2026-04-20: Create a minimal `docs/users-guide.md` in this slice.
+  Rationale: the approved boundary creates a user-visible packaging promise:
+  Stilyagi is expected to install and run as one Python package with an
+  embedded extension rather than as a Python wrapper around a separately
+  managed helper binary.
+
+- 2026-04-20: Record the accepted ADR as `docs/adr-002-packaging-boundary.md`.
+  Rationale: ADR 001 already exists, and this slice needs a stable, sequential
+  identifier that later roadmap and design references can cite directly.
+
+- 2026-04-20: Sanitize the branch name before writing validation logs.
+  Rationale: this repository uses branch names such as
+  `feat/adr-packaging-plan`, and the raw slash causes `tee` to treat the log
+  filename as a nested path under `/tmp`.
+
 ## Outcomes & Retrospective
 
-Not yet executed. Fill this section in after implementation, including the
-final ADR path, the files updated, the validation commands run, and any lessons
-that should influence later roadmap steps.
+Completed on 2026-04-20.
+
+The final ADR is [docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md).
+It accepts the in-process PyO3 plus `maturin` boundary, rejects helper-binary
+transport for normal v1 execution, and leaves the narrower transport-policy
+details to roadmap item 1.1.2.
+
+The supporting documentation now tells one coherent story:
+
+- [docs/stilyagi-design.md](../stilyagi-design.md) references ADR 002 and no
+  longer treats the packaging boundary as unresolved.
+- [docs/developers-guide.md](../developers-guide.md) states the accepted
+  in-process boundary explicitly.
+- [docs/users-guide.md](../users-guide.md) records the user-facing packaging
+  promise created by the ADR.
+- [docs/contents.md](../contents.md) indexes the new ADR and users' guide.
+- [docs/roadmap.md](../roadmap.md) marks item 1.1.1 done.
+
+Validation completed successfully with:
+
+- `make markdownlint`
+- `make nixie`
+- `make check-fmt`
+- `make lint`
+- `make test`
+
+The main lesson for later roadmap steps is that some "open questions" in the
+design are already operationally settled by the Makefile and developer
+workflow. When that happens, the ADR should ratify the real repository state
+and narrow the remaining questions, rather than pretending the project is still
+choosing among equally live alternatives.
