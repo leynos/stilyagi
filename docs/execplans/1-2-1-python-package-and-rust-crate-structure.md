@@ -437,7 +437,9 @@ old and new source-root models.
   confirmed the new build spine stays green. `make check-fmt`, `make lint`,
   `make typecheck`, `make markdownlint`, `make nixie`, `make test`, and
   `make build` all pass against the migrated tree.
-- [ ] Create the final implementation commit from the fully green tree.
+- [x] 2026-04-20 22:56 CEST: created the implementation commit from the fully
+  green tree. The structural migration, tests, documentation updates, and
+  roadmap completion now live together in commit `7c88506`.
 
 ## Surprises & discoveries
 
