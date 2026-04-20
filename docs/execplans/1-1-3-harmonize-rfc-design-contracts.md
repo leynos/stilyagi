@@ -359,7 +359,7 @@ number of RFC files touched.
   `make nixie`, `make check-fmt`, `make lint`, and `make test` successfully,
   then marked roadmap item 1.1.3 done.
 
-## Surprises & Discoveries
+## Surprises & discoveries
 
 - The guides already reflect ADR 003 more accurately than the RFC set does.
   That means the likely support-document work is cleanup and deconfliction, not
@@ -376,14 +376,11 @@ number of RFC files touched.
   [docs/stilyagi-design.md](../stilyagi-design.md) instead of mixing new RFC
   alignment with the unrelated pre-existing design edits in the working tree.
 
-## Decision Log
+## Decision log
 
 - 2026-04-20 18:49 CEST: treated this roadmap step as documentation-first
   contract harmonization rather than executable feature work, because the
   design and both accepted ADRs already settle the intended v1 answers.
-- 2026-04-20 20:40 CEST: normalized the ExecPlan wording to en-GB-oxendict
-  `harmonize` / `harmonization` spellings so the plan matches the branch and
-  contents naming already used for this slice.
 - 2026-04-20 18:49 CEST: included the user-requested repository gates in the
   validation section, but made new executable tests conditional on actual code
   or behaviour changes because this slice is expected to amend contracts only.
@@ -396,24 +393,27 @@ number of RFC files touched.
   and guides changed the stated contract, but no runtime behaviour or test
   fixture changed, so no new `rstest`, `rstest-bdd`, `pytest`, or `pytest-bdd`
   cases were warranted for this slice.
+- 2026-04-20 20:40 CEST: normalized the ExecPlan wording to en-GB-oxendict
+  `harmonize` / `harmonization` spellings so the plan matches the branch and
+  contents naming already used for this slice.
 - 2026-04-20 20:52 CEST: applied review follow-ups to RFC 0001 only where the
   findings were still true in the current text. The follow-up clarifies the v1
   `natural_language` policy as `en`-only, narrows `owner` to code entities
   only, and adds short accessibility-oriented descriptions before the complex
   JSON examples.
 
-## Outcomes & Retrospective
+## Outcomes & retrospective
 
 The repository now has one coherent documented v1 contract set.
 
 RFC 0001 now uses `syntax` and `natural_language` terminology, makes owner
 metadata explicit, removes `summary_line` from the base region vocabulary, and
-describes canonical JSON as the required serialized and debug form rather than
-the only in-process transport. The follow-up review pass also makes the RFC
-0001 `natural_language` contract explicitly `en`-only for v1, narrows `owner`
-to code-entity metadata, and adds short prose descriptions before the large
-JSON examples. RFC 0002 now makes `RegionTarget` the primary stable v1 target,
-narrows non-Markdown node guarantees, adds owner and locale convenience
+describes canonical JSON as the required serialized and debugging format rather
+than the only in-process transport. The follow-up review pass also makes the
+RFC 0001 `natural_language` contract explicitly `en`-only for v1, narrows
+`owner` to code-entity metadata, and adds short prose descriptions before the
+large JSON examples. RFC 0002 now makes `RegionTarget` the primary stable v1
+target, narrows non-Markdown node guarantees, adds owner and locale convenience
 surfaces, and spells out deterministic rule and fix behaviour. RFC 0003 now
 narrows stable discovery to `*.md`, `*.py`, and `*.rs`, keeps MDX preview-only,
 adds `--no-cache`, and describes `dump-ir` as canonical JSON. RFC 0005 now
