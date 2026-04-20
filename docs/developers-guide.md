@@ -135,9 +135,10 @@ particular.
   - The in-process Rust to Python boundary may become more efficient than JSON,
     but JSON remains the canonical debug and test form for `dump-ir`, golden
     fixtures, and contract review.
-  - RFC 0001 still needs explicit wording alignment in roadmap item 1.1.3, so
-    maintainers should treat ADR 003 plus the design document as the current
-    source of truth for transport policy until that amendment lands.
+  - `RegionTarget` is the primary stable v1 rule-targeting surface. Markdown
+    node traversal remains supported, but non-Markdown `NodeRef` and
+    `NodeTarget` usage should stay narrow and debug-oriented until later slices
+    prove a broader node contract.
 - Suppression semantics
   - Suppression state is extracted once and carried in the IR rather than
     inferred ad hoc by individual rules.

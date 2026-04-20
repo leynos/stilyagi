@@ -5,10 +5,10 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
-Approval gate: pending. Do not begin implementation until the user explicitly
-approves this plan.
+Approval gate: approved by the user on 2026-04-20. Implementation may proceed
+within the constraints and tolerances recorded here.
 
 ## Purpose / big picture
 
@@ -294,18 +294,18 @@ for each step and review the saved logs before committing.
 Run the documentation-first validation steps after editing:
 
 ```plaintext
-make fmt | tee /tmp/fmt-stilyagi-feat-harmonize-rfc-contracts.out
-make markdownlint | tee /tmp/markdownlint-stilyagi-feat-harmonize-rfc-contracts.out
-make nixie | tee /tmp/nixie-stilyagi-feat-harmonize-rfc-contracts.out
+make fmt | tee /tmp/fmt-stilyagi-1-1-3-harmonize-rfc-design-contracts.out
+make markdownlint | tee /tmp/markdownlint-stilyagi-1-1-3-harmonize-rfc-design-contracts.out
+make nixie | tee /tmp/nixie-stilyagi-1-1-3-harmonize-rfc-design-contracts.out
 ```
 
 Run the requested broader repository gates before marking the roadmap done or
 committing the implementation:
 
 ```plaintext
-make check-fmt | tee /tmp/check-fmt-stilyagi-feat-harmonize-rfc-contracts.out
-make lint | tee /tmp/lint-stilyagi-feat-harmonize-rfc-contracts.out
-make test | tee /tmp/test-stilyagi-feat-harmonize-rfc-contracts.out
+make check-fmt | tee /tmp/check-fmt-stilyagi-1-1-3-harmonize-rfc-design-contracts.out
+make lint | tee /tmp/lint-stilyagi-1-1-3-harmonize-rfc-design-contracts.out
+make test | tee /tmp/test-stilyagi-1-1-3-harmonize-rfc-design-contracts.out
 ```
 
 If the implementation unexpectedly changes executable code or test fixtures,
@@ -337,10 +337,22 @@ number of RFC files touched.
   [docs/contents.md](../contents.md), and ran `make fmt`, `make markdownlint`,
   `make nixie`, `make check-fmt`, `make lint`, and `make test` successfully for
   the planning change.
-- [ ] Await user approval for this ExecPlan.
-- [ ] Implement Milestone 1 and keep this section current with dated entries.
-- [ ] Implement Milestones 2 to 4, run validation, and record the final
-  outcomes before marking the roadmap item done.
+- [x] 2026-04-20 20:01 CEST: user approved the ExecPlan and execution started.
+- [x] 2026-04-20 20:08 CEST: completed the contradiction matrix for RFC 0001,
+  RFC 0002, RFC 0003, and RFC 0005. The remaining amendments are limited to
+  `syntax` naming, `RegionTarget` primacy, owner and locale conveniences,
+  trimmed discovery scope, canonical JSON wording, and explicit grammar-wave
+  staging.
+- [x] 2026-04-20 20:21 CEST: amended RFC 0001, RFC 0002, RFC 0003, and
+  RFC 0005 so they now match the ratified v1 contract around `syntax`
+  terminology, `RegionTarget` primacy, narrowed discovery scope, JSON
+  serialization policy, and staged grammar guarantees.
+- [x] 2026-04-20 20:21 CEST: updated the user and developer guides with the
+  user-visible discovery narrowing and the maintainer-facing rule-targeting
+  guidance that follow from the RFC changes.
+- [x] 2026-04-20 20:29 CEST: ran `make fmt`, `make markdownlint`,
+  `make nixie`, `make check-fmt`, `make lint`, and `make test` successfully,
+  then marked roadmap item 1.1.3 done.
 
 ## Surprises & Discoveries
 
@@ -350,6 +362,14 @@ number of RFC files touched.
 - [docs/developers-guide.md](../developers-guide.md) still contains an explicit
   note that RFC 0001 needs wording alignment in roadmap item 1.1.3. That note
   is a good post-amendment cleanup target.
+- The current working tree still contains unrelated uncommitted edits in
+  [docs/stilyagi-design.md](../stilyagi-design.md), the ADRs, and earlier
+  ExecPlans. This implementation should avoid broadening into those files
+  unless a contradiction makes that unavoidable.
+- The design document already carried the normative answers needed for this
+  slice. The implementation therefore stayed out of
+  [docs/stilyagi-design.md](../stilyagi-design.md) instead of mixing new RFC
+  alignment with the unrelated pre-existing design edits in the working tree.
 
 ## Decision Log
 
@@ -359,9 +379,47 @@ number of RFC files touched.
 - 2026-04-20 18:49 CEST: included the user-requested repository gates in the
   validation section, but made new executable tests conditional on actual code
   or behaviour changes because this slice is expected to amend contracts only.
+- 2026-04-20 20:08 CEST: chose a minimal support-document touch-set of
+  `docs/users-guide.md`, `docs/developers-guide.md`, and `docs/roadmap.md`
+  alongside the four RFCs and this ExecPlan. The design document already
+  contained the normative decisions needed for alignment, and updating it would
+  have pulled in unrelated pre-existing edits.
+- 2026-04-20 20:21 CEST: kept the implementation documentation-only. The RFCs
+  and guides changed the stated contract, but no runtime behaviour or test
+  fixture changed, so no new `rstest`, `rstest-bdd`, `pytest`, or `pytest-bdd`
+  cases were warranted for this slice.
 
 ## Outcomes & Retrospective
 
-Pending implementation. When this plan is executed, replace this section with
-what changed, what validation proved, whether any guide or design updates were
-required beyond the RFCs, and what lessons should carry into roadmap item 1.2.
+The repository now has one coherent documented v1 contract set.
+
+RFC 0001 now uses `syntax` and `natural_language` terminology, makes owner
+metadata explicit, removes `summary_line` from the base region vocabulary, and
+describes canonical JSON as the required serialized and debug form rather than
+the only in-process transport. RFC 0002 now makes `RegionTarget` the primary
+stable v1 target, narrows non-Markdown node guarantees, adds owner and locale
+convenience surfaces, and spells out deterministic rule and fix behaviour. RFC
+0003 now narrows stable discovery to `*.md`, `*.py`, and `*.rs`, keeps MDX
+preview-only, adds `--no-cache`, and describes `dump-ir` as canonical JSON. RFC
+0005 now states the grammar rollout in two explicit waves, keeping `TokenNode`
+and `SentenceNode` first and higher-order helpers later.
+
+Supporting documentation changed only where the repository contract would have
+remained visibly stale. The user's guide now records the narrowed default
+discovery set. The developer's guide now removes the "RFC wording still
+pending" note and records `RegionTarget` primacy and the narrowed non-Markdown
+node promise. The roadmap marks item 1.1.3 complete.
+
+Validation proved the documentation-only implementation landed in a healthy
+tree. The following commands all succeeded:
+
+- `make fmt`
+- `make markdownlint`
+- `make nixie`
+- `make check-fmt`
+- `make lint`
+- `make test`
+
+The main lesson for roadmap item 1.2 is that the design and ADRs were already
+specific enough to drive the narrower contract set. The implementation work was
+therefore mostly subtraction and clarification, not fresh architecture design.

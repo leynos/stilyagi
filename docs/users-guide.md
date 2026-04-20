@@ -61,6 +61,11 @@ MDX remains preview-only. That means the architecture may continue to explore
 it, but users should not yet depend on MDX behaviour as part of Stilyagi's
 stable v1 contract.[^4]
 
+When the command-line interface (CLI) discovery contract lands, the stable
+default recursive file set will cover `*.md`, `*.py`, and `*.rs`. MDX stays
+outside that default set until preview behaviour graduates into the stable
+support matrix.
+
 ## 4. Locale policy in v1
 
 English is the only formally supported v1 locale. The design keeps locale and

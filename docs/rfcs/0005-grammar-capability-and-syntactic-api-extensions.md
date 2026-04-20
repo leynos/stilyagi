@@ -12,11 +12,14 @@
 
 ## 1. Summary
 
-Stilyagi should extend its rule API with a grammar layer that exposes
-backend-neutral sentence, token, phrase, clause, and coordination nodes. The
-layer should support part-of-speech (POS)-only rules, morphology-aware rules,
-dependency-aware rules, and higher-level syntactic convenience nodes without
-making spaCy classes part of the public API.[^1][^2]
+Stilyagi should extend its rule API with a grammar layer that lands in phases.
+The first compatibility wave should expose backend-neutral sentence and token
+wrappers plus normalized grammatical enums. Higher-order phrase, clause, and
+coordination nodes should follow only after that lower-level model has proven
+stable. The layer should support part-of-speech (POS)-only rules,
+morphology-aware rules, dependency-aware rules, and later higher-level
+syntactic convenience nodes without making spaCy classes part of the public
+API.[^1][^2]
 
 The public model should be astroid-like in spirit: navigable nodes, stable
 properties, source spans, parent or child relationships, visitor hooks, and
@@ -73,8 +76,8 @@ API to one backend and leaks provider details into user code.
 - Expose morphological features through a backend-neutral `MorphFeatures`
   object.
 - Expose dependency structure through navigable token nodes.
-- Expose higher-level convenience abstractions for noun phrases, clauses, and
-  coordinations.
+- Reserve higher-level convenience abstractions for noun phrases, clauses, and
+  coordinations for a second wave after the lower-level wrappers are stable.
 - Let each rule declare required grammar capabilities.
 - Ensure that diagnostics and fixes always map back to source-backed spans.
 - Support a spaCy backend without making spaCy classes part of the public rule
@@ -117,6 +120,11 @@ class Capability(Enum):
     COREFERENCE = "coreference"  # reserved, not v1
     SEMANTIC_LEXICON = "semantic_lexicon"
 ```
+
+Only `SENTENCES`, `TOKENS`, `POS`, `FINE_POS`, `LEMMA`, `MORPH`, and
+`DEPENDENCY` belong to the first compatibility wave. `NOUN_PHRASES`, `CLAUSES`,
+`COORDINATION`, `COREFERENCE`, and `SEMANTIC_LEXICON` are reserved for
+later-wave or preview grammar helpers.
 
 The planner should treat these relationships as normative:
 
@@ -240,6 +248,11 @@ advanced fallback logic.[^5]
 
 ### 5.3. Grammar node model
 
+The grammar node model is staged. `GrammarNode`, `TokenNode`, and the layer-one
+`SentenceNode` surface below are the first stable wave. The higher-order node
+types that follow remain later-wave conveniences until the low-level wrappers,
+fixtures, and debug surface have proven stable.
+
 All grammar nodes should inherit a shared source-backed base:
 
 ```python
@@ -322,17 +335,17 @@ class SentenceNode(GrammarNode):
     def roots(self) -> tuple[TokenNode, ...]: ...
     def verbs(self) -> tuple[TokenNode, ...]: ...
     def finite_verbs(self) -> tuple[TokenNode, ...]: ...
-
-    def noun_phrases(self) -> tuple[NounPhraseNode, ...]: ...
-    def clauses(self) -> tuple[ClauseNode, ...]: ...
-    def coordinations(self) -> tuple[CoordinationNode, ...]: ...
-
-    def main_clause(self) -> ClauseNode | None: ...
-    def leading_modifier_clause(self) -> ClauseNode | None: ...
-    def fronted_subordinate_clauses(self) -> tuple[ClauseNode, ...]: ...
 ```
 
+A later wave MAY extend `SentenceNode` with `noun_phrases()`, `clauses()`,
+`coordinations()`, and clause-oriented convenience accessors once the lower
+level model has stable fixture and rule coverage.
+
 #### `NounPhraseNode`
+
+The remaining node types in this section are second-wave conveniences. They are
+not part of the initial compatibility promise and SHOULD remain preview
+surfaces until layer one is stable in real rules and debug output.
 
 ```python
 class NounPhraseNode(GrammarNode):
@@ -457,7 +470,9 @@ def visit_coordination(self, ctx, coordination: CoordinationNode): ...
 ```
 
 The engine should call only the hooks whose required capabilities were
-materialized for the current run.
+materialized for the current run. `visit_token` and `visit_sentence` are the
+layer-one hooks. `visit_noun_phrase`, `visit_clause`, and `visit_coordination`
+are later-wave hooks.
 
 ```python
 class OxfordCommaRule(Rule):
@@ -617,7 +632,8 @@ Implementation should happen in two layers.
 
 ### 6.1. Layer one
 
-Ship the smallest grammar layer that can support token and sentence-aware rules:
+Ship the smallest grammar layer that can support token and sentence-aware rules
+as the first stable compatibility wave:
 
 ```text
 TokenNode
@@ -636,7 +652,8 @@ candidates, and subject-verb agreement prototypes.
 
 ### 6.2. Layer two
 
-Ship the higher-level syntax helpers once the lower-level data model is stable:
+Ship the higher-level syntax helpers only after the lower-level data model is
+stable, with the second wave remaining preview-only until that evidence exists:
 
 ```text
 NounPhraseNode
