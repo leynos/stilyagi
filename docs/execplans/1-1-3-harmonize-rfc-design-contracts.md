@@ -20,7 +20,7 @@ RFCs 0001, 0002, 0003, and 0005 without having to guess which document is stale.
 The observable outcome is documentary coherence, not new runtime behaviour. A
 reviewer should be able to trace one consistent v1 promise across the IR
 contract, the Python rule API, the CLI contract, and the grammar-extension
-plan. The key harmonisation points are the design's `syntax` terminology,
+plan. The key harmonization points are the design's `syntax` terminology,
 `RegionTarget` primacy, trimmed v1 discovery scope, preview-only MDX, the
 canonical-JSON-versus-hot-path distinction, and the staged grammar-node plan.
 
@@ -156,7 +156,7 @@ The relevant skills for the person executing this plan are:
 - Interface: if the work appears to require changing any implemented CLI,
   Python API, Rust API, config schema, or PyO3 boundary rather than only the
   documented contract, stop and ask for confirmation because that is no longer
-  a documentation-only harmonisation step.
+  a documentation-only harmonization step.
 - Dependencies: if the work appears to need any new Rust crate, Python
   package, documentation dependency, or build tool, stop and escalate.
 - Evidence: if the repository-local sources do not provide a clear answer on a
@@ -318,7 +318,7 @@ changed and therefore no new executable tests were warranted.
 
 Keep commits small and ordered. The preferred implementation sequence is:
 
-1. one commit for the RFC harmonisation itself;
+1. one commit for the RFC harmonization itself;
 2. one follow-up commit only if a separate supporting-document cleanup or
    narrow refactor is genuinely clearer on its own.
 
@@ -374,8 +374,11 @@ number of RFC files touched.
 ## Decision Log
 
 - 2026-04-20 18:49 CEST: treated this roadmap step as documentation-first
-  contract harmonisation rather than executable feature work, because the
+  contract harmonization rather than executable feature work, because the
   design and both accepted ADRs already settle the intended v1 answers.
+- 2026-04-20 20:40 CEST: normalized the ExecPlan wording to en-gb-oxendict
+  `harmonize` / `harmonization` spellings so the plan matches the branch and
+  contents naming already used for this slice.
 - 2026-04-20 18:49 CEST: included the user-requested repository gates in the
   validation section, but made new executable tests conditional on actual code
   or behaviour changes because this slice is expected to amend contracts only.
