@@ -32,6 +32,8 @@ It does promise:
 - one in-process runtime boundary between Python orchestration and Rust
   extraction;
 - no mandatory helper-binary management in normal use;
+- a global `-V` / `--version` flag alongside the `version` subcommand;
+- a `--no-cache` option for `stilyagi check`;
 - stable support for Markdown documents, Python docstrings, and Rust
   documentation comments; and
 - English as the only formally supported v1 locale.[^1][^4]

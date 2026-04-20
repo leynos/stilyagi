@@ -1,9 +1,9 @@
 # Ratify the packaging boundary with an accepted ADR
 
 This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises &
-Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up
-to date as work proceeds.
+`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
+`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
+proceeds.
 
 Status: COMPLETE
 
@@ -62,12 +62,13 @@ The implementer should keep these documents open while executing the plan:
   as the existing ADR shape to follow.
 - [docs/rfcs/0001-stilyagi-intermediate-representation.md](../rfcs/0001-stilyagi-intermediate-representation.md),
   [docs/rfcs/0003-stilyagi-cli-contract.md](../rfcs/0003-stilyagi-cli-contract.md),
-  and [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../rfcs/0004-stilyagi-rule-testing-framework.md)
-  as upstream contracts that the ADR must not contradict.
+   and
+  [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../rfcs/0004-stilyagi-rule-testing-framework.md)
+   as upstream contracts that the ADR must not contradict.
 - [docs/rust-testing-with-rstest-fixtures.md](../rust-testing-with-rstest-fixtures.md),
   [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), and
   [docs/reliable-testing-in-rust-via-dependency-injection.md](../reliable-testing-in-rust-via-dependency-injection.md)
-  for the testing standards that later implementation slices must follow, even
+   for the testing standards that later implementation slices must follow, even
   though this ADR-only slice should not introduce new executable behaviour.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](../complexity-antipatterns-and-refactoring-strategies.md)
   as a reminder to keep any supporting prose or examples straightforward rather
@@ -91,9 +92,9 @@ The relevant skills for the person executing this plan are:
   1.2.x. Do not implement bridge code, package reshuffles, helper binaries, or
   build-system changes in this slice.
 - The decision recorded here must be consistent with the current design unless
-  fresh repository-local evidence proves the design is internally contradictory.
-  If the evidence genuinely points away from PyO3 plus `maturin`, stop and
-  escalate with the contradiction written down explicitly.
+  fresh repository-local evidence proves the design is internally
+  contradictory. If the evidence genuinely points away from PyO3 plus
+  `maturin`, stop and escalate with the contradiction written down explicitly.
 - Keep substantive RFC narrowing out of this slice. Roadmap item 1.1.3 is the
   place for broad RFC alignment. This step may add references to the new ADR,
   but it must not silently rewrite RFC promises.
@@ -135,47 +136,36 @@ The relevant skills for the person executing this plan are:
 
 - Risk: the request bundles general implementation requirements such as new
   unit tests, behavioural tests, and `docs/users-guide.md` updates into a
-  roadmap step whose success criterion is an ADR.
-  Severity: high
-  Likelihood: high
-  Mitigation: treat this slice as documentation-first. Record in the ADR and
-  supporting guides what users and developers must know about the packaging
+  roadmap step whose success criterion is an ADR. Severity: high Likelihood:
+  high Mitigation: treat this slice as documentation-first. Record in the ADR
+  and supporting guides what users and developers must know about the packaging
   boundary, but do not invent runtime code or synthetic tests to satisfy a
   documentation-only change. Escalate if stakeholders insist on executable
   proof.
 
 - Risk: `docs/users-guide.md` does not currently exist even though the
-  repository guidance treats it as a canonical document type.
-  Severity: medium
-  Likelihood: high
-  Mitigation: decide during execution whether the accepted boundary creates a
-  user-visible installation or runtime promise that warrants creating a minimal
-  users' guide. If yes, create a narrow initial guide and list it in
-  `docs/contents.md`. If no, record in `Decision Log` why user-facing
-  documentation was not created for this ADR-only slice.
+  repository guidance treats it as a canonical document type. Severity: medium
+  Likelihood: high Mitigation: decide during execution whether the accepted
+  boundary creates a user-visible installation or runtime promise that warrants
+  creating a minimal users' guide. If yes, create a narrow initial guide and
+  list it in `docs/contents.md`. If no, record in `Decision Log` why
+  user-facing documentation was not created for this ADR-only slice.
 
 - Risk: the design document already reads as though the decision is made, so an
-  ADR could become a duplicate rather than a clarifier.
-  Severity: medium
-  Likelihood: medium
-  Mitigation: make the ADR do work the design does not: capture the explicit
-  alternatives, decision drivers, rejected helper-binary path, and the direct
-  consequences for later roadmap steps.
+  ADR could become a duplicate rather than a clarifier. Severity: medium
+  Likelihood: medium Mitigation: make the ADR do work the design does not:
+  capture the explicit alternatives, decision drivers, rejected helper-binary
+  path, and the direct consequences for later roadmap steps.
 
 - Risk: maintainers may accidentally start broad RFC rewrites while touching
-  related documentation.
-  Severity: medium
-  Likelihood: medium
-  Mitigation: keep RFC edits out of scope except for optional cross-links, and
-  defer contract narrowing to roadmap item 1.1.3.
+  related documentation. Severity: medium Likelihood: medium Mitigation: keep
+  RFC edits out of scope except for optional cross-links, and defer contract
+  narrowing to roadmap item 1.1.3.
 
 - Risk: the new `docs/execplans/` subtree and ADR file could leave
-  documentation navigation stale.
-  Severity: low
-  Likelihood: high
-  Mitigation: update `docs/contents.md`, and update
-  `docs/repository-layout.md` if the new subtree materially changes repository
-  orientation guidance.
+  documentation navigation stale. Severity: low Likelihood: high Mitigation:
+  update `docs/contents.md`, and update `docs/repository-layout.md` if the new
+  subtree materially changes repository orientation guidance.
 
 ## Milestones
 
@@ -256,10 +246,10 @@ That alignment is a later roadmap item.
 
 ### Milestone 4: validate, mark completion, and freeze the slice
 
-Validation for this slice is repository health plus documentary coherence.
-Run the repository checks sequentially, never in parallel, and capture logs
-with `tee` under `/tmp/` so failures remain inspectable even if command output
-is truncated.
+Validation for this slice is repository health plus documentary coherence. Run
+the repository checks sequentially, never in parallel, and capture logs with
+`tee` under `/tmp/` so failures remain inspectable even if command output is
+truncated.
 
 The canonical validation sequence is:
 
@@ -296,9 +286,9 @@ together with broad unrelated doc cleanups. If execution exposes stale prose
 outside the intended touch-set, note it and defer it unless it directly
 contradicts the accepted decision.
 
-When writing the ADR, prefer explicit consequence statements over vague
-"pros and cons". A later implementer should be able to quote one sentence from
-the ADR to justify why step 1.2.2 must use the extension boundary instead of
+When writing the ADR, prefer explicit consequence statements over vague "pros
+and cons". A later implementer should be able to quote one sentence from the
+ADR to justify why step 1.2.2 must use the extension boundary instead of
 shelling out to a helper process.
 
 Keep examples concrete and repository-local. Cite `make build`, `make release`,
@@ -308,8 +298,7 @@ help make the reasoning tangible.
 ## Progress
 
 - [x] 2026-04-20 00:00Z: Reviewed the roadmap item, design document, developer
-  guide, repository layout, Makefile, and existing ADR style to draft this
-  plan.
+  guide, repository layout, Makefile, and existing ADR style to draft this plan.
 - [x] 2026-04-20 00:00Z: Recorded two repository discoveries that affect scope:
   `docs/execplans/` did not yet exist, and `docs/users-guide.md` is currently
   absent.
@@ -353,16 +342,14 @@ help make the reasoning tangible.
 ## Decision Log
 
 - 2026-04-20: Treat roadmap item 1.1.1 as a documentation-first ratification
-  step, not as executable packaging work.
-  Rationale: the roadmap success criterion is "one accepted ADR defines the
-  build and runtime boundary for all later work", while actual mixed-package
-  implementation starts in step 1.2.x.
+  step, not as executable packaging work. Rationale: the roadmap success
+  criterion is "one accepted ADR defines the build and runtime boundary for all
+  later work", while actual mixed-package implementation starts in step 1.2.x.
 
 - 2026-04-20: Treat the testing requirement for this slice as repository gate
-  execution rather than new unit or behavioural test authoring.
-  Rationale: an ADR does not add runnable behaviour on its own. If code changes
-  become necessary, that is a scope expansion and should be approved before
-  proceeding.
+  execution rather than new unit or behavioural test authoring. Rationale: an
+  ADR does not add runnable behaviour on its own. If code changes become
+  necessary, that is a scope expansion and should be approved before proceeding.
 
 - 2026-04-20: Keep substantive RFC amendments out of this slice.
   Rationale: the roadmap already allocates RFC alignment to item 1.1.3, and
@@ -384,17 +371,17 @@ help make the reasoning tangible.
   filename as a nested path under `/tmp`.
 
 - 2026-04-20: Use `git branch --show-current` in the validation snippet rather
-  than `git branch --show`.
-  Rationale: the review correctly noted that the longer form is the supported
-  command spelling on current Git versions, so the documented logging recipe
-  should use it directly.
+  than `git branch --show`. Rationale: the review correctly noted that the
+  longer form is the supported command spelling on current Git versions, so the
+  documented logging recipe should use it directly.
 
 ## Outcomes & Retrospective
 
 Completed on 2026-04-20.
 
-The final ADR is [docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md).
-It accepts the in-process PyO3 plus `maturin` boundary, rejects helper-binary
+The final ADR is
+[docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md). It
+accepts the in-process PyO3 plus `maturin` boundary, rejects helper-binary
 transport for normal v1 execution, and leaves the narrower transport-policy
 details to roadmap item 1.1.2.
 

@@ -30,8 +30,8 @@ subsequent change.[^2]
 The design document already recommends narrower answers than the current
 Request for Comments (RFC) drafts in a few places. It recommends MDX remain
 preview-only in v1, recommends JSON as the canonical debug and fixture form
-rather than the mandatory hot-path transport, and gives only English a clear
-v1 performance and support story.[^2] This ADR exists to make those answers
+rather than the mandatory hot-path transport, and gives only English a clear v1
+performance and support story.[^2] This ADR exists to make those answers
 explicit and accepted before roadmap item 1.1.3 aligns the RFC text to match.
 
 The main question is therefore:
@@ -60,9 +60,9 @@ remaining foundational work can converge on one coherent product contract?
 
 ### Option A: narrow v1 contract with preview-only MDX, canonical JSON, and English-only support
 
-This option keeps the stable v1 syntax promise to Markdown, Python
-docstrings, and Rust documentation comments. MDX remains preview-only. JSON is
-the canonical debug, fixture, and compatibility form for the IR, but not the
+This option keeps the stable v1 syntax promise to Markdown, Python docstrings,
+and Rust documentation comments. MDX remains preview-only. JSON is the
+canonical debug, fixture, and compatibility form for the IR, but not the
 mandatory transport for every in-process Rust-to-Python call. English is the
 only formally supported locale in v1.
 
@@ -70,9 +70,9 @@ The strongest argument for this option is that it matches the design's stated
 recommendation and keeps the first meaningful release narrow enough to prove
 its architecture before promising more.[^2] It preserves a simple story for
 `dump-ir`, golden fixtures, and contract tests without forcing serialization
-overhead into every ordinary extension call. It also avoids implying that
-later locale work is already supported merely because the architecture has a
-place for locale metadata.
+overhead into every ordinary extension call. It also avoids implying that later
+locale work is already supported merely because the architecture has a place
+for locale metadata.
 
 The main cost is that some attractive future-facing capabilities remain
 explicitly out of the stable v1 promise. Users and maintainers must live with a
@@ -107,15 +107,16 @@ and rule-planning assumptions for an already installed English model.[^2]
 Calling broader locale support "best effort" would still create user and
 maintainer expectations that the project cannot yet validate consistently.
 
-| Topic | Option A: narrow v1 contract | Option B: broad syntax plus JSON-only transport | Option C: best-effort multi-locale |
-| --- | --- | --- | --- |
-| Matches the current design recommendation | Yes | No | No |
-| Keeps MDX out of the stable day-one promise | Yes | No | Yes |
-| Preserves JSON as canonical debug form without forcing hot-path serialization | Yes | No | Yes |
-| Gives one explicit, testable locale promise for v1 | Yes | Partial | No |
-| Minimizes rework risk for roadmap slices 1.2 and 2.x | Yes | No | No |
+| Topic                                                                         | Option A: narrow v1 contract | Option B: broad syntax plus JSON-only transport | Option C: best-effort multi-locale |
+| ----------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------------- | ---------------------------------- |
+| Matches the current design recommendation                                     | Yes                          | No                                              | No                                 |
+| Keeps MDX out of the stable day-one promise                                   | Yes                          | No                                              | Yes                                |
+| Preserves JSON as canonical debug form without forcing hot-path serialization | Yes                          | No                                              | Yes                                |
+| Gives one explicit, testable locale promise for v1                            | Yes                          | Partial                                         | No                                 |
+| Minimizes rework risk for roadmap slices 1.2 and 2.x                          | Yes                          | No                                              | No                                 |
 
-_Table 1: Candidate v1 contract scopes after ADR 002 fixed the packaging boundary._
+_Table 1: Candidate v1 contract scopes after ADR 002 fixed the packaging
+boundary._
 
 ## Decision outcome
 

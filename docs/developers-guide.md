@@ -132,6 +132,32 @@ particular.
     canonical JSON debug output, `line_index`, `content_hash`, `segments`,
     owner metadata, and explicit extraction errors or suppressions where they
     exist.
+  - The current RFC 0001 field names are `document.syntax`, `tree.syntax`, and
+    `region.syntax`. `region.host_language` is gone, `region.natural_language`
+    is now optional, and `region.owner` is now required even when its value is
+    `null`.
+  - Region kinds `comment_block` and `jsdoc_block` are no longer part of the
+    stable extractor vocabulary, and `summary_line` is now a derived
+    analysis-layer view rather than an extractor-level region kind.
+  - When maintainers update fixtures, adapters, or runtime wrappers, they
+    should treat the field migration explicitly. The minimal before or after
+    mapping is:
+
+    ```python
+    # Before RFC 0001 alignment
+    document.language
+    tree.language
+    region.language
+    region.host_language
+
+    # After RFC 0001 alignment
+    document.syntax
+    tree.syntax
+    region.syntax
+    region.natural_language  # optional
+    region.owner  # required, may be None
+    ```
+
   - The in-process Rust to Python boundary may become more efficient than JSON,
     but JSON remains the canonical debug and test form for `dump-ir`, golden
     fixtures, and contract review.
@@ -139,6 +165,52 @@ particular.
     node traversal remains supported, but non-Markdown `NodeRef` and
     `NodeTarget` usage should stay narrow and debug-oriented until later slices
     prove a broader node contract.
+- Rule API surface
+  - RFC 0002 now treats `syntaxes` as the rule-metadata field for source
+    formats. `locales` is the new optional companion field for prose-locale
+    constraints.
+  - `RegionTarget` now accepts `kind`, `scope_has`, `syntax`,
+    `natural_language`, and `owner_kind`. `RuleContext.regions(...)` should use
+    the same filter names: `kind`, `syntax`, `natural_language`, and
+    `owner_kind`.
+  - `Region` runtime objects must carry at minimum `syntax`,
+    `natural_language`, and `owner`, plus the convenience accessors
+    `owner_kind` and `owner_name`.
+  - Stable v1 `NodeRef` and `NodeTarget` usage is Markdown-only. Non-Markdown
+    node traversal remains a debug or preview surface and should not be the
+    basis of shipped rule-pack contracts.
+  - Maintainers updating rules or examples should use the post-alignment
+    surface directly. The minimal before or after migration looks like:
+
+    ```python
+    # Before RFC 0002 alignment
+    class ExampleRule(Rule):
+        languages = {"markdown"}
+        targets = [RegionTarget(kind={"heading"}, language={"markdown"})]
+
+    ctx.regions(kind={"heading"}, language={"markdown"})
+
+    # After RFC 0002 alignment
+    class ExampleRule(Rule):
+        syntaxes = {"markdown"}
+        locales = {"en"}
+        targets = [
+            RegionTarget(
+                kind={"heading"},
+                syntax={"markdown"},
+                natural_language={"en"},
+                owner_kind=None,
+            )
+        ]
+
+    ctx.regions(
+        kind={"heading"},
+        syntax={"markdown"},
+        natural_language={"en"},
+        owner_kind=None,
+    )
+    ```
+
 - Suppression semantics
   - Suppression state is extracted once and carried in the IR rather than
     inferred ad hoc by individual rules.
@@ -380,13 +452,13 @@ class SentenceNode(GrammarNode):
     def roots(self) -> tuple[TokenNode, ...]: ...
     def verbs(self) -> tuple[TokenNode, ...]: ...
     def finite_verbs(self) -> tuple[TokenNode, ...]: ...
-    def noun_phrases(self) -> tuple[NounPhraseNode, ...]: ...
-    def clauses(self) -> tuple[ClauseNode, ...]: ...
-    def coordinations(self) -> tuple[CoordinationNode, ...]: ...
-    def main_clause(self) -> ClauseNode | None: ...
-    def leading_modifier_clause(self) -> ClauseNode | None: ...
-    def fronted_subordinate_clauses(self) -> tuple[ClauseNode, ...]: ...
 ```
+
+The six `SentenceNode` helpers removed above are reserved for a later grammar
+wave: `noun_phrases()`, `clauses()`, `coordinations()`, `main_clause()`,
+`leading_modifier_clause()`, and `fronted_subordinate_clauses()` MAY return as
+later-wave or preview surface once the layer-one token and sentence model has
+proven stable.
 
 Maintainers should preserve three behavioural points from RFC 0005:
 
@@ -475,6 +547,7 @@ names:
 
 ```python
 class Capability(Enum):
+    # Layer-one compatibility wave
     SENTENCES = "sentences"
     TOKENS = "tokens"
     POS = "pos"
@@ -482,10 +555,12 @@ class Capability(Enum):
     LEMMA = "lemma"
     MORPH = "morph"
     DEPENDENCY = "dependency"
+
+    # Later wave / preview surface
     NOUN_PHRASES = "noun_phrases"
     CLAUSES = "clauses"
     COORDINATION = "coordination"
-    COREFERENCE = "coreference"  # reserved, not v1
+    COREFERENCE = "coreference"  # reserved for later wave / preview
     SEMANTIC_LEXICON = "semantic_lexicon"
 ```
 
@@ -529,8 +604,11 @@ contract.
 Rules may implement the following grammar-aware hooks:
 
 ```python
+# Layer-one hooks
 def visit_token(self, ctx, token: TokenNode): ...
 def visit_sentence(self, ctx, sentence: SentenceNode): ...
+
+# Later-wave hooks
 def visit_noun_phrase(self, ctx, noun_phrase: NounPhraseNode): ...
 def visit_clause(self, ctx, clause: ClauseNode): ...
 def visit_coordination(self, ctx, coordination: CoordinationNode): ...

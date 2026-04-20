@@ -1124,9 +1124,9 @@ Build this in the following order.
 
 - Build first: a Python-distributed replacement product with a Rust extraction
   extension, ratified by [ADR 002](adr-002-packaging-boundary.md) and
-  [ADR 003](adr-003-v1-contract-scope.md), Markdown extraction, Python and
-  Rust docstring or doc comment extraction, a stable region-oriented IR,
-  built-in structural rules, safe fixes, and a Ruff-like CLI.
+  [ADR 003](adr-003-v1-contract-scope.md), Markdown extraction, Python and Rust
+  docstring or doc comment extraction, a stable region-oriented IR, built-in
+  structural rules, safe fixes, and a Ruff-like CLI.
 - Add next: the RFC 0005 grammar layer in two waves, with `TokenNode` and
   `SentenceNode` plus selective POS or dependency capabilities first, then
   higher-order clause and coordination helpers after the low-level model has
