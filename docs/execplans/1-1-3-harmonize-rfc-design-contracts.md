@@ -27,7 +27,7 @@ canonical-JSON-versus-hot-path distinction, and the staged grammar-node plan.
 ## Orientation
 
 The prerequisite decisions are already ratified.
-[ADR 002]( ../adr-002-packaging-boundary.md) fixes the build and runtime
+[ADR 002](../adr-002-packaging-boundary.md) fixes the build and runtime
 boundary as one Python package with an embedded PyO3 extension built through
 `maturin`. [ADR 003](../adr-003-v1-contract-scope.md) narrows the stable v1
 promise to Markdown, Python docstrings, and Rust documentation comments; keeps
@@ -80,11 +80,16 @@ The implementer should keep these documents open while executing the plan:
   keep the amendments direct and local rather than sprawling into speculative
   redesign prose.
 - [docs/rust-testing-with-rstest-fixtures.md](
-  ../rust-testing-with-rstest-fixtures.md),
-  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md),
-   and
-  [docs/reliable-testing-in-rust-via-dependency-injection.md]( ../reliable-testing-in-rust-via-dependency-injection.md)
-   for the repository's testing expectations if the scope widens beyond
+  ../rust-testing-with-rstest-fixtures.md) for the repository's testing
+  expectations if the scope widens beyond documentation.
+- [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md) for the
+  repository's behavioural-test expectations if the scope widens beyond
+  documentation.
+- [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md) for the
+  repository's doctest guidance if the scope widens beyond documentation.
+- [docs/reliable-testing-in-rust-via-dependency-injection.md](
+  ../reliable-testing-in-rust-via-dependency-injection.md) for the repository's
+  dependency-injection testing guidance if the scope widens beyond
   documentation.
 
 The relevant skills for the person executing this plan are:
@@ -376,7 +381,7 @@ number of RFC files touched.
 - 2026-04-20 18:49 CEST: treated this roadmap step as documentation-first
   contract harmonization rather than executable feature work, because the
   design and both accepted ADRs already settle the intended v1 answers.
-- 2026-04-20 20:40 CEST: normalized the ExecPlan wording to en-gb-oxendict
+- 2026-04-20 20:40 CEST: normalized the ExecPlan wording to en-GB-oxendict
   `harmonize` / `harmonization` spellings so the plan matches the branch and
   contents naming already used for this slice.
 - 2026-04-20 18:49 CEST: included the user-requested repository gates in the
