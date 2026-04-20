@@ -5,10 +5,10 @@ This ExecPlan (execution plan) is a living document. The sections
 Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up
 to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
-Approval gate: pending. Do not begin implementation until the user explicitly
-approves this plan.
+Approval gate: satisfied on 2026-04-20 when the user explicitly approved
+implementation of this plan.
 
 ## Purpose / big picture
 
@@ -365,7 +365,20 @@ claimed complete without clean validation evidence.
 - [x] 2026-04-20 00:00Z: Validated the planning change with `make markdownlint`,
   `make nixie`, `make check-fmt`, `make lint`, and `make test`, with logs
   written under `/tmp/*-stilyagi-feat_plan-v1-syntax-scope.out`.
-- [ ] Await explicit user approval before implementation begins.
+- [x] 2026-04-20 00:00Z: User approved the plan and authorized implementation.
+- [x] 2026-04-20 00:00Z: Re-checked the design, ADR 002, the guides, and the
+  RFC contradiction set before editing. The intended implementation touch-set
+  is ADR 003 plus the design, user, developer, contents, roadmap, and ExecPlan
+  documents.
+- [x] 2026-04-20 00:00Z: Drafted
+  `docs/adr-003-v1-contract-scope.md` and aligned the design, user's guide,
+  developer's guide, and documentation index around the narrower accepted v1
+  promise.
+- [x] 2026-04-20 00:00Z: Re-ran `make markdownlint`, `make nixie`,
+  `make check-fmt`, `make lint`, and `make test` successfully, with logs
+  written under `/tmp/*-stilyagi-1-1-2-record-v1-syntax-scope.out`.
+- [x] 2026-04-20 00:00Z: Marked roadmap item 1.1.2 done and finalized this
+  ExecPlan's living sections.
 
 ## Surprises & Discoveries
 
@@ -381,6 +394,12 @@ claimed complete without clean validation evidence.
 - Even though this turn only writes a plan, the repository gate suite already
   passes cleanly on the branch, so later implementation work can treat current
   failures as regressions rather than inherited baseline noise.
+- ADR 002 already models the right tone and structure for this slice, so ADR
+  003 can stay parallel in shape without inventing a new decision-record
+  format.
+- `make test` creates an untracked `rust_extension/Cargo.lock` in this
+  repository. It is not tracked in Git and should be removed after validation
+  so documentation-only changes stay atomic.
 
 ## Decision Log
 
@@ -405,7 +424,47 @@ claimed complete without clean validation evidence.
   Rationale: the roadmap already allocates that work to a dedicated alignment
   step, and merging the two slices would blur the completion criteria.
 
+- 2026-04-20: Do not update `docs/repository-layout.md` in this slice.
+  Rationale: adding ADR 003 does not materially change repository navigation,
+  so touching that document would add noise without clarifying the accepted
+  contract.
+
+- 2026-04-20: Keep transport-policy clarification in the user's guide limited
+  to canonical JSON debug output rather than exposing maintainer-only transport
+  details.
+  Rationale: users need to know what `dump-ir` emits, but not the internal
+  Rust-to-Python object-shape debate that remains implementation-owned.
+
 ## Outcomes & Retrospective
 
-Not started. Update this section after implementation, validation, and the
-roadmap "done" transition have completed.
+Completed on 2026-04-20.
+
+The final ADR is [docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md).
+It records the accepted v1 syntax support matrix, keeps MDX preview-only,
+keeps JSON canonical for debug and compatibility rather than mandatory as the
+only hot-path transport, and limits formal v1 locale support to English.
+
+The supporting documentation now tells one coherent story:
+
+- [docs/stilyagi-design.md](../stilyagi-design.md) no longer treats these
+  three questions as unresolved and now references ADR 003 directly.
+- [docs/developers-guide.md](../developers-guide.md) spells out the stable v1
+  syntax scope, transport policy, locale boundary, and the fact that RFC
+  alignment still belongs to roadmap item 1.1.3.
+- [docs/users-guide.md](../users-guide.md) records the user-facing syntax,
+  locale, and `dump-ir` promises created by the accepted contract.
+- [docs/contents.md](../contents.md) indexes ADR 003.
+- [docs/roadmap.md](../roadmap.md) marks item 1.1.2 done.
+
+Validation completed successfully with:
+
+- `make markdownlint`
+- `make nixie`
+- `make check-fmt`
+- `make lint`
+- `make test`
+
+The main lesson for later roadmap work is that the design had already narrowed
+the v1 promise more than the RFC set had. ADR 003 makes that narrower contract
+explicit without collapsing roadmap item 1.1.3 into this slice, which keeps the
+next step focused on RFC alignment rather than rediscovering the decision.

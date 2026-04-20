@@ -1,9 +1,8 @@
 # User's guide
 
 This guide is for people who use Stilyagi rather than modify its internals. It
-currently records the user-visible packaging and installation promises that are
-already settled for v1, even while the linter itself is still under
-construction.
+currently records the user-visible v1 promises that are already settled, even
+while the linter itself is still under construction.
 
 ## 1. Packaging model
 
@@ -23,36 +22,67 @@ For users, that means:
 
 ## 2. What this does and does not promise
 
-This packaging decision settles the runtime boundary, not the full user
-workflow.
+The accepted v1 contract is narrower than the architecture's long-term
+ambitions. Stilyagi is intentionally fixing a small, explicit day-one promise
+before broader syntax and locale work lands.
 
 It does promise:
 
 - one package-oriented installation story for v1;
 - one in-process runtime boundary between Python orchestration and Rust
-  extraction; and
-- no mandatory helper-binary management in normal use.[^1]
+  extraction;
+- no mandatory helper-binary management in normal use;
+- stable support for Markdown documents, Python docstrings, and Rust
+  documentation comments; and
+- English as the only formally supported v1 locale.[^1][^4]
+
+It also promises that `dump-ir` and related debugging or fixture workflows will
+use canonical JSON output, even though the in-process runtime may use a more
+efficient transport internally.[^4]
 
 It does not yet promise:
 
 - the final end-user command set;
-- the final supported syntax matrix;
+- full Markdown with JSX (MDX) support as part of the stable v1 syntax matrix;
+- support for locales beyond English;
 - the final release channels or installation instructions for each platform; or
 - the exact debugging and diagnostic workflows, which land in later roadmap
   slices.[^3]
 
-## 3. Current state of the product
+## 3. Supported surfaces in v1
+
+The stable v1 support matrix currently covers these prose surfaces:
+
+- Markdown files;
+- Python docstrings; and
+- Rust documentation comments.[^4]
+
+MDX remains preview-only. That means the architecture may continue to explore
+it, but users should not yet depend on MDX behaviour as part of Stilyagi's
+stable v1 contract.[^4]
+
+## 4. Locale policy in v1
+
+English is the only formally supported v1 locale. The design keeps locale and
+natural-language metadata explicit so other locales can be added later, but v1
+does not claim broader best-effort language support.[^4]
+
+For users, that means any language-aware rule behaviour and performance
+expectations in the first releases are defined around English only.
+
+## 5. Current state of the product
 
 The repository already uses `maturin` to build and develop the embedded
 extension, but Stilyagi is still in the roadmap phase where architectural
 contracts are being ratified before feature-complete releases land.[^2][^3]
 
 Until the command-line interface (CLI) and feature slices are implemented,
-treat this guide as a record of the stable user-facing packaging promise
-rather than as a complete operating manual.
+treat this guide as a record of the stable user-facing v1 contract rather than
+as a complete operating manual.
 
 ## References
 
 [^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
 [^2]: [Developer's guide](developers-guide.md)
 [^3]: [Roadmap](roadmap.md)
+[^4]: [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)

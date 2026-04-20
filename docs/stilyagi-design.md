@@ -1080,20 +1080,20 @@ The design must be validated with the following test classes.
   installs, plus supported syntax corpus tests across Markdown, Python, and
   Rust.
 
-## 12. Open Questions and Required ADRs
+## 12. Open questions and required ADRs
 
-### Must resolve before implementation
+### Resolved before implementation
 
 - Packaging boundary: resolved by
   [ADR 002](adr-002-packaging-boundary.md), which accepts the PyO3 plus
   `maturin` extension boundary and rejects helper-binary transport for normal
   v1 execution.
-- V1 syntax scope: whether MDX is preview-only or fully supported on day one.
-  Recommendation: ADR or RFC amendment.
-- IR transport policy: canonical JSON only versus JSON for debug plus faster
-  in-process transport. Recommendation: ADR.
-- Locale support policy: official support for English only in v1 versus broader
-  best-effort NLP. Recommendation: ADR.
+- V1 syntax scope, IR transport policy, and locale support policy: resolved by
+  [ADR 003](adr-003-v1-contract-scope.md), which keeps Markdown, Python
+  docstrings, and Rust documentation comments as the stable v1 syntax surfaces,
+  keeps MDX preview-only, keeps JSON canonical for debug and compatibility
+  without forcing it as the only in-process transport, and limits formal v1
+  locale support to English.
 
 ### Can resolve during implementation
 
@@ -1123,23 +1123,23 @@ The design must be validated with the following test classes.
 Build this in the following order.
 
 - Build first: a Python-distributed replacement product with a Rust extraction
-  extension, ratified by [ADR 002](adr-002-packaging-boundary.md), Markdown
-  extraction, Python and Rust docstring or doc comment extraction, a stable
-  region-oriented IR, built-in structural rules, safe fixes, and a Ruff-like
-  CLI.
+  extension, ratified by [ADR 002](adr-002-packaging-boundary.md) and
+  [ADR 003](adr-003-v1-contract-scope.md), Markdown extraction, Python and
+  Rust docstring or doc comment extraction, a stable region-oriented IR,
+  built-in structural rules, safe fixes, and a Ruff-like CLI.
 - Add next: the RFC 0005 grammar layer in two waves, with `TokenNode` and
   `SentenceNode` plus selective POS or dependency capabilities first, then
   higher-order clause and coordination helpers after the low-level model has
   proven stable.
-- Postpone: full semantic inference, MDX as a stable promise, SARIF polish,
-  extractor plugins, and daemon mode.
+- Postpone: full semantic inference, MDX as a stable promise, support for
+  locales beyond English, SARIF polish, extractor plugins, and daemon mode.
 - Reject outright: Vale-compatibility baggage, LLM-assisted core analysis,
   auto-downloading models, and any claim that third-party plugins are sandboxed.
 - First meaningful release: `stilyagi check`, `rule`, `rules`, `config`,
   `clean`, and `dump-ir`, with Markdown plus Python and Rust docstring or
-  doc-comment support, stable JSON diagnostics, safe fixes, a documented Python
-  rule-pack story, and an implementation path for RFC 0005's provider-neutral
-  grammar nodes.
+  doc-comment support, stable JSON diagnostics, safe fixes, English-only formal
+  locale support, a documented Python rule-pack story, and an implementation
+  path for RFC 0005's provider-neutral grammar nodes.
 
 The product should earn complexity, not assume it. A precise structural core
 with a disciplined Python rule API will deliver customer value faster than a
