@@ -34,7 +34,7 @@ surface.
 ## Orientation
 
 The prerequisite contract work is already complete. [Architecture Decision
-Record (ADR) 002]( ../adr-002-packaging-boundary.md) fixes the v1 build and
+Record (ADR) 002](../adr-002-packaging-boundary.md) fixes the v1 build and
 runtime boundary as a single Python package with an embedded PyO3 extension
 built through `maturin`. [ADR 003](../adr-003-v1-contract-scope.md) narrows
 the stable v1 scope to Markdown, Python docstrings, Rust documentation
@@ -78,18 +78,18 @@ The implementer should keep these documents open while executing the plan:
   user, and orientation guidance that must be updated once the new paths land.
 - [docs/contents.md](../contents.md) for documentation-set bookkeeping when
   adding this ExecPlan and, later, when the repository-shape docs change.
-- [docs/complexity-antipatterns-and-refactoring-strategies.md](
-  ../complexity-antipatterns-and-refactoring-strategies.md) to keep the
+- [docs/complexity-antipatterns-and-refactoring-strategies.md](../
+  complexity-antipatterns-and-refactoring-strategies.md) to keep the
   skeleton narrow, explicit, and resistant to speculative placeholder logic.
-- [docs/rust-testing-with-rstest-fixtures.md](
-  ../rust-testing-with-rstest-fixtures.md),
-  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md),
-   and
-  [docs/reliable-testing-in-rust-via-dependency-injection.md]( ../reliable-testing-in-rust-via-dependency-injection.md)
-   for the required Rust-side unit, behaviour, doctest, and
-  dependency-injection testing style.
-- [docs/rfcs/0004-stilyagi-rule-testing-framework.md](
-  ../rfcs/0004-stilyagi-rule-testing-framework.md) for the long-lived testing
+- [docs/rust-testing-with-rstest-fixtures.md](../
+  rust-testing-with-rstest-fixtures.md),
+  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md),
+  [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), and
+  [docs/reliable-testing-in-rust-via-dependency-injection.md](../
+  reliable-testing-in-rust-via-dependency-injection.md) for the required
+  Rust-side unit, behaviour, doctest, and dependency-injection testing style.
+- [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../
+  rfcs/0004-stilyagi-rule-testing-framework.md) for the long-lived testing
   direction that later slices will extend from the skeleton laid down here.
 
 The relevant skills for the person executing this plan are:
