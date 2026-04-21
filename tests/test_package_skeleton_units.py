@@ -59,7 +59,7 @@ def test_stilyagi_config_uses_the_default_cache_directory() -> None:
 def test_stilyagi_config_rejects_a_blank_cache_directory() -> None:
     """Reject an empty cache directory because it is not a usable boundary."""
     with pytest.raises(config.InvalidCacheDirError):
-        config.StilyagiConfig(cache_dir="   ")
+        config.StilyagiConfig(cache_dir=pathlib.Path("   "))
 
 
 def test_diagnostic_preserves_code_and_message() -> None:
