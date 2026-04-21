@@ -477,6 +477,11 @@ old and new source root models.
   referenced "second failing `StilyagiConfig` instantiation" was stale by the
   time of recheck because the file now has only one config failure path and one
   spaCy-provider failure path.
+- [x] 2026-04-22 09:05 CEST: rechecked the `EngineRunner.execution_plan`
+  annotation against the Python 3.14 baseline and removed the quoted forward
+  reference plus `UP037` waiver. With deferred annotation evaluation in the
+  supported runtime, the bare `ExecutionPlan` annotation is the simpler correct
+  form even though the import remains guarded by `typing.TYPE_CHECKING`.
 
 ## Surprises & discoveries
 
