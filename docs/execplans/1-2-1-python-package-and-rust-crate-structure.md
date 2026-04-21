@@ -155,10 +155,11 @@ The relevant skills for the person executing this plan are:
 - Dependencies: adding Rust dev-dependencies for `rstest` and `rstest-bdd` is
   expected for this slice. If any additional Rust or Python dependency is
   needed, stop and justify it before proceeding.
-- Build spine: if `uv`, `uv_build`, `maturin`, and the `python/` source root
-  layout cannot be made to work together without a deeper packaging redesign,
-  stop and surface the exact incompatibility rather than improvising a second
-  build path.
+- Build spine: if `uv`, `maturin`, and the `python/` source root layout cannot
+  be made to work together without a deeper packaging redesign, stop and
+  surface the exact incompatibility rather than improvising a second build
+  path. `uv_build` is historical pre-migration context only, not part of the
+  implemented packaging boundary.
 - Placeholder breadth: if creating the full design-level crate or package
   skeleton would force speculative fake logic rather than compile-tested
   boundary placeholders, stop and propose the smallest viable subset that still
@@ -291,8 +292,9 @@ through the intended library boundary.
 ### Milestone 4: move the Python package to `python/` and create package boundaries
 
 Move the authored Python package under `python/stilyagi/` and update
-`pyproject.toml`, `uv_build`, and `maturin` configuration so the package builds
-from that source root without a second code path.
+`pyproject.toml` and `maturin` configuration so the package builds from that
+source root without a second code path. `uv_build` is part of the pre-migration
+history here rather than an active requirement for the completed layout.
 
 Create the boundary modules and packages named in design §10. They do not need
 to contain real rule-engine or NLP logic yet, but they should exist as typed,
@@ -487,6 +489,11 @@ old and new source root models.
   placeholder with a NumPy-style module docstring. The new docstring now states
   the module purpose, the current `stilyagi.engine` import boundary, the
   `EngineRunner` public class contract, and a short usage example.
+- [x] 2026-04-22 09:23 CEST: verified another execplan-doc review batch. The
+  misindented Rust-testing bullet and the active-language `uv_build` references
+  were still live, so they were rewritten to describe the implemented `maturin`
+  plus `python/` build spine while leaving `uv_build` only as clearly
+  historical pre-migration context.
 
 ## Surprises & discoveries
 
