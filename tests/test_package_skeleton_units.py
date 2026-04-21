@@ -1,7 +1,5 @@
 """Unit tests for the mixed-package Python skeleton."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 import pathlib
 import typing as typ
@@ -108,7 +106,7 @@ def test_model_skeleton_dataclasses_preserve_defaults_and_children() -> None:
 
 def test_spacy_provider_config_uses_the_default_model_name() -> None:
     """Apply the documented default spaCy model identifier."""
-    assert nlp.SpacyProviderConfig().model == "en-core-web-sm"
+    assert nlp.SpacyProviderConfig().model == "en_core_web_sm"
 
 
 def test_spacy_provider_config_rejects_a_blank_model_name() -> None:

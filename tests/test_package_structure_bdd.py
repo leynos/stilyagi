@@ -91,6 +91,7 @@ def import_fails_with_module_not_found_error(
     fallback_probe = require_result(package_probe_state["fallback_probe"])
     assert fallback_probe["returncode"] != 0
     assert "ModuleNotFoundError" in fallback_probe["stderr"]
+    assert "stilyagi.pure" in fallback_probe["stderr"]
 
 
 def run_python_snippet(source: str) -> PythonCommandResult:

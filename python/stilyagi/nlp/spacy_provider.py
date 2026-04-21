@@ -17,9 +17,10 @@ class SpacyProviderConfig:
         spaCy model identifier for later NLP-backed slices.
     """
 
-    model: str = "en-core-web-sm"
+    model: str = "en_core_web_sm"
 
     def __post_init__(self) -> None:
         """Reject unusable empty spaCy model identifiers."""
         if not self.model.strip():
-            raise InvalidSpacyModelError
+            message = f"Invalid spaCy model: {self.model!r}. It must not be blank."
+            raise InvalidSpacyModelError(message) from None

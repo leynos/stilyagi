@@ -23,4 +23,7 @@ class StilyagiConfig:
     def __post_init__(self) -> None:
         """Reject unusable empty cache-directory values."""
         if not str(self.cache_dir).strip():
-            raise InvalidCacheDirError
+            message = (
+                f"Invalid cache_dir: {self.cache_dir!r}. It must be a non-empty path."
+            )
+            raise InvalidCacheDirError(message) from None

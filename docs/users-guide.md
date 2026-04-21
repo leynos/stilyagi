@@ -139,10 +139,10 @@ ratified before feature-complete releases land.[^2][^3]
 
 For day-to-day users, the mixed-package skeleton changes three practical things:
 
-- the install story is still one Python package, even though the repository
-  now has explicit `python/` and `crates/` source roots;
-- editable installs compile the embedded Rust extension into the Python package
-  namespace as `stilyagi._stilyagi_rs`; and
+- the installation model is still one Python package, even though the
+  repository now has explicit `python/` and `crates/` source roots;
+- editable installations compile the embedded Rust extension into the Python
+  package namespace as `stilyagi._stilyagi_rs`; and
 - the placeholder engine, model, NLP, diagnostic, plugin, and rule modules now
   exist as stable import locations for later feature slices, so users should
   expect future releases to extend those modules rather than moving them again.

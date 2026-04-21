@@ -265,7 +265,7 @@ The repository should also resist any drift toward a subprocess helper model
 unless a later ADR explicitly reopens that question. The accepted v1 boundary
 is in-process, and later roadmap steps may assume that constraint.[^1]
 
-### 4a. Current mixed-package skeleton
+### 4.1 Current mixed-package skeleton
 
 The general architecture above now maps to concrete repository modules and
 crates. Maintainers should use these names when discussing or extending the

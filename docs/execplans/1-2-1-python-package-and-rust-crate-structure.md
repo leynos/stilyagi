@@ -78,19 +78,18 @@ The implementer should keep these documents open while executing the plan:
   user, and orientation guidance that must be updated once the new paths land.
 - [docs/contents.md](../contents.md) for documentation-set bookkeeping when
   adding this ExecPlan and, later, when the repository-shape docs change.
-- [docs/complexity-antipatterns-and-refactoring-strategies.md](../
-  complexity-antipatterns-and-refactoring-strategies.md) to keep the skeleton
-  narrow, explicit, and resistant to speculative placeholder logic.
-- [docs/rust-testing-with-rstest-fixtures.md](../
-  rust-testing-with-rstest-fixtures.md),
-  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md),
-   and
-  [docs/reliable-testing-in-rust-via-dependency-injection.md](../ reliable-testing-in-rust-via-dependency-injection.md)
+- [docs/complexity-antipatterns-and-refactoring-strategies.md](../complexity-antipatterns-and-refactoring-strategies.md)
+  to keep the skeleton narrow, explicit, and resistant to speculative
+  placeholder logic.
+- [docs/rust-testing-with-rstest-fixtures.md](../rust-testing-with-rstest-fixtures.md),
+  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md),
+  [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), and
+  [docs/reliable-testing-in-rust-via-dependency-injection.md](../reliable-testing-in-rust-via-dependency-injection.md)
    for the required Rust-side unit, behaviour, doctest, and
   dependency-injection testing style.
-- [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../
-  rfcs/0004-stilyagi-rule-testing-framework.md) for the long-lived testing
-  direction that later slices will extend from the skeleton laid down here.
+- [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../rfcs/0004-stilyagi-rule-testing-framework.md)
+  for the long-lived testing direction that later slices will extend from the
+  skeleton laid down here.
 
 The relevant skills for the person executing this plan are:
 
@@ -462,8 +461,8 @@ old and new source root models.
   `5ad4a6e`.
 - [x] 2026-04-21 01:16 CEST: verified a broader review batch against the live
   tree before editing. The execplan link-spacing complaint was already stale,
-  so it was left unchanged, while the remaining live findings were fixed
-  across the Rust bridge, Python skeleton modules, tests, and the build-system
+  so it was left unchanged, while the remaining live findings were fixed across
+  the Rust bridge, Python skeleton modules, tests, and the build-system
   backend. `make fmt`, `make markdownlint`, `make nixie`, `make typecheck`,
   `make check-fmt`, `make lint`, `make test`, and `make build` all pass.
 
