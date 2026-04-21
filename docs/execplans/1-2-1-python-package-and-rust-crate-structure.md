@@ -465,6 +465,11 @@ old and new source root models.
   the Rust bridge, Python skeleton modules, tests, and the build-system
   backend. `make fmt`, `make markdownlint`, `make nixie`, `make typecheck`,
   `make check-fmt`, `make lint`, `make test`, and `make build` all pass.
+- [x] 2026-04-21 10:24 CEST: verified a later review finding against the live
+  tree and fixed `python/stilyagi/engine/runner.py` to store `"ExecutionPlan"`
+  as a quoted forward reference. The import is intentionally guarded by
+  `typing.TYPE_CHECKING`, so the string annotation preserves runtime safety
+  without restoring `from __future__ import annotations`.
 
 ## Surprises & discoveries
 
