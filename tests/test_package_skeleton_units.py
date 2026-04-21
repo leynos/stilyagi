@@ -17,24 +17,23 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
     assert stilyagi.model is model
 
 
-def test_engine_package_re_exports_the_engine_skeleton_types() -> None:
-    """Re-export the engine boundary types from the engine package."""
-    assert engine.__all__ == [
-        "EngineRunner",
-        "ExecutionPlan",
-        "FixPlan",
-        "RendererRegistry",
-    ]
-
-
-def test_model_package_re_exports_the_model_skeleton_types() -> None:
-    """Re-export the model boundary types from the model package."""
-    assert model.__all__ == ["Document", "Region", "Sentence", "Syntax", "Token"]
-
-
-def test_nlp_package_re_exports_the_provider_contracts() -> None:
-    """Re-export the NLP boundary types from the NLP package."""
-    assert nlp.__all__ == ["NlpProvider", "SpacyProviderConfig"]
+@pytest.mark.parametrize(
+    ("module", "expected"),
+    [
+        (
+            engine,
+            ["EngineRunner", "ExecutionPlan", "FixPlan", "RendererRegistry"],
+        ),
+        (model, ["Document", "Region", "Sentence", "Syntax", "Token"]),
+        (nlp, ["NlpProvider", "SpacyProviderConfig"]),
+    ],
+)
+def test_package_boundaries_re_export_their_documented_types(
+    module: object,
+    expected: list[str],
+) -> None:
+    """Re-export the documented boundary types from each package surface."""
+    assert module.__all__ == expected
 
 
 def test_plugin_entry_point_groups_match_the_documented_names() -> None:
@@ -58,7 +57,10 @@ def test_stilyagi_config_uses_the_default_cache_directory() -> None:
 
 def test_stilyagi_config_rejects_a_blank_cache_directory() -> None:
     """Reject an empty cache directory because it is not a usable boundary."""
-    with pytest.raises(config.InvalidCacheDirError):
+    with pytest.raises(
+        config.InvalidCacheDirError,
+        match=r"^Invalid cache_dir: .*It must be a non-empty path\.$",
+    ):
         config.StilyagiConfig(cache_dir=pathlib.Path("   "))
 
 
@@ -111,7 +113,10 @@ def test_spacy_provider_config_uses_the_default_model_name() -> None:
 
 def test_spacy_provider_config_rejects_a_blank_model_name() -> None:
     """Reject a blank spaCy model identifier because it is unusable."""
-    with pytest.raises(spacy_provider.InvalidSpacyModelError):
+    with pytest.raises(
+        spacy_provider.InvalidSpacyModelError,
+        match=r"^Invalid spaCy model: .*It must not be blank\.$",
+    ):
         nlp.SpacyProviderConfig(model="")
 
 
@@ -134,9 +139,9 @@ def test_nlp_provider_protocol_accepts_matching_provider_objects() -> None:
     assert isinstance(DummyProvider(), RuntimeCheckableNlpProvider)
 
 
-def test_cli_main_reports_success_for_the_placeholder_path(
+def test_cli_main_reports_placeholder_exit_code(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Return the documented non-zero status for the unimplemented CLI."""
+    """Return the documented placeholder exit code for the unimplemented CLI."""
     assert cli.main() == 2
     assert "CLI commands are not implemented yet." in capsys.readouterr().err

@@ -470,6 +470,13 @@ old and new source root models.
   as a quoted forward reference. The import is intentionally guarded by
   `typing.TYPE_CHECKING`, so the string annotation preserves runtime safety
   without restoring `from __future__ import annotations`.
+- [x] 2026-04-21 10:36 CEST: verified another review batch against the live
+  Python unit tests. The three package `__all__` checks were still duplicated,
+  both live `pytest.raises(...)` assertions were still unconstrained, and the
+  CLI placeholder test name still implied success, so those were tightened. The
+  referenced "second failing `StilyagiConfig` instantiation" was stale by the
+  time of recheck because the file now has only one config failure path and one
+  spaCy-provider failure path.
 
 ## Surprises & discoveries
 
