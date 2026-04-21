@@ -494,6 +494,11 @@ old and new source root models.
   were still live, so they were rewritten to describe the implemented `maturin`
   plus `python/` build spine while leaving `uv_build` only as clearly
   historical pre-migration context.
+- [x] 2026-04-22 09:34 CEST: added direct Rust unit coverage for the marker and
+  orchestration boundary types in `stilyagi-ir`, `stilyagi-markdown`,
+  `stilyagi-tree-sitter`, and `stilyagi-extract`. The new `#[cfg(test)]`
+  modules cover `Default`, `PartialEq`, `Clone`, `Copy`, `Debug`, and the
+  `ExtractBoundary` accessor wiring without changing any public signatures.
 
 ## Surprises & discoveries
 
