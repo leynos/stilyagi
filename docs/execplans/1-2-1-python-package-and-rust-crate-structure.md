@@ -482,6 +482,11 @@ old and new source root models.
   reference plus `UP037` waiver. With deferred annotation evaluation in the
   supported runtime, the bare `ExecutionPlan` annotation is the simpler correct
   form even though the import remains guarded by `typing.TYPE_CHECKING`.
+- [x] 2026-04-22 09:14 CEST: verified a later documentation review finding
+  against `python/stilyagi/engine/runner.py` and replaced the one-line module
+  placeholder with a NumPy-style module docstring. The new docstring now states
+  the module purpose, the current `stilyagi.engine` import boundary, the
+  `EngineRunner` public class contract, and a short usage example.
 
 ## Surprises & discoveries
 
