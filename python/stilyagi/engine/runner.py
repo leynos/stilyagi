@@ -17,4 +17,4 @@ class EngineRunner:
         Planned work for the future engine slice.
     """
 
-    execution_plan: "ExecutionPlan"  # noqa: UP037
+    execution_plan: "ExecutionPlan"  # noqa: UP037 -- runtime-safe forward reference
