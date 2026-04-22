@@ -1032,6 +1032,7 @@ version = "0.1.0"
 name = "stilyagi-extract"
 version = "0.1.0"
 dependencies = [
+ "rstest",
  "stilyagi-ir",
  "stilyagi-markdown",
  "stilyagi-tree-sitter",
@@ -1054,6 +1055,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-macros",
  "stilyagi-core",
+ "stilyagi-extract",
 ]
 
 [[package]]

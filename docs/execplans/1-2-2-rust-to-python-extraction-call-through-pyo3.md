@@ -5,10 +5,9 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
-Approval gate: pending as of 2026-04-22. Do not begin implementation until the
-user explicitly approves this plan.
+Approval gate: approved by the user on 2026-04-22 before implementation began.
 
 ## Purpose / big picture
 
@@ -434,13 +433,22 @@ The feature is complete when all of the following are true:
   testing guidance needed to draft this plan.
 - [x] 2026-04-22 16:35 CEST: Drafted this ExecPlan and wrote it to
   `docs/execplans/1-2-2-rust-to-python-extraction-call-through-pyo3.md`.
-- [ ] Await explicit user approval.
-- [ ] Write the failing Rust and Python tests for the extraction bridge.
-- [ ] Implement the minimal extraction result in `crates/stilyagi-extract/`.
-- [ ] Expose the result through `crates/stilyagi-pyext/` and wrap it in
-  `python/stilyagi/engine/`.
-- [ ] Update the design document, guides, and roadmap checkbox.
-- [ ] Run the sequential validation gates and capture final evidence.
+- [x] 2026-04-22 17:08 CEST: Received explicit user approval to proceed with
+  implementation.
+- [x] 2026-04-22 17:34 CEST: Added the red-state Rust and Python tests for the
+  extraction bridge and confirmed they failed because the extraction types and
+  engine entrypoint did not exist yet.
+- [x] 2026-04-22 17:56 CEST: Implemented the minimal extraction result in
+  `crates/stilyagi-extract/`.
+- [x] 2026-04-22 18:07 CEST: Exposed the result through
+  `crates/stilyagi-pyext/` and wrapped it in `python/stilyagi/engine/`.
+- [x] 2026-04-22 18:18 CEST: Updated the design document and the user and
+  developer guides to describe the real extraction path and its current
+  limitations.
+- [x] 2026-04-22 18:43 CEST: Marked roadmap item 1.2.2 as done in
+  `docs/roadmap.md`.
+- [x] 2026-04-22 18:41 CEST: Ran the sequential validation gates and captured
+  final evidence.
 
 ## Surprises & Discoveries
 
@@ -453,6 +461,10 @@ The feature is complete when all of the following are true:
 - The existing Rust BDD feature file in `crates/stilyagi-pyext/tests/features/`
   already proves bridge structure and can be extended rather than replaced from
   scratch.
+- `cargo test` for the PyO3 crate initially failed to link while the workspace
+  still enabled `pyo3/extension-module`. Modern PyO3 guidance for current
+  `maturin` releases is to let the build backend control extension-module build
+  mode so Rust test binaries can still link.
 
 ## Decision Log
 
@@ -480,13 +492,73 @@ The feature is complete when all of the following are true:
   contract. Keeping the first bridge payload narrow avoids freezing the wrong
   shape too early.
 
+- 2026-04-22: The implemented PyO3 function is named `extract_document` and
+  accepts `source` plus the stable syntax string (for example `"markdown"`).
+  Rationale: this keeps the extension boundary syntax-neutral while still
+  letting the public Python package expose one typed function under
+  `stilyagi.engine`.
+
+- 2026-04-22: The raw PyO3 payload remains an internal Python dictionary that
+  `python/stilyagi/engine/extraction.py` immediately adapts into
+  `stilyagi.model.Document`. Rationale: the roadmap only needs a real
+  in-process bridge proof here, and keeping the raw payload internal avoids
+  freezing the wrong public transport before the fuller IR contract lands.
+
+- 2026-04-22: The workspace now enables `pyo3` with `auto-initialize` instead
+  of the shared `extension-module` feature. Rationale: local `maturin` builds
+  still succeed, and Rust-side `cargo test` for the PyO3 crate now links and
+  runs without the unresolved Python symbols caused by `extension-module`.
+
 ## Outcomes & Retrospective
 
-This section is intentionally incomplete because implementation has not begun.
-When the work is finished, replace this note with:
+- Shipped:
+  - `crates/stilyagi-extract/` now owns a minimal `extract_document(...)`
+    function, `ExtractSyntax`, `ExtractDocument`, `ExtractRegion`, and explicit
+    unsupported-syntax errors.
+  - `crates/stilyagi-pyext/` now exposes a real `extract_document` PyO3
+    function that delegates to `stilyagi-extract` and keeps `hello()` as the
+    additive smoke helper.
+  - `python/stilyagi/engine/extraction.py` now adapts the raw bridge payload
+    into `stilyagi.model.Document`, and `stilyagi.engine.extract_document(...)`
+    is the supported public Python entrypoint.
+  - The Rust and Python tests now prove happy paths, blank-input behaviour, and
+    unsupported-syntax failures across the real in-process extension boundary.
+  - The design document, developer's guide, user's guide, and roadmap now all
+    describe the shipped bridge accurately.
 
-- what was shipped;
-- the exact commands and outputs that proved success;
-- any deviations from the original plan;
-- which risks materialized and how they were handled; and
-- what later roadmap items should learn from this first bridge.
+- Exact validation evidence:
+  - `make lint`
+  - `make typecheck`
+  - `make test`
+  - `make markdownlint`
+  - `make nixie`
+  - Focused red-state evidence was captured before implementation with:
+    `cargo test --manifest-path crates/stilyagi-extract/Cargo.toml` and
+    `.venv/bin/python -m pytest -v tests/test_package_skeleton_units.py -k extract_document`.
+
+- Observable success proof:
+
+  ```plaintext
+  from stilyagi import engine, model
+
+  document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
+  assert document.syntax is model.Syntax.MARKDOWN
+  assert document.regions == (model.Region(kind="document", text="# Heading"),)
+  ```
+
+- Materialized risk and handling:
+  - The PyO3 crate initially failed to link under `cargo test` while the
+    workspace still enabled `pyo3/extension-module`. The implementation adopted
+    current PyO3 guidance for modern `maturin` builds by removing that shared
+    feature flag and relying on `auto-initialize` for test execution.
+
+- Deviations from the draft:
+  - The extension function shipped as syntax-neutral `extract_document(source,
+    syntax)` rather than a Markdown-specific function name. This stayed within
+    the plan's tolerances and better matched the Python model's existing syntax
+    enum without broadening the public surface.
+
+- Lesson for later roadmap items:
+  - The `stilyagi-extract` -> `stilyagi-pyext` -> `stilyagi.engine` layering is
+    viable, so later IR expansion should refine the partial payload in place
+    rather than inventing a second bridge surface.

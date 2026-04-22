@@ -65,7 +65,7 @@ development loop and a release build without compatibility shims.
   - Include the PyO3 bridge crate, the Python source root, and the initial
     engine or model package boundaries.
   - Success: the repository shape matches the intended long-lived architecture.
-- [ ] 1.2.2. Expose a minimal Rust-to-Python extraction call through the PyO3
+- [x] 1.2.2. Expose a minimal Rust-to-Python extraction call through the PyO3
   extension. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 1.2.1.
   - The first bridge may return a trivial or partial IR payload, but it must

@@ -12,5 +12,8 @@ stilyagi-ir = { path = "../stilyagi-ir" }
 stilyagi-markdown = { path = "../stilyagi-markdown" }
 stilyagi-tree-sitter = { path = "../stilyagi-tree-sitter" }
 
+[dev-dependencies]
+rstest.workspace = true
+
 [lints]
 workspace = true
