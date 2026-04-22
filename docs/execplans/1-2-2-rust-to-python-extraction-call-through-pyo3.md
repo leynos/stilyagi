@@ -284,8 +284,8 @@ pretending to be the final IR.
 
 Use `crates/stilyagi-extract/src/lib.rs` for the first implementation. The
 recommended shape is a pair of simple structs such as `PartialDocument` and
-`PartialRegion`, plus a function such as
-`extract_markdown_document(source: &str) -> PartialDocument`.
+`PartialRegion`, plus a syntax-aware function such as
+`extract_document(source: &str, syntax: ExtractSyntax) -> PartialDocument`.
 
 Implementation rules for this milestone:
 
@@ -313,8 +313,9 @@ Expected code changes:
   - add a dependency on `stilyagi-extract`.
 - `crates/stilyagi-pyext/src/lib.rs`
   - keep `hello()` unchanged unless doing so blocks the new bridge;
-  - add a PyO3 function such as `extract_markdown_document(source: &str)` that
-    delegates straight to `stilyagi_extract::extract_markdown_document`;
+  - add a PyO3 function such as `extract_document(source: &str, syntax: &str)`
+    that delegates straight to
+    `stilyagi_extract::extract_document(source, extract_syntax)`;
   - convert the Rust result into plain Python-owned values inside the bridge.
     Prefer a small `PyDict` / `PyList` or a hand-built tuple structure over a
     JSON string.
@@ -328,9 +329,9 @@ Expected code changes:
 The Python wrapper should:
 
 - accept `source: str` and `syntax: model.Syntax`;
-- call `_stilyagi_rs.extract_markdown_document(source)` only for
-  `model.Syntax.MARKDOWN`;
-- map the returned payload into `model.Document` and `model.Region`;
+- call `stilyagi._stilyagi_rs.extract_document(source, syntax.value)`;
+- adapt the internal bridge payload into `model.Document` and
+  `model.Region`;
 - raise `NotImplementedError` for `PYTHON_DOCSTRING` and `RUST_DOC_COMMENT`;
   and
 - avoid exposing the bridge payload shape as part of the public package
@@ -353,7 +354,7 @@ Update these documents:
 - `docs/developers-guide.md`
   - document the new extraction call path:
     `python/stilyagi/engine/extraction.py` ->
-    `stilyagi._stilyagi_rs.extract_markdown_document(...)` ->
+    `stilyagi._stilyagi_rs.extract_document(source, syntax)` ->
     `crates/stilyagi-extract/`.
   - state explicitly that the Python package owns dispatch and adaptation while
     Rust owns extraction.

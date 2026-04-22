@@ -34,7 +34,8 @@ fn supported_syntaxes_py(py: Python<'_>) -> PyResult<Py<PyTuple>> {
 fn extract_document_py(py: Python<'_>, source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
     let extract_syntax =
         ExtractSyntax::try_from(syntax).map_err(|error| map_extract_error(&error))?;
-    let document = extract_document_from_rust(source, extract_syntax)
+    let document = py
+        .detach(|| extract_document_from_rust(source, extract_syntax))
         .map_err(|error| map_extract_error(&error))?;
     let document_dict = PyDict::new(py);
     let region_items = document
