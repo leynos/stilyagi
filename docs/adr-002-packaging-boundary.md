@@ -19,8 +19,8 @@ The design document already recommends a Python-distributed application with a
 Rust extension built through PyO3 and `maturin`.[^1] The current repository
 also already reflects that recommendation operationally. `make build` runs
 `maturin develop`, `make release` runs `maturin build`, and the developer's
-guide describes the `rust_extension/` crate as the compiled `_stilyagi_rs`
-module.[^2][^3]
+guide describes `crates/stilyagi-pyext/` as the bridge crate that compiles the
+package-scoped `stilyagi._stilyagi_rs` module.[^2][^3]
 
 What the repository lacks is an accepted decision record that says this
 boundary is not merely a recommendation. That gap matters because later roadmap

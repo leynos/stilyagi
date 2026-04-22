@@ -2,13 +2,14 @@ MDLINT ?= markdownlint-cli2
 NIXIE ?= nixie
 MDFORMAT_ALL ?= mdformat-all
 CARGO ?= cargo
-RUST_MANIFEST ?= rust_extension/Cargo.toml
+WORKSPACE_MANIFEST ?= Cargo.toml
+PYEXT_MANIFEST ?= crates/stilyagi-pyext/Cargo.toml
 BUILD_JOBS ?=
 RUST_FLAGS ?=
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 UV_RUN = $(UV_ENV) uv run --group dev
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
-TEST_FLAGS ?= --manifest-path $(RUST_MANIFEST)
+TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
         markdownlint nixie test test-ci test-quick typecheck tools release
@@ -20,20 +21,20 @@ all: release ## Build the release artifact
 build: ## Build dev artifact and install into venv
 	UV_VENV_CLEAR=1 $(UV_ENV) uv venv
 	$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev
-	$(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(RUST_MANIFEST)
+	$(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(PYEXT_MANIFEST)
 
 release: ## Build the release artifact
-	$(CARGO_BUILD_ENV) $(UV_RUN) maturin build --release --manifest-path $(RUST_MANIFEST)
+	$(CARGO_BUILD_ENV) $(UV_RUN) maturin build --release --manifest-path $(PYEXT_MANIFEST)
 
 build-release: release ## Backward-compatible alias for release
 
 clean: ## Remove build artifacts
-	$(CARGO) clean --manifest-path $(RUST_MANIFEST)
+	$(CARGO) clean --manifest-path $(WORKSPACE_MANIFEST)
 	rm -rf build dist *.egg-info \
 	  .mypy_cache .pytest_cache .coverage coverage.* \
 	  lcov.info htmlcov .venv
 	find . -type d -name '__pycache__' -print0 | xargs -0 -r rm -rf
-	find . -type f -name '*.log' -not -path './rust_extension/target/*' -delete
+	find . -type f -name '*.log' -not -path './crates/stilyagi-pyext/target/*' -delete
 
 define ensure_tool
 $(if $(shell command -v $(1) >/dev/null 2>&1 && echo y),,\
@@ -51,31 +52,31 @@ fmt: tools ## Format sources
 	$(UV_RUN) ruff format
 	$(UV_RUN) ruff check --select I --fix
 	$(MDFORMAT_ALL)
-	$(CARGO) fmt --manifest-path $(RUST_MANIFEST)
+	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all
 
 check-fmt: tools ## Verify formatting
 	$(UV_RUN) ruff format --check
-	$(CARGO) fmt --manifest-path $(RUST_MANIFEST) -- --check
+	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
 
 lint: tools ## Run linters
 	$(UV_RUN) ruff check
-	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(RUST_MANIFEST) -- -D warnings
+	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
 	# Whitaker resolves cargo metadata from the crate directory in this repo.
-	cd rust_extension && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all
+	cd crates/stilyagi-pyext && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all
 
 typecheck: build tools ## Run typechecking
 	$(UV_RUN) ty --version
 	$(UV_RUN) ty check
 
 markdownlint: tools ## Lint Markdown files
-	find . -type f -name '*.md' -not -path './rust_extension/target/*' -print0 | xargs -0 $(MDLINT)
+	find . -type f -name '*.md' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(MDLINT)
 
 nixie: tools ## Validate Mermaid diagrams
-	find . -type f -name '*.md' -not -path './rust_extension/target/*' -print0 | xargs -0 $(NIXIE) --no-sandbox
+	find . -type f -name '*.md' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(NIXIE) --no-sandbox
 
 test: build tools ## Run tests (nextest if available, otherwise cargo test)
-	$(CARGO) fmt --manifest-path $(RUST_MANIFEST) -- --check
-	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(RUST_MANIFEST) -- -D warnings
+	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
+	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
 	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS); \
 	else \

@@ -58,7 +58,7 @@ This step answers whether the recommended layout in
 [Stilyagi design](stilyagi-design.md) §10 can support a reproducible local
 development loop and a release build without compatibility shims.
 
-- [ ] 1.2.1. Create the Python package and Rust crate structure described in
+- [x] 1.2.1. Create the Python package and Rust crate structure described in
   [Stilyagi design](stilyagi-design.md) §10. See Stilyagi design
   (stilyagi-design.md) §7.1.
   - Requires 1.1.3.

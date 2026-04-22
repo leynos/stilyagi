@@ -28,6 +28,11 @@
     execplans/1-1-3-harmonize-rfc-design-contracts.md)
     plans the RFC amendment pass that aligns RFCs 0001, 0002, 0003, and 0005
     with the ratified v1 design and ADR contract set.
+  - [1.2.1 Python package and Rust crate structure](
+    execplans/1-2-1-python-package-and-rust-crate-structure.md)
+    plans the repository migration from the provisional `stilyagi/` plus
+    `rust_extension/` tree to the long-lived `python/` and `crates/`
+    mixed-package skeleton.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.

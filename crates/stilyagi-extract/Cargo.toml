@@ -1,0 +1,16 @@
+[package]
+name = "stilyagi-extract"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+stilyagi-ir = { path = "../stilyagi-ir" }
+stilyagi-markdown = { path = "../stilyagi-markdown" }
+stilyagi-tree-sitter = { path = "../stilyagi-tree-sitter" }
+
+[lints]
+workspace = true

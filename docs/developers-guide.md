@@ -55,7 +55,7 @@ That target performs three steps:
 
 1. Recreate `.venv`
 2. Sync the `dev` dependency group with `uv`
-3. Run `maturin develop` against `rust_extension/Cargo.toml`
+3. Run `maturin develop` against `crates/stilyagi-pyext/Cargo.toml`
 
 Developers should prefer the Makefile targets over ad hoc command sequences so
 the PyO3 build flags and tool invocation paths stay consistent across local
@@ -69,7 +69,7 @@ extraction and analysis.
 The accepted packaging boundary is a Python-distributed application with an
 embedded PyO3 extension built through `maturin`. Stilyagi does not use a
 separate helper binary for normal v1 execution; the Rust extractor lives inside
-the Python runtime as `_stilyagi_rs`.[^1]
+the Python runtime as `stilyagi._stilyagi_rs`.[^1]
 
 The accepted v1 contract scope is narrower than the architecture's long-term
 extension points. Stable v1 syntax support covers Markdown, Python docstrings,
@@ -238,13 +238,19 @@ maintainer contract, not a disposable planning artefact.
 
 ## 4. Rust and PyO3 integration
 
-The Rust extension crate lives under `rust_extension/` and is built as the
-`_stilyagi_rs` Python extension module. PyO3 provides the binding layer, while
-`maturin` handles development installs and wheel builds.
+The Rust code now lives in a root Cargo workspace declared by `Cargo.toml`,
+with the PyO3 bridge in `crates/stilyagi-pyext/` and the first shared library
+boundary in `crates/stilyagi-core/`. The Python package source root lives under
+`python/stilyagi/`.
+
+The bridge crate builds as the package-scoped `stilyagi._stilyagi_rs` extension
+module. PyO3 provides the binding layer, while `maturin` handles development
+installs and wheel builds.
 
 The current integration contract is intentionally small:
 
-- Rust exports Python-callable functions through the `_stilyagi_rs` module.
+- Rust exports Python-callable functions through the `stilyagi._stilyagi_rs`
+  module.
 - Python package code imports and orchestrates the extension rather than
   duplicating Rust-owned logic.
 - Rust tests cover Rust-only behaviour, while Python tests cover package-level
@@ -258,6 +264,68 @@ would force rule-engine churn into the extension crate.
 The repository should also resist any drift toward a subprocess helper model
 unless a later ADR explicitly reopens that question. The accepted v1 boundary
 is in-process, and later roadmap steps may assume that constraint.[^1]
+
+### 4.1 Current mixed-package skeleton
+
+The general architecture above now maps to concrete repository modules and
+crates. Maintainers should use these names when discussing or extending the
+current skeleton:
+
+- `crates/stilyagi-pyext`
+  - PyO3 bridge crate that builds the package-scoped
+    `stilyagi._stilyagi_rs` extension module
+  - should stay thin and delegate executable logic into library crates
+- `crates/stilyagi-core`
+  - smallest shared Rust library boundary used by the bridge today
+  - current home of the Rust-backed smoke behaviour
+- `crates/stilyagi-ir`
+  - reserved home for the stable intermediate representation (IR) types and
+    adapters described by RFC 0001
+- `crates/stilyagi-markdown`
+  - reserved home for Markdown-specific extraction and flattening logic
+- `crates/stilyagi-tree-sitter`
+  - reserved home for tree-sitter integration and syntax-tree helpers
+- `crates/stilyagi-extract`
+  - reserved home for cross-syntax extraction orchestration that composes the
+    lower-level crates
+- `python/stilyagi/__init__.py`
+  - public Python package surface that re-exports the supported package
+    boundaries and imports the embedded Rust extension
+- `python/stilyagi/cli.py`
+  - command-line entrypoint placeholder for the future CLI contract from
+    RFC 0003
+- `python/stilyagi/config.py`
+  - configuration boundary for Python-side runtime settings and validation
+- `python/stilyagi/diagnostics.py`
+  - diagnostic object boundary for future reporting and fix planning
+- `python/stilyagi/engine/`
+  - future execution planner, runner, fix-planning, and renderer surfaces
+- `python/stilyagi/model/`
+  - future document, region, sentence, and token runtime types
+- `python/stilyagi/nlp/`
+  - future NLP provider protocols and provider-specific configuration surfaces
+- `python/stilyagi/plugins.py`
+  - source of truth for Python entry-point group names such as
+    `stilyagi.rules` and `stilyagi.capabilities`
+- `python/stilyagi/rules/`
+  - rule namespace root for bundled and third-party rules
+
+Those boundaries deliberately mirror the ownership split in section 2. When a
+change belongs to extraction fidelity, syntax parsing, or source mapping, it
+should usually start in one of the Rust crates. When a change belongs to
+configuration discovery, diagnostics, plugin registration, capability planning,
+or rule orchestration, it should usually start in one of the Python modules
+above.
+
+There are also two concrete cross-boundary rules worth preserving:
+
+- Python package code should import the embedded extension through
+  `stilyagi._stilyagi_rs` and then expose user-facing orchestration from the
+  `stilyagi` package surface, rather than letting callers bind to a second
+  top-level module.
+- The Rust workspace should not depend on Python package modules for policy or
+  plugin decisions. Python owns orchestration and registration; Rust owns
+  extraction and source fidelity.
 
 ## 5. Build workflow
 
@@ -275,7 +343,7 @@ the repository ready for local linting and tests.
 `make release` is the release artefact path. It runs:
 
 ```bash
-uv run --group dev maturin build --release --manifest-path rust_extension/Cargo.toml
+uv run --group dev maturin build --release --manifest-path crates/stilyagi-pyext/Cargo.toml
 ```
 
 That command produces Python wheel artefacts under the Rust target wheels
@@ -313,7 +381,7 @@ Their responsibilities are:
 - `make lint`
   - run Ruff checks through `uv`
   - run `cargo clippy` with warnings denied
-  - run Whitaker from `rust_extension/`
+  - run Whitaker from `crates/stilyagi-pyext/`
 - `make typecheck`
   - rebuilds the editable environment if needed
   - runs `ty check` through `uv`
@@ -667,7 +735,7 @@ of the mixed package.
 - Use `make release` for release builds.
 - Keep the Python package metadata and the Rust extension build path in sync.
 - Treat release-affecting changes to the Makefile, `pyproject.toml`, or
-  `rust_extension/Cargo.toml` as coupled changes that need end-to-end
+  `crates/stilyagi-pyext/Cargo.toml` as coupled changes that need end-to-end
   verification.
 
 If release packaging changes, this guide, the design document, and the relevant
