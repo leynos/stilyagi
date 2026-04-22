@@ -33,6 +33,10 @@
     plans the repository migration from the provisional `stilyagi/` plus
     `rust_extension/` tree to the long-lived `python/` and `crates/`
     mixed-package skeleton.
+  - [1.2.2 Rust-to-Python extraction through the PyO3 bridge](
+    execplans/1-2-2-rust-to-python-extraction-call-through-pyo3.md)
+    plans the first real document-shaped extraction call from Python into the
+    embedded Rust extension without helper-binary transport.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
