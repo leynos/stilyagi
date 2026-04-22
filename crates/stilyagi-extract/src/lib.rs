@@ -17,6 +17,9 @@ pub enum ExtractSyntax {
 }
 
 impl ExtractSyntax {
+    /// Ordered list of the stable syntax spellings exposed through the bridge.
+    pub const ALL: [Self; 3] = [Self::Markdown, Self::PythonDocstring, Self::RustDocComment];
+
     /// Return the stable Python-facing syntax spelling.
     #[must_use]
     pub const fn as_str(self) -> &'static str {

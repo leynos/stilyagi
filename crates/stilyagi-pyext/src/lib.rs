@@ -2,25 +2,11 @@
 
 use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyModule};
+use pyo3::types::{PyDict, PyList, PyModule, PyTuple};
 use stilyagi_core::smoke_hello;
 use stilyagi_extract::{
     ExtractError, ExtractSyntax, extract_document as extract_document_from_rust,
 };
-
-/// Bridge payload for one extracted prose region.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct BridgeRegion {
-    kind: String,
-    text: String,
-}
-
-/// Bridge payload for the first document-shaped extraction result.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct BridgeDocument {
-    syntax: String,
-    regions: Vec<BridgeRegion>,
-}
 
 /// Return a simple Rust-side greeting for smoke-testing the extension bridge.
 #[pyfunction]
@@ -32,55 +18,46 @@ fn hello() -> &'static str {
     smoke_hello()
 }
 
-/// Bridge the narrow Rust extraction payload into Python-owned data.
-fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<BridgeDocument> {
-    let extract_syntax = ExtractSyntax::try_from(syntax).map_err(map_extract_error)?;
-    let document = extract_document_from_rust(source, extract_syntax).map_err(map_extract_error)?;
-    let regions = document
-        .regions()
-        .iter()
-        .map(|region| BridgeRegion {
-            kind: region.kind().to_owned(),
-            text: region.text().to_owned(),
-        })
-        .collect();
+/// Return the stable syntax spellings exported by the Rust bridge.
+#[pyfunction(name = "supported_syntaxes")]
+fn supported_syntaxes_py(py: Python<'_>) -> PyResult<Py<PyTuple>> {
+    let syntax_items = ExtractSyntax::ALL
+        .into_iter()
+        .map(ExtractSyntax::as_str)
+        .collect::<Vec<_>>();
 
-    Ok(BridgeDocument {
-        syntax: document.syntax().as_str().to_owned(),
-        regions,
-    })
+    Ok(PyTuple::new(py, syntax_items)?.unbind())
 }
 
 /// Return the minimal extraction payload through the `PyO3` extension boundary.
 #[pyfunction(name = "extract_document")]
 fn extract_document_py(py: Python<'_>, source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
-    let bridge_document = bridge_extract_document(source, syntax)?;
+    let extract_syntax =
+        ExtractSyntax::try_from(syntax).map_err(|error| map_extract_error(&error))?;
+    let document = extract_document_from_rust(source, extract_syntax)
+        .map_err(|error| map_extract_error(&error))?;
     let document_dict = PyDict::new(py);
-    let region_items = bridge_document
-        .regions
+    let region_items = document
+        .regions()
         .iter()
         .map(|region| {
             let region_dict = PyDict::new(py);
-            region_dict.set_item("kind", &region.kind)?;
-            region_dict.set_item("text", &region.text)?;
+            region_dict.set_item("kind", region.kind())?;
+            region_dict.set_item("text", region.text())?;
             Ok(region_dict.unbind())
         })
         .collect::<PyResult<Vec<_>>>()?;
     let region_list = PyList::new(py, region_items)?;
 
-    document_dict.set_item("syntax", bridge_document.syntax)?;
+    document_dict.set_item("syntax", document.syntax().as_str())?;
     document_dict.set_item("regions", region_list)?;
     Ok(document_dict.unbind())
 }
 
-fn map_extract_error(error: ExtractError) -> PyErr {
+fn map_extract_error(error: &ExtractError) -> PyErr {
     match error {
-        ExtractError::UnsupportedSyntax(syntax) => {
-            PyNotImplementedError::new_err(format!("{syntax} extraction is not implemented yet."))
-        }
-        ExtractError::UnknownSyntax(syntax) => {
-            PyValueError::new_err(format!("unknown syntax '{syntax}'"))
-        }
+        ExtractError::UnsupportedSyntax(_) => PyNotImplementedError::new_err(error.to_string()),
+        ExtractError::UnknownSyntax(_) => PyValueError::new_err(error.to_string()),
     }
 }
 
@@ -89,12 +66,15 @@ fn map_extract_error(error: ExtractError) -> PyErr {
 fn _stilyagi_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(extract_document_py, m)?)?;
     m.add_function(wrap_pyfunction!(hello, m)?)?;
+    m.add_function(wrap_pyfunction!(supported_syntaxes_py, m)?)?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{BridgeDocument, bridge_extract_document, hello};
+    use super::{extract_document_py, hello, supported_syntaxes_py};
+    use pyo3::prelude::{Py, Python};
+    use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
     use rstest::{fixture, rstest};
     use rstest_bdd_macros::{given, scenario, then, when};
     use stilyagi_extract::ExtractSyntax;
@@ -102,7 +82,7 @@ mod tests {
     struct BridgeState {
         bridge_greeting: Option<&'static str>,
         core_greeting: Option<&'static str>,
-        extracted_document: Option<BridgeDocument>,
+        extracted_document: Option<Py<PyDict>>,
     }
 
     #[fixture]
@@ -126,38 +106,125 @@ mod tests {
     }
 
     #[rstest]
-    fn bridge_extract_document_delegates_to_the_extraction_crate() {
-        let bridge_document_result = bridge_extract_document("# Heading", "markdown");
+    fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
+        Python::attach(|py| {
+            let syntax_tuple_result = supported_syntaxes_py(py);
 
-        assert!(bridge_document_result.is_ok());
-        let bridge_document = match bridge_document_result {
-            Ok(document) => document,
-            Err(error) => panic!("unexpected extraction failure: {error}"),
-        };
-        let first_region = bridge_document.regions.first();
+            assert!(syntax_tuple_result.is_ok());
+            let supported_syntaxes = match syntax_tuple_result {
+                Ok(syntax_tuple) => syntax_tuple,
+                Err(error) => panic!("unexpected supported_syntaxes failure: {error}"),
+            };
+            let supported_syntaxes_bound = supported_syntaxes.bind(py);
+            let supported_syntax_tuple = supported_syntaxes_bound
+                .cast::<PyTuple>()
+                .unwrap_or_else(|error| panic!("expected PyTuple but got {error}"));
 
-        assert_eq!(bridge_document.syntax, ExtractSyntax::Markdown.as_str());
-        assert_eq!(bridge_document.regions.len(), 1);
-        assert_eq!(
-            first_region.map(|region| region.kind.as_str()),
-            Some("document")
-        );
-        assert_eq!(
-            first_region.map(|region| region.text.as_str()),
-            Some("# Heading")
-        );
+            assert_eq!(
+                supported_syntax_tuple
+                    .len()
+                    .unwrap_or_else(|error| panic!("expected tuple length: {error}")),
+                ExtractSyntax::ALL.len(),
+            );
+            assert_eq!(
+                supported_syntax_tuple
+                    .get_item(0)
+                    .unwrap_or_else(|error| panic!("missing first syntax: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                "markdown",
+            );
+            assert_eq!(
+                supported_syntax_tuple
+                    .get_item(1)
+                    .unwrap_or_else(|error| panic!("missing second syntax: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                "python_docstring",
+            );
+            assert_eq!(
+                supported_syntax_tuple
+                    .get_item(2)
+                    .unwrap_or_else(|error| panic!("missing third syntax: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                "rust_doc_comment",
+            );
+        });
     }
 
     #[rstest]
-    fn bridge_extract_document_rejects_unsupported_syntaxes() {
-        let error_result = bridge_extract_document("Example", "python_docstring");
+    fn extract_document_py_exposes_markdown_document() {
+        Python::attach(|py| {
+            let document_result = extract_document_py(py, "# Heading", "markdown");
 
-        assert!(error_result.is_err());
-        let error = match error_result {
-            Ok(document) => panic!("expected unsupported syntax error, got {document:?}"),
-            Err(error) => error,
-        };
-        assert!(error.to_string().contains("python_docstring"));
+            assert!(document_result.is_ok());
+            let extracted_document = match document_result {
+                Ok(document) => document,
+                Err(error) => panic!("unexpected extraction failure: {error}"),
+            };
+            let extracted_document_bound = extracted_document.bind(py);
+            let extracted_document_dict = extracted_document_bound
+                .cast::<PyDict>()
+                .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+            let regions_any = extracted_document_dict
+                .get_item("regions")
+                .unwrap_or_else(|error| panic!("missing regions payload: {error}"));
+            let regions = regions_any
+                .cast::<PyList>()
+                .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
+            let first_region_any = regions
+                .get_item(0)
+                .unwrap_or_else(|error| panic!("missing first region: {error}"));
+            let first_region = first_region_any
+                .cast::<PyDict>()
+                .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+
+            assert_eq!(
+                extracted_document_dict
+                    .get_item("syntax")
+                    .unwrap_or_else(|error| panic!("missing syntax payload: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                ExtractSyntax::Markdown.as_str(),
+            );
+            assert_eq!(
+                regions
+                    .len()
+                    .unwrap_or_else(|error| panic!("expected list length: {error}")),
+                1,
+            );
+            assert_eq!(
+                first_region
+                    .get_item("kind")
+                    .unwrap_or_else(|error| panic!("missing kind payload: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected kind string: {error}")),
+                "document",
+            );
+            assert_eq!(
+                first_region
+                    .get_item("text")
+                    .unwrap_or_else(|error| panic!("missing text payload: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected text string: {error}")),
+                "# Heading",
+            );
+        });
+    }
+
+    #[rstest]
+    fn extract_document_py_rejects_unsupported_syntaxes() {
+        Python::attach(|py| {
+            let error_result = extract_document_py(py, "Example", "python_docstring");
+
+            assert!(error_result.is_err());
+            let error = match error_result {
+                Ok(document) => panic!("expected unsupported syntax error, got {document:?}"),
+                Err(error) => error,
+            };
+            assert!(error.to_string().contains("python_docstring"));
+        });
     }
 
     #[given("the bridge can call the shared smoke greeting")]
@@ -187,24 +254,28 @@ mod tests {
 
     #[when("the bridge extracts a Markdown document")]
     fn bridge_extracts_a_markdown_document(bridge_state: &mut BridgeState) {
-        let extracted_document_result = bridge_extract_document("# Heading", "markdown");
+        Python::attach(|py| {
+            let extracted_document_result = extract_document_py(py, "# Heading", "markdown");
 
-        assert!(extracted_document_result.is_ok());
-        bridge_state.extracted_document = match extracted_document_result {
-            Ok(document) => Some(document),
-            Err(error) => panic!("unexpected extraction failure: {error}"),
-        };
+            assert!(extracted_document_result.is_ok());
+            bridge_state.extracted_document = match extracted_document_result {
+                Ok(document) => Some(document),
+                Err(error) => panic!("unexpected extraction failure: {error}"),
+            };
+        });
     }
 
     #[when("the bridge extracts a blank Markdown document")]
     fn bridge_extracts_a_blank_markdown_document(bridge_state: &mut BridgeState) {
-        let extracted_document_result = bridge_extract_document("   \n", "markdown");
+        Python::attach(|py| {
+            let extracted_document_result = extract_document_py(py, "   \n", "markdown");
 
-        assert!(extracted_document_result.is_ok());
-        bridge_state.extracted_document = match extracted_document_result {
-            Ok(document) => Some(document),
-            Err(error) => panic!("unexpected extraction failure: {error}"),
-        };
+            assert!(extracted_document_result.is_ok());
+            bridge_state.extracted_document = match extracted_document_result {
+                Ok(document) => Some(document),
+                Err(error) => panic!("unexpected extraction failure: {error}"),
+            };
+        });
     }
 
     #[then("the extracted document reports Markdown syntax")]
@@ -214,7 +285,21 @@ mod tests {
             .as_ref()
             .unwrap_or_else(|| panic!("an extracted document should be present"));
 
-        assert_eq!(extracted_document.syntax, "markdown");
+        Python::attach(|py| {
+            let extracted_document_bound = extracted_document.bind(py);
+            let extracted_document_dict = extracted_document_bound
+                .cast::<PyDict>()
+                .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+
+            assert_eq!(
+                extracted_document_dict
+                    .get_item("syntax")
+                    .unwrap_or_else(|error| panic!("missing syntax payload: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                "markdown",
+            );
+        });
     }
 
     #[then("the extracted document preserves one source-backed region")]
@@ -223,17 +308,48 @@ mod tests {
             .extracted_document
             .as_ref()
             .unwrap_or_else(|| panic!("an extracted document should be present"));
-        let first_region = extracted_document.regions.first();
 
-        assert_eq!(extracted_document.regions.len(), 1);
-        assert_eq!(
-            first_region.map(|region| region.kind.as_str()),
-            Some("document")
-        );
-        assert_eq!(
-            first_region.map(|region| region.text.as_str()),
-            Some("# Heading")
-        );
+        Python::attach(|py| {
+            let extracted_document_bound = extracted_document.bind(py);
+            let extracted_document_dict = extracted_document_bound
+                .cast::<PyDict>()
+                .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+            let regions_any = extracted_document_dict
+                .get_item("regions")
+                .unwrap_or_else(|error| panic!("missing regions payload: {error}"));
+            let regions = regions_any
+                .cast::<PyList>()
+                .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
+            let first_region_any = regions
+                .get_item(0)
+                .unwrap_or_else(|error| panic!("missing first region: {error}"));
+            let first_region = first_region_any
+                .cast::<PyDict>()
+                .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+
+            assert_eq!(
+                regions
+                    .len()
+                    .unwrap_or_else(|error| panic!("expected list length: {error}")),
+                1,
+            );
+            assert_eq!(
+                first_region
+                    .get_item("kind")
+                    .unwrap_or_else(|error| panic!("missing kind payload: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected kind string: {error}")),
+                "document",
+            );
+            assert_eq!(
+                first_region
+                    .get_item("text")
+                    .unwrap_or_else(|error| panic!("missing text payload: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected text string: {error}")),
+                "# Heading",
+            );
+        });
     }
 
     #[then("the extracted document has no regions")]
@@ -243,7 +359,25 @@ mod tests {
             .as_ref()
             .unwrap_or_else(|| panic!("an extracted document should be present"));
 
-        assert!(extracted_document.regions.is_empty());
+        Python::attach(|py| {
+            let extracted_document_bound = extracted_document.bind(py);
+            let extracted_document_dict = extracted_document_bound
+                .cast::<PyDict>()
+                .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+            let regions_any = extracted_document_dict
+                .get_item("regions")
+                .unwrap_or_else(|error| panic!("missing regions payload: {error}"));
+            let regions = regions_any
+                .cast::<PyList>()
+                .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
+
+            assert_eq!(
+                regions
+                    .len()
+                    .unwrap_or_else(|error| panic!("expected list length: {error}")),
+                0,
+            );
+        });
     }
 
     #[scenario(

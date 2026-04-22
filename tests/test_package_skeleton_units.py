@@ -121,6 +121,17 @@ def test_engine_extract_document_keeps_blank_markdown_empty() -> None:
     assert document == model.Document(syntax=model.Syntax.MARKDOWN)
 
 
+def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
+    """Keep the Python enum and the Rust bridge syntax spellings aligned."""
+    from stilyagi._stilyagi_rs import supported_syntaxes
+
+    assert supported_syntaxes() == (
+        model.Syntax.MARKDOWN.value,
+        model.Syntax.PYTHON_DOCSTRING.value,
+        model.Syntax.RUST_DOC_COMMENT.value,
+    )
+
+
 @pytest.mark.parametrize(
     "syntax",
     [model.Syntax.PYTHON_DOCSTRING, model.Syntax.RUST_DOC_COMMENT],

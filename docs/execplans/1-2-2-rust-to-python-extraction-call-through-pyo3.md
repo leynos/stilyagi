@@ -1,4 +1,4 @@
-# Expose the first Rust-to-Python extraction call through the PyO3 bridge
+# Expose the first Rust-to-Python extraction call through the PyO3 (Rust-to-Python bindings) bridge
 
 This ExecPlan (execution plan) is a living document. The sections
 `Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
@@ -449,6 +449,10 @@ The feature is complete when all of the following are true:
   `docs/roadmap.md`.
 - [x] 2026-04-22 18:41 CEST: Ran the sequential validation gates and captured
   final evidence.
+- [x] 2026-04-22 20:56 CEST: Addressed review feedback by removing the extra
+  Rust bridge result layer, centralizing syntax-spelling checks through the
+  extension boundary, tightening Python payload validation, and updating this
+  ExecPlan to define `PyO3` on first use.
 
 ## Surprises & Discoveries
 
@@ -465,6 +469,10 @@ The feature is complete when all of the following are true:
   still enabled `pyo3/extension-module`. Modern PyO3 guidance for current
   `maturin` releases is to let the build backend control extension-module build
   mode so Rust test binaries can still link.
+- Follow-up review feedback showed that the first implementation was still
+  carrying an avoidable internal Rust `BridgeDocument` layer. The bridge now
+  maps directly from `ExtractDocument` into Python objects, and the Python
+  adapter owns the runtime payload validation.
 
 ## Decision Log
 
@@ -508,6 +516,19 @@ The feature is complete when all of the following are true:
   of the shared `extension-module` feature. Rationale: local `maturin` builds
   still succeed, and Rust-side `cargo test` for the PyO3 crate now links and
   runs without the unresolved Python symbols caused by `extension-module`.
+
+- 2026-04-22: Review follow-up work removed the internal Rust `BridgeRegion` and
+  `BridgeDocument` types, and the PyO3 tests now inspect the real Python-shaped
+  payload returned by `extract_document_py`. Rationale: this keeps the bridge
+  surface closer to the shipped API and reduces representation drift inside the
+  Rust crate.
+
+- 2026-04-22: Review follow-up work exposed `supported_syntaxes()` from the
+  extension and validates that its Rust-owned spellings match
+  `model.Syntax`. Rationale: the bridge still crosses a string-based boundary,
+  so the next-best single source of truth is to have Python verify that it is
+  consuming the Rust extractor's declared syntax vocabulary instead of assuming
+  the enum values always stay aligned by accident.
 
 ## Outcomes & Retrospective
 
