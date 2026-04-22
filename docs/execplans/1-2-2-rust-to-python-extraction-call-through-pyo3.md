@@ -524,11 +524,11 @@ The feature is complete when all of the following are true:
   Rust crate.
 
 - 2026-04-22: Review follow-up work exposed `supported_syntaxes()` from the
-  extension and validates that its Rust-owned spellings match
-  `model.Syntax`. Rationale: the bridge still crosses a string-based boundary,
-  so the next-best single source of truth is to have Python verify that it is
-  consuming the Rust extractor's declared syntax vocabulary instead of assuming
-  the enum values always stay aligned by accident.
+  extension and validates that its Rust-owned spellings match `model.Syntax`.
+  Rationale: the bridge still crosses a string-based boundary, so the next-best
+  single source of truth is to have Python verify that it is consuming the Rust
+  extractor's declared syntax vocabulary instead of assuming the enum values
+  always stay aligned by accident.
 
 ## Outcomes & Retrospective
 

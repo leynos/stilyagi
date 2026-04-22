@@ -40,6 +40,7 @@ The minimum local setup is:
 - Python 3.14 available to `uv`
 - Rust toolchain with `cargo`, `rustfmt`, and `clippy`
 - `uv`
+- `maturin` 1.9.4 or newer
 - `whitaker`
 - `markdownlint-cli2`
 - `nixie`
@@ -284,7 +285,9 @@ For local testing, the workspace intentionally no longer enables
 `pyo3/extension-module` through the shared dependency declaration. Current PyO3
 guidance for modern `maturin` releases is to let the build backend manage the
 extension-module build mode so `cargo test` can still link and execute the Rust
-test binaries.[^3]
+test binaries.[^3] Because this now relies on the packaging backend exporting
+`PYO3_BUILD_EXTENSION_MODULE`, the repository requires `maturin` 1.9.4 or newer
+in both the build-system and dev-tooling dependencies.
 
 ### 4.1 Current mixed-package skeleton
 
