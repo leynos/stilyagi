@@ -259,6 +259,14 @@ mod tests {
         extract_document(source, syntax).expect_err("expected extraction failure")
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper should fail loudly when invalid syntax conversion unexpectedly succeeds"
+    )]
+    fn must_reject_syntax_name(input: &str) -> ExtractError {
+        ExtractSyntax::try_from(input).expect_err("expected unknown syntax error")
+    }
+
     #[fixture]
     fn extracted_markdown() -> ExtractDocument {
         must_extract_document("# Heading", ExtractSyntax::Markdown)
@@ -372,13 +380,7 @@ mod tests {
     #[case("")]
     #[case("MARKDOWN")]
     fn try_from_str_rejects_unknown_syntax(#[case] input: &str) {
-        let result = ExtractSyntax::try_from(input);
-
-        assert!(result.is_err());
-        let error = match result {
-            Ok(syntax) => panic!("expected unknown syntax error, got {syntax:?}"),
-            Err(error) => error,
-        };
+        let error = must_reject_syntax_name(input);
         assert!(matches!(error, ExtractError::UnknownSyntax(_)));
         assert!(error.to_string().contains(input) || input.is_empty());
     }

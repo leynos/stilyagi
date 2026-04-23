@@ -285,8 +285,8 @@ pretending to be the final IR.
 Use `crates/stilyagi-extract/src/lib.rs` for the first implementation. The
 recommended shape is a pair of simple structs such as `PartialDocument` and
 `PartialRegion`, plus a syntax-aware function such as
-`extract_document(source: &str, syntax: ExtractSyntax) ->
-Result<ExtractDocument, ExtractError>`.
+`extract_document(source: &str, syntax: ExtractSyntax)` returning
+`Result<ExtractDocument, ExtractError>`.
 
 Implementation rules for this milestone:
 
