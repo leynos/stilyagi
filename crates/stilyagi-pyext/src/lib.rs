@@ -74,8 +74,7 @@ fn _stilyagi_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::{extract_document_py, hello, supported_syntaxes_py};
-    use pyo3::exceptions::PyValueError;
-    use pyo3::prelude::{Py, PyResult, Python};
+    use pyo3::prelude::{Py, PyErr, PyResult, Python};
     use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
     use rstest::{fixture, rstest};
     use rstest_bdd_macros::{given, scenario, then, when};
@@ -96,8 +95,34 @@ mod tests {
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper stores a verified successful extraction result"
+    )]
+    fn perform_extraction(source: &str, syntax: &str, bridge_state: &mut BridgeState) {
+        Python::attach(|py| {
+            let result = extract_document_py(py, source, syntax);
+            assert!(
+                result.is_ok(),
+                "unexpected extraction failure: {:?}",
+                result.err()
+            );
+            bridge_state.extracted_document =
+                Some(result.expect("result was already verified as Ok"));
+        });
+    }
+
     fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
         Python::attach(|py| extract_document_py(py, source, syntax))
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper should fail loudly when invalid syntax unexpectedly succeeds"
+    )]
+    fn invalid_syntax_error(syntax: &str) -> PyErr {
+        bridge_extract_document("Example", syntax)
+            .expect_err(&format!("expected an error for syntax {syntax:?}"))
     }
 
     #[rstest]
@@ -219,33 +244,20 @@ mod tests {
         });
     }
 
+    /// Keep rejection behaviour stable for both unsupported and unknown
+    /// syntax strings.
     #[rstest]
-    fn extract_document_py_rejects_unsupported_syntaxes() {
-        Python::attach(|py| {
-            let error_result = extract_document_py(py, "Example", "python_docstring");
-
-            assert!(error_result.is_err());
-            let error = match error_result {
-                Ok(document) => panic!("expected unsupported syntax error, got {document:?}"),
-                Err(error) => error,
-            };
-            assert!(error.to_string().contains("python_docstring"));
-        });
-    }
-
-    #[rstest]
-    fn extract_document_py_rejects_unknown_syntaxes() {
-        Python::attach(|py| {
-            let error_result = extract_document_py(py, "Example", "not_a_syntax");
-
-            assert!(error_result.is_err());
-            let error = match error_result {
-                Ok(document) => panic!("expected unknown syntax error, got {document:?}"),
-                Err(error) => error,
-            };
-            assert!(error.is_instance_of::<PyValueError>(py));
-            assert!(error.to_string().contains("not_a_syntax"));
-        });
+    #[case("python_docstring", "python_docstring")]
+    #[case("not_a_syntax", "not_a_syntax")]
+    fn extract_document_py_rejects_invalid_syntaxes(
+        #[case] syntax: &str,
+        #[case] expected_fragment: &str,
+    ) {
+        let err = invalid_syntax_error(syntax);
+        assert!(
+            err.to_string().contains(expected_fragment),
+            "error message {err:?} did not contain {expected_fragment:?}"
+        );
     }
 
     /// Keep the `UnknownSyntax` arm of `map_extract_error` wired to a
@@ -290,28 +302,12 @@ mod tests {
 
     #[when("the bridge extracts a Markdown document")]
     fn bridge_extracts_a_markdown_document(bridge_state: &mut BridgeState) {
-        Python::attach(|py| {
-            let extracted_document_result = extract_document_py(py, "# Heading", "markdown");
-
-            assert!(extracted_document_result.is_ok());
-            bridge_state.extracted_document = match extracted_document_result {
-                Ok(document) => Some(document),
-                Err(error) => panic!("unexpected extraction failure: {error}"),
-            };
-        });
+        perform_extraction("# Heading", "markdown", bridge_state);
     }
 
     #[when("the bridge extracts a blank Markdown document")]
     fn bridge_extracts_a_blank_markdown_document(bridge_state: &mut BridgeState) {
-        Python::attach(|py| {
-            let extracted_document_result = extract_document_py(py, "   \n", "markdown");
-
-            assert!(extracted_document_result.is_ok());
-            bridge_state.extracted_document = match extracted_document_result {
-                Ok(document) => Some(document),
-                Err(error) => panic!("unexpected extraction failure: {error}"),
-            };
-        });
+        perform_extraction("   \n", "markdown", bridge_state);
     }
 
     #[then("the extracted document reports Markdown syntax")]
