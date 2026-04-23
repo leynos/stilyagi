@@ -38,14 +38,14 @@ def inspect_supported_package_boundaries(
     """Inspect the supported package surface in a subprocess."""
     package_probe_state["boundary_probe"] = run_python_snippet(
         """
-import importlib
+import dataclasses as dc
 import json
 import stilyagi
 
-importlib.import_module("stilyagi.engine")
-importlib.import_module("stilyagi.model")
-
-print(json.dumps({"hello": stilyagi.hello()}))
+document = stilyagi.engine.extract_document("# Heading", stilyagi.model.Syntax.MARKDOWN)
+payload = dc.asdict(document)
+payload["syntax"] = document.syntax.value
+print(json.dumps(payload))
 """
     )
 
@@ -59,14 +59,17 @@ def engine_and_model_packages_import_successfully(
     assert boundary_probe["returncode"] == 0, boundary_probe["stderr"]
 
 
-@then("the package reports the Rust smoke greeting")
-def package_reports_the_rust_smoke_greeting(
+@then("the package reports a Markdown document extracted by Rust")
+def package_reports_a_markdown_document_extracted_by_rust(
     package_probe_state: PackageProbeState,
 ) -> None:
-    """Confirm that the subprocess reports the Rust-backed greeting."""
+    """Confirm that the subprocess reports the Rust-backed document payload."""
     boundary_probe = require_result(package_probe_state["boundary_probe"])
     payload = json.loads(boundary_probe["stdout"])
-    assert payload["hello"] == "hello from Rust"
+    assert payload == {
+        "syntax": "markdown",
+        "regions": [{"kind": "document", "text": "# Heading"}],
+    }
 
 
 @when("I import the legacy pure-Python fallback module")

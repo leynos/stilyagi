@@ -22,7 +22,13 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
     [
         (
             engine,
-            ["EngineRunner", "ExecutionPlan", "FixPlan", "RendererRegistry"],
+            [
+                "EngineRunner",
+                "ExecutionPlan",
+                "FixPlan",
+                "RendererRegistry",
+                "extract_document",
+            ],
         ),
         (model, ["Document", "Region", "Sentence", "Syntax", "Token"]),
         (nlp, ["NlpProvider", "SpacyProviderConfig"]),
@@ -91,6 +97,54 @@ def test_engine_skeleton_dataclasses_preserve_their_fields() -> None:
     assert engine.EngineRunner(execution_plan=execution_plan).execution_plan is (
         execution_plan
     )
+
+
+def test_engine_extract_document_returns_a_model_document() -> None:
+    """Expose one typed extraction entrypoint from the engine package."""
+    document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
+
+    assert isinstance(document, model.Document)
+    assert document.syntax is model.Syntax.MARKDOWN
+
+
+def test_engine_extract_document_maps_regions_into_model_regions() -> None:
+    """Adapt the bridge payload into the Python model surface."""
+    document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
+
+    assert document.regions == (model.Region(kind="document", text="# Heading"),)
+
+
+def test_engine_extract_document_keeps_blank_markdown_empty() -> None:
+    """Preserve the extractor's blank-input contract at the public boundary."""
+    document = engine.extract_document("   \n", model.Syntax.MARKDOWN)
+
+    assert document == model.Document(syntax=model.Syntax.MARKDOWN)
+
+
+def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
+    """Keep the Python enum and the Rust bridge syntax spellings aligned."""
+    from stilyagi._stilyagi_rs import supported_syntaxes
+
+    assert supported_syntaxes() == (
+        model.Syntax.MARKDOWN.value,
+        model.Syntax.PYTHON_DOCSTRING.value,
+        model.Syntax.RUST_DOC_COMMENT.value,
+    )
+
+
+@pytest.mark.parametrize(
+    "syntax",
+    [model.Syntax.PYTHON_DOCSTRING, model.Syntax.RUST_DOC_COMMENT],
+)
+def test_engine_extract_document_rejects_unsupported_syntaxes(
+    syntax: model.Syntax,
+) -> None:
+    """Reject syntaxes that the first Rust bridge does not implement yet."""
+    with pytest.raises(
+        NotImplementedError,
+        match=rf"^{syntax.value} extraction is not implemented yet\.$",
+    ):
+        engine.extract_document("Example", syntax)
 
 
 def test_model_skeleton_dataclasses_preserve_defaults_and_children() -> None:

@@ -85,7 +85,7 @@ The implementer should keep these documents open while executing the plan:
   [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md),
   [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), and
   [docs/reliable-testing-in-rust-via-dependency-injection.md](../reliable-testing-in-rust-via-dependency-injection.md)
-  for the required Rust-side unit, behaviour, doctest, and
+   for the required Rust-side unit, behaviour, doctest, and
   dependency-injection testing style.
 - [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../rfcs/0004-stilyagi-rule-testing-framework.md)
   for the long-lived testing direction that later slices will extend from the

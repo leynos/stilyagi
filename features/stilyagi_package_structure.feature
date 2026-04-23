@@ -4,7 +4,7 @@ Feature: Stilyagi package structure
     Given the built Stilyagi package is available
     When I inspect the supported package boundaries
     Then the engine and model packages import successfully
-    And the package reports the Rust smoke greeting
+    And the package reports a Markdown document extracted by Rust
 
   Scenario: Rejecting the legacy pure-Python fallback
     Given the built Stilyagi package is available

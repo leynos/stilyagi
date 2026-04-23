@@ -40,6 +40,7 @@ The minimum local setup is:
 - Python 3.14 available to `uv`
 - Rust toolchain with `cargo`, `rustfmt`, and `clippy`
 - `uv`
+- `maturin` 1.9.4 or newer
 - `whitaker`
 - `markdownlint-cli2`
 - `nixie`
@@ -256,6 +257,21 @@ The current integration contract is intentionally small:
 - Rust tests cover Rust-only behaviour, while Python tests cover package-level
   integration and user-facing behaviour.
 
+The first real extraction path is now:
+
+```plaintext
+python/stilyagi/engine/extraction.py
+  -> stilyagi._stilyagi_rs.extract_document(source, syntax)
+  -> crates/stilyagi-pyext/src/lib.rs
+  -> crates/stilyagi-extract/src/lib.rs
+```
+
+That split is deliberate. `crates/stilyagi-extract/` owns the partial
+document-shaped extraction result and the syntax gate. `crates/stilyagi-pyext/`
+translates between Rust types and a Python-owned bridge payload. The public
+Python surface then adapts that payload into `stilyagi.model.Document` and
+`stilyagi.model.Region`.
+
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine
 building blocks. A bad boundary exports policy-heavy convenience wrappers that
@@ -264,6 +280,14 @@ would force rule-engine churn into the extension crate.
 The repository should also resist any drift toward a subprocess helper model
 unless a later ADR explicitly reopens that question. The accepted v1 boundary
 is in-process, and later roadmap steps may assume that constraint.[^1]
+
+For local testing, the workspace intentionally no longer enables
+`pyo3/extension-module` through the shared dependency declaration. Current PyO3
+guidance for modern `maturin` releases is to let the build backend manage the
+extension-module build mode so `cargo test` can still link and execute the Rust
+test binaries.[^3] Because this now relies on the packaging backend exporting
+`PYO3_BUILD_EXTENSION_MODULE`, the repository requires `maturin` 1.9.4 or newer
+in both the build-system and dev-tooling dependencies.
 
 ### 4.1 Current mixed-package skeleton
 
@@ -286,8 +310,10 @@ current skeleton:
 - `crates/stilyagi-tree-sitter`
   - reserved home for tree-sitter integration and syntax-tree helpers
 - `crates/stilyagi-extract`
-  - reserved home for cross-syntax extraction orchestration that composes the
-    lower-level crates
+  - home for cross-syntax extraction orchestration that composes the lower-level
+    crates
+  - now owns the first minimal `extract_document(...)` proof used by the PyO3
+    bridge
 - `python/stilyagi/__init__.py`
   - public Python package surface that re-exports the supported package
     boundaries and imports the embedded Rust extension
@@ -415,6 +441,7 @@ single-language package.
 
 [^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
 [^2]: [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
+[^3]: [PyO3 FAQ: linker issues with `cargo test`](https://pyo3.rs/main/faq)
 
 Substantial architecture changes should update both the code and the documents
 that define the current contracts. Stale documentation is treated as a defect,

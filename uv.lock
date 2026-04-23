@@ -265,7 +265,7 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "maturin" },
+    { name = "maturin", specifier = ">=1.9.4,<2.0" },
     { name = "parse-type" },
     { name = "pytest" },
     { name = "pytest-bdd" },

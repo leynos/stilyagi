@@ -9,3 +9,15 @@ Feature: PyO3 bridge structure
     Given the bridge can call the shared smoke greeting
     When the bridge produces a hello greeting
     Then the greeting is not the legacy Python fallback
+
+  Scenario: Bridge extracts a Markdown document through the Rust boundary
+    Given the bridge can call the Rust extraction entrypoint
+    When the bridge extracts a Markdown document
+    Then the extracted document reports Markdown syntax
+    And the extracted document preserves one source-backed region
+
+  Scenario: Bridge keeps blank Markdown extraction empty
+    Given the bridge can call the Rust extraction entrypoint
+    When the bridge extracts a blank Markdown document
+    Then the extracted document reports Markdown syntax
+    And the extracted document has no regions

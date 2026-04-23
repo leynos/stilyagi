@@ -45,7 +45,17 @@ owns a long-lived architectural role:
 - `stilyagi.hello()` exercises the embedded Rust bridge and is the current
   smoke path for the package skeleton.
 - `stilyagi.engine` is the future home for execution planning, fix planning,
-  rendering, and runner orchestration.
+  rendering, and runner orchestration. It now also exposes the first real
+  extraction call:
+
+  ```python
+  from stilyagi import engine, model
+
+  document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
+  assert document.syntax is model.Syntax.MARKDOWN
+  assert document.regions[0].text == "# Heading"
+  ```
+
 - `stilyagi.model` is the future home for document, region, sentence, and
   token runtime objects.
 - `stilyagi.config.StilyagiConfig` is the Python-side configuration boundary.
@@ -72,6 +82,19 @@ stilyagi.hello()
 
 `stilyagi.pure` was a compatibility shim from the pre-workspace layout and is
 no longer part of the supported package contract.
+
+The new extraction path is intentionally narrow in this slice:
+
+- `stilyagi.engine.extract_document(...)` is the supported public API for the
+  first real Rust extraction call.
+- `model.Syntax.MARKDOWN` is the only currently implemented syntax for that
+  API.
+- `model.Syntax.PYTHON_DOCSTRING` and `model.Syntax.RUST_DOC_COMMENT` are part
+  of the planned model vocabulary, but they currently raise
+  `NotImplementedError` when passed to `extract_document(...)`.
+- `stilyagi._stilyagi_rs` remains an internal bridge module. User code should
+  call `stilyagi.engine.extract_document(...)` rather than importing the raw
+  bridge directly.
 
 ## 2. What this does and does not promise
 
@@ -146,6 +169,12 @@ For day-to-day users, the mixed-package skeleton changes three practical things:
 - the placeholder engine, model, NLP, diagnostic, plugin, and rule modules now
   exist as stable import locations for later feature slices, so users should
   expect future releases to extend those modules rather than moving them again.
+
+The first implemented extractor proof now crosses the embedded Rust boundary
+without shelling out to a helper binary. Today that proof is deliberately
+small: non-blank Markdown input returns a document with one `document` region,
+blank Markdown input returns zero regions, and later roadmap items will refine
+that payload into the fuller IR contract.
 
 Until the command-line interface (CLI) and feature slices are implemented,
 treat this guide as a record of the stable user-facing v1 contract rather than
