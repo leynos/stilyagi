@@ -1,4 +1,13 @@
-"""Typed adapter for the narrow Rust extraction bridge."""
+"""Typed adapter for the narrow Rust extraction bridge.
+
+Use this module when Python code needs typed `stilyagi.model` documents backed
+by the embedded Rust extractor instead of the raw PyO3 payload. It validates
+the bridge payload, converts each region into `model.Region`, and returns a
+`model.Document` for the requested syntax.
+
+Example: `from stilyagi.engine.extraction import extract_document`
+`result = extract_document("# Heading", model.Syntax.MARKDOWN)`
+"""
 
 import typing as typ
 
@@ -80,23 +89,28 @@ def _coerce_bridge_document(payload: object) -> _BridgeDocument:
 
     normalized_regions: list[_BridgeRegion] = []
     for index, region in enumerate(regions):
-        if not isinstance(region, dict):
-            msg = (
-                "expected Rust bridge payload['regions']["
-                f"{index}] to be dict, got {type(region).__name__}"
-            )
-            raise TypeError(msg)
-        region_dict = typ.cast("dict[str, object]", region)
-
-        kind = region_dict.get("kind")
-        text = region_dict.get("text")
-        if not isinstance(kind, str):
-            msg = f"expected Rust bridge payload['regions'][{index}]['kind'] to be str"
-            raise TypeError(msg)
-        if not isinstance(text, str):
-            msg = f"expected Rust bridge payload['regions'][{index}]['text'] to be str"
-            raise TypeError(msg)
-
-        normalized_regions.append({"kind": kind, "text": text})
+        normalized_regions.append(_coerce_bridge_region(index, region))
 
     return {"syntax": syntax, "regions": normalized_regions}
+
+
+def _coerce_bridge_region(index: int, region: object) -> _BridgeRegion:
+    """Validate one raw bridge region before adapting it to Python models."""
+    if not isinstance(region, dict):
+        msg = (
+            "expected Rust bridge payload['regions']["
+            f"{index}] to be dict, got {type(region).__name__}"
+        )
+        raise TypeError(msg)
+    region_dict = typ.cast("dict[str, object]", region)
+
+    kind = region_dict.get("kind")
+    text = region_dict.get("text")
+    if not isinstance(kind, str):
+        msg = f"expected Rust bridge payload['regions'][{index}]['kind'] to be str"
+        raise TypeError(msg)
+    if not isinstance(text, str):
+        msg = f"expected Rust bridge payload['regions'][{index}]['text'] to be str"
+        raise TypeError(msg)
+
+    return {"kind": kind, "text": text}

@@ -329,12 +329,12 @@ Expected code changes:
 The Python wrapper should:
 
 - accept `source: str` and `syntax: model.Syntax`;
-- call `_stilyagi_rs.extract_document(source, syntax.value)` only for
-  `model.Syntax.MARKDOWN`;
+- forward `syntax.value` from every `model.Syntax` member to
+  `_stilyagi_rs.extract_document(source, syntax.value)`;
 - adapt the internal bridge payload into `model.Document` and
   `model.Region`;
-- raise `NotImplementedError` for `PYTHON_DOCSTRING` and `RUST_DOC_COMMENT`;
-  and
+- surface `NotImplementedError` or `ValueError` from the bridge for
+  unsupported syntax requests; and
 - avoid exposing the bridge payload shape as part of the public package
   contract.
 
@@ -561,7 +561,7 @@ The feature is complete when all of the following are true:
 
 - Observable success proof:
 
-  ```plaintext
+  ```python
   from stilyagi import engine, model
 
   document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)

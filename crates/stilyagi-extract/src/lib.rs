@@ -243,11 +243,20 @@ mod tests {
         assert!(format!("{:?}", ExtractBoundary::default()).contains("ExtractBoundary"));
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper should fail loudly when a supported extraction path breaks"
+    )]
     fn must_extract_document(source: &str, syntax: ExtractSyntax) -> ExtractDocument {
-        match extract_document(source, syntax) {
-            Ok(document) => document,
-            Err(error) => panic!("expected successful extraction, got {error}"),
-        }
+        extract_document(source, syntax).expect("expected successful extraction")
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper should fail loudly when an unsupported extraction unexpectedly succeeds"
+    )]
+    fn must_reject_document(source: &str, syntax: ExtractSyntax) -> ExtractError {
+        extract_document(source, syntax).expect_err("expected extraction failure")
     }
 
     #[fixture]
@@ -317,10 +326,7 @@ mod tests {
     #[case(ExtractSyntax::PythonDocstring)]
     #[case(ExtractSyntax::RustDocComment)]
     fn unsupported_syntaxes_are_rejected(#[case] syntax: ExtractSyntax) {
-        let error = match extract_document("example", syntax) {
-            Ok(document) => panic!("expected unsupported syntax error, got {document:?}"),
-            Err(error) => error,
-        };
+        let error = must_reject_document("example", syntax);
 
         assert_eq!(error, ExtractError::UnsupportedSyntax(syntax));
     }
