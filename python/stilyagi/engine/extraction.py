@@ -1,7 +1,5 @@
 """Typed adapter for the narrow Rust extraction bridge."""
 
-from __future__ import annotations
-
 import typing as typ
 
 from stilyagi import model

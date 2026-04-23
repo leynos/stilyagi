@@ -74,7 +74,8 @@ fn _stilyagi_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::{extract_document_py, hello, supported_syntaxes_py};
-    use pyo3::prelude::{Py, Python};
+    use pyo3::exceptions::PyValueError;
+    use pyo3::prelude::{Py, PyResult, Python};
     use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
     use rstest::{fixture, rstest};
     use rstest_bdd_macros::{given, scenario, then, when};
@@ -93,6 +94,10 @@ mod tests {
             core_greeting: None,
             extracted_document: None,
         }
+    }
+
+    fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
+        Python::attach(|py| extract_document_py(py, source, syntax))
     }
 
     #[rstest]
@@ -226,6 +231,36 @@ mod tests {
             };
             assert!(error.to_string().contains("python_docstring"));
         });
+    }
+
+    #[rstest]
+    fn extract_document_py_rejects_unknown_syntaxes() {
+        Python::attach(|py| {
+            let error_result = extract_document_py(py, "Example", "not_a_syntax");
+
+            assert!(error_result.is_err());
+            let error = match error_result {
+                Ok(document) => panic!("expected unknown syntax error, got {document:?}"),
+                Err(error) => error,
+            };
+            assert!(error.is_instance_of::<PyValueError>(py));
+            assert!(error.to_string().contains("not_a_syntax"));
+        });
+    }
+
+    /// Keep the `UnknownSyntax` arm of `map_extract_error` wired to a
+    /// `PyValueError` so Python callers receive a `ValueError` for
+    /// unrecognised syntax strings.
+    #[rstest]
+    fn bridge_extract_document_rejects_unknown_syntaxes() {
+        let error_result = bridge_extract_document("example", "not_a_real_syntax");
+
+        assert!(error_result.is_err());
+        let error = match error_result {
+            Ok(document) => panic!("expected unknown syntax error, got {document:?}"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("not_a_real_syntax"));
     }
 
     #[given("the bridge can call the shared smoke greeting")]

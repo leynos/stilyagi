@@ -195,8 +195,11 @@ fn extract_markdown_document(source: &str) -> ExtractDocument {
 
 #[cfg(test)]
 mod tests {
-    use super::{ExtractBoundary, ExtractError, ExtractRegion, ExtractSyntax, extract_document};
-    use rstest::rstest;
+    use super::{
+        ExtractBoundary, ExtractDocument, ExtractError, ExtractRegion, ExtractSyntax,
+        extract_document,
+    };
+    use rstest::{fixture, rstest};
     use stilyagi_ir::IrBoundary;
     use stilyagi_markdown::MarkdownBoundary;
     use stilyagi_tree_sitter::TreeSitterBoundary;
@@ -240,49 +243,57 @@ mod tests {
         assert!(format!("{:?}", ExtractBoundary::default()).contains("ExtractBoundary"));
     }
 
+    fn must_extract_document(source: &str, syntax: ExtractSyntax) -> ExtractDocument {
+        match extract_document(source, syntax) {
+            Ok(document) => document,
+            Err(error) => panic!("expected successful extraction, got {error}"),
+        }
+    }
+
+    #[fixture]
+    fn extracted_markdown() -> ExtractDocument {
+        must_extract_document("# Heading", ExtractSyntax::Markdown)
+    }
+
+    #[fixture]
+    fn extracted_blank_markdown_documents() -> Vec<ExtractDocument> {
+        ["", "   \n\t"]
+            .into_iter()
+            .map(|source| must_extract_document(source, ExtractSyntax::Markdown))
+            .collect()
+    }
+
+    #[fixture]
+    fn extracted_unicode_markdown() -> ExtractDocument {
+        must_extract_document("Zażółć gęślą jaźń 🫖", ExtractSyntax::Markdown)
+    }
+
     /// Keep the first extraction bridge pinned to Markdown for the initial
     /// vertical slice.
     #[rstest]
-    fn markdown_extraction_reports_markdown_syntax() {
-        let document_result = extract_document("# Heading", ExtractSyntax::Markdown);
-
-        assert!(document_result.is_ok());
-        let document = match document_result {
-            Ok(document) => document,
-            Err(error) => panic!("unexpected markdown extraction failure: {error}"),
-        };
-        assert_eq!(document.syntax(), ExtractSyntax::Markdown);
+    fn markdown_extraction_reports_markdown_syntax(extracted_markdown: ExtractDocument) {
+        assert_eq!(extracted_markdown.syntax(), ExtractSyntax::Markdown);
     }
 
     /// Keep blank Markdown extraction honest instead of synthesizing placeholder
     /// prose that does not exist in the source.
     #[rstest]
-    #[case("")]
-    #[case("   \n\t")]
-    fn blank_markdown_extraction_yields_no_regions(#[case] source: &str) {
-        let document_result = extract_document(source, ExtractSyntax::Markdown);
-
-        assert!(document_result.is_ok());
-        let document = match document_result {
-            Ok(document) => document,
-            Err(error) => panic!("unexpected blank markdown extraction failure: {error}"),
-        };
-        assert!(document.regions().is_empty());
+    fn blank_markdown_extraction_yields_no_regions(
+        extracted_blank_markdown_documents: Vec<ExtractDocument>,
+    ) {
+        for document in extracted_blank_markdown_documents {
+            assert!(document.regions().is_empty());
+        }
     }
 
     /// Keep the first end-to-end bridge narrow by returning one source-faithful
     /// region for non-empty Markdown.
     #[rstest]
-    fn non_blank_markdown_extraction_yields_one_document_region() {
-        let document_result = extract_document("# Heading", ExtractSyntax::Markdown);
-
-        assert!(document_result.is_ok());
-        let document = match document_result {
-            Ok(document) => document,
-            Err(error) => panic!("unexpected markdown extraction failure: {error}"),
-        };
-        assert_eq!(document.regions().len(), 1);
-        let first_region = document.regions().first();
+    fn non_blank_markdown_extraction_yields_one_document_region(
+        extracted_markdown: ExtractDocument,
+    ) {
+        assert_eq!(extracted_markdown.regions().len(), 1);
+        let first_region = extracted_markdown.regions().first();
 
         assert_eq!(first_region.map(ExtractRegion::kind), Some("document"));
         assert_eq!(first_region.map(ExtractRegion::text), Some("# Heading"));
@@ -291,15 +302,8 @@ mod tests {
     /// Preserve Unicode content across the extraction boundary so later rule
     /// layers can rely on source-faithful text.
     #[rstest]
-    fn markdown_extraction_preserves_unicode_text() {
-        let document_result = extract_document("Zażółć gęślą jaźń 🫖", ExtractSyntax::Markdown);
-
-        assert!(document_result.is_ok());
-        let document = match document_result {
-            Ok(document) => document,
-            Err(error) => panic!("unexpected markdown extraction failure: {error}"),
-        };
-        let first_region = document.regions().first();
+    fn markdown_extraction_preserves_unicode_text(extracted_unicode_markdown: ExtractDocument) {
+        let first_region = extracted_unicode_markdown.regions().first();
 
         assert_eq!(
             first_region.map(ExtractRegion::text),
@@ -313,13 +317,63 @@ mod tests {
     #[case(ExtractSyntax::PythonDocstring)]
     #[case(ExtractSyntax::RustDocComment)]
     fn unsupported_syntaxes_are_rejected(#[case] syntax: ExtractSyntax) {
-        let error_result = extract_document("example", syntax);
-
-        assert!(error_result.is_err());
-        let error = match error_result {
+        let error = match extract_document("example", syntax) {
             Ok(document) => panic!("expected unsupported syntax error, got {document:?}"),
             Err(error) => error,
         };
+
         assert_eq!(error, ExtractError::UnsupportedSyntax(syntax));
+    }
+
+    /// Keep the stable spelling of each syntax variant accessible to callers.
+    #[rstest]
+    #[case(ExtractSyntax::Markdown, "markdown")]
+    #[case(ExtractSyntax::PythonDocstring, "python_docstring")]
+    #[case(ExtractSyntax::RustDocComment, "rust_doc_comment")]
+    fn syntax_as_str_returns_the_expected_spelling(
+        #[case] syntax: ExtractSyntax,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(syntax.as_str(), expected);
+    }
+
+    /// Keep the Display output for each syntax variant identical to `as_str`.
+    #[rstest]
+    #[case(ExtractSyntax::Markdown, "markdown")]
+    #[case(ExtractSyntax::PythonDocstring, "python_docstring")]
+    #[case(ExtractSyntax::RustDocComment, "rust_doc_comment")]
+    fn syntax_display_matches_as_str(#[case] syntax: ExtractSyntax, #[case] expected: &str) {
+        assert_eq!(format!("{syntax}"), expected);
+    }
+
+    /// Keep the Display output for each error variant informative and stable.
+    #[rstest]
+    #[case(
+        ExtractError::UnsupportedSyntax(ExtractSyntax::PythonDocstring),
+        "python_docstring extraction is not implemented yet."
+    )]
+    #[case(
+        ExtractError::UnknownSyntax("bogus".to_owned()),
+        "unknown syntax 'bogus'"
+    )]
+    fn extract_error_display_is_informative(#[case] error: ExtractError, #[case] expected: &str) {
+        assert_eq!(format!("{error}"), expected);
+    }
+
+    /// Keep `TryFrom<&str>` honest by rejecting unrecognised syntax names.
+    #[rstest]
+    #[case("totally_invalid")]
+    #[case("")]
+    #[case("MARKDOWN")]
+    fn try_from_str_rejects_unknown_syntax(#[case] input: &str) {
+        let result = ExtractSyntax::try_from(input);
+
+        assert!(result.is_err());
+        let error = match result {
+            Ok(syntax) => panic!("expected unknown syntax error, got {syntax:?}"),
+            Err(error) => error,
+        };
+        assert!(matches!(error, ExtractError::UnknownSyntax(_)));
+        assert!(error.to_string().contains(input) || input.is_empty());
     }
 }

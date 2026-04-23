@@ -285,7 +285,8 @@ pretending to be the final IR.
 Use `crates/stilyagi-extract/src/lib.rs` for the first implementation. The
 recommended shape is a pair of simple structs such as `PartialDocument` and
 `PartialRegion`, plus a syntax-aware function such as
-`extract_document(source: &str, syntax: ExtractSyntax) -> PartialDocument`.
+`extract_document(source: &str, syntax: ExtractSyntax) ->
+Result<ExtractDocument, ExtractError>`.
 
 Implementation rules for this milestone:
 
@@ -313,9 +314,8 @@ Expected code changes:
   - add a dependency on `stilyagi-extract`.
 - `crates/stilyagi-pyext/src/lib.rs`
   - keep `hello()` unchanged unless doing so blocks the new bridge;
-  - add a PyO3 function such as `extract_document(source: &str, syntax: &str)`
-    that delegates straight to
-    `stilyagi_extract::extract_document(source, extract_syntax)`;
+  - add a PyO3 function `extract_document(source: &str, syntax: &str)` that
+    delegates straight to `stilyagi_extract::extract_document`;
   - convert the Rust result into plain Python-owned values inside the bridge.
     Prefer a small `PyDict` / `PyList` or a hand-built tuple structure over a
     JSON string.
@@ -329,7 +329,8 @@ Expected code changes:
 The Python wrapper should:
 
 - accept `source: str` and `syntax: model.Syntax`;
-- call `stilyagi._stilyagi_rs.extract_document(source, syntax.value)`;
+- call `_stilyagi_rs.extract_document(source, syntax.value)` only for
+  `model.Syntax.MARKDOWN`;
 - adapt the internal bridge payload into `model.Document` and
   `model.Region`;
 - raise `NotImplementedError` for `PYTHON_DOCSTRING` and `RUST_DOC_COMMENT`;

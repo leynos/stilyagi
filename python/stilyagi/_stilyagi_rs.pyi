@@ -14,6 +14,15 @@ class ExtractDocumentPayload(typ.TypedDict):
     syntax: str
     regions: list[ExtractRegion]
 
-def extract_document(source: str, syntax: str) -> ExtractDocumentPayload: ...
+def extract_document(source: str, syntax: str) -> ExtractDocumentPayload:
+    """Extract structured document data from *source* using *syntax*.
+
+    Returns an ``ExtractDocumentPayload`` with ``syntax`` and ``regions``.
+
+    Raises ``ValueError`` when *syntax* is invalid, ``NotImplementedError``
+    when it is recognised but unavailable, and ``TypeError`` for invalid
+    argument types.
+    """
+
 def hello() -> str: ...
 def supported_syntaxes() -> tuple[str, ...]: ...
