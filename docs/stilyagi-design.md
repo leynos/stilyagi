@@ -797,8 +797,9 @@ Current implementation note for roadmap item 1.2.2:
 
 - The first live Rust-to-Python bridge is intentionally narrower than the
   eventual IR contract. `stilyagi.engine.extract_document(...)` currently
-  delegates to Rust for Markdown-only extraction and adapts a partial
-  document-shaped payload into the Python model layer.
+  delegates to Rust for Markdown, Python docstring, and Rust documentation
+  comment extraction and adapts a partial document-shaped payload into the
+  Python model layer.
 - That payload is deliberately limited to `syntax` plus `regions[{kind,
   text}]`. It does not yet expose `line_index`, `segments`, owner metadata,
   or canonical IR JSON as part of the in-process bridge.
