@@ -3,9 +3,11 @@
 Use this module when Python code needs typed `stilyagi.model` documents backed
 by the embedded Rust extractor instead of the raw PyO3 payload. It validates
 the bridge payload, converts each region into `model.Region`, and returns a
-`model.Document` for the requested syntax.
+`model.Document` for the requested syntax. Call `extract_document` when you
+want the public typed API rather than the raw extension payload.
 
-Example: `from stilyagi.engine.extraction import extract_document`
+Example: `from stilyagi import model`
+`from stilyagi.engine.extraction import extract_document`
 `result = extract_document("# Heading", model.Syntax.MARKDOWN)`
 """
 
@@ -32,16 +34,25 @@ class _BridgeDocument(typ.TypedDict):
     regions: list[_BridgeRegion]
 
 
-_RUST_SYNTAX_SPELLINGS = frozenset(bridge_supported_syntaxes())
 _PYTHON_SYNTAX_SPELLINGS = frozenset(syntax.value for syntax in model.Syntax)
+_SYNTAX_VOCAB_VALIDATED = False
 
-if _RUST_SYNTAX_SPELLINGS != _PYTHON_SYNTAX_SPELLINGS:
-    msg = (
-        "Python and Rust syntax spellings differ: "
-        f"python={sorted(_PYTHON_SYNTAX_SPELLINGS)!r}, "
-        f"rust={sorted(_RUST_SYNTAX_SPELLINGS)!r}"
-    )
-    raise RuntimeError(msg)
+
+def _validate_syntax_vocab_once() -> None:
+    """Fail fast if the Python and Rust syntax vocabularies drift apart."""
+    global _SYNTAX_VOCAB_VALIDATED
+    if _SYNTAX_VOCAB_VALIDATED:
+        return
+
+    rust_syntax_spellings = frozenset(bridge_supported_syntaxes())
+    if rust_syntax_spellings != _PYTHON_SYNTAX_SPELLINGS:
+        msg = (
+            "Python and Rust syntax spellings differ: "
+            f"python={sorted(_PYTHON_SYNTAX_SPELLINGS)!r}, "
+            f"rust={sorted(rust_syntax_spellings)!r}"
+        )
+        raise RuntimeError(msg)
+    _SYNTAX_VOCAB_VALIDATED = True
 
 
 def extract_document(source: str, syntax: model.Syntax) -> model.Document:
@@ -59,6 +70,7 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
     model.Document
         Narrow document payload adapted onto the Python model surface.
     """
+    _validate_syntax_vocab_once()
     bridge_document = _coerce_bridge_document(
         extract_document_bridge(source, syntax.value),
     )

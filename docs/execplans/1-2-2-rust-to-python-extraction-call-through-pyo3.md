@@ -80,7 +80,7 @@ The implementer should keep these documents open while executing the plan:
 - [docs/rust-testing-with-rstest-fixtures.md](
   ../rust-testing-with-rstest-fixtures.md),
   [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), and
-  [docs/reliable-testing-in-rust-via-dependency-injection.md]( ../reliable-testing-in-rust-via-dependency-injection.md).
+  [docs/reliable-testing-in-rust-via-dependency-injection.md](../reliable-testing-in-rust-via-dependency-injection.md).
 - [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md) for the Rust
   testing and API-documentation expectations named in the task.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](
