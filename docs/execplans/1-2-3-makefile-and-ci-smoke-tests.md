@@ -368,6 +368,8 @@ the shared PyO3 boundary.
 - [x] 2026-04-24: Fixed the GitHub Actions resolver failure for
   `astral-sh/setup-uv@v8` by pinning the workflow to the existing
   `astral-sh/setup-uv@v8.1.0` tag.
+- [x] 2026-04-24: Replaced the setup-uv version tag with the exact commit SHA
+  `08807647e7069bb48b6ef5acd8ec9567f424441b` for `v8.1.0`.
 
 ## Surprises & Discoveries
 
@@ -429,6 +431,9 @@ the shared PyO3 boundary.
   Rationale: GitHub Actions requires the referenced action version to exist,
   and the setup-uv repository publishes exact v8 release tags rather than a
   `v8` alias.
+- 2026-04-24: Prefer the setup-uv commit SHA over the version tag in the
+  workflow. Rationale: SHA pinning makes the action reference immutable while
+  preserving the same verified `v8.1.0` code.
 
 ## Outcomes & Retrospective
 
