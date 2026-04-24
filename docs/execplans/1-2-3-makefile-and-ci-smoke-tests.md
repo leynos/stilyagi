@@ -365,6 +365,9 @@ the shared PyO3 boundary.
   `mbake validate Makefile` passed.
 - [x] 2026-04-24: Marked roadmap item 1.2.3 done after implementation and
   validation.
+- [x] 2026-04-24: Fixed the GitHub Actions resolver failure for
+  `astral-sh/setup-uv@v8` by pinning the workflow to the existing
+  `astral-sh/setup-uv@v8.1.0` tag.
 
 ## Surprises & Discoveries
 
@@ -387,6 +390,8 @@ the shared PyO3 boundary.
 - Creating `.venv-release-smoke` exposed that `make markdownlint` and
   `make nixie` need to exclude generated virtual environments, or they scan
   pip's vendored license Markdown files.
+- GitHub could not resolve `astral-sh/setup-uv@v8`. The setup-uv repository
+  has exact `v8.0.0` and `v8.1.0` tags, but no `v8` moving tag.
 
 ## Decision Log
 
@@ -420,6 +425,10 @@ the shared PyO3 boundary.
 - 2026-04-24: Do not install `cargo-nextest` in the smoke workflow. Rationale:
   `make test` already falls back to `cargo test` when nextest is absent, and
   omitting the install keeps the CI smoke path narrower.
+- 2026-04-24: Pin `astral-sh/setup-uv` to `v8.1.0` instead of `v8`.
+  Rationale: GitHub Actions requires the referenced action version to exist,
+  and the setup-uv repository publishes exact v8 release tags rather than a
+  `v8` alias.
 
 ## Outcomes & Retrospective
 
