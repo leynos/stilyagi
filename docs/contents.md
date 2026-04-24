@@ -37,6 +37,10 @@
     execplans/1-2-2-rust-to-python-extraction-call-through-pyo3.md)
     plans the first real document-shaped extraction call from Python into the
     embedded Rust extension without helper-binary transport.
+  - [1.2.3 Makefile and CI smoke tests](
+    execplans/1-2-3-makefile-and-ci-smoke-tests.md)
+    plans the Makefile and CI smoke path that proves development installs and
+    release artefacts exercise the same embedded Rust extension boundary.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
