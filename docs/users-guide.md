@@ -169,6 +169,9 @@ For day-to-day users, the mixed-package skeleton changes three practical things:
 - the placeholder engine, model, NLP, diagnostic, plugin, and rule modules now
   exist as stable import locations for later feature slices, so users should
   expect future releases to extend those modules rather than moving them again.
+- source checkouts use `make build` for development installs and
+  `make release` for release wheel builds; both workflows run the same package
+  smoke check through the public Python engine API and embedded Rust extension.
 
 The first implemented extractor proof now crosses the embedded Rust boundary
 without shelling out to a helper binary. Today that proof is deliberately

@@ -5,11 +5,10 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
-Approval gate: this plan must be explicitly approved before implementation
-begins. Writing and validating this plan is not approval to change the build or
-continuous integration (CI) behaviour.
+Approval gate: approved for implementation on 2026-04-24. Implementation must
+remain within the constraints and tolerances below.
 
 ## Purpose / big picture
 
@@ -330,14 +329,42 @@ the shared PyO3 boundary.
   and recommended keeping CI creation smoke-only.
 - [x] 2026-04-24: Created a `context_pack` package for agent-team exchange
   named "Makefile and CI smoke plan context" with id `pk_kglg5xae`.
-- [ ] Approval pending: wait for explicit user approval before implementation.
-- [ ] Implementation pending: add failing tests for the missing smoke path.
-- [ ] Implementation pending: update Makefile smoke targets.
-- [ ] Implementation pending: add bounded GitHub Actions smoke workflow.
-- [ ] Implementation pending: update design, user, developer, contents, and
-  roadmap documentation.
-- [ ] Implementation pending: run all required gates and commit the completed
-  implementation.
+- [x] 2026-04-24: Received explicit user approval to proceed with
+  implementation and moved this ExecPlan to `Status: IN PROGRESS`.
+- [x] 2026-04-24: Added Python unit and `pytest-bdd` checks for the missing
+  smoke path. The targeted run failed first with
+  `ImportError: cannot import name 'smoke' from 'stilyagi'`, proving the
+  missing shared helper.
+- [x] 2026-04-24: Added `python -m stilyagi.smoke`, wired `make build` to
+  `make smoke`, split release artifact construction into `release-artifact`,
+  and wired `make release` to `smoke-release`.
+- [x] 2026-04-24: Added `.github/workflows/smoke.yml` as a single bounded
+  GitHub Actions workflow that calls `make check-fmt`, `make lint`,
+  `make test`, and `make release`.
+- [x] 2026-04-24: Re-ran the targeted tests in
+  `/tmp/test-targeted-stilyagi-feat-plan-makefile-ci-smoke.out`; all eight
+  targeted tests passed.
+- [x] 2026-04-24: Updated `docs/stilyagi-design.md`,
+  `docs/developers-guide.md`, and `docs/users-guide.md` with the shared smoke
+  boundary, Makefile targets, and bounded CI workflow.
+- [x] 2026-04-24: `make build` passed and ran the development smoke check
+  through `.venv/bin/python -m stilyagi.smoke`.
+- [x] 2026-04-24: The first `make release` run failed because the wheel was
+  written to `target/wheels` while the release smoke installed from `dist`.
+  Adding `--out dist` fixed the release artefact location.
+- [x] 2026-04-24: `make release` passed after installing the fresh wheel from
+  `dist/` into `.venv-release-smoke` and running `python -m stilyagi.smoke`
+  from `/tmp`.
+- [x] 2026-04-24: `make fmt`, `make check-fmt`, `make lint`,
+  `make typecheck`, and `make test` passed. `make test` ran 44 Rust tests and
+  31 Python tests.
+- [x] 2026-04-24: The first `make markdownlint` run failed because
+  `.venv-release-smoke` exposed pip's vendored Markdown license files. The
+  Makefile now excludes `.venv-release-smoke` from Markdown and Mermaid scans.
+- [x] 2026-04-24: `make markdownlint`, `make nixie`, and
+  `mbake validate Makefile` passed.
+- [x] 2026-04-24: Marked roadmap item 1.2.3 done after implementation and
+  validation.
 
 ## Surprises & Discoveries
 
@@ -348,6 +375,18 @@ the shared PyO3 boundary.
 - The existing `pyproject.toml` already declares `maturin` as the build backend
   and sets `module-name = "stilyagi._stilyagi_rs"` and
   `python-source = "python"`.
+- Implementation will use the currently available public API
+  `stilyagi.engine.extract_document("# Heading", stilyagi.model.Syntax.MARKDOWN)`
+  as the shared smoke proof.
+- The release smoke target should remove `dist/` immediately before building
+  so `pip install --no-index --find-links dist stilyagi` cannot select a stale
+  wheel from a previous run.
+- `maturin build --release` writes wheels to `target/wheels` by default in this
+  repository. The release smoke path needs `--out dist` so the expected install
+  directory exists and contains only the fresh wheel for this run.
+- Creating `.venv-release-smoke` exposed that `make markdownlint` and
+  `make nixie` need to exclude generated virtual environments, or they scan
+  pip's vendored license Markdown files.
 
 ## Decision Log
 
@@ -361,10 +400,44 @@ the shared PyO3 boundary.
   inline Python snippets. Rationale: both development installs and release
   artefacts must exercise the same boundary, and duplication would make the two
   paths drift.
+- 2026-04-24: Implement the shared smoke proof as
+  `python -m stilyagi.smoke`. Rationale: a package module is included in both
+  development installs and release wheels, can be covered by `pytest`, and lets
+  Makefile and CI call the same boundary check without embedding long Python
+  snippets in shell recipes.
+- 2026-04-24: Pin the workflow to current maintained setup actions verified
+  against primary sources: `actions/setup-python@v6`, `astral-sh/setup-uv@v8`,
+  and `dtolnay/rust-toolchain@stable`. Rationale: CI should use maintained
+  setup actions, while the actual build logic remains in Makefile targets.
+- 2026-04-24: Direct `maturin build --release` to `--out dist`. Rationale:
+  `make smoke-release` installs from `dist` with `--no-index`; letting maturin
+  use its default `target/wheels` path caused the first release smoke run to
+  fail because the install directory did not exist.
+- 2026-04-24: Exclude `.venv-release-smoke` from Markdown and Mermaid scans
+  and remove it in `make clean`. Rationale: the release-smoke environment is a
+  generated artefact and should not make repository documentation gates inspect
+  pip's installed package metadata.
+- 2026-04-24: Do not install `cargo-nextest` in the smoke workflow. Rationale:
+  `make test` already falls back to `cargo test` when nextest is absent, and
+  omitting the install keeps the CI smoke path narrower.
 
 ## Outcomes & Retrospective
 
-This plan is drafted but not implemented. The intended outcome after approval
-is a committed implementation where local builds, release artefacts, and CI all
-exercise the same in-process PyO3 extraction boundary through canonical
-Makefile workflows.
+Implemented the shared build-spine smoke path for roadmap item 1.2.3.
+`python -m stilyagi.smoke` now exercises the public Python engine API backed by
+the embedded Rust extension. `make build` runs that smoke proof after
+`maturin develop`, and `make release` builds a fresh wheel into `dist/`,
+installs it into `.venv-release-smoke`, and runs the same proof from `/tmp` to
+avoid importing the repository source tree.
+
+The repository now has a bounded `.github/workflows/smoke.yml` workflow that
+sets up Python, Rust, `uv`, and documentation tools, then calls the canonical
+Makefile gates rather than duplicating build logic. Documentation records the
+new development and release practice, and `docs/roadmap.md` marks item 1.2.3 as
+done.
+
+The main lesson from implementation is that generated verification environments
+must also be excluded from repository-wide documentation scans. The
+release-smoke environment made the release proof more trustworthy, but it also
+introduced installed package metadata under the worktree, so `make clean`,
+`make markdownlint`, and `make nixie` now account for it explicitly.

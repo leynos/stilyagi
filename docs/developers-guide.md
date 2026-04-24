@@ -57,6 +57,7 @@ That target performs three steps:
 1. Recreate `.venv`
 2. Sync the `dev` dependency group with `uv`
 3. Run `maturin develop` against `crates/stilyagi-pyext/Cargo.toml`
+4. Run the installed-package smoke check through `python -m stilyagi.smoke`
 
 Developers should prefer the Makefile targets over ad hoc command sequences so
 the PyO3 build flags and tool invocation paths stay consistent across local
@@ -364,19 +365,31 @@ make release
 
 `make build` is the development path. It recreates the virtual environment,
 installs the editable Python package plus the compiled extension, and leaves
-the repository ready for local linting and tests.
+the repository ready for local linting and tests. It finishes by running
+`make smoke`, which calls `python -m stilyagi.smoke` through `.venv/bin/python`
+and verifies that the public Python engine API crosses into the embedded Rust
+extension.
 
-`make release` is the release artefact path. It runs:
+`make release` is the release artefact path. It first runs:
 
 ```bash
-uv run --group dev maturin build --release --manifest-path crates/stilyagi-pyext/Cargo.toml
+uv run --group dev maturin build --release --manifest-path crates/stilyagi-pyext/Cargo.toml --out dist
 ```
 
-That command produces Python wheel artefacts under the Rust target wheels
-output, which is the expected distribution surface for the mixed package.
+That command produces Python wheel artefacts in `dist/`, which is the expected
+distribution surface for the mixed package. The target then runs
+`make smoke-release`, installs the built wheel into `.venv-release-smoke`, and
+executes `python -m stilyagi.smoke` from `/tmp` so the proof uses the wheel
+artefact rather than the repository source tree.
 
 The `build-release` target exists as a compatibility alias and should remain
 behaviourally identical to `release`.
+
+The `.github/workflows/smoke.yml` workflow is the bounded CI smoke path for
+this repository. It installs Python, Rust, `uv`, and documentation tools, then
+runs `make check-fmt`, `make lint`, `make test`, and `make release`
+sequentially. The workflow is not release publishing automation; it proves that
+local development installs and release wheels exercise the same PyO3 boundary.
 
 ## 6. Lint, typecheck, and test workflow
 
@@ -416,6 +429,12 @@ Their responsibilities are:
   - rerun `cargo clippy`
   - run Rust tests with `cargo-nextest` when available, otherwise `cargo test`
   - run Python tests through `.venv/bin/python -m pytest -v`
+- `make smoke`
+  - run `python -m stilyagi.smoke` against the development install
+- `make smoke-release`
+  - rebuild the release wheel if needed
+  - install it into `.venv-release-smoke`
+  - run `python -m stilyagi.smoke` from outside the repository tree
 
 The Python tools are intentionally run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
@@ -760,6 +779,8 @@ Release work should assume wheel artefacts are the primary distributable output
 of the mixed package.
 
 - Use `make release` for release builds.
+- Use `make smoke-release` when you need to rerun only the release-wheel smoke
+  proof after a release artefact has been built.
 - Keep the Python package metadata and the Rust extension build path in sync.
 - Treat release-affecting changes to the Makefile, `pyproject.toml`, or
   `crates/stilyagi-pyext/Cargo.toml` as coupled changes that need end-to-end

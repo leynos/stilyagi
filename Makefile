@@ -12,7 +12,8 @@ CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
-        markdownlint nixie test test-ci test-quick typecheck tools release
+        markdownlint nixie test test-ci test-quick typecheck tools release \
+        release-artifact smoke smoke-release
 
 .DEFAULT_GOAL := all
 
@@ -22,17 +23,30 @@ build: ## Build dev artifact and install into venv
 	UV_VENV_CLEAR=1 $(UV_ENV) uv venv
 	$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev
 	$(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(PYEXT_MANIFEST)
+	$(MAKE) smoke
 
-release: ## Build the release artifact
-	$(CARGO_BUILD_ENV) $(UV_RUN) maturin build --release --manifest-path $(PYEXT_MANIFEST)
+release: release-artifact smoke-release ## Build and smoke-test the release artifact
+
+release-artifact: ## Build the release artifact
+	rm -rf dist
+	$(CARGO_BUILD_ENV) $(UV_RUN) maturin build --release --manifest-path $(PYEXT_MANIFEST) --out dist
 
 build-release: release ## Backward-compatible alias for release
+
+smoke: ## Smoke-test the development install through the Rust bridge
+	.venv/bin/python -m stilyagi.smoke
+
+smoke-release: release-artifact ## Smoke-test the release wheel through the Rust bridge
+	rm -rf .venv-release-smoke
+	.venv/bin/python -m venv .venv-release-smoke
+	.venv-release-smoke/bin/python -m pip install --no-index --find-links dist stilyagi
+	cd /tmp && "$(CURDIR)/.venv-release-smoke/bin/python" -m stilyagi.smoke
 
 clean: ## Remove build artifacts
 	$(CARGO) clean --manifest-path $(WORKSPACE_MANIFEST)
 	rm -rf build dist *.egg-info \
 	  .mypy_cache .pytest_cache .coverage coverage.* \
-	  lcov.info htmlcov .venv
+	  lcov.info htmlcov .venv .venv-release-smoke
 	find . -type d -name '__pycache__' -print0 | xargs -0 -r rm -rf
 	find . -type f -name '*.log' -not -path './crates/stilyagi-pyext/target/*' -delete
 
@@ -69,10 +83,10 @@ typecheck: build tools ## Run typechecking
 	$(UV_RUN) ty check
 
 markdownlint: tools ## Lint Markdown files
-	find . -type f -name '*.md' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(MDLINT)
+	find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(MDLINT)
 
 nixie: tools ## Validate Mermaid diagrams
-	find . -type f -name '*.md' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(NIXIE) --no-sandbox
+	find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(NIXIE) --no-sandbox
 
 test: build tools ## Run tests (nextest if available, otherwise cargo test)
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
