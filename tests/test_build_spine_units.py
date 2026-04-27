@@ -10,8 +10,20 @@ from stilyagi import model, smoke
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_SMOKE_REGION = model.Region(kind="document", text=smoke.SMOKE_SOURCE)
 ExtractDocument = typ.Callable[[str, model.Syntax], model.Document]
-WorkflowJob = dict[str, typ.Any]
-WorkflowStep = dict[str, typ.Any]
+WorkflowStep = typ.TypedDict(
+    "WorkflowStep",
+    {"name": str, "uses": str, "run": str, "with": dict[str, str]},
+    total=False,
+)
+WorkflowJob = typ.TypedDict(
+    "WorkflowJob",
+    {
+        "runs-on": str,
+        "strategy": dict[str, dict[str, list[str]]],
+        "steps": list[WorkflowStep],
+    },
+    total=False,
+)
 
 
 def _collect_recipe_lines(lines: list[str], start: int) -> tuple[str, ...]:
@@ -192,13 +204,17 @@ def test_makefile_keeps_build_and_release_on_the_shared_smoke_path() -> None:
     assert "UV_VENV_CLEAR=1 $(UV_ENV) uv venv" in targets[".venv"][1]
     assert "$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev" in targets[".venv"][1]
     assert ".venv" in targets["smoke"][0]
-    assert ".venv/bin/python -m stilyagi.smoke" in targets["smoke"][1]
+    assert any(".venv" in line for line in targets["smoke"][1])
+    assert any(
+        "python" in line and "-m stilyagi.smoke" in line for line in targets["smoke"][1]
+    )
     assert "release-artifact" in targets["smoke-release"][0]
     assert ".venv" in targets["smoke-release"][0]
     assert '"$$venv_python" -m venv .venv-release-smoke' in targets["smoke-release"][1]
     assert any("tempfile.gettempdir()" in line for line in targets["smoke-release"][1])
+    assert any(".as_posix()" in line for line in targets["smoke-release"][1])
     assert any('cd "$$release_tmp"' in line for line in targets["smoke-release"][1])
-    assert "cd /tmp" not in targets["smoke-release"][1]
+    assert all("cd /tmp" not in line for line in targets["smoke-release"][1])
     assert "tools-docs" in targets["markdownlint"][0]
     assert any(
         "-not -path './.venv-release-smoke/*'" in line

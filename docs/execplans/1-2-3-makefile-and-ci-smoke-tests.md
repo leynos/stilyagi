@@ -368,7 +368,11 @@ the shared PyO3 boundary.
   Adding `--out dist` fixed the release artefact location.
 - [x] 2026-04-24: `make release` passed after installing the fresh wheel from
   `dist/` into `.venv-release-smoke` and running `python -m stilyagi.smoke`
-  from `/tmp`.
+  from the system temporary directory (as returned by Python's
+  `tempfile.gettempdir()`).
+- [x] 2026-04-24: Updated the release smoke flow to use the platform-specific
+  temporary directory via `tempfile.gettempdir()` instead of assuming a POSIX
+  temporary path.
 - [x] 2026-04-24: `make fmt`, `make check-fmt`, `make lint`,
   `make typecheck`, and `make test` passed. `make test` ran 44 Rust tests and
   31 Python tests.
@@ -455,7 +459,8 @@ Implemented the shared build-spine smoke path for roadmap item 1.2.3.
 `python -m stilyagi.smoke` now exercises the public Python engine API backed by
 the embedded Rust extension. `make build` runs that smoke proof after
 `maturin develop`, and `make release` builds a fresh wheel into `dist/`,
-installs it into `.venv-release-smoke`, and runs the same proof from `/tmp` to
+installs it into `.venv-release-smoke`, and runs the same proof from the
+system temporary directory (as returned by Python's `tempfile.gettempdir()`) to
 avoid importing the repository source tree.
 
 The repository now has a bounded `.github/workflows/smoke.yml` workflow that

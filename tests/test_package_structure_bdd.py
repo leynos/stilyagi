@@ -67,7 +67,8 @@ def make_build_runs_the_development_smoke_check(
 ) -> None:
     """Confirm the development install path invokes the package smoke helper."""
     assert "$(MAKE) smoke" in build_spine_state["makefile"]
-    assert ".venv/bin/python -m stilyagi.smoke" in build_spine_state["makefile"]
+    assert ".venv" in build_spine_state["makefile"]
+    assert "-m stilyagi.smoke" in build_spine_state["makefile"]
 
 
 @then("make release runs the release artefact smoke check")

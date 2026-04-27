@@ -38,7 +38,9 @@ release-artifact: ## Build the release artifact
 build-release: release ## Backward-compatible alias for release
 
 smoke: .venv ## Smoke-test the development install through the Rust bridge
-	.venv/bin/python -m stilyagi.smoke
+	venv_python=".venv/bin/python"; \
+	if [ ! -x "$$venv_python" ]; then venv_python=".venv/Scripts/python.exe"; fi; \
+	"$$venv_python" -m stilyagi.smoke
 
 smoke-release: .venv release-artifact ## Smoke-test the release wheel through the Rust bridge
 	rm -rf .venv-release-smoke
@@ -50,7 +52,7 @@ smoke-release: .venv release-artifact ## Smoke-test the release wheel through th
 	"$$release_python" -m pip install --no-index --find-links dist stilyagi
 	release_python="$(CURDIR)/.venv-release-smoke/bin/python"; \
 	if [ ! -x "$$release_python" ]; then release_python="$(CURDIR)/.venv-release-smoke/Scripts/python.exe"; fi; \
-	release_tmp="$$("$$release_python" -c 'import tempfile; print(tempfile.gettempdir())')"; \
+	release_tmp="$$("$$release_python" -c 'import pathlib, tempfile; print(pathlib.Path(tempfile.gettempdir()).as_posix())')"; \
 	cd "$$release_tmp" && "$$release_python" -m stilyagi.smoke
 
 clean: ## Remove build artifacts
