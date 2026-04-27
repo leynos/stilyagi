@@ -121,7 +121,9 @@ test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 	fi
 	# Run pytest through the venv interpreter so the maturin-developed extension
 	# remains installed instead of being replaced by the uv_build wheel.
-	.venv/bin/python -m pytest -v
+	venv_python=".venv/bin/python"; \
+	if [ ! -x "$$venv_python" ]; then venv_python=".venv/Scripts/python.exe"; fi; \
+	"$$venv_python" -m pytest -v
 
 test-ci: build tools-lint ## Run Rust tests with the CI nextest profile
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile ci --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS)

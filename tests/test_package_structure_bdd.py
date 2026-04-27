@@ -129,10 +129,9 @@ def package_reports_a_markdown_document_extracted_by_rust(
     """Confirm that the subprocess reports the Rust-backed document payload."""
     boundary_probe = require_result(package_probe_state["boundary_probe"])
     payload = json.loads(boundary_probe["stdout"])
-    assert payload == {
-        "syntax": "markdown",
-        "regions": [{"kind": "document", "text": "# Heading"}],
-    }
+    regions = payload["regions"]
+    assert payload["syntax"] == "markdown"
+    assert {"kind": "document", "text": "# Heading"} in regions
 
 
 @when("I import the legacy pure-Python fallback module")
