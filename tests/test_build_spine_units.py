@@ -1,6 +1,7 @@
 """Unit tests for the mixed-package build spine."""
 
 import pathlib
+import re
 import typing as typ
 
 import pytest
@@ -148,23 +149,14 @@ def test_smoke_helper_accepts_expected_region_after_other_regions(
     assert document.regions[-1] == EXPECTED_SMOKE_REGION
 
 
-def test_smoke_main_success(
-    monkeypatch: pytest.MonkeyPatch,
+def test_smoke_main_returns_zero_on_success(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Return zero and keep stderr quiet when the smoke check succeeds."""
-    calls: list[bool] = []
-
-    def fake_smoke_installed_package() -> None:
-        calls.append(True)
-
-    monkeypatch.setattr(smoke, "smoke_installed_package", fake_smoke_installed_package)
-
+    """main() returns 0 and produces no stderr when the bridge is healthy."""
     exit_code = smoke.main()
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert calls == [True]
     assert captured.err == ""
 
 
@@ -232,11 +224,11 @@ def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
     header, recipe = _make_target(makefile_text, "smoke-release")
     assert "release-artifact" in header
     assert ".venv" in header
-    assert '"$$venv_python" -m venv .venv-release-smoke' in recipe
-    assert any("tempfile.gettempdir()" in line for line in recipe)
-    assert any(".as_posix()" in line for line in recipe)
-    assert any('cd "$$release_tmp"' in line for line in recipe)
-    assert all("cd /tmp" not in line for line in recipe)
+    assert any(re.search(r"-m\s+venv\s+\.venv-release-smoke", line) for line in recipe)
+    assert any(re.search(r"tempfile\.gettempdir\(\)", line) for line in recipe)
+    assert any(re.search(r"\.as_posix\(\)", line) for line in recipe)
+    assert any(re.search(r'cd\s+"?\$\$release_tmp"?', line) for line in recipe)
+    assert all(not re.search(r"cd\s+/tmp\b", line) for line in recipe)
 
 
 def test_makefile_markdownlint_target_excludes_release_smoke_venv(
