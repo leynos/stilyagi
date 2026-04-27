@@ -1,7 +1,6 @@
 """Unit tests for the mixed-package build spine."""
 
 import pathlib
-import re
 import typing as typ
 
 import pytest
@@ -11,6 +10,8 @@ from stilyagi import model, smoke
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_SMOKE_REGION = model.Region(kind="document", text=smoke.SMOKE_SOURCE)
 ExtractDocument = typ.Callable[[str, model.Syntax], model.Document]
+WorkflowJob = dict[str, typ.Any]
+WorkflowStep = dict[str, typ.Any]
 
 
 def _make_target(makefile: str, target: str) -> tuple[str, tuple[str, ...]]:
@@ -43,34 +44,24 @@ def _workflow_document(workflow: str) -> dict[str, typ.Any]:
     return loaded
 
 
-def extract_blank_document(
-    _source: str,
-    syntax: model.Syntax,
-) -> model.Document:
-    """Return a document with the requested syntax but no extracted regions."""
-    return model.Document(syntax=syntax)
+def _workflow_jobs(parsed_workflow: dict[str, typ.Any]) -> dict[str, WorkflowJob]:
+    """Return the parsed workflow jobs with a narrow test-local shape."""
+    return typ.cast("dict[str, WorkflowJob]", parsed_workflow["jobs"])
 
 
-def extract_wrong_syntax(
-    _source: str,
-    _syntax: model.Syntax,
-) -> model.Document:
-    """Return a document whose syntax does not match the smoke request."""
-    return model.Document(
-        syntax=model.Syntax.PYTHON_DOCSTRING,
-        regions=(model.Region(kind="document", text="# Stilyagi smoke"),),
-    )
+def _job_steps(job: WorkflowJob) -> list[WorkflowStep]:
+    """Return a workflow job's steps with a narrow test-local shape."""
+    return typ.cast("list[WorkflowStep]", job["steps"])
 
 
-def extract_unexpected_region(
-    _source: str,
-    syntax: model.Syntax,
-) -> model.Document:
-    """Return regions that do not include the expected smoke source."""
-    return model.Document(
-        syntax=syntax,
-        regions=(model.Region(kind="document", text="# Unexpected smoke"),),
-    )
+def _workflow_steps(jobs: dict[str, WorkflowJob]) -> list[WorkflowStep]:
+    """Return every step from every parsed workflow job."""
+    return [step for job in jobs.values() for step in _job_steps(job)]
+
+
+def _workflow_step_named(job: WorkflowJob, name: str) -> WorkflowStep:
+    """Return a named step from a parsed workflow job."""
+    return next(step for step in _job_steps(job) if step.get("name") == name)
 
 
 def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
@@ -82,22 +73,34 @@ def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
 
 
 @pytest.mark.parametrize(
-    ("extract_document", "expected_error"),
+    ("extract_impl", "expected_match"),
     [
-        (extract_blank_document, "at least one region"),
-        (extract_wrong_syntax, "unexpected syntax"),
-        (extract_unexpected_region, "source-backed region"),
+        (lambda _source, syntax: model.Document(syntax=syntax), "at least one region"),
+        (
+            lambda _source, _syntax: model.Document(
+                syntax=model.Syntax.PYTHON_DOCSTRING,
+                regions=(model.Region(kind="document", text="# Stilyagi smoke"),),
+            ),
+            "unexpected syntax",
+        ),
+        (
+            lambda _source, syntax: model.Document(
+                syntax=syntax,
+                regions=(model.Region(kind="document", text="# Unexpected smoke"),),
+            ),
+            "source-backed region",
+        ),
     ],
 )
 def test_smoke_helper_rejects_invalid_documents(
     monkeypatch: pytest.MonkeyPatch,
-    extract_document: ExtractDocument,
-    expected_error: str,
+    extract_impl: ExtractDocument,
+    expected_match: str,
 ) -> None:
     """Reject smoke payloads that do not prove the expected bridge contract."""
-    monkeypatch.setattr(smoke.engine, "extract_document", extract_document)
+    monkeypatch.setattr(smoke.engine, "extract_document", extract_impl)
 
-    with pytest.raises(smoke.SmokeCheckError, match=expected_error):
+    with pytest.raises(smoke.SmokeCheckError, match=expected_match):
         smoke.smoke_installed_package()
 
 
@@ -208,7 +211,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         for line in workflow_lines
         if line.startswith("run:")
     }
-    jobs = parsed_workflow["jobs"]
+    jobs = _workflow_jobs(parsed_workflow)
 
     assert {
         "make check-fmt",
@@ -229,11 +232,24 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
     push_branches = parsed_workflow["on"]["push"]["branches"]
     assert "pull_request:" in workflow_lines
     assert "main" in push_branches
-    assert re.search(r"python-version:\s*[\"']?3\.x[\"']?", workflow) is not None
+    python_steps = [
+        step
+        for step in _workflow_steps(jobs)
+        if str(step.get("uses", "")).startswith("actions/setup-python@")
+    ]
+    assert python_steps
+    assert all(
+        step["uses"] == "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405"
+        for step in python_steps
+    )
+    assert all(step["with"]["python-version"] == "3.14" for step in python_steps)
     assert "mdformat-all" not in workflow
     assert "uv tool install nixie-cli==1.0.0" in workflow_lines
-    assert "--git https://github.com/leynos/whitaker \\" in workflow_lines
-    assert "whitaker-installer --cranelift" in workflow_lines
+    whitaker_step = _workflow_step_named(jobs["lint-test"], "Install Whitaker")
+    whitaker_run = str(whitaker_step["run"])
+    assert "github.com/leynos/whitaker" in whitaker_run
+    assert "whitaker-installer" in whitaker_run
+    assert "--cranelift" in whitaker_run
     release_build_command = (
         "uv run --group dev maturin build --release "
         "--manifest-path crates/stilyagi-pyext/Cargo.toml --out dist"

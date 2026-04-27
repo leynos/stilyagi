@@ -298,7 +298,7 @@ dev = [
     { name = "pytest-bdd" },
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "pyyaml", specifier = ">=6.0.3,<7.0" },
     { name = "ruff" },
     { name = "ty" },
 ]
