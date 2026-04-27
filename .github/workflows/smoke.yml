@@ -9,32 +9,63 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_TERM_COLOR: always
+      BUILD_PROFILE: debug
+      WHITAKER_INSTALLER_REV: f768c2e53c47df13658af1168a67851d388750bf
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
       - name: Install Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
+      - name: Setup Rust
+        uses: leynos/shared-actions/.github/actions/setup-rust@6b13b519f99c5b461be8cc21ecf19c2ec5907b9c
 
       - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        uses: astral-sh/setup-uv@4cda7d73322c50eac316ad623a716f09a2db2ac7
 
-      - name: Install support tools
+      - name: Install bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
+        with:
+          bun-version: "1.2.21"
+
+      - name: Install Markdownlint CLI
         run: |
-          npm install -g markdownlint-cli2
-          cargo install nixie whitaker-installer --locked
-          whitaker-installer
+          bun install --no-progress --global markdownlint-cli2
+
+      - name: Install Mermaid CLI
+        run: |
+          set -euxo pipefail
+          bun install --no-progress --global @mermaid-js/mermaid-cli@11.9.0
+          bun x @puppeteer/browsers browsers install chrome-headless-shell
+          mmdc --version
+
+      - name: Install Nixie
+        run: |
+          uv tool install nixie-cli==1.0.0
 
       - name: Check formatting
         run: make check-fmt
+
+      - name: Markdown lint
+        run: make markdownlint
+
+      - name: Mermaid lint
+        run: make nixie
+
+      - name: Install Whitaker
+        run: |
+          cargo install --locked \
+            --git https://github.com/leynos/whitaker \
+            --rev "${WHITAKER_INSTALLER_REV}" \
+            whitaker-installer
+          whitaker-installer --cranelift
 
       - name: Lint
         run: make lint

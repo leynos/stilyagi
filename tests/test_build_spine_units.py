@@ -2,8 +2,10 @@
 
 import pathlib
 import re
+import typing as typ
 
 import pytest
+import yaml
 from stilyagi import model, smoke
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -31,6 +33,13 @@ def _make_target(makefile: str, target: str) -> tuple[str, tuple[str, ...]]:
 def _normalised_lines(contents: str) -> set[str]:
     """Return stripped non-empty lines for structure-oriented file assertions."""
     return {line.strip() for line in contents.splitlines() if line.strip()}
+
+
+def _workflow_document(workflow: str) -> dict[str, typ.Any]:
+    """Parse a GitHub Actions workflow while preserving the `on` key as text."""
+    loaded = yaml.load(workflow, Loader=yaml.BaseLoader)  # noqa: S506
+    assert isinstance(loaded, dict)
+    return loaded
 
 
 def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
@@ -194,6 +203,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
     workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "smoke.yml").read_text(
         encoding="utf-8"
     )
+    parsed_workflow = _workflow_document(workflow)
     workflow_lines = _normalised_lines(workflow)
     run_commands = {
         line.removeprefix("run:").strip()
@@ -203,15 +213,17 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
 
     assert {
         "make check-fmt",
+        "make markdownlint",
+        "make nixie",
         "make lint",
         "make test",
         "make release",
     }.issubset(run_commands)
+    push_branches = parsed_workflow["on"]["push"]["branches"]
     assert "pull_request:" in workflow_lines
-    assert "push:" in workflow_lines
-    assert "branches:" in workflow_lines
-    assert "- main" in workflow_lines
+    assert "main" in push_branches
     assert re.search(r"python-version:\s*[\"']?3\.x[\"']?", workflow) is not None
     assert "mdformat-all" not in workflow
-    assert "cargo install nixie whitaker-installer --locked" in workflow_lines
-    assert "whitaker-installer" in workflow_lines
+    assert "uv tool install nixie-cli==1.0.0" in workflow_lines
+    assert "--git https://github.com/leynos/whitaker \\" in workflow_lines
+    assert "whitaker-installer --cranelift" in workflow_lines

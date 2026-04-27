@@ -359,7 +359,7 @@ the shared PyO3 boundary.
   `make typecheck`, and `make test` passed. `make test` ran 44 Rust tests and
   31 Python tests.
 - [x] 2026-04-24: The first `make markdownlint` run failed because
-  `.venv-release-smoke` exposed pip's vendored Markdown license files. The
+  `.venv-release-smoke` exposed pip's vendored Markdown licence files. The
   Makefile now excludes `.venv-release-smoke` from Markdown and Mermaid scans.
 - [x] 2026-04-24: `make markdownlint`, `make nixie`, and
   `mbake validate Makefile` passed.
@@ -391,7 +391,7 @@ the shared PyO3 boundary.
   directory exists and contains only the fresh wheel for this run.
 - Creating `.venv-release-smoke` exposed that `make markdownlint` and
   `make nixie` need to exclude generated virtual environments, or they scan
-  pip's vendored license Markdown files.
+  pip's vendored licence Markdown files.
 - GitHub could not resolve `astral-sh/setup-uv@v8`. The setup-uv repository
   has exact `v8.0.0` and `v8.1.0` tags, but no `v8` moving tag.
 
@@ -412,10 +412,10 @@ the shared PyO3 boundary.
   development installs and release wheels, can be covered by `pytest`, and lets
   Makefile and CI call the same boundary check without embedding long Python
   snippets in shell recipes.
-- 2026-04-24: Pin the workflow to current maintained setup actions verified
-  against primary sources: `actions/setup-python@v6`, `astral-sh/setup-uv@v8`,
-  and `dtolnay/rust-toolchain@stable`. Rationale: CI should use maintained
-  setup actions, while the actual build logic remains in Makefile targets.
+- 2026-04-24: Pin the workflow to maintained setup actions and exact action
+  revisions, including `actions/checkout`, `astral-sh/setup-uv`, `setup-bun`,
+  and the shared Rust setup action. Rationale: CI should use maintained setup
+  actions, while the actual build logic remains in Makefile targets.
 - 2026-04-24: Direct `maturin build --release` to `--out dist`. Rationale:
   `make smoke-release` installs from `dist` with `--no-index`; letting maturin
   use its default `target/wheels` path caused the first release smoke run to
