@@ -10,6 +10,7 @@ from stilyagi import model, smoke
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_SMOKE_REGION = model.Region(kind="document", text=smoke.SMOKE_SOURCE)
+ExtractDocument = typ.Callable[[str, model.Syntax], model.Document]
 
 
 def _make_target(makefile: str, target: str) -> tuple[str, tuple[str, ...]]:
@@ -42,6 +43,36 @@ def _workflow_document(workflow: str) -> dict[str, typ.Any]:
     return loaded
 
 
+def extract_blank_document(
+    _source: str,
+    syntax: model.Syntax,
+) -> model.Document:
+    """Return a document with the requested syntax but no extracted regions."""
+    return model.Document(syntax=syntax)
+
+
+def extract_wrong_syntax(
+    _source: str,
+    _syntax: model.Syntax,
+) -> model.Document:
+    """Return a document whose syntax does not match the smoke request."""
+    return model.Document(
+        syntax=model.Syntax.PYTHON_DOCSTRING,
+        regions=(model.Region(kind="document", text="# Stilyagi smoke"),),
+    )
+
+
+def extract_unexpected_region(
+    _source: str,
+    syntax: model.Syntax,
+) -> model.Document:
+    """Return regions that do not include the expected smoke source."""
+    return model.Document(
+        syntax=syntax,
+        regions=(model.Region(kind="document", text="# Unexpected smoke"),),
+    )
+
+
 def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
     """Call the same package smoke helper used by Makefile and CI."""
     document = smoke.smoke_installed_package()
@@ -50,40 +81,23 @@ def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
     assert EXPECTED_SMOKE_REGION in document.regions
 
 
-def test_smoke_helper_rejects_a_document_without_regions(
+@pytest.mark.parametrize(
+    ("extract_document", "expected_error"),
+    [
+        (extract_blank_document, "at least one region"),
+        (extract_wrong_syntax, "unexpected syntax"),
+        (extract_unexpected_region, "source-backed region"),
+    ],
+)
+def test_smoke_helper_rejects_invalid_documents(
     monkeypatch: pytest.MonkeyPatch,
+    extract_document: ExtractDocument,
+    expected_error: str,
 ) -> None:
-    """Reject payloads that do not prove Rust returned source-backed content."""
+    """Reject smoke payloads that do not prove the expected bridge contract."""
+    monkeypatch.setattr(smoke.engine, "extract_document", extract_document)
 
-    def extract_blank_document(
-        _source: str,
-        syntax: model.Syntax,
-    ) -> model.Document:
-        return model.Document(syntax=syntax)
-
-    monkeypatch.setattr(smoke.engine, "extract_document", extract_blank_document)
-
-    with pytest.raises(smoke.SmokeCheckError, match="at least one region"):
-        smoke.smoke_installed_package()
-
-
-def test_smoke_helper_rejects_a_document_with_unexpected_syntax(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Reject payloads that do not preserve the requested syntax."""
-
-    def extract_wrong_syntax(
-        _source: str,
-        _syntax: model.Syntax,
-    ) -> model.Document:
-        return model.Document(
-            syntax=model.Syntax.PYTHON_DOCSTRING,
-            regions=(model.Region(kind="document", text="# Stilyagi smoke"),),
-        )
-
-    monkeypatch.setattr(smoke.engine, "extract_document", extract_wrong_syntax)
-
-    with pytest.raises(smoke.SmokeCheckError, match="unexpected syntax"):
+    with pytest.raises(smoke.SmokeCheckError, match=expected_error):
         smoke.smoke_installed_package()
 
 
@@ -113,26 +127,6 @@ def test_smoke_helper_accepts_expected_region_after_other_regions(
     document = smoke.smoke_installed_package()
 
     assert document.regions[-1] == EXPECTED_SMOKE_REGION
-
-
-def test_smoke_helper_rejects_a_document_without_expected_region(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Reject payloads that include regions but not the smoke source content."""
-
-    def extract_unexpected_region(
-        _source: str,
-        syntax: model.Syntax,
-    ) -> model.Document:
-        return model.Document(
-            syntax=syntax,
-            regions=(model.Region(kind="document", text="# Unexpected smoke"),),
-        )
-
-    monkeypatch.setattr(smoke.engine, "extract_document", extract_unexpected_region)
-
-    with pytest.raises(smoke.SmokeCheckError, match="source-backed region"):
-        smoke.smoke_installed_package()
 
 
 def test_smoke_main_success(
@@ -184,6 +178,10 @@ def test_makefile_keeps_build_and_release_on_the_shared_smoke_path() -> None:
 
     assert ".venv" in targets["build"][0]
     assert "$(MAKE) smoke" in targets["build"][1]
+    assert "pyproject.toml" in targets[".venv"][0]
+    assert "uv.lock" in targets[".venv"][0]
+    assert "$(WORKSPACE_MANIFEST)" in targets[".venv"][0]
+    assert "Cargo.lock" in targets[".venv"][0]
     assert "UV_VENV_CLEAR=1 $(UV_ENV) uv venv" in targets[".venv"][1]
     assert "$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev" in targets[".venv"][1]
     assert ".venv" in targets["smoke"][0]
@@ -210,6 +208,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         for line in workflow_lines
         if line.startswith("run:")
     }
+    jobs = parsed_workflow["jobs"]
 
     assert {
         "make check-fmt",
@@ -217,8 +216,16 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         "make nixie",
         "make lint",
         "make test",
-        "make release",
     }.issubset(run_commands)
+    assert "lint-test" in jobs
+    assert jobs["lint-test"]["runs-on"] == "ubuntu-latest"
+    assert "release-smoke" in jobs
+    assert jobs["release-smoke"]["runs-on"] == "${{ matrix.os }}"
+    assert jobs["release-smoke"]["strategy"]["matrix"]["os"] == [
+        "ubuntu-latest",
+        "macos-latest",
+        "windows-latest",
+    ]
     push_branches = parsed_workflow["on"]["push"]["branches"]
     assert "pull_request:" in workflow_lines
     assert "main" in push_branches
@@ -227,3 +234,9 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
     assert "uv tool install nixie-cli==1.0.0" in workflow_lines
     assert "--git https://github.com/leynos/whitaker \\" in workflow_lines
     assert "whitaker-installer --cranelift" in workflow_lines
+    release_build_command = (
+        "uv run --group dev maturin build --release "
+        "--manifest-path crates/stilyagi-pyext/Cargo.toml --out dist"
+    )
+    assert release_build_command in workflow_lines
+    assert '"${release_python}" -m stilyagi.smoke' in workflow_lines

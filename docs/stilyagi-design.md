@@ -1077,9 +1077,9 @@ release artefacts, and CI. `make build` installs the package with
 repository virtual environment. `make release` builds the wheel, installs it
 into a fresh `.venv-release-smoke` environment, and runs the same smoke module
 from outside the repository tree. The GitHub Actions smoke workflow calls
-Makefile targets in sequence instead of duplicating the underlying `uv`,
-`maturin`, Cargo, and pytest commands. This proves the PyO3 boundary without
-claiming a final cross-platform wheel matrix.
+Makefile targets for lint and test coverage, then runs a release-smoke matrix
+for Ubuntu, macOS, and Windows wheels. This proves the PyO3 boundary without
+turning the smoke workflow into release publishing automation.
 
 ## 11. Validation Plan
 

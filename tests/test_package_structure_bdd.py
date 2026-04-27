@@ -83,9 +83,11 @@ def make_release_runs_the_release_artefact_smoke_check(
 def ci_uses_the_canonical_makefile_smoke_path(
     build_spine_state: BuildSpineState,
 ) -> None:
-    """Confirm CI calls Makefile targets rather than duplicating commands."""
+    """Confirm CI runs lint/test targets and release wheel smoke coverage."""
     assert "run: make test" in build_spine_state["workflow"]
-    assert "run: make release" in build_spine_state["workflow"]
+    assert "release-smoke:" in build_spine_state["workflow"]
+    assert "uv run --group dev maturin build --release" in build_spine_state["workflow"]
+    assert '"${release_python}" -m stilyagi.smoke' in build_spine_state["workflow"]
 
 
 @when("I inspect the supported package boundaries")

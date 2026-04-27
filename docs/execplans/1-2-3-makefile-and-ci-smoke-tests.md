@@ -258,25 +258,38 @@ on:
   push:
 
 jobs:
-  smoke:
+  lint-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - install Python 3.14
+      - install Python
       - install the Rust toolchain
       - install uv and required lint tools
       - run: make check-fmt
+      - run: make markdownlint
+      - run: make nixie
       - run: make lint
       - run: make test
-      - run: make release
-      - run: make smoke-release
+  release-smoke:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - install Python
+      - install the Rust toolchain
+      - install uv
+      - build the release wheel
+      - install the release wheel
+      - run the installed-package smoke module
 ```
 
 The exact syntax should use maintained actions and documented setup steps, but
-do not add publishing credentials, upload artefacts, or a platform matrix in
-this slice. If local validation with `act` is practical, run it and record the
-result. If it is not practical because Python 3.14, Rust, or nested container
-support is unavailable, record that limitation instead of broadening the plan.
+do not add publishing credentials or upload artefacts in this slice. If local
+validation with `act` is practical, run it and record the result. If it is not
+practical because Python, Rust, or nested container support is unavailable,
+record that limitation instead of broadening the plan.
 
 ## Milestone 4: update documentation and design records
 
@@ -338,9 +351,9 @@ the shared PyO3 boundary.
 - [x] 2026-04-24: Added `python -m stilyagi.smoke`, wired `make build` to
   `make smoke`, split release artifact construction into `release-artifact`,
   and wired `make release` to `smoke-release`.
-- [x] 2026-04-24: Added `.github/workflows/smoke.yml` as a single bounded
-  GitHub Actions workflow that calls `make check-fmt`, `make lint`,
-  `make test`, and `make release`.
+- [x] 2026-04-24: Added `.github/workflows/smoke.yml` as a bounded GitHub
+  Actions workflow that calls `make check-fmt`, `make lint`, and `make test`
+  on Ubuntu, with release smoke coverage split into a later matrix job.
 - [x] 2026-04-24: Re-ran the targeted tests in
   `/tmp/test-targeted-stilyagi-feat-plan-makefile-ci-smoke.out`; all eight
   targeted tests passed.
@@ -446,9 +459,10 @@ avoid importing the repository source tree.
 
 The repository now has a bounded `.github/workflows/smoke.yml` workflow that
 sets up Python, Rust, `uv`, and documentation tools, then calls the canonical
-Makefile gates rather than duplicating build logic. Documentation records the
-new development and release practice, and `docs/roadmap.md` marks item 1.2.3 as
-done.
+Makefile gates rather than duplicating lint and test logic. Its release-smoke
+matrix builds and imports release wheels on Ubuntu, macOS, and Windows.
+Documentation records the new development and release practice, and
+`docs/roadmap.md` marks item 1.2.3 as done.
 
 The main lesson from implementation is that generated verification environments
 must also be excluded from repository-wide documentation scans. The

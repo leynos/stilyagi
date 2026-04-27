@@ -386,11 +386,12 @@ The `build-release` target exists as a compatibility alias and should remain
 behaviourally identical to `release`.
 
 The `.github/workflows/smoke.yml` workflow is the bounded CI smoke path for
-this repository. It installs Python, Rust, `uv`, and the support tools required
-by the checked targets, then runs `make check-fmt`, `make markdownlint`,
-`make nixie`, `make lint`, `make test`, and `make release` sequentially. The
-workflow is not release publishing automation; it proves that local development
-installs and release wheels exercise the same PyO3 boundary.
+this repository. Its Ubuntu `lint-test` job installs Python, Rust, `uv`, and
+the support tools required by the checked targets, then runs `make check-fmt`,
+`make markdownlint`, `make nixie`, `make lint`, and `make test`. Its
+`release-smoke` matrix builds and smoke-tests release wheels on Ubuntu, macOS,
+and Windows. The workflow is not release publishing automation; it proves that
+local development installs and release wheels exercise the same PyO3 boundary.
 
 ## 6. Lint, typecheck, and test workflow
 

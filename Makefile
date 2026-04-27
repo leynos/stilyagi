@@ -21,7 +21,7 @@ TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace
 
 all: release ## Build the release artifact
 
-.venv:
+.venv: pyproject.toml uv.lock $(WORKSPACE_MANIFEST) Cargo.lock
 	UV_VENV_CLEAR=1 $(UV_ENV) uv venv
 	$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev
 
