@@ -1,19 +1,24 @@
 """Smoke checks for installed Stilyagi packages."""
 
 import sys
+import typing as typ
 
 from stilyagi import engine, model
 
 SMOKE_SOURCE = "# Stilyagi smoke"
+ExtractDocument = typ.Callable[[str, "model.Syntax"], "model.Document"]
 
 
 class SmokeCheckError(RuntimeError):
     """Raised when the installed package does not cross the Rust bridge."""
 
 
-def smoke_installed_package() -> model.Document:
+def smoke_installed_package(
+    *,
+    extract_fn: ExtractDocument = engine.extract_document,
+) -> model.Document:
     """Exercise the public Python API backed by the embedded Rust extension."""
-    document = engine.extract_document(SMOKE_SOURCE, model.Syntax.MARKDOWN)
+    document = extract_fn(SMOKE_SOURCE, model.Syntax.MARKDOWN)
     _validate_smoke_document(document)
     return document
 

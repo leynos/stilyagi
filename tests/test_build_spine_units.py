@@ -110,20 +110,15 @@ def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
     ],
 )
 def test_smoke_helper_rejects_invalid_documents(
-    monkeypatch: pytest.MonkeyPatch,
     extract_impl: ExtractDocument,
     expected_match: str,
 ) -> None:
     """Reject smoke payloads that do not prove the expected bridge contract."""
-    monkeypatch.setattr(smoke.engine, "extract_document", extract_impl)
-
     with pytest.raises(smoke.SmokeCheckError, match=expected_match):
-        smoke.smoke_installed_package()
+        smoke.smoke_installed_package(extract_fn=extract_impl)
 
 
-def test_smoke_helper_accepts_expected_region_after_other_regions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_smoke_helper_accepts_expected_region_after_other_regions() -> None:
     """Accept smoke payloads that include the expected region in any position."""
 
     def extract_expected_region_after_metadata(
@@ -138,13 +133,9 @@ def test_smoke_helper_accepts_expected_region_after_other_regions(
             ),
         )
 
-    monkeypatch.setattr(
-        smoke.engine,
-        "extract_document",
-        extract_expected_region_after_metadata,
+    document = smoke.smoke_installed_package(
+        extract_fn=extract_expected_region_after_metadata
     )
-
-    document = smoke.smoke_installed_package()
 
     assert document.regions[-1] == EXPECTED_SMOKE_REGION
 
