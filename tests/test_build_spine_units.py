@@ -14,10 +14,10 @@ WorkflowJob = dict[str, typ.Any]
 WorkflowStep = dict[str, typ.Any]
 
 
-def _extract_recipe(lines: list[str], target_line: int) -> tuple[str, ...]:
-    """Return the recipe lines that follow a Makefile target header."""
+def _collect_recipe_lines(lines: list[str], start: int) -> tuple[str, ...]:
+    """Return the tab-indented recipe lines immediately following position *start*."""
     recipe: list[str] = []
-    for recipe_line in lines[target_line + 1 :]:
+    for recipe_line in lines[start + 1 :]:
         if recipe_line.startswith("\t"):
             recipe.append(recipe_line.strip())
             continue
@@ -31,7 +31,7 @@ def _make_target(makefile: str, target: str) -> tuple[str, tuple[str, ...]]:
     lines = makefile.splitlines()
     for line_number, line in enumerate(lines):
         if line.startswith(f"{target}:"):
-            return line, _extract_recipe(lines, line_number)
+            return line, _collect_recipe_lines(lines, line_number)
     msg = f"target {target!r} not found"
     raise AssertionError(msg)
 
