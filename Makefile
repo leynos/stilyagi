@@ -12,8 +12,9 @@ CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
-        markdownlint nixie test test-ci test-quick typecheck tools release \
-        release-artifact smoke smoke-release
+        markdownlint nixie test test-ci test-quick typecheck tools \
+        tools-check tools-docs tools-lint release release-artifact smoke \
+        smoke-release
 
 .DEFAULT_GOAL := all
 
@@ -57,9 +58,18 @@ endef
 
 tools:
 	$(call ensure_tool,$(MDFORMAT_ALL))
+	$(MAKE) tools-check
+
+tools-check:
 	$(call ensure_tool,$(CARGO))
 	$(call ensure_tool,rustfmt)
 	$(call ensure_tool,uv)
+
+tools-docs:
+	$(call ensure_tool,$(MDLINT))
+	$(call ensure_tool,$(NIXIE))
+
+tools-lint: tools-check
 	$(call ensure_tool,whitaker)
 
 fmt: tools ## Format sources
@@ -68,27 +78,27 @@ fmt: tools ## Format sources
 	$(MDFORMAT_ALL)
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all
 
-check-fmt: tools ## Verify formatting
+check-fmt: tools-check ## Verify formatting
 	$(UV_RUN) ruff format --check
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
 
-lint: tools ## Run linters
+lint: tools-lint ## Run linters
 	$(UV_RUN) ruff check
 	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
 	# Whitaker resolves cargo metadata from the crate directory in this repo.
 	cd crates/stilyagi-pyext && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all
 
-typecheck: build tools ## Run typechecking
+typecheck: build tools-check ## Run typechecking
 	$(UV_RUN) ty --version
 	$(UV_RUN) ty check
 
-markdownlint: tools ## Lint Markdown files
+markdownlint: tools-docs ## Lint Markdown files
 	find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(MDLINT)
 
-nixie: tools ## Validate Mermaid diagrams
+nixie: tools-docs ## Validate Mermaid diagrams
 	find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(NIXIE) --no-sandbox
 
-test: build tools ## Run tests (nextest if available, otherwise cargo test)
+test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
 	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
 	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
@@ -101,10 +111,10 @@ test: build tools ## Run tests (nextest if available, otherwise cargo test)
 	# remains installed instead of being replaced by the uv_build wheel.
 	.venv/bin/python -m pytest -v
 
-test-ci: build tools ## Run Rust tests with the CI nextest profile
+test-ci: build tools-lint ## Run Rust tests with the CI nextest profile
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile ci --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS)
 
-test-quick: build tools ## Run Rust library tests only with nextest
+test-quick: build tools-lint ## Run Rust library tests only with nextest
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass --lib $(TEST_FLAGS) $(BUILD_JOBS)
 
 help: ## Show available targets

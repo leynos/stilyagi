@@ -83,3 +83,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
 
     assert "pull_request:" in workflow
     assert "push:" in workflow
+    assert "branches:" in workflow
+    assert "      - main" in workflow
+    assert "mdformat-all" not in workflow
+    assert "whitaker-installer" in workflow
