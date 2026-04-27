@@ -2,6 +2,7 @@ MDLINT ?= markdownlint-cli2
 NIXIE ?= nixie
 MDFORMAT_ALL ?= mdformat-all
 CARGO ?= cargo
+export PATH := $(HOME)/.cargo/bin:$(HOME)/.local/bin:$(HOME)/.bun/bin:$(PATH)
 WORKSPACE_MANIFEST ?= Cargo.toml
 PYEXT_MANIFEST ?= crates/stilyagi-pyext/Cargo.toml
 BUILD_JOBS ?=
