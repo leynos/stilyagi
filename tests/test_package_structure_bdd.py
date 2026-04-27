@@ -86,8 +86,11 @@ def ci_uses_the_canonical_makefile_smoke_path(
     """Confirm CI runs lint/test targets and release wheel smoke coverage."""
     assert "run: make test" in build_spine_state["workflow"]
     assert "release-smoke:" in build_spine_state["workflow"]
-    assert "uv run --group dev maturin build --release" in build_spine_state["workflow"]
-    assert '"${release_python}" -m stilyagi.smoke' in build_spine_state["workflow"]
+    assert "run: make release" in build_spine_state["workflow"]
+    assert (
+        "uv run --group dev maturin build --release"
+        not in build_spine_state["workflow"]
+    )
 
 
 @when("I inspect the supported package boundaries")

@@ -39,7 +39,7 @@ def _normalised_lines(contents: str) -> set[str]:
 
 def _workflow_document(workflow: str) -> dict[str, typ.Any]:
     """Parse a GitHub Actions workflow while preserving the `on` key as text."""
-    loaded = yaml.load(workflow, Loader=yaml.BaseLoader)  # noqa: S506
+    loaded = yaml.load(workflow, Loader=yaml.BaseLoader)  # noqa: S506 - BaseLoader avoids object deserialisation for this checked-in fixture.
     assert isinstance(loaded, dict)
     return loaded
 
@@ -250,9 +250,5 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
     assert "github.com/leynos/whitaker" in whitaker_run
     assert "whitaker-installer" in whitaker_run
     assert "--cranelift" in whitaker_run
-    release_build_command = (
-        "uv run --group dev maturin build --release "
-        "--manifest-path crates/stilyagi-pyext/Cargo.toml --out dist"
-    )
-    assert release_build_command in workflow_lines
-    assert '"${release_python}" -m stilyagi.smoke' in workflow_lines
+    release_smoke_step = _workflow_step_named(jobs["release-smoke"], "Release smoke")
+    assert release_smoke_step["run"] == "make release"
