@@ -187,39 +187,65 @@ def test_smoke_main_failure(
     assert "broken" in captured.err
 
 
-def test_makefile_keeps_build_and_release_on_the_shared_smoke_path() -> None:
-    """Keep canonical local workflows wired to the same smoke boundary."""
-    makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
-    targets = {
-        name: _make_target(makefile, name)
-        for name in ("build", ".venv", "smoke", "smoke-release", "markdownlint")
-    }
+@pytest.fixture(scope="module")
+def makefile_text() -> str:
+    """Return the repository Makefile as text, loaded once per session."""
+    return (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 
-    assert ".venv" in targets["build"][0]
-    assert "$(MAKE) smoke" in targets["build"][1]
-    assert "pyproject.toml" in targets[".venv"][0]
-    assert "uv.lock" in targets[".venv"][0]
-    assert "$(WORKSPACE_MANIFEST)" in targets[".venv"][0]
-    assert "Cargo.lock" in targets[".venv"][0]
-    assert "UV_VENV_CLEAR=1 $(UV_ENV) uv venv" in targets[".venv"][1]
-    assert "$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev" in targets[".venv"][1]
-    assert ".venv" in targets["smoke"][0]
-    assert any(".venv" in line for line in targets["smoke"][1])
-    assert any(
-        "python" in line and "-m stilyagi.smoke" in line for line in targets["smoke"][1]
-    )
-    assert "release-artifact" in targets["smoke-release"][0]
-    assert ".venv" in targets["smoke-release"][0]
-    assert '"$$venv_python" -m venv .venv-release-smoke' in targets["smoke-release"][1]
-    assert any("tempfile.gettempdir()" in line for line in targets["smoke-release"][1])
-    assert any(".as_posix()" in line for line in targets["smoke-release"][1])
-    assert any('cd "$$release_tmp"' in line for line in targets["smoke-release"][1])
-    assert all("cd /tmp" not in line for line in targets["smoke-release"][1])
-    assert "tools-docs" in targets["markdownlint"][0]
-    assert any(
-        "-not -path './.venv-release-smoke/*'" in line
-        for line in targets["markdownlint"][1]
-    )
+
+def test_makefile_build_target_depends_on_venv_and_runs_smoke(
+    makefile_text: str,
+) -> None:
+    """Build must declare a .venv dependency and delegate to the smoke target."""
+    header, recipe = _make_target(makefile_text, "build")
+    assert ".venv" in header
+    assert "$(MAKE) smoke" in recipe
+
+
+def test_makefile_venv_target_declares_manifests_and_sync_recipe(
+    makefile_text: str,
+) -> None:
+    """The .venv target must list all workspace manifests and run uv sync."""
+    header, recipe = _make_target(makefile_text, ".venv")
+    assert "pyproject.toml" in header
+    assert "uv.lock" in header
+    assert "$(WORKSPACE_MANIFEST)" in header
+    assert "Cargo.lock" in header
+    assert "UV_VENV_CLEAR=1 $(UV_ENV) uv venv" in recipe
+    assert "$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev" in recipe
+
+
+def test_makefile_smoke_target_invokes_stilyagi_smoke_via_venv(
+    makefile_text: str,
+) -> None:
+    """Smoke must depend on .venv and run stilyagi.smoke through the venv Python."""
+    header, recipe = _make_target(makefile_text, "smoke")
+    assert ".venv" in header
+    assert any(".venv" in line for line in recipe)
+    assert any("python" in line and "-m stilyagi.smoke" in line for line in recipe)
+
+
+def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
+    makefile_text: str,
+) -> None:
+    """smoke-release must isolate the wheel install and avoid hard-coding /tmp."""
+    header, recipe = _make_target(makefile_text, "smoke-release")
+    assert "release-artifact" in header
+    assert ".venv" in header
+    assert '"$$venv_python" -m venv .venv-release-smoke' in recipe
+    assert any("tempfile.gettempdir()" in line for line in recipe)
+    assert any(".as_posix()" in line for line in recipe)
+    assert any('cd "$$release_tmp"' in line for line in recipe)
+    assert all("cd /tmp" not in line for line in recipe)
+
+
+def test_makefile_markdownlint_target_excludes_release_smoke_venv(
+    makefile_text: str,
+) -> None:
+    """Markdownlint must depend on tools-docs and exclude the release smoke venv."""
+    header, recipe = _make_target(makefile_text, "markdownlint")
+    assert "tools-docs" in header
+    assert any("-not -path './.venv-release-smoke/*'" in line for line in recipe)
 
 
 def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
