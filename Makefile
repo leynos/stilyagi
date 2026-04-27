@@ -42,9 +42,16 @@ smoke: .venv ## Smoke-test the development install through the Rust bridge
 
 smoke-release: .venv release-artifact ## Smoke-test the release wheel through the Rust bridge
 	rm -rf .venv-release-smoke
-	.venv/bin/python -m venv .venv-release-smoke
-	.venv-release-smoke/bin/python -m pip install --no-index --find-links dist stilyagi
-	cd /tmp && "$(CURDIR)/.venv-release-smoke/bin/python" -m stilyagi.smoke
+	venv_python=".venv/bin/python"; \
+	if [ ! -x "$$venv_python" ]; then venv_python=".venv/Scripts/python.exe"; fi; \
+	"$$venv_python" -m venv .venv-release-smoke
+	release_python=".venv-release-smoke/bin/python"; \
+	if [ ! -x "$$release_python" ]; then release_python=".venv-release-smoke/Scripts/python.exe"; fi; \
+	"$$release_python" -m pip install --no-index --find-links dist stilyagi
+	release_python="$(CURDIR)/.venv-release-smoke/bin/python"; \
+	if [ ! -x "$$release_python" ]; then release_python="$(CURDIR)/.venv-release-smoke/Scripts/python.exe"; fi; \
+	release_tmp="$$("$$release_python" -c 'import tempfile; print(tempfile.gettempdir())')"; \
+	cd "$$release_tmp" && "$$release_python" -m stilyagi.smoke
 
 clean: ## Remove build artifacts
 	$(CARGO) clean --manifest-path $(WORKSPACE_MANIFEST)

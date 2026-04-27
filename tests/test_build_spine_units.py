@@ -191,7 +191,10 @@ def test_makefile_keeps_build_and_release_on_the_shared_smoke_path() -> None:
     assert ".venv/bin/python -m stilyagi.smoke" in targets["smoke"][1]
     assert "release-artifact" in targets["smoke-release"][0]
     assert ".venv" in targets["smoke-release"][0]
-    assert ".venv/bin/python -m venv .venv-release-smoke" in targets["smoke-release"][1]
+    assert '"$$venv_python" -m venv .venv-release-smoke' in targets["smoke-release"][1]
+    assert any("tempfile.gettempdir()" in line for line in targets["smoke-release"][1])
+    assert any('cd "$$release_tmp"' in line for line in targets["smoke-release"][1])
+    assert "cd /tmp" not in targets["smoke-release"][1]
     assert "tools-docs" in targets["markdownlint"][0]
     assert any(
         "-not -path './.venv-release-smoke/*'" in line

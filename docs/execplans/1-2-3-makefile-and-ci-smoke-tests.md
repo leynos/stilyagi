@@ -122,10 +122,11 @@ The relevant skills for the implementer are:
 - Scope: if implementation needs more than twelve files or roughly 450 net new
   lines, stop and explain why. This should be a build-spine smoke slice, not a
   hidden release-system rewrite.
-- CI breadth: if the work needs more than one new GitHub Actions workflow or a
-  cross-platform wheel matrix, stop and ask for approval. Cross-platform wheel
-  release hardening is a later concern unless the user explicitly expands this
-  slice.
+- CI breadth: keep this slice to the existing smoke workflow. A
+  cross-platform release smoke matrix is now in scope for this PR because the
+  review explicitly requested wheel build/import smoke coverage on Ubuntu,
+  macOS, and Windows; do not add more workflows or publishing automation
+  without separate approval.
 - Interface: if satisfying the smoke path appears to require renaming
   `stilyagi`, `_stilyagi_rs`, `make build`, or `make release`, stop and ask for
   confirmation.
