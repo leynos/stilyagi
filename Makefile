@@ -11,6 +11,7 @@ UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 UV_RUN = $(UV_ENV) uv run --group dev
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace
+RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" ]; then VENV_PYTHON=".venv/Scripts/python.exe"; fi
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
         markdownlint nixie test test-ci test-quick typecheck tools \
@@ -38,15 +39,13 @@ release-artifact: ## Build the release artifact
 build-release: release ## Backward-compatible alias for release
 
 smoke: .venv ## Smoke-test the development install through the Rust bridge
-	venv_python=".venv/bin/python"; \
-	if [ ! -x "$$venv_python" ]; then venv_python=".venv/Scripts/python.exe"; fi; \
-	"$$venv_python" -m stilyagi.smoke
+	$(RESOLVE_VENV_PYTHON); \
+	"$$VENV_PYTHON" -m stilyagi.smoke
 
 smoke-release: .venv release-artifact ## Smoke-test the release wheel through the Rust bridge
 	rm -rf .venv-release-smoke
-	venv_python=".venv/bin/python"; \
-	if [ ! -x "$$venv_python" ]; then venv_python=".venv/Scripts/python.exe"; fi; \
-	"$$venv_python" -m venv .venv-release-smoke
+	$(RESOLVE_VENV_PYTHON); \
+	"$$VENV_PYTHON" -m venv .venv-release-smoke
 	release_python=".venv-release-smoke/bin/python"; \
 	if [ ! -x "$$release_python" ]; then release_python=".venv-release-smoke/Scripts/python.exe"; fi; \
 	"$$release_python" -m pip install --no-index --find-links dist stilyagi
@@ -121,9 +120,8 @@ test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 	fi
 	# Run pytest through the venv interpreter so the maturin-developed extension
 	# remains installed instead of being replaced by the uv_build wheel.
-	venv_python=".venv/bin/python"; \
-	if [ ! -x "$$venv_python" ]; then venv_python=".venv/Scripts/python.exe"; fi; \
-	"$$venv_python" -m pytest -v
+	$(RESOLVE_VENV_PYTHON); \
+	"$$VENV_PYTHON" -m pytest -v
 
 test-ci: build tools-lint ## Run Rust tests with the CI nextest profile
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile ci --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS)

@@ -54,16 +54,18 @@ def _normalised_lines(contents: str) -> set[str]:
     return {line.strip() for line in contents.splitlines() if line.strip()}
 
 
-def _workflow_document(workflow: str) -> dict[str, typ.Any]:
+def _workflow_document(workflow: str) -> dict[str, object]:
     """Parse a GitHub Actions workflow while preserving the `on` key as text."""
     loaded = yaml.load(workflow, Loader=yaml.BaseLoader)  # noqa: S506 - BaseLoader avoids object deserialisation for this checked-in fixture.
     assert isinstance(loaded, dict)
-    return loaded
+    return typ.cast("dict[str, object]", loaded)
 
 
-def _workflow_jobs(parsed_workflow: dict[str, typ.Any]) -> dict[str, WorkflowJob]:
+def _workflow_jobs(parsed_workflow: dict[str, object]) -> dict[str, WorkflowJob]:
     """Return the parsed workflow jobs with a narrow test-local shape."""
-    return typ.cast("dict[str, WorkflowJob]", parsed_workflow["jobs"])
+    jobs = parsed_workflow["jobs"]
+    assert isinstance(jobs, dict)
+    return typ.cast("dict[str, WorkflowJob]", jobs)
 
 
 def _job_steps(job: WorkflowJob) -> list[WorkflowStep]:
@@ -172,7 +174,7 @@ def test_smoke_main_failure(
 
 @pytest.fixture(scope="module")
 def makefile_text() -> str:
-    """Return the repository Makefile as text, loaded once per session."""
+    """Return the repository Makefile as text, loaded once per module."""
     return (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 
 
@@ -204,8 +206,8 @@ def test_makefile_smoke_target_invokes_stilyagi_smoke_via_venv(
     """Smoke must depend on .venv and run stilyagi.smoke through the venv Python."""
     header, recipe = _make_target(makefile_text, "smoke")
     assert ".venv" in header
-    assert any(".venv" in line for line in recipe)
-    assert any("python" in line and "-m stilyagi.smoke" in line for line in recipe)
+    assert any("VENV_PYTHON" in line for line in recipe)
+    assert any("VENV_PYTHON" in line and "-m stilyagi.smoke" in line for line in recipe)
 
 
 def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
@@ -215,6 +217,7 @@ def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
     header, recipe = _make_target(makefile_text, "smoke-release")
     assert "release-artifact" in header
     assert ".venv" in header
+    assert any("VENV_PYTHON" in line for line in recipe)
     assert any(re.search(r"-m\s+venv\s+\.venv-release-smoke", line) for line in recipe)
     assert any(re.search(r"tempfile\.gettempdir\(\)", line) for line in recipe)
     assert any(re.search(r"\.as_posix\(\)", line) for line in recipe)
@@ -261,7 +264,10 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         "macos-latest",
         "windows-latest",
     ]
-    push_branches = parsed_workflow["on"]["push"]["branches"]
+    push_branches = typ.cast(
+        "dict[str, dict[str, list[str]]]",
+        parsed_workflow["on"],
+    )["push"]["branches"]
     assert "pull_request:" in workflow_lines
     assert "main" in push_branches
     python_steps = [
