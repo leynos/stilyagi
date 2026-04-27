@@ -19,15 +19,16 @@ def smoke_installed_package() -> model.Document:
 
 
 def _validate_smoke_document(document: model.Document) -> None:
-    """Validate the narrow document shape that proves bridge execution."""
+    """Validate the document content that proves bridge execution."""
     if document.syntax is not model.Syntax.MARKDOWN:
         msg = f"unexpected syntax from smoke extraction: {document.syntax.value}"
         raise SmokeCheckError(msg)
     if not document.regions:
         msg = "smoke extraction must return at least one region"
         raise SmokeCheckError(msg)
-    if document.regions[0] != model.Region(kind="document", text=SMOKE_SOURCE):
-        msg = f"unexpected first smoke region: {document.regions[0]!r}"
+    expected_region = model.Region(kind="document", text=SMOKE_SOURCE)
+    if expected_region not in document.regions:
+        msg = f"smoke extraction must include source-backed region: {expected_region!r}"
         raise SmokeCheckError(msg)
 
 

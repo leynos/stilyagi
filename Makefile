@@ -21,9 +21,11 @@ TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace
 
 all: release ## Build the release artifact
 
-build: ## Build dev artifact and install into venv
+.venv:
 	UV_VENV_CLEAR=1 $(UV_ENV) uv venv
 	$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev
+
+build: .venv ## Build dev artifact and install into venv
 	$(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(PYEXT_MANIFEST)
 	$(MAKE) smoke
 
@@ -35,10 +37,10 @@ release-artifact: ## Build the release artifact
 
 build-release: release ## Backward-compatible alias for release
 
-smoke: ## Smoke-test the development install through the Rust bridge
+smoke: .venv ## Smoke-test the development install through the Rust bridge
 	.venv/bin/python -m stilyagi.smoke
 
-smoke-release: release-artifact ## Smoke-test the release wheel through the Rust bridge
+smoke-release: .venv release-artifact ## Smoke-test the release wheel through the Rust bridge
 	rm -rf .venv-release-smoke
 	.venv/bin/python -m venv .venv-release-smoke
 	.venv-release-smoke/bin/python -m pip install --no-index --find-links dist stilyagi
