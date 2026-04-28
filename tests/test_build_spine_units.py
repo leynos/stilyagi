@@ -127,6 +127,43 @@ def test_smoke_helper_rejects_invalid_documents(
         smoke.smoke_installed_package(extract_fn=extract_impl)
 
 
+def test_smoke_helper_wraps_extractor_failures() -> None:
+    """Report extractor failures as SmokeCheckError instances."""
+
+    class BridgeFailureError(RuntimeError):
+        """Synthetic extractor failure."""
+
+    def fail_extract_document(
+        _source: str,
+        _syntax: model.Syntax,
+    ) -> model.Document:
+        raise BridgeFailureError
+
+    with pytest.raises(
+        smoke.SmokeCheckError, match="Stilyagi smoke check failed"
+    ) as error:
+        smoke.smoke_installed_package(extract_fn=fail_extract_document)
+
+    assert isinstance(error.value.__cause__, BridgeFailureError)
+
+
+def test_smoke_helper_rejects_malformed_extractor_result() -> None:
+    """Reject extractor results that are not model documents."""
+
+    def extract_wrong_result(
+        _source: str,
+        _syntax: model.Syntax,
+    ) -> model.Document:
+        return typ.cast("model.Document", {"syntax": "markdown"})
+
+    with pytest.raises(
+        smoke.SmokeCheckError, match=r"expected model\.Document"
+    ) as error:
+        smoke.smoke_installed_package(extract_fn=extract_wrong_result)
+
+    assert isinstance(error.value.__cause__, TypeError)
+
+
 def test_smoke_helper_accepts_expected_region_after_other_regions() -> None:
     """Accept smoke payloads that include the expected region in any position."""
 

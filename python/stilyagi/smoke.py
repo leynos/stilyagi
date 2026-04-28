@@ -18,7 +18,15 @@ def smoke_installed_package(
     extract_fn: ExtractDocument = engine.extract_document,
 ) -> model.Document:
     """Exercise the public Python API backed by the embedded Rust extension."""
-    document = extract_fn(SMOKE_SOURCE, model.Syntax.MARKDOWN)
+    try:
+        document = extract_fn(SMOKE_SOURCE, model.Syntax.MARKDOWN)
+    except Exception as error:
+        msg = f"Stilyagi smoke check failed: {error}"
+        raise SmokeCheckError(msg) from error
+    if not isinstance(document, model.Document):
+        error = TypeError(f"expected model.Document, got {type(document).__name__}")
+        msg = f"Stilyagi smoke check failed: {error}"
+        raise SmokeCheckError(msg) from error
     _validate_smoke_document(document)
     return document
 
