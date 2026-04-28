@@ -6,7 +6,7 @@ import typing as typ
 from stilyagi import engine, model
 
 SMOKE_SOURCE = "# Stilyagi smoke"
-ExtractDocument = typ.Callable[[str, "model.Syntax"], "model.Document"]
+ExtractDocument = typ.Callable[[str, model.Syntax], model.Document]
 
 
 class SmokeCheckError(RuntimeError):

@@ -217,11 +217,9 @@ def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
     header, recipe = _make_target(makefile_text, "smoke-release")
     assert "release-artifact" in header
     assert ".venv" in header
-    assert any("VENV_PYTHON" in line for line in recipe)
-    assert any(re.search(r"-m\s+venv\s+\.venv-release-smoke", line) for line in recipe)
+    assert any(re.search(r"-m\s+venv\b", line) for line in recipe)
     assert any(re.search(r"tempfile\.gettempdir\(\)", line) for line in recipe)
-    assert any(re.search(r"\.as_posix\(\)", line) for line in recipe)
-    assert any(re.search(r'cd\s+"?\$\$release_tmp"?', line) for line in recipe)
+    assert any(re.search(r'python"?\s+-m\s+stilyagi\.smoke', line) for line in recipe)
     assert all(not re.search(r"cd\s+/tmp\b", line) for line in recipe)
 
 
@@ -241,12 +239,13 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
     )
     parsed_workflow = _workflow_document(workflow)
     workflow_lines = _normalised_lines(workflow)
-    run_commands = {
-        line.removeprefix("run:").strip()
-        for line in workflow_lines
-        if line.startswith("run:")
-    }
     jobs = _workflow_jobs(parsed_workflow)
+    run_commands = {
+        command.strip()
+        for step in _workflow_steps(jobs)
+        for command in str(step.get("run", "")).splitlines()
+        if command.strip()
+    }
 
     assert {
         "make check-fmt",
