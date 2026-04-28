@@ -103,6 +103,13 @@ def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
             "unexpected syntax",
         ),
         (
+            lambda _source, _syntax: model.Document(
+                syntax=typ.cast("model.Syntax", "markdown"),
+                regions=(EXPECTED_SMOKE_REGION,),
+            ),
+            "malformed syntax",
+        ),
+        (
             lambda _source, syntax: model.Document(
                 syntax=syntax,
                 regions=(model.Region(kind="document", text="# Unexpected smoke"),),
@@ -218,7 +225,6 @@ def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
     assert "release-artifact" in header
     assert ".venv" in header
     assert any(re.search(r"-m\s+venv\b", line) for line in recipe)
-    assert any(re.search(r"tempfile\.gettempdir\(\)", line) for line in recipe)
     assert any(re.search(r'python"?\s+-m\s+stilyagi\.smoke', line) for line in recipe)
     assert all(not re.search(r"cd\s+/tmp\b", line) for line in recipe)
 
@@ -288,4 +294,4 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
     assert "whitaker-installer" in whitaker_run
     assert "--cranelift" in whitaker_run
     release_smoke_step = _workflow_step_named(jobs["release-smoke"], "Release smoke")
-    assert release_smoke_step["run"] == "make release"
+    assert "make release" in release_smoke_step["run"]

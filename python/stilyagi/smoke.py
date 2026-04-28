@@ -25,6 +25,9 @@ def smoke_installed_package(
 
 def _validate_smoke_document(document: model.Document) -> None:
     """Validate the document content that proves bridge execution."""
+    if not isinstance(document.syntax, model.Syntax):
+        msg = f"malformed syntax from smoke extraction: {document.syntax!r}"
+        raise SmokeCheckError(msg)
     if document.syntax is not model.Syntax.MARKDOWN:
         msg = f"unexpected syntax from smoke extraction: {document.syntax.value}"
         raise SmokeCheckError(msg)
