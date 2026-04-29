@@ -277,15 +277,16 @@ def test_makefile_markdownlint_target_excludes_release_smoke_venv(
 
 def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
     """Make CI exercise Makefile targets instead of duplicating build logic."""
-    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "smoke.yml").read_text(
-        encoding="utf-8"
+    parsed_workflow = _workflow_document(
+        (REPOSITORY_ROOT / ".github" / "workflows" / "smoke.yml").read_text(
+            encoding="utf-8"
+        )
     )
-    parsed_workflow = _workflow_document(workflow)
-    workflow_lines = _normalised_lines(workflow)
     jobs = _workflow_jobs(parsed_workflow)
+    workflow_steps = _workflow_steps(jobs)
     run_commands = {
         command.strip()
-        for step in _workflow_steps(jobs)
+        for step in workflow_steps
         for command in str(step.get("run", "")).splitlines()
         if command.strip()
     }
@@ -306,15 +307,14 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         "macos-latest",
         "windows-latest",
     ]
-    push_branches = typ.cast(
-        "dict[str, dict[str, list[str]]]",
-        parsed_workflow["on"],
-    )["push"]["branches"]
-    assert "pull_request:" in workflow_lines
-    assert "main" in push_branches
+    triggers = typ.cast("dict[str, object]", parsed_workflow.get("on", {}))
+    assert "pull_request" in triggers
+    assert "main" in typ.cast("dict[str, list[str]]", triggers.get("push", {})).get(
+        "branches", []
+    )
     python_steps = [
         step
-        for step in _workflow_steps(jobs)
+        for step in workflow_steps
         if str(step.get("uses", "")).startswith("actions/setup-python@")
     ]
     assert python_steps
@@ -323,8 +323,11 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         for step in python_steps
     )
     assert all(step["with"]["python-version"] == "3.14" for step in python_steps)
-    assert "mdformat-all" not in workflow
-    assert "uv tool install nixie-cli==1.0.0" in workflow_lines
+    assert all("mdformat-all" not in str(step) for step in workflow_steps)
+    assert any(
+        "uv tool install nixie-cli==1.0.0" in str(step.get("run", ""))
+        for step in workflow_steps
+    )
     whitaker_step = _workflow_step_named(jobs["lint-test"], "Install Whitaker")
     whitaker_run = str(whitaker_step["run"])
     assert "github.com/leynos/whitaker" in whitaker_run
