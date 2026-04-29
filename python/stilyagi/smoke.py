@@ -17,7 +17,29 @@ def smoke_installed_package(
     *,
     extract_fn: ExtractDocument = engine.extract_document,
 ) -> model.Document:
-    """Exercise the public Python API backed by the embedded Rust extension."""
+    """Exercise the public Python API backed by the embedded Rust extension.
+
+    Calls *extract_fn* with the canonical smoke source and validates the
+    returned document to confirm the Rust bridge is reachable and functioning.
+
+    Parameters
+    ----------
+    extract_fn : ExtractDocument, optional
+        Callable with the same signature as ``engine.extract_document``.
+        Defaults to ``engine.extract_document``.  Pass an alternative to
+        isolate unit tests from the live Rust bridge.
+
+    Returns
+    -------
+    model.Document
+        The validated document returned by the extraction engine.
+
+    Raises
+    ------
+    SmokeCheckError
+        If the extraction call raises, returns a non-Document type, or
+        returns a document that does not satisfy the smoke contract.
+    """
     try:
         document = extract_fn(SMOKE_SOURCE, model.Syntax.MARKDOWN)
     except Exception as error:
@@ -73,7 +95,17 @@ def _validate_smoke_document(document: model.Document) -> None:
 
 
 def main() -> int:
-    """Run the installed-package smoke check as a command."""
+    """Run the installed-package smoke check as a command.
+
+    Invokes :func:`smoke_installed_package` and reports the outcome to
+    *stderr* on failure.  Intended for use as ``python -m stilyagi.smoke``
+    or as a Makefile target recipe step.
+
+    Returns
+    -------
+    int
+        ``0`` on success, ``1`` if :exc:`SmokeCheckError` is raised.
+    """
     try:
         smoke_installed_package()
     except SmokeCheckError as error:
