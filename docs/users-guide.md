@@ -42,8 +42,9 @@ from stilyagi.nlp import SpacyProviderConfig
 The current placeholder modules are intentionally narrow, but each one already
 owns a long-lived architectural role:
 
-- `stilyagi.hello()` exercises the embedded Rust bridge and is the current
-  smoke path for the package skeleton.
+- `stilyagi.hello()` is a placeholder that exercises the embedded Rust bridge
+  directly; it is not the canonical smoke check. See §1b for the supported
+  package smoke check.
 - `stilyagi.engine` is the future home for execution planning, fix planning,
   rendering, and runner orchestration. It now also exposes the first real
   extraction call:
