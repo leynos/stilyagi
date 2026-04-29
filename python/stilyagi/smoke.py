@@ -31,21 +31,45 @@ def smoke_installed_package(
     return document
 
 
+def _assert_syntax_is_model_syntax(document: model.Document) -> None:
+    """Raise SmokeCheckError if syntax is not a model.Syntax instance."""
+    if isinstance(document.syntax, model.Syntax):
+        return
+    msg = f"malformed syntax from smoke extraction: {document.syntax!r}"
+    raise SmokeCheckError(msg)
+
+
+def _assert_syntax_is_markdown(document: model.Document) -> None:
+    """Raise SmokeCheckError if syntax is not MARKDOWN."""
+    if document.syntax is model.Syntax.MARKDOWN:
+        return
+    msg = f"unexpected syntax from smoke extraction: {document.syntax.value}"
+    raise SmokeCheckError(msg)
+
+
+def _assert_has_regions(document: model.Document) -> None:
+    """Raise SmokeCheckError if the document has no regions."""
+    if document.regions:
+        return
+    msg = "smoke extraction must return at least one region"
+    raise SmokeCheckError(msg)
+
+
+def _assert_has_expected_smoke_region(document: model.Document) -> None:
+    """Raise SmokeCheckError if the expected smoke region is absent."""
+    expected_region = model.Region(kind="document", text=SMOKE_SOURCE)
+    if expected_region in document.regions:
+        return
+    msg = f"smoke extraction must include source-backed region: {expected_region!r}"
+    raise SmokeCheckError(msg)
+
+
 def _validate_smoke_document(document: model.Document) -> None:
     """Validate the document content that proves bridge execution."""
-    if not isinstance(document.syntax, model.Syntax):
-        msg = f"malformed syntax from smoke extraction: {document.syntax!r}"
-        raise SmokeCheckError(msg)
-    if document.syntax is not model.Syntax.MARKDOWN:
-        msg = f"unexpected syntax from smoke extraction: {document.syntax.value}"
-        raise SmokeCheckError(msg)
-    if not document.regions:
-        msg = "smoke extraction must return at least one region"
-        raise SmokeCheckError(msg)
-    expected_region = model.Region(kind="document", text=SMOKE_SOURCE)
-    if expected_region not in document.regions:
-        msg = f"smoke extraction must include source-backed region: {expected_region!r}"
-        raise SmokeCheckError(msg)
+    _assert_syntax_is_model_syntax(document)
+    _assert_syntax_is_markdown(document)
+    _assert_has_regions(document)
+    _assert_has_expected_smoke_region(document)
 
 
 def main() -> int:
