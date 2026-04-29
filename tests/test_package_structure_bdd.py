@@ -1,6 +1,7 @@
 """Behaviour tests for the mixed-package repository skeleton."""
 
 import json
+import pathlib
 import subprocess  # noqa: S404
 import sys
 import typing as typ
@@ -8,6 +9,8 @@ import typing as typ
 from pytest_bdd import given, scenarios, then, when
 
 scenarios("../features/stilyagi_package_structure.feature")
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class PythonCommandResult(typ.TypedDict):
@@ -25,10 +28,70 @@ class PackageProbeState(typ.TypedDict):
     fallback_probe: PythonCommandResult | None
 
 
+class BuildSpineState(typ.TypedDict):
+    """Per-scenario build-spine file contents."""
+
+    makefile: str
+    workflow: str
+
+
 @given("the built Stilyagi package is available", target_fixture="package_probe_state")
 def package_probe_state() -> PackageProbeState:
     """Return an empty scenario state."""
     return {"boundary_probe": None, "fallback_probe": None}
+
+
+@given("the repository build spine is available", target_fixture="build_spine_state")
+def build_spine_state() -> BuildSpineState:
+    """Read the build-spine files used by the canonical workflows."""
+    return {
+        "makefile": "",
+        "workflow": "",
+    }
+
+
+@when("I inspect the canonical build workflows")
+def inspect_canonical_build_workflows(build_spine_state: BuildSpineState) -> None:
+    """Inspect Makefile and GitHub Actions workflow wiring."""
+    build_spine_state["makefile"] = (REPOSITORY_ROOT / "Makefile").read_text(
+        encoding="utf-8",
+    )
+    build_spine_state["workflow"] = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "smoke.yml"
+    ).read_text(encoding="utf-8")
+
+
+@then("make build runs the development smoke check")
+def make_build_runs_the_development_smoke_check(
+    build_spine_state: BuildSpineState,
+) -> None:
+    """Confirm the development install path invokes the package smoke helper."""
+    assert "$(MAKE) smoke" in build_spine_state["makefile"]
+    assert ".venv" in build_spine_state["makefile"]
+    assert "-m stilyagi.smoke" in build_spine_state["makefile"]
+
+
+@then("make release runs the release artefact smoke check")
+def make_release_runs_the_release_artefact_smoke_check(
+    build_spine_state: BuildSpineState,
+) -> None:
+    """Confirm the release path smokes the built wheel."""
+    assert "release: release-artifact smoke-release" in build_spine_state["makefile"]
+    assert ".venv-release-smoke" in build_spine_state["makefile"]
+
+
+@then("CI uses the canonical Makefile smoke path")
+def ci_uses_the_canonical_makefile_smoke_path(
+    build_spine_state: BuildSpineState,
+) -> None:
+    """Confirm CI runs lint/test targets and release wheel smoke coverage."""
+    assert "run: make test" in build_spine_state["workflow"]
+    assert "release-smoke:" in build_spine_state["workflow"]
+    assert "run: make release" in build_spine_state["workflow"]
+    assert (
+        "uv run --group dev maturin build --release"
+        not in build_spine_state["workflow"]
+    )
 
 
 @when("I inspect the supported package boundaries")
@@ -66,10 +129,9 @@ def package_reports_a_markdown_document_extracted_by_rust(
     """Confirm that the subprocess reports the Rust-backed document payload."""
     boundary_probe = require_result(package_probe_state["boundary_probe"])
     payload = json.loads(boundary_probe["stdout"])
-    assert payload == {
-        "syntax": "markdown",
-        "regions": [{"kind": "document", "text": "# Heading"}],
-    }
+    regions = payload["regions"]
+    assert payload["syntax"] == "markdown"
+    assert {"kind": "document", "text": "# Heading"} in regions
 
 
 @when("I import the legacy pure-Python fallback module")

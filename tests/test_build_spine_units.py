@@ -1,0 +1,345 @@
+"""Unit tests for the mixed-package build spine."""
+
+import pathlib
+import re
+import typing as typ
+
+import pytest
+import yaml
+from stilyagi import model, smoke
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
+EXPECTED_SMOKE_REGION = model.Region(kind="document", text=smoke.SMOKE_SOURCE)
+ExtractDocument = typ.Callable[[str, model.Syntax], model.Document]
+WorkflowStep = typ.TypedDict(
+    "WorkflowStep",
+    {"name": str, "uses": str, "run": str, "with": dict[str, str]},
+    total=False,
+)
+WorkflowJob = typ.TypedDict(
+    "WorkflowJob",
+    {
+        "runs-on": str,
+        "strategy": dict[str, dict[str, list[str]]],
+        "steps": list[WorkflowStep],
+    },
+    total=False,
+)
+
+
+def _collect_recipe_lines(lines: list[str], start: int) -> tuple[str, ...]:
+    """Return the tab-indented recipe lines immediately following position *start*."""
+    recipe: list[str] = []
+    for recipe_line in lines[start + 1 :]:
+        if recipe_line.startswith("\t"):
+            recipe.append(recipe_line.strip())
+            continue
+        if recipe_line:
+            break
+    return tuple(recipe)
+
+
+def _make_target(makefile: str, target: str) -> tuple[str, tuple[str, ...]]:
+    """Return a Makefile target header and its recipe lines."""
+    lines = makefile.splitlines()
+    for line_number, line in enumerate(lines):
+        if line.startswith(f"{target}:"):
+            return line, _collect_recipe_lines(lines, line_number)
+    msg = f"target {target!r} not found"
+    raise AssertionError(msg)
+
+
+def _normalised_lines(contents: str) -> set[str]:
+    """Return stripped non-empty lines for structure-oriented file assertions."""
+    return {line.strip() for line in contents.splitlines() if line.strip()}
+
+
+def _workflow_document(workflow: str) -> dict[str, object]:
+    """Parse a GitHub Actions workflow while preserving the `on` key as text."""
+    loaded = yaml.load(workflow, Loader=yaml.BaseLoader)  # noqa: S506 - BaseLoader avoids object deserialisation for this checked-in fixture.
+    assert isinstance(loaded, dict)
+    return typ.cast("dict[str, object]", loaded)
+
+
+def _workflow_jobs(parsed_workflow: dict[str, object]) -> dict[str, WorkflowJob]:
+    """Return the parsed workflow jobs with a narrow test-local shape."""
+    jobs = parsed_workflow["jobs"]
+    assert isinstance(jobs, dict)
+    return typ.cast("dict[str, WorkflowJob]", jobs)
+
+
+def _job_steps(job: WorkflowJob) -> list[WorkflowStep]:
+    """Return a workflow job's steps with a narrow test-local shape."""
+    return typ.cast("list[WorkflowStep]", job["steps"])
+
+
+def _workflow_steps(jobs: dict[str, WorkflowJob]) -> list[WorkflowStep]:
+    """Return every step from every parsed workflow job."""
+    return [step for job in jobs.values() for step in _job_steps(job)]
+
+
+def _workflow_step_named(job: WorkflowJob, name: str) -> WorkflowStep:
+    """Return a named step from a parsed workflow job."""
+    return next(step for step in _job_steps(job) if step.get("name") == name)
+
+
+def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
+    """Call the same package smoke helper used by Makefile and CI."""
+    document = smoke.smoke_installed_package()
+
+    assert document.syntax is model.Syntax.MARKDOWN
+    assert EXPECTED_SMOKE_REGION in document.regions
+
+
+@pytest.mark.parametrize(
+    ("extract_impl", "expected_match"),
+    [
+        (lambda _source, syntax: model.Document(syntax=syntax), "at least one region"),
+        (
+            lambda _source, _syntax: model.Document(
+                syntax=model.Syntax.PYTHON_DOCSTRING,
+                regions=(model.Region(kind="document", text="# Stilyagi smoke"),),
+            ),
+            "unexpected syntax",
+        ),
+        (
+            lambda _source, _syntax: model.Document(
+                syntax=typ.cast("model.Syntax", "markdown"),
+                regions=(EXPECTED_SMOKE_REGION,),
+            ),
+            "malformed syntax",
+        ),
+        (
+            lambda _source, syntax: model.Document(
+                syntax=syntax,
+                regions=(model.Region(kind="document", text="# Unexpected smoke"),),
+            ),
+            "source-backed region",
+        ),
+        (
+            lambda _source, _syntax: (_ for _ in ()).throw(
+                RuntimeError("bridge error")
+            ),
+            "unexpected error",
+        ),
+        (
+            lambda _source, _syntax: typ.cast("model.Document", "not a document"),
+            "unexpected type",
+        ),
+    ],
+)
+def test_smoke_helper_rejects_invalid_documents(
+    extract_impl: ExtractDocument,
+    expected_match: str,
+) -> None:
+    """Reject smoke payloads that do not prove the expected bridge contract."""
+    with pytest.raises(smoke.SmokeCheckError, match=expected_match):
+        smoke.smoke_installed_package(extract_fn=extract_impl)
+
+
+def test_smoke_helper_wraps_extractor_failures() -> None:
+    """Report extractor failures as SmokeCheckError instances."""
+
+    class BridgeFailureError(RuntimeError):
+        """Synthetic extractor failure."""
+
+    def fail_extract_document(
+        _source: str,
+        _syntax: model.Syntax,
+    ) -> model.Document:
+        raise BridgeFailureError
+
+    with pytest.raises(smoke.SmokeCheckError, match="unexpected error") as error:
+        smoke.smoke_installed_package(extract_fn=fail_extract_document)
+
+    assert isinstance(error.value.__cause__, BridgeFailureError)
+
+
+def test_smoke_helper_rejects_malformed_extractor_result() -> None:
+    """Reject extractor results that are not model documents."""
+
+    def extract_wrong_result(
+        _source: str,
+        _syntax: model.Syntax,
+    ) -> model.Document:
+        return typ.cast("model.Document", {"syntax": "markdown"})
+
+    with pytest.raises(smoke.SmokeCheckError, match="unexpected type") as error:
+        smoke.smoke_installed_package(extract_fn=extract_wrong_result)
+
+    assert error.value.__cause__ is None
+
+
+def test_smoke_helper_accepts_expected_region_after_other_regions() -> None:
+    """Accept smoke payloads that include the expected region in any position."""
+
+    def extract_expected_region_after_metadata(
+        _source: str,
+        syntax: model.Syntax,
+    ) -> model.Document:
+        return model.Document(
+            syntax=syntax,
+            regions=(
+                model.Region(kind="metadata", text="generated by extractor"),
+                EXPECTED_SMOKE_REGION,
+            ),
+        )
+
+    document = smoke.smoke_installed_package(
+        extract_fn=extract_expected_region_after_metadata
+    )
+
+    assert document.regions[-1] == EXPECTED_SMOKE_REGION
+
+
+def test_smoke_main_returns_zero_on_success(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """main() returns 0 and produces no stderr when the bridge is healthy."""
+    exit_code = smoke.main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.err == ""
+
+
+def test_smoke_main_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Return one and print a prefixed SmokeCheckError message to stderr."""
+
+    def fail_smoke_installed_package() -> None:
+        raise smoke.SmokeCheckError("broken")
+
+    monkeypatch.setattr(smoke, "smoke_installed_package", fail_smoke_installed_package)
+
+    exit_code = smoke.main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.err.startswith("Stilyagi smoke check failed: ")
+    assert "broken" in captured.err
+
+
+@pytest.fixture(scope="module")
+def makefile_text() -> str:
+    """Return the repository Makefile as text, loaded once per module."""
+    return (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+
+
+def test_makefile_build_target_depends_on_venv_and_runs_smoke(
+    makefile_text: str,
+) -> None:
+    """Build must declare a .venv dependency and delegate to the smoke target."""
+    header, recipe = _make_target(makefile_text, "build")
+    assert ".venv" in header
+    assert "$(MAKE) smoke" in recipe
+
+
+def test_makefile_venv_target_declares_manifests_and_sync_recipe(
+    makefile_text: str,
+) -> None:
+    """The .venv target must list all workspace manifests and run uv sync."""
+    header, recipe = _make_target(makefile_text, ".venv")
+    assert "pyproject.toml" in header
+    assert "uv.lock" in header
+    assert "$(WORKSPACE_MANIFEST)" in header
+    assert "Cargo.lock" in header
+    assert "UV_VENV_CLEAR=1 $(UV_ENV) uv venv" in recipe
+    assert "$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev" in recipe
+
+
+def test_makefile_smoke_target_invokes_stilyagi_smoke_via_venv(
+    makefile_text: str,
+) -> None:
+    """Smoke must depend on .venv and run stilyagi.smoke through the venv Python."""
+    header, recipe = _make_target(makefile_text, "smoke")
+    assert ".venv" in header
+    assert any("VENV_PYTHON" in line for line in recipe)
+    assert any("VENV_PYTHON" in line and "-m stilyagi.smoke" in line for line in recipe)
+
+
+def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
+    makefile_text: str,
+) -> None:
+    """smoke-release must isolate the wheel install and avoid hard-coding /tmp."""
+    header, recipe = _make_target(makefile_text, "smoke-release")
+    assert "release-artifact" in header
+    assert ".venv" in header
+    assert any(re.search(r"-m\s+venv\b", line) for line in recipe)
+    assert any(re.search(r'python"?\s+-m\s+stilyagi\.smoke', line) for line in recipe)
+    assert any(re.search(r"tempfile\.gettempdir\(\)", line) for line in recipe)
+    assert any(re.search(r'cd\s+"?\$\$release_tmp"?', line) for line in recipe)
+    assert all(not re.search(r"cd\s+/tmp\b", line) for line in recipe)
+
+
+def test_makefile_markdownlint_target_excludes_release_smoke_venv(
+    makefile_text: str,
+) -> None:
+    """Markdownlint must depend on tools-docs and exclude the release smoke venv."""
+    header, recipe = _make_target(makefile_text, "markdownlint")
+    assert "tools-docs" in header
+    assert any("-not -path './.venv-release-smoke/*'" in line for line in recipe)
+
+
+def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
+    """Make CI exercise Makefile targets instead of duplicating build logic."""
+    parsed_workflow = _workflow_document(
+        (REPOSITORY_ROOT / ".github" / "workflows" / "smoke.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    jobs = _workflow_jobs(parsed_workflow)
+    workflow_steps = _workflow_steps(jobs)
+    run_commands = {
+        command.strip()
+        for step in workflow_steps
+        for command in str(step.get("run", "")).splitlines()
+        if command.strip()
+    }
+
+    assert {
+        "make check-fmt",
+        "make markdownlint",
+        "make nixie",
+        "make lint",
+        "make test",
+    }.issubset(run_commands)
+    assert "lint-test" in jobs
+    assert jobs["lint-test"]["runs-on"] == "ubuntu-latest"
+    assert "release-smoke" in jobs
+    assert jobs["release-smoke"]["runs-on"] == "${{ matrix.os }}"
+    assert jobs["release-smoke"]["strategy"]["matrix"]["os"] == [
+        "ubuntu-latest",
+        "macos-latest",
+        "windows-latest",
+    ]
+    triggers = typ.cast("dict[str, object]", parsed_workflow.get("on", {}))
+    assert "pull_request" in triggers
+    assert "main" in typ.cast("dict[str, list[str]]", triggers.get("push", {})).get(
+        "branches", []
+    )
+    python_steps = [
+        step
+        for step in workflow_steps
+        if str(step.get("uses", "")).startswith("actions/setup-python@")
+    ]
+    assert python_steps
+    assert all(
+        step["uses"] == "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405"
+        for step in python_steps
+    )
+    assert all(step["with"]["python-version"] == "3.14" for step in python_steps)
+    assert all("mdformat-all" not in str(step) for step in workflow_steps)
+    assert any(
+        "uv tool install nixie-cli==1.0.0" in str(step.get("run", ""))
+        for step in workflow_steps
+    )
+    whitaker_step = _workflow_step_named(jobs["lint-test"], "Install Whitaker")
+    whitaker_run = str(whitaker_step["run"])
+    assert "github.com/leynos/whitaker" in whitaker_run
+    assert "whitaker-installer" in whitaker_run
+    assert "--cranelift" in whitaker_run
+    release_smoke_step = _workflow_step_named(jobs["release-smoke"], "Release smoke")
+    assert "make release" in release_smoke_step["run"]

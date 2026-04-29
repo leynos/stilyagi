@@ -1,0 +1,104 @@
+name: Smoke
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+  BUILD_PROFILE: debug
+  WHITAKER_INSTALLER_REV: f768c2e53c47df13658af1168a67851d388750bf
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.14"
+
+      - name: Setup Rust
+        uses: leynos/shared-actions/.github/actions/setup-rust@6b13b519f99c5b461be8cc21ecf19c2ec5907b9c
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@4cda7d73322c50eac316ad623a716f09a2db2ac7
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
+        with:
+          bun-version: "1.2.21"
+
+      - name: Install Markdownlint CLI
+        run: |
+          bun install --no-progress --global markdownlint-cli2
+
+      - name: Install Mermaid CLI
+        run: |
+          set -euxo pipefail
+          bun install --no-progress --global @mermaid-js/mermaid-cli@11.9.0
+          bun x @puppeteer/browsers browsers install chrome-headless-shell
+          mmdc --version
+
+      - name: Install Nixie
+        run: |
+          uv tool install nixie-cli==1.0.0
+
+      - name: Check formatting
+        run: make check-fmt
+
+      - name: Markdown lint
+        run: make markdownlint
+
+      - name: Mermaid lint
+        run: make nixie
+
+      - name: Install Whitaker
+        run: |
+          cargo install --locked \
+            --git https://github.com/leynos/whitaker \
+            --rev "${WHITAKER_INSTALLER_REV}" \
+            whitaker-installer
+          whitaker-installer --cranelift
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+  release-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      - name: Install Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.14"
+
+      - name: Setup Rust
+        uses: leynos/shared-actions/.github/actions/setup-rust@6b13b519f99c5b461be8cc21ecf19c2ec5907b9c
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@4cda7d73322c50eac316ad623a716f09a2db2ac7
+
+      - name: Release smoke
+        run: make release

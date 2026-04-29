@@ -801,8 +801,8 @@ Current implementation note for roadmap item 1.2.2:
   comment extraction and adapts a partial document-shaped payload into the
   Python model layer.
 - That payload is deliberately limited to `syntax` plus `regions[{kind,
-  text}]`. It does not yet expose `line_index`, `segments`, owner metadata,
-  or canonical IR JSON as part of the in-process bridge.
+  text}]`. It does not yet expose `line_index`, `segments`, owner metadata, or
+  canonical IR JSON as part of the in-process bridge.
 - The raw PyO3 payload is an internal bridge detail. The supported Python
   surface is the typed `stilyagi.model.Document` wrapper returned by
   `stilyagi.engine`, which keeps the public API future-compatible while later
@@ -1071,6 +1071,16 @@ import trap that `maturin` itself documents.[^12] The `stilyagi-pyext` crate is
 the PyO3 bridge crate. Other Rust crates remain ordinary libraries and are
 testable without Python.
 
+The mixed-package build spine uses one smoke boundary for local development,
+release artefacts, and CI. `make build` installs the package with
+`maturin develop` and then runs `python -m stilyagi.smoke` through the
+repository virtual environment. `make release` builds the wheel, installs it
+into a fresh `.venv-release-smoke` environment, and runs the same smoke module
+from outside the repository tree. The GitHub Actions smoke workflow calls
+Makefile targets for lint and test coverage, then runs a release-smoke matrix
+for Ubuntu, macOS, and Windows wheels. This proves the PyO3 boundary without
+turning the smoke workflow into release publishing automation.
+
 ## 11. Validation Plan
 
 The design must be validated with the following test classes.
@@ -1091,6 +1101,9 @@ The design must be validated with the following test classes.
   `hypothesis` on Python rule-engine invariants where that buys real coverage.
 - Contract tests: CLI help snapshots, JSON schema validation, SARIF smoke
   tests, and rule metadata rendering.
+- Build-spine smoke tests: development installs and release wheels must both
+  run the shared `python -m stilyagi.smoke` proof through the public Python API
+  backed by the embedded Rust extension.
 - Compatibility tests: Linux, macOS, and Windows wheel builds and smoke
   installs, plus supported syntax corpus tests across Markdown, Python, and
   Rust.

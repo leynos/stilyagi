@@ -42,8 +42,9 @@ from stilyagi.nlp import SpacyProviderConfig
 The current placeholder modules are intentionally narrow, but each one already
 owns a long-lived architectural role:
 
-- `stilyagi.hello()` exercises the embedded Rust bridge and is the current
-  smoke path for the package skeleton.
+- `stilyagi.hello()` is a placeholder that exercises the embedded Rust bridge
+  directly; it is not the canonical smoke check. See §1b for the supported
+  package smoke check.
 - `stilyagi.engine` is the future home for execution planning, fix planning,
   rendering, and runner orchestration. It now also exposes the first real
   extraction call:
@@ -70,18 +71,30 @@ owns a long-lived architectural role:
 Users migrating from the provisional repository layout should also note one
 removal:
 
+```shell
+python -m stilyagi.smoke
+```
+
+The supported smoke-check entrypoint is `python -m stilyagi.smoke`. It exits
+with status `0` when the embedded Rust extension is installed and reachable
+from Python, and `1` on any smoke-check failure.
+
+The same check is available as a public Python API:
+
 ```python
-# Old provisional import path
-from stilyagi.pure import hello
+from stilyagi.smoke import SmokeCheckError, smoke_installed_package
 
-# Supported mixed-package skeleton path
-import stilyagi
-
-stilyagi.hello()
+try:
+    smoke_installed_package()
+except SmokeCheckError as err:
+    print(f"Bridge check failed: {err}")
 ```
 
 `stilyagi.pure` was a compatibility shim from the pre-workspace layout and is
-no longer part of the supported package contract.
+no longer part of the supported package contract. Use
+`smoke_installed_package()` when code needs to prove the installed package can
+cross the Python-to-Rust bridge; it raises `SmokeCheckError` for bridge errors,
+unexpected return types, and document validation failures.
 
 The new extraction path is intentionally narrow in this slice:
 
@@ -95,6 +108,36 @@ The new extraction path is intentionally narrow in this slice:
 - `stilyagi._stilyagi_rs` remains an internal bridge module. User code should
   call `stilyagi.engine.extract_document(...)` rather than importing the raw
   bridge directly.
+
+## 1b. Package smoke check
+
+Stilyagi ships a built-in smoke check that confirms the embedded Rust extension
+module is correctly installed and reachable from Python. It is available as a
+CLI entrypoint:
+
+```shell
+python -m stilyagi.smoke
+```
+
+The command exits with status `0` when the bridge is healthy and `1` on any
+failure, making it suitable for Makefile targets and CI steps.
+
+The same check is also callable programmatically:
+
+```python
+from stilyagi.smoke import SmokeCheckError, smoke_installed_package
+
+try:
+    smoke_installed_package()
+except SmokeCheckError as err:
+    print(f"Bridge check failed: {err}")
+```
+
+`smoke_installed_package()` accepts an optional `extract_fn` keyword argument
+for testing purposes; in normal use the default `engine.extract_document` is
+used. `SmokeCheckError` is a `RuntimeError` subclass raised for any failure,
+including bridge errors, unexpected return types, and document validation
+failures.
 
 ## 2. What this does and does not promise
 
@@ -169,6 +212,9 @@ For day-to-day users, the mixed-package skeleton changes three practical things:
 - the placeholder engine, model, NLP, diagnostic, plugin, and rule modules now
   exist as stable import locations for later feature slices, so users should
   expect future releases to extend those modules rather than moving them again.
+- source checkouts use `make build` for development installs and
+  `make release` for release wheel builds; both workflows run the same package
+  smoke check through the public Python engine API and embedded Rust extension.
 
 The first implemented extractor proof now crosses the embedded Rust boundary
 without shelling out to a helper binary. Today that proof is deliberately
