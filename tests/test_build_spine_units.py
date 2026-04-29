@@ -269,6 +269,8 @@ def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
     assert ".venv" in header
     assert any(re.search(r"-m\s+venv\b", line) for line in recipe)
     assert any(re.search(r'python"?\s+-m\s+stilyagi\.smoke', line) for line in recipe)
+    assert any(re.search(r"tempfile\.gettempdir\(\)", line) for line in recipe)
+    assert any(re.search(r'cd\s+"?\$\$release_tmp"?', line) for line in recipe)
     assert all(not re.search(r"cd\s+/tmp\b", line) for line in recipe)
 
 

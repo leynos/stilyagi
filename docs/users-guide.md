@@ -70,18 +70,30 @@ owns a long-lived architectural role:
 Users migrating from the provisional repository layout should also note one
 removal:
 
+```shell
+python -m stilyagi.smoke
+```
+
+The supported smoke-check entrypoint is `python -m stilyagi.smoke`. It exits
+with status `0` when the embedded Rust extension is installed and reachable
+from Python, and `1` on any smoke-check failure.
+
+The same check is available as a public Python API:
+
 ```python
-# Old provisional import path
-from stilyagi.pure import hello
+from stilyagi.smoke import SmokeCheckError, smoke_installed_package
 
-# Supported mixed-package skeleton path
-import stilyagi
-
-stilyagi.hello()
+try:
+    smoke_installed_package()
+except SmokeCheckError as err:
+    print(f"Bridge check failed: {err}")
 ```
 
 `stilyagi.pure` was a compatibility shim from the pre-workspace layout and is
-no longer part of the supported package contract.
+no longer part of the supported package contract. Use
+`smoke_installed_package()` when code needs to prove the installed package can
+cross the Python-to-Rust bridge; it raises `SmokeCheckError` for bridge errors,
+unexpected return types, and document validation failures.
 
 The new extraction path is intentionally narrow in this slice:
 

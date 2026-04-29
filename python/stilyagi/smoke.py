@@ -1,16 +1,71 @@
-"""Smoke checks for installed Stilyagi packages."""
+"""Smoke checks for installed Stilyagi packages.
+
+This module provides lightweight runtime checks that verify the Python package
+can call through the embedded Rust extension. Use it from the command line as
+``python -m stilyagi.smoke`` in continuous integration (CI), packaging jobs, or
+local release checks. Use :func:`smoke_installed_package` directly when Python
+code needs the same proof.
+
+The public smoke contract is deliberately small: :data:`SMOKE_SOURCE` defines
+the canonical Markdown payload, :data:`ExtractDocument` describes compatible
+extractor callables, and :class:`SmokeCheckError` reports any bridge, type, or
+document-validation failure. Successful checks return the validated
+:class:`stilyagi.model.Document`; failed checks raise ``SmokeCheckError`` or
+return process status ``1`` from :func:`main`.
+
+Examples
+--------
+Run the installed-package smoke check as a module:
+
+>>> import subprocess
+>>> subprocess.run(["python", "-m", "stilyagi.smoke"], check=False).returncode in (0, 1)
+True
+
+Call the same check programmatically with a test extractor:
+
+>>> from stilyagi import model
+>>> def extract_document(source: str, syntax: model.Syntax) -> model.Document:
+...     return model.Document(
+...         syntax=syntax,
+...         regions=(model.Region(kind="document", text=source),),
+...     )
+>>> smoke_installed_package(extract_fn=extract_document).syntax is model.Syntax.MARKDOWN
+True
+"""
 
 import sys
 import typing as typ
 
 from stilyagi import engine, model
 
+#: Canonical Markdown source used to prove the Rust-backed extraction path.
 SMOKE_SOURCE = "# Stilyagi smoke"
+#: Callable contract for smoke-compatible document extraction functions.
 ExtractDocument = typ.Callable[[str, model.Syntax], model.Document]
 
 
 class SmokeCheckError(RuntimeError):
-    """Raised when the installed package does not cross the Rust bridge."""
+    """Report a failed installed-package smoke check.
+
+    Raised when the extractor cannot cross the Python-to-Rust bridge, returns
+    an object that is not a :class:`stilyagi.model.Document`, or returns a
+    document that violates the smoke contract.
+
+    Attributes
+    ----------
+    args : tuple[object, ...]
+        Positional exception arguments inherited from :class:`RuntimeError`.
+
+    Examples
+    --------
+    >>> try:
+    ...     smoke_installed_package()
+    ... except SmokeCheckError as err:
+    ...     str(err) != ""
+    ... else:
+    ...     True
+    True
+    """
 
 
 def smoke_installed_package(
