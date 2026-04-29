@@ -116,6 +116,16 @@ def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
             ),
             "source-backed region",
         ),
+        (
+            lambda _source, _syntax: (_ for _ in ()).throw(
+                RuntimeError("bridge error")
+            ),
+            "unexpected error",
+        ),
+        (
+            lambda _source, _syntax: typ.cast("model.Document", "not a document"),
+            "unexpected type",
+        ),
     ],
 )
 def test_smoke_helper_rejects_invalid_documents(
@@ -139,9 +149,7 @@ def test_smoke_helper_wraps_extractor_failures() -> None:
     ) -> model.Document:
         raise BridgeFailureError
 
-    with pytest.raises(
-        smoke.SmokeCheckError, match="Stilyagi smoke check failed"
-    ) as error:
+    with pytest.raises(smoke.SmokeCheckError, match="unexpected error") as error:
         smoke.smoke_installed_package(extract_fn=fail_extract_document)
 
     assert isinstance(error.value.__cause__, BridgeFailureError)
@@ -156,12 +164,10 @@ def test_smoke_helper_rejects_malformed_extractor_result() -> None:
     ) -> model.Document:
         return typ.cast("model.Document", {"syntax": "markdown"})
 
-    with pytest.raises(
-        smoke.SmokeCheckError, match=r"expected model\.Document"
-    ) as error:
+    with pytest.raises(smoke.SmokeCheckError, match="unexpected type") as error:
         smoke.smoke_installed_package(extract_fn=extract_wrong_result)
 
-    assert isinstance(error.value.__cause__, TypeError)
+    assert error.value.__cause__ is None
 
 
 def test_smoke_helper_accepts_expected_region_after_other_regions() -> None:

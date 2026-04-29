@@ -42,13 +42,12 @@ def smoke_installed_package(
     """
     try:
         document = extract_fn(SMOKE_SOURCE, model.Syntax.MARKDOWN)
-    except Exception as error:
-        msg = f"Stilyagi smoke check failed: {error}"
-        raise SmokeCheckError(msg) from error
+    except Exception as exc:
+        msg = f"smoke extraction raised an unexpected error: {exc}"
+        raise SmokeCheckError(msg) from exc
     if not isinstance(document, model.Document):
-        error = TypeError(f"expected model.Document, got {type(document).__name__}")
-        msg = f"Stilyagi smoke check failed: {error}"
-        raise SmokeCheckError(msg) from error
+        msg = f"smoke extraction returned unexpected type: {type(document)!r}"
+        raise SmokeCheckError(msg)
     _validate_smoke_document(document)
     return document
 
