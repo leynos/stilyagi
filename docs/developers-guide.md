@@ -96,6 +96,43 @@ This boundary is deliberate. Rules should never parse source files for
 themselves, and the Rust layer should not absorb policy decisions that belong
 in the rule engine.
 
+## 2a. Shared validation corpus
+
+Shared source fixtures live under `tests/fixtures/corpus/`. The corpus is the
+common input set for Rust and Python tests, so new extractor, rule, and bridge
+tests should prefer these files over inline source strings when the same shape
+is useful across languages.
+
+The corpus is grouped by syntax and validity:
+
+```plaintext
+tests/fixtures/corpus/
+├── markdown/
+│   ├── valid/
+│   └── malformed/
+├── python/
+│   ├── valid/
+│   └── malformed/
+└── rust/
+    ├── valid/
+    └── malformed/
+```
+
+Fixture names should describe the source shape, not the current implementation
+limitation. For example, use names like `heading-table-link-suppression.md`,
+`module-class-function-docstrings.py`, or `item-doc-comments.rs`. Invalid
+Python syntax that repository formatters must not parse can use a `.py.txt`
+suffix under `python/malformed/`. Each malformed fixture must remain readable
+UTF-8 source text and must not need to be imported, compiled, or executed by
+tests.
+
+Python tests should load corpus files through focused `pathlib.Path` helpers
+like the ones in `tests/test_corpus.py`. Rust tests should resolve
+repository-relative paths from `CARGO_MANIFEST_DIR` and read fixture contents
+as UTF-8 source. Until the Python docstring and Rust documentation-comment
+extractors are implemented, tests may assert that those fixtures are loadable
+and that extraction still reports the current unsupported-syntax error.
+
 ## 3. Roadmap-aligned implementation boundaries
 
 The [roadmap](roadmap.md) is the maintainer view of build order. It is not just

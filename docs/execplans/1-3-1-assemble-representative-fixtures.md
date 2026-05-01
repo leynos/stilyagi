@@ -5,9 +5,9 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
-Approval gate: this plan must be approved before implementation begins.
+Approval gate: approved by the user on 2026-05-01 before implementation began.
 
 ## Purpose / big picture
 
@@ -364,14 +364,27 @@ current implementation limitation rather than the source shape.
 - [x] (2026-04-30T19:30:54Z) Drafted plan after reading AGENTS guidance,
   roadmap item 1.3.1, the design and RFC references, current Makefile gates,
   current extraction tests, and Wyvern reconnaissance.
-- [ ] Await explicit approval before implementation.
-- [ ] Add failing unit and behaviour tests for corpus availability.
-- [ ] Add shared source corpus fixtures.
-- [ ] Add minimal Python and Rust fixture readers.
-- [ ] Connect current Markdown extraction tests to shared fixtures without
-  overstating unsupported Python or Rust extraction.
-- [ ] Update developer, design, user, and roadmap documentation as applicable.
-- [ ] Run gates and commit the approved implementation.
+- [x] (2026-05-01T00:00:00Z) Received explicit user approval to proceed with
+  implementation from this ExecPlan.
+- [x] (2026-05-01T00:00:00Z) Added Python `pytest` unit tests and
+  `pytest-bdd` scenario coverage for corpus availability.
+- [x] (2026-05-01T00:00:00Z) Added shared source corpus fixtures under
+  `tests/fixtures/corpus/` for Markdown, Python, and Rust valid and malformed
+  source inputs.
+- [x] (2026-05-01T00:00:00Z) Added focused Python corpus helpers in
+  `tests/test_corpus.py` and test-local Rust fixture readers that resolve
+  repository-relative paths from `CARGO_MANIFEST_DIR`.
+- [x] (2026-05-01T00:00:00Z) Connected Markdown extraction tests and the PyO3
+  bridge BDD scenario to the shared Markdown fixture without changing the
+  unsupported Python or Rust extractor contracts.
+- [x] (2026-05-01T00:00:00Z) Ran `make test`; after a Rust formatting fix and
+  one over-specific lint-expectation fix, the gate passed with 49 Rust tests
+  and 51 Python tests.
+- [x] (2026-05-01T00:00:00Z) Updated `docs/developers-guide.md`,
+  `docs/stilyagi-design.md`, and `docs/roadmap.md`; left `docs/users-guide.md`
+  unchanged because no user-visible behaviour changed.
+- [x] (2026-05-01T00:00:00Z) Final gates passed: `make check-fmt`,
+  `make lint`, `make test`, `make markdownlint`, and `make nixie`.
 
 ## Surprises & Discoveries
 
@@ -390,6 +403,37 @@ current implementation limitation rather than the source shape.
   `crates/stilyagi-extract/src/lib.rs` maps those syntaxes to
   `ExtractError::UnsupportedSyntax`. Impact: this plan treats Python and Rust
   source fixtures as corpus inputs, not implemented extraction outputs.
+- Observation: retrying `leta` at implementation start still failed because
+  `rust-analyzer` closed the LSP connection. Evidence: `leta grep` returned
+  `Language server 'rust-analyzer' for rust failed to start`. Impact: code
+  navigation for this implementation used targeted file reads instead of LSP
+  symbol queries.
+- Observation: the first full `make test` run failed only at Rust formatting.
+  Evidence: Cargo reported import ordering and function signature formatting
+  diffs. Impact: `cargo fmt --manifest-path Cargo.toml --all` was enough to
+  correct the issue before rerunning the gate.
+- Observation: an `#[expect(clippy::expect_used)]` annotation on a Rust test
+  fixture became unfulfilled after the helper used `unwrap_or_else` with a
+  contextual panic. Evidence: clippy failed with
+  `unfulfilled-lint-expectations`. Impact: the unnecessary expectation was
+  removed.
+- Observation: Ruff parses every `.py` file before tests can treat it as raw
+  source, so an intentionally invalid Python fixture with a `.py` suffix breaks
+  `make check-fmt`. Evidence: `ruff format --check` reported `invalid-syntax`
+  for `tests/fixtures/corpus/python/malformed/`. Impact: malformed Python
+  source fixtures use `.py.txt` so they remain raw UTF-8 corpus inputs rather
+  than formatter targets.
+- Observation: `make fmt` still reaches pre-existing Markdown line-length
+  failures outside this branch after running `mdformat-all`. Evidence: the log
+  `/tmp/fmt-stilyagi-1-3-1-assemble-representative-fixtures.out` lists MD013
+  failures in older ADR, RFC, and guide files. Impact: branch-local Markdown is
+  validated with `make markdownlint` and `make nixie`; unrelated formatter
+  churn is reverted.
+- Observation: `mdformat-all` aligns Markdown table columns and may wrap link
+  text. Evidence: the final `make test` run failed an exact table-spacing
+  assertion after the valid Markdown fixture was formatted. Impact: the Python
+  corpus test now asserts table content rather than exact Markdown table
+  spacing.
 
 ## Decision Log
 
@@ -406,11 +450,51 @@ current implementation limitation rather than the source shape.
   user-visible behaviour or public API. Rationale: a shared internal fixture
   corpus is primarily developer-facing. Date/Author: 2026-04-30T19:30:54Z,
   Codex.
+- Decision: keep the initial corpus to one valid and one malformed fixture per
+  syntax. Rationale: the valid fixtures can cover multiple required constructs
+  while staying within the plan's file-count and fixture-count tolerances.
+  Date/Author: 2026-05-01T00:00:00Z, Codex.
+- Decision: reuse the existing Rust bridge feature file for Rust BDD coverage.
+  Rationale: the shared Markdown fixture is exercised through the same PyO3
+  bridge behaviour surface that already proves Markdown extraction.
+  Date/Author: 2026-05-01T00:00:00Z, Codex.
+- Decision: move Python corpus BDD coverage into
+  `features/stilyagi_fixture_corpus.feature` and keep the helper local to
+  `tests/test_corpus.py`. Rationale: `tests/test_package_structure_bdd.py`
+  automatically collects every scenario from the package-structure feature, so
+  reusing that file required duplicate step wiring and pushed the branch over
+  the fifteen-file tolerance. Date/Author: 2026-05-01T00:00:00Z, Codex.
+- Decision: store intentionally invalid Python source as `.py.txt` in
+  `tests/fixtures/corpus/python/malformed/`. Rationale: the source is still a
+  Python fixture, but the suffix prevents Ruff from treating invalid recovery
+  input as format-checkable Python code. Date/Author: 2026-05-01T00:00:00Z,
+  Codex.
+- Decision: do not update `docs/users-guide.md`. Rationale: the change adds
+  developer-facing test fixtures and internal test helpers only; it does not
+  alter CLI behaviour, public Python API behaviour, or supported user workflow.
+  Date/Author: 2026-05-01T00:00:00Z, Codex.
 
 ## Outcomes & Retrospective
 
-Not started. This section must be updated after implementation milestones and
-again after final validation.
+Complete. The shared corpus now exists under `tests/fixtures/corpus/` with
+valid and malformed Markdown, Python, and Rust source inputs. Rust unit tests
+read malformed corpus files and exercise Markdown extraction from the shared
+Markdown fixture. Rust `rstest-bdd` coverage now extracts that same shared
+Markdown fixture through the PyO3 bridge. Python unit tests and a
+`pytest-bdd` scenario prove that every v1 syntax has valid and malformed
+fixtures and that malformed inputs are read as source text without being
+executed.
+
+Documentation now records the corpus location and conventions in
+`docs/developers-guide.md` and `docs/stilyagi-design.md`. The roadmap entry
+for 1.3.1 is marked done. `docs/users-guide.md` was intentionally not changed
+because this slice does not alter user-visible behaviour.
+
+Validation passed with `make check-fmt`, `make lint`, `make test`,
+`make markdownlint`, and `make nixie`. `make fmt` was also attempted, but it
+still reports pre-existing MD013 line-length failures in older documentation
+outside this branch after running `mdformat-all`; branch-local formatter churn
+was corrected or reverted.
 
 ## Artifacts and notes
 

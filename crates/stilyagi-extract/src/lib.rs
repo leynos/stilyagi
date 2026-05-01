@@ -200,9 +200,28 @@ mod tests {
         extract_document,
     };
     use rstest::{fixture, rstest};
+    use std::path::PathBuf;
     use stilyagi_ir::IrBoundary;
     use stilyagi_markdown::MarkdownBoundary;
     use stilyagi_tree_sitter::TreeSitterBoundary;
+
+    const SHARED_MARKDOWN_FIXTURE: &str =
+        "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md";
+
+    fn repository_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(std::path::Path::parent)
+            .map_or_else(PathBuf::new, std::path::Path::to_path_buf)
+    }
+
+    fn corpus_fixture_path(relative_path: &str) -> PathBuf {
+        repository_root().join(relative_path)
+    }
+
+    fn read_corpus_fixture(relative_path: &str) -> Result<String, std::io::Error> {
+        std::fs::read_to_string(corpus_fixture_path(relative_path))
+    }
 
     /// Keep the extraction boundary default stable and comparable.
     #[test]
@@ -285,6 +304,13 @@ mod tests {
         must_extract_document("Zażółć gęślą jaźń 🫖", ExtractSyntax::Markdown)
     }
 
+    #[fixture]
+    fn shared_markdown_source() -> String {
+        read_corpus_fixture(SHARED_MARKDOWN_FIXTURE).unwrap_or_else(|error| {
+            panic!("expected shared Markdown corpus fixture to be readable: {error}")
+        })
+    }
+
     /// Keep the first extraction bridge pinned to Markdown for the initial
     /// vertical slice.
     #[rstest]
@@ -326,6 +352,34 @@ mod tests {
             first_region.map(ExtractRegion::text),
             Some("Zażółć gęślą jaźń 🫖")
         );
+    }
+
+    /// Anchor Markdown extraction tests to the shared source corpus instead of
+    /// relying only on inline strings.
+    #[rstest]
+    fn markdown_extraction_preserves_the_shared_markdown_fixture(shared_markdown_source: String) {
+        let document = must_extract_document(&shared_markdown_source, ExtractSyntax::Markdown);
+        let first_region = document.regions().first();
+
+        assert_eq!(document.syntax(), ExtractSyntax::Markdown);
+        assert_eq!(first_region.map(ExtractRegion::kind), Some("document"));
+        assert_eq!(
+            first_region.map(ExtractRegion::text),
+            Some(shared_markdown_source.as_str()),
+        );
+    }
+
+    /// Keep malformed corpus inputs loadable without promising parser recovery
+    /// semantics that belong to later extraction work.
+    #[rstest]
+    #[case("tests/fixtures/corpus/markdown/malformed/unclosed-table.md")]
+    #[case("tests/fixtures/corpus/python/malformed/unclosed-function.py.txt")]
+    #[case("tests/fixtures/corpus/rust/malformed/unclosed-item.rs")]
+    fn malformed_corpus_fixtures_are_readable_utf8_sources(#[case] relative_path: &str) {
+        let source = read_corpus_fixture(relative_path)
+            .unwrap_or_else(|error| panic!("expected readable fixture {relative_path}: {error}"));
+
+        assert!(!source.is_empty());
     }
 
     /// Reject unsupported syntaxes explicitly so the Python layer can map the

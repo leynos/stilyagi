@@ -1056,6 +1056,11 @@ stilyagi/
 │   ├── stilyagi-ir/
 │   └── stilyagi-pyext/
 ├── tests/
+│   ├── fixtures/
+│   │   └── corpus/
+│   │       ├── markdown/
+│   │       ├── python/
+│   │       └── rust/
 │   ├── golden/
 │   ├── integration/
 │   ├── performance/
@@ -1080,6 +1085,13 @@ from outside the repository tree. The GitHub Actions smoke workflow calls
 Makefile targets for lint and test coverage, then runs a release-smoke matrix
 for Ubuntu, macOS, and Windows wheels. This proves the PyO3 boundary without
 turning the smoke workflow into release publishing automation.
+
+The source validation corpus lives under `tests/fixtures/corpus/`, grouped by
+syntax and by `valid` or `malformed` case. It currently covers Markdown,
+Python, and Rust source inputs for headings, tables, links, docstrings,
+documentation comments, suppressions, and recovery-oriented malformed inputs.
+Golden IR snapshots and fix round-trip fixtures build on this source corpus in
+later roadmap slices rather than duplicating source text in ad hoc tests.
 
 ## 11. Validation Plan
 

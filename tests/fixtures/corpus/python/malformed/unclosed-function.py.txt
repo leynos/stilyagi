@@ -1,0 +1,7 @@
+"""Module docstring before malformed Python source."""
+
+
+def broken_function(
+    """A docstring in a function whose signature never closes."""
+    return "unreachable"
+

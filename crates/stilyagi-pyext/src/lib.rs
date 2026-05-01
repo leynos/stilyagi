@@ -78,12 +78,17 @@ mod tests {
     use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
     use rstest::{fixture, rstest};
     use rstest_bdd_macros::{given, scenario, then, when};
+    use std::path::PathBuf;
     use stilyagi_extract::ExtractSyntax;
+
+    const SHARED_MARKDOWN_FIXTURE: &str =
+        "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md";
 
     struct BridgeState {
         bridge_greeting: Option<&'static str>,
         core_greeting: Option<&'static str>,
         extracted_document: Option<Py<PyDict>>,
+        expected_document_text: Option<String>,
     }
 
     #[fixture]
@@ -92,7 +97,24 @@ mod tests {
             bridge_greeting: None,
             core_greeting: None,
             extracted_document: None,
+            expected_document_text: None,
         }
+    }
+
+    fn repository_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(std::path::Path::parent)
+            .map_or_else(PathBuf::new, std::path::Path::to_path_buf)
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "test helper should fail loudly when the shared corpus is missing"
+    )]
+    fn read_corpus_fixture(relative_path: &str) -> String {
+        std::fs::read_to_string(repository_root().join(relative_path))
+            .expect("expected shared corpus fixture to be readable")
     }
 
     #[expect(
@@ -303,6 +325,15 @@ mod tests {
     #[when("the bridge extracts a Markdown document")]
     fn bridge_extracts_a_markdown_document(bridge_state: &mut BridgeState) {
         perform_extraction("# Heading", "markdown", bridge_state);
+        bridge_state.expected_document_text = Some("# Heading".to_owned());
+    }
+
+    #[when("the bridge extracts the shared Markdown fixture")]
+    fn bridge_extracts_the_shared_markdown_fixture(bridge_state: &mut BridgeState) {
+        let source = read_corpus_fixture(SHARED_MARKDOWN_FIXTURE);
+
+        perform_extraction(&source, "markdown", bridge_state);
+        bridge_state.expected_document_text = Some(source);
     }
 
     #[when("the bridge extracts a blank Markdown document")]
@@ -379,9 +410,17 @@ mod tests {
                     .unwrap_or_else(|error| panic!("missing text payload: {error}"))
                     .extract::<&str>()
                     .unwrap_or_else(|error| panic!("expected text string: {error}")),
-                "# Heading",
+                bridge_state
+                    .expected_document_text
+                    .as_deref()
+                    .unwrap_or("# Heading"),
             );
         });
+    }
+
+    #[then("the extracted document preserves the shared Markdown fixture")]
+    fn extracted_document_preserves_the_shared_markdown_fixture(bridge_state: &BridgeState) {
+        extracted_document_preserves_one_source_backed_region(bridge_state);
     }
 
     #[then("the extracted document has no regions")]
@@ -433,6 +472,16 @@ mod tests {
         name = "Bridge extracts a Markdown document through the Rust boundary"
     )]
     fn bridge_extracts_a_markdown_document_through_the_rust_boundary(bridge_state: BridgeState) {
+        let _ = bridge_state;
+    }
+
+    #[scenario(
+        path = "tests/features/bridge_structure.feature",
+        name = "Bridge extracts the shared Markdown fixture through the Rust boundary"
+    )]
+    fn bridge_extracts_the_shared_markdown_fixture_through_the_rust_boundary(
+        bridge_state: BridgeState,
+    ) {
         let _ = bridge_state;
     }
 
