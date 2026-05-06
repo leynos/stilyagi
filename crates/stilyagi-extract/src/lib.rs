@@ -103,24 +103,39 @@ impl fmt::Display for RegionKind {
 /// Minimal source-backed prose region for the first extraction bridge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractRegion {
-    kind: RegionKind,
+    kind: String,
     text: String,
 }
 
 impl ExtractRegion {
     /// Create a region with the supplied stable kind name and text.
     #[must_use]
-    pub fn new(kind: RegionKind, text: impl Into<String>) -> Self {
+    pub fn new(kind: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
-            kind,
+            kind: kind.into(),
             text: text.into(),
         }
     }
 
+    /// Create a region from the typed region kind and supplied text.
+    #[must_use]
+    pub fn new_typed(kind: RegionKind, text: impl Into<String>) -> Self {
+        Self::new(kind.as_str(), text)
+    }
+
     /// Return the stable region kind name.
     #[must_use]
-    pub const fn kind(&self) -> RegionKind {
-        self.kind
+    pub fn kind(&self) -> &str {
+        &self.kind
+    }
+
+    /// Return the typed region kind when it is in the built-in vocabulary.
+    #[must_use]
+    pub fn region_kind(&self) -> Option<RegionKind> {
+        match self.kind() {
+            "document" => Some(RegionKind::Document),
+            _ => None,
+        }
     }
 
     /// Return the extracted region text.
@@ -212,7 +227,7 @@ fn extract_markdown_document(source: &str) -> ExtractDocument {
     let regions = if source.trim().is_empty() {
         Vec::new()
     } else {
-        vec![ExtractRegion::new(RegionKind::Document, source)]
+        vec![ExtractRegion::new_typed(RegionKind::Document, source)]
     };
     ExtractDocument::new(ExtractSyntax::Markdown, regions)
 }
@@ -365,9 +380,10 @@ mod tests {
         let first_region = extracted_markdown.regions().first();
 
         assert_eq!(
-            first_region.map(ExtractRegion::kind),
+            first_region.and_then(ExtractRegion::region_kind),
             Some(RegionKind::Document)
         );
+        assert_eq!(first_region.map(ExtractRegion::kind), Some("document"));
         assert_eq!(first_region.map(ExtractRegion::text), Some("# Heading"));
     }
 
@@ -392,9 +408,10 @@ mod tests {
 
         assert_eq!(document.syntax(), ExtractSyntax::Markdown);
         assert_eq!(
-            first_region.map(ExtractRegion::kind),
+            first_region.and_then(ExtractRegion::region_kind),
             Some(RegionKind::Document)
         );
+        assert_eq!(first_region.map(ExtractRegion::kind), Some("document"));
         assert_eq!(
             first_region.map(ExtractRegion::text),
             Some(shared_markdown_source.as_str()),
