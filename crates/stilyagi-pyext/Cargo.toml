@@ -20,6 +20,7 @@ stilyagi-extract = { path = "../stilyagi-extract" }
 rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true
+stilyagi-test-support = { path = "../stilyagi-test-support" }
 
 [lints]
 workspace = true

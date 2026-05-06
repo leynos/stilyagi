@@ -239,30 +239,10 @@ mod tests {
         extract_document,
     };
     use rstest::{fixture, rstest};
-    use std::path::PathBuf;
     use stilyagi_ir::IrBoundary;
     use stilyagi_markdown::MarkdownBoundary;
+    use stilyagi_test_support::{SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture};
     use stilyagi_tree_sitter::TreeSitterBoundary;
-
-    const SHARED_MARKDOWN_FIXTURE: &str =
-        "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md";
-
-    fn repository_root() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(std::path::Path::parent)
-            .map_or_else(PathBuf::new, std::path::Path::to_path_buf)
-    }
-
-    fn corpus_fixture_path(relative_path: impl AsRef<std::path::Path>) -> PathBuf {
-        repository_root().join(relative_path)
-    }
-
-    fn read_corpus_fixture(
-        relative_path: impl AsRef<std::path::Path>,
-    ) -> Result<String, std::io::Error> {
-        std::fs::read_to_string(corpus_fixture_path(relative_path))
-    }
 
     /// Keep the extraction boundary default stable and comparable.
     #[test]
@@ -347,7 +327,7 @@ mod tests {
 
     #[fixture]
     fn shared_markdown_source() -> String {
-        read_corpus_fixture(SHARED_MARKDOWN_FIXTURE).unwrap_or_else(|error| {
+        read_corpus_fixture(SHARED_MARKDOWN_FIXTURE_PATH).unwrap_or_else(|error| {
             panic!("expected shared Markdown corpus fixture to be readable: {error}")
         })
     }

@@ -27,9 +27,9 @@ that tells future maintainers where to add cases.
 ## Context and orientation
 
 The repository is a mixed Rust and Python project. Rust crates live under
-`crates/`, Python package code lives under `python/stilyagi/`, BDD feature
-files for Python tests live under `features/`, and current static test inputs
-live under `tests/fixtures/`.
+`crates/`, Python package code lives under `python/stilyagi/`,
+behaviour-driven development (BDD) feature files for Python tests live under
+`features/`, and current static test inputs live under `tests/fixtures/`.
 
 The current extraction implementation is intentionally narrow. Rust code in
 `crates/stilyagi-extract/src/lib.rs` supports the `markdown`,
@@ -66,7 +66,8 @@ The implementer should keep these documents open while executing the plan:
   10, and 11, for the IR vocabulary, repository layout, and validation plan.
 - [docs/rfcs/0004-stilyagi-rule-testing-framework.md](
   ../rfcs/0004-stilyagi-rule-testing-framework.md) for the future rule-testing
-  harness shape that this corpus must support.
+  harness shape that this corpus must support. Request for Comments (RFC)
+  documents record proposed technical contracts.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](
   ../complexity-antipatterns-and-refactoring-strategies.md) for keeping corpus
   helpers small rather than building a premature fixture framework.
@@ -385,6 +386,10 @@ current implementation limitation rather than the source shape.
   unchanged because no user-visible behaviour changed.
 - [x] (2026-05-01T00:00:00Z) Final gates passed: `make check-fmt`,
   `make lint`, `make test`, `make markdownlint`, and `make nixie`.
+- [x] (2026-05-06T00:00:00Z) Addressed review comments by adding a Rust
+  test-support crate for shared corpus path helpers, centralising the shared
+  Markdown fixture path in Rust and Python tests, strengthening malformed
+  fixture filename assertions, and expanding uncommon acronyms in this plan.
 
 ## Surprises & Discoveries
 
@@ -394,10 +399,10 @@ current implementation limitation rather than the source shape.
   to read the registry path failed, and `find` located the active skill file.
   Impact: no plan change beyond using the located skill instructions.
 - Observation: `leta` workspace setup succeeded, but semantic Rust/Python
-  queries failed because the LSP connection closed unexpectedly. Evidence:
-  `leta grep` returned a rust-analyzer startup or connection error. Impact:
-  repo inspection used direct file reads and text search for planning;
-  implementation should retry `leta` before code edits.
+  queries failed because the Language Server Protocol (LSP) connection closed
+  unexpectedly. Evidence: `leta grep` returned a rust-analyzer startup or
+  connection error. Impact: repo inspection used direct file reads and text
+  search for planning; implementation should retry `leta` before code edits.
 - Observation: Python docstring and Rust documentation-comment syntaxes are
   currently registered but intentionally unsupported by extraction. Evidence:
   `crates/stilyagi-extract/src/lib.rs` maps those syntaxes to
@@ -426,9 +431,14 @@ current implementation limitation rather than the source shape.
 - Observation: `make fmt` still reaches pre-existing Markdown line-length
   failures outside this branch after running `mdformat-all`. Evidence: the log
   `/tmp/fmt-stilyagi-1-3-1-assemble-representative-fixtures.out` lists MD013
-  failures in older ADR, RFC, and guide files. Impact: branch-local Markdown is
-  validated with `make markdownlint` and `make nixie`; unrelated formatter
-  churn is reverted.
+  failures in older architecture decision record (ADR), RFC, and guide files.
+  Impact: branch-local Markdown is validated with `make markdownlint` and
+  `make nixie`; unrelated formatter churn is reverted.
+- Observation: the Rust core and PyO3 tests had duplicated repository-root and
+  corpus fixture path helpers. Evidence: review comments and direct search
+  showed local `repository_root` helpers in both test modules. Impact: a
+  dev-only `stilyagi-test-support` crate now owns the shared Rust corpus path
+  helpers and Markdown fixture path.
 - Observation: `mdformat-all` aligns Markdown table columns and may wrap link
   text. Evidence: the final `make test` run failed an exact table-spacing
   assertion after the valid Markdown fixture was formatted. Impact: the Python

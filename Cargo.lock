@@ -1035,6 +1035,7 @@ dependencies = [
  "rstest",
  "stilyagi-ir",
  "stilyagi-markdown",
+ "stilyagi-test-support",
  "stilyagi-tree-sitter",
 ]
 
@@ -1056,7 +1057,12 @@ dependencies = [
  "rstest-bdd-macros",
  "stilyagi-core",
  "stilyagi-extract",
+ "stilyagi-test-support",
 ]
+
+[[package]]
+name = "stilyagi-test-support"
+version = "0.1.0"
 
 [[package]]
 name = "stilyagi-tree-sitter"

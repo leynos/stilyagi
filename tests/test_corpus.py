@@ -15,6 +15,7 @@ SYNTAX_EXTENSIONS = {
 }
 MALFORMED_PYTHON_EXTENSION = ".py.txt"
 VALID_CATEGORIES = frozenset({"valid", "malformed"})
+VALID_MARKDOWN_FIXTURE_NAME = "heading-table-link-suppression.md"
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -167,7 +168,7 @@ def test_corpus_covers_required_source_shapes() -> None:
     markdown = corpus_fixture(
         "markdown",
         "valid",
-        "heading-table-link-suppression.md",
+        VALID_MARKDOWN_FIXTURE_NAME,
     )
     python = corpus_fixture(
         "python",
@@ -205,6 +206,14 @@ def test_malformed_fixtures_remain_readable_sources(
         "rust",
     }
     assert all(fixture.text for fixture in malformed_fixtures)
+
+    for fixture in malformed_fixtures:
+        if fixture.syntax == "python":
+            assert fixture.path.name.endswith(MALFORMED_PYTHON_EXTENSION)
+            assert fixture.path.suffixes[-2:] == [".py", ".txt"]
+        else:
+            expected_suffix = SYNTAX_EXTENSIONS[fixture.syntax]
+            assert fixture.path.suffix == expected_suffix
 
 
 def test_malformed_python_fixtures_require_text_extension() -> None:

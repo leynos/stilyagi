@@ -127,11 +127,12 @@ UTF-8 source text and must not need to be imported, compiled, or executed by
 tests.
 
 Python tests should load corpus files through focused `pathlib.Path` helpers
-like the ones in `tests/test_corpus.py`. Rust tests should resolve
-repository-relative paths from `CARGO_MANIFEST_DIR` and read fixture contents
-as UTF-8 source. Until the Python docstring and Rust documentation-comment
-extractors are implemented, tests may assert that those fixtures are loadable
-and that extraction still reports the current unsupported-syntax error.
+like the ones in `tests/test_corpus.py`. Rust tests should load shared corpus
+files through the dev-only `stilyagi-test-support` crate instead of duplicating
+repository-root discovery in each crate. Until the Python docstring and Rust
+documentation-comment extractors are implemented, tests may assert that those
+fixtures are loadable and that extraction still reports the current
+unsupported-syntax error.
 
 ## 3. Roadmap-aligned implementation boundaries
 

@@ -78,11 +78,8 @@ mod tests {
     use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
     use rstest::{fixture, rstest};
     use rstest_bdd_macros::{given, scenario, then, when};
-    use std::path::PathBuf;
     use stilyagi_extract::ExtractSyntax;
-
-    const SHARED_MARKDOWN_FIXTURE: &str =
-        "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md";
+    use stilyagi_test_support::{SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture};
 
     struct BridgeState {
         bridge_greeting: Option<&'static str>,
@@ -101,20 +98,12 @@ mod tests {
         }
     }
 
-    fn repository_root() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(std::path::Path::parent)
-            .map_or_else(PathBuf::new, std::path::Path::to_path_buf)
-    }
-
     #[expect(
         clippy::expect_used,
         reason = "test helper should fail loudly when the shared corpus is missing"
     )]
-    fn read_corpus_fixture(relative_path: &str) -> String {
-        std::fs::read_to_string(repository_root().join(relative_path))
-            .expect("expected shared corpus fixture to be readable")
+    fn read_shared_corpus_fixture(relative_path: &str) -> String {
+        read_corpus_fixture(relative_path).expect("expected shared corpus fixture to be readable")
     }
 
     #[expect(
@@ -330,7 +319,7 @@ mod tests {
 
     #[when("the bridge extracts the shared Markdown fixture")]
     fn bridge_extracts_the_shared_markdown_fixture(bridge_state: &mut BridgeState) {
-        let source = read_corpus_fixture(SHARED_MARKDOWN_FIXTURE);
+        let source = read_shared_corpus_fixture(SHARED_MARKDOWN_FIXTURE_PATH);
 
         perform_extraction(&source, "markdown", bridge_state);
         bridge_state.expected_document_text = Some(source);
