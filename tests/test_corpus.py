@@ -63,29 +63,65 @@ def corpus_fixtures() -> tuple[CorpusFixture, ...]:
         for category in sorted(VALID_CATEGORIES):
             category_dir = CORPUS_ROOT / syntax / category
             extensions = _extensions_for_syntax_category(syntax, category)
-            unexpected_paths = tuple(
-                path
-                for path in sorted(category_dir.iterdir())
-                if path.is_file() and not _has_allowed_suffix(path, extensions)
-            )
-            if unexpected_paths:
-                unexpected_names = ", ".join(
-                    str(path.relative_to(REPOSITORY_ROOT)) for path in unexpected_paths
-                )
-                msg = f"unexpected corpus fixture suffix: {unexpected_names}"
-                raise ValueError(msg)
             fixtures.extend(
-                CorpusFixture(
+                _corpus_fixtures_for_category(
                     syntax=syntax,
                     category=category,
-                    name=path.name,
-                    path=path,
-                    text=path.read_text(encoding="utf-8"),
+                    category_dir=category_dir,
+                    extensions=extensions,
                 )
-                for path in sorted(category_dir.iterdir())
-                if path.is_file() and _has_allowed_suffix(path, extensions)
             )
     return tuple(fixtures)
+
+
+def _corpus_fixtures_for_category(
+    *,
+    syntax: str,
+    category: str,
+    category_dir: pathlib.Path,
+    extensions: tuple[str, ...],
+) -> tuple[CorpusFixture, ...]:
+    """Return validated corpus fixtures from one syntax/category directory."""
+    _assert_allowed_fixture_suffixes(category_dir, extensions)
+    return tuple(
+        CorpusFixture(
+            syntax=syntax,
+            category=category,
+            name=path.name,
+            path=path,
+            text=path.read_text(encoding="utf-8"),
+        )
+        for path in sorted(category_dir.iterdir())
+        if path.is_file() and _has_allowed_suffix(path, extensions)
+    )
+
+
+def _assert_allowed_fixture_suffixes(
+    category_dir: pathlib.Path,
+    extensions: tuple[str, ...],
+) -> None:
+    """Raise if a fixture directory contains files with unsupported suffixes."""
+    unexpected_paths = _unexpected_fixture_paths(category_dir, extensions)
+    if not unexpected_paths:
+        return
+
+    unexpected_names = ", ".join(
+        str(path.relative_to(REPOSITORY_ROOT)) for path in unexpected_paths
+    )
+    msg = f"unexpected corpus fixture suffix: {unexpected_names}"
+    raise ValueError(msg)
+
+
+def _unexpected_fixture_paths(
+    category_dir: pathlib.Path,
+    extensions: tuple[str, ...],
+) -> tuple[pathlib.Path, ...]:
+    """Return regular files that do not use the expected fixture suffixes."""
+    return tuple(
+        path
+        for path in sorted(category_dir.iterdir())
+        if path.is_file() and not _has_allowed_suffix(path, extensions)
+    )
 
 
 def _extensions_for_syntax_category(syntax: str, category: str) -> tuple[str, ...]:
