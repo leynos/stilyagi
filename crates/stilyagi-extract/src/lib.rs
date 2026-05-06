@@ -76,27 +76,50 @@ impl TryFrom<&str> for ExtractSyntax {
     }
 }
 
+/// Stable kind names for extracted prose regions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegionKind {
+    /// Whole-document prose extracted from a source file.
+    Document,
+}
+
+impl RegionKind {
+    /// Return the stable bridge spelling for this region kind.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Document => "document",
+        }
+    }
+}
+
+impl fmt::Display for RegionKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
 /// Minimal source-backed prose region for the first extraction bridge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractRegion {
-    kind: String,
+    kind: RegionKind,
     text: String,
 }
 
 impl ExtractRegion {
     /// Create a region with the supplied stable kind name and text.
     #[must_use]
-    pub fn new(kind: impl Into<String>, text: impl Into<String>) -> Self {
+    pub fn new(kind: RegionKind, text: impl Into<String>) -> Self {
         Self {
-            kind: kind.into(),
+            kind,
             text: text.into(),
         }
     }
 
     /// Return the stable region kind name.
     #[must_use]
-    pub fn kind(&self) -> &str {
-        &self.kind
+    pub const fn kind(&self) -> RegionKind {
+        self.kind
     }
 
     /// Return the extracted region text.
@@ -188,7 +211,7 @@ fn extract_markdown_document(source: &str) -> ExtractDocument {
     let regions = if source.trim().is_empty() {
         Vec::new()
     } else {
-        vec![ExtractRegion::new("document", source)]
+        vec![ExtractRegion::new(RegionKind::Document, source)]
     };
     ExtractDocument::new(ExtractSyntax::Markdown, regions)
 }
@@ -196,7 +219,7 @@ fn extract_markdown_document(source: &str) -> ExtractDocument {
 #[cfg(test)]
 mod tests {
     use super::{
-        ExtractBoundary, ExtractDocument, ExtractError, ExtractRegion, ExtractSyntax,
+        ExtractBoundary, ExtractDocument, ExtractError, ExtractRegion, ExtractSyntax, RegionKind,
         extract_document,
     };
     use rstest::{fixture, rstest};
@@ -215,11 +238,13 @@ mod tests {
             .map_or_else(PathBuf::new, std::path::Path::to_path_buf)
     }
 
-    fn corpus_fixture_path(relative_path: &str) -> PathBuf {
+    fn corpus_fixture_path(relative_path: impl AsRef<std::path::Path>) -> PathBuf {
         repository_root().join(relative_path)
     }
 
-    fn read_corpus_fixture(relative_path: &str) -> Result<String, std::io::Error> {
+    fn read_corpus_fixture(
+        relative_path: impl AsRef<std::path::Path>,
+    ) -> Result<String, std::io::Error> {
         std::fs::read_to_string(corpus_fixture_path(relative_path))
     }
 
@@ -338,7 +363,10 @@ mod tests {
         assert_eq!(extracted_markdown.regions().len(), 1);
         let first_region = extracted_markdown.regions().first();
 
-        assert_eq!(first_region.map(ExtractRegion::kind), Some("document"));
+        assert_eq!(
+            first_region.map(ExtractRegion::kind),
+            Some(RegionKind::Document)
+        );
         assert_eq!(first_region.map(ExtractRegion::text), Some("# Heading"));
     }
 
@@ -362,7 +390,10 @@ mod tests {
         let first_region = document.regions().first();
 
         assert_eq!(document.syntax(), ExtractSyntax::Markdown);
-        assert_eq!(first_region.map(ExtractRegion::kind), Some("document"));
+        assert_eq!(
+            first_region.map(ExtractRegion::kind),
+            Some(RegionKind::Document)
+        );
         assert_eq!(
             first_region.map(ExtractRegion::text),
             Some(shared_markdown_source.as_str()),
@@ -412,6 +443,23 @@ mod tests {
     #[case(ExtractSyntax::RustDocComment, "rust_doc_comment")]
     fn syntax_display_matches_as_str(#[case] syntax: ExtractSyntax, #[case] expected: &str) {
         assert_eq!(format!("{syntax}"), expected);
+    }
+
+    /// Keep the stable spelling of each region kind accessible to callers.
+    #[rstest]
+    #[case(RegionKind::Document, "document")]
+    fn region_kind_as_str_returns_the_expected_spelling(
+        #[case] kind: RegionKind,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(kind.as_str(), expected);
+    }
+
+    /// Keep the Display output for each region kind identical to `as_str`.
+    #[rstest]
+    #[case(RegionKind::Document, "document")]
+    fn region_kind_display_matches_as_str(#[case] kind: RegionKind, #[case] expected: &str) {
+        assert_eq!(format!("{kind}"), expected);
     }
 
     /// Keep the Display output for each error variant informative and stable.

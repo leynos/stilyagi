@@ -43,7 +43,7 @@ fn extract_document_py(py: Python<'_>, source: &str, syntax: &str) -> PyResult<P
         .iter()
         .map(|region| {
             let region_dict = PyDict::new(py);
-            region_dict.set_item("kind", region.kind())?;
+            region_dict.set_item("kind", region.kind().as_str())?;
             region_dict.set_item("text", region.text())?;
             Ok(region_dict.unbind())
         })
