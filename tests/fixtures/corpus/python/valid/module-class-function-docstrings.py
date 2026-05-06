@@ -1,8 +1,7 @@
 """Module docstring for the shared Stilyagi corpus."""
 
+
 # stilyagi-disable-next-line terminology
-
-
 class FixtureExample:
     """Class docstring with prose for extraction tests."""
 

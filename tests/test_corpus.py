@@ -63,6 +63,17 @@ def corpus_fixtures() -> tuple[CorpusFixture, ...]:
         for category in sorted(VALID_CATEGORIES):
             category_dir = CORPUS_ROOT / syntax / category
             extensions = _extensions_for_syntax_category(syntax, category)
+            unexpected_paths = tuple(
+                path
+                for path in sorted(category_dir.iterdir())
+                if path.is_file() and not _has_allowed_suffix(path, extensions)
+            )
+            if unexpected_paths:
+                unexpected_names = ", ".join(
+                    str(path.relative_to(REPOSITORY_ROOT)) for path in unexpected_paths
+                )
+                msg = f"unexpected corpus fixture suffix: {unexpected_names}"
+                raise ValueError(msg)
             fixtures.extend(
                 CorpusFixture(
                     syntax=syntax,

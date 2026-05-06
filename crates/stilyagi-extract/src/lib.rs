@@ -78,6 +78,7 @@ impl TryFrom<&str> for ExtractSyntax {
 
 /// Stable kind names for extracted prose regions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RegionKind {
     /// Whole-document prose extracted from a source file.
     Document,

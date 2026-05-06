@@ -1059,8 +1059,14 @@ stilyagi/
 │   ├── fixtures/
 │   │   └── corpus/
 │   │       ├── markdown/
+│   │       │   ├── valid/
+│   │       │   └── malformed/
 │   │       ├── python/
+│   │       │   ├── valid/
+│   │       │   └── malformed/
 │   │       └── rust/
+│   │           ├── valid/
+│   │           └── malformed/
 │   ├── golden/
 │   ├── integration/
 │   ├── performance/

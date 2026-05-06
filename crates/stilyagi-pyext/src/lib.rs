@@ -413,7 +413,9 @@ mod tests {
                 bridge_state
                     .expected_document_text
                     .as_deref()
-                    .unwrap_or("# Heading"),
+                    .unwrap_or_else(|| {
+                        panic!("expected_document_text must be provided for this BDD scenario")
+                    }),
             );
         });
     }
