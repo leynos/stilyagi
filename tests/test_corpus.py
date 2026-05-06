@@ -132,7 +132,7 @@ def _extensions_for_syntax_category(syntax: str, category: str) -> tuple[str, ..
         msg = f"unknown corpus syntax: {syntax}"
         raise ValueError(msg) from error
     if syntax == "python" and category == "malformed":
-        return (extension, MALFORMED_PYTHON_EXTENSION)
+        return (MALFORMED_PYTHON_EXTENSION,)
     return (extension,)
 
 
@@ -205,6 +205,11 @@ def test_malformed_fixtures_remain_readable_sources(
         "rust",
     }
     assert all(fixture.text for fixture in malformed_fixtures)
+
+
+def test_malformed_python_fixtures_require_text_extension() -> None:
+    """Malformed Python fixtures use the explicit source-as-text convention."""
+    assert _extensions_for_syntax_category("python", "malformed") == (".py.txt",)
 
 
 CorpusState = dict[str, object]

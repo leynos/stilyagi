@@ -1095,9 +1095,11 @@ turning the smoke workflow into release publishing automation.
 The source validation corpus lives under `tests/fixtures/corpus/`, grouped by
 syntax and by `valid` or `malformed` case. It currently covers Markdown,
 Python, and Rust source inputs for headings, tables, links, docstrings,
-documentation comments, suppressions, and recovery-oriented malformed inputs.
-Golden IR snapshots and fix round-trip fixtures build on this source corpus in
-later roadmap slices rather than duplicating source text in ad hoc tests.
+documentation comments, suppressions, and recovery-oriented malformed inputs;
+the Python and Rust entries are fixture-only, not currently supported at the
+bridge boundary. Those future-facing fixtures provide coverage for later
+roadmap slices that build Golden IR snapshots and fix round-trip fixtures,
+rather than duplicating source text in ad hoc tests.
 
 ## 11. Validation Plan
 
