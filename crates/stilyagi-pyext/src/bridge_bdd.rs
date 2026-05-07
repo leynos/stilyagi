@@ -1,3 +1,5 @@
+//! BDD fixtures that exercise `extract_document_py` and `hello` through `PyO3`.
+
 use super::{extract_document_py, hello};
 use pyo3::prelude::{Py, Python};
 use pyo3::types::{PyAnyMethods, PyDict, PyList};
