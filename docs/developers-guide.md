@@ -134,6 +134,59 @@ documentation-comment extractors are implemented, tests may assert that those
 fixtures are loadable and that extraction still reports the current
 unsupported-syntax error.
 
+<!-- markdownlint-disable MD001 -->
+
+#### RegionKind and typed ExtractRegion API
+
+`RegionKind` is the closed enum in `crates/stilyagi-extract` that names the
+stable region discriminators surfaced through the bridge:
+
+```rust
+pub enum RegionKind {
+    Document,  // whole-document prose from Markdown extraction
+}
+```
+
+`RegionKind::as_str(self) -> &'static str` returns the stable Python-facing
+spelling, such as `"document"`. `impl fmt::Display for RegionKind` delegates to
+`as_str`. `TryFrom<&str> for RegionKind` is the canonical string-to-kind
+conversion; call sites that receive a kind string from an external boundary
+should use that implementation rather than a local match.
+
+`ExtractRegion` exposes two typed entry points:
+
+- `ExtractRegion::new_typed(kind: RegionKind, text: impl Into<String>) -> Self`
+  is the preferred constructor; it accepts a typed kind and avoids freeform
+  strings at the call site.
+- `ExtractRegion::region_kind(&self) -> Option<RegionKind>` returns the typed
+  kind when it falls within the built-in vocabulary; it returns `None` for
+  region kinds introduced at an external boundary that are not yet part of the
+  enum.
+
+Prefer `new_typed` and `region_kind` in Rust code that works with
+`stilyagi-extract` types. Reserve the string-typed `kind()` accessor for the
+PyO3 serialisation boundary, where `RegionKind::as_str` or the `Display`
+implementation should be called explicitly.
+
+#### stilyagi-test-support API reference
+
+The `stilyagi-test-support` crate, at `crates/stilyagi-test-support/`,
+provides four test-only helpers for fixtures that need access to
+repository-local files:
+
+| Symbol | Signature | Description |
+| --- | --- | --- |
+| `SHARED_MARKDOWN_FIXTURE_PATH` | `&str` | Repository-relative path to the shared valid Markdown corpus fixture. |
+| `repository_root` | `() -> PathBuf` | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
+| `corpus_fixture_path` | `(impl AsRef<Path>) -> PathBuf` | Resolves a repository-relative path against the workspace root. |
+| `read_corpus_fixture` | `(impl AsRef<Path>) -> Result<String, io::Error>` | Reads a repository-relative corpus fixture as UTF-8 text. |
+
+Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
+require repository-relative fixture access. Do not copy the `repository_root`
+resolution pattern into individual crates.
+
+<!-- markdownlint-enable MD001 -->
+
 ## 3. Roadmap-aligned implementation boundaries
 
 The [roadmap](roadmap.md) is the maintainer view of build order. It is not just
