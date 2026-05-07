@@ -2,6 +2,7 @@
 
 import dataclasses as dc
 import pathlib
+import typing as typ
 
 import pytest
 from pytest_bdd import given, scenario, then, when
@@ -221,7 +222,10 @@ def test_malformed_python_fixtures_require_text_extension() -> None:
     assert _extensions_for_syntax_category("python", "malformed") == (".py.txt",)
 
 
-CorpusState = dict[str, object]
+class CorpusState(typ.TypedDict, total=False):
+    """State shared between corpus BDD steps."""
+
+    fixtures: tuple[CorpusFixture, ...]
 
 
 @given("the shared validation corpus is available", target_fixture="corpus_state")
@@ -266,7 +270,5 @@ def malformed_fixtures_can_be_read_without_executing_them(
 
 def _state_fixtures(corpus_state: CorpusState) -> tuple[CorpusFixture, ...]:
     """Return loaded fixtures from scenario state."""
-    fixtures = corpus_state.get("fixtures")
-    assert isinstance(fixtures, tuple)
-    assert all(isinstance(fixture, CorpusFixture) for fixture in fixtures)
-    return fixtures
+    assert "fixtures" in corpus_state
+    return typ.cast("tuple[CorpusFixture, ...]", corpus_state["fixtures"])

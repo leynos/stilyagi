@@ -390,6 +390,15 @@ current implementation limitation rather than the source shape.
   test-support crate for shared corpus path helpers, centralising the shared
   Markdown fixture path in Rust and Python tests, strengthening malformed
   fixture filename assertions, and expanding uncommon acronyms in this plan.
+- [x] (2026-05-07T00:00:00Z) Addressed follow-up review comments by moving the
+  `stilyagi-extract` Rust tests into an integration test file, moving PyO3 BDD
+  tests into a dedicated test module, centralising `RegionKind` string parsing,
+  making repository-root discovery fail fast, and replacing loose Python BDD
+  state with a `TypedDict`.
+- [x] (2026-05-07T00:00:00Z) Validated the follow-up changes with
+  `make check-fmt`, `make lint`, `make test`, `make markdownlint`,
+  `make nixie`, and `make typecheck`; `make nixie` needed an escalated rerun
+  because Chromium cannot launch inside the sandbox.
 
 ## Surprises & Discoveries
 
@@ -439,6 +448,13 @@ current implementation limitation rather than the source shape.
   showed local `repository_root` helpers in both test modules. Impact: a
   dev-only `stilyagi-test-support` crate now owns the shared Rust corpus path
   helpers and Markdown fixture path.
+- Observation: inline Rust tests pushed `crates/stilyagi-extract/src/lib.rs`
+  and `crates/stilyagi-pyext/src/lib.rs` beyond the 400-line review guideline.
+  Evidence: `wc -l` reported 487 and 486 lines before the follow-up changes.
+  Impact: extraction tests now live in
+  `crates/stilyagi-extract/tests/extraction_tests.rs`, and PyO3 bridge BDD
+  steps live in `crates/stilyagi-pyext/src/bridge_bdd.rs`; both library files
+  are now under 400 lines.
 - Observation: `mdformat-all` aligns Markdown table columns and may wrap link
   text. Evidence: the final `make test` run failed an exact table-spacing
   assertion after the valid Markdown fixture was formatted. Impact: the Python

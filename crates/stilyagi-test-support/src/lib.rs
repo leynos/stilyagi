@@ -7,12 +7,22 @@ pub const SHARED_MARKDOWN_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md";
 
 /// Return the repository root for workspace tests.
+///
+/// # Panics
+///
+/// Panics if `CARGO_MANIFEST_DIR` does not resolve to a crate nested directly
+/// under the repository's `crates/` directory.
 #[must_use]
+#[expect(
+    clippy::expect_used,
+    reason = "test helper should fail loudly when crate layout assumptions break"
+)]
 pub fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
-        .map_or_else(PathBuf::new, Path::to_path_buf)
+        .expect("failed to determine repository root from CARGO_MANIFEST_DIR")
+        .to_path_buf()
 }
 
 /// Return an absolute path for a repository-relative corpus fixture.
