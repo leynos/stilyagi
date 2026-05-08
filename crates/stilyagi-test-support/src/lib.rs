@@ -54,6 +54,12 @@ pub fn corpus_fixture_path(relative_path: impl AsRef<Path>) -> PathBuf {
             .any(|component| component == Component::ParentDir),
         "corpus fixture path must not contain parent-directory traversal"
     );
+    assert!(
+        !path
+            .components()
+            .any(|component| matches!(component, Component::Prefix(_))),
+        "corpus fixture path must not contain a drive or path prefix"
+    );
     repository_root().join(path)
 }
 
