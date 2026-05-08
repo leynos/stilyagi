@@ -98,7 +98,7 @@ This boundary is deliberate. Rules should never parse source files for
 themselves, and the Rust layer should not absorb policy decisions that belong
 in the rule engine.
 
-## 2. Shared validation corpus
+## 2a. Shared validation corpus
 
 Shared source fixtures live under `tests/fixtures/corpus/`. The corpus is the
 common input set for Rust and Python tests, so new extractor, rule, and bridge
@@ -136,7 +136,9 @@ documentation-comment extractors are implemented, tests may assert that those
 fixtures are loadable and that extraction still reports the current
 unsupported-syntax error.
 
-### 2.1 RegionKind and typed ExtractRegion API
+<!-- markdownlint-disable MD001 -->
+
+#### RegionKind and typed ExtractRegion API
 
 `RegionKind` is the closed enum in `crates/stilyagi-extract` that names the
 stable region discriminators surfaced through the bridge:
@@ -148,10 +150,10 @@ pub enum RegionKind {
 ```
 
 `RegionKind::as_str(self) -> &'static str` returns the stable Python-facing
-spelling, such as `"document"`. `impl fmt::Display for RegionKind` delegates to
-`as_str`. `TryFrom<&str> for RegionKind` is the canonical string-to-kind
-conversion; call sites that receive a kind string from an external boundary
-should use that implementation rather than a local match.
+spelling, for example `"document"`. `impl fmt::Display for RegionKind`
+delegates to `as_str`. `TryFrom<&str> for RegionKind` is the canonical
+string-to-kind conversion; call sites that receive a kind string from an
+external boundary should use that implementation rather than a local match.
 
 `ExtractRegion` exposes two typed entry points:
 
@@ -168,13 +170,11 @@ Prefer `new_typed` and `region_kind` in Rust code that works with
 PyO3 serialization boundary, where `RegionKind::as_str` or the `Display`
 implementation should be called explicitly.
 
-### 2.2 stilyagi-test-support API reference
+#### stilyagi-test-support API reference
 
-The `stilyagi-test-support` crate, at `crates/stilyagi-test-support/`,
-provides four test-only helpers for fixtures that need access to
+The `stilyagi-test-support` crate (at `crates/stilyagi-test-support/`) provides
+four test-only helpers for fixtures that need access to
 repository-local files:
-
-_Table: `stilyagi-test-support` helper symbols_
 
 | Symbol | Signature | Description |
 | --- | --- | --- |
@@ -186,6 +186,8 @@ _Table: `stilyagi-test-support` helper symbols_
 Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
 require repository-relative fixture access. Do not copy the `repository_root`
 resolution pattern into individual crates.
+
+<!-- markdownlint-enable MD001 -->
 
 ## 3. Roadmap-aligned implementation boundaries
 
