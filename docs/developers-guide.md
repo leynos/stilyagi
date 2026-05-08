@@ -74,10 +74,12 @@ separate helper binary for normal v1 execution; the Rust extractor lives inside
 the Python runtime as `stilyagi._stilyagi_rs`.[^1]
 
 The accepted v1 contract scope is narrower than the architecture's long-term
-extension points. Stable v1 syntax support covers Markdown, Python docstrings,
-and Rust documentation comments. Markdown with JSX (MDX) remains preview-only,
-canonical JSON remains required for `dump-ir`, fixtures, and compatibility
-review, and English is the only formally supported v1 locale.[^2]
+extension points. Current implemented extraction support covers Markdown.
+Python docstrings and Rust documentation comments remain in the stable v1
+syntax vocabulary, but their extractors currently report unsupported-syntax
+errors. Markdown with JSX (MDX) remains preview-only, canonical JSON remains
+required for `dump-ir`, fixtures, and compatibility review, and English is the
+only formally supported v1 locale.[^2]
 
 - Rust owns source-oriented work:
   - file-format-aware parsing
@@ -96,7 +98,7 @@ This boundary is deliberate. Rules should never parse source files for
 themselves, and the Rust layer should not absorb policy decisions that belong
 in the rule engine.
 
-## 2a. Shared validation corpus
+## 2. Shared validation corpus
 
 Shared source fixtures live under `tests/fixtures/corpus/`. The corpus is the
 common input set for Rust and Python tests, so new extractor, rule, and bridge
@@ -210,8 +212,9 @@ For the near-term phases, developers should preserve four boundaries in
 particular.
 
 - Syntax and locale scope
-  - Stable v1 syntax support covers Markdown, Python docstrings, and Rust
-    documentation comments.
+  - Current implemented extraction support covers Markdown. Python docstrings
+    and Rust documentation comments remain in the stable v1 syntax vocabulary,
+    but their extractors currently report unsupported-syntax errors.
   - MDX remains preview-only until later evidence upgrades it into the stable
     support matrix.
   - English is the only formally supported locale in v1. Architecture may stay
