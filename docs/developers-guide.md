@@ -163,7 +163,7 @@ should use that implementation rather than a local match.
 
 Prefer `new_typed` and `region_kind` in Rust code that works with
 `stilyagi-extract` types. Reserve the string-typed `kind()` accessor for the
-PyO3 serialisation boundary, where `RegionKind::as_str` or the `Display`
+PyO3 serialization boundary, where `RegionKind::as_str` or the `Display`
 implementation should be called explicitly.
 
 ### 2.2 stilyagi-test-support API reference
