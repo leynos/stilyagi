@@ -26,6 +26,12 @@ pub fn repository_root() -> PathBuf {
 }
 
 /// Return an absolute path for a repository-relative corpus fixture.
+///
+/// # Panics
+///
+/// Panics if `CARGO_MANIFEST_DIR` does not resolve to a crate nested directly
+/// under the repository's `crates/` directory (i.e. when `repository_root`
+/// panics).
 #[must_use]
 pub fn corpus_fixture_path(relative_path: impl AsRef<Path>) -> PathBuf {
     repository_root().join(relative_path)
