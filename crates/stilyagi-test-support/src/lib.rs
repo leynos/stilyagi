@@ -1,5 +1,6 @@
 //! Shared helpers for Rust tests that need repository-local fixtures.
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 /// Repository-relative path to the shared valid Markdown corpus fixture.
@@ -18,9 +19,17 @@ pub const SHARED_MARKDOWN_FIXTURE_PATH: &str =
     reason = "test helper should fail loudly when crate layout assumptions break"
 )]
 pub fn repository_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let crates_dir = manifest_dir
         .parent()
-        .and_then(Path::parent)
+        .expect("failed to determine crate parent from CARGO_MANIFEST_DIR");
+    assert_eq!(
+        crates_dir.file_name(),
+        Some(OsStr::new("crates")),
+        "CARGO_MANIFEST_DIR layout drift: expected crate to be nested directly under repository crates/ directory"
+    );
+    crates_dir
+        .parent()
         .expect("failed to determine repository root from CARGO_MANIFEST_DIR")
         .to_path_buf()
 }
