@@ -84,7 +84,16 @@ def _corpus_fixtures_for_category(
     extensions: tuple[str, ...],
 ) -> tuple[CorpusFixture, ...]:
     """Return validated corpus fixtures from one syntax/category directory."""
-    _assert_allowed_fixture_suffixes(category_dir, extensions)
+    all_files = sorted(path for path in category_dir.iterdir() if path.is_file())
+    unexpected = tuple(
+        path for path in all_files if not _has_allowed_suffix(path, extensions)
+    )
+    if unexpected:
+        unexpected_names = ", ".join(
+            str(path.relative_to(REPOSITORY_ROOT)) for path in unexpected
+        )
+        msg = f"unexpected corpus fixture suffix: {unexpected_names}"
+        raise ValueError(msg)
     return tuple(
         CorpusFixture(
             syntax=syntax,
@@ -93,36 +102,8 @@ def _corpus_fixtures_for_category(
             path=path,
             text=path.read_text(encoding="utf-8"),
         )
-        for path in sorted(category_dir.iterdir())
-        if path.is_file() and _has_allowed_suffix(path, extensions)
-    )
-
-
-def _assert_allowed_fixture_suffixes(
-    category_dir: pathlib.Path,
-    extensions: tuple[str, ...],
-) -> None:
-    """Raise if a fixture directory contains files with unsupported suffixes."""
-    unexpected_paths = _unexpected_fixture_paths(category_dir, extensions)
-    if not unexpected_paths:
-        return
-
-    unexpected_names = ", ".join(
-        str(path.relative_to(REPOSITORY_ROOT)) for path in unexpected_paths
-    )
-    msg = f"unexpected corpus fixture suffix: {unexpected_names}"
-    raise ValueError(msg)
-
-
-def _unexpected_fixture_paths(
-    category_dir: pathlib.Path,
-    extensions: tuple[str, ...],
-) -> tuple[pathlib.Path, ...]:
-    """Return regular files that do not use the expected fixture suffixes."""
-    return tuple(
-        path
-        for path in sorted(category_dir.iterdir())
-        if path.is_file() and not _has_allowed_suffix(path, extensions)
+        for path in all_files
+        if _has_allowed_suffix(path, extensions)
     )
 
 
@@ -143,7 +124,7 @@ def _has_allowed_suffix(path: pathlib.Path, extensions: tuple[str, ...]) -> bool
     return any(path.name.endswith(extension) for extension in extensions)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def all_corpus_fixtures() -> tuple[CorpusFixture, ...]:
     """Return the full shared corpus for unit tests."""
     return corpus_fixtures()

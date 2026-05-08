@@ -1,4 +1,7 @@
-//! Shared helpers for Rust tests that need repository-local fixtures.
+//! Dev-only helpers providing centralised repository-relative fixture access for
+//! `stilyagi-extract` and `stilyagi-pyext` tests via [`repository_root`],
+//! [`corpus_fixture_path`], [`read_corpus_fixture`], and
+//! [`SHARED_MARKDOWN_FIXTURE_PATH`].
 
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
@@ -38,13 +41,15 @@ pub fn repository_root() -> PathBuf {
 ///
 /// # Panics
 ///
-/// Panics if `CARGO_MANIFEST_DIR` does not resolve to a crate nested directly
-/// under the repository's `crates/` directory (i.e. when `repository_root`
-/// panics).
+/// Panics if any of the following conditions hold:
 ///
-/// Panics if `relative_path` is absolute, contains parent-directory traversal
-/// components such as `..`, contains a drive or path prefix, or is
-/// root-relative.
+/// - `relative_path` is absolute (`is_absolute()` returns `true`).
+/// - `relative_path` contains a parent-directory component (`..`).
+/// - `relative_path` contains a drive or path prefix (Windows `C:` etc.).
+/// - `relative_path` is root-relative (starts with `\` on Windows without a
+///   drive letter, i.e. contains [`Component::RootDir`]).
+/// - `CARGO_MANIFEST_DIR` does not resolve to a crate nested directly under the
+///   repository's `crates/` directory (i.e. [`repository_root`] panics).
 #[must_use]
 pub fn corpus_fixture_path(relative_path: impl AsRef<Path>) -> PathBuf {
     let path = relative_path.as_ref();
@@ -61,14 +66,14 @@ pub fn corpus_fixture_path(relative_path: impl AsRef<Path>) -> PathBuf {
     assert!(
         !path
             .components()
-            .any(|component| component == Component::RootDir),
-        "corpus fixture path must not be root-relative"
+            .any(|component| matches!(component, Component::Prefix(_))),
+        "corpus fixture path must not contain a drive or path prefix"
     );
     assert!(
         !path
             .components()
-            .any(|component| matches!(component, Component::Prefix(_))),
-        "corpus fixture path must not contain a drive or path prefix"
+            .any(|component| component == Component::RootDir),
+        "corpus fixture path must not be root-relative"
     );
     repository_root().join(path)
 }

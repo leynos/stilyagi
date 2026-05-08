@@ -276,3 +276,37 @@ fn try_from_str_rejects_unknown_syntax(#[case] input: &str) {
     assert!(matches!(error, ExtractError::UnknownSyntax(_)));
     assert!(error.to_string().contains(input) || input.is_empty());
 }
+
+// ----- corpus_fixture_path path-validation panics -----
+
+#[test]
+#[should_panic(expected = "corpus fixture path must be repository-relative")]
+fn corpus_fixture_path_rejects_absolute_path() {
+    drop(stilyagi_test_support::corpus_fixture_path("/etc/passwd"));
+}
+
+#[test]
+#[should_panic(expected = "corpus fixture path must not contain parent-directory traversal")]
+fn corpus_fixture_path_rejects_parent_traversal() {
+    drop(stilyagi_test_support::corpus_fixture_path(
+        "../../etc/passwd",
+    ));
+}
+
+#[test]
+#[cfg(windows)]
+#[should_panic(expected = "corpus fixture path must not contain a drive or path prefix")]
+fn corpus_fixture_path_rejects_drive_prefix() {
+    drop(stilyagi_test_support::corpus_fixture_path(
+        std::path::Path::new("C:\\windows\\system32"),
+    ));
+}
+
+#[test]
+#[cfg(windows)]
+#[should_panic(expected = "corpus fixture path must not be root-relative")]
+fn corpus_fixture_path_rejects_root_relative() {
+    drop(stilyagi_test_support::corpus_fixture_path(
+        std::path::Path::new("\\etc"),
+    ));
+}
