@@ -5,6 +5,7 @@ use pyo3::prelude::{Py, Python};
 use pyo3::types::{PyAnyMethods, PyDict, PyList};
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
+use std::path::Path;
 use stilyagi_test_support::{SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture};
 
 struct BridgeState {
@@ -28,7 +29,7 @@ fn bridge_state() -> BridgeState {
     clippy::expect_used,
     reason = "test helper should fail loudly when the shared corpus is missing"
 )]
-fn read_shared_corpus_fixture(relative_path: &str) -> String {
+fn read_shared_corpus_fixture(relative_path: impl AsRef<Path>) -> String {
     read_corpus_fixture(relative_path).expect("expected shared corpus fixture to be readable")
 }
 
