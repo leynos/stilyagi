@@ -134,7 +134,7 @@ documentation-comment extractors are implemented, tests may assert that those
 fixtures are loadable and that extraction still reports the current
 unsupported-syntax error.
 
-### 2a.1. RegionKind and typed ExtractRegion API
+### 2.1 RegionKind and typed ExtractRegion API
 
 `RegionKind` is the closed enum in `crates/stilyagi-extract` that names the
 stable region discriminators surfaced through the bridge:
@@ -166,13 +166,13 @@ Prefer `new_typed` and `region_kind` in Rust code that works with
 PyO3 serialisation boundary, where `RegionKind::as_str` or the `Display`
 implementation should be called explicitly.
 
-### 2a.2. stilyagi-test-support API reference
+### 2.2 stilyagi-test-support API reference
 
 The `stilyagi-test-support` crate, at `crates/stilyagi-test-support/`,
 provides four test-only helpers for fixtures that need access to
 repository-local files:
 
-Public test fixture helpers and utilities.
+_Table: `stilyagi-test-support` helper symbols_
 
 | Symbol | Signature | Description |
 | --- | --- | --- |
