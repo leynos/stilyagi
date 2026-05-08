@@ -1,7 +1,7 @@
 //! Shared helpers for Rust tests that need repository-local fixtures.
 
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 /// Repository-relative path to the shared valid Markdown corpus fixture.
 pub const SHARED_MARKDOWN_FIXTURE_PATH: &str =
@@ -43,7 +43,18 @@ pub fn repository_root() -> PathBuf {
 /// panics).
 #[must_use]
 pub fn corpus_fixture_path(relative_path: impl AsRef<Path>) -> PathBuf {
-    repository_root().join(relative_path)
+    let path = relative_path.as_ref();
+    assert!(
+        !path.is_absolute(),
+        "corpus fixture path must be repository-relative"
+    );
+    assert!(
+        !path
+            .components()
+            .any(|component| component == Component::ParentDir),
+        "corpus fixture path must not contain parent-directory traversal"
+    );
+    repository_root().join(path)
 }
 
 /// Read a repository-relative corpus fixture as UTF-8 text.
