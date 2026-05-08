@@ -234,6 +234,24 @@ fn region_kind_display_matches_as_str(#[case] kind: RegionKind, #[case] expected
     assert_eq!(format!("{kind}"), expected);
 }
 
+/// Verify the format → parse round-trip: `as_str` output is accepted by
+/// `TryFrom<&str>` and returns the original kind.
+#[rstest]
+#[case(RegionKind::Document)]
+fn region_kind_as_str_round_trips_through_try_from(#[case] kind: RegionKind) {
+    assert_eq!(RegionKind::try_from(kind.as_str()), Ok(kind));
+}
+
+/// Verify the parse → format round-trip: a valid `TryFrom<&str>` input is
+/// returned verbatim by `as_str` on the parsed kind.
+#[rstest]
+#[case("document")]
+fn region_kind_try_from_round_trips_through_as_str(#[case] spelling: &str) {
+    let kind = RegionKind::try_from(spelling)
+        .unwrap_or_else(|_| panic!("expected '{spelling}' to be a valid RegionKind"));
+    assert_eq!(kind.as_str(), spelling);
+}
+
 /// Keep the Display output for each error variant informative and stable.
 #[rstest]
 #[case(
