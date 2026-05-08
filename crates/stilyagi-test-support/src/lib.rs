@@ -41,6 +41,10 @@ pub fn repository_root() -> PathBuf {
 /// Panics if `CARGO_MANIFEST_DIR` does not resolve to a crate nested directly
 /// under the repository's `crates/` directory (i.e. when `repository_root`
 /// panics).
+///
+/// Panics if `relative_path` is absolute, contains parent-directory traversal
+/// components such as `..`, contains a drive or path prefix, or is
+/// root-relative.
 #[must_use]
 pub fn corpus_fixture_path(relative_path: impl AsRef<Path>) -> PathBuf {
     let path = relative_path.as_ref();
@@ -53,6 +57,12 @@ pub fn corpus_fixture_path(relative_path: impl AsRef<Path>) -> PathBuf {
             .components()
             .any(|component| component == Component::ParentDir),
         "corpus fixture path must not contain parent-directory traversal"
+    );
+    assert!(
+        !path
+            .components()
+            .any(|component| component == Component::RootDir),
+        "corpus fixture path must not be root-relative"
     );
     assert!(
         !path
