@@ -74,10 +74,12 @@ separate helper binary for normal v1 execution; the Rust extractor lives inside
 the Python runtime as `stilyagi._stilyagi_rs`.[^1]
 
 The accepted v1 contract scope is narrower than the architecture's long-term
-extension points. Stable v1 syntax support covers Markdown, Python docstrings,
-and Rust documentation comments. Markdown with JSX (MDX) remains preview-only,
-canonical JSON remains required for `dump-ir`, fixtures, and compatibility
-review, and English is the only formally supported v1 locale.[^2]
+extension points. Current implemented extraction support covers Markdown.
+Python docstrings and Rust documentation comments remain in the stable v1
+syntax vocabulary, but their extractors currently report unsupported-syntax
+errors. Markdown with JSX (MDX) remains preview-only, canonical JSON remains
+required for `dump-ir`, fixtures, and compatibility review, and English is the
+only formally supported v1 locale.[^2]
 
 - Rust owns source-oriented work:
   - file-format-aware parsing
@@ -95,6 +97,97 @@ review, and English is the only formally supported v1 locale.[^2]
 This boundary is deliberate. Rules should never parse source files for
 themselves, and the Rust layer should not absorb policy decisions that belong
 in the rule engine.
+
+## 2a. Shared validation corpus
+
+Shared source fixtures live under `tests/fixtures/corpus/`. The corpus is the
+common input set for Rust and Python tests, so new extractor, rule, and bridge
+tests should prefer these files over inline source strings when the same shape
+is useful across languages.
+
+The corpus is grouped by syntax and validity:
+
+```plaintext
+tests/fixtures/corpus/
+├── markdown/
+│   ├── valid/
+│   └── malformed/
+├── python/
+│   ├── valid/
+│   └── malformed/
+└── rust/
+    ├── valid/
+    └── malformed/
+```
+
+Fixture names should describe the source shape, not the current implementation
+limitation. For example, use names like `heading-table-link-suppression.md`,
+`module-class-function-docstrings.py`, or `item-doc-comments.rs`. Invalid
+Python syntax that repository formatters must not parse can use a `.py.txt`
+suffix under `python/malformed/`. Each malformed fixture must remain readable
+UTF-8 source text and must not need to be imported, compiled, or executed by
+tests.
+
+Python tests should load corpus files through focused `pathlib.Path` helpers
+like the ones in `tests/test_corpus.py`. Rust tests should load shared corpus
+files through the dev-only `stilyagi-test-support` crate instead of duplicating
+repository-root discovery in each crate. Until the Python docstring and Rust
+documentation-comment extractors are implemented, tests may assert that those
+fixtures are loadable and that extraction still reports the current
+unsupported-syntax error.
+
+<!-- markdownlint-disable MD001 -->
+
+#### RegionKind and typed ExtractRegion API
+
+`RegionKind` is the closed enum in `crates/stilyagi-extract` that names the
+stable region discriminators surfaced through the bridge:
+
+```rust
+pub enum RegionKind {
+    Document,  // whole-document prose from Markdown extraction
+}
+```
+
+`RegionKind::as_str(self) -> &'static str` returns the stable Python-facing
+spelling, for example `"document"`. `impl fmt::Display for RegionKind`
+delegates to `as_str`. `TryFrom<&str> for RegionKind` is the canonical
+string-to-kind conversion; call sites that receive a kind string from an
+external boundary should use that implementation rather than a local match.
+
+`ExtractRegion` exposes two typed entry points:
+
+- `ExtractRegion::new_typed(kind: RegionKind, text: impl Into<String>) -> Self`
+  is the preferred constructor; it accepts a typed kind and avoids freeform
+  strings at the call site.
+- `ExtractRegion::region_kind(&self) -> Option<RegionKind>` returns the typed
+  kind when it falls within the built-in vocabulary; it returns `None` for
+  region kinds introduced at an external boundary that are not yet part of the
+  enum.
+
+Prefer `new_typed` and `region_kind` in Rust code that works with
+`stilyagi-extract` types. Reserve the string-typed `kind()` accessor for the
+PyO3 serialization boundary, where `RegionKind::as_str` or the `Display`
+implementation should be called explicitly.
+
+#### stilyagi-test-support API reference
+
+The `stilyagi-test-support` crate (at `crates/stilyagi-test-support/`) provides
+four test-only helpers for fixtures that need access to
+repository-local files:
+
+| Symbol | Signature | Description |
+| --- | --- | --- |
+| `SHARED_MARKDOWN_FIXTURE_PATH` | `&str` | Repository-relative path to the shared valid Markdown corpus fixture. |
+| `repository_root` | `() -> PathBuf` | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
+| `corpus_fixture_path` | `(impl AsRef<Path>) -> PathBuf` | Resolves a repository-relative path against the workspace root. |
+| `read_corpus_fixture` | `(impl AsRef<Path>) -> Result<String, io::Error>` | Reads a repository-relative corpus fixture as UTF-8 text. |
+
+Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
+require repository-relative fixture access. Do not copy the `repository_root`
+resolution pattern into individual crates.
+
+<!-- markdownlint-enable MD001 -->
 
 ## 3. Roadmap-aligned implementation boundaries
 
@@ -121,8 +214,9 @@ For the near-term phases, developers should preserve four boundaries in
 particular.
 
 - Syntax and locale scope
-  - Stable v1 syntax support covers Markdown, Python docstrings, and Rust
-    documentation comments.
+  - Current implemented extraction support covers Markdown. Python docstrings
+    and Rust documentation comments remain in the stable v1 syntax vocabulary,
+    but their extractors currently report unsupported-syntax errors.
   - MDX remains preview-only until later evidence upgrades it into the stable
     support matrix.
   - English is the only formally supported locale in v1. Architecture may stay

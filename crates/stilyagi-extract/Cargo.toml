@@ -14,6 +14,7 @@ stilyagi-tree-sitter = { path = "../stilyagi-tree-sitter" }
 
 [dev-dependencies]
 rstest.workspace = true
+stilyagi-test-support = { path = "../stilyagi-test-support" }
 
 [lints]
 workspace = true

@@ -87,7 +87,7 @@ meaningful feature slice can be trusted. See
 [Stilyagi design](stilyagi-design.md) §11 and
 [RFC 0004](rfcs/0004-stilyagi-rule-testing-framework.md).
 
-- [ ] 1.3.1. Assemble representative Markdown, Python, and Rust fixtures,
+- [x] 1.3.1. Assemble representative Markdown, Python, and Rust fixtures,
   including malformed-input cases. See Stilyagi design (stilyagi-design.md)
   §7.1.
   - Requires 1.1.3.

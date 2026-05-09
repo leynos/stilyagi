@@ -16,6 +16,12 @@ Feature: PyO3 bridge structure
     Then the extracted document reports Markdown syntax
     And the extracted document preserves one source-backed region
 
+  Scenario: Bridge extracts the shared Markdown fixture through the Rust boundary
+    Given the bridge can call the Rust extraction entrypoint
+    When the bridge extracts the shared Markdown fixture
+    Then the extracted document reports Markdown syntax
+    And the extracted document preserves the shared Markdown fixture
+
   Scenario: Bridge keeps blank Markdown extraction empty
     Given the bridge can call the Rust extraction entrypoint
     When the bridge extracts a blank Markdown document
