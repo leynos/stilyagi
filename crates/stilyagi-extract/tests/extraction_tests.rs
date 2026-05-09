@@ -282,7 +282,12 @@ fn try_from_str_rejects_unknown_syntax(#[case] input: &str) {
 #[test]
 #[should_panic(expected = "corpus fixture path must be repository-relative")]
 fn corpus_fixture_path_rejects_absolute_path() {
-    drop(stilyagi_test_support::corpus_fixture_path("/etc/passwd"));
+    let path = if cfg!(windows) {
+        "C:\\etc\\passwd"
+    } else {
+        "/etc/passwd"
+    };
+    drop(stilyagi_test_support::corpus_fixture_path(path));
 }
 
 #[test]

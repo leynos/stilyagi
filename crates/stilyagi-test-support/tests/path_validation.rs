@@ -22,7 +22,12 @@ proptest! {
 #[test]
 #[should_panic(expected = "corpus fixture path must be repository-relative")]
 fn rejects_absolute_path_property() {
-    drop(corpus_fixture_path("/tmp/evil"));
+    let path = if cfg!(windows) {
+        "C:\\tmp\\evil"
+    } else {
+        "/tmp/evil"
+    };
+    drop(corpus_fixture_path(path));
 }
 
 #[test]
