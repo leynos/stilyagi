@@ -603,17 +603,20 @@ represented as dictionaries.[^24]
 - *Imperative (Python-like pseudocode):*
 
 ```python
-  event_data = get_event()
-  if "type" in event_data and event_data["type"] == "click":
-      if "position" in event_data and isinstance(event_data["position"], tuple) and len(event_data["position"]) == 2:
-          x, y = event_data["position"]
-          handle_click(x, y)
-  elif "type" in event_data and event_data["type"] == "keypress":
-      if "key_name" in event_data:
-          key = event_data["key_name"]
-          handle_keypress(key)
-  #… and so on for other event types
-
+event_data = get_event()
+if "type" in event_data and event_data["type"] == "click":
+    if (
+        "position" in event_data
+        and isinstance(event_data["position"], tuple)
+        and len(event_data["position"]) == 2
+    ):
+        x, y = event_data["position"]
+        handle_click(x, y)
+elif "type" in event_data and event_data["type"] == "keypress":
+    if "key_name" in event_data:
+        key = event_data["key_name"]
+        handle_keypress(key)
+# … and so on for other event types
    ```
 
 - *Declarative with Structural Pattern Matching (Python* `match-case`*):*
@@ -621,13 +624,12 @@ represented as dictionaries.[^24]
   ```python
   event_data = get_event()
   match event_data:
-      case {"type": "click", "position": (x, y)}: # Matches structure and extracts x, y
+      case {"type": "click", "position": (x, y)}:  # Matches structure and extracts x, y
           handle_click(x, y)
-      case {"type": "keypress", "key_name": key}: # Matches structure and extracts key
+      case {"type": "keypress", "key_name": key}:  # Matches structure and extracts key
           handle_keypress(key)
       case _:
           handle_unknown_event()
-
   ```
 
 The pattern matching version is more readable and directly expresses the

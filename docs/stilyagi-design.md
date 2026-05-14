@@ -504,8 +504,7 @@ class HeadingDepthRule(Rule):
     targets = [RegionTarget(kind={"heading"})]
     requires = {Capability.STRUCTURE}
 
-    def visit_region(self, ctx: RuleContext, region: Region):
-        ...
+    def visit_region(self, ctx: RuleContext, region: Region): ...
 ```
 
 Implementation consequences:
@@ -581,6 +580,8 @@ Apples, bananas and pears.
 # stilyagi: disable PYDOC210
 def f():
     """Returns the value."""
+
+
 # stilyagi: enable PYDOC210
 ```
 
@@ -801,8 +802,8 @@ Current implementation note for roadmap item 1.2.2:
   comment extraction and adapts a partial document-shaped payload into the
   Python model layer.
 - That payload is deliberately limited to `syntax` plus `regions[{kind,
-  text}]`. It does not yet expose `line_index`, `segments`, owner metadata, or
-  canonical IR JSON as part of the in-process bridge.
+  text}]`. It does not yet expose `line_index`, `segments
+  `, owner metadata, or canonical IR JSON as part of the in-process bridge.
 - The raw PyO3 payload is an internal bridge detail. The supported Python
   surface is the typed `stilyagi.model.Document` wrapper returned by
   `stilyagi.engine`, which keeps the public API future-compatible while later

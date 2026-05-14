@@ -9,4 +9,4 @@ class NlpProvider(typ.Protocol):
     @property
     def provider_name(self) -> str:
         """Return the provider name."""
-        ...
+        raise NotImplementedError

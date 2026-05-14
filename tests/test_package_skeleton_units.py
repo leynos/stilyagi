@@ -151,7 +151,7 @@ def test_model_skeleton_dataclasses_preserve_defaults_and_children() -> None:
     """Keep the model placeholder dataclasses predictable."""
     region = model.Region(kind="paragraph", text="Hello")
 
-    assert model.Document(syntax=model.Syntax.MARKDOWN).regions == ()
+    assert not model.Document(syntax=model.Syntax.MARKDOWN).regions
     assert model.Document(
         syntax=model.Syntax.MARKDOWN,
         regions=(region,),

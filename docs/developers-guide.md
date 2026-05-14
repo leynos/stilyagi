@@ -42,6 +42,7 @@ The minimum local setup is:
 - `uv`
 - `maturin` 1.9.4 or newer
 - `whitaker`
+- `pypy`, or a `uv`-managed PyPy interpreter for `pylint-pypy-shim`
 - `markdownlint-cli2`
 - `nixie`
 
@@ -173,15 +174,14 @@ implementation should be called explicitly.
 #### stilyagi-test-support API reference
 
 The `stilyagi-test-support` crate (at `crates/stilyagi-test-support/`) provides
-four test-only helpers for fixtures that need access to
-repository-local files:
+four test-only helpers for fixtures that need access to repository-local files:
 
-| Symbol | Signature | Description |
-| --- | --- | --- |
-| `SHARED_MARKDOWN_FIXTURE_PATH` | `&str` | Repository-relative path to the shared valid Markdown corpus fixture. |
-| `repository_root` | `() -> PathBuf` | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
-| `corpus_fixture_path` | `(impl AsRef<Path>) -> PathBuf` | Resolves a repository-relative path against the workspace root. |
-| `read_corpus_fixture` | `(impl AsRef<Path>) -> Result<String, io::Error>` | Reads a repository-relative corpus fixture as UTF-8 text. |
+| Symbol                         | Signature                                         | Description                                                                                                                               |
+| ------------------------------ | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHARED_MARKDOWN_FIXTURE_PATH` | `&str`                                            | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
+| `repository_root`              | `() -> PathBuf`                                   | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
+| `corpus_fixture_path`          | `(impl AsRef<Path>) -> PathBuf`                   | Resolves a repository-relative path against the workspace root.                                                                           |
+| `read_corpus_fixture`          | `(impl AsRef<Path>) -> Result<String, io::Error>` | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
 
 Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
 require repository-relative fixture access. Do not copy the `repository_root`
@@ -284,7 +284,9 @@ particular.
         languages = {"markdown"}
         targets = [RegionTarget(kind={"heading"}, language={"markdown"})]
 
+
     ctx.regions(kind={"heading"}, language={"markdown"})
+
 
     # After RFC 0002 alignment
     class ExampleRule(Rule):
@@ -298,6 +300,7 @@ particular.
                 owner_kind=None,
             )
         ]
+
 
     ctx.regions(
         kind={"heading"},
@@ -515,6 +518,8 @@ Their responsibilities are:
   - validate Mermaid diagrams in Markdown files
 - `make lint`
   - run Ruff checks through `uv`
+  - run focused Pylint checks through the pinned `pylint-pypy-shim` wrapper
+    under PyPy
   - run `cargo clippy` with warnings denied
   - run Whitaker from `crates/stilyagi-pyext/`
 - `make typecheck`
@@ -534,7 +539,10 @@ Their responsibilities are:
 
 The Python tools are intentionally run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
-the host `PATH`.
+the host `PATH`. Pylint is the exception: `make lint` invokes it through
+`uv tool run --python pypy` with the pinned
+[`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper, after
+Ruff and before the Rust lint tiers.
 
 ## 7. Development responsibilities
 
@@ -800,8 +808,7 @@ class GrammarProvider(Protocol):
         self,
         regions: Sequence[RegionNode],
         required: set[Capability],
-    ) -> GrammarDocument:
-        ...
+    ) -> GrammarDocument: ...
 ```
 
 Providers annotate extracted regions after capability planning has decided what
@@ -817,6 +824,7 @@ Rules may implement the following grammar-aware hooks:
 # Layer-one hooks
 def visit_token(self, ctx, token: TokenNode): ...
 def visit_sentence(self, ctx, sentence: SentenceNode): ...
+
 
 # Later-wave hooks
 def visit_noun_phrase(self, ctx, noun_phrase: NounPhraseNode): ...

@@ -1,5 +1,6 @@
 """Unit tests for the mixed-package build spine."""
 
+import collections.abc as cabc
 import pathlib
 import re
 import typing as typ
@@ -10,7 +11,7 @@ from stilyagi import model, smoke
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_SMOKE_REGION = model.Region(kind="document", text=smoke.SMOKE_SOURCE)
-ExtractDocument = typ.Callable[[str, model.Syntax], model.Document]
+ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
 WorkflowStep = typ.TypedDict(
     "WorkflowStep",
     {"name": str, "uses": str, "run": str, "with": dict[str, str]},
@@ -56,7 +57,7 @@ def _normalised_lines(contents: str) -> set[str]:
 
 def _workflow_document(workflow: str) -> dict[str, object]:
     """Parse a GitHub Actions workflow while preserving the `on` key as text."""
-    loaded = yaml.load(workflow, Loader=yaml.BaseLoader)  # noqa: S506 - BaseLoader avoids object deserialisation for this checked-in fixture.
+    loaded = yaml.load(workflow, Loader=yaml.BaseLoader)
     assert isinstance(loaded, dict)
     return typ.cast("dict[str, object]", loaded)
 
@@ -200,7 +201,7 @@ def test_smoke_main_returns_zero_on_success(
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert captured.err == ""
+    assert not captured.err
 
 
 def test_smoke_main_failure(
@@ -246,8 +247,8 @@ def test_makefile_venv_target_declares_manifests_and_sync_recipe(
     assert "uv.lock" in header
     assert "$(WORKSPACE_MANIFEST)" in header
     assert "Cargo.lock" in header
-    assert "UV_VENV_CLEAR=1 $(UV_ENV) uv venv" in recipe
-    assert "$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev" in recipe
+    assert "UV_VENV_CLEAR=1 $(UV_ENV) $(UV) venv" in recipe
+    assert "$(CARGO_BUILD_ENV) $(UV_ENV) $(UV) sync --group dev" in recipe
 
 
 def test_makefile_smoke_target_invokes_stilyagi_smoke_via_venv(
