@@ -176,6 +176,8 @@ implementation should be called explicitly.
 The `stilyagi-test-support` crate (at `crates/stilyagi-test-support/`) provides
 four test-only helpers for fixtures that need access to repository-local files:
 
+Table: Repository fixture utilities and signatures.
+
 | Symbol                         | Signature                                         | Description                                                                                                                               |
 | ------------------------------ | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `SHARED_MARKDOWN_FIXTURE_PATH` | `&str`                                            | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
@@ -568,6 +570,8 @@ Run lint commands sequentially. The repository uses shared build and tool
 caches, and the canonical command order is the one encoded in the Makefile.
 
 The Makefile exposes the lint runner through these variables:
+
+Table: Lint runner Makefile variables.
 
 | Variable               | Default                                                                                       | Purpose                                                         |
 | ---------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
