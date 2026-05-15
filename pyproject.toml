@@ -85,8 +85,8 @@ extend-ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"**/test_*.py" = ["S101", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
-"tests/steps/*.py" = ["S101", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
+"**/test_*.py" = ["S101", "S506", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
+"tests/steps/*.py" = ["S101", "S506", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
 
 [tool.ruff.lint.flake8-import-conventions]
 # Declare the banned `from` imports.
