@@ -609,7 +609,7 @@ The Python lint configuration lives in `pyproject.toml`:
   - allows test-specific assertions and test helper signatures without
     weakening application-code linting
 - `[tool.ruff.lint.flake8-import-conventions]`
-  - bans broad `from` imports for modules whose aliases are standardised
+  - bans broad `from` imports for modules whose aliases are standardized
 - `[tool.ruff.lint.flake8-import-conventions.aliases]`
   - records the approved aliases, including `typing as typ`,
     `collections.abc as cabc`, and `datetime as dt`
