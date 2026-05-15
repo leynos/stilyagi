@@ -544,6 +544,99 @@ the host `PATH`. Pylint is the exception: `make lint` invokes it through
 [`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper, after
 Ruff and before the Rust lint tiers.
 
+### 6a. Python linting architecture
+
+ADR 004 records the accepted Python linting architecture.[^4] The short version
+is that Python linting has two tiers:
+
+1. Ruff runs first through `uv run --group dev ruff check`.
+2. Pylint runs second through `uv tool run --python pypy` and the pinned
+   `pylint-pypy-shim` wrapper.
+
+`make lint` then continues into the Rust lint tiers:
+
+1. `cargo clippy --workspace --all-targets -- -D warnings`
+2. `whitaker --all` from `crates/stilyagi-pyext/`
+
+Run the full lint gate with:
+
+```bash
+make lint
+```
+
+Run lint commands sequentially. The repository uses shared build and tool
+caches, and the canonical command order is the one encoded in the Makefile.
+
+The Makefile exposes the lint runner through these variables:
+
+| Variable               | Default                                                                                       | Purpose                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `UV`                   | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                 | Selects the `uv` executable used by Makefile Python commands.   |
+| `UV_ENV`               | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                | Keeps `uv` cache and tool state inside the repository worktree. |
+| `UV_RUN`               | `$(UV_ENV) $(UV) run --group dev`                                                             | Runs commands in the locked development dependency group.       |
+| `PYLINT_PYTHON`        | `pypy`                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.     |
+| `PYLINT_TARGETS`       | `python/stilyagi tests`                                                                       | Selects the directories checked by the Pylint tier.             |
+| `PYLINT_PYPY_SHIM_REF` | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                    | Pins the shim commit used by the Pylint tier.                   |
+| `PYLINT_PYPY_SHIM`     | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                  | Expands the pinned shim package source.                         |
+| `PYLINT`               | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy` | Builds the complete Pylint command used by `make lint`.         |
+
+Override these variables only for local diagnosis unless the project-wide lint
+policy is intentionally changing. For example:
+
+```bash
+make lint PYLINT_TARGETS=python/stilyagi
+make lint PYLINT_PYTHON=pypy3.11
+```
+
+The lint policy imported from
+[`leynos/episodic`](https://github.com/leynos/episodic) is a policy baseline,
+not an automatic upstream subscription. Future Episodic rule changes should be
+reviewed deliberately before they are copied into Stilyagi. This branch imports
+the current Ruff selector set, deprecated `typing.*` banned API table, and
+focused Pylint message allowlist because they match Stilyagi's maintenance
+goals: fast first-pass feedback, explicit import discipline, predictable
+docstring style, low complexity ceilings, lazy logging, safer subprocess and
+file handling, and review pressure on branch-heavy or overgrown functions.
+
+The Python lint configuration lives in `pyproject.toml`:
+
+- `[tool.ruff]`
+  - sets the line length, preview mode, and Python target version
+- `[tool.ruff.lint]`
+  - selects the active Ruff rule families and explicit preview selectors
+  - ignores only the two pydocstyle conflicts that oppose the chosen style
+- `[tool.ruff.lint.per-file-ignores]`
+  - allows test-specific assertions and test helper signatures without
+    weakening application-code linting
+- `[tool.ruff.lint.flake8-import-conventions]`
+  - bans broad `from` imports for modules whose aliases are standardised
+- `[tool.ruff.lint.flake8-import-conventions.aliases]`
+  - records the approved aliases, including `typing as typ`,
+    `collections.abc as cabc`, and `datetime as dt`
+- `[tool.ruff.lint.flake8-tidy-imports.banned-api]`
+  - rejects deprecated `typing.*` generic aliases in favour of modern
+    builtins, `collections.abc`, `contextlib`, `collections`, and `re`
+- `[tool.ruff.lint.pydocstyle]`
+  - keeps NumPy docstring style as the project convention
+- `[tool.ruff.lint.mccabe]`
+  - caps cyclomatic complexity at 8
+- `[tool.ruff.lint.pylint]`
+  - mirrors the strict Ruff-side Pylint compatibility thresholds for
+    arguments, boolean expressions, and locals
+- `[tool.pylint.main]`
+  - enables recursive directory traversal and caps module length
+- `[tool.pylint.design]`
+  - sets the focused Pylint design thresholds that complement Ruff
+- `[tool.pylint."messages control"]`
+  - disables all Pylint messages by default, disables `syntax-error` for the
+    PyPy-backed runner, and enables only the explicitly selected second-tier
+    diagnostics
+
+When adding or suppressing lint rules, keep the reason near the configuration
+or the suppression. Ruff suppressions use `# noqa`, while Pylint suppressions
+use `# pylint: disable=...`; do not use one tool's suppression syntax to hide
+the other tool's finding.
+
 ## 7. Development responsibilities
 
 Maintainer responsibilities in this repository are stricter than a normal
@@ -565,6 +658,8 @@ single-language package.
 [^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
 [^2]: [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
 [^3]: [PyO3 FAQ: linker issues with `cargo test`](https://pyo3.rs/main/faq)
+[^4]: [ADR 004: Adopt two-tier Python linting](
+    adr-004-python-linting-architecture.md)
 
 Substantial architecture changes should update both the code and the documents
 that define the current contracts. Stale documentation is treated as a defect,
