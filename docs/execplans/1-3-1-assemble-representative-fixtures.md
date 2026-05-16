@@ -27,9 +27,9 @@ that tells future maintainers where to add cases.
 ## Context and orientation
 
 The repository is a mixed Rust and Python project. Rust crates live under
-`crates/`, Python package code lives under `python/stilyagi/`,
-behaviour-driven development (BDD) feature files for Python tests live under
-`features/`, and current static test inputs live under `tests/fixtures/`.
+`crates/`, Python package code lives under `python/stilyagi/`, behaviour-driven
+development (BDD) feature files for Python tests live under `features/`, and
+current static test inputs live under `tests/fixtures/`.
 
 The current extraction implementation is intentionally narrow. Rust code in
 `crates/stilyagi-extract/src/lib.rs` supports the `markdown`,
@@ -506,14 +506,13 @@ Complete. The shared corpus now exists under `tests/fixtures/corpus/` with
 valid and malformed Markdown, Python, and Rust source inputs. Rust unit tests
 read malformed corpus files and exercise Markdown extraction from the shared
 Markdown fixture. Rust `rstest-bdd` coverage now extracts that same shared
-Markdown fixture through the PyO3 bridge. Python unit tests and a
-`pytest-bdd` scenario prove that every v1 syntax has valid and malformed
-fixtures and that malformed inputs are read as source text without being
-executed.
+Markdown fixture through the PyO3 bridge. Python unit tests and a `pytest-bdd`
+scenario prove that every v1 syntax has valid and malformed fixtures and that
+malformed inputs are read as source text without being executed.
 
 Documentation now records the corpus location and conventions in
-`docs/developers-guide.md` and `docs/stilyagi-design.md`. The roadmap entry
-for 1.3.1 is marked done. `docs/users-guide.md` was intentionally not changed
+`docs/developers-guide.md` and `docs/stilyagi-design.md`. The roadmap entry for
+1.3.1 is marked done. `docs/users-guide.md` was intentionally not changed
 because this slice does not alter user-visible behaviour.
 
 Validation passed with `make check-fmt`, `make lint`, `make test`,

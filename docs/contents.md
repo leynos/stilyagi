@@ -67,6 +67,10 @@
   - [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
     records the accepted v1 syntax support matrix, IR transport policy, and
     locale boundary that later roadmap slices may assume.
+  - [ADR 004: Adopt two-tier Python linting](
+    adr-004-python-linting-architecture.md)
+    records the accepted Ruff-first, focused-Pylint-second Python linting
+    architecture and its Makefile execution model.
 
 ## Requests for comments (RFCs)
 

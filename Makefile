@@ -7,8 +7,14 @@ WORKSPACE_MANIFEST ?= Cargo.toml
 PYEXT_MANIFEST ?= crates/stilyagi-pyext/Cargo.toml
 BUILD_JOBS ?=
 RUST_FLAGS ?=
+UV ?= $(shell command -v uv 2>/dev/null || printf '%s/.local/bin/uv' "$$HOME")
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
-UV_RUN = $(UV_ENV) uv run --group dev
+UV_RUN = $(UV_ENV) $(UV) run --group dev
+PYLINT_PYTHON ?= pypy
+PYLINT_TARGETS ?= python/stilyagi tests
+PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b
+PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)
+PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace
 RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" ]; then VENV_PYTHON=".venv/Scripts/python.exe"; fi
@@ -23,8 +29,8 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
 all: release ## Build the release artifact
 
 .venv: pyproject.toml uv.lock $(WORKSPACE_MANIFEST) Cargo.lock
-	UV_VENV_CLEAR=1 $(UV_ENV) uv venv
-	$(CARGO_BUILD_ENV) $(UV_ENV) uv sync --group dev
+	UV_VENV_CLEAR=1 $(UV_ENV) $(UV) venv
+	$(CARGO_BUILD_ENV) $(UV_ENV) $(UV) sync --group dev
 
 build: .venv ## Build dev artifact and install into venv
 	$(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(PYEXT_MANIFEST)
@@ -95,6 +101,7 @@ check-fmt: tools-check ## Verify formatting
 
 lint: tools-lint ## Run linters
 	$(UV_RUN) ruff check
+	$(PYLINT) $(PYLINT_TARGETS)
 	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
 	# Whitaker resolves cargo metadata from the crate directory in this repo.
 	cd crates/stilyagi-pyext && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all

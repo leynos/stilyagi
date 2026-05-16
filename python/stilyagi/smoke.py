@@ -33,15 +33,15 @@ Call the same check programmatically with a test extractor:
 True
 """
 
+import collections.abc as cabc
 import sys
-import typing as typ
 
 from stilyagi import engine, model
 
 #: Canonical Markdown source used to prove the Rust-backed extraction path.
 SMOKE_SOURCE = "# Stilyagi smoke"
 #: Callable contract for smoke-compatible document extraction functions.
-ExtractDocument = typ.Callable[[str, model.Syntax], model.Document]
+ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
 
 
 class SmokeCheckError(RuntimeError):

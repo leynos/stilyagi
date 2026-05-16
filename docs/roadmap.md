@@ -73,8 +73,7 @@ development loop and a release build without compatibility shims.
   - Success: Python can call into Rust without shelling out to an external
     helper.
 - [x] 1.2.3. Wire the Makefile and continuous integration (CI) smoke path to
-  the new mixed-package structure. See Stilyagi design (stilyagi-design.md)
-  §10.
+  the new mixed-package structure. See Stilyagi design (stilyagi-design.md) §10.
   - Requires 1.2.1 and 1.2.2.
   - Keep `make build` and `make release` as the canonical workflows.
   - Success: development installs and release artefacts exercise the same

@@ -353,8 +353,8 @@ the shared PyO3 boundary.
   `make smoke`, split release artifact construction into `release-artifact`,
   and wired `make release` to `smoke-release`.
 - [x] 2026-04-24: Added `.github/workflows/smoke.yml` as a bounded GitHub
-  Actions workflow that calls `make check-fmt`, `make lint`, and `make test`
-  on Ubuntu, with release smoke coverage split into a later matrix job.
+  Actions workflow that calls `make check-fmt`, `make lint`, and `make test` on
+  Ubuntu, with release smoke coverage split into a later matrix job.
 - [x] 2026-04-24: Re-ran the targeted tests in
   `/tmp/test-targeted-stilyagi-feat-plan-makefile-ci-smoke.out`; all eight
   targeted tests passed.
@@ -400,7 +400,7 @@ the shared PyO3 boundary.
   `python-source = "python"`.
 - Implementation will use the currently available public API
   `stilyagi.engine.extract_document("# Heading", stilyagi.model.Syntax.MARKDOWN)`
-  as the shared smoke proof.
+   as the shared smoke proof.
 - The release smoke target should remove `dist/` immediately before building
   so `pip install --no-index --find-links dist stilyagi` cannot select a stale
   wheel from a previous run.
@@ -459,9 +459,9 @@ Implemented the shared build-spine smoke path for roadmap item 1.2.3.
 `python -m stilyagi.smoke` now exercises the public Python engine API backed by
 the embedded Rust extension. `make build` runs that smoke proof after
 `maturin develop`, and `make release` builds a fresh wheel into `dist/`,
-installs it into `.venv-release-smoke`, and runs the same proof from the
-system temporary directory (as returned by Python's `tempfile.gettempdir()`) to
-avoid importing the repository source tree.
+installs it into `.venv-release-smoke`, and runs the same proof from the system
+temporary directory (as returned by Python's `tempfile.gettempdir()`) to avoid
+importing the repository source tree.
 
 The repository now has a bounded `.github/workflows/smoke.yml` workflow that
 sets up Python, Rust, `uv`, and documentation tools, then calls the canonical

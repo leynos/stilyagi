@@ -478,8 +478,7 @@ are later-wave hooks.
 class OxfordCommaRule(Rule):
     requires = {Capability.COORDINATION}
 
-    def visit_coordination(self, ctx, coordination):
-        ...
+    def visit_coordination(self, ctx, coordination): ...
 ```
 
 This is cleaner than making every rule perform a sentence-level manual search
@@ -498,8 +497,7 @@ class GrammarProvider(Protocol):
         self,
         regions: Sequence[RegionNode],
         required: set[Capability],
-    ) -> GrammarDocument:
-        ...
+    ) -> GrammarDocument: ...
 ```
 
 The spaCy provider should:
@@ -1009,8 +1007,7 @@ class OxfordCommaRule(Rule):
                 code=self.code,
                 severity=Severity.WARNING,
                 message=(
-                    f"Use a serial comma before "
-                    f"'{coordination.conjunction.text}'."
+                    f"Use a serial comma before '{coordination.conjunction.text}'."
                 ),
                 span=coordination.conjunction.span,
                 fix=Fix(
