@@ -94,7 +94,7 @@ meaningful feature slice can be trusted. See
     suppressions, and error recovery cases.
   - Success: every later slice can anchor its tests in shared fixtures rather
     than ad hoc strings.
-- [ ] 1.3.2. Add golden IR, CLI snapshot, and fix round-trip test helpers. See
+- [x] 1.3.2. Add golden IR, CLI snapshot, and fix round-trip test helpers. See
   Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 1.2.2 and 1.3.1.
   - Keep the helpers internal at first; the public pytest plugin comes later.

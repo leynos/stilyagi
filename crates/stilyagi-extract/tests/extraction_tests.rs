@@ -7,7 +7,9 @@ use stilyagi_extract::{
 };
 use stilyagi_ir::IrBoundary;
 use stilyagi_markdown::MarkdownBoundary;
-use stilyagi_test_support::{SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture};
+use stilyagi_test_support::{
+    SHARED_MARKDOWN_FIXTURE_PATH, golden_markdown_ir_fixture, read_corpus_fixture,
+};
 use stilyagi_tree_sitter::TreeSitterBoundary;
 
 /// Keep the extraction boundary default stable and comparable.
@@ -160,6 +162,16 @@ fn markdown_extraction_preserves_the_shared_markdown_fixture(shared_markdown_sou
         first_region.map(ExtractRegion::text),
         Some(shared_markdown_source.as_str()),
     );
+}
+
+/// Pin the first private golden IR shape to the supported Markdown extraction
+/// scope without treating the raw bridge payload as the long-term public IR.
+#[rstest]
+fn shared_markdown_fixture_has_a_golden_ir_snapshot() {
+    let document = golden_markdown_ir_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
+        .unwrap_or_else(|error| panic!("expected shared Markdown golden IR: {error}"));
+
+    insta::assert_snapshot!(document.to_canonical_json());
 }
 
 /// Keep malformed corpus inputs loadable without promising parser recovery

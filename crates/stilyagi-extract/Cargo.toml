@@ -13,6 +13,7 @@ stilyagi-markdown = { path = "../stilyagi-markdown" }
 stilyagi-tree-sitter = { path = "../stilyagi-tree-sitter" }
 
 [dev-dependencies]
+insta.workspace = true
 rstest.workspace = true
 stilyagi-test-support = { path = "../stilyagi-test-support" }
 

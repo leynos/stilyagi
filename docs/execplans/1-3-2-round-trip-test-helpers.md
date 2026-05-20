@@ -1,15 +1,14 @@
 # Add internal round-trip test helpers
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+ `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
-Approval gate: this plan has not been approved. Do not implement it until the
-user explicitly approves this ExecPlan or requests revisions that are then
-accepted.
+Approval gate: the user approved implementation on 2026-05-20 by asking to
+proceed with the planned functionality. Continue milestone by milestone within
+the tolerances below.
 
 ## Purpose / big picture
 
@@ -525,6 +524,30 @@ types that make tests readable and keep invalid states hard to express.
   and test-support helpers; using Wyvern agents for focused repository
   reconnaissance; and checking official `insta`, `syrupy`, `rstest-bdd`, and
   `pytest-bdd` documentation.
+- [x] (2026-05-20T19:37:38+02:00) Began approved implementation. Confirmed the
+  branch is `1-3-2-round-trip-test-helpers`, the worktree is clean, and the
+  `leta` workspace is already registered.
+- [x] (2026-05-20T19:47:20+02:00) Implemented the first internal helper
+  milestone: minimal golden IR DTOs in `crates/stilyagi-ir`, Markdown golden
+  fixture construction and edit round-trip helpers in
+  `crates/stilyagi-test-support`, Rust `insta` snapshots, Python private helper
+  modules under `tests/support`, Python `syrupy` snapshots, a `pytest-bdd`
+  helper scenario, and a `proptest` invariant for single-edit prefix and suffix
+  preservation. `make test` passed with 71 Rust tests and 59 Python tests.
+- [ ] (2026-05-20T19:47:20+02:00) Ran CodeRabbit for the first implementation
+  milestone. The first run hung after sandbox setup and was stopped after an
+  extended wait; the rerun also hung after sandbox setup and was stopped. Log
+  paths:
+  `/tmp/coderabbit-stilyagi-1-3-2-round-trip-test-helpers-milestone1.out` and
+  `/tmp/coderabbit-stilyagi-1-3-2-round-trip-test-helpers-milestone1-rerun.out`.
+   Retry once more after documentation and final gates.
+- [x] (2026-05-20T19:55:40+02:00) Updated maintainer documentation and the
+  design document with the internal snapshot and round-trip helper workflow.
+  Marked roadmap item 1.3.2 done because the planned functionality is now
+  implemented and has passed the focused full test gate once.
+- [x] (2026-05-20T20:00:00+02:00) User explicitly requested committing and
+  pushing the completed workspace changes after the line-count tolerance stop.
+  Treat that as approval to proceed with the current validated implementation.
 
 ## Surprises & Discoveries
 
@@ -544,12 +567,31 @@ types that make tests readable and keep invalid states hard to express.
 - Observation: `insta` and `syrupy` are not currently configured in the
   repository. Impact: implementation likely needs test-only dependency updates
   and documentation for snapshot update workflow.
+- Observation: `cargo` resolved `insta` to 1.47.2 from the workspace dependency
+  requirement, and `uv lock` resolved `syrupy` to 5.2.0. Impact: both snapshot
+  tools are present only in test/development dependency surfaces.
+- Observation: `make fmt` exposed a pre-existing malformed Markdown reference
+  in `docs/rstest-bdd-users-guide.md`. Impact: the reference was repaired as a
+  formatting-only correction because it blocked the required Markdown gate.
+- Observation: two CodeRabbit runs for the first implementation milestone did
+  not return findings and stalled after sandbox setup. Impact: the failure is
+  recorded with log paths, and review will be retried after the full
+  implementation is ready.
+- Observation: the final implementation exceeds the original rough
+  900-net-new-line tolerance, primarily because checked-in Rust and Python
+  snapshots are part of the requested contract scaffolding. Impact: work
+  stopped and the user explicitly requested that the validated changes be
+  committed and pushed.
 
 ## Decision Log
 
 - Decision: keep this ExecPlan in `DRAFT` and forbid implementation until the
   user explicitly approves it. Rationale: the user explicitly requested a plan
   and reminded that it must be approved before implementation.
+
+- Decision: move the ExecPlan to `IN PROGRESS` after the user's explicit
+  2026-05-20 implementation request. Rationale: the approval gate has been
+  satisfied, so implementation may proceed within the recorded tolerances.
 
 - Decision: scope the first golden IR target to supported Markdown extraction,
   while keeping Python and Rust source fixtures available but not golden-tested
@@ -567,6 +609,22 @@ types that make tests readable and keep invalid states hard to express.
   workflow reaches a review milestone. Rationale: the user requested CodeRabbit
   validation after each major milestone; this plan defines that implementation
   gate without pretending the feature has been implemented.
+
+- Decision: keep the initial golden IR helper Markdown-only and whole-document
+  source-backed, with one `source` segment covering the fixture and an empty
+  diagnostics list. Rationale: the current extractor does not yet expose the
+  future full IR, Python docstring extraction, or Rust doc-comment extraction;
+  this keeps the helper useful without freezing unsupported bridge details.
+
+- Decision: use a small hand-written canonical JSON serializer in
+  `stilyagi-ir` instead of adding `serde` in this slice. Rationale: the plan
+  allowed snapshot dependencies but required approval for other external
+  dependencies; the current helper shape is small enough to serialize
+  deterministically without widening the build spine.
+
+- Decision: put Python golden IR and edit helpers under `tests/support` rather
+  than the public package. Rationale: roadmap item 1.3.2 explicitly keeps the
+  helpers internal and defers the public pytest plugin to a later slice.
 
 ## Outcomes & Retrospective
 

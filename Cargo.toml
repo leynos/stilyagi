@@ -15,6 +15,7 @@ pyo3 = { version = "0.28.3", features = ["auto-initialize"] }
 rstest = "0.26.1"
 rstest-bdd = "0.5.0"
 rstest-bdd-macros = "0.5.0"
+insta = "1.43.2"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

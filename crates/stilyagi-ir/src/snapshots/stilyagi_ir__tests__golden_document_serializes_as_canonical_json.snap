@@ -1,0 +1,28 @@
+---
+source: crates/stilyagi-ir/src/lib.rs
+expression: document.to_canonical_json()
+---
+{
+  "fixture": "tests/fixtures/example.md",
+  "syntax": "markdown",
+  "line_index": [0, 10],
+  "regions": [
+    {
+      "kind": "document",
+      "text": "A \"quote\"\n",
+      "segments": [
+        {
+          "kind": "source",
+          "start": 0,
+          "end": 10,
+          "text": "A \"quote\"\n"
+        },
+        {
+          "kind": "synthetic",
+          "text": " "
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}
