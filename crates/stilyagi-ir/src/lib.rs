@@ -17,10 +17,34 @@ pub struct ByteSpan {
     pub end: usize,
 }
 
+/// Error returned when a byte span range is malformed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpanError {
+    /// Inclusive start byte offset.
+    pub start: usize,
+    /// Exclusive end byte offset.
+    pub end: usize,
+}
+
 impl ByteSpan {
     /// Create a byte span from an inclusive start and exclusive end.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `start` is greater than `end`.
+    pub const fn new(start: usize, end: usize) -> Result<Self, SpanError> {
+        if start > end {
+            return Err(SpanError { start, end });
+        }
+        Ok(Self { start, end })
+    }
+
+    /// Create a byte span without validating the range.
+    ///
+    /// This is only for tests and validation paths that need to carry malformed
+    /// spans as error payloads.
     #[must_use]
-    pub const fn new(start: usize, end: usize) -> Self {
+    pub const fn new_unchecked(start: usize, end: usize) -> Self {
         Self { start, end }
     }
 }
@@ -130,7 +154,9 @@ impl GoldenDocument {
 
 #[cfg(test)]
 mod tests {
-    use super::{ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, IrBoundary, Segment};
+    use super::{
+        ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, IrBoundary, Segment, SpanError,
+    };
 
     /// Keep the marker type default stable and comparable.
     #[test]
@@ -167,6 +193,18 @@ mod tests {
         assert_eq!(first, original);
     }
 
+    /// Keep byte span construction checked for ordered ranges.
+    #[test]
+    fn byte_span_new_accepts_ordered_ranges() {
+        assert_eq!(ByteSpan::new(3, 8), Ok(ByteSpan { start: 3, end: 8 }),);
+    }
+
+    /// Keep byte span construction from accepting inverted ranges.
+    #[test]
+    fn byte_span_new_rejects_inverted_ranges() {
+        assert_eq!(ByteSpan::new(8, 3), Err(SpanError { start: 8, end: 3 }));
+    }
+
     /// Keep canonical JSON stable enough for golden files.
     #[test]
     fn golden_document_serializes_as_canonical_json() {
@@ -179,7 +217,7 @@ mod tests {
                     "document",
                     "A \"quote\"\n",
                     vec![
-                        Segment::source(ByteSpan::new(0, 10), "A \"quote\"\n"),
+                        Segment::source(ByteSpan::new_unchecked(0, 10), "A \"quote\"\n"),
                         Segment::synthetic(" "),
                     ],
                 )],

@@ -583,6 +583,14 @@ types that make tests readable and keep invalid states hard to express.
   and `make nixie` passed. `make test` ran 78 Rust tests and 64 Python tests.
   `uv lock` resolved the bounded `syrupy` dependency to 5.2.0, and
   `coderabbit review --agent` completed with zero findings.
+- [x] (2026-05-21T22:04:00+02:00) Began follow-up for checked `ByteSpan`
+  construction, canonical JSON field-list writing, parameterised Rust
+  round-trip negative tests, and the ExecPlan punctuation comment. All four
+  findings were still valid against the current code and were patched.
+- [x] (2026-05-21T22:14:00+02:00) Validated the span and JSON follow-up.
+  `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
+  `make nixie` passed. `make test` ran 80 Rust tests and 64 Python tests.
+  `coderabbit review --agent` completed with zero findings.
 
 ## Surprises & Discoveries
 
@@ -619,8 +627,8 @@ types that make tests readable and keep invalid states hard to express.
   committed and pushed.
 - Observation: `make fmt` reformatted many historical Markdown files while
   fixing the broken footnote reference in `docs/stilyagi-design.md`. Impact:
-  unrelated formatter churn was reverted and the footnote was repaired manually
-  so this follow-up stays scoped to the review comments.
+  unrelated formatter churn was reverted, and the footnote was repaired
+  manually, so this follow-up stays scoped to the review comments.
 - Observation: CodeRabbit completed successfully on the review-comment
   follow-up after earlier branch runs had stalled in sandbox setup. Impact: the
   requested review loop could be closed for this milestone instead of only
@@ -633,6 +641,10 @@ types that make tests readable and keep invalid states hard to express.
   components before normalization. Impact: snapshot helper callers could hide
   traversal, root, or prefix inputs; the helper now asserts repository-relative
   input and only skips explicit current-directory components.
+- Observation: `ByteSpan::new` was still an unchecked constructor. Impact:
+  callers could construct inverted spans directly; `ByteSpan::new` now returns
+  `Result<ByteSpan, SpanError>`, while validation paths that need malformed
+  error payloads use `ByteSpan::new_unchecked` explicitly.
 
 ## Decision Log
 

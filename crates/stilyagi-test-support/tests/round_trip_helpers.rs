@@ -79,62 +79,50 @@ fn round_trip_edits_reject_overlapping_non_identical_ranges() {
     assert_eq!(
         error,
         RoundTripEditError::OverlappingEdits {
-            previous: ByteSpan::new(1, 4),
-            current: ByteSpan::new(3, 5),
+            previous: ByteSpan::new_unchecked(1, 4),
+            current: ByteSpan::new_unchecked(3, 5),
         },
     );
 }
 
 #[rstest]
-fn round_trip_edits_reject_start_after_end_spans() {
-    let error = apply_round_trip_edits("abcdef", &[RoundTripEdit::source(4, 1, "x")])
+#[case("abcdef", 4, 1, ByteSpan::new_unchecked(4, 1), 6)]
+#[case("abcdef", 2, 9, ByteSpan::new_unchecked(2, 9), 6)]
+fn round_trip_edits_reject_invalid_spans(
+    #[case] source: &str,
+    #[case] start: usize,
+    #[case] end: usize,
+    #[case] expected_span: ByteSpan,
+    #[case] expected_source_len: usize,
+) {
+    let error = apply_round_trip_edits(source, &[RoundTripEdit::source(start, end, "x")])
         .unwrap_err_or_else("expected invalid edit span rejection");
 
     assert_eq!(
         error,
         RoundTripEditError::InvalidSpan {
-            span: ByteSpan::new(4, 1),
-            source_len: 6,
+            span: expected_span,
+            source_len: expected_source_len,
         },
     );
 }
 
 #[rstest]
-fn round_trip_edits_reject_spans_past_source_end() {
-    let error = apply_round_trip_edits("abcdef", &[RoundTripEdit::source(2, 9, "x")])
-        .unwrap_err_or_else("expected invalid edit span rejection");
-
-    assert_eq!(
-        error,
-        RoundTripEditError::InvalidSpan {
-            span: ByteSpan::new(2, 9),
-            source_len: 6,
-        },
-    );
-}
-
-#[rstest]
-fn round_trip_edits_reject_non_utf8_start_boundaries() {
-    let error = apply_round_trip_edits("é", &[RoundTripEdit::source(1, 2, "e")])
+#[case("é", 1, 2, ByteSpan::new_unchecked(1, 2))]
+#[case("éx", 0, 1, ByteSpan::new_unchecked(0, 1))]
+fn round_trip_edits_reject_non_utf8_boundaries(
+    #[case] source: &str,
+    #[case] start: usize,
+    #[case] end: usize,
+    #[case] expected_span: ByteSpan,
+) {
+    let error = apply_round_trip_edits(source, &[RoundTripEdit::source(start, end, "e")])
         .unwrap_err_or_else("expected non-UTF-8 boundary rejection");
 
     assert_eq!(
         error,
         RoundTripEditError::NonUtf8Boundary {
-            span: ByteSpan::new(1, 2),
-        },
-    );
-}
-
-#[rstest]
-fn round_trip_edits_reject_non_utf8_end_boundaries() {
-    let error = apply_round_trip_edits("éx", &[RoundTripEdit::source(0, 1, "e")])
-        .unwrap_err_or_else("expected non-UTF-8 boundary rejection");
-
-    assert_eq!(
-        error,
-        RoundTripEditError::NonUtf8Boundary {
-            span: ByteSpan::new(0, 1),
+            span: expected_span,
         },
     );
 }

@@ -108,7 +108,7 @@ pub fn golden_markdown_ir_fixture(
             "document",
             source.clone(),
             vec![Segment::source(
-                ByteSpan::new(0, source.len()),
+                ByteSpan::new_unchecked(0, source.len()),
                 source.clone(),
             )],
         )]
@@ -204,7 +204,7 @@ impl RoundTripEdit {
     #[must_use]
     pub fn source(start: usize, end: usize, replacement: impl Into<String>) -> Self {
         Self::Source {
-            span: ByteSpan::new(start, end),
+            span: ByteSpan::new_unchecked(start, end),
             replacement: replacement.into(),
         }
     }
@@ -336,7 +336,7 @@ pub fn apply_round_trip_edits(
 }
 
 fn utf8_slice(source: &str, start: usize, end: usize) -> Result<&str, RoundTripEditError> {
-    let span = ByteSpan::new(start, end);
+    let span = ByteSpan::new_unchecked(start, end);
     source
         .get(start..end)
         .ok_or(RoundTripEditError::NonUtf8Boundary { span })

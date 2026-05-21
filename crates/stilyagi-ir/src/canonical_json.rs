@@ -15,44 +15,37 @@ use crate::{GoldenDocument, GoldenRegion, Segment};
 pub(crate) fn document_to_json(document: &GoldenDocument) -> String {
     let mut json = String::new();
     push_json_object(&mut json, 0, |object_json, indent| {
-        push_json_field(
-            object_json,
-            indent,
-            "fixture",
-            &json_string(&document.fixture),
-            false,
-        );
-        push_json_field(
-            object_json,
-            indent,
-            "syntax",
-            &json_string(&document.syntax),
-            false,
-        );
-        push_json_field(
-            object_json,
-            indent,
-            "line_index",
-            &usize_array_json(&document.line_index),
-            false,
-        );
-        push_json_field(
-            object_json,
-            indent,
-            "regions",
-            &regions_json(&document.regions),
-            false,
-        );
-        push_json_field(
-            object_json,
-            indent,
-            "diagnostics",
-            &string_array_json(&document.diagnostics),
-            true,
-        );
+        let fields = vec![
+            JsonField::new("fixture", json_string(&document.fixture), false),
+            JsonField::new("syntax", json_string(&document.syntax), false),
+            JsonField::new("line_index", usize_array_json(&document.line_index), false),
+            JsonField::new("regions", regions_json(&document.regions), false),
+            JsonField::new(
+                "diagnostics",
+                string_array_json(&document.diagnostics),
+                true,
+            ),
+        ];
+        push_json_fields(object_json, indent, &fields);
     });
     json.push('\n');
     json
+}
+
+struct JsonField<'a> {
+    name: &'a str,
+    value: String,
+    is_last: bool,
+}
+
+impl<'a> JsonField<'a> {
+    const fn new(name: &'a str, value: String, is_last: bool) -> Self {
+        Self {
+            name,
+            value,
+            is_last,
+        }
+    }
 }
 
 fn push_json_object<F>(json: &mut String, indent: usize, write_fields: F)
@@ -65,16 +58,18 @@ where
     json.push('}');
 }
 
-fn push_json_field(json: &mut String, indent: usize, name: &str, value: &str, is_last: bool) {
-    push_indent(json, indent);
-    json.push('"');
-    json.push_str(name);
-    json.push_str("\": ");
-    json.push_str(value);
-    if !is_last {
-        json.push(',');
+fn push_json_fields(json: &mut String, indent: usize, fields: &[JsonField<'_>]) {
+    for field in fields {
+        push_indent(json, indent);
+        json.push('"');
+        json.push_str(field.name);
+        json.push_str("\": ");
+        json.push_str(&field.value);
+        if !field.is_last {
+            json.push(',');
+        }
+        json.push('\n');
     }
-    json.push('\n');
 }
 
 fn push_indent(json: &mut String, indent: usize) {
@@ -116,27 +111,12 @@ fn regions_json(regions: &[GoldenRegion]) -> String {
     for (index, region) in regions.iter().enumerate() {
         push_indent(&mut json, 2);
         push_json_object(&mut json, 2, |object_json, indent| {
-            push_json_field(
-                object_json,
-                indent,
-                "kind",
-                &json_string(&region.kind),
-                false,
-            );
-            push_json_field(
-                object_json,
-                indent,
-                "text",
-                &json_string(&region.text),
-                false,
-            );
-            push_json_field(
-                object_json,
-                indent,
-                "segments",
-                &segments_json(&region.segments),
-                true,
-            );
+            let fields = vec![
+                JsonField::new("kind", json_string(&region.kind), false),
+                JsonField::new("text", json_string(&region.text), false),
+                JsonField::new("segments", segments_json(&region.segments), true),
+            ];
+            push_json_fields(object_json, indent, &fields);
         });
         if index + 1 != regions.len() {
             json.push(',');
@@ -158,14 +138,20 @@ fn segments_json(segments: &[Segment]) -> String {
         push_indent(&mut json, 4);
         push_json_object(&mut json, 4, |object_json, indent| match segment {
             Segment::Source { span, text } => {
-                push_json_field(object_json, indent, "kind", "\"source\"", false);
-                push_json_field(object_json, indent, "start", &span.start.to_string(), false);
-                push_json_field(object_json, indent, "end", &span.end.to_string(), false);
-                push_json_field(object_json, indent, "text", &json_string(text), true);
+                let fields = vec![
+                    JsonField::new("kind", "\"source\"".to_owned(), false),
+                    JsonField::new("start", span.start.to_string(), false),
+                    JsonField::new("end", span.end.to_string(), false),
+                    JsonField::new("text", json_string(text), true),
+                ];
+                push_json_fields(object_json, indent, &fields);
             }
             Segment::Synthetic { text } => {
-                push_json_field(object_json, indent, "kind", "\"synthetic\"", false);
-                push_json_field(object_json, indent, "text", &json_string(text), true);
+                let fields = vec![
+                    JsonField::new("kind", "\"synthetic\"".to_owned(), false),
+                    JsonField::new("text", json_string(text), true),
+                ];
+                push_json_fields(object_json, indent, &fields);
             }
         });
         if index + 1 != segments.len() {
