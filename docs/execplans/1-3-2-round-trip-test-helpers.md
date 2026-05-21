@@ -591,6 +591,16 @@ types that make tests readable and keep invalid states hard to express.
   `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
   `make nixie` passed. `make test` ran 80 Rust tests and 64 Python tests.
   `coderabbit review --agent` completed with zero findings.
+- [x] (2026-05-21T22:35:00+02:00) Began failed-check follow-up with Wyvern
+  verification and Scribe documentation review. The module-documentation,
+  Python property-test, and Python UTF-8 helper performance findings were still
+  valid and are being patched. The public visibility warning is recorded as a
+  larger API-design concern rather than a minimal fix for this branch.
+- [x] (2026-05-21T22:50:00+02:00) Validated the failed-check follow-up.
+  `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
+  `make nixie` passed. `make typecheck` also passed. `make test` ran 80 Rust
+  tests and 66 Python tests. `coderabbit review --agent` completed with zero
+  findings.
 
 ## Surprises & Discoveries
 
@@ -645,6 +655,21 @@ types that make tests readable and keep invalid states hard to express.
   callers could construct inverted spans directly; `ByteSpan::new` now returns
   `Result<ByteSpan, SpanError>`, while validation paths that need malformed
   error payloads use `ByteSpan::new_unchecked` explicitly.
+- Observation: the failed-check review identified thin module documentation in
+  `stilyagi-ir`, `tests/support/golden_ir.py`, and
+  `tests/support/round_trip.py`. Impact: the module docs now describe each
+  helper module's purpose, utility, and relationship to the Rust/Python test
+  contract.
+- Observation: the Python round-trip helper had range invariants but no
+  Hypothesis coverage, and two byte-oriented helpers did unnecessary repeated
+  encoding or decoding work. Impact: Python now has generated coverage for
+  valid prefix/replacement/suffix edits and inverted-span rejection, while line
+  indexing and UTF-8 boundary checks operate directly on encoded bytes.
+- Observation: the visibility warning conflicts with the current cross-crate
+  helper contract because `stilyagi-test-support` consumes public `stilyagi-ir`
+  types and Python tests intentionally import private `tests/support` modules.
+  Impact: no visibility change is made in this follow-up; narrowing that API
+  should be planned separately with replacement crate boundaries.
 
 ## Decision Log
 

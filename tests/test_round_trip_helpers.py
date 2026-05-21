@@ -3,6 +3,8 @@
 import dataclasses as dc
 import typing as typ
 
+import hypothesis as hyp
+import hypothesis.strategies as st
 import pytest
 from pytest_bdd import given, scenario, then, when
 from stilyagi import cli
@@ -20,6 +22,11 @@ from tests.support.round_trip import (
 
 if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
+
+UNICODE_TEXT = st.text(
+    alphabet=st.characters(blacklist_categories=("Cs",)),
+    max_size=16,
+)
 
 
 @scenario(
@@ -195,3 +202,50 @@ def test_round_trip_edits_preserve_untouched_ranges() -> None:
     assert result.before == "before middle after"
     assert result.after == "before CENTER after"
     assert result.applied_edits == (SourceEdit(7, 13, "CENTER"),)
+
+
+@hyp.given(
+    prefix=UNICODE_TEXT,
+    replaced=UNICODE_TEXT,
+    suffix=UNICODE_TEXT,
+    replacement=UNICODE_TEXT,
+)
+@hyp.settings(max_examples=64)
+def test_round_trip_edits_preserve_generated_prefixes_and_suffixes(
+    prefix: str,
+    replaced: str,
+    suffix: str,
+    replacement: str,
+) -> None:
+    """Generated valid byte spans preserve generated untouched text."""
+    source = f"{prefix}{replaced}{suffix}"
+    start = len(prefix.encode())
+    end = start + len(replaced.encode())
+
+    result = apply_round_trip_edits(source, (SourceEdit(start, end, replacement),))
+
+    assert result.after == f"{prefix}{replacement}{suffix}"
+
+
+@hyp.given(
+    source=st.text(
+        alphabet=st.characters(blacklist_categories=("Cs",)),
+        min_size=1,
+        max_size=16,
+    ),
+    replacement=UNICODE_TEXT,
+    data=st.data(),
+)
+@hyp.settings(max_examples=64)
+def test_round_trip_edits_reject_generated_inverted_ranges(
+    source: str,
+    replacement: str,
+    data: st.DataObject,
+) -> None:
+    """Generated inverted byte spans are rejected before mutation."""
+    source_len = len(source.encode())
+    start = data.draw(st.integers(min_value=1, max_value=source_len))
+    end = data.draw(st.integers(min_value=0, max_value=start - 1))
+
+    with pytest.raises(RoundTripEditError, match="invalid edit span"):
+        apply_round_trip_edits(source, (SourceEdit(start, end, replacement),))

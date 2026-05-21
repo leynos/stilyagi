@@ -1,4 +1,10 @@
-//! Minimal intermediate representation (IR) test contracts.
+//! Test-only intermediate representation (IR) contracts for golden fixtures.
+//!
+//! This crate defines lightweight byte-span, segment, region, and document
+//! shapes used by the internal snapshot tests. It keeps the data model flat so
+//! `stilyagi-test-support` can build golden documents cheaply, while
+//! `canonical_json` owns the stable textual form and the shared
+//! [`line_index_for`] helper used during fixture construction.
 
 mod canonical_json;
 

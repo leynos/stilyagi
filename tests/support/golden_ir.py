@@ -1,4 +1,10 @@
-"""Private golden IR helpers for Python tests."""
+"""Private helpers for deterministic golden IR snapshots.
+
+This module builds Python-side snapshot payloads from repository fixtures,
+mirroring the Rust `stilyagi-ir` test contract closely enough for canonical
+JSON comparisons. It centralises fixture paths, line indexing, and the minimal
+document shape used by Python snapshot and round-trip tests.
+"""
 
 import dataclasses as dc
 import json
@@ -102,11 +108,10 @@ def golden_markdown_ir_fixture(
 def line_index_for(source: str) -> tuple[int, ...]:
     """Return byte offsets for line starts plus the end-of-document offset."""
     offsets = [0]
-    current_offset = 0
-    for character in source:
-        current_offset += len(character.encode())
-        if character == "\n":
-            offsets.append(current_offset)
-    if offsets[-1] != current_offset:
-        offsets.append(current_offset)
+    source_bytes = source.encode()
+    for offset, byte in enumerate(source_bytes):
+        if byte == ord("\n"):
+            offsets.append(offset + 1)
+    if offsets[-1] != len(source_bytes):
+        offsets.append(len(source_bytes))
     return tuple(offsets)

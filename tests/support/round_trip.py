@@ -1,7 +1,16 @@
-"""Private fix round-trip helpers for Python tests."""
+"""Private helpers for source edit round-trip tests.
+
+This module applies source-backed replacements with UTF-8 byte offsets, keeps
+untouched source text intact, and rejects synthetic, overlapping, malformed, or
+non-boundary spans. The Python helper mirrors the Rust `stilyagi-test-support`
+round-trip contract used by golden fixture tests.
+"""
 
 import dataclasses as dc
 import itertools
+
+UTF8_CONTINUATION_MASK = 0b1100_0000
+UTF8_CONTINUATION_PREFIX = 0b1000_0000
 
 
 class RoundTripEditError(ValueError):
@@ -104,11 +113,10 @@ def _validate_source_edit(source_bytes: bytes, edit: SourceEdit) -> None:
 
 def _is_utf8_boundary(source_bytes: bytes, offset: int) -> bool:
     """Return whether an offset falls between UTF-8 code points."""
-    try:
-        source_bytes[:offset].decode()
-    except UnicodeDecodeError:
-        return False
-    return True
+    return (
+        offset == len(source_bytes)
+        or (source_bytes[offset] & UTF8_CONTINUATION_MASK) != UTF8_CONTINUATION_PREFIX
+    )
 
 
 def _reject_overlaps(edits: tuple[SourceEdit, ...]) -> None:
