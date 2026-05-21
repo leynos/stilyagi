@@ -126,16 +126,55 @@ pub fn golden_markdown_ir_fixture(
 }
 
 /// Return a repository-relative path using `/` separators for snapshots.
+///
+/// # Panics
+///
+/// Panics if the path is absolute or contains traversal, root, or prefix
+/// components.
 #[must_use]
-pub fn normalize_repository_path(path: impl AsRef<Path>) -> String {
-    path.as_ref()
+pub fn normalize_repository_path(input_path: impl AsRef<Path>) -> String {
+    let repository_path = input_path.as_ref();
+    assert!(
+        !repository_path.is_absolute()
+            && repository_path.components().all(|component| !matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )),
+        "snapshot paths must be repository-relative and must not contain traversal, root, or prefix components: {}",
+        repository_path.display()
+    );
+
+    repository_path
         .components()
-        .filter_map(|component| match component {
-            Component::Normal(part) => Some(part.to_string_lossy().into_owned()),
-            Component::CurDir
-            | Component::Prefix(_)
+        .flat_map(|component| match component {
+            Component::Normal(path_part) => path_part
+                .to_string_lossy()
+                .split('\\')
+                .map(|normalized_part| {
+                    assert!(
+                        !normalized_part.is_empty()
+                            && normalized_part != "."
+                            && normalized_part != "..",
+                        "snapshot paths must be repository-relative and must not contain traversal, root, or prefix components: {}",
+                        repository_path.display()
+                    );
+                    normalized_part.to_owned()
+                })
+                .collect::<Vec<_>>(),
+            Component::CurDir => Vec::new(),
+            invalid_component @ (Component::Prefix(_)
             | Component::RootDir
-            | Component::ParentDir => None,
+            | Component::ParentDir) => {
+                assert!(
+                    !matches!(
+                        invalid_component,
+                        Component::Prefix(_) | Component::RootDir | Component::ParentDir
+                    ),
+                    "snapshot paths must be repository-relative and must not contain traversal, root, or prefix components: {}",
+                    repository_path.display()
+                );
+                Vec::new()
+            }
         })
         .collect::<Vec<_>>()
         .join("/")

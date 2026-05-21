@@ -571,6 +571,18 @@ types that make tests readable and keep invalid states hard to express.
   `make fmt`, `make check-fmt`, `make lint`, `make test`, `make markdownlint`,
   and `make nixie` passed. `make test` ran 76 Rust tests and 64 Python tests.
   `coderabbit review --agent` completed with zero findings.
+- [x] (2026-05-21T21:32:00+02:00) Began inline review follow-up with a Wyvern
+  code-verification agent and a Scribe documentation-verification agent.
+  Applied still-valid findings for repository path normalization, Windows-style
+  path coverage, rstest-bdd documentation line wrapping, `syrupy` dependency
+  bounds, and obsolete Python future imports. Skipped the duplicate Python
+  byte-offset assembly finding because the helper already applies edits to
+  UTF-8 bytes end to end.
+- [x] (2026-05-21T21:45:00+02:00) Validated the inline review follow-up.
+  `make fmt`, `make check-fmt`, `make lint`, `make test`, `make markdownlint`,
+  and `make nixie` passed. `make test` ran 78 Rust tests and 64 Python tests.
+  `uv lock` resolved the bounded `syrupy` dependency to 5.2.0, and
+  `coderabbit review --agent` completed with zero findings.
 
 ## Surprises & Discoveries
 
@@ -617,6 +629,10 @@ types that make tests readable and keep invalid states hard to express.
   though the IR contract is byte-oriented. Impact: non-ASCII fixtures could
   reject valid byte spans or mutate the wrong character for mid-code-point
   spans; the helper now encodes the source once and applies edits to bytes.
+- Observation: `normalize_repository_path` silently discarded invalid path
+  components before normalization. Impact: snapshot helper callers could hide
+  traversal, root, or prefix inputs; the helper now asserts repository-relative
+  input and only skips explicit current-directory components.
 
 ## Decision Log
 

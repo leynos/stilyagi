@@ -1,7 +1,5 @@
 """Tests for private golden IR, CLI snapshot, and round-trip helpers."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 import typing as typ
 

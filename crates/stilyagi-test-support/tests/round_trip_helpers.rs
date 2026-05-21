@@ -163,9 +163,21 @@ fn round_trip_edits_preserve_untouched_ranges() {
 #[rstest]
 fn normalize_repository_path_uses_posix_separators() {
     assert_eq!(
-        normalize_repository_path("tests/fixtures/corpus/markdown/valid/example.md"),
+        normalize_repository_path(r"tests\fixtures\corpus\markdown\valid\example.md"),
         "tests/fixtures/corpus/markdown/valid/example.md",
     );
+}
+
+#[rstest]
+#[should_panic(expected = "snapshot paths must be repository-relative")]
+fn normalize_repository_path_rejects_absolute_paths() {
+    drop(normalize_repository_path("/tmp/example.md"));
+}
+
+#[rstest]
+#[should_panic(expected = "snapshot paths must be repository-relative")]
+fn normalize_repository_path_rejects_parent_traversal() {
+    drop(normalize_repository_path("tests/../example.md"));
 }
 
 proptest! {

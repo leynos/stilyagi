@@ -32,8 +32,8 @@ edition.
 development via `rust-toolchain.toml` so contributors get consistent `rustfmt`
 and `clippy` behaviour.
 
-Step definitions may be synchronous functions (`fn`) or asynchronous functions (
- `async fn`). The framework no longer depends on the `async-trait` crate to
+Step definitions may be synchronous functions (`fn`) or asynchronous functions
+(`async fn`). The framework no longer depends on the `async-trait` crate to
 express async methods in traits. Projects that previously relied on
 `#[async_trait]` in helper traits should replace those methods with ordinary
 functions, and use async steps or async fixtures where appropriate. Step
@@ -919,8 +919,8 @@ consumed via `StepContext` rather than referenced directly in the test body.
 ## Async scenario execution
 
 Scenarios can run asynchronously under Tokio's current-thread runtime. This
-enables test code to `.await` async operations while preserving the `RefCell`
--backed fixture model for mutable borrows across await points.
+enables test code to `.await` async operations while preserving the
+`RefCell`-backed fixture model for mutable borrows across await points.
 
 ### Using `#[scenario]` with async
 
@@ -1155,7 +1155,7 @@ fn async_wrapper_with_aliases<'ctx>(
 
 - **Tokio current-thread mode only:** Multi-threaded Tokio mode would require
   `Send` futures, which conflicts with the `RefCell`-backed fixture storage. See
-   [ADR-001](adr-001-async-fixtures-and-test.md) for the full design rationale.
+  [ADR-001](adr-001-async-fixtures-and-test.md) for the full design rationale.
 - **Nested runtime safeguards:** Async-only steps running in synchronous
   scenarios use a per-step runtime fallback, which refuses to run when a Tokio
   runtime is already active on the current thread.
@@ -1229,7 +1229,7 @@ Best practices for writing effective scenarios include:
   inside `{name:type}`. The lexer closes the placeholder at the first `}` after
   the optional type hint; any characters between the `:type` and that first `}`
   are ignored (for example, `{n:u32 extra}` parses as `name = n`, `type = u32`).
-   `name` must start with a letter or underscore and may contain letters,
+  `name` must start with a letter or underscore and may contain letters,
   digits, or underscores (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type
   hint is ignored (for example, `{count: u32}` and `{count:u32}` are both
   accepted), but whitespace is not allowed between the name and the colon.
@@ -1610,8 +1610,7 @@ compile-time output stays deterministic regardless of the host machine’s
 language settings.
 
 [`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
-[`FluentLanguageLoader`]:
-<https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
+[`FluentLanguageLoader`]: <https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
 
 ## Diagnostic tooling
 

@@ -1,7 +1,5 @@
 """Private fix round-trip helpers for Python tests."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 import itertools
 

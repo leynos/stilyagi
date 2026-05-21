@@ -300,7 +300,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "pyyaml", specifier = ">=6.0.3,<7.0" },
     { name = "ruff" },
-    { name = "syrupy" },
+    { name = "syrupy", specifier = ">=5.2.0,<6.0" },
     { name = "ty" },
 ]
 

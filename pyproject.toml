@@ -20,7 +20,7 @@ dev = [
     "pytest-timeout",
     "pytest-bdd",
     "parse_type",
-    "syrupy",
+    "syrupy>=5.2.0,<6.0",
     "pyyaml>=6.0.3,<7.0",
 ]
 
