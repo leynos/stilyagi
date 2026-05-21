@@ -160,6 +160,24 @@ def test_round_trip_edits_reject_spans_past_source_end() -> None:
         apply_round_trip_edits("abcdef", (SourceEdit(2, 9, "x"),))
 
 
+def test_round_trip_edits_apply_unicode_byte_spans() -> None:
+    """Valid spans use UTF-8 byte offsets, not Python character indices."""
+    result = apply_round_trip_edits("éa", (SourceEdit(2, 3, "b"),))
+
+    assert result.before == "éa"
+    assert result.after == "éb"
+    assert result.applied_edits == (SourceEdit(2, 3, "b"),)
+
+
+def test_round_trip_edits_reject_non_utf8_byte_boundaries() -> None:
+    """Mid-code-point byte spans fail before mutation."""
+    with pytest.raises(
+        RoundTripEditError,
+        match=r"edit span 1\.\.2 cuts a UTF-8 code point",
+    ):
+        apply_round_trip_edits("éa", (SourceEdit(1, 2, "e"),))
+
+
 def test_round_trip_edits_accept_empty_edit_sets_as_noops() -> None:
     """Empty edit sets return an explicit no-op result."""
     result = apply_round_trip_edits("some text", ())

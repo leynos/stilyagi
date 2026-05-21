@@ -562,6 +562,15 @@ types that make tests readable and keep invalid states hard to express.
   `make fmt`, `make check-fmt`, `make lint`, `make test`, `make markdownlint`,
   and `make nixie` all passed. `make test` ran 76 Rust tests and 62 Python
   tests, including the new invalid-span, UTF-8-boundary, and empty-edit cases.
+- [x] (2026-05-21T21:08:00+02:00) Began Unicode byte-span follow-up for the
+  Python round-trip helper. Changed `apply_round_trip_edits` to validate and
+  apply `SourceEdit` spans as UTF-8 byte offsets, with regression coverage for
+  editing `"éa"` at byte span `2..3` and rejecting the mid-code-point span
+  `1..2`.
+- [x] (2026-05-21T21:17:00+02:00) Validated the Unicode byte-span follow-up.
+  `make fmt`, `make check-fmt`, `make lint`, `make test`, `make markdownlint`,
+  and `make nixie` passed. `make test` ran 76 Rust tests and 64 Python tests.
+  `coderabbit review --agent` completed with zero findings.
 
 ## Surprises & Discoveries
 
@@ -604,6 +613,10 @@ types that make tests readable and keep invalid states hard to express.
   follow-up after earlier branch runs had stalled in sandbox setup. Impact: the
   requested review loop could be closed for this milestone instead of only
   being recorded as a tooling limitation.
+- Observation: the Python helper still used Python character indices even
+  though the IR contract is byte-oriented. Impact: non-ASCII fixtures could
+  reject valid byte spans or mutate the wrong character for mid-code-point
+  spans; the helper now encodes the source once and applies edits to bytes.
 
 ## Decision Log
 
