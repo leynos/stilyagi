@@ -1,6 +1,8 @@
 //! Minimal intermediate representation (IR) test contracts.
 
-use std::fmt::Write as _;
+mod canonical_json;
+
+pub use canonical_json::line_index_for;
 
 /// Marker type for the future IR crate boundary.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -122,227 +124,13 @@ impl GoldenDocument {
     /// Serialize to stable, pretty JSON for snapshots and golden files.
     #[must_use]
     pub fn to_canonical_json(&self) -> String {
-        let mut json = String::from("{\n");
-        push_json_property(
-            &mut json,
-            1,
-            JsonProperty::new("fixture", &json_string(&self.fixture), true),
-        );
-        push_json_property(
-            &mut json,
-            1,
-            JsonProperty::new("syntax", &json_string(&self.syntax), true),
-        );
-        push_json_property(
-            &mut json,
-            1,
-            JsonProperty::new("line_index", &usize_array_json(&self.line_index), true),
-        );
-        push_json_property(
-            &mut json,
-            1,
-            JsonProperty::new("regions", &regions_json(&self.regions), true),
-        );
-        push_json_property(
-            &mut json,
-            1,
-            JsonProperty::new("diagnostics", &string_array_json(&self.diagnostics), false),
-        );
-        json.push_str("}\n");
-        json
+        canonical_json::document_to_json(self)
     }
-}
-
-#[derive(Clone, Copy)]
-struct JsonProperty<'a> {
-    name: &'a str,
-    value: &'a str,
-    trailing_comma: bool,
-}
-
-impl<'a> JsonProperty<'a> {
-    const fn new(name: &'a str, value: &'a str, trailing_comma: bool) -> Self {
-        Self {
-            name,
-            value,
-            trailing_comma,
-        }
-    }
-}
-
-fn push_json_property(json: &mut String, indent: usize, property: JsonProperty<'_>) {
-    push_indent(json, indent);
-    json.push('"');
-    json.push_str(property.name);
-    json.push_str("\": ");
-    json.push_str(property.value);
-    if property.trailing_comma {
-        json.push(',');
-    }
-    json.push('\n');
-}
-
-fn push_indent(json: &mut String, indent: usize) {
-    for _ in 0..indent {
-        json.push_str("  ");
-    }
-}
-
-fn usize_array_json(values: &[usize]) -> String {
-    let items = values
-        .iter()
-        .map(usize::to_string)
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("[{items}]")
-}
-
-fn string_array_json(values: &[String]) -> String {
-    let items = values
-        .iter()
-        .map(|value| json_string(value))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("[{items}]")
-}
-
-fn regions_json(regions: &[GoldenRegion]) -> String {
-    if regions.is_empty() {
-        return "[]".to_owned();
-    }
-
-    let mut json = String::from("[\n");
-    for (index, region) in regions.iter().enumerate() {
-        push_indent(&mut json, 2);
-        json.push_str("{\n");
-        push_json_property(
-            &mut json,
-            3,
-            JsonProperty::new("kind", &json_string(&region.kind), true),
-        );
-        push_json_property(
-            &mut json,
-            3,
-            JsonProperty::new("text", &json_string(&region.text), true),
-        );
-        push_json_property(
-            &mut json,
-            3,
-            JsonProperty::new("segments", &segments_json(&region.segments), false),
-        );
-        push_indent(&mut json, 2);
-        json.push('}');
-        if index + 1 != regions.len() {
-            json.push(',');
-        }
-        json.push('\n');
-    }
-    push_indent(&mut json, 1);
-    json.push(']');
-    json
-}
-
-fn segments_json(segments: &[Segment]) -> String {
-    if segments.is_empty() {
-        return "[]".to_owned();
-    }
-
-    let mut json = String::from("[\n");
-    for (index, segment) in segments.iter().enumerate() {
-        push_indent(&mut json, 4);
-        json.push_str("{\n");
-        match segment {
-            Segment::Source { span, text } => {
-                push_json_property(&mut json, 5, JsonProperty::new("kind", "\"source\"", true));
-                push_json_property(
-                    &mut json,
-                    5,
-                    JsonProperty::new("start", &span.start.to_string(), true),
-                );
-                push_json_property(
-                    &mut json,
-                    5,
-                    JsonProperty::new("end", &span.end.to_string(), true),
-                );
-                push_json_property(
-                    &mut json,
-                    5,
-                    JsonProperty::new("text", &json_string(text), false),
-                );
-            }
-            Segment::Synthetic { text } => {
-                push_json_property(
-                    &mut json,
-                    5,
-                    JsonProperty::new("kind", "\"synthetic\"", true),
-                );
-                push_json_property(
-                    &mut json,
-                    5,
-                    JsonProperty::new("text", &json_string(text), false),
-                );
-            }
-        }
-        push_indent(&mut json, 4);
-        json.push('}');
-        if index + 1 != segments.len() {
-            json.push(',');
-        }
-        json.push('\n');
-    }
-    push_indent(&mut json, 3);
-    json.push(']');
-    json
-}
-
-fn json_string(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len() + 2);
-    escaped.push('"');
-    for character in value.chars() {
-        match character {
-            '"' => escaped.push_str("\\\""),
-            '\\' => escaped.push_str("\\\\"),
-            '\n' => escaped.push_str("\\n"),
-            '\r' => escaped.push_str("\\r"),
-            '\t' => escaped.push_str("\\t"),
-            control if control.is_control() => {
-                write_json_control_escape(&mut escaped, control);
-            }
-            other => escaped.push(other),
-        }
-    }
-    escaped.push('"');
-    escaped
-}
-
-fn write_json_control_escape(escaped: &mut String, control: char) {
-    assert!(
-        write!(escaped, "\\u{:04x}", u32::from(control)).is_ok(),
-        "writing to String cannot fail"
-    );
-}
-
-/// Return the byte offsets for each line start plus the end-of-document offset.
-#[must_use]
-pub fn line_index_for(source: &str) -> Vec<usize> {
-    let mut offsets = vec![0];
-    for (offset, byte) in source.bytes().enumerate() {
-        if byte == b'\n' {
-            offsets.push(offset + 1);
-        }
-    }
-    if offsets.last().copied() != Some(source.len()) {
-        offsets.push(source.len());
-    }
-    offsets
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, IrBoundary, Segment, json_string,
-        line_index_for,
-    };
+    use super::{ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, IrBoundary, Segment};
 
     /// Keep the marker type default stable and comparable.
     #[test]
@@ -400,21 +188,5 @@ mod tests {
         );
 
         insta::assert_snapshot!(document.to_canonical_json());
-    }
-
-    /// Keep JSON escaping explicit because the helper avoids a runtime JSON
-    /// dependency in this scaffolding slice.
-    #[test]
-    fn json_string_escapes_control_characters() {
-        assert_eq!(
-            json_string("\"\\\n\r\t\u{0008}"),
-            "\"\\\"\\\\\\n\\r\\t\\u0008\""
-        );
-    }
-
-    /// Keep line-index calculation byte-oriented for Unicode source text.
-    #[test]
-    fn line_index_for_reports_byte_offsets_and_document_end() {
-        assert_eq!(line_index_for("é\nx"), vec![0, 3, 4]);
     }
 }

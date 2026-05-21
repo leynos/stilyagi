@@ -86,6 +86,70 @@ fn round_trip_edits_reject_overlapping_non_identical_ranges() {
 }
 
 #[rstest]
+fn round_trip_edits_reject_start_after_end_spans() {
+    let error = apply_round_trip_edits("abcdef", &[RoundTripEdit::source(4, 1, "x")])
+        .unwrap_err_or_else("expected invalid edit span rejection");
+
+    assert_eq!(
+        error,
+        RoundTripEditError::InvalidSpan {
+            span: ByteSpan::new(4, 1),
+            source_len: 6,
+        },
+    );
+}
+
+#[rstest]
+fn round_trip_edits_reject_spans_past_source_end() {
+    let error = apply_round_trip_edits("abcdef", &[RoundTripEdit::source(2, 9, "x")])
+        .unwrap_err_or_else("expected invalid edit span rejection");
+
+    assert_eq!(
+        error,
+        RoundTripEditError::InvalidSpan {
+            span: ByteSpan::new(2, 9),
+            source_len: 6,
+        },
+    );
+}
+
+#[rstest]
+fn round_trip_edits_reject_non_utf8_start_boundaries() {
+    let error = apply_round_trip_edits("é", &[RoundTripEdit::source(1, 2, "e")])
+        .unwrap_err_or_else("expected non-UTF-8 boundary rejection");
+
+    assert_eq!(
+        error,
+        RoundTripEditError::NonUtf8Boundary {
+            span: ByteSpan::new(1, 2),
+        },
+    );
+}
+
+#[rstest]
+fn round_trip_edits_reject_non_utf8_end_boundaries() {
+    let error = apply_round_trip_edits("éx", &[RoundTripEdit::source(0, 1, "e")])
+        .unwrap_err_or_else("expected non-UTF-8 boundary rejection");
+
+    assert_eq!(
+        error,
+        RoundTripEditError::NonUtf8Boundary {
+            span: ByteSpan::new(0, 1),
+        },
+    );
+}
+
+#[rstest]
+fn round_trip_edits_accept_empty_edit_sets_as_noops() {
+    let result = apply_round_trip_edits("some text", &[])
+        .unwrap_or_else(|error| panic!("expected empty edit set to apply: {error}"));
+
+    assert_eq!(result.before, "some text");
+    assert_eq!(result.after, "some text");
+    assert!(result.applied_edits.is_empty());
+}
+
+#[rstest]
 fn round_trip_edits_preserve_untouched_ranges() {
     let result = apply_round_trip_edits(
         "before middle after",

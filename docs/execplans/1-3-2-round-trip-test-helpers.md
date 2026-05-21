@@ -548,6 +548,20 @@ types that make tests readable and keep invalid states hard to express.
 - [x] (2026-05-20T20:00:00+02:00) User explicitly requested committing and
   pushing the completed workspace changes after the line-count tolerance stop.
   Treat that as approval to proceed with the current validated implementation.
+- [x] (2026-05-21T20:35:00+02:00) Began review-comment follow-up. Added Rust
+  and Python tests for invalid edit spans and empty edit sets, added Rust
+  coverage for UTF-8 boundary rejection, fixed the broken design-document
+  footnote reference, and moved canonical JSON formatting out of
+  `crates/stilyagi-ir/src/lib.rs` into
+  `crates/stilyagi-ir/src/canonical_json.rs`.
+- [x] (2026-05-21T20:53:00+02:00) Ran `coderabbit review --agent` for the
+  review-comment milestone. It completed and raised two actionable findings:
+  expand the new formatter module documentation and avoid intermediate vector
+  allocations in JSON array helpers. Both findings were applied.
+- [x] (2026-05-21T21:00:00+02:00) Validated the review-comment follow-up.
+  `make fmt`, `make check-fmt`, `make lint`, `make test`, `make markdownlint`,
+  and `make nixie` all passed. `make test` ran 76 Rust tests and 62 Python
+  tests, including the new invalid-span, UTF-8-boundary, and empty-edit cases.
 
 ## Surprises & Discoveries
 
@@ -582,6 +596,14 @@ types that make tests readable and keep invalid states hard to express.
   snapshots are part of the requested contract scaffolding. Impact: work
   stopped and the user explicitly requested that the validated changes be
   committed and pushed.
+- Observation: `make fmt` reformatted many historical Markdown files while
+  fixing the broken footnote reference in `docs/stilyagi-design.md`. Impact:
+  unrelated formatter churn was reverted and the footnote was repaired manually
+  so this follow-up stays scoped to the review comments.
+- Observation: CodeRabbit completed successfully on the review-comment
+  follow-up after earlier branch runs had stalled in sandbox setup. Impact: the
+  requested review loop could be closed for this milestone instead of only
+  being recorded as a tooling limitation.
 
 ## Decision Log
 
@@ -625,6 +647,12 @@ types that make tests readable and keep invalid states hard to express.
 - Decision: put Python golden IR and edit helpers under `tests/support` rather
   than the public package. Rationale: roadmap item 1.3.2 explicitly keeps the
   helpers internal and defers the public pytest plugin to a later slice.
+
+- Decision: keep `GoldenDocument` flat but move its canonical JSON machinery
+  into a private `canonical_json` module, re-exporting only `line_index_for`
+  from `stilyagi-ir`. Rationale: this resolves the review concern about mixing
+  data contracts with string-formatting mechanics without changing the public
+  helper DTO fields or snapshot format.
 
 ## Outcomes & Retrospective
 

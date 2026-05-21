@@ -123,8 +123,8 @@ Stilyagi's value proposition is precise.
 The Rust plus Python split is compelling because the two sides are doing
 different work. Rust is excellent at parsing, offset accounting, and
 cross-platform packaged performance. Python is excellent for rule authoring,
-third-party extensibility, and reusing spaCy's annotation ecosystem.[^1][^2][
-^3] [^4][^5][^11][^12]
+third-party extensibility, and reusing spaCy's annotation ecosystem.[^1][^2][^3]
+[^4][^5][^11][^12]
 
 This design is weaker than some alternatives in three places.
 

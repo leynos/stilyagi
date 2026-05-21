@@ -13,6 +13,7 @@ from syrupy.extensions.json import JSONSnapshotExtension
 from tests.support.golden_ir import golden_markdown_ir_fixture
 from tests.support.round_trip import (
     OverlappingEditError,
+    RoundTripEditError,
     SourceEdit,
     SyntheticEdit,
     SyntheticSpanError,
@@ -139,6 +140,33 @@ def test_round_trip_edits_reject_overlapping_non_identical_ranges() -> None:
                 SourceEdit(3, 5, "DE"),
             ),
         )
+
+
+def test_round_trip_edits_reject_start_after_end_spans() -> None:
+    """Invalid spans with start after end fail before mutation."""
+    with pytest.raises(
+        RoundTripEditError,
+        match=r"invalid edit span 4\.\.1 for source length 6",
+    ):
+        apply_round_trip_edits("abcdef", (SourceEdit(4, 1, "x"),))
+
+
+def test_round_trip_edits_reject_spans_past_source_end() -> None:
+    """Invalid spans beyond the source length fail before mutation."""
+    with pytest.raises(
+        RoundTripEditError,
+        match=r"invalid edit span 2\.\.9 for source length 6",
+    ):
+        apply_round_trip_edits("abcdef", (SourceEdit(2, 9, "x"),))
+
+
+def test_round_trip_edits_accept_empty_edit_sets_as_noops() -> None:
+    """Empty edit sets return an explicit no-op result."""
+    result = apply_round_trip_edits("some text", ())
+
+    assert result.before == "some text"
+    assert result.after == "some text"
+    assert result.applied_edits == ()
 
 
 def test_round_trip_edits_preserve_untouched_ranges() -> None:
