@@ -80,6 +80,17 @@ impl GoldenRegion {
     }
 }
 
+/// Analysis content of a [`GoldenDocument`]: line structure, regions, and diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct GoldenBody {
+    /// Byte offsets for each line start, including the end-of-document offset.
+    pub line_index: Vec<usize>,
+    /// Extracted regions.
+    pub regions: Vec<GoldenRegion>,
+    /// Diagnostic records for this early helper surface.
+    pub diagnostics: Vec<String>,
+}
+
 /// Minimal golden IR document used by internal contract tests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GoldenDocument {
@@ -98,19 +109,13 @@ pub struct GoldenDocument {
 impl GoldenDocument {
     /// Create a golden IR document.
     #[must_use]
-    pub fn new(
-        fixture: impl Into<String>,
-        syntax: impl Into<String>,
-        line_index: Vec<usize>,
-        regions: Vec<GoldenRegion>,
-        diagnostics: Vec<String>,
-    ) -> Self {
+    pub fn new(fixture: impl Into<String>, syntax: impl Into<String>, body: GoldenBody) -> Self {
         Self {
             fixture: fixture.into(),
             syntax: syntax.into(),
-            line_index,
-            regions,
-            diagnostics,
+            line_index: body.line_index,
+            regions: body.regions,
+            diagnostics: body.diagnostics,
         }
     }
 
@@ -118,41 +123,60 @@ impl GoldenDocument {
     #[must_use]
     pub fn to_canonical_json(&self) -> String {
         let mut json = String::from("{\n");
-        push_json_property(&mut json, 1, "fixture", &json_string(&self.fixture), true);
-        push_json_property(&mut json, 1, "syntax", &json_string(&self.syntax), true);
         push_json_property(
             &mut json,
             1,
-            "line_index",
-            &usize_array_json(&self.line_index),
-            true,
+            JsonProperty::new("fixture", &json_string(&self.fixture), true),
         );
-        push_json_property(&mut json, 1, "regions", &regions_json(&self.regions), true);
         push_json_property(
             &mut json,
             1,
-            "diagnostics",
-            &string_array_json(&self.diagnostics),
-            false,
+            JsonProperty::new("syntax", &json_string(&self.syntax), true),
+        );
+        push_json_property(
+            &mut json,
+            1,
+            JsonProperty::new("line_index", &usize_array_json(&self.line_index), true),
+        );
+        push_json_property(
+            &mut json,
+            1,
+            JsonProperty::new("regions", &regions_json(&self.regions), true),
+        );
+        push_json_property(
+            &mut json,
+            1,
+            JsonProperty::new("diagnostics", &string_array_json(&self.diagnostics), false),
         );
         json.push_str("}\n");
         json
     }
 }
 
-fn push_json_property(
-    json: &mut String,
-    indent: usize,
-    name: &str,
-    value: &str,
-    has_trailing_comma: bool,
-) {
+#[derive(Clone, Copy)]
+struct JsonProperty<'a> {
+    name: &'a str,
+    value: &'a str,
+    trailing_comma: bool,
+}
+
+impl<'a> JsonProperty<'a> {
+    const fn new(name: &'a str, value: &'a str, trailing_comma: bool) -> Self {
+        Self {
+            name,
+            value,
+            trailing_comma,
+        }
+    }
+}
+
+fn push_json_property(json: &mut String, indent: usize, property: JsonProperty<'_>) {
     push_indent(json, indent);
     json.push('"');
-    json.push_str(name);
+    json.push_str(property.name);
     json.push_str("\": ");
-    json.push_str(value);
-    if has_trailing_comma {
+    json.push_str(property.value);
+    if property.trailing_comma {
         json.push(',');
     }
     json.push('\n');
@@ -191,14 +215,20 @@ fn regions_json(regions: &[GoldenRegion]) -> String {
     for (index, region) in regions.iter().enumerate() {
         push_indent(&mut json, 2);
         json.push_str("{\n");
-        push_json_property(&mut json, 3, "kind", &json_string(&region.kind), true);
-        push_json_property(&mut json, 3, "text", &json_string(&region.text), true);
         push_json_property(
             &mut json,
             3,
-            "segments",
-            &segments_json(&region.segments),
-            false,
+            JsonProperty::new("kind", &json_string(&region.kind), true),
+        );
+        push_json_property(
+            &mut json,
+            3,
+            JsonProperty::new("text", &json_string(&region.text), true),
+        );
+        push_json_property(
+            &mut json,
+            3,
+            JsonProperty::new("segments", &segments_json(&region.segments), false),
         );
         push_indent(&mut json, 2);
         json.push('}');
@@ -223,14 +253,34 @@ fn segments_json(segments: &[Segment]) -> String {
         json.push_str("{\n");
         match segment {
             Segment::Source { span, text } => {
-                push_json_property(&mut json, 5, "kind", "\"source\"", true);
-                push_json_property(&mut json, 5, "start", &span.start.to_string(), true);
-                push_json_property(&mut json, 5, "end", &span.end.to_string(), true);
-                push_json_property(&mut json, 5, "text", &json_string(text), false);
+                push_json_property(&mut json, 5, JsonProperty::new("kind", "\"source\"", true));
+                push_json_property(
+                    &mut json,
+                    5,
+                    JsonProperty::new("start", &span.start.to_string(), true),
+                );
+                push_json_property(
+                    &mut json,
+                    5,
+                    JsonProperty::new("end", &span.end.to_string(), true),
+                );
+                push_json_property(
+                    &mut json,
+                    5,
+                    JsonProperty::new("text", &json_string(text), false),
+                );
             }
             Segment::Synthetic { text } => {
-                push_json_property(&mut json, 5, "kind", "\"synthetic\"", true);
-                push_json_property(&mut json, 5, "text", &json_string(text), false);
+                push_json_property(
+                    &mut json,
+                    5,
+                    JsonProperty::new("kind", "\"synthetic\"", true),
+                );
+                push_json_property(
+                    &mut json,
+                    5,
+                    JsonProperty::new("text", &json_string(text), false),
+                );
             }
         }
         push_indent(&mut json, 4);
@@ -290,7 +340,8 @@ pub fn line_index_for(source: &str) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ByteSpan, GoldenDocument, GoldenRegion, IrBoundary, Segment, json_string, line_index_for,
+        ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, IrBoundary, Segment, json_string,
+        line_index_for,
     };
 
     /// Keep the marker type default stable and comparable.
@@ -334,16 +385,18 @@ mod tests {
         let document = GoldenDocument::new(
             "tests/fixtures/example.md",
             "markdown",
-            vec![0, 10],
-            vec![GoldenRegion::new(
-                "document",
-                "A \"quote\"\n",
-                vec![
-                    Segment::source(ByteSpan::new(0, 10), "A \"quote\"\n"),
-                    Segment::synthetic(" "),
-                ],
-            )],
-            Vec::new(),
+            GoldenBody {
+                line_index: vec![0, 10],
+                regions: vec![GoldenRegion::new(
+                    "document",
+                    "A \"quote\"\n",
+                    vec![
+                        Segment::source(ByteSpan::new(0, 10), "A \"quote\"\n"),
+                        Segment::synthetic(" "),
+                    ],
+                )],
+                diagnostics: Vec::new(),
+            },
         );
 
         insta::assert_snapshot!(document.to_canonical_json());

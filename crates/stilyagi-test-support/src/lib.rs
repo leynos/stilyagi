@@ -7,7 +7,7 @@
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
-use stilyagi_ir::{ByteSpan, GoldenDocument, GoldenRegion, Segment, line_index_for};
+use stilyagi_ir::{ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, Segment, line_index_for};
 
 /// Repository-relative path to the shared valid Markdown corpus fixture.
 pub const SHARED_MARKDOWN_FIXTURE_PATH: &str =
@@ -117,9 +117,11 @@ pub fn golden_markdown_ir_fixture(
     Ok(GoldenDocument::new(
         fixture,
         "markdown",
-        line_index_for(&source),
-        regions,
-        Vec::new(),
+        GoldenBody {
+            line_index: line_index_for(&source),
+            regions,
+            diagnostics: Vec::new(),
+        },
     ))
 }
 
