@@ -601,6 +601,14 @@ types that make tests readable and keep invalid states hard to express.
   `make nixie` passed. `make typecheck` also passed. `make test` ran 80 Rust
   tests and 66 Python tests. `coderabbit review --agent` completed with zero
   findings.
+- [x] (2026-05-23T12:00:00+02:00) Began pre-merge warning follow-up with
+  Wyvern verification. The Rust proptest coverage warning is still valid and is
+  patched with generated multi-edit ordering, overlap rejection, and UTF-8
+  boundary rejection cases. The clone and public-visibility warnings are
+  recorded below as design/API concerns rather than minimal fixes for this
+  branch. `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
+  `make nixie` passed. `make test` ran 83 Rust tests and 66 Python tests.
+  `coderabbit review --agent` completed with zero findings.
 
 ## Surprises & Discoveries
 
@@ -670,6 +678,17 @@ types that make tests readable and keep invalid states hard to express.
   types and Python tests intentionally import private `tests/support` modules.
   Impact: no visibility change is made in this follow-up; narrowing that API
   should be planned separately with replacement crate boundaries.
+- Observation: pre-merge review noted that the Rust property suite still only
+  generated one ASCII edit, while overlap and UTF-8 boundary coverage used
+  fixed examples. Impact: Rust proptest coverage now generates multiple
+  Unicode-backed edits, reversed input order, overlapping spans, and mid-code
+  point byte ranges.
+- Observation: the source text is intentionally represented in both
+  `GoldenRegion.text` and the source `Segment.text` because the canonical
+  golden schema records flattened region text and source mapping text
+  separately. Impact: no `Arc`/`Cow` conversion is made in this review
+  follow-up; changing those public DTO fields would be a larger schema/API
+  redesign.
 
 ## Decision Log
 

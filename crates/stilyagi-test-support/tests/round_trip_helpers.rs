@@ -188,6 +188,97 @@ proptest! {
 
         prop_assert_eq!(result.after, format!("{prefix}{replacement}{suffix}"));
     }
+
+    #[test]
+    fn multi_edit_ordering_preserves_unicode_chunks(
+        chunk_replacements in prop::collection::vec((unicode_chunk(), unicode_chunk()), 2..6),
+    ) {
+        let edit_count = chunk_replacements.len();
+        let source = chunk_replacements
+            .iter()
+            .map(|(chunk, _replacement)| chunk.as_str())
+            .collect::<String>();
+        let mut start = 0;
+        let mut edits = Vec::with_capacity(edit_count);
+        for (chunk, replacement) in &chunk_replacements {
+            let end = start + chunk.len();
+            edits.push(RoundTripEdit::source(start, end, replacement.clone()));
+            start = end;
+        }
+        edits.reverse();
+
+        let result = apply_round_trip_edits(&source, &edits)
+            .unwrap_or_else(|error| panic!("expected generated edits to apply: {error}"));
+
+        let expected = chunk_replacements
+            .iter()
+            .map(|(_chunk, replacement)| replacement.as_str())
+            .collect::<String>();
+        prop_assert_eq!(result.after, expected);
+        prop_assert_eq!(result.applied_edits.len(), edit_count);
+    }
+
+    #[test]
+    fn overlapping_generated_edits_are_rejected(
+        prefix in unicode_chunk(),
+        left in unicode_chunk(),
+        shared in unicode_chunk(),
+        right in unicode_chunk(),
+        suffix in unicode_chunk(),
+    ) {
+        let source = format!("{prefix}{left}{shared}{right}{suffix}");
+        let first = ByteSpan::new_unchecked(
+            prefix.len(),
+            prefix.len() + left.len() + shared.len(),
+        );
+        let second = ByteSpan::new_unchecked(
+            prefix.len() + left.len(),
+            prefix.len() + left.len() + shared.len() + right.len(),
+        );
+
+        let error = apply_round_trip_edits(
+            &source,
+            &[
+                RoundTripEdit::source(second.start, second.end, "SECOND"),
+                RoundTripEdit::source(first.start, first.end, "FIRST"),
+            ],
+        )
+        .unwrap_err_or_else("expected generated overlapping edits to be rejected");
+
+        prop_assert_eq!(
+            error,
+            RoundTripEditError::OverlappingEdits {
+                previous: first,
+                current: second,
+            },
+        );
+    }
+
+    #[test]
+    fn generated_non_utf8_boundaries_are_rejected(
+        prefix in unicode_chunk(),
+        suffix in unicode_chunk(),
+    ) {
+        let source = format!("{prefix}é{suffix}");
+        let start = prefix.len() + 1;
+        let span = ByteSpan::new_unchecked(start, start + 1);
+
+        let error = apply_round_trip_edits(
+            &source,
+            &[RoundTripEdit::source(span.start, span.end, "e")],
+        )
+        .unwrap_err_or_else("expected generated non-UTF-8 boundary to be rejected");
+
+        prop_assert_eq!(error, RoundTripEditError::NonUtf8Boundary { span });
+    }
+}
+
+fn unicode_chunk() -> impl Strategy<Value = String> {
+    prop::collection::vec(
+        prop_oneof![Just("é".to_owned()), Just("ß".to_owned()), "[a-z]{1,4}",],
+        1..8,
+    )
+    .prop_map(|pieces| pieces.concat())
 }
 
 trait UnwrapErrOrElse<T, E> {
