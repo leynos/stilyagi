@@ -78,28 +78,27 @@ fn push_indent(json: &mut String, indent: usize) {
     }
 }
 
-fn usize_array_json(values: &[usize]) -> String {
+fn array_json<T, F>(values: &[T], serialize: F) -> String
+where
+    F: Fn(&T) -> String,
+{
     let mut json = String::from("[");
     for (index, value) in values.iter().enumerate() {
         if index > 0 {
             json.push_str(", ");
         }
-        json.push_str(&value.to_string());
+        json.push_str(&serialize(value));
     }
     json.push(']');
     json
 }
 
+fn usize_array_json(values: &[usize]) -> String {
+    array_json(values, ToString::to_string)
+}
+
 fn string_array_json(values: &[String]) -> String {
-    let mut json = String::from("[");
-    for (index, value) in values.iter().enumerate() {
-        if index > 0 {
-            json.push_str(", ");
-        }
-        json.push_str(&json_string(value));
-    }
-    json.push(']');
-    json
+    array_json(values, |value| json_string(value))
 }
 
 fn regions_json(regions: &[GoldenRegion]) -> String {
