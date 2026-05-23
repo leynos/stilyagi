@@ -584,7 +584,7 @@ types that make tests readable and keep invalid states hard to express.
   `uv lock` resolved the bounded `syrupy` dependency to 5.2.0, and
   `coderabbit review --agent` completed with zero findings.
 - [x] (2026-05-21T22:04:00+02:00) Began follow-up for checked `ByteSpan`
-  construction, canonical JSON field-list writing, parameterised Rust
+  construction, canonical JSON field-list writing, parameterized Rust
   round-trip negative tests, and the ExecPlan punctuation comment. All four
   findings were still valid against the current code and were patched.
 - [x] (2026-05-21T22:14:00+02:00) Validated the span and JSON follow-up.
