@@ -1,4 +1,13 @@
-//! Placeholder crate for the intermediate representation (IR) boundary.
+//! Intermediate representation (IR) crate boundary marker and shared helpers.
+//!
+//! This crate currently exposes the future IR boundary marker and the
+//! [`line_index_for`] helper shared by internal fixture builders. Test-only
+//! golden IR DTOs live in `stilyagi-test-support`, so this crate does not
+//! expose helper shapes as production API.
+
+mod canonical_json;
+
+pub use canonical_json::line_index_for;
 
 /// Marker type for the future IR crate boundary.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

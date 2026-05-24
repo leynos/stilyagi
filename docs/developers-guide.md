@@ -174,20 +174,52 @@ implementation should be called explicitly.
 #### stilyagi-test-support API reference
 
 The `stilyagi-test-support` crate (at `crates/stilyagi-test-support/`) provides
-four test-only helpers for fixtures that need access to repository-local files:
+test-only helpers for fixtures, golden IR snapshots, and edit round-trip checks
+that need access to repository-local files:
 
 Table: Repository fixture utilities and signatures.
 
-| Symbol                         | Signature                                         | Description                                                                                                                               |
-| ------------------------------ | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `SHARED_MARKDOWN_FIXTURE_PATH` | `&str`                                            | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
-| `repository_root`              | `() -> PathBuf`                                   | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
-| `corpus_fixture_path`          | `(impl AsRef<Path>) -> PathBuf`                   | Resolves a repository-relative path against the workspace root.                                                                           |
-| `read_corpus_fixture`          | `(impl AsRef<Path>) -> Result<String, io::Error>` | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
+| Symbol                         | Signature                                                        | Description                                                                                                                               |
+| ------------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHARED_MARKDOWN_FIXTURE_PATH` | `&str`                                                           | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
+| `repository_root`              | `() -> PathBuf`                                                  | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
+| `corpus_fixture_path`          | `(impl AsRef<Path>) -> PathBuf`                                  | Resolves a repository-relative path against the workspace root.                                                                           |
+| `read_corpus_fixture`          | `(impl AsRef<Path>) -> Result<String, io::Error>`                | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
+| `golden_markdown_ir_fixture`   | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`        | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                                  |
+| `normalize_repository_path`    | `(impl AsRef<Path>) -> String`                                   | Converts repository-relative paths to `/`-separated snapshot text.                                                                        |
+| `apply_round_trip_edits`       | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>` | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                               |
 
 Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
 require repository-relative fixture access. Do not copy the `repository_root`
 resolution pattern into individual crates.
+
+#### Snapshot and round-trip helper workflow
+
+Golden IR scaffolding is intentionally internal while the public pytest plugin
+from RFC 0004 remains future work. Rust snapshot tests use `insta` and write
+snapshot files next to the owning test module, for example under
+`crates/stilyagi-extract/tests/snapshots/` or
+`crates/stilyagi-test-support/tests/snapshots/`. Python snapshot tests use
+`syrupy` and write JSON snapshots under `tests/__snapshots__/`. Update
+snapshots only when the reviewed contract changes:
+
+```bash
+INSTA_UPDATE=always cargo test -p stilyagi-ir -p stilyagi-test-support -p stilyagi-extract
+.venv/bin/python -m pytest tests/test_round_trip_helpers.py --snapshot-update
+```
+
+The current golden IR helper scope is Markdown-only. It records the
+repository-relative fixture path, syntax, byte-oriented `line_index`, one
+whole-document `source` segment for non-blank Markdown, and an empty
+diagnostics list. This is scaffolding for regression tests, not the final
+public IR envelope.
+
+Round-trip edit helpers exist to test fix safety before the full rule engine
+lands. They must preserve source text outside edited ranges, accept adjacent
+source-backed edits, reject synthetic spans, and reject overlapping source
+edits. Add property tests for range invariants when examples are too narrow;
+the first Rust helper property verifies that a single replacement preserves the
+generated prefix and suffix.
 
 <!-- markdownlint-enable MD001 -->
 

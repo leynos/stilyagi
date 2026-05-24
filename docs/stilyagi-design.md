@@ -123,8 +123,8 @@ Stilyagi's value proposition is precise.
 The Rust plus Python split is compelling because the two sides are doing
 different work. Rust is excellent at parsing, offset accounting, and
 cross-platform packaged performance. Python is excellent for rule authoring,
-third-party extensibility, and reusing spaCy's annotation
-ecosystem.[^1][^2][^3][^4][^5][^11][^12]
+third-party extensibility, and reusing spaCy's annotation ecosystem.[^1][^2][^3]
+[^4][^5][^11][^12]
 
 This design is weaker than some alternatives in three places.
 
@@ -387,6 +387,24 @@ The v1 non-requirements are also important.
   tests from it.
 - Failure path: schema-version mismatch or malformed debug output is a release
   blocker.
+
+#### Internal golden IR and edit helper scaffolding
+
+Before the full `dump-ir` command and public rule-testing plugin exist,
+Stilyagi keeps a private contract-test scaffold in Rust and Python tests. The
+initial golden IR helper is deliberately Markdown-only and whole-document
+oriented. It records a repository-relative fixture path, syntax, byte-oriented
+`line_index`, extracted regions, `segments`, and diagnostics in canonical JSON
+snapshots. For the current partial extractor, the valid shared Markdown fixture
+has one `document` region and one source-backed segment covering the entire
+fixture.
+
+Fix round-trip helpers are likewise internal. They apply source-backed edits in
+deterministic order, preserve untouched source ranges, accept adjacent edits,
+reject synthetic spans, and reject overlapping edits before mutation. These
+helpers establish the safety checks later fix planning must satisfy without
+exposing the future pytest plugin or freezing the raw PyO3 bridge payload as
+the public IR.
 
 ### What are the core interfaces?
 
@@ -1108,6 +1126,9 @@ The design must be validated with the following test classes.
 
 - Golden extraction tests: canonical IR JSON for Markdown, Python, and Rust
   fixtures, with Rust-side snapshot tests using `insta` where helpful.
+- Internal contract scaffolding: private Markdown golden IR snapshots, CLI
+  output snapshots, and fix round-trip helpers must stay available before the
+  public rule-author pytest plugin is implemented.
 - Malformed input tests: broken Markdown, partial MDX, invalid Python, and
   incomplete Rust comments.
 - Performance baselines: cold and warm runs for structural-only and NLP-backed

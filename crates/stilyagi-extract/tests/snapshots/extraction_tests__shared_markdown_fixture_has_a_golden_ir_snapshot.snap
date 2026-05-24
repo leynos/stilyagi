@@ -1,0 +1,24 @@
+---
+source: crates/stilyagi-extract/tests/extraction_tests.rs
+expression: document.to_canonical_json()
+---
+{
+  "fixture": "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
+  "syntax": "markdown",
+  "line_index": [0, 18, 19, 47, 106, 107, 155, 156, 195, 234, 273],
+  "regions": [
+    {
+      "kind": "document",
+      "text": "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi design](../../../../../docs/stilyagi-design.md).\n\n<!-- stilyagi-disable-next-line terminology -->\n\n| Term | Meaning                     |\n| ---- | --------------------------- |\n| IR   | Intermediate representation |\n",
+      "segments": [
+        {
+          "kind": "source",
+          "start": 0,
+          "end": 273,
+          "text": "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi design](../../../../../docs/stilyagi-design.md).\n\n<!-- stilyagi-disable-next-line terminology -->\n\n| Term | Meaning                     |\n| ---- | --------------------------- |\n| IR   | Intermediate representation |\n"
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}

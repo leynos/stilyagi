@@ -7,7 +7,9 @@ use stilyagi_extract::{
 };
 use stilyagi_ir::IrBoundary;
 use stilyagi_markdown::MarkdownBoundary;
-use stilyagi_test_support::{SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture};
+use stilyagi_test_support::{
+    SHARED_MARKDOWN_FIXTURE_PATH, golden_markdown_ir_fixture, read_corpus_fixture,
+};
 use stilyagi_tree_sitter::TreeSitterBoundary;
 
 /// Keep the extraction boundary default stable and comparable.
@@ -162,6 +164,16 @@ fn markdown_extraction_preserves_the_shared_markdown_fixture(shared_markdown_sou
     );
 }
 
+/// Pin the first private golden IR shape to the supported Markdown extraction
+/// scope without treating the raw bridge payload as the long-term public IR.
+#[rstest]
+fn shared_markdown_fixture_has_a_golden_ir_snapshot() {
+    let document = golden_markdown_ir_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
+        .unwrap_or_else(|error| panic!("expected shared Markdown golden IR: {error}"));
+
+    insta::assert_snapshot!(document.to_canonical_json());
+}
+
 /// Keep malformed corpus inputs loadable without promising parser recovery
 /// semantics that belong to later extraction work.
 #[rstest]
@@ -277,41 +289,60 @@ fn try_from_str_rejects_unknown_syntax(#[case] input: &str) {
     assert!(error.to_string().contains(input) || input.is_empty());
 }
 
-// ----- corpus_fixture_path path-validation panics -----
+// ----- corpus_fixture_path path validation -----
 
 #[test]
-#[should_panic(expected = "corpus fixture path must be repository-relative")]
 fn corpus_fixture_path_rejects_absolute_path() {
     let path = if cfg!(windows) {
         "C:\\etc\\passwd"
     } else {
         "/etc/passwd"
     };
-    drop(stilyagi_test_support::corpus_fixture_path(path));
+    let Err(error) = stilyagi_test_support::corpus_fixture_path(path) else {
+        panic!("expected absolute path rejection");
+    };
+    assert_eq!(
+        error.kind,
+        stilyagi_test_support::FixturePathErrorKind::Absolute,
+    );
+}
+
+fn assert_corpus_fixture_path_rejects(
+    path: impl AsRef<std::path::Path>,
+    expected_kind: stilyagi_test_support::FixturePathErrorKind,
+    panic_message: &str,
+) {
+    let Err(error) = stilyagi_test_support::corpus_fixture_path(path) else {
+        panic!("{panic_message}");
+    };
+    assert_eq!(error.kind, expected_kind);
 }
 
 #[test]
-#[should_panic(expected = "corpus fixture path must not contain parent-directory traversal")]
 fn corpus_fixture_path_rejects_parent_traversal() {
-    drop(stilyagi_test_support::corpus_fixture_path(
+    assert_corpus_fixture_path_rejects(
         "../../etc/passwd",
-    ));
+        stilyagi_test_support::FixturePathErrorKind::ParentTraversal,
+        "expected parent traversal rejection",
+    );
 }
 
 #[test]
 #[cfg(windows)]
-#[should_panic(expected = "corpus fixture path must not contain a drive or path prefix")]
 fn corpus_fixture_path_rejects_drive_prefix() {
-    drop(stilyagi_test_support::corpus_fixture_path(
+    assert_corpus_fixture_path_rejects(
         std::path::Path::new("C:\\windows\\system32"),
-    ));
+        stilyagi_test_support::FixturePathErrorKind::Prefix,
+        "expected drive prefix rejection",
+    );
 }
 
 #[test]
 #[cfg(windows)]
-#[should_panic(expected = "corpus fixture path must not be root-relative")]
 fn corpus_fixture_path_rejects_root_relative() {
-    drop(stilyagi_test_support::corpus_fixture_path(
+    assert_corpus_fixture_path_rejects(
         std::path::Path::new("\\etc"),
-    ));
+        stilyagi_test_support::FixturePathErrorKind::RootRelative,
+        "expected root-relative rejection",
+    );
 }
