@@ -161,29 +161,20 @@ fn normalize_repository_path_uses_posix_separators() {
 }
 
 #[rstest]
-fn normalize_repository_path_rejects_absolute_paths() {
-    let error = normalize_repository_path("/tmp/example.md")
-        .unwrap_err_or_else("expected absolute path rejection");
+#[case("/tmp/example.md", FixturePathErrorKind::Absolute)]
+#[case("tests/../example.md", FixturePathErrorKind::ParentTraversal)]
+fn normalize_repository_path_rejects_invalid_paths(
+    #[case] input: &str,
+    #[case] expected_kind: FixturePathErrorKind,
+) {
+    let error =
+        normalize_repository_path(input).unwrap_err_or_else("expected invalid path rejection");
 
     assert_eq!(
         error,
         FixturePathError {
-            path: "/tmp/example.md".to_owned(),
-            kind: FixturePathErrorKind::Absolute,
-        },
-    );
-}
-
-#[rstest]
-fn normalize_repository_path_rejects_parent_traversal() {
-    let error = normalize_repository_path("tests/../example.md")
-        .unwrap_err_or_else("expected parent traversal rejection");
-
-    assert_eq!(
-        error,
-        FixturePathError {
-            path: "tests/../example.md".to_owned(),
-            kind: FixturePathErrorKind::ParentTraversal,
+            path: input.to_owned(),
+            kind: expected_kind,
         },
     );
 }
