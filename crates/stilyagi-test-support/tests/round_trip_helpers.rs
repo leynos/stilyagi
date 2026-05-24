@@ -275,7 +275,13 @@ proptest! {
 
 fn unicode_chunk() -> impl Strategy<Value = String> {
     prop::collection::vec(
-        prop_oneof![Just("é".to_owned()), Just("ß".to_owned()), "[a-z]{1,4}",],
+        prop_oneof![
+            Just("é".to_owned()),
+            Just("ß".to_owned()),
+            Just("→".to_owned()),
+            Just("😀".to_owned()),
+            "[a-z]{1,4}",
+        ],
         1..8,
     )
     .prop_map(|pieces| pieces.concat())
