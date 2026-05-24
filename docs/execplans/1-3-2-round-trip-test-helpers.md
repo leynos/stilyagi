@@ -612,13 +612,34 @@ types that make tests readable and keep invalid states hard to express.
 - [x] (2026-05-24T12:00:00+02:00) Began unit-architecture follow-up. Path
   validation still hid invalid input behind assertions, and round-trip edit
   application still combined collection, validation, ordering, rendering, and
-  result assembly in one function. The public golden IR types remain necessary
-  across `stilyagi-ir` and `stilyagi-test-support` for this branch, but are now
-  hidden from generated documentation pending a future crate-boundary redesign.
-  `make fmt`, `make lint`, and `make test` passed. `make test` ran 83 Rust
-  tests and 66 Python tests. `make markdownlint`, `make nixie`, and
-  `make check-fmt` also passed. `coderabbit review --agent` completed with
-  zero findings.
+  result assembly in one function. The refactor introduced typed fixture-path
+  errors, split edit handling into source-edit collection, byte rendering, and
+  result assembly helpers, and moved golden IR DTOs plus canonical JSON
+  formatting into the dev-only `stilyagi-test-support` crate so `stilyagi-ir`
+  only exposes `IrBoundary` and `line_index_for`. `make fmt`, `make lint`, and
+  `make test` passed. `make test` ran 83 Rust tests and 66 Python tests.
+  `make markdownlint`, `make nixie`, and `make check-fmt` also passed.
+  `coderabbit review --agent` completed with zero findings.
+- [x] (2026-05-24T12:30:00+02:00) Re-verified the repeated unit-architecture
+  and visibility findings with a Wyvern agent. The unit-architecture finding
+  was no longer valid after the typed-error and helper-splitting changes. The
+  visibility finding was still valid because `#[doc(hidden)]` did not reduce
+  external API reach, so the golden DTOs, checked byte-span helper, and
+  canonical JSON formatter moved from `stilyagi-ir` into the dev-only
+  `stilyagi-test-support` crate. A scribe review also clarified that the
+  ExecPlan needed to state the new helper boundaries and crate-boundary
+  decision explicitly. `make fmt`, `make lint`, and `make test` passed; the
+  test run covered 83 Rust tests and 66 Python tests.
+- [x] (2026-05-24T13:00:00+02:00) Cleared follow-up CodeRabbit findings on
+  the moved golden IR module. The control-character JSON escape helper now
+  discards `fmt::Result` with a narrow Clippy expectation because `fmt::Write`
+  for `String` is infallible, and `ByteSpan` now has private fields with public
+  `start()` and `end()` accessors so external callers cannot bypass
+  `ByteSpan::new`. Malformed spans needed for error payloads are constructible
+  only inside `stilyagi-test-support`. Fixed JSON field lists now use arrays
+  rather than heap-allocated `Vec`s, and comma placement is derived while
+  rendering fields rather than stored as a flag. `make fmt`, `make lint`, and
+  `make test` passed; the test run covered 83 Rust tests and 66 Python tests.
 
 ## Surprises & Discoveries
 
@@ -683,11 +704,11 @@ types that make tests readable and keep invalid states hard to express.
   encoding or decoding work. Impact: Python now has generated coverage for
   valid prefix/replacement/suffix edits and inverted-span rejection, while line
   indexing and UTF-8 boundary checks operate directly on encoded bytes.
-- Observation: the visibility warning conflicts with the current cross-crate
-  helper contract because `stilyagi-test-support` consumes public `stilyagi-ir`
-  types and Python tests intentionally import private `tests/support` modules.
-  Impact: no visibility change is made in this follow-up; narrowing that API
-  should be planned separately with replacement crate boundaries.
+- Observation: the visibility warning was valid because `#[doc(hidden)]` hid
+  the golden DTOs from generated documentation but left them externally public
+  from `stilyagi-ir`. Impact: the DTOs and canonical JSON formatter now live in
+  the dev-only `stilyagi-test-support` crate, while `stilyagi-ir` exposes only
+  `IrBoundary` and `line_index_for` for this slice.
 - Observation: pre-merge review noted that the Rust property suite still only
   generated one ASCII edit, while overlap and UTF-8 boundary coverage used
   fixed examples. Impact: Rust proptest coverage now generates multiple
@@ -703,11 +724,14 @@ types that make tests readable and keep invalid states hard to express.
   assertions for invalid caller input. Impact: these helpers now return typed
   `FixturePathError` values, while fixture reads wrap invalid paths and IO
   failures in `FixtureReadError`.
-- Observation: fully moving golden IR DTOs out of `stilyagi-ir` would require
-  moving canonical JSON serialization and changing the cross-crate test-support
-  boundary. Impact: this follow-up keeps the existing dependency shape, marks
-  the test DTOs as `#[doc(hidden)]`, and records the private-crate redesign as
-  future work rather than widening this review patch.
+- Observation: moving golden IR DTOs out of `stilyagi-ir` also required moving
+  canonical JSON serialization and its snapshot to `stilyagi-test-support`.
+  Impact: the production IR crate no longer exports test-only DTOs, and the
+  snapshot format remains byte-for-byte unchanged.
+- Observation: making `ByteSpan` public from `stilyagi-test-support` still
+  allowed direct field construction until its fields were private. Impact:
+  external tests now read spans through accessors, while the helper crate keeps
+  a crate-private unchecked constructor solely for malformed error payloads.
 
 ## Decision Log
 
@@ -742,21 +766,22 @@ types that make tests readable and keep invalid states hard to express.
   future full IR, Python docstring extraction, or Rust doc-comment extraction;
   this keeps the helper useful without freezing unsupported bridge details.
 
-- Decision: use a small hand-written canonical JSON serializer in
-  `stilyagi-ir` instead of adding `serde` in this slice. Rationale: the plan
-  allowed snapshot dependencies but required approval for other external
-  dependencies; the current helper shape is small enough to serialize
-  deterministically without widening the build spine.
+- Decision: use a small hand-written canonical JSON serializer in the dev-only
+  `stilyagi-test-support` crate instead of adding `serde` in this slice.
+  Rationale: the plan allowed snapshot dependencies but required approval for
+  other external dependencies; the current helper shape is small enough to
+  serialize deterministically without widening the build spine or exposing
+  test-only DTOs from `stilyagi-ir`.
 
 - Decision: put Python golden IR and edit helpers under `tests/support` rather
   than the public package. Rationale: roadmap item 1.3.2 explicitly keeps the
   helpers internal and defers the public pytest plugin to a later slice.
 
-- Decision: keep `GoldenDocument` flat but move its canonical JSON machinery
-  into a private `canonical_json` module, re-exporting only `line_index_for`
-  from `stilyagi-ir`. Rationale: this resolves the review concern about mixing
-  data contracts with string-formatting mechanics without changing the public
-  helper DTO fields or snapshot format.
+- Decision: keep `GoldenDocument` flat and move the golden DTO contract plus
+  canonical JSON machinery into `stilyagi-test-support`, re-exporting only
+  `line_index_for` from `stilyagi-ir`. Rationale: this resolves the review
+  concern about exposing test-only IR helpers as production crate API without
+  changing the helper DTO fields or snapshot format.
 
 ## Outcomes & Retrospective
 

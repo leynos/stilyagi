@@ -1,5 +1,5 @@
 ---
-source: crates/stilyagi-ir/src/lib.rs
+source: crates/stilyagi-test-support/src/golden_ir.rs
 expression: document.to_canonical_json()
 ---
 {

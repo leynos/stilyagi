@@ -4,10 +4,14 @@
 //! [`golden_markdown_ir_fixture`], [`apply_round_trip_edits`], and
 //! [`SHARED_MARKDOWN_FIXTURE_PATH`].
 
+mod golden_ir;
+
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
-use stilyagi_ir::{ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, Segment, line_index_for};
+use stilyagi_ir::line_index_for;
+
+pub use golden_ir::{ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, Segment, SpanError};
 
 /// Repository-relative path to the shared valid Markdown corpus fixture.
 pub const SHARED_MARKDOWN_FIXTURE_PATH: &str =
@@ -284,10 +288,7 @@ fn markdown_regions(source: &str) -> Vec<GoldenRegion> {
             "document",
             source,
             vec![Segment::source(
-                ByteSpan {
-                    start: 0,
-                    end: source.len(),
-                },
+                ByteSpan::new_unchecked(0, source.len()),
                 source,
             )],
         )]
@@ -318,7 +319,7 @@ impl RoundTripEdit {
     #[must_use]
     pub fn source(start: usize, end: usize, replacement: impl Into<String>) -> Self {
         Self::Source {
-            span: ByteSpan { start, end },
+            span: ByteSpan::new_unchecked(start, end),
             replacement: replacement.into(),
         }
     }
@@ -368,7 +369,8 @@ impl std::fmt::Display for RoundTripEditError {
             Self::InvalidSpan { span, source_len } => write!(
                 formatter,
                 "invalid edit span {}..{} for source length {source_len}",
-                span.start, span.end
+                span.start(),
+                span.end()
             ),
             Self::SyntheticSpan { text } => {
                 write!(formatter, "cannot edit synthetic segment {text:?}")
@@ -376,13 +378,17 @@ impl std::fmt::Display for RoundTripEditError {
             Self::OverlappingEdits { previous, current } => write!(
                 formatter,
                 "overlapping edit spans {}..{} and {}..{}",
-                previous.start, previous.end, current.start, current.end
+                previous.start(),
+                previous.end(),
+                current.start(),
+                current.end()
             ),
             Self::NonUtf8Boundary { span } => {
                 write!(
                     formatter,
                     "edit span {}..{} is not UTF-8 aligned",
-                    span.start, span.end
+                    span.start(),
+                    span.end()
                 )
             }
         }
@@ -440,7 +446,7 @@ fn sorted_source_edits(
         }
     }
 
-    source_edits.sort_by_key(|(span, _replacement)| (span.start, span.end));
+    source_edits.sort_by_key(|(span, _replacement)| (span.start(), span.end()));
     reject_overlaps(&source_edits)?;
     Ok(source_edits)
 }
@@ -452,9 +458,9 @@ fn apply_source_edits(
     let mut after = String::new();
     let mut cursor = 0;
     for (span, replacement) in source_edits {
-        after.push_str(utf8_slice(source, cursor, span.start)?);
+        after.push_str(utf8_slice(source, cursor, span.start())?);
         after.push_str(replacement);
-        cursor = span.end;
+        cursor = span.end();
     }
     after.push_str(utf8_slice(source, cursor, source.len())?);
     Ok(after)
@@ -468,20 +474,20 @@ fn round_trip_edits(source_edits: Vec<(ByteSpan, String)>) -> Vec<RoundTripEdit>
 }
 
 fn utf8_slice(source: &str, start: usize, end: usize) -> Result<&str, RoundTripEditError> {
-    let span = ByteSpan { start, end };
+    let span = ByteSpan::new_unchecked(start, end);
     source
         .get(start..end)
         .ok_or(RoundTripEditError::NonUtf8Boundary { span })
 }
 
 fn validate_source_span(source: &str, span: ByteSpan) -> Result<(), RoundTripEditError> {
-    if span.start > span.end || span.end > source.len() {
+    if span.start() > span.end() || span.end() > source.len() {
         return Err(RoundTripEditError::InvalidSpan {
             span,
             source_len: source.len(),
         });
     }
-    if !source.is_char_boundary(span.start) || !source.is_char_boundary(span.end) {
+    if !source.is_char_boundary(span.start()) || !source.is_char_boundary(span.end()) {
         return Err(RoundTripEditError::NonUtf8Boundary { span });
     }
     Ok(())
@@ -492,7 +498,7 @@ fn reject_overlaps(edits: &[(ByteSpan, String)]) -> Result<(), RoundTripEditErro
         let Some((previous, current)) = pair.first().zip(pair.get(1)) else {
             continue;
         };
-        if previous.0.end > current.0.start {
+        if previous.0.end() > current.0.start() {
             return Err(RoundTripEditError::OverlappingEdits {
                 previous: previous.0,
                 current: current.0,

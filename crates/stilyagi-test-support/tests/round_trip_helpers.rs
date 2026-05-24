@@ -2,12 +2,16 @@
 
 use proptest::prelude::*;
 use rstest::rstest;
-use stilyagi_ir::ByteSpan;
 use stilyagi_test_support::{
-    FixturePathError, FixturePathErrorKind, RoundTripEdit, RoundTripEditError,
+    ByteSpan, FixturePathError, FixturePathErrorKind, RoundTripEdit, RoundTripEditError,
     SHARED_MARKDOWN_FIXTURE_PATH, apply_round_trip_edits, golden_markdown_ir_fixture,
     normalize_repository_path,
 };
+
+fn span(start: usize, end: usize) -> ByteSpan {
+    ByteSpan::new(start, end)
+        .unwrap_or_else(|error| panic!("expected valid byte span {start}..{end}: {error:?}"))
+}
 
 #[rstest]
 fn golden_markdown_ir_fixture_serializes_the_shared_fixture() {
@@ -80,37 +84,35 @@ fn round_trip_edits_reject_overlapping_non_identical_ranges() {
     assert_eq!(
         error,
         RoundTripEditError::OverlappingEdits {
-            previous: ByteSpan { start: 1, end: 4 },
-            current: ByteSpan { start: 3, end: 5 },
+            previous: span(1, 4),
+            current: span(3, 5),
         },
     );
 }
 
 #[rstest]
-#[case("abcdef", 4, 1, ByteSpan { start: 4, end: 1 }, 6)]
-#[case("abcdef", 2, 9, ByteSpan { start: 2, end: 9 }, 6)]
+#[case("abcdef", 4, 1, 6)]
+#[case("abcdef", 2, 9, 6)]
 fn round_trip_edits_reject_invalid_spans(
     #[case] source: &str,
     #[case] start: usize,
     #[case] end: usize,
-    #[case] expected_span: ByteSpan,
     #[case] expected_source_len: usize,
 ) {
     let error = apply_round_trip_edits(source, &[RoundTripEdit::source(start, end, "x")])
         .unwrap_err_or_else("expected invalid edit span rejection");
 
-    assert_eq!(
-        error,
-        RoundTripEditError::InvalidSpan {
-            span: expected_span,
-            source_len: expected_source_len,
-        },
-    );
+    let RoundTripEditError::InvalidSpan { span, source_len } = error else {
+        panic!("expected invalid span error");
+    };
+    assert_eq!(span.start(), start);
+    assert_eq!(span.end(), end);
+    assert_eq!(source_len, expected_source_len);
 }
 
 #[rstest]
-#[case("é", 1, 2, ByteSpan { start: 1, end: 2 })]
-#[case("éx", 0, 1, ByteSpan { start: 0, end: 1 })]
+#[case("é", 1, 2, span(1, 2))]
+#[case("éx", 0, 1, span(0, 1))]
 fn round_trip_edits_reject_non_utf8_boundaries(
     #[case] source: &str,
     #[case] start: usize,
@@ -245,20 +247,17 @@ proptest! {
         suffix in unicode_chunk(),
     ) {
         let source = format!("{prefix}{left}{shared}{right}{suffix}");
-        let first = ByteSpan {
-            start: prefix.len(),
-            end: prefix.len() + left.len() + shared.len(),
-        };
-        let second = ByteSpan {
-            start: prefix.len() + left.len(),
-            end: prefix.len() + left.len() + shared.len() + right.len(),
-        };
+        let first = span(prefix.len(), prefix.len() + left.len() + shared.len());
+        let second = span(
+            prefix.len() + left.len(),
+            prefix.len() + left.len() + shared.len() + right.len(),
+        );
 
         let error = apply_round_trip_edits(
             &source,
             &[
-                RoundTripEdit::source(second.start, second.end, "SECOND"),
-                RoundTripEdit::source(first.start, first.end, "FIRST"),
+                RoundTripEdit::source(second.start(), second.end(), "SECOND"),
+                RoundTripEdit::source(first.start(), first.end(), "FIRST"),
             ],
         )
         .unwrap_err_or_else("expected generated overlapping edits to be rejected");
@@ -279,14 +278,11 @@ proptest! {
     ) {
         let source = format!("{prefix}é{suffix}");
         let start = prefix.len() + 1;
-        let span = ByteSpan {
-            start,
-            end: start + 1,
-        };
+        let span = span(start, start + 1);
 
         let error = apply_round_trip_edits(
             &source,
-            &[RoundTripEdit::source(span.start, span.end, "e")],
+            &[RoundTripEdit::source(span.start(), span.end(), "e")],
         )
         .unwrap_err_or_else("expected generated non-UTF-8 boundary to be rejected");
 
