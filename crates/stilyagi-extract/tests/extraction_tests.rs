@@ -307,40 +307,42 @@ fn corpus_fixture_path_rejects_absolute_path() {
     );
 }
 
+fn assert_corpus_fixture_path_rejects(
+    path: impl AsRef<std::path::Path>,
+    expected_kind: stilyagi_test_support::FixturePathErrorKind,
+    panic_message: &str,
+) {
+    let Err(error) = stilyagi_test_support::corpus_fixture_path(path) else {
+        panic!("{panic_message}");
+    };
+    assert_eq!(error.kind, expected_kind);
+}
+
 #[test]
 fn corpus_fixture_path_rejects_parent_traversal() {
-    let Err(error) = stilyagi_test_support::corpus_fixture_path("../../etc/passwd") else {
-        panic!("expected parent traversal rejection");
-    };
-    assert_eq!(
-        error.kind,
+    assert_corpus_fixture_path_rejects(
+        "../../etc/passwd",
         stilyagi_test_support::FixturePathErrorKind::ParentTraversal,
+        "expected parent traversal rejection",
     );
 }
 
 #[test]
 #[cfg(windows)]
 fn corpus_fixture_path_rejects_drive_prefix() {
-    let Err(error) =
-        stilyagi_test_support::corpus_fixture_path(std::path::Path::new("C:\\windows\\system32"))
-    else {
-        panic!("expected drive prefix rejection");
-    };
-    assert_eq!(
-        error.kind,
+    assert_corpus_fixture_path_rejects(
+        std::path::Path::new("C:\\windows\\system32"),
         stilyagi_test_support::FixturePathErrorKind::Prefix,
+        "expected drive prefix rejection",
     );
 }
 
 #[test]
 #[cfg(windows)]
 fn corpus_fixture_path_rejects_root_relative() {
-    let Err(error) = stilyagi_test_support::corpus_fixture_path(std::path::Path::new("\\etc"))
-    else {
-        panic!("expected root-relative rejection");
-    };
-    assert_eq!(
-        error.kind,
+    assert_corpus_fixture_path_rejects(
+        std::path::Path::new("\\etc"),
         stilyagi_test_support::FixturePathErrorKind::RootRelative,
+        "expected root-relative rejection",
     );
 }
