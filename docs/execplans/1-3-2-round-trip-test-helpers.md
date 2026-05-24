@@ -634,7 +634,7 @@ types that make tests readable and keep invalid states hard to express.
   the moved golden IR module. The control-character JSON escape helper now
   discards `fmt::Result` with a narrow Clippy expectation because `fmt::Write`
   for `String` is infallible, and `ByteSpan` now has private fields with public
-  `start()` and `end()` accessors so external callers cannot bypass
+  `start()` and `end()` accessors, so external callers cannot bypass
   `ByteSpan::new`. Malformed spans needed for error payloads are constructible
   only inside `stilyagi-test-support`. Fixed JSON field lists now use arrays
   rather than heap-allocated `Vec`s, and comma placement is derived while
@@ -766,7 +766,7 @@ types that make tests readable and keep invalid states hard to express.
   future full IR, Python docstring extraction, or Rust doc-comment extraction;
   this keeps the helper useful without freezing unsupported bridge details.
 
-- Decision: use a small hand-written canonical JSON serializer in the dev-only
+- Decision: use a small handwritten canonical JSON serializer in the dev-only
   `stilyagi-test-support` crate instead of adding `serde` in this slice.
   Rationale: the plan allowed snapshot dependencies but required approval for
   other external dependencies; the current helper shape is small enough to
