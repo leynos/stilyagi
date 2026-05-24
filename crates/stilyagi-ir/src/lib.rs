@@ -15,6 +15,7 @@ pub use canonical_json::line_index_for;
 pub struct IrBoundary;
 
 /// Half-open byte span into a source document.
+#[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ByteSpan {
     /// Inclusive start byte offset.
@@ -24,6 +25,7 @@ pub struct ByteSpan {
 }
 
 /// Error returned when a byte span range is malformed.
+#[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpanError {
     /// Inclusive start byte offset.
@@ -56,6 +58,7 @@ impl ByteSpan {
 }
 
 /// One mapping from flattened text back to source or synthetic text.
+#[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Segment {
     /// Text copied from an editable byte range in the source.
@@ -90,6 +93,7 @@ impl Segment {
 }
 
 /// Minimal golden IR region used by internal contract tests.
+#[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GoldenRegion {
     /// Stable region kind name.
@@ -113,6 +117,7 @@ impl GoldenRegion {
 }
 
 /// Analysis content of a [`GoldenDocument`]: line structure, regions, and diagnostics.
+#[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct GoldenBody {
     /// Byte offsets for each line start, including the end-of-document offset.
@@ -124,6 +129,7 @@ pub struct GoldenBody {
 }
 
 /// Minimal golden IR document used by internal contract tests.
+#[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GoldenDocument {
     /// Repository-relative fixture path.
@@ -223,7 +229,7 @@ mod tests {
                     "document",
                     "A \"quote\"\n",
                     vec![
-                        Segment::source(ByteSpan::new_unchecked(0, 10), "A \"quote\"\n"),
+                        Segment::source(ByteSpan { start: 0, end: 10 }, "A \"quote\"\n"),
                         Segment::synthetic(" "),
                     ],
                 )],

@@ -4,8 +4,9 @@ use proptest::prelude::*;
 use rstest::rstest;
 use stilyagi_ir::ByteSpan;
 use stilyagi_test_support::{
-    RoundTripEdit, RoundTripEditError, SHARED_MARKDOWN_FIXTURE_PATH, apply_round_trip_edits,
-    golden_markdown_ir_fixture, normalize_repository_path,
+    FixturePathError, FixturePathErrorKind, RoundTripEdit, RoundTripEditError,
+    SHARED_MARKDOWN_FIXTURE_PATH, apply_round_trip_edits, golden_markdown_ir_fixture,
+    normalize_repository_path,
 };
 
 #[rstest]
@@ -79,15 +80,15 @@ fn round_trip_edits_reject_overlapping_non_identical_ranges() {
     assert_eq!(
         error,
         RoundTripEditError::OverlappingEdits {
-            previous: ByteSpan::new_unchecked(1, 4),
-            current: ByteSpan::new_unchecked(3, 5),
+            previous: ByteSpan { start: 1, end: 4 },
+            current: ByteSpan { start: 3, end: 5 },
         },
     );
 }
 
 #[rstest]
-#[case("abcdef", 4, 1, ByteSpan::new_unchecked(4, 1), 6)]
-#[case("abcdef", 2, 9, ByteSpan::new_unchecked(2, 9), 6)]
+#[case("abcdef", 4, 1, ByteSpan { start: 4, end: 1 }, 6)]
+#[case("abcdef", 2, 9, ByteSpan { start: 2, end: 9 }, 6)]
 fn round_trip_edits_reject_invalid_spans(
     #[case] source: &str,
     #[case] start: usize,
@@ -108,8 +109,8 @@ fn round_trip_edits_reject_invalid_spans(
 }
 
 #[rstest]
-#[case("é", 1, 2, ByteSpan::new_unchecked(1, 2))]
-#[case("éx", 0, 1, ByteSpan::new_unchecked(0, 1))]
+#[case("é", 1, 2, ByteSpan { start: 1, end: 2 })]
+#[case("éx", 0, 1, ByteSpan { start: 0, end: 1 })]
 fn round_trip_edits_reject_non_utf8_boundaries(
     #[case] source: &str,
     #[case] start: usize,
@@ -151,21 +152,38 @@ fn round_trip_edits_preserve_untouched_ranges() {
 #[rstest]
 fn normalize_repository_path_uses_posix_separators() {
     assert_eq!(
-        normalize_repository_path(r"tests\fixtures\corpus\markdown\valid\example.md"),
+        normalize_repository_path(r"tests\fixtures\corpus\markdown\valid\example.md")
+            .unwrap_or_else(|error| panic!("expected repository path to normalize: {error}")),
         "tests/fixtures/corpus/markdown/valid/example.md",
     );
 }
 
 #[rstest]
-#[should_panic(expected = "snapshot paths must be repository-relative")]
 fn normalize_repository_path_rejects_absolute_paths() {
-    drop(normalize_repository_path("/tmp/example.md"));
+    let error = normalize_repository_path("/tmp/example.md")
+        .unwrap_err_or_else("expected absolute path rejection");
+
+    assert_eq!(
+        error,
+        FixturePathError {
+            path: "/tmp/example.md".to_owned(),
+            kind: FixturePathErrorKind::Absolute,
+        },
+    );
 }
 
 #[rstest]
-#[should_panic(expected = "snapshot paths must be repository-relative")]
 fn normalize_repository_path_rejects_parent_traversal() {
-    drop(normalize_repository_path("tests/../example.md"));
+    let error = normalize_repository_path("tests/../example.md")
+        .unwrap_err_or_else("expected parent traversal rejection");
+
+    assert_eq!(
+        error,
+        FixturePathError {
+            path: "tests/../example.md".to_owned(),
+            kind: FixturePathErrorKind::ParentTraversal,
+        },
+    );
 }
 
 proptest! {
@@ -227,14 +245,14 @@ proptest! {
         suffix in unicode_chunk(),
     ) {
         let source = format!("{prefix}{left}{shared}{right}{suffix}");
-        let first = ByteSpan::new_unchecked(
-            prefix.len(),
-            prefix.len() + left.len() + shared.len(),
-        );
-        let second = ByteSpan::new_unchecked(
-            prefix.len() + left.len(),
-            prefix.len() + left.len() + shared.len() + right.len(),
-        );
+        let first = ByteSpan {
+            start: prefix.len(),
+            end: prefix.len() + left.len() + shared.len(),
+        };
+        let second = ByteSpan {
+            start: prefix.len() + left.len(),
+            end: prefix.len() + left.len() + shared.len() + right.len(),
+        };
 
         let error = apply_round_trip_edits(
             &source,
@@ -261,7 +279,10 @@ proptest! {
     ) {
         let source = format!("{prefix}é{suffix}");
         let start = prefix.len() + 1;
-        let span = ByteSpan::new_unchecked(start, start + 1);
+        let span = ByteSpan {
+            start,
+            end: start + 1,
+        };
 
         let error = apply_round_trip_edits(
             &source,

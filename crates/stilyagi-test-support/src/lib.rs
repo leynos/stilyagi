@@ -13,6 +13,118 @@ use stilyagi_ir::{ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, Segment, l
 pub const SHARED_MARKDOWN_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md";
 
+/// Failure raised when a fixture path is not repository-relative.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixturePathError {
+    /// Rejected path rendered for diagnostics.
+    pub path: String,
+    /// Validation rule that rejected the path.
+    pub kind: FixturePathErrorKind,
+}
+
+impl FixturePathError {
+    fn new(path: &Path, kind: FixturePathErrorKind) -> Self {
+        Self {
+            path: path.display().to_string(),
+            kind,
+        }
+    }
+}
+
+impl std::fmt::Display for FixturePathError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            FixturePathErrorKind::Absolute => {
+                write!(
+                    formatter,
+                    "fixture path must be repository-relative: {}",
+                    self.path
+                )
+            }
+            FixturePathErrorKind::ParentTraversal => write!(
+                formatter,
+                "fixture path must not contain parent-directory traversal: {}",
+                self.path
+            ),
+            FixturePathErrorKind::Prefix => {
+                write!(
+                    formatter,
+                    "fixture path must not contain a drive or path prefix: {}",
+                    self.path
+                )
+            }
+            FixturePathErrorKind::RootRelative => {
+                write!(
+                    formatter,
+                    "fixture path must not be root-relative: {}",
+                    self.path
+                )
+            }
+            FixturePathErrorKind::EmptyComponent => write!(
+                formatter,
+                "fixture path must not contain empty, current, or parent path components: {}",
+                self.path
+            ),
+        }
+    }
+}
+
+impl std::error::Error for FixturePathError {}
+
+/// Rejection reason for an invalid fixture path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FixturePathErrorKind {
+    /// Path is absolute.
+    Absolute,
+    /// Path contains `..`.
+    ParentTraversal,
+    /// Path contains a drive or other path prefix.
+    Prefix,
+    /// Path is root-relative.
+    RootRelative,
+    /// Path contains an invalid normal component after separator normalization.
+    EmptyComponent,
+}
+
+/// Failure raised when reading a corpus fixture.
+#[derive(Debug)]
+pub enum FixtureReadError {
+    /// The requested repository-relative path was invalid.
+    InvalidPath(FixturePathError),
+    /// The fixture could not be read from disk.
+    Io(std::io::Error),
+}
+
+impl std::fmt::Display for FixtureReadError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidPath(error) => write!(formatter, "{error}"),
+            Self::Io(error) => write!(formatter, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for FixtureReadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidPath(error) => Some(error),
+            Self::Io(error) => Some(error),
+        }
+    }
+}
+
+impl From<FixturePathError> for FixtureReadError {
+    fn from(error: FixturePathError) -> Self {
+        Self::InvalidPath(error)
+    }
+}
+
+impl From<std::io::Error> for FixtureReadError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
 /// Return the repository root for workspace tests.
 ///
 /// # Panics
@@ -42,84 +154,44 @@ pub fn repository_root() -> PathBuf {
 
 /// Return an absolute path for a repository-relative corpus fixture.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if any of the following conditions hold:
-///
-/// - `relative_path` is absolute (`is_absolute()` returns `true`).
-/// - `relative_path` contains a parent-directory component (`..`).
-/// - `relative_path` contains a drive or path prefix (Windows `C:` etc.).
-/// - `relative_path` is root-relative (starts with `\` on Windows without a
-///   drive letter, i.e. contains [`Component::RootDir`]).
-/// - `CARGO_MANIFEST_DIR` does not resolve to a crate nested directly under the
-///   repository's `crates/` directory (i.e. [`repository_root`] panics).
-#[must_use]
-pub fn corpus_fixture_path(relative_path: impl AsRef<Path>) -> PathBuf {
+/// Returns an error when `relative_path` is absolute or contains traversal,
+/// root, or prefix components.
+pub fn corpus_fixture_path(relative_path: impl AsRef<Path>) -> Result<PathBuf, FixturePathError> {
     let path = relative_path.as_ref();
-    assert!(
-        !path.is_absolute(),
-        "corpus fixture path must be repository-relative"
-    );
-    assert!(
-        !path
-            .components()
-            .any(|component| component == Component::ParentDir),
-        "corpus fixture path must not contain parent-directory traversal"
-    );
-    assert!(
-        !path
-            .components()
-            .any(|component| matches!(component, Component::Prefix(_))),
-        "corpus fixture path must not contain a drive or path prefix"
-    );
-    assert!(
-        !path
-            .components()
-            .any(|component| component == Component::RootDir),
-        "corpus fixture path must not be root-relative"
-    );
-    repository_root().join(path)
+    validate_repository_path(path)?;
+    Ok(repository_root().join(path))
 }
 
 /// Read a repository-relative corpus fixture as UTF-8 text.
 ///
 /// # Errors
 ///
-/// Returns the filesystem error if the fixture cannot be read.
-pub fn read_corpus_fixture(relative_path: impl AsRef<Path>) -> Result<String, std::io::Error> {
-    std::fs::read_to_string(corpus_fixture_path(relative_path))
+/// Returns an error if the fixture path is invalid or cannot be read.
+pub fn read_corpus_fixture(relative_path: impl AsRef<Path>) -> Result<String, FixtureReadError> {
+    let path = corpus_fixture_path(relative_path)?;
+    Ok(std::fs::read_to_string(path)?)
 }
 
 /// Build the private golden IR shape for a supported Markdown corpus fixture.
 ///
 /// # Errors
 ///
-/// Returns the filesystem error if the fixture cannot be read.
+/// Returns an error if the fixture path is invalid or cannot be read.
 pub fn golden_markdown_ir_fixture(
     relative_path: impl AsRef<Path>,
-) -> Result<GoldenDocument, std::io::Error> {
+) -> Result<GoldenDocument, FixtureReadError> {
     let path = relative_path.as_ref();
     let source = read_corpus_fixture(path)?;
-    let fixture = normalize_repository_path(path);
-    let regions = if source.trim().is_empty() {
-        Vec::new()
-    } else {
-        vec![GoldenRegion::new(
-            "document",
-            source.clone(),
-            vec![Segment::source(
-                ByteSpan::new_unchecked(0, source.len()),
-                source.clone(),
-            )],
-        )]
-    };
+    let fixture = normalize_repository_path(path)?;
 
     Ok(GoldenDocument::new(
         fixture,
         "markdown",
         GoldenBody {
             line_index: line_index_for(&source),
-            regions,
+            regions: markdown_regions(&source),
             diagnostics: Vec::new(),
         },
     ))
@@ -127,57 +199,99 @@ pub fn golden_markdown_ir_fixture(
 
 /// Return a repository-relative path using `/` separators for snapshots.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if the path is absolute or contains traversal, root, or prefix
-/// components.
-#[must_use]
-pub fn normalize_repository_path(input_path: impl AsRef<Path>) -> String {
+/// Returns an error when the path is absolute or contains traversal, root, or
+/// prefix components.
+pub fn normalize_repository_path(input_path: impl AsRef<Path>) -> Result<String, FixturePathError> {
     let repository_path = input_path.as_ref();
-    assert!(
-        !repository_path.is_absolute()
-            && repository_path.components().all(|component| !matches!(
-                component,
-                Component::ParentDir | Component::RootDir | Component::Prefix(_)
-            )),
-        "snapshot paths must be repository-relative and must not contain traversal, root, or prefix components: {}",
-        repository_path.display()
-    );
+    validate_repository_path(repository_path)?;
 
-    repository_path
+    let normalized = repository_path
         .components()
-        .flat_map(|component| match component {
-            Component::Normal(path_part) => path_part
-                .to_string_lossy()
-                .split('\\')
-                .map(|normalized_part| {
-                    assert!(
-                        !normalized_part.is_empty()
-                            && normalized_part != "."
-                            && normalized_part != "..",
-                        "snapshot paths must be repository-relative and must not contain traversal, root, or prefix components: {}",
-                        repository_path.display()
-                    );
-                    normalized_part.to_owned()
-                })
-                .collect::<Vec<_>>(),
-            Component::CurDir => Vec::new(),
-            invalid_component @ (Component::Prefix(_)
-            | Component::RootDir
-            | Component::ParentDir) => {
-                assert!(
-                    !matches!(
-                        invalid_component,
-                        Component::Prefix(_) | Component::RootDir | Component::ParentDir
-                    ),
-                    "snapshot paths must be repository-relative and must not contain traversal, root, or prefix components: {}",
-                    repository_path.display()
-                );
-                Vec::new()
+        .try_fold(Vec::new(), |mut parts, component| {
+            match component {
+                Component::Normal(path_part) => {
+                    for normalized_part in path_part.to_string_lossy().split('\\') {
+                        if matches!(normalized_part, "" | "." | "..") {
+                            return Err(FixturePathError::new(
+                                repository_path,
+                                FixturePathErrorKind::EmptyComponent,
+                            ));
+                        }
+                        parts.push(normalized_part.to_owned());
+                    }
+                }
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    return Err(FixturePathError::new(
+                        repository_path,
+                        FixturePathErrorKind::ParentTraversal,
+                    ));
+                }
+                Component::RootDir => {
+                    return Err(FixturePathError::new(
+                        repository_path,
+                        FixturePathErrorKind::RootRelative,
+                    ));
+                }
+                Component::Prefix(_) => {
+                    return Err(FixturePathError::new(
+                        repository_path,
+                        FixturePathErrorKind::Prefix,
+                    ));
+                }
             }
-        })
-        .collect::<Vec<_>>()
-        .join("/")
+            Ok(parts)
+        })?
+        .join("/");
+
+    Ok(normalized)
+}
+
+fn validate_repository_path(path: &Path) -> Result<(), FixturePathError> {
+    if path.is_absolute() {
+        return Err(FixturePathError::new(path, FixturePathErrorKind::Absolute));
+    }
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                return Err(FixturePathError::new(
+                    path,
+                    FixturePathErrorKind::ParentTraversal,
+                ));
+            }
+            Component::RootDir => {
+                return Err(FixturePathError::new(
+                    path,
+                    FixturePathErrorKind::RootRelative,
+                ));
+            }
+            Component::Prefix(_) => {
+                return Err(FixturePathError::new(path, FixturePathErrorKind::Prefix));
+            }
+            Component::Normal(_) | Component::CurDir => {}
+        }
+    }
+    Ok(())
+}
+
+fn markdown_regions(source: &str) -> Vec<GoldenRegion> {
+    if source.trim().is_empty() {
+        Vec::new()
+    } else {
+        vec![GoldenRegion::new(
+            "document",
+            source,
+            vec![Segment::source(
+                ByteSpan {
+                    start: 0,
+                    end: source.len(),
+                },
+                source,
+            )],
+        )]
+    }
 }
 
 /// One edit used by the internal round-trip test helper.
@@ -204,7 +318,7 @@ impl RoundTripEdit {
     #[must_use]
     pub fn source(start: usize, end: usize, replacement: impl Into<String>) -> Self {
         Self::Source {
-            span: ByteSpan::new_unchecked(start, end),
+            span: ByteSpan { start, end },
             replacement: replacement.into(),
         }
     }
@@ -298,6 +412,21 @@ pub fn apply_round_trip_edits(
     source: &str,
     edits: &[RoundTripEdit],
 ) -> Result<RoundTripEditResult, RoundTripEditError> {
+    let source_edits = sorted_source_edits(source, edits)?;
+    let after = apply_source_edits(source, &source_edits)?;
+    let applied_edits = round_trip_edits(source_edits);
+
+    Ok(RoundTripEditResult {
+        before: source.to_owned(),
+        after,
+        applied_edits,
+    })
+}
+
+fn sorted_source_edits(
+    source: &str,
+    edits: &[RoundTripEdit],
+) -> Result<Vec<(ByteSpan, String)>, RoundTripEditError> {
     let mut source_edits = Vec::new();
     for edit in edits {
         match edit {
@@ -313,30 +442,33 @@ pub fn apply_round_trip_edits(
 
     source_edits.sort_by_key(|(span, _replacement)| (span.start, span.end));
     reject_overlaps(&source_edits)?;
+    Ok(source_edits)
+}
 
+fn apply_source_edits(
+    source: &str,
+    source_edits: &[(ByteSpan, String)],
+) -> Result<String, RoundTripEditError> {
     let mut after = String::new();
     let mut cursor = 0;
-    for (span, replacement) in &source_edits {
+    for (span, replacement) in source_edits {
         after.push_str(utf8_slice(source, cursor, span.start)?);
         after.push_str(replacement);
         cursor = span.end;
     }
     after.push_str(utf8_slice(source, cursor, source.len())?);
+    Ok(after)
+}
 
-    let applied_edits = source_edits
+fn round_trip_edits(source_edits: Vec<(ByteSpan, String)>) -> Vec<RoundTripEdit> {
+    source_edits
         .into_iter()
         .map(|(span, replacement)| RoundTripEdit::Source { span, replacement })
-        .collect();
-
-    Ok(RoundTripEditResult {
-        before: source.to_owned(),
-        after,
-        applied_edits,
-    })
+        .collect()
 }
 
 fn utf8_slice(source: &str, start: usize, end: usize) -> Result<&str, RoundTripEditError> {
-    let span = ByteSpan::new_unchecked(start, end);
+    let span = ByteSpan { start, end };
     source
         .get(start..end)
         .ok_or(RoundTripEditError::NonUtf8Boundary { span })

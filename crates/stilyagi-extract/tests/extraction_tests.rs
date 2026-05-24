@@ -289,41 +289,58 @@ fn try_from_str_rejects_unknown_syntax(#[case] input: &str) {
     assert!(error.to_string().contains(input) || input.is_empty());
 }
 
-// ----- corpus_fixture_path path-validation panics -----
+// ----- corpus_fixture_path path validation -----
 
 #[test]
-#[should_panic(expected = "corpus fixture path must be repository-relative")]
 fn corpus_fixture_path_rejects_absolute_path() {
     let path = if cfg!(windows) {
         "C:\\etc\\passwd"
     } else {
         "/etc/passwd"
     };
-    drop(stilyagi_test_support::corpus_fixture_path(path));
+    let Err(error) = stilyagi_test_support::corpus_fixture_path(path) else {
+        panic!("expected absolute path rejection");
+    };
+    assert_eq!(
+        error.kind,
+        stilyagi_test_support::FixturePathErrorKind::Absolute,
+    );
 }
 
 #[test]
-#[should_panic(expected = "corpus fixture path must not contain parent-directory traversal")]
 fn corpus_fixture_path_rejects_parent_traversal() {
-    drop(stilyagi_test_support::corpus_fixture_path(
-        "../../etc/passwd",
-    ));
+    let Err(error) = stilyagi_test_support::corpus_fixture_path("../../etc/passwd") else {
+        panic!("expected parent traversal rejection");
+    };
+    assert_eq!(
+        error.kind,
+        stilyagi_test_support::FixturePathErrorKind::ParentTraversal,
+    );
 }
 
 #[test]
 #[cfg(windows)]
-#[should_panic(expected = "corpus fixture path must not contain a drive or path prefix")]
 fn corpus_fixture_path_rejects_drive_prefix() {
-    drop(stilyagi_test_support::corpus_fixture_path(
-        std::path::Path::new("C:\\windows\\system32"),
-    ));
+    let Err(error) =
+        stilyagi_test_support::corpus_fixture_path(std::path::Path::new("C:\\windows\\system32"))
+    else {
+        panic!("expected drive prefix rejection");
+    };
+    assert_eq!(
+        error.kind,
+        stilyagi_test_support::FixturePathErrorKind::Prefix,
+    );
 }
 
 #[test]
 #[cfg(windows)]
-#[should_panic(expected = "corpus fixture path must not be root-relative")]
 fn corpus_fixture_path_rejects_root_relative() {
-    drop(stilyagi_test_support::corpus_fixture_path(
-        std::path::Path::new("\\etc"),
-    ));
+    let Err(error) = stilyagi_test_support::corpus_fixture_path(std::path::Path::new("\\etc"))
+    else {
+        panic!("expected root-relative rejection");
+    };
+    assert_eq!(
+        error.kind,
+        stilyagi_test_support::FixturePathErrorKind::RootRelative,
+    );
 }

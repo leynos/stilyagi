@@ -609,6 +609,16 @@ types that make tests readable and keep invalid states hard to express.
   branch. `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
   `make nixie` passed. `make test` ran 83 Rust tests and 66 Python tests.
   `coderabbit review --agent` completed with zero findings.
+- [x] (2026-05-24T12:00:00+02:00) Began unit-architecture follow-up. Path
+  validation still hid invalid input behind assertions, and round-trip edit
+  application still combined collection, validation, ordering, rendering, and
+  result assembly in one function. The public golden IR types remain necessary
+  across `stilyagi-ir` and `stilyagi-test-support` for this branch, but are now
+  hidden from generated documentation pending a future crate-boundary redesign.
+  `make fmt`, `make lint`, and `make test` passed. `make test` ran 83 Rust
+  tests and 66 Python tests. `make markdownlint`, `make nixie`, and
+  `make check-fmt` also passed. `coderabbit review --agent` completed with
+  zero findings.
 
 ## Surprises & Discoveries
 
@@ -689,6 +699,15 @@ types that make tests readable and keep invalid states hard to express.
   separately. Impact: no `Arc`/`Cow` conversion is made in this review
   follow-up; changing those public DTO fields would be a larger schema/API
   redesign.
+- Observation: `corpus_fixture_path` and `normalize_repository_path` still used
+  assertions for invalid caller input. Impact: these helpers now return typed
+  `FixturePathError` values, while fixture reads wrap invalid paths and IO
+  failures in `FixtureReadError`.
+- Observation: fully moving golden IR DTOs out of `stilyagi-ir` would require
+  moving canonical JSON serialization and changing the cross-crate test-support
+  boundary. Impact: this follow-up keeps the existing dependency shape, marks
+  the test DTOs as `#[doc(hidden)]`, and records the private-crate redesign as
+  future work rather than widening this review patch.
 
 ## Decision Log
 
