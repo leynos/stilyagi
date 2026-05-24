@@ -1,3 +1,10 @@
+//! Round-trip edit helpers for applying source-backed replacements in tests.
+//! [`RoundTripEdit`] accepts byte-oriented [`ByteSpan`] ranges for
+//! source-backed edits and rejects synthetic edits, malformed spans, non-UTF-8
+//! boundaries, and overlaps through [`apply_round_trip_edits`]. Callers pass
+//! source text plus candidate edits and consume the returned
+//! [`RoundTripEditResult`] to compare before/after text and applied edit order.
+
 use crate::golden_ir::ByteSpan;
 
 /// One edit used by the internal round-trip test helper.

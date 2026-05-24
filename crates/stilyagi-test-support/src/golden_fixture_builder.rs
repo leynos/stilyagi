@@ -1,3 +1,9 @@
+//! Golden fixture builders for the test-support crate. These helpers read
+//! corpus fixtures, normalize their repository-relative names, compute line
+//! indexes with [`stilyagi_ir::line_index_for`], and assemble
+//! [`GoldenDocument`], [`GoldenBody`], [`GoldenRegion`], and [`Segment`]
+//! values for snapshot and contract tests.
+
 use std::path::Path;
 
 use stilyagi_ir::line_index_for;

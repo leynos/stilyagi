@@ -163,6 +163,8 @@ fn normalize_repository_path_uses_posix_separators() {
 #[rstest]
 #[case("/tmp/example.md", FixturePathErrorKind::Absolute)]
 #[case("tests/../example.md", FixturePathErrorKind::ParentTraversal)]
+#[case("", FixturePathErrorKind::EmptyComponent)]
+#[case(".", FixturePathErrorKind::EmptyComponent)]
 fn normalize_repository_path_rejects_invalid_paths(
     #[case] input: &str,
     #[case] expected_kind: FixturePathErrorKind,

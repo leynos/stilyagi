@@ -1,3 +1,8 @@
+//! Fixture I/O helpers for reading repository test fixtures. This module
+//! composes with [`crate::fixture_paths::corpus_fixture_path`] so all reads
+//! validate repository-relative paths first and surface
+//! [`crate::fixture_paths::FixturePathError`] through [`FixtureReadError`].
+
 use std::path::Path;
 
 use crate::fixture_paths::{FixturePathError, corpus_fixture_path};

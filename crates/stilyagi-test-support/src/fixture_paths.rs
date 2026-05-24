@@ -1,3 +1,10 @@
+//! Repository-relative fixture path validation and normalization helpers.
+//! Callers must pass paths that name a fixture within the repository, without
+//! absolute roots, platform prefixes, parent traversal, empty components, or
+//! current-directory-only inputs. The functions in this module either return a
+//! normalized repository-relative path or a typed rejection reason, so fixture
+//! readers never silently escape the repository boundary.
+
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
@@ -127,7 +134,7 @@ pub fn normalize_repository_path(input_path: impl AsRef<Path>) -> Result<String,
     let repository_path = input_path.as_ref();
     validate_repository_path(repository_path)?;
 
-    let normalized = repository_path
+    let parts = repository_path
         .components()
         .try_fold(Vec::new(), |mut parts, component| {
             match component {
@@ -163,10 +170,15 @@ pub fn normalize_repository_path(input_path: impl AsRef<Path>) -> Result<String,
                 }
             }
             Ok(parts)
-        })?
-        .join("/");
+        })?;
+    if parts.is_empty() {
+        return Err(FixturePathError::new(
+            repository_path,
+            FixturePathErrorKind::EmptyComponent,
+        ));
+    }
 
-    Ok(normalized)
+    Ok(parts.join("/"))
 }
 
 pub(crate) fn validate_repository_path(path: &Path) -> Result<(), FixturePathError> {
