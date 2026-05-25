@@ -46,6 +46,10 @@
     plans the internal golden IR, CLI snapshot, and fix round-trip helper work
     that lets later slices regression-test spans, segments, diagnostics, and
     edits cheaply.
+  - [1.3.3 cold and warm baseline performance probes](
+    execplans/1-3-3-cold-and-warm-baseline-performance-probes.md)
+    plans the repository-local cold and warm structural performance probes
+    that let later slices preserve the structural fast path.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
