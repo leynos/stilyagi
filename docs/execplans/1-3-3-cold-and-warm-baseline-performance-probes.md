@@ -512,7 +512,11 @@ Final validation must include:
 - [x] 2026-05-25: Milestone 5 roadmap item marked done in `docs/roadmap.md`.
 - [x] 2026-05-25: Implementation is complete locally. The branch still needs
   its updated commit pushed and the draft pull request description refreshed.
-- [ ] Implementation PR prepared.
+- [x] 2026-05-25: Implementation commit `33dfdd9` was pushed to
+  `origin/1-3-3-cold-and-warm-baseline-performance-probes`, and draft PR
+  <https://github.com/leynos/stilyagi/pull/16> was updated with the
+  implementation summary, validation evidence, ExecPlan link, and Lody session
+  reference.
 
 ## Surprises & Discoveries
 
