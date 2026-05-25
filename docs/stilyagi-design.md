@@ -1132,7 +1132,10 @@ The design must be validated with the following test classes.
 - Malformed input tests: broken Markdown, partial MDX, invalid Python, and
   incomplete Rust comments.
 - Performance baselines: cold and warm runs for structural-only and NLP-backed
-  rule sets.
+  rule sets. The initial structural baseline is the maintainer-facing
+  `tests.performance.structural_probe` command, which measures
+  `stilyagi.engine.extract_document` against the shared Markdown fixture before
+  the public CLI and NLP-backed analysis are available.
 - Rule-pack integration tests: install synthetic third-party packs and verify
   discovery, activation, conflict errors, and config parsing.
 - Autofix safety tests: ensure safe fixes never target synthetic spans and

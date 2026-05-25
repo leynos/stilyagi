@@ -4,9 +4,9 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
  `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
-Approval gate: this plan must be approved before implementation starts.
+Approval gate: the user approved implementation on 2026-05-25.
 
 ## Purpose / big picture
 
@@ -445,12 +445,74 @@ Final validation must include:
   classification rather than hard timing budgets.
 - [x] 2026-05-25: Used external research to resolve prior-art gaps around
   `hyperfine`, Criterion.rs, `pytest-benchmark`, and `iai-callgrind`.
-- [ ] Draft approved by the user.
-- [ ] Milestone 1 tests added and observed failing for the expected reason.
-- [ ] Milestone 2 probe harness implemented.
-- [ ] Milestone 3 documentation updated.
-- [ ] Milestone 4 gates and CodeRabbit review passed.
-- [ ] Milestone 5 roadmap item marked done and implementation PR prepared.
+- [x] 2026-05-25: Draft approved by the user; implementation may proceed
+  within this plan's constraints and tolerances.
+- [x] 2026-05-25: Milestone 1 tests added in
+  `tests/test_structural_performance_probe.py` and
+  `features/stilyagi_structural_performance_probe.feature`. The targeted red
+  run
+  `.venv/bin/python -m pytest tests/test_structural_performance_probe.py -q`
+  failed during collection with `ModuleNotFoundError: No module named
+  'tests.performance'`, which is the expected missing-probe failure. Log:
+
+  ```plaintext
+  /tmp/test-targeted-red-stilyagi-1-3-3-cold-and-warm-baseline-performance-probes.out
+  ```
+
+- [x] 2026-05-25: Milestone 2 probe harness implemented under
+  `tests/performance/structural_probe.py`. The harness discovers the shared
+  Markdown fixture, measures cold runs through fresh `sys.executable -m
+  tests.performance.structural_probe --child-run` subprocesses, primes and
+  measures warm runs in-process, writes stable JSON, and redacts volatile
+  timing/environment fields for snapshots. Targeted green run
+  `.venv/bin/python -m pytest tests/test_structural_performance_probe.py
+  --snapshot-update -q` passed with `8 passed`; log:
+
+  ```plaintext
+  /tmp/test-targeted-green-stilyagi-1-3-3-cold-and-warm-baseline-performance-probes.out
+  ```
+
+- [x] 2026-05-25: Deterministic gates before the first CodeRabbit review
+  passed: `make check-fmt`, `make lint`, `make typecheck`, `make test`,
+  `make markdownlint`, and `make nixie`. Logs are under `/tmp` with the
+  `*-stilyagi-1-3-3-cold-and-warm-baseline-performance-probes.out` naming
+  convention from this plan.
+- [x] 2026-05-25: Ran the maintainer-facing probe command
+  `.venv/bin/python -m tests.performance.structural_probe --mode both --output
+  build/performance/structural-baseline.json`; it wrote ignored JSON output
+  under `build/performance/`. Log:
+
+  ```plaintext
+  /tmp/performance-probe-stilyagi-1-3-3-cold-and-warm-baseline-performance-probes.out
+  ```
+
+- [x] 2026-05-25: First CodeRabbit milestone review completed with two minor
+  findings. Removed the unnecessary `from __future__ import annotations`
+  import. Skipped the suggested explicit `return` in `write_report` because
+  the function already has `-> None` and the deterministic Ruff gate rejects
+  the explicit final return with `PLR1711`.
+- [x] 2026-05-25: Milestone 3 documentation updated. Added the structural
+  performance probe workflow to `docs/developers-guide.md`, recorded the
+  initial method in `docs/stilyagi-design.md` section 11, and left
+  `docs/users-guide.md` unchanged because no public CLI or library API changed.
+- [x] 2026-05-25: Re-ran the full deterministic gate set after the CodeRabbit
+  fix and documentation milestone. `make check-fmt`, `make lint`, `make
+  typecheck`, `make test`, `make markdownlint`, `make nixie`, and the
+  structural probe command passed.
+- [x] 2026-05-25: Second CodeRabbit milestone review completed with two
+  trivial findings. Added an explicit fixture assertion message and converted
+  `_runs_from_report` to use structural pattern matching while preserving the
+  existing error messages.
+- [x] 2026-05-25: Milestone 4 gates and CodeRabbit review passed. Final
+  deterministic validation passed before the final review. The final
+  CodeRabbit review repeated a request to replace the repository-standard
+  `import typing as typ` alias with `import typing`; this was skipped because
+  `pyproject.toml` explicitly configures Ruff's import-convention alias for
+  `typing = "typ"`.
+- [x] 2026-05-25: Milestone 5 roadmap item marked done in `docs/roadmap.md`.
+- [x] 2026-05-25: Implementation is complete locally. The branch still needs
+  its updated commit pushed and the draft pull request description refreshed.
+- [ ] Implementation PR prepared.
 
 ## Surprises & Discoveries
 
@@ -462,6 +524,17 @@ Final validation must include:
 - The design document already reserves a `tests/performance/` slot and calls
   for cold and warm performance baselines, but it does not define the
   measurement method, schema, thresholds, or storage convention.
+- `pytest-bdd`, `hypothesis`, and `syrupy` are already present in
+  `pyproject.toml`, so the planned unit, behavioural, property, and snapshot
+  tests do not require new dependencies.
+- The first cold run implementation measures extraction time inside the child
+  interpreter, not total subprocess wall-clock time. This preserves the
+  "fresh interpreter" classification without letting process startup dominate
+  the structural extraction number.
+- CodeRabbit can suggest changes that conflict with deterministic project
+  tooling. In this slice, the `typing` alias suggestion was invalid because
+  the Ruff import-convention configuration requires `typing` to be imported as
+  `typ`.
 
 ## Decision Log
 
@@ -480,10 +553,48 @@ Final validation must include:
 - 2026-05-25: Keep user-facing guide updates conditional. Rationale: the first
   probe is maintainer-facing unless implementation changes a public API or CLI
   promise.
+- 2026-05-25: Start implementation after explicit user approval. Rationale:
+  the ExecPlan approval gate has been satisfied, and the remaining work is
+  inside the documented tolerances.
+- 2026-05-25: Keep generated raw probe output ignored under
+  `build/performance/` and commit only the redacted snapshot schema. Rationale:
+  raw local timings contain machine-specific evidence, while the snapshot pins
+  the contract later slices need to preserve.
+- 2026-05-25: Measure cold extraction inside a fresh child interpreter rather
+  than timing the parent-side subprocess duration. Rationale: the slice needs
+  to prove structural extraction remains fast through a fresh interpreter path,
+  while avoiding a baseline that is mostly Python process startup.
+- 2026-05-25: Do not update `docs/users-guide.md`. Rationale: the probe is a
+  maintainer-facing workflow under `tests.performance`, not a supported user
+  command or library API.
+- 2026-05-25: Keep `import typing as typ` in the new Python files. Rationale:
+  `pyproject.toml` declares `typing = "typ"` under Ruff import conventions, so
+  changing to `import typing` would contradict the deterministic lint policy.
 
 ## Outcomes & Retrospective
 
-This section is intentionally empty while the plan is in draft. During
-implementation, record what shipped, what changed from the plan, which
-validation evidence proved the feature, and whether the chosen baseline method
-was sufficient for later roadmap slices.
+This slice shipped a maintainer-facing structural performance probe under
+`tests.performance.structural_probe`. Maintainers can run:
+
+```bash
+.venv/bin/python -m tests.performance.structural_probe \
+  --mode both \
+  --output build/performance/structural-baseline.json
+```
+
+The command measures the existing public Python adapter backed by the embedded
+Rust extractor, writes machine-readable JSON under the ignored
+`build/performance/` tree, and keeps cold and warm runs separate. Cold means
+the extraction happens inside a fresh Python interpreter; warm means the
+current interpreter is primed before measurement. The implementation commits
+only the stable redacted snapshot contract, not raw machine-specific timings.
+
+Validation covered Python unit tests, Python BDD, a `syrupy` JSON snapshot,
+full Rust and Python test gates, Markdown linting, Mermaid validation, the
+actual probe command, and repeated CodeRabbit reviews. CodeRabbit's actionable
+findings were fixed. One final repeated suggestion to replace the
+repository-standard `typing as typ` alias was rejected because it conflicts
+with the Ruff import-convention configuration in `pyproject.toml`.
+
+No public user-facing CLI or library API changed, so `docs/users-guide.md` was
+left unchanged. Roadmap item 1.3.3 is marked done in `docs/roadmap.md`.

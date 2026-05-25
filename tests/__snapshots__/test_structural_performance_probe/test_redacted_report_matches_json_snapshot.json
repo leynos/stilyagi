@@ -1,0 +1,37 @@
+{
+  "corpus": {
+    "file_count": 1,
+    "fixture_paths": [
+      "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md"
+    ]
+  },
+  "entrypoint": "stilyagi.engine.extract_document",
+  "environment": {
+    "platform": "<redacted>",
+    "python": "<redacted>"
+  },
+  "probe": "structural-markdown",
+  "runs": [
+    {
+      "durations_ns": "<redacted>",
+      "iterations": 3,
+      "mode": "cold",
+      "summary_ns": {
+        "max": "<redacted>",
+        "median": "<redacted>",
+        "min": "<redacted>"
+      }
+    },
+    {
+      "durations_ns": "<redacted>",
+      "iterations": 3,
+      "mode": "warm",
+      "summary_ns": {
+        "max": "<redacted>",
+        "median": "<redacted>",
+        "min": "<redacted>"
+      }
+    }
+  ],
+  "schema_version": 1
+}
