@@ -144,6 +144,15 @@ def test_summarises_odd_and_even_duration_sets() -> None:
     }
 
 
+def test_summarise_durations_rejects_empty_sequence() -> None:
+    """Reject empty duration sequences with a clear failure."""
+    with pytest.raises(
+        ValueError,
+        match="cannot summarise an empty duration sequence",
+    ):
+        structural_probe.summarise_durations([])
+
+
 def test_builds_structural_report_shape() -> None:
     """Build the stable report shape from measured run data."""
     report = structural_probe.build_report(

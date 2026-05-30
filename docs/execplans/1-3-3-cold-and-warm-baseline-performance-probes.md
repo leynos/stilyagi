@@ -408,7 +408,7 @@ Targeted validation should include:
 - Python behavioural tests with `pytest-bdd` for running the maintainer-facing
   structural probe and receiving a cold/warm report.
 - Python snapshot tests with `syrupy` for redacted JSON output shape when the
-  schema stabilizes.
+  schema stabilises.
 - Rust `rstest` tests only if Rust probe DTOs or helpers are introduced.
 - Rust `insta` snapshots only if Rust code owns an output format.
 - Property tests with `hypothesis` or `proptest` only for deterministic
