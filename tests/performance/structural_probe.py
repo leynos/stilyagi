@@ -92,7 +92,7 @@ def discover_structural_fixtures(root: pathlib.Path) -> tuple[pathlib.Path, ...]
     return (fixture,)
 
 
-def normalise_repository_path(path: pathlib.Path, root: pathlib.Path) -> str:
+def normalize_repository_path(path: pathlib.Path, root: pathlib.Path) -> str:
     """Return a portable repository-relative path with POSIX separators."""
     try:
         relative = path.resolve().relative_to(root.resolve())
@@ -102,10 +102,10 @@ def normalise_repository_path(path: pathlib.Path, root: pathlib.Path) -> str:
     return relative.as_posix()
 
 
-def summarise_durations(durations_ns: cabc.Sequence[int]) -> SummaryNs:
-    """Summarise nanosecond durations with deterministic integer values."""
+def summarize_durations(durations_ns: cabc.Sequence[int]) -> SummaryNs:
+    """Summarize nanosecond durations with deterministic integer values."""
     if not durations_ns:
-        msg = "cannot summarise an empty duration sequence"
+        msg = "cannot summarize an empty duration sequence"
         raise ValueError(msg)
     ordered = sorted(durations_ns)
     return SummaryNs(
@@ -122,8 +122,8 @@ def build_report(
     runs: cabc.Sequence[ProbeRun],
 ) -> ReportPayload:
     """Build the stable JSON-compatible structural probe report."""
-    normalised_fixtures = [
-        normalise_repository_path(path, repository_root) for path in fixture_paths
+    normalized_fixtures = [
+        normalize_repository_path(path, repository_root) for path in fixture_paths
     ]
     return ReportPayload(
         schema_version=SCHEMA_VERSION,
@@ -134,8 +134,8 @@ def build_report(
             python=platform.python_version(),
         ),
         corpus=CorpusPayload(
-            fixture_paths=normalised_fixtures,
-            file_count=len(normalised_fixtures),
+            fixture_paths=normalized_fixtures,
+            file_count=len(normalized_fixtures),
         ),
         runs=[_run_payload(run) for run in runs],
     )
@@ -199,14 +199,14 @@ def _run_payload(run: ProbeRun) -> RunPayload:
         mode=run.mode,
         iterations=len(run.durations_ns),
         durations_ns=list(run.durations_ns),
-        summary_ns=summarise_durations(run.durations_ns),
+        summary_ns=summarize_durations(run.durations_ns),
     )
 
 
 def _display_output_path(output_path: pathlib.Path, root: pathlib.Path) -> str:
     """Return a non-absolute output path for command feedback."""
     try:
-        return normalise_repository_path(output_path, root)
+        return normalize_repository_path(output_path, root)
     except ValueError:
         return output_path.name
 
