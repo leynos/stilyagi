@@ -1,7 +1,7 @@
 # Add cold and warm structural performance probes
 
 This ExecPlan (execution plan) is a living document. The sections `Constraints`,
- `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
@@ -128,7 +128,7 @@ External tooling references resolved during planning:
 - Criterion.rs documents saved baselines through
   `cargo bench -- --save-baseline <name>` at
   <https://bheisler.github.io/criterion.rs/book/user_guide/command_line_options.html>.
-   It is useful later for direct Rust extractor benchmarks, but the initial
+  It is useful later for direct Rust extractor benchmarks, but the initial
   baseline must exercise the Python-to-Rust boundary.
 - `pytest-benchmark` documents saved benchmark runs and comparisons at
   <https://pytest-benchmark.readthedocs.io/en/latest/>. It is useful prior art,
@@ -449,11 +449,11 @@ Final validation must include:
   within this plan's constraints and tolerances.
 - [x] 2026-05-25: Milestone 1 tests added in
   `tests/test_structural_performance_probe.py` and
-  `features/stilyagi_structural_performance_probe.feature`. The targeted red
-  run
+  `features/stilyagi_structural_performance_probe.feature`. The targeted red run
   `.venv/bin/python -m pytest tests/test_structural_performance_probe.py -q`
-  failed during collection with `ModuleNotFoundError: No module named
-  'tests.performance'`, which is the expected missing-probe failure. Log:
+  failed during collection with
+  `ModuleNotFoundError: No module named 'tests.performance'`, which is the
+  expected missing-probe failure. Log:
 
   ```plaintext
   /tmp/test-targeted-red-stilyagi-1-3-3-cold-and-warm-baseline-performance-probes.out
@@ -461,12 +461,17 @@ Final validation must include:
 
 - [x] 2026-05-25: Milestone 2 probe harness implemented under
   `tests/performance/structural_probe.py`. The harness discovers the shared
-  Markdown fixture, measures cold runs through fresh `sys.executable -m
-  tests.performance.structural_probe --child-run` subprocesses, primes and
-  measures warm runs in-process, writes stable JSON, and redacts volatile
-  timing/environment fields for snapshots. Targeted green run
-  `.venv/bin/python -m pytest tests/test_structural_performance_probe.py
-  --snapshot-update -q` passed with `8 passed`; log:
+  Markdown fixture, measures cold runs through fresh
+  `sys.executable -m tests.performance.structural_probe --child-run`
+  subprocesses, primes and measures warm runs in-process, writes stable JSON,
+  and redacts volatile timing/environment fields for snapshots. Targeted green
+  run passed with `8 passed`; log:
+
+  ```console
+  .venv/bin/python -m pytest \
+      tests/test_structural_performance_probe.py \
+      --snapshot-update -q
+  ```
 
   ```plaintext
   /tmp/test-targeted-green-stilyagi-1-3-3-cold-and-warm-baseline-performance-probes.out
@@ -478,9 +483,8 @@ Final validation must include:
   `*-stilyagi-1-3-3-cold-and-warm-baseline-performance-probes.out` naming
   convention from this plan.
 - [x] 2026-05-25: Ran the maintainer-facing probe command
-  `.venv/bin/python -m tests.performance.structural_probe --mode both --output
-  build/performance/structural-baseline.json`; it wrote ignored JSON output
-  under `build/performance/`. Log:
+  `.venv/bin/python -m tests.performance.structural_probe --mode both --output build/performance/structural-baseline.json`;
+  it wrote ignored JSON output under `build/performance/`. Log:
 
   ```plaintext
   /tmp/performance-probe-stilyagi-1-3-3-cold-and-warm-baseline-performance-probes.out
@@ -488,24 +492,24 @@ Final validation must include:
 
 - [x] 2026-05-25: First CodeRabbit milestone review completed with two minor
   findings. Removed the unnecessary `from __future__ import annotations`
-  import. Skipped the suggested explicit `return` in `write_report` because
-  the function already has `-> None` and the deterministic Ruff gate rejects
-  the explicit final return with `PLR1711`.
+  import. Skipped the suggested explicit `return` in `write_report` because the
+  function already has `-> None` and the deterministic Ruff gate rejects the
+  explicit final return with `PLR1711`.
 - [x] 2026-05-25: Milestone 3 documentation updated. Added the structural
   performance probe workflow to `docs/developers-guide.md`, recorded the
   initial method in `docs/stilyagi-design.md` section 11, and left
   `docs/users-guide.md` unchanged because no public CLI or library API changed.
 - [x] 2026-05-25: Re-ran the full deterministic gate set after the CodeRabbit
-  fix and documentation milestone. `make check-fmt`, `make lint`, `make
-  typecheck`, `make test`, `make markdownlint`, `make nixie`, and the
+  fix and documentation milestone. `make check-fmt`, `make lint`,
+  `make typecheck`, `make test`, `make markdownlint`, `make nixie`, and the
   structural probe command passed.
 - [x] 2026-05-25: Second CodeRabbit milestone review completed with two
   trivial findings. Added an explicit fixture assertion message and converted
   `_runs_from_report` to use structural pattern matching while preserving the
   existing error messages.
 - [x] 2026-05-25: Milestone 4 gates and CodeRabbit review passed. Final
-  deterministic validation passed before the final review. The final
-  CodeRabbit review repeated a request to replace the repository-standard
+  deterministic validation passed before the final review. The final CodeRabbit
+  review repeated a request to replace the repository-standard
   `import typing as typ` alias with `import typing`; this was skipped because
   `pyproject.toml` explicitly configures Ruff's import-convention alias for
   `typing = "typ"`.
@@ -532,12 +536,12 @@ Final validation must include:
   `pyproject.toml`, so the planned unit, behavioural, property, and snapshot
   tests do not require new dependencies.
 - The first cold run implementation measures extraction time inside the child
-  interpreter, not total subprocess wall-clock time. This preserves the
-  "fresh interpreter" classification without letting process startup dominate
-  the structural extraction number.
+  interpreter, not total subprocess wall-clock time. This preserves the "fresh
+  interpreter" classification without letting process startup dominate the
+  structural extraction number.
 - CodeRabbit can suggest changes that conflict with deterministic project
-  tooling. In this slice, the `typing` alias suggestion was invalid because
-  the Ruff import-convention configuration requires `typing` to be imported as
+  tooling. In this slice, the `typing` alias suggestion was invalid because the
+  Ruff import-convention configuration requires `typing` to be imported as
   `typ`.
 
 ## Decision Log
