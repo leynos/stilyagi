@@ -2,7 +2,7 @@
 
 import json
 import pathlib
-import subprocess  # noqa: S404
+import subprocess  # noqa: S404 -- justified: using subprocess in test to run external benchmark tool; validated input/control
 import sys
 import typing as typ
 
@@ -14,6 +14,14 @@ from tests.performance import structural_probe
 
 if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
+
+
+class ProbeState(typ.TypedDict):
+    """Scenario state for structural probe BDD steps."""
+
+    output_path: pathlib.Path
+    completed: subprocess.CompletedProcess[str] | typ.Literal[False]
+
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 MARKDOWN_FIXTURE = (
@@ -36,9 +44,12 @@ def test_maintainers_can_record_structural_timings() -> None:
 
 
 @pytest.fixture
-def probe_state(tmp_path: pathlib.Path) -> dict[str, object]:
+def probe_state(tmp_path: pathlib.Path) -> ProbeState:
     """Return scenario state for structural probe BDD steps."""
-    return {"output_path": tmp_path / "structural-baseline.json"}
+    return ProbeState(
+        output_path=tmp_path / "structural-baseline.json",
+        completed=False,
+    )
 
 
 @given("the shared Markdown structural fixture is available")
@@ -48,10 +59,10 @@ def shared_markdown_structural_fixture_is_available() -> None:
 
 
 @when("I run the structural performance probe for cold and warm modes")
-def run_structural_performance_probe(probe_state: dict[str, object]) -> None:
+def run_structural_performance_probe(probe_state: ProbeState) -> None:
     """Run the maintainer-facing probe module as a subprocess."""
-    output_path = typ.cast("pathlib.Path", probe_state["output_path"])
-    probe_state["completed"] = subprocess.run(  # noqa: S603
+    output_path = probe_state["output_path"]
+    probe_state["completed"] = subprocess.run(  # noqa: S603 -- justified: spawning own module under test with known sys.executable; no user input reaches argv
         [
             sys.executable,
             "-m",
@@ -72,11 +83,14 @@ def run_structural_performance_probe(probe_state: dict[str, object]) -> None:
 
 @then("the probe writes a JSON report with cold and warm runs")
 def probe_writes_json_report_with_cold_and_warm_runs(
-    probe_state: dict[str, object],
+    probe_state: ProbeState,
 ) -> None:
     """Assert the scenario-visible probe result."""
-    completed = typ.cast("subprocess.CompletedProcess[str]", probe_state["completed"])
-    output_path = typ.cast("pathlib.Path", probe_state["output_path"])
+    completed = probe_state["completed"]
+    assert isinstance(completed, subprocess.CompletedProcess), (
+        "expected CompletedProcess after probe run"
+    )
+    output_path = probe_state["output_path"]
 
     assert completed.returncode == 0, completed.stderr
     assert output_path.is_file()

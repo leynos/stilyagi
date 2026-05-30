@@ -5,7 +5,7 @@ import json
 import pathlib
 import platform
 import statistics
-import subprocess  # noqa: S404
+import subprocess  # noqa: S404 -- justified: using subprocess in test to run external benchmark tool; validated input/control
 import sys
 import time
 import typing as typ
@@ -24,7 +24,51 @@ MARKDOWN_FIXTURE = pathlib.Path(
 )
 
 type ProbeMode = typ.Literal["cold", "warm"]
-type Report = dict[str, object]
+
+
+class SummaryNs(typ.TypedDict):
+    """Nanosecond duration summary with deterministic integer values."""
+
+    min: int
+    median: int
+    max: int
+
+
+class RunPayload(typ.TypedDict):
+    """JSON-compatible run payload (raw or redacted)."""
+
+    mode: str
+    iterations: int
+    durations_ns: list[int] | str
+    summary_ns: SummaryNs | dict[str, str]
+
+
+class EnvironmentPayload(typ.TypedDict):
+    """Machine-identifying environment fields."""
+
+    platform: str
+    python: str
+
+
+class CorpusPayload(typ.TypedDict):
+    """Fixture corpus fields."""
+
+    fixture_paths: list[str]
+    file_count: int
+
+
+class ReportPayload(typ.TypedDict):
+    """Stable JSON-compatible structural probe report."""
+
+    schema_version: int
+    probe: str
+    entrypoint: str
+    environment: EnvironmentPayload | dict[str, str]
+    corpus: CorpusPayload
+    runs: list[RunPayload]
+
+
+type Report = ReportPayload
 
 
 class ProbeRun(typ.NamedTuple):
@@ -58,17 +102,17 @@ def normalise_repository_path(path: pathlib.Path, root: pathlib.Path) -> str:
     return relative.as_posix()
 
 
-def summarise_durations(durations_ns: cabc.Sequence[int]) -> dict[str, int]:
+def summarise_durations(durations_ns: cabc.Sequence[int]) -> SummaryNs:
     """Summarise nanosecond durations with deterministic integer values."""
     if not durations_ns:
         msg = "cannot summarise an empty duration sequence"
         raise ValueError(msg)
     ordered = sorted(durations_ns)
-    return {
-        "min": ordered[0],
-        "median": int(statistics.median(ordered)),
-        "max": ordered[-1],
-    }
+    return SummaryNs(
+        min=ordered[0],
+        median=int(statistics.median(ordered)),
+        max=ordered[-1],
+    )
 
 
 def build_report(
@@ -76,28 +120,28 @@ def build_report(
     repository_root: pathlib.Path,
     fixture_paths: cabc.Sequence[pathlib.Path],
     runs: cabc.Sequence[ProbeRun],
-) -> Report:
+) -> ReportPayload:
     """Build the stable JSON-compatible structural probe report."""
     normalised_fixtures = [
         normalise_repository_path(path, repository_root) for path in fixture_paths
     ]
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "probe": PROBE_NAME,
-        "entrypoint": ENTRYPOINT,
-        "environment": {
-            "platform": platform.platform(),
-            "python": platform.python_version(),
-        },
-        "corpus": {
-            "fixture_paths": normalised_fixtures,
-            "file_count": len(normalised_fixtures),
-        },
-        "runs": [_run_payload(run) for run in runs],
-    }
+    return ReportPayload(
+        schema_version=SCHEMA_VERSION,
+        probe=PROBE_NAME,
+        entrypoint=ENTRYPOINT,
+        environment=EnvironmentPayload(
+            platform=platform.platform(),
+            python=platform.python_version(),
+        ),
+        corpus=CorpusPayload(
+            fixture_paths=normalised_fixtures,
+            file_count=len(normalised_fixtures),
+        ),
+        runs=[_run_payload(run) for run in runs],
+    )
 
 
-def redact_report(report: Report) -> Report:
+def redact_report(report: ReportPayload) -> ReportPayload:
     """Redact volatile fields from a structural probe report for snapshots."""
     redacted = dict(report)
     redacted["environment"] = {
@@ -105,7 +149,7 @@ def redact_report(report: Report) -> Report:
         "python": "<redacted>",
     }
     redacted["runs"] = [_redact_run(run) for run in _runs_from_report(report)]
-    return redacted
+    return redacted  # type: ignore[return-value]
 
 
 def measure_probe(
@@ -113,7 +157,7 @@ def measure_probe(
     mode: str,
     iterations: int,
     root: pathlib.Path,
-) -> Report:
+) -> ReportPayload:
     """Measure the requested structural probe mode and return a report."""
     if iterations < 1:
         msg = "iterations must be at least 1"
@@ -125,7 +169,7 @@ def measure_probe(
     return build_report(repository_root=root, fixture_paths=fixtures, runs=runs)
 
 
-def write_report(report: Report, output_path: pathlib.Path) -> None:
+def write_report(report: ReportPayload, output_path: pathlib.Path) -> None:
     """Write a structural probe report as formatted JSON."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
@@ -149,14 +193,14 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
     return 0
 
 
-def _run_payload(run: ProbeRun) -> dict[str, object]:
+def _run_payload(run: ProbeRun) -> RunPayload:
     """Return one JSON-compatible run payload."""
-    return {
-        "mode": run.mode,
-        "iterations": len(run.durations_ns),
-        "durations_ns": list(run.durations_ns),
-        "summary_ns": summarise_durations(run.durations_ns),
-    }
+    return RunPayload(
+        mode=run.mode,
+        iterations=len(run.durations_ns),
+        durations_ns=list(run.durations_ns),
+        summary_ns=summarise_durations(run.durations_ns),
+    )
 
 
 def _display_output_path(output_path: pathlib.Path, root: pathlib.Path) -> str:
@@ -167,27 +211,27 @@ def _display_output_path(output_path: pathlib.Path, root: pathlib.Path) -> str:
         return output_path.name
 
 
-def _redact_run(run: dict[str, object]) -> dict[str, object]:
+def _redact_run(run: RunPayload) -> RunPayload:
     """Return one run payload with timing fields redacted."""
-    redacted = dict(run)
+    redacted: dict[str, object] = dict(run)
     redacted["durations_ns"] = "<redacted>"
     redacted["summary_ns"] = {
         "min": "<redacted>",
         "median": "<redacted>",
         "max": "<redacted>",
     }
-    return redacted
+    return redacted  # type: ignore[return-value]
 
 
-def _runs_from_report(report: Report) -> tuple[dict[str, object], ...]:
-    """Return run dictionaries from a report with defensive type checks."""
-    runs = report.get("runs")
+def _runs_from_report(report: ReportPayload) -> tuple[RunPayload, ...]:
+    """Return run payloads from a report with defensive type checks."""
+    runs = report["runs"]
     match runs:
         case list():
             if not all(isinstance(run, dict) for run in runs):
                 msg = "report runs must contain dictionaries"
                 raise TypeError(msg)
-            return tuple(typ.cast("dict[str, object]", run) for run in runs)
+            return tuple(runs)
         case _:
             msg = "report runs must be a list"
             raise TypeError(msg)
@@ -221,7 +265,7 @@ def _measure_cold_iteration() -> int:
     """Measure one extraction in a fresh Python interpreter."""
     root = repository_root()
     source_path = root / MARKDOWN_FIXTURE
-    completed = subprocess.run(  # noqa: S603
+    completed = subprocess.run(  # noqa: S603 -- justified: spawning own module under test with known sys.executable; no user input reaches argv
         [
             sys.executable,
             "-m",
