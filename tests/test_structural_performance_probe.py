@@ -119,38 +119,38 @@ def test_discovers_markdown_structural_fixture() -> None:
         (REPOSITORY_ROOT / "build" / "performance", "build/performance"),
     ],
 )
-def test_normalizes_repository_paths(path: pathlib.Path, expected: str) -> None:
-    """Normalize repository-local paths for portable JSON reports."""
-    assert structural_probe.normalize_repository_path(path, REPOSITORY_ROOT) == expected
+def test_normalises_repository_paths(path: pathlib.Path, expected: str) -> None:
+    """Normalise repository-local paths for portable JSON reports."""
+    assert structural_probe.normalise_repository_path(path, REPOSITORY_ROOT) == expected
 
 
 def test_rejects_paths_outside_repository(tmp_path: pathlib.Path) -> None:
     """Reject non-repository paths instead of leaking machine-local paths."""
     with pytest.raises(ValueError, match="is not under repository root"):
-        structural_probe.normalize_repository_path(tmp_path, REPOSITORY_ROOT)
+        structural_probe.normalise_repository_path(tmp_path, REPOSITORY_ROOT)
 
 
-def test_summarizes_odd_and_even_duration_sets() -> None:
-    """Summarize duration lists with deterministic integer medians."""
-    assert structural_probe.summarize_durations([9, 1, 5]) == {
+def test_summarises_odd_and_even_duration_sets() -> None:
+    """Summarise duration lists with deterministic integer medians."""
+    assert structural_probe.summarise_durations([9, 1, 5]) == {
         "min": 1,
         "median": 5,
         "max": 9,
     }
-    assert structural_probe.summarize_durations([10, 2, 4, 20]) == {
+    assert structural_probe.summarise_durations([10, 2, 4, 20]) == {
         "min": 2,
         "median": 7,
         "max": 20,
     }
 
 
-def test_summarize_durations_rejects_empty_sequence() -> None:
+def test_summarise_durations_rejects_empty_sequence() -> None:
     """Reject empty duration sequences with a clear failure."""
     with pytest.raises(
         ValueError,
-        match="cannot summarize an empty duration sequence",
+        match="cannot summarise an empty duration sequence",
     ):
-        structural_probe.summarize_durations([])
+        structural_probe.summarise_durations([])
 
 
 def test_builds_structural_report_shape() -> None:
@@ -192,3 +192,87 @@ def test_redacted_report_matches_json_snapshot(
     assert structural_probe.redact_report(report) == snapshot(
         extension_class=JSONSnapshotExtension,
     )
+
+
+def test_redacted_report_contains_no_integer_timings() -> None:
+    """Confirm that redaction removes all integer timing values."""
+    report = structural_probe.build_report(
+        repository_root=REPOSITORY_ROOT,
+        fixture_paths=(MARKDOWN_FIXTURE,),
+        runs=[
+            structural_probe.ProbeRun(mode="cold", durations_ns=(5, 9, 1)),
+            structural_probe.ProbeRun(mode="warm", durations_ns=(2, 4, 10)),
+        ],
+    )
+    redacted = structural_probe.redact_report(report)
+    for run in redacted["runs"]:
+        assert run["durations_ns"] == "<redacted>"
+        assert all(v == "<redacted>" for v in run["summary_ns"].values())
+    assert redacted["environment"]["platform"] == "<redacted>"
+    assert redacted["environment"]["python"] == "<redacted>"
+
+
+def test_measure_probe_rejects_non_positive_iterations() -> None:
+    """Reject iteration counts below 1 with a clear ValueError."""
+    with pytest.raises(ValueError, match="iterations must be at least 1"):
+        structural_probe.measure_probe(
+            mode="warm",
+            iterations=0,
+            root=REPOSITORY_ROOT,
+        )
+
+
+def test_discover_structural_fixtures_raises_when_missing(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Raise FileNotFoundError when the fixture is absent from the root."""
+    with pytest.raises(FileNotFoundError, match="structural fixture is missing"):
+        structural_probe.discover_structural_fixtures(tmp_path)
+
+
+def test_write_report_creates_parent_directories(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Create missing parent directories and write a valid JSON file."""
+    output_path = tmp_path / "nested" / "dir" / "report.json"
+    report = structural_probe.build_report(
+        repository_root=REPOSITORY_ROOT,
+        fixture_paths=(MARKDOWN_FIXTURE,),
+        runs=[structural_probe.ProbeRun(mode="warm", durations_ns=(1, 2, 3))],
+    )
+    structural_probe.write_report(report, output_path)
+    assert output_path.is_file()
+    written = json.loads(output_path.read_text(encoding="utf-8"))
+    assert written["schema_version"] == 1
+
+
+def test_argument_parser_defaults() -> None:
+    """Verify default argument values for the structural probe CLI."""
+    parser = structural_probe._argument_parser()
+    args = parser.parse_args([])
+    assert args.mode == "both"
+    assert args.iterations == structural_probe.DEFAULT_ITERATIONS
+    assert args.output == pathlib.Path("build/performance/structural-baseline.json")
+    assert args.child_run is False
+
+
+def test_argument_parser_rejects_unknown_mode() -> None:
+    """Reject an unrecognised --mode value."""
+    parser = structural_probe._argument_parser()
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--mode", "unknown"])
+    assert exc_info.value.code == 2
+
+
+def test_main_child_run_emits_duration_ns(capsys: pytest.CaptureFixture[str]) -> None:
+    """Emit a JSON payload with an integer duration_ns in child-run mode."""
+    exit_code = structural_probe.main([
+        "--child-run",
+        "--source",
+        str(MARKDOWN_FIXTURE),
+    ])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert isinstance(payload["duration_ns"], int)
+    assert payload["duration_ns"] >= 0
