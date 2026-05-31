@@ -1677,7 +1677,7 @@ rstest_bdd::reporting::json::write_snapshot(&mut buffer)?;
 
 The companion `rstest_bdd::reporting::junit` module renders the same snapshot
 as JUnit XML. Each skipped scenario emits a `<skipped>` element with an optional
-`message` attribute so continuous integration (CI) servers surface the reason:
+`message` attribute, so continuous integration (CI) servers surface the reason:
 
 ```rust,no_run
 let mut xml = String::new();
