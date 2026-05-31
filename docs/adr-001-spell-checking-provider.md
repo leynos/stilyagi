@@ -91,15 +91,15 @@ that advanced-rule dictionaries in other languages may still expose bugs.[^4]
 ### Option B: `zspell`
 
 `zspell` is a Rust spell checker compatible with Hunspell dictionaries. Its
-docs expose a stabilized checker surface built around `check`, `check_word`,
-and `check_indices`, and it explicitly documents dictionary loading via `.aff`
-and `.dic` sources.[^6][^7]
+docs expose a stabilized checker surface built around `check`, `check_word`, and
+`check_indices`, and it explicitly documents dictionary loading via `.aff` and
+`.dic` sources.[^6][^7]
 
 The strongest argument for `zspell` is clarity about its stable surface.
-Compared with `spellbook`, it documents current limits more explicitly.
-`check`, `check_word`, and `check_indices` are described as stable, while
-suggestions are explicitly unstable and slow, and compound word handling is not
-yet available.[^6][^7]
+Compared with `spellbook`, it documents current limits more explicitly. `check`,
+`check_word`, and `check_indices` are described as stable, while suggestions
+are explicitly unstable and slow, and compound word handling is not yet
+available.[^6][^7]
 
 The main weakness is feature maturity for anything beyond plain correctness
 checks. Suggestions are still not finalized, compound handling is absent, and

@@ -1,9 +1,8 @@
 # Establish the mixed Python package and Rust crate skeleton
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETED
 
@@ -18,8 +17,8 @@ on without more path churn. After this work is complete, Stilyagi should no
 longer look like a provisional top-level Python package plus one
 `rust_extension/` crate. Instead, it should look like the long-lived
 mixed-language architecture described in
-[docs/stilyagi-design.md](../stilyagi-design.md) §10: a `python/` source root,
-a `crates/` workspace, and explicit Python package boundaries for the engine,
+[docs/stilyagi-design.md](../stilyagi-design.md) §10: a `python/` source root, a
+`crates/` workspace, and explicit Python package boundaries for the engine,
 model, natural language processing (NLP), plugin, and rule surfaces.
 
 The observable outcome is structural and operational. A maintainer should be
@@ -82,10 +81,10 @@ The implementer should keep these documents open while executing the plan:
   to keep the skeleton narrow, explicit, and resistant to speculative
   placeholder logic.
 - [docs/rust-testing-with-rstest-fixtures.md](../rust-testing-with-rstest-fixtures.md),
-  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md),
-  [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), and
+  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md),
+  and
   [docs/reliable-testing-in-rust-via-dependency-injection.md](../reliable-testing-in-rust-via-dependency-injection.md)
-   for the required Rust-side unit, behaviour, doctest, and
+  for the required Rust-side unit, behaviour, doctest, and
   dependency-injection testing style.
 - [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../rfcs/0004-stilyagi-rule-testing-framework.md)
   for the long-lived testing direction that later slices will extend from the
@@ -157,8 +156,8 @@ The relevant skills for the person executing this plan are:
   needed, stop and justify it before proceeding.
 - Build spine: if `uv`, `maturin`, and the `python/` source root layout cannot
   be made to work together without a deeper packaging redesign, stop and
-  surface the exact incompatibility rather than improvising a second build
-  path. `uv_build` is historical pre-migration context only, not part of the
+  surface the exact incompatibility rather than improvising a second build path.
+  `uv_build` is historical pre-migration context only, not part of the
   implemented packaging boundary.
 - Placeholder breadth: if creating the full design-level crate or package
   skeleton would force speculative fake logic rather than compile-tested
@@ -429,7 +428,7 @@ old and new source root models.
   migration. `cargo test --manifest-path Cargo.toml` passes for the new
   workspace, `make build` succeeds, and
   `.venv/bin/python -m pytest -q tests/test_package_smoke.py tests/test_package_structure_bdd.py`
-   now passes.
+  now passes.
 - [x] 2026-04-20 22:37 CEST: updated the repository-shape documentation and
   bookkeeping. `docs/developers-guide.md`, `docs/users-guide.md`,
   `docs/repository-layout.md`, `docs/adr-002-packaging-boundary.md`, and
@@ -464,8 +463,8 @@ old and new source root models.
 - [x] 2026-04-21 01:16 CEST: verified a broader review batch against the live
   tree before editing. The execplan link-spacing complaint was already stale,
   so it was left unchanged, while the remaining live findings were fixed across
-  the Rust bridge, Python skeleton modules, tests, and the build-system
-  backend. `make fmt`, `make markdownlint`, `make nixie`, `make typecheck`,
+  the Rust bridge, Python skeleton modules, tests, and the build-system backend.
+  `make fmt`, `make markdownlint`, `make nixie`, `make typecheck`,
   `make check-fmt`, `make lint`, `make test`, and `make build` all pass.
 - [x] 2026-04-21 10:24 CEST: verified a later review finding against the live
   tree and fixed `python/stilyagi/engine/runner.py` to store `"ExecutionPlan"`
@@ -524,7 +523,7 @@ old and new source root models.
   one package with one embedded extension boundary.
 - The red-test evidence is precise and useful:
   `.venv/bin/python -m pytest -q tests/test_package_smoke.py tests/test_package_structure_bdd.py`
-   fails because `stilyagi.engine` is missing and `stilyagi.pure` is still
+  fails because `stilyagi.engine` is missing and `stilyagi.pure` is still
   importable, while `cargo test --manifest-path rust_extension/Cargo.toml`
   fails because `../crates/stilyagi-core/Cargo.toml` does not exist yet.
 - `maturin` required one packaging adjustment after the source root move. With

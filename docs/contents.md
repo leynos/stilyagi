@@ -41,6 +41,10 @@
     execplans/1-2-3-makefile-and-ci-smoke-tests.md)
     plans the Makefile and CI smoke path that proves development installs and
     release artefacts exercise the same embedded Rust extension boundary.
+  - [1.3.1 assemble representative fixtures](
+    execplans/1-3-1-assemble-representative-fixtures.md)
+    plans the corpus fixture set that supports syntax, extraction, diagnostic,
+    and round-trip regression testing.
   - [1.3.2 round-trip test helpers](
     execplans/1-3-2-round-trip-test-helpers.md)
     plans the internal golden IR, CLI snapshot, and fix round-trip helper work

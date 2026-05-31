@@ -1,9 +1,8 @@
 # Ratify the v1 syntax scope, IR transport, and locale policy
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -83,18 +82,18 @@ The implementer should keep these documents open while executing the plan:
   documentation conventions.
 - [docs/rfcs/0001-stilyagi-intermediate-representation.md](../rfcs/0001-stilyagi-intermediate-representation.md),
   [docs/rfcs/0002-stilyagi-python-rule-api.md](../rfcs/0002-stilyagi-python-rule-api.md),
-   and
+  and
   [docs/rfcs/0003-stilyagi-cli-contract.md](../rfcs/0003-stilyagi-cli-contract.md)
-   as the draft contracts that this slice must not contradict silently, even if
+  as the draft contracts that this slice must not contradict silently, even if
   their normative text is only amended in 1.1.3.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](../complexity-antipatterns-and-refactoring-strategies.md)
   as a reminder to keep the contract story narrow and explicit rather than
   burying it in speculative prose.
 - [docs/rust-testing-with-rstest-fixtures.md](../rust-testing-with-rstest-fixtures.md),
-  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md),
-  [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), and
+  [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md),
+  and
   [docs/reliable-testing-in-rust-via-dependency-injection.md](../reliable-testing-in-rust-via-dependency-injection.md)
-   for the validation standards later executable slices must follow, even
+  for the validation standards later executable slices must follow, even
   though this documentation-first slice is not expected to introduce new
   runtime code.
 

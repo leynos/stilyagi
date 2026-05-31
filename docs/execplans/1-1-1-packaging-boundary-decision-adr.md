@@ -1,9 +1,8 @@
 # Ratify the packaging boundary with an accepted ADR
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -30,8 +29,8 @@ the packaging debate.
 
 The current repository already leans strongly toward the PyO3 plus `maturin`
 path. `docs/stilyagi-design.md` recommends that architecture in its executive
-summary, stack, repository-layout section, and final recommendation. The
-current [Makefile](../../Makefile) uses `maturin develop` for `make build` and
+summary, stack, repository-layout section, and final recommendation. The current
+[Makefile](../../Makefile) uses `maturin develop` for `make build` and
 `maturin build` for `make release`. The current
 [docs/developers-guide.md](../developers-guide.md) already documents a PyO3
 extension crate under `rust_extension/`.
@@ -62,13 +61,13 @@ The implementer should keep these documents open while executing the plan:
   as the existing ADR shape to follow.
 - [docs/rfcs/0001-stilyagi-intermediate-representation.md](../rfcs/0001-stilyagi-intermediate-representation.md),
   [docs/rfcs/0003-stilyagi-cli-contract.md](../rfcs/0003-stilyagi-cli-contract.md),
-   and
+  and
   [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../rfcs/0004-stilyagi-rule-testing-framework.md)
-   as upstream contracts that the ADR must not contradict.
+  as upstream contracts that the ADR must not contradict.
 - [docs/rust-testing-with-rstest-fixtures.md](../rust-testing-with-rstest-fixtures.md),
   [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), and
   [docs/reliable-testing-in-rust-via-dependency-injection.md](../reliable-testing-in-rust-via-dependency-injection.md)
-   for the testing standards that later implementation slices must follow, even
+  for the testing standards that later implementation slices must follow, even
   though this ADR-only slice should not introduce new executable behaviour.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](../complexity-antipatterns-and-refactoring-strategies.md)
   as a reminder to keep any supporting prose or examples straightforward rather
@@ -304,9 +303,9 @@ help make the reasoning tangible.
   absent.
 - [x] 2026-04-20 00:00Z: User approved the plan and authorized implementation.
 - [x] 2026-04-20 00:00Z: Re-checked the evidence set during execution. The
-  current design, Makefile, and developer guide all already assume the PyO3
-  plus `maturin` path, so the ADR can ratify that direction without widening
-  scope into executable packaging work.
+  current design, Makefile, and developer guide all already assume the PyO3 plus
+  `maturin` path, so the ADR can ratify that direction without widening scope
+  into executable packaging work.
 - [x] 2026-04-20 00:00Z: Executed Milestones 2 and 3 by drafting
   `docs/adr-002-packaging-boundary.md`, creating `docs/users-guide.md`, and
   aligning the design, developer guide, contents index, and roadmap around the

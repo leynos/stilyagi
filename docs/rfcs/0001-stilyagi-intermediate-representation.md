@@ -431,8 +431,8 @@ region text back to original bytes:
 A flat “regions only” format would simplify v1 and punish every interesting
 rule forever after. Structural rules such as heading-depth jumps, frontmatter
 policy, table-cell checks, or docstring-placement rules need tree context.
-mdast and tree-sitter already provide that context; Stilyagi should keep
-it.[^2][^3]
+mdast and tree-sitter already provide that context; Stilyagi should keep it.[^2]
+[^3]
 
 A pure “AST only” format would force every text-oriented rule to reassemble
 prose from structural nodes, which would duplicate logic, burn central

@@ -368,7 +368,7 @@ This step answers whether Stilyagi can add a first-party spelling capability
 without turning grammar support and dictionary checks into one tangled provider
 surface. See
 [ADR 001](adr-001-spell-checking-provider.md), [Stilyagi design](stilyagi-design.md)
- §§4, 6-8, 11, and
+§§4, 6-8, 11, and
 [RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md).
 
 - [ ] 4.4.1. Build the Rust-side `spellbook` spike described in ADR 001. See

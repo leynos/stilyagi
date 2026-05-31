@@ -1,9 +1,8 @@
 # Expose the first Rust-to-Python extraction call through the PyO3 (Rust-to-Python bindings) bridge
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 

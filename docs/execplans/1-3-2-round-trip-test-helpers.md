@@ -1,7 +1,7 @@
 # Add internal round-trip test helpers
 
 This ExecPlan (execution plan) is a living document. The sections `Constraints`,
- `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: IN PROGRESS
@@ -540,7 +540,7 @@ types that make tests readable and keep invalid states hard to express.
   paths:
   `/tmp/coderabbit-stilyagi-1-3-2-round-trip-test-helpers-milestone1.out` and
   `/tmp/coderabbit-stilyagi-1-3-2-round-trip-test-helpers-milestone1-rerun.out`.
-   Retry once more after documentation and final gates.
+  Retry once more after documentation and final gates.
 - [x] (2026-05-20T19:55:40+02:00) Updated maintainer documentation and the
   design document with the internal snapshot and round-trip helper workflow.
   Marked roadmap item 1.3.2 done because the planned functionality is now

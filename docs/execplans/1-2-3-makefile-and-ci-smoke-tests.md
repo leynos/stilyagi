@@ -1,9 +1,8 @@
 # Wire Makefile and CI smoke tests to the mixed package spine
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -183,8 +182,8 @@ during implementation, update this plan with the exact names before changing
 code.
 
 Keep `make build` responsible for development installation with
-`maturin develop`, and have it run or clearly enable the same smoke target.
-Keep `make release` responsible for building a wheel with
+`maturin develop`, and have it run or clearly enable the same smoke target. Keep
+`make release` responsible for building a wheel with
 `maturin build --release`, then add a release smoke target that installs the
 built wheel into a fresh environment or otherwise proves the artefact can be
 imported without falling back to the source tree.
@@ -231,8 +230,8 @@ preserving the existing entry points:
 
 - `make build` still recreates `.venv`, syncs the dev group with `uv`, and
   runs `maturin develop` against `crates/stilyagi-pyext/Cargo.toml`.
-- `make release` still builds the release artefact with `maturin build
-  --release` against the same PyO3 crate.
+- `make release` still builds the release artefact with
+  `maturin build --release` against the same PyO3 crate.
 - a new or clarified smoke target proves that the installed package imports
   and calls the Rust-backed extraction path through the public Python API.
 - any release smoke target proves the built artefact, not merely the source
@@ -400,7 +399,7 @@ the shared PyO3 boundary.
   `python-source = "python"`.
 - Implementation will use the currently available public API
   `stilyagi.engine.extract_document("# Heading", stilyagi.model.Syntax.MARKDOWN)`
-   as the shared smoke proof.
+  as the shared smoke proof.
 - The release smoke target should remove `dist/` immediately before building
   so `pip install --no-index --find-links dist stilyagi` cannot select a stale
   wheel from a previous run.
