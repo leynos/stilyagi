@@ -214,6 +214,46 @@ whole-document `source` segment for non-blank Markdown, and an empty
 diagnostics list. This is scaffolding for regression tests, not the final
 public IR envelope.
 
+#### Structural performance probe workflow
+
+The cold and warm structural baseline probe is maintainer-facing test
+scaffolding. It records the pre-NLP structural fast path through
+`stilyagi.engine.extract_document` and the embedded Rust extractor. It does not
+exercise the future `stilyagi check` CLI, and it does not set a universal
+wall-clock budget for every workstation.
+
+Run the probe after `make build` so the editable Python environment points at
+the current PyO3 extension:
+
+```bash
+.venv/bin/python -m tests.performance.structural_probe \
+  --mode both \
+  --output build/performance/structural-baseline.json
+```
+
+The generated report is ignored under `build/performance/`. It contains
+repository-relative fixture paths, environment metadata, and per-iteration
+nanosecond timings. The committed test snapshot redacts volatile durations and
+environment values; update it only when the JSON contract changes:
+
+```bash
+.venv/bin/python -m pytest tests/test_structural_performance_probe.py --snapshot-update
+```
+
+In this repository, a cold structural run means the measured extraction happens
+inside a fresh Python interpreter launched with
+`sys.executable -m tests.performance.structural_probe --child-run`. It
+deliberately does not flush operating-system page caches or require elevated
+host privileges. A warm structural run means one extraction primes the current
+interpreter before the measured iterations run in that same interpreter.
+
+Use the probe output as review evidence when changing the structural extractor,
+Python adapter, or build spine. Compare cold with cold and warm with warm, and
+look for large regressions in context rather than treating one noisy local
+sample as a hard threshold. If later roadmap slices introduce the real CLI
+entry point or persistent Stilyagi caches, update this section and the
+ExecPlan-backed tests together.
+
 Round-trip edit helpers exist to test fix safety before the full rule engine
 lands. They must preserve source text outside edited ranges, accept adjacent
 source-backed edits, reject synthetic spans, and reject overlapping source

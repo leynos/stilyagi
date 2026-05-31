@@ -100,7 +100,7 @@ meaningful feature slice can be trusted. See
   - Keep the helpers internal at first; the public pytest plugin comes later.
   - Success: spans, `segments`, diagnostics, and edits can be regression-tested
     cheaply.
-- [ ] 1.3.3. Add baseline performance probes for cold and warm structural runs.
+- [x] 1.3.3. Add baseline performance probes for cold and warm structural runs.
   See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 1.2.3 and 1.3.1.
   - Record the current repository-local measurement method before richer
