@@ -119,8 +119,7 @@
   - Record the decision in architecture, design, or developers-guide docs using
     `docs/contents.md` as the index.
 - **Post-commit review:** after functional changes or bug fixes that meet
-  quality
-  gates, review changed code and adjacent areas using these heuristics.
+  quality gates, review changed code and adjacent areas using these heuristics.
 - **Separate atomic refactors:** if refactoring is required, implement it in a
   separate atomic commit after the functional change and ensure it passes all
   relevant gates.
@@ -135,11 +134,9 @@
   integration contracts, persistence, command-line behaviour, network
   boundaries, user interface flows, or other system-level behaviour.
 - Use property tests with `hypothesis` or `CrossHair` when a change introduces
-  an
-  invariant over a range of inputs, states, orderings, or transitions.
+  an invariant over a range of inputs, states, orderings, or transitions.
 - Run relevant unit, behavioural, property, and end-to-end suites before and
-  after
-  each change.
+  after each change.
 
 ## Rust specific guidance
 
@@ -153,18 +150,22 @@ project:
   - `make check-fmt` executes:
 
     ```sh
-    cargo fmt --workspace -- --check
+    $(UV_RUN) ruff format --check
+    $(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
     ```
 
-    validating formatting across the entire workspace without modifying files.
+    validating Python and Rust formatting without modifying files.
   - `make lint` executes:
 
     ```sh
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    $(UV_RUN) ruff check
+    $(PYLINT) $(PYLINT_TARGETS)
+    $(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
+    cd crates/stilyagi-pyext && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all
     ```
 
-    linting every target with all features enabled and denying all Clippy
-    warnings.
+    running Python lint checks, Rust Clippy across workspace targets, and
+    Whitaker linting for the PyO3 extension crate.
   - `make test` executes:
 
     ```sh
@@ -194,8 +195,7 @@ project:
   when a change introduces an invariant over ranges of inputs, states,
   orderings, or transitions and a Rust extension is in scope.
 - For Rust extensions, use exhaustive proof with `verus` for introduced lemmas
-  or
-  contractual business logic. Proofs should be substantive, rigorous, and
+  or contractual business logic. Proofs should be substantive, rigorous, and
   well-founded.
 - Run relevant unit, behavioural, property, model-checking, proof, and
   end-to-end suites before and after each change.
@@ -244,8 +244,7 @@ project:
 ### Testing
 
 - Use `pytest` fixtures for shared setup in Python work. Use `rstest` fixtures
-  for
-  shared setup in Rust work.
+  for shared setup in Rust work.
 - Replace duplicated tests with `#[rstest(...)]` parameterized cases in Rust and
   equivalent fixture-driven parameterisation in Python.
 - Prefer `mockall` for ad hoc mocks and stubs.
@@ -272,8 +271,8 @@ project:
   `eyre::Report` for human-readable logs; do not expose opaque types in public
   APIs.
 - **Do not export the opaque type from libraries.** Convert to domain enums at
-  API
-  boundaries and use `eyre` only in the top-level `main` or async entrypoint.
+  API boundaries and use `eyre` only in the top-level `main` or async
+  entrypoint.
 - In tests, prefer `.expect(...)` over `.unwrap()` for clearer failure context.
 - In production code and shared fixtures, avoid `.expect()` and return `Result`
   with `?` where possible.
@@ -294,14 +293,12 @@ project:
 - Add `tracing` fields for identifiers, state, and error context to aid
   correlation.
 - Use `#[tracing::instrument]` or explicit spans around meaningful units of
-  work,
-  such as request handling, command execution, retries, background jobs, and
-  similar.
+  work, such as request handling, command execution, retries, background jobs,
+  and similar.
 - Do not hold `Span::enter()` guards across `.await`; use
   `Instrument::instrument` or explicit synchronous spans instead.
 - Use the `metrics` crate where usage, uptake, failure, or mitigation metrics
-  are
-  needed. Prefer `counter!`, `gauge!`, and `histogram!` according to metric
+  are needed. Prefer `counter!`, `gauge!`, and `histogram!` according to metric
   semantics.
 - Describe metrics with `describe_counter!`, `describe_gauge!`, or
   `describe_histogram!` where purpose is not obvious.
