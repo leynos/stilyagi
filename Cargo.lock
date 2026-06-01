@@ -1308,10 +1308,12 @@ dependencies = [
 name = "stilyagi-markdown"
 version = "0.1.0"
 dependencies = [
+ "insta",
  "markdown",
  "rstest",
  "serde_json",
  "stilyagi-ir",
+ "stilyagi-test-support",
 ]
 
 [[package]]

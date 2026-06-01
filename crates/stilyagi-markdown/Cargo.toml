@@ -13,7 +13,9 @@ serde_json.workspace = true
 stilyagi-ir = { path = "../stilyagi-ir" }
 
 [dev-dependencies]
+insta.workspace = true
 rstest.workspace = true
+stilyagi-test-support = { path = "../stilyagi-test-support" }
 
 [lints]
 workspace = true

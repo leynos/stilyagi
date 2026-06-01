@@ -60,7 +60,7 @@ fn markdown_producer() -> ProducerMetadata {
     ProducerMetadata {
         kind: "markdown".to_owned(),
         name: "markdown-rs".to_owned(),
-        version: env!("CARGO_PKG_VERSION").to_owned(),
+        version: "1.0.0".to_owned(),
         options,
     }
 }
@@ -299,6 +299,8 @@ mod tests {
 
     use markdown::mdast::Node;
     use rstest::rstest;
+    use stilyagi_ir::{IrDocument, SourceSpan};
+    use stilyagi_test_support::{SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture};
 
     use super::{MarkdownBoundary, markdown_ir_document, parse_markdown_ast};
 
@@ -451,5 +453,47 @@ mod tests {
 
     fn region_kinds(regions: &[stilyagi_ir::IrRegion]) -> BTreeSet<&str> {
         regions.iter().map(|region| region.kind.as_str()).collect()
+    }
+
+    #[rstest]
+    fn shared_markdown_ir_json_round_trips_without_span_drift() {
+        let source = read_corpus_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
+            .unwrap_or_else(|error| panic!("expected shared Markdown fixture: {error}"));
+        let document = markdown_ir_document(
+            &source,
+            SHARED_MARKDOWN_FIXTURE_PATH,
+            "file:///repo/tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
+        )
+        .unwrap_or_else(|error| panic!("expected shared Markdown IR document: {error}"));
+        let json = document
+            .to_canonical_json()
+            .unwrap_or_else(|error| panic!("expected canonical JSON: {error}"));
+        let parsed = serde_json::from_str::<IrDocument>(&json)
+            .unwrap_or_else(|error| panic!("expected IR JSON round-trip: {error}"));
+
+        assert_eq!(parsed, document);
+        assert!(
+            parsed
+                .regions
+                .iter()
+                .all(stilyagi_ir::IrRegion::segments_reconstruct_text)
+        );
+        assert!(source_backed_segments_match_source(&parsed, &source));
+        insta::assert_snapshot!(json);
+    }
+
+    fn source_backed_segments_match_source(document: &IrDocument, source: &str) -> bool {
+        document.regions.iter().all(|region| {
+            region.segments.iter().all(|segment| {
+                segment.source.map_or_else(
+                    || segment.synthetic.is_some(),
+                    |span| source_segment_matches(span, source, &segment.text),
+                )
+            })
+        })
+    }
+
+    fn source_segment_matches(span: SourceSpan, source: &str, expected: &str) -> bool {
+        source.get(span.byte_start..span.byte_end) == Some(expected)
     }
 }

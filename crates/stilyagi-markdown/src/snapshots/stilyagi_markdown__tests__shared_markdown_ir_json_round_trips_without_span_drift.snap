@@ -1,0 +1,678 @@
+---
+source: crates/stilyagi-markdown/src/lib.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
+    "path": "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
+    "syntax": "markdown",
+    "natural_language": "en",
+    "encoding": "utf-8",
+    "content_hash": "sha256:57551b339c3a3e6c399bd0360f9a3d08458eefca22677dd7235f838e18b2ddc7"
+  },
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "version": "1.0.0",
+      "options": {
+        "gfm": true
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    18,
+    19,
+    47,
+    106,
+    107,
+    155,
+    156,
+    195,
+    234,
+    273
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "mdast",
+      "syntax": "markdown",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "root",
+      "parent": null,
+      "children": [
+        "n1",
+        "n3",
+        "n8",
+        "n9"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 273
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "heading",
+      "parent": "n0",
+      "children": [
+        "n2"
+      ],
+      "fields": {},
+      "props": {
+        "depth": 1
+      },
+      "span": {
+        "byte_start": 0,
+        "byte_end": 17
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 2,
+        "byte_end": 17
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n0",
+      "children": [
+        "n4",
+        "n5",
+        "n7"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 19,
+        "byte_end": 105
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n3",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 19,
+        "byte_end": 47
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n5",
+      "tree": "t0",
+      "kind": "link",
+      "parent": "n3",
+      "children": [
+        "n6"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 47,
+        "byte_end": 104
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n6",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n5",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 48,
+        "byte_end": 63
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n7",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n3",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 104,
+        "byte_end": 105
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n8",
+      "tree": "t0",
+      "kind": "html",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 107,
+        "byte_end": 154
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n9",
+      "tree": "t0",
+      "kind": "table",
+      "parent": "n0",
+      "children": [
+        "n10",
+        "n15"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 156,
+        "byte_end": 272
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n10",
+      "tree": "t0",
+      "kind": "tableRow",
+      "parent": "n9",
+      "children": [
+        "n11",
+        "n13"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 156,
+        "byte_end": 194
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n11",
+      "tree": "t0",
+      "kind": "tableCell",
+      "parent": "n10",
+      "children": [
+        "n12"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 156,
+        "byte_end": 163
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n12",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n11",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 158,
+        "byte_end": 162
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n13",
+      "tree": "t0",
+      "kind": "tableCell",
+      "parent": "n10",
+      "children": [
+        "n14"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 163,
+        "byte_end": 194
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n14",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n13",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 165,
+        "byte_end": 172
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n15",
+      "tree": "t0",
+      "kind": "tableRow",
+      "parent": "n9",
+      "children": [
+        "n16",
+        "n18"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 234,
+        "byte_end": 272
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n16",
+      "tree": "t0",
+      "kind": "tableCell",
+      "parent": "n15",
+      "children": [
+        "n17"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 234,
+        "byte_end": 241
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n17",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n16",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 236,
+        "byte_end": 238
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n18",
+      "tree": "t0",
+      "kind": "tableCell",
+      "parent": "n15",
+      "children": [
+        "n19"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 241,
+        "byte_end": 272
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n19",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n18",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 243,
+        "byte_end": 270
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "heading",
+      "scope": [
+        "markdown",
+        "heading",
+        "h1"
+      ],
+      "syntax": "markdown",
+      "natural_language": "en",
+      "text": "Fixture Heading",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 15,
+          "source": {
+            "byte_start": 2,
+            "byte_end": 17
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "Fixture Heading"
+        }
+      ],
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": null,
+      "attrs": {
+        "depth": 1
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph"
+      ],
+      "syntax": "markdown",
+      "natural_language": "en",
+      "text": "This paragraph links to the Stilyagi design.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 27,
+          "source": {
+            "byte_start": 19,
+            "byte_end": 46
+          },
+          "synthetic": null,
+          "node": "n3",
+          "text": "This paragraph links to the"
+        },
+        {
+          "text_start": 27,
+          "text_end": 28,
+          "source": null,
+          "synthetic": "softbreak_space",
+          "node": null,
+          "text": " "
+        },
+        {
+          "text_start": 28,
+          "text_end": 43,
+          "source": {
+            "byte_start": 48,
+            "byte_end": 63
+          },
+          "synthetic": null,
+          "node": "n3",
+          "text": "Stilyagi design"
+        },
+        {
+          "text_start": 43,
+          "text_end": 44,
+          "source": {
+            "byte_start": 104,
+            "byte_end": 105
+          },
+          "synthetic": null,
+          "node": "n3",
+          "text": "."
+        }
+      ],
+      "origin_nodes": [
+        "n3"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r2",
+      "kind": "table_cell",
+      "scope": [
+        "markdown",
+        "table_cell"
+      ],
+      "syntax": "markdown",
+      "natural_language": "en",
+      "text": "Term",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 4,
+          "source": {
+            "byte_start": 158,
+            "byte_end": 162
+          },
+          "synthetic": null,
+          "node": "n11",
+          "text": "Term"
+        }
+      ],
+      "origin_nodes": [
+        "n11"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r3",
+      "kind": "table_cell",
+      "scope": [
+        "markdown",
+        "table_cell"
+      ],
+      "syntax": "markdown",
+      "natural_language": "en",
+      "text": "Meaning",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 7,
+          "source": {
+            "byte_start": 165,
+            "byte_end": 172
+          },
+          "synthetic": null,
+          "node": "n13",
+          "text": "Meaning"
+        }
+      ],
+      "origin_nodes": [
+        "n13"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r4",
+      "kind": "table_cell",
+      "scope": [
+        "markdown",
+        "table_cell"
+      ],
+      "syntax": "markdown",
+      "natural_language": "en",
+      "text": "IR",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 2,
+          "source": {
+            "byte_start": 236,
+            "byte_end": 238
+          },
+          "synthetic": null,
+          "node": "n16",
+          "text": "IR"
+        }
+      ],
+      "origin_nodes": [
+        "n16"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r5",
+      "kind": "table_cell",
+      "scope": [
+        "markdown",
+        "table_cell"
+      ],
+      "syntax": "markdown",
+      "natural_language": "en",
+      "text": "Intermediate representation",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 27,
+          "source": {
+            "byte_start": 243,
+            "byte_end": 270
+          },
+          "synthetic": null,
+          "node": "n18",
+          "text": "Intermediate representation"
+        }
+      ],
+      "origin_nodes": [
+        "n18"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}
