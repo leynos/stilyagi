@@ -9,6 +9,8 @@ publish.workspace = true
 
 [dependencies]
 markdown.workspace = true
+serde_json.workspace = true
+stilyagi-ir = { path = "../stilyagi-ir" }
 
 [dev-dependencies]
 rstest.workspace = true

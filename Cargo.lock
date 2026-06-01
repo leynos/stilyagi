@@ -1310,6 +1310,8 @@ version = "0.1.0"
 dependencies = [
  "markdown",
  "rstest",
+ "serde_json",
+ "stilyagi-ir",
 ]
 
 [[package]]

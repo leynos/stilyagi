@@ -789,7 +789,19 @@ findings were:
 - [x] (2026-06-01T22:58:00Z) Ran `coderabbit review --agent` for the Stage 1
   milestone after deterministic gates passed. CodeRabbit completed with zero
   findings.
-- [ ] After approval, implement Stage 2 Markdown flattening and IR envelope.
+- [x] (2026-06-01T23:18:00Z) Implemented the Stage 2 Markdown IR builder in
+  `stilyagi-markdown`. It now builds a deterministic mdast-backed tree,
+  source spans, heading/paragraph/table-cell regions, heading depth attrs,
+  source-backed text segments, and synthetic soft-break segments. Targeted
+  `cargo test -p stilyagi-markdown` passed.
+- [x] (2026-06-01T23:31:00Z) Gated Stage 2 locally. `make markdownlint`,
+  `make nixie`, `make check-fmt`, `make typecheck`, `make lint`, and
+  `make test` all passed. The full test gate ran 92 Rust tests and 66 Python
+  tests.
+- [x] (2026-06-02T00:08:00Z) Ran `coderabbit review --agent` for the Stage 2
+  milestone. The first attempt hit a recoverable rate limit, so the workflow
+  slept for 23 minutes as instructed and retried. The retry completed with
+  zero findings.
 - [ ] After approval, implement Stage 3 canonical JSON and golden fixtures.
 - [ ] After approval, implement Stage 4 PyO3 bridge and Python model
   adaptation.
@@ -829,6 +841,14 @@ findings were:
   must still normalize and test exact byte spans rather than assume every node
   end offset matches naive fixture slicing.
 
+- Observation: `markdown-rs` with `ParseOptions::gfm()` parses the shared
+  table fixture into table-cell mdast nodes and represents Markdown soft line
+  breaks in text node values. Evidence: the Stage 2 tests for
+  `markdown_ir_document` pass for GFM table cells and a paragraph containing
+  `First line\nsecond line`. Impact: the first flattener can cover the
+  representative fixture without a second parser, while recording synthetic
+  `softbreak_space` segments when prose text replaces a newline with a space.
+
 ## Decision Log
 
 - Decision: keep this plan in `Status: DRAFT` and explicitly block code
@@ -866,6 +886,13 @@ findings were:
   than a weaker in-memory invariant. Date/Author: 2026-06-01T22:30:00Z /
   Codex.
 
+- Decision: implement Stage 2 regions for `heading`, `paragraph`, and
+  `table_cell` only. Rationale: these are the representative fixture kinds
+  needed to prove the envelope and mappings now; `image_alt`, `link_title`,
+  list items, blockquotes, and broader Markdown coverage remain deferred until
+  they can be mapped with trustworthy source spans in later roadmap work or
+  Stage 3 fixture expansion. Date/Author: 2026-06-01T23:18:00Z / Codex.
+
 - Decision: defer roadmap completion edits until the feature implementation
   lands. Rationale: marking item 2.1.1 done during plan drafting would
   misrepresent project status. Date/Author: 2026-05-25T00:46:44Z / Codex.
@@ -887,6 +914,14 @@ document envelope, hash helper, deterministic JSON method, and segment
 reconstruction invariant independently of parser or bridge adapters.
 Full Stage 1 gates also passed before CodeRabbit review. CodeRabbit completed
 the Stage 1 milestone review with zero findings.
+
+Stage 2 outcome: `stilyagi-markdown` now builds an internal Markdown IR
+document envelope with mdast tree nodes and lintable heading, paragraph, and
+table-cell regions. The builder records source-backed segments for text spans
+and explicit synthetic segments for soft line breaks. Targeted tests passed;
+full deterministic gates passed, and CodeRabbit review is still pending for
+this milestone. CodeRabbit later completed the Stage 2 milestone review with
+zero findings after a rate-limit backoff and retry.
 
 ## Revision note
 
