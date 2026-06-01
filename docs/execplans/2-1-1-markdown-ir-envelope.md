@@ -777,7 +777,18 @@ findings were:
 - [x] (2026-06-01T21:56:54Z) Ran baseline gates before implementation:
   `make check-fmt`, `make typecheck`, `make lint`, and `make test` all
   passed.
-- [ ] After approval, implement Stage 1 parser and schema spike.
+- [x] (2026-06-01T22:30:00Z) Implemented the Stage 1 parser and schema spike:
+  `stilyagi-ir` now owns the first production IR envelope types, content hash
+  helper, canonical JSON method, and segment reconstruction invariant tests;
+  `stilyagi-markdown` now has a `markdown-rs` parse wrapper and position
+  probe.
+- [x] (2026-06-01T22:45:00Z) Gated Stage 1 locally. `make markdownlint`,
+  `make nixie`, `make check-fmt`, `make typecheck`, `make lint`, and
+  `make test` all passed. The full test gate ran 90 Rust tests and 66 Python
+  tests.
+- [x] (2026-06-01T22:58:00Z) Ran `coderabbit review --agent` for the Stage 1
+  milestone after deterministic gates passed. CodeRabbit completed with zero
+  findings.
 - [ ] After approval, implement Stage 2 Markdown flattening and IR envelope.
 - [ ] After approval, implement Stage 3 canonical JSON and golden fixtures.
 - [ ] After approval, implement Stage 4 PyO3 bridge and Python model
@@ -810,6 +821,14 @@ findings were:
   `make test` all passed before implementation. Impact: later failures can be
   attributed to implementation changes unless the environment changes.
 
+- Observation: `markdown-rs` exposes mdast node positions with `start.offset`
+  and `end.offset`, and the representative spike confirms positions are
+  present for the root, a heading, and a paragraph. Evidence:
+  `cargo test -p stilyagi-ir -p stilyagi-markdown` passed after adding the
+  parser probe. Impact: Stage 2 can proceed with `markdown-rs`; flattening
+  must still normalize and test exact byte spans rather than assume every node
+  end offset matches naive fixture slicing.
+
 ## Decision Log
 
 - Decision: keep this plan in `Status: DRAFT` and explicitly block code
@@ -839,6 +858,14 @@ findings were:
   range of generated segment layouts, not just one representative fixture.
   Date/Author: 2026-05-25T00:46:44Z / Codex.
 
+- Decision: keep `IrSegment.text` in the initial Rust domain type even though
+  RFC examples focus on source and synthetic span metadata. Rationale: the
+  field lets Stage 1 and Stage 2 prove `segments` reconstruct region text
+  without relying on external source slices or parser state; if canonical v1
+  JSON later omits it, that will be a deliberate serializer decision rather
+  than a weaker in-memory invariant. Date/Author: 2026-06-01T22:30:00Z /
+  Codex.
+
 - Decision: defer roadmap completion edits until the feature implementation
   lands. Rationale: marking item 2.1.1 done during plan drafting would
   misrepresent project status. Date/Author: 2026-05-25T00:46:44Z / Codex.
@@ -852,6 +879,14 @@ diagnostic, suppression, cache, and safe-fix work.
 
 Stage 0 outcome: implementation approval was recorded and all baseline quality
 gates passed on 2026-06-01 before code changes began.
+
+Stage 1 outcome: the parser and schema spike passed targeted Rust tests on
+2026-06-01. The milestone proved that `markdown-rs` can supply usable mdast
+positions for representative Markdown blocks and that the IR crate can own the
+document envelope, hash helper, deterministic JSON method, and segment
+reconstruction invariant independently of parser or bridge adapters.
+Full Stage 1 gates also passed before CodeRabbit review. CodeRabbit completed
+the Stage 1 milestone review with zero findings.
 
 ## Revision note
 
