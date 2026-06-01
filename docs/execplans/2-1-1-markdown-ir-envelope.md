@@ -4,12 +4,11 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
  `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
-Approval gate: this plan must be reviewed and explicitly approved before any
-implementation work begins. Drafting, validation of this Markdown document,
-branch preparation, and pull request creation are allowed; code changes are not
-allowed until approval is recorded here.
+Approval gate: the user approved implementation on 2026-06-01 by asking to
+proceed with the planned functionality. Continue milestone by milestone within
+the tolerances below.
 
 ## Purpose / big picture
 
@@ -773,8 +772,11 @@ findings were:
 - [x] (2026-05-25T00:46:44Z) Used Firecrawl to check `markdown-rs`, mdast, and
   unist prior art.
 - [x] (2026-05-25T00:46:44Z) Drafted this pre-implementation ExecPlan.
-- [ ] Await explicit user approval before implementation.
-- [ ] After approval, run baseline gates.
+- [x] (2026-06-01T21:56:54Z) User approved implementation and asked to keep
+  this ExecPlan current during work.
+- [x] (2026-06-01T21:56:54Z) Ran baseline gates before implementation:
+  `make check-fmt`, `make typecheck`, `make lint`, and `make test` all
+  passed.
 - [ ] After approval, implement Stage 1 parser and schema spike.
 - [ ] After approval, implement Stage 2 Markdown flattening and IR envelope.
 - [ ] After approval, implement Stage 3 canonical JSON and golden fixtures.
@@ -803,12 +805,21 @@ findings were:
   Stilyagi RFC 0001 requires byte offsets. Impact: parser positions must be
   normalized into Stilyagi spans rather than copied blindly.
 
+- Observation: the approved branch starts from a healthy baseline. Evidence:
+  on 2026-06-01, `make check-fmt`, `make typecheck`, `make lint`, and
+  `make test` all passed before implementation. Impact: later failures can be
+  attributed to implementation changes unless the environment changes.
+
 ## Decision Log
 
 - Decision: keep this plan in `Status: DRAFT` and explicitly block code
   implementation until approval. Rationale: the user requested a plan and
   stated that it must be approved before implementation. Date/Author:
   2026-05-25T00:46:44Z / Codex.
+
+- Decision: move the plan to `Status: IN PROGRESS` and begin Stage 0 baseline
+  validation. Rationale: the user explicitly approved implementation on
+  2026-06-01. Date/Author: 2026-06-01T21:56:54Z / Codex.
 
 - Decision: centre the implementation on a Rust logical IR in
   `crates/stilyagi-ir`, with Markdown parsing and flattening in
@@ -838,6 +849,9 @@ No implementation outcome exists yet. This is a pre-implementation plan. The
 expected outcome after approval and execution is a Markdown-first IR envelope
 that can be inspected through canonical JSON snapshots and trusted by later
 diagnostic, suppression, cache, and safe-fix work.
+
+Stage 0 outcome: implementation approval was recorded and all baseline quality
+gates passed on 2026-06-01 before code changes began.
 
 ## Revision note
 
