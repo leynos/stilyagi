@@ -52,13 +52,21 @@ fn extract_document_py(py: Python<'_>, source: &str, syntax: &str) -> PyResult<P
 
     document_dict.set_item("syntax", document.syntax().as_str())?;
     document_dict.set_item("regions", region_list)?;
+    if let Some(ir) = document.ir() {
+        let ir_json = ir
+            .to_canonical_json()
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        document_dict.set_item("ir_json", ir_json)?;
+    }
     Ok(document_dict.unbind())
 }
 
 fn map_extract_error(error: &ExtractError) -> PyErr {
     match error {
         ExtractError::UnsupportedSyntax(_) => PyNotImplementedError::new_err(error.to_string()),
-        ExtractError::UnknownSyntax(_) => PyValueError::new_err(error.to_string()),
+        ExtractError::UnknownSyntax(_) | ExtractError::MarkdownIr(_) => {
+            PyValueError::new_err(error.to_string())
+        }
     }
 }
 
@@ -171,6 +179,9 @@ mod tests {
             let regions_any = extracted_document_dict
                 .get_item("regions")
                 .unwrap_or_else(|error| panic!("missing regions payload: {error}"));
+            let ir_json_any = extracted_document_dict
+                .get_item("ir_json")
+                .unwrap_or_else(|error| panic!("missing IR payload: {error}"));
             let regions = regions_any
                 .cast::<PyList>()
                 .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
@@ -210,6 +221,12 @@ mod tests {
                     .extract::<&str>()
                     .unwrap_or_else(|error| panic!("expected text string: {error}")),
                 "# Heading",
+            );
+            assert!(
+                ir_json_any
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected IR JSON string: {error}"))
+                    .contains("\"schema_version\": \"1.0.0\"")
             );
         });
     }

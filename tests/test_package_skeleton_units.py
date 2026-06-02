@@ -105,6 +105,8 @@ def test_engine_extract_document_returns_a_model_document() -> None:
 
     assert isinstance(document, model.Document)
     assert document.syntax is model.Syntax.MARKDOWN
+    assert document.ir is not None
+    assert document.ir["schema_version"] == "1.0.0"
 
 
 def test_engine_extract_document_maps_regions_into_model_regions() -> None:
@@ -118,7 +120,10 @@ def test_engine_extract_document_keeps_blank_markdown_empty() -> None:
     """Preserve the extractor's blank-input contract at the public boundary."""
     document = engine.extract_document("   \n", model.Syntax.MARKDOWN)
 
-    assert document == model.Document(syntax=model.Syntax.MARKDOWN)
+    assert document.syntax is model.Syntax.MARKDOWN
+    assert not document.regions
+    assert document.ir is not None
+    assert document.ir["regions"] == []
 
 
 def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
@@ -152,6 +157,7 @@ def test_model_skeleton_dataclasses_preserve_defaults_and_children() -> None:
     region = model.Region(kind="paragraph", text="Hello")
 
     assert not model.Document(syntax=model.Syntax.MARKDOWN).regions
+    assert model.Document(syntax=model.Syntax.MARKDOWN).ir is None
     assert model.Document(
         syntax=model.Syntax.MARKDOWN,
         regions=(region,),

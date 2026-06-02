@@ -816,8 +816,20 @@ findings were:
 - [x] (2026-06-02T00:43:00Z) Ran `coderabbit review --agent` for the Stage 3
   milestone after deterministic gates passed. CodeRabbit completed with zero
   findings.
-- [ ] After approval, implement Stage 4 PyO3 bridge and Python model
-  adaptation.
+- [x] (2026-06-02T00:55:00Z) Implemented Stage 4 PyO3 bridge and Python model
+  adaptation. Markdown extraction now attaches an `IrDocument` to the Rust
+  extraction result, the PyO3 bridge exposes it as canonical `ir_json`, and
+  the Python adapter parses that into `model.Document.ir` while preserving the
+  existing `syntax` and minimal `regions` contract. Targeted
+  `cargo test -p stilyagi-extract -p stilyagi-pyext` passed.
+- [x] (2026-06-02T01:08:00Z) Gated Stage 4 locally. `make markdownlint`,
+  `make nixie`, `make check-fmt`, `make typecheck`, `make lint`, and
+  `make test` all passed. The full test gate ran 94 Rust tests and 66 Python
+  tests.
+- [x] (2026-06-02T01:49:00Z) Ran `coderabbit review --agent` for the Stage 4
+  milestone after deterministic gates passed. The first two attempts were
+  rate-limited, so the required random 18-minute and 15-minute backoffs were
+  observed before retrying. The third attempt completed with zero findings.
 - [ ] After approval, implement Stage 5 documentation and roadmap completion.
 
 ## Surprises & Discoveries
@@ -868,6 +880,13 @@ findings were:
   generated the snapshot, and a normal `cargo test -p stilyagi-markdown`
   passed immediately afterwards. Impact: Stage 4 can bridge the same Rust IR
   shape without depending on machine-specific snapshot data.
+
+- Observation: the existing Python extraction model can be widened
+  compatibly by adding an optional `Document.ir` field. Evidence: targeted
+  Rust bridge tests passed after preserving `syntax` and `regions` in the raw
+  payload and adding `ir_json` as an extra field. Impact: existing callers can
+  continue using the minimal region contract while consumers that need the IR
+  can inspect `document.ir`.
 
 ## Decision Log
 
@@ -950,6 +969,14 @@ source-backed segment byte-span agreement with the original fixture source.
 Full deterministic gates passed, and CodeRabbit review is still pending for
 this milestone. CodeRabbit later completed the Stage 3 milestone review with
 zero findings.
+
+Stage 4 outcome: Markdown extraction now carries the richer IR envelope through
+Rust extraction, the PyO3 bridge, and the Python `engine.extract_document`
+adapter. The raw bridge uses `ir_json` to avoid hand-built nested Python
+dictionaries inside PyO3, and the Python model exposes the parsed envelope as
+`Document.ir`. Full deterministic gates passed for this milestone, and
+CodeRabbit completed the milestone review with zero findings after two
+rate-limit backoffs.
 
 ## Revision note
 

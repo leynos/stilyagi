@@ -13,6 +13,7 @@ class ExtractDocumentPayload(typ.TypedDict):
 
     syntax: str
     regions: list[ExtractRegion]
+    ir_json: typ.NotRequired[str]
 
 def extract_document(source: str, syntax: str) -> ExtractDocumentPayload:
     """Extract structured document data from *source* using *syntax*.

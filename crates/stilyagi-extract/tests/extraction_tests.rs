@@ -164,6 +164,19 @@ fn markdown_extraction_preserves_the_shared_markdown_fixture(shared_markdown_sou
     );
 }
 
+/// Keep the richer Markdown IR envelope attached to the extraction result
+/// without weakening the existing minimal region contract.
+#[rstest]
+fn markdown_extraction_attaches_markdown_ir(shared_markdown_source: String) {
+    let document = must_extract_document(&shared_markdown_source, ExtractSyntax::Markdown);
+    let ir = document.ir();
+
+    assert!(matches!(ir, Some(value) if value.document.syntax == "markdown"));
+    assert!(
+        matches!(ir, Some(value) if value.regions.iter().all(stilyagi_ir::IrRegion::segments_reconstruct_text))
+    );
+}
+
 /// Pin the first private golden IR shape to the supported Markdown extraction
 /// scope without treating the raw bridge payload as the long-term public IR.
 #[rstest]

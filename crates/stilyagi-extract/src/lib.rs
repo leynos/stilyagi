@@ -1,8 +1,8 @@
 //! Source extraction orchestration for the first Rust-to-Python bridge.
 
 use core::fmt;
-use stilyagi_ir::IrBoundary;
-use stilyagi_markdown::MarkdownBoundary;
+use stilyagi_ir::{IrBoundary, IrDocument};
+use stilyagi_markdown::{MarkdownBoundary, markdown_ir_document};
 use stilyagi_tree_sitter::TreeSitterBoundary;
 
 /// Supported source syntaxes for the initial extraction boundary.
@@ -46,6 +46,8 @@ pub enum ExtractError {
     /// The caller provided a syntax name that is not part of the supported
     /// syntax vocabulary.
     UnknownSyntax(String),
+    /// Markdown parsing or IR construction failed.
+    MarkdownIr(String),
 }
 
 impl fmt::Display for ExtractError {
@@ -56,6 +58,9 @@ impl fmt::Display for ExtractError {
             }
             Self::UnknownSyntax(syntax) => {
                 write!(formatter, "unknown syntax '{syntax}'")
+            }
+            Self::MarkdownIr(message) => {
+                write!(formatter, "markdown IR extraction failed: {message}")
             }
         }
     }
@@ -158,13 +163,25 @@ impl ExtractRegion {
 pub struct ExtractDocument {
     syntax: ExtractSyntax,
     regions: Vec<ExtractRegion>,
+    ir: Option<IrDocument>,
 }
 
 impl ExtractDocument {
     /// Create a partial document with the supplied syntax and regions.
     #[must_use]
     pub const fn new(syntax: ExtractSyntax, regions: Vec<ExtractRegion>) -> Self {
-        Self { syntax, regions }
+        Self {
+            syntax,
+            regions,
+            ir: None,
+        }
+    }
+
+    /// Attach the full IR document envelope to this extraction payload.
+    #[must_use]
+    pub fn with_ir(mut self, ir: IrDocument) -> Self {
+        self.ir = Some(ir);
+        self
     }
 
     /// Return the syntax represented by the document.
@@ -177,6 +194,12 @@ impl ExtractDocument {
     #[must_use]
     pub fn regions(&self) -> &[ExtractRegion] {
         &self.regions
+    }
+
+    /// Return the full IR document envelope when this syntax provides one.
+    #[must_use]
+    pub const fn ir(&self) -> Option<&IrDocument> {
+        self.ir.as_ref()
     }
 }
 
@@ -224,18 +247,20 @@ pub fn extract_document(
     syntax: ExtractSyntax,
 ) -> Result<ExtractDocument, ExtractError> {
     match syntax {
-        ExtractSyntax::Markdown => Ok(extract_markdown_document(source)),
+        ExtractSyntax::Markdown => extract_markdown_document(source),
         ExtractSyntax::PythonDocstring | ExtractSyntax::RustDocComment => {
             Err(ExtractError::UnsupportedSyntax(syntax))
         }
     }
 }
 
-fn extract_markdown_document(source: &str) -> ExtractDocument {
+fn extract_markdown_document(source: &str) -> Result<ExtractDocument, ExtractError> {
+    let ir = markdown_ir_document(source, "<memory>", "memory://stilyagi/markdown")
+        .map_err(|error| ExtractError::MarkdownIr(error.to_string()))?;
     let regions = if source.trim().is_empty() {
         Vec::new()
     } else {
         vec![ExtractRegion::new_typed(RegionKind::Document, source)]
     };
-    ExtractDocument::new(ExtractSyntax::Markdown, regions)
+    Ok(ExtractDocument::new(ExtractSyntax::Markdown, regions).with_ir(ir))
 }
