@@ -1412,27 +1412,18 @@ inspection of the row and column that triggered the failure:
 #     #[datatable(truthy)]
 #     active: bool,
 # }
-
-let table = vec![
-    vec!["name".into(), "active".into()],
-    vec!["Alice".into()],
-];
-
-let Err(DataTableError::MissingColumn { row_number, column }) =
-    Rows::<UserRow>::try_from(table)
-else {
-    panic!("expected the table to be missing the 'active' column");
-};
-
-assert_eq!(row_number, 2);
-assert_eq!(column, "active");
 ```
 
-Custom parsers bubble their source error through `DataTableError::CellParse`.
-Inspecting the formatted message shows the precise location of the failure,
-including the human-readable column label:
+The selection function preserves the caller-supplied order, so applications can
+pass a list of preferred locales. The helper resolves to the best available
+translation and continues to fall back to English when a requested locale is
+not shipped with the crate. Procedural macro diagnostics remain in English so
+compile-time output stays deterministic regardless of the host machine’s
+language settings.
 
-```rust,no_run
+[`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
+[`FluentLanguageLoader`]: <https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
+
 # use rstest_bdd::datatable::{DataTableError, Rows};
 # use rstest_bdd_macros::DataTableRow;
 #
@@ -1442,71 +1433,17 @@ including the human-readable column label:
 #     #[datatable(truthy)]
 #     active: bool,
 # }
-
-let result = Rows::<UserRow>::try_from(vec![
-    vec!["name".into(), "active".into()],
-    vec!["Alice".into(), "maybe".into()],
-]);
-
-let err = match result {
-    Err(err) => err,
-    Ok(_) => panic!("expected the 'maybe' flag to trigger a parse error"),
-};
-
-let DataTableError::CellParse {
-    row_number,
-    column_index,
-    ..
-} = err
-else {
-    panic!("unexpected error variant");
-};
-assert_eq!(row_number, 2);
-assert_eq!(column_index, 2);
-assert!(err
-    .to_string()
-    .contains("unrecognised boolean value 'maybe'"));
 ```
 
-[`DataTableError`]: crate::datatable::DataTableError
+The selection function preserves the caller-supplied order, so applications can
+pass a list of preferred locales. The helper resolves to the best available
+translation and continues to fall back to English when a requested locale is
+not shipped with the crate. Procedural macro diagnostics remain in English so
+compile-time output stays deterministic regardless of the host machine’s
+language settings.
 
-A Gherkin Docstring is available through an argument named `docstring` of type
-`String`. Both arguments must use these exact names and types to be detected by
-the procedural macros. When both are declared, place `datatable` before
-`docstring` at the end of the parameter list.
-
-```gherkin
-Scenario: capture table and docstring
-  Given the following numbers:
-    | a | b |
-    | 1 | 2 |
-  When I submit:
-    """
-    payload
-    """
-```
-
-```rust,no_run
-#[given("the following numbers:")]
-fn capture_table(datatable: Vec<Vec<String>>) {
-    // ...
-}
-
-#[when("I submit:")]
-fn capture_docstring(docstring: String) {
-    // ...
-}
-
-#[then("table and text:")]
-fn capture_both(datatable: Vec<Vec<String>>, docstring: String) {
-    // datatable must precede docstring
-}
-```
-
-At runtime, the generated wrapper converts the table cells or copies the block
-text and passes them to the step function. It panics if the step declares
-`datatable` or `docstring` but the feature omits the content. These doc strings
-may be delimited by triple double-quotes or triple backticks.
+[`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
+[`FluentLanguageLoader`]: <https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
 
 ## Limitations and roadmap
 

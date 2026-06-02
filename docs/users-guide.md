@@ -55,6 +55,8 @@ owns a long-lived architectural role:
   document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
   assert document.syntax is model.Syntax.MARKDOWN
   assert document.regions[0].text == "# Heading"
+  assert document.ir is not None
+  assert document.ir["schema_version"] == "1.0.0"
   ```
 
 - `stilyagi.model` is the future home for document, region, sentence, and
@@ -105,6 +107,9 @@ The new extraction path is intentionally narrow in this slice:
 - `model.Syntax.PYTHON_DOCSTRING` and `model.Syntax.RUST_DOC_COMMENT` are part
   of the planned model vocabulary, but they currently raise
   `NotImplementedError` when passed to `extract_document(...)`.
+- Markdown documents expose a parsed `document.ir` mapping containing the
+  canonical Markdown IR envelope. That mapping includes schema metadata,
+  `line_index`, Markdown tree nodes, region `segments`, and content hashes.
 - `stilyagi._stilyagi_rs` remains an internal bridge module. User code should
   call `stilyagi.engine.extract_document(...)` rather than importing the raw
   bridge directly.
@@ -217,10 +222,10 @@ For day-to-day users, the mixed-package skeleton changes three practical things:
   smoke check through the public Python engine API and embedded Rust extension.
 
 The first implemented extractor proof now crosses the embedded Rust boundary
-without shelling out to a helper binary. Today that proof is deliberately
-small: non-blank Markdown input returns a document with one `document` region,
-blank Markdown input returns zero regions, and later roadmap items will refine
-that payload into the fuller IR contract.
+without shelling out to a helper binary. Non-blank Markdown input still returns
+the compatibility `document` region used by earlier slices, blank Markdown
+input returns zero compatibility regions, and Markdown input now also carries a
+canonical IR envelope on `Document.ir`.
 
 Until the command-line interface (CLI) and feature slices are implemented,
 treat this guide as a record of the stable user-facing v1 contract rather than

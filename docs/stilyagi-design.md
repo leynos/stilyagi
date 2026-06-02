@@ -812,16 +812,19 @@ V1 sufficiency:
 - The current RFC is close, but not sufficient until the transport versus
   schema distinction and the `language` naming problem are fixed.
 
-Current implementation note for roadmap item 1.2.2:
+Current implementation note for roadmap items 1.2.2 and 2.1.1:
 
-- The first live Rust-to-Python bridge is intentionally narrower than the
-  eventual IR contract. `stilyagi.engine.extract_document(...)` currently
-  delegates to Rust for Markdown, Python docstring, and Rust documentation
-  comment extraction and adapts a partial document-shaped payload into the
-  Python model layer.
-- That payload is deliberately limited to `syntax` plus regions with `kind`
-  and `text` fields. It does not yet expose `line_index`, `segments`, owner
-  metadata, or canonical IR JSON as part of the in-process bridge.
+- The first live Rust-to-Python bridge delegates to Rust for Markdown, Python
+  docstring, and Rust documentation comment extraction. Markdown is currently
+  implemented; Python docstrings and Rust documentation comments remain gated
+  by unsupported-syntax errors.
+- Markdown extraction now carries the canonical IR envelope through the
+  in-process bridge. The Python `Document.ir` mapping exposes schema metadata,
+  `line_index`, tree nodes, region `segments`, synthetic insertions, and
+  content hashes for Markdown input.
+- The compatibility payload still includes `syntax` plus regions with `kind`
+  and `text` fields while later roadmap slices migrate callers onto richer
+  source-fidelity surfaces.
 - The raw PyO3 payload is an internal bridge detail. The supported Python
   surface is the typed `stilyagi.model.Document` wrapper returned by
   `stilyagi.engine`, which keeps the public API future-compatible while later

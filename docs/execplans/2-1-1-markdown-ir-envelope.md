@@ -1,7 +1,7 @@
 # Implement the Markdown IR envelope
 
 This ExecPlan (execution plan) is a living document. The sections `Constraints`,
- `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: IN PROGRESS
@@ -497,7 +497,7 @@ Update `docs/developers-guide.md` to document the new internal IR envelope, the
 Markdown flattening boundary, segment invariants, canonical JSON workflow, and
 how Rust and Python golden fixtures stay aligned. Update `docs/users-guide.md`
 only for consumer-visible changes, such as richer fields on the supported Python
- `Document` or `Region` model.
+`Document` or `Region` model.
 
 Update `docs/stilyagi-design.md` only if implementation resolves an ambiguity
 or changed the design. Update RFC 0001 only if the accepted contract needs a
@@ -775,13 +775,11 @@ findings were:
 - [x] (2026-06-01T21:56:54Z) User approved implementation and asked to keep
   this ExecPlan current during work.
 - [x] (2026-06-01T21:56:54Z) Ran baseline gates before implementation:
-  `make check-fmt`, `make typecheck`, `make lint`, and `make test` all
-  passed.
+  `make check-fmt`, `make typecheck`, `make lint`, and `make test` all passed.
 - [x] (2026-06-01T22:30:00Z) Implemented the Stage 1 parser and schema spike:
   `stilyagi-ir` now owns the first production IR envelope types, content hash
   helper, canonical JSON method, and segment reconstruction invariant tests;
-  `stilyagi-markdown` now has a `markdown-rs` parse wrapper and position
-  probe.
+  `stilyagi-markdown` now has a `markdown-rs` parse wrapper and position probe.
 - [x] (2026-06-01T22:45:00Z) Gated Stage 1 locally. `make markdownlint`,
   `make nixie`, `make check-fmt`, `make typecheck`, `make lint`, and
   `make test` all passed. The full test gate ran 90 Rust tests and 66 Python
@@ -790,8 +788,8 @@ findings were:
   milestone after deterministic gates passed. CodeRabbit completed with zero
   findings.
 - [x] (2026-06-01T23:18:00Z) Implemented the Stage 2 Markdown IR builder in
-  `stilyagi-markdown`. It now builds a deterministic mdast-backed tree,
-  source spans, heading/paragraph/table-cell regions, heading depth attrs,
+  `stilyagi-markdown`. It now builds a deterministic mdast-backed tree, source
+  spans, heading/paragraph/table-cell regions, heading depth attrs,
   source-backed text segments, and synthetic soft-break segments. Targeted
   `cargo test -p stilyagi-markdown` passed.
 - [x] (2026-06-01T23:31:00Z) Gated Stage 2 locally. `make markdownlint`,
@@ -800,8 +798,8 @@ findings were:
   tests.
 - [x] (2026-06-02T00:08:00Z) Ran `coderabbit review --agent` for the Stage 2
   milestone. The first attempt hit a recoverable rate limit, so the workflow
-  slept for 23 minutes as instructed and retried. The retry completed with
-  zero findings.
+  slept for 23 minutes as instructed and retried. The retry completed with zero
+  findings.
 - [x] (2026-06-02T00:18:00Z) Implemented Stage 3 canonical JSON and golden
   fixture coverage for the internal Markdown IR builder. The shared Markdown
   fixture now has an `insta` snapshot in `stilyagi-markdown`, and the test
@@ -818,8 +816,8 @@ findings were:
   findings.
 - [x] (2026-06-02T00:55:00Z) Implemented Stage 4 PyO3 bridge and Python model
   adaptation. Markdown extraction now attaches an `IrDocument` to the Rust
-  extraction result, the PyO3 bridge exposes it as canonical `ir_json`, and
-  the Python adapter parses that into `model.Document.ir` while preserving the
+  extraction result, the PyO3 bridge exposes it as canonical `ir_json`, and the
+  Python adapter parses that into `model.Document.ir` while preserving the
   existing `syntax` and minimal `regions` contract. Targeted
   `cargo test -p stilyagi-extract -p stilyagi-pyext` passed.
 - [x] (2026-06-02T01:08:00Z) Gated Stage 4 locally. `make markdownlint`,
@@ -830,7 +828,17 @@ findings were:
   milestone after deterministic gates passed. The first two attempts were
   rate-limited, so the required random 18-minute and 15-minute backoffs were
   observed before retrying. The third attempt completed with zero findings.
-- [ ] After approval, implement Stage 5 documentation and roadmap completion.
+- [x] (2026-06-02T01:56:00Z) Drafted Stage 5 documentation and roadmap updates.
+  `docs/users-guide.md` now documents `Document.ir` for Markdown,
+  `docs/developers-guide.md` and `docs/stilyagi-design.md` record the canonical
+  Markdown IR bridge, and `docs/roadmap.md` marks item 2.1.1 done.
+- [x] (2026-06-02T02:06:00Z) Gated Stage 5 locally. `make fmt`,
+  `make markdownlint`, `make nixie`, `make check-fmt`, `make typecheck`,
+  `make lint`, and `make test` all passed. The full test gate ran 94 Rust
+  tests and 66 Python tests.
+- [x] (2026-06-02T02:19:00Z) Ran `coderabbit review --agent` for the Stage 5
+  milestone after deterministic gates passed. CodeRabbit completed with zero
+  findings.
 
 ## Surprises & Discoveries
 
@@ -859,12 +867,12 @@ findings were:
   attributed to implementation changes unless the environment changes.
 
 - Observation: `markdown-rs` exposes mdast node positions with `start.offset`
-  and `end.offset`, and the representative spike confirms positions are
-  present for the root, a heading, and a paragraph. Evidence:
+  and `end.offset`, and the representative spike confirms positions are present
+  for the root, a heading, and a paragraph. Evidence:
   `cargo test -p stilyagi-ir -p stilyagi-markdown` passed after adding the
-  parser probe. Impact: Stage 2 can proceed with `markdown-rs`; flattening
-  must still normalize and test exact byte spans rather than assume every node
-  end offset matches naive fixture slicing.
+  parser probe. Impact: Stage 2 can proceed with `markdown-rs`; flattening must
+  still normalize and test exact byte spans rather than assume every node end
+  offset matches naive fixture slicing.
 
 - Observation: `markdown-rs` with `ParseOptions::gfm()` parses the shared
   table fixture into table-cell mdast nodes and represents Markdown soft line
@@ -877,13 +885,13 @@ findings were:
 - Observation: the shared Markdown fixture's canonical IR JSON snapshot is
   stable using repository-relative paths and a synthetic `file:///repo/...`
   URI. Evidence: `INSTA_UPDATE=always cargo test -p stilyagi-markdown`
-  generated the snapshot, and a normal `cargo test -p stilyagi-markdown`
-  passed immediately afterwards. Impact: Stage 4 can bridge the same Rust IR
-  shape without depending on machine-specific snapshot data.
+  generated the snapshot, and a normal `cargo test -p stilyagi-markdown` passed
+  immediately afterwards. Impact: Stage 4 can bridge the same Rust IR shape
+  without depending on machine-specific snapshot data.
 
 - Observation: the existing Python extraction model can be widened
-  compatibly by adding an optional `Document.ir` field. Evidence: targeted
-  Rust bridge tests passed after preserving `syntax` and `regions` in the raw
+  compatibly by adding an optional `Document.ir` field. Evidence: targeted Rust
+  bridge tests passed after preserving `syntax` and `regions` in the raw
   payload and adding `ir_json` as an extra field. Impact: existing callers can
   continue using the minimal region contract while consumers that need the IR
   can inspect `document.ir`.
@@ -922,8 +930,7 @@ findings were:
   field lets Stage 1 and Stage 2 prove `segments` reconstruct region text
   without relying on external source slices or parser state; if canonical v1
   JSON later omits it, that will be a deliberate serializer decision rather
-  than a weaker in-memory invariant. Date/Author: 2026-06-01T22:30:00Z /
-  Codex.
+  than a weaker in-memory invariant. Date/Author: 2026-06-01T22:30:00Z / Codex.
 
 - Decision: implement Stage 2 regions for `heading`, `paragraph`, and
   `table_cell` only. Rationale: these are the representative fixture kinds
@@ -950,9 +957,9 @@ Stage 1 outcome: the parser and schema spike passed targeted Rust tests on
 2026-06-01. The milestone proved that `markdown-rs` can supply usable mdast
 positions for representative Markdown blocks and that the IR crate can own the
 document envelope, hash helper, deterministic JSON method, and segment
-reconstruction invariant independently of parser or bridge adapters.
-Full Stage 1 gates also passed before CodeRabbit review. CodeRabbit completed
-the Stage 1 milestone review with zero findings.
+reconstruction invariant independently of parser or bridge adapters. Full Stage
+1 gates also passed before CodeRabbit review. CodeRabbit completed the Stage 1
+milestone review with zero findings.
 
 Stage 2 outcome: `stilyagi-markdown` now builds an internal Markdown IR
 document envelope with mdast tree nodes and lintable heading, paragraph, and
@@ -977,6 +984,12 @@ dictionaries inside PyO3, and the Python model exposes the parsed envelope as
 `Document.ir`. Full deterministic gates passed for this milestone, and
 CodeRabbit completed the milestone review with zero findings after two
 rate-limit backoffs.
+
+Stage 5 outcome: the user guide now documents the Markdown `Document.ir`
+surface, the developer guide and design document record the implemented
+canonical Markdown IR bridge, and roadmap item 2.1.1 is marked done. Full
+deterministic gates passed for this milestone, and CodeRabbit completed the
+milestone review with zero findings.
 
 ## Revision note
 

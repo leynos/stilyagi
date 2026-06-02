@@ -79,8 +79,8 @@ extension points. Current implemented extraction support covers Markdown.
 Python docstrings and Rust documentation comments remain in the stable v1
 syntax vocabulary, but their extractors currently report unsupported-syntax
 errors. Markdown with JSX (MDX) remains preview-only, canonical JSON remains
-required for `dump-ir`, fixtures, and compatibility review, and English is the
-only formally supported v1 locale.[^2]
+required for the Markdown IR bridge, `dump-ir`, fixtures, and compatibility
+review, and English is the only formally supported v1 locale.[^2]
 
 - Rust owns source-oriented work:
   - file-format-aware parsing
@@ -439,10 +439,11 @@ python/stilyagi/engine/extraction.py
 ```
 
 That split is deliberate. `crates/stilyagi-extract/` owns the partial
-document-shaped extraction result and the syntax gate. `crates/stilyagi-pyext/`
-translates between Rust types and a Python-owned bridge payload. The public
-Python surface then adapts that payload into `stilyagi.model.Document` and
-`stilyagi.model.Region`.
+document-shaped extraction result, the Markdown IR envelope, and the syntax
+gate. `crates/stilyagi-pyext/` translates between Rust types and a Python-owned
+bridge payload. The public Python surface then adapts that payload into
+`stilyagi.model.Document`, `stilyagi.model.Region`, and the optional
+`Document.ir` mapping.
 
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine
@@ -484,8 +485,8 @@ current skeleton:
 - `crates/stilyagi-extract`
   - home for cross-syntax extraction orchestration that composes the lower-level
     crates
-  - now owns the first minimal `extract_document(...)` proof used by the PyO3
-    bridge
+  - now owns the `extract_document(...)` path used by the PyO3 bridge,
+    including Markdown IR attachment
 - `python/stilyagi/__init__.py`
   - public Python package surface that re-exports the supported package
     boundaries and imports the embedded Rust extension
