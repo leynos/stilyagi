@@ -201,9 +201,9 @@ Second, it matches the already-adopted build spine. The repository is not
 choosing a new path here; it is ratifying the path already encoded in
 `make build`, `make release`, and the developer guide.[^2][^3]
 
-Third, it keeps JSON in the right place. Stilyagi still needs canonical JSON
-for `dump-ir`, contract review, and regression fixtures, but it does not need
-to pay serialization costs for every ordinary Rust-to-Python call merely to
+Third, it keeps JSON in the right place. Stilyagi still needs canonical JSON for
+`dump-ir`, contract review, and regression fixtures, but it does not need to
+pay serialization costs for every ordinary Rust-to-Python call merely to
 preserve a subprocess boundary.[^1]
 
 Fourth, it keeps the user-facing story simple. Stilyagi installs as one Python

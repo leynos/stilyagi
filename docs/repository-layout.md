@@ -28,17 +28,20 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 │   ├── stilyagi-ir/
 │   ├── stilyagi-markdown/
 │   ├── stilyagi-pyext/
+│   ├── stilyagi-test-support/
 │   └── stilyagi-tree-sitter/
 ├── .rules/
 ├── docs/
+│   ├── execplans/
 │   └── rfcs/
 ├── features/
-├── image_out/
 ├── python/
 │   └── stilyagi/
-├── scripts/
 ├── tests/
-│   └── fixtures/
+│   ├── __snapshots__/
+│   ├── fixtures/
+│   ├── performance/
+│   └── support/
 ├── AGENTS.md
 ├── Cargo.toml
 ├── Makefile
@@ -86,6 +89,10 @@ new maintainer needs to recognize quickly and omits transient cache contents.
   `crates/stilyagi-tree-sitter/`, and `crates/stilyagi-extract/`
   - Long-lived skeleton crates reserved for the future IR, Markdown,
     tree-sitter, and extraction boundaries described by the design.
+- `crates/stilyagi-test-support/`
+  - Shared Rust test-support crate.
+  - Owns reusable fixtures, helpers, and snapshots used to keep Rust tests
+    consistent across crate boundaries.
 
 The ownership boundary matters. Rust is the home for source-fidelity and
 extension-boundary concerns. Python is the home for package integration and the
@@ -114,6 +121,14 @@ repository root or hidden in issue threads.
   - Python-level tests and integration checks.
 - `tests/fixtures/`
   - Static fixture inputs used by tests.
+- `tests/__snapshots__/`
+  - Snapshot outputs generated and reviewed by the Python test suite.
+- `tests/performance/`
+  - Performance probes and baselines used to check cold and warm structural
+    behaviour.
+- `tests/support/`
+  - Python test support helpers that should be reused rather than duplicated
+    in individual tests.
 - `features/`
   - Behaviour-driven development feature files used by the Python test stack.
 - `crates/stilyagi-pyext/tests/features/`
@@ -131,12 +146,6 @@ there rather than embedded ad hoc in unrelated modules.
   - Repository-local acronym support data.
 - `.github/workflows/`
   - Continuous integration and automation workflow definitions.
-- `scripts/`
-  - Helper scripts. This directory is currently sparse, so new scripts should
-    be added deliberately rather than turning it into a general dumping ground.
-- `image_out/`
-  - Generated or exported image output. Treat this as artefact space, not as a
-    home for hand-maintained source files.
 
 ## 7. Generated and transient paths
 

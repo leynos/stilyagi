@@ -1,9 +1,8 @@
 # Harmonize the RFC set with the ratified v1 contracts
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -233,8 +232,8 @@ of planned amendments rather than a generic goal to "make them agree."
 ### Milestone 2: amend RFC 0001 and RFC 0002 around the v1 core contract
 
 Edit RFC 0001 so its normative language matches the accepted v1 extractor
-contract. The finished text should make `syntax` the source-language field,
-keep `natural_language` distinct, describe `owner` metadata for docstrings and
+contract. The finished text should make `syntax` the source-language field, keep
+`natural_language` distinct, describe `owner` metadata for docstrings and
 comments, keep `summary_line` as an analysis-layer view rather than a base
 extractor region kind, and describe JSON as the canonical serialized form
 without forcing it as the only in-process transport.
