@@ -103,7 +103,8 @@ full release path fails. Observable success is `make check-fmt`, `make lint`,
 - [x] 2026-06-04T23:34:48Z Ran and passed `make typecheck`.
 - [x] 2026-06-04T23:34:48Z Ran and passed `make test`; nextest reported 86
   Rust tests passing and pytest reported 85 Python tests passing.
-- [ ] Commit the validated change.
+- [x] 2026-06-04T23:34:48Z Committed the validated implementation as
+  `245afb5` (`Add maturin and PyO3 compatibility tests`).
 - [ ] Create a draft pull request using the PR creation workflow.
 
 ## Surprises & Discoveries
