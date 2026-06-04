@@ -105,7 +105,8 @@ full release path fails. Observable success is `make check-fmt`, `make lint`,
   Rust tests passing and pytest reported 85 Python tests passing.
 - [x] 2026-06-04T23:34:48Z Committed the validated implementation as
   `245afb5` (`Add maturin and PyO3 compatibility tests`).
-- [ ] Create a draft pull request using the PR creation workflow.
+- [x] 2026-06-04T23:34:48Z Created draft pull request
+  <https://github.com/leynos/stilyagi/pull/22>.
 
 ## Surprises & Discoveries
 
