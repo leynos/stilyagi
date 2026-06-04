@@ -12,7 +12,8 @@ Repository = "https://github.com/leynos/stilyagi"
 
 [dependency-groups]
 dev = [
-    "maturin>=1.9.4,<2.0",
+    # Keep in sync with [build-system].requires.
+    "maturin==1.13.3",
     "pytest",
     "pytest-xdist",
     "ruff",
@@ -343,5 +344,6 @@ module-name = "stilyagi._stilyagi_rs"
 python-source = "python"
 
 [build-system]
-requires = ["maturin>=1.9.4,<2.0"]
+# Keep in sync with [dependency-groups].dev.
+requires = ["maturin==1.13.3"]
 build-backend = "maturin"

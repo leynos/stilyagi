@@ -40,7 +40,7 @@ The minimum local setup is:
 - Python 3.14 available to `uv`
 - Rust toolchain with `cargo`, `rustfmt`, and `clippy`
 - `uv`
-- `maturin` 1.9.4 or newer
+- `maturin` 1.13.3
 - `whitaker`
 - `pypy`, or a `uv`-managed PyPy interpreter for `pylint-pypy-shim`
 - `markdownlint-cli2`
@@ -474,10 +474,119 @@ For local testing, the workspace intentionally no longer enables
 guidance for modern `maturin` releases is to let the build backend manage the
 extension-module build mode so `cargo test` can still link and execute the Rust
 test binaries.[^3] Because this now relies on the packaging backend exporting
-`PYO3_BUILD_EXTENSION_MODULE`, the repository requires `maturin` 1.9.4 or newer
-in both the build-system and dev-tooling dependencies.
+`PYO3_BUILD_EXTENSION_MODULE`, the repository pins maturin in both the
+build-system and dev-tooling dependencies.
 
-### 4.1 Current mixed-package skeleton
+
+### 4.1 Maturin and PyO3 compatibility tests
+
+The repository pins maturin in both `pyproject.toml`
+`[dependency-groups].dev` and `[build-system].requires`. Keep those pins in
+sync when updating maturin. The Python tests in `tests/test_maturin_build.py`
+validate that contract, assert that the installed maturin module matches the
+pin, and build a native wheel whose normalized metadata and layout are compared
+with a syrupy snapshot.
+
+To refresh the native wheel snapshot after a maturin or PyO3 update, run:
+
+```bash
+uv run --group dev pytest tests/test_maturin_build.py \
+    --snapshot-update -k test_maturin_wheel_build_snapshot
+```
+
+The PyO3 bridge crate also uses
+[trybuild](https://github.com/dtolnay/trybuild) to validate representative
+macro patterns at compile time. The UI fixtures live under
+`crates/stilyagi-pyext/tests/ui/`:
+
+- `tests/ui/pass/` contains Rust files that must compile.
+- `tests/ui/fail/` contains Rust files that must fail with diagnostics matching
+  the corresponding `.stderr` file.
+
+Run the compile-time UI tests with:
+
+```bash
+cargo test --manifest-path Cargo.toml -p stilyagi-pyext compile_time_ui
+```
+
+If a PyO3 or compiler upgrade intentionally changes compile-fail diagnostics,
+refresh the expectation files with:
+
+```bash
+TRYBUILD=overwrite cargo test --manifest-path Cargo.toml \
+    -p stilyagi-pyext compile_time_ui
+```
+
+Inspect the updated `.stderr` files before committing to confirm that the fail
+test still represents a genuine PyO3 contract violation.
+
+
+### 4.2 Current mixed-package skeleton
+
+The general architecture above now maps to concrete repository modules and
+crates. Maintainers should use these names when discussing or extending the
+current skeleton:
+
+- `crates/stilyagi-pyext`
+  - PyO3 bridge crate that builds the package-scoped
+    `stilyagi._stilyagi_rs` extension module
+  - should stay thin and delegate executable logic into library crates
+- `crates/stilyagi-core`
+  - smallest shared Rust library boundary used by the bridge today
+  - current home of the Rust-backed smoke behaviour
+- `crates/stilyagi-ir`
+  - owns the syntax-neutral intermediate representation (IR) vocabulary,
+    canonical envelope, and adapters described by RFC 0001
+- `crates/stilyagi-markdown`
+  - owns the first concrete IR producer: Markdown-specific extraction and
+    flattening logic
+- `crates/stilyagi-tree-sitter`
+  - reserved home for tree-sitter integration and syntax-tree helpers
+- `crates/stilyagi-extract`
+  - home for cross-syntax extraction orchestration that composes the lower-level
+    crates
+  - now owns the `extract_document(...)` path used by the PyO3 bridge,
+    including Markdown IR attachment
+- `python/stilyagi/__init__.py`
+  - public Python package surface that re-exports the supported package
+    boundaries and imports the embedded Rust extension
+- `python/stilyagi/cli.py`
+  - command-line entrypoint placeholder for the future CLI contract from
+    RFC 0003
+- `python/stilyagi/config.py`
+  - configuration boundary for Python-side runtime settings and validation
+- `python/stilyagi/diagnostics.py`
+  - diagnostic object boundary for future reporting and fix planning
+- `python/stilyagi/engine/`
+  - future execution planner, runner, fix-planning, and renderer surfaces
+- `python/stilyagi/model/`
+  - future document, region, sentence, and token runtime types
+- `python/stilyagi/nlp/`
+  - future NLP provider protocols and provider-specific configuration surfaces
+- `python/stilyagi/plugins.py`
+  - source of truth for Python entry-point group names such as
+    `stilyagi.rules` and `stilyagi.capabilities`
+- `python/stilyagi/rules/`
+  - rule namespace root for bundled and third-party rules
+
+Those boundaries deliberately mirror the ownership split in section 2. When a
+change belongs to extraction fidelity, syntax parsing, or source mapping, it
+should usually start in one of the Rust crates. When a change belongs to
+configuration discovery, diagnostics, plugin registration, capability planning,
+or rule orchestration, it should usually start in one of the Python modules
+above.
+
+There are also two concrete cross-boundary rules worth preserving:
+
+- Python package code should import the embedded extension through
+  `stilyagi._stilyagi_rs` and then expose user-facing orchestration from the
+  `stilyagi` package surface, rather than letting callers bind to a second
+  top-level module.
+- The Rust workspace should not depend on Python package modules for policy or
+  plugin decisions. Python owns orchestration and registration; Rust owns
+  extraction and source fidelity.
+
+### 4.2 Current mixed-package skeleton
 
 The general architecture above now maps to concrete repository modules and
 crates. Maintainers should use these names when discussing or extending the
