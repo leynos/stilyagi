@@ -12,6 +12,41 @@ use stilyagi_test_support::{
 };
 use stilyagi_tree_sitter::TreeSitterBoundary;
 
+/// Names the semantic role of a `&str` carrying the canonical, stable
+/// string spelling of a domain variant under test.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExpectedSpelling<'a>(&'a str);
+
+impl<'a> From<&'a str> for ExpectedSpelling<'a> {
+    fn from(s: &'a str) -> Self {
+        Self(s)
+    }
+}
+
+impl AsRef<str> for ExpectedSpelling<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl std::str::FromStr for ExpectedSpelling<'static> {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "document" => Self("document"),
+            "markdown" => Self("markdown"),
+            "python_docstring" => Self("python_docstring"),
+            "rust_doc_comment" => Self("rust_doc_comment"),
+            "python_docstring extraction is not implemented yet." => {
+                Self("python_docstring extraction is not implemented yet.")
+            }
+            "unknown syntax 'bogus'" => Self("unknown syntax 'bogus'"),
+            other => Self(Box::leak(other.to_owned().into_boxed_str())),
+        })
+    }
+}
+
 /// Keep the extraction boundary default stable and comparable.
 #[test]
 fn extract_boundary_default_matches_another_default() {
@@ -218,9 +253,9 @@ fn unsupported_syntaxes_are_rejected(#[case] syntax: ExtractSyntax) {
 #[case(ExtractSyntax::RustDocComment, "rust_doc_comment")]
 fn syntax_as_str_returns_the_expected_spelling(
     #[case] syntax: ExtractSyntax,
-    #[case] expected: &str,
+    #[case] expected: ExpectedSpelling<'_>,
 ) {
-    assert_eq!(syntax.as_str(), expected);
+    assert_eq!(syntax.as_str(), expected.as_ref());
 }
 
 /// Keep the Display output for each syntax variant identical to `as_str`.
@@ -228,8 +263,11 @@ fn syntax_as_str_returns_the_expected_spelling(
 #[case(ExtractSyntax::Markdown, "markdown")]
 #[case(ExtractSyntax::PythonDocstring, "python_docstring")]
 #[case(ExtractSyntax::RustDocComment, "rust_doc_comment")]
-fn syntax_display_matches_as_str(#[case] syntax: ExtractSyntax, #[case] expected: &str) {
-    assert_eq!(format!("{syntax}"), expected);
+fn syntax_display_matches_as_str(
+    #[case] syntax: ExtractSyntax,
+    #[case] expected: ExpectedSpelling<'_>,
+) {
+    assert_eq!(format!("{syntax}"), expected.as_ref());
 }
 
 /// Keep the stable spelling of each region kind accessible to callers.
@@ -237,9 +275,9 @@ fn syntax_display_matches_as_str(#[case] syntax: ExtractSyntax, #[case] expected
 #[case(RegionKind::Document, "document")]
 fn region_kind_as_str_returns_the_expected_spelling(
     #[case] kind: RegionKind,
-    #[case] expected: &str,
+    #[case] expected: ExpectedSpelling<'_>,
 ) {
-    assert_eq!(kind.as_str(), expected);
+    assert_eq!(kind.as_str(), expected.as_ref());
 }
 
 /// Keep string parsing for each region kind aligned with `as_str`.
@@ -255,8 +293,11 @@ fn region_kind_try_from_accepts_the_expected_spelling(
 /// Keep the Display output for each region kind identical to `as_str`.
 #[rstest]
 #[case(RegionKind::Document, "document")]
-fn region_kind_display_matches_as_str(#[case] kind: RegionKind, #[case] expected: &str) {
-    assert_eq!(format!("{kind}"), expected);
+fn region_kind_display_matches_as_str(
+    #[case] kind: RegionKind,
+    #[case] expected: ExpectedSpelling<'_>,
+) {
+    assert_eq!(format!("{kind}"), expected.as_ref());
 }
 
 /// Verify the format → parse round-trip: `as_str` output is accepted by
@@ -287,8 +328,11 @@ fn region_kind_try_from_round_trips_through_as_str(#[case] spelling: &str) {
     ExtractError::UnknownSyntax("bogus".to_owned()),
     "unknown syntax 'bogus'"
 )]
-fn extract_error_display_is_informative(#[case] error: ExtractError, #[case] expected: &str) {
-    assert_eq!(format!("{error}"), expected);
+fn extract_error_display_is_informative(
+    #[case] error: ExtractError,
+    #[case] expected: ExpectedSpelling<'_>,
+) {
+    assert_eq!(format!("{error}"), expected.as_ref());
 }
 
 /// Keep `TryFrom<&str>` honest by rejecting unrecognised syntax names.
@@ -323,10 +367,9 @@ fn corpus_fixture_path_rejects_absolute_path() {
 fn assert_corpus_fixture_path_rejects(
     path: impl AsRef<std::path::Path>,
     expected_kind: stilyagi_test_support::FixturePathErrorKind,
-    panic_message: &str,
 ) {
     let Err(error) = stilyagi_test_support::corpus_fixture_path(path) else {
-        panic!("{panic_message}");
+        panic!("expected a FixturePathError with kind {expected_kind:?}");
     };
     assert_eq!(error.kind, expected_kind);
 }
@@ -336,7 +379,6 @@ fn corpus_fixture_path_rejects_parent_traversal() {
     assert_corpus_fixture_path_rejects(
         "../../etc/passwd",
         stilyagi_test_support::FixturePathErrorKind::ParentTraversal,
-        "expected parent traversal rejection",
     );
 }
 
@@ -346,7 +388,6 @@ fn corpus_fixture_path_rejects_drive_prefix() {
     assert_corpus_fixture_path_rejects(
         std::path::Path::new("C:\\windows\\system32"),
         stilyagi_test_support::FixturePathErrorKind::Prefix,
-        "expected drive prefix rejection",
     );
 }
 
@@ -356,6 +397,5 @@ fn corpus_fixture_path_rejects_root_relative() {
     assert_corpus_fixture_path_rejects(
         std::path::Path::new("\\etc"),
         stilyagi_test_support::FixturePathErrorKind::RootRelative,
-        "expected root-relative rejection",
     );
 }
