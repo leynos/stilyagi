@@ -272,17 +272,26 @@ pub struct IrSegment {
     pub text: String,
 }
 
-pub(crate) enum SegmentOrigin {
-    Source { span: SourceSpan, node: String },
-    Synthetic { reason: String },
+/// Origin metadata for an IR segment.
+pub enum SegmentOrigin {
+    /// Segment text copied from a source span and structural node.
+    Source {
+        /// Source byte span backing this segment.
+        span: SourceSpan,
+        /// Structural node identifier that produced this segment.
+        node: String,
+    },
+    /// Segment text synthesized during extraction.
+    Synthetic {
+        /// Stable reason for the synthetic insertion.
+        reason: String,
+    },
 }
 
 impl IrSegment {
-    pub(crate) fn new(
-        text_start: usize,
-        segment_text: impl Into<String>,
-        origin: SegmentOrigin,
-    ) -> Self {
+    /// Build an IR segment from flattened text and its origin.
+    #[must_use]
+    pub fn new(text_start: usize, segment_text: impl Into<String>, origin: SegmentOrigin) -> Self {
         let text = segment_text.into();
         let (source, synthetic, node) = match origin {
             SegmentOrigin::Source { span, node } => (Some(span), None, Some(node)),
@@ -347,7 +356,9 @@ mod tests {
     use proptest::prelude::*;
     use rstest::rstest;
 
-    use super::{DocumentMetadata, IrBoundary, IrDocument, IrRegion, IrSegment, SourceSpan};
+    use super::{
+        DocumentMetadata, IrBoundary, IrDocument, IrRegion, IrSegment, SegmentOrigin, SourceSpan,
+    };
 
     /// Keep the marker type default stable and comparable.
     #[test]
