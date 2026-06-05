@@ -272,15 +272,18 @@ pub struct IrSegment {
     pub text: String,
 }
 
+enum SegmentOrigin {
+    Source { span: SourceSpan, node: String },
+    Synthetic { reason: String },
+}
+
 impl IrSegment {
-    fn new(
-        text_start: usize,
-        segment_text: impl Into<String>,
-        source: Option<SourceSpan>,
-        synthetic: Option<String>,
-        node: Option<String>,
-    ) -> Self {
+    fn new(text_start: usize, segment_text: impl Into<String>, origin: SegmentOrigin) -> Self {
         let text = segment_text.into();
+        let (source, synthetic, node) = match origin {
+            SegmentOrigin::Source { span, node } => (Some(span), None, Some(node)),
+            SegmentOrigin::Synthetic { reason } => (None, Some(reason), None),
+        };
         Self {
             text_start,
             text_end: text_start + text.len(),
@@ -302,9 +305,10 @@ impl IrSegment {
         Self::new(
             text_start,
             segment_text,
-            Some(source),
-            None,
-            Some(node.into()),
+            SegmentOrigin::Source {
+                span: source,
+                node: node.into(),
+            },
         )
     }
 
@@ -315,7 +319,13 @@ impl IrSegment {
         segment_text: impl Into<String>,
         reason: impl Into<String>,
     ) -> Self {
-        Self::new(text_start, segment_text, None, Some(reason.into()), None)
+        Self::new(
+            text_start,
+            segment_text,
+            SegmentOrigin::Synthetic {
+                reason: reason.into(),
+            },
+        )
     }
 
     /// Return the text represented by this segment.
