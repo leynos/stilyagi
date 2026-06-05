@@ -186,6 +186,13 @@ External prior art checked during planning:
 - Use `proptest` for Rust segment and span invariants introduced by this
   change. If property tests prove too expensive or imprecise, stop and record
   the reason before substituting examples only.
+- Treat the alternative
+  `2-1-1-markdown-ir-envelope-and-mappings` plan as follow-up hardening input,
+  not as a retroactive expansion of this completed slice. Its recommended
+  CRLF, frontmatter, inline-markup, bridge-parity, parser-panic, and
+  error-size checks are valuable, but any unimplemented item must be tracked as
+  a later hardening or 2.1.2 task rather than silently changing the acceptance
+  bar for this branch.
 - Do not add Kani, CrossHair, or Verus proof work unless the implementation
   introduces a substantive invariant that is better proved than tested.
 - Run format, typecheck, lint, and tests sequentially. Capture long command
@@ -244,6 +251,21 @@ External prior art checked during planning:
   small, tested state machine over mdast nodes; add example tests and
   `proptest` invariants that reconstruct region text from segments.
 
+- Risk: CRLF line endings can break soft-break span mapping if text splitting
+  treats `\n` as the only line terminator while the source bytes contain
+  `\r\n`. Severity: high. Likelihood: medium. Mitigation: add a
+  CRLF-preserving Markdown fixture protected by a scoped `.gitattributes`
+  entry, assert the fixture still contains literal CRLF bytes on checkout, and
+  include that fixture in segment reconstruction tests before broadening
+  Markdown mapping coverage.
+
+- Risk: the current fixture corpus proves the first envelope but does not cover
+  every shape needed to trust later Markdown mappings. Severity: medium.
+  Likelihood: high. Mitigation: add paragraph-with-inline-markup,
+  paragraph-with-soft-break, CRLF soft-break, and YAML frontmatter fixtures in
+  the next hardening pass or in roadmap item 2.1.2, then snapshot each shape
+  with source-backed and synthetic segment assertions.
+
 - Risk: widening the PyO3 payload breaks the existing Python extraction tests
   or exposes raw transport details as public API. Severity: medium. Likelihood:
   medium. Mitigation: keep the old minimal fields available where practical,
@@ -251,10 +273,25 @@ External prior art checked during planning:
   through `python/stilyagi/engine/extraction.py` rather than raw dict internals
   alone.
 
+- Risk: bridge parity can become self-referential if the bridge returns a
+  canonical JSON string and the Python side merely compares that field to
+  itself. Severity: medium. Likelihood: medium. Mitigation: if Python gains a
+  first-class IR model serializer, compare Python-produced canonical JSON
+  against Rust canonical JSON or a reviewed Rust snapshot for the same source.
+  Keep the PyO3 dictionary documented as an internal transport mirror rather
+  than a public contract.
+
 - Risk: Rust and Python golden IR helpers drift into two subtly different
   contracts. Severity: medium. Likelihood: high. Mitigation: make Rust
   canonical JSON the source of truth, then update Python helpers to compare the
   same normalized field names and ordering.
+
+- Risk: Markdown parser panics or large error variants can cross boundaries in
+  surprising ways as the extractor grows. Severity: medium. Likelihood:
+  medium. Mitigation: before adding richer Markdown error payloads, wrap the
+  parser boundary in `catch_unwind` or document the equivalent panic boundary,
+  map fatal parser failures to `ExtractError`, and pin `ExtractError` size with
+  a compile-time assertion so `result_large_err` is caught deliberately.
 
 - Risk: this slice grows into all of item 2.1.2 by trying to cover every
   Markdown construct in one pass. Severity: medium. Likelihood: medium.
@@ -645,6 +682,27 @@ coderabbit review --agent
 Do not use CodeRabbit to find deterministic format, lint, type, or test
 failures that local gates can catch.
 
+Recommended follow-up tests adopted from the alternative envelope-and-mappings
+plan:
+
+- Add dedicated Markdown fixtures for paragraph emphasis, paragraph soft
+  breaks, CRLF soft breaks, and YAML frontmatter before claiming broader
+  Markdown mapping coverage.
+- Protect any CRLF fixture with a scoped `.gitattributes` rule and add a test
+  that verifies the checked-out fixture still contains literal `\r\n` bytes.
+- Extend the Rust `proptest` coverage so generated segment layouts assert
+  contiguous `text_start`/`text_end` ranges, exact region-text reconstruction,
+  source-backed segment text matching the original source bytes, and closed-set
+  synthetic segment kinds for soft and hard breaks.
+- Add explicit tests for fatal Markdown parser failures and parser panic
+  containment before richer parse-error recovery is exposed.
+- If Python gains typed IR objects or a serializer, add a canonical JSON parity
+  test that compares Python-produced JSON with Rust-produced canonical JSON for
+  the same fixture. Do not compare a bridge-provided JSON string to itself.
+- Before adding owned payloads to extractor errors, add a compile-time size
+  assertion for `ExtractError` so the workspace `result_large_err` budget is
+  explicit.
+
 ## Idempotence and recovery
 
 Most steps are additive and can be rerun safely. Re-running tests, snapshot
@@ -839,6 +897,14 @@ findings were:
 - [x] (2026-06-02T02:19:00Z) Ran `coderabbit review --agent` for the Stage 5
   milestone after deterministic gates passed. CodeRabbit completed with zero
   findings.
+- [x] (2026-06-05T00:00:00Z) Reviewed the alternative plan at
+  `2-1-1-markdown-ir-envelope-and-mappings` and incorporated its useful
+  hardening recommendations into this plan. Accepted improvements cover CRLF
+  fixture protection, broader Markdown mapping fixtures, stronger `proptest`
+  invariants, Python/Rust canonical JSON parity, Markdown parser panic
+  containment, and explicit `ExtractError` size-budget guidance. Broader
+  unimplemented API changes from that plan remain deferred rather than
+  retroactively changing this branch's completed acceptance criteria.
 
 ## Surprises & Discoveries
 
@@ -896,6 +962,16 @@ findings were:
   continue using the minimal region contract while consumers that need the IR
   can inspect `document.ir`.
 
+- Observation: the alternative envelope-and-mappings plan identifies test
+  coverage that is valuable but broader than the completed 2.1.1 branch.
+  Evidence: it calls out paragraph-with-inline-markup, soft-break, CRLF
+  soft-break, and YAML frontmatter fixtures; a CRLF `.gitattributes` guard;
+  `proptest` cases covering emphasis, strong, inline code, links, hard breaks,
+  soft breaks, and CRLF; parser panic containment; Python/Rust canonical JSON
+  parity; and an explicit `ExtractError` size assertion. Impact: these are now
+  recorded as follow-up hardening recommendations for 2.1.2 or a focused
+  post-2.1.1 hardening slice rather than silently treated as already complete.
+
 ## Decision Log
 
 - Decision: keep this plan in `Status: DRAFT` and explicitly block code
@@ -938,6 +1014,31 @@ findings were:
   list items, blockquotes, and broader Markdown coverage remain deferred until
   they can be mapped with trustworthy source spans in later roadmap work or
   Stage 3 fixture expansion. Date/Author: 2026-06-01T23:18:00Z / Codex.
+
+- Decision: adopt the alternative plan's testing recommendations as follow-up
+  hardening rather than changing this branch's completed acceptance bar.
+  Rationale: the alternative plan usefully tightens edge-case validation, but
+  it also proposes new bridge entrypoints, richer Python typed IR objects,
+  frontmatter and CRLF fixtures, parser panic policy, and error-size assertions
+  that were outside the approved and implemented 2.1.1 scope. Recording the
+  recommendations keeps the next slice honest without misrepresenting this
+  branch as having implemented them. Date/Author: 2026-06-05T00:00:00Z /
+  Codex.
+
+- Decision: prefer Python/Rust canonical JSON parity through independent
+  serializers or reviewed Rust snapshots if Python grows a full typed IR
+  serializer. Rationale: comparing against a `_canonical_json` value carried in
+  the same bridge payload risks a self-referential test oracle. The bridge may
+  continue carrying internal transport data, but the public consumer surface
+  should remain the Python model. Date/Author: 2026-06-05T00:00:00Z / Codex.
+
+- Decision: treat CRLF handling and frontmatter mapping as explicit follow-up
+  acceptance items before claiming broad Markdown mapping coverage. Rationale:
+  the current branch proves the envelope and representative mappings, while
+  the alternative plan correctly notes that line-ending normalization and
+  frontmatter/paragraph fixtures are necessary to trust later v1 rule and fix
+  planning over the full Markdown surface. Date/Author:
+  2026-06-05T00:00:00Z / Codex.
 
 - Decision: defer roadmap completion edits until the feature implementation
   lands. Rationale: marking item 2.1.1 done during plan drafting would
@@ -991,6 +1092,18 @@ canonical Markdown IR bridge, and roadmap item 2.1.1 is marked done. Full
 deterministic gates passed for this milestone, and CodeRabbit completed the
 milestone review with zero findings.
 
+Alternative-plan review outcome: the broader
+`2-1-1-markdown-ir-envelope-and-mappings` plan was reviewed after this branch
+had already implemented and validated the approved 2.1.1 slice. Its strongest
+recommendations are now incorporated as hardening guidance: add paragraph,
+frontmatter, soft-break, and CRLF fixtures before claiming broader Markdown
+mapping coverage; strengthen property tests around segment contiguity and
+source-byte matching; avoid self-referential bridge parity tests; contain
+parser panics before they cross the bridge; and make extractor error-size
+budgets explicit before richer error payloads land. These items should guide a
+focused follow-up or roadmap item 2.1.2 rather than rewriting the acceptance
+history of the completed branch.
+
 ## Revision note
 
 Initial draft created for roadmap item 2.1.1. The draft records the approval
@@ -998,3 +1111,11 @@ gate, implementation stages, validation gates, CodeRabbit review points,
 expected crate and Python touchpoints, prior-art findings, and the rule that
 roadmap item 2.1.1 is marked done only after the feature implementation is
 complete.
+
+2026-06-05: reviewed the alternative
+`2-1-1-markdown-ir-envelope-and-mappings` plan and incorporated its useful
+testing and hardening recommendations as follow-up guidance. The current plan
+now explicitly calls out CRLF fixture protection, broader Markdown fixture
+coverage, stronger segment property tests, Python/Rust canonical JSON parity,
+Markdown parser panic containment, and `ExtractError` size-budget assertions as
+future work where not already implemented.
