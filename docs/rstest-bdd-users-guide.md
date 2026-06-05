@@ -1414,37 +1414,6 @@ inspection of the row and column that triggered the failure:
 # }
 ```
 
-The selection function preserves the caller-supplied order, so applications can
-pass a list of preferred locales. The helper resolves to the best available
-translation and continues to fall back to English when a requested locale is
-not shipped with the crate. Procedural macro diagnostics remain in English so
-compile-time output stays deterministic regardless of the host machine’s
-language settings.
-
-[`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
-[`FluentLanguageLoader`]: <https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
-
-# use rstest_bdd::datatable::{DataTableError, Rows};
-# use rstest_bdd_macros::DataTableRow;
-#
-# #[derive(Debug, PartialEq, Eq, DataTableRow)]
-# struct UserRow {
-#     name: String,
-#     #[datatable(truthy)]
-#     active: bool,
-# }
-```
-
-The selection function preserves the caller-supplied order, so applications can
-pass a list of preferred locales. The helper resolves to the best available
-translation and continues to fall back to English when a requested locale is
-not shipped with the crate. Procedural macro diagnostics remain in English so
-compile-time output stays deterministic regardless of the host machine’s
-language settings.
-
-[`Localizations`]: <https://docs.rs/rstest-bdd/latest/rstest_bdd/localization/>
-[`FluentLanguageLoader`]: <https://docs.rs/i18n-embed/latest/i18n_embed/fluent/struct.FluentLanguageLoader.html>
-
 ## Limitations and roadmap
 
 The `rstest‑bdd` project is evolving. Several features described in the design
