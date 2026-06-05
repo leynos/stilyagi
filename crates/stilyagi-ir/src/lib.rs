@@ -273,6 +273,24 @@ pub struct IrSegment {
 }
 
 impl IrSegment {
+    fn new(
+        text_start: usize,
+        segment_text: impl Into<String>,
+        source: Option<SourceSpan>,
+        synthetic: Option<String>,
+        node: Option<String>,
+    ) -> Self {
+        let text = segment_text.into();
+        Self {
+            text_start,
+            text_end: text_start + text.len(),
+            source,
+            synthetic,
+            node,
+            text,
+        }
+    }
+
     /// Create a source-backed segment.
     #[must_use]
     pub fn source(
@@ -281,15 +299,13 @@ impl IrSegment {
         source: SourceSpan,
         node: impl Into<String>,
     ) -> Self {
-        let text = segment_text.into();
-        Self {
+        Self::new(
             text_start,
-            text_end: text_start + text.len(),
-            source: Some(source),
-            synthetic: None,
-            node: Some(node.into()),
-            text,
-        }
+            segment_text,
+            Some(source),
+            None,
+            Some(node.into()),
+        )
     }
 
     /// Create a synthetic segment.
@@ -299,15 +315,7 @@ impl IrSegment {
         segment_text: impl Into<String>,
         reason: impl Into<String>,
     ) -> Self {
-        let text = segment_text.into();
-        Self {
-            text_start,
-            text_end: text_start + text.len(),
-            source: None,
-            synthetic: Some(reason.into()),
-            node: None,
-            text,
-        }
+        Self::new(text_start, segment_text, None, Some(reason.into()), None)
     }
 
     /// Return the text represented by this segment.
