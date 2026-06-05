@@ -963,6 +963,27 @@ findings were:
   implementation of the previously recorded follow-up recommendations. The
   stage is scoped to hardening 2.1.1 with fixtures, invariants, parser-boundary
   containment, Python parity, and `ExtractError` size-budget checks.
+- [x] (2026-06-05T18:52:00Z) Implemented the Stage 6 hardening changes:
+  frontmatter parsing is enabled and recorded in producer metadata; Markdown
+  parser panics are contained as parser messages; CRLF-aware flattening keeps
+  source byte spans aligned after checked-out CRLF soft breaks; new fixtures
+  cover inline markup, LF soft breaks, CRLF soft breaks, and YAML frontmatter;
+  `stilyagi-ir` property tests now generate segment layouts and assert
+  contiguity, reconstruction, source-byte agreement, and closed synthetic
+  reasons; `stilyagi-extract` has an explicit `ExtractError` size budget; and
+  Python now compares `Document.ir` against a reviewed Rust snapshot after
+  source identity normalization.
+- [x] (2026-06-05T18:52:00Z) Targeted Stage 6 validation passed:
+  `cargo test -p stilyagi-ir -p stilyagi-markdown -p stilyagi-extract`,
+  `make build`, and
+  `.venv/bin/python -m pytest -q tests/test_package_skeleton_units.py`.
+- [x] (2026-06-05T18:58:02Z) Full deterministic Stage 6 gates passed:
+  `make fmt`, `make markdownlint`, `make nixie`, `make check-fmt`,
+  `make typecheck`, `make lint`, and `make test`. The full test gate ran 101
+  Rust tests and 83 Python tests.
+- [x] (2026-06-05T19:10:32Z) Ran `coderabbit review --agent` for the Stage 6
+  milestone after deterministic gates passed. CodeRabbit completed with zero
+  findings.
 
 ## Surprises & Discoveries
 
@@ -1029,6 +1050,30 @@ findings were:
   parity; and an explicit `ExtractError` size assertion. Impact: these are now
   recorded as follow-up hardening recommendations for 2.1.2 or a focused
   post-2.1.1 hardening slice rather than silently treated as already complete.
+
+- Observation: `markdown-rs` preserves literal `\r\n` in text node values for
+  the CRLF soft-break fixture, rather than normalizing the value to `\n`.
+  Evidence: the first Stage 6 hardening fixture test failed because the region
+  text still contained `\r` before the flattener learned to treat `\r\n` as one
+  soft break. Impact: `FlattenedRegion::push_source_text` now walks parser text
+  and original source bytes with separate cursors so LF and CRLF both produce
+  one synthetic `softbreak_space` segment without span drift.
+
+- Observation: enabling Markdown frontmatter support changes the canonical
+  producer metadata for all Markdown IR snapshots. Evidence: the shared
+  Markdown snapshot changed only by adding `"frontmatter": true` under the
+  `markdown-rs` producer options, while the new YAML fixture records a `yaml`
+  structural node and a paragraph region after the frontmatter. Impact:
+  snapshots were updated deliberately after review, and Python parity compares
+  against the updated Rust snapshot.
+
+- Observation: the repository Markdown formatter rewrites ordinary `.md`
+  fixture paragraphs, including joining soft-break lines. Evidence: the first
+  Stage 6 `make fmt` attempt rewrote the LF and CRLF soft-break fixtures and
+  then failed MD041 because the fixture files lacked top-level headings.
+  Impact: the new hardening fixtures use a `.md.fixture` suffix under the
+  Markdown corpus, and the corpus helper explicitly treats that suffix as
+  Markdown source while documentation formatters ignore it.
 
 ## Decision Log
 
@@ -1104,6 +1149,25 @@ findings were:
   exhaustive Markdown construct coverage as the next item. Date/Author:
   2026-06-05T18:42:42Z / Codex.
 
+- Decision: enable `markdown-rs` frontmatter parsing in the existing Markdown
+  parser options rather than adding a second parser or pre-scan. Rationale:
+  frontmatter is an existing `markdown-rs` construct, keeps the adapter
+  boundary single-source, and produces mdast `yaml` nodes that fit the current
+  IR tree model. Date/Author: 2026-06-05T18:52:00Z / Codex.
+
+- Decision: keep parser panic containment inside `stilyagi-markdown` and map
+  unwinds to `markdown::message::Message`. Rationale: this preserves the
+  current public `Result<Node, Message>` and `Result<IrDocument, Message>`
+  signatures while preventing parser panics from crossing into extraction or
+  PyO3 adapters. Date/Author: 2026-06-05T18:52:00Z / Codex.
+
+- Decision: store formatter-sensitive Markdown hardening corpus files with a
+  `.md.fixture` suffix. Rationale: these files are source fixtures whose exact
+  line breaks are test data, not prose documentation to reflow; keeping them
+  under `tests/fixtures/corpus/markdown/valid/` preserves corpus locality while
+  avoiding destructive Markdown formatting. Date/Author: 2026-06-05T18:58:02Z /
+  Codex.
+
 - Decision: defer roadmap completion edits until the feature implementation
   lands. Rationale: marking item 2.1.1 done during plan drafting would
   misrepresent project status. Date/Author: 2026-05-25T00:46:44Z / Codex.
@@ -1167,6 +1231,18 @@ parser panics before they cross the bridge; and make extractor error-size
 budgets explicit before richer error payloads land. These items should guide a
 focused follow-up or roadmap item 2.1.2 rather than rewriting the acceptance
 history of the completed branch.
+
+Stage 6 outcome: the follow-up hardening recommendations requested by the user
+are implemented for the 2.1.1 slice. The Markdown parser now enables
+frontmatter and contains panics inside the Markdown adapter boundary. New
+hardening fixtures cover inline markup, LF soft breaks, CRLF soft breaks, and
+YAML frontmatter, with a scoped `.gitattributes` rule proving the CRLF fixture
+is checked out with literal `\r\n` bytes. Segment property tests now generate
+layouts and assert reconstruction, contiguity, source-byte agreement, and known
+synthetic break reasons. Python adaptation is checked against the reviewed Rust
+canonical snapshot after source identity normalization, and `ExtractError` has
+an explicit compile-time size budget. Full deterministic gates passed, and
+CodeRabbit completed the milestone review with zero findings.
 
 ## Revision note
 

@@ -50,6 +50,9 @@ pub enum ExtractError {
     MarkdownIr(String),
 }
 
+const EXTRACT_ERROR_SIZE_LIMIT_BYTES: usize = 128;
+const _: () = assert!(core::mem::size_of::<ExtractError>() <= EXTRACT_ERROR_SIZE_LIMIT_BYTES);
+
 impl fmt::Display for ExtractError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

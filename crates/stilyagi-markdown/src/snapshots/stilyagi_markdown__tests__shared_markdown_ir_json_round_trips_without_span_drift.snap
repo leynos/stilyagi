@@ -18,6 +18,7 @@ expression: json
       "name": "markdown-rs",
       "version": "1.0.0",
       "options": {
+        "frontmatter": true,
         "gfm": true
       }
     }

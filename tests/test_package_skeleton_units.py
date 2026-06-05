@@ -1,6 +1,7 @@
 """Unit tests for the mixed-package Python skeleton."""
 
 import dataclasses as dc
+import json
 import pathlib
 import typing as typ
 
@@ -8,6 +9,9 @@ import pytest
 import stilyagi
 from stilyagi import cli, config, diagnostics, engine, model, nlp, plugins, rules
 from stilyagi.nlp import spacy_provider
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
 
 
 def test_public_package_re_exports_the_supported_boundaries() -> None:
@@ -126,6 +130,24 @@ def test_engine_extract_document_keeps_blank_markdown_empty() -> None:
     assert document.ir["regions"] == []
 
 
+def test_engine_extract_document_ir_matches_reviewed_rust_snapshot() -> None:
+    """Keep Python IR adaptation aligned with the Rust canonical snapshot."""
+    fixture_path = pathlib.Path(
+        "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
+    )
+    source = fixture_path.read_text(encoding="utf-8")
+    document = engine.extract_document(source, model.Syntax.MARKDOWN)
+    rust_snapshot = _load_insta_json_snapshot(
+        pathlib.Path(
+            "crates/stilyagi-markdown/src/snapshots/"
+            "stilyagi_markdown__tests__shared_markdown_ir_json_round_trips_without_span_drift.snap",
+        ),
+    )
+
+    assert document.ir is not None
+    assert _normalize_ir_identity(document.ir) == _normalize_ir_identity(rust_snapshot)
+
+
 def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
     """Keep the Python enum and the Rust bridge syntax spellings aligned."""
     from stilyagi._stilyagi_rs import supported_syntaxes
@@ -197,6 +219,26 @@ class DummyProvider:
 def test_nlp_provider_protocol_accepts_matching_provider_objects() -> None:
     """Accept objects that satisfy the NLP provider protocol."""
     assert isinstance(DummyProvider(), RuntimeCheckableNlpProvider)
+
+
+def _load_insta_json_snapshot(path: pathlib.Path) -> dict[str, typ.Any]:
+    """Load the JSON payload stored after an insta snapshot metadata header."""
+    _header, json_payload = path.read_text(encoding="utf-8").split(
+        "\n---\n", maxsplit=1
+    )
+    parsed = json.loads(json_payload)
+    assert isinstance(parsed, dict)
+    return typ.cast("dict[str, typ.Any]", parsed)
+
+
+def _normalize_ir_identity(ir: cabc.Mapping[str, typ.Any]) -> dict[str, typ.Any]:
+    """Remove adapter-specific source identity before parity comparison."""
+    normalized = dict(ir)
+    document = dict(typ.cast("dict[str, typ.Any]", normalized["document"]))
+    document["path"] = "<normalized>"
+    document["uri"] = "<normalized>"
+    normalized["document"] = document
+    return normalized
 
 
 def test_cli_main_reports_placeholder_exit_code(

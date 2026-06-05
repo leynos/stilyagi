@@ -1,6 +1,6 @@
 //! Markdown-specific extraction support.
 
-use std::collections::BTreeMap;
+use std::{any::Any, collections::BTreeMap, panic::catch_unwind};
 
 use markdown::{ParseOptions, mdast::Node, message::Message, to_mdast};
 use stilyagi_ir::{
@@ -19,7 +19,39 @@ pub struct MarkdownBoundary;
 /// Returns the parser's structured message when the input cannot be parsed
 /// with the configured `markdown-rs` options.
 pub fn parse_markdown_ast(source: &str) -> Result<Node, Message> {
-    to_mdast(source, &ParseOptions::gfm())
+    parse_markdown_ast_with(source, |value| to_mdast(value, &markdown_parse_options()))
+}
+
+fn parse_markdown_ast_with<F>(source: &str, parser: F) -> Result<Node, Message>
+where
+    F: FnOnce(&str) -> Result<Node, Message>,
+{
+    catch_unwind(std::panic::AssertUnwindSafe(|| parser(source)))
+        .unwrap_or_else(|payload| Err(parser_panic_message(payload.as_ref())))
+}
+
+fn markdown_parse_options() -> ParseOptions {
+    let mut options = ParseOptions::gfm();
+    options.constructs.frontmatter = true;
+    options
+}
+
+fn parser_panic_message(payload: &(dyn Any + Send)) -> Message {
+    let reason = payload.downcast_ref::<&str>().map_or_else(
+        || {
+            payload
+                .downcast_ref::<String>()
+                .cloned()
+                .unwrap_or_else(|| "unknown panic payload".to_owned())
+        },
+        |message| (*message).to_owned(),
+    );
+    Message {
+        place: None,
+        reason: format!("markdown parser panicked: {reason}"),
+        rule_id: Box::new("parser-panic".to_owned()),
+        source: Box::new("stilyagi-markdown".to_owned()),
+    }
 }
 
 /// Build a Markdown IR document envelope from source text and source identity.
@@ -46,7 +78,7 @@ pub fn markdown_ir_document(
         root: "n0".to_owned(),
     });
 
-    let mut builder = MarkdownIrBuilder::default();
+    let mut builder = MarkdownIrBuilder::new(source);
     let _root_id = builder.push_node(&ast, None);
     document.nodes = builder.nodes;
     document.regions = builder.regions;
@@ -57,6 +89,7 @@ pub fn markdown_ir_document(
 fn markdown_producer() -> ProducerMetadata {
     let mut options = BTreeMap::new();
     options.insert("gfm".to_owned(), serde_json::json!(true));
+    options.insert("frontmatter".to_owned(), serde_json::json!(true));
     ProducerMetadata {
         kind: "markdown".to_owned(),
         name: "markdown-rs".to_owned(),
@@ -65,15 +98,25 @@ fn markdown_producer() -> ProducerMetadata {
     }
 }
 
-#[derive(Default)]
-struct MarkdownIrBuilder {
+struct MarkdownIrBuilder<'source> {
+    source: &'source str,
     next_node: usize,
     next_region: usize,
     nodes: Vec<IrNode>,
     regions: Vec<IrRegion>,
 }
 
-impl MarkdownIrBuilder {
+impl<'source> MarkdownIrBuilder<'source> {
+    const fn new(source: &'source str) -> Self {
+        Self {
+            source,
+            next_node: 0,
+            next_region: 0,
+            nodes: Vec::new(),
+            regions: Vec::new(),
+        }
+    }
+
     fn push_node(&mut self, node: &Node, parent: Option<&str>) -> String {
         let node_id = self.next_node_id();
         let node_index = self.nodes.len();
@@ -123,7 +166,7 @@ impl MarkdownIrBuilder {
             _ => None,
         };
         if let Some(kind) = region_kind {
-            let flattened = flatten_region(node, node_id);
+            let flattened = flatten_region(node, node_id, self.source);
             if flattened.text.is_empty() {
                 return;
             }
@@ -149,33 +192,50 @@ impl MarkdownIrBuilder {
     }
 }
 
-struct FlattenedRegion {
+struct FlattenedRegion<'source> {
+    source: &'source str,
     text: String,
     segments: Vec<IrSegment>,
 }
 
-impl FlattenedRegion {
+impl FlattenedRegion<'_> {
     fn push_source_text(&mut self, value: &str, source_start: usize, node_id: &str) {
         let mut chunk_start = 0;
-        for (byte_offset, character) in value.char_indices() {
-            if character == '\n' {
-                if let Some(chunk) = value.get(chunk_start..byte_offset) {
-                    if !chunk.is_empty() {
-                        let span =
-                            SourceSpan::new(source_start + chunk_start, source_start + byte_offset);
-                        self.push_source_chunk(chunk, span, node_id);
+        let mut chunk_source_start = source_start;
+        let mut source_cursor = source_start;
+        let mut byte_offset = 0;
+        while byte_offset < value.len() {
+            match source_text_event(value, byte_offset) {
+                SourceTextEvent::LineEnding(line_ending_len) => {
+                    if let Some(chunk) = value.get(chunk_start..byte_offset) {
+                        let span = SourceSpan::new(chunk_source_start, source_cursor);
+                        self.push_source_chunk_before_break(chunk, span, node_id);
                     }
+                    source_cursor += source_line_ending_len(self.source, source_cursor);
+                    byte_offset += line_ending_len;
+                    chunk_start = byte_offset;
+                    chunk_source_start = source_cursor;
                 }
-                self.push_synthetic(" ", "softbreak_space");
-                chunk_start = byte_offset + character.len_utf8();
+                SourceTextEvent::Character(character_len) => {
+                    source_cursor += character_len;
+                    byte_offset += character_len;
+                }
+                SourceTextEvent::InvalidOffset => break,
             }
         }
         if let Some(chunk) = value.get(chunk_start..value.len()) {
             if !chunk.is_empty() {
-                let span = SourceSpan::new(source_start + chunk_start, source_start + value.len());
+                let span = SourceSpan::new(chunk_source_start, source_cursor);
                 self.push_source_chunk(chunk, span, node_id);
             }
         }
+    }
+
+    fn push_source_chunk_before_break(&mut self, chunk: &str, span: SourceSpan, node_id: &str) {
+        if !chunk.is_empty() {
+            self.push_source_chunk(chunk, span, node_id);
+        }
+        self.push_synthetic(" ", "softbreak_space");
     }
 
     fn push_source_chunk(&mut self, chunk: &str, span: SourceSpan, node_id: &str) {
@@ -193,8 +253,19 @@ impl FlattenedRegion {
     }
 }
 
-fn flatten_region(node: &Node, node_id: &str) -> FlattenedRegion {
+enum SourceTextEvent {
+    LineEnding(usize),
+    Character(usize),
+    InvalidOffset,
+}
+
+fn flatten_region<'source>(
+    node: &Node,
+    node_id: &str,
+    source: &'source str,
+) -> FlattenedRegion<'source> {
     let mut flattened = FlattenedRegion {
+        source,
         text: String::new(),
         segments: Vec::new(),
     };
@@ -202,7 +273,7 @@ fn flatten_region(node: &Node, node_id: &str) -> FlattenedRegion {
     flattened
 }
 
-fn flatten_inline(node: &Node, node_id: &str, flattened: &mut FlattenedRegion) {
+fn flatten_inline(node: &Node, node_id: &str, flattened: &mut FlattenedRegion<'_>) {
     match node {
         Node::Text(text) => flatten_text_node(text, node_id, flattened),
         Node::Break(_) => flattened.push_synthetic(" ", "hardbreak_space"),
@@ -211,7 +282,11 @@ fn flatten_inline(node: &Node, node_id: &str, flattened: &mut FlattenedRegion) {
     }
 }
 
-fn flatten_text_node(text: &markdown::mdast::Text, node_id: &str, flattened: &mut FlattenedRegion) {
+fn flatten_text_node(
+    text: &markdown::mdast::Text,
+    node_id: &str,
+    flattened: &mut FlattenedRegion<'_>,
+) {
     if let Some(position) = text.position.as_ref() {
         flattened.push_source_text(&text.value, position.start.offset, node_id);
     }
@@ -220,19 +295,53 @@ fn flatten_text_node(text: &markdown::mdast::Text, node_id: &str, flattened: &mu
 fn flatten_inline_code_node(
     code: &markdown::mdast::InlineCode,
     node_id: &str,
-    flattened: &mut FlattenedRegion,
+    flattened: &mut FlattenedRegion<'_>,
 ) {
     if let Some(position) = code.position.as_ref() {
-        flattened.push_source_text(&code.value, position.start.offset, node_id);
+        let span = SourceSpan::new(position.start.offset, position.end.offset);
+        let source_start = source_value_start(flattened.source, span, &code.value);
+        flattened.push_source_text(&code.value, source_start, node_id);
     }
 }
 
-fn flatten_children(node: &Node, node_id: &str, flattened: &mut FlattenedRegion) {
+fn flatten_children(node: &Node, node_id: &str, flattened: &mut FlattenedRegion<'_>) {
     if let Some(children) = node.children() {
         for child in children {
             flatten_inline(child, node_id, flattened);
         }
     }
+}
+
+fn source_text_event(value: &str, byte_offset: usize) -> SourceTextEvent {
+    let Some(tail) = value.get(byte_offset..) else {
+        return SourceTextEvent::InvalidOffset;
+    };
+    if tail.starts_with("\r\n") {
+        SourceTextEvent::LineEnding(2)
+    } else if tail.starts_with('\n') {
+        SourceTextEvent::LineEnding(1)
+    } else {
+        tail.chars()
+            .next()
+            .map_or(SourceTextEvent::InvalidOffset, |character| {
+                SourceTextEvent::Character(character.len_utf8())
+            })
+    }
+}
+
+fn source_line_ending_len(source: &str, offset: usize) -> usize {
+    source
+        .get(offset..)
+        .map_or(1, |tail| if tail.starts_with("\r\n") { 2 } else { 1 })
+}
+
+fn source_value_start(source: &str, span: SourceSpan, value: &str) -> usize {
+    source
+        .get(span.byte_start..span.byte_end)
+        .and_then(|source_slice| source_slice.find(value))
+        .map_or(span.byte_start, |relative_offset| {
+            span.byte_start + relative_offset
+        })
 }
 
 fn scope_for(kind: &str, node: &Node) -> Vec<String> {
@@ -299,14 +408,18 @@ const fn node_kind(node: &Node) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::{collections::BTreeSet, fs};
 
     use markdown::mdast::Node;
     use rstest::rstest;
     use stilyagi_ir::{IrDocument, SourceSpan};
-    use stilyagi_test_support::{SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture};
+    use stilyagi_test_support::{
+        SHARED_MARKDOWN_FIXTURE_PATH, corpus_fixture_path, read_corpus_fixture,
+    };
 
-    use super::{MarkdownBoundary, markdown_ir_document, parse_markdown_ast};
+    use super::{
+        MarkdownBoundary, markdown_ir_document, parse_markdown_ast, parse_markdown_ast_with,
+    };
 
     /// Keep the marker type default stable and comparable.
     #[test]
@@ -363,6 +476,19 @@ mod tests {
                 assert_node_has_non_empty_span(paragraph);
             }
         }
+    }
+
+    #[rstest]
+    fn markdown_parser_panics_are_contained_as_messages() {
+        let result = parse_markdown_ast_with("content", |_| panic!("forced parser panic"));
+
+        assert!(matches!(
+            result,
+            Err(ref error)
+                if error.reason.contains("forced parser panic")
+                    && error.rule_id.as_ref() == "parser-panic"
+                    && error.source.as_ref() == "stilyagi-markdown"
+        ));
     }
 
     #[derive(Clone, Copy)]
@@ -455,6 +581,80 @@ mod tests {
         }
     }
 
+    #[rstest]
+    #[case(
+        "tests/fixtures/corpus/markdown/valid/paragraph-inline-markup.md.fixture",
+        "paragraph_inline_markup",
+        "This paragraph has emphasis, strong text, inline code, and a link."
+    )]
+    #[case(
+        "tests/fixtures/corpus/markdown/valid/paragraph-soft-break.md.fixture",
+        "paragraph_soft_break",
+        "First line second line"
+    )]
+    #[case(
+        "tests/fixtures/corpus/markdown/valid/paragraph-soft-break-crlf.md.fixture",
+        "paragraph_soft_break_crlf",
+        "First CRLF line second CRLF line"
+    )]
+    #[case(
+        "tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture",
+        "yaml_frontmatter",
+        "Paragraph after frontmatter."
+    )]
+    fn hardening_fixture_ir_json_round_trips_without_span_drift(
+        #[case] relative_path: &str,
+        #[case] snapshot_name: &str,
+        #[case] expected_paragraph: &str,
+    ) {
+        let source = read_corpus_fixture(relative_path)
+            .unwrap_or_else(|error| panic!("expected Markdown hardening fixture: {error}"));
+        let document = markdown_ir_document(
+            &source,
+            relative_path,
+            format!("file:///repo/{relative_path}"),
+        )
+        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+        let json = document
+            .to_canonical_json()
+            .unwrap_or_else(|error| panic!("expected canonical JSON: {error}"));
+        let parsed = serde_json::from_str::<IrDocument>(&json)
+            .unwrap_or_else(|error| panic!("expected IR JSON round-trip: {error}"));
+
+        assert_eq!(parsed, document);
+        assert!(source_backed_segments_match_source(&parsed, &source));
+        assert!(synthetic_segments_use_known_reasons(&parsed));
+        assert_region_text_present(&parsed, expected_paragraph);
+        insta::assert_snapshot!(snapshot_name, json);
+    }
+
+    #[rstest]
+    fn crlf_soft_break_fixture_contains_literal_crlf_bytes() {
+        let path = corpus_fixture_path(
+            "tests/fixtures/corpus/markdown/valid/paragraph-soft-break-crlf.md.fixture",
+        )
+        .unwrap_or_else(|error| panic!("expected CRLF fixture path: {error}"));
+        let bytes = fs::read(path)
+            .unwrap_or_else(|error| panic!("expected readable CRLF fixture bytes: {error}"));
+
+        assert!(bytes.windows(2).any(|pair| pair == b"\r\n"));
+    }
+
+    #[rstest]
+    fn yaml_frontmatter_fixture_records_a_yaml_node() {
+        let relative_path = "tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture";
+        let source = read_corpus_fixture(relative_path)
+            .unwrap_or_else(|error| panic!("expected YAML frontmatter fixture: {error}"));
+        let document = markdown_ir_document(
+            &source,
+            relative_path,
+            format!("file:///repo/{relative_path}"),
+        )
+        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+
+        assert!(document.nodes.iter().any(|node| node.kind == "yaml"));
+    }
+
     fn region_kinds(regions: &[stilyagi_ir::IrRegion]) -> BTreeSet<&str> {
         regions.iter().map(|region| region.kind.as_str()).collect()
     }
@@ -499,5 +699,25 @@ mod tests {
 
     fn source_segment_matches(span: SourceSpan, source: &str, expected: &str) -> bool {
         source.get(span.byte_start..span.byte_end) == Some(expected)
+    }
+
+    fn synthetic_segments_use_known_reasons(document: &IrDocument) -> bool {
+        document.regions.iter().all(|region| {
+            region.segments.iter().all(|segment| {
+                segment
+                    .synthetic
+                    .as_deref()
+                    .is_none_or(|reason| matches!(reason, "softbreak_space" | "hardbreak_space"))
+            })
+        })
+    }
+
+    fn assert_region_text_present(document: &IrDocument, expected_text: &str) {
+        assert!(
+            document
+                .regions
+                .iter()
+                .any(|region| region.text == expected_text)
+        );
     }
 }
