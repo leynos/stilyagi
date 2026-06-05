@@ -199,6 +199,23 @@ struct FlattenedRegion<'source> {
 }
 
 impl FlattenedRegion<'_> {
+    fn emit_chunk_for_range(
+        &mut self,
+        value: &str,
+        range: std::ops::Range<usize>,
+        source_start: usize,
+        node_id: &str,
+    ) {
+        let Some(chunk) = value.get(range.clone()) else {
+            return;
+        };
+        if chunk.is_empty() {
+            return;
+        }
+        let span = SourceSpan::new(source_start + range.start, source_start + range.end);
+        self.push_source_chunk(chunk, span, node_id);
+    }
+
     fn push_source_text(&mut self, value: &str, source_start: usize, node_id: &str) {
         let mut chunk_start = 0;
         let mut chunk_source_start = source_start;
@@ -207,14 +224,21 @@ impl FlattenedRegion<'_> {
         while byte_offset < value.len() {
             match source_text_event(value, byte_offset) {
                 SourceTextEvent::LineEnding(line_ending_len) => {
-                    if let Some(chunk) = value.get(chunk_start..byte_offset) {
-                        let span = SourceSpan::new(chunk_source_start, source_cursor);
-                        self.push_source_chunk_before_break(chunk, span, node_id);
-                    }
+                    self.emit_chunk_for_range(
+                        value,
+                        chunk_start..byte_offset,
+                        chunk_source_start - chunk_start,
+                        node_id,
+                    );
                     source_cursor += source_line_ending_len(self.source, source_cursor);
                     byte_offset += line_ending_len;
                     chunk_start = byte_offset;
                     chunk_source_start = source_cursor;
+                    self.push_source_chunk_before_break(
+                        "",
+                        SourceSpan::new(source_cursor, source_cursor),
+                        node_id,
+                    );
                 }
                 SourceTextEvent::Character(character_len) => {
                     source_cursor += character_len;
@@ -223,12 +247,12 @@ impl FlattenedRegion<'_> {
                 SourceTextEvent::InvalidOffset => break,
             }
         }
-        if let Some(chunk) = value.get(chunk_start..value.len()) {
-            if !chunk.is_empty() {
-                let span = SourceSpan::new(chunk_source_start, source_cursor);
-                self.push_source_chunk(chunk, span, node_id);
-            }
-        }
+        self.emit_chunk_for_range(
+            value,
+            chunk_start..value.len(),
+            chunk_source_start - chunk_start,
+            node_id,
+        );
     }
 
     fn push_source_chunk_before_break(&mut self, chunk: &str, span: SourceSpan, node_id: &str) {
