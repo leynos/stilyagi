@@ -198,22 +198,29 @@ struct FlattenedRegion<'source> {
     segments: Vec<IrSegment>,
 }
 
+/// A slice of source text together with the byte offset of its origin in
+/// the raw source buffer. Used only inside [`FlattenedRegion`].
+struct PositionedChunk<'a> {
+    value: &'a str,
+    range: std::ops::Range<usize>,
+    source_start: usize,
+}
+
 impl FlattenedRegion<'_> {
-    fn emit_chunk_for_range(
-        &mut self,
-        value: &str,
-        range: std::ops::Range<usize>,
-        source_start: usize,
-        node_id: &str,
-    ) {
-        let Some(chunk) = value.get(range.clone()) else {
+    fn emit_chunk_for_range(&mut self, chunk: PositionedChunk<'_>, node_id: &str) {
+        let PositionedChunk {
+            value,
+            range,
+            source_start,
+        } = chunk;
+        let Some(text) = value.get(range.clone()) else {
             return;
         };
-        if chunk.is_empty() {
+        if text.is_empty() {
             return;
         }
         let span = SourceSpan::new(source_start + range.start, source_start + range.end);
-        self.push_source_chunk(chunk, span, node_id);
+        self.push_source_chunk(text, span, node_id);
     }
 
     fn push_source_text(&mut self, value: &str, source_start: usize, node_id: &str) {
@@ -225,9 +232,11 @@ impl FlattenedRegion<'_> {
             match source_text_event(value, byte_offset) {
                 SourceTextEvent::LineEnding(line_ending_len) => {
                     self.emit_chunk_for_range(
-                        value,
-                        chunk_start..byte_offset,
-                        chunk_source_start - chunk_start,
+                        PositionedChunk {
+                            value,
+                            range: chunk_start..byte_offset,
+                            source_start: chunk_source_start - chunk_start,
+                        },
                         node_id,
                     );
                     source_cursor += source_line_ending_len(self.source, source_cursor);
@@ -248,9 +257,11 @@ impl FlattenedRegion<'_> {
             }
         }
         self.emit_chunk_for_range(
-            value,
-            chunk_start..value.len(),
-            chunk_source_start - chunk_start,
+            PositionedChunk {
+                value,
+                range: chunk_start..value.len(),
+                source_start: chunk_source_start - chunk_start,
+            },
             node_id,
         );
     }
