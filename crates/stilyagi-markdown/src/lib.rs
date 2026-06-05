@@ -159,36 +159,30 @@ impl FlattenedRegion {
         let mut chunk_start = 0;
         for (byte_offset, character) in value.char_indices() {
             if character == '\n' {
-                self.push_source_chunk(value, chunk_start, byte_offset, source_start, node_id);
+                if let Some(chunk) = value.get(chunk_start..byte_offset) {
+                    if !chunk.is_empty() {
+                        let span =
+                            SourceSpan::new(source_start + chunk_start, source_start + byte_offset);
+                        self.push_source_chunk(chunk, span, node_id);
+                    }
+                }
                 self.push_synthetic(" ", "softbreak_space");
                 chunk_start = byte_offset + character.len_utf8();
             }
         }
-        self.push_source_chunk(value, chunk_start, value.len(), source_start, node_id);
+        if let Some(chunk) = value.get(chunk_start..value.len()) {
+            if !chunk.is_empty() {
+                let span = SourceSpan::new(source_start + chunk_start, source_start + value.len());
+                self.push_source_chunk(chunk, span, node_id);
+            }
+        }
     }
 
-    fn push_source_chunk(
-        &mut self,
-        value: &str,
-        chunk_start: usize,
-        chunk_end: usize,
-        source_start: usize,
-        node_id: &str,
-    ) {
-        let Some(chunk) = value.get(chunk_start..chunk_end) else {
-            return;
-        };
-        if chunk.is_empty() {
-            return;
-        }
+    fn push_source_chunk(&mut self, chunk: &str, span: SourceSpan, node_id: &str) {
         let text_start = self.text.len();
         self.text.push_str(chunk);
-        self.segments.push(IrSegment::source(
-            text_start,
-            chunk,
-            SourceSpan::new(source_start + chunk_start, source_start + chunk_end),
-            node_id,
-        ));
+        self.segments
+            .push(IrSegment::source(text_start, chunk, span, node_id));
     }
 
     fn push_synthetic(&mut self, text: &str, reason: &str) {
