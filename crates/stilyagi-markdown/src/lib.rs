@@ -5,7 +5,7 @@ use std::{any::Any, collections::BTreeMap, panic::catch_unwind};
 use markdown::{ParseOptions, mdast::Node, message::Message, to_mdast};
 use stilyagi_ir::{
     DocumentMetadata, IrDocument, IrNode, IrRegion, IrSegment, IrTree, NodeFlags, ProducerMetadata,
-    SourceSpan,
+    SegmentOrigin, SourceSpan,
 };
 
 /// Marker type for the future Markdown extraction boundary.
@@ -241,15 +241,26 @@ impl FlattenedRegion<'_> {
     fn push_source_chunk(&mut self, chunk: &str, span: SourceSpan, node_id: &str) {
         let text_start = self.text.len();
         self.text.push_str(chunk);
-        self.segments
-            .push(IrSegment::source(text_start, chunk, span, node_id));
+        self.segments.push(IrSegment::new(
+            text_start,
+            chunk,
+            SegmentOrigin::Source {
+                span,
+                node: node_id.to_owned(),
+            },
+        ));
     }
 
     fn push_synthetic(&mut self, text: &str, reason: &str) {
         let text_start = self.text.len();
         self.text.push_str(text);
-        self.segments
-            .push(IrSegment::synthetic(text_start, text, reason));
+        self.segments.push(IrSegment::new(
+            text_start,
+            text,
+            SegmentOrigin::Synthetic {
+                reason: reason.to_owned(),
+            },
+        ));
     }
 }
 

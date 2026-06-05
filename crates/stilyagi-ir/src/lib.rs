@@ -272,13 +272,17 @@ pub struct IrSegment {
     pub text: String,
 }
 
-enum SegmentOrigin {
+pub(crate) enum SegmentOrigin {
     Source { span: SourceSpan, node: String },
     Synthetic { reason: String },
 }
 
 impl IrSegment {
-    fn new(text_start: usize, segment_text: impl Into<String>, origin: SegmentOrigin) -> Self {
+    pub(crate) fn new(
+        text_start: usize,
+        segment_text: impl Into<String>,
+        origin: SegmentOrigin,
+    ) -> Self {
         let text = segment_text.into();
         let (source, synthetic, node) = match origin {
             SegmentOrigin::Source { span, node } => (Some(span), None, Some(node)),
@@ -292,40 +296,6 @@ impl IrSegment {
             node,
             text,
         }
-    }
-
-    /// Create a source-backed segment.
-    #[must_use]
-    pub fn source(
-        text_start: usize,
-        segment_text: impl Into<String>,
-        source: SourceSpan,
-        node: impl Into<String>,
-    ) -> Self {
-        Self::new(
-            text_start,
-            segment_text,
-            SegmentOrigin::Source {
-                span: source,
-                node: node.into(),
-            },
-        )
-    }
-
-    /// Create a synthetic segment.
-    #[must_use]
-    pub fn synthetic(
-        text_start: usize,
-        segment_text: impl Into<String>,
-        reason: impl Into<String>,
-    ) -> Self {
-        Self::new(
-            text_start,
-            segment_text,
-            SegmentOrigin::Synthetic {
-                reason: reason.into(),
-            },
-        )
     }
 
     /// Return the text represented by this segment.
@@ -495,17 +465,25 @@ mod tests {
                     let source_start = source.len();
                     source.push_str(text);
                     region_text.push_str(text);
-                    segments.push(IrSegment::source(
+                    segments.push(IrSegment::new(
                         text_start,
                         text.clone(),
-                        SourceSpan::new(source_start, source.len()),
-                        "n1",
+                        SegmentOrigin::Source {
+                            span: SourceSpan::new(source_start, source.len()),
+                            node: "n1".to_owned(),
+                        },
                     ));
                 }
                 SegmentSpec::Synthetic(reason) => {
                     let text_start = region_text.len();
                     region_text.push(' ');
-                    segments.push(IrSegment::synthetic(text_start, " ", *reason));
+                    segments.push(IrSegment::new(
+                        text_start,
+                        " ",
+                        SegmentOrigin::Synthetic {
+                            reason: (*reason).to_owned(),
+                        },
+                    ));
                 }
             }
         }
