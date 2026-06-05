@@ -204,23 +204,33 @@ fn flatten_region(node: &Node, node_id: &str) -> FlattenedRegion {
 
 fn flatten_inline(node: &Node, node_id: &str, flattened: &mut FlattenedRegion) {
     match node {
-        Node::Text(text) => {
-            if let Some(position) = text.position.as_ref() {
-                flattened.push_source_text(&text.value, position.start.offset, node_id);
-            }
-        }
+        Node::Text(text) => flatten_text_node(text, node_id, flattened),
         Node::Break(_) => flattened.push_synthetic(" ", "hardbreak_space"),
-        Node::InlineCode(code) => {
-            if let Some(position) = code.position.as_ref() {
-                flattened.push_source_text(&code.value, position.start.offset, node_id);
-            }
-        }
-        _ => {
-            if let Some(children) = node.children() {
-                for child in children {
-                    flatten_inline(child, node_id, flattened);
-                }
-            }
+        Node::InlineCode(code) => flatten_inline_code_node(code, node_id, flattened),
+        _ => flatten_children(node, node_id, flattened),
+    }
+}
+
+fn flatten_text_node(text: &markdown::mdast::Text, node_id: &str, flattened: &mut FlattenedRegion) {
+    if let Some(position) = text.position.as_ref() {
+        flattened.push_source_text(&text.value, position.start.offset, node_id);
+    }
+}
+
+fn flatten_inline_code_node(
+    code: &markdown::mdast::InlineCode,
+    node_id: &str,
+    flattened: &mut FlattenedRegion,
+) {
+    if let Some(position) = code.position.as_ref() {
+        flattened.push_source_text(&code.value, position.start.offset, node_id);
+    }
+}
+
+fn flatten_children(node: &Node, node_id: &str, flattened: &mut FlattenedRegion) {
+    if let Some(children) = node.children() {
+        for child in children {
+            flatten_inline(child, node_id, flattened);
         }
     }
 }
