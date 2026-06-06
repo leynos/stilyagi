@@ -8,7 +8,7 @@ expression: json
     "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/paragraph-inline-markup.md.fixture",
     "path": "tests/fixtures/corpus/markdown/valid/paragraph-inline-markup.md.fixture",
     "syntax": "markdown",
-    "natural_language": "en",
+    "natural_language": null,
     "encoding": "utf-8",
     "content_hash": "sha256:b88808a15e6d1396a004cabffef109d60658168be31f7dd537bf411c99cdf4e9"
   },

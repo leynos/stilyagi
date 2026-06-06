@@ -438,12 +438,13 @@ python/stilyagi/engine/extraction.py
   -> crates/stilyagi-extract/src/lib.rs
 ```
 
-That split is deliberate. `crates/stilyagi-extract/` owns the
-`extract_document(...)` path, including Markdown IR attachment and the syntax
-gate. `crates/stilyagi-pyext/` translates between Rust types and a Python-owned
-bridge payload. The public Python surface then adapts that payload into
+That split is deliberate. Rust owns extraction mechanics, source-fidelity
+metadata, IR construction, and the FFI adapter that exposes stable engine
+building blocks. Python owns the public model, package-level orchestration, and
+policy layer. The public Python surface adapts Rust bridge output into
 `stilyagi.model.Document`, `stilyagi.model.Region`, and the optional
-`Document.ir` mapping.
+`Document.ir` mapping without moving user-facing policy into the extension
+crate.
 
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine

@@ -22,8 +22,8 @@ Feature: PyO3 bridge structure
     Then the extracted document reports Markdown syntax
     And the extracted document preserves the shared Markdown fixture
 
-  Scenario: Bridge keeps blank Markdown extraction empty
+  Scenario: Bridge keeps blank Markdown compatibility region
     Given the bridge can call the Rust extraction entrypoint
     When the bridge extracts a blank Markdown document
     Then the extracted document reports Markdown syntax
-    And the extracted document has no regions
+    And the extracted document preserves one source-backed region

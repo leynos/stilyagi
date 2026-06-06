@@ -8,7 +8,7 @@ expression: json
     "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
     "path": "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
     "syntax": "markdown",
-    "natural_language": "en",
+    "natural_language": null,
     "encoding": "utf-8",
     "content_hash": "sha256:57551b339c3a3e6c399bd0360f9a3d08458eefca22677dd7235f838e18b2ddc7"
   },

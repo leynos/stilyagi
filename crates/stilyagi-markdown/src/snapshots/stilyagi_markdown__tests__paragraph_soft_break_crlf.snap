@@ -8,7 +8,7 @@ expression: json
     "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/paragraph-soft-break-crlf.md.fixture",
     "path": "tests/fixtures/corpus/markdown/valid/paragraph-soft-break-crlf.md.fixture",
     "syntax": "markdown",
-    "natural_language": "en",
+    "natural_language": null,
     "encoding": "utf-8",
     "content_hash": "sha256:d6261268b61ea42c22676d979dd898d8d3ee3d4812c151e379715fcef326804a"
   },

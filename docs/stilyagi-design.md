@@ -490,7 +490,7 @@ User-facing contract:
       "id": "r42",
       "kind": "paragraph",
       "syntax": "markdown",
-      "natural_language": "en",
+      "natural_language": null,
       "text": "Use explicit trade-offs.",
       "segments": [
         { "text_start": 0, "text_end": 24, "source": { "start": 128, "end": 152 } },

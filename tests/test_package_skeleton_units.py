@@ -122,12 +122,12 @@ def test_engine_extract_document_maps_regions_into_model_regions() -> None:
     assert document.regions == (model.Region(kind="document", text="# Heading"),)
 
 
-def test_engine_extract_document_keeps_blank_markdown_empty() -> None:
-    """Preserve the extractor's blank-input contract at the public boundary."""
+def test_engine_extract_document_keeps_blank_markdown_region() -> None:
+    """Preserve the extractor's blank compatibility region at the public boundary."""
     document = engine.extract_document("   \n", model.Syntax.MARKDOWN)
 
     assert document.syntax is model.Syntax.MARKDOWN
-    assert not document.regions
+    assert document.regions == (model.Region(kind="document", text="   \n"),)
     assert document.ir is not None
     assert document.ir["regions"] == []
 

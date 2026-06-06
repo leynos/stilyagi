@@ -8,7 +8,7 @@ expression: json
     "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture",
     "path": "tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture",
     "syntax": "markdown",
-    "natural_language": "en",
+    "natural_language": null,
     "encoding": "utf-8",
     "content_hash": "sha256:84a03cde5adaaf47a71cd403e13259aa71bc3e6c8ed0fb1a1b81834b03e0fb2b"
   },

@@ -12,38 +12,29 @@ use stilyagi_test_support::{
 };
 use stilyagi_tree_sitter::TreeSitterBoundary;
 
-/// Names the semantic role of a `&str` carrying the canonical, stable
-/// string spelling of a domain variant under test.
+/// Names the closed set of stable string spellings under test.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ExpectedSpelling<'a>(&'a str);
-
-impl<'a> From<&'a str> for ExpectedSpelling<'a> {
-    fn from(s: &'a str) -> Self {
-        Self(s)
-    }
+enum ExpectedSpelling {
+    Document,
+    Markdown,
+    PythonDocstring,
+    RustDocComment,
+    UnsupportedPythonDocstring,
+    UnknownBogus,
 }
 
-impl AsRef<str> for ExpectedSpelling<'_> {
+impl AsRef<str> for ExpectedSpelling {
     fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
-impl std::str::FromStr for ExpectedSpelling<'static> {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "document" => Self("document"),
-            "markdown" => Self("markdown"),
-            "python_docstring" => Self("python_docstring"),
-            "rust_doc_comment" => Self("rust_doc_comment"),
-            "python_docstring extraction is not implemented yet." => {
-                Self("python_docstring extraction is not implemented yet.")
+        match self {
+            Self::Document => "document",
+            Self::Markdown => "markdown",
+            Self::PythonDocstring => "python_docstring",
+            Self::RustDocComment => "rust_doc_comment",
+            Self::UnsupportedPythonDocstring => {
+                "python_docstring extraction is not implemented yet."
             }
-            "unknown syntax 'bogus'" => Self("unknown syntax 'bogus'"),
-            _ => return Err("unknown expected spelling fixture"),
-        })
+            Self::UnknownBogus => "unknown syntax 'bogus'",
+        }
     }
 }
 
@@ -142,14 +133,26 @@ fn markdown_extraction_reports_markdown_syntax(extracted_markdown: ExtractDocume
     assert_eq!(extracted_markdown.syntax(), ExtractSyntax::Markdown);
 }
 
-/// Keep blank Markdown extraction honest instead of synthesizing placeholder
-/// prose that does not exist in the source.
+/// Keep blank Markdown extraction compatible by emitting the document region
+/// with the original source text.
 #[rstest]
-fn blank_markdown_extraction_yields_no_regions(
+fn blank_markdown_extraction_yields_document_region(
     extracted_blank_markdown_documents: Vec<ExtractDocument>,
 ) {
-    for document in extracted_blank_markdown_documents {
-        assert!(document.regions().is_empty());
+    for (document, expected_source) in extracted_blank_markdown_documents
+        .iter()
+        .zip(["", "   \n\t"])
+    {
+        assert_eq!(document.regions().len(), 1);
+        let first_region = document.regions().first();
+
+        assert_eq!(
+            first_region.and_then(ExtractRegion::region_kind),
+            Some(RegionKind::Document)
+        );
+        assert_eq!(first_region.map(ExtractRegion::kind), Some("document"));
+        assert_eq!(first_region.map(ExtractRegion::text), Some(expected_source));
+        assert!(document.ir().is_some());
     }
 }
 
@@ -248,34 +251,34 @@ fn unsupported_syntaxes_are_rejected(#[case] syntax: ExtractSyntax) {
 
 /// Keep the stable spelling of each syntax variant accessible to callers.
 #[rstest]
-#[case(ExtractSyntax::Markdown, "markdown")]
-#[case(ExtractSyntax::PythonDocstring, "python_docstring")]
-#[case(ExtractSyntax::RustDocComment, "rust_doc_comment")]
+#[case(ExtractSyntax::Markdown, ExpectedSpelling::Markdown)]
+#[case(ExtractSyntax::PythonDocstring, ExpectedSpelling::PythonDocstring)]
+#[case(ExtractSyntax::RustDocComment, ExpectedSpelling::RustDocComment)]
 fn syntax_as_str_returns_the_expected_spelling(
     #[case] syntax: ExtractSyntax,
-    #[case] expected: ExpectedSpelling<'_>,
+    #[case] expected: ExpectedSpelling,
 ) {
     assert_eq!(syntax.as_str(), expected.as_ref());
 }
 
 /// Keep the Display output for each syntax variant identical to `as_str`.
 #[rstest]
-#[case(ExtractSyntax::Markdown, "markdown")]
-#[case(ExtractSyntax::PythonDocstring, "python_docstring")]
-#[case(ExtractSyntax::RustDocComment, "rust_doc_comment")]
+#[case(ExtractSyntax::Markdown, ExpectedSpelling::Markdown)]
+#[case(ExtractSyntax::PythonDocstring, ExpectedSpelling::PythonDocstring)]
+#[case(ExtractSyntax::RustDocComment, ExpectedSpelling::RustDocComment)]
 fn syntax_display_matches_as_str(
     #[case] syntax: ExtractSyntax,
-    #[case] expected: ExpectedSpelling<'_>,
+    #[case] expected: ExpectedSpelling,
 ) {
     assert_eq!(format!("{syntax}"), expected.as_ref());
 }
 
 /// Keep the stable spelling of each region kind accessible to callers.
 #[rstest]
-#[case(RegionKind::Document, "document")]
+#[case(RegionKind::Document, ExpectedSpelling::Document)]
 fn region_kind_as_str_returns_the_expected_spelling(
     #[case] kind: RegionKind,
-    #[case] expected: ExpectedSpelling<'_>,
+    #[case] expected: ExpectedSpelling,
 ) {
     assert_eq!(kind.as_str(), expected.as_ref());
 }
@@ -292,10 +295,10 @@ fn region_kind_try_from_accepts_the_expected_spelling(
 
 /// Keep the Display output for each region kind identical to `as_str`.
 #[rstest]
-#[case(RegionKind::Document, "document")]
+#[case(RegionKind::Document, ExpectedSpelling::Document)]
 fn region_kind_display_matches_as_str(
     #[case] kind: RegionKind,
-    #[case] expected: ExpectedSpelling<'_>,
+    #[case] expected: ExpectedSpelling,
 ) {
     assert_eq!(format!("{kind}"), expected.as_ref());
 }
@@ -322,15 +325,15 @@ fn region_kind_try_from_round_trips_through_as_str(#[case] spelling: &str) {
 #[rstest]
 #[case(
     ExtractError::UnsupportedSyntax(ExtractSyntax::PythonDocstring),
-    "python_docstring extraction is not implemented yet."
+    ExpectedSpelling::UnsupportedPythonDocstring
 )]
 #[case(
     ExtractError::UnknownSyntax("bogus".to_owned()),
-    "unknown syntax 'bogus'"
+    ExpectedSpelling::UnknownBogus
 )]
 fn extract_error_display_is_informative(
     #[case] error: ExtractError,
-    #[case] expected: ExpectedSpelling<'_>,
+    #[case] expected: ExpectedSpelling,
 ) {
     assert_eq!(format!("{error}"), expected.as_ref());
 }

@@ -105,7 +105,7 @@ impl DocumentMetadata {
             uri: uri.into(),
             path: path.into(),
             syntax: "markdown".to_owned(),
-            natural_language: Some("en".to_owned()),
+            natural_language: None,
             encoding: "utf-8".to_owned(),
             content_hash: content_hash_for(source),
         }

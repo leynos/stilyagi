@@ -231,6 +231,21 @@ mod tests {
                 parsed.get("schema_version"),
                 Some(&serde_json::json!("1.0.0"))
             );
+            assert!(
+                parsed
+                    .get("document")
+                    .is_some_and(serde_json::Value::is_object)
+            );
+            let line_index = parsed
+                .get("line_index")
+                .and_then(serde_json::Value::as_array)
+                .unwrap_or_else(|| panic!("expected line_index array"));
+            assert_eq!(line_index.first(), Some(&serde_json::json!(0)));
+            assert!(
+                parsed
+                    .get("regions")
+                    .is_some_and(serde_json::Value::is_array)
+            );
         });
     }
 

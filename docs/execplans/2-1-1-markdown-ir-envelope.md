@@ -1266,3 +1266,12 @@ implemented.
 2026-06-05: the user requested implementation of the remaining planned
 functionality, including the follow-up recommendations. Stage 6 records that
 hardening scope and its validation requirements.
+
+2026-06-06: PR #15 failed-check hardening restored the blank Markdown
+compatibility region while keeping the Markdown IR payload attached, removed
+the remaining hard-coded English locale policy from `DocumentMetadata`, added
+closed-vocabulary spelling fixtures, strengthened canonical helper property
+tests, added an injectable Markdown IR failure-path seam, and kept PyO3 IR JSON
+checks structural. Source identity (#23), broader Markdown observability (#24),
+and cross-syntax IR generalisation (#25) remain outside the 2.1.1
+Markdown-first slice and are tracked as follow-up issues linked from PR #15.

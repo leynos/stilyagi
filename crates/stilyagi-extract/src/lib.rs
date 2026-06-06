@@ -259,12 +259,35 @@ pub fn extract_document(
 }
 
 fn extract_markdown_document(source: &str) -> Result<ExtractDocument, ExtractError> {
-    let ir = markdown_ir_document(source, "<memory>", "memory://stilyagi/markdown")
-        .map_err(|error| ExtractError::MarkdownIr(error.to_string()))?;
-    let regions = if source.trim().is_empty() {
-        Vec::new()
-    } else {
-        vec![ExtractRegion::new_typed(RegionKind::Document, source)]
-    };
+    extract_markdown_document_with(source, |markdown_source| {
+        markdown_ir_document(markdown_source, "<memory>", "memory://stilyagi/markdown")
+    })
+}
+
+fn extract_markdown_document_with<E>(
+    source: &str,
+    build_ir: impl FnOnce(&str) -> Result<IrDocument, E>,
+) -> Result<ExtractDocument, ExtractError>
+where
+    E: ToString,
+{
+    let ir = build_ir(source).map_err(|error| ExtractError::MarkdownIr(error.to_string()))?;
+    let regions = vec![ExtractRegion::new_typed(RegionKind::Document, source)];
     Ok(ExtractDocument::new(ExtractSyntax::Markdown, regions).with_ir(ir))
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use super::{ExtractError, extract_markdown_document_with};
+
+    #[rstest]
+    fn markdown_ir_builder_failures_map_to_extract_error() {
+        let result = extract_markdown_document_with("# Heading", |_| Err("injected IR failure"));
+
+        assert!(
+            matches!(result, Err(ExtractError::MarkdownIr(message)) if message.contains("injected IR failure"))
+        );
+    }
 }

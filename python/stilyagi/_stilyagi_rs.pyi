@@ -19,7 +19,7 @@ def extract_document(source: str, syntax: str) -> ExtractDocumentPayload:
     """Extract structured document data from *source* using *syntax*.
 
     Returns an ``ExtractDocumentPayload`` containing ``syntax``, ``regions``,
-    and optional ``ir_json``.
+    and optional canonical IR JSON in ``ir_json``.
 
     Raises ``ValueError`` when *syntax* is invalid, ``NotImplementedError``
     when it is recognised but unavailable, and ``TypeError`` for invalid

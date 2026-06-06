@@ -7,7 +7,7 @@ use rstest::rstest;
 
 use super::{
     DocumentMetadata, IrBoundary, IrDocument, IrRegion, IrSegment, SegmentOrigin, SourceSpan,
-    content_hash_for,
+    content_hash_for, line_index_for,
 };
 
 /// Keep the marker type default stable and comparable.
@@ -78,6 +78,55 @@ fn empty_document_derives_content_hash_from_source() {
         document.document.content_hash,
         content_hash_for("# Title\nBody"),
     );
+}
+
+#[rstest]
+fn markdown_metadata_does_not_set_a_natural_language_policy() {
+    let metadata =
+        DocumentMetadata::markdown("docs/example.md", "file:///repo/docs/example.md", "");
+
+    assert!(metadata.natural_language.is_none());
+}
+
+proptest! {
+    #[test]
+    fn line_index_offsets_follow_source_line_boundaries(source in any::<String>()) {
+        let offsets = line_index_for(&source);
+
+        prop_assert_eq!(offsets.first().copied(), Some(0));
+        prop_assert_eq!(offsets.last().copied(), Some(source.len()));
+        prop_assert!(
+            offsets
+                .windows(2)
+                .all(|window| matches!(window, [left, right] if left < right))
+        );
+        prop_assert!(offsets.iter().all(|offset| source.is_char_boundary(*offset)));
+        prop_assert!(offsets.iter().copied().skip(1).take(offsets.len().saturating_sub(2)).all(
+            |offset| source.as_bytes().get(offset - 1) == Some(&b'\n'),
+        ));
+    }
+
+    #[test]
+    fn content_hash_is_deterministic_and_well_formed(source in any::<String>()) {
+        let hash = content_hash_for(&source);
+
+        prop_assert_eq!(&hash, &content_hash_for(&source));
+        prop_assert!(hash.starts_with("sha256:"));
+        let suffix = hash.trim_start_matches("sha256:");
+        prop_assert_eq!(suffix.len(), 64);
+        let is_lowercase_hex = suffix.chars().all(|character| {
+            character.is_ascii_digit() || ('a'..='f').contains(&character)
+        });
+        prop_assert!(is_lowercase_hex);
+    }
+}
+
+#[rstest]
+#[case("", "not empty")]
+#[case("markdown", "Markdown")]
+#[case("# Title\nBody", "# Title\nOther")]
+fn content_hash_distinguishes_fixed_source_examples(#[case] left: &str, #[case] right: &str) {
+    assert_ne!(content_hash_for(left), content_hash_for(right));
 }
 
 #[rstest]
@@ -175,7 +224,7 @@ fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
             kind: "paragraph".to_owned(),
             scope: vec!["markdown".to_owned(), "paragraph".to_owned()],
             syntax: "markdown".to_owned(),
-            natural_language: Some("en".to_owned()),
+            natural_language: None,
             text: region_text,
             segments,
             origin_nodes: vec!["n1".to_owned()],

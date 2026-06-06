@@ -92,6 +92,7 @@ fn bridge_extracts_the_shared_markdown_fixture(bridge_state: &mut BridgeState) {
 #[when("the bridge extracts a blank Markdown document")]
 fn bridge_extracts_a_blank_markdown_document(bridge_state: &mut BridgeState) {
     perform_extraction("   \n", "markdown", bridge_state);
+    bridge_state.expected_document_text = Some("   \n".to_owned());
 }
 
 #[then("the extracted document reports Markdown syntax")]
@@ -178,34 +179,6 @@ fn extracted_document_preserves_the_shared_markdown_fixture(bridge_state: &Bridg
     extracted_document_preserves_one_source_backed_region(bridge_state);
 }
 
-#[then("the extracted document has no regions")]
-fn extracted_document_has_no_regions(bridge_state: &BridgeState) {
-    let extracted_document = bridge_state
-        .extracted_document
-        .as_ref()
-        .unwrap_or_else(|| panic!("an extracted document should be present"));
-
-    Python::attach(|py| {
-        let extracted_document_bound = extracted_document.bind(py);
-        let extracted_document_dict = extracted_document_bound
-            .cast::<PyDict>()
-            .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
-        let regions_any = extracted_document_dict
-            .get_item("regions")
-            .unwrap_or_else(|error| panic!("missing regions payload: {error}"));
-        let regions = regions_any
-            .cast::<PyList>()
-            .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
-
-        assert_eq!(
-            regions
-                .len()
-                .unwrap_or_else(|error| panic!("expected list length: {error}")),
-            0,
-        );
-    });
-}
-
 #[scenario(
     path = "tests/features/bridge_structure.feature",
     name = "Bridge delegates the smoke greeting to the core crate"
@@ -242,8 +215,8 @@ fn bridge_extracts_the_shared_markdown_fixture_through_the_rust_boundary(
 
 #[scenario(
     path = "tests/features/bridge_structure.feature",
-    name = "Bridge keeps blank Markdown extraction empty"
+    name = "Bridge keeps blank Markdown compatibility region"
 )]
-fn bridge_keeps_blank_markdown_extraction_empty(bridge_state: BridgeState) {
+fn bridge_keeps_blank_markdown_compatibility_region(bridge_state: BridgeState) {
     let _ = bridge_state;
 }
