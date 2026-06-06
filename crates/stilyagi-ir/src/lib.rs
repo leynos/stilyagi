@@ -124,17 +124,28 @@ impl SourceIdentity {
 }
 
 impl DocumentMetadata {
-    /// Create Markdown document metadata for the supplied source text.
+    /// Create document metadata for the supplied syntax and source text.
     #[must_use]
-    pub fn markdown(identity: SourceIdentity, source: &str) -> Self {
+    pub fn new(
+        syntax: impl Into<String>,
+        path: Option<String>,
+        uri: Option<String>,
+        source: &str,
+    ) -> Self {
         Self {
-            uri: identity.uri,
-            path: identity.path,
-            syntax: "markdown".to_owned(),
+            uri,
+            path,
+            syntax: syntax.into(),
             natural_language: None,
             encoding: "utf-8".to_owned(),
             content_hash: content_hash_for(source),
         }
+    }
+
+    /// Create Markdown document metadata for the supplied source text.
+    #[must_use]
+    pub fn markdown(identity: SourceIdentity, source: &str) -> Self {
+        Self::new("markdown", identity.path, identity.uri, source)
     }
 }
 
@@ -149,6 +160,26 @@ pub struct ProducerMetadata {
     pub version: String,
     /// Relevant deterministic parse or extraction options.
     pub options: BTreeMap<String, serde_json::Value>,
+}
+
+/// Document metadata and producer list used to build an IR envelope.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IrBuildContext {
+    /// Metadata for the source document represented by this envelope.
+    pub document: DocumentMetadata,
+    /// Producers that contribute to this envelope.
+    pub producers: Vec<ProducerMetadata>,
+}
+
+impl IrBuildContext {
+    /// Create an IR build context from document and producer metadata.
+    #[must_use]
+    pub const fn new(document: DocumentMetadata, producers: Vec<ProducerMetadata>) -> Self {
+        Self {
+            document,
+            producers,
+        }
+    }
 }
 
 /// A structural tree represented inside an IR document.

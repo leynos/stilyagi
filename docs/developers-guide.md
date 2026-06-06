@@ -452,6 +452,14 @@ URIs. Callers with real file context should use the identity-aware extraction
 API once the relevant adapter or CLI surface exposes it, so source identity is
 supplied at the boundary rather than invented inside the IR domain.
 
+The `crates/stilyagi-ir` crate owns the syntax-neutral IR vocabulary and
+document envelope. The `crates/stilyagi-markdown` crate owns the first concrete
+IR producer and is responsible for translating Markdown parser output into that
+shared envelope. Future Python docstring and Rust documentation comment
+producers must emit the same `IrDocument` shape, but they are intentionally not
+implemented in PR #15 and unsupported syntaxes must not receive placeholder IR
+payloads.
+
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine
 building blocks. A bad boundary exports policy-heavy convenience wrappers that
@@ -483,10 +491,11 @@ current skeleton:
   - smallest shared Rust library boundary used by the bridge today
   - current home of the Rust-backed smoke behaviour
 - `crates/stilyagi-ir`
-  - reserved home for the stable intermediate representation (IR) types and
-    adapters described by RFC 0001
+  - owns the syntax-neutral intermediate representation (IR) vocabulary,
+    canonical envelope, and adapters described by RFC 0001
 - `crates/stilyagi-markdown`
-  - reserved home for Markdown-specific extraction and flattening logic
+  - owns the first concrete IR producer: Markdown-specific extraction and
+    flattening logic
 - `crates/stilyagi-tree-sitter`
   - reserved home for tree-sitter integration and syntax-tree helpers
 - `crates/stilyagi-extract`

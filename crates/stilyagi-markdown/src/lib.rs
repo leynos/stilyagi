@@ -12,8 +12,8 @@ use source_text::{
     source_value_start,
 };
 use stilyagi_ir::{
-    DocumentMetadata, IrDocument, IrNode, IrRegion, IrSegment, IrTree, NodeFlags, ProducerMetadata,
-    SegmentOrigin, SourceIdentity, SourceSpan,
+    DocumentMetadata, IrBuildContext, IrDocument, IrNode, IrRegion, IrSegment, IrTree, NodeFlags,
+    ProducerMetadata, SegmentOrigin, SourceIdentity, SourceSpan,
 };
 
 /// Marker type for the future Markdown extraction boundary.
@@ -124,22 +124,39 @@ fn parser_panic_message(
 /// Returns the parser's structured message when `markdown-rs` cannot parse the
 /// source with Stilyagi's Markdown options.
 pub fn markdown_ir_document(source: &str, identity: SourceIdentity) -> Result<IrDocument, Message> {
-    let source_path = identity.path.as_deref().unwrap_or("<anonymous>");
-    let source_uri = identity.uri.as_deref().unwrap_or("<anonymous>");
-    let ast = parse_markdown_ast_with_context(
-        source,
-        &MarkdownDiagnosticContext {
-            phase: "parse",
-            path: source_path,
-            uri: source_uri,
-        },
-        |value| to_mdast(value, &markdown_parse_options()),
-    )?;
-    let mut document = IrDocument::empty(
+    let source_path = identity
+        .path
+        .clone()
+        .unwrap_or_else(|| "<anonymous>".to_owned());
+    let source_uri = identity
+        .uri
+        .clone()
+        .unwrap_or_else(|| "<anonymous>".to_owned());
+    let context = IrBuildContext::new(
         DocumentMetadata::markdown(identity, source),
         vec![markdown_producer()],
-        source,
     );
+
+    markdown_ir_document_with_context(
+        source,
+        context,
+        &MarkdownDiagnosticContext {
+            phase: "parse",
+            path: &source_path,
+            uri: &source_uri,
+        },
+    )
+}
+
+fn markdown_ir_document_with_context(
+    source: &str,
+    context: IrBuildContext,
+    diagnostic_context: &MarkdownDiagnosticContext<'_>,
+) -> Result<IrDocument, Message> {
+    let ast = parse_markdown_ast_with_context(source, diagnostic_context, |value| {
+        to_mdast(value, &markdown_parse_options())
+    })?;
+    let mut document = IrDocument::empty(context.document, context.producers, source);
     document.trees.push(IrTree {
         id: "t0".to_owned(),
         family: "mdast".to_owned(),

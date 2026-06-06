@@ -138,6 +138,12 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
     assert!(matches!(document, Ok(ref value) if value.document.syntax == "markdown"));
     if let Ok(value) = document {
         assert_eq!(value.schema_version, "1.0.0");
+        assert!(
+            value
+                .producers
+                .iter()
+                .any(|producer| { producer.kind == "markdown" && producer.name == "markdown-rs" })
+        );
         assert!(value.document.content_hash.starts_with("sha256:"));
         assert_eq!(value.line_index.first().copied(), Some(0));
         assert!(!value.nodes.is_empty());

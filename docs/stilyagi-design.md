@@ -822,6 +822,10 @@ Current implementation note for roadmap items 1.2.2 and 2.1.1:
   in-process bridge. The Python `Document.ir` mapping exposes schema metadata,
   `line_index`, tree nodes, region `segments`, synthetic insertions, and
   content hashes for Markdown input.
+- Markdown is the first concrete IR producer, not a limitation of the IR model.
+  The `IrDocument` envelope and metadata vocabulary remain syntax-neutral so
+  later Python docstring and Rust documentation comment producers can emit the
+  same canonical shape without adding Markdown-specific fields to the IR domain.
 - The compatibility payload still includes `syntax` plus regions with `kind`
   and `text` fields, while later roadmap slices migrate callers onto richer
   source-fidelity surfaces.

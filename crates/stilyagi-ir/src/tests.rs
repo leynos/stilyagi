@@ -102,6 +102,29 @@ fn markdown_metadata_accepts_anonymous_source_identity() {
 }
 
 #[rstest]
+#[case("markdown")]
+#[case("python-docstring")]
+#[case("rust-doc-comment")]
+fn syntax_neutral_metadata_builds_empty_ir_documents(#[case] syntax: &str) {
+    let source = "First line\nsecond line";
+    let document = IrDocument::empty(
+        DocumentMetadata::new(
+            syntax,
+            Some(format!("fixtures/{syntax}.txt")),
+            Some(format!("file:///repo/fixtures/{syntax}.txt")),
+            source,
+        ),
+        Vec::new(),
+        source,
+    );
+
+    assert_eq!(document.document.syntax, syntax);
+    assert!(document.document.content_hash.starts_with("sha256:"));
+    assert_eq!(document.line_index, vec![0, 11, 22]);
+    assert!(document.document.natural_language.is_none());
+}
+
+#[rstest]
 fn anonymous_source_identity_serializes_as_null_metadata_fields() {
     let document = IrDocument::empty(
         DocumentMetadata::markdown(SourceIdentity::anonymous(), ""),

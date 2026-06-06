@@ -10,6 +10,14 @@ Approval gate: the user approved implementation on 2026-06-01 by asking to
 proceed with the planned functionality. Milestone work proceeds within the
 tolerances below.
 
+Hardening note: the IR envelope is syntax-neutral. `DocumentMetadata::new(...)`
+constructs metadata for any syntax string, `DocumentMetadata::markdown(...)`
+delegates to that neutral constructor, and Markdown production uses an
+`IrBuildContext` at the envelope boundary. Markdown remains the only
+implemented IR producer in this slice; Python docstring and Rust documentation
+comment extraction continue to return unsupported-syntax errors rather than
+placeholder IR.
+
 ## Purpose / big picture
 
 Roadmap item 2.1.1 proves that Markdown can be flattened into Stilyagi's
