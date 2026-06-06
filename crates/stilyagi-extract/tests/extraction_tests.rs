@@ -3,7 +3,7 @@
 use rstest::{fixture, rstest};
 use stilyagi_extract::{
     ExtractBoundary, ExtractDocument, ExtractError, ExtractRegion, ExtractSyntax, RegionKind,
-    extract_document,
+    SourceIdentity, extract_document, extract_document_with_source_identity,
 };
 use stilyagi_ir::IrBoundary;
 use stilyagi_markdown::MarkdownBoundary;
@@ -212,6 +212,43 @@ fn markdown_extraction_attaches_markdown_ir(shared_markdown_source: String) {
     assert!(matches!(ir, Some(value) if value.document.syntax == "markdown"));
     assert!(
         matches!(ir, Some(value) if value.regions.iter().all(stilyagi_ir::IrRegion::segments_reconstruct_text))
+    );
+}
+
+/// Keep string-only extraction anonymous instead of inventing infrastructure
+/// source identifiers.
+#[rstest]
+fn markdown_extraction_uses_anonymous_ir_identity_by_default() {
+    let document = must_extract_document("# Heading", ExtractSyntax::Markdown);
+    let ir = document
+        .ir()
+        .unwrap_or_else(|| panic!("expected Markdown IR payload"));
+
+    assert_eq!(ir.document.path, None);
+    assert_eq!(ir.document.uri, None);
+}
+
+/// Preserve caller-supplied source identity when the identity-aware extraction
+/// path is used.
+#[rstest]
+fn markdown_extraction_propagates_explicit_source_identity() {
+    let document = extract_document_with_source_identity(
+        "# Heading",
+        ExtractSyntax::Markdown,
+        SourceIdentity::new(
+            Some("docs/example.md".to_owned()),
+            Some("file:///repo/docs/example.md".to_owned()),
+        ),
+    )
+    .unwrap_or_else(|error| panic!("expected successful extraction: {error}"));
+    let ir = document
+        .ir()
+        .unwrap_or_else(|| panic!("expected Markdown IR payload"));
+
+    assert_eq!(ir.document.path.as_deref(), Some("docs/example.md"));
+    assert_eq!(
+        ir.document.uri.as_deref(),
+        Some("file:///repo/docs/example.md")
     );
 }
 

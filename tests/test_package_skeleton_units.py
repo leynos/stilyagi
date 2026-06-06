@@ -113,6 +113,9 @@ def test_engine_extract_document_returns_a_model_document() -> None:
     assert document.syntax is model.Syntax.MARKDOWN
     assert document.ir is not None
     assert document.ir["schema_version"] == "1.0.0"
+    ir_document = typ.cast("dict[str, JSONType]", document.ir["document"])
+    assert ir_document["path"] is None
+    assert ir_document["uri"] is None
 
 
 def test_engine_extract_document_maps_regions_into_model_regions() -> None:

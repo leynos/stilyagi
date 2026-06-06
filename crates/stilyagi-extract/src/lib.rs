@@ -1,6 +1,7 @@
 //! Source extraction orchestration for the first Rust-to-Python bridge.
 
 use core::fmt;
+pub use stilyagi_ir::SourceIdentity;
 use stilyagi_ir::{IrBoundary, IrDocument};
 use stilyagi_markdown::{MarkdownBoundary, markdown_ir_document};
 use stilyagi_tree_sitter::TreeSitterBoundary;
@@ -250,17 +251,37 @@ pub fn extract_document(
     source: &str,
     syntax: ExtractSyntax,
 ) -> Result<ExtractDocument, ExtractError> {
+    extract_document_with_source_identity(source, syntax, SourceIdentity::anonymous())
+}
+
+/// Extract a minimal document-shaped payload with explicit source identity.
+///
+/// # Errors
+///
+/// Returns [`ExtractError::UnsupportedSyntax`] when the syntax is part of the
+/// current model vocabulary but not yet implemented. Returns
+/// [`ExtractError::MarkdownIr`] when Markdown parsing or IR construction fails.
+/// Returns [`ExtractError::UnknownSyntax`] only when a caller first converts an
+/// arbitrary string into [`ExtractSyntax`] via `TryFrom<&str>`.
+pub fn extract_document_with_source_identity(
+    source: &str,
+    syntax: ExtractSyntax,
+    identity: SourceIdentity,
+) -> Result<ExtractDocument, ExtractError> {
     match syntax {
-        ExtractSyntax::Markdown => extract_markdown_document(source),
+        ExtractSyntax::Markdown => extract_markdown_document(source, identity),
         ExtractSyntax::PythonDocstring | ExtractSyntax::RustDocComment => {
             Err(ExtractError::UnsupportedSyntax(syntax))
         }
     }
 }
 
-fn extract_markdown_document(source: &str) -> Result<ExtractDocument, ExtractError> {
+fn extract_markdown_document(
+    source: &str,
+    identity: SourceIdentity,
+) -> Result<ExtractDocument, ExtractError> {
     extract_markdown_document_with(source, |markdown_source| {
-        markdown_ir_document(markdown_source, "<memory>", "memory://stilyagi/markdown")
+        markdown_ir_document(markdown_source, identity)
     })
 }
 

@@ -6,8 +6,8 @@ use proptest::prelude::*;
 use rstest::rstest;
 
 use super::{
-    DocumentMetadata, IrBoundary, IrDocument, IrRegion, IrSegment, SegmentOrigin, SourceSpan,
-    content_hash_for, line_index_for,
+    DocumentMetadata, IrBoundary, IrDocument, IrRegion, IrSegment, SegmentOrigin, SourceIdentity,
+    SourceSpan, content_hash_for, line_index_for,
 };
 
 /// Keep the marker type default stable and comparable.
@@ -49,7 +49,13 @@ fn ir_boundary_is_copy() {
 fn empty_document_uses_line_index_and_content_hash() {
     let source = "# Title\nBody";
     let document = IrDocument::empty(
-        DocumentMetadata::markdown("docs/example.md", "file:///repo/docs/example.md", source),
+        DocumentMetadata::markdown(
+            SourceIdentity::new(
+                Some("docs/example.md".to_owned()),
+                Some("file:///repo/docs/example.md".to_owned()),
+            ),
+            source,
+        ),
         Vec::new(),
         source,
     );
@@ -63,8 +69,8 @@ fn empty_document_uses_line_index_and_content_hash() {
 fn empty_document_derives_content_hash_from_source() {
     let document = IrDocument::empty(
         DocumentMetadata {
-            uri: "file:///repo/docs/example.md".to_owned(),
-            path: "docs/example.md".to_owned(),
+            uri: Some("file:///repo/docs/example.md".to_owned()),
+            path: Some("docs/example.md".to_owned()),
             syntax: "markdown".to_owned(),
             natural_language: None,
             encoding: "utf-8".to_owned(),
@@ -82,10 +88,38 @@ fn empty_document_derives_content_hash_from_source() {
 
 #[rstest]
 fn markdown_metadata_does_not_set_a_natural_language_policy() {
-    let metadata =
-        DocumentMetadata::markdown("docs/example.md", "file:///repo/docs/example.md", "");
+    let metadata = DocumentMetadata::markdown(SourceIdentity::anonymous(), "");
 
     assert!(metadata.natural_language.is_none());
+}
+
+#[rstest]
+fn markdown_metadata_accepts_anonymous_source_identity() {
+    let metadata = DocumentMetadata::markdown(SourceIdentity::anonymous(), "");
+
+    assert_eq!(metadata.path, None);
+    assert_eq!(metadata.uri, None);
+}
+
+#[rstest]
+fn anonymous_source_identity_serializes_as_null_metadata_fields() {
+    let document = IrDocument::empty(
+        DocumentMetadata::markdown(SourceIdentity::anonymous(), ""),
+        Vec::new(),
+        "",
+    );
+    let json = document
+        .to_canonical_json()
+        .unwrap_or_else(|error| panic!("expected canonical JSON: {error}"));
+    let parsed = serde_json::from_str::<serde_json::Value>(&json)
+        .unwrap_or_else(|error| panic!("expected parseable canonical JSON: {error}"));
+    let metadata = parsed
+        .get("document")
+        .and_then(serde_json::Value::as_object)
+        .unwrap_or_else(|| panic!("expected document metadata object"));
+
+    assert_eq!(metadata.get("path"), Some(&serde_json::Value::Null));
+    assert_eq!(metadata.get("uri"), Some(&serde_json::Value::Null));
 }
 
 proptest! {
@@ -135,7 +169,7 @@ fn canonical_json_orders_metadata_deterministically() {
     metadata.insert("zeta".to_owned(), serde_json::json!(true));
     metadata.insert("alpha".to_owned(), serde_json::json!(1));
     let mut document = IrDocument::empty(
-        DocumentMetadata::markdown("docs/example.md", "file:///repo/docs/example.md", ""),
+        DocumentMetadata::markdown(SourceIdentity::anonymous(), ""),
         Vec::new(),
         "",
     );

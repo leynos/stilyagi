@@ -4,7 +4,7 @@ use std::{collections::BTreeSet, fs};
 
 use markdown::mdast::Node;
 use rstest::rstest;
-use stilyagi_ir::{IrDocument, SourceSpan};
+use stilyagi_ir::{IrDocument, SourceIdentity, SourceSpan};
 use stilyagi_test_support::{
     SHARED_MARKDOWN_FIXTURE_PATH, corpus_fixture_path, read_corpus_fixture,
 };
@@ -132,8 +132,7 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
     let source = "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi design](../../../../../docs/stilyagi-design.md).\n\n| Term | Meaning |\n| ---- | ------- |\n| IR   | Intermediate representation |\n";
     let document = markdown_ir_document(
         source,
-        "tests/fixtures/corpus/markdown/valid/example.md",
-        "file:///repo/tests/fixtures/corpus/markdown/valid/example.md",
+        source_identity("tests/fixtures/corpus/markdown/valid/example.md"),
     );
 
     assert!(matches!(document, Ok(ref value) if value.document.syntax == "markdown"));
@@ -157,7 +156,7 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
 #[rstest]
 fn markdown_ir_document_records_soft_breaks_as_synthetic_segments() {
     let source = "First line\nsecond line\n";
-    let document = markdown_ir_document(source, "docs/example.md", "file:///repo/docs/example.md");
+    let document = markdown_ir_document(source, source_identity("docs/example.md"));
 
     assert!(matches!(document, Ok(ref value) if value.regions.len() == 1));
     if let Ok(value) = document {
@@ -175,7 +174,7 @@ fn markdown_ir_document_records_soft_breaks_as_synthetic_segments() {
 
 #[rstest]
 fn markdown_ir_document_keeps_empty_heading_regions() {
-    let document = markdown_ir_document("#\n", "docs/example.md", "file:///repo/docs/example.md")
+    let document = markdown_ir_document("#\n", source_identity("docs/example.md"))
         .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
 
     assert!(document.regions.iter().any(|region| {
@@ -188,12 +187,8 @@ fn markdown_ir_document_keeps_empty_heading_regions() {
 
 #[rstest]
 fn markdown_ir_document_uses_synthetic_segment_for_decoded_text() {
-    let document = markdown_ir_document(
-        "AT&amp;T",
-        "docs/example.md",
-        "file:///repo/docs/example.md",
-    )
-    .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    let document = markdown_ir_document("AT&amp;T", source_identity("docs/example.md"))
+        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
     let paragraph = document
         .regions
         .iter()
@@ -234,12 +229,8 @@ fn hardening_fixture_ir_json_round_trips_without_span_drift(
 ) {
     let source = read_corpus_fixture(relative_path)
         .unwrap_or_else(|error| panic!("expected Markdown hardening fixture: {error}"));
-    let document = markdown_ir_document(
-        &source,
-        relative_path,
-        format!("file:///repo/{relative_path}"),
-    )
-    .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    let document = markdown_ir_document(&source, source_identity(relative_path))
+        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
     let json = document
         .to_canonical_json()
         .unwrap_or_else(|error| panic!("expected canonical JSON: {error}"));
@@ -270,12 +261,8 @@ fn yaml_frontmatter_fixture_records_a_yaml_node() {
     let relative_path = "tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture";
     let source = read_corpus_fixture(relative_path)
         .unwrap_or_else(|error| panic!("expected YAML frontmatter fixture: {error}"));
-    let document = markdown_ir_document(
-        &source,
-        relative_path,
-        format!("file:///repo/{relative_path}"),
-    )
-    .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    let document = markdown_ir_document(&source, source_identity(relative_path))
+        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
 
     assert!(document.nodes.iter().any(|node| node.kind == "yaml"));
 }
@@ -288,12 +275,8 @@ fn region_kinds(regions: &[stilyagi_ir::IrRegion]) -> BTreeSet<&str> {
 fn shared_markdown_ir_json_round_trips_without_span_drift() {
     let source = read_corpus_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
         .unwrap_or_else(|error| panic!("expected shared Markdown fixture: {error}"));
-    let document = markdown_ir_document(
-        &source,
-        SHARED_MARKDOWN_FIXTURE_PATH,
-        "file:///repo/tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
-    )
-    .unwrap_or_else(|error| panic!("expected shared Markdown IR document: {error}"));
+    let document = markdown_ir_document(&source, source_identity(SHARED_MARKDOWN_FIXTURE_PATH))
+        .unwrap_or_else(|error| panic!("expected shared Markdown IR document: {error}"));
     let json = document
         .to_canonical_json()
         .unwrap_or_else(|error| panic!("expected canonical JSON: {error}"));
@@ -320,6 +303,10 @@ fn source_backed_segments_match_source(document: &IrDocument, source: &str) -> b
             )
         })
     })
+}
+
+fn source_identity(path: &str) -> SourceIdentity {
+    SourceIdentity::new(Some(path.to_owned()), Some(format!("file:///repo/{path}")))
 }
 
 fn source_segment_matches(span: SourceSpan, source: &str, expected: &str) -> bool {

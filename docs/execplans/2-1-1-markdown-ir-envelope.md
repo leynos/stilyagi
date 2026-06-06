@@ -1275,3 +1275,10 @@ tests, added an injectable Markdown IR failure-path seam, and kept PyO3 IR JSON
 checks structural. Source identity (#23), broader Markdown observability (#24),
 and cross-syntax IR generalisation (#25) remain outside the 2.1.1
 Markdown-first slice and are tracked as follow-up issues linked from PR #15.
+
+2026-06-06: source identity hardening replaced fake memory path and URI values
+with explicit anonymous identity for string-only Markdown extraction. The
+existing `extract_document(source, syntax)` API remains backwards-compatible
+and delegates to the identity-aware extraction boundary with `path` and `uri`
+set to `null` in canonical IR JSON. Callers that know a real path or URI can
+now pass `SourceIdentity` through the Rust extraction boundary.

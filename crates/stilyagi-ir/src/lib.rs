@@ -83,10 +83,10 @@ impl IrDocument {
 /// Metadata about the source document represented by an IR payload.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentMetadata {
-    /// Stable source URI, or a synthetic URI for stdin.
-    pub uri: String,
-    /// Repository-relative or display path.
-    pub path: String,
+    /// Stable source URI when the caller provides one.
+    pub uri: Option<String>,
+    /// Repository-relative or display path when the caller provides one.
+    pub path: Option<String>,
     /// Source syntax name, such as `markdown`.
     pub syntax: String,
     /// Optional dominant natural language, such as `en`.
@@ -97,13 +97,39 @@ pub struct DocumentMetadata {
     pub content_hash: String,
 }
 
+/// Caller-supplied source identity for IR metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceIdentity {
+    /// Repository-relative or display path when available.
+    pub path: Option<String>,
+    /// Stable source URI when available.
+    pub uri: Option<String>,
+}
+
+impl SourceIdentity {
+    /// Create anonymous source identity for string-only extraction.
+    #[must_use]
+    pub const fn anonymous() -> Self {
+        Self {
+            path: None,
+            uri: None,
+        }
+    }
+
+    /// Create source identity from explicit optional components.
+    #[must_use]
+    pub const fn new(path: Option<String>, uri: Option<String>) -> Self {
+        Self { path, uri }
+    }
+}
+
 impl DocumentMetadata {
     /// Create Markdown document metadata for the supplied source text.
     #[must_use]
-    pub fn markdown(path: impl Into<String>, uri: impl Into<String>, source: &str) -> Self {
+    pub fn markdown(identity: SourceIdentity, source: &str) -> Self {
         Self {
-            uri: uri.into(),
-            path: path.into(),
+            uri: identity.uri,
+            path: identity.path,
             syntax: "markdown".to_owned(),
             natural_language: None,
             encoding: "utf-8".to_owned(),

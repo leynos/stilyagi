@@ -446,6 +446,12 @@ policy layer. The public Python surface adapts Rust bridge output into
 `Document.ir` mapping without moving user-facing policy into the extension
 crate.
 
+String-only extraction uses anonymous IR source identity: `document.path` and
+`document.uri` are serialized as `null` instead of synthetic memory paths or
+URIs. Callers with real file context should use the identity-aware extraction
+API once the relevant adapter or CLI surface exposes it, so source identity is
+supplied at the boundary rather than invented inside the IR domain.
+
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine
 building blocks. A bad boundary exports policy-heavy convenience wrappers that
