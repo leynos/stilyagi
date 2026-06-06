@@ -27,15 +27,43 @@ pub struct MarkdownBoundary;
 /// Returns the parser's structured message when the input cannot be parsed
 /// with the configured `markdown-rs` options.
 pub fn parse_markdown_ast(source: &str) -> Result<Node, Message> {
-    parse_markdown_ast_with(source, |value| to_mdast(value, &markdown_parse_options()))
+    parse_markdown_ast_with_context(
+        source,
+        &MarkdownDiagnosticContext {
+            phase: "parse",
+            path: "<unknown>",
+            uri: "<unknown>",
+        },
+        |value| to_mdast(value, &markdown_parse_options()),
+    )
 }
 
+#[cfg(test)]
 fn parse_markdown_ast_with<F>(source: &str, parser: F) -> Result<Node, Message>
 where
     F: FnOnce(&str) -> Result<Node, Message>,
 {
+    parse_markdown_ast_with_context(
+        source,
+        &MarkdownDiagnosticContext {
+            phase: "parse",
+            path: "<unknown>",
+            uri: "<unknown>",
+        },
+        parser,
+    )
+}
+
+fn parse_markdown_ast_with_context<F>(
+    source: &str,
+    context: &MarkdownDiagnosticContext<'_>,
+    parser: F,
+) -> Result<Node, Message>
+where
+    F: FnOnce(&str) -> Result<Node, Message>,
+{
     catch_unwind(std::panic::AssertUnwindSafe(|| parser(source)))
-        .unwrap_or_else(|payload| Err(parser_panic_message(payload.as_ref())))
+        .unwrap_or_else(|payload| Err(parser_panic_message(payload.as_ref(), context)))
 }
 
 fn markdown_parse_options() -> ParseOptions {
@@ -44,7 +72,35 @@ fn markdown_parse_options() -> ParseOptions {
     options
 }
 
-fn parser_panic_message(payload: &(dyn Any + Send)) -> Message {
+struct MarkdownDiagnosticContext<'a> {
+    phase: &'a str,
+    path: &'a str,
+    uri: &'a str,
+}
+
+fn stilyagi_markdown_message(
+    context: &MarkdownDiagnosticContext<'_>,
+    rule_id: &'static str,
+    detail: impl Into<String>,
+) -> Message {
+    Message {
+        place: None,
+        reason: format!(
+            "phase={} path={} uri={} detail={}",
+            context.phase,
+            context.path,
+            context.uri,
+            detail.into(),
+        ),
+        rule_id: Box::new(rule_id.to_owned()),
+        source: Box::new("stilyagi-markdown".to_owned()),
+    }
+}
+
+fn parser_panic_message(
+    payload: &(dyn Any + Send),
+    context: &MarkdownDiagnosticContext<'_>,
+) -> Message {
     let reason = payload.downcast_ref::<&str>().map_or_else(
         || {
             payload
@@ -54,12 +110,11 @@ fn parser_panic_message(payload: &(dyn Any + Send)) -> Message {
         },
         |message| (*message).to_owned(),
     );
-    Message {
-        place: None,
-        reason: format!("markdown parser panicked: {reason}"),
-        rule_id: Box::new("parser-panic".to_owned()),
-        source: Box::new("stilyagi-markdown".to_owned()),
-    }
+    stilyagi_markdown_message(
+        context,
+        "parser-panic",
+        format!("markdown parser panicked: {reason}"),
+    )
 }
 
 /// Build a Markdown IR document envelope from source text and source identity.
@@ -73,9 +128,19 @@ pub fn markdown_ir_document(
     path: impl Into<String>,
     uri: impl Into<String>,
 ) -> Result<IrDocument, Message> {
-    let ast = parse_markdown_ast(source)?;
+    let source_path = path.into();
+    let source_uri = uri.into();
+    let ast = parse_markdown_ast_with_context(
+        source,
+        &MarkdownDiagnosticContext {
+            phase: "parse",
+            path: &source_path,
+            uri: &source_uri,
+        },
+        |value| to_mdast(value, &markdown_parse_options()),
+    )?;
     let mut document = IrDocument::empty(
-        DocumentMetadata::markdown(path, uri, source),
+        DocumentMetadata::markdown(source_path, source_uri, source),
         vec![markdown_producer()],
         source,
     );
