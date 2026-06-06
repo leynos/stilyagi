@@ -10,6 +10,8 @@ import stilyagi
 from stilyagi import cli, config, diagnostics, engine, model, nlp, plugins, rules
 from stilyagi.nlp import spacy_provider
 
+JSONType = dict[str, "JSONType"] | list["JSONType"] | str | int | float | bool | None
+
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
@@ -221,20 +223,20 @@ def test_nlp_provider_protocol_accepts_matching_provider_objects() -> None:
     assert isinstance(DummyProvider(), RuntimeCheckableNlpProvider)
 
 
-def _load_insta_json_snapshot(path: pathlib.Path) -> dict[str, typ.Any]:
+def _load_insta_json_snapshot(path: pathlib.Path) -> dict[str, JSONType]:
     """Load the JSON payload stored after an insta snapshot metadata header."""
     _header, json_payload = path.read_text(encoding="utf-8").split(
         "\n---\n", maxsplit=1
     )
     parsed = json.loads(json_payload)
     assert isinstance(parsed, dict)
-    return typ.cast("dict[str, typ.Any]", parsed)
+    return typ.cast("dict[str, JSONType]", parsed)
 
 
-def _normalize_ir_identity(ir: cabc.Mapping[str, typ.Any]) -> dict[str, typ.Any]:
+def _normalize_ir_identity(ir: cabc.Mapping[str, JSONType]) -> dict[str, JSONType]:
     """Remove adapter-specific source identity before parity comparison."""
     normalized = dict(ir)
-    document = dict(typ.cast("dict[str, typ.Any]", normalized["document"]))
+    document = dict(typ.cast("dict[str, JSONType]", normalized["document"]))
     document["path"] = "<normalized>"
     document["uri"] = "<normalized>"
     normalized["document"] = document

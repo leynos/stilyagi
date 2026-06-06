@@ -1324,6 +1324,7 @@ dependencies = [
  "rstest",
  "rstest-bdd",
  "rstest-bdd-macros",
+ "serde_json",
  "stilyagi-core",
  "stilyagi-extract",
  "stilyagi-test-support",

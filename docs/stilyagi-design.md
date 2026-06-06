@@ -823,7 +823,7 @@ Current implementation note for roadmap items 1.2.2 and 2.1.1:
   `line_index`, tree nodes, region `segments`, synthetic insertions, and
   content hashes for Markdown input.
 - The compatibility payload still includes `syntax` plus regions with `kind`
-  and `text` fields while later roadmap slices migrate callers onto richer
+  and `text` fields, while later roadmap slices migrate callers onto richer
   source-fidelity surfaces.
 - The raw PyO3 payload is an internal bridge detail. The supported Python
   surface is the typed `stilyagi.model.Document` wrapper returned by

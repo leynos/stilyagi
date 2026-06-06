@@ -18,8 +18,8 @@ class ExtractDocumentPayload(typ.TypedDict):
 def extract_document(source: str, syntax: str) -> ExtractDocumentPayload:
     """Extract structured document data from *source* using *syntax*.
 
-    Returns an ``ExtractDocumentPayload`` containing ``syntax`` and
-    ``regions``.
+    Returns an ``ExtractDocumentPayload`` containing ``syntax``, ``regions``,
+    and optional ``ir_json``.
 
     Raises ``ValueError`` when *syntax* is invalid, ``NotImplementedError``
     when it is recognised but unavailable, and ``TypeError`` for invalid

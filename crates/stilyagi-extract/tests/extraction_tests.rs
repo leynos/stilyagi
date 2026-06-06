@@ -30,7 +30,7 @@ impl AsRef<str> for ExpectedSpelling<'_> {
 }
 
 impl std::str::FromStr for ExpectedSpelling<'static> {
-    type Err = std::convert::Infallible;
+    type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
@@ -42,7 +42,7 @@ impl std::str::FromStr for ExpectedSpelling<'static> {
                 Self("python_docstring extraction is not implemented yet.")
             }
             "unknown syntax 'bogus'" => Self("unknown syntax 'bogus'"),
-            other => Self(Box::leak(other.to_owned().into_boxed_str())),
+            _ => return Err("unknown expected spelling fixture"),
         })
     }
 }

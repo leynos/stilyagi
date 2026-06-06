@@ -1,5 +1,5 @@
 ---
-source: crates/stilyagi-markdown/src/lib.rs
+source: crates/stilyagi-markdown/src/tests.rs
 expression: json
 ---
 {
@@ -468,7 +468,7 @@ expression: json
         "h1"
       ],
       "syntax": "markdown",
-      "natural_language": "en",
+      "natural_language": null,
       "text": "Fixture Heading",
       "segments": [
         {
@@ -500,7 +500,7 @@ expression: json
         "paragraph"
       ],
       "syntax": "markdown",
-      "natural_language": "en",
+      "natural_language": null,
       "text": "This paragraph links to the Stilyagi design.",
       "segments": [
         {
@@ -560,7 +560,7 @@ expression: json
         "table_cell"
       ],
       "syntax": "markdown",
-      "natural_language": "en",
+      "natural_language": null,
       "text": "Term",
       "segments": [
         {
@@ -590,7 +590,7 @@ expression: json
         "table_cell"
       ],
       "syntax": "markdown",
-      "natural_language": "en",
+      "natural_language": null,
       "text": "Meaning",
       "segments": [
         {
@@ -620,7 +620,7 @@ expression: json
         "table_cell"
       ],
       "syntax": "markdown",
-      "natural_language": "en",
+      "natural_language": null,
       "text": "IR",
       "segments": [
         {
@@ -650,7 +650,7 @@ expression: json
         "table_cell"
       ],
       "syntax": "markdown",
-      "natural_language": "en",
+      "natural_language": null,
       "text": "Intermediate representation",
       "segments": [
         {

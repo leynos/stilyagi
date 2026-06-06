@@ -1,5 +1,5 @@
 ---
-source: crates/stilyagi-markdown/src/lib.rs
+source: crates/stilyagi-markdown/src/tests.rs
 expression: json
 ---
 {
@@ -108,7 +108,7 @@ expression: json
         "paragraph"
       ],
       "syntax": "markdown",
-      "natural_language": "en",
+      "natural_language": null,
       "text": "First line second line",
       "segments": [
         {

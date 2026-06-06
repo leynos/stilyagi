@@ -1,7 +1,5 @@
 """Document model placeholders for Stilyagi."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 import enum
 import typing as typ
@@ -36,4 +34,4 @@ class Document:
 
     syntax: Syntax
     regions: tuple[Region, ...] = ()
-    ir: cabc.Mapping[str, typ.Any] | None = None
+    ir: cabc.Mapping[str, object] | None = None

@@ -243,7 +243,8 @@ impl ExtractBoundary {
 ///
 /// Returns [`ExtractError::UnsupportedSyntax`] when the syntax is part of the
 /// current model vocabulary but not yet implemented. Returns
-/// [`ExtractError::UnknownSyntax`] only when a caller first converts an
+/// [`ExtractError::MarkdownIr`] when Markdown parsing or IR construction fails.
+/// Returns [`ExtractError::UnknownSyntax`] only when a caller first converts an
 /// arbitrary string into [`ExtractSyntax`] via `TryFrom<&str>`.
 pub fn extract_document(
     source: &str,

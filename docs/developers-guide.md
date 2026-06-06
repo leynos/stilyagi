@@ -438,8 +438,8 @@ python/stilyagi/engine/extraction.py
   -> crates/stilyagi-extract/src/lib.rs
 ```
 
-That split is deliberate. `crates/stilyagi-extract/` owns the partial
-document-shaped extraction result, the Markdown IR envelope, and the syntax
+That split is deliberate. `crates/stilyagi-extract/` owns the
+`extract_document(...)` path, including Markdown IR attachment and the syntax
 gate. `crates/stilyagi-pyext/` translates between Rust types and a Python-owned
 bridge payload. The public Python surface then adapts that payload into
 `stilyagi.model.Document`, `stilyagi.model.Region`, and the optional

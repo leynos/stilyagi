@@ -11,8 +11,6 @@ Example: `from stilyagi import model`
 `result = extract_document("# Heading", model.Syntax.MARKDOWN)`
 """
 
-from __future__ import annotations
-
 import json
 import typing as typ
 

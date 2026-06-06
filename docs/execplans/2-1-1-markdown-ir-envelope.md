@@ -4,11 +4,11 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: DONE
 
 Approval gate: the user approved implementation on 2026-06-01 by asking to
-proceed with the planned functionality. Continue milestone by milestone within
-the tolerances below.
+proceed with the planned functionality. Milestone work proceeds within the
+tolerances below.
 
 ## Purpose / big picture
 
@@ -316,19 +316,19 @@ External prior art checked during planning:
 
 ### Stage 0: approval and baseline
 
-Do not begin this stage until the user explicitly approves this plan. Once
-approved, update `Status` to `APPROVED`, record the approval in the
-`Decision Log`, and then set `Status` to `IN PROGRESS` when implementation
+This stage must not begin until explicit user approval is recorded. After
+approval, `Status` changes to `APPROVED`, the approval is recorded in the
+`Decision Log`, and `Status` changes to `IN PROGRESS` when implementation
 starts.
 
-Check the branch and working tree with `git branch --show-current` and
-`git status --short --branch`. Confirm the branch is
-`2-1-1-markdown-ir-envelope`. If the branch is not the task branch, stop and
-ask whether to rename it before code work. If unrelated user changes exist,
-leave them alone and work around them.
+The branch and working tree are checked with `git branch --show-current` and
+`git status --short --branch`. The expected branch is
+`2-1-1-markdown-ir-envelope`. If the branch is not the task branch, work stops
+until branch naming is confirmed. Unrelated user changes remain in place and
+are worked around.
 
-Run a baseline gate before code changes so later failures have a comparison
-point. Use the project Makefile targets and `tee` logs:
+A baseline gate runs before code changes so later failures have a comparison
+point. The project Makefile targets are used with `tee` logs:
 
 ```bash
 BRANCH="$(git branch --show-current)"
@@ -338,26 +338,27 @@ make lint 2>&1 | tee "/tmp/lint-stilyagi-${BRANCH}.out"
 make test 2>&1 | tee "/tmp/test-stilyagi-${BRANCH}.out"
 ```
 
-If any baseline gate fails before implementation, inspect the log and decide
-whether the failure is caused by the clean branch, local environment, or
-pre-existing unrelated changes. Record the finding in `Surprises & Discoveries`
-and stop if the failure would make this plan unverifiable.
+If any baseline gate fails before implementation, the log is inspected to
+determine whether the failure is caused by the clean branch, local environment,
+or pre-existing unrelated changes. The finding is recorded in
+`Surprises & Discoveries`, and work stops if the failure would make this plan
+unverifiable.
 
 ### Stage 1: parser and schema spike
 
-Add the smallest parser integration needed to prove the source-position path.
-The expected direction is to add the `markdown` crate with the `serde` feature
-to `crates/stilyagi-markdown/Cargo.toml` or the narrow crate that owns parsing.
-Keep Markdown-specific code in `crates/stilyagi-markdown/src/lib.rs` or a small
-module under that crate. Do not place Markdown parser traversal inside PyO3 or
-Python model code.
+The smallest parser integration needed to prove the source-position path is
+added. The expected direction is to add the `markdown` crate with the `serde`
+feature to `crates/stilyagi-markdown/Cargo.toml` or the narrow crate that owns
+parsing. Markdown-specific code remains in
+`crates/stilyagi-markdown/src/lib.rs` or a small module under that crate.
+Markdown parser traversal is not placed inside PyO3 or Python model code.
 
 In `crates/stilyagi-ir/`, define the logical IR data types needed by RFC 0001:
 document metadata, producer metadata, line index, tree metadata, nodes, spans,
 region records, segment records, source segment ranges, suppressions, errors,
-and metadata. Prefer named structs and enums over freeform maps where the
-contract is known. Keep extensible maps only for `metadata`, `attrs`, and
-future parser-specific properties.
+and metadata. Named structs and enums are preferred over freeform maps where
+the contract is known. Extensible maps remain limited to `metadata`, `attrs`,
+and future parser-specific properties.
 
 The first concrete type surface should include names equivalent to:
 
@@ -376,18 +377,18 @@ pub struct IrDocument {
 }
 ```
 
-Use the exact names only if they fit the existing code. The important contract
-is that the type belongs to `stilyagi-ir`, and extraction, PyO3, and Python
-adapt around it.
+The exact names are used only if they fit the existing code. The important
+contract is that the type belongs to `stilyagi-ir`, and extraction, PyO3, and
+Python adapt around it.
 
-Add unit tests in `crates/stilyagi-ir/` for `line_index`, content hash
-formatting, canonical JSON ordering, and segment reconstruction helpers. Add a
+Unit tests are added in `crates/stilyagi-ir/` for `line_index`, content hash
+formatting, canonical JSON ordering, and segment reconstruction helpers. A
 targeted parser spike test in `crates/stilyagi-markdown/` or
 `crates/stilyagi-extract/` that parses the shared Markdown fixture and confirms
 that positions are present for the root and at least one heading or paragraph
-node.
+node is added.
 
-Run the targeted Rust tests first:
+The targeted Rust tests run first:
 
 ```bash
 cargo test -p stilyagi-ir -p stilyagi-markdown 2>&1 \
@@ -399,14 +400,14 @@ stop here and record alternatives in `Decision Log`.
 
 ### Stage 2: Markdown flattening and IR envelope
 
-Implement the Markdown IR builder in `crates/stilyagi-markdown/`. It should
-take source text plus source identity and produce Markdown-specific structural
-facts: an mdast-shaped tree, stable node identifiers, source-backed spans, and
-region candidates. Keep the builder deterministic: traversal order, generated
-IDs, and JSON output must not depend on hash-map ordering.
+The Markdown IR builder is implemented in `crates/stilyagi-markdown/`. It
+should take source text plus source identity and produce Markdown-specific
+structural facts: an mdast-shaped tree, stable node identifiers, source-backed
+spans, and region candidates. The builder remains deterministic: traversal
+order, generated IDs, and JSON output must not depend on hash-map ordering.
 
-Implement region flattening for the minimum Markdown region kinds needed to
-prove the envelope:
+Region flattening is implemented for the minimum Markdown region kinds needed
+to prove the envelope:
 
 - `heading`
 - `paragraph`
@@ -416,28 +417,28 @@ prove the envelope:
 - `image_alt` and `link_title`, where their source mapping can be made
   trustworthy
 
-For each emitted region, populate `kind`, `scope`, `syntax`, `natural_language`
-when known, `text`, `segments`, `origin_nodes`, `owner`, `attrs`, and
-`parent_region`. `owner` must be `null` for Markdown regions; do not overload
-it with section context.
+For each emitted region, `kind`, `scope`, `syntax`, `natural_language` when
+known, `text`, `segments`, `origin_nodes`, `owner`, `attrs`, and
+`parent_region` are populated. `owner` must be `null` for Markdown regions and
+is not overloaded with section context.
 
-Represent synthetic insertions explicitly. A soft line break that becomes a
-space in region text should create a segment with `source: null` and a stable
+Synthetic insertions are represented explicitly. A soft line break that becomes
+a space in region text should create a segment with `source: null` and a stable
 synthetic reason such as `softbreak_space`. The surrounding source-backed
 segments must retain their original byte ranges.
 
-Update `crates/stilyagi-extract/src/lib.rs` so `extract_document` delegates
+`crates/stilyagi-extract/src/lib.rs` is updated so `extract_document` delegates
 Markdown work to the Markdown builder and returns or wraps the richer IR
-document. Keep unsupported syntax errors for Python and Rust exactly explicit;
-do not silently return empty IR for unsupported extractors.
+document. Unsupported syntax errors for Python and Rust remain exactly
+explicit; empty IR is not silently returned for unsupported extractors.
 
-Add Rust unit tests with `rstest` for source-backed regions and synthetic
-segments. Add `proptest` coverage for the invariant that reconstructing a
+Rust unit tests with `rstest` cover source-backed regions and synthetic
+segments. `proptest` coverage is added for the invariant that reconstructing a
 region from its segments yields exactly the region text for generated simple
 segment sequences, and that invalid source ranges cannot be constructed if the
 API is designed to prevent them.
 
-Run:
+The targeted extraction tests run:
 
 ```bash
 cargo test -p stilyagi-ir -p stilyagi-markdown -p stilyagi-extract 2>&1 \
@@ -453,35 +454,35 @@ make lint 2>&1 | tee "/tmp/lint-stage2-stilyagi-${BRANCH}.out"
 make test 2>&1 | tee "/tmp/test-stage2-stilyagi-${BRANCH}.out"
 ```
 
-After these gates pass, run `coderabbit review --agent` and address all
-actionable concerns. Commit this milestone with a focused message.
+After these gates pass, `coderabbit review --agent` runs and all actionable
+concerns are addressed. The milestone is committed with a focused message.
 
 ### Stage 3: canonical JSON and golden fixtures
 
-Move canonical serialization into `crates/stilyagi-ir/src/canonical_json.rs` if
-it is not already there. The serializer must produce deterministic JSON for
-`IrDocument` and related types. Prefer structured serialization over
+Canonical serialization moves into `crates/stilyagi-ir/src/canonical_json.rs`
+if it is not already there. The serializer must produce deterministic JSON for
+`IrDocument` and related types. Structured serialization is preferred over
 handwritten string concatenation.
 
-Update `crates/stilyagi-test-support/src/golden_ir.rs` and
+`crates/stilyagi-test-support/src/golden_ir.rs` and
 `crates/stilyagi-test-support/src/golden_fixture_builder.rs` so they build the
 same logical envelope that production extraction emits. The test support layer
 may add fixture conveniences, but it must not invent a second IR schema.
 
-Update Rust snapshots under:
+Rust snapshots are updated under:
 
 - `crates/stilyagi-extract/tests/snapshots/`
 - `crates/stilyagi-test-support/tests/snapshots/`
 
-Update Python golden snapshot support under:
+Python golden snapshot support is updated under:
 
 - `tests/support/golden_ir.py`
 - `tests/__snapshots__/test_round_trip_helpers/`
 
-Add or update snapshot tests proving that the shared Markdown fixture's
-canonical JSON includes document metadata, `content_hash`, `line_index`,
-Markdown tree metadata, region text, source-backed segments, and any synthetic
-segments included by the fixture.
+Snapshot tests prove that the shared Markdown fixture's canonical JSON includes
+document metadata, `content_hash`, `line_index`, Markdown tree metadata, region
+text, source-backed segments, and any synthetic segments included by the
+fixture.
 
 Use `insta` and `syrupy` update modes only after reviewing the diff:
 
@@ -490,34 +491,34 @@ INSTA_UPDATE=always cargo test -p stilyagi-extract -p stilyagi-test-support
 .venv/bin/python -m pytest tests/test_round_trip_helpers.py --snapshot-update
 ```
 
-Then run the same tests without update flags to prove the snapshots are stable.
-Run full gates, run `coderabbit review --agent`, resolve concerns, and commit
-the milestone.
+The same tests then run without update flags to prove the snapshots are stable.
+Full gates and `coderabbit review --agent` run, concerns are resolved, and the
+milestone is committed.
 
 ### Stage 4: PyO3 bridge and Python model adaptation
 
-Update `crates/stilyagi-pyext/src/lib.rs` so `extract_document` exposes the new
-logical envelope through a Python dictionary that preserves the canonical field
-names. Keep the adapter small. Do not duplicate Markdown flattening or
-canonical JSON construction in PyO3.
+`crates/stilyagi-pyext/src/lib.rs` is updated so `extract_document` exposes the
+new logical envelope through a Python dictionary that preserves the canonical
+field names. The adapter remains small. Markdown flattening and canonical JSON
+construction are not duplicated in PyO3.
 
-Update `python/stilyagi/_stilyagi_rs.pyi` to describe the richer bridge
-payload. Update `python/stilyagi/engine/extraction.py` so it validates the new
-shape and adapts it into Python models. Update
-`python/stilyagi/model/document.py` and `python/stilyagi/model/region.py` with
-typed fields for `line_index`, document metadata, regions, and segments if
-those fields become part of the supported Python surface.
+`python/stilyagi/_stilyagi_rs.pyi` is updated to describe the richer bridge
+payload. `python/stilyagi/engine/extraction.py` is updated so it validates the
+new shape and adapts it into Python models. `python/stilyagi/model/document.py`
+and `python/stilyagi/model/region.py` with typed fields for `line_index`,
+document metadata, regions, and segments if those fields become part of the
+supported Python surface.
 
-Prefer compatibility. Existing callers that inspect `Document.syntax` and
+Compatibility is preferred. Existing callers that inspect `Document.syntax` and
 `Region.kind` / `Region.text` should keep working unless the user approves a
 breaking change.
 
-Add Python tests for bridge adaptation and model validation. Use `pytest` for
-unit tests and existing `pytest-bdd` patterns only if an externally observable
-behaviour needs a Gherkin scenario. Add `syrupy` snapshots where output shape
-stability matters.
+Python tests are added for bridge adaptation and model validation. `pytest` is
+used for unit tests and existing `pytest-bdd` patterns only if an externally
+observable behaviour needs a Gherkin scenario. `syrupy` snapshots are added
+where output shape stability matters.
 
-Run:
+The bridge adaptation tests run:
 
 ```bash
 make build 2>&1 | tee "/tmp/build-stage4-stilyagi-${BRANCH}.out"
@@ -528,26 +529,27 @@ make build 2>&1 | tee "/tmp/build-stage4-stilyagi-${BRANCH}.out"
   2>&1 | tee "/tmp/pytest-stage4-stilyagi-${BRANCH}.out"
 ```
 
-Then run full gates, run `coderabbit review --agent`, resolve concerns, and
-commit the milestone.
+Full gates and `coderabbit review --agent` then run, concerns are resolved, and
+the milestone is committed.
 
 ### Stage 5: documentation and roadmap completion
 
-Update `docs/developers-guide.md` to document the new internal IR envelope, the
-Markdown flattening boundary, segment invariants, canonical JSON workflow, and
-how Rust and Python golden fixtures stay aligned. Update `docs/users-guide.md`
-only for consumer-visible changes, such as richer fields on the supported Python
-`Document` or `Region` model.
+`docs/developers-guide.md` is updated to document the new internal IR envelope,
+the Markdown flattening boundary, segment invariants, canonical JSON workflow,
+and how Rust and Python golden fixtures stay aligned. `docs/users-guide.md` is
+updated only for consumer-visible changes, such as richer fields on the
+supported Python `Document` or `Region` model.
 
-Update `docs/stilyagi-design.md` only if implementation resolves an ambiguity
-or changed the design. Update RFC 0001 only if the accepted contract needs a
-substantive field-level correction. If no design or RFC change is needed,
-record that decision in this plan instead of editing those files.
+`docs/stilyagi-design.md` is updated only if implementation resolves an
+ambiguity or changed the design. RFC 0001 is updated only if the accepted
+contract needs a substantive field-level correction. If no design or RFC change
+is needed, that decision is recorded in this plan instead of editing those
+files.
 
-After all implementation and documentation gates pass, mark roadmap item 2.1.1
-as done in `docs/roadmap.md`. Do not mark 2.1.2 or 2.1.3 done.
+After all implementation and documentation gates pass, roadmap item 2.1.1 is
+marked as done in `docs/roadmap.md`. Items 2.1.2 and 2.1.3 are not marked done.
 
-For Markdown documentation changes, run:
+For Markdown documentation changes, these commands run:
 
 ```bash
 make fmt 2>&1 | tee "/tmp/fmt-docs-stage5-stilyagi-${BRANCH}.out"
@@ -555,7 +557,7 @@ make markdownlint 2>&1 | tee "/tmp/markdownlint-stage5-stilyagi-${BRANCH}.out"
 make nixie 2>&1 | tee "/tmp/nixie-stage5-stilyagi-${BRANCH}.out"
 ```
 
-Then run the required full gates:
+The required full gates then run:
 
 ```bash
 make check-fmt 2>&1 | tee "/tmp/check-fmt-stage5-stilyagi-${BRANCH}.out"
@@ -564,8 +566,8 @@ make lint 2>&1 | tee "/tmp/lint-stage5-stilyagi-${BRANCH}.out"
 make test 2>&1 | tee "/tmp/test-stage5-stilyagi-${BRANCH}.out"
 ```
 
-Run `coderabbit review --agent`, clear concerns, and make the final feature
-commit.
+`coderabbit review --agent` runs, concerns are cleared, and the final feature
+commit is made.
 
 ### Stage 6: follow-up mapping hardening
 
@@ -574,38 +576,38 @@ added from the alternative envelope-and-mappings plan. Treat this as a focused
 hardening stage over the completed 2.1.1 slice, not as a blanket implementation
 of roadmap item 2.1.2.
 
-Add representative Markdown fixtures for paragraph inline markup, soft line
-breaks, CRLF soft line breaks, and YAML frontmatter. Protect the CRLF fixture
-with a scoped `.gitattributes` rule, and add a test that reads the checked-out
+Representative Markdown fixtures are added for paragraph inline markup, soft
+line breaks, CRLF soft line breaks, and YAML frontmatter. The CRLF fixture is
+protected with a scoped `.gitattributes` rule, and a test reads the checked-out
 fixture bytes and asserts that literal `\r\n` pairs are present. Snapshot or
 otherwise assert each fixture's canonical IR so reviewers can see region text,
 source-backed spans, and synthetic break segments.
 
-Strengthen Rust property tests around segment invariants. Generated segment
-layouts must prove contiguous `text_start` and `text_end` ranges, exact
+Rust property tests around segment invariants are strengthened. Generated
+segment layouts must prove contiguous `text_start` and `text_end` ranges, exact
 region-text reconstruction, source-backed segment text agreement with original
 source bytes where a source oracle is present, and the closed set of supported
-synthetic break reasons. Prefer strategies that construct valid layouts
+synthetic break reasons. Strategies that construct valid layouts are preferred
 directly rather than filtering invalid generated data.
 
-Add a parser boundary test and implementation for fatal Markdown parser
+Parser boundary tests and implementation are added for fatal Markdown parser
 failures or panics so panics do not cross the extraction boundary. If
-`markdown-rs` exposes only infallible parsing for the currently used path, wrap
-the parser call in a narrow `catch_unwind` boundary and map unwinds to the
-existing Markdown error type.
+`markdown-rs` exposes only infallible parsing for the currently used path, the
+parser call is wrapped in a narrow `catch_unwind` boundary and unwinds are
+mapped to the existing Markdown error type.
 
-Add an explicit `ExtractError` size assertion before richer owned error
+An explicit `ExtractError` size assertion is added before richer owned error
 payloads are introduced. This assertion documents the current
 `result_large_err` budget and gives future changes a clear failure when the
 error type becomes too large.
 
-For Python parity, add only the non-self-referential check supported by the
-current surface: the Python `Document.ir` model parsed from the bridge must
+For Python parity, only the non-self-referential check supported by the current
+surface is added: the Python `Document.ir` model parsed from the bridge must
 match the canonical Rust IR snapshot for the same fixture after the same stable
-normalization. Do not compare the bridge's raw `ir_json` string to itself.
+normalization. The bridge raw `ir_json` string is not compared to itself.
 
-Run targeted tests for changed crates and Python modules first. Then run the
-required full gates:
+Targeted tests for changed crates and Python modules run first. Then the
+required full gates run:
 
 ```bash
 make check-fmt 2>&1 | tee "/tmp/check-fmt-stage6-stilyagi-${BRANCH}.out"
@@ -614,9 +616,9 @@ make lint 2>&1 | tee "/tmp/lint-stage6-stilyagi-${BRANCH}.out"
 make test 2>&1 | tee "/tmp/test-stage6-stilyagi-${BRANCH}.out"
 ```
 
-After deterministic gates pass, run `coderabbit review --agent`. If CodeRabbit
-is rate-limited, use `vsleep "$(shuf -i 15-30 -n 1)m"` and retry. Resolve
-actionable concerns, then commit the hardening milestone.
+After deterministic gates pass, `coderabbit review --agent` runs. If CodeRabbit
+is rate-limited, `vsleep "$(shuf -i 15-30 -n 1)m"` is used before retry.
+Actionable concerns are resolved before the hardening milestone is committed.
 
 ## Concrete steps
 
@@ -629,14 +631,14 @@ REPO_ROOT="$(pwd)"
 cd "$REPO_ROOT"
 ```
 
-Create or refresh the `leta` workspace before code navigation:
+The `leta` workspace is created or refreshed before code navigation:
 
 ```bash
 leta workspace add "$REPO_ROOT"
 ```
 
-Inspect symbols with `leta` rather than broad text search when a symbol name is
-known:
+Symbols are inspected with `leta` rather than broad text search when a symbol
+name is known:
 
 ```bash
 leta grep "ExtractDocument|ExtractRegion|RegionKind|IrDocument" -k struct,enum
@@ -644,15 +646,15 @@ leta show extract_document
 leta refs ExtractDocument
 ```
 
-Use `rg` only for Markdown prose, configuration keys, snapshots, or other
+`rg` is used only for Markdown prose, configuration keys, snapshots, or other
 non-symbol text:
 
 ```bash
 rg -n "line_index|segments|content_hash|dump-ir" docs tests crates
 ```
 
-Run implementation milestones in the order described in `Plan of work`. After
-each milestone, inspect changed files:
+Implementation milestones run in the order described in `Plan of work`. After
+each milestone, changed files are inspected:
 
 ```bash
 git status --short
@@ -660,7 +662,7 @@ git diff --stat
 git diff -- docs/execplans/2-1-1-markdown-ir-envelope.md
 ```
 
-Use file-based commit messages:
+File-based commit messages are used:
 
 ```bash
 COMMIT_MSG_DIR="$(mktemp -d)"
@@ -675,7 +677,7 @@ git commit -F "$COMMIT_MSG_DIR/COMMIT_MSG.md"
 rm -rf "$COMMIT_MSG_DIR"
 ```
 
-Use a more specific subject for each actual milestone commit. The example is a
+Each actual milestone commit uses a more specific subject. The example is a
 shape, not a required final message.
 
 ## Validation and acceptance
@@ -733,26 +735,27 @@ milestone:
 coderabbit review --agent
 ```
 
-Do not use CodeRabbit to find deterministic format, lint, type, or test
+CodeRabbit is not used to find deterministic format, lint, type, or test
 failures that local gates can catch.
 
 Recommended follow-up tests adopted from the alternative envelope-and-mappings
 plan:
 
-- Add dedicated Markdown fixtures for paragraph emphasis, paragraph soft
-  breaks, CRLF soft breaks, and YAML frontmatter before claiming broader
-  Markdown mapping coverage.
-- Protect any CRLF fixture with a scoped `.gitattributes` rule and add a test
-  that verifies the checked-out fixture still contains literal `\r\n` bytes.
+- Dedicated Markdown fixtures cover paragraph emphasis, paragraph soft
+  breaks, CRLF soft breaks, and YAML frontmatter before broader Markdown
+  mapping coverage.
+- Any CRLF fixture is protected with a scoped `.gitattributes` rule and covered
+  by a test that verifies the checked-out fixture still contains literal `\r\n`
+  bytes.
 - Extend the Rust `proptest` coverage so generated segment layouts assert
   contiguous `text_start`/`text_end` ranges, exact region-text reconstruction,
   source-backed segment text matching the original source bytes, and closed-set
   synthetic segment kinds for soft and hard breaks.
-- Add explicit tests for fatal Markdown parser failures and parser panic
+- Explicit tests cover fatal Markdown parser failures and parser panic
   containment before richer parse-error recovery is exposed.
 - If Python gains typed IR objects or a serializer, add a canonical JSON parity
   test that compares Python-produced JSON with Rust-produced canonical JSON for
-  the same fixture. Do not compare a bridge-provided JSON string to itself.
+  the same fixture. The bridge-provided JSON string is not compared to itself.
 - Before adding owned payloads to extractor errors, add a compile-time size
   assertion for `ExtractError` so the workspace `result_large_err` budget is
   explicit.
@@ -770,12 +773,12 @@ before updating again.
 
 If a new parser dependency causes build or licensing problems, remove the
 dependency changes from the current milestone, record the blocker in
-`Decision Log`, and stop for approval. Do not replace the parser with an ad hoc
-Markdown scanner without explicit approval.
+`Decision Log`, and stop for approval. The parser is not replaced with an ad
+hoc Markdown scanner without explicit approval.
 
-If a gate fails because of unrelated user changes, do not revert those changes.
-Record the failure and either work around it or ask for direction if it blocks
-verification.
+If a gate fails because of unrelated user changes, those changes are not
+reverted. The failure is recorded and either worked around or escalated if it
+blocks verification.
 
 If the branch needs to be reset for local experimentation, do not use
 destructive Git commands. Prefer new commits, targeted patches, or a separate
@@ -959,7 +962,7 @@ findings were:
   containment, and explicit `ExtractError` size-budget guidance. Broader
   unimplemented API changes from that plan remain deferred rather than
   retroactively changing this branch's completed acceptance criteria.
-- [ ] (2026-06-05T18:42:42Z) Began Stage 6 after the user explicitly requested
+- [x] (2026-06-05T18:42:42Z) Began Stage 6 after the user explicitly requested
   implementation of the previously recorded follow-up recommendations. The
   stage is scoped to hardening 2.1.1 with fixtures, invariants, parser-boundary
   containment, Python parity, and `ExtractError` size-budget checks.

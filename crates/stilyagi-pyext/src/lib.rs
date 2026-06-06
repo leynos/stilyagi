@@ -1,6 +1,6 @@
 //! Python bindings for the Stilyagi Rust extension crate.
 
-use pyo3::exceptions::{PyNotImplementedError, PyValueError};
+use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule, PyTuple};
 use stilyagi_core::smoke_hello;
@@ -55,7 +55,7 @@ fn extract_document_py(py: Python<'_>, source: &str, syntax: &str) -> PyResult<P
     if let Some(ir) = document.ir() {
         let ir_json = ir
             .to_canonical_json()
-            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+            .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
         document_dict.set_item("ir_json", ir_json)?;
     }
     Ok(document_dict.unbind())
@@ -64,9 +64,8 @@ fn extract_document_py(py: Python<'_>, source: &str, syntax: &str) -> PyResult<P
 fn map_extract_error(error: &ExtractError) -> PyErr {
     match error {
         ExtractError::UnsupportedSyntax(_) => PyNotImplementedError::new_err(error.to_string()),
-        ExtractError::UnknownSyntax(_) | ExtractError::MarkdownIr(_) => {
-            PyValueError::new_err(error.to_string())
-        }
+        ExtractError::UnknownSyntax(_) => PyValueError::new_err(error.to_string()),
+        ExtractError::MarkdownIr(_) => PyRuntimeError::new_err(error.to_string()),
     }
 }
 
@@ -84,11 +83,12 @@ mod bridge_bdd;
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_document_py, hello, supported_syntaxes_py};
+    use super::{extract_document_py, hello, map_extract_error, supported_syntaxes_py};
+    use pyo3::exceptions::{PyRuntimeError, PyValueError};
     use pyo3::prelude::{Py, PyErr, PyResult, Python};
     use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
     use rstest::rstest;
-    use stilyagi_extract::ExtractSyntax;
+    use stilyagi_extract::{ExtractError, ExtractSyntax};
 
     fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
         Python::attach(|py| extract_document_py(py, source, syntax))
@@ -222,11 +222,14 @@ mod tests {
                     .unwrap_or_else(|error| panic!("expected text string: {error}")),
                 "# Heading",
             );
-            assert!(
-                ir_json_any
-                    .extract::<&str>()
-                    .unwrap_or_else(|error| panic!("expected IR JSON string: {error}"))
-                    .contains("\"schema_version\": \"1.0.0\"")
+            let ir_json = ir_json_any
+                .extract::<&str>()
+                .unwrap_or_else(|error| panic!("expected IR JSON string: {error}"));
+            let parsed = serde_json::from_str::<serde_json::Value>(ir_json)
+                .unwrap_or_else(|error| panic!("expected parseable IR JSON: {error}"));
+            assert_eq!(
+                parsed.get("schema_version"),
+                Some(&serde_json::json!("1.0.0"))
             );
         });
     }
@@ -260,5 +263,23 @@ mod tests {
             Err(error) => error,
         };
         assert!(error.to_string().contains("not_a_real_syntax"));
+    }
+
+    #[rstest]
+    fn map_extract_error_uses_runtime_error_for_markdown_ir() {
+        Python::attach(|py| {
+            let error = map_extract_error(&ExtractError::MarkdownIr("bad IR".to_owned()));
+
+            assert!(error.is_instance_of::<PyRuntimeError>(py));
+        });
+    }
+
+    #[rstest]
+    fn map_extract_error_uses_value_error_for_unknown_syntax() {
+        Python::attach(|py| {
+            let error = map_extract_error(&ExtractError::UnknownSyntax("bogus".to_owned()));
+
+            assert!(error.is_instance_of::<PyValueError>(py));
+        });
     }
 }
