@@ -103,6 +103,33 @@ mod tests {
             .expect_err(&format!("expected an error for syntax {syntax:?}"))
     }
 
+    fn assert_markdown_ir_json_contract(ir_json: &str) {
+        let parsed = serde_json::from_str::<serde_json::Value>(ir_json)
+            .unwrap_or_else(|error| panic!("expected parseable IR JSON: {error}"));
+
+        assert_eq!(
+            parsed.get("schema_version"),
+            Some(&serde_json::json!("1.0.0"))
+        );
+        assert!(
+            parsed
+                .get("document")
+                .is_some_and(serde_json::Value::is_object)
+        );
+
+        let line_index = parsed
+            .get("line_index")
+            .and_then(serde_json::Value::as_array)
+            .unwrap_or_else(|| panic!("expected line_index array"));
+        assert_eq!(line_index.first(), Some(&serde_json::json!(0)));
+
+        assert!(
+            parsed
+                .get("regions")
+                .is_some_and(serde_json::Value::is_array)
+        );
+    }
+
     #[rstest]
     fn hello_delegates_to_the_core_smoke_greeting() {
         assert_eq!(hello(), stilyagi_core::smoke_hello());
@@ -225,27 +252,7 @@ mod tests {
             let ir_json = ir_json_any
                 .extract::<&str>()
                 .unwrap_or_else(|error| panic!("expected IR JSON string: {error}"));
-            let parsed = serde_json::from_str::<serde_json::Value>(ir_json)
-                .unwrap_or_else(|error| panic!("expected parseable IR JSON: {error}"));
-            assert_eq!(
-                parsed.get("schema_version"),
-                Some(&serde_json::json!("1.0.0"))
-            );
-            assert!(
-                parsed
-                    .get("document")
-                    .is_some_and(serde_json::Value::is_object)
-            );
-            let line_index = parsed
-                .get("line_index")
-                .and_then(serde_json::Value::as_array)
-                .unwrap_or_else(|| panic!("expected line_index array"));
-            assert_eq!(line_index.first(), Some(&serde_json::json!(0)));
-            assert!(
-                parsed
-                    .get("regions")
-                    .is_some_and(serde_json::Value::is_array)
-            );
+            assert_markdown_ir_json_contract(ir_json);
         });
     }
 
