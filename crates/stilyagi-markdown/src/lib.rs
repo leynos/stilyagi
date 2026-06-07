@@ -169,7 +169,40 @@ fn markdown_ir_document_with_context(
     document.nodes = builder.nodes;
     document.regions = builder.regions;
 
+    validate_ir_consistency(&document, source, diagnostic_context)?;
     Ok(document)
+}
+
+fn validate_ir_consistency(
+    document: &IrDocument,
+    source: &str,
+    context: &MarkdownDiagnosticContext<'_>,
+) -> Result<(), Message> {
+    let expected_hash = stilyagi_ir::content_hash_for(source);
+    if document.document.content_hash != expected_hash {
+        return Err(stilyagi_markdown_message(
+            context,
+            "ir-content-hash-mismatch",
+            format!(
+                "content_hash mismatch expected={} actual={}",
+                expected_hash, document.document.content_hash
+            ),
+        ));
+    }
+
+    let expected_line_index = stilyagi_ir::line_index_for(source);
+    if document.line_index != expected_line_index {
+        return Err(stilyagi_markdown_message(
+            context,
+            "ir-line-index-mismatch",
+            format!(
+                "line_index mismatch expected={:?} actual={:?}",
+                expected_line_index, document.line_index
+            ),
+        ));
+    }
+
+    Ok(())
 }
 
 fn markdown_producer() -> ProducerMetadata {

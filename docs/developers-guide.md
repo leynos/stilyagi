@@ -439,7 +439,7 @@ python/stilyagi/engine/extraction.py
 ```
 
 That split is deliberate. Rust owns extraction mechanics, source-fidelity
-metadata, IR construction, and the FFI adapter that exposes stable engine
+metadata, IR construction, and FFI adapter mechanics for exposing stable engine
 building blocks. Python owns the public model, package-level orchestration, and
 policy layer. The public Python surface adapts Rust bridge output into
 `stilyagi.model.Document`, `stilyagi.model.Region`, and the optional

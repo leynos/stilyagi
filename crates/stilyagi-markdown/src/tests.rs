@@ -9,7 +9,10 @@ use stilyagi_test_support::{
     SHARED_MARKDOWN_FIXTURE_PATH, corpus_fixture_path, read_corpus_fixture,
 };
 
-use super::{MarkdownBoundary, markdown_ir_document, parse_markdown_ast, parse_markdown_ast_with};
+use super::{
+    MarkdownBoundary, MarkdownDiagnosticContext, markdown_ir_document, parse_markdown_ast,
+    parse_markdown_ast_with, validate_ir_consistency,
+};
 
 /// Keep the marker type default stable and comparable.
 #[test]
@@ -127,6 +130,14 @@ fn assert_node_has_non_empty_span(node: &Node) {
     ));
 }
 
+const fn diagnostic_context() -> MarkdownDiagnosticContext<'static> {
+    MarkdownDiagnosticContext {
+        phase: "test",
+        path: "docs/example.md",
+        uri: "file:///repo/docs/example.md",
+    }
+}
+
 #[rstest]
 fn markdown_ir_document_emits_envelope_nodes_and_regions() {
     let source = "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi design](../../../../../docs/stilyagi-design.md).\n\n| Term | Meaning |\n| ---- | ------- |\n| IR   | Intermediate representation |\n";
@@ -157,6 +168,60 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
         assert!(region_kinds(&value.regions).contains("paragraph"));
         assert!(region_kinds(&value.regions).contains("table_cell"));
     }
+}
+
+#[rstest]
+fn markdown_ir_document_preserves_canonical_source_identity_helpers() {
+    let source = "# Heading\n\nBody";
+    let document = markdown_ir_document(source, source_identity("docs/example.md"))
+        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+
+    assert_eq!(
+        document.document.content_hash,
+        stilyagi_ir::content_hash_for(source)
+    );
+    assert_eq!(document.line_index, stilyagi_ir::line_index_for(source));
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_content_hash_mismatches() {
+    let source = "# Heading\n\nBody";
+    let mut document = markdown_ir_document(source, source_identity("docs/example.md"))
+        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    document.document.content_hash = "sha256:bad".to_owned();
+    let context = diagnostic_context();
+
+    let result = validate_ir_consistency(&document, source, &context);
+
+    assert!(matches!(
+        result,
+        Err(ref error)
+            if error.source.as_ref() == "stilyagi-markdown"
+                && error.rule_id.as_ref() == "ir-content-hash-mismatch"
+                && error.reason.contains("phase=")
+                && error.reason.contains("path=")
+                && error.reason.contains("uri=")
+                && error.reason.contains("content_hash mismatch")
+    ));
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_line_index_mismatches() {
+    let source = "# Heading\n\nBody";
+    let mut document = markdown_ir_document(source, source_identity("docs/example.md"))
+        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    document.line_index.push(usize::MAX);
+    let context = diagnostic_context();
+
+    let result = validate_ir_consistency(&document, source, &context);
+
+    assert!(matches!(
+        result,
+        Err(ref error)
+            if error.source.as_ref() == "stilyagi-markdown"
+                && error.rule_id.as_ref() == "ir-line-index-mismatch"
+                && error.reason.contains("line_index mismatch")
+    ));
 }
 
 #[rstest]
