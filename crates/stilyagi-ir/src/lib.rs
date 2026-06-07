@@ -5,12 +5,14 @@
 //! defining their own logical document contracts.
 
 mod canonical_json;
+mod source_identity;
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
 pub use canonical_json::{content_hash_for, line_index_for};
+pub use source_identity::SourceIdentity;
 
 /// Current schema version for Stilyagi IR documents.
 pub const SCHEMA_VERSION: &str = "1.0.0";
@@ -48,11 +50,10 @@ impl IrDocument {
     /// Create an empty IR document envelope for a source payload.
     #[must_use]
     pub fn empty(
-        mut document: DocumentMetadata,
+        document: DocumentMetadata,
         producers: Vec<ProducerMetadata>,
         source: &str,
     ) -> Self {
-        document.content_hash = content_hash_for(source);
         Self {
             schema_version: SCHEMA_VERSION.to_owned(),
             document,
@@ -95,32 +96,6 @@ pub struct DocumentMetadata {
     pub encoding: String,
     /// Stable content hash, prefixed with the hash algorithm.
     pub content_hash: String,
-}
-
-/// Caller-supplied source identity for IR metadata.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceIdentity {
-    /// Repository-relative or display path when available.
-    pub path: Option<String>,
-    /// Stable source URI when available.
-    pub uri: Option<String>,
-}
-
-impl SourceIdentity {
-    /// Create anonymous source identity for string-only extraction.
-    #[must_use]
-    pub const fn anonymous() -> Self {
-        Self {
-            path: None,
-            uri: None,
-        }
-    }
-
-    /// Create source identity from explicit optional components.
-    #[must_use]
-    pub const fn new(path: Option<String>, uri: Option<String>) -> Self {
-        Self { path, uri }
-    }
 }
 
 impl DocumentMetadata {
@@ -229,8 +204,13 @@ pub struct SourceSpan {
 
 impl SourceSpan {
     /// Create a source span without line or column derivation.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `byte_start` is greater than `byte_end`.
     #[must_use]
     pub const fn new(byte_start: usize, byte_end: usize) -> Self {
+        assert!(byte_start <= byte_end);
         Self {
             byte_start,
             byte_end,

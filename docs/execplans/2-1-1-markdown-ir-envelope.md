@@ -788,9 +788,10 @@ If a gate fails because of unrelated user changes, those changes are not
 reverted. The failure is recorded and either worked around or escalated if it
 blocks verification.
 
-If the branch needs to be reset for local experimentation, do not use
-destructive Git commands. Prefer new commits, targeted patches, or a separate
-scratch branch. Ask before any operation that would discard user work.
+When a branch requires resetting for local experimentation, avoid destructive
+Git commands; prefer new commits, targeted patches, or a separate scratch
+branch, and request approval before performing any operation that would discard
+user work.
 
 ## Interfaces and dependencies
 

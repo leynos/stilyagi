@@ -25,10 +25,19 @@ pub(super) fn source_text_event(value: &str, byte_offset: usize) -> SourceTextEv
     }
 }
 
-pub(super) fn source_line_ending_len(source: &str, offset: usize) -> usize {
-    source
-        .get(offset..)
-        .map_or(1, |tail| if tail.starts_with("\r\n") { 2 } else { 1 })
+pub(super) fn source_line_ending_len(
+    source: &str,
+    offset: usize,
+    span_end: usize,
+) -> Option<usize> {
+    let tail = source.get(offset..span_end)?;
+    if tail.starts_with("\r\n") {
+        Some(2)
+    } else if tail.starts_with('\n') {
+        Some(1)
+    } else {
+        None
+    }
 }
 
 pub(super) fn decoded_text_maps_to_source(source: &str, span: SourceSpan, value: &str) -> bool {
@@ -42,7 +51,12 @@ pub(super) fn decoded_text_maps_to_source(source: &str, span: SourceSpan, value:
                     return false;
                 }
                 source_cursor += byte_offset - chunk_start;
-                source_cursor += source_line_ending_len(source, source_cursor);
+                let Some(source_line_ending_len) =
+                    source_line_ending_len(source, source_cursor, span.byte_end)
+                else {
+                    return false;
+                };
+                source_cursor += source_line_ending_len;
                 byte_offset += line_ending_len;
                 chunk_start = byte_offset;
             }

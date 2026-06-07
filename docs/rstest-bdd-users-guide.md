@@ -1411,6 +1411,22 @@ inspection of the row and column that triggered the failure:
 #     #[datatable(truthy)]
 #     active: bool,
 # }
+#
+# fn inspect_missing_column() {
+let table = vec![
+    vec!["name".to_owned(), "active".to_owned()],
+    vec!["Alice".to_owned()],
+];
+
+let error = Rows::<UserRow>::try_from(table).unwrap_err();
+match error {
+    DataTableError::MissingColumn { row_number, column } => {
+        assert_eq!(row_number, 2);
+        assert_eq!(column, "active");
+    }
+    other => panic!("expected MissingColumn, got {other:?}"),
+}
+# }
 ```
 
 ## Limitations and roadmap

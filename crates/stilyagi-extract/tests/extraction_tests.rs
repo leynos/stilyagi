@@ -133,27 +133,38 @@ fn markdown_extraction_reports_markdown_syntax(extracted_markdown: ExtractDocume
     assert_eq!(extracted_markdown.syntax(), ExtractSyntax::Markdown);
 }
 
-/// Keep blank Markdown extraction compatible by emitting the document region
-/// with the original source text.
+/// Keep empty Markdown extraction compatible by preserving an empty region list.
 #[rstest]
-fn blank_markdown_extraction_yields_document_region(
+fn empty_markdown_extraction_yields_no_regions(
     extracted_blank_markdown_documents: Vec<ExtractDocument>,
 ) {
-    for (document, expected_source) in extracted_blank_markdown_documents
-        .iter()
-        .zip(["", "   \n\t"])
-    {
-        assert_eq!(document.regions().len(), 1);
-        let first_region = document.regions().first();
+    let document = extracted_blank_markdown_documents
+        .first()
+        .unwrap_or_else(|| panic!("expected empty Markdown fixture"));
 
-        assert_eq!(
-            first_region.and_then(ExtractRegion::region_kind),
-            Some(RegionKind::Document)
-        );
-        assert_eq!(first_region.map(ExtractRegion::kind), Some("document"));
-        assert_eq!(first_region.map(ExtractRegion::text), Some(expected_source));
-        assert!(document.ir().is_some());
-    }
+    assert!(document.regions().is_empty());
+    assert!(document.ir().is_some());
+}
+
+/// Keep whitespace-only Markdown extraction compatible by emitting the document
+/// region with the original source text.
+#[rstest]
+fn whitespace_markdown_extraction_yields_document_region(
+    extracted_blank_markdown_documents: Vec<ExtractDocument>,
+) {
+    let document = extracted_blank_markdown_documents
+        .get(1)
+        .unwrap_or_else(|| panic!("expected whitespace Markdown fixture"));
+    let first_region = document.regions().first();
+
+    assert_eq!(document.regions().len(), 1);
+    assert_eq!(
+        first_region.and_then(ExtractRegion::region_kind),
+        Some(RegionKind::Document)
+    );
+    assert_eq!(first_region.map(ExtractRegion::kind), Some("document"));
+    assert_eq!(first_region.map(ExtractRegion::text), Some("   \n\t"));
+    assert!(document.ir().is_some());
 }
 
 /// Keep the first end-to-end bridge narrow by returning one source-faithful

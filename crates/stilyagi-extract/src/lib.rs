@@ -293,7 +293,11 @@ where
     E: ToString,
 {
     let ir = build_ir(source).map_err(|error| ExtractError::MarkdownIr(error.to_string()))?;
-    let regions = vec![ExtractRegion::new_typed(RegionKind::Document, source)];
+    let regions = if source.is_empty() {
+        Vec::new()
+    } else {
+        vec![ExtractRegion::new_typed(RegionKind::Document, source)]
+    };
     Ok(ExtractDocument::new(ExtractSyntax::Markdown, regions).with_ir(ir))
 }
 

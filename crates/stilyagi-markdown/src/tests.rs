@@ -132,7 +132,7 @@ fn assert_node_has_non_empty_span(node: &Node) {
 
 const fn diagnostic_context() -> MarkdownDiagnosticContext<'static> {
     MarkdownDiagnosticContext {
-        phase: "test",
+        phase: "validate",
         path: "docs/example.md",
         uri: "file:///repo/docs/example.md",
     }
@@ -198,7 +198,7 @@ fn validate_ir_consistency_reports_content_hash_mismatches() {
         Err(ref error)
             if error.source.as_ref() == "stilyagi-markdown"
                 && error.rule_id.as_ref() == "ir-content-hash-mismatch"
-                && error.reason.contains("phase=")
+                && error.reason.contains("phase=validate")
                 && error.reason.contains("path=")
                 && error.reason.contains("uri=")
                 && error.reason.contains("content_hash mismatch")
@@ -220,6 +220,7 @@ fn validate_ir_consistency_reports_line_index_mismatches() {
         Err(ref error)
             if error.source.as_ref() == "stilyagi-markdown"
                 && error.rule_id.as_ref() == "ir-line-index-mismatch"
+                && error.reason.contains("phase=validate")
                 && error.reason.contains("line_index mismatch")
     ));
 }

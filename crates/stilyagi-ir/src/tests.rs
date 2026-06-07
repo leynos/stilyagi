@@ -66,7 +66,7 @@ fn empty_document_uses_line_index_and_content_hash() {
 }
 
 #[rstest]
-fn empty_document_derives_content_hash_from_source() {
+fn empty_document_preserves_metadata_content_hash() {
     let document = IrDocument::empty(
         DocumentMetadata {
             uri: Some("file:///repo/docs/example.md".to_owned()),
@@ -80,10 +80,7 @@ fn empty_document_derives_content_hash_from_source() {
         "# Title\nBody",
     );
 
-    assert_eq!(
-        document.document.content_hash,
-        content_hash_for("# Title\nBody"),
-    );
+    assert_eq!(document.document.content_hash, "sha256:not-the-source",);
 }
 
 #[rstest]
