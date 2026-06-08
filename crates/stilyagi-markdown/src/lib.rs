@@ -203,6 +203,21 @@ fn validate_ir_consistency(
         ));
     }
 
+    for region in &document.regions {
+        if !region.segments_reconstruct_text() {
+            return Err(stilyagi_markdown_message(
+                context,
+                "ir-region-text-mismatch",
+                format!(
+                    "region text mismatch id={} expected={} actual={}",
+                    region.id,
+                    region.reconstructed_text(),
+                    region.text
+                ),
+            ));
+        }
+    }
+
     Ok(())
 }
 

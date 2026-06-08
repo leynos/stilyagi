@@ -193,13 +193,16 @@ fn flatten_text_node(
     node_id: SourceNodeId<'_>,
     flattened: &mut FlattenedRegion<'_>,
 ) {
-    if let Some(position) = text.position.as_ref() {
-        let span = SourceSpan::new(position.start.offset, position.end.offset);
-        if decoded_text_maps_to_source(flattened.source, span, &text.value) {
-            flattened.push_source_text(&text.value, position.start.offset, node_id);
-        } else {
-            flattened.push_decoded_text(&text.value);
-        }
+    let Some(position) = text.position.as_ref() else {
+        flattened.push_decoded_text(&text.value);
+        return;
+    };
+
+    let span = SourceSpan::new(position.start.offset, position.end.offset);
+    if decoded_text_maps_to_source(flattened.source, span, &text.value) {
+        flattened.push_source_text(&text.value, position.start.offset, node_id);
+    } else {
+        flattened.push_decoded_text(&text.value);
     }
 }
 
@@ -208,11 +211,14 @@ fn flatten_inline_code_node(
     node_id: SourceNodeId<'_>,
     flattened: &mut FlattenedRegion<'_>,
 ) {
-    if let Some(position) = code.position.as_ref() {
-        let span = SourceSpan::new(position.start.offset, position.end.offset);
-        let source_start = source_value_start(flattened.source, span, &code.value);
-        flattened.push_source_text(&code.value, source_start, node_id);
-    }
+    let Some(position) = code.position.as_ref() else {
+        flattened.push_decoded_text(&code.value);
+        return;
+    };
+
+    let span = SourceSpan::new(position.start.offset, position.end.offset);
+    let source_start = source_value_start(flattened.source, span, &code.value);
+    flattened.push_source_text(&code.value, source_start, node_id);
 }
 
 fn flatten_children(node: &Node, node_id: SourceNodeId<'_>, flattened: &mut FlattenedRegion<'_>) {

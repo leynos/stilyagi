@@ -1418,7 +1418,8 @@ let table = vec![
     vec!["Alice".to_owned()],
 ];
 
-let error = Rows::<UserRow>::try_from(table).unwrap_err();
+let error = Rows::<UserRow>::try_from(table)
+    .expect_err("conversion should fail because the active column is missing");
 match error {
     DataTableError::MissingColumn { row_number, column } => {
         assert_eq!(row_number, 2);

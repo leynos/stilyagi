@@ -239,6 +239,19 @@ proptest! {
     }
 }
 
+#[rstest]
+fn segments_reconstruct_text_rejects_gapped_ranges() {
+    let (mut region, _source) = region_from_specs(&[SegmentSpec::Source("alpha".to_owned())]);
+    let segment = region
+        .segments
+        .first_mut()
+        .unwrap_or_else(|| panic!("expected generated region to contain a segment"));
+    segment.text_start = 1;
+    segment.text_end = 6;
+
+    assert!(!region.segments_reconstruct_text());
+}
+
 fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
     let mut source = String::new();
     let mut region_text = String::new();

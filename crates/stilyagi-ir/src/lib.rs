@@ -289,7 +289,19 @@ impl IrRegion {
     /// Return whether the segment payloads exactly reconstruct this region.
     #[must_use]
     pub fn segments_reconstruct_text(&self) -> bool {
-        self.reconstructed_text() == self.text
+        let mut expected_start = 0;
+        let mut reconstructed = String::new();
+        for segment in &self.segments {
+            let Some(expected_end) = segment.text_start.checked_add(segment.text.len()) else {
+                return false;
+            };
+            if segment.text_start != expected_start || segment.text_end != expected_end {
+                return false;
+            }
+            reconstructed.push_str(segment.text());
+            expected_start = segment.text_end;
+        }
+        expected_start == self.text.len() && reconstructed == self.text
     }
 }
 

@@ -227,6 +227,30 @@ fn validate_ir_consistency_reports_line_index_mismatches() {
 }
 
 #[rstest]
+fn validate_ir_consistency_reports_region_text_mismatches() {
+    let source = "# Heading\n\nBody";
+    let mut document = markdown_ir_document(source, source_identity("docs/example.md"))
+        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    let region = document
+        .regions
+        .first_mut()
+        .unwrap_or_else(|| panic!("expected at least one Markdown IR region"));
+    region.text.push_str(" drift");
+    let context = diagnostic_context();
+
+    let result = validate_ir_consistency(&document, source, &context);
+
+    assert!(matches!(
+        result,
+        Err(ref error)
+            if error.source.as_ref() == "stilyagi-markdown"
+                && error.rule_id.as_ref() == "ir-region-text-mismatch"
+                && error.reason.contains("phase=validate")
+                && error.reason.contains("region text mismatch")
+    ));
+}
+
+#[rstest]
 fn markdown_ir_document_records_soft_breaks_as_synthetic_segments() {
     let source = "First line\nsecond line\n";
     let document = markdown_ir_document(source, source_identity("docs/example.md"));
