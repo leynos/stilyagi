@@ -48,11 +48,66 @@ pub enum ExtractError {
     /// syntax vocabulary.
     UnknownSyntax(String),
     /// Markdown parsing or IR construction failed.
-    MarkdownIr(String),
+    MarkdownIr(MarkdownIrFailure),
 }
 
 const EXTRACT_ERROR_SIZE_LIMIT_BYTES: usize = 128;
 const _: () = assert!(core::mem::size_of::<ExtractError>() <= EXTRACT_ERROR_SIZE_LIMIT_BYTES);
+
+/// Structured Markdown IR diagnostic preserved across extraction boundaries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MarkdownIrFailure {
+    /// Diagnostic namespace that emitted the failure.
+    pub source: String,
+    /// Stable diagnostic rule identifier.
+    pub rule_id: String,
+    /// Human-readable diagnostic reason.
+    pub reason: String,
+    /// Ordered lower-level causes, when a producer provides them.
+    pub causes: Vec<String>,
+}
+
+impl MarkdownIrFailure {
+    /// Create a Markdown IR diagnostic without nested causes.
+    #[must_use]
+    pub fn new(
+        source: impl Into<String>,
+        rule_id: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            source: source.into(),
+            rule_id: rule_id.into(),
+            reason: reason.into(),
+            causes: Vec::new(),
+        }
+    }
+}
+
+impl From<markdown::message::Message> for MarkdownIrFailure {
+    fn from(message: markdown::message::Message) -> Self {
+        Self {
+            source: *message.source,
+            rule_id: *message.rule_id,
+            reason: message.reason,
+            causes: Vec::new(),
+        }
+    }
+}
+
+impl fmt::Display for MarkdownIrFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{}:{}: {}",
+            self.source, self.rule_id, self.reason
+        )?;
+        for cause in &self.causes {
+            write!(formatter, "; caused by: {cause}")?;
+        }
+        Ok(())
+    }
+}
 
 impl fmt::Display for ExtractError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -63,8 +118,8 @@ impl fmt::Display for ExtractError {
             Self::UnknownSyntax(syntax) => {
                 write!(formatter, "unknown syntax '{syntax}'")
             }
-            Self::MarkdownIr(message) => {
-                write!(formatter, "markdown IR extraction failed: {message}")
+            Self::MarkdownIr(diagnostic) => {
+                write!(formatter, "markdown IR extraction failed: {diagnostic}")
             }
         }
     }
@@ -290,9 +345,9 @@ fn extract_markdown_document_with<E>(
     build_ir: impl FnOnce(&str) -> Result<IrDocument, E>,
 ) -> Result<ExtractDocument, ExtractError>
 where
-    E: ToString,
+    E: Into<MarkdownIrFailure>,
 {
-    let ir = build_ir(source).map_err(|error| ExtractError::MarkdownIr(error.to_string()))?;
+    let ir = build_ir(source).map_err(|error| ExtractError::MarkdownIr(error.into()))?;
     let regions = if source.is_empty() {
         Vec::new()
     } else {
@@ -305,14 +360,23 @@ where
 mod tests {
     use rstest::rstest;
 
-    use super::{ExtractError, extract_markdown_document_with};
+    use super::{ExtractError, MarkdownIrFailure, extract_markdown_document_with};
 
     #[rstest]
     fn markdown_ir_builder_failures_map_to_extract_error() {
-        let result = extract_markdown_document_with("# Heading", |_| Err("injected IR failure"));
+        let result = extract_markdown_document_with("# Heading", |_| {
+            Err(MarkdownIrFailure::new(
+                "stilyagi-markdown",
+                "injected-ir-failure",
+                "injected IR failure",
+            ))
+        });
 
-        assert!(
-            matches!(result, Err(ExtractError::MarkdownIr(message)) if message.contains("injected IR failure"))
-        );
+        let Err(ExtractError::MarkdownIr(diagnostic)) = result else {
+            panic!("expected MarkdownIr failure");
+        };
+        assert_eq!(diagnostic.source, "stilyagi-markdown");
+        assert_eq!(diagnostic.rule_id, "injected-ir-failure");
+        assert_eq!(diagnostic.reason, "injected IR failure");
     }
 }

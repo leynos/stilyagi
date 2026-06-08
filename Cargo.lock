@@ -1286,6 +1286,7 @@ name = "stilyagi-extract"
 version = "0.1.0"
 dependencies = [
  "insta",
+ "markdown",
  "rstest",
  "stilyagi-ir",
  "stilyagi-markdown",

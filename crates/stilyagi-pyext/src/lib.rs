@@ -88,7 +88,7 @@ mod tests {
     use pyo3::prelude::{Py, PyErr, PyResult, Python};
     use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
     use rstest::rstest;
-    use stilyagi_extract::{ExtractError, ExtractSyntax};
+    use stilyagi_extract::{ExtractError, ExtractSyntax, MarkdownIrFailure};
 
     fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
         Python::attach(|py| extract_document_py(py, source, syntax))
@@ -290,7 +290,11 @@ mod tests {
     #[rstest]
     fn map_extract_error_uses_runtime_error_for_markdown_ir() {
         Python::attach(|py| {
-            let error = map_extract_error(&ExtractError::MarkdownIr("bad IR".to_owned()));
+            let error = map_extract_error(&ExtractError::MarkdownIr(MarkdownIrFailure::new(
+                "stilyagi-markdown",
+                "bad-ir",
+                "bad IR",
+            )));
 
             assert!(error.is_instance_of::<PyRuntimeError>(py));
         });
