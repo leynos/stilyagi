@@ -40,6 +40,23 @@ pub(super) fn source_line_ending_len(
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct SourceMatchWindow<'a> {
+    source: &'a str,
+    start: usize,
+    span_end: usize,
+}
+
+impl<'a> SourceMatchWindow<'a> {
+    const fn new(source: &'a str, start: usize, span_end: usize) -> Self {
+        Self {
+            source,
+            start,
+            span_end,
+        }
+    }
+}
+
 pub(super) fn decoded_text_maps_to_source(source: &str, span: SourceSpan, value: &str) -> bool {
     let mut chunk_start = 0;
     let mut source_cursor = span.byte_start;
@@ -50,9 +67,7 @@ pub(super) fn decoded_text_maps_to_source(source: &str, span: SourceSpan, value:
                 if !source_chunk_matches(
                     value,
                     chunk_start..byte_offset,
-                    source,
-                    source_cursor,
-                    span.byte_end,
+                    SourceMatchWindow::new(source, source_cursor, span.byte_end),
                 ) {
                     return false;
                 }
@@ -75,29 +90,25 @@ pub(super) fn decoded_text_maps_to_source(source: &str, span: SourceSpan, value:
     source_chunk_matches(
         value,
         chunk_start..value.len(),
-        source,
-        source_cursor,
-        span.byte_end,
+        SourceMatchWindow::new(source, source_cursor, span.byte_end),
     )
 }
 
 fn source_chunk_matches(
     value: &str,
     range: std::ops::Range<usize>,
-    source: &str,
-    source_start: usize,
-    span_end: usize,
+    window: SourceMatchWindow<'_>,
 ) -> bool {
     let Some(chunk) = value.get(range) else {
         return false;
     };
-    let Some(source_end) = source_start.checked_add(chunk.len()) else {
+    let Some(source_end) = window.start.checked_add(chunk.len()) else {
         return false;
     };
-    if source_end > span_end {
+    if source_end > window.span_end {
         return false;
     }
-    source.get(source_start..source_end) == Some(chunk)
+    window.source.get(window.start..source_end) == Some(chunk)
 }
 
 pub(super) fn source_value_start(source: &str, span: SourceSpan, value: &str) -> usize {
