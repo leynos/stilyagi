@@ -1282,7 +1282,7 @@ the remaining hard-coded English locale policy from `DocumentMetadata`, added
 closed-vocabulary spelling fixtures, strengthened canonical helper property
 tests, added an injectable Markdown IR failure-path seam, and kept PyO3 IR JSON
 checks structural. Source identity (#23), broader Markdown observability (#24),
-and cross-syntax IR generalisation (#25) were triaged as PR #15 failed-check
+and cross-syntax IR generalization (#25) were triaged as PR #15 failed-check
 hardening topics. Source identity and syntax-neutral IR envelope hardening were
 implemented on this branch. Broader Markdown observability remains tracked in
 issue #24.

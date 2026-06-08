@@ -10,7 +10,7 @@ import stilyagi
 from stilyagi import cli, config, diagnostics, engine, model, nlp, plugins, rules
 from stilyagi.nlp import spacy_provider
 
-JSONType = dict[str, "JSONType"] | list["JSONType"] | str | int | float | bool | None
+type JSONType = dict[str, JSONType] | list[JSONType] | str | int | float | bool | None
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc

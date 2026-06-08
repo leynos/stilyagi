@@ -54,7 +54,7 @@ fn markdown_parser_reports_positions_for_representative_blocks() {
     let source = "# Heading\n\nA paragraph with [a link](https://example.com).\n";
     let tree = parse_markdown_ast(source);
 
-    assert!(matches!(tree, Ok(Node::Root(_))));
+    assert!(matches!(&tree, Ok(Node::Root(_))));
     if let Ok(root) = tree {
         assert_node_start(&root, 0);
         assert_node_has_non_empty_span(&root);
@@ -146,7 +146,7 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
         source_identity("tests/fixtures/corpus/markdown/valid/example.md"),
     );
 
-    assert!(matches!(document, Ok(ref value) if value.document.syntax == "markdown"));
+    assert!(matches!(&document, Ok(value) if value.document.syntax == "markdown"));
     if let Ok(value) = document {
         assert_eq!(value.schema_version, "1.0.0");
         assert!(
@@ -230,7 +230,7 @@ fn markdown_ir_document_records_soft_breaks_as_synthetic_segments() {
     let source = "First line\nsecond line\n";
     let document = markdown_ir_document(source, source_identity("docs/example.md"));
 
-    assert!(matches!(document, Ok(ref value) if value.regions.len() == 1));
+    assert!(matches!(&document, Ok(value) if value.regions.len() == 1));
     if let Ok(value) = document {
         let paragraph = value.regions.first();
         assert_eq!(
