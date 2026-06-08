@@ -22,8 +22,38 @@ struct PositionedChunk<'a> {
     source_start: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SourceNodeId<'a>(&'a str);
+
+impl<'a> SourceNodeId<'a> {
+    pub(crate) const fn new(value: &'a str) -> Self {
+        Self(value)
+    }
+
+    const fn as_str(self) -> &'a str {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SyntheticReason {
+    SoftbreakSpace,
+    HardbreakSpace,
+    DecodedText,
+}
+
+impl SyntheticReason {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::SoftbreakSpace => "softbreak_space",
+            Self::HardbreakSpace => "hardbreak_space",
+            Self::DecodedText => "decoded_text",
+        }
+    }
+}
+
 impl FlattenedRegion<'_> {
-    fn emit_chunk_for_range(&mut self, chunk: PositionedChunk<'_>, node_id: &str) {
+    fn emit_chunk_for_range(&mut self, chunk: PositionedChunk<'_>, node_id: SourceNodeId<'_>) {
         let PositionedChunk {
             value,
             range,
@@ -36,10 +66,16 @@ impl FlattenedRegion<'_> {
             return;
         }
         let span = SourceSpan::new(source_start + range.start, source_start + range.end);
-        self.push_source_chunk(text, span, node_id);
+        self.push_segment(
+            text,
+            SegmentOrigin::Source {
+                span,
+                node: node_id.as_str().to_owned(),
+            },
+        );
     }
 
-    fn push_source_text(&mut self, value: &str, source_start: usize, node_id: &str) {
+    fn push_source_text(&mut self, value: &str, source_start: usize, node_id: SourceNodeId<'_>) {
         let mut chunk_start = 0;
         let mut chunk_source_start = source_start;
         let mut source_cursor = source_start;
@@ -87,48 +123,49 @@ impl FlattenedRegion<'_> {
         );
     }
 
-    fn push_source_chunk_before_break(&mut self, chunk: &str, span: SourceSpan, node_id: &str) {
+    fn push_source_chunk_before_break(
+        &mut self,
+        chunk: &str,
+        span: SourceSpan,
+        node_id: SourceNodeId<'_>,
+    ) {
         if !chunk.is_empty() {
-            self.push_source_chunk(chunk, span, node_id);
+            self.push_segment(
+                chunk,
+                SegmentOrigin::Source {
+                    span,
+                    node: node_id.as_str().to_owned(),
+                },
+            );
         }
-        self.push_synthetic(" ", "softbreak_space");
+        self.push_synthetic_segment(" ", SyntheticReason::SoftbreakSpace);
     }
 
-    fn push_source_chunk(&mut self, chunk: &str, span: SourceSpan, node_id: &str) {
-        let text_start = self.text.len();
-        self.text.push_str(chunk);
-        self.segments.push(IrSegment::new(
-            text_start,
-            chunk,
-            SegmentOrigin::Source {
-                span,
-                node: node_id.to_owned(),
-            },
-        ));
-    }
-
-    fn push_synthetic(&mut self, text: &str, reason: &str) {
+    fn push_segment(&mut self, text: &str, origin: SegmentOrigin) {
         let text_start = self.text.len();
         self.text.push_str(text);
-        self.segments.push(IrSegment::new(
-            text_start,
+        self.segments.push(IrSegment::new(text_start, text, origin));
+    }
+
+    fn push_synthetic_segment(&mut self, text: &str, reason: SyntheticReason) {
+        self.push_segment(
             text,
             SegmentOrigin::Synthetic {
-                reason: reason.to_owned(),
+                reason: reason.as_str().to_owned(),
             },
-        ));
+        );
     }
 
     fn push_decoded_text(&mut self, text: &str) {
         if !text.is_empty() {
-            self.push_synthetic(text, "decoded_text");
+            self.push_synthetic_segment(text, SyntheticReason::DecodedText);
         }
     }
 }
 
 pub(crate) fn flatten_region<'source>(
     node: &Node,
-    node_id: &str,
+    node_id: SourceNodeId<'_>,
     source: &'source str,
 ) -> FlattenedRegion<'source> {
     let mut flattened = FlattenedRegion {
@@ -140,10 +177,12 @@ pub(crate) fn flatten_region<'source>(
     flattened
 }
 
-fn flatten_inline(node: &Node, node_id: &str, flattened: &mut FlattenedRegion<'_>) {
+fn flatten_inline(node: &Node, node_id: SourceNodeId<'_>, flattened: &mut FlattenedRegion<'_>) {
     match node {
         Node::Text(text) => flatten_text_node(text, node_id, flattened),
-        Node::Break(_) => flattened.push_synthetic(" ", "hardbreak_space"),
+        Node::Break(_) => {
+            flattened.push_synthetic_segment(" ", SyntheticReason::HardbreakSpace);
+        }
         Node::InlineCode(code) => flatten_inline_code_node(code, node_id, flattened),
         _ => flatten_children(node, node_id, flattened),
     }
@@ -151,7 +190,7 @@ fn flatten_inline(node: &Node, node_id: &str, flattened: &mut FlattenedRegion<'_
 
 fn flatten_text_node(
     text: &markdown::mdast::Text,
-    node_id: &str,
+    node_id: SourceNodeId<'_>,
     flattened: &mut FlattenedRegion<'_>,
 ) {
     if let Some(position) = text.position.as_ref() {
@@ -166,7 +205,7 @@ fn flatten_text_node(
 
 fn flatten_inline_code_node(
     code: &markdown::mdast::InlineCode,
-    node_id: &str,
+    node_id: SourceNodeId<'_>,
     flattened: &mut FlattenedRegion<'_>,
 ) {
     if let Some(position) = code.position.as_ref() {
@@ -176,7 +215,7 @@ fn flatten_inline_code_node(
     }
 }
 
-fn flatten_children(node: &Node, node_id: &str, flattened: &mut FlattenedRegion<'_>) {
+fn flatten_children(node: &Node, node_id: SourceNodeId<'_>, flattened: &mut FlattenedRegion<'_>) {
     if let Some(children) = node.children() {
         for child in children {
             flatten_inline(child, node_id, flattened);

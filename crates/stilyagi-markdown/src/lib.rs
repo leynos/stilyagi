@@ -6,7 +6,7 @@ mod source_text;
 
 use std::{any::Any, collections::BTreeMap, panic::catch_unwind};
 
-use flatten::flatten_region;
+use flatten::{SourceNodeId, flatten_region};
 use markdown::{ParseOptions, mdast::Node, message::Message, to_mdast};
 use node_kind::node_kind;
 use stilyagi_ir::{
@@ -286,7 +286,7 @@ impl<'source> MarkdownIrBuilder<'source> {
             _ => None,
         };
         if let Some(kind) = region_kind {
-            let flattened = flatten_region(node, node_id, self.source);
+            let flattened = flatten_region(node, SourceNodeId::new(node_id), self.source);
             let mut attrs = BTreeMap::new();
             if let Node::Heading(heading) = node {
                 attrs.insert("depth".to_owned(), serde_json::json!(heading.depth));
