@@ -47,7 +47,13 @@ pub(super) fn decoded_text_maps_to_source(source: &str, span: SourceSpan, value:
     while byte_offset < value.len() {
         match source_text_event(value, byte_offset) {
             SourceTextEvent::LineEnding(line_ending_len) => {
-                if !source_chunk_matches(value, chunk_start..byte_offset, source, source_cursor) {
+                if !source_chunk_matches(
+                    value,
+                    chunk_start..byte_offset,
+                    source,
+                    source_cursor,
+                    span.byte_end,
+                ) {
                     return false;
                 }
                 source_cursor += byte_offset - chunk_start;
@@ -66,7 +72,13 @@ pub(super) fn decoded_text_maps_to_source(source: &str, span: SourceSpan, value:
             SourceTextEvent::InvalidOffset => return false,
         }
     }
-    source_chunk_matches(value, chunk_start..value.len(), source, source_cursor)
+    source_chunk_matches(
+        value,
+        chunk_start..value.len(),
+        source,
+        source_cursor,
+        span.byte_end,
+    )
 }
 
 fn source_chunk_matches(
@@ -74,11 +86,18 @@ fn source_chunk_matches(
     range: std::ops::Range<usize>,
     source: &str,
     source_start: usize,
+    span_end: usize,
 ) -> bool {
     let Some(chunk) = value.get(range) else {
         return false;
     };
-    source.get(source_start..source_start + chunk.len()) == Some(chunk)
+    let Some(source_end) = source_start.checked_add(chunk.len()) else {
+        return false;
+    };
+    if source_end > span_end {
+        return false;
+    }
+    source.get(source_start..source_end) == Some(chunk)
 }
 
 pub(super) fn source_value_start(source: &str, span: SourceSpan, value: &str) -> usize {

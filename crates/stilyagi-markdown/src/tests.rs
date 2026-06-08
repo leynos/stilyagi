@@ -13,6 +13,7 @@ use super::{
     MarkdownBoundary, MarkdownDiagnosticContext, markdown_ir_document, parse_markdown_ast,
     parse_markdown_ast_with, validate_ir_consistency,
 };
+use crate::source_text::decoded_text_maps_to_source;
 
 /// Keep the marker type default stable and comparable.
 #[test]
@@ -271,6 +272,22 @@ fn markdown_ir_document_uses_synthetic_segment_for_decoded_text() {
     assert!(paragraph.segments.iter().all(|segment| {
         segment.source.is_none() && segment.synthetic.as_deref() == Some("decoded_text")
     }));
+}
+
+#[rstest]
+fn decoded_text_mapping_rejects_source_chunks_past_span_end() {
+    let source = "abcd";
+    let span = SourceSpan::new(0, 3);
+
+    assert!(!decoded_text_maps_to_source(source, span, "abcd"));
+}
+
+#[rstest]
+fn decoded_text_mapping_rejects_split_crlf_spans() {
+    let source = "a\r\nb";
+    let span = SourceSpan::new(0, 2);
+
+    assert!(!decoded_text_maps_to_source(source, span, "a\r\n"));
 }
 
 #[rstest]
