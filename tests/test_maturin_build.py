@@ -28,8 +28,8 @@ def _resolve_uv() -> str:
     """Return the path to uv, preferring the project-local tool."""
     uv_candidates = [
         "uv",
-        f"{REPOSITORY_ROOT / '.uv-tools' / 'uv'}",
-        f"{REPOSITORY_ROOT / '.venv' / 'bin' / 'uv'}",
+        str(REPOSITORY_ROOT / ".uv-tools" / "uv"),
+        str(REPOSITORY_ROOT / ".venv" / "bin" / "uv"),
     ]
     for candidate in uv_candidates:
         resolved = shutil.which(candidate)
