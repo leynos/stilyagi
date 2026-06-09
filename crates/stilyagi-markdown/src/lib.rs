@@ -224,6 +224,13 @@ fn validate_ir_consistency(
     Ok(())
 }
 
+/// Version of the `markdown-rs` parser recorded as the IR producer version.
+///
+/// `markdown-rs` does not expose its own version at compile time, so this
+/// mirrors the `markdown` dependency pinned in the workspace `Cargo.toml`.
+/// Update both together when the parser is upgraded.
+const MARKDOWN_RS_VERSION: &str = "1.0.0";
+
 fn markdown_producer() -> ProducerMetadata {
     let mut options = BTreeMap::new();
     options.insert("gfm".to_owned(), serde_json::json!(true));
@@ -231,7 +238,7 @@ fn markdown_producer() -> ProducerMetadata {
     ProducerMetadata {
         kind: "markdown".to_owned(),
         name: "markdown-rs".to_owned(),
-        version: "1.0.0".to_owned(),
+        version: MARKDOWN_RS_VERSION.to_owned(),
         options,
     }
 }
