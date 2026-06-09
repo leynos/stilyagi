@@ -1,7 +1,5 @@
 """Shared helpers for maturin build and compatibility tests."""
 
-from __future__ import annotations
-
 import importlib.metadata as im
 import importlib.util
 import re
@@ -80,10 +78,17 @@ def read_expected_maturin_version(root: pathlib.Path) -> str:
 
 
 def installed_maturin_version() -> str | None:
-    """Return the installed maturin module version when it is importable."""
+    """Return the installed maturin module version when it is importable.
+
+    Returns ``None`` when the module cannot be resolved or when its
+    distribution metadata is missing, so callers can skip rather than fail.
+    """
     if not _maturin_module_available():
         return None
-    return im.version("maturin")
+    try:
+        return im.version("maturin")
+    except im.PackageNotFoundError:
+        return None
 
 
 def toolchain_available() -> bool:
@@ -110,6 +115,9 @@ def build_native_wheel_artifact(
         If the maturin build command exits non-zero.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
+    # Remove stale wheels so the post-build glob reflects only the new artifact.
+    for stale_wheel in out_dir.glob("*.whl"):
+        stale_wheel.unlink()
     command = [
         sys.executable,
         "-m",

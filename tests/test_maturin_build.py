@@ -1,7 +1,5 @@
 """Unit tests for maturin pin synchronization and wheel build output."""
 
-from __future__ import annotations
-
 import pathlib
 import typing as typ
 
