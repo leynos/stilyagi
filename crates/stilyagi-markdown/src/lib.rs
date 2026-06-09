@@ -162,11 +162,14 @@ fn markdown_ir_document_with_context(
         id: "t0".to_owned(),
         family: "mdast".to_owned(),
         syntax: "markdown".to_owned(),
-        root: "n0".to_owned(),
+        root: String::new(),
     });
 
     let mut builder = MarkdownIrBuilder::new(source);
-    let _root_id = builder.push_node(&ast, None);
+    let root_id = builder.push_node(&ast, None, parse_context)?;
+    if let Some(tree) = document.trees.first_mut() {
+        tree.root = root_id;
+    }
     document.nodes = builder.nodes;
     document.regions = builder.regions;
 
@@ -252,7 +255,12 @@ impl<'source> MarkdownIrBuilder<'source> {
         }
     }
 
-    fn push_node(&mut self, node: &Node, parent: Option<&str>) -> String {
+    fn push_node(
+        &mut self,
+        node: &Node,
+        parent: Option<&str>,
+        context: &MarkdownDiagnosticContext<'_>,
+    ) -> Result<String, Message> {
         let node_id = self.next_node_id();
         let node_index = self.nodes.len();
         self.nodes.push(IrNode {
@@ -263,14 +271,14 @@ impl<'source> MarkdownIrBuilder<'source> {
             children: Vec::new(),
             fields: BTreeMap::new(),
             props: node_props(node),
-            span: source_span(node),
+            span: source_span(node, context)?,
             flags: NodeFlags::named_source(),
         });
 
         let mut child_ids = Vec::new();
         if let Some(children) = node.children() {
             for child in children {
-                child_ids.push(self.push_node(child, Some(&node_id)));
+                child_ids.push(self.push_node(child, Some(&node_id), context)?);
             }
         }
 
@@ -278,7 +286,7 @@ impl<'source> MarkdownIrBuilder<'source> {
             stored_node.children = child_ids;
         }
         self.push_region_for_node(node, &node_id);
-        node_id
+        Ok(node_id)
     }
 
     fn next_node_id(&mut self) -> String {
@@ -332,11 +340,22 @@ fn scope_for(kind: &str, node: &Node) -> Vec<String> {
     scope
 }
 
-fn source_span(node: &Node) -> SourceSpan {
-    node.position().map_or_else(
+fn source_span(
+    node: &Node,
+    context: &MarkdownDiagnosticContext<'_>,
+) -> Result<SourceSpan, Message> {
+    let Some(source_span) = node.position().map_or_else(
         || SourceSpan::new(0, 0),
         |position| SourceSpan::new(position.start.offset, position.end.offset),
-    )
+    ) else {
+        return Err(stilyagi_markdown_message(
+            context,
+            "invalid-node-span",
+            "node position start was greater than end",
+        ));
+    };
+
+    Ok(source_span)
 }
 
 fn node_props(node: &Node) -> BTreeMap<String, serde_json::Value> {

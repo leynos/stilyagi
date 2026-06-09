@@ -65,7 +65,10 @@ impl FlattenedRegion<'_> {
         if text.is_empty() {
             return;
         }
-        let span = SourceSpan::new(source_start + range.start, source_start + range.end);
+        let Some(span) = SourceSpan::new(source_start + range.start, source_start + range.end)
+        else {
+            return;
+        };
         self.push_segment(
             text,
             SegmentOrigin::Source {
@@ -100,11 +103,9 @@ impl FlattenedRegion<'_> {
                     byte_offset += line_ending_len;
                     chunk_start = byte_offset;
                     chunk_source_start = source_cursor;
-                    self.push_source_chunk_before_break(
-                        "",
-                        SourceSpan::new(source_cursor, source_cursor),
-                        node_id,
-                    );
+                    if let Some(source_span) = SourceSpan::new(source_cursor, source_cursor) {
+                        self.push_source_chunk_before_break("", source_span, node_id);
+                    }
                 }
                 SourceTextEvent::Character(character_len) => {
                     source_cursor += character_len;
@@ -198,7 +199,10 @@ fn flatten_text_node(
         return;
     };
 
-    let span = SourceSpan::new(position.start.offset, position.end.offset);
+    let Some(span) = SourceSpan::new(position.start.offset, position.end.offset) else {
+        flattened.push_decoded_text(&text.value);
+        return;
+    };
     if decoded_text_maps_to_source(flattened.source, span, &text.value) {
         flattened.push_source_text(&text.value, position.start.offset, node_id);
     } else {
@@ -216,7 +220,9 @@ fn flatten_inline_code_node(
         return;
     };
 
-    let span = SourceSpan::new(position.start.offset, position.end.offset);
+    let Some(span) = SourceSpan::new(position.start.offset, position.end.offset) else {
+        return;
+    };
     let source_start = source_value_start(flattened.source, span, &code.value);
     flattened.push_source_text(&code.value, source_start, node_id);
 }

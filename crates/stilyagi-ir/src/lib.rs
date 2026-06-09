@@ -205,16 +205,24 @@ pub struct SourceSpan {
 impl SourceSpan {
     /// Create a source span without line or column derivation.
     ///
-    /// # Panics
-    ///
-    /// Panics when `byte_start` is greater than `byte_end`.
+    /// Returns `None` when `byte_start` is greater than `byte_end`.
     #[must_use]
-    pub const fn new(byte_start: usize, byte_end: usize) -> Self {
-        assert!(byte_start <= byte_end);
-        Self {
+    pub const fn new(byte_start: usize, byte_end: usize) -> Option<Self> {
+        Self::try_new(byte_start, byte_end)
+    }
+
+    /// Create a source span without line or column derivation.
+    ///
+    /// Returns `None` when `byte_start` is greater than `byte_end`.
+    #[must_use]
+    pub const fn try_new(byte_start: usize, byte_end: usize) -> Option<Self> {
+        if byte_start > byte_end {
+            return None;
+        }
+        Some(Self {
             byte_start,
             byte_end,
-        }
+        })
     }
 }
 

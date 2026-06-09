@@ -301,7 +301,8 @@ fn markdown_ir_document_uses_synthetic_segment_for_decoded_text() {
 #[rstest]
 fn decoded_text_mapping_rejects_source_chunks_past_span_end() {
     let source = "abcd";
-    let span = SourceSpan::new(0, 3);
+    let span = SourceSpan::new(0, 3)
+        .unwrap_or_else(|| panic!("expected source span for rejected source chunk to be valid"));
 
     assert!(!decoded_text_maps_to_source(source, span, "abcd"));
 }
@@ -309,7 +310,8 @@ fn decoded_text_mapping_rejects_source_chunks_past_span_end() {
 #[rstest]
 fn decoded_text_mapping_rejects_split_crlf_spans() {
     let source = "a\r\nb";
-    let span = SourceSpan::new(0, 2);
+    let span = SourceSpan::new(0, 2)
+        .unwrap_or_else(|| panic!("expected source span for split CRLF test to be valid"));
 
     assert!(!decoded_text_maps_to_source(source, span, "a\r\n"));
 }

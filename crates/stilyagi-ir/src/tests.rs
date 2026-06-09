@@ -267,7 +267,11 @@ fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
                     text_start,
                     text.clone(),
                     SegmentOrigin::Source {
-                        span: SourceSpan::new(source_start, source.len()),
+                        span: SourceSpan::new(source_start, source.len()).unwrap_or_else(|| {
+                            panic!(
+                                "expected source span to be valid for region fixture construction"
+                            )
+                        }),
                         node: "n1".to_owned(),
                     },
                 ));
