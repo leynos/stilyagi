@@ -11,7 +11,7 @@ use stilyagi_test_support::{
 
 use super::{
     MarkdownBoundary, MarkdownDiagnosticContext, markdown_ir_document, parse_markdown_ast,
-    parse_markdown_ast_with, validate_ir_consistency,
+    parse_markdown_ast_with, source_span, validate_ir_consistency,
 };
 use crate::source_text::decoded_text_maps_to_source;
 
@@ -334,6 +334,40 @@ fn flatten_inline_code_with_inverted_span_falls_back_to_decoded_text() {
     let region = flatten_region(&node, SourceNodeId::new("n0"), "`code`");
 
     assert_eq!(region.text, "code");
+    assert_eq!(region.segments.len(), 1);
+    let segment = region
+        .segments
+        .first()
+        .unwrap_or_else(|| panic!("expected a single synthetic fallback segment"));
+    assert_eq!(segment.text, "code");
+    assert_eq!((segment.text_start, segment.text_end), (0, 4));
+    assert_eq!(segment.synthetic.as_deref(), Some("decoded_text"));
+    assert_eq!(segment.source, None);
+    assert_eq!(segment.node, None);
+}
+
+#[rstest]
+fn source_span_rejects_nodes_without_a_position() {
+    use markdown::mdast::InlineCode;
+
+    // markdown-rs anchors every parsed node, but a node that arrives without a
+    // position must be reported rather than fabricated as a `0..0` span that
+    // would misanchor it to the document start.
+    let node = Node::InlineCode(InlineCode {
+        value: "code".to_owned(),
+        position: None,
+    });
+    let context = diagnostic_context();
+
+    let result = source_span(&node, &context);
+
+    assert!(matches!(
+        result,
+        Err(ref error)
+            if error.source.as_ref() == "stilyagi-markdown"
+                && error.rule_id.as_ref() == "missing-node-span"
+                && error.reason.contains("no source position")
+    ));
 }
 
 #[rstest]

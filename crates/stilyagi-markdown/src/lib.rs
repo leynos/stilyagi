@@ -351,10 +351,14 @@ fn source_span(
     node: &Node,
     context: &MarkdownDiagnosticContext<'_>,
 ) -> Result<SourceSpan, Message> {
-    let Some(source_span) = node.position().map_or_else(
-        || SourceSpan::new(0, 0),
-        |position| SourceSpan::new(position.start.offset, position.end.offset),
-    ) else {
+    let Some(position) = node.position() else {
+        return Err(stilyagi_markdown_message(
+            context,
+            "missing-node-span",
+            "node has no source position",
+        ));
+    };
+    let Some(source_span) = SourceSpan::new(position.start.offset, position.end.offset) else {
         return Err(stilyagi_markdown_message(
             context,
             "invalid-node-span",
