@@ -1,7 +1,11 @@
 """Unit tests for maturin pin synchronization and wheel build output."""
 
 import pathlib
+import shutil
+import subprocess  # noqa: S404 - tests invoke pinned, trusted subprocess commands.
+import sys
 import typing as typ
+import zipfile
 
 import pytest
 
@@ -18,6 +22,21 @@ if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+def _resolve_uv() -> str:
+    """Return the path to uv, preferring the project-local tool."""
+    uv_candidates = [
+        "uv",
+        f"{REPOSITORY_ROOT / '.uv-tools' / 'uv'}",
+        f"{REPOSITORY_ROOT / '.venv' / 'bin' / 'uv'}",
+    ]
+    for candidate in uv_candidates:
+        resolved = shutil.which(candidate)
+        if resolved is not None:
+            return resolved
+    msg = "uv is required for wheel installation tests"
+    raise RuntimeError(msg)
 
 
 def test_maturin_pins_are_synchronized() -> None:
@@ -59,3 +78,150 @@ def test_maturin_wheel_build_snapshot(
     assert snapshot_payload == snapshot, (
         "Built wheel metadata, file list, and build settings changed."
     )
+
+
+@pytest.mark.timeout(0)
+def test_maturin_wheel_executes_correctly(tmp_path: pathlib.Path) -> None:
+    """The native wheel can be installed and its extension imported at runtime."""
+    if not toolchain_available():
+        pytest.skip("Rust toolchain or maturin unavailable.")
+
+    wheel_path = build_native_wheel_artifact(REPOSITORY_ROOT, tmp_path / "wheelhouse")
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+
+    # Install the wheel into an isolated directory so the import does not
+    # collide with the editable install already present in the environment.
+    uv_path = _resolve_uv()
+    subprocess.run(  # noqa: S603 - arguments are trusted paths from this repo
+        [
+            uv_path,
+            "pip",
+            "install",
+            "--target",
+            str(install_dir),
+            "--no-deps",
+            str(wheel_path),
+        ],
+        check=True,
+    )
+
+    # Probe the extension through a subprocess so sys.path manipulation stays
+    # self-contained and cannot accidentally import the editable install.
+    import_script = (
+        f"import sys; sys.path.insert(0, {str(install_dir)!r}); "
+        "import stilyagi._stilyagi_rs; "
+        "print(stilyagi._stilyagi_rs.hello()); "
+        "print(stilyagi._stilyagi_rs.supported_syntaxes())"
+    )
+    probe = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", import_script],
+        capture_output=True,
+        check=True,
+        cwd=tmp_path,
+        text=True,
+    )
+    lines = probe.stdout.strip().splitlines()
+    assert len(lines) == 2, f"Expected 2 output lines, got {lines!r}"
+    assert lines[0] == "hello from Rust", f"Unexpected hello output: {lines[0]!r}"
+    assert "markdown" in lines[1], f"Unexpected supported_syntaxes output: {lines[1]!r}"
+
+
+# ---------------------------------------------------------------------------
+# Error-path tests for maturin helper functions
+# ---------------------------------------------------------------------------
+
+
+def test_read_maturin_pins_raises_when_pyproject_missing(
+    tmp_path: pathlib.Path,
+) -> None:
+    """read_maturin_pins raises FileNotFoundError when pyproject.toml is absent."""
+    with pytest.raises(FileNotFoundError):
+        read_maturin_pins(tmp_path)
+
+
+def test_read_maturin_pins_raises_when_dependency_groups_missing(
+    tmp_path: pathlib.Path,
+) -> None:
+    """read_maturin_pins raises KeyError when [dependency-groups] is absent."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text('[build-system]\nrequires = ["maturin==1.13.3"]\n')
+    with pytest.raises(KeyError):
+        read_maturin_pins(tmp_path)
+
+
+def test_read_maturin_pins_raises_when_build_system_missing(
+    tmp_path: pathlib.Path,
+) -> None:
+    """read_maturin_pins raises KeyError when [build-system] is absent."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text('[dependency-groups]\ndev = ["maturin==1.13.3"]\n')
+    with pytest.raises(KeyError):
+        read_maturin_pins(tmp_path)
+
+
+def test_read_maturin_pins_raises_when_no_maturin_pin(tmp_path: pathlib.Path) -> None:
+    """read_maturin_pins raises AssertionError when no maturin pin is found."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "[dependency-groups]\n"
+        'dev = ["pytest==8.4.2"]\n'
+        "[build-system]\n"
+        'requires = ["setuptools"]\n'
+    )
+    with pytest.raises(AssertionError, match="Could not locate"):
+        read_maturin_pins(tmp_path)
+
+
+def test_read_maturin_pins_raises_when_requires_not_a_list(
+    tmp_path: pathlib.Path,
+) -> None:
+    """read_maturin_pins raises TypeError when requires is not a list."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "[dependency-groups]\n"
+        'dev = ["maturin==1.13.3"]\n'
+        "[build-system]\n"
+        'requires = "maturin==1.13.3"\n'
+    )
+    with pytest.raises(TypeError, match="Expected dependency list"):
+        read_maturin_pins(tmp_path)
+
+
+def test_wheel_build_snapshot_raises_on_corrupted_zip(
+    tmp_path: pathlib.Path,
+) -> None:
+    """wheel_build_snapshot raises BadZipFile when the wheel is not a valid zip."""
+    corrupted = tmp_path / "not_a_wheel.whl"
+    corrupted.write_text("not a zip archive")
+    with pytest.raises(zipfile.BadZipFile):
+        wheel_build_snapshot(corrupted)
+
+
+def test_wheel_build_snapshot_raises_when_wheel_metadata_missing(
+    tmp_path: pathlib.Path,
+) -> None:
+    """wheel_build_snapshot raises AssertionError when .dist-info/WHEEL absent."""
+    empty_wheel = tmp_path / "empty.whl"
+    with zipfile.ZipFile(empty_wheel, "w") as archive:
+        archive.writestr("stilyagi/__init__.py", "")
+    with pytest.raises(AssertionError, match=r"missing \.dist-info/WHEEL"):
+        wheel_build_snapshot(empty_wheel)
+
+
+def test_wheel_build_snapshot_raises_when_generator_missing(
+    tmp_path: pathlib.Path,
+) -> None:
+    """wheel_build_snapshot raises AssertionError when Generator is absent."""
+    malformed = tmp_path / "malformed.whl"
+    with zipfile.ZipFile(malformed, "w") as archive:
+        archive.writestr(
+            "stilyagi-0.1.0.dist-info/WHEEL",
+            "Wheel-Version: 1.0\nRoot-Is-Purelib: false\n",
+        )
+        archive.writestr(
+            "stilyagi-0.1.0.dist-info/METADATA",
+            "Name: stilyagi\n",
+        )
+    with pytest.raises(AssertionError, match="Could not parse maturin generator"):
+        wheel_build_snapshot(malformed)
