@@ -221,6 +221,7 @@ fn flatten_inline_code_node(
     };
 
     let Some(span) = SourceSpan::new(position.start.offset, position.end.offset) else {
+        flattened.push_decoded_text(&code.value);
         return;
     };
     let source_start = source_value_start(flattened.source, span, &code.value);

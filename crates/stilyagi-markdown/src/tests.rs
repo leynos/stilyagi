@@ -317,6 +317,26 @@ fn decoded_text_mapping_rejects_split_crlf_spans() {
 }
 
 #[rstest]
+fn flatten_inline_code_with_inverted_span_falls_back_to_decoded_text() {
+    use markdown::mdast::InlineCode;
+    use markdown::unist::Position;
+
+    use crate::flatten::{SourceNodeId, flatten_region};
+
+    // markdown-rs never emits an inverted span, but the inline-code fallback
+    // must still surface the code text instead of dropping it when
+    // `SourceSpan::new` rejects a start offset greater than the end offset.
+    let node = Node::InlineCode(InlineCode {
+        value: "code".to_owned(),
+        position: Some(Position::new(1, 5, 4, 1, 1, 0)),
+    });
+
+    let region = flatten_region(&node, SourceNodeId::new("n0"), "`code`");
+
+    assert_eq!(region.text, "code");
+}
+
+#[rstest]
 #[case(
     "tests/fixtures/corpus/markdown/valid/paragraph-inline-markup.md.fixture",
     "paragraph_inline_markup",
