@@ -160,31 +160,39 @@ def test_read_maturin_pins_raises_when_build_system_missing(
         read_maturin_pins(tmp_path)
 
 
-def test_read_maturin_pins_raises_when_no_maturin_pin(tmp_path: pathlib.Path) -> None:
-    """read_maturin_pins raises AssertionError when no maturin pin is found."""
-    pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text(
-        "[dependency-groups]\n"
-        'dev = ["pytest==8.4.2"]\n'
-        "[build-system]\n"
-        'requires = ["setuptools"]\n'
-    )
-    with pytest.raises(AssertionError, match="Could not locate"):
-        read_maturin_pins(tmp_path)
-
-
-def test_read_maturin_pins_raises_when_requires_not_a_list(
+@pytest.mark.parametrize(
+    ("toml_content", "exc_type", "match"),
+    [
+        pytest.param(
+            "[dependency-groups]\n"
+            'dev = ["pytest==8.4.2"]\n'
+            "[build-system]\n"
+            'requires = ["setuptools"]\n',
+            AssertionError,
+            "Could not locate",
+            id="no_maturin_pin",
+        ),
+        pytest.param(
+            "[dependency-groups]\n"
+            'dev = ["maturin==1.13.3"]\n'
+            "[build-system]\n"
+            'requires = "maturin==1.13.3"\n',
+            TypeError,
+            "Expected dependency list",
+            id="requires_not_a_list",
+        ),
+    ],
+)
+def test_read_maturin_pins_raises(
     tmp_path: pathlib.Path,
+    toml_content: str,
+    exc_type: type[Exception],
+    match: str,
 ) -> None:
-    """read_maturin_pins raises TypeError when requires is not a list."""
+    """read_maturin_pins raises the expected error for malformed pyproject.toml."""
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text(
-        "[dependency-groups]\n"
-        'dev = ["maturin==1.13.3"]\n'
-        "[build-system]\n"
-        'requires = "maturin==1.13.3"\n'
-    )
-    with pytest.raises(TypeError, match="Expected dependency list"):
+    pyproject.write_text(toml_content)
+    with pytest.raises(exc_type, match=match):
         read_maturin_pins(tmp_path)
 
 
