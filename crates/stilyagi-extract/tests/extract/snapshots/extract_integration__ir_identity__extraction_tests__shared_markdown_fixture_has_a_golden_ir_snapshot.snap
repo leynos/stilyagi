@@ -1,5 +1,6 @@
 ---
-source: crates/stilyagi-extract/tests/extraction_tests.rs
+source: crates/stilyagi-extract/tests/extract/ir_identity.rs
+assertion_line: 48
 expression: document.to_canonical_json()
 ---
 {

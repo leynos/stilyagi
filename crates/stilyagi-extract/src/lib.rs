@@ -348,7 +348,7 @@ where
     E: Into<MarkdownIrFailure>,
 {
     let ir = build_ir(source).map_err(|error| ExtractError::MarkdownIr(error.into()))?;
-    let regions = if source.is_empty() {
+    let regions = if source.trim().is_empty() {
         Vec::new()
     } else {
         vec![ExtractRegion::new_typed(RegionKind::Document, source)]

@@ -174,6 +174,34 @@ fn extracted_document_preserves_one_source_backed_region(bridge_state: &BridgeSt
     });
 }
 
+#[then("the extracted document preserves no source-backed regions")]
+fn extracted_document_preserves_no_source_backed_regions(bridge_state: &BridgeState) {
+    let extracted_document = bridge_state
+        .extracted_document
+        .as_ref()
+        .unwrap_or_else(|| panic!("an extracted document should be present"));
+
+    Python::attach(|py| {
+        let extracted_document_bound = extracted_document.bind(py);
+        let extracted_document_dict = extracted_document_bound
+            .cast::<PyDict>()
+            .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+        let regions_any = extracted_document_dict
+            .get_item("regions")
+            .unwrap_or_else(|error| panic!("missing regions payload: {error}"));
+        let regions = regions_any
+            .cast::<PyList>()
+            .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
+
+        assert_eq!(
+            regions
+                .len()
+                .unwrap_or_else(|error| panic!("expected list length: {error}")),
+            0,
+        );
+    });
+}
+
 #[then("the extracted document preserves the shared Markdown fixture")]
 fn extracted_document_preserves_the_shared_markdown_fixture(bridge_state: &BridgeState) {
     extracted_document_preserves_one_source_backed_region(bridge_state);
