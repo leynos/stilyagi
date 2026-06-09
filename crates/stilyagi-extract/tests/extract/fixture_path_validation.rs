@@ -2,11 +2,7 @@
 
 #[rstest::rstest]
 fn corpus_fixture_path_rejects_absolute_path() {
-    let path = if cfg!(windows) {
-        "C:\\etc\\passwd"
-    } else {
-        "/etc/passwd"
-    };
+    let path = "/etc/passwd";
     let Err(error) = stilyagi_test_support::corpus_fixture_path(path) else {
         panic!("expected absolute path rejection");
     };
