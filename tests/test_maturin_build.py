@@ -114,7 +114,7 @@ def test_maturin_wheel_executes_correctly(tmp_path: pathlib.Path) -> None:
         "print(stilyagi._stilyagi_rs.hello()); "
         "print(stilyagi._stilyagi_rs.supported_syntaxes())"
     )
-    probe = subprocess.run(  # noqa: S603
+    probe = subprocess.run(  # noqa: S603 - sys.executable and the test-built script are trusted inputs.
         [sys.executable, "-c", import_script],
         capture_output=True,
         check=True,
