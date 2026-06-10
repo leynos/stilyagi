@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use markdown::mdast::Node;
 use rstest::rstest;
-use stilyagi_ir::SourceSpan;
+use stilyagi_ir::{IrDocument, SourceSpan};
 
 use super::source_identity;
 use crate::source_text::decoded_text_maps_to_source;
@@ -65,70 +65,68 @@ fn markdown_ir_document_preserves_canonical_source_identity_helpers() {
     assert_eq!(document.line_index, stilyagi_ir::line_index_for(source));
 }
 
-#[rstest]
-fn validate_ir_consistency_reports_content_hash_mismatches() {
+/// Build a valid Markdown IR document, corrupt it with `mutate`, and assert
+/// that `validate_ir_consistency` reports `expected_rule_id` with every fragment
+/// in `expected_reason_fragments` (plus the shared `phase=validate` context).
+fn assert_validation_reports(
+    mutate: impl FnOnce(&mut IrDocument),
+    expected_rule_id: &str,
+    expected_reason_fragments: &[&str],
+) {
     let source = "# Heading\n\nBody";
     let mut document = markdown_ir_document(source, source_identity("docs/example.md"))
         .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
-    document.document.content_hash = "sha256:bad".to_owned();
+    mutate(&mut document);
     let context = diagnostic_context();
 
     let result = validate_ir_consistency(&document, source, &context);
 
-    assert!(matches!(
-        result,
-        Err(ref error)
-            if error.source.as_ref() == "stilyagi-markdown"
-                && error.rule_id.as_ref() == "ir-content-hash-mismatch"
-                && error.reason.contains("phase=validate")
-                && error.reason.contains("path=")
-                && error.reason.contains("uri=")
-                && error.reason.contains("content_hash mismatch")
-    ));
+    let Err(error) = result else {
+        panic!("expected validation failure for rule {expected_rule_id}");
+    };
+    assert_eq!(error.source.as_ref(), "stilyagi-markdown");
+    assert_eq!(error.rule_id.as_ref(), expected_rule_id);
+    assert!(error.reason.contains("phase=validate"));
+    for fragment in expected_reason_fragments {
+        assert!(
+            error.reason.contains(fragment),
+            "reason {:?} is missing fragment {fragment:?}",
+            error.reason
+        );
+    }
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_content_hash_mismatches() {
+    assert_validation_reports(
+        |document| document.document.content_hash = "sha256:bad".to_owned(),
+        "ir-content-hash-mismatch",
+        &["path=", "uri=", "content_hash mismatch"],
+    );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_line_index_mismatches() {
-    let source = "# Heading\n\nBody";
-    let mut document = markdown_ir_document(source, source_identity("docs/example.md"))
-        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
-    document.line_index.push(usize::MAX);
-    let context = diagnostic_context();
-
-    let result = validate_ir_consistency(&document, source, &context);
-
-    assert!(matches!(
-        result,
-        Err(ref error)
-            if error.source.as_ref() == "stilyagi-markdown"
-                && error.rule_id.as_ref() == "ir-line-index-mismatch"
-                && error.reason.contains("phase=validate")
-                && error.reason.contains("line_index mismatch")
-    ));
+    assert_validation_reports(
+        |document| document.line_index.push(usize::MAX),
+        "ir-line-index-mismatch",
+        &["line_index mismatch"],
+    );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_region_text_mismatches() {
-    let source = "# Heading\n\nBody";
-    let mut document = markdown_ir_document(source, source_identity("docs/example.md"))
-        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
-    let region = document
-        .regions
-        .first_mut()
-        .unwrap_or_else(|| panic!("expected at least one Markdown IR region"));
-    region.text.push_str(" drift");
-    let context = diagnostic_context();
-
-    let result = validate_ir_consistency(&document, source, &context);
-
-    assert!(matches!(
-        result,
-        Err(ref error)
-            if error.source.as_ref() == "stilyagi-markdown"
-                && error.rule_id.as_ref() == "ir-region-text-mismatch"
-                && error.reason.contains("phase=validate")
-                && error.reason.contains("region text mismatch")
-    ));
+    assert_validation_reports(
+        |document| {
+            let region = document
+                .regions
+                .first_mut()
+                .unwrap_or_else(|| panic!("expected at least one Markdown IR region"));
+            region.text.push_str(" drift");
+        },
+        "ir-region-text-mismatch",
+        &["region text mismatch"],
+    );
 }
 
 #[rstest]
