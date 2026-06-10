@@ -243,8 +243,8 @@ fn bridge_extracts_the_shared_markdown_fixture_through_the_rust_boundary(
 
 #[scenario(
     path = "tests/features/bridge_structure.feature",
-    name = "Bridge keeps blank Markdown compatibility region"
+    name = "Bridge yields no regions for blank Markdown"
 )]
-fn bridge_keeps_blank_markdown_compatibility_region(bridge_state: BridgeState) {
+fn bridge_yields_no_regions_for_blank_markdown(bridge_state: BridgeState) {
     let _ = bridge_state;
 }
