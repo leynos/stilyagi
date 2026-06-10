@@ -26,4 +26,4 @@ Feature: PyO3 bridge structure
     Given the bridge can call the Rust extraction entrypoint
     When the bridge extracts a blank Markdown document
     Then the extracted document reports Markdown syntax
-    And the extracted document preserves no source-backed regions
+    And the extracted document has no regions

@@ -174,8 +174,8 @@ fn extracted_document_preserves_one_source_backed_region(bridge_state: &BridgeSt
     });
 }
 
-#[then("the extracted document preserves no source-backed regions")]
-fn extracted_document_preserves_no_source_backed_regions(bridge_state: &BridgeState) {
+#[then("the extracted document has no regions")]
+fn extracted_document_has_no_regions(bridge_state: &BridgeState) {
     let extracted_document = bridge_state
         .extracted_document
         .as_ref()
