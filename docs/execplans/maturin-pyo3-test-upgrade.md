@@ -114,8 +114,9 @@ full release path fails. Observable success is `make check-fmt`, `make lint`,
   current docs.rs latest release. No Rust dependency version bump is needed for
   PyO3 itself.
 - PyPI lists maturin `1.13.3`, uploaded on 2026-05-11, as the current release.
-  Stilyagi's `uv.lock` currently resolves maturin `1.13.1` because
-  `pyproject.toml` only requires `maturin>=1.9.4,<2.0`.
+  Stilyagi's `uv.lock` previously resolved maturin `1.13.1` because
+  `pyproject.toml` only required `maturin>=1.9.4,<2.0`; this PR
+  pins the requirement to exactly `1.13.3`.
 - Stilyagi has a single GitHub Actions smoke workflow rather than cuprum's
   separate build-wheels workflow and composite action, so the pin
   synchronization test should cover Stilyagi's actual pin locations:
