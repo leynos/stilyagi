@@ -207,13 +207,10 @@ def _locate_dist_info_wheel(entry_names: list[str]) -> str:
     raise AssertionError(msg)
 
 
-def _parse_wheel_header(
-    wheel_payload: str, whl_path: pathlib.Path
-) -> tuple[str, str, list[str]]:
-    generator_match = _GENERATOR_RE.search(wheel_payload)
-    if generator_match is None:
-        msg = f"Could not parse maturin generator from WHEEL metadata: {whl_path}"
-        raise AssertionError(msg)
+def _extract_wheel_line_fields(
+    wheel_payload: str,
+) -> tuple[str, list[str]]:
+    """Scan WHEEL metadata lines and return root_is_purelib and sorted tags."""
     root_is_purelib: str | None = None
     tags: list[str] = []
     for line in wheel_payload.splitlines():
@@ -227,7 +224,19 @@ def _parse_wheel_header(
     if not tags:
         msg = "wheel is missing Tag metadata"
         raise AssertionError(msg)
-    return generator_match.group(1), root_is_purelib, sorted(tags)
+    return root_is_purelib, sorted(tags)
+
+
+def _parse_wheel_header(
+    wheel_payload: str, whl_path: pathlib.Path
+) -> tuple[str, str, list[str]]:
+    """Extract generator version, Root-Is-Purelib, and tags from WHEEL metadata."""
+    generator_match = _GENERATOR_RE.search(wheel_payload)
+    if generator_match is None:
+        msg = f"Could not parse maturin generator from WHEEL metadata: {whl_path}"
+        raise AssertionError(msg)
+    root_is_purelib, tags = _extract_wheel_line_fields(wheel_payload)
+    return generator_match.group(1), root_is_purelib, tags
 
 
 @pytest.fixture(scope="module")
