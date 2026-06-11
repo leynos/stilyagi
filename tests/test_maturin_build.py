@@ -1,5 +1,6 @@
 """Unit tests for maturin pin synchronization and wheel build output."""
 
+import ast
 import importlib.metadata as im
 import importlib.util
 import pathlib
@@ -31,11 +32,10 @@ _DIST_INFO_SUFFIXES: dict[str, str] = {
 
 
 def _resolve_uv(root: pathlib.Path) -> str:
-    uv_candidates = [
-        "uv",
-        str(root / ".uv-tools" / "uv"),
-        str(root / ".venv" / "bin" / "uv"),
-    ]
+    uv_name = "uv.exe" if sys.platform == "win32" else "uv"
+    venv_bin = "Scripts" if sys.platform == "win32" else "bin"
+    local_uv_paths = [root / ".uv-tools" / uv_name, root / ".venv" / venv_bin / uv_name]
+    uv_candidates = ["uv", *(str(path) for path in local_uv_paths)]
     for candidate in uv_candidates:
         resolved = shutil.which(candidate)
         if resolved is not None:
@@ -44,8 +44,7 @@ def _resolve_uv(root: pathlib.Path) -> str:
     raise RuntimeError(msg)
 
 
-def read_maturin_pins(root: pathlib.Path) -> dict[str, str]:
-    """Read maturin version pins from the synchronized pyproject locations."""
+def _read_maturin_pins(root: pathlib.Path) -> dict[str, str]:
     pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     dependency_groups = _object_mapping(pyproject["dependency-groups"])
     build_system = _object_mapping(pyproject["build-system"])
@@ -62,52 +61,43 @@ def read_maturin_pins(root: pathlib.Path) -> dict[str, str]:
     }
 
 
-def read_expected_maturin_version(root: pathlib.Path) -> str:
-    """Read the maturin version pinned for development installs."""
-    return read_maturin_pins(root)["[dependency-groups].dev"]
+def _read_expected_maturin_version(root: pathlib.Path) -> str:
+    return _read_maturin_pins(root)["[dependency-groups].dev"]
 
 
-def installed_maturin_version() -> str | None:
-    """Return the installed maturin module version when it is importable."""
-    if not _maturin_module_available():
-        return None
+def _installed_maturin_version() -> str | None:
     try:
-        return im.version("maturin")
+        return im.version("maturin") if _maturin_module_available() else None
     except im.PackageNotFoundError:
         return None
 
 
-def toolchain_available() -> bool:
-    """Return whether Rust and maturin are available for native wheel builds."""
-    return (
-        shutil.which("cargo") is not None
-        and shutil.which("rustc") is not None
-        and _maturin_module_available()
+def _toolchain_available() -> bool:
+    return bool(
+        shutil.which("cargo") and shutil.which("rustc") and _maturin_module_available()
     )
 
 
-def build_native_wheel_artifact(
+def _build_native_wheel_artifact(
     root: pathlib.Path, out_dir: pathlib.Path
 ) -> pathlib.Path:
-    """Build a native wheel with the pinned maturin version."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for stale_wheel in out_dir.glob("*.whl"):
         stale_wheel.unlink()
-    command = [
-        sys.executable,
-        "-m",
-        "maturin",
-        "build",
-        "--release",
-        "--interpreter",
-        sys.executable,
-        "--out",
-        str(out_dir),
-        "--manifest-path",
-        str(root / "crates" / "stilyagi-pyext" / "Cargo.toml"),
-    ]
     subprocess.run(  # noqa: S603 - command list uses trusted paths and pinned maturin
-        command,
+        [
+            sys.executable,
+            "-m",
+            "maturin",
+            "build",
+            "--release",
+            "--interpreter",
+            sys.executable,
+            "--out",
+            str(out_dir),
+            "--manifest-path",
+            str(root / "crates" / "stilyagi-pyext" / "Cargo.toml"),
+        ],
         check=True,
         cwd=root,
     )
@@ -118,22 +108,22 @@ def build_native_wheel_artifact(
     return wheels[0]
 
 
-def wheel_build_snapshot(whl_path: pathlib.Path) -> dict[str, object]:
-    """Return a normalized snapshot of wheel metadata and layout."""
+def _wheel_build_snapshot(whl_path: pathlib.Path) -> dict[str, object]:
     with zipfile.ZipFile(whl_path) as archive:
         entry_names = archive.namelist()
         wheel_name = _locate_dist_info_wheel(entry_names)
         metadata_name = wheel_name.replace("/WHEEL", "/METADATA")
         wheel_payload = archive.read(wheel_name).decode("utf-8")
-        metadata_payload = archive.read(metadata_name).decode("utf-8")
+        try:
+            metadata_payload = archive.read(metadata_name).decode("utf-8")
+        except KeyError as error:
+            msg = "wheel is missing .dist-info/METADATA metadata"
+            raise AssertionError(msg) from error
     generator, root_is_purelib = _parse_wheel_header(wheel_payload, whl_path)
     return {
         "generator": generator,
         "metadata": _parse_metadata(metadata_payload),
-        "wheel": {
-            "root_is_purelib": root_is_purelib,
-            "tag": "<platform-tag>",
-        },
+        "wheel": {"root_is_purelib": root_is_purelib, "tag": "<platform-tag>"},
         "entries": sorted(_normalize_wheel_entry(name) for name in entry_names),
     }
 
@@ -168,9 +158,7 @@ def _maturin_module_available() -> bool:
 
 def _header_value(headers: dict[str, list[str]], key: str) -> str | None:
     values = headers.get(key)
-    if not values:
-        return None
-    return values[0]
+    return values[0] if values else None
 
 
 def _parse_metadata(raw_metadata: str) -> dict[str, object]:
@@ -211,10 +199,10 @@ def _locate_dist_info_wheel(entry_names: list[str]) -> str:
         (name for name in entry_names if name.endswith(".dist-info/WHEEL")),
         None,
     )
-    if wheel_name is None:
-        msg = "wheel is missing .dist-info/WHEEL metadata"
-        raise AssertionError(msg)
-    return wheel_name
+    if wheel_name is not None:
+        return wheel_name
+    msg = "wheel is missing .dist-info/WHEEL metadata"
+    raise AssertionError(msg)
 
 
 def _parse_wheel_header(wheel_payload: str, whl_path: pathlib.Path) -> tuple[str, str]:
@@ -239,24 +227,24 @@ def _parse_wheel_header(wheel_payload: str, whl_path: pathlib.Path) -> tuple[str
 @pytest.fixture(scope="module")
 def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
     """Build the native maturin wheel once for module-level compatibility tests."""
-    if not toolchain_available():
+    if not _toolchain_available():
         pytest.skip("Rust toolchain or maturin unavailable.")
     wheelhouse = tmp_path_factory.mktemp("wheelhouse")
-    return build_native_wheel_artifact(REPOSITORY_ROOT, wheelhouse)
+    return _build_native_wheel_artifact(REPOSITORY_ROOT, wheelhouse)
 
 
 def test_maturin_pins_are_synchronized() -> None:
     """Maturin version pins stay aligned across build-system declarations."""
-    pins = read_maturin_pins(REPOSITORY_ROOT)
+    pins = _read_maturin_pins(REPOSITORY_ROOT)
     assert len(set(pins.values())) == 1, f"Expected one maturin pin, found {pins!r}"
 
 
 def test_installed_maturin_matches_expected_pin() -> None:
     """The active maturin module matches the pinned development dependency."""
-    installed = installed_maturin_version()
+    installed = _installed_maturin_version()
     if installed is None:
         pytest.skip("maturin is not installed.")
-    expected = read_expected_maturin_version(REPOSITORY_ROOT)
+    expected = _read_expected_maturin_version(REPOSITORY_ROOT)
     assert installed == expected, (
         f"Expected maturin {expected}, but {installed} is installed"
     )
@@ -268,8 +256,8 @@ def test_maturin_wheel_build_snapshot(
     snapshot: SnapshotAssertion,
 ) -> None:
     """Native wheel metadata and layout match the expected maturin output."""
-    expected = read_expected_maturin_version(REPOSITORY_ROOT)
-    snapshot_payload = wheel_build_snapshot(built_wheel)
+    expected = _read_expected_maturin_version(REPOSITORY_ROOT)
+    snapshot_payload = _wheel_build_snapshot(built_wheel)
     assert snapshot_payload["generator"] == expected, (
         f"Expected generator {expected!r}, found {snapshot_payload['generator']!r}"
     )
@@ -317,7 +305,11 @@ def test_maturin_wheel_executes_correctly(
     lines = probe.stdout.strip().splitlines()
     assert len(lines) == 2, f"Expected 2 output lines, got {lines!r}"
     assert lines[0] == "hello from Rust", f"Unexpected hello output: {lines[0]!r}"
-    assert "markdown" in lines[1], f"Unexpected supported_syntaxes output: {lines[1]!r}"
+    syntaxes = ast.literal_eval(lines[1])
+    assert isinstance(syntaxes, tuple), (
+        f"Expected supported_syntaxes tuple output, got {syntaxes!r}"
+    )
+    assert "markdown" in syntaxes, f"Unexpected supported_syntaxes output: {syntaxes!r}"
 
 
 @pytest.mark.parametrize(
@@ -363,7 +355,7 @@ def test_read_maturin_pins_raises(
     if toml_content is not None:
         (tmp_path / "pyproject.toml").write_text(toml_content)
     with pytest.raises(exc_type, match=match):
-        read_maturin_pins(tmp_path)
+        _read_maturin_pins(tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -376,8 +368,13 @@ def test_read_maturin_pins_raises(
             "Name: stilyagi\n",
             (AssertionError, "Could not parse maturin generator"),
         ),
+        (
+            "Wheel-Version: 1.0\nGenerator: maturin (1.13.3)\nRoot-Is-Purelib: false\n",
+            None,
+            (AssertionError, r"missing \.dist-info/METADATA"),
+        ),
     ],
-    ids=["corrupted_zip", "missing_wheel_file", "missing_generator"],
+    ids=["bad_zip", "no_wheel", "no_generator", "no_metadata"],
 )
 def test_wheel_build_snapshot_raises(
     tmp_path: pathlib.Path,
@@ -397,4 +394,4 @@ def test_wheel_build_snapshot_raises(
                 archive.writestr("stilyagi-0.1.0.dist-info/METADATA", metadata_payload)
     exc_type, match = expected_error
     with pytest.raises(exc_type, match=match):
-        wheel_build_snapshot(wheel_path)
+        _wheel_build_snapshot(wheel_path)
