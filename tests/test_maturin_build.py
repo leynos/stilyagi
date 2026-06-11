@@ -1,4 +1,13 @@
-"""Unit tests for maturin pin synchronization and wheel build output."""
+"""Compatibility tests for maturin-built PyO3 wheels.
+
+Build wheels with _build_native_wheel_artifact, compare _wheel_build_snapshot,
+and run the runtime_smoke_test import probe. Run:
+    .venv/bin/python -m pytest tests/test_maturin_build.py -v
+Refresh snapshots after review with:
+    .venv/bin/python -m pytest tests/test_maturin_build.py --snapshot-update \
+        -k test_maturin_wheel_build_snapshot
+Treat --snapshot-update as this file's refresh_snapshot helper.
+"""
 
 import ast
 import importlib.metadata as im
@@ -18,6 +27,7 @@ if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
+_SUBPROCESS_TIMEOUT_SECONDS = 600
 _MATURIN_PIN_RE = re.compile(r"^maturin==(\d+\.\d+\.\d+)$")
 _GENERATOR_RE = re.compile(r"^Generator:\s*maturin\s*\(([^)]+)\)\s*$", re.MULTILINE)
 _EXTENSION_MODULE_RE = re.compile(
@@ -31,7 +41,7 @@ _DIST_INFO_SUFFIXES: dict[str, str] = {
 }
 
 
-def _resolve_uv(root: pathlib.Path) -> str:
+def _resolve_uv(root: pathlib.Path) -> str | None:
     uv_name = "uv.exe" if sys.platform == "win32" else "uv"
     venv_bin = "Scripts" if sys.platform == "win32" else "bin"
     local_uv_paths = [root / ".uv-tools" / uv_name, root / ".venv" / venv_bin / uv_name]
@@ -40,25 +50,16 @@ def _resolve_uv(root: pathlib.Path) -> str:
         resolved = shutil.which(candidate)
         if resolved is not None:
             return resolved
-    msg = "uv is required for wheel installation tests"
-    raise RuntimeError(msg)
+    return None
 
 
 def _read_maturin_pins(root: pathlib.Path) -> dict[str, str]:
     pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     dependency_groups = _object_mapping(pyproject["dependency-groups"])
     build_system = _object_mapping(pyproject["build-system"])
-
-    return {
-        "[dependency-groups].dev": _require_maturin_pin(
-            dependency_groups["dev"],
-            "[dependency-groups].dev",
-        ),
-        "[build-system].requires": _require_maturin_pin(
-            build_system["requires"],
-            "[build-system].requires",
-        ),
-    }
+    dev = _require_maturin_pin(dependency_groups["dev"], "[dependency-groups].dev")
+    build = _require_maturin_pin(build_system["requires"], "[build-system].requires")
+    return {"[dependency-groups].dev": dev, "[build-system].requires": build}
 
 
 def _read_expected_maturin_version(root: pathlib.Path) -> str:
@@ -84,22 +85,17 @@ def _build_native_wheel_artifact(
     out_dir.mkdir(parents=True, exist_ok=True)
     for stale_wheel in out_dir.glob("*.whl"):
         stale_wheel.unlink()
+    command = [sys.executable, "-m", "maturin", "build", "--release"]
+    command.extend(["--interpreter", sys.executable, "--out", str(out_dir)])
+    command.extend([
+        "--manifest-path",
+        str(root / "crates" / "stilyagi-pyext" / "Cargo.toml"),
+    ])
     subprocess.run(  # noqa: S603 - command list uses trusted paths and pinned maturin
-        [
-            sys.executable,
-            "-m",
-            "maturin",
-            "build",
-            "--release",
-            "--interpreter",
-            sys.executable,
-            "--out",
-            str(out_dir),
-            "--manifest-path",
-            str(root / "crates" / "stilyagi-pyext" / "Cargo.toml"),
-        ],
+        command,
         check=True,
         cwd=root,
+        timeout=_SUBPROCESS_TIMEOUT_SECONDS,
     )
     wheels = sorted(out_dir.glob("*.whl"))
     if len(wheels) != 1:
@@ -250,7 +246,7 @@ def test_installed_maturin_matches_expected_pin() -> None:
     )
 
 
-@pytest.mark.timeout(0)
+@pytest.mark.timeout(_SUBPROCESS_TIMEOUT_SECONDS + 60)
 def test_maturin_wheel_build_snapshot(
     built_wheel: pathlib.Path,
     snapshot: SnapshotAssertion,
@@ -266,7 +262,7 @@ def test_maturin_wheel_build_snapshot(
     )
 
 
-@pytest.mark.timeout(0)
+@pytest.mark.timeout(_SUBPROCESS_TIMEOUT_SECONDS + 60)
 def test_maturin_wheel_executes_correctly(
     tmp_path: pathlib.Path,
     built_wheel: pathlib.Path,
@@ -276,6 +272,8 @@ def test_maturin_wheel_executes_correctly(
     install_dir.mkdir()
 
     uv_path = _resolve_uv(REPOSITORY_ROOT)
+    if uv_path is None:
+        pytest.skip("uv is required for wheel installation tests.")
     subprocess.run(  # noqa: S603 - arguments are trusted paths from this repo
         [
             uv_path,
@@ -287,6 +285,7 @@ def test_maturin_wheel_executes_correctly(
             str(built_wheel),
         ],
         check=True,
+        timeout=_SUBPROCESS_TIMEOUT_SECONDS,
     )
 
     import_script = (
@@ -301,6 +300,7 @@ def test_maturin_wheel_executes_correctly(
         check=True,
         cwd=tmp_path,
         text=True,
+        timeout=_SUBPROCESS_TIMEOUT_SECONDS,
     )
     lines = probe.stdout.strip().splitlines()
     assert len(lines) == 2, f"Expected 2 output lines, got {lines!r}"
