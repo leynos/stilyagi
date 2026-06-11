@@ -136,7 +136,7 @@ def test_read_maturin_pins_raises_when_pyproject_missing(
     tmp_path: pathlib.Path,
 ) -> None:
     """read_maturin_pins raises FileNotFoundError when pyproject.toml is absent."""
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError, match=r"pyproject\.toml"):
         read_maturin_pins(tmp_path)
 
 
@@ -146,7 +146,7 @@ def test_read_maturin_pins_raises_when_dependency_groups_missing(
     """read_maturin_pins raises KeyError when [dependency-groups] is absent."""
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text('[build-system]\nrequires = ["maturin==1.13.3"]\n')
-    with pytest.raises(KeyError):
+    with pytest.raises(KeyError, match=r"dependency-groups"):
         read_maturin_pins(tmp_path)
 
 
@@ -156,7 +156,7 @@ def test_read_maturin_pins_raises_when_build_system_missing(
     """read_maturin_pins raises KeyError when [build-system] is absent."""
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text('[dependency-groups]\ndev = ["maturin==1.13.3"]\n')
-    with pytest.raises(KeyError):
+    with pytest.raises(KeyError, match=r"build-system"):
         read_maturin_pins(tmp_path)
 
 
