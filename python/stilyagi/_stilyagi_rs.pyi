@@ -13,12 +13,13 @@ class ExtractDocumentPayload(typ.TypedDict):
 
     syntax: str
     regions: list[ExtractRegion]
+    ir_json: typ.NotRequired[str]
 
 def extract_document(source: str, syntax: str) -> ExtractDocumentPayload:
     """Extract structured document data from *source* using *syntax*.
 
-    Returns an ``ExtractDocumentPayload`` containing ``syntax`` and
-    ``regions``.
+    Returns an ``ExtractDocumentPayload`` containing ``syntax``, ``regions``,
+    and optional canonical IR JSON in ``ir_json``.
 
     Raises ``ValueError`` when *syntax* is invalid, ``NotImplementedError``
     when it is recognised but unavailable, and ``TypeError`` for invalid

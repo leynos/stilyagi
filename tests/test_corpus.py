@@ -9,8 +9,8 @@ from pytest_bdd import given, scenario, then, when
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORPUS_ROOT = REPOSITORY_ROOT / "tests" / "fixtures" / "corpus"
-SYNTAX_EXTENSIONS = {
-    "markdown": ".md",
+SYNTAX_EXTENSIONS: dict[str, str | tuple[str, ...]] = {
+    "markdown": (".md", ".md.fixture"),
     "python": ".py",
     "rust": ".rs",
 }
@@ -110,13 +110,15 @@ def _corpus_fixtures_for_category(
 def _extensions_for_syntax_category(syntax: str, category: str) -> tuple[str, ...]:
     """Return accepted source extensions for a corpus syntax and category."""
     try:
-        extension = SYNTAX_EXTENSIONS[syntax]
+        configured_extensions = SYNTAX_EXTENSIONS[syntax]
     except KeyError as error:
         msg = f"unknown corpus syntax: {syntax}"
         raise ValueError(msg) from error
     if syntax == "python" and category == "malformed":
         return (MALFORMED_PYTHON_EXTENSION,)
-    return (extension,)
+    if isinstance(configured_extensions, tuple):
+        return configured_extensions
+    return (configured_extensions,)
 
 
 def _has_allowed_suffix(path: pathlib.Path, extensions: tuple[str, ...]) -> bool:
@@ -194,8 +196,11 @@ def test_malformed_fixtures_remain_readable_sources(
             assert fixture.path.name.endswith(MALFORMED_PYTHON_EXTENSION)
             assert fixture.path.suffixes[-2:] == [".py", ".txt"]
         else:
-            expected_suffix = SYNTAX_EXTENSIONS[fixture.syntax]
-            assert fixture.path.suffix == expected_suffix
+            expected_suffixes = _extensions_for_syntax_category(
+                fixture.syntax,
+                fixture.category,
+            )
+            assert _has_allowed_suffix(fixture.path, expected_suffixes)
 
 
 def test_malformed_python_fixtures_require_text_extension() -> None:

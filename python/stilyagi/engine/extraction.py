@@ -11,6 +11,7 @@ Example: `from stilyagi import model`
 `result = extract_document("# Heading", model.Syntax.MARKDOWN)`
 """
 
+import json
 import typing as typ
 
 from stilyagi import model
@@ -32,10 +33,14 @@ class _BridgeDocument(typ.TypedDict):
 
     syntax: str
     regions: list[_BridgeRegion]
+    ir_json: typ.NotRequired[str]
 
 
 _PYTHON_SYNTAX_SPELLINGS = frozenset(syntax.value for syntax in model.Syntax)
 _SYNTAX_VOCAB_VALIDATED = False
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
 
 
 def _validate_syntax_vocab_once() -> None:
@@ -80,7 +85,35 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
             model.Region(kind=region["kind"], text=region["text"])
             for region in bridge_document["regions"]
         ),
+        ir=_parse_ir_json(bridge_document.get("ir_json")),
     )
+
+
+def _extract_syntax_field(payload_dict: dict[str, object]) -> str:
+    """Extract and type-check the ``syntax`` field from a raw bridge payload dict."""
+    syntax = payload_dict.get("syntax")
+    if not isinstance(syntax, str):
+        msg = "expected Rust bridge payload['syntax'] to be str"
+        raise TypeError(msg)
+    return syntax
+
+
+def _extract_regions_field(payload_dict: dict[str, object]) -> list[object]:
+    """Extract and type-check the ``regions`` field from a raw bridge payload dict."""
+    regions = payload_dict.get("regions")
+    if not isinstance(regions, list):
+        msg = "expected Rust bridge payload['regions'] to be list"
+        raise TypeError(msg)
+    return typ.cast("list[object]", regions)
+
+
+def _extract_ir_json_field(payload_dict: dict[str, object]) -> str | None:
+    """Extract and type-check optional ``ir_json`` from a raw bridge payload dict."""
+    ir_json = payload_dict.get("ir_json")
+    if ir_json is not None and not isinstance(ir_json, str):
+        msg = "expected Rust bridge payload['ir_json'] to be str when present"
+        raise TypeError(msg)
+    return ir_json
 
 
 def _coerce_bridge_document(payload: object) -> _BridgeDocument:
@@ -90,20 +123,17 @@ def _coerce_bridge_document(payload: object) -> _BridgeDocument:
         raise TypeError(msg)
     payload_dict = typ.cast("dict[str, object]", payload)
 
-    syntax = payload_dict.get("syntax")
-    regions = payload_dict.get("regions")
-    if not isinstance(syntax, str):
-        msg = "expected Rust bridge payload['syntax'] to be str"
-        raise TypeError(msg)
-    if not isinstance(regions, list):
-        msg = "expected Rust bridge payload['regions'] to be list"
-        raise TypeError(msg)
+    syntax = _extract_syntax_field(payload_dict)
+    regions = _extract_regions_field(payload_dict)
+    ir_json = _extract_ir_json_field(payload_dict)
 
-    normalized_regions: list[_BridgeRegion] = []
-    for index, region in enumerate(regions):
-        normalized_regions.append(_coerce_bridge_region(index, region))
-
-    return {"syntax": syntax, "regions": normalized_regions}
+    normalized_regions = list(
+        map(_coerce_bridge_region, range(len(regions)), regions, strict=True),
+    )
+    document: _BridgeDocument = {"syntax": syntax, "regions": normalized_regions}
+    if ir_json is not None:
+        document["ir_json"] = ir_json
+    return document
 
 
 def _coerce_bridge_region(index: int, region: object) -> _BridgeRegion:
@@ -126,3 +156,14 @@ def _coerce_bridge_region(index: int, region: object) -> _BridgeRegion:
         raise TypeError(msg)
 
     return {"kind": kind, "text": text}
+
+
+def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
+    """Parse the optional canonical IR JSON bridge field."""
+    if ir_json is None:
+        return None
+    parsed = json.loads(ir_json)
+    if not isinstance(parsed, dict):
+        msg = "expected Rust bridge payload['ir_json'] to decode to dict"
+        raise TypeError(msg)
+    return typ.cast("cabc.Mapping[str, typ.Any]", parsed)

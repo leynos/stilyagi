@@ -5,6 +5,8 @@ import enum
 import typing as typ
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
     from .region import Region
 
 
@@ -26,7 +28,10 @@ class Document:
         Source syntax represented by the document.
     regions:
         Flattened future prose regions contained by the document.
+    ir:
+        Full IR document envelope when the extractor provides one.
     """
 
     syntax: Syntax
     regions: tuple[Region, ...] = ()
+    ir: cabc.Mapping[str, object] | None = None

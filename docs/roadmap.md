@@ -125,7 +125,7 @@ suppression handling are sufficient for v1. The result informs rule design, fix
 planning, and cache keys. See [Stilyagi design](stilyagi-design.md) §§6-7.1, 11
 and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
 
-- [ ] 2.1.1. Implement the Markdown IR envelope, `line_index`, region text, and
+- [x] 2.1.1. Implement the Markdown IR envelope, `line_index`, region text, and
   `segments` mappings. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 1.1.3, 1.2.2, and 1.3.1.
   - Include source-backed positions, synthetic insertions, and content hashes.

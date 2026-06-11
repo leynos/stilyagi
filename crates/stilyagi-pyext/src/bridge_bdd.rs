@@ -92,6 +92,7 @@ fn bridge_extracts_the_shared_markdown_fixture(bridge_state: &mut BridgeState) {
 #[when("the bridge extracts a blank Markdown document")]
 fn bridge_extracts_a_blank_markdown_document(bridge_state: &mut BridgeState) {
     perform_extraction("   \n", "markdown", bridge_state);
+    bridge_state.expected_document_text = Some("   \n".to_owned());
 }
 
 #[then("the extracted document reports Markdown syntax")]
@@ -173,11 +174,6 @@ fn extracted_document_preserves_one_source_backed_region(bridge_state: &BridgeSt
     });
 }
 
-#[then("the extracted document preserves the shared Markdown fixture")]
-fn extracted_document_preserves_the_shared_markdown_fixture(bridge_state: &BridgeState) {
-    extracted_document_preserves_one_source_backed_region(bridge_state);
-}
-
 #[then("the extracted document has no regions")]
 fn extracted_document_has_no_regions(bridge_state: &BridgeState) {
     let extracted_document = bridge_state
@@ -204,6 +200,11 @@ fn extracted_document_has_no_regions(bridge_state: &BridgeState) {
             0,
         );
     });
+}
+
+#[then("the extracted document preserves the shared Markdown fixture")]
+fn extracted_document_preserves_the_shared_markdown_fixture(bridge_state: &BridgeState) {
+    extracted_document_preserves_one_source_backed_region(bridge_state);
 }
 
 #[scenario(
@@ -242,8 +243,8 @@ fn bridge_extracts_the_shared_markdown_fixture_through_the_rust_boundary(
 
 #[scenario(
     path = "tests/features/bridge_structure.feature",
-    name = "Bridge keeps blank Markdown extraction empty"
+    name = "Bridge yields no regions for blank Markdown"
 )]
-fn bridge_keeps_blank_markdown_extraction_empty(bridge_state: BridgeState) {
+fn bridge_yields_no_regions_for_blank_markdown(bridge_state: BridgeState) {
     let _ = bridge_state;
 }

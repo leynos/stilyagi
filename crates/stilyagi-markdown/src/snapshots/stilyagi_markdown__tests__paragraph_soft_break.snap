@@ -1,0 +1,156 @@
+---
+source: crates/stilyagi-markdown/src/tests.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/paragraph-soft-break.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/paragraph-soft-break.md.fixture",
+    "syntax": "markdown",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:e48e31d8c3497b6b4d921e14afb95e72db2f9a08e3477b383c73c87f44fa06ff"
+  },
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "version": "1.0.0",
+      "options": {
+        "frontmatter": true,
+        "gfm": true
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    11,
+    23
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "mdast",
+      "syntax": "markdown",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "root",
+      "parent": null,
+      "children": [
+        "n1"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 23
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n0",
+      "children": [
+        "n2"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 22
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 22
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "First line second line",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 10,
+          "source": {
+            "byte_start": 0,
+            "byte_end": 10
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "First line"
+        },
+        {
+          "text_start": 10,
+          "text_end": 11,
+          "source": null,
+          "synthetic": "softbreak_space",
+          "node": null,
+          "text": " "
+        },
+        {
+          "text_start": 11,
+          "text_end": 22,
+          "source": {
+            "byte_start": 11,
+            "byte_end": 22
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "second line"
+        }
+      ],
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}

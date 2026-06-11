@@ -1218,25 +1218,24 @@ Best practices for writing effective scenarios include:
   (for example, `1e3`, `-1E-9`), and the special values `NaN`, `inf`, and
   `Infinity` (matched case-insensitively). Matching is anchored: the entire
   step text must match the pattern; partial matches do not succeed. Escape
-  literal braces with `{{` and `}}`. Use
-  `\` to match a single backslash. A trailing `\` or any other backslash escape
-  is treated literally, so `\d` matches the two-character sequence `\d`. Nested
-  braces inside placeholders are not supported. Braces are not allowed inside
-  type hints. Placeholders use `{name}` or `{name:type}`; the type hint must
-  not contain braces (for example, `{n:{u32}}` and `{n:Vec<{u32}>}` are
-  rejected). To describe braces in the surrounding step text (for example,
-  referring to `{u32}`), escape them as `{{` and `}}` rather than placing them
-  inside `{name:type}`. The lexer closes the placeholder at the first `}` after
-  the optional type hint; any characters between the `:type` and that first `}`
-  are ignored (for example, `{n:u32 extra}` parses as `name = n`, `type = u32`).
-  `name` must start with a letter or underscore and may contain letters,
-  digits, or underscores (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type
-  hint is ignored (for example, `{count: u32}` and `{count:u32}` are both
-  accepted), but whitespace is not allowed between the name and the colon.
-  Prefer the compact form `{count:u32}` in new code. When a pattern contains no
-  placeholders, the step text must match exactly. Unknown type hints are
-  treated as generic placeholders and capture any non-newline text using a
-  non-greedy match.
+  literal braces with `{{` and `}}`. Use `\` to match a single backslash. A
+  trailing `\` or any other backslash escape is treated literally, so `\d`
+  matches the two-character sequence `\d`. Nested braces inside placeholders
+  are not supported. Braces are not allowed inside type hints. Placeholders use
+  `{name}` or `{name:type}`; the type hint must not contain braces (for example,
+  `{n:{u32}}` and `{n:Vec<{u32}>}` are rejected). To describe braces in the
+  surrounding step text (for example, referring to `{u32}`), escape them as
+  `{{` and `}}` rather than placing them inside `{name:type}`. The lexer closes
+  the placeholder at the first `}` after the optional type hint; any characters
+  between the `:type` and that first `}` are ignored (for example,
+  `{n:u32 extra}` parses as `name = n`, `type = u32`). `name` must start with a
+  letter or underscore and may contain letters, digits, or underscores
+  (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type hint is ignored (for
+  example, `{count: u32}` and `{count:u32}` are both accepted), but whitespace
+  is not allowed between the name and the colon. Prefer the compact form
+  `{count:u32}` in new code. When a pattern contains no placeholders, the step
+  text must match exactly. Unknown type hints are treated as generic
+  placeholders and capture any non-newline text using a non-greedy match.
 
 ## Data tables and doc strings
 
@@ -1412,101 +1411,24 @@ inspection of the row and column that triggered the failure:
 #     #[datatable(truthy)]
 #     active: bool,
 # }
-
+#
+# fn inspect_missing_column() {
 let table = vec![
-    vec!["name".into(), "active".into()],
-    vec!["Alice".into()],
+    vec!["name".to_owned(), "active".to_owned()],
+    vec!["Alice".to_owned()],
 ];
 
-let Err(DataTableError::MissingColumn { row_number, column }) =
-    Rows::<UserRow>::try_from(table)
-else {
-    panic!("expected the table to be missing the 'active' column");
-};
-
-assert_eq!(row_number, 2);
-assert_eq!(column, "active");
-```
-
-Custom parsers bubble their source error through `DataTableError::CellParse`.
-Inspecting the formatted message shows the precise location of the failure,
-including the human-readable column label:
-
-```rust,no_run
-# use rstest_bdd::datatable::{DataTableError, Rows};
-# use rstest_bdd_macros::DataTableRow;
-#
-# #[derive(Debug, PartialEq, Eq, DataTableRow)]
-# struct UserRow {
-#     name: String,
-#     #[datatable(truthy)]
-#     active: bool,
+let error = Rows::<UserRow>::try_from(table)
+    .expect_err("conversion should fail because the active column is missing");
+match error {
+    DataTableError::MissingColumn { row_number, column } => {
+        assert_eq!(row_number, 2);
+        assert_eq!(column, "active");
+    }
+    other => panic!("expected MissingColumn, got {other:?}"),
+}
 # }
-
-let result = Rows::<UserRow>::try_from(vec![
-    vec!["name".into(), "active".into()],
-    vec!["Alice".into(), "maybe".into()],
-]);
-
-let err = match result {
-    Err(err) => err,
-    Ok(_) => panic!("expected the 'maybe' flag to trigger a parse error"),
-};
-
-let DataTableError::CellParse {
-    row_number,
-    column_index,
-    ..
-} = err
-else {
-    panic!("unexpected error variant");
-};
-assert_eq!(row_number, 2);
-assert_eq!(column_index, 2);
-assert!(err
-    .to_string()
-    .contains("unrecognised boolean value 'maybe'"));
 ```
-
-[`DataTableError`]: crate::datatable::DataTableError
-
-A Gherkin Docstring is available through an argument named `docstring` of type
-`String`. Both arguments must use these exact names and types to be detected by
-the procedural macros. When both are declared, place `datatable` before
-`docstring` at the end of the parameter list.
-
-```gherkin
-Scenario: capture table and docstring
-  Given the following numbers:
-    | a | b |
-    | 1 | 2 |
-  When I submit:
-    """
-    payload
-    """
-```
-
-```rust,no_run
-#[given("the following numbers:")]
-fn capture_table(datatable: Vec<Vec<String>>) {
-    // ...
-}
-
-#[when("I submit:")]
-fn capture_docstring(docstring: String) {
-    // ...
-}
-
-#[then("table and text:")]
-fn capture_both(datatable: Vec<Vec<String>>, docstring: String) {
-    // datatable must precede docstring
-}
-```
-
-At runtime, the generated wrapper converts the table cells or copies the block
-text and passes them to the step function. It panics if the step declares
-`datatable` or `docstring` but the feature omits the content. These doc strings
-may be delimited by triple double-quotes or triple backticks.
 
 ## Limitations and roadmap
 

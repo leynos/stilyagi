@@ -1,8 +1,9 @@
 //! Source extraction orchestration for the first Rust-to-Python bridge.
 
 use core::fmt;
-use stilyagi_ir::IrBoundary;
-use stilyagi_markdown::MarkdownBoundary;
+pub use stilyagi_ir::SourceIdentity;
+use stilyagi_ir::{IrBoundary, IrDocument};
+use stilyagi_markdown::{MarkdownBoundary, markdown_ir_document};
 use stilyagi_tree_sitter::TreeSitterBoundary;
 
 /// Supported source syntaxes for the initial extraction boundary.
@@ -46,6 +47,66 @@ pub enum ExtractError {
     /// The caller provided a syntax name that is not part of the supported
     /// syntax vocabulary.
     UnknownSyntax(String),
+    /// Markdown parsing or IR construction failed.
+    MarkdownIr(MarkdownIrFailure),
+}
+
+const EXTRACT_ERROR_SIZE_LIMIT_BYTES: usize = 128;
+const _: () = assert!(core::mem::size_of::<ExtractError>() <= EXTRACT_ERROR_SIZE_LIMIT_BYTES);
+
+/// Structured Markdown IR diagnostic preserved across extraction boundaries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MarkdownIrFailure {
+    /// Diagnostic namespace that emitted the failure.
+    pub source: String,
+    /// Stable diagnostic rule identifier.
+    pub rule_id: String,
+    /// Human-readable diagnostic reason.
+    pub reason: String,
+    /// Ordered lower-level causes, when a producer provides them.
+    pub causes: Vec<String>,
+}
+
+impl MarkdownIrFailure {
+    /// Create a Markdown IR diagnostic without nested causes.
+    #[must_use]
+    pub fn new(
+        source: impl Into<String>,
+        rule_id: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            source: source.into(),
+            rule_id: rule_id.into(),
+            reason: reason.into(),
+            causes: Vec::new(),
+        }
+    }
+}
+
+impl From<markdown::message::Message> for MarkdownIrFailure {
+    fn from(message: markdown::message::Message) -> Self {
+        Self {
+            source: *message.source,
+            rule_id: *message.rule_id,
+            reason: message.reason,
+            causes: Vec::new(),
+        }
+    }
+}
+
+impl fmt::Display for MarkdownIrFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{}:{}: {}",
+            self.source, self.rule_id, self.reason
+        )?;
+        for cause in &self.causes {
+            write!(formatter, "; caused by: {cause}")?;
+        }
+        Ok(())
+    }
 }
 
 impl fmt::Display for ExtractError {
@@ -56,6 +117,9 @@ impl fmt::Display for ExtractError {
             }
             Self::UnknownSyntax(syntax) => {
                 write!(formatter, "unknown syntax '{syntax}'")
+            }
+            Self::MarkdownIr(diagnostic) => {
+                write!(formatter, "markdown IR extraction failed: {diagnostic}")
             }
         }
     }
@@ -158,13 +222,25 @@ impl ExtractRegion {
 pub struct ExtractDocument {
     syntax: ExtractSyntax,
     regions: Vec<ExtractRegion>,
+    ir: Option<IrDocument>,
 }
 
 impl ExtractDocument {
     /// Create a partial document with the supplied syntax and regions.
     #[must_use]
     pub const fn new(syntax: ExtractSyntax, regions: Vec<ExtractRegion>) -> Self {
-        Self { syntax, regions }
+        Self {
+            syntax,
+            regions,
+            ir: None,
+        }
+    }
+
+    /// Attach the full IR document envelope to this extraction payload.
+    #[must_use]
+    pub fn with_ir(mut self, ir: IrDocument) -> Self {
+        self.ir = Some(ir);
+        self
     }
 
     /// Return the syntax represented by the document.
@@ -177,6 +253,12 @@ impl ExtractDocument {
     #[must_use]
     pub fn regions(&self) -> &[ExtractRegion] {
         &self.regions
+    }
+
+    /// Return the full IR document envelope when this syntax provides one.
+    #[must_use]
+    pub const fn ir(&self) -> Option<&IrDocument> {
+        self.ir.as_ref()
     }
 }
 
@@ -217,25 +299,84 @@ impl ExtractBoundary {
 ///
 /// Returns [`ExtractError::UnsupportedSyntax`] when the syntax is part of the
 /// current model vocabulary but not yet implemented. Returns
-/// [`ExtractError::UnknownSyntax`] only when a caller first converts an
+/// [`ExtractError::MarkdownIr`] when Markdown parsing or IR construction fails.
+/// Returns [`ExtractError::UnknownSyntax`] only when a caller first converts an
 /// arbitrary string into [`ExtractSyntax`] via `TryFrom<&str>`.
 pub fn extract_document(
     source: &str,
     syntax: ExtractSyntax,
 ) -> Result<ExtractDocument, ExtractError> {
+    extract_document_with_source_identity(source, syntax, SourceIdentity::anonymous())
+}
+
+/// Extract a minimal document-shaped payload with explicit source identity.
+///
+/// # Errors
+///
+/// Returns [`ExtractError::UnsupportedSyntax`] when the syntax is part of the
+/// current model vocabulary but not yet implemented. Returns
+/// [`ExtractError::MarkdownIr`] when Markdown parsing or IR construction fails.
+/// Returns [`ExtractError::UnknownSyntax`] only when a caller first converts an
+/// arbitrary string into [`ExtractSyntax`] via `TryFrom<&str>`.
+pub fn extract_document_with_source_identity(
+    source: &str,
+    syntax: ExtractSyntax,
+    identity: SourceIdentity,
+) -> Result<ExtractDocument, ExtractError> {
     match syntax {
-        ExtractSyntax::Markdown => Ok(extract_markdown_document(source)),
+        ExtractSyntax::Markdown => extract_markdown_document(source, identity),
         ExtractSyntax::PythonDocstring | ExtractSyntax::RustDocComment => {
             Err(ExtractError::UnsupportedSyntax(syntax))
         }
     }
 }
 
-fn extract_markdown_document(source: &str) -> ExtractDocument {
+fn extract_markdown_document(
+    source: &str,
+    identity: SourceIdentity,
+) -> Result<ExtractDocument, ExtractError> {
+    extract_markdown_document_with(source, |markdown_source| {
+        markdown_ir_document(markdown_source, identity)
+    })
+}
+
+fn extract_markdown_document_with<E>(
+    source: &str,
+    build_ir: impl FnOnce(&str) -> Result<IrDocument, E>,
+) -> Result<ExtractDocument, ExtractError>
+where
+    E: Into<MarkdownIrFailure>,
+{
+    let ir = build_ir(source).map_err(|error| ExtractError::MarkdownIr(error.into()))?;
     let regions = if source.trim().is_empty() {
         Vec::new()
     } else {
         vec![ExtractRegion::new_typed(RegionKind::Document, source)]
     };
-    ExtractDocument::new(ExtractSyntax::Markdown, regions)
+    Ok(ExtractDocument::new(ExtractSyntax::Markdown, regions).with_ir(ir))
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use super::{ExtractError, MarkdownIrFailure, extract_markdown_document_with};
+
+    #[rstest]
+    fn markdown_ir_builder_failures_map_to_extract_error() {
+        let result = extract_markdown_document_with("# Heading", |_| {
+            Err(MarkdownIrFailure::new(
+                "stilyagi-markdown",
+                "injected-ir-failure",
+                "injected IR failure",
+            ))
+        });
+
+        let Err(ExtractError::MarkdownIr(diagnostic)) = result else {
+            panic!("expected MarkdownIr failure");
+        };
+        assert_eq!(diagnostic.source, "stilyagi-markdown");
+        assert_eq!(diagnostic.rule_id, "injected-ir-failure");
+        assert_eq!(diagnostic.reason, "injected IR failure");
+    }
 }

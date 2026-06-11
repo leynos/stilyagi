@@ -79,8 +79,8 @@ extension points. Current implemented extraction support covers Markdown.
 Python docstrings and Rust documentation comments remain in the stable v1
 syntax vocabulary, but their extractors currently report unsupported-syntax
 errors. Markdown with JSX (MDX) remains preview-only, canonical JSON remains
-required for `dump-ir`, fixtures, and compatibility review, and English is the
-only formally supported v1 locale.[^2]
+required for the Markdown IR bridge, `dump-ir`, fixtures, and compatibility
+review, and English is the only formally supported v1 locale.[^2]
 
 - Rust owns source-oriented work:
   - file-format-aware parsing
@@ -438,11 +438,27 @@ python/stilyagi/engine/extraction.py
   -> crates/stilyagi-extract/src/lib.rs
 ```
 
-That split is deliberate. `crates/stilyagi-extract/` owns the partial
-document-shaped extraction result and the syntax gate. `crates/stilyagi-pyext/`
-translates between Rust types and a Python-owned bridge payload. The public
-Python surface then adapts that payload into `stilyagi.model.Document` and
-`stilyagi.model.Region`.
+That split is deliberate. Rust owns extraction mechanics, source-fidelity
+metadata, IR construction, and FFI adapter mechanics for exposing stable engine
+building blocks. Python owns the public model, package-level orchestration, and
+policy layer. The public Python surface adapts Rust bridge output into
+`stilyagi.model.Document`, `stilyagi.model.Region`, and the optional
+`Document.ir` mapping without moving user-facing policy into the extension
+crate.
+
+String-only extraction uses anonymous IR source identity: `document.path` and
+`document.uri` are serialized as `null` instead of synthetic memory paths or
+URIs. Callers with real file context should use the identity-aware extraction
+API once the relevant adapter or CLI surface exposes it, so source identity is
+supplied at the boundary rather than invented inside the IR domain.
+
+The `crates/stilyagi-ir` crate owns the syntax-neutral IR vocabulary and
+document envelope. The `crates/stilyagi-markdown` crate owns the first concrete
+IR producer and is responsible for translating Markdown parser output into that
+shared envelope. Future Python docstring and Rust documentation comment
+producers must emit the same `IrDocument` shape, but they are intentionally not
+implemented in PR #15 and unsupported syntaxes must not receive placeholder IR
+payloads.
 
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine
@@ -475,17 +491,18 @@ current skeleton:
   - smallest shared Rust library boundary used by the bridge today
   - current home of the Rust-backed smoke behaviour
 - `crates/stilyagi-ir`
-  - reserved home for the stable intermediate representation (IR) types and
-    adapters described by RFC 0001
+  - owns the syntax-neutral intermediate representation (IR) vocabulary,
+    canonical envelope, and adapters described by RFC 0001
 - `crates/stilyagi-markdown`
-  - reserved home for Markdown-specific extraction and flattening logic
+  - owns the first concrete IR producer: Markdown-specific extraction and
+    flattening logic
 - `crates/stilyagi-tree-sitter`
   - reserved home for tree-sitter integration and syntax-tree helpers
 - `crates/stilyagi-extract`
   - home for cross-syntax extraction orchestration that composes the lower-level
     crates
-  - now owns the first minimal `extract_document(...)` proof used by the PyO3
-    bridge
+  - now owns the `extract_document(...)` path used by the PyO3 bridge,
+    including Markdown IR attachment
 - `python/stilyagi/__init__.py`
   - public Python package surface that re-exports the supported package
     boundaries and imports the embedded Rust extension
