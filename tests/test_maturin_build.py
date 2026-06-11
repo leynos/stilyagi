@@ -236,6 +236,15 @@ def _parse_wheel_header(wheel_payload: str, whl_path: pathlib.Path) -> tuple[str
     return generator_match.group(1), root_is_purelib
 
 
+@pytest.fixture(scope="module")
+def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
+    """Build the native maturin wheel once for module-level compatibility tests."""
+    if not toolchain_available():
+        pytest.skip("Rust toolchain or maturin unavailable.")
+    wheelhouse = tmp_path_factory.mktemp("wheelhouse")
+    return build_native_wheel_artifact(REPOSITORY_ROOT, wheelhouse)
+
+
 def test_maturin_pins_are_synchronized() -> None:
     """Maturin version pins stay aligned across build-system declarations."""
     pins = read_maturin_pins(REPOSITORY_ROOT)
@@ -255,17 +264,12 @@ def test_installed_maturin_matches_expected_pin() -> None:
 
 @pytest.mark.timeout(0)
 def test_maturin_wheel_build_snapshot(
-    tmp_path: pathlib.Path,
+    built_wheel: pathlib.Path,
     snapshot: SnapshotAssertion,
 ) -> None:
     """Native wheel metadata and layout match the expected maturin output."""
-    if not toolchain_available():
-        pytest.skip("Rust toolchain or maturin unavailable.")
-
     expected = read_expected_maturin_version(REPOSITORY_ROOT)
-    wheel_path = build_native_wheel_artifact(REPOSITORY_ROOT, tmp_path / "wheelhouse")
-    snapshot_payload = wheel_build_snapshot(wheel_path)
-
+    snapshot_payload = wheel_build_snapshot(built_wheel)
     assert snapshot_payload["generator"] == expected, (
         f"Expected generator {expected!r}, found {snapshot_payload['generator']!r}"
     )
@@ -275,12 +279,11 @@ def test_maturin_wheel_build_snapshot(
 
 
 @pytest.mark.timeout(0)
-def test_maturin_wheel_executes_correctly(tmp_path: pathlib.Path) -> None:
+def test_maturin_wheel_executes_correctly(
+    tmp_path: pathlib.Path,
+    built_wheel: pathlib.Path,
+) -> None:
     """The native wheel can be installed and its extension imported at runtime."""
-    if not toolchain_available():
-        pytest.skip("Rust toolchain or maturin unavailable.")
-
-    wheel_path = build_native_wheel_artifact(REPOSITORY_ROOT, tmp_path / "wheelhouse")
     install_dir = tmp_path / "install"
     install_dir.mkdir()
 
@@ -293,7 +296,7 @@ def test_maturin_wheel_executes_correctly(tmp_path: pathlib.Path) -> None:
             "--target",
             str(install_dir),
             "--no-deps",
-            str(wheel_path),
+            str(built_wheel),
         ],
         check=True,
     )
