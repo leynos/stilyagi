@@ -225,6 +225,9 @@ def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
     """Build the native maturin wheel once for module-level compatibility tests."""
     if not _toolchain_available():
         pytest.skip("Rust toolchain or maturin unavailable.")
+    expected_maturin = _read_expected_maturin_version(REPOSITORY_ROOT)
+    if (installed_maturin := _installed_maturin_version()) != expected_maturin:
+        pytest.skip(f"maturin pin {expected_maturin} != active {installed_maturin!r}.")
     wheelhouse = tmp_path_factory.mktemp("wheelhouse")
     return _build_native_wheel_artifact(REPOSITORY_ROOT, wheelhouse)
 

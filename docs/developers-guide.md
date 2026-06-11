@@ -40,7 +40,8 @@ The minimum local setup is:
 - Python 3.14 available to `uv`
 - Rust toolchain with `cargo`, `rustfmt`, and `clippy`
 - `uv`
-- `maturin` 1.13.3
+- `pyproject.toml` hard-pins maturin as
+  `build-system.requires = ["maturin==1.13.3"]`
 - `whitaker`
 - `pypy`, or a `uv`-managed PyPy interpreter for `pylint-pypy-shim`
 - `markdownlint-cli2`
@@ -498,9 +499,9 @@ The PyO3 bridge crate also uses
 macro patterns at compile time. The UI fixtures live under
 `crates/stilyagi-pyext/tests/ui/`:
 
-- `tests/ui/pass/` contains Rust files that must compile.
-- `tests/ui/fail/` contains Rust files that must fail with diagnostics matching
-  the corresponding `.stderr` file.
+- `pass/` contains Rust files that must compile.
+- `fail/` contains Rust files that must fail with diagnostics matching the
+  corresponding `.stderr` file.
 
 Run the compile-time UI tests with:
 
