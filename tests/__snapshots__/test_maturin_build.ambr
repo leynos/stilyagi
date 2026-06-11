@@ -43,7 +43,9 @@
     }),
     'wheel': dict({
       'root_is_purelib': 'false',
-      'tag': '<platform-tag>',
+      'tag': list([
+        'cp314-cp314-<platform>',
+      ]),
     }),
   })
 # ---

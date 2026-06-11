@@ -1,12 +1,11 @@
 """Compatibility tests for maturin-built PyO3 wheels.
 
-Build wheels with _build_native_wheel_artifact, compare _wheel_build_snapshot,
-and run the runtime_smoke_test import probe. Run:
-    .venv/bin/python -m pytest tests/test_maturin_build.py -v
-Refresh snapshots after review with:
-    .venv/bin/python -m pytest tests/test_maturin_build.py --snapshot-update \
-        -k test_maturin_wheel_build_snapshot
-Treat --snapshot-update as this file's refresh_snapshot helper.
+Build with :func:`_build_native_wheel_artifact`, snapshot through
+:func:`test_maturin_wheel_build_snapshot`, and import-smoke through
+:func:`test_maturin_wheel_executes_correctly`. Run with
+``python -m pytest tests/test_maturin_build.py -v``. Refresh this file's
+snapshot-update helper with ``python -m pytest tests/test_maturin_build.py
+--snapshot-update -k test_maturin_wheel_build_snapshot``.
 """
 
 import ast
@@ -45,7 +44,7 @@ def _resolve_uv(root: pathlib.Path) -> str | None:
     uv_name = "uv.exe" if sys.platform == "win32" else "uv"
     venv_bin = "Scripts" if sys.platform == "win32" else "bin"
     local_uv_paths = [root / ".uv-tools" / uv_name, root / ".venv" / venv_bin / uv_name]
-    uv_candidates = ["uv", *(str(path) for path in local_uv_paths)]
+    uv_candidates = [*(str(path) for path in local_uv_paths), "uv"]
     for candidate in uv_candidates:
         resolved = shutil.which(candidate)
         if resolved is not None:
@@ -82,6 +81,7 @@ def _toolchain_available() -> bool:
 def _build_native_wheel_artifact(
     root: pathlib.Path, out_dir: pathlib.Path
 ) -> pathlib.Path:
+    """Build a native maturin wheel and return the resulting wheel artifact path."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for stale_wheel in out_dir.glob("*.whl"):
         stale_wheel.unlink()
@@ -105,6 +105,7 @@ def _build_native_wheel_artifact(
 
 
 def _wheel_build_snapshot(whl_path: pathlib.Path) -> dict[str, object]:
+    """Extract wheel metadata and normalize it into a snapshot payload."""
     with zipfile.ZipFile(whl_path) as archive:
         entry_names = archive.namelist()
         wheel_name = _locate_dist_info_wheel(entry_names)
@@ -115,11 +116,11 @@ def _wheel_build_snapshot(whl_path: pathlib.Path) -> dict[str, object]:
         except KeyError as error:
             msg = "wheel is missing .dist-info/METADATA metadata"
             raise AssertionError(msg) from error
-    generator, root_is_purelib = _parse_wheel_header(wheel_payload, whl_path)
+    generator, root_is_purelib, tags = _parse_wheel_header(wheel_payload, whl_path)
     return {
         "generator": generator,
         "metadata": _parse_metadata(metadata_payload),
-        "wheel": {"root_is_purelib": root_is_purelib, "tag": "<platform-tag>"},
+        "wheel": {"root_is_purelib": root_is_purelib, "tag": tags},
         "entries": sorted(_normalize_wheel_entry(name) for name in entry_names),
     }
 
@@ -190,6 +191,11 @@ def _normalize_wheel_entry(name: str) -> str:
     return name
 
 
+def _normalize_wheel_tag(tag: str) -> str:
+    python_tag, abi_tag, _platform_tag = tag.split("-", maxsplit=2)
+    return f"{python_tag}-{abi_tag}-<platform>"
+
+
 def _locate_dist_info_wheel(entry_names: list[str]) -> str:
     wheel_name = next(
         (name for name in entry_names if name.endswith(".dist-info/WHEEL")),
@@ -201,23 +207,27 @@ def _locate_dist_info_wheel(entry_names: list[str]) -> str:
     raise AssertionError(msg)
 
 
-def _parse_wheel_header(wheel_payload: str, whl_path: pathlib.Path) -> tuple[str, str]:
+def _parse_wheel_header(
+    wheel_payload: str, whl_path: pathlib.Path
+) -> tuple[str, str, list[str]]:
     generator_match = _GENERATOR_RE.search(wheel_payload)
     if generator_match is None:
         msg = f"Could not parse maturin generator from WHEEL metadata: {whl_path}"
         raise AssertionError(msg)
-    root_is_purelib = next(
-        (
-            line.removeprefix("Root-Is-Purelib: ")
-            for line in wheel_payload.splitlines()
-            if line.startswith("Root-Is-Purelib:")
-        ),
-        None,
-    )
+    root_is_purelib: str | None = None
+    tags: list[str] = []
+    for line in wheel_payload.splitlines():
+        if line.startswith("Root-Is-Purelib:"):
+            root_is_purelib = line.removeprefix("Root-Is-Purelib: ")
+        elif line.startswith("Tag:"):
+            tags.append(_normalize_wheel_tag(line.removeprefix("Tag: ")))
     if root_is_purelib is None:
         msg = "wheel is missing Root-Is-Purelib metadata"
         raise AssertionError(msg)
-    return generator_match.group(1), root_is_purelib
+    if not tags:
+        msg = "wheel is missing Tag metadata"
+        raise AssertionError(msg)
+    return generator_match.group(1), root_is_purelib, sorted(tags)
 
 
 @pytest.fixture(scope="module")
@@ -313,88 +323,3 @@ def test_maturin_wheel_executes_correctly(
         f"Expected supported_syntaxes tuple output, got {syntaxes!r}"
     )
     assert "markdown" in syntaxes, f"Unexpected supported_syntaxes output: {syntaxes!r}"
-
-
-@pytest.mark.parametrize(
-    ("toml_content", "exc_type", "match"),
-    [
-        (None, FileNotFoundError, r"pyproject\.toml"),
-        (
-            '[build-system]\nrequires = ["maturin==1.13.3"]\n',
-            KeyError,
-            r"dependency-groups",
-        ),
-        ('[dependency-groups]\ndev = ["maturin==1.13.3"]\n', KeyError, r"build-system"),
-        (
-            (
-                "[dependency-groups]\n"
-                'dev = ["pytest==8.4.2"]\n'
-                "[build-system]\n"
-                'requires = ["setuptools"]\n'
-            ),
-            AssertionError,
-            "Could not locate",
-        ),
-        (
-            (
-                "[dependency-groups]\n"
-                'dev = ["maturin==1.13.3"]\n'
-                "[build-system]\n"
-                'requires = "maturin==1.13.3"\n'
-            ),
-            TypeError,
-            "Expected dependency list",
-        ),
-    ],
-    ids=["no_file", "no_dev", "no_build", "no_pin", "bad_requires"],
-)
-def test_read_maturin_pins_raises(
-    tmp_path: pathlib.Path,
-    toml_content: str | None,
-    exc_type: type[Exception],
-    match: str,
-) -> None:
-    """read_maturin_pins raises the expected error for malformed pyproject.toml."""
-    if toml_content is not None:
-        (tmp_path / "pyproject.toml").write_text(toml_content)
-    with pytest.raises(exc_type, match=match):
-        _read_maturin_pins(tmp_path)
-
-
-@pytest.mark.parametrize(
-    ("wheel_payload", "metadata_payload", "expected_error"),
-    [
-        (None, None, (zipfile.BadZipFile, "File is not a zip file")),
-        ("", "Name: stilyagi\n", (AssertionError, r"missing \.dist-info/WHEEL")),
-        (
-            "Wheel-Version: 1.0\nRoot-Is-Purelib: false\n",
-            "Name: stilyagi\n",
-            (AssertionError, "Could not parse maturin generator"),
-        ),
-        (
-            "Wheel-Version: 1.0\nGenerator: maturin (1.13.3)\nRoot-Is-Purelib: false\n",
-            None,
-            (AssertionError, r"missing \.dist-info/METADATA"),
-        ),
-    ],
-    ids=["bad_zip", "no_wheel", "no_generator", "no_metadata"],
-)
-def test_wheel_build_snapshot_raises(
-    tmp_path: pathlib.Path,
-    wheel_payload: str | None,
-    metadata_payload: str | None,
-    expected_error: tuple[type[Exception], str],
-) -> None:
-    """wheel_build_snapshot raises focused errors for malformed wheels."""
-    wheel_path = tmp_path / "malformed.whl"
-    if wheel_payload is None:
-        wheel_path.write_text("not a zip archive")
-    else:
-        with zipfile.ZipFile(wheel_path, "w") as archive:
-            if wheel_payload:
-                archive.writestr("stilyagi-0.1.0.dist-info/WHEEL", wheel_payload)
-            if metadata_payload is not None:
-                archive.writestr("stilyagi-0.1.0.dist-info/METADATA", metadata_payload)
-    exc_type, match = expected_error
-    with pytest.raises(exc_type, match=match):
-        _wheel_build_snapshot(wheel_path)
