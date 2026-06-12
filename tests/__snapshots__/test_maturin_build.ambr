@@ -1,0 +1,51 @@
+# serializer version: 1
+# name: test_maturin_wheel_build_snapshot
+  dict({
+    'entries': list([
+      'stilyagi-<version>.dist-info/METADATA',
+      'stilyagi-<version>.dist-info/RECORD',
+      'stilyagi-<version>.dist-info/WHEEL',
+      'stilyagi-<version>.dist-info/sboms/<sbom>.cyclonedx.json',
+      'stilyagi/__init__.py',
+      'stilyagi/_stilyagi_rs.cpython-<platform>.<ext>',
+      'stilyagi/_stilyagi_rs.pyi',
+      'stilyagi/cli.py',
+      'stilyagi/config.py',
+      'stilyagi/diagnostics.py',
+      'stilyagi/engine/__init__.py',
+      'stilyagi/engine/extraction.py',
+      'stilyagi/engine/fixes.py',
+      'stilyagi/engine/planner.py',
+      'stilyagi/engine/renderers.py',
+      'stilyagi/engine/runner.py',
+      'stilyagi/model/__init__.py',
+      'stilyagi/model/document.py',
+      'stilyagi/model/region.py',
+      'stilyagi/model/sentence.py',
+      'stilyagi/model/token.py',
+      'stilyagi/nlp/__init__.py',
+      'stilyagi/nlp/base.py',
+      'stilyagi/nlp/spacy_provider.py',
+      'stilyagi/plugins.py',
+      'stilyagi/rules/__init__.py',
+      'stilyagi/rules/builtin/__init__.py',
+      'stilyagi/smoke.py',
+    ]),
+    'generator': '1.13.3',
+    'metadata': dict({
+      'classifiers': list([
+      ]),
+      'name': 'stilyagi',
+      'requires_dist': list([
+      ]),
+      'requires_python': '>=3.14',
+      'version': '0.1.0',
+    }),
+    'wheel': dict({
+      'root_is_purelib': 'false',
+      'tag': list([
+        'cp314-cp314-<platform>',
+      ]),
+    }),
+  })
+# ---

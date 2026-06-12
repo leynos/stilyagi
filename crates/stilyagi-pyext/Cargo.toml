@@ -22,6 +22,7 @@ rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true
 serde_json.workspace = true
 stilyagi-test-support = { path = "../stilyagi-test-support" }
+trybuild.workspace = true
 
 [lints]
 workspace = true

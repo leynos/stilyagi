@@ -40,7 +40,8 @@ The minimum local setup is:
 - Python 3.14 available to `uv`
 - Rust toolchain with `cargo`, `rustfmt`, and `clippy`
 - `uv`
-- `maturin` 1.9.4 or newer
+- `pyproject.toml` hard-pins maturin as
+  `build-system.requires = ["maturin==1.13.3"]`
 - `whitaker`
 - `pypy`, or a `uv`-managed PyPy interpreter for `pylint-pypy-shim`
 - `markdownlint-cli2`
@@ -474,10 +475,52 @@ For local testing, the workspace intentionally no longer enables
 guidance for modern `maturin` releases is to let the build backend manage the
 extension-module build mode so `cargo test` can still link and execute the Rust
 test binaries.[^3] Because this now relies on the packaging backend exporting
-`PYO3_BUILD_EXTENSION_MODULE`, the repository requires `maturin` 1.9.4 or newer
-in both the build-system and dev-tooling dependencies.
+`PYO3_BUILD_EXTENSION_MODULE`, the repository pins maturin in both the
+build-system and dev-tooling dependencies.
 
-### 4.1 Current mixed-package skeleton
+### 4.1 Maturin and PyO3 compatibility tests
+
+The repository pins maturin in both `pyproject.toml`
+`[dependency-groups].dev` and `[build-system].requires`. Keep those pins in
+sync when updating maturin. The Python tests in `tests/test_maturin_build.py`
+validate that contract, assert that the installed maturin module matches the
+pin, and build a native wheel whose normalized metadata and layout are compared
+with a syrupy snapshot.
+
+To refresh the native wheel snapshot after a maturin or PyO3 update, run:
+
+```bash
+uv run --group dev pytest tests/test_maturin_build.py \
+    --snapshot-update -k test_maturin_wheel_build_snapshot
+```
+
+The PyO3 bridge crate also uses
+[trybuild](https://github.com/dtolnay/trybuild) to validate representative
+macro patterns at compile time. The UI fixtures live under
+`crates/stilyagi-pyext/tests/ui/`:
+
+- `pass/` contains Rust files that must compile.
+- `fail/` contains Rust files that must fail with diagnostics matching the
+  corresponding `.stderr` file.
+
+Run the compile-time UI tests with:
+
+```bash
+cargo test --manifest-path Cargo.toml -p stilyagi-pyext compile_time_ui
+```
+
+If a PyO3 or compiler upgrade intentionally changes compile-fail diagnostics,
+refresh the expectation files with:
+
+```bash
+TRYBUILD=overwrite cargo test --manifest-path Cargo.toml \
+    -p stilyagi-pyext compile_time_ui
+```
+
+Inspect the updated `.stderr` files before committing to confirm that the fail
+test still represents a genuine PyO3 contract violation.
+
+### 4.2 Current mixed-package skeleton
 
 The general architecture above now maps to concrete repository modules and
 crates. Maintainers should use these names when discussing or extending the

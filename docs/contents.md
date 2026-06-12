@@ -54,6 +54,10 @@
     execplans/1-3-3-cold-and-warm-baseline-performance-probes.md)
     plans the repository-local cold and warm structural performance probes
     that let later slices preserve the structural fast path.
+  - [maturin and PyO3 compatibility tests](
+    execplans/maturin-pyo3-test-upgrade.md)
+    plans the maturin pin update, native wheel snapshot coverage, and PyO3
+    compile-time compatibility tests that support future build-tool upgrades.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.

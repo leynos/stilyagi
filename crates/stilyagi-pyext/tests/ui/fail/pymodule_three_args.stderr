@@ -1,0 +1,31 @@
+error[E0277]: the trait bound `pyo3::Python<'_>: From<pyo3::impl_::pymethods::BoundRef<'_, '_, PyModule>>` is not satisfied
+ --> tests/ui/fail/pymodule_three_args.rs:9:1
+  |
+9 | #[pymodule]
+  | ^^^^^^^^^^^ the trait `From<pyo3::impl_::pymethods::BoundRef<'_, '_, PyModule>>` is not implemented for `pyo3::Python<'_>`
+  |
+  = note: required for `pyo3::impl_::pymethods::BoundRef<'_, '_, PyModule>` to implement `Into<pyo3::Python<'_>>`
+  = note: this error originates in the attribute macro `pymodule` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0061]: this function takes 3 arguments but 1 argument was supplied
+  --> tests/ui/fail/pymodule_three_args.rs:10:4
+   |
+ 9 | #[pymodule]
+   | ----------- two arguments of type `&pyo3::Bound<'_, PyModule>` and `i32` are missing
+10 | fn bad_module(
+   |    ^^^^^^^^^^
+   |
+note: function defined here
+  --> tests/ui/fail/pymodule_three_args.rs:10:4
+   |
+10 | fn bad_module(
+   |    ^^^^^^^^^^
+11 |     _py: Python<'_>,
+12 |     _module: &Bound<'_, PyModule>,
+   |     -----------------------------
+13 |     _extra: i32,
+   |     -----------
+help: provide the arguments
+   |
+10 | fn bad_module(#[pymodule], /* &pyo3::Bound<'_, PyModule> */, /* i32 */)(
+   |              ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

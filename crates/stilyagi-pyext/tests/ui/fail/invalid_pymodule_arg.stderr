@@ -1,0 +1,14 @@
+error[E0277]: the trait bound `i32: From<pyo3::impl_::pymethods::BoundRef<'_, '_, PyModule>>` is not satisfied
+ --> tests/ui/fail/invalid_pymodule_arg.rs:9:1
+  |
+9 | #[pymodule]
+  | ^^^^^^^^^^^ the trait `From<pyo3::impl_::pymethods::BoundRef<'_, '_, PyModule>>` is not implemented for `i32`
+  |
+  = help: `i32` implements trait `From<T>`:
+            From<bool>
+            From<i16>
+            From<i8>
+            From<u16>
+            From<u8>
+  = note: required for `pyo3::impl_::pymethods::BoundRef<'_, '_, PyModule>` to implement `Into<i32>`
+  = note: this error originates in the attribute macro `pymodule` (in Nightly builds, run with -Z macro-backtrace for more info)
