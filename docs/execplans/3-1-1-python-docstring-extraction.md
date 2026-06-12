@@ -1052,13 +1052,14 @@ tracking) were resolved in favour of the bounded v1 contract, documented for the
 
 ## Progress
 
-- [ ] (pending) Loaded `leta`, `hexagonal-architecture`, `python-router`, and
-  `rust-router` skills and created the `leta` workspace.
+- [x] (2026-06-12) Loaded `leta`, `hexagonal-architecture`, `python-router`,
+  and `rust-router` skills and created the `leta` workspace.
 - [x] (2026-06-12) Drafted this pre-implementation ExecPlan with agent-team
   reconnaissance, Firecrawl tooling research, and a community-of-experts review
   whose accepted revisions are folded into the plan and Decision Log.
-- [ ] (pending) Renamed the branch to `3-1-1-python-docstring-extraction`,
-  pushed, and opened the draft PR for the execplan.
+- [x] (2026-06-12) Renamed the branch to `3-1-1-python-docstring-extraction`,
+  pushed with upstream tracking, and opened draft PR
+  <https://github.com/leynos/stilyagi/pull/30> for the execplan.
 - [ ] Awaiting user approval to implement.
 - [ ] Stage 0: approval recorded and baseline gates captured.
 - [ ] Stage 1: tree-sitter dependencies and parser spike.
