@@ -1346,6 +1346,7 @@ dependencies = [
  "serde_json",
  "stilyagi-core",
  "stilyagi-extract",
+ "stilyagi-ir",
  "stilyagi-test-support",
  "trybuild",
 ]

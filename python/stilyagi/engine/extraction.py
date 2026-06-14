@@ -12,11 +12,15 @@ Example: `from stilyagi import model`
 """
 
 import json
+import logging
 import typing as typ
 
 from stilyagi import model
 from stilyagi._stilyagi_rs import (
     extract_document as extract_document_bridge,
+)
+from stilyagi._stilyagi_rs import (
+    supported_region_kinds as bridge_supported_region_kinds,
 )
 from stilyagi._stilyagi_rs import supported_syntaxes as bridge_supported_syntaxes
 
@@ -38,6 +42,7 @@ class _BridgeDocument(typ.TypedDict):
 
 _PYTHON_SYNTAX_SPELLINGS = frozenset(syntax.value for syntax in model.Syntax)
 _SYNTAX_VOCAB_VALIDATED = False
+_LOGGER = logging.getLogger(__name__)
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -166,4 +171,24 @@ def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
     if not isinstance(parsed, dict):
         msg = "expected Rust bridge payload['ir_json'] to decode to dict"
         raise TypeError(msg)
+    _warn_unknown_ir_region_kinds(parsed)
     return typ.cast("cabc.Mapping[str, typ.Any]", parsed)
+
+
+def _warn_unknown_ir_region_kinds(ir_payload: dict[str, object]) -> None:
+    """Warn when canonical IR includes a region kind unknown to this adapter."""
+    regions = ir_payload.get("regions")
+    if not isinstance(regions, list):
+        return
+    known_region_kinds = frozenset(bridge_supported_region_kinds())
+    for index, region in enumerate(regions):
+        if not isinstance(region, dict):
+            continue
+        region_dict = typ.cast("dict[str, object]", region)
+        kind = region_dict.get("kind")
+        if isinstance(kind, str) and kind not in known_region_kinds:
+            _LOGGER.warning(
+                "Unknown IR region kind from Rust bridge at index %s: %s",
+                index,
+                kind,
+            )

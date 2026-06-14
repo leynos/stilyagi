@@ -862,7 +862,8 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   2026-06-14.
 - [x] Stage 4: malformed, CRLF, adversarial, `proptest`, and BDD coverage.
   Implemented, locally gated, and CodeRabbit review attempted on 2026-06-14.
-- [ ] Stage 5: bridge parity and `supported_region_kinds()`.
+- [x] Stage 5: bridge parity and `supported_region_kinds()`. Implemented and
+  locally gated, and CodeRabbit review attempted on 2026-06-14.
 - [ ] Stage 6: ADR, RFC amendment, guides, and roadmap completion.
 
 ## Surprises & Discoveries
@@ -990,6 +991,34 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   Impact: CodeRabbit concerns were again unavailable; deterministic gates
   remained green and no rate-limit response was emitted.
 
+- Observation: Stage 5 exposes the canonical IR region-kind vocabulary through
+  `stilyagi._stilyagi_rs.supported_region_kinds()` and validates canonical IR
+  region kinds in the Python adapter with a warn-and-preserve policy for
+  unknown future kinds. Evidence:
+  `/tmp/build-stage5-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/pytest-stage5-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/check-fmt-stage5-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/typecheck-stage5-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/lint-stage5-stilyagi-2-1-2-golden-fixture-coverage.out`, and
+  `/tmp/test-stage5-stilyagi-2-1-2-golden-fixture-coverage.out` all passed.
+  Impact: Python can query the Rust IR vocabulary, and future IR kinds are
+  observable without breaking existing callers.
+
+- Observation: the legacy Python `Document.regions` compatibility list still
+  carries `stilyagi-extract`'s coarse `document` kind, which is not part of
+  `stilyagi-ir::RegionKind::ALL`. Evidence:
+  `crates/stilyagi-extract/src/lib.rs` defines the bridge `RegionKind::Document`
+  separately from the canonical IR region vocabulary. Impact: Stage 5 applies
+  unknown-kind warnings only to canonical `Document.ir["regions"]`, avoiding a
+  warning on every current Markdown extraction.
+
+- Observation: the Stage 5 `coderabbit review --agent` run repeated the
+  sandbox-setup hang seen in earlier review attempts. Evidence: the run emitted
+  `preparing_sandbox`, stayed silent for more than two minutes, and PID
+  `1530011` was terminated after confirming it belonged to this worktree.
+  Impact: CodeRabbit concerns were again unavailable; deterministic gates
+  remained green and no rate-limit response was emitted.
+
 ## Decision Log
 
 - Decision: keep `Status: DRAFT` and block implementation until explicit
@@ -1056,6 +1085,13 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   2026-06-14, implementation agent.
 
 - Decision: continue after Stage 4 despite unavailable CodeRabbit output.
+  Rationale: all applicable deterministic gates passed; CodeRabbit was
+  requested after the milestone and again produced no findings or rate-limit
+  response before hanging at sandbox setup; the hung process was limited to
+  this worktree and terminated without affecting other agents. Date/Author:
+  2026-06-14, implementation agent.
+
+- Decision: continue after Stage 5 despite unavailable CodeRabbit output.
   Rationale: all applicable deterministic gates passed; CodeRabbit was
   requested after the milestone and again produced no findings or rate-limit
   response before hanging at sandbox setup; the hung process was limited to

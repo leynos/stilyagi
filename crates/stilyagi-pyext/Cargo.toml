@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib"]
 pyo3.workspace = true
 stilyagi-core = { path = "../stilyagi-core" }
 stilyagi-extract = { path = "../stilyagi-extract" }
+stilyagi-ir = { path = "../stilyagi-ir" }
 
 [dev-dependencies]
 rstest.workspace = true

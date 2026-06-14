@@ -7,6 +7,7 @@ use stilyagi_core::smoke_hello;
 use stilyagi_extract::{
     ExtractError, ExtractSyntax, extract_document as extract_document_from_rust,
 };
+use stilyagi_ir::RegionKind as IrRegionKind;
 
 /// Return a simple Rust-side greeting for smoke-testing the extension bridge.
 #[pyfunction]
@@ -27,6 +28,18 @@ fn supported_syntaxes_py(py: Python<'_>) -> PyResult<Py<PyTuple>> {
         .collect::<Vec<_>>();
 
     Ok(PyTuple::new(py, syntax_items)?.unbind())
+}
+
+/// Return the stable IR region-kind spellings exported by the Rust bridge.
+#[pyfunction(name = "supported_region_kinds")]
+fn supported_region_kinds_py(py: Python<'_>) -> PyResult<Py<PyTuple>> {
+    let region_kind_items = IrRegionKind::ALL
+        .iter()
+        .copied()
+        .map(IrRegionKind::as_str)
+        .collect::<Vec<_>>();
+
+    Ok(PyTuple::new(py, region_kind_items)?.unbind())
 }
 
 /// Return the minimal extraction payload through the `PyO3` extension boundary.
@@ -74,6 +87,7 @@ fn map_extract_error(error: &ExtractError) -> PyErr {
 fn _stilyagi_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(extract_document_py, m)?)?;
     m.add_function(wrap_pyfunction!(hello, m)?)?;
+    m.add_function(wrap_pyfunction!(supported_region_kinds_py, m)?)?;
     m.add_function(wrap_pyfunction!(supported_syntaxes_py, m)?)?;
     Ok(())
 }
@@ -83,12 +97,16 @@ mod bridge_bdd;
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_document_py, hello, map_extract_error, supported_syntaxes_py};
+    use super::{
+        extract_document_py, hello, map_extract_error, supported_region_kinds_py,
+        supported_syntaxes_py,
+    };
     use pyo3::exceptions::{PyRuntimeError, PyValueError};
     use pyo3::prelude::{Py, PyErr, PyResult, Python};
     use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
     use rstest::rstest;
     use stilyagi_extract::{ExtractError, ExtractSyntax, MarkdownIrFailure};
+    use stilyagi_ir::RegionKind as IrRegionKind;
 
     fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
         Python::attach(|py| extract_document_py(py, source, syntax))
@@ -184,6 +202,46 @@ mod tests {
                     .unwrap_or_else(|error| panic!("missing third syntax: {error}"))
                     .extract::<&str>()
                     .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                "rust_doc_comment",
+            );
+        });
+    }
+
+    #[rstest]
+    fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
+        Python::attach(|py| {
+            let region_tuple_result = supported_region_kinds_py(py);
+
+            assert!(region_tuple_result.is_ok());
+            let supported_regions = match region_tuple_result {
+                Ok(region_tuple) => region_tuple,
+                Err(error) => panic!("unexpected supported_region_kinds failure: {error}"),
+            };
+            let supported_regions_bound = supported_regions.bind(py);
+            let supported_region_tuple = supported_regions_bound
+                .cast::<PyTuple>()
+                .unwrap_or_else(|error| panic!("expected PyTuple but got {error}"));
+
+            assert_eq!(
+                supported_region_tuple
+                    .len()
+                    .unwrap_or_else(|error| panic!("expected tuple length: {error}")),
+                IrRegionKind::ALL.len(),
+            );
+            assert_eq!(
+                supported_region_tuple
+                    .get_item(0)
+                    .unwrap_or_else(|error| panic!("missing first region kind: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected region kind string: {error}")),
+                "heading",
+            );
+            assert_eq!(
+                supported_region_tuple
+                    .get_item(IrRegionKind::ALL.len() - 1)
+                    .unwrap_or_else(|error| panic!("missing final region kind: {error}"))
+                    .extract::<&str>()
+                    .unwrap_or_else(|error| panic!("expected region kind string: {error}")),
                 "rust_doc_comment",
             );
         });

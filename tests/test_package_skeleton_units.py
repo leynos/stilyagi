@@ -2,11 +2,13 @@
 
 import dataclasses as dc
 import json
+import logging
 import pathlib
 import typing as typ
 
 import pytest
 import stilyagi
+import stilyagi.engine.extraction as extraction_module
 from stilyagi import cli, config, diagnostics, engine, model, nlp, plugins, rules
 from stilyagi.nlp import spacy_provider
 
@@ -162,6 +164,57 @@ def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
         model.Syntax.PYTHON_DOCSTRING.value,
         model.Syntax.RUST_DOC_COMMENT.value,
     )
+
+
+def test_engine_bridge_region_kind_spellings_match_the_rust_ir_vocab() -> None:
+    """Expose the canonical Rust IR region kind spellings to Python."""
+    from stilyagi._stilyagi_rs import supported_region_kinds
+
+    assert supported_region_kinds() == (
+        "heading",
+        "paragraph",
+        "list_item",
+        "blockquote",
+        "table_cell",
+        "frontmatter",
+        "frontmatter_field",
+        "image_alt",
+        "link_title",
+        "python_docstring",
+        "rust_doc_comment",
+    )
+
+
+def test_engine_extract_document_warns_and_preserves_unknown_ir_region_kind(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Warn on unknown canonical IR kinds without rejecting the payload."""
+
+    def bridge_payload(source: str, syntax: str) -> dict[str, object]:
+        assert source == "Example"
+        assert syntax == model.Syntax.MARKDOWN.value
+        return {
+            "syntax": syntax,
+            "regions": [],
+            "ir_json": json.dumps({
+                "schema_version": "1.0.0",
+                "regions": [{"kind": "future_kind", "text": "Example"}],
+            }),
+        }
+
+    monkeypatch.setattr(extraction_module, "extract_document_bridge", bridge_payload)
+    caplog.set_level(logging.WARNING, logger="stilyagi.engine.extraction")
+
+    document = engine.extract_document("Example", model.Syntax.MARKDOWN)
+
+    assert document.ir is not None
+    assert document.ir["regions"] == [{"kind": "future_kind", "text": "Example"}]
+    assert [
+        record.message
+        for record in caplog.records
+        if record.name == "stilyagi.engine.extraction"
+    ] == ["Unknown IR region kind from Rust bridge at index 0: future_kind"]
 
 
 @pytest.mark.parametrize(
