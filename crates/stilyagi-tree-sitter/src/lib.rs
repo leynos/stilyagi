@@ -6,6 +6,8 @@ pub struct TreeSitterBoundary;
 
 #[cfg(test)]
 mod tests {
+    //! Tests for the placeholder tree-sitter extraction boundary marker.
+
     use super::TreeSitterBoundary;
 
     /// Keep the marker type default stable and comparable.

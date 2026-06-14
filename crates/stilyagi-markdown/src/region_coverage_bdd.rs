@@ -2,13 +2,12 @@
 
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
-use std::fs;
 use std::path::Path;
 
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use stilyagi_ir::{RegionKind, SourceIdentity};
-use stilyagi_test_support::{corpus_fixture_path, read_corpus_fixture, repository_root};
+use stilyagi_test_support::{fixture_paths_in, read_corpus_fixture};
 
 use crate::markdown_ir_document;
 
@@ -35,14 +34,15 @@ fn valid_markdown_fixture_corpus_is_extracted(region_coverage_state: &mut Region
     region_coverage_state.emitted_kinds = valid_markdown_fixture_paths()
         .into_iter()
         .flat_map(|relative_path| {
-            let source = read_corpus_fixture(&relative_path)
-                .unwrap_or_else(|error| panic!("expected readable Markdown fixture: {error}"));
+            let source = must_read_fixture(&relative_path);
             let identity = SourceIdentity::new(
                 Some(relative_path.clone()),
                 Some(format!("file:///{relative_path}")),
             );
-            let document = markdown_ir_document(&source, identity)
-                .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+            let document = match markdown_ir_document(&source, identity) {
+                Ok(document) => document,
+                Err(error) => panic!("expected Markdown IR document: {error}"),
+            };
 
             document
                 .regions
@@ -89,25 +89,26 @@ fn promised_markdown_region_kinds() -> BTreeSet<&'static str> {
 }
 
 fn valid_markdown_fixture_paths() -> Vec<String> {
-    let valid_dir = corpus_fixture_path("tests/fixtures/corpus/markdown/valid")
-        .unwrap_or_else(|error| panic!("expected valid Markdown fixture directory: {error}"));
-    let mut paths = fs::read_dir(valid_dir)
-        .unwrap_or_else(|error| panic!("expected readable Markdown fixture directory: {error}"))
-        .map(|entry| {
-            entry
-                .unwrap_or_else(|error| panic!("expected Markdown fixture entry: {error}"))
-                .path()
-        })
-        .filter(|path| is_markdown_fixture(path))
-        .map(|path| {
-            path.strip_prefix(repository_root())
-                .unwrap_or_else(|error| panic!("expected repository-relative fixture: {error}"))
-                .to_string_lossy()
-                .replace('\\', "/")
-        })
+    let mut paths = must_list_fixture_paths("tests/fixtures/corpus/markdown/valid")
+        .into_iter()
+        .filter(|path| is_markdown_fixture(Path::new(path)))
         .collect::<Vec<_>>();
     paths.sort();
     paths
+}
+
+fn must_read_fixture(relative_path: &str) -> String {
+    match read_corpus_fixture(relative_path) {
+        Ok(source) => source,
+        Err(error) => panic!("expected readable Markdown fixture: {error}"),
+    }
+}
+
+fn must_list_fixture_paths(relative_dir: &str) -> Vec<String> {
+    match fixture_paths_in(relative_dir) {
+        Ok(paths) => paths,
+        Err(error) => panic!("expected readable Markdown fixture directory: {error}"),
+    }
 }
 
 fn is_markdown_fixture(path: &Path) -> bool {

@@ -842,8 +842,12 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
 - [x] Stage 5: bridge parity and `supported_region_kinds()`. Implemented and
   locally gated, and CodeRabbit review attempted on 2026-06-14.
 - [x] Stage 6: ADR, RFC amendment, guides, and roadmap completion.
-  Implemented and locally gated, and CodeRabbit review attempted on
-  2026-06-14.
+  Implemented and locally gated, and CodeRabbit review attempted on 2026-06-14.
+- [x] (2026-06-14) Imported the Catnap Rust lint policy for this branch:
+  `clippy.toml`, all-target/all-feature Clippy and Whitaker enforcement,
+  Rustdoc warning denial, explicit Rust doctests, and CI typecheck/test-runner
+  installation. Full local deterministic gates passed after the import, and
+  CodeRabbit returned no findings.
 
 ## Surprises & Discoveries
 
@@ -1021,6 +1025,37 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   Impact: CodeRabbit concerns were again unavailable; deterministic gates
   remained green and no rate-limit response was emitted.
 
+- Observation: importing Catnap's `clippy.toml` immediately exposed that Rust
+  lint enforcement was incomplete for this repository's current shape. The
+  four-argument threshold, low function-length threshold, and Whitaker rules
+  flagged PyO3 bridge signatures, fixture helpers, validator complexity,
+  `std::fs` fixture access, self-named test modules, missing module docs, and
+  direct panic helpers. Evidence:
+  `/tmp/lint-rust-lint-import-let-else-stilyagi-2-1-2-golden-fixture-coverage.out`
+  shows the final imported Rust lint gate passing after the refactors. Impact:
+  Rust production code, unit tests, integration tests, docs, and doctests are
+  now checked by the same workspace-wide policy.
+
+- Observation: the final imported lint-policy gate sequence passed after the
+  CI and documentation updates. Evidence:
+  `/tmp/check-fmt-rust-lint-import-final-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/markdownlint-rust-lint-import-final-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/nixie-rust-lint-import-final-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/typecheck-rust-lint-import-final2-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/lint-rust-lint-import-final2-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  and
+  `/tmp/test-rust-lint-import-final2-stilyagi-2-1-2-golden-fixture-coverage.out`
+  all exited successfully. Impact: the committed state is gated by formatting,
+  Markdown lint, Mermaid validation, Rust and Python typechecking, Rustdoc,
+  Clippy, Whitaker, nextest, explicit doctests, and pytest.
+
+- Observation: `coderabbit review --agent` completed successfully for the
+  imported lint-policy milestone and emitted no findings. Evidence:
+  `/tmp/coderabbit-rust-lint-import-stilyagi-2-1-2-golden-fixture-coverage.out`
+  records the review context, sandbox preparation, analysis summary, and
+  completed tool phase, with no concern payload. Impact: there are no
+  CodeRabbit concerns to clear before committing this milestone.
+
 ## Decision Log
 
 - Decision: keep `Status: DRAFT` and block implementation until explicit
@@ -1102,6 +1137,15 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   response before hanging at sandbox setup; the hung process was limited to
   this worktree and terminated without affecting other agents. Date/Author:
   2026-06-14, implementation agent.
+
+- Decision: enforce Rust lints through workspace-wide
+  `--all-targets --all-features` Cargo flags, root-level Whitaker,
+  `RUSTDOCFLAGS=-D warnings`, and an explicit `cargo test --doc` step rather
+  than limiting enforcement to the PyO3 crate. Rationale: the user asked
+  whether Rust lints, including function argument count, are correctly
+  enforced; importing Catnap's policy makes those limits deterministic for
+  production code, test code, generated doctest crates, and documentation.
+  Date/Author: 2026-06-14, implementation agent.
 
 ## Outcomes & Retrospective
 

@@ -26,6 +26,8 @@ pub fn content_hash_for(source: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    //! Tests for canonical byte metadata and JSON helper behaviour.
+
     use super::{content_hash_for, line_index_for};
 
     #[test]

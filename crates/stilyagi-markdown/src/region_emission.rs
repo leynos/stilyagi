@@ -8,6 +8,12 @@ use stilyagi_ir::{IrRegion, IrSegment, RegionKind, SegmentOrigin, SourceSpan, Sy
 use crate::builder::{ListContext, MarkdownIrBuilder, StructuralParent};
 use crate::flatten::{SourceNodeId, flatten_region};
 
+struct RegionIdentity<'node> {
+    id: String,
+    kind: RegionKind,
+    node_id: &'node str,
+}
+
 impl MarkdownIrBuilder<'_> {
     pub(super) fn push_preorder_region_for_node(
         &mut self,
@@ -19,11 +25,13 @@ impl MarkdownIrBuilder<'_> {
                 let region_id = self.next_region_id();
                 let kind = RegionKind::ListItem;
                 self.regions.push(self.thin_region(
-                    region_id.clone(),
-                    kind,
+                    RegionIdentity {
+                        id: region_id.clone(),
+                        kind,
+                        node_id,
+                    },
                     list_item_scope(kind.as_str(), list_item, self.list_contexts.last()),
                     list_item_attrs(list_item, self.list_contexts.last()),
-                    node_id,
                 ));
                 Some(StructuralParent {
                     region_id,
@@ -35,11 +43,13 @@ impl MarkdownIrBuilder<'_> {
                 let region_id = self.next_region_id();
                 let kind = RegionKind::Blockquote;
                 self.regions.push(self.thin_region(
-                    region_id.clone(),
-                    kind,
+                    RegionIdentity {
+                        id: region_id.clone(),
+                        kind,
+                        node_id,
+                    },
                     blockquote_scope(kind.as_str(), self.blockquote_depth),
                     blockquote_attrs(self.blockquote_depth),
-                    node_id,
                 ));
                 Some(StructuralParent {
                     region_id,
@@ -68,45 +78,37 @@ impl MarkdownIrBuilder<'_> {
             _ => None,
         };
         if let Some(kind) = region_kind {
-            let kind_name = kind.as_str();
             let region_id = self.next_region_id();
+            let identity = RegionIdentity {
+                id: region_id,
+                kind,
+                node_id,
+            };
             let region = match node {
-                Node::Yaml(_) => self.frontmatter_region(region_id, "yaml", node, node_id),
-                Node::Toml(_) => self.frontmatter_region(region_id, "toml", node, node_id),
-                Node::Image(image) => self.decoded_text_region(
-                    region_id,
-                    kind,
-                    &image.alt,
-                    image_attrs(image),
-                    node_id,
-                ),
+                Node::Yaml(_) => self.frontmatter_region(identity, "yaml", node),
+                Node::Toml(_) => self.frontmatter_region(identity, "toml", node),
+                Node::Image(image) => {
+                    self.decoded_text_region(identity, &image.alt, image_attrs(image))
+                }
                 Node::Link(link) => self.decoded_text_region(
-                    region_id,
-                    kind,
+                    identity,
                     link.title.as_deref().unwrap_or_default(),
                     link_attrs(link),
-                    node_id,
                 ),
-                _ => self.flattened_region(region_id, kind, kind_name, node, node_id),
+                _ => self.flattened_region(identity, node),
             };
             self.regions.push(region);
         }
     }
 
-    fn flattened_region(
-        &self,
-        region_id: String,
-        kind: RegionKind,
-        kind_name: &str,
-        node: &Node,
-        node_id: &str,
-    ) -> IrRegion {
-        let flattened = flatten_region(node, SourceNodeId::new(node_id), self.source);
+    fn flattened_region(&self, identity: RegionIdentity<'_>, node: &Node) -> IrRegion {
+        let kind_name = identity.kind.as_str();
+        let flattened = flatten_region(node, SourceNodeId::new(identity.node_id), self.source);
         let mut attrs = BTreeMap::new();
         if let Node::Heading(heading) = node {
             attrs.insert("depth".to_owned(), serde_json::json!(heading.depth));
         }
-        if kind == RegionKind::TableCell {
+        if identity.kind == RegionKind::TableCell {
             let is_header = self
                 .table_row_contexts
                 .last()
@@ -114,14 +116,14 @@ impl MarkdownIrBuilder<'_> {
             attrs.insert("header".to_owned(), serde_json::json!(is_header));
         }
         IrRegion {
-            id: region_id,
+            id: identity.id,
             kind: kind_name.to_owned(),
             scope: self.scope_for(kind_name, node),
             syntax: "markdown".to_owned(),
             natural_language: None,
             text: flattened.text,
             segments: flattened.segments,
-            origin_nodes: vec![node_id.to_owned()],
+            origin_nodes: vec![identity.node_id.to_owned()],
             owner: None,
             attrs,
             parent_region: self.current_parent_region_id(),
@@ -130,21 +132,19 @@ impl MarkdownIrBuilder<'_> {
 
     fn thin_region(
         &self,
-        region_id: String,
-        kind: RegionKind,
+        identity: RegionIdentity<'_>,
         scope: Vec<String>,
         attrs: BTreeMap<String, serde_json::Value>,
-        node_id: &str,
     ) -> IrRegion {
         IrRegion {
-            id: region_id,
-            kind: kind.as_str().to_owned(),
+            id: identity.id,
+            kind: identity.kind.as_str().to_owned(),
             scope,
             syntax: "markdown".to_owned(),
             natural_language: None,
             text: String::new(),
             segments: Vec::new(),
-            origin_nodes: vec![node_id.to_owned()],
+            origin_nodes: vec![identity.node_id.to_owned()],
             owner: None,
             attrs,
             parent_region: self.current_parent_region_id(),
@@ -153,10 +153,9 @@ impl MarkdownIrBuilder<'_> {
 
     fn frontmatter_region(
         &self,
-        region_id: String,
+        identity: RegionIdentity<'_>,
         format: &str,
         node: &Node,
-        node_id: &str,
     ) -> IrRegion {
         let span = span_from_positioned_node(node);
         let text = span
@@ -173,7 +172,7 @@ impl MarkdownIrBuilder<'_> {
                     text.clone(),
                     SegmentOrigin::Source {
                         span: source_span,
-                        node: node_id.to_owned(),
+                        node: identity.node_id.to_owned(),
                     },
                 )]
             })
@@ -181,7 +180,7 @@ impl MarkdownIrBuilder<'_> {
         let mut attrs = BTreeMap::new();
         attrs.insert("format".to_owned(), serde_json::json!(format));
         IrRegion {
-            id: region_id,
+            id: identity.id,
             kind: RegionKind::Frontmatter.as_str().to_owned(),
             scope: vec![
                 "markdown".to_owned(),
@@ -192,7 +191,7 @@ impl MarkdownIrBuilder<'_> {
             natural_language: None,
             text,
             segments,
-            origin_nodes: vec![node_id.to_owned()],
+            origin_nodes: vec![identity.node_id.to_owned()],
             owner: None,
             attrs,
             parent_region: self.current_parent_region_id(),
@@ -201,11 +200,9 @@ impl MarkdownIrBuilder<'_> {
 
     fn decoded_text_region(
         &self,
-        region_id: String,
-        kind: RegionKind,
+        identity: RegionIdentity<'_>,
         text: &str,
         attrs: BTreeMap<String, serde_json::Value>,
-        node_id: &str,
     ) -> IrRegion {
         let segments = if text.is_empty() {
             Vec::new()
@@ -219,14 +216,14 @@ impl MarkdownIrBuilder<'_> {
             )]
         };
         IrRegion {
-            id: region_id,
-            kind: kind.as_str().to_owned(),
-            scope: self.decoded_text_scope(kind.as_str()),
+            id: identity.id,
+            kind: identity.kind.as_str().to_owned(),
+            scope: self.decoded_text_scope(identity.kind.as_str()),
             syntax: "markdown".to_owned(),
             natural_language: None,
             text: text.to_owned(),
             segments,
-            origin_nodes: vec![node_id.to_owned()],
+            origin_nodes: vec![identity.node_id.to_owned()],
             owner: None,
             attrs,
             parent_region: self.current_parent_region_id(),

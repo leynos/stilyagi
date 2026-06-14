@@ -1,8 +1,8 @@
 //! Python bindings for the Stilyagi Rust extension crate.
 
-use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyModule, PyTuple};
+use pyo3::types::{PyCFunction, PyDict, PyList, PyModule, PyTuple};
 use stilyagi_core::smoke_hello;
 use stilyagi_extract::{
     ExtractError, ExtractSyntax, extract_document as extract_document_from_rust,
@@ -43,12 +43,13 @@ fn supported_region_kinds_py(py: Python<'_>) -> PyResult<Py<PyTuple>> {
 }
 
 /// Return the minimal extraction payload through the `PyO3` extension boundary.
-#[pyfunction(name = "extract_document")]
-fn extract_document_py(py: Python<'_>, source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
-    let extract_syntax =
-        ExtractSyntax::try_from(syntax).map_err(|error| map_extract_error(&error))?;
+fn extract_document_py(py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<Py<PyDict>> {
+    let request = ExtractDocumentRequest::from_args(args)?;
+    let extract_syntax = ExtractSyntax::try_from(request.syntax.as_str())
+        .map_err(|error| map_extract_error(&error))?;
+    let source = request.source;
     let document = py
-        .detach(|| extract_document_from_rust(source, extract_syntax))
+        .detach(|| extract_document_from_rust(&source, extract_syntax))
         .map_err(|error| map_extract_error(&error))?;
     let document_dict = PyDict::new(py);
     let region_items = document
@@ -74,6 +75,36 @@ fn extract_document_py(py: Python<'_>, source: &str, syntax: &str) -> PyResult<P
     Ok(document_dict.unbind())
 }
 
+fn extract_document_function(py: Python<'_>) -> PyResult<Bound<'_, PyCFunction>> {
+    PyCFunction::new_closure(
+        py,
+        Some(c"extract_document"),
+        Some(c"Extract a source document into Stilyagi's bridge payload."),
+        |args, _kwargs| extract_document_py(args.py(), args),
+    )
+}
+
+struct ExtractDocumentRequest {
+    source: String,
+    syntax: String,
+}
+
+impl ExtractDocumentRequest {
+    fn from_args(args: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        if args.len() != 2 {
+            return Err(PyTypeError::new_err(format!(
+                "extract_document() expected 2 arguments, got {}",
+                args.len()
+            )));
+        }
+
+        Ok(Self {
+            source: args.get_item(0)?.extract()?,
+            syntax: args.get_item(1)?.extract()?,
+        })
+    }
+}
+
 fn map_extract_error(error: &ExtractError) -> PyErr {
     match error {
         ExtractError::UnsupportedSyntax(_) => PyNotImplementedError::new_err(error.to_string()),
@@ -84,8 +115,8 @@ fn map_extract_error(error: &ExtractError) -> PyErr {
 
 /// Initialize the `_stilyagi_rs` Python module and register exported functions.
 #[pymodule]
-fn _stilyagi_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(extract_document_py, m)?)?;
+fn _stilyagi_rs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(extract_document_function(py)?)?;
     m.add_function(wrap_pyfunction!(hello, m)?)?;
     m.add_function(wrap_pyfunction!(supported_region_kinds_py, m)?)?;
     m.add_function(wrap_pyfunction!(supported_syntaxes_py, m)?)?;
@@ -97,6 +128,8 @@ mod bridge_bdd;
 
 #[cfg(test)]
 mod tests {
+    //! Tests for the Python extension bridge payload and error mapping.
+
     use super::{
         extract_document_py, hello, map_extract_error, supported_region_kinds_py,
         supported_syntaxes_py,
@@ -109,21 +142,22 @@ mod tests {
     use stilyagi_ir::RegionKind as IrRegionKind;
 
     fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
-        Python::attach(|py| extract_document_py(py, source, syntax))
+        Python::attach(|py| {
+            let args = PyTuple::new(py, [source, syntax])?;
+            extract_document_py(py, &args)
+        })
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "test helper should fail loudly when invalid syntax unexpectedly succeeds"
-    )]
     fn invalid_syntax_error(syntax: &str) -> PyErr {
         bridge_extract_document("Example", syntax)
             .expect_err(&format!("expected an error for syntax {syntax:?}"))
     }
 
     fn assert_markdown_ir_json_contract(ir_json: &str) {
-        let parsed = serde_json::from_str::<serde_json::Value>(ir_json)
-            .unwrap_or_else(|error| panic!("expected parseable IR JSON: {error}"));
+        let parsed = match serde_json::from_str::<serde_json::Value>(ir_json) {
+            Ok(parsed) => parsed,
+            Err(error) => panic!("expected parseable IR JSON: {error}"),
+        };
 
         assert_eq!(
             parsed.get("schema_version"),
@@ -135,10 +169,12 @@ mod tests {
                 .is_some_and(serde_json::Value::is_object)
         );
 
-        let line_index = parsed
+        let Some(line_index) = parsed
             .get("line_index")
             .and_then(serde_json::Value::as_array)
-            .unwrap_or_else(|| panic!("expected line_index array"));
+        else {
+            panic!("expected line_index array");
+        };
         assert_eq!(line_index.first(), Some(&serde_json::json!(0)));
 
         assert!(
@@ -175,33 +211,31 @@ mod tests {
                 .unwrap_or_else(|error| panic!("expected PyTuple but got {error}"));
 
             assert_eq!(
-                supported_syntax_tuple
-                    .len()
-                    .unwrap_or_else(|error| panic!("expected tuple length: {error}")),
+                supported_syntax_tuple.len().expect("expected tuple length"),
                 ExtractSyntax::ALL.len(),
             );
             assert_eq!(
                 supported_syntax_tuple
                     .get_item(0)
-                    .unwrap_or_else(|error| panic!("missing first syntax: {error}"))
+                    .expect("missing first syntax")
                     .extract::<&str>()
-                    .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                    .expect("expected syntax string"),
                 "markdown",
             );
             assert_eq!(
                 supported_syntax_tuple
                     .get_item(1)
-                    .unwrap_or_else(|error| panic!("missing second syntax: {error}"))
+                    .expect("missing second syntax")
                     .extract::<&str>()
-                    .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                    .expect("expected syntax string"),
                 "python_docstring",
             );
             assert_eq!(
                 supported_syntax_tuple
                     .get_item(2)
-                    .unwrap_or_else(|error| panic!("missing third syntax: {error}"))
+                    .expect("missing third syntax")
                     .extract::<&str>()
-                    .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                    .expect("expected syntax string"),
                 "rust_doc_comment",
             );
         });
@@ -223,25 +257,23 @@ mod tests {
                 .unwrap_or_else(|error| panic!("expected PyTuple but got {error}"));
 
             assert_eq!(
-                supported_region_tuple
-                    .len()
-                    .unwrap_or_else(|error| panic!("expected tuple length: {error}")),
+                supported_region_tuple.len().expect("expected tuple length"),
                 IrRegionKind::ALL.len(),
             );
             assert_eq!(
                 supported_region_tuple
                     .get_item(0)
-                    .unwrap_or_else(|error| panic!("missing first region kind: {error}"))
+                    .expect("missing first region kind")
                     .extract::<&str>()
-                    .unwrap_or_else(|error| panic!("expected region kind string: {error}")),
+                    .expect("expected region kind string"),
                 "heading",
             );
             assert_eq!(
                 supported_region_tuple
                     .get_item(IrRegionKind::ALL.len() - 1)
-                    .unwrap_or_else(|error| panic!("missing final region kind: {error}"))
+                    .expect("missing final region kind")
                     .extract::<&str>()
-                    .unwrap_or_else(|error| panic!("expected region kind string: {error}")),
+                    .expect("expected region kind string"),
                 "rust_doc_comment",
             );
         });
@@ -250,7 +282,9 @@ mod tests {
     #[rstest]
     fn extract_document_py_exposes_markdown_document() {
         Python::attach(|py| {
-            let document_result = extract_document_py(py, "# Heading", "markdown");
+            let args =
+                PyTuple::new(py, ["# Heading", "markdown"]).expect("expected argument tuple");
+            let document_result = extract_document_py(py, &args);
 
             assert!(document_result.is_ok());
             let extracted_document = match document_result {
@@ -263,16 +297,14 @@ mod tests {
                 .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
             let regions_any = extracted_document_dict
                 .get_item("regions")
-                .unwrap_or_else(|error| panic!("missing regions payload: {error}"));
+                .expect("missing regions payload");
             let ir_json_any = extracted_document_dict
                 .get_item("ir_json")
-                .unwrap_or_else(|error| panic!("missing IR payload: {error}"));
+                .expect("missing IR payload");
             let regions = regions_any
                 .cast::<PyList>()
                 .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
-            let first_region_any = regions
-                .get_item(0)
-                .unwrap_or_else(|error| panic!("missing first region: {error}"));
+            let first_region_any = regions.get_item(0).expect("missing first region");
             let first_region = first_region_any
                 .cast::<PyDict>()
                 .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
@@ -280,36 +312,31 @@ mod tests {
             assert_eq!(
                 extracted_document_dict
                     .get_item("syntax")
-                    .unwrap_or_else(|error| panic!("missing syntax payload: {error}"))
+                    .expect("missing syntax payload")
                     .extract::<&str>()
-                    .unwrap_or_else(|error| panic!("expected syntax string: {error}")),
+                    .expect("expected syntax string"),
                 ExtractSyntax::Markdown.as_str(),
             );
-            assert_eq!(
-                regions
-                    .len()
-                    .unwrap_or_else(|error| panic!("expected list length: {error}")),
-                1,
-            );
+            assert_eq!(regions.len().expect("expected list length"), 1,);
             assert_eq!(
                 first_region
                     .get_item("kind")
-                    .unwrap_or_else(|error| panic!("missing kind payload: {error}"))
+                    .expect("missing kind payload")
                     .extract::<&str>()
-                    .unwrap_or_else(|error| panic!("expected kind string: {error}")),
+                    .expect("expected kind string"),
                 "document",
             );
             assert_eq!(
                 first_region
                     .get_item("text")
-                    .unwrap_or_else(|error| panic!("missing text payload: {error}"))
+                    .expect("missing text payload")
                     .extract::<&str>()
-                    .unwrap_or_else(|error| panic!("expected text string: {error}")),
+                    .expect("expected text string"),
                 "# Heading",
             );
             let ir_json = ir_json_any
                 .extract::<&str>()
-                .unwrap_or_else(|error| panic!("expected IR JSON string: {error}"));
+                .expect("expected IR JSON string");
             assert_markdown_ir_json_contract(ir_json);
         });
     }

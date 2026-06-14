@@ -33,14 +33,17 @@ fn markdown_parser_panics_are_contained_as_messages() {
 
     assert!(matches!(
         result,
-        Err(ref error)
-            if error.reason.contains("forced parser panic")
-                && error.reason.contains("phase=parse")
-                && error.reason.contains("path=<unknown>")
-                && error.reason.contains("uri=<unknown>")
-                && error.rule_id.as_ref() == "parser-panic"
-                && error.source.as_ref() == "stilyagi-markdown"
+        Err(ref error) if is_parser_panic_message(error)
     ));
+}
+
+fn is_parser_panic_message(error: &markdown::message::Message) -> bool {
+    error.reason.contains("forced parser panic")
+        && error.reason.contains("phase=parse")
+        && error.reason.contains("path=<unknown>")
+        && error.reason.contains("uri=<unknown>")
+        && error.rule_id.as_ref() == "parser-panic"
+        && error.source.as_ref() == "stilyagi-markdown"
 }
 
 #[derive(Clone, Copy)]

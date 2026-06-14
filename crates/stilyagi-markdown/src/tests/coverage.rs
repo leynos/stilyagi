@@ -2,12 +2,10 @@
 
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
-use std::fs;
 use std::path::Path;
 
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, IrRegion, RegionKind, SyntheticReason};
-use stilyagi_test_support::corpus_fixture_path;
 
 use super::source_identity;
 use crate::markdown_ir_document;
@@ -79,15 +77,9 @@ fn blockquote_regions_are_thin_structural_parents() {
 
 #[rstest]
 fn frontmatter_region_is_source_backed_over_the_fenced_block() {
-    let source = stilyagi_test_support::read_corpus_fixture(
-        "tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture",
-    )
-    .unwrap_or_else(|error| panic!("expected frontmatter fixture: {error}"));
-    let document = markdown_ir_document(
-        &source,
-        source_identity("tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture"),
-    )
-    .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    let relative_path = "tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture";
+    let source = must_read_fixture(relative_path);
+    let document = must_markdown_ir_document(&source, relative_path);
     let frontmatter = single_region_of_kind(&document, RegionKind::Frontmatter);
 
     assert!(frontmatter.text.starts_with("---\n"));
@@ -97,13 +89,11 @@ fn frontmatter_region_is_source_backed_over_the_fenced_block() {
         Some(&serde_json::json!("yaml"))
     );
     assert_eq!(frontmatter.segments.len(), 1);
-    let segment = frontmatter
-        .segments
-        .first()
-        .unwrap_or_else(|| panic!("expected frontmatter source segment"));
-    let source_span = segment
-        .source
-        .unwrap_or_else(|| panic!("expected frontmatter to be source-backed"));
+    let segment = must_some!(
+        frontmatter.segments.first(),
+        "expected frontmatter source segment"
+    );
+    let source_span = must_some!(segment.source, "expected frontmatter to be source-backed");
     assert_eq!(
         source.get(source_span.byte_start..source_span.byte_end),
         Some(frontmatter.text.as_str())
@@ -135,10 +125,8 @@ fn emitted_region_kinds_for_valid_markdown_corpus() -> BTreeSet<String> {
     valid_markdown_fixture_paths()
         .into_iter()
         .flat_map(|relative_path| {
-            let source = stilyagi_test_support::read_corpus_fixture(&relative_path)
-                .unwrap_or_else(|error| panic!("expected readable Markdown fixture: {error}"));
-            let document = markdown_ir_document(&source, source_identity(&relative_path))
-                .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+            let source = must_read_fixture(&relative_path);
+            let document = must_markdown_ir_document(&source, &relative_path);
 
             document
                 .regions
@@ -150,22 +138,9 @@ fn emitted_region_kinds_for_valid_markdown_corpus() -> BTreeSet<String> {
 }
 
 fn valid_markdown_fixture_paths() -> Vec<String> {
-    let valid_dir = corpus_fixture_path("tests/fixtures/corpus/markdown/valid")
-        .unwrap_or_else(|error| panic!("expected valid Markdown fixture directory: {error}"));
-    let mut paths = fs::read_dir(valid_dir)
-        .unwrap_or_else(|error| panic!("expected readable Markdown fixture directory: {error}"))
-        .map(|entry| {
-            entry
-                .unwrap_or_else(|error| panic!("expected Markdown fixture entry: {error}"))
-                .path()
-        })
-        .filter(|path| is_markdown_fixture(path))
-        .map(|path| {
-            path.strip_prefix(stilyagi_test_support::repository_root())
-                .unwrap_or_else(|error| panic!("expected repository-relative fixture: {error}"))
-                .to_string_lossy()
-                .replace('\\', "/")
-        })
+    let mut paths = must_list_fixture_paths("tests/fixtures/corpus/markdown/valid")
+        .into_iter()
+        .filter(|path| is_markdown_fixture(Path::new(path)))
         .collect::<Vec<_>>();
     paths.sort();
     paths
@@ -201,10 +176,8 @@ fn promised_markdown_region_kinds() -> Vec<&'static str> {
 }
 
 fn document_for(relative_path: &str) -> IrDocument {
-    let source = stilyagi_test_support::read_corpus_fixture(relative_path)
-        .unwrap_or_else(|error| panic!("expected readable Markdown fixture: {error}"));
-    markdown_ir_document(&source, source_identity(relative_path))
-        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"))
+    let source = must_read_fixture(relative_path);
+    must_markdown_ir_document(&source, relative_path)
 }
 
 fn regions_of_kind(document: &IrDocument, kind: RegionKind) -> Vec<&IrRegion> {
@@ -218,10 +191,31 @@ fn regions_of_kind(document: &IrDocument, kind: RegionKind) -> Vec<&IrRegion> {
 fn single_region_of_kind(document: &IrDocument, kind: RegionKind) -> &IrRegion {
     let regions = regions_of_kind(document, kind);
     assert_eq!(regions.len(), 1);
-    regions
-        .into_iter()
-        .next()
-        .unwrap_or_else(|| panic!("expected one region of kind {kind}"))
+    must_some!(
+        regions.into_iter().next(),
+        "expected one region of kind {kind}"
+    )
+}
+
+fn must_read_fixture(relative_path: &str) -> String {
+    match stilyagi_test_support::read_corpus_fixture(relative_path) {
+        Ok(source) => source,
+        Err(error) => panic!("expected readable Markdown fixture: {error}"),
+    }
+}
+
+fn must_markdown_ir_document(source: &str, relative_path: &str) -> IrDocument {
+    match markdown_ir_document(source, source_identity(relative_path)) {
+        Ok(document) => document,
+        Err(error) => panic!("expected Markdown IR document: {error}"),
+    }
+}
+
+fn must_list_fixture_paths(relative_dir: &str) -> Vec<String> {
+    match stilyagi_test_support::fixture_paths_in(relative_dir) {
+        Ok(paths) => paths,
+        Err(error) => panic!("expected readable Markdown fixture directory: {error}"),
+    }
 }
 
 fn is_decoded_synthetic_region(region: &IrRegion) -> bool {

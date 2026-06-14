@@ -304,6 +304,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         "make check-fmt",
         "make markdownlint",
         "make nixie",
+        "make typecheck",
         "make lint",
         "make test",
     }.issubset(run_commands)
@@ -337,6 +338,8 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         "uv tool install nixie-cli==1.0.0" in str(step.get("run", ""))
         for step in workflow_steps
     )
+    test_runner_step = _workflow_step_named(jobs["lint-test"], "Install test runner")
+    assert "cargo binstall --no-confirm cargo-nextest" in test_runner_step["run"]
     whitaker_step = _workflow_step_named(jobs["lint-test"], "Install Whitaker")
     whitaker_run = str(whitaker_step["run"])
     assert "github.com/leynos/whitaker" in whitaker_run

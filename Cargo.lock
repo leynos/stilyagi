@@ -1355,6 +1355,7 @@ dependencies = [
 name = "stilyagi-test-support"
 version = "0.1.0"
 dependencies = [
+ "cap-std",
  "insta",
  "proptest",
  "rstest",

@@ -330,6 +330,8 @@ fn write_json_control_escape(escaped: &mut String, control: char) {
 
 #[cfg(test)]
 mod tests {
+    //! Tests for golden IR fixture construction and serialization helpers.
+
     use super::{
         ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, Segment, SpanError, json_string,
     };

@@ -75,8 +75,7 @@ impl<'source> MarkdownIrBuilder<'source> {
         if let Some(structural_region) = structural_parent.clone() {
             self.parent_regions.push(structural_region);
         }
-        let mut child_ids = Vec::new();
-        self.push_child_nodes(node, &node_id, context, &mut child_ids)?;
+        let child_ids = self.child_node_ids(node, &node_id, context)?;
         if structural_parent.is_some() {
             self.parent_regions.pop();
         }
@@ -88,13 +87,13 @@ impl<'source> MarkdownIrBuilder<'source> {
         Ok(node_id)
     }
 
-    fn push_child_nodes(
+    fn child_node_ids(
         &mut self,
         node: &Node,
         node_id: &str,
         context: &MarkdownDiagnosticContext<'_>,
-        child_ids: &mut Vec<String>,
-    ) -> Result<(), Message> {
+    ) -> Result<Vec<String>, Message> {
+        let mut child_ids = Vec::new();
         match node {
             Node::List(list) => {
                 self.list_contexts.push(ListContext {
@@ -115,15 +114,25 @@ impl<'source> MarkdownIrBuilder<'source> {
                     self.table_row_contexts.pop();
                 }
             }
-            _ => {
-                if let Some(children) = node.children() {
-                    for child in children {
-                        child_ids.push(self.push_node(child, Some(node_id), context)?);
-                    }
-                }
-            }
+            _ => child_ids.extend(self.regular_child_node_ids(node, node_id, context)?),
         }
-        Ok(())
+        Ok(child_ids)
+    }
+
+    fn regular_child_node_ids(
+        &mut self,
+        node: &Node,
+        node_id: &str,
+        context: &MarkdownDiagnosticContext<'_>,
+    ) -> Result<Vec<String>, Message> {
+        let mut child_ids = Vec::new();
+        let Some(children) = node.children() else {
+            return Ok(child_ids);
+        };
+        for child in children {
+            child_ids.push(self.push_node(child, Some(node_id), context)?);
+        }
+        Ok(child_ids)
     }
 
     pub(super) fn next_region_id(&mut self) -> String {

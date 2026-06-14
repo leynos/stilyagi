@@ -644,10 +644,11 @@ behaviourally identical to `release`.
 The `.github/workflows/smoke.yml` workflow is the bounded CI smoke path for
 this repository. Its Ubuntu `lint-test` job installs Python, Rust, `uv`, and
 the support tools required by the checked targets, then runs `make check-fmt`,
-`make markdownlint`, `make nixie`, `make lint`, and `make test`. Its
-`release-smoke` matrix builds and smoke-tests release wheels on Ubuntu, macOS,
-and Windows. The workflow is not release publishing automation; it proves that
-local development installs and release wheels exercise the same PyO3 boundary.
+`make markdownlint`, `make nixie`, `make typecheck`, `make lint`, and
+`make test`. Its `release-smoke` matrix builds and smoke-tests release wheels
+on Ubuntu, macOS, and Windows. The workflow is not release publishing
+automation; it proves that local development installs and release wheels
+exercise the same PyO3 boundary.
 
 ## 6. Lint, typecheck, and test workflow
 
@@ -679,15 +680,22 @@ Their responsibilities are:
   - run Ruff checks through `uv`
   - run focused Pylint checks through the pinned `pylint-pypy-shim` wrapper
     under PyPy
-  - run `cargo clippy` with warnings denied
-  - run Whitaker from `crates/stilyagi-pyext/`
+  - run `cargo doc` for all workspace crates and features with Rustdoc warnings
+    denied
+  - run `cargo clippy` for all workspace crates, targets, and features with
+    warnings denied
+  - run Whitaker for all workspace crates, targets, and features with warnings
+    denied
 - `make typecheck`
   - rebuilds the editable environment if needed
+  - run `cargo check` for all workspace crates, targets, and features with
+    warnings denied
   - runs `ty check` through `uv`
 - `make test`
   - verify Rust formatting
   - rerun `cargo clippy`
   - run Rust tests with `cargo-nextest` when available, otherwise `cargo test`
+  - run Rust doc tests explicitly with Rustdoc warnings denied
   - run Python tests through `.venv/bin/python -m pytest -v`
 - `make smoke`
   - run `python -m stilyagi.smoke` against the development install
@@ -712,10 +720,20 @@ is that Python linting has two tiers:
 2. Pylint runs second through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
 
-`make lint` then continues into the Rust lint tiers:
+`make lint` then continues into the Rust lint tiers imported from Catnap:
 
-1. `cargo clippy --workspace --all-targets -- -D warnings`
-2. `whitaker --all` from `crates/stilyagi-pyext/`
+1. `cargo doc --workspace --all-features --no-deps` with
+   `RUSTDOCFLAGS=-D warnings`
+2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+3. `whitaker --all -- --workspace --all-targets --all-features` with
+   `RUSTFLAGS=-D warnings`
+
+The repository root `clippy.toml` owns the Clippy thresholds used by the
+workspace, including the four-argument maximum and the low complexity and
+function-length ceilings. Those limits apply to production code, unit tests,
+integration tests, doctests, and PyO3 bridge code because the Makefile uses
+`--workspace --all-targets --all-features` for `cargo check`, `cargo clippy`,
+Whitaker, and Rust tests.
 
 Run the full lint gate with:
 

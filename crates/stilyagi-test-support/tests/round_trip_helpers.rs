@@ -9,14 +9,16 @@ use stilyagi_test_support::{
 };
 
 fn span(start: usize, end: usize) -> ByteSpan {
-    ByteSpan::new(start, end)
-        .unwrap_or_else(|error| panic!("expected valid byte span {start}..{end}: {error:?}"))
+    match ByteSpan::new(start, end) {
+        Ok(span) => span,
+        Err(error) => panic!("expected valid byte span {start}..{end}: {error:?}"),
+    }
 }
 
 #[rstest]
 fn golden_markdown_ir_fixture_serializes_the_shared_fixture() {
     let document = golden_markdown_ir_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
-        .unwrap_or_else(|error| panic!("expected shared Markdown golden IR: {error}"));
+        .expect("expected shared Markdown golden IR");
 
     insta::assert_snapshot!(document.to_canonical_json());
 }
@@ -30,7 +32,7 @@ fn round_trip_edits_apply_source_backed_replacements() {
             RoundTripEdit::source(11, 16, "GAMMA"),
         ],
     )
-    .unwrap_or_else(|error| panic!("expected source edits to apply: {error}"));
+    .expect("expected source edits to apply");
 
     assert_eq!(result.before, "alpha beta gamma");
     assert_eq!(result.after, "ALPHA beta GAMMA");
@@ -46,7 +48,7 @@ fn round_trip_edits_accept_adjacent_ranges() {
             RoundTripEdit::source(3, 6, "DEF"),
         ],
     )
-    .unwrap_or_else(|error| panic!("expected adjacent edits to apply: {error}"));
+    .expect("expected adjacent edits to apply");
 
     assert_eq!(result.after, "ABCDEF");
 }
@@ -132,8 +134,8 @@ fn round_trip_edits_reject_non_utf8_boundaries(
 
 #[rstest]
 fn round_trip_edits_accept_empty_edit_sets_as_noops() {
-    let result = apply_round_trip_edits("some text", &[])
-        .unwrap_or_else(|error| panic!("expected empty edit set to apply: {error}"));
+    let result =
+        apply_round_trip_edits("some text", &[]).expect("expected empty edit set to apply");
 
     assert_eq!(result.before, "some text");
     assert_eq!(result.after, "some text");
@@ -146,7 +148,7 @@ fn round_trip_edits_preserve_untouched_ranges() {
         "before middle after",
         &[RoundTripEdit::source(7, 13, "CENTER")],
     )
-    .unwrap_or_else(|error| panic!("expected edit to apply: {error}"));
+    .expect("expected edit to apply");
 
     assert_eq!(result.after, "before CENTER after");
 }
@@ -155,7 +157,7 @@ fn round_trip_edits_preserve_untouched_ranges() {
 fn normalize_repository_path_uses_posix_separators() {
     assert_eq!(
         normalize_repository_path(r"tests\fixtures\corpus\markdown\valid\example.md")
-            .unwrap_or_else(|error| panic!("expected repository path to normalize: {error}")),
+            .expect("expected repository path to normalize"),
         "tests/fixtures/corpus/markdown/valid/example.md",
     );
 }
@@ -197,7 +199,7 @@ proptest! {
             &source,
             &[RoundTripEdit::source(start, end, replacement.clone())],
         )
-        .unwrap_or_else(|error| panic!("expected generated edit to apply: {error}"));
+        .expect("expected generated edit to apply");
 
         prop_assert_eq!(result.after, format!("{prefix}{replacement}{suffix}"));
     }
@@ -221,7 +223,7 @@ proptest! {
         edits.reverse();
 
         let result = apply_round_trip_edits(&source, &edits)
-            .unwrap_or_else(|error| panic!("expected generated edits to apply: {error}"));
+            .expect("expected generated edits to apply");
 
         let expected = chunk_replacements
             .iter()

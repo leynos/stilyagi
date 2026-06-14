@@ -358,6 +358,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    //! Tests for extraction error mapping at crate-private seams.
+
     use rstest::rstest;
 
     use super::{ExtractError, MarkdownIrFailure, extract_markdown_document_with};

@@ -22,6 +22,59 @@ struct PositionedChunk<'a> {
     source_start: usize,
 }
 
+struct SourceTextCursor {
+    chunk_start: usize,
+    chunk_source_start: usize,
+    source_cursor: usize,
+    byte_offset: usize,
+}
+
+impl SourceTextCursor {
+    const fn new(source_start: usize) -> Self {
+        Self {
+            chunk_start: 0,
+            chunk_source_start: source_start,
+            source_cursor: source_start,
+            byte_offset: 0,
+        }
+    }
+
+    const fn advance_character(&mut self, character_len: usize) {
+        self.source_cursor += character_len;
+        self.byte_offset += character_len;
+    }
+
+    const fn advance_line_ending(&mut self, source_line_ending_len: usize, line_ending_len: usize) {
+        self.source_cursor += source_line_ending_len;
+        self.byte_offset += line_ending_len;
+        self.chunk_start = self.byte_offset;
+        self.chunk_source_start = self.source_cursor;
+    }
+
+    const fn positioned_chunk<'value>(&self, value: &'value str) -> PositionedChunk<'value> {
+        PositionedChunk {
+            value,
+            range: self.chunk_start..self.byte_offset,
+            source_start: self.chunk_source_start - self.chunk_start,
+        }
+    }
+
+    const fn final_chunk<'value>(&self, value: &'value str) -> PositionedChunk<'value> {
+        PositionedChunk {
+            value,
+            range: self.chunk_start..value.len(),
+            source_start: self.chunk_source_start - self.chunk_start,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LineEnding<'value, 'node> {
+    value: &'value str,
+    node_id: SourceNodeId<'node>,
+    len: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SourceNodeId<'a>(&'a str);
 
@@ -62,49 +115,54 @@ impl FlattenedRegion<'_> {
     }
 
     fn push_source_text(&mut self, value: &str, source_start: usize, node_id: SourceNodeId<'_>) {
-        let mut chunk_start = 0;
-        let mut chunk_source_start = source_start;
-        let mut source_cursor = source_start;
-        let mut byte_offset = 0;
-        while byte_offset < value.len() {
-            match source_text_event(value, byte_offset) {
-                SourceTextEvent::LineEnding(line_ending_len) => {
-                    self.emit_chunk_for_range(
-                        PositionedChunk {
-                            value,
-                            range: chunk_start..byte_offset,
-                            source_start: chunk_source_start - chunk_start,
-                        },
+        let mut cursor = SourceTextCursor::new(source_start);
+        while cursor.byte_offset < value.len()
+            && self.push_source_text_event(value, node_id, &mut cursor)
+        {}
+        self.emit_chunk_for_range(cursor.final_chunk(value), node_id);
+    }
+
+    fn push_source_text_event(
+        &mut self,
+        value: &str,
+        node_id: SourceNodeId<'_>,
+        cursor: &mut SourceTextCursor,
+    ) -> bool {
+        match source_text_event(value, cursor.byte_offset) {
+            SourceTextEvent::LineEnding(line_ending_len) => self
+                .push_line_ending(
+                    LineEnding {
+                        value,
                         node_id,
-                    );
-                    let Some(source_line_ending_len) =
-                        source_line_ending_len(self.source, source_cursor, self.source.len())
-                    else {
-                        break;
-                    };
-                    source_cursor += source_line_ending_len;
-                    byte_offset += line_ending_len;
-                    chunk_start = byte_offset;
-                    chunk_source_start = source_cursor;
-                    if let Some(source_span) = SourceSpan::new(source_cursor, source_cursor) {
-                        self.push_source_chunk_before_break("", source_span, node_id);
-                    }
-                }
-                SourceTextEvent::Character(character_len) => {
-                    source_cursor += character_len;
-                    byte_offset += character_len;
-                }
-                SourceTextEvent::InvalidOffset => break,
+                        len: line_ending_len,
+                    },
+                    cursor,
+                )
+                .is_some(),
+            SourceTextEvent::Character(character_len) => {
+                cursor.advance_character(character_len);
+                true
             }
+            SourceTextEvent::InvalidOffset => false,
         }
+    }
+
+    fn push_line_ending(
+        &mut self,
+        line_ending: LineEnding<'_, '_>,
+        cursor: &mut SourceTextCursor,
+    ) -> Option<()> {
         self.emit_chunk_for_range(
-            PositionedChunk {
-                value,
-                range: chunk_start..value.len(),
-                source_start: chunk_source_start - chunk_start,
-            },
-            node_id,
+            cursor.positioned_chunk(line_ending.value),
+            line_ending.node_id,
         );
+        let source_line_ending_len =
+            source_line_ending_len(self.source, cursor.source_cursor, self.source.len())?;
+        cursor.advance_line_ending(source_line_ending_len, line_ending.len);
+        if let Some(source_span) = SourceSpan::new(cursor.source_cursor, cursor.source_cursor) {
+            self.push_source_chunk_before_break("", source_span, line_ending.node_id);
+        }
+        Some(())
     }
 
     fn push_source_chunk_before_break(
