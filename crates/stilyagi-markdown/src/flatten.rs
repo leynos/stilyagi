@@ -1,7 +1,7 @@
 //! Markdown inline flattening into source-mapped IR region text.
 
 use markdown::mdast::Node;
-use stilyagi_ir::{IrSegment, SegmentOrigin, SourceSpan};
+use stilyagi_ir::{IrSegment, SegmentOrigin, SourceSpan, SyntheticReason};
 
 use crate::source_text::{
     SourceTextEvent, decoded_text_maps_to_source, source_line_ending_len, source_text_event,
@@ -32,23 +32,6 @@ impl<'a> SourceNodeId<'a> {
 
     const fn as_str(self) -> &'a str {
         self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SyntheticReason {
-    SoftbreakSpace,
-    HardbreakSpace,
-    DecodedText,
-}
-
-impl SyntheticReason {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::SoftbreakSpace => "softbreak_space",
-            Self::HardbreakSpace => "hardbreak_space",
-            Self::DecodedText => "decoded_text",
-        }
     }
 }
 

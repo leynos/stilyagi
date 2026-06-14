@@ -6,8 +6,8 @@ use proptest::prelude::*;
 use rstest::rstest;
 
 use super::{
-    DocumentMetadata, IrBoundary, IrDocument, IrRegion, IrSegment, SegmentOrigin, SourceIdentity,
-    SourceSpan, content_hash_for, line_index_for,
+    DocumentMetadata, IrBoundary, IrDocument, IrRegion, IrSegment, RegionKind, SegmentOrigin,
+    SourceIdentity, SourceSpan, SyntheticReason, content_hash_for, line_index_for,
 };
 
 /// Keep the marker type default stable and comparable.
@@ -43,6 +43,66 @@ fn ir_boundary_is_copy() {
 
     assert_eq!(first, second);
     assert_eq!(first, original);
+}
+
+#[rstest]
+fn region_kind_vocabulary_matches_rfc_0001() {
+    let expected = [
+        "heading",
+        "paragraph",
+        "list_item",
+        "blockquote",
+        "table_cell",
+        "frontmatter",
+        "frontmatter_field",
+        "image_alt",
+        "link_title",
+        "python_docstring",
+        "rust_doc_comment",
+    ];
+
+    let actual = RegionKind::ALL
+        .iter()
+        .map(|kind| kind.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(actual, expected);
+}
+
+#[rstest]
+#[case::heading(RegionKind::Heading)]
+#[case::paragraph(RegionKind::Paragraph)]
+#[case::list_item(RegionKind::ListItem)]
+#[case::blockquote(RegionKind::Blockquote)]
+#[case::table_cell(RegionKind::TableCell)]
+#[case::frontmatter(RegionKind::Frontmatter)]
+#[case::frontmatter_field(RegionKind::FrontmatterField)]
+#[case::image_alt(RegionKind::ImageAlt)]
+#[case::link_title(RegionKind::LinkTitle)]
+#[case::python_docstring(RegionKind::PythonDocstring)]
+#[case::rust_doc_comment(RegionKind::RustDocComment)]
+fn region_kind_round_trips_through_stable_spelling(#[case] kind: RegionKind) {
+    assert_eq!(RegionKind::try_from(kind.as_str()), Ok(kind));
+}
+
+#[rstest]
+fn unknown_region_kind_preserves_rejected_value() {
+    let Err(error) = RegionKind::try_from("unknown") else {
+        panic!("unknown region kind should be rejected");
+    };
+
+    assert_eq!(error.value(), "unknown");
+}
+
+#[rstest]
+fn synthetic_reason_vocabulary_matches_segment_contract() {
+    let expected = ["softbreak_space", "hardbreak_space", "decoded_text"];
+    let actual = SyntheticReason::ALL
+        .iter()
+        .map(|reason| reason.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(actual, expected);
 }
 
 #[rstest]
@@ -332,10 +392,14 @@ fn source_backed_segments_match_source(region: &IrRegion, source: &str) -> bool 
 }
 
 fn synthetic_segments_use_known_reasons(region: &IrRegion) -> bool {
+    let known_reasons = SyntheticReason::ALL
+        .iter()
+        .map(|reason| reason.as_str())
+        .collect::<Vec<_>>();
     region.segments.iter().all(|segment| {
         segment
             .synthetic
             .as_deref()
-            .is_none_or(|reason| matches!(reason, "softbreak_space" | "hardbreak_space"))
+            .is_none_or(|reason| known_reasons.contains(&reason))
     })
 }

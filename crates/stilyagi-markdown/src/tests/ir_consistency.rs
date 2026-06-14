@@ -130,6 +130,52 @@ fn validate_ir_consistency_reports_region_text_mismatches() {
 }
 
 #[rstest]
+fn validate_ir_consistency_reports_source_span_mismatches() {
+    assert_validation_reports(
+        |document| {
+            let segment = document
+                .regions
+                .first_mut()
+                .and_then(|region| region.segments.first_mut())
+                .unwrap_or_else(|| panic!("expected at least one source-backed segment"));
+            segment.source = SourceSpan::new(0, segment.text.len());
+        },
+        "ir-segment-source-mismatch",
+        &["source segment mismatch", "region id=", "segment text="],
+    );
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_unresolved_parent_regions() {
+    assert_validation_reports(
+        |document| {
+            let region = document
+                .regions
+                .first_mut()
+                .unwrap_or_else(|| panic!("expected at least one Markdown IR region"));
+            region.parent_region = Some("missing-region".to_owned());
+        },
+        "ir-parent-region-unresolved",
+        &["parent_region", "missing-region"],
+    );
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_invalid_origin_nodes() {
+    assert_validation_reports(
+        |document| {
+            let region = document
+                .regions
+                .first_mut()
+                .unwrap_or_else(|| panic!("expected at least one Markdown IR region"));
+            region.origin_nodes.clear();
+        },
+        "ir-origin-nodes-invalid",
+        &["origin_nodes", "empty"],
+    );
+}
+
+#[rstest]
 fn markdown_ir_document_records_soft_breaks_as_synthetic_segments() {
     let source = "First line\nsecond line\n";
     let document = markdown_ir_document(source, source_identity("docs/example.md"));

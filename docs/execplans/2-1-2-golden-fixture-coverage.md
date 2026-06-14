@@ -853,8 +853,8 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
 - [x] (2026-06-12) Drafted this pre-implementation ExecPlan.
 - [x] Stage 0: record approval and run baseline gates. Approval recorded;
   baseline gates passed on 2026-06-14.
-- [ ] Stage 1: correctness scaffolding (validator re-slice, `RegionKind`,
-  synthetic-reason allow-list).
+- [x] Stage 1: correctness scaffolding (validator re-slice, `RegionKind`,
+  synthetic-reason allow-list). Implemented and locally gated on 2026-06-14.
 - [ ] Stage 2: coverage test red plus new valid fixtures.
 - [ ] Stage 3: emit `list_item`, `blockquote`, `frontmatter`, `image_alt`,
   `link_title`; coverage test green.
@@ -895,6 +895,27 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   `/tmp/test-stilyagi-2-1-2-golden-fixture-coverage.out`. Impact: later gate
   failures can be attributed to this implementation unless new external
   changes appear.
+
+- Observation: the Stage 1 red-first validator tests failed before production
+  changes, as intended. Evidence:
+  `/tmp/test-stage1-red-ir-consistency-stilyagi-2-1-2-golden-fixture-coverage.out`
+  shows failures for `ir-segment-source-mismatch`,
+  `ir-parent-region-unresolved`, and `ir-origin-nodes-invalid`. Impact: the
+  new validator checks are proven to cover a previously missing behaviour.
+
+- Observation: Stage 1 deterministic gates passed after implementation.
+  Evidence: `cargo test -p stilyagi-ir -p stilyagi-markdown`,
+  `make check-fmt`, `make typecheck`, `make lint`, and `make test` exited
+  successfully with stage-specific logs under `/tmp`. Impact: the validator,
+  IR vocabulary, and synthetic-reason changes are locally reviewable.
+
+- Observation: `coderabbit review --agent` started twice for Stage 1 and hung
+  after sandbox setup both times without findings or a rate-limit response.
+  Evidence: the first run emitted `preparing_sandbox` and stayed silent for
+  more than five minutes before PID `1447066` was terminated; the retry emitted
+  the same setup status and stayed silent for several minutes before PID
+  `1458412` was terminated. Impact: CodeRabbit concerns could not be obtained
+  for this milestone; no actionable concerns were available to clear.
 
 ## Decision Log
 
@@ -947,6 +968,12 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   explicitly requested implementation of the planned functionality in
   `docs/execplans/2-1-2-golden-fixture-coverage.md`. Date/Author: 2026-06-14,
   implementation agent.
+
+- Decision: continue after Stage 1 despite unavailable CodeRabbit output.
+  Rationale: all deterministic gates passed, CodeRabbit was attempted twice as
+  requested and produced no findings or rate-limit response, and both hung
+  processes were limited to this worktree and terminated without affecting
+  other agents. Date/Author: 2026-06-14, implementation agent.
 
 ## Outcomes & Retrospective
 

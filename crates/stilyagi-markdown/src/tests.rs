@@ -14,7 +14,7 @@ mod parser;
 use std::fs;
 
 use rstest::rstest;
-use stilyagi_ir::{IrDocument, SourceIdentity, SourceSpan};
+use stilyagi_ir::{IrDocument, SourceIdentity, SourceSpan, SyntheticReason};
 use stilyagi_test_support::{
     SHARED_MARKDOWN_FIXTURE_PATH, corpus_fixture_path, read_corpus_fixture,
 };
@@ -131,14 +131,16 @@ fn source_segment_matches(span: SourceSpan, source: &str, expected: &str) -> boo
 }
 
 fn synthetic_segments_use_known_reasons(document: &IrDocument) -> bool {
+    let known_reasons = SyntheticReason::ALL
+        .iter()
+        .map(|reason| reason.as_str())
+        .collect::<Vec<_>>();
     document.regions.iter().all(|region| {
         region.segments.iter().all(|segment| {
-            segment.synthetic.as_deref().is_none_or(|reason| {
-                matches!(
-                    reason,
-                    "softbreak_space" | "hardbreak_space" | "decoded_text"
-                )
-            })
+            segment
+                .synthetic
+                .as_deref()
+                .is_none_or(|reason| known_reasons.contains(&reason))
         })
     })
 }

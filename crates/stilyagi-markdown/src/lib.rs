@@ -4,14 +4,18 @@ mod flatten;
 mod node_kind;
 mod source_text;
 
-use std::{any::Any, collections::BTreeMap, panic::catch_unwind};
+use std::{
+    any::Any,
+    collections::{BTreeMap, BTreeSet},
+    panic::catch_unwind,
+};
 
 use flatten::{SourceNodeId, flatten_region};
 use markdown::{ParseOptions, mdast::Node, message::Message, to_mdast};
 use node_kind::node_kind;
 use stilyagi_ir::{
     DocumentMetadata, IrBuildContext, IrDocument, IrNode, IrRegion, IrTree, NodeFlags,
-    ProducerMetadata, SourceIdentity, SourceSpan,
+    ProducerMetadata, RegionKind, SourceIdentity, SourceSpan,
 };
 
 /// Marker type for the future Markdown extraction boundary.
@@ -206,6 +210,17 @@ fn validate_ir_consistency(
         ));
     }
 
+    let node_ids = document
+        .nodes
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let region_ids = document
+        .regions
+        .iter()
+        .map(|region| region.id.as_str())
+        .collect::<BTreeSet<_>>();
+
     for region in &document.regions {
         if !region.segments_reconstruct_text() {
             return Err(stilyagi_markdown_message(
@@ -218,6 +233,52 @@ fn validate_ir_consistency(
                     region.text
                 ),
             ));
+        }
+        if let Some(parent_region) = region.parent_region.as_deref()
+            && !region_ids.contains(parent_region)
+        {
+            return Err(stilyagi_markdown_message(
+                context,
+                "ir-parent-region-unresolved",
+                format!(
+                    "region id={} parent_region={} does not resolve",
+                    region.id, parent_region
+                ),
+            ));
+        }
+        if region.origin_nodes.is_empty() {
+            return Err(stilyagi_markdown_message(
+                context,
+                "ir-origin-nodes-invalid",
+                format!("region id={} origin_nodes is empty", region.id),
+            ));
+        }
+        for origin_node in &region.origin_nodes {
+            if !node_ids.contains(origin_node.as_str()) {
+                return Err(stilyagi_markdown_message(
+                    context,
+                    "ir-origin-nodes-invalid",
+                    format!(
+                        "region id={} origin_nodes contains unknown node {}",
+                        region.id, origin_node
+                    ),
+                ));
+            }
+        }
+        for segment in &region.segments {
+            if let Some(span) = segment.source {
+                let actual = source.get(span.byte_start..span.byte_end);
+                if actual != Some(segment.text.as_str()) {
+                    return Err(stilyagi_markdown_message(
+                        context,
+                        "ir-segment-source-mismatch",
+                        format!(
+                            "source segment mismatch region id={} segment text={} span={:?} actual={:?}",
+                            region.id, segment.text, span, actual
+                        ),
+                    ));
+                }
+            }
         }
     }
 
@@ -310,13 +371,14 @@ impl<'source> MarkdownIrBuilder<'source> {
 
     fn push_region_for_node(&mut self, node: &Node, node_id: &str) {
         let region_kind = match node {
-            Node::Heading(_) => Some("heading"),
-            Node::Paragraph(_) => Some("paragraph"),
-            Node::TableCell(_) => Some("table_cell"),
+            Node::Heading(_) => Some(RegionKind::Heading),
+            Node::Paragraph(_) => Some(RegionKind::Paragraph),
+            Node::TableCell(_) => Some(RegionKind::TableCell),
             _ => None,
         };
         if let Some(kind) = region_kind {
             let flattened = flatten_region(node, SourceNodeId::new(node_id), self.source);
+            let kind_name = kind.as_str();
             let mut attrs = BTreeMap::new();
             if let Node::Heading(heading) = node {
                 attrs.insert("depth".to_owned(), serde_json::json!(heading.depth));
@@ -324,8 +386,8 @@ impl<'source> MarkdownIrBuilder<'source> {
             let region_id = self.next_region_id();
             self.regions.push(IrRegion {
                 id: region_id,
-                kind: kind.to_owned(),
-                scope: scope_for(kind, node),
+                kind: kind_name.to_owned(),
+                scope: scope_for(kind_name, node),
                 syntax: "markdown".to_owned(),
                 natural_language: None,
                 text: flattened.text,
