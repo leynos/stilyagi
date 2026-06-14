@@ -5,7 +5,7 @@ use std::path::Path;
 
 use markdown::mdast::Node;
 use rstest::rstest;
-use stilyagi_ir::{IrDocument, SourceSpan};
+use stilyagi_ir::{IrDocument, IrRegion, SourceSpan};
 
 use super::source_identity;
 use crate::source_text::decoded_text_maps_to_source;
@@ -97,6 +97,24 @@ fn assert_validation_reports(
     }
 }
 
+fn assert_validation_reports_on_first_region(
+    mutate_region: impl FnOnce(&mut IrRegion),
+    expected_rule_id: &str,
+    expected_reason_fragments: &[&str],
+) {
+    assert_validation_reports(
+        |document| {
+            let region = document
+                .regions
+                .first_mut()
+                .expect("expected at least one Markdown IR region");
+            mutate_region(region);
+        },
+        expected_rule_id,
+        expected_reason_fragments,
+    );
+}
+
 #[rstest]
 fn validate_ir_consistency_reports_content_hash_mismatches() {
     assert_validation_reports(
@@ -117,14 +135,8 @@ fn validate_ir_consistency_reports_line_index_mismatches() {
 
 #[rstest]
 fn validate_ir_consistency_reports_region_text_mismatches() {
-    assert_validation_reports(
-        |document| {
-            let region = document
-                .regions
-                .first_mut()
-                .expect("expected at least one Markdown IR region");
-            region.text.push_str(" drift");
-        },
+    assert_validation_reports_on_first_region(
+        |region| region.text.push_str(" drift"),
         "ir-region-text-mismatch",
         &["region text mismatch"],
     );
@@ -148,14 +160,8 @@ fn validate_ir_consistency_reports_source_span_mismatches() {
 
 #[rstest]
 fn validate_ir_consistency_reports_unresolved_parent_regions() {
-    assert_validation_reports(
-        |document| {
-            let region = document
-                .regions
-                .first_mut()
-                .expect("expected at least one Markdown IR region");
-            region.parent_region = Some("missing-region".to_owned());
-        },
+    assert_validation_reports_on_first_region(
+        |region| region.parent_region = Some("missing-region".to_owned()),
         "ir-parent-region-unresolved",
         &["parent_region", "missing-region"],
     );
@@ -163,14 +169,8 @@ fn validate_ir_consistency_reports_unresolved_parent_regions() {
 
 #[rstest]
 fn validate_ir_consistency_reports_invalid_origin_nodes() {
-    assert_validation_reports(
-        |document| {
-            let region = document
-                .regions
-                .first_mut()
-                .expect("expected at least one Markdown IR region");
-            region.origin_nodes.clear();
-        },
+    assert_validation_reports_on_first_region(
+        |region| region.origin_nodes.clear(),
         "ir-origin-nodes-invalid",
         &["origin_nodes", "empty"],
     );
