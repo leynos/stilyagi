@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
 Approval gate: this plan must not be implemented until explicit user approval
 is recorded in the `Decision Log`. After approval, `Status` changes to
@@ -851,7 +851,8 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   and title, `RegionKind` single source of truth, and an ADR-routed
   `frontmatter_field` deferral.
 - [x] (2026-06-12) Drafted this pre-implementation ExecPlan.
-- [ ] Stage 0: record approval and run baseline gates.
+- [x] Stage 0: record approval and run baseline gates. Approval recorded;
+  baseline gates passed on 2026-06-14.
 - [ ] Stage 1: correctness scaffolding (validator re-slice, `RegionKind`,
   synthetic-reason allow-list).
 - [ ] Stage 2: coverage test red plus new valid fixtures.
@@ -884,6 +885,16 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   design review and the inline-only `flatten_inline` dispatcher. Impact: thin
   structural containers were chosen, eliminating the need for a block-separator
   synthetic reason.
+
+- Observation: the clean implementation branch passed all baseline gates before
+  code changes. Evidence: `make check-fmt`, `make typecheck`, `make lint`, and
+  `make test` all exited successfully with logs at
+  `/tmp/check-fmt-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/typecheck-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/lint-stilyagi-2-1-2-golden-fixture-coverage.out`, and
+  `/tmp/test-stilyagi-2-1-2-golden-fixture-coverage.out`. Impact: later gate
+  failures can be attributed to this implementation unless new external
+  changes appear.
 
 ## Decision Log
 
@@ -931,6 +942,11 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   question was not answered. Rationale: both defaults are reversible at
   approval and avoid new dependencies or public-surface churn. Date/Author:
   2026-06-12.
+
+- Decision: implementation is approved and may proceed. Rationale: the user
+  explicitly requested implementation of the planned functionality in
+  `docs/execplans/2-1-2-golden-fixture-coverage.md`. Date/Author: 2026-06-14,
+  implementation agent.
 
 ## Outcomes & Retrospective
 
