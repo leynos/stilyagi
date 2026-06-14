@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, IrRegion, RegionKind, SyntheticReason};
@@ -25,7 +25,9 @@ fn valid_markdown_corpus_covers_promised_markdown_region_kinds() {
 
 #[rstest]
 fn list_item_regions_are_thin_structural_parents() {
-    let document = document_for("tests/fixtures/corpus/markdown/valid/lists.md.fixture");
+    let document = document_for(Path::new(
+        "tests/fixtures/corpus/markdown/valid/lists.md.fixture",
+    ));
     let list_items = regions_of_kind(&document, RegionKind::ListItem);
 
     assert!(!list_items.is_empty());
@@ -53,7 +55,9 @@ fn list_item_regions_are_thin_structural_parents() {
 
 #[rstest]
 fn blockquote_regions_are_thin_structural_parents() {
-    let document = document_for("tests/fixtures/corpus/markdown/valid/blockquotes.md.fixture");
+    let document = document_for(Path::new(
+        "tests/fixtures/corpus/markdown/valid/blockquotes.md.fixture",
+    ));
     let blockquotes = regions_of_kind(&document, RegionKind::Blockquote);
 
     assert!(!blockquotes.is_empty());
@@ -77,7 +81,7 @@ fn blockquote_regions_are_thin_structural_parents() {
 
 #[rstest]
 fn frontmatter_region_is_source_backed_over_the_fenced_block() {
-    let relative_path = "tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture";
+    let relative_path = Path::new("tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture");
     let source = must_read_fixture(relative_path);
     let document = must_markdown_ir_document(&source, relative_path);
     let frontmatter = single_region_of_kind(&document, RegionKind::Frontmatter);
@@ -102,7 +106,9 @@ fn frontmatter_region_is_source_backed_over_the_fenced_block() {
 
 #[rstest]
 fn image_alt_and_link_title_regions_are_synthetic_decoded_text() {
-    let document = document_for("tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture");
+    let document = document_for(Path::new(
+        "tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture",
+    ));
     let image_alt = regions_of_kind(&document, RegionKind::ImageAlt);
     let link_title = regions_of_kind(&document, RegionKind::LinkTitle);
 
@@ -137,10 +143,11 @@ fn emitted_region_kinds_for_valid_markdown_corpus() -> BTreeSet<String> {
         .collect()
 }
 
-fn valid_markdown_fixture_paths() -> Vec<String> {
-    let mut paths = must_list_fixture_paths("tests/fixtures/corpus/markdown/valid")
+fn valid_markdown_fixture_paths() -> Vec<PathBuf> {
+    let mut paths = must_list_fixture_paths(Path::new("tests/fixtures/corpus/markdown/valid"))
         .into_iter()
-        .filter(|path| is_markdown_fixture(Path::new(path)))
+        .map(PathBuf::from)
+        .filter(|path| is_markdown_fixture(path))
         .collect::<Vec<_>>();
     paths.sort();
     paths
@@ -175,7 +182,7 @@ fn promised_markdown_region_kinds() -> Vec<&'static str> {
     ]
 }
 
-fn document_for(relative_path: &str) -> IrDocument {
+fn document_for(relative_path: &Path) -> IrDocument {
     let source = must_read_fixture(relative_path);
     must_markdown_ir_document(&source, relative_path)
 }
@@ -197,21 +204,24 @@ fn single_region_of_kind(document: &IrDocument, kind: RegionKind) -> &IrRegion {
     )
 }
 
-fn must_read_fixture(relative_path: &str) -> String {
+fn must_read_fixture(relative_path: &Path) -> String {
     match stilyagi_test_support::read_corpus_fixture(relative_path) {
         Ok(source) => source,
         Err(error) => panic!("expected readable Markdown fixture: {error}"),
     }
 }
 
-fn must_markdown_ir_document(source: &str, relative_path: &str) -> IrDocument {
-    match markdown_ir_document(source, source_identity(relative_path)) {
+fn must_markdown_ir_document(source: &str, relative_path: &Path) -> IrDocument {
+    let path_str = relative_path
+        .to_str()
+        .expect("fixture path must be valid UTF-8");
+    match markdown_ir_document(source, source_identity(path_str)) {
         Ok(document) => document,
         Err(error) => panic!("expected Markdown IR document: {error}"),
     }
 }
 
-fn must_list_fixture_paths(relative_dir: &str) -> Vec<String> {
+fn must_list_fixture_paths(relative_dir: &Path) -> Vec<String> {
     match stilyagi_test_support::fixture_paths_in(relative_dir) {
         Ok(paths) => paths,
         Err(error) => panic!("expected readable Markdown fixture directory: {error}"),
