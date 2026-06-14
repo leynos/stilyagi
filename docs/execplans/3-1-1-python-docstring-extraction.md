@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
 Approval gate: do not begin implementation until the user records explicit
 approval in this file. The `Decision Log` must capture the approval before
@@ -29,9 +29,9 @@ and whose `owner` identifies the enclosing module, class, or function by `kind`,
 The observable success condition is not merely "the code compiles". For the
 shared Python fixture, canonical IR JSON snapshots must be stable, every
 emitted region's `segments` must reconstruct its `text` exactly, every region's
-`owner` must name the correct owning symbol, and a malformed Python fixture must
-still produce partial extraction plus a recoverable error rather than aborting
-the run.
+`owner` must name the correct owning symbol, and a malformed Python fixture
+must still produce partial extraction plus a recoverable error rather than
+aborting the run.
 
 This slice deliberately stops at owner-aware extraction. It does not implement
 Python docstring lint rules (roadmap item 3.2.2), Python suppression parsing
@@ -54,18 +54,19 @@ The relevant Rust crates are:
   `IrSegment`, `SegmentOrigin`, `IrOwner`, `IrSuppression`, `IrError`,
   `SourceIdentity`, the `content_hash_for`/`line_index_for` helpers, and
   `SCHEMA_VERSION` (`"1.0.0"`). The owner contract already exists:
-  `IrOwner { kind: String, name: Option<String>, qualname: Option<String> }`
-  in `crates/stilyagi-ir/src/region.rs`.
+  `IrOwner { kind: String, name: Option<String>, qualname: Option<String> }` in
+  `crates/stilyagi-ir/src/region.rs`.
 - `crates/stilyagi-tree-sitter/`, currently a placeholder exposing only
   `TreeSitterBoundary`. This crate becomes the tree-sitter-backed source
   extractor and is the natural home for Python docstring extraction (and, in
   item 3.1.2, Rust doc-comment extraction). The design names this crate for
   tree-sitter work in [docs/stilyagi-design.md](../stilyagi-design.md) §§4, 10.
 - `crates/stilyagi-markdown/`, the existing Markdown adapter. It is the
-  reference pattern for this slice: `markdown_ir_document(source, identity) ->
-  Result<IrDocument, Message>` parses, builds a tree and node store, flattens
-  regions with source-backed and synthetic segments, and validates IR
-  consistency. The new Python extractor mirrors this shape.
+  reference pattern for this slice:
+  `markdown_ir_document(source, identity) -> Result<IrDocument, Message>`
+  parses, builds a tree and node store, flattens regions with source-backed and
+  synthetic segments, and validates IR consistency. The new Python extractor
+  mirrors this shape.
 - `crates/stilyagi-extract/`, which owns syntax dispatch. `ExtractSyntax`
   already has a `PythonDocstring` variant spelled `"python_docstring"`, but
   `extract_document_with_source_identity` currently returns
@@ -76,9 +77,10 @@ The relevant Rust crates are:
   extraction makes `python_docstring` a supported syntax through the existing
   bridge shape with no new bridge fields.
 - `crates/stilyagi-test-support/`, which provides fixture access
-  (`corpus_fixture_path`, `read_corpus_fixture`, `SHARED_MARKDOWN_FIXTURE_PATH`)
-  and golden IR builders (`golden_markdown_ir_fixture`). This slice adds a
-  Python golden IR builder alongside the Markdown one.
+  (`corpus_fixture_path`, `read_corpus_fixture`,
+  `SHARED_MARKDOWN_FIXTURE_PATH`) and golden IR builders
+  (`golden_markdown_ir_fixture`). This slice adds a Python golden IR builder
+  alongside the Markdown one.
 
 The relevant Python modules are:
 
@@ -97,10 +99,10 @@ The relevant fixtures (added by roadmap item 1.3.1) are:
   which contains a module docstring, a class docstring, a `@staticmethod`
   method docstring, and a module-level function docstring.
 - `tests/fixtures/corpus/python/malformed/unclosed-function.py.txt`, which
-  contains a valid module docstring followed by a function whose signature never
-  closes. Malformed Python fixtures use the `.py.txt` suffix so formatters and
-  linters do not try to process them; `tests/test_corpus.py` registers this
-  convention.
+  contains a valid module docstring followed by a function whose signature
+  never closes. Malformed Python fixtures use the `.py.txt` suffix so
+  formatters and linters do not try to process them; `tests/test_corpus.py`
+  registers this convention.
 
 Definitions used in this plan:
 
@@ -171,9 +173,8 @@ Keep these repository documents open:
   traversal and owner-derivation logic small enough to review.
 - [docs/rust-testing-with-rstest-fixtures.md](
   ../rust-testing-with-rstest-fixtures.md) and
-  [docs/reliable-testing-in-rust-via-dependency-injection.md](
-  ../reliable-testing-in-rust-via-dependency-injection.md), for Rust test
-  style and explicit IO boundaries.
+  [docs/reliable-testing-in-rust-via-dependency-injection.md]( ../reliable-testing-in-rust-via-dependency-injection.md),
+  for Rust test style and explicit IO boundaries.
 - [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), if new public
   Rust documentation includes examples.
 - [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), for Rust BDD
@@ -200,8 +201,7 @@ External prior art checked during planning (Firecrawl):
   `(function_definition body: (block . (expression_statement (string) @doc)))`.
   Decorated definitions are wrapped by a `decorated_definition` node whose
   `definition` field holds the inner `function_definition`/`class_definition`.
-  Reference:
-  <https://github.com/tree-sitter/tree-sitter-python/issues/197>.
+  Reference: <https://github.com/tree-sitter/tree-sitter-python/issues/197>.
 - A `string` node has `string_start`, `string_content`, and `string_end`
   children, so the prose can be mapped to `string_content` byte ranges that
   exclude quote delimiters and any string prefix. Reference: the grammar
@@ -236,11 +236,11 @@ External prior art checked during planning (Firecrawl):
   RFC 0001 code-entity contract (`kind`, optional `name`, optional `qualname`).
   It must not be reused for non-code ancestry. The `IrOwner` `name` and
   `qualname` fields are plain `Option` with no `skip_serializing_if`, so a
-  `None` serialises as JSON `null` (not an omitted key); module owners therefore
-  emit `"name": null, "qualname": null`.
+  `None` serialises as JSON `null` (not an omitted key); module owners
+  therefore emit `"name": null, "qualname": null`.
 - Traversal and identifiers are deterministic: walk named children depth-first,
-  left-to-right; assign node identifiers (`n0`, `n1`, ...) in emission order;
-  assign region identifiers (`r0`, `r1`, ...) in docstring-discovery order; and
+  left-to-right; assign node identifiers (`n0`, `n1`, …) in emission order;
+  assign region identifiers (`r0`, `r1`, …) in docstring-discovery order; and
   append `errors` entries in source order.
 - The docstring region is emitted as a single source-backed `IrSegment`
   spanning the `string_content` byte range. Because region `text` is then the
@@ -259,8 +259,8 @@ External prior art checked during planning (Firecrawl):
   entries, never a panic or aborted run.
 - Extraction is pure over `(source, identity)`. No filesystem or environment
   access inside the extractor; IO stays at test and orchestration boundaries.
-- Determinism: traversal order, generated identifiers (`n0`, `n1`, ...; `r0`,
-  `r1`, ...), JSON field order, and canonical JSON output must not depend on
+- Determinism: traversal order, generated identifiers (`n0`, `n1`, …; `r0`,
+  `r1`, …), JSON field order, and canonical JSON output must not depend on
   hash-map ordering or platform specifics.
 - Canonical JSON snapshots must avoid machine-specific absolute paths,
   timestamps, nondeterministic ordering, terminal colour, and environment
@@ -288,9 +288,10 @@ External prior art checked during planning (Firecrawl):
   continuing.
 - Dependencies: adding the Rust crates `tree-sitter` (0.25.x) and
   `tree-sitter-python` (0.25.x) to the workspace is expected. Any other new
-  external dependency requires approval. If `tree-sitter-python` 0.25.x does not
-  build against the chosen `tree-sitter` 0.25.x because of an application binary
-  interface (ABI) mismatch, stop and record the compatible pair before pinning.
+  external dependency requires approval. If `tree-sitter-python` 0.25.x does
+  not build against the chosen `tree-sitter` 0.25.x because of an application
+  binary interface (ABI) mismatch, stop and record the compatible pair before
+  pinning.
 - Build toolchain: tree-sitter grammars compile vendored C through the `cc`
   crate. If the build host or CI lacks a working C compiler and this cannot be
   resolved within the existing CI image, stop and escalate before broadening
@@ -358,11 +359,11 @@ External prior art checked during planning (Firecrawl):
 
 - Risk: the tree-sitter dependency increases cold build time and binary size,
   and requires a C compiler on every build host. Severity: medium. Likelihood:
-  medium. Mitigation: confirm a working C compiler on CI in Stage 1, measure the
-  cold build there and locally, keep the grammar scoped to the one crate that
-  needs it, and stop and escalate if cold build plus `make test` breaches the
-  20-second tolerance. Re-run the 1.3.3 performance probe after Stage 2 to catch
-  warm-path regression.
+  medium. Mitigation: confirm a working C compiler on CI in Stage 1, measure
+  the cold build there and locally, keep the grammar scoped to the one crate
+  that needs it, and stop and escalate if cold build plus `make test` breaches
+  the 20-second tolerance. Re-run the 1.3.3 performance probe after Stage 2 to
+  catch warm-path regression.
 
 - Risk: canonical JSON field ordering churns as the Python region shape settles.
   Severity: low. Likelihood: medium. Mitigation: centralize serialization in
@@ -421,8 +422,8 @@ breaches the 20-second `make test` tolerance on the CI image, stop and escalate
 before pinning the dependencies (see `Tolerances`).
 
 Write a throwaway-then-promoted spike test in `stilyagi-tree-sitter` that parses
-`tests/fixtures/corpus/python/valid/module-class-function-docstrings.py`, loads
-the grammar through `tree_sitter_python::LANGUAGE`, and asserts:
+`tests/fixtures/corpus/python/valid/module-class-function-docstrings.py`,
+loads the grammar through `tree_sitter_python::LANGUAGE`, and asserts:
 
 1. The root node kind is `module`.
 2. The first `expression_statement` child of `module` wraps a `string`.
@@ -480,20 +481,28 @@ absent parse tree). Recoverable parse anomalies are not errors; they become
 
 The extractor:
 
-1. Builds the envelope with `IrDocument::empty(DocumentMetadata::new("python",
-   identity.path, identity.uri, source), vec![python_producer()], source)`.
-   `python_producer()` records `kind: "tree-sitter"`, `name:
-   "tree-sitter-python"`, the pinned grammar version, and deterministic
+1. Builds the envelope with:
+
+   ```rust
+   IrDocument::empty(
+       DocumentMetadata::new("python", identity.path, identity.uri, source),
+       vec![python_producer()],
+       source,
+   )
+   ```
+
+   `python_producer()` records `kind: "tree-sitter"`,
+   `name: "tree-sitter-python"`, the pinned grammar version, and deterministic
    options.
 2. Parses the source with tree-sitter and walks named children depth-first,
    left-to-right, maintaining an explicit owner stack. Only `class_definition`
-   and `function_definition` nodes push an `OwnerFrame`; a `decorated_definition`
-   is transparent (the walk descends through its `definition` field to the inner
-   definition, and the decorator itself never appears in the stack or the
-   qualname). `async def` is a `function_definition` and yields
-   `kind: "function"` with no special marker. The stack frame is pushed on entry
-   to a definition body and popped on exit, so it always reflects lexical
-   ancestry.
+   and `function_definition` nodes push an `OwnerFrame`; a
+   `decorated_definition` is transparent (the walk descends through its
+   `definition` field to the inner definition, and the decorator itself never
+   appears in the stack or the qualname). `async def` is a
+   `function_definition` and yields `kind: "function"` with no special marker.
+   The stack frame is pushed on entry to a definition body and popped on exit,
+   so it always reflects lexical ancestry.
 3. For the `module` root and for each `class_definition`/`function_definition`
    body `block`, inspects the first statement. It emits a `python_docstring`
    region only when that statement is an `expression_statement` whose single
@@ -502,26 +511,27 @@ The extractor:
    format prefix. Concatenated-string and f-string first statements are not
    docstrings in v1 (documented limitation, with pinned rejection tests). A
    declaration whose first statement is anything else yields no region.
-4. For each emitted region, populates `kind: "python_docstring"`, `scope:
-   ["python", "docstring", <owner_kind>]`, `syntax: "python"`,
+4. For each emitted region, populates `kind: "python_docstring"`,
+   `scope: ["python", "docstring", <owner_kind>]`, `syntax: "python"`,
    `natural_language: None`, `text` from `string_content`, one source-backed
    `IrSegment` over the `string_content` byte span, `origin_nodes` referencing
    the emitted docstring node, `owner` from the owner stack, empty `attrs`, and
    `parent_region: None`.
 5. Emits the bounded node store: a synthetic `module` root node, each
-   docstring-owning definition node, and each docstring `string` node, all under
-   one `IrTree { family: "tree-sitter", syntax: "python", root: <module id> }`.
-   Node `flags` use `NodeFlags::named_source()`; nodes inside recovered error
+   docstring-owning definition node, and each docstring `string` node, all
+   under one
+   `IrTree { family: "tree-sitter", syntax: "python", root: <module id> }`. Node
+   `flags` use `NodeFlags::named_source()`; nodes inside recovered error
    regions set `flags.error`/`flags.missing` as tree-sitter reports them.
 6. On recovery anomalies, appends one `IrError` per top-level `ERROR`/`MISSING`
    subtree (not one giant whole-file error), in source order, then continues.
    Each entry uses `code: "python-parse-recovery"`, a message naming the node
-   kind and byte span (for example,
-   `"recovered ERROR node at bytes 56..118"`), and `span: Some(...)` for the
-   affected range. Docstring `string` nodes that are themselves well-formed are
-   still emitted normally with `flags.error == false`; the anomaly lives in
-   `errors`, so rules can still process docstrings found in otherwise malformed
-   files. The exact spans must match what the Stage 1 spike captured.
+   kind and byte span (for example, `"recovered ERROR node at bytes 56..118"`),
+   and `span: Some(...)` for the affected range. Docstring `string` nodes that
+   are themselves well-formed are still emitted normally with
+   `flags.error == false`; the anomaly lives in `errors`, so rules can still
+   process docstrings found in otherwise malformed files. The exact spans must
+   match what the Stage 1 spike captured.
 7. Validates IR consistency before returning, reusing the Markdown checks:
    content-hash match, line-index match, and `segments_reconstruct_text` for
    every region.
@@ -538,9 +548,9 @@ Owner derivation (a pure, table-tested function over the owner stack):
   function declared inside its body (see `Decision Log`). The top-level module
   contributes no prefix. Decorators (`@staticmethod`, `@classmethod`,
   `@property`, or any user decorator), `async`, and statement nesting (`if`,
-  `for`, `with`) do not change the qualname; only enclosing named
-  `class`/`function` declarations do, with `<locals>` inserted after each
-  enclosing function.
+  `for`, `with`) do not change the qualname; only enclosing named `class`/
+  `function` declarations do, with `<locals>` inserted after each enclosing
+  function.
 
 Worked example (the shared fixture path
 `module > class FixtureExample > @staticmethod def method`):
@@ -573,13 +583,13 @@ Before writing the extractor, add the fixtures this stage and Stage 3 need, so
 the corpus anchors the snapshots (these augment the 1.3.1 corpus):
 
 - `tests/fixtures/corpus/python/valid/nested-declarations.py`: a
-  function-in-function with a docstring, a class-in-function with a docstring, a
-  function-in-class (method) with a docstring, and a doubly decorated method, to
-  exercise `<locals>` and decorator transparency.
+  function-in-function with a docstring, a class-in-function with a docstring,
+  a function-in-class (method) with a docstring, and a doubly decorated method,
+  to exercise `<locals>` and decorator transparency.
 - `tests/fixtures/corpus/python/valid/docstring-edge-cases.py`: a multi-line
   docstring, a raw (`r"""..."""`) docstring, a docstring containing embedded
-  `"` and `'` quotes and backslash escapes, an empty docstring (`""""""`), and a
-  whitespace-only docstring, plus an f-string first statement and a
+  `"` and `'` quotes and backslash escapes, an empty docstring (`""""""`), and
+  a whitespace-only docstring, plus an f-string first statement and a
   concatenated-string first statement that must *not* be extracted.
 
 A CR-LF docstring case is covered by an inline test source (not a corpus file)
@@ -602,15 +612,15 @@ Tests for this stage (run before the full gate):
 - malformed-recovery rstest cases: the corpus malformed fixture must yield
   exactly one region (the module docstring) plus at least one `errors` entry,
   and must not panic; plus an inline source case
-  (`module docstring → broken function → a later well-formed class with a
-  docstring`) that documents whether tree-sitter recovery reaches the later
-  class. The expected outcome is whatever Stage 1 captured; the test pins it so
-  a grammar upgrade that changes recovery is caught.
+  (`module docstring → broken function → a later well-formed class with a docstring`)
+  that documents whether tree-sitter recovery reaches the later class. The
+  expected outcome is whatever Stage 1 captured; the test pins it so a grammar
+  upgrade that changes recovery is caught.
 - proptest invariants: for generated valid segment layouts,
   `segments_reconstruct_text` holds and source-backed segment bytes equal the
   source oracle; and the pure `qualname` builder is deterministic and matches
-  `__qualname__` semantics over generated owner stacks of
-  `(OwnerKind, name)` pairs.
+  `__qualname__` semantics over generated owner stacks of `(OwnerKind, name)`
+  pairs.
 
 ```bash
 cargo test -p stilyagi-tree-sitter -p stilyagi-extract 2>&1 \
@@ -647,14 +657,15 @@ builder cannot invent a second schema. Add a stable
 `tests/fixtures/corpus/python/valid/module-class-function-docstrings.py` and a
 `MALFORMED_PYTHON_FIXTURE_PATH` constant for the malformed fixture.
 
-Add insta snapshots for the canonical IR JSON of both Python fixtures (valid and
-malformed). Place them beside the existing extraction snapshots
+Add insta snapshots for the canonical IR JSON of both Python fixtures (valid
+and malformed). Place them beside the existing extraction snapshots
 (`crates/stilyagi-extract/tests/extract/snapshots/`), using descriptive names
-such as `python_docstring_valid_fixture` and `python_docstring_malformed_fixture`
-(mirroring the existing `..._shared_markdown_fixture_has_a_golden_ir_snapshot`
-convention). Accept a snapshot only after diffing it and confirming each
-region's `text`, `segments`, and `owner.kind`/`name`/`qualname` are correct and
-no spurious nodes or regions appear. Review the diff, then:
+such as `python_docstring_valid_fixture` and
+`python_docstring_malformed_fixture` (mirroring the existing
+`..._shared_markdown_fixture_has_a_golden_ir_snapshot` convention). Accept a
+snapshot only after diffing it and confirming each region's `text`, `segments`,
+and `owner.kind`/`name`/`qualname` are correct and no spurious nodes or regions
+appear. Review the diff, then:
 
 ```bash
 INSTA_UPDATE=always cargo test -p stilyagi-test-support -p stilyagi-extract 2>&1 \
@@ -713,10 +724,10 @@ Python extraction therefore needs no new bridge fields. Update:
 Add Python tests:
 
 - `pytest` unit tests calling
-  `stilyagi.engine.extraction.extract_document(source,
-  model.Syntax.PYTHON_DOCSTRING)` for the shared fixture, asserting the parsed
-  `Document.ir` contains `python_docstring` regions with `owner` `kind`,
-  `name`, and `qualname` for module, class, method, and function.
+  `stilyagi.engine.extraction.extract_document(source, model.Syntax.PYTHON_DOCSTRING)`
+  for the shared fixture, asserting the parsed `Document.ir` contains
+  `python_docstring` regions with `owner` `kind`, `name`, and `qualname` for
+  module, class, method, and function.
 - a `pytest-bdd` feature under `features/` mirroring the Rust BDD scenarios for
   the externally observable Python workflow.
 - a `syrupy` JSON snapshot of `Document.ir` for the shared Python fixture,
@@ -729,13 +740,14 @@ Add Python tests:
   the two sides differ only in genuine contract terms. Run the parity test
   against the already-reviewed, checked-in Rust snapshot.
 - a `hypothesis` property test that keeps the Python *shape* fixed and varies
-  only the prose: it renders the template `def {name}():\n    """{body}"""` from
-  an identifier strategy (`[A-Za-z_][A-Za-z0-9_]*`, excluding Python keywords)
-  and a body strategy drawn from text excluding `"`, `\`, and newlines and not
-  empty, then asserts the extractor returns exactly one `python_docstring`
-  region whose `owner.qualname` equals `{name}` and whose region text equals
-  `{body}`. Generating full Python syntax with hypothesis is deliberately
-  avoided; the fixed-shape table cases above carry the structural coverage.
+  only the prose: it renders the template `def {name}():\n    """{body}"""`
+  from an identifier strategy (`[A-Za-z_][A-Za-z0-9_]*`, excluding Python
+  keywords) and a body strategy drawn from text excluding `"`, `\`, and
+  newlines and not empty, then asserts the extractor returns exactly one
+  `python_docstring` region whose `owner.qualname` equals `{name}` and whose
+  region text equals `{body}`. Generating full Python syntax with hypothesis is
+  deliberately avoided; the fixed-shape table cases above carry the structural
+  coverage.
 
 Build and run targeted Python tests:
 
@@ -757,10 +769,10 @@ commit.
   the bounded node-store policy, and the v1 limitations: module owners carry
   `name: null`/`qualname: null` (no package resolution from a path-only
   identity), and `concatenated_string` and f-string first statements are not
-  treated as docstrings. Record a migration path for a future
-  package-qualified module owner. Reference the ADR from `docs/stilyagi-design.md`
-  §7.1 and resolve the §12 open question ("Exact owner metadata shape for
-  docstrings and comments").
+  treated as docstrings. Record a migration path for a future package-qualified
+  module owner. Reference the ADR from `docs/stilyagi-design.md` §7.1 and
+  resolve the §12 open question ("Exact owner metadata shape for docstrings and
+  comments").
 - Amend RFC 0001's owner section with a short note pointing to ADR 005 for the
   concrete Python `qualname` semantics, without changing the existing field
   contract.
@@ -846,20 +858,19 @@ Acceptance for the implemented feature:
 - Running Python extraction on
   `tests/fixtures/corpus/python/valid/module-class-function-docstrings.py`
   produces an `IrDocument` with `document.syntax == "python"`,
-  `document.encoding == "utf-8"`, a stable `sha256:` `content_hash`, a
-  monotonic `line_index`, one `tree-sitter` tree, a bounded node store, and four
+  `document.encoding == "utf-8"`, a stable `sha256:` `content_hash`, a monotonic
+  `line_index`, one `tree-sitter` tree, a bounded node store, and four
   `python_docstring` regions.
 - The four regions carry owners: `{kind: "module"}`;
   `{kind: "class", name: "FixtureExample", qualname: "FixtureExample"}`;
   `{kind: "function", name: "method", qualname: "FixtureExample.method"}`; and
-  `{kind: "function", name: "fixture_function", qualname:
-  "fixture_function"}`.
+  `{kind: "function", name: "fixture_function", qualname: "fixture_function"}`.
 - Each region's `segments` reconstruct its `text` exactly, and source-backed
   segment bytes equal the corresponding source slice (no span drift).
 - Running extraction on
   `tests/fixtures/corpus/python/malformed/unclosed-function.py.txt` still emits
-  the module docstring region and records at least one
-  `errors` entry; it does not panic or abort.
+  the module docstring region and records at least one `errors` entry; it does
+  not panic or abort.
 - Canonical IR JSON snapshots for both Python fixtures are stable across
   repeated runs.
 - The PyO3 bridge accepts `"python_docstring"`, returns `ir_json`, and the
@@ -911,8 +922,8 @@ output with `tee` into `/tmp` logs and read the log before retrying a failure.
 
 ## Idempotence and recovery
 
-Most steps are additive and safe to rerun: tests, snapshot verification, and
-the `make` gates. Snapshot update commands (`INSTA_UPDATE=always`,
+Most steps are additive and safe to rerun: tests, snapshot verification, and the
+`make` gates. Snapshot update commands (`INSTA_UPDATE=always`,
 `--snapshot-update`) are safe only after the implementation diff has been
 reviewed; if an update captures unintended churn, revert only the snapshot
 changes from that milestone and fix the builder before updating again.
@@ -938,19 +949,21 @@ tree-sitter-python = "0.25"
 ```
 
 `crates/stilyagi-tree-sitter/Cargo.toml` gains `tree-sitter.workspace = true`,
-`tree-sitter-python.workspace = true`, `stilyagi-ir = { path = "../stilyagi-ir"
-}`, `serde_json.workspace = true` (for region attrs and producer options), and
-dev-dependencies `rstest.workspace = true`, `rstest-bdd.workspace = true`,
+`tree-sitter-python.workspace = true`,
+`stilyagi-ir = { path = "../stilyagi-ir" }`, `serde_json.workspace = true` (for
+region attrs and producer options), and dev-dependencies
+`rstest.workspace = true`, `rstest-bdd.workspace = true`,
 `rstest-bdd-macros.workspace = true`, `insta.workspace = true`,
-`proptest.workspace = true`, and `stilyagi-test-support = { path =
-"../stilyagi-test-support" }`.
+`proptest.workspace = true`, and
+`stilyagi-test-support = { path = "../stilyagi-test-support" }`.
 
-Crate spine: keep each language self-contained. `crates/stilyagi-tree-sitter/
-src/lib.rs` is the public surface and re-exports from a `python` module; it does
-not host a speculative language-agnostic abstraction layer. Genuinely shared
-tree-sitter helpers (for example, a "byte span of a node" or "named child by
-field" convenience) move into a small `support` module only if item 3.1.2's Rust
-extractor actually needs them; until then, premature generalization is avoided.
+Crate spine: keep each language self-contained.
+`crates/stilyagi-tree-sitter/ src/lib.rs` is the public surface and re-exports
+from a `python` module; it does not host a speculative language-agnostic
+abstraction layer. Genuinely shared tree-sitter helpers (for example, a "byte
+span of a node" or "named child by field" convenience) move into a small
+`support` module only if item 3.1.2's Rust extractor actually needs them; until
+then, premature generalization is avoided.
 
 Public Rust surface added in `crates/stilyagi-tree-sitter/src/`:
 
@@ -986,15 +999,15 @@ fn owner_for(stack: &[OwnerFrame]) -> stilyagi_ir::IrOwner;
 fn qualname_for(stack: &[OwnerFrame]) -> Option<String>;
 ```
 
-`crates/stilyagi-extract/src/lib.rs` gains an `ExtractError::PythonIr(
-PythonExtractError)` arm carrying the small fieldless enum above. Because that
-payload is tiny, the existing 128-byte `ExtractError` size assertion still holds
-and is not raised; if a future change does enlarge it, raise the budget
-deliberately in a separate, justified step. The crate also gains a
-`RegionKind::PythonDocstring` variant, routes `ExtractSyntax::PythonDocstring`
-to the new path, and keeps `RustDocComment` returning `UnsupportedSyntax`.
-`map_extract_error` in the PyO3 bridge maps `ExtractError::PythonIr` to a
-`PyRuntimeError`, matching the Markdown arm.
+`crates/stilyagi-extract/src/lib.rs` gains an
+`ExtractError::PythonIr( PythonExtractError)` arm carrying the small fieldless
+enum above. Because that payload is tiny, the existing 128-byte `ExtractError`
+size assertion still holds and is not raised; if a future change does enlarge
+it, raise the budget deliberately in a separate, justified step. The crate also
+gains a `RegionKind::PythonDocstring` variant, routes
+`ExtractSyntax::PythonDocstring` to the new path, and keeps `RustDocComment`
+returning `UnsupportedSyntax`. `map_extract_error` in the PyO3 bridge maps
+`ExtractError::PythonIr` to a `PyRuntimeError`, matching the Markdown arm.
 
 `crates/stilyagi-test-support/src/` gains `golden_python_ir_fixture`,
 `SHARED_PYTHON_FIXTURE_PATH`, and `MALFORMED_PYTHON_FIXTURE_PATH`, re-exported
@@ -1030,25 +1043,25 @@ signposts: `tree-sitter` 0.25.x and `tree-sitter-python` 0.25.0 with a
 A community-of-experts review (Pandalump, Wafflecat, Buzzy Bee, Telefono,
 Doggylump, Dinolump) stress-tested this draft before delivery. Accepted
 revisions folded into the plan: keep `lib.rs` as a thin spine over a `python`
-module (no premature generalization); commit `ExtractError::PythonIr` to a small
-fieldless payload so the 128-byte size assertion holds; specify `None` owner
-fields serialise as `null`; make the single-source-backed-segment reconstruction
-guarantee explicit (covers CR-LF, raw strings, escapes, embedded quotes, empty
-docstrings); pin determinism of traversal and identifier assignment; concretise
-f-string and `concatenated_string` rejection; expand the owner test table
-(`async`, `@classmethod`/`@staticmethod`/`@property`, nested decorators,
-function-in-function, class-in-function, statement-nested defs) and add
-`nested-declarations.py` and `docstring-edge-cases.py` fixtures; require the
-Stage 1 spike to capture tree-sitter's recovery of the malformed fixture and a
-cold-build measurement plus C-compiler check; make the malformed acceptance
-exact (one region plus per-`ERROR`-subtree `IrError`s); define IR-error message
-content; specify snapshot naming and a shared parity redaction helper; keep the
-hypothesis test to fixed-shape source with generated prose; and record the
-manual-walk, bounded-store, and module-anonymity decisions in the Decision Log
-and ADR 005. The tensions surfaced (bounded store versus future rule depth;
-hypothesis breadth versus flakiness; query elegance versus single-pass owner
-tracking) were resolved in favour of the bounded v1 contract, documented for the
-3.1.2 and 3.2.2 follow-ups.
+module (no premature generalization); commit `ExtractError::PythonIr` to a
+small fieldless payload so the 128-byte size assertion holds; specify `None`
+owner fields serialise as `null`; make the single-source-backed-segment
+reconstruction guarantee explicit (covers CR-LF, raw strings, escapes, embedded
+quotes, empty docstrings); pin determinism of traversal and identifier
+assignment; concretise f-string and `concatenated_string` rejection; expand the
+owner test table (`async`, `@classmethod`/`@staticmethod`/`@property`, nested
+decorators, function-in-function, class-in-function, statement-nested defs) and
+add `nested-declarations.py` and `docstring-edge-cases.py` fixtures; require
+the Stage 1 spike to capture tree-sitter's recovery of the malformed fixture
+and a cold-build measurement plus C-compiler check; make the malformed
+acceptance exact (one region plus per-`ERROR`-subtree `IrError`s); define
+IR-error message content; specify snapshot naming and a shared parity redaction
+helper; keep the hypothesis test to fixed-shape source with generated prose;
+and record the manual-walk, bounded-store, and module-anonymity decisions in
+the Decision Log and ADR 005. The tensions surfaced (bounded store versus
+future rule depth; hypothesis breadth versus flakiness; query elegance versus
+single-pass owner tracking) were resolved in favour of the bounded v1 contract,
+documented for the 3.1.2 and 3.2.2 follow-ups.
 
 ## Progress
 
@@ -1060,8 +1073,13 @@ tracking) were resolved in favour of the bounded v1 contract, documented for the
 - [x] (2026-06-12) Renamed the branch to `3-1-1-python-docstring-extraction`,
   pushed with upstream tracking, and opened draft PR
   <https://github.com/leynos/stilyagi/pull/30> for the execplan.
-- [ ] Awaiting user approval to implement.
-- [ ] Stage 0: approval recorded and baseline gates captured.
+- [x] (2026-06-15) User approved implementation by requesting that the planned
+  functionality be implemented from this execplan.
+- [x] (2026-06-15) Stage 0 approval and baseline gates captured. Logs:
+  `/tmp/check-fmt-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stilyagi-3-1-1-python-docstring-extraction.out`, and
+  `/tmp/test-stilyagi-3-1-1-python-docstring-extraction.out`.
 - [ ] Stage 1: tree-sitter dependencies and parser spike.
 - [ ] Stage 2: owner-aware Python extractor and dispatch.
 - [ ] Stage 3: canonical JSON, golden fixtures, and snapshots.
@@ -1078,11 +1096,17 @@ tracking) were resolved in favour of the bounded v1 contract, documented for the
   `crates/stilyagi-extract/src/lib.rs` already spells `python_docstring`.
   Impact: this slice fills in the producer, not the contract.
 
+- Observation: the pre-implementation baseline is clean on 2026-06-15. Evidence:
+  `make check-fmt`, `make typecheck`, `make lint`, and `make test` all passed
+  sequentially, with `make test` reporting 131/131 Rust tests and 97/97 Python
+  tests passed. Impact: subsequent gate failures should be treated as caused by
+  this implementation unless a new unrelated change is discovered.
+
 ## Decision Log
 
 - Decision: keep `Status: DRAFT` and block implementation until the user
-  records explicit approval. Rationale: the execplans approval gate. Date/Author:
-  2026-06-12, planning agent.
+  records explicit approval. Rationale: the execplans approval gate.
+  Date/Author: 2026-06-12, planning agent.
 
 - Decision: implement Python extraction in `crates/stilyagi-tree-sitter` rather
   than a new crate. Rationale: the design §10 crate list names this crate for
@@ -1104,11 +1128,11 @@ tracking) were resolved in favour of the bounded v1 contract, documented for the
 
 - Decision: `qualname` follows Python's `__qualname__` semantics, inserting
   `<locals>` between a function and entities declared in its body, with no
-  prefix for module-level entities. Rationale: it is the canonical, well-defined
-  qualified-name format Python rules are most likely to expect; the alternative
-  (a plain dotted path) silently collides for function-local declarations.
-  Recorded for ratification in ADR 005 and an RFC 0001 note. Date/Author:
-  2026-06-12, planning agent.
+  prefix for module-level entities. Rationale: it is the canonical,
+  well-defined qualified-name format Python rules are most likely to expect;
+  the alternative (a plain dotted path) silently collides for function-local
+  declarations. Recorded for ratification in ADR 005 and an RFC 0001 note.
+  Date/Author: 2026-06-12, planning agent.
 
 - Decision: emit a bounded node store (synthetic `module` root, owning
   definition nodes, and docstring `string` nodes) rather than the full Python
@@ -1131,10 +1155,10 @@ tracking) were resolved in favour of the bounded v1 contract, documented for the
 
 - Decision: discover docstrings by a manual depth-first walk with an owner stack
   rather than tree-sitter S-expression queries. Rationale: owner derivation is
-  inherently hierarchical and the bounded node store is built in the same single
-  pass; a query would still need a second traversal to recover `<locals>`
-  context, adding work without reducing coupling. Date/Author: 2026-06-12,
-  planning agent (community-of-experts review).
+  inherently hierarchical and the bounded node store is built in the same
+  single pass; a query would still need a second traversal to recover
+  `<locals>` context, adding work without reducing coupling. Date/Author:
+  2026-06-12, planning agent (community-of-experts review).
 
 - Decision: `ExtractError::PythonIr` wraps the small fieldless
   `PythonExtractError`; recoverable diagnostics live in `IrError`. Rationale:
@@ -1155,6 +1179,11 @@ tracking) were resolved in favour of the bounded v1 contract, documented for the
   generating arbitrary valid Python with hypothesis adds flakiness without
   finding real owner-derivation bugs. Date/Author: 2026-06-12, planning agent
   (community-of-experts review).
+
+- Decision: mark this execplan `IN PROGRESS` and begin implementation.
+  Rationale: the user explicitly approved implementation on 2026-06-15 by
+  requesting that the planned functionality be implemented from this file.
+  Date/Author: 2026-06-15, implementation agent.
 
 ## Outcomes & Retrospective
 
