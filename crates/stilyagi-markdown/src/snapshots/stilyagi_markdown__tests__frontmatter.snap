@@ -5,12 +5,12 @@ expression: json
 {
   "schema_version": "1.0.0",
   "document": {
-    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture",
-    "path": "tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture",
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture",
     "syntax": "markdown",
     "natural_language": null,
     "encoding": "utf-8",
-    "content_hash": "sha256:84a03cde5adaaf47a71cd403e13259aa71bc3e6c8ed0fb1a1b81834b03e0fb2b"
+    "content_hash": "sha256:553fda009cfe8bc5ce2a9e4707c2cf908c13239c977c7b72a55be7f31cabab8f"
   },
   "producers": [
     {
@@ -26,10 +26,11 @@ expression: json
   "line_index": [
     0,
     4,
-    25,
-    29,
-    30,
-    59
+    27,
+    68,
+    72,
+    73,
+    112
   ],
   "trees": [
     {
@@ -53,7 +54,7 @@ expression: json
       "props": {},
       "span": {
         "byte_start": 0,
-        "byte_end": 59
+        "byte_end": 112
       },
       "flags": {
         "named": true,
@@ -72,7 +73,7 @@ expression: json
       "props": {},
       "span": {
         "byte_start": 0,
-        "byte_end": 28
+        "byte_end": 71
       },
       "flags": {
         "named": true,
@@ -92,8 +93,8 @@ expression: json
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 30,
-        "byte_end": 58
+        "byte_start": 73,
+        "byte_end": 111
       },
       "flags": {
         "named": true,
@@ -111,8 +112,8 @@ expression: json
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 30,
-        "byte_end": 58
+        "byte_start": 73,
+        "byte_end": 111
       },
       "flags": {
         "named": true,
@@ -133,18 +134,18 @@ expression: json
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "---\ntitle: Fixture title\n---",
+      "text": "---\ntitle: Golden Fixtures\nsummary: Covers frontmatter as a region.\n---",
       "segments": [
         {
           "text_start": 0,
-          "text_end": 28,
+          "text_end": 71,
           "source": {
             "byte_start": 0,
-            "byte_end": 28
+            "byte_end": 71
           },
           "synthetic": null,
           "node": "n1",
-          "text": "---\ntitle: Fixture title\n---"
+          "text": "---\ntitle: Golden Fixtures\nsummary: Covers frontmatter as a region.\n---"
         }
       ],
       "origin_nodes": [
@@ -165,18 +166,18 @@ expression: json
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "Paragraph after frontmatter.",
+      "text": "Paragraph after dedicated frontmatter.",
       "segments": [
         {
           "text_start": 0,
-          "text_end": 28,
+          "text_end": 38,
           "source": {
-            "byte_start": 30,
-            "byte_end": 58
+            "byte_start": 73,
+            "byte_end": 111
           },
           "synthetic": null,
           "node": "n2",
-          "text": "Paragraph after frontmatter."
+          "text": "Paragraph after dedicated frontmatter."
         }
       ],
       "origin_nodes": [

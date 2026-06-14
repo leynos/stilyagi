@@ -5,12 +5,12 @@ expression: json
 {
   "schema_version": "1.0.0",
   "document": {
-    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture",
-    "path": "tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture",
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/headings.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/headings.md.fixture",
     "syntax": "markdown",
     "natural_language": null,
     "encoding": "utf-8",
-    "content_hash": "sha256:84a03cde5adaaf47a71cd403e13259aa71bc3e6c8ed0fb1a1b81834b03e0fb2b"
+    "content_hash": "sha256:87e6e0c1672c2050b3a204c6c8f3cda949bb1f169160cd11a4530ac91b44461e"
   },
   "producers": [
     {
@@ -25,11 +25,9 @@ expression: json
   ],
   "line_index": [
     0,
-    4,
-    25,
-    29,
-    30,
-    59
+    12,
+    13,
+    30
   ],
   "trees": [
     {
@@ -47,13 +45,13 @@ expression: json
       "parent": null,
       "children": [
         "n1",
-        "n2"
+        "n3"
       ],
       "fields": {},
       "props": {},
       "span": {
         "byte_start": 0,
-        "byte_end": 59
+        "byte_end": 30
       },
       "flags": {
         "named": true,
@@ -65,14 +63,18 @@ expression: json
     {
       "id": "n1",
       "tree": "t0",
-      "kind": "yaml",
+      "kind": "heading",
       "parent": "n0",
-      "children": [],
+      "children": [
+        "n2"
+      ],
       "fields": {},
-      "props": {},
+      "props": {
+        "depth": 1
+      },
       "span": {
         "byte_start": 0,
-        "byte_end": 28
+        "byte_end": 11
       },
       "flags": {
         "named": true,
@@ -84,16 +86,14 @@ expression: json
     {
       "id": "n2",
       "tree": "t0",
-      "kind": "paragraph",
-      "parent": "n0",
-      "children": [
-        "n3"
-      ],
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 30,
-        "byte_end": 58
+        "byte_start": 2,
+        "byte_end": 11
       },
       "flags": {
         "named": true,
@@ -105,14 +105,37 @@ expression: json
     {
       "id": "n3",
       "tree": "t0",
+      "kind": "heading",
+      "parent": "n0",
+      "children": [
+        "n4"
+      ],
+      "fields": {},
+      "props": {
+        "depth": 3
+      },
+      "span": {
+        "byte_start": 13,
+        "byte_end": 29
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
       "kind": "text",
-      "parent": "n2",
+      "parent": "n3",
       "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 30,
-        "byte_end": 58
+        "byte_start": 17,
+        "byte_end": 29
       },
       "flags": {
         "named": true,
@@ -125,26 +148,26 @@ expression: json
   "regions": [
     {
       "id": "r0",
-      "kind": "frontmatter",
+      "kind": "heading",
       "scope": [
         "markdown",
-        "frontmatter",
-        "yaml"
+        "heading",
+        "h1"
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "---\ntitle: Fixture title\n---",
+      "text": "Top Level",
       "segments": [
         {
           "text_start": 0,
-          "text_end": 28,
+          "text_end": 9,
           "source": {
-            "byte_start": 0,
-            "byte_end": 28
+            "byte_start": 2,
+            "byte_end": 11
           },
           "synthetic": null,
           "node": "n1",
-          "text": "---\ntitle: Fixture title\n---"
+          "text": "Top Level"
         }
       ],
       "origin_nodes": [
@@ -152,38 +175,41 @@ expression: json
       ],
       "owner": null,
       "attrs": {
-        "format": "yaml"
+        "depth": 1
       },
       "parent_region": null
     },
     {
       "id": "r1",
-      "kind": "paragraph",
+      "kind": "heading",
       "scope": [
         "markdown",
-        "paragraph"
+        "heading",
+        "h3"
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "Paragraph after frontmatter.",
+      "text": "Nested Level",
       "segments": [
         {
           "text_start": 0,
-          "text_end": 28,
+          "text_end": 12,
           "source": {
-            "byte_start": 30,
-            "byte_end": 58
+            "byte_start": 17,
+            "byte_end": 29
           },
           "synthetic": null,
-          "node": "n2",
-          "text": "Paragraph after frontmatter."
+          "node": "n3",
+          "text": "Nested Level"
         }
       ],
       "origin_nodes": [
-        "n2"
+        "n3"
       ],
       "owner": null,
-      "attrs": {},
+      "attrs": {
+        "depth": 3
+      },
       "parent_region": null
     }
   ],

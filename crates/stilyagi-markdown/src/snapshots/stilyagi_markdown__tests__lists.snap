@@ -5,12 +5,12 @@ expression: json
 {
   "schema_version": "1.0.0",
   "document": {
-    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
-    "path": "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/lists.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/lists.md.fixture",
     "syntax": "markdown",
     "natural_language": null,
     "encoding": "utf-8",
-    "content_hash": "sha256:57551b339c3a3e6c399bd0360f9a3d08458eefca22677dd7235f838e18b2ddc7"
+    "content_hash": "sha256:5399d7cc5689c7f46fbb6c16f76fef4197bc0ff8a21dbae9b9a05e02fa9f7f82"
   },
   "producers": [
     {
@@ -25,16 +25,12 @@ expression: json
   ],
   "line_index": [
     0,
-    18,
-    19,
-    47,
-    106,
-    107,
-    155,
-    156,
-    195,
-    234,
-    273
+    17,
+    36,
+    57,
+    58,
+    74,
+    98
   ],
   "trees": [
     {
@@ -52,15 +48,13 @@ expression: json
       "parent": null,
       "children": [
         "n1",
-        "n3",
-        "n8",
-        "n9"
+        "n11"
       ],
       "fields": {},
       "props": {},
       "span": {
         "byte_start": 0,
-        "byte_end": 273
+        "byte_end": 98
       },
       "flags": {
         "named": true,
@@ -72,18 +66,18 @@ expression: json
     {
       "id": "n1",
       "tree": "t0",
-      "kind": "heading",
+      "kind": "list",
       "parent": "n0",
       "children": [
-        "n2"
+        "n2",
+        "n5",
+        "n8"
       ],
       "fields": {},
-      "props": {
-        "depth": 1
-      },
+      "props": {},
       "span": {
         "byte_start": 0,
-        "byte_end": 17
+        "byte_end": 57
       },
       "flags": {
         "named": true,
@@ -95,14 +89,16 @@ expression: json
     {
       "id": "n2",
       "tree": "t0",
-      "kind": "text",
+      "kind": "listItem",
       "parent": "n1",
-      "children": [],
+      "children": [
+        "n3"
+      ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 2,
-        "byte_end": 17
+        "byte_start": 0,
+        "byte_end": 16
       },
       "flags": {
         "named": true,
@@ -115,17 +111,15 @@ expression: json
       "id": "n3",
       "tree": "t0",
       "kind": "paragraph",
-      "parent": "n0",
+      "parent": "n2",
       "children": [
-        "n4",
-        "n5",
-        "n7"
+        "n4"
       ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 19,
-        "byte_end": 105
+        "byte_start": 2,
+        "byte_end": 16
       },
       "flags": {
         "named": true,
@@ -143,8 +137,8 @@ expression: json
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 19,
-        "byte_end": 47
+        "byte_start": 2,
+        "byte_end": 16
       },
       "flags": {
         "named": true,
@@ -156,16 +150,16 @@ expression: json
     {
       "id": "n5",
       "tree": "t0",
-      "kind": "link",
-      "parent": "n3",
+      "kind": "listItem",
+      "parent": "n1",
       "children": [
         "n6"
       ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 47,
-        "byte_end": 104
+        "byte_start": 17,
+        "byte_end": 35
       },
       "flags": {
         "named": true,
@@ -177,14 +171,16 @@ expression: json
     {
       "id": "n6",
       "tree": "t0",
-      "kind": "text",
+      "kind": "paragraph",
       "parent": "n5",
-      "children": [],
+      "children": [
+        "n7"
+      ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 48,
-        "byte_end": 63
+        "byte_start": 23,
+        "byte_end": 35
       },
       "flags": {
         "named": true,
@@ -197,13 +193,13 @@ expression: json
       "id": "n7",
       "tree": "t0",
       "kind": "text",
-      "parent": "n3",
+      "parent": "n6",
       "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 104,
-        "byte_end": 105
+        "byte_start": 23,
+        "byte_end": 35
       },
       "flags": {
         "named": true,
@@ -215,14 +211,16 @@ expression: json
     {
       "id": "n8",
       "tree": "t0",
-      "kind": "html",
-      "parent": "n0",
-      "children": [],
+      "kind": "listItem",
+      "parent": "n1",
+      "children": [
+        "n9"
+      ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 107,
-        "byte_end": 154
+        "byte_start": 36,
+        "byte_end": 57
       },
       "flags": {
         "named": true,
@@ -234,17 +232,16 @@ expression: json
     {
       "id": "n9",
       "tree": "t0",
-      "kind": "table",
-      "parent": "n0",
+      "kind": "paragraph",
+      "parent": "n8",
       "children": [
-        "n10",
-        "n15"
+        "n10"
       ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 156,
-        "byte_end": 272
+        "byte_start": 42,
+        "byte_end": 56
       },
       "flags": {
         "named": true,
@@ -256,17 +253,14 @@ expression: json
     {
       "id": "n10",
       "tree": "t0",
-      "kind": "tableRow",
+      "kind": "text",
       "parent": "n9",
-      "children": [
-        "n11",
-        "n13"
-      ],
+      "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 156,
-        "byte_end": 194
+        "byte_start": 42,
+        "byte_end": 56
       },
       "flags": {
         "named": true,
@@ -278,16 +272,17 @@ expression: json
     {
       "id": "n11",
       "tree": "t0",
-      "kind": "tableCell",
-      "parent": "n10",
+      "kind": "list",
+      "parent": "n0",
       "children": [
-        "n12"
+        "n12",
+        "n15"
       ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 156,
-        "byte_end": 163
+        "byte_start": 58,
+        "byte_end": 97
       },
       "flags": {
         "named": true,
@@ -299,14 +294,16 @@ expression: json
     {
       "id": "n12",
       "tree": "t0",
-      "kind": "text",
+      "kind": "listItem",
       "parent": "n11",
-      "children": [],
+      "children": [
+        "n13"
+      ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 158,
-        "byte_end": 162
+        "byte_start": 58,
+        "byte_end": 73
       },
       "flags": {
         "named": true,
@@ -318,16 +315,16 @@ expression: json
     {
       "id": "n13",
       "tree": "t0",
-      "kind": "tableCell",
-      "parent": "n10",
+      "kind": "paragraph",
+      "parent": "n12",
       "children": [
         "n14"
       ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 163,
-        "byte_end": 194
+        "byte_start": 61,
+        "byte_end": 73
       },
       "flags": {
         "named": true,
@@ -345,8 +342,8 @@ expression: json
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 165,
-        "byte_end": 172
+        "byte_start": 61,
+        "byte_end": 73
       },
       "flags": {
         "named": true,
@@ -358,17 +355,16 @@ expression: json
     {
       "id": "n15",
       "tree": "t0",
-      "kind": "tableRow",
-      "parent": "n9",
+      "kind": "listItem",
+      "parent": "n11",
       "children": [
-        "n16",
-        "n18"
+        "n16"
       ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 234,
-        "byte_end": 272
+        "byte_start": 74,
+        "byte_end": 97
       },
       "flags": {
         "named": true,
@@ -380,7 +376,7 @@ expression: json
     {
       "id": "n16",
       "tree": "t0",
-      "kind": "tableCell",
+      "kind": "paragraph",
       "parent": "n15",
       "children": [
         "n17"
@@ -388,8 +384,8 @@ expression: json
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 234,
-        "byte_end": 241
+        "byte_start": 77,
+        "byte_end": 97
       },
       "flags": {
         "named": true,
@@ -407,48 +403,8 @@ expression: json
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 236,
-        "byte_end": 238
-      },
-      "flags": {
-        "named": true,
-        "error": false,
-        "missing": false,
-        "synthetic": false
-      }
-    },
-    {
-      "id": "n18",
-      "tree": "t0",
-      "kind": "tableCell",
-      "parent": "n15",
-      "children": [
-        "n19"
-      ],
-      "fields": {},
-      "props": {},
-      "span": {
-        "byte_start": 241,
-        "byte_end": 272
-      },
-      "flags": {
-        "named": true,
-        "error": false,
-        "missing": false,
-        "synthetic": false
-      }
-    },
-    {
-      "id": "n19",
-      "tree": "t0",
-      "kind": "text",
-      "parent": "n18",
-      "children": [],
-      "fields": {},
-      "props": {},
-      "span": {
-        "byte_start": 243,
-        "byte_end": 270
+        "byte_start": 77,
+        "byte_end": 97
       },
       "flags": {
         "named": true,
@@ -461,34 +417,23 @@ expression: json
   "regions": [
     {
       "id": "r0",
-      "kind": "heading",
+      "kind": "list_item",
       "scope": [
         "markdown",
-        "heading",
-        "h1"
+        "list_item",
+        "unordered"
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "Fixture Heading",
-      "segments": [
-        {
-          "text_start": 0,
-          "text_end": 15,
-          "source": {
-            "byte_start": 2,
-            "byte_end": 17
-          },
-          "synthetic": null,
-          "node": "n1",
-          "text": "Fixture Heading"
-        }
-      ],
+      "text": "",
+      "segments": [],
       "origin_nodes": [
-        "n1"
+        "n2"
       ],
       "owner": null,
       "attrs": {
-        "depth": 1
+        "ordered": false,
+        "spread": false
       },
       "parent_region": null
     },
@@ -497,52 +442,23 @@ expression: json
       "kind": "paragraph",
       "scope": [
         "markdown",
-        "paragraph"
+        "paragraph",
+        "list_item"
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "This paragraph links to the Stilyagi design.",
+      "text": "Unordered item",
       "segments": [
         {
           "text_start": 0,
-          "text_end": 27,
+          "text_end": 14,
           "source": {
-            "byte_start": 19,
-            "byte_end": 46
+            "byte_start": 2,
+            "byte_end": 16
           },
           "synthetic": null,
           "node": "n3",
-          "text": "This paragraph links to the"
-        },
-        {
-          "text_start": 27,
-          "text_end": 28,
-          "source": null,
-          "synthetic": "softbreak_space",
-          "node": null,
-          "text": " "
-        },
-        {
-          "text_start": 28,
-          "text_end": 43,
-          "source": {
-            "byte_start": 48,
-            "byte_end": 63
-          },
-          "synthetic": null,
-          "node": "n3",
-          "text": "Stilyagi design"
-        },
-        {
-          "text_start": 43,
-          "text_end": 44,
-          "source": {
-            "byte_start": 104,
-            "byte_end": 105
-          },
-          "synthetic": null,
-          "node": "n3",
-          "text": "."
+          "text": "Unordered item"
         }
       ],
       "origin_nodes": [
@@ -550,139 +466,225 @@ expression: json
       ],
       "owner": null,
       "attrs": {},
-      "parent_region": null
+      "parent_region": "r0"
     },
     {
       "id": "r2",
-      "kind": "table_cell",
+      "kind": "list_item",
       "scope": [
         "markdown",
-        "table_cell",
-        "header"
+        "list_item",
+        "unordered",
+        "task"
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "Term",
-      "segments": [
-        {
-          "text_start": 0,
-          "text_end": 4,
-          "source": {
-            "byte_start": 158,
-            "byte_end": 162
-          },
-          "synthetic": null,
-          "node": "n11",
-          "text": "Term"
-        }
-      ],
+      "text": "",
+      "segments": [],
       "origin_nodes": [
-        "n11"
+        "n5"
       ],
       "owner": null,
       "attrs": {
-        "header": true
+        "checked": true,
+        "ordered": false,
+        "spread": false
       },
       "parent_region": null
     },
     {
       "id": "r3",
-      "kind": "table_cell",
+      "kind": "paragraph",
       "scope": [
         "markdown",
-        "table_cell",
-        "header"
+        "paragraph",
+        "list_item"
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "Meaning",
+      "text": "Checked task",
       "segments": [
         {
           "text_start": 0,
-          "text_end": 7,
+          "text_end": 12,
           "source": {
-            "byte_start": 165,
-            "byte_end": 172
+            "byte_start": 23,
+            "byte_end": 35
+          },
+          "synthetic": null,
+          "node": "n6",
+          "text": "Checked task"
+        }
+      ],
+      "origin_nodes": [
+        "n6"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": "r2"
+    },
+    {
+      "id": "r4",
+      "kind": "list_item",
+      "scope": [
+        "markdown",
+        "list_item",
+        "unordered",
+        "task"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n8"
+      ],
+      "owner": null,
+      "attrs": {
+        "checked": false,
+        "ordered": false,
+        "spread": false
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r5",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph",
+        "list_item"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Unchecked task",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 14,
+          "source": {
+            "byte_start": 42,
+            "byte_end": 56
+          },
+          "synthetic": null,
+          "node": "n9",
+          "text": "Unchecked task"
+        }
+      ],
+      "origin_nodes": [
+        "n9"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": "r4"
+    },
+    {
+      "id": "r6",
+      "kind": "list_item",
+      "scope": [
+        "markdown",
+        "list_item",
+        "ordered"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n12"
+      ],
+      "owner": null,
+      "attrs": {
+        "ordered": true,
+        "spread": false,
+        "start": 3
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r7",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph",
+        "list_item"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Ordered item",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 12,
+          "source": {
+            "byte_start": 61,
+            "byte_end": 73
           },
           "synthetic": null,
           "node": "n13",
-          "text": "Meaning"
+          "text": "Ordered item"
         }
       ],
       "origin_nodes": [
         "n13"
       ],
       "owner": null,
+      "attrs": {},
+      "parent_region": "r6"
+    },
+    {
+      "id": "r8",
+      "kind": "list_item",
+      "scope": [
+        "markdown",
+        "list_item",
+        "ordered"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n15"
+      ],
+      "owner": null,
       "attrs": {
-        "header": true
+        "ordered": true,
+        "spread": false,
+        "start": 3
       },
       "parent_region": null
     },
     {
-      "id": "r4",
-      "kind": "table_cell",
+      "id": "r9",
+      "kind": "paragraph",
       "scope": [
         "markdown",
-        "table_cell",
-        "body"
+        "paragraph",
+        "list_item"
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "IR",
+      "text": "Ordered continuation",
       "segments": [
         {
           "text_start": 0,
-          "text_end": 2,
+          "text_end": 20,
           "source": {
-            "byte_start": 236,
-            "byte_end": 238
+            "byte_start": 77,
+            "byte_end": 97
           },
           "synthetic": null,
           "node": "n16",
-          "text": "IR"
+          "text": "Ordered continuation"
         }
       ],
       "origin_nodes": [
         "n16"
       ],
       "owner": null,
-      "attrs": {
-        "header": false
-      },
-      "parent_region": null
-    },
-    {
-      "id": "r5",
-      "kind": "table_cell",
-      "scope": [
-        "markdown",
-        "table_cell",
-        "body"
-      ],
-      "syntax": "markdown",
-      "natural_language": null,
-      "text": "Intermediate representation",
-      "segments": [
-        {
-          "text_start": 0,
-          "text_end": 27,
-          "source": {
-            "byte_start": 243,
-            "byte_end": 270
-          },
-          "synthetic": null,
-          "node": "n18",
-          "text": "Intermediate representation"
-        }
-      ],
-      "origin_nodes": [
-        "n18"
-      ],
-      "owner": null,
-      "attrs": {
-        "header": false
-      },
-      "parent_region": null
+      "attrs": {},
+      "parent_region": "r8"
     }
   ],
   "suppressions": [],

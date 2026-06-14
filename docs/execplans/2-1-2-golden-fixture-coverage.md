@@ -855,9 +855,11 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   baseline gates passed on 2026-06-14.
 - [x] Stage 1: correctness scaffolding (validator re-slice, `RegionKind`,
   synthetic-reason allow-list). Implemented and locally gated on 2026-06-14.
-- [ ] Stage 2: coverage test red plus new valid fixtures.
-- [ ] Stage 3: emit `list_item`, `blockquote`, `frontmatter`, `image_alt`,
-  `link_title`; coverage test green.
+- [x] Stage 2: coverage test red plus new valid fixtures. Red evidence
+  recorded; commit deferred until Stage 3 makes the test green.
+- [x] Stage 3: emit `list_item`, `blockquote`, `frontmatter`, `image_alt`,
+  `link_title`; coverage test green. Implemented and locally gated on
+  2026-06-14.
 - [ ] Stage 4: malformed, CRLF, adversarial, `proptest`, and BDD coverage.
 - [ ] Stage 5: bridge parity and `supported_region_kinds()`.
 - [ ] Stage 6: ADR, RFC amendment, guides, and roadmap completion.
@@ -917,6 +919,47 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   `1458412` was terminated. Impact: CodeRabbit concerns could not be obtained
   for this milestone; no actionable concerns were available to clear.
 
+- Observation: the Stage 2 coverage test fails before new region emission is
+  implemented, as intended. Evidence:
+  `/tmp/test-stage2-coverage-stilyagi-2-1-2-golden-fixture-coverage.out`
+  shows `valid_markdown_corpus_covers_promised_markdown_region_kinds` failing
+  because `list_item` is absent from the emitted valid-corpus kind set. Impact:
+  the roadmap success criterion is now executable and red before Stage 3.
+
+- Observation: Stage 3 emits the promised Markdown region kinds and the
+  coverage test is green. Evidence:
+  `/tmp/test-stage3-coverage-stilyagi-2-1-2-golden-fixture-coverage.out`
+  and `/tmp/test-stage3-stilyagi-2-1-2-golden-fixture-coverage.out` show the
+  valid Markdown corpus coverage and full test gates passing. Impact:
+  `heading`, `paragraph`, `list_item`, `blockquote`, `table_cell`,
+  `frontmatter`, `image_alt`, and `link_title` now appear in dedicated valid
+  fixtures and snapshots.
+
+- Observation: markdown-rs frontmatter node spans include the opening and
+  closing fences but not the trailing newline after the closing fence. Evidence:
+  the `frontmatter` and `yaml_frontmatter` snapshots show source-backed
+  frontmatter text ending with `---`, while the following blank line is outside
+  the node span. Impact: Stage 3 assertions check the fenced block itself
+  rather than requiring the separator newline to be part of the region text.
+
+- Observation: the Stage 3 `coderabbit review --agent` run repeated the
+  sandbox-setup hang seen in Stage 1. Evidence: the run emitted
+  `preparing_sandbox`, stayed silent for more than two minutes, and PID
+  `1474292` was terminated after confirming it belonged to this worktree.
+  Impact: CodeRabbit concerns were again unavailable; deterministic gates
+  remained green.
+
+- Observation: the first Stage 3 implementation pushed Markdown extraction
+  responsibilities back toward an over-large `lib.rs`. The builder traversal
+  now lives in `crates/stilyagi-markdown/src/builder.rs` and region construction
+  lives in `crates/stilyagi-markdown/src/region_emission.rs`. Evidence:
+  `wc -l crates/stilyagi-markdown/src/lib.rs
+  crates/stilyagi-markdown/src/builder.rs
+  crates/stilyagi-markdown/src/region_emission.rs
+  crates/stilyagi-markdown/src/tests/coverage.rs` reports 331, 148, 346, and
+  234 lines respectively. Impact: the touched Rust files stay below the
+  repository's 400-line limit while preserving the green Stage 3 gates.
+
 ## Decision Log
 
 - Decision: keep `Status: DRAFT` and block implementation until explicit
@@ -974,6 +1017,13 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   requested and produced no findings or rate-limit response, and both hung
   processes were limited to this worktree and terminated without affecting
   other agents. Date/Author: 2026-06-14, implementation agent.
+
+- Decision: continue after Stage 3 despite unavailable CodeRabbit output.
+  Rationale: all applicable deterministic gates passed; CodeRabbit was
+  requested after the milestone and produced no findings or rate-limit response
+  before hanging at sandbox setup; the hung process was limited to this
+  worktree and terminated without affecting other agents. Date/Author:
+  2026-06-14, implementation agent.
 
 ## Outcomes & Retrospective
 

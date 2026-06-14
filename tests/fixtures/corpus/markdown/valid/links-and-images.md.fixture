@@ -1,0 +1,5 @@
+This paragraph has [an inline link](https://example.com "Inline title"),
+[a reference link][design], an autolink <https://example.org>, an image
+![plain alt](plain.png), and a decoded image ![AT&amp;T](decoded.png).
+
+[design]: https://example.com/design "Reference title"

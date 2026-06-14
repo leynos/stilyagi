@@ -1,7 +1,9 @@
 //! Markdown-specific extraction support.
 
+mod builder;
 mod flatten;
 mod node_kind;
+mod region_emission;
 mod source_text;
 
 use std::{
@@ -10,12 +12,11 @@ use std::{
     panic::catch_unwind,
 };
 
-use flatten::{SourceNodeId, flatten_region};
+use builder::MarkdownIrBuilder;
 use markdown::{ParseOptions, mdast::Node, message::Message, to_mdast};
-use node_kind::node_kind;
 use stilyagi_ir::{
-    DocumentMetadata, IrBuildContext, IrDocument, IrNode, IrRegion, IrTree, NodeFlags,
-    ProducerMetadata, RegionKind, SourceIdentity, SourceSpan,
+    DocumentMetadata, IrBuildContext, IrDocument, IrTree, ProducerMetadata, SourceIdentity,
+    SourceSpan,
 };
 
 /// Marker type for the future Markdown extraction boundary.
@@ -304,111 +305,6 @@ fn markdown_producer() -> ProducerMetadata {
     }
 }
 
-struct MarkdownIrBuilder<'source> {
-    source: &'source str,
-    next_node: usize,
-    next_region: usize,
-    nodes: Vec<IrNode>,
-    regions: Vec<IrRegion>,
-}
-
-impl<'source> MarkdownIrBuilder<'source> {
-    const fn new(source: &'source str) -> Self {
-        Self {
-            source,
-            next_node: 0,
-            next_region: 0,
-            nodes: Vec::new(),
-            regions: Vec::new(),
-        }
-    }
-
-    fn push_node(
-        &mut self,
-        node: &Node,
-        parent: Option<&str>,
-        context: &MarkdownDiagnosticContext<'_>,
-    ) -> Result<String, Message> {
-        let node_id = self.next_node_id();
-        let node_index = self.nodes.len();
-        self.nodes.push(IrNode {
-            id: node_id.clone(),
-            tree: "t0".to_owned(),
-            kind: node_kind(node).to_owned(),
-            parent: parent.map(str::to_owned),
-            children: Vec::new(),
-            fields: BTreeMap::new(),
-            props: node_props(node),
-            span: source_span(node, context)?,
-            flags: NodeFlags::named_source(),
-        });
-
-        let mut child_ids = Vec::new();
-        if let Some(children) = node.children() {
-            for child in children {
-                child_ids.push(self.push_node(child, Some(&node_id), context)?);
-            }
-        }
-
-        if let Some(stored_node) = self.nodes.get_mut(node_index) {
-            stored_node.children = child_ids;
-        }
-        self.push_region_for_node(node, &node_id);
-        Ok(node_id)
-    }
-
-    fn next_node_id(&mut self) -> String {
-        let id = format!("n{}", self.next_node);
-        self.next_node += 1;
-        id
-    }
-
-    fn next_region_id(&mut self) -> String {
-        let id = format!("r{}", self.next_region);
-        self.next_region += 1;
-        id
-    }
-
-    fn push_region_for_node(&mut self, node: &Node, node_id: &str) {
-        let region_kind = match node {
-            Node::Heading(_) => Some(RegionKind::Heading),
-            Node::Paragraph(_) => Some(RegionKind::Paragraph),
-            Node::TableCell(_) => Some(RegionKind::TableCell),
-            _ => None,
-        };
-        if let Some(kind) = region_kind {
-            let flattened = flatten_region(node, SourceNodeId::new(node_id), self.source);
-            let kind_name = kind.as_str();
-            let mut attrs = BTreeMap::new();
-            if let Node::Heading(heading) = node {
-                attrs.insert("depth".to_owned(), serde_json::json!(heading.depth));
-            }
-            let region_id = self.next_region_id();
-            self.regions.push(IrRegion {
-                id: region_id,
-                kind: kind_name.to_owned(),
-                scope: scope_for(kind_name, node),
-                syntax: "markdown".to_owned(),
-                natural_language: None,
-                text: flattened.text,
-                segments: flattened.segments,
-                origin_nodes: vec![node_id.to_owned()],
-                owner: None,
-                attrs,
-                parent_region: None,
-            });
-        }
-    }
-}
-
-fn scope_for(kind: &str, node: &Node) -> Vec<String> {
-    let mut scope = vec!["markdown".to_owned(), kind.to_owned()];
-    if let Node::Heading(heading) = node {
-        scope.push(format!("h{}", heading.depth));
-    }
-    scope
-}
-
 fn source_span(
     node: &Node,
     context: &MarkdownDiagnosticContext<'_>,
@@ -429,14 +325,6 @@ fn source_span(
     };
 
     Ok(source_span)
-}
-
-fn node_props(node: &Node) -> BTreeMap<String, serde_json::Value> {
-    let mut props = BTreeMap::new();
-    if let Node::Heading(heading) = node {
-        props.insert("depth".to_owned(), serde_json::json!(heading.depth));
-    }
-    props
 }
 
 #[cfg(test)]

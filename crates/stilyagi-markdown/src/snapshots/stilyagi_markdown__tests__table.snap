@@ -1,0 +1,426 @@
+---
+source: crates/stilyagi-markdown/src/tests.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/table.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/table.md.fixture",
+    "syntax": "markdown",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:a54cd597269e957d2bbf14e76e28575bdaf7be50bb42be5eaa32599233420fc2"
+  },
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "version": "1.0.0",
+      "options": {
+        "frontmatter": true,
+        "gfm": true
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    19,
+    38,
+    77
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "mdast",
+      "syntax": "markdown",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "root",
+      "parent": null,
+      "children": [
+        "n1"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 77
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "table",
+      "parent": "n0",
+      "children": [
+        "n2",
+        "n7"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 76
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "tableRow",
+      "parent": "n1",
+      "children": [
+        "n3",
+        "n5"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 18
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "tableCell",
+      "parent": "n2",
+      "children": [
+        "n4"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 7
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n3",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 2,
+        "byte_end": 6
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n5",
+      "tree": "t0",
+      "kind": "tableCell",
+      "parent": "n2",
+      "children": [
+        "n6"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 7,
+        "byte_end": 18
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n6",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n5",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 9,
+        "byte_end": 16
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n7",
+      "tree": "t0",
+      "kind": "tableRow",
+      "parent": "n1",
+      "children": [
+        "n8",
+        "n10"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 38,
+        "byte_end": 76
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n8",
+      "tree": "t0",
+      "kind": "tableCell",
+      "parent": "n7",
+      "children": [
+        "n9"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 38,
+        "byte_end": 45
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n9",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n8",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 40,
+        "byte_end": 42
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n10",
+      "tree": "t0",
+      "kind": "tableCell",
+      "parent": "n7",
+      "children": [
+        "n11"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 45,
+        "byte_end": 76
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n11",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n10",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 47,
+        "byte_end": 74
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "table_cell",
+      "scope": [
+        "markdown",
+        "table_cell",
+        "header"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Term",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 4,
+          "source": {
+            "byte_start": 2,
+            "byte_end": 6
+          },
+          "synthetic": null,
+          "node": "n3",
+          "text": "Term"
+        }
+      ],
+      "origin_nodes": [
+        "n3"
+      ],
+      "owner": null,
+      "attrs": {
+        "header": true
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "table_cell",
+      "scope": [
+        "markdown",
+        "table_cell",
+        "header"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Meaning",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 7,
+          "source": {
+            "byte_start": 9,
+            "byte_end": 16
+          },
+          "synthetic": null,
+          "node": "n5",
+          "text": "Meaning"
+        }
+      ],
+      "origin_nodes": [
+        "n5"
+      ],
+      "owner": null,
+      "attrs": {
+        "header": true
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r2",
+      "kind": "table_cell",
+      "scope": [
+        "markdown",
+        "table_cell",
+        "body"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "IR",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 2,
+          "source": {
+            "byte_start": 40,
+            "byte_end": 42
+          },
+          "synthetic": null,
+          "node": "n8",
+          "text": "IR"
+        }
+      ],
+      "origin_nodes": [
+        "n8"
+      ],
+      "owner": null,
+      "attrs": {
+        "header": false
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r3",
+      "kind": "table_cell",
+      "scope": [
+        "markdown",
+        "table_cell",
+        "body"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Intermediate representation",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 27,
+          "source": {
+            "byte_start": 47,
+            "byte_end": 74
+          },
+          "synthetic": null,
+          "node": "n10",
+          "text": "Intermediate representation"
+        }
+      ],
+      "origin_nodes": [
+        "n10"
+      ],
+      "owner": null,
+      "attrs": {
+        "header": false
+      },
+      "parent_region": null
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}

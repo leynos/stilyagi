@@ -4,6 +4,8 @@
 //! snapshots remain anchored to `src/snapshots/`. Other test categories live
 //! in focused sibling modules to keep each file within the size budget.
 
+#[path = "tests/coverage.rs"]
+mod coverage;
 #[path = "tests/ir_consistency.rs"]
 mod ir_consistency;
 #[path = "tests/markers.rs"]
@@ -46,6 +48,36 @@ fn source_identity(path: &str) -> SourceIdentity {
     "tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture",
     "yaml_frontmatter",
     "Paragraph after frontmatter."
+)]
+#[case(
+    "tests/fixtures/corpus/markdown/valid/headings.md.fixture",
+    "headings",
+    "Top Level"
+)]
+#[case(
+    "tests/fixtures/corpus/markdown/valid/lists.md.fixture",
+    "lists",
+    "Unordered item"
+)]
+#[case(
+    "tests/fixtures/corpus/markdown/valid/blockquotes.md.fixture",
+    "blockquotes",
+    "Quoted paragraph."
+)]
+#[case(
+    "tests/fixtures/corpus/markdown/valid/table.md.fixture",
+    "table",
+    "Term"
+)]
+#[case(
+    "tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture",
+    "links_and_images",
+    "plain alt"
+)]
+#[case(
+    "tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture",
+    "frontmatter",
+    "Paragraph after dedicated frontmatter."
 )]
 fn hardening_fixture_ir_json_round_trips_without_span_drift(
     #[case] relative_path: &str,

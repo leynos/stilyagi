@@ -5,12 +5,12 @@ expression: json
 {
   "schema_version": "1.0.0",
   "document": {
-    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
-    "path": "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture",
     "syntax": "markdown",
     "natural_language": null,
     "encoding": "utf-8",
-    "content_hash": "sha256:57551b339c3a3e6c399bd0360f9a3d08458eefca22677dd7235f838e18b2ddc7"
+    "content_hash": "sha256:e5674961b442f8b912ec419e9ac2dc14243da6a0b3b9a9625ae7c263b4455e62"
   },
   "producers": [
     {
@@ -25,16 +25,11 @@ expression: json
   ],
   "line_index": [
     0,
-    18,
-    19,
-    47,
-    106,
-    107,
-    155,
-    156,
-    195,
-    234,
-    273
+    73,
+    145,
+    216,
+    217,
+    272
   ],
   "trees": [
     {
@@ -52,15 +47,13 @@ expression: json
       "parent": null,
       "children": [
         "n1",
-        "n3",
-        "n8",
-        "n9"
+        "n16"
       ],
       "fields": {},
       "props": {},
       "span": {
         "byte_start": 0,
-        "byte_end": 273
+        "byte_end": 272
       },
       "flags": {
         "named": true,
@@ -72,18 +65,26 @@ expression: json
     {
       "id": "n1",
       "tree": "t0",
-      "kind": "heading",
+      "kind": "paragraph",
       "parent": "n0",
       "children": [
-        "n2"
+        "n2",
+        "n3",
+        "n5",
+        "n6",
+        "n8",
+        "n9",
+        "n11",
+        "n12",
+        "n13",
+        "n14",
+        "n15"
       ],
       "fields": {},
-      "props": {
-        "depth": 1
-      },
+      "props": {},
       "span": {
         "byte_start": 0,
-        "byte_end": 17
+        "byte_end": 215
       },
       "flags": {
         "named": true,
@@ -101,8 +102,8 @@ expression: json
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 2,
-        "byte_end": 17
+        "byte_start": 0,
+        "byte_end": 19
       },
       "flags": {
         "named": true,
@@ -114,18 +115,16 @@ expression: json
     {
       "id": "n3",
       "tree": "t0",
-      "kind": "paragraph",
-      "parent": "n0",
+      "kind": "link",
+      "parent": "n1",
       "children": [
-        "n4",
-        "n5",
-        "n7"
+        "n4"
       ],
       "fields": {},
       "props": {},
       "span": {
         "byte_start": 19,
-        "byte_end": 105
+        "byte_end": 71
       },
       "flags": {
         "named": true,
@@ -143,8 +142,8 @@ expression: json
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 19,
-        "byte_end": 47
+        "byte_start": 20,
+        "byte_end": 34
       },
       "flags": {
         "named": true,
@@ -156,16 +155,14 @@ expression: json
     {
       "id": "n5",
       "tree": "t0",
-      "kind": "link",
-      "parent": "n3",
-      "children": [
-        "n6"
-      ],
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 47,
-        "byte_end": 104
+        "byte_start": 71,
+        "byte_end": 73
       },
       "flags": {
         "named": true,
@@ -177,14 +174,16 @@ expression: json
     {
       "id": "n6",
       "tree": "t0",
-      "kind": "text",
-      "parent": "n5",
-      "children": [],
+      "kind": "linkReference",
+      "parent": "n1",
+      "children": [
+        "n7"
+      ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 48,
-        "byte_end": 63
+        "byte_start": 73,
+        "byte_end": 99
       },
       "flags": {
         "named": true,
@@ -197,13 +196,13 @@ expression: json
       "id": "n7",
       "tree": "t0",
       "kind": "text",
-      "parent": "n3",
+      "parent": "n6",
       "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 104,
-        "byte_end": 105
+        "byte_start": 74,
+        "byte_end": 90
       },
       "flags": {
         "named": true,
@@ -215,14 +214,14 @@ expression: json
     {
       "id": "n8",
       "tree": "t0",
-      "kind": "html",
-      "parent": "n0",
+      "kind": "text",
+      "parent": "n1",
       "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 107,
-        "byte_end": 154
+        "byte_start": 99,
+        "byte_end": 113
       },
       "flags": {
         "named": true,
@@ -234,17 +233,16 @@ expression: json
     {
       "id": "n9",
       "tree": "t0",
-      "kind": "table",
-      "parent": "n0",
+      "kind": "link",
+      "parent": "n1",
       "children": [
-        "n10",
-        "n15"
+        "n10"
       ],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 156,
-        "byte_end": 272
+        "byte_start": 113,
+        "byte_end": 134
       },
       "flags": {
         "named": true,
@@ -256,17 +254,14 @@ expression: json
     {
       "id": "n10",
       "tree": "t0",
-      "kind": "tableRow",
+      "kind": "text",
       "parent": "n9",
-      "children": [
-        "n11",
-        "n13"
-      ],
+      "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 156,
-        "byte_end": 194
+        "byte_start": 114,
+        "byte_end": 133
       },
       "flags": {
         "named": true,
@@ -278,16 +273,14 @@ expression: json
     {
       "id": "n11",
       "tree": "t0",
-      "kind": "tableCell",
-      "parent": "n10",
-      "children": [
-        "n12"
-      ],
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 156,
-        "byte_end": 163
+        "byte_start": 134,
+        "byte_end": 145
       },
       "flags": {
         "named": true,
@@ -299,14 +292,14 @@ expression: json
     {
       "id": "n12",
       "tree": "t0",
-      "kind": "text",
-      "parent": "n11",
+      "kind": "image",
+      "parent": "n1",
       "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 158,
-        "byte_end": 162
+        "byte_start": 145,
+        "byte_end": 168
       },
       "flags": {
         "named": true,
@@ -318,16 +311,14 @@ expression: json
     {
       "id": "n13",
       "tree": "t0",
-      "kind": "tableCell",
-      "parent": "n10",
-      "children": [
-        "n14"
-      ],
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 163,
-        "byte_end": 194
+        "byte_start": 168,
+        "byte_end": 190
       },
       "flags": {
         "named": true,
@@ -339,14 +330,14 @@ expression: json
     {
       "id": "n14",
       "tree": "t0",
-      "kind": "text",
-      "parent": "n13",
+      "kind": "image",
+      "parent": "n1",
       "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 165,
-        "byte_end": 172
+        "byte_start": 190,
+        "byte_end": 214
       },
       "flags": {
         "named": true,
@@ -358,17 +349,14 @@ expression: json
     {
       "id": "n15",
       "tree": "t0",
-      "kind": "tableRow",
-      "parent": "n9",
-      "children": [
-        "n16",
-        "n18"
-      ],
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 234,
-        "byte_end": 272
+        "byte_start": 214,
+        "byte_end": 215
       },
       "flags": {
         "named": true,
@@ -380,75 +368,14 @@ expression: json
     {
       "id": "n16",
       "tree": "t0",
-      "kind": "tableCell",
-      "parent": "n15",
-      "children": [
-        "n17"
-      ],
-      "fields": {},
-      "props": {},
-      "span": {
-        "byte_start": 234,
-        "byte_end": 241
-      },
-      "flags": {
-        "named": true,
-        "error": false,
-        "missing": false,
-        "synthetic": false
-      }
-    },
-    {
-      "id": "n17",
-      "tree": "t0",
-      "kind": "text",
-      "parent": "n16",
+      "kind": "definition",
+      "parent": "n0",
       "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 236,
-        "byte_end": 238
-      },
-      "flags": {
-        "named": true,
-        "error": false,
-        "missing": false,
-        "synthetic": false
-      }
-    },
-    {
-      "id": "n18",
-      "tree": "t0",
-      "kind": "tableCell",
-      "parent": "n15",
-      "children": [
-        "n19"
-      ],
-      "fields": {},
-      "props": {},
-      "span": {
-        "byte_start": 241,
-        "byte_end": 272
-      },
-      "flags": {
-        "named": true,
-        "error": false,
-        "missing": false,
-        "synthetic": false
-      }
-    },
-    {
-      "id": "n19",
-      "tree": "t0",
-      "kind": "text",
-      "parent": "n18",
-      "children": [],
-      "fields": {},
-      "props": {},
-      "span": {
-        "byte_start": 243,
-        "byte_end": 270
+        "byte_start": 217,
+        "byte_end": 271
       },
       "flags": {
         "named": true,
@@ -461,39 +388,100 @@ expression: json
   "regions": [
     {
       "id": "r0",
-      "kind": "heading",
+      "kind": "link_title",
       "scope": [
         "markdown",
-        "heading",
-        "h1"
+        "link_title",
+        "decoded"
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "Fixture Heading",
+      "text": "Inline title",
       "segments": [
         {
           "text_start": 0,
-          "text_end": 15,
-          "source": {
-            "byte_start": 2,
-            "byte_end": 17
-          },
-          "synthetic": null,
-          "node": "n1",
-          "text": "Fixture Heading"
+          "text_end": 12,
+          "source": null,
+          "synthetic": "decoded_text",
+          "node": null,
+          "text": "Inline title"
         }
       ],
       "origin_nodes": [
-        "n1"
+        "n3"
       ],
       "owner": null,
       "attrs": {
-        "depth": 1
+        "source_backed": false,
+        "title": "Inline title",
+        "url": "https://example.com"
       },
       "parent_region": null
     },
     {
       "id": "r1",
+      "kind": "image_alt",
+      "scope": [
+        "markdown",
+        "image_alt",
+        "decoded"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "plain alt",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 9,
+          "source": null,
+          "synthetic": "decoded_text",
+          "node": null,
+          "text": "plain alt"
+        }
+      ],
+      "origin_nodes": [
+        "n12"
+      ],
+      "owner": null,
+      "attrs": {
+        "source_backed": false,
+        "url": "plain.png"
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r2",
+      "kind": "image_alt",
+      "scope": [
+        "markdown",
+        "image_alt",
+        "decoded"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "AT&T",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 4,
+          "source": null,
+          "synthetic": "decoded_text",
+          "node": null,
+          "text": "AT&T"
+        }
+      ],
+      "origin_nodes": [
+        "n14"
+      ],
+      "owner": null,
+      "attrs": {
+        "source_backed": false,
+        "url": "decoded.png"
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r3",
       "kind": "paragraph",
       "scope": [
         "markdown",
@@ -501,187 +489,129 @@ expression: json
       ],
       "syntax": "markdown",
       "natural_language": null,
-      "text": "This paragraph links to the Stilyagi design.",
+      "text": "This paragraph has an inline link, a reference link, an autolink https://example.org, an image , and a decoded image .",
       "segments": [
         {
           "text_start": 0,
-          "text_end": 27,
+          "text_end": 19,
           "source": {
-            "byte_start": 19,
-            "byte_end": 46
+            "byte_start": 0,
+            "byte_end": 19
           },
           "synthetic": null,
-          "node": "n3",
-          "text": "This paragraph links to the"
+          "node": "n1",
+          "text": "This paragraph has "
         },
         {
-          "text_start": 27,
-          "text_end": 28,
+          "text_start": 19,
+          "text_end": 33,
+          "source": {
+            "byte_start": 20,
+            "byte_end": 34
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "an inline link"
+        },
+        {
+          "text_start": 33,
+          "text_end": 34,
+          "source": {
+            "byte_start": 71,
+            "byte_end": 72
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": ","
+        },
+        {
+          "text_start": 34,
+          "text_end": 35,
           "source": null,
           "synthetic": "softbreak_space",
           "node": null,
           "text": " "
         },
         {
-          "text_start": 28,
-          "text_end": 43,
+          "text_start": 35,
+          "text_end": 51,
           "source": {
-            "byte_start": 48,
-            "byte_end": 63
+            "byte_start": 74,
+            "byte_end": 90
           },
           "synthetic": null,
-          "node": "n3",
-          "text": "Stilyagi design"
+          "node": "n1",
+          "text": "a reference link"
         },
         {
-          "text_start": 43,
-          "text_end": 44,
+          "text_start": 51,
+          "text_end": 65,
           "source": {
-            "byte_start": 104,
-            "byte_end": 105
+            "byte_start": 99,
+            "byte_end": 113
           },
           "synthetic": null,
-          "node": "n3",
+          "node": "n1",
+          "text": ", an autolink "
+        },
+        {
+          "text_start": 65,
+          "text_end": 84,
+          "source": {
+            "byte_start": 114,
+            "byte_end": 133
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "https://example.org"
+        },
+        {
+          "text_start": 84,
+          "text_end": 94,
+          "source": {
+            "byte_start": 134,
+            "byte_end": 144
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": ", an image"
+        },
+        {
+          "text_start": 94,
+          "text_end": 95,
+          "source": null,
+          "synthetic": "softbreak_space",
+          "node": null,
+          "text": " "
+        },
+        {
+          "text_start": 95,
+          "text_end": 117,
+          "source": {
+            "byte_start": 168,
+            "byte_end": 190
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": ", and a decoded image "
+        },
+        {
+          "text_start": 117,
+          "text_end": 118,
+          "source": {
+            "byte_start": 214,
+            "byte_end": 215
+          },
+          "synthetic": null,
+          "node": "n1",
           "text": "."
         }
       ],
       "origin_nodes": [
-        "n3"
+        "n1"
       ],
       "owner": null,
       "attrs": {},
-      "parent_region": null
-    },
-    {
-      "id": "r2",
-      "kind": "table_cell",
-      "scope": [
-        "markdown",
-        "table_cell",
-        "header"
-      ],
-      "syntax": "markdown",
-      "natural_language": null,
-      "text": "Term",
-      "segments": [
-        {
-          "text_start": 0,
-          "text_end": 4,
-          "source": {
-            "byte_start": 158,
-            "byte_end": 162
-          },
-          "synthetic": null,
-          "node": "n11",
-          "text": "Term"
-        }
-      ],
-      "origin_nodes": [
-        "n11"
-      ],
-      "owner": null,
-      "attrs": {
-        "header": true
-      },
-      "parent_region": null
-    },
-    {
-      "id": "r3",
-      "kind": "table_cell",
-      "scope": [
-        "markdown",
-        "table_cell",
-        "header"
-      ],
-      "syntax": "markdown",
-      "natural_language": null,
-      "text": "Meaning",
-      "segments": [
-        {
-          "text_start": 0,
-          "text_end": 7,
-          "source": {
-            "byte_start": 165,
-            "byte_end": 172
-          },
-          "synthetic": null,
-          "node": "n13",
-          "text": "Meaning"
-        }
-      ],
-      "origin_nodes": [
-        "n13"
-      ],
-      "owner": null,
-      "attrs": {
-        "header": true
-      },
-      "parent_region": null
-    },
-    {
-      "id": "r4",
-      "kind": "table_cell",
-      "scope": [
-        "markdown",
-        "table_cell",
-        "body"
-      ],
-      "syntax": "markdown",
-      "natural_language": null,
-      "text": "IR",
-      "segments": [
-        {
-          "text_start": 0,
-          "text_end": 2,
-          "source": {
-            "byte_start": 236,
-            "byte_end": 238
-          },
-          "synthetic": null,
-          "node": "n16",
-          "text": "IR"
-        }
-      ],
-      "origin_nodes": [
-        "n16"
-      ],
-      "owner": null,
-      "attrs": {
-        "header": false
-      },
-      "parent_region": null
-    },
-    {
-      "id": "r5",
-      "kind": "table_cell",
-      "scope": [
-        "markdown",
-        "table_cell",
-        "body"
-      ],
-      "syntax": "markdown",
-      "natural_language": null,
-      "text": "Intermediate representation",
-      "segments": [
-        {
-          "text_start": 0,
-          "text_end": 27,
-          "source": {
-            "byte_start": 243,
-            "byte_end": 270
-          },
-          "synthetic": null,
-          "node": "n18",
-          "text": "Intermediate representation"
-        }
-      ],
-      "origin_nodes": [
-        "n18"
-      ],
-      "owner": null,
-      "attrs": {
-        "header": false
-      },
       "parent_region": null
     }
   ],
