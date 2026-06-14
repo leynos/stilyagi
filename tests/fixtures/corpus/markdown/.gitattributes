@@ -1,1 +1,3 @@
 valid/paragraph-soft-break-crlf.md.fixture text eol=crlf
+valid/list-crlf.md.fixture text eol=crlf
+valid/blockquote-crlf.md.fixture text eol=crlf

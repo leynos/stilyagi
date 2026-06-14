@@ -1,0 +1,6 @@
+---
+source: crates/stilyagi-markdown/src/tests/malformed.rs
+expression: degraded_region_text(&document)
+---
+heading: "Broken reference"
+paragraph: "This [reference][missing target] should stay readable."

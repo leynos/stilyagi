@@ -860,7 +860,8 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
 - [x] Stage 3: emit `list_item`, `blockquote`, `frontmatter`, `image_alt`,
   `link_title`; coverage test green. Implemented and locally gated on
   2026-06-14.
-- [ ] Stage 4: malformed, CRLF, adversarial, `proptest`, and BDD coverage.
+- [x] Stage 4: malformed, CRLF, adversarial, `proptest`, and BDD coverage.
+  Implemented, locally gated, and CodeRabbit review attempted on 2026-06-14.
 - [ ] Stage 5: bridge parity and `supported_region_kinds()`.
 - [ ] Stage 6: ADR, RFC amendment, guides, and roadmap completion.
 
@@ -960,6 +961,35 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   234 lines respectively. Impact: the touched Rust files stay below the
   repository's 400-line limit while preserving the green Stage 3 gates.
 
+- Observation: Stage 4 adds malformed recovery snapshots, literal CRLF fixture
+  guards, adversarial nested-blockquote and empty-list-item assertions,
+  Markdown-generated `proptest` invariant coverage, and an `rstest-bdd`
+  region-coverage scenario. Evidence:
+  `/tmp/test-stage4-targeted-stilyagi-2-1-2-golden-fixture-coverage.out`
+  shows 48 `stilyagi-markdown` tests passing after the malformed snapshots
+  were accepted, and `/tmp/test-stage4-stilyagi-2-1-2-golden-fixture-coverage.out`
+  shows the full `make test` gate passing with 168 Rust tests and 97 Python
+  tests. Impact: parser recovery, CRLF checkout fidelity, parent-region
+  ordering, source re-slicing, segment contiguity, and synthetic-reason
+  allow-list invariants are now exercised against both fixtures and generated
+  Markdown constructs.
+
+- Observation: Stage 4 keeps the new focused Rust files below the repository
+  size limit. Evidence: `wc -l` reports 127 lines for
+  `crates/stilyagi-markdown/src/region_coverage_bdd.rs`, 122 for
+  `crates/stilyagi-markdown/src/tests/malformed.rs`, 72 for
+  `crates/stilyagi-markdown/src/tests/properties.rs`, 226 for
+  `crates/stilyagi-markdown/src/tests.rs`, and 333 for
+  `crates/stilyagi-markdown/src/lib.rs`. Impact: the additional coverage does
+  not require another test-module split.
+
+- Observation: the Stage 4 `coderabbit review --agent` run repeated the
+  sandbox-setup hang seen in the earlier review attempts. Evidence: the run
+  emitted `preparing_sandbox`, stayed silent for more than two minutes, and PID
+  `1519252` was terminated after confirming it belonged to this worktree.
+  Impact: CodeRabbit concerns were again unavailable; deterministic gates
+  remained green and no rate-limit response was emitted.
+
 ## Decision Log
 
 - Decision: keep `Status: DRAFT` and block implementation until explicit
@@ -1023,6 +1053,13 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   requested after the milestone and produced no findings or rate-limit response
   before hanging at sandbox setup; the hung process was limited to this
   worktree and terminated without affecting other agents. Date/Author:
+  2026-06-14, implementation agent.
+
+- Decision: continue after Stage 4 despite unavailable CodeRabbit output.
+  Rationale: all applicable deterministic gates passed; CodeRabbit was
+  requested after the milestone and again produced no findings or rate-limit
+  response before hanging at sandbox setup; the hung process was limited to
+  this worktree and terminated without affecting other agents. Date/Author:
   2026-06-14, implementation agent.
 
 ## Outcomes & Retrospective

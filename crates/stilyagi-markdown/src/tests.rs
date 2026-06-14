@@ -8,10 +8,14 @@
 mod coverage;
 #[path = "tests/ir_consistency.rs"]
 mod ir_consistency;
+#[path = "tests/malformed.rs"]
+mod malformed;
 #[path = "tests/markers.rs"]
 mod markers;
 #[path = "tests/parser.rs"]
 mod parser;
+#[path = "tests/properties.rs"]
+mod properties;
 
 use std::fs;
 
@@ -147,7 +151,7 @@ fn shared_markdown_ir_json_round_trips_without_span_drift() {
     insta::assert_snapshot!(json);
 }
 
-fn source_backed_segments_match_source(document: &IrDocument, source: &str) -> bool {
+pub(super) fn source_backed_segments_match_source(document: &IrDocument, source: &str) -> bool {
     document.regions.iter().all(|region| {
         region.segments.iter().all(|segment| {
             segment.source.map_or_else(
@@ -162,7 +166,7 @@ fn source_segment_matches(span: SourceSpan, source: &str, expected: &str) -> boo
     source.get(span.byte_start..span.byte_end) == Some(expected)
 }
 
-fn synthetic_segments_use_known_reasons(document: &IrDocument) -> bool {
+pub(super) fn synthetic_segments_use_known_reasons(document: &IrDocument) -> bool {
     let known_reasons = SyntheticReason::ALL
         .iter()
         .map(|reason| reason.as_str())
@@ -184,4 +188,39 @@ fn assert_region_text_present(document: &IrDocument, expected_text: &str) {
             .iter()
             .any(|region| region.text == expected_text)
     );
+}
+
+pub(super) fn regions_reconstruct_text(document: &IrDocument) -> bool {
+    document
+        .regions
+        .iter()
+        .all(stilyagi_ir::IrRegion::segments_reconstruct_text)
+}
+
+pub(super) fn region_segments_are_contiguous(document: &IrDocument) -> bool {
+    document.regions.iter().all(|region| {
+        let mut expected_start = 0;
+        for segment in &region.segments {
+            if segment.text_start != expected_start || segment.text_end < segment.text_start {
+                return false;
+            }
+            expected_start = segment.text_end;
+        }
+        expected_start == region.text.len()
+    })
+}
+
+pub(super) fn parent_regions_reference_earlier_regions(document: &IrDocument) -> bool {
+    let mut seen = std::collections::BTreeSet::new();
+    for region in &document.regions {
+        if region
+            .parent_region
+            .as_deref()
+            .is_some_and(|parent| !seen.contains(parent))
+        {
+            return false;
+        }
+        seen.insert(region.id.as_str());
+    }
+    true
 }

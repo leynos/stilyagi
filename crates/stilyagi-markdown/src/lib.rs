@@ -328,4 +328,6 @@ fn source_span(
 }
 
 #[cfg(test)]
+mod region_coverage_bdd;
+#[cfg(test)]
 mod tests;
