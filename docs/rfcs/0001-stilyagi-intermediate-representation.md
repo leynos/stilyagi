@@ -235,6 +235,15 @@ these kinds:
 - `python_docstring`
 - `rust_doc_comment`
 
+ADR 005 clarifies the Markdown subset of this vocabulary.[^6] `list_item` and
+`blockquote` are thin structural regions: their prose is emitted by child
+regions linked through `parent_region`. `frontmatter` is emitted as one
+source-backed fenced block, while `frontmatter_field` is reserved and
+not-yet-emitted until field-level YAML/TOML spans can be produced without
+guessing. `image_alt` and `link_title` are lintable decoded-text regions, but
+they are synthetic in this slice rather than source-backed by guessed byte
+spans.
+
 `summary_line` is a derived analysis view, not an extractor-level region kind
 in v1. Rules that care about summary lines SHALL derive them from a docstring
 or paragraph region, or request an analysis-layer helper from the Python rule
@@ -448,3 +457,5 @@ interchange contract.[^4]
 [^3]: <https://github.com/tree-sitter/tree-sitter>
 [^4]: <https://spacy.io/usage/processing-pipelines>
 [^5]: <https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html>
+[^6]: [ADR 005: Scope Markdown region vocabulary](
+    ../adr-005-markdown-region-vocabulary-scope.md)

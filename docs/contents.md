@@ -88,6 +88,10 @@
     adr-004-python-linting-architecture.md)
     records the accepted Ruff-first, focused-Pylint-second Python linting
     architecture and its Makefile execution model.
+  - [ADR 005: Scope Markdown region vocabulary](
+    adr-005-markdown-region-vocabulary-scope.md)
+    records the accepted thin-container convention and the reserved
+    `frontmatter_field` / source-backing deferrals for Markdown IR regions.
 
 ## Requests for comments (RFCs)
 

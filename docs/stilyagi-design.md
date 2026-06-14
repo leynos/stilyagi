@@ -509,6 +509,13 @@ Implementation consequences:
 - Do not force JSON as the only internal transport between Rust and Python.
 - Make `line_index`, `content_hash`, and `segments` first-class schema
   features rather than optional convenience fields.
+- Preserve source-span fidelity over apparent completeness. Markdown
+  `frontmatter_field` remains reserved until field-level YAML/TOML spans can be
+  produced without guessing, and decoded `image_alt` / `link_title` regions are
+  synthetic until byte-accurate spans are available.[^13]
+- Treat Markdown `list_item` and `blockquote` as thin structural regions:
+  prose lives in child regions and structural context is expressed through
+  `parent_region`, `scope`, and `attrs`.[^13]
 
 #### Python rule API
 
@@ -1239,3 +1246,5 @@ grand architecture that tries to solve every prose problem at once.
 [^10]: [PyPA entry points specification](https://packaging.python.org/en/latest/specifications/entry-points/)
 [^11]: [PyO3 user guide](https://pyo3.rs/)
 [^12]: [Maturin user guide](https://www.maturin.rs/)
+[^13]: [ADR 005: Scope Markdown region vocabulary](
+    adr-005-markdown-region-vocabulary-scope.md)

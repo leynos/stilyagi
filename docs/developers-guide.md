@@ -172,6 +172,29 @@ Prefer `new_typed` and `region_kind` in Rust code that works with
 PyO3 serialization boundary, where `RegionKind::as_str` or the `Display`
 implementation should be called explicitly.
 
+#### Canonical IR region vocabulary
+
+The canonical IR region vocabulary lives in `crates/stilyagi-ir` as
+`stilyagi_ir::RegionKind`. This enum is separate from the coarse
+`stilyagi-extract::RegionKind::Document` compatibility region exposed through
+the early Python bridge. Use `stilyagi_ir::RegionKind::ALL` and
+`RegionKind::as_str()` when code needs the stable IR spellings, including the
+`supported_region_kinds()` PyO3 export.
+
+Markdown region emission follows ADR 005:
+
+- `list_item` and `blockquote` are thin structural regions. They carry empty
+  `text` and `segments`, while child prose regions point back with
+  `parent_region`.
+- `frontmatter` is source-backed over the whole fenced YAML or TOML block.
+  `frontmatter_field` is reserved and not emitted until field-level spans can
+  be proven without guessing.
+- `image_alt` and `link_title` are synthetic `decoded_text` regions with
+  `attrs.source_backed = false`.
+- Source-backed segments must re-slice exactly to `segment.text`; the Markdown
+  IR validator rejects span drift, unresolved `parent_region` links, and
+  missing or invalid `origin_nodes`.
+
 #### stilyagi-test-support API reference
 
 The `stilyagi-test-support` crate (at `crates/stilyagi-test-support/`) provides
@@ -310,6 +333,10 @@ particular.
   - Region kinds `comment_block` and `jsdoc_block` are no longer part of the
     stable extractor vocabulary, and `summary_line` is now a derived
     analysis-layer view rather than an extractor-level region kind.
+  - Markdown `list_item` and `blockquote` IR regions are thin containers.
+    `frontmatter_field` is reserved but not yet emitted, and Markdown
+    `image_alt` / `link_title` regions are synthetic decoded-text surfaces
+    until byte-accurate source spans are implemented.[^5]
   - When maintainers update fixtures, adapters, or runtime wrappers, they
     should treat the field migration explicitly. The minimal before or after
     mapping is:
@@ -480,12 +507,11 @@ build-system and dev-tooling dependencies.
 
 ### 4.1 Maturin and PyO3 compatibility tests
 
-The repository pins maturin in both `pyproject.toml`
-`[dependency-groups].dev` and `[build-system].requires`. Keep those pins in
-sync when updating maturin. The Python tests in `tests/test_maturin_build.py`
-validate that contract, assert that the installed maturin module matches the
-pin, and build a native wheel whose normalized metadata and layout are compared
-with a syrupy snapshot.
+The repository pins maturin in both `pyproject.toml` `[dependency-groups].dev`
+and `[build-system].requires`. Keep those pins in sync when updating maturin.
+The Python tests in `tests/test_maturin_build.py` validate that contract,
+assert that the installed maturin module matches the pin, and build a native
+wheel whose normalized metadata and layout are compared with a syrupy snapshot.
 
 To refresh the native wheel snapshot after a maturin or PyO3 update, run:
 
@@ -494,10 +520,9 @@ uv run --group dev pytest tests/test_maturin_build.py \
     --snapshot-update -k test_maturin_wheel_build_snapshot
 ```
 
-The PyO3 bridge crate also uses
-[trybuild](https://github.com/dtolnay/trybuild) to validate representative
-macro patterns at compile time. The UI fixtures live under
-`crates/stilyagi-pyext/tests/ui/`:
+The PyO3 bridge crate also uses [trybuild](https://github.com/dtolnay/trybuild)
+to validate representative macro patterns at compile time. The UI fixtures live
+under `crates/stilyagi-pyext/tests/ui/`:
 
 - `pass/` contains Rust files that must compile.
 - `fail/` contains Rust files that must fail with diagnostics matching the
@@ -796,6 +821,8 @@ single-language package.
 [^3]: [PyO3 FAQ: linker issues with `cargo test`](https://pyo3.rs/main/faq)
 [^4]: [ADR 004: Adopt two-tier Python linting](
     adr-004-python-linting-architecture.md)
+[^5]: [ADR 005: Scope Markdown region vocabulary](
+    adr-005-markdown-region-vocabulary-scope.md)
 
 Substantial architecture changes should update both the code and the documents
 that define the current contracts. Stale documentation is treated as a defect,

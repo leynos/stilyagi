@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 Approval gate: this plan must not be implemented until explicit user approval
 is recorded in the `Decision Log`. After approval, `Status` changes to
@@ -94,9 +94,8 @@ Definitions used in this plan:
 - Segment means a mapping from a span of region text to either original source
   bytes (source-backed) or an explicit synthetic insertion.
 - Synthetic insertion means text present in the flattened lint surface but
-  absent
-  as editable bytes in the source file (for example a space substituted for a
-  soft line break). The closed reason set today is `softbreak_space`,
+  absent as editable bytes in the source file (for example a space substituted
+  for a soft line break). The closed reason set today is `softbreak_space`,
   `hardbreak_space`, and `decoded_text`.
 - Span drift means any mismatch between a reported source byte offset and the
   bytes that actually produced the corresponding region text.
@@ -123,8 +122,7 @@ Before implementing this plan, load and apply these skills:
 - `rust-router`, then `arch-crate-design`, because this change adds a public
   Rust enum (`RegionKind`) to `stilyagi-ir` and touches crate-facing surfaces.
 - `hexagonal-architecture`, to preserve the boundary between the domain IR
-  schema
-  (`stilyagi-ir`), the Markdown adapter (`stilyagi-markdown`), the PyO3
+  schema (`stilyagi-ir`), the Markdown adapter (`stilyagi-markdown`), the PyO3
   transport (`stilyagi-pyext`), and the Python application models.
 - `rust-types-and-apis`, for the `RegionKind` and `SyntheticReason` vocabulary
   enums and their `as_str` / `TryFrom` / `ALL` surfaces.
@@ -148,8 +146,7 @@ Keep these repository documents open:
 - `docs/stilyagi-design.md`, especially §6 (region model and owner contract) and
   §7.1 (IR review and consequences).
 - `docs/rfcs/0001-stilyagi-intermediate-representation.md`, especially §6
-  (region
-  fields and the v1 `kind` vocabulary, lines 205–292) and §7 (region
+  (region fields and the v1 `kind` vocabulary, lines 205–292) and §7 (region
   invariants, lines 294–307).
 - `docs/execplans/2-1-1-markdown-ir-envelope.md`, the predecessor slice, for the
   envelope shape, the `.md.fixture` suffix rationale, the CRLF `.gitattributes`
@@ -160,8 +157,7 @@ Keep these repository documents open:
   `docs/reliable-testing-in-rust-via-dependency-injection.md`, for Rust fixture
   and deterministic-IO conventions.
 - `docs/developers-guide.md` and `docs/users-guide.md`, for maintainer-facing
-  and
-  consumer-facing documentation updates.
+  and consumer-facing documentation updates.
 
 External prior art checked during planning (Firecrawl plus the installed crate
 source at `markdown-1.0.0/src/mdast.rs`):
@@ -171,12 +167,10 @@ source at `markdown-1.0.0/src/mdast.rs`):
   `Blockquote` (one word), `List`, `ListItem`, `Table`, `TableRow`, `TableCell`,
   `Yaml`, and `Toml` all carry faithful byte spans.
 - `ListItem` carries `spread: bool` and `checked: Option<bool>` (GFM task
-  state);
-  the `[x]` / `[ ]` task marker is stripped from the leading child `Text` value
-  but the `ListItem` span still covers the marker bytes.
+  state); the `[x]` / `[ ]` task marker is stripped from the leading child
+  `Text` value but the `ListItem` span still covers the marker bytes.
 - `Image` is a void node whose `alt: String` is decoded with no sub-position;
-  for
-  images the positioned child `Text` nodes are discarded. `Link.title` and
+  for images the positioned child `Text` nodes are discarded. `Link.title` and
   `Image.title` are likewise decoded `String`s with no sub-position. There is
   no built-in way to recover exact source bytes for alt or title text without a
   secondary scan of the parent node span.
@@ -189,9 +183,9 @@ source at `markdown-1.0.0/src/mdast.rs`):
   (unbalanced emphasis, broken reference links, an unclosed GFM table) recovers
   to literal `Text` or best-effort structure rather than returning `Err`.
 - Decoded literal values (entities `&amp;` → `&`, escapes `\*` → `*`) are
-  shorter
-  than their source byte span, so a node's interior must never be indexed by
-  source offset; only the node's outer `start.offset..end.offset` is reliable.
+  shorter than their source byte span, so a node's interior must never be
+  indexed by source offset; only the node's outer `start.offset..end.offset` is
+  reliable.
 
 ## Constraints
 
@@ -201,47 +195,40 @@ source at `markdown-1.0.0/src/mdast.rs`):
   golden fixtures. It does not implement suppression parsing (2.1.3), the CLI
   loop (2.2), builtin rules (2.3), or `dump-ir` (2.2.3).
 - Keep Markdown first. Do not claim Python docstring or Rust documentation
-  comment
-  region emission as part of this slice; those `kind`s remain reserved.
+  comment region emission as part of this slice; those `kind`s remain reserved.
 - The Rust IR schema in `stilyagi-ir` owns the logical types. PyO3 serialization
   and Python model adaptation are adapters around that schema and must not
   become a second source of truth.
 - Keep source offsets byte-oriented. Region segments must reconstruct text
-  exactly
-  and every source-backed segment's byte span must equal its segment text. If a
-  region kind cannot satisfy this, it must use explicit synthetic segments
-  rather than a guessed source span.
+  exactly and every source-backed segment's byte span must equal its segment
+  text. If a region kind cannot satisfy this, it must use explicit synthetic
+  segments rather than a guessed source span.
 - `owner` remains `null` for all Markdown regions. Markdown nesting and
-  structural
-  context live in `parent_region`, `scope`, and `attrs`, never in `owner` (RFC
-  0001 §6, lines 289–292).
+  structural context live in `parent_region`, `scope`, and `attrs`, never in
+  `owner` (RFC 0001 §6, lines 289–292).
 - `image_alt` and `link_title` are emitted as synthetic `decoded_text` segments
-  in
-  this slice. They must never be source-backed by an unverified or non-unique
-  byte scan. Byte-accurate recovery is recorded as future work.
+  in this slice. They must never be source-backed by an unverified or
+  non-unique byte scan. Byte-accurate recovery is recorded as future work.
 - `list_item` and `blockquote` are thin structural regions in this slice: they
   carry no prose text and do not re-flatten child prose. No new synthetic
   segment reason (such as a block separator) is introduced.
 - Canonical JSON snapshots must avoid machine-specific absolute paths,
-  timestamps,
-  nondeterministic ordering, terminal colour, and environment values.
+  timestamps, nondeterministic ordering, terminal colour, and environment
+  values.
 - Each new region kind is exercised by a dedicated minimal fixture and snapshot.
   The shared fixture `heading-table-link-suppression.md` must not be grown to
   cover new kinds; its snapshot stays an integration oracle.
 - Formatter-sensitive Markdown fixtures (soft breaks, CRLF, frontmatter, list
-  and
-  blockquote indentation, anything that `mdformat-all` or markdownlint MD041
-  would rewrite) use the `.md.fixture` suffix. Only formatter-safe fixtures use
-  `.md`.
+  and blockquote indentation, anything that `mdformat-all` or markdownlint
+  MD041 would rewrite) use the `.md.fixture` suffix. Only formatter-safe
+  fixtures use `.md`.
 - Use `rstest` for Rust unit tests, `rstest-bdd` for Rust behaviour tests,
-  `insta`
-  for Rust snapshots, `proptest` for Rust segment invariants, `pytest` for
-  Python unit tests, `pytest-bdd` only where an externally observable behaviour
-  needs a Gherkin scenario, and `syrupy` for Python snapshots.
+  `insta` for Rust snapshots, `proptest` for Rust segment invariants, `pytest`
+  for Python unit tests, `pytest-bdd` only where an externally observable
+  behaviour needs a Gherkin scenario, and `syrupy` for Python snapshots.
 - Run format, typecheck, lint, and tests sequentially using the Makefile
-  targets,
-  capturing long output with `tee` into `/tmp` logs. Do not run gates in
-  parallel.
+  targets, capturing long output with `tee` into `/tmp` logs. Do not run gates
+  in parallel.
 - Run `coderabbit review --agent` after each major milestone, but only after the
   deterministic gates for that milestone pass. Resolve or explicitly document
   all actionable concerns before moving on.
@@ -259,12 +246,11 @@ source at `markdown-1.0.0/src/mdast.rs`):
   options. Adding the `RegionKind` enum and a `supported_region_kinds()`
   function is an additive change and is in scope.
 - Dependencies: no new external dependency is expected. If implementing any
-  region
-  kind appears to require a new crate (for example a YAML or TOML parser), stop
-  — that signals scope creep into the deferred `frontmatter_field` work.
+  region kind appears to require a new crate (for example a YAML or TOML
+  parser), stop — that signals scope creep into the deferred
+  `frontmatter_field` work.
 - Region model: if thin structural containers prove insufficient for the
-  coverage
-  criterion or break an existing test in a way that cannot be resolved
+  coverage criterion or break an existing test in a way that cannot be resolved
   additively, stop and present the prose-bearing-container alternative with
   trade-offs before changing the model.
 - Span fidelity: if any source-backed segment cannot be proven byte-exact for a
@@ -276,8 +262,7 @@ source at `markdown-1.0.0/src/mdast.rs`):
   than fifteen seconds slower on this machine, document the cause and ask
   whether to narrow or defer the expensive check.
 - Ambiguity: if two valid interpretations of RFC 0001 would produce different
-  JSON
-  shapes for a new kind, stop and record the options before choosing.
+  JSON shapes for a new kind, stop and record the options before choosing.
 
 ## Risks
 
@@ -332,16 +317,14 @@ source at `markdown-1.0.0/src/mdast.rs`):
   fixture and its snapshot unchanged.
 
 - Risk: the `kind` and synthetic `reason` vocabularies are currently loose
-  strings
-  duplicated between the producer and the test oracle, so a typo (`blockqoute`)
-  ships green and drifts from the consumer. Severity: medium. Likelihood:
-  medium. Mitigation: introduce a single-source-of-truth `RegionKind` enum in
-  `stilyagi-ir` and centralize the synthetic-reason allow-list so the producer
-  and tests derive from one constant.
+  strings duplicated between the producer and the test oracle, so a typo
+  (`blockqoute`) ships green and drifts from the consumer. Severity: medium.
+  Likelihood: medium. Mitigation: introduce a single-source-of-truth
+  `RegionKind` enum in `stilyagi-ir` and centralize the synthetic-reason
+  allow-list so the producer and tests derive from one constant.
 
 - Risk: deferring `frontmatter_field` silently shrinks a vocabulary that RFC
-  0001
-  marks `SHALL`. Severity: medium. Likelihood: certain if undocumented.
+  0001 marks `SHALL`. Severity: medium. Likelihood: certain if undocumented.
   Mitigation: record the deferral in a Y-Statement ADR and amend RFC 0001 to
   mark `frontmatter_field` reserved and not-yet-emitted, with the
   YAML/TOML-parser rationale, before relying on the deferral.
@@ -704,21 +687,17 @@ rm -rf "$COMMIT_MSG_DIR"
 Acceptance for the implemented feature:
 
 - The coverage test in `crates/stilyagi-markdown` fails before Stage 3 and
-  passes
-  after it; the union of region `kind`s across valid Markdown fixtures contains
-  `heading`, `paragraph`, `list_item`, `blockquote`, `table_cell`,
+  passes after it; the union of region `kind`s across valid Markdown fixtures
+  contains `heading`, `paragraph`, `list_item`, `blockquote`, `table_cell`,
   `frontmatter`, `image_alt`, and `link_title`.
 - Each promised kind has a dedicated fixture, per-kind structural assertions,
-  and a
-  stable `insta` snapshot.
+  and a stable `insta` snapshot.
 - `list_item` and `blockquote` regions carry no prose text; their child
-  paragraph
-  regions set `parent_region` to the container region id, and `parent_region`
-  always references an earlier region.
+  paragraph regions set `parent_region` to the container region id, and
+  `parent_region` always references an earlier region.
 - `frontmatter` regions are one source-backed segment over the whole fenced
-  block;
-  `image_alt` and `link_title` regions are single synthetic `decoded_text`
-  segments with `source_backed: false` in `attrs`.
+  block; `image_alt` and `link_title` regions are single synthetic
+  `decoded_text` segments with `source_backed: false` in `attrs`.
 - The production validator rejects a source-backed segment whose span does not
   equal its text (`ir-segment-source-mismatch`), a dangling `parent_region`,
   and empty or invalid `origin_nodes`.
@@ -727,13 +706,11 @@ Acceptance for the implemented feature:
   snapshotted; `IrDocument.errors` remains empty (suppression and error
   emission are 2.1.3).
 - `proptest` invariants hold for generated documents and constructs; the Rust
-  BDD
-  region-coverage scenario passes.
+  BDD region-coverage scenario passes.
 - The Python `Document.ir` continues to expose the canonical IR JSON including
-  the
-  new kinds; existing Python callers are unaffected; `supported_region_kinds()`
-  (if added) returns the full RFC vocabulary and unknown kinds pass through
-  with a warning.
+  the new kinds; existing Python callers are unaffected;
+  `supported_region_kinds()` (if added) returns the full RFC vocabulary and
+  unknown kinds pass through with a warning.
 - `docs/adr-005-markdown-region-vocabulary-scope.md` exists, RFC 0001 marks
   `frontmatter_field` reserved, and the developers' guide documents the
   conventions.
@@ -864,13 +841,14 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   Implemented, locally gated, and CodeRabbit review attempted on 2026-06-14.
 - [x] Stage 5: bridge parity and `supported_region_kinds()`. Implemented and
   locally gated, and CodeRabbit review attempted on 2026-06-14.
-- [ ] Stage 6: ADR, RFC amendment, guides, and roadmap completion.
+- [x] Stage 6: ADR, RFC amendment, guides, and roadmap completion.
+  Implemented and locally gated, and CodeRabbit review attempted on
+  2026-06-14.
 
 ## Surprises & Discoveries
 
 - Observation: the build-time IR validator never re-slices source-backed
-  segments,
-  so source span drift is undetectable today. Evidence:
+  segments, so source span drift is undetectable today. Evidence:
   `validate_ir_consistency` (`crates/stilyagi-markdown/src/lib.rs`) calls only
   `segments_reconstruct_text`, which checks contiguity and concatenated segment
   text but never reads the source buffer. Impact: Stage 1 closes this before
@@ -897,21 +875,21 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   `/tmp/typecheck-stilyagi-2-1-2-golden-fixture-coverage.out`,
   `/tmp/lint-stilyagi-2-1-2-golden-fixture-coverage.out`, and
   `/tmp/test-stilyagi-2-1-2-golden-fixture-coverage.out`. Impact: later gate
-  failures can be attributed to this implementation unless new external
-  changes appear.
+  failures can be attributed to this implementation unless new external changes
+  appear.
 
 - Observation: the Stage 1 red-first validator tests failed before production
   changes, as intended. Evidence:
   `/tmp/test-stage1-red-ir-consistency-stilyagi-2-1-2-golden-fixture-coverage.out`
   shows failures for `ir-segment-source-mismatch`,
-  `ir-parent-region-unresolved`, and `ir-origin-nodes-invalid`. Impact: the
-  new validator checks are proven to cover a previously missing behaviour.
+  `ir-parent-region-unresolved`, and `ir-origin-nodes-invalid`. Impact: the new
+  validator checks are proven to cover a previously missing behaviour.
 
 - Observation: Stage 1 deterministic gates passed after implementation.
-  Evidence: `cargo test -p stilyagi-ir -p stilyagi-markdown`,
-  `make check-fmt`, `make typecheck`, `make lint`, and `make test` exited
-  successfully with stage-specific logs under `/tmp`. Impact: the validator,
-  IR vocabulary, and synthetic-reason changes are locally reviewable.
+  Evidence: `cargo test -p stilyagi-ir -p stilyagi-markdown`, `make check-fmt`,
+  `make typecheck`, `make lint`, and `make test` exited successfully with
+  stage-specific logs under `/tmp`. Impact: the validator, IR vocabulary, and
+  synthetic-reason changes are locally reviewable.
 
 - Observation: `coderabbit review --agent` started twice for Stage 1 and hung
   after sandbox setup both times without findings or a rate-limit response.
@@ -923,26 +901,27 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
 
 - Observation: the Stage 2 coverage test fails before new region emission is
   implemented, as intended. Evidence:
-  `/tmp/test-stage2-coverage-stilyagi-2-1-2-golden-fixture-coverage.out`
-  shows `valid_markdown_corpus_covers_promised_markdown_region_kinds` failing
-  because `list_item` is absent from the emitted valid-corpus kind set. Impact:
-  the roadmap success criterion is now executable and red before Stage 3.
+  `/tmp/test-stage2-coverage-stilyagi-2-1-2-golden-fixture-coverage.out` shows
+  `valid_markdown_corpus_covers_promised_markdown_region_kinds` failing because
+  `list_item` is absent from the emitted valid-corpus kind set. Impact: the
+  roadmap success criterion is now executable and red before Stage 3.
 
 - Observation: Stage 3 emits the promised Markdown region kinds and the
   coverage test is green. Evidence:
-  `/tmp/test-stage3-coverage-stilyagi-2-1-2-golden-fixture-coverage.out`
-  and `/tmp/test-stage3-stilyagi-2-1-2-golden-fixture-coverage.out` show the
-  valid Markdown corpus coverage and full test gates passing. Impact:
-  `heading`, `paragraph`, `list_item`, `blockquote`, `table_cell`,
-  `frontmatter`, `image_alt`, and `link_title` now appear in dedicated valid
-  fixtures and snapshots.
+  `/tmp/test-stage3-coverage-stilyagi-2-1-2-golden-fixture-coverage.out` and
+  `/tmp/test-stage3-stilyagi-2-1-2-golden-fixture-coverage.out` show the valid
+  Markdown corpus coverage and full test gates passing. Impact: `heading`,
+  `paragraph`, `list_item`, `blockquote`, `table_cell`, `frontmatter`,
+  `image_alt`, and `link_title` now appear in dedicated valid fixtures and
+  snapshots.
 
 - Observation: markdown-rs frontmatter node spans include the opening and
-  closing fences but not the trailing newline after the closing fence. Evidence:
-  the `frontmatter` and `yaml_frontmatter` snapshots show source-backed
-  frontmatter text ending with `---`, while the following blank line is outside
-  the node span. Impact: Stage 3 assertions check the fenced block itself
-  rather than requiring the separator newline to be part of the region text.
+  closing fences but not the trailing newline after the closing fence.
+  Evidence: the `frontmatter` and `yaml_frontmatter` snapshots show
+  source-backed frontmatter text ending with `---`, while the following blank
+  line is outside the node span. Impact: Stage 3 assertions check the fenced
+  block itself rather than requiring the separator newline to be part of the
+  region text.
 
 - Observation: the Stage 3 `coderabbit review --agent` run repeated the
   sandbox-setup hang seen in Stage 1. Evidence: the run emitted
@@ -953,22 +932,23 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
 
 - Observation: the first Stage 3 implementation pushed Markdown extraction
   responsibilities back toward an over-large `lib.rs`. The builder traversal
-  now lives in `crates/stilyagi-markdown/src/builder.rs` and region construction
-  lives in `crates/stilyagi-markdown/src/region_emission.rs`. Evidence:
-  `wc -l crates/stilyagi-markdown/src/lib.rs
-  crates/stilyagi-markdown/src/builder.rs
-  crates/stilyagi-markdown/src/region_emission.rs
-  crates/stilyagi-markdown/src/tests/coverage.rs` reports 331, 148, 346, and
-  234 lines respectively. Impact: the touched Rust files stay below the
-  repository's 400-line limit while preserving the green Stage 3 gates.
+  now lives in `crates/stilyagi-markdown/src/builder.rs` and region
+  construction lives in `crates/stilyagi-markdown/src/region_emission.rs`.
+  Evidence: `wc -l` reports 331, 148, 346, and 234 lines respectively for
+  `crates/stilyagi-markdown/src/lib.rs`,
+  `crates/stilyagi-markdown/src/builder.rs`,
+  `crates/stilyagi-markdown/src/region_emission.rs`, and
+  `crates/stilyagi-markdown/src/tests/coverage.rs`. Impact: the touched Rust
+  files stay below the repository's 400-line limit while preserving the green
+  Stage 3 gates.
 
 - Observation: Stage 4 adds malformed recovery snapshots, literal CRLF fixture
   guards, adversarial nested-blockquote and empty-list-item assertions,
   Markdown-generated `proptest` invariant coverage, and an `rstest-bdd`
   region-coverage scenario. Evidence:
-  `/tmp/test-stage4-targeted-stilyagi-2-1-2-golden-fixture-coverage.out`
-  shows 48 `stilyagi-markdown` tests passing after the malformed snapshots
-  were accepted, and `/tmp/test-stage4-stilyagi-2-1-2-golden-fixture-coverage.out`
+  `/tmp/test-stage4-targeted-stilyagi-2-1-2-golden-fixture-coverage.out` shows
+  48 `stilyagi-markdown` tests passing after the malformed snapshots were
+  accepted, and `/tmp/test-stage4-stilyagi-2-1-2-golden-fixture-coverage.out`
   shows the full `make test` gate passing with 168 Rust tests and 97 Python
   tests. Impact: parser recovery, CRLF checkout fidelity, parent-region
   ordering, source re-slicing, segment contiguity, and synthetic-reason
@@ -1007,10 +987,11 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
 - Observation: the legacy Python `Document.regions` compatibility list still
   carries `stilyagi-extract`'s coarse `document` kind, which is not part of
   `stilyagi-ir::RegionKind::ALL`. Evidence:
-  `crates/stilyagi-extract/src/lib.rs` defines the bridge `RegionKind::Document`
-  separately from the canonical IR region vocabulary. Impact: Stage 5 applies
-  unknown-kind warnings only to canonical `Document.ir["regions"]`, avoiding a
-  warning on every current Markdown extraction.
+  `crates/stilyagi-extract/src/lib.rs` defines the bridge
+  `RegionKind::Document` separately from the canonical IR region vocabulary.
+  Impact: Stage 5 applies unknown-kind warnings only to canonical
+  `Document.ir["regions"]`, avoiding a warning on every current Markdown
+  extraction.
 
 - Observation: the Stage 5 `coderabbit review --agent` run repeated the
   sandbox-setup hang seen in earlier review attempts. Evidence: the run emitted
@@ -1019,17 +1000,36 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   Impact: CodeRabbit concerns were again unavailable; deterministic gates
   remained green and no rate-limit response was emitted.
 
+- Observation: Stage 6 records the Markdown region-vocabulary scope in ADR
+  005, amends RFC 0001, updates the developer and design guides, keeps the user
+  guide aligned with the Stage 5 bridge export, and marks roadmap item 2.1.2
+  complete. Evidence:
+  `/tmp/fmt-stage6-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/markdownlint-stage6-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/nixie-stage6-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/check-fmt-stage6-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/typecheck-stage6-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/lint-stage6-stilyagi-2-1-2-golden-fixture-coverage.out`, and
+  `/tmp/test-stage6-stilyagi-2-1-2-golden-fixture-coverage.out` all passed.
+  Impact: the repository documentation now matches the implemented fixture
+  coverage and the explicit `frontmatter_field` / source-backing deferrals.
+
+- Observation: the Stage 6 `coderabbit review --agent` run repeated the
+  sandbox-setup hang seen in earlier review attempts. Evidence: the run emitted
+  `preparing_sandbox`, stayed silent for more than three minutes, and PID
+  `1554999` was terminated after confirming it belonged to this worktree.
+  Impact: CodeRabbit concerns were again unavailable; deterministic gates
+  remained green and no rate-limit response was emitted.
+
 ## Decision Log
 
 - Decision: keep `Status: DRAFT` and block implementation until explicit
-  approval.
-  Rationale: the execplans approval gate and the user's standing instruction
-  that plans are approved before implementation. Date/Author: 2026-06-12,
-  planning agent.
+  approval. Rationale: the execplans approval gate and the user's standing
+  instruction that plans are approved before implementation. Date/Author:
+  2026-06-12, planning agent.
 
 - Decision: adopt thin structural `list_item` and `blockquote` regions (no
-  prose,
-  prose in child regions via `parent_region`) rather than prose-bearing
+  prose, prose in child regions via `parent_region`) rather than prose-bearing
   containers with a block-separator synthetic. Rationale: the design panel
   converged that prose-bearing containers double-cover bytes, make
   `origin_nodes` ambiguous, create dual fix targets, and force an
@@ -1039,16 +1039,14 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   may choose it at approval. Date/Author: 2026-06-12.
 
 - Decision: emit `image_alt` and `link_title` as synthetic `decoded_text`
-  segments
-  in this slice rather than attempting byte-accurate source backing. Rationale:
-  markdown-rs decodes these to strings without sub-positions; a first-match
-  byte scan risks source-backing the wrong occurrence and corrupting future
-  fixes; synthetic-only is never wrong and is additive to improve later.
-  Date/Author: 2026-06-12.
+  segments in this slice rather than attempting byte-accurate source backing.
+  Rationale: markdown-rs decodes these to strings without sub-positions; a
+  first-match byte scan risks source-backing the wrong occurrence and
+  corrupting future fixes; synthetic-only is never wrong and is additive to
+  improve later. Date/Author: 2026-06-12.
 
 - Decision: defer `frontmatter_field` and route the deferral through ADR-005
-  plus
-  an RFC 0001 amendment rather than silently shrinking the vocabulary.
+  plus an RFC 0001 amendment rather than silently shrinking the vocabulary.
   Rationale: field-level spans need a YAML/TOML parser (a new dependency) and
   would otherwise produce plausible-but-wrong spans; RFC 0001 marks the kind
   `SHALL`, so the promise must be corrected in the open. Date/Author:
@@ -1098,12 +1096,30 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   this worktree and terminated without affecting other agents. Date/Author:
   2026-06-14, implementation agent.
 
+- Decision: continue after Stage 6 despite unavailable CodeRabbit output.
+  Rationale: all applicable deterministic gates passed; CodeRabbit was
+  requested after the milestone and again produced no findings or rate-limit
+  response before hanging at sandbox setup; the hung process was limited to
+  this worktree and terminated without affecting other agents. Date/Author:
+  2026-06-14, implementation agent.
+
 ## Outcomes & Retrospective
 
-To be completed at milestones and at completion. Compare the delivered region
-coverage against the roadmap success criterion (every promised v1 Markdown
-region kind exercised by at least one fixture), note whether the thin-container
-model held up, and record any region kind that had to be blocked or deferred.
+Roadmap item 2.1.2 is implemented. The valid Markdown corpus now exercises the
+promised emitted Markdown region kinds: `heading`, `paragraph`, `list_item`,
+`blockquote`, `table_cell`, `frontmatter`, `image_alt`, and `link_title`.
+Malformed fixtures, CRLF fixtures, adversarial fixtures, property tests, BDD
+coverage, and snapshots cover parser recovery and the important IR invariants.
+
+The thin-container decision aged well through implementation. It avoided
+duplicating prose bytes for list items and blockquotes while still giving rules
+stable structure via `parent_region`, `scope`, and `attrs`.
+
+Follow-up work remains deliberately scoped to later roadmap items:
+`frontmatter_field` remains reserved until field-level spans can be generated
+without guessing; byte-accurate source backing for decoded image alt text and
+link titles is also future work. Suppression parsing and `IrDocument.errors`
+emission remain roadmap item 2.1.3.
 
 ## Revision note
 
