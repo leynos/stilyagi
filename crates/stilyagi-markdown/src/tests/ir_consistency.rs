@@ -1,6 +1,7 @@
 //! Tests for Markdown IR envelope construction and consistency validation.
 
 use std::collections::BTreeSet;
+use std::path::Path;
 
 use markdown::mdast::Node;
 use rstest::rstest;
@@ -25,7 +26,7 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
     let source = "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi design](../../../../../docs/stilyagi-design.md).\n\n| Term | Meaning |\n| ---- | ------- |\n| IR   | Intermediate representation |\n";
     let document = markdown_ir_document(
         source,
-        source_identity("tests/fixtures/corpus/markdown/valid/example.md"),
+        source_identity(Path::new("tests/fixtures/corpus/markdown/valid/example.md")),
     );
 
     assert!(matches!(&document, Ok(value) if value.document.syntax == "markdown"));
@@ -55,7 +56,7 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
 #[rstest]
 fn markdown_ir_document_preserves_canonical_source_identity_helpers() {
     let source = "# Heading\n\nBody";
-    let document = markdown_ir_document(source, source_identity("docs/example.md"))
+    let document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
         .expect("expected Markdown IR document");
 
     assert_eq!(
@@ -74,7 +75,7 @@ fn assert_validation_reports(
     expected_reason_fragments: &[&str],
 ) {
     let source = "# Heading\n\nBody";
-    let mut document = markdown_ir_document(source, source_identity("docs/example.md"))
+    let mut document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
         .expect("expected Markdown IR document");
     mutate(&mut document);
     let context = diagnostic_context();
@@ -178,7 +179,7 @@ fn validate_ir_consistency_reports_invalid_origin_nodes() {
 #[rstest]
 fn markdown_ir_document_records_soft_breaks_as_synthetic_segments() {
     let source = "First line\nsecond line\n";
-    let document = markdown_ir_document(source, source_identity("docs/example.md"));
+    let document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")));
 
     assert!(matches!(&document, Ok(value) if value.regions.len() == 1));
     if let Ok(value) = document {
@@ -196,7 +197,7 @@ fn markdown_ir_document_records_soft_breaks_as_synthetic_segments() {
 
 #[rstest]
 fn markdown_ir_document_keeps_empty_heading_regions() {
-    let document = markdown_ir_document("#\n", source_identity("docs/example.md"))
+    let document = markdown_ir_document("#\n", source_identity(Path::new("docs/example.md")))
         .expect("expected Markdown IR document");
 
     assert!(document.regions.iter().any(|region| {
@@ -209,7 +210,7 @@ fn markdown_ir_document_keeps_empty_heading_regions() {
 
 #[rstest]
 fn markdown_ir_document_uses_synthetic_segment_for_decoded_text() {
-    let document = markdown_ir_document("AT&amp;T", source_identity("docs/example.md"))
+    let document = markdown_ir_document("AT&amp;T", source_identity(Path::new("docs/example.md")))
         .expect("expected Markdown IR document");
     let paragraph = document
         .regions

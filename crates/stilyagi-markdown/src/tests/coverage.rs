@@ -212,10 +212,7 @@ fn must_read_fixture(relative_path: &Path) -> String {
 }
 
 fn must_markdown_ir_document(source: &str, relative_path: &Path) -> IrDocument {
-    let path_str = relative_path
-        .to_str()
-        .expect("fixture path must be valid UTF-8");
-    match markdown_ir_document(source, source_identity(path_str)) {
+    match markdown_ir_document(source, source_identity(relative_path)) {
         Ok(document) => document,
         Err(error) => panic!("expected Markdown IR document: {error}"),
     }

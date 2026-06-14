@@ -1,5 +1,7 @@
 //! Tests for recovered and adversarial Markdown fixture extraction.
 
+use std::path::Path;
+
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, RegionKind};
 use stilyagi_test_support::{read_corpus_fixture, read_corpus_fixture_bytes};
@@ -100,7 +102,7 @@ fn empty_list_item_does_not_emit_empty_garbage_text_region() {
 }
 
 fn document_for(relative_path: &str, source: &str) -> IrDocument {
-    markdown_ir_document(source, source_identity(relative_path))
+    markdown_ir_document(source, source_identity(Path::new(relative_path)))
         .expect("expected Markdown IR document")
 }
 

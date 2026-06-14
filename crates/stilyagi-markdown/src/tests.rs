@@ -22,6 +22,17 @@ macro_rules! must_some {
     };
 }
 
+use std::path::Path;
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ExpectedText<'a>(pub &'a str);
+
+impl<'a> From<&'a str> for ExpectedText<'a> {
+    fn from(s: &'a str) -> Self {
+        Self(s)
+    }
+}
+
 #[path = "tests/coverage.rs"]
 mod coverage;
 #[path = "tests/ir_consistency.rs"]
@@ -44,68 +55,73 @@ use stilyagi_test_support::{
 use crate::markdown_ir_document;
 
 /// Build a deterministic source identity for Markdown IR fixtures.
-fn source_identity(path: &str) -> SourceIdentity {
-    SourceIdentity::new(Some(path.to_owned()), Some(format!("file:///repo/{path}")))
+fn source_identity(path: &Path) -> SourceIdentity {
+    let path_str = path.to_string_lossy();
+    SourceIdentity::new(
+        Some(path_str.to_string()),
+        Some(format!("file:///repo/{path_str}")),
+    )
 }
 
 #[rstest]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/paragraph-inline-markup.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/paragraph-inline-markup.md.fixture"),
     "paragraph_inline_markup",
-    "This paragraph has emphasis, strong text, inline code, and a link."
+    ExpectedText("This paragraph has emphasis, strong text, inline code, and a link.")
 )]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/paragraph-soft-break.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/paragraph-soft-break.md.fixture"),
     "paragraph_soft_break",
-    "First line second line"
+    ExpectedText("First line second line")
 )]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/paragraph-soft-break-crlf.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/paragraph-soft-break-crlf.md.fixture"),
     "paragraph_soft_break_crlf",
-    "First CRLF line second CRLF line"
+    ExpectedText("First CRLF line second CRLF line")
 )]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture"),
     "yaml_frontmatter",
-    "Paragraph after frontmatter."
+    ExpectedText("Paragraph after frontmatter.")
 )]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/headings.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/headings.md.fixture"),
     "headings",
-    "Top Level"
+    ExpectedText("Top Level")
 )]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/lists.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/lists.md.fixture"),
     "lists",
-    "Unordered item"
+    ExpectedText("Unordered item")
 )]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/blockquotes.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/blockquotes.md.fixture"),
     "blockquotes",
-    "Quoted paragraph."
+    ExpectedText("Quoted paragraph.")
 )]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/table.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/table.md.fixture"),
     "table",
-    "Term"
+    ExpectedText("Term")
 )]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture"),
     "links_and_images",
-    "plain alt"
+    ExpectedText("plain alt")
 )]
 #[case(
-    "tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture",
+    Path::new("tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture"),
     "frontmatter",
-    "Paragraph after dedicated frontmatter."
+    ExpectedText("Paragraph after dedicated frontmatter.")
 )]
 fn hardening_fixture_ir_json_round_trips_without_span_drift(
-    #[case] relative_path: &str,
+    #[case] relative_path: &Path,
     #[case] snapshot_name: &str,
-    #[case] expected_paragraph: &str,
+    #[case] expected_paragraph: ExpectedText<'_>,
 ) {
+    let relative_path_str = relative_path.to_str().expect("UTF-8 path");
     let source = must_ok!(
-        read_corpus_fixture(relative_path),
+        read_corpus_fixture(relative_path_str),
         "expected Markdown hardening fixture"
     );
     let document = must_ok!(
@@ -145,7 +161,7 @@ fn yaml_frontmatter_fixture_records_a_yaml_node() {
         "expected YAML frontmatter fixture"
     );
     let document = must_ok!(
-        markdown_ir_document(&source, source_identity(relative_path)),
+        markdown_ir_document(&source, source_identity(Path::new(relative_path))),
         "expected Markdown IR document"
     );
 
@@ -159,7 +175,10 @@ fn shared_markdown_ir_json_round_trips_without_span_drift() {
         "expected shared Markdown fixture"
     );
     let document = must_ok!(
-        markdown_ir_document(&source, source_identity(SHARED_MARKDOWN_FIXTURE_PATH)),
+        markdown_ir_document(
+            &source,
+            source_identity(Path::new(SHARED_MARKDOWN_FIXTURE_PATH)),
+        ),
         "expected shared Markdown IR document"
     );
     let json = must_ok!(document.to_canonical_json(), "expected canonical JSON");
@@ -184,14 +203,14 @@ pub(super) fn source_backed_segments_match_source(document: &IrDocument, source:
         region.segments.iter().all(|segment| {
             segment.source.map_or_else(
                 || segment.synthetic.is_some(),
-                |span| source_segment_matches(span, source, &segment.text),
+                |span| source_segment_matches(span, source, ExpectedText(&segment.text)),
             )
         })
     })
 }
 
-fn source_segment_matches(span: SourceSpan, source: &str, expected: &str) -> bool {
-    source.get(span.byte_start..span.byte_end) == Some(expected)
+fn source_segment_matches(span: SourceSpan, source: &str, expected: ExpectedText<'_>) -> bool {
+    source.get(span.byte_start..span.byte_end) == Some(expected.0)
 }
 
 pub(super) fn synthetic_segments_use_known_reasons(document: &IrDocument) -> bool {
@@ -209,12 +228,12 @@ pub(super) fn synthetic_segments_use_known_reasons(document: &IrDocument) -> boo
     })
 }
 
-fn assert_region_text_present(document: &IrDocument, expected_text: &str) {
+fn assert_region_text_present(document: &IrDocument, expected: ExpectedText<'_>) {
     assert!(
         document
             .regions
             .iter()
-            .any(|region| region.text == expected_text)
+            .any(|region| region.text == expected.0)
     );
 }
 
