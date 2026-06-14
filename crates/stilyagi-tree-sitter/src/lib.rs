@@ -5,10 +5,21 @@
 pub struct TreeSitterBoundary;
 
 #[cfg(test)]
+#[expect(
+    clippy::expect_used,
+    reason = "spike tests assert fixture and parser invariants with focused failure messages"
+)]
 mod tests {
     //! Tests for the placeholder tree-sitter extraction boundary marker.
 
     use super::TreeSitterBoundary;
+    use stilyagi_test_support::read_corpus_fixture;
+    use tree_sitter::{Node, Parser};
+
+    const SHARED_PYTHON_FIXTURE: &str =
+        "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py";
+    const MALFORMED_PYTHON_FIXTURE: &str =
+        "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt";
 
     /// Keep the marker type default stable and comparable.
     #[test]
@@ -43,5 +54,179 @@ mod tests {
 
         assert_eq!(first, second);
         assert_eq!(first, original);
+    }
+
+    fn python_parser() -> Parser {
+        let mut parser = Parser::new();
+        let language = tree_sitter_python::LANGUAGE.into();
+        parser
+            .set_language(&language)
+            .expect("tree-sitter-python grammar should load");
+        parser
+    }
+
+    fn parse_python(source: &str) -> tree_sitter::Tree {
+        python_parser()
+            .parse(source, None)
+            .expect("tree-sitter should return a parse tree")
+    }
+
+    fn first_named_child(node: Node<'_>) -> Node<'_> {
+        node.named_child(0)
+            .expect("node should have a first named child")
+    }
+
+    fn first_named_child_with_kind<'tree>(node: Node<'tree>, kind: &str) -> Node<'tree> {
+        let child = first_named_child(node);
+
+        assert_eq!(child.kind(), kind);
+        child
+    }
+
+    fn direct_named_child_with_kind<'tree>(node: Node<'tree>, kind: &str) -> Node<'tree> {
+        let mut cursor = node.walk();
+
+        node.named_children(&mut cursor)
+            .find(|child| child.kind() == kind)
+            .unwrap_or_else(|| panic!("{kind} child should exist"))
+    }
+
+    fn text_for_node<'source>(source: &'source str, node: Node<'_>) -> &'source str {
+        node.utf8_text(source.as_bytes())
+            .expect("node byte range should select valid UTF-8")
+    }
+
+    fn named_children_with_kind<'tree>(node: Node<'tree>, kind: &str) -> Vec<Node<'tree>> {
+        let mut cursor = node.walk();
+
+        node.named_children(&mut cursor)
+            .filter(|child| child.kind() == kind)
+            .collect()
+    }
+
+    fn descendants_with_kind<'tree>(node: Node<'tree>, kind: &str) -> Vec<Node<'tree>> {
+        let mut found = Vec::new();
+        collect_descendants_with_kind(node, kind, &mut found);
+        found
+    }
+
+    fn collect_descendants_with_kind<'tree>(
+        node: Node<'tree>,
+        kind: &str,
+        found: &mut Vec<Node<'tree>>,
+    ) {
+        let mut cursor = node.walk();
+
+        for child in node.named_children(&mut cursor) {
+            if child.kind() == kind {
+                found.push(child);
+            }
+            collect_descendants_with_kind(child, kind, found);
+        }
+    }
+
+    /// Pin the grammar shape used by the owner-aware extractor.
+    #[test]
+    fn python_fixture_exposes_docstring_content_spans() {
+        let source = read_corpus_fixture(SHARED_PYTHON_FIXTURE)
+            .expect("shared Python fixture should be readable");
+        let tree = parse_python(&source);
+        let root = tree.root_node();
+
+        assert_eq!(root.kind(), "module");
+
+        let expression_statement = first_named_child_with_kind(root, "expression_statement");
+        let string = first_named_child_with_kind(expression_statement, "string");
+        let string_content = direct_named_child_with_kind(string, "string_content");
+
+        assert_eq!(
+            text_for_node(&source, string_content),
+            "Module docstring for the shared Stilyagi corpus."
+        );
+        assert_eq!(
+            source
+                .get(string_content.start_byte()..string_content.end_byte())
+                .expect("string content span should be valid UTF-8"),
+            "Module docstring for the shared Stilyagi corpus."
+        );
+    }
+
+    /// Pin decorated definitions as transparent wrappers around their owners.
+    #[test]
+    fn python_fixture_reaches_staticmethod_definition_through_decorator() {
+        let source = read_corpus_fixture(SHARED_PYTHON_FIXTURE)
+            .expect("shared Python fixture should be readable");
+        let tree = parse_python(&source);
+        let decorated_definition = descendants_with_kind(tree.root_node(), "decorated_definition")
+            .into_iter()
+            .next()
+            .expect("fixture should contain a decorated method");
+        let definition = decorated_definition
+            .child_by_field_name("definition")
+            .expect("decorated definition should expose its inner definition");
+        let name = definition
+            .child_by_field_name("name")
+            .expect("function definition should expose its name");
+
+        assert_eq!(definition.kind(), "function_definition");
+        assert_eq!(text_for_node(&source, name), "method");
+    }
+
+    /// Pin grammar signals used to reject v1 non-docstring first statements.
+    #[test]
+    fn python_grammar_marks_fstrings_and_concatenated_strings() {
+        let f_string_source = "def interpolated():\n    f\"\"\"{value}\"\"\"\n";
+        let f_string_tree = parse_python(f_string_source);
+        let f_string = descendants_with_kind(f_string_tree.root_node(), "string")
+            .into_iter()
+            .next()
+            .expect("f-string source should contain a string node");
+        let string_start = first_named_child_with_kind(f_string, "string_start");
+
+        assert!(
+            descendants_with_kind(f_string, "interpolation").is_empty()
+                || text_for_node(f_string_source, string_start).contains('f')
+        );
+
+        let concatenated_source = "def adjacent():\n    \"a\" \"b\"\n";
+        let concatenated_tree = parse_python(concatenated_source);
+        let first_statement =
+            descendants_with_kind(concatenated_tree.root_node(), "expression_statement")
+                .into_iter()
+                .next()
+                .expect("concatenated source should contain an expression statement");
+        let concatenated_string = first_named_child(first_statement);
+
+        assert_eq!(concatenated_string.kind(), "concatenated_string");
+    }
+
+    /// Pin malformed recovery so later extraction can safely emit partial IR.
+    #[test]
+    fn malformed_python_fixture_recovers_the_module_docstring() {
+        let source = read_corpus_fixture(MALFORMED_PYTHON_FIXTURE)
+            .expect("malformed Python fixture should be readable");
+        let tree = parse_python(&source);
+        let root = tree.root_node();
+        let expression_statement = descendants_with_kind(root, "expression_statement")
+            .into_iter()
+            .next()
+            .expect("malformed fixture should preserve an expression statement");
+        let string = first_named_child_with_kind(expression_statement, "string");
+        let string_content = direct_named_child_with_kind(string, "string_content");
+        let error_nodes = descendants_with_kind(root, "ERROR");
+        let error_spans = error_nodes
+            .iter()
+            .map(|node| (node.start_byte(), node.end_byte()))
+            .collect::<Vec<_>>();
+        let function_nodes = named_children_with_kind(root, "function_definition");
+
+        assert!(root.has_error());
+        assert_eq!(first_named_child(root).kind(), "ERROR");
+        assert_eq!(
+            text_for_node(&source, string_content),
+            "Module docstring before malformed Python source."
+        );
+        assert_eq!(error_spans, vec![(0, 168), (57, 77)]);
+        assert!(function_nodes.is_empty());
     }
 }

@@ -1080,7 +1080,20 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/typecheck-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/lint-stilyagi-3-1-1-python-docstring-extraction.out`, and
   `/tmp/test-stilyagi-3-1-1-python-docstring-extraction.out`.
-- [ ] Stage 1: tree-sitter dependencies and parser spike.
+- [x] (2026-06-15) Stage 0 CodeRabbit review completed with zero findings.
+  Log: `/tmp/coderabbit-stage0-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 1 dependency and parser spike completed. Logs:
+  `/tmp/build-cold-tree-sitter-stilyagi-3-1-1-python-docstring-extraction.out`
+  and `/tmp/test-tree-sitter-spike-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 1 deterministic gates and CodeRabbit review passed
+  with zero findings. Logs:
+  `/tmp/check-fmt-stage1-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage1-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage1-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/test-stage1-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage1-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/nixie-stage1-stilyagi-3-1-1-python-docstring-extraction.out`, and
+  `/tmp/coderabbit-stage1-stilyagi-3-1-1-python-docstring-extraction.out`.
 - [ ] Stage 2: owner-aware Python extractor and dispatch.
 - [ ] Stage 3: canonical JSON, golden fixtures, and snapshots.
 - [ ] Stage 4: Rust BDD behaviour coverage.
@@ -1101,6 +1114,35 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   sequentially, with `make test` reporting 131/131 Rust tests and 97/97 Python
   tests passed. Impact: subsequent gate failures should be treated as caused by
   this implementation unless a new unrelated change is discovered.
+
+- Observation: `tree-sitter` 0.25.10 and `tree-sitter-python` 0.25.0 build
+  locally through the vendored C grammar. Evidence: `cargo build -p
+  stilyagi-tree-sitter` passed after adding the dependencies, with Cargo waiting
+  briefly for the shared build directory lock and then finishing in 5.16s.
+  Impact: Stage 1 did not hit the C-toolchain or ABI tolerance.
+
+- Observation: `tree-sitter-python` exposes the shared fixture's module
+  docstring as `module > expression_statement > string`, but the first named
+  child of `string` is `string_start`; `string_content` must be selected by
+  kind rather than by position. Evidence: the spike test
+  `python_fixture_exposes_docstring_content_spans` failed with
+  `left: "string_start"` before the test was corrected. Impact: the extractor
+  must search direct string children by kind to avoid span drift.
+
+- Observation: decorated methods are represented as `decorated_definition`
+  nodes whose `definition` field is the inner `function_definition`, and the
+  shared fixture's method name field is `method`. Evidence:
+  `python_fixture_reaches_staticmethod_definition_through_decorator` passes.
+  Impact: Stage 2 can treat decorators as transparent owner wrappers.
+
+- Observation: the malformed fixture preserves the module docstring inside a
+  recovered tree whose root first named child is an `ERROR`; descendant
+  `ERROR` spans are `0..168` and `57..77`, and no top-level
+  `function_definition` is emitted. Evidence:
+  `malformed_python_fixture_recovers_the_module_docstring` pins these spans.
+  Impact: Stage 2 should emit the module docstring and record recoverable parse
+  diagnostics without treating the broken signature string as a function
+  docstring.
 
 ## Decision Log
 
