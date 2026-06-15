@@ -1174,7 +1174,31 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
 - [x] (2026-06-15) Stage 2 final CodeRabbit review completed with zero
   findings. Evidence:
   `/tmp/coderabbit-stage2-helpers-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
-- [ ] Stage 3: canonical JSON, golden fixtures, and snapshots.
+- [x] (2026-06-15) Stage 3 Python golden fixture builder and canonical IR
+  snapshots implemented. The new `golden_python_ir_fixture` delegates to the
+  production tree-sitter extractor to avoid a second schema implementation,
+  while extraction snapshots pin both the valid shared fixture and the
+  malformed fixture. Evidence:
+  `/tmp/test-insta-python-preupdate-stilyagi-3-1-1-python-docstring-extraction.out`
+  failed only because the reviewed snapshots were new,
+  `/tmp/test-insta-python-stilyagi-3-1-1-python-docstring-extraction.out`
+  accepted them, and
+  `/tmp/test-insta-python-verify-stilyagi-3-1-1-python-docstring-extraction.out`
+  passed without update mode.
+- [x] (2026-06-15) Stage 3 deterministic gates passed after replacing direct
+  test indexing with `.first()`. Evidence:
+  `/tmp/lint-stage3-stilyagi-3-1-1-python-docstring-extraction.out` first
+  failed on `clippy::indexing_slicing`; rerun logs
+  `/tmp/check-fmt-stage3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/test-stage3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage3-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and `/tmp/nixie-stage3-stilyagi-3-1-1-python-docstring-extraction.out`
+  passed.
+- [x] (2026-06-15) Stage 3 CodeRabbit review completed with zero findings.
+  Evidence:
+  `/tmp/coderabbit-stage3-stilyagi-3-1-1-python-docstring-extraction.out`.
 - [ ] Stage 4: Rust BDD behaviour coverage.
 - [ ] Stage 5: PyO3 bridge and Python model adaptation.
 - [ ] Stage 6: documentation, ADR 005, and roadmap completion.
@@ -1222,6 +1246,14 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   Impact: Stage 2 should emit the module docstring and record recoverable parse
   diagnostics without treating the broken signature string as a function
   docstring.
+
+- Observation: the Stage 3 test-support snapshot was created only when the
+  planned `INSTA_UPDATE=always` command was run; the pre-update failure surfaced
+  only the two extraction snapshots because those were the first new snapshots
+  hit in the combined package run. Evidence:
+  `/tmp/test-insta-python-stilyagi-3-1-1-python-docstring-extraction.out`.
+  Impact: accepting snapshots through the full targeted package set is
+  necessary so helper-level and integration-level contracts stay in sync.
 
 - Observation: empty Python docstrings have no `string_content` node in the
   tree-sitter-python grammar. Evidence: the Stage 2 edge-case test failed until

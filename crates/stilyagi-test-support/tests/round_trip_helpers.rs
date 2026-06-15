@@ -4,8 +4,8 @@ use proptest::prelude::*;
 use rstest::rstest;
 use stilyagi_test_support::{
     ByteSpan, FixturePathError, FixturePathErrorKind, RoundTripEdit, RoundTripEditError,
-    SHARED_MARKDOWN_FIXTURE_PATH, apply_round_trip_edits, golden_markdown_ir_fixture,
-    normalize_repository_path,
+    SHARED_MARKDOWN_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, apply_round_trip_edits,
+    golden_markdown_ir_fixture, golden_python_ir_fixture, normalize_repository_path,
 };
 
 fn span(start: usize, end: usize) -> ByteSpan {
@@ -23,7 +23,16 @@ fn golden_markdown_ir_fixture_serializes_the_shared_fixture() {
     insta::assert_snapshot!(document.to_canonical_json());
 }
 
-#[rstest]
+fn golden_python_ir_fixture_serializes_the_shared_fixture() {
+    let document = golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
+        .unwrap_or_else(|error| panic!("expected shared Python golden IR: {error}"));
+
+    insta::assert_snapshot!(
+        document
+            .to_canonical_json()
+            .unwrap_or_else(|error| panic!("expected canonical Python IR JSON: {error}"))
+    );
+}
 fn round_trip_edits_apply_source_backed_replacements() {
     let result = apply_round_trip_edits(
         "alpha beta gamma",

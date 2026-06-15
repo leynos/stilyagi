@@ -12,8 +12,13 @@ use std::path::{Component, Path, PathBuf};
 pub const SHARED_MARKDOWN_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md";
 
-/// Failure raised when a fixture path is not repository-relative.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Repository-relative path to the shared valid Python docstring fixture.
+pub const SHARED_PYTHON_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py";
+
+/// Repository-relative path to the malformed Python docstring fixture.
+pub const MALFORMED_PYTHON_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt";
 pub struct FixturePathError {
     /// Rejected path rendered for diagnostics.
     pub path: String,

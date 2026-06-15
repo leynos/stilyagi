@@ -1381,6 +1381,7 @@ dependencies = [
  "proptest",
  "rstest",
  "stilyagi-ir",
+ "stilyagi-tree-sitter",
 ]
 
 [[package]]

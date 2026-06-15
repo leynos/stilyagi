@@ -10,6 +10,7 @@ publish.workspace = true
 [dependencies]
 cap-std.workspace = true
 stilyagi-ir = { path = "../stilyagi-ir" }
+stilyagi-tree-sitter = { path = "../stilyagi-tree-sitter" }
 
 [dev-dependencies]
 insta.workspace = true

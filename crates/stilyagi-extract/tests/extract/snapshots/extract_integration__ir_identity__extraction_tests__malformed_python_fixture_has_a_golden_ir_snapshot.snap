@@ -1,0 +1,144 @@
+---
+source: crates/stilyagi-extract/tests/extract/ir_identity.rs
+expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expected canonical Python IR JSON: {error}\"))"
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": null,
+    "path": "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt",
+    "syntax": "python",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:d6e6820a83ab67d3890ea542e619df38280801e320821e9efc9ad850b5af9449"
+  },
+  "producers": [
+    {
+      "kind": "tree-sitter",
+      "name": "tree-sitter-python",
+      "version": "0.25.0",
+      "options": {
+        "docstring_content": "verbatim",
+        "node_store": "bounded",
+        "owner_qualname": "python"
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    55,
+    56,
+    57,
+    78,
+    144,
+    169,
+    170
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "tree-sitter",
+      "syntax": "python",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "module",
+      "parent": null,
+      "children": [
+        "n1"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 170
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "string",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 54
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "python_docstring",
+      "scope": [
+        "python",
+        "docstring",
+        "module"
+      ],
+      "syntax": "python",
+      "natural_language": null,
+      "text": "Module docstring before malformed Python source.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 48,
+          "source": {
+            "byte_start": 3,
+            "byte_end": 51
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "Module docstring before malformed Python source."
+        }
+      ],
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": {
+        "kind": "module",
+        "name": null,
+        "qualname": null
+      },
+      "attrs": {},
+      "parent_region": null
+    }
+  ],
+  "suppressions": [],
+  "errors": [
+    {
+      "code": "python-parse-recovery",
+      "message": "recovered ERROR node at bytes 0..168",
+      "span": {
+        "byte_start": 0,
+        "byte_end": 168
+      }
+    },
+    {
+      "code": "python-parse-recovery",
+      "message": "recovered ERROR node at bytes 57..77",
+      "span": {
+        "byte_start": 57,
+        "byte_end": 77
+      }
+    }
+  ],
+  "metadata": {}
+}
