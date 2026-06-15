@@ -1199,7 +1199,51 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
 - [x] (2026-06-15) Stage 3 CodeRabbit review completed with zero findings.
   Evidence:
   `/tmp/coderabbit-stage3-stilyagi-3-1-1-python-docstring-extraction.out`.
-- [ ] Stage 4: Rust BDD behaviour coverage.
+- [x] (2026-06-15) Stage 4 Rust BDD behaviour coverage implemented for the
+  `stilyagi-extract` boundary. Evidence:
+  `/tmp/test-extract-bdd-stage4-stilyagi-3-1-1-python-docstring-extraction.out`
+  first failed because step functions used a fixture parameter name that did
+  not match `python_docstring_state`;
+  `/tmp/test-extract-bdd-stage4-rerun-stilyagi-3-1-1-python-docstring-extraction.out`
+  then failed on a stale expected function docstring;
+  `/tmp/test-extract-bdd-stage4-green-stilyagi-3-1-1-python-docstring-extraction.out`
+  passed with 47/47 `stilyagi-extract` tests.
+- [x] (2026-06-15) Stage 4 deterministic gates passed before CodeRabbit.
+  Evidence:
+  `/tmp/check-fmt-stage4-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage4-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage4-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/test-stage4-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage4-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and `/tmp/nixie-stage4-stilyagi-3-1-1-python-docstring-extraction.out`
+  passed.
+- [x] (2026-06-15) Stage 4 CodeRabbit review returned four trivial findings
+  asking for `.expect(...)` in test-only BDD helpers. Evidence:
+  `/tmp/coderabbit-stage4-stilyagi-3-1-1-python-docstring-extraction.out`.
+  The suggestions were applied with tightly scoped `clippy::expect_used`
+  expectations and reasons, matching the existing PyO3 BDD style. Follow-up
+  gates passed in
+  `/tmp/check-fmt-stage4-coderabbit-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage4-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage4-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/test-stage4-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 4 second CodeRabbit review returned two findings:
+  remove a `const fn` marker from the BDD IR helper and remove `let _ = ...`
+  from scenario bodies. Evidence:
+  `/tmp/coderabbit-stage4-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+  The regular helper shape was kept with a scoped `missing_const_for_fn`
+  rationale because CodeRabbit correctly identified the runtime panic path, and
+  empty scenario bodies retained the exact fixture parameter names required by
+  `rstest-bdd`. Follow-up gates passed in
+  `/tmp/check-fmt-stage4-coderabbit2-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage4-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage4-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/test-stage4-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 4 final CodeRabbit review completed with zero
+  findings. Evidence:
+  `/tmp/coderabbit-stage4-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`.
 - [ ] Stage 5: PyO3 bridge and Python model adaptation.
 - [ ] Stage 6: documentation, ADR 005, and roadmap completion.
 
@@ -1254,6 +1298,14 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/test-insta-python-stilyagi-3-1-1-python-docstring-extraction.out`.
   Impact: accepting snapshots through the full targeted package set is
   necessary so helper-level and integration-level contracts stay in sync.
+
+- Observation: `rstest-bdd` binds step fixtures by parameter name, not just
+  type. Evidence:
+  `/tmp/test-extract-bdd-stage4-stilyagi-3-1-1-python-docstring-extraction.out`
+  reported that step fixture `state` was missing while scenario fixture
+  `python_docstring_state` was available. Impact: new BDD steps should keep
+  scenario fixture parameter names identical across the scenario and every
+  step definition.
 
 - Observation: empty Python docstrings have no `string_content` node in the
   tree-sitter-python grammar. Evidence: the Stage 2 edge-case test failed until

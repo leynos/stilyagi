@@ -6,6 +6,8 @@ mod extraction_behaviour;
 mod fixture_path_validation;
 #[path = "extract/ir_identity.rs"]
 mod ir_identity;
+#[path = "extract/python_docstring_bdd.rs"]
+mod python_docstring_bdd;
 #[path = "extract/spelling_display.rs"]
 mod spelling_display;
 

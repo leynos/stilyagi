@@ -1326,6 +1326,8 @@ dependencies = [
  "insta",
  "markdown",
  "rstest",
+ "rstest-bdd",
+ "rstest-bdd-macros",
  "stilyagi-ir",
  "stilyagi-markdown",
  "stilyagi-test-support",
