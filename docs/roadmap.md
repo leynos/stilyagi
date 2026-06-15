@@ -214,7 +214,7 @@ source maps that docstring rules need across Python and Rust. See
 [Stilyagi design](stilyagi-design.md) §§4, 7.1, 11 and
 [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
 
-- [ ] 3.1.1. Implement Python docstring extraction with owner metadata for
+- [x] 3.1.1. Implement Python docstring extraction with owner metadata for
   modules, classes, and functions. See Stilyagi design (stilyagi-design.md)
   §7.1.
   - Requires 2.1.1 and 1.3.1.

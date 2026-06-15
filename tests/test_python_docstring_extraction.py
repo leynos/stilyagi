@@ -261,6 +261,7 @@ def _normalize_python_ir(ir: cabc.Mapping[str, JSONType]) -> dict[str, JSONType]
     assert isinstance(normalized, dict)
 
     document = typ.cast("dict[str, JSONType]", normalized["document"])
+    document["content_hash"] = "<content-hash>"
     document["path"] = "<normalized>"
     document["uri"] = "<normalized>"
 

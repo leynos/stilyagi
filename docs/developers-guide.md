@@ -12,6 +12,9 @@ narrower contracts live in:
   boundary between the Python package and the embedded Rust engine
 - [ADR 003](adr-003-v1-contract-scope.md) for the accepted v1 syntax scope, IR
   transport policy, and locale support boundary
+- [ADR 005](adr-005-docstring-owner-metadata.md) for the accepted docstring
+  owner metadata shape, Python qualified-name policy, and bounded Python
+  node-store contract
 - [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md) for the
   intermediate representation (IR)
 - [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md) for the Python rule API
@@ -148,14 +151,16 @@ stable region discriminators surfaced through the bridge:
 ```rust
 pub enum RegionKind {
     Document,  // whole-document prose from Markdown extraction
+    PythonDocstring,  // docstring prose from Python extraction
 }
 ```
 
 `RegionKind::as_str(self) -> &'static str` returns the stable Python-facing
-spelling, for example `"document"`. `impl fmt::Display for RegionKind`
-delegates to `as_str`. `TryFrom<&str> for RegionKind` is the canonical
-string-to-kind conversion; call sites that receive a kind string from an
-external boundary should use that implementation rather than a local match.
+spelling, for example `"document"` or `"python_docstring"`.
+`impl fmt::Display for RegionKind` delegates to `as_str`.
+`TryFrom<&str> for RegionKind` is the canonical string-to-kind conversion; call
+sites that receive a kind string from an external boundary should use that
+implementation rather than a local match.
 
 `ExtractRegion` exposes two typed entry points:
 
@@ -205,17 +210,20 @@ that need access to repository-local files:
 
 Table: Repository fixture utilities and signatures.
 
-| Symbol                         | Signature                                                        | Description                                                                                                                               |
-| ------------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `SHARED_MARKDOWN_FIXTURE_PATH` | `&str`                                                           | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
-| `repository_root`              | `() -> PathBuf`                                                  | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
-| `corpus_fixture_path`          | `(impl AsRef<Path>) -> PathBuf`                                  | Resolves a repository-relative path against the workspace root.                                                                           |
-| `read_corpus_fixture`          | `(impl AsRef<Path>) -> Result<String, io::Error>`                | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
-| `read_corpus_fixture_bytes`    | `(impl AsRef<Path>) -> Result<Vec<u8>, FixtureReadError>`        | Reads a repository-relative corpus fixture as raw bytes for byte-level tests.                                                             |
-| `fixture_paths_in`             | `(impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError>`    | Lists repository-relative fixture entries in deterministic sorted order.                                                                  |
-| `golden_markdown_ir_fixture`   | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`        | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                                  |
-| `normalize_repository_path`    | `(impl AsRef<Path>) -> String`                                   | Converts repository-relative paths to `/`-separated snapshot text.                                                                        |
-| `apply_round_trip_edits`       | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>` | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                               |
+| Symbol                          | Signature                                                           | Description                                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHARED_MARKDOWN_FIXTURE_PATH`  | `&str`                                                              | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
+| `SHARED_PYTHON_FIXTURE_PATH`    | `&str`                                                              | Repository-relative path to the shared valid Python docstring corpus fixture.                                                             |
+| `MALFORMED_PYTHON_FIXTURE_PATH` | `&str`                                                              | Repository-relative path to the malformed Python fixture used for recovery tests.                                                         |
+| `repository_root`               | `() -> PathBuf`                                                     | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
+| `corpus_fixture_path`           | `(impl AsRef<Path>) -> PathBuf`                                     | Resolves a repository-relative path against the workspace root.                                                                           |
+| `read_corpus_fixture`           | `(impl AsRef<Path>) -> Result<String, io::Error>`                   | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
+| `read_corpus_fixture_bytes`     | `(impl AsRef<Path>) -> Result<Vec<u8>, FixtureReadError>`           | Reads a repository-relative corpus fixture as raw bytes for byte-level tests.                                                             |
+| `fixture_paths_in`              | `(impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError>`       | Lists repository-relative fixture entries in deterministic sorted order.                                                                  |
+| `golden_markdown_ir_fixture`    | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`           | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                                  |
+| `golden_python_ir_fixture`      | `(impl AsRef<Path>) -> Result<IrDocument, GoldenPythonFixtureError>` | Builds the canonical Python docstring IR used by Rust snapshot tests.                                                                     |
+| `normalize_repository_path`     | `(impl AsRef<Path>) -> String`                                     | Converts repository-relative paths to `/`-separated snapshot text.                                                                        |
+| `apply_round_trip_edits`        | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>`    | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                               |
 
 Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
 require repository-relative fixture access. Do not copy the `repository_root`
@@ -239,11 +247,14 @@ INSTA_UPDATE=always cargo test -p stilyagi-ir -p stilyagi-test-support -p stilya
 .venv/bin/python -m pytest tests/test_round_trip_helpers.py --snapshot-update
 ```
 
-The current golden IR helper scope is Markdown-only. It records the
-repository-relative fixture path, syntax, byte-oriented `line_index`, one
-whole-document `source` segment for non-blank Markdown, and an empty
-diagnostics list. This is scaffolding for regression tests, not the final
-public IR envelope.
+The golden IR helper scope currently covers Markdown and Python docstrings.
+Markdown helper output records the repository-relative fixture path, syntax,
+byte-oriented `line_index`, one whole-document `source` segment for non-blank
+Markdown, and an empty diagnostics list. Python helper output delegates to the
+tree-sitter-backed extractor and returns the canonical `IrDocument` envelope
+with owner metadata, bounded tree nodes, source-backed docstring segments, and
+recoverable parse errors where applicable. These helpers are scaffolding for
+regression tests, not the final public pytest plugin.
 
 #### Structural performance probe workflow
 
@@ -371,6 +382,21 @@ particular.
     node traversal remains supported, but non-Markdown `NodeRef` and
     `NodeTarget` usage should stay narrow and debug-oriented until later slices
     prove a broader node contract.
+  - Python docstring owner metadata follows
+    [ADR 005](adr-005-docstring-owner-metadata.md). Module docstrings use
+    `owner.kind == "module"` with `name` and `qualname` serialized as `null`.
+    Class and function docstrings use Python `__qualname__` semantics; a
+    definition nested inside a function receives `<locals>` after the function
+    frame, for example `outer.<locals>.inner`.
+  - Python docstring region text is the verbatim tree-sitter `string_content`
+    source slice. Extraction does not decode escapes, dedent, or apply PEP 257
+    cleaning; that normalization belongs to later rule layers.
+  - The Python tree-sitter producer records `node_store: "bounded"` and
+    `owner_qualname: "python"` in producer metadata. V1 rules should depend on
+    regions, source-backed `segments`, and `owner` metadata rather than a full
+    Python concrete syntax tree. Future work that needs decorators,
+    signatures, bases, or package-qualified module names must explicitly widen
+    the extractor contract.
 - Rule API surface
   - RFC 0002 now treats `syntaxes` as the rule-metadata field for source
     formats. `locales` is the new optional companion field for prose-locale
@@ -488,6 +514,17 @@ URIs. Callers with real file context should use the identity-aware extraction
 API once the relevant adapter or CLI surface exposes it, so source identity is
 supplied at the boundary rather than invented inside the IR domain.
 
+Table: Current Markdown and Python extraction differences.
+
+| Topic          | Markdown extraction                                                                           | Python docstring extraction                                                                                          |
+| -------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Parse entry    | Markdown parser over the full source document.                                                | `tree-sitter-python` parser over the full source file.                                                               |
+| Traversal      | Markdown flattener walks Markdown structure and emits rendered prose regions.                 | Depth-first tree-sitter walk inspects module, class, and function first statements.                                  |
+| Error recovery | Markdown parser recovery is represented through Markdown IR behaviour and malformed fixtures. | tree-sitter recovery emits partial docstring regions plus `python-parse-recovery` errors.                            |
+| Owner metadata | `owner` remains `null`; section context must not overload the owner field.                    | `owner` identifies module, class, or function using Python `__qualname__` semantics.                                 |
+| Node store     | Markdown currently exposes the structural nodes needed by Markdown region mapping.            | Python exposes a bounded store: synthetic module root, docstring-owning definitions, and docstring string nodes.     |
+| Text surface   | Markup is flattened and may use synthetic segments for rendered prose.                        | Region text is verbatim `string_content`; no escape decoding, dedent, or PEP 257 cleaning happens during extraction. |
+
 The `crates/stilyagi-ir` crate owns the syntax-neutral IR vocabulary and
 document envelope. The `crates/stilyagi-markdown` crate owns Markdown-specific
 IR production, while `crates/stilyagi-tree-sitter` owns Python docstring IR
@@ -559,7 +596,7 @@ and module responsibilities. This guide keeps only the maintainer workflow
 boundary: Rust owns extraction and source fidelity; Python owns orchestration
 and the user-facing runtime.
 
-There are also two concrete cross-boundary rules worth preserving:
+There are also three concrete cross-boundary rules worth preserving:
 
 - Python package code should import the embedded extension through
   `stilyagi._stilyagi_rs` and then expose user-facing orchestration from the

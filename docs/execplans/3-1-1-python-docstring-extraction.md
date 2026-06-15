@@ -1259,15 +1259,14 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/check-fmt-stage5-rerun3-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/typecheck-stage5-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/lint-stage5-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`, and
-  `/tmp/test-stage5-stilyagi-3-1-1-python-docstring-extraction.out` passed; the
-  full test gate reported 159 Rust tests, 102 Python tests, and five snapshots
-  passing.
+  `/tmp/test-stage5-stilyagi-3-1-1-python-docstring-extraction.out` passed;
+  the full test gate reported 159 Rust tests, 102 Python tests, and five
+  snapshots passing.
 - [x] (2026-06-15) Stage 5 CodeRabbit review returned one trivial test
   readability finding: add descriptive assertion messages to the Python BDD
   helper assertions. Evidence:
   `/tmp/coderabbit-stage5-stilyagi-3-1-1-python-docstring-extraction.out`. The
-  finding was applied without changing test behaviour. Follow-up gates passed
-  in
+  finding was applied without changing test behaviour. Follow-up gates passed in
   `/tmp/pytest-stage5-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/check-fmt-stage5-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/typecheck-stage5-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
@@ -1294,7 +1293,81 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   and
   `/tmp/coderabbit-stage5-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`
   passed with zero CodeRabbit findings.
-- [ ] Stage 6: documentation, ADR 005, and roadmap completion.
+- [x] (2026-06-15) Stage 6 documentation updates drafted. Added
+  `docs/adr-005-docstring-owner-metadata.md`, referenced ADR 005 from the
+  contents and design documents, amended RFC 0001 with a Python owner-semantics
+  note, documented Python docstring owner metadata in the user and developer
+  guides, and marked only roadmap item 3.1.1 complete.
+- [x] (2026-06-15) Stage 6 deterministic gates passed before CodeRabbit.
+  Evidence: `/tmp/fmt-stage6-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage6-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/nixie-stage6-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/check-fmt-stage6-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage6-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage6-stilyagi-3-1-1-python-docstring-extraction.out`, and
+  `/tmp/test-stage6-stilyagi-3-1-1-python-docstring-extraction.out` passed; the
+  full test gate reported 159 Rust tests, 102 Python tests, and five snapshots
+  passing.
+- [x] (2026-06-15) Stage 6 CodeRabbit review returned three ADR findings:
+  remove first-person Y-Statement wording, reflow the ADR, and reshape ADR 005
+  to match the repository's Context, Problem statement, and Decision structure.
+  Evidence:
+  `/tmp/coderabbit-stage6-stilyagi-3-1-1-python-docstring-extraction.out`. The
+  ADR was restructured and revalidated with
+  `/tmp/fmt-stage6-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage6-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/nixie-stage6-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 6 follow-up CodeRabbit review returned two ADR
+  findings: use Oxford `serialize` spelling and convert the alternatives list
+  into a captioned comparison table. Evidence:
+  `/tmp/coderabbit-stage6-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+  The ADR was updated and revalidated with
+  `/tmp/fmt-stage6-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage6-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/nixie-stage6-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 6 second follow-up CodeRabbit review returned two ADR
+  wording findings: remove a repeated `needs` phrase and avoid the contested
+  `serialize` spelling in favour of `emit`. Evidence:
+  `/tmp/coderabbit-stage6-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`.
+  The ADR was updated and revalidated with
+  `/tmp/fmt-stage6-coderabbit3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage6-coderabbit3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/nixie-stage6-coderabbit3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 6 third follow-up CodeRabbit review returned two
+  trivial ADR style findings: move the alternatives table caption below the
+  table and replace `its own implementation slice` with
+  `a separate implementation slice`. Evidence:
+  `/tmp/coderabbit-stage6-rerun3-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 6 fourth follow-up CodeRabbit review returned one
+  trivial ADR finding and one minor Python snapshot-stability finding. The ADR
+  now links PEP 257, and `_normalize_python_ir` redacts `document.content_hash`
+  before JSON snapshot comparison. Evidence:
+  `/tmp/coderabbit-stage6-rerun4-stilyagi-3-1-1-python-docstring-extraction.out`.
+  The affected snapshot was updated with
+  `/tmp/pytest-stage6-coderabbit5-snapshot-update-stilyagi-3-1-1-python-docstring-extraction.out`,
+  the focused Python docstring test file passed in
+  `/tmp/pytest-stage6-coderabbit5-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and the full gates passed in
+  `/tmp/fmt-stage6-coderabbit5-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage6-coderabbit5-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/nixie-stage6-coderabbit5-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/check-fmt-stage6-coderabbit5-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage6-coderabbit5-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage6-coderabbit5-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/test-stage6-coderabbit5-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 6 fifth follow-up CodeRabbit review returned two ADR
+  structure findings: fold the date into the Status section and combine Context
+  with Problem Statement under the repository ADR heading convention. Evidence:
+  `/tmp/coderabbit-stage6-rerun5-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 6 final CodeRabbit review completed with zero
+  findings. Evidence:
+  `/tmp/coderabbit-stage6-rerun6-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 6 final validation completed; the remaining action is
+  the final atomic commit.
 
 ## Surprises & Discoveries
 
