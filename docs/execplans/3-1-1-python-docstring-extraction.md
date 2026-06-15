@@ -1084,7 +1084,8 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   Log: `/tmp/coderabbit-stage0-stilyagi-3-1-1-python-docstring-extraction.out`.
 - [x] (2026-06-15) Stage 1 dependency and parser spike completed. Logs:
   `/tmp/build-cold-tree-sitter-stilyagi-3-1-1-python-docstring-extraction.out`
-  and `/tmp/test-tree-sitter-spike-stilyagi-3-1-1-python-docstring-extraction.out`.
+  and
+  `/tmp/test-tree-sitter-spike-stilyagi-3-1-1-python-docstring-extraction.out`.
 - [x] (2026-06-15) Stage 1 deterministic gates and CodeRabbit review passed
   with zero findings. Logs:
   `/tmp/check-fmt-stage1-stilyagi-3-1-1-python-docstring-extraction.out`,
@@ -1106,8 +1107,8 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   the full test gate exposed stale unsupported-syntax expectations. Evidence:
   `/tmp/test-stage2-stilyagi-3-1-1-python-docstring-extraction.out` failed
   because the PyO3 rejection test still expected `python_docstring` to error;
-  `/tmp/test-stage2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`
-  then failed because the typed Python facade test still treated
+  `/tmp/test-stage2-rerun-stilyagi-3-1-1-python-docstring-extraction.out` then
+  failed because the typed Python facade test still treated
   `model.Syntax.PYTHON_DOCSTRING` as unsupported. Focused fixes passed in
   `/tmp/test-pyext-python-docstring-focused-stilyagi-3-1-1-python-docstring-extraction.out`
   and
@@ -1119,12 +1120,11 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/lint-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/test-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/markdownlint-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`,
-  and
-  `/tmp/nixie-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`.
+  and `/tmp/nixie-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`.
 - [x] (2026-06-15) Stage 2 CodeRabbit review returned one trivial finding.
   Evidence:
-  `/tmp/coderabbit-stage2-stilyagi-3-1-1-python-docstring-extraction.out`.
-  The direct suggestion to use `expect(...)` conflicted with the crate's
+  `/tmp/coderabbit-stage2-stilyagi-3-1-1-python-docstring-extraction.out`. The
+  direct suggestion to use `expect(...)` conflicted with the crate's
   `clippy::expect_used` gate, so the helper cleanup was implemented with
   explicit `match` expressions instead. Follow-up gates passed in
   `/tmp/check-fmt-stage2-coderabbit-match-stilyagi-3-1-1-python-docstring-extraction.out`,
@@ -1169,8 +1169,7 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/check-fmt-stage2-helpers-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/typecheck-stage2-helpers-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/lint-stage2-helpers-stilyagi-3-1-1-python-docstring-extraction.out`,
-  and
-  `/tmp/test-stage2-helpers-stilyagi-3-1-1-python-docstring-extraction.out`.
+  and `/tmp/test-stage2-helpers-stilyagi-3-1-1-python-docstring-extraction.out`.
 - [x] (2026-06-15) Stage 2 final CodeRabbit review completed with zero
   findings. Evidence:
   `/tmp/coderabbit-stage2-helpers-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
@@ -1193,9 +1192,8 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/typecheck-stage3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/lint-stage3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/test-stage3-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
-  `/tmp/markdownlint-stage3-stilyagi-3-1-1-python-docstring-extraction.out`,
-  and `/tmp/nixie-stage3-stilyagi-3-1-1-python-docstring-extraction.out`
-  passed.
+  `/tmp/markdownlint-stage3-stilyagi-3-1-1-python-docstring-extraction.out`, and
+  `/tmp/nixie-stage3-stilyagi-3-1-1-python-docstring-extraction.out` passed.
 - [x] (2026-06-15) Stage 3 CodeRabbit review completed with zero findings.
   Evidence:
   `/tmp/coderabbit-stage3-stilyagi-3-1-1-python-docstring-extraction.out`.
@@ -1214,13 +1212,12 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/typecheck-stage4-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/lint-stage4-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/test-stage4-stilyagi-3-1-1-python-docstring-extraction.out`,
-  `/tmp/markdownlint-stage4-stilyagi-3-1-1-python-docstring-extraction.out`,
-  and `/tmp/nixie-stage4-stilyagi-3-1-1-python-docstring-extraction.out`
-  passed.
+  `/tmp/markdownlint-stage4-stilyagi-3-1-1-python-docstring-extraction.out`, and
+  `/tmp/nixie-stage4-stilyagi-3-1-1-python-docstring-extraction.out` passed.
 - [x] (2026-06-15) Stage 4 CodeRabbit review returned four trivial findings
   asking for `.expect(...)` in test-only BDD helpers. Evidence:
-  `/tmp/coderabbit-stage4-stilyagi-3-1-1-python-docstring-extraction.out`.
-  The suggestions were applied with tightly scoped `clippy::expect_used`
+  `/tmp/coderabbit-stage4-stilyagi-3-1-1-python-docstring-extraction.out`. The
+  suggestions were applied with tightly scoped `clippy::expect_used`
   expectations and reasons, matching the existing PyO3 BDD style. Follow-up
   gates passed in
   `/tmp/check-fmt-stage4-coderabbit-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`,
@@ -1244,7 +1241,59 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
 - [x] (2026-06-15) Stage 4 final CodeRabbit review completed with zero
   findings. Evidence:
   `/tmp/coderabbit-stage4-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`.
-- [ ] Stage 5: PyO3 bridge and Python model adaptation.
+- [x] (2026-06-15) Stage 5 Python-facing bridge/model coverage implemented.
+  The existing PyO3 bridge support was extended with dedicated Python tests for
+  shared-fixture owners, malformed recovery, Rust snapshot parity, a syrupy
+  snapshot, and a fixed-shape Hypothesis property. Evidence:
+  `/tmp/pytest-stage5-preupdate-stilyagi-3-1-1-python-docstring-extraction.out`
+  failed only because the syrupy snapshot was new,
+  `/tmp/pytest-stage5-snapshot-update-stilyagi-3-1-1-python-docstring-extraction.out`
+  generated the snapshot and exposed that NUL/control characters are invalid
+  in the generated Python source shape, and
+  `/tmp/pytest-stage5-focused-stilyagi-3-1-1-python-docstring-extraction.out`
+  passed after excluding control characters from the generated docstring body.
+- [x] (2026-06-15) Stage 5 deterministic gates passed before CodeRabbit.
+  `make check-fmt` initially reported Python/Markdown formatting drift, and
+  `make fmt` applied the canonical formatting. Evidence:
+  `/tmp/fmt-stage5-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/check-fmt-stage5-rerun3-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage5-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage5-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`, and
+  `/tmp/test-stage5-stilyagi-3-1-1-python-docstring-extraction.out` passed; the
+  full test gate reported 159 Rust tests, 102 Python tests, and five snapshots
+  passing.
+- [x] (2026-06-15) Stage 5 CodeRabbit review returned one trivial test
+  readability finding: add descriptive assertion messages to the Python BDD
+  helper assertions. Evidence:
+  `/tmp/coderabbit-stage5-stilyagi-3-1-1-python-docstring-extraction.out`. The
+  finding was applied without changing test behaviour. Follow-up gates passed
+  in
+  `/tmp/pytest-stage5-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/check-fmt-stage5-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage5-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage5-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/test-stage5-coderabbit-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 5 follow-up CodeRabbit review returned one invalid
+  critical finding that treated the shared-fixture syrupy snapshot as if it
+  were generated from `nested-declarations.py`. Evidence:
+  `/tmp/coderabbit-stage5-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+  The test and snapshot were verified against
+  `module-class-function-docstrings.py`; to make the contract unambiguous, the
+  snapshot test was renamed to reference the shared fixture explicitly and the
+  snapshot was regenerated in
+  `/tmp/pytest-stage5-snapshot-rename-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 5 second follow-up deterministic gates and
+  CodeRabbit review completed cleanly. Evidence:
+  `/tmp/check-fmt-stage5-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage5-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage5-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/test-stage5-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage5-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/nixie-stage5-coderabbit2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/coderabbit-stage5-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`
+  passed with zero CodeRabbit findings.
 - [ ] Stage 6: documentation, ADR 005, and roadmap completion.
 
 ## Surprises & Discoveries
@@ -1263,10 +1312,11 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   this implementation unless a new unrelated change is discovered.
 
 - Observation: `tree-sitter` 0.25.10 and `tree-sitter-python` 0.25.0 build
-  locally through the vendored C grammar. Evidence: `cargo build -p
-  stilyagi-tree-sitter` passed after adding the dependencies, with Cargo waiting
-  briefly for the shared build directory lock and then finishing in 5.16s.
-  Impact: Stage 1 did not hit the C-toolchain or ABI tolerance.
+  locally through the vendored C grammar. Evidence:
+  `cargo build -p stilyagi-tree-sitter` passed after adding the dependencies,
+  with Cargo waiting briefly for the shared build directory lock and then
+  finishing in 5.16s. Impact: Stage 1 did not hit the C-toolchain or ABI
+  tolerance.
 
 - Observation: `tree-sitter-python` exposes the shared fixture's module
   docstring as `module > expression_statement > string`, but the first named
@@ -1283,18 +1333,17 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   Impact: Stage 2 can treat decorators as transparent owner wrappers.
 
 - Observation: the malformed fixture preserves the module docstring inside a
-  recovered tree whose root first named child is an `ERROR`; descendant
-  `ERROR` spans are `0..168` and `57..77`, and no top-level
-  `function_definition` is emitted. Evidence:
-  `malformed_python_fixture_recovers_the_module_docstring` pins these spans.
-  Impact: Stage 2 should emit the module docstring and record recoverable parse
-  diagnostics without treating the broken signature string as a function
-  docstring.
+  recovered tree whose root first named child is an `ERROR`; descendant `ERROR`
+  spans are `0..168` and `57..77`, and no top-level `function_definition` is
+  emitted. Evidence: `malformed_python_fixture_recovers_the_module_docstring`
+  pins these spans. Impact: Stage 2 should emit the module docstring and record
+  recoverable parse diagnostics without treating the broken signature string as
+  a function docstring.
 
 - Observation: the Stage 3 test-support snapshot was created only when the
-  planned `INSTA_UPDATE=always` command was run; the pre-update failure surfaced
-  only the two extraction snapshots because those were the first new snapshots
-  hit in the combined package run. Evidence:
+  planned `INSTA_UPDATE=always` command was run; the pre-update failure
+  surfaced only the two extraction snapshots because those were the first new
+  snapshots hit in the combined package run. Evidence:
   `/tmp/test-insta-python-stilyagi-3-1-1-python-docstring-extraction.out`.
   Impact: accepting snapshots through the full targeted package set is
   necessary so helper-level and integration-level contracts stay in sync.
@@ -1304,8 +1353,16 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/test-extract-bdd-stage4-stilyagi-3-1-1-python-docstring-extraction.out`
   reported that step fixture `state` was missing while scenario fixture
   `python_docstring_state` was available. Impact: new BDD steps should keep
-  scenario fixture parameter names identical across the scenario and every
-  step definition.
+  scenario fixture parameter names identical across the scenario and every step
+  definition.
+
+- Observation: fixed-shape Python docstring generation must exclude raw control
+  characters as well as quotes, backslashes, and newlines. Evidence:
+  `/tmp/pytest-stage5-snapshot-update-stilyagi-3-1-1-python-docstring-extraction.out`
+  shrank to `body='\x00'`, which produced invalid Python source with no
+  extracted docstring. Impact: the property remains structural but constrains
+  generated prose to source text that can appear literally in the triple-quoted
+  template.
 
 - Observation: empty Python docstrings have no `string_content` node in the
   tree-sitter-python grammar. Evidence: the Stage 2 edge-case test failed until
@@ -1333,8 +1390,8 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   spelling through `_stilyagi_rs.extract_document`. Evidence: full `make test`
   first failed in the PyO3 unsupported-syntax table, then in
   `test_engine_extract_document_rejects_unsupported_syntaxes[python_docstring]`.
-  Impact: Stage 2 must update PyO3 tests, typed Python facade tests, and living
-  docs as part of the same behaviour change.
+  Impact: Stage 2 must update PyO3 tests, typed Python facade tests, and
+  living docs as part of the same behaviour change.
 
 ## Decision Log
 
