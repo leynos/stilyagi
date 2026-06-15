@@ -848,6 +848,11 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   Rustdoc warning denial, explicit Rust doctests, and CI typecheck/test-runner
   installation. Full local deterministic gates passed after the import, and
   CodeRabbit returned no findings.
+- [x] (2026-06-16) Resolved follow-up CodeScene maintainability findings in
+  Markdown test modules: path-like fixture arguments now use `&Path` /
+  `PathBuf`, expected fixture prose uses `ExpectedText`, and repeated first
+  region mutation setup in IR consistency tests is centralized. Targeted and
+  full gates passed for the affected changes.
 
 ## Surprises & Discoveries
 
@@ -1056,6 +1061,36 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   completed tool phase, with no concern payload. Impact: there are no
   CodeRabbit concerns to clear before committing this milestone.
 
+- Observation: CodeScene's string-heavy argument biomarker conflated fixture
+  paths and expected prose in Markdown tests when both were represented as
+  `&str`. Evidence: follow-up changes in
+  `crates/stilyagi-markdown/src/tests/coverage.rs` and
+  `crates/stilyagi-markdown/src/tests.rs` convert path-carrying helpers to
+  `&Path` / `PathBuf` and expected prose to `ExpectedText`, while preserving
+  `source: &str` for raw Markdown content and `snapshot_name: &str` for
+  `insta`. Impact: the tests now encode path, expected text, and source text as
+  distinct concepts instead of relying on comments to distinguish them.
+
+- Observation: CodeScene also flagged duplicated first-region mutation setup in
+  `crates/stilyagi-markdown/src/tests/ir_consistency.rs`. Evidence:
+  `assert_validation_reports_on_first_region` now owns the shared
+  `document.regions.first_mut()` lookup for three validator tests, while
+  `validate_ir_consistency_reports_source_span_mismatches` remains separate
+  because it mutates a source-backed segment. Impact: the validator tests keep
+  the source-span special case explicit and remove copy-pasted setup for region
+  mutations.
+
+- Observation: the follow-up CodeScene cleanup gates passed without snapshot
+  updates. Evidence:
+  `/tmp/test-codescene-tests-rs-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/lint-codescene-tests-rs-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/test-full-codescene-tests-rs-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  `/tmp/test-ir-consistency-dedupe-stilyagi-2-1-2-golden-fixture-coverage.out`,
+  and
+  `/tmp/clippy-ir-consistency-dedupe-stilyagi-2-1-2-golden-fixture-coverage.out`
+  all exited successfully. Impact: the current implementation status includes
+  both the roadmap feature work and the post-review maintainability cleanups.
+
 ## Decision Log
 
 - Decision: keep `Status: DRAFT` and block implementation until explicit
@@ -1147,6 +1182,20 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   production code, test code, generated doctest crates, and documentation.
   Date/Author: 2026-06-14, implementation agent.
 
+- Decision: use semantic test newtypes and path types to resolve CodeScene
+  string-heavy argument findings rather than suppressing the biomarker.
+  Rationale: fixture paths, expected prose, raw Markdown source, and snapshot
+  names have different meanings even when all are UTF-8 strings; `&Path`,
+  `PathBuf`, and `ExpectedText` make those meanings visible while preserving
+  plain `&str` where required by `insta` or where the argument is actual source
+  content. Date/Author: 2026-06-16, implementation agent.
+
+- Decision: centralize only first-region mutation setup in
+  `assert_validation_reports_on_first_region` and leave source-span mutation
+  setup local. Rationale: the source-span test drills into a region segment and
+  would become less clear if forced through a region-only helper. Date/Author:
+  2026-06-16, implementation agent.
+
 ## Outcomes & Retrospective
 
 Roadmap item 2.1.2 is implemented. The valid Markdown corpus now exercises the
@@ -1154,6 +1203,9 @@ promised emitted Markdown region kinds: `heading`, `paragraph`, `list_item`,
 `blockquote`, `table_cell`, `frontmatter`, `image_alt`, and `link_title`.
 Malformed fixtures, CRLF fixtures, adversarial fixtures, property tests, BDD
 coverage, and snapshots cover parser recovery and the important IR invariants.
+Post-implementation maintainability cleanups also addressed CodeScene
+biomarkers in the Markdown test modules without changing emitted IR behaviour
+or snapshots.
 
 The thin-container decision aged well through implementation. It avoided
 duplicating prose bytes for list items and blockquotes while still giving rules

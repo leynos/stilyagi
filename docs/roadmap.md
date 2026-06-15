@@ -137,6 +137,9 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
   - Requires 2.1.1.
   - Success: every promised v1 Markdown region kind is exercised by at least
     one fixture.
+  - Current status: complete, with post-implementation CodeScene cleanups for
+    Markdown test argument semantics and duplicated IR consistency test setup
+    applied on the `2-1-2-golden-fixture-coverage` branch.
 - [ ] 2.1.3. Parse Markdown suppression directives into the IR. See Stilyagi
   design (stilyagi-design.md) §7.1.
   - Requires 2.1.1.
