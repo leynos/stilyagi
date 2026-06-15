@@ -4,11 +4,10 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETED
 
-Approval gate: do not begin implementation until the user records explicit
-approval in this file. The `Decision Log` must capture the approval before
-`Status` changes to `APPROVED` and then to `IN PROGRESS`.
+Approval gate: satisfied on 2026-06-15. The `Decision Log` records explicit
+approval before implementation began.
 
 ## Purpose / big picture
 
@@ -1366,8 +1365,12 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
 - [x] (2026-06-15) Stage 6 final CodeRabbit review completed with zero
   findings. Evidence:
   `/tmp/coderabbit-stage6-rerun6-stilyagi-3-1-1-python-docstring-extraction.out`.
-- [x] (2026-06-15) Stage 6 final validation completed; the remaining action is
-  the final atomic commit.
+- [x] (2026-06-15) Stage 6 final validation completed, committed as
+  `c1c913f Document Python docstring metadata`, and pushed to
+  `origin/3-1-1-python-docstring-extraction`.
+- [x] (2026-06-15) Formatter-only follow-up for the unrelated completed
+  maturin/PyO3 execplan was committed as `e7e193c Format maturin execplan` and
+  pushed with the branch so the worktree ended clean.
 
 ## Surprises & Discoveries
 
@@ -1558,13 +1561,28 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
 
 ## Outcomes & Retrospective
 
-To be completed at milestones and at completion. Compare the result against the
-purpose: owner-aware Python docstring extraction with source-faithful segments,
-malformed-input recovery, and stable canonical IR, achieved without disturbing
-the Markdown path or the IR domain contract.
+Roadmap item 3.1.1 is complete. The implementation delivers owner-aware Python
+docstring extraction for modules, classes, functions, nested declarations,
+decorated definitions, and malformed-input recovery without disturbing the
+Markdown extraction path or the IR domain contract.
+
+The final behaviour is backed by Rust unit and integration coverage, Python
+adapter tests, rstest-bdd scenarios, property tests for Python owner qualified
+names, canonical Rust and Python snapshots, and documentation updates. ADR 005
+records the owner metadata decision: Python docstring regions expose explicit
+`owner` metadata, use Python `__qualname__` semantics for class and function
+owners, keep module owners anonymous in v1, and preserve verbatim
+`string_content` spans rather than decoding or cleaning docstring text during
+extraction.
+
+The completed validation suite passed `make fmt`, `make markdownlint`,
+`make nixie`, `make check-fmt`, `make typecheck`, `make lint`, and `make test`.
+CodeRabbit completed the final review with zero findings. The branch was pushed
+to `origin/3-1-1-python-docstring-extraction`.
 
 ## Revision note
 
-Initial draft created on 2026-06-12. It establishes the pre-implementation plan
-for roadmap item 3.1.1, scoped to owner-aware Python docstring extraction. No
-implementation work has begun; the plan awaits explicit approval.
+Initial draft created on 2026-06-12. Implementation was approved and completed
+on branch `3-1-1-python-docstring-extraction`, with roadmap item 3.1.1 marked
+complete after the code, tests, documentation, deterministic gates, and
+CodeRabbit review all passed.
