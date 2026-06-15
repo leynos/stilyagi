@@ -1094,7 +1094,86 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/markdownlint-stage1-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/nixie-stage1-stilyagi-3-1-1-python-docstring-extraction.out`, and
   `/tmp/coderabbit-stage1-stilyagi-3-1-1-python-docstring-extraction.out`.
-- [ ] Stage 2: owner-aware Python extractor and dispatch.
+- [x] (2026-06-15) Stage 2 owner-aware Python extractor and dispatch
+  implemented. Red evidence:
+  `/tmp/test-tree-sitter-stage2-red-stilyagi-3-1-1-python-docstring-extraction.out`
+  failed with the expected `NoParseTree` stub. Green evidence:
+  `/tmp/test-extract-python-stilyagi-3-1-1-python-docstring-extraction.out`
+  passed for `stilyagi-tree-sitter` and `stilyagi-extract`, and
+  `/tmp/perf-probe-stage2-stilyagi-3-1-1-python-docstring-extraction.out`
+  passed 16/16 structural performance probe tests in 0.23s.
+- [x] (2026-06-15) Stage 2 bridge and Python facade follow-up completed after
+  the full test gate exposed stale unsupported-syntax expectations. Evidence:
+  `/tmp/test-stage2-stilyagi-3-1-1-python-docstring-extraction.out` failed
+  because the PyO3 rejection test still expected `python_docstring` to error;
+  `/tmp/test-stage2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`
+  then failed because the typed Python facade test still treated
+  `model.Syntax.PYTHON_DOCSTRING` as unsupported. Focused fixes passed in
+  `/tmp/test-pyext-python-docstring-focused-stilyagi-3-1-1-python-docstring-extraction.out`
+  and
+  `/tmp/test-python-facade-stage2-focused-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 2 deterministic gates passed before CodeRabbit.
+  Logs:
+  `/tmp/check-fmt-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/test-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/markdownlint-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/nixie-stage2-final-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 2 CodeRabbit review returned one trivial finding.
+  Evidence:
+  `/tmp/coderabbit-stage2-stilyagi-3-1-1-python-docstring-extraction.out`.
+  The direct suggestion to use `expect(...)` conflicted with the crate's
+  `clippy::expect_used` gate, so the helper cleanup was implemented with
+  explicit `match` expressions instead. Follow-up gates passed in
+  `/tmp/check-fmt-stage2-coderabbit-match-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage2-coderabbit-match-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage2-coderabbit-match-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/test-stage2-coderabbit-match-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 2 follow-up CodeRabbit review returned one trivial
+  finding asking for an inline comment documenting Python `<locals>` qualname
+  semantics. Evidence:
+  `/tmp/coderabbit-stage2-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+  The comment was added in `python/owner.rs`, and gates passed in
+  `/tmp/check-fmt-stage2-coderabbit-comment-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage2-coderabbit-comment-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage2-coderabbit-comment-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/test-stage2-coderabbit-comment-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 2 third CodeRabbit review returned 13 findings:
+  stronger qualname properties, narrower fixture suppressions, and explanatory
+  Rustdoc/rationale comments for Python extractor helpers. Evidence:
+  `/tmp/coderabbit-stage2-comment-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+  All were addressed while keeping `python/mod.rs` at the 400-line limit.
+  Focused evidence:
+  `/tmp/ruff-fixtures-stage2-coderabbit-docs-stilyagi-3-1-1-python-docstring-extraction.out`
+  and
+  `/tmp/test-owner-stage2-coderabbit-docs-stilyagi-3-1-1-python-docstring-extraction.out`.
+  Full gates passed in
+  `/tmp/check-fmt-stage2-coderabbit-docs-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage2-coderabbit-docs-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage2-coderabbit-docs-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/test-stage2-coderabbit-docs-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 2 fourth CodeRabbit review returned 6 findings.
+  Evidence:
+  `/tmp/coderabbit-stage2-docs-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
+  The valid concerns were addressed by splitting Python helper functions into
+  `python/helpers.rs`, making text extraction fallible, documenting the
+  defensive source-span fallback, and centralizing the `<locals>` marker. The
+  repeated `expect(...)` test-helper suggestion was not applied because the
+  repository's `clippy::expect_used` gate had already rejected that exact
+  change. Full gates passed in
+  `/tmp/check-fmt-stage2-helpers-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/typecheck-stage2-helpers-stilyagi-3-1-1-python-docstring-extraction.out`,
+  `/tmp/lint-stage2-helpers-stilyagi-3-1-1-python-docstring-extraction.out`,
+  and
+  `/tmp/test-stage2-helpers-stilyagi-3-1-1-python-docstring-extraction.out`.
+- [x] (2026-06-15) Stage 2 final CodeRabbit review completed with zero
+  findings. Evidence:
+  `/tmp/coderabbit-stage2-helpers-rerun-stilyagi-3-1-1-python-docstring-extraction.out`.
 - [ ] Stage 3: canonical JSON, golden fixtures, and snapshots.
 - [ ] Stage 4: Rust BDD behaviour coverage.
 - [ ] Stage 5: PyO3 bridge and Python model adaptation.
@@ -1143,6 +1222,35 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   Impact: Stage 2 should emit the module docstring and record recoverable parse
   diagnostics without treating the broken signature string as a function
   docstring.
+
+- Observation: empty Python docstrings have no `string_content` node in the
+  tree-sitter-python grammar. Evidence: the Stage 2 edge-case test failed until
+  extraction computed an empty source span between `string_start` and
+  `string_end`. Impact: the extractor handles empty docstrings explicitly
+  rather than treating the missing child as an absent docstring.
+
+- Observation: Python `__qualname__` semantics insert `<locals>` after an
+  enclosing function, not before every function frame. Evidence: the shared
+  fixture initially produced `FixtureExample.<locals>.method`; the corrected
+  owner helper now pins `FixtureExample.method` and
+  `outer_function.<locals>.LocalClass`. Impact: Stage 2 owner derivation is
+  covered by rstest table cases and a proptest determinism check.
+
+- Observation: splitting the Python extractor into `python/mod.rs`,
+  `python/owner.rs`, `python/support.rs`, and `python/tests.rs` keeps each code
+  file at or below the repository's 400-line limit. Evidence: `wc -l` reported
+  `python/mod.rs` at 394 lines and `stilyagi-extract/src/lib.rs` at 400 lines
+  after the split. Impact: further Stage 2 work should avoid growing these
+  files; add sibling modules for new behaviour.
+
+- Observation: enabling `python_docstring` at the Rust dispatch layer changes
+  user-visible Python package behaviour immediately because
+  `python/stilyagi/engine/extraction.py` delegates every bridge-supported
+  spelling through `_stilyagi_rs.extract_document`. Evidence: full `make test`
+  first failed in the PyO3 unsupported-syntax table, then in
+  `test_engine_extract_document_rejects_unsupported_syntaxes[python_docstring]`.
+  Impact: Stage 2 must update PyO3 tests, typed Python facade tests, and living
+  docs as part of the same behaviour change.
 
 ## Decision Log
 
@@ -1226,6 +1334,13 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   Rationale: the user explicitly approved implementation on 2026-06-15 by
   requesting that the planned functionality be implemented from this file.
   Date/Author: 2026-06-15, implementation agent.
+
+- Decision: include the PyO3 bridge and typed Python facade support in Stage 2
+  rather than leaving them to Stage 5. Rationale: once
+  `ExtractSyntax::PythonDocstring` dispatch returns an implemented document,
+  the bridge and facade already expose it; keeping tests and docs in an
+  unsupported state would contradict the shipped API. Date/Author: 2026-06-15,
+  implementation agent.
 
 ## Outcomes & Retrospective
 

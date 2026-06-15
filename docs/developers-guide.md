@@ -76,12 +76,12 @@ separate helper binary for normal v1 execution; the Rust extractor lives inside
 the Python runtime as `stilyagi._stilyagi_rs`.[^1]
 
 The accepted v1 contract scope is narrower than the architecture's long-term
-extension points. Current implemented extraction support covers Markdown.
-Python docstrings and Rust documentation comments remain in the stable v1
-syntax vocabulary, but their extractors currently report unsupported-syntax
-errors. Markdown with JSX (MDX) remains preview-only, canonical JSON remains
-required for the Markdown IR bridge, `dump-ir`, fixtures, and compatibility
-review, and English is the only formally supported v1 locale.[^2]
+extension points. Current implemented extraction support covers Markdown and
+Python docstrings. Rust documentation comments remain in the stable v1 syntax
+vocabulary, but their extractor currently reports an unsupported-syntax error.
+Markdown with JSX (MDX) remains preview-only, canonical JSON remains required
+for the IR bridge, `dump-ir`, fixtures, and compatibility review, and English
+is the only formally supported v1 locale.[^2]
 
 - Rust owns source-oriented work:
   - file-format-aware parsing
@@ -133,10 +133,10 @@ tests.
 Python tests should load corpus files through focused `pathlib.Path` helpers
 like the ones in `tests/test_corpus.py`. Rust tests should load shared corpus
 files through the dev-only `stilyagi-test-support` crate instead of duplicating
-repository-root discovery in each crate. Until the Python docstring and Rust
-documentation-comment extractors are implemented, tests may assert that those
-fixtures are loadable and that extraction still reports the current
-unsupported-syntax error.
+repository-root discovery in each crate. Python docstring tests should assert
+real extraction behaviour. Until the Rust documentation-comment extractor is
+implemented, tests may assert that Rust fixtures are loadable and that
+extraction still reports the current unsupported-syntax error.
 
 <!-- markdownlint-disable MD001 -->
 
@@ -319,9 +319,10 @@ For the near-term phases, developers should preserve four boundaries in
 particular.
 
 - Syntax and locale scope
-  - Current implemented extraction support covers Markdown. Python docstrings
-    and Rust documentation comments remain in the stable v1 syntax vocabulary,
-    but their extractors currently report unsupported-syntax errors.
+  - Current implemented extraction support covers Markdown and Python
+    docstrings. Rust documentation comments remain in the stable v1 syntax
+    vocabulary, but their extractor currently reports an unsupported-syntax
+    error.
   - MDX remains preview-only until later evidence upgrades it into the stable
     support matrix.
   - English is the only formally supported locale in v1. Architecture may stay
@@ -488,11 +489,10 @@ API once the relevant adapter or CLI surface exposes it, so source identity is
 supplied at the boundary rather than invented inside the IR domain.
 
 The `crates/stilyagi-ir` crate owns the syntax-neutral IR vocabulary and
-document envelope. The `crates/stilyagi-markdown` crate owns the first concrete
-IR producer and is responsible for translating Markdown parser output into that
-shared envelope. Future Python docstring and Rust documentation comment
-producers must emit the same `IrDocument` shape, but they are intentionally not
-implemented in PR #15 and unsupported syntaxes must not receive placeholder IR
+document envelope. The `crates/stilyagi-markdown` crate owns Markdown-specific
+IR production, while `crates/stilyagi-tree-sitter` owns Python docstring IR
+production. Future Rust documentation comment producers must emit the same
+`IrDocument` shape, but unsupported syntaxes must not receive placeholder IR
 payloads.
 
 Changes to the FFI boundary should stay narrow. A good boundary exports

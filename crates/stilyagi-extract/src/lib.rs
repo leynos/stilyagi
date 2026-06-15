@@ -4,7 +4,7 @@ use core::fmt;
 pub use stilyagi_ir::SourceIdentity;
 use stilyagi_ir::{IrBoundary, IrDocument};
 use stilyagi_markdown::{MarkdownBoundary, markdown_ir_document};
-use stilyagi_tree_sitter::TreeSitterBoundary;
+use stilyagi_tree_sitter::{PythonExtractError, TreeSitterBoundary, python_docstring_ir_document};
 
 /// Supported source syntaxes for the initial extraction boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +49,8 @@ pub enum ExtractError {
     UnknownSyntax(String),
     /// Markdown parsing or IR construction failed.
     MarkdownIr(MarkdownIrFailure),
+    /// Python parsing or IR construction failed fatally.
+    PythonIr(PythonExtractError),
 }
 
 const EXTRACT_ERROR_SIZE_LIMIT_BYTES: usize = 128;
@@ -121,6 +123,7 @@ impl fmt::Display for ExtractError {
             Self::MarkdownIr(diagnostic) => {
                 write!(formatter, "markdown IR extraction failed: {diagnostic}")
             }
+            Self::PythonIr(error) => write!(formatter, "python IR extraction failed: {error}"),
         }
     }
 }
@@ -146,6 +149,8 @@ impl TryFrom<&str> for ExtractSyntax {
 pub enum RegionKind {
     /// Whole-document prose extracted from a source file.
     Document,
+    /// Python docstring prose extracted from source code.
+    PythonDocstring,
 }
 
 impl RegionKind {
@@ -154,6 +159,7 @@ impl RegionKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Document => "document",
+            Self::PythonDocstring => "python_docstring",
         }
     }
 }
@@ -170,6 +176,7 @@ impl TryFrom<&str> for RegionKind {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
             "document" => Ok(Self::Document),
+            "python_docstring" => Ok(Self::PythonDocstring),
             _ => Err(value.to_owned()),
         }
     }
@@ -325,9 +332,8 @@ pub fn extract_document_with_source_identity(
 ) -> Result<ExtractDocument, ExtractError> {
     match syntax {
         ExtractSyntax::Markdown => extract_markdown_document(source, identity),
-        ExtractSyntax::PythonDocstring | ExtractSyntax::RustDocComment => {
-            Err(ExtractError::UnsupportedSyntax(syntax))
-        }
+        ExtractSyntax::PythonDocstring => extract_python_document(source, identity),
+        ExtractSyntax::RustDocComment => Err(ExtractError::UnsupportedSyntax(syntax)),
     }
 }
 
@@ -356,14 +362,20 @@ where
     Ok(ExtractDocument::new(ExtractSyntax::Markdown, regions).with_ir(ir))
 }
 
-#[cfg(test)]
+fn extract_python_document(
+    source: &str,
+    identity: SourceIdentity,
+) -> Result<ExtractDocument, ExtractError> {
+    let ir = python_docstring_ir_document(source, identity).map_err(ExtractError::PythonIr)?;
+    let regions = ir
+        .regions
+        .iter()
+        .map(|region| ExtractRegion::new_typed(RegionKind::PythonDocstring, region.text.clone()))
+        .collect();
+
+    Ok(ExtractDocument::new(ExtractSyntax::PythonDocstring, regions).with_ir(ir))
+}
 mod tests {
-    //! Tests for extraction error mapping at crate-private seams.
-
-    use rstest::rstest;
-
-    use super::{ExtractError, MarkdownIrFailure, extract_markdown_document_with};
-
     #[rstest]
     fn markdown_ir_builder_failures_map_to_extract_error() {
         let result = extract_markdown_document_with("# Heading", |_| {
@@ -373,7 +385,6 @@ mod tests {
                 "injected IR failure",
             ))
         });
-
         let Err(ExtractError::MarkdownIr(diagnostic)) = result else {
             panic!("expected MarkdownIr failure");
         };

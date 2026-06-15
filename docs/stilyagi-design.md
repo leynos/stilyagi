@@ -824,17 +824,17 @@ V1 sufficiency:
 Current implementation note for roadmap items 1.2.2 and 2.1.1:
 
 - The first live Rust-to-Python bridge delegates to Rust for Markdown, Python
-  docstring, and Rust documentation comment extraction. Markdown is currently
-  implemented; Python docstrings and Rust documentation comments remain gated
-  by unsupported-syntax errors.
-- Markdown extraction now carries the canonical IR envelope through the
-  in-process bridge. The Python `Document.ir` mapping exposes schema metadata,
-  `line_index`, tree nodes, region `segments`, synthetic insertions, and
-  content hashes for Markdown input.
-- Markdown is the first concrete IR producer, not a limitation of the IR model.
-  The `IrDocument` envelope and metadata vocabulary remain syntax-neutral, so
-  later Python docstring and Rust documentation comment producers can emit the
-  same canonical shape without adding Markdown-specific fields to the IR domain.
+  docstring, and Rust documentation comment extraction. Markdown and Python
+  docstrings are currently implemented; Rust documentation comments remain
+  gated by unsupported-syntax errors.
+- Markdown and Python docstring extraction now carry the canonical IR envelope
+  through the in-process bridge. The Python `Document.ir` mapping exposes
+  schema metadata, `line_index`, tree nodes, region `segments`, synthetic
+  insertions, and content hashes for supported inputs.
+- Markdown was the first concrete IR producer, not a limitation of the IR
+  model. The `IrDocument` envelope and metadata vocabulary remain
+  syntax-neutral, so the later Rust documentation comment producer can emit the
+  same canonical shape without adding syntax-specific fields to the IR domain.
 - The compatibility payload still includes `syntax` plus regions with `kind`
   and `text` fields, while later roadmap slices migrate callers onto richer
   source-fidelity surfaces.

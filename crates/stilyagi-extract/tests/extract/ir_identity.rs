@@ -6,6 +6,7 @@ use stilyagi_test_support::SHARED_MARKDOWN_FIXTURE_PATH;
 
 use crate::test_utils::{
     extracted_markdown, markdown_extraction_with_identity, shared_markdown_source,
+    shared_python_source,
 };
 
 #[rstest]
@@ -66,4 +67,23 @@ fn markdown_extraction_attaches_markdown_ir(shared_markdown_source: String) {
                 .iter()
                 .all(stilyagi_ir::IrRegion::segments_reconstruct_text)
     ));
+}
+
+fn python_extraction_attaches_owner_aware_ir(shared_python_source: String) {
+    let document = stilyagi_extract::extract_document(
+        &shared_python_source,
+        stilyagi_extract::ExtractSyntax::PythonDocstring,
+    )
+    .unwrap_or_else(|error| panic!("expected shared Python extraction: {error}"));
+    let ir = document
+        .ir()
+        .unwrap_or_else(|| panic!("expected Python IR payload"));
+
+    assert_eq!(ir.document.syntax, "python");
+    assert!(ir.regions.iter().all(|region| region.owner.is_some()));
+    assert!(
+        ir.regions
+            .iter()
+            .all(stilyagi_ir::IrRegion::segments_reconstruct_text)
+    );
 }

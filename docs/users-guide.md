@@ -113,14 +113,14 @@ The new extraction path is intentionally narrow in this slice:
 
 - `stilyagi.engine.extract_document(...)` is the supported public API for the
   first real Rust extraction call.
-- `model.Syntax.MARKDOWN` is the only currently implemented syntax for that
-  API.
-- `model.Syntax.PYTHON_DOCSTRING` and `model.Syntax.RUST_DOC_COMMENT` are part
-  of the planned model vocabulary, but they currently raise
-  `NotImplementedError` when passed to `extract_document(...)`.
-- Markdown documents expose a parsed `document.ir` mapping containing the
-  canonical Markdown IR envelope. That mapping includes schema metadata,
-  `line_index`, Markdown tree nodes, region `segments`, and content hashes.
+- `model.Syntax.MARKDOWN` and `model.Syntax.PYTHON_DOCSTRING` are currently
+  implemented for that API.
+- `model.Syntax.RUST_DOC_COMMENT` remains part of the planned model vocabulary,
+  but currently raises `NotImplementedError` when passed to
+  `extract_document(...)`.
+- Markdown documents and Python docstrings expose a parsed `document.ir` mapping
+  containing the canonical IR envelope. That mapping includes schema metadata,
+  `line_index`, tree nodes, region `segments`, and content hashes.
 - Markdown IR regions currently include text-bearing `heading`, `paragraph`,
   and `table_cell` regions; structural `list_item` and `blockquote` container
   regions; source-backed whole-block `frontmatter`; and synthetic decoded
@@ -132,11 +132,9 @@ The new extraction path is intentionally narrow in this slice:
 - When `document.ir["regions"]` contains an unknown future region kind, the
   Python adapter logs a warning and preserves the region in `document.ir`
   rather than rejecting the document.
-- `list_item` and `blockquote` regions are containers. Their prose normally
-  appears in child regions linked through `parent_region`.
-- `image_alt` and `link_title` expose decoded lint text. They are inspection
-  surfaces in `document.ir`, but their segments are synthetic until
-  byte-accurate edit spans are implemented.
+- `stilyagi._stilyagi_rs` remains an internal bridge module. User code should
+  call `stilyagi.engine.extract_document(...)` rather than importing the raw
+  bridge directly.
 
 ## 1b. Package smoke check
 

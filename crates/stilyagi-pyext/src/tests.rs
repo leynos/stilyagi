@@ -215,10 +215,62 @@ fn extract_document_py_exposes_markdown_document() {
     });
 }
 
+#[rstest]
+fn extract_document_py_exposes_python_docstrings() {
+    Python::attach(|py| {
+        let args = PyTuple::new(
+            py,
+            [
+                "\"\"\"Module docs.\"\"\"\n\ndef example():\n    \"\"\"Function docs.\"\"\"\n",
+                "python_docstring",
+            ],
+        )
+        .expect("expected argument tuple");
+        let document_result = extract_document_py(py, &args);
+
+        assert!(document_result.is_ok());
+        let extracted_document = match document_result {
+            Ok(document) => document,
+            Err(error) => panic!("unexpected extraction failure: {error}"),
+        };
+        let extracted_document_bound = extracted_document.bind(py);
+        let extracted_document_dict = extracted_document_bound
+            .cast::<PyDict>()
+            .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+        let regions_any = extracted_document_dict
+            .get_item("regions")
+            .expect("missing regions payload");
+        let regions = regions_any
+            .cast::<PyList>()
+            .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
+        let first_region_any = regions.get_item(0).expect("missing first region");
+        let first_region = first_region_any
+            .cast::<PyDict>()
+            .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+
+        assert_eq!(
+            extracted_document_dict
+                .get_item("syntax")
+                .expect("missing syntax payload")
+                .extract::<&str>()
+                .expect("expected syntax string"),
+            ExtractSyntax::PythonDocstring.as_str(),
+        );
+        assert_eq!(regions.len().expect("expected list length"), 2,);
+        assert_eq!(
+            first_region
+                .get_item("kind")
+                .expect("missing kind payload")
+                .extract::<&str>()
+                .expect("expected kind string"),
+            "python_docstring",
+        );
+    });
+}
+
 /// Keep rejection behaviour stable for both unsupported and unknown syntax
 /// strings.
 #[rstest]
-#[case("python_docstring", "python_docstring")]
 #[case("not_a_syntax", "not_a_syntax")]
 fn extract_document_py_rejects_invalid_syntaxes(
     #[case] syntax: &str,

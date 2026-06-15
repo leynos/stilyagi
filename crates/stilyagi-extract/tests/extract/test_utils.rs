@@ -60,6 +60,11 @@ pub(crate) fn shared_markdown_source() -> String {
     }
 }
 
+pub(crate) fn shared_python_source() -> String {
+    read_corpus_fixture(SHARED_PYTHON_FIXTURE_PATH).unwrap_or_else(|error| {
+        panic!("expected shared Python corpus fixture to be readable: {error}")
+    })
+}
 pub(crate) fn markdown_extraction_with_identity(
     source: &str,
     identity: SourceIdentity,
@@ -69,3 +74,6 @@ pub(crate) fn markdown_extraction_with_identity(
         Err(error) => panic!("expected markdown extraction with explicit identity: {error}"),
     }
 }
+
+pub(crate) const SHARED_PYTHON_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py";
