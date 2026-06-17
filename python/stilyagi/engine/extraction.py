@@ -141,6 +141,17 @@ def _coerce_bridge_document(payload: object) -> _BridgeDocument:
     return document
 
 
+def _assert_str_region_field(
+    region_dict: dict[str, object], index: int, field: str
+) -> str:
+    """Return ``region_dict[field]`` as ``str``, or raise ``TypeError``."""
+    value = region_dict.get(field)
+    if not isinstance(value, str):
+        msg = f"expected Rust bridge payload['regions'][{index}][{field!r}] to be str"
+        raise TypeError(msg)
+    return value
+
+
 def _coerce_bridge_region(index: int, region: object) -> _BridgeRegion:
     """Validate one raw bridge region before adapting it to Python models."""
     if not isinstance(region, dict):
@@ -150,17 +161,10 @@ def _coerce_bridge_region(index: int, region: object) -> _BridgeRegion:
         )
         raise TypeError(msg)
     region_dict = typ.cast("dict[str, object]", region)
-
-    kind = region_dict.get("kind")
-    text = region_dict.get("text")
-    if not isinstance(kind, str):
-        msg = f"expected Rust bridge payload['regions'][{index}]['kind'] to be str"
-        raise TypeError(msg)
-    if not isinstance(text, str):
-        msg = f"expected Rust bridge payload['regions'][{index}]['text'] to be str"
-        raise TypeError(msg)
-
-    return {"kind": kind, "text": text}
+    return {
+        "kind": _assert_str_region_field(region_dict, index, "kind"),
+        "text": _assert_str_region_field(region_dict, index, "text"),
+    }
 
 
 def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
@@ -175,20 +179,29 @@ def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
     return typ.cast("cabc.Mapping[str, typ.Any]", parsed)
 
 
+def _iter_unknown_region_kinds(
+    regions: list[object],
+    known_region_kinds: frozenset[str],
+) -> "cabc.Iterator[tuple[int, str]]":  # noqa: UP037
+    """Yield ``(index, kind)`` for every unknown region kind."""
+    for index, region in enumerate(regions):
+        if not isinstance(region, dict):
+            continue
+        kind = typ.cast("dict[str, object]", region).get("kind")
+        if isinstance(kind, str) and kind not in known_region_kinds:
+            yield index, kind
+
+
 def _warn_unknown_ir_region_kinds(ir_payload: dict[str, object]) -> None:
     """Warn when canonical IR includes a region kind unknown to this adapter."""
     regions = ir_payload.get("regions")
     if not isinstance(regions, list):
         return
+    regions = typ.cast("list[object]", regions)
     known_region_kinds = frozenset(bridge_supported_region_kinds())
-    for index, region in enumerate(regions):
-        if not isinstance(region, dict):
-            continue
-        region_dict = typ.cast("dict[str, object]", region)
-        kind = region_dict.get("kind")
-        if isinstance(kind, str) and kind not in known_region_kinds:
-            _LOGGER.warning(
-                "Unknown IR region kind from Rust bridge at index %s: %s",
-                index,
-                kind,
-            )
+    for index, kind in _iter_unknown_region_kinds(regions, known_region_kinds):
+        _LOGGER.warning(
+            "Unknown IR region kind from Rust bridge at index %s: %s",
+            index,
+            kind,
+        )
