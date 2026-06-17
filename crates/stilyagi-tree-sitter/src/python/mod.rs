@@ -19,7 +19,7 @@ use helpers::{
 };
 use owner::{OwnerFrame, owner_for};
 use support::{parse_python, python_producer, validate_ir_consistency};
-use types::NodeId;
+use types::{NodeId, NodeKind};
 
 const TREE_ID: &str = "t0";
 
@@ -107,7 +107,7 @@ impl<'source> PythonIrBuilder<'source> {
         self.nodes.push(IrNode {
             id: node_id.into(),
             tree: TREE_ID.to_owned(),
-            kind: "module".to_owned(),
+            kind: NodeKind("module").as_str().to_owned(),
             parent: None,
             children: Vec::new(),
             fields: BTreeMap::new(),
@@ -191,7 +191,7 @@ impl<'source> PythonIrBuilder<'source> {
         self.nodes.push(IrNode {
             id: node_id.clone().into(),
             tree: TREE_ID.to_owned(),
-            kind: node.kind().to_owned(),
+            kind: NodeKind(node.kind()).as_str().to_owned(),
             parent: Some(parent.clone().into()),
             children: Vec::new(),
             fields,
@@ -219,7 +219,7 @@ impl<'source> PythonIrBuilder<'source> {
         self.nodes.push(IrNode {
             id: string_node_id.clone().into(),
             tree: TREE_ID.to_owned(),
-            kind: "string".to_owned(),
+            kind: NodeKind("string").as_str().to_owned(),
             parent: Some(owner_node_id.clone().into()),
             children: Vec::new(),
             fields: BTreeMap::new(),
