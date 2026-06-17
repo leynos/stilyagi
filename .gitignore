@@ -102,6 +102,8 @@ ipython_config.py
 .uv-bin/
 .uv-cache/
 .uv-tools/
+.memdb/
+.memtrace/
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
