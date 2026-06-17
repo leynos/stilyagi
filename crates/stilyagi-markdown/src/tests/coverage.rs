@@ -30,10 +30,7 @@ fn list_item_regions_are_thin_structural_parents() {
     ));
     let list_items = regions_of_kind(&document, RegionKind::ListItem);
 
-    assert!(!list_items.is_empty());
-    assert!(list_items.iter().all(|region| {
-        region.text.is_empty() && region.segments.is_empty() && region.owner.is_none()
-    }));
+    assert_thin_structural_regions(&list_items, "list_item");
     assert!(list_items.iter().any(|region| {
         region.attrs.get("ordered") == Some(&serde_json::json!(true))
             && region.attrs.get("start") == Some(&serde_json::json!(3))
@@ -43,14 +40,7 @@ fn list_item_regions_are_thin_structural_parents() {
             .iter()
             .any(|region| { region.attrs.get("checked") == Some(&serde_json::json!(true)) })
     );
-    assert!(document.regions.iter().any(|region| {
-        region.kind == RegionKind::Paragraph.as_str()
-            && region.scope.iter().any(|scope| scope == "list_item")
-            && region
-                .parent_region
-                .as_deref()
-                .is_some_and(|parent| list_items.iter().any(|item| item.id == parent))
-    }));
+    assert_paragraph_children_linked_to(&document, &list_items, "list_item");
 }
 
 #[rstest]
@@ -60,23 +50,13 @@ fn blockquote_regions_are_thin_structural_parents() {
     ));
     let blockquotes = regions_of_kind(&document, RegionKind::Blockquote);
 
-    assert!(!blockquotes.is_empty());
-    assert!(blockquotes.iter().all(|region| {
-        region.text.is_empty() && region.segments.is_empty() && region.owner.is_none()
-    }));
+    assert_thin_structural_regions(&blockquotes, "blockquote");
     assert!(
         blockquotes
             .iter()
             .any(|region| { region.attrs.get("depth") == Some(&serde_json::json!(2)) })
     );
-    assert!(document.regions.iter().any(|region| {
-        region.kind == RegionKind::Paragraph.as_str()
-            && region.scope.iter().any(|scope| scope == "blockquote")
-            && region
-                .parent_region
-                .as_deref()
-                .is_some_and(|parent| blockquotes.iter().any(|quote| quote.id == parent))
-    }));
+    assert_paragraph_children_linked_to(&document, &blockquotes, "blockquote");
 }
 
 #[rstest]
@@ -86,22 +66,7 @@ fn frontmatter_region_is_source_backed_over_the_fenced_block() {
     let document = must_markdown_ir_document(&source, relative_path);
     let frontmatter = single_region_of_kind(&document, RegionKind::Frontmatter);
 
-    assert!(frontmatter.text.starts_with("---\n"));
-    assert!(frontmatter.text.ends_with("---"));
-    assert_eq!(
-        frontmatter.attrs.get("format"),
-        Some(&serde_json::json!("yaml"))
-    );
-    assert_eq!(frontmatter.segments.len(), 1);
-    let segment = must_some!(
-        frontmatter.segments.first(),
-        "expected frontmatter source segment"
-    );
-    let source_span = must_some!(segment.source, "expected frontmatter to be source-backed");
-    assert_eq!(
-        source.get(source_span.byte_start..source_span.byte_end),
-        Some(frontmatter.text.as_str())
-    );
+    assert_frontmatter_source_backed(frontmatter, &source);
 }
 
 #[rstest]
@@ -112,19 +77,9 @@ fn image_alt_and_link_title_regions_are_synthetic_decoded_text() {
     let image_alt = regions_of_kind(&document, RegionKind::ImageAlt);
     let link_title = regions_of_kind(&document, RegionKind::LinkTitle);
 
-    assert!(image_alt.iter().any(|region| region.text == "plain alt"));
-    assert!(image_alt.iter().any(|region| region.text == "AT&T"));
-    assert!(
-        link_title
-            .iter()
-            .any(|region| region.text == "Inline title")
-    );
-    assert!(
-        image_alt
-            .iter()
-            .chain(link_title.iter())
-            .all(|region| is_decoded_synthetic_region(region))
-    );
+    assert_decoded_text_regions_contain(&image_alt, "plain alt");
+    assert_decoded_text_regions_contain(&image_alt, "AT&T");
+    assert_decoded_text_regions_contain(&link_title, "Inline title");
 }
 
 fn emitted_region_kinds_for_valid_markdown_corpus() -> BTreeSet<String> {
@@ -232,4 +187,79 @@ fn is_decoded_synthetic_region(region: &IrRegion) -> bool {
             segment.source.is_none()
                 && segment.synthetic.as_deref() == Some(SyntheticReason::DecodedText.as_str())
         })
+}
+
+fn assert_thin_structural_regions(regions: &[&IrRegion], kind_name: &str) {
+    assert!(
+        !regions.is_empty(),
+        "expected at least one {kind_name} region"
+    );
+    assert!(
+        regions
+            .iter()
+            .all(|r| r.text.is_empty() && r.segments.is_empty() && r.owner.is_none()),
+        "{kind_name} regions must be thin structural (no text, segments, or owner)"
+    );
+}
+
+fn assert_paragraph_children_linked_to(
+    document: &IrDocument,
+    parents: &[&IrRegion],
+    scope_name: &str,
+) {
+    assert!(
+        document.regions.iter().any(|region| {
+            region.kind == RegionKind::Paragraph.as_str()
+                && region.scope.iter().any(|s| s == scope_name)
+                && region
+                    .parent_region
+                    .as_deref()
+                    .is_some_and(|parent| parents.iter().any(|p| p.id == parent))
+        }),
+        "expected a paragraph scoped to {scope_name:?} linked to a parent region"
+    );
+}
+
+fn assert_frontmatter_source_backed(region: &IrRegion, source: &str) {
+    assert!(
+        region.text.starts_with("---\n"),
+        "frontmatter text must start with '---\\n'"
+    );
+    assert!(
+        region.text.ends_with("---"),
+        "frontmatter text must end with '---'"
+    );
+    assert_eq!(
+        region.attrs.get("format"),
+        Some(&serde_json::json!("yaml")),
+        "frontmatter format attribute must be 'yaml'"
+    );
+    assert_eq!(
+        region.segments.len(),
+        1,
+        "frontmatter must have exactly one segment"
+    );
+    let segment = region
+        .segments
+        .first()
+        .expect("expected frontmatter source segment");
+    let span = segment
+        .source
+        .expect("expected frontmatter to be source-backed");
+    assert_eq!(
+        source.get(span.byte_start..span.byte_end),
+        Some(region.text.as_str()),
+        "frontmatter source span must match region text"
+    );
+}
+
+fn assert_decoded_text_regions_contain(regions: &[&IrRegion], expected_text: &str) {
+    assert!(
+        regions.iter().any(|r| r.text == expected_text),
+        "expected a decoded-text region with text {expected_text:?}"
+    );
+    assert!(
+        regions.iter().all(|r| is_decoded_synthetic_region(r)),
+        "all decoded-text regions must be synthetic with reason 'decoded_text'"
+    );
 }
