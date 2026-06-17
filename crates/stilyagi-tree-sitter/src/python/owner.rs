@@ -2,6 +2,8 @@
 
 use stilyagi_ir::IrOwner;
 
+use super::types::NodeId;
+
 const LOCAL_MARKER: &str = "<locals>";
 
 /// Type of code entity that can own a Python docstring.
@@ -29,7 +31,7 @@ pub(super) struct OwnerFrame {
     /// Source-level definition name.
     pub(super) name: String,
     /// IR node id emitted for this definition, filled lazily during traversal.
-    pub(super) emitted_node_id: Option<String>,
+    pub(super) emitted_node_id: Option<NodeId>,
 }
 
 impl OwnerFrame {

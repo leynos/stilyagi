@@ -3,6 +3,7 @@
 mod helpers;
 mod owner;
 mod support;
+mod types;
 
 use std::collections::BTreeMap;
 
@@ -18,6 +19,7 @@ use helpers::{
 };
 use owner::{OwnerFrame, owner_for};
 use support::{parse_python, python_producer, validate_ir_consistency};
+use types::NodeId;
 
 const TREE_ID: &str = "t0";
 
@@ -63,7 +65,7 @@ pub fn python_docstring_ir_document(
         id: TREE_ID.to_owned(),
         family: "tree-sitter".to_owned(),
         syntax: "python".to_owned(),
-        root: "n0".to_owned(),
+        root: root_node_id().into(),
     });
 
     let mut builder = PythonIrBuilder::new(source);
@@ -101,9 +103,9 @@ impl<'source> PythonIrBuilder<'source> {
 
     fn push_module_root(&mut self, root: Node<'_>) {
         let node_id = self.next_node_id();
-        debug_assert_eq!(node_id, "n0");
+        debug_assert_eq!(node_id.as_str(), root_node_id().as_str());
         self.nodes.push(IrNode {
-            id: node_id,
+            id: node_id.into(),
             tree: TREE_ID.to_owned(),
             kind: "module".to_owned(),
             parent: None,
@@ -137,7 +139,7 @@ impl<'source> PythonIrBuilder<'source> {
     fn visit_module(&mut self, root: Node<'_>) {
         let mut stack = Vec::new();
         if let Some(docstring) = module_docstring(self.source, root) {
-            self.push_docstring_region(docstring, &stack, "n0");
+            self.push_docstring_region(docstring, &stack, &root_node_id());
         }
         self.visit_children(root, &mut stack);
     }
@@ -169,7 +171,7 @@ impl<'source> PythonIrBuilder<'source> {
         let _ = stack.pop();
     }
 
-    fn push_owner_node(&mut self, node: Node<'_>, stack: &mut [OwnerFrame]) -> String {
+    fn push_owner_node(&mut self, node: Node<'_>, stack: &mut [OwnerFrame]) -> NodeId {
         let current_index = stack.len().saturating_sub(1);
         if let Some(node_id) = stack
             .get(current_index)
@@ -178,7 +180,7 @@ impl<'source> PythonIrBuilder<'source> {
             return node_id;
         }
 
-        let parent = nearest_emitted_owner(stack).unwrap_or_else(|| "n0".to_owned());
+        let parent = nearest_emitted_owner(stack).unwrap_or_else(root_node_id);
         let node_id = self.next_node_id();
         let mut fields = BTreeMap::new();
         if let Some(name) = node.child_by_field_name("name") {
@@ -187,10 +189,10 @@ impl<'source> PythonIrBuilder<'source> {
             }
         }
         self.nodes.push(IrNode {
-            id: node_id.clone(),
+            id: node_id.clone().into(),
             tree: TREE_ID.to_owned(),
             kind: node.kind().to_owned(),
-            parent: Some(parent.clone()),
+            parent: Some(parent.clone().into()),
             children: Vec::new(),
             fields,
             props: BTreeMap::new(),
@@ -208,17 +210,17 @@ impl<'source> PythonIrBuilder<'source> {
         &mut self,
         string: Node<'_>,
         stack: &[OwnerFrame],
-        owner_node_id: &str,
+        owner_node_id: &NodeId,
     ) {
         let Some((text, span)) = docstring_content(self.source, string) else {
             return;
         };
         let string_node_id = self.next_node_id();
         self.nodes.push(IrNode {
-            id: string_node_id.clone(),
+            id: string_node_id.clone().into(),
             tree: TREE_ID.to_owned(),
             kind: "string".to_owned(),
-            parent: Some(owner_node_id.to_owned()),
+            parent: Some(owner_node_id.clone().into()),
             children: Vec::new(),
             fields: BTreeMap::new(),
             props: BTreeMap::new(),
@@ -244,24 +246,28 @@ impl<'source> PythonIrBuilder<'source> {
                 text,
                 SegmentOrigin::Source {
                     span,
-                    node: string_node_id.clone(),
+                    node: string_node_id.clone().into(),
                 },
             )],
-            origin_nodes: vec![string_node_id],
+            origin_nodes: vec![string_node_id.into()],
             owner: Some(owner_for(stack)),
             attrs: BTreeMap::new(),
             parent_region: None,
         });
     }
 
-    fn push_child(&mut self, parent_id: &str, child_id: &str) {
-        if let Some(parent) = self.nodes.iter_mut().find(|node| node.id == parent_id) {
-            parent.children.push(child_id.to_owned());
+    fn push_child(&mut self, parent_id: &NodeId, child_id: &NodeId) {
+        if let Some(parent) = self
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == parent_id.as_str())
+        {
+            parent.children.push(child_id.clone().into());
         }
     }
 
-    fn next_node_id(&mut self) -> String {
-        let id = format!("n{}", self.next_node);
+    fn next_node_id(&mut self) -> NodeId {
+        let id = NodeId(format!("n{}", self.next_node));
         self.next_node += 1;
         id
     }
@@ -271,6 +277,10 @@ impl<'source> PythonIrBuilder<'source> {
         self.next_region += 1;
         id
     }
+}
+
+fn root_node_id() -> NodeId {
+    NodeId("n0".to_owned())
 }
 
 #[cfg(test)]

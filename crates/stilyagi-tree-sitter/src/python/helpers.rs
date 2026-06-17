@@ -4,8 +4,9 @@ use stilyagi_ir::{NodeFlags, SourceSpan};
 use tree_sitter::Node;
 
 use super::owner::{OwnerFrame, OwnerKind};
+use super::types::{NodeId, NodeKind};
 
-pub(super) fn nearest_emitted_owner(stack: &[OwnerFrame]) -> Option<String> {
+pub(super) fn nearest_emitted_owner(stack: &[OwnerFrame]) -> Option<NodeId> {
     stack
         .iter()
         .rev()
@@ -69,11 +70,11 @@ fn first_statement_descendant(node: Node<'_>) -> Option<Node<'_>> {
 /// Extract docstring text and source span from a Python string node.
 /// Uses `string_content`, or delimiter spans when empty docstrings omit it.
 pub(super) fn docstring_content(source: &str, string: Node<'_>) -> Option<(String, SourceSpan)> {
-    if let Some(content) = direct_named_child_with_kind(string, "string_content") {
+    if let Some(content) = direct_named_child_with_kind(string, NodeKind("string_content")) {
         return Some((text_for_node(source, content)?, source_span(content)));
     }
-    let start = direct_named_child_with_kind(string, "string_start")?;
-    let end = direct_named_child_with_kind(string, "string_end")?;
+    let start = direct_named_child_with_kind(string, NodeKind("string_start"))?;
+    let end = direct_named_child_with_kind(string, NodeKind("string_end"))?;
     let span = SourceSpan::new(start.end_byte(), end.start_byte())?;
     Some((String::new(), span))
 }
@@ -84,12 +85,12 @@ pub(super) fn docstring_content(source: &str, string: Node<'_>) -> Option<(Strin
 /// `concatenated_string`.
 fn is_plain_string_docstring(source: &str, string: Node<'_>) -> bool {
     string.kind() == "string"
-        && !has_descendant_kind(string, "interpolation")
+        && !has_descendant_kind(string, NodeKind("interpolation"))
         && !string_start_has_format_prefix(source, string)
 }
 
 fn string_start_has_format_prefix(source: &str, string: Node<'_>) -> bool {
-    let Some(start) = direct_named_child_with_kind(string, "string_start") else {
+    let Some(start) = direct_named_child_with_kind(string, NodeKind("string_start")) else {
         return false;
     };
     let Some(start_text) = text_for_node(source, start) else {
@@ -98,10 +99,10 @@ fn string_start_has_format_prefix(source: &str, string: Node<'_>) -> bool {
     start_text.to_ascii_lowercase().contains('f')
 }
 
-fn has_descendant_kind(node: Node<'_>, kind: &str) -> bool {
+fn has_descendant_kind(node: Node<'_>, kind: NodeKind) -> bool {
     let mut cursor = node.walk();
     node.named_children(&mut cursor)
-        .any(|child| child.kind() == kind || has_descendant_kind(child, kind))
+        .any(|child| child.kind() == kind.as_str() || has_descendant_kind(child, kind))
 }
 
 pub(super) fn collect_error_nodes<'tree>(node: Node<'tree>, errors: &mut Vec<Node<'tree>>) {
@@ -114,10 +115,10 @@ pub(super) fn collect_error_nodes<'tree>(node: Node<'tree>, errors: &mut Vec<Nod
     }
 }
 
-fn direct_named_child_with_kind<'tree>(node: Node<'tree>, kind: &str) -> Option<Node<'tree>> {
+fn direct_named_child_with_kind(node: Node<'_>, kind: NodeKind) -> Option<Node<'_>> {
     let mut cursor = node.walk();
     node.named_children(&mut cursor)
-        .find(|child| child.kind() == kind)
+        .find(|child| child.kind() == kind.as_str())
 }
 
 pub(super) fn text_for_node(source: &str, node: Node<'_>) -> Option<String> {
