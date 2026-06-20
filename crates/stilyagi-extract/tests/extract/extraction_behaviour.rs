@@ -114,54 +114,59 @@ fn markdown_extraction_preserves_unicode_text(
     );
 }
 
-fn assert_shared_fixture_extraction(
-    source: &str,
+struct ExtractionExpectation<'a> {
     syntax: stilyagi_extract::ExtractSyntax,
-    expected_region_count: Option<usize>,
-    expected_region_kind: stilyagi_extract::RegionKind,
-    expected_kind_str: &str,
-    expected_text: &str,
-) {
-    let document = stilyagi_extract::extract_document(source, syntax)
+    region_count: Option<usize>,
+    region_kind: stilyagi_extract::RegionKind,
+    kind_str: &'static str,
+    text: &'a str,
+}
+impl Copy for ExtractionExpectation<'_> {}
+fn assert_shared_fixture_extraction(source: &str, expected: ExtractionExpectation<'_>) {
+    let document = stilyagi_extract::extract_document(source, expected.syntax)
         .unwrap_or_else(|error| panic!("expected shared fixture extraction: {error}"));
     let first_region = document.regions().first();
 
-    assert_eq!(document.syntax(), syntax);
-    if let Some(count) = expected_region_count {
+    assert_eq!(document.syntax(), expected.syntax);
+    if let Some(count) = expected.region_count {
         assert_eq!(document.regions().len(), count);
     }
     assert_eq!(
         first_region.and_then(stilyagi_extract::ExtractRegion::region_kind),
-        Some(expected_region_kind)
+        Some(expected.region_kind)
     );
     assert_eq!(
         first_region.map(stilyagi_extract::ExtractRegion::kind),
-        Some(expected_kind_str)
+        Some(expected.kind_str)
     );
     assert_eq!(
         first_region.map(stilyagi_extract::ExtractRegion::text),
-        Some(expected_text)
+        Some(expected.text)
     );
 }
 fn markdown_extraction_preserves_the_shared_markdown_fixture(shared_markdown_source: String) {
     assert_shared_fixture_extraction(
         shared_markdown_source.as_str(),
-        ExtractSyntax::Markdown,
-        None,
-        stilyagi_extract::RegionKind::Document,
-        "document",
-        shared_markdown_source.as_str(),
+        ExtractionExpectation {
+            syntax: ExtractSyntax::Markdown,
+            region_count: None,
+            region_kind: stilyagi_extract::RegionKind::Document,
+            kind_str: "document",
+            text: shared_markdown_source.as_str(),
+        },
     );
 }
 
 fn python_extraction_preserves_shared_fixture_docstrings(shared_python_source: String) {
     assert_shared_fixture_extraction(
         &shared_python_source,
-        ExtractSyntax::PythonDocstring,
-        Some(4),
-        stilyagi_extract::RegionKind::PythonDocstring,
-        "python_docstring",
-        "Module docstring for the shared Stilyagi corpus.",
+        ExtractionExpectation {
+            syntax: ExtractSyntax::PythonDocstring,
+            region_count: Some(4),
+            region_kind: stilyagi_extract::RegionKind::PythonDocstring,
+            kind_str: "python_docstring",
+            text: "Module docstring for the shared Stilyagi corpus.",
+        },
     );
 }
 fn malformed_corpus_fixtures_are_readable_utf8_sources(#[case] relative_path: &str) {
