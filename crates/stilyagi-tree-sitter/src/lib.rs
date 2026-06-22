@@ -52,6 +52,15 @@ mod tests {
         assert_eq!(first, original);
     }
 
+    #[derive(Clone, Copy)]
+    struct NodeKind(&'static str);
+
+    impl NodeKind {
+        const fn as_str(self) -> &'static str {
+            self.0
+        }
+    }
+
     fn python_parser() -> Parser {
         let mut parser = Parser::new();
         let language = tree_sitter_python::LANGUAGE.into();
@@ -72,19 +81,19 @@ mod tests {
             .expect("node should have a first named child")
     }
 
-    fn first_named_child_with_kind<'tree>(node: Node<'tree>, kind: &str) -> Node<'tree> {
+    fn first_named_child_with_kind(node: Node<'_>, kind: NodeKind) -> Node<'_> {
         let child = first_named_child(node);
 
-        assert_eq!(child.kind(), kind);
+        assert_eq!(child.kind(), kind.as_str());
         child
     }
 
-    fn direct_named_child_with_kind<'tree>(node: Node<'tree>, kind: &str) -> Node<'tree> {
+    fn direct_named_child_with_kind(node: Node<'_>, kind: NodeKind) -> Node<'_> {
         let mut cursor = node.walk();
 
         node.named_children(&mut cursor)
-            .find(|child| child.kind() == kind)
-            .unwrap_or_else(|| panic!("{kind} child should exist"))
+            .find(|child| child.kind() == kind.as_str())
+            .unwrap_or_else(|| panic!("{} child should exist", kind.as_str()))
     }
 
     fn text_for_node<'source>(source: &'source str, node: Node<'_>) -> &'source str {
@@ -92,15 +101,15 @@ mod tests {
             .expect("node byte range should select valid UTF-8")
     }
 
-    fn named_children_with_kind<'tree>(node: Node<'tree>, kind: &str) -> Vec<Node<'tree>> {
+    fn named_children_with_kind(node: Node<'_>, kind: NodeKind) -> Vec<Node<'_>> {
         let mut cursor = node.walk();
 
         node.named_children(&mut cursor)
-            .filter(|child| child.kind() == kind)
+            .filter(|child| child.kind() == kind.as_str())
             .collect()
     }
 
-    fn descendants_with_kind<'tree>(node: Node<'tree>, kind: &str) -> Vec<Node<'tree>> {
+    fn descendants_with_kind(node: Node<'_>, kind: NodeKind) -> Vec<Node<'_>> {
         let mut found = Vec::new();
         collect_descendants_with_kind(node, kind, &mut found);
         found
@@ -108,13 +117,13 @@ mod tests {
 
     fn collect_descendants_with_kind<'tree>(
         node: Node<'tree>,
-        kind: &str,
+        kind: NodeKind,
         found: &mut Vec<Node<'tree>>,
     ) {
         let mut cursor = node.walk();
 
         for child in node.named_children(&mut cursor) {
-            if child.kind() == kind {
+            if child.kind() == kind.as_str() {
                 found.push(child);
             }
             collect_descendants_with_kind(child, kind, found);
@@ -131,9 +140,10 @@ mod tests {
 
         assert_eq!(root.kind(), "module");
 
-        let expression_statement = first_named_child_with_kind(root, "expression_statement");
-        let string = first_named_child_with_kind(expression_statement, "string");
-        let string_content = direct_named_child_with_kind(string, "string_content");
+        let expression_statement =
+            first_named_child_with_kind(root, NodeKind("expression_statement"));
+        let string = first_named_child_with_kind(expression_statement, NodeKind("string"));
+        let string_content = direct_named_child_with_kind(string, NodeKind("string_content"));
 
         assert_eq!(
             text_for_node(&source, string_content),
@@ -153,10 +163,11 @@ mod tests {
         let source = read_corpus_fixture(SHARED_PYTHON_FIXTURE)
             .expect("shared Python fixture should be readable");
         let tree = parse_python(&source);
-        let decorated_definition = descendants_with_kind(tree.root_node(), "decorated_definition")
-            .into_iter()
-            .next()
-            .expect("fixture should contain a decorated method");
+        let decorated_definition =
+            descendants_with_kind(tree.root_node(), NodeKind("decorated_definition"))
+                .into_iter()
+                .next()
+                .expect("fixture should contain a decorated method");
         let definition = decorated_definition
             .child_by_field_name("definition")
             .expect("decorated definition should expose its inner definition");
@@ -173,27 +184,33 @@ mod tests {
     fn python_grammar_marks_fstrings_and_concatenated_strings() {
         let f_string_source = "def interpolated():\n    f\"\"\"{value}\"\"\"\n";
         let f_string_tree = parse_python(f_string_source);
-        let f_string = descendants_with_kind(f_string_tree.root_node(), "string")
+        let f_string = descendants_with_kind(f_string_tree.root_node(), NodeKind("string"))
             .into_iter()
             .next()
             .expect("f-string source should contain a string node");
-        let string_start = first_named_child_with_kind(f_string, "string_start");
+        let string_start = first_named_child_with_kind(f_string, NodeKind("string_start"));
 
         assert!(
-            descendants_with_kind(f_string, "interpolation").is_empty()
+            descendants_with_kind(f_string, NodeKind("interpolation")).is_empty()
                 || text_for_node(f_string_source, string_start).contains('f')
         );
 
         let concatenated_source = "def adjacent():\n    \"a\" \"b\"\n";
         let concatenated_tree = parse_python(concatenated_source);
-        let first_statement =
-            descendants_with_kind(concatenated_tree.root_node(), "expression_statement")
-                .into_iter()
-                .next()
-                .expect("concatenated source should contain an expression statement");
-        let concatenated_string = first_named_child(first_statement);
+        let first_statement = descendants_with_kind(
+            concatenated_tree.root_node(),
+            NodeKind("expression_statement"),
+        )
+        .into_iter()
+        .next()
+        .expect("concatenated source should contain an expression statement");
+        let concatenated_string =
+            first_named_child_with_kind(first_statement, NodeKind("concatenated_string"));
 
-        assert_eq!(concatenated_string.kind(), "concatenated_string");
+        assert_eq!(
+            concatenated_string.kind(),
+            NodeKind("concatenated_string").as_str()
+        );
     }
 
     /// Pin malformed recovery so later extraction can safely emit partial IR.
@@ -203,18 +220,18 @@ mod tests {
             .expect("malformed Python fixture should be readable");
         let tree = parse_python(&source);
         let root = tree.root_node();
-        let expression_statement = descendants_with_kind(root, "expression_statement")
+        let expression_statement = descendants_with_kind(root, NodeKind("expression_statement"))
             .into_iter()
             .next()
             .expect("malformed fixture should preserve an expression statement");
-        let string = first_named_child_with_kind(expression_statement, "string");
-        let string_content = direct_named_child_with_kind(string, "string_content");
-        let error_nodes = descendants_with_kind(root, "ERROR");
+        let string = first_named_child_with_kind(expression_statement, NodeKind("string"));
+        let string_content = direct_named_child_with_kind(string, NodeKind("string_content"));
+        let error_nodes = descendants_with_kind(root, NodeKind("ERROR"));
         let error_spans = error_nodes
             .iter()
             .map(|node| (node.start_byte(), node.end_byte()))
             .collect::<Vec<_>>();
-        let function_nodes = named_children_with_kind(root, "function_definition");
+        let function_nodes = named_children_with_kind(root, NodeKind("function_definition"));
 
         assert!(root.has_error());
         assert_eq!(first_named_child(root).kind(), "ERROR");
