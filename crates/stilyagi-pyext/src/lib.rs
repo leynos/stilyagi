@@ -80,7 +80,14 @@ fn extract_document_function(py: Python<'_>) -> PyResult<Bound<'_, PyCFunction>>
         py,
         Some(c"extract_document"),
         Some(c"Extract a source document into Stilyagi's bridge payload."),
-        |args, _kwargs| extract_document_py(args.py(), args),
+        |args, kwargs| {
+            if kwargs.is_some_and(|keyword_args| !keyword_args.is_empty()) {
+                return Err(PyTypeError::new_err(
+                    "extract_document() got unexpected keyword arguments",
+                ));
+            }
+            extract_document_py(args.py(), args)
+        },
     )
 }
 
@@ -131,10 +138,10 @@ mod tests {
     //! Tests for the Python extension bridge payload and error mapping.
 
     use super::{
-        extract_document_py, hello, map_extract_error, supported_region_kinds_py,
-        supported_syntaxes_py,
+        extract_document_function, extract_document_py, hello, map_extract_error,
+        supported_region_kinds_py, supported_syntaxes_py,
     };
-    use pyo3::exceptions::{PyRuntimeError, PyValueError};
+    use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
     use pyo3::prelude::{Py, PyErr, PyResult, Python};
     use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
     use rstest::rstest;
@@ -256,26 +263,42 @@ mod tests {
                 .cast::<PyTuple>()
                 .unwrap_or_else(|error| panic!("expected PyTuple but got {error}"));
 
-            assert_eq!(
-                supported_region_tuple.len().expect("expected tuple length"),
-                IrRegionKind::ALL.len(),
-            );
-            assert_eq!(
-                supported_region_tuple
-                    .get_item(0)
-                    .expect("missing first region kind")
-                    .extract::<&str>()
-                    .expect("expected region kind string"),
-                "heading",
-            );
-            assert_eq!(
-                supported_region_tuple
-                    .get_item(IrRegionKind::ALL.len() - 1)
-                    .expect("missing final region kind")
-                    .extract::<&str>()
-                    .expect("expected region kind string"),
-                "rust_doc_comment",
-            );
+            let actual = (0..supported_region_tuple.len().expect("expected tuple length"))
+                .map(|index| {
+                    supported_region_tuple
+                        .get_item(index)
+                        .expect("missing region kind")
+                        .extract::<String>()
+                        .expect("expected region kind string")
+                })
+                .collect::<Vec<_>>();
+            let expected = IrRegionKind::ALL
+                .iter()
+                .copied()
+                .map(IrRegionKind::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
+
+            assert_eq!(actual, expected);
+        });
+    }
+
+    #[rstest]
+    fn extract_document_function_rejects_unexpected_kwargs() {
+        Python::attach(|py| {
+            let function = extract_document_function(py)
+                .expect("expected extract_document function construction");
+            let args =
+                PyTuple::new(py, ["# Heading", "markdown"]).expect("expected argument tuple");
+            let kwargs = PyDict::new(py);
+            kwargs
+                .set_item("unexpected", true)
+                .expect("expected kwargs setup to succeed");
+            let error = function
+                .call(args, Some(&kwargs))
+                .expect_err("expected unexpected keyword argument to fail");
+
+            assert!(error.is_instance_of::<PyTypeError>(py));
         });
     }
 

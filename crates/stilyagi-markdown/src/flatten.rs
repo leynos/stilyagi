@@ -95,13 +95,15 @@ impl FlattenedRegion<'_> {
             range,
             source_start,
         } = chunk;
-        let Some(text) = value.get(range.clone()) else {
+        let range_start = range.start;
+        let range_end = range.end;
+        let Some(text) = value.get(range_start..range_end) else {
             return;
         };
         if text.is_empty() {
             return;
         }
-        let Some(span) = SourceSpan::new(source_start + range.start, source_start + range.end)
+        let Some(span) = SourceSpan::new(source_start + range_start, source_start + range_end)
         else {
             return;
         };
@@ -152,12 +154,12 @@ impl FlattenedRegion<'_> {
         line_ending: LineEnding<'_, '_>,
         cursor: &mut SourceTextCursor,
     ) -> Option<()> {
+        let source_line_ending_len =
+            source_line_ending_len(self.source, cursor.source_cursor, self.source.len())?;
         self.emit_chunk_for_range(
             cursor.positioned_chunk(line_ending.value),
             line_ending.node_id,
         );
-        let source_line_ending_len =
-            source_line_ending_len(self.source, cursor.source_cursor, self.source.len())?;
         cursor.advance_line_ending(source_line_ending_len, line_ending.len);
         if let Some(source_span) = SourceSpan::new(cursor.source_cursor, cursor.source_cursor) {
             self.push_source_chunk_before_break("", source_span, line_ending.node_id);
@@ -190,12 +192,7 @@ impl FlattenedRegion<'_> {
     }
 
     fn push_synthetic_segment(&mut self, text: &str, reason: SyntheticReason) {
-        self.push_segment(
-            text,
-            SegmentOrigin::Synthetic {
-                reason: reason.as_str().to_owned(),
-            },
-        );
+        self.push_segment(text, SegmentOrigin::Synthetic { reason });
     }
 
     fn push_decoded_text(&mut self, text: &str) {
@@ -266,6 +263,14 @@ fn flatten_inline_code_node(
         return;
     };
     let source_start = source_value_start(flattened.source, span, &code.value);
+    let Some(value_span) = SourceSpan::new(source_start, span.byte_end) else {
+        flattened.push_decoded_text(&code.value);
+        return;
+    };
+    if !decoded_text_maps_to_source(flattened.source, value_span, &code.value) {
+        flattened.push_decoded_text(&code.value);
+        return;
+    }
     flattened.push_source_text(&code.value, source_start, node_id);
 }
 

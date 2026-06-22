@@ -241,7 +241,7 @@ pub enum SegmentOrigin {
     /// Segment text synthesized during extraction.
     Synthetic {
         /// Stable reason for the synthetic insertion.
-        reason: String,
+        reason: SyntheticReason,
     },
 }
 
@@ -252,7 +252,7 @@ impl IrSegment {
         let text = segment_text.into();
         let (source, synthetic, node) = match origin {
             SegmentOrigin::Source { span, node } => (Some(span), None, Some(node)),
-            SegmentOrigin::Synthetic { reason } => (None, Some(reason), None),
+            SegmentOrigin::Synthetic { reason } => (None, Some(reason.as_str().to_owned()), None),
         };
         Self {
             text_start,

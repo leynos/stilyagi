@@ -11,6 +11,8 @@ Example: `from stilyagi import model`
 `result = extract_document("# Heading", model.Syntax.MARKDOWN)`
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import typing as typ
@@ -84,13 +86,16 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
     bridge_document = _coerce_bridge_document(
         extract_document_bridge(source, syntax.value),
     )
+    ir_payload = _parse_ir_json(bridge_document.get("ir_json"))
+    if ir_payload is not None:
+        _warn_unknown_ir_region_kinds(ir_payload)
     return model.Document(
         syntax=model.Syntax(bridge_document["syntax"]),
         regions=tuple(
             model.Region(kind=region["kind"], text=region["text"])
             for region in bridge_document["regions"]
         ),
-        ir=_parse_ir_json(bridge_document.get("ir_json")),
+        ir=ir_payload,
     )
 
 
@@ -175,14 +180,13 @@ def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
     if not isinstance(parsed, dict):
         msg = "expected Rust bridge payload['ir_json'] to decode to dict"
         raise TypeError(msg)
-    _warn_unknown_ir_region_kinds(parsed)
     return typ.cast("cabc.Mapping[str, typ.Any]", parsed)
 
 
 def _iter_unknown_region_kinds(
     regions: list[object],
     known_region_kinds: frozenset[str],
-) -> "cabc.Iterator[tuple[int, str]]":  # noqa: UP037
+) -> cabc.Iterator[tuple[int, str]]:
     """Yield ``(index, kind)`` for every unknown region kind."""
     for index, region in enumerate(regions):
         if not isinstance(region, dict):
@@ -192,7 +196,7 @@ def _iter_unknown_region_kinds(
             yield index, kind
 
 
-def _warn_unknown_ir_region_kinds(ir_payload: dict[str, object]) -> None:
+def _warn_unknown_ir_region_kinds(ir_payload: cabc.Mapping[str, typ.Any]) -> None:
     """Warn when canonical IR includes a region kind unknown to this adapter."""
     regions = ir_payload.get("regions")
     if not isinstance(regions, list):

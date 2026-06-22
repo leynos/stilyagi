@@ -54,7 +54,7 @@ the standard build target:
 make build
 ```
 
-That target performs three steps:
+That target performs four steps:
 
 1. Recreate `.venv`
 2. Sync the `dev` dependency group with `uv`
@@ -547,58 +547,12 @@ test still represents a genuine PyO3 contract violation.
 
 ### 4.2 Current mixed-package skeleton
 
-The general architecture above now maps to concrete repository modules and
-crates. Maintainers should use these names when discussing or extending the
-current skeleton:
-
-- `crates/stilyagi-pyext`
-  - PyO3 bridge crate that builds the package-scoped
-    `stilyagi._stilyagi_rs` extension module
-  - should stay thin and delegate executable logic into library crates
-- `crates/stilyagi-core`
-  - smallest shared Rust library boundary used by the bridge today
-  - current home of the Rust-backed smoke behaviour
-- `crates/stilyagi-ir`
-  - owns the syntax-neutral intermediate representation (IR) vocabulary,
-    canonical envelope, and adapters described by RFC 0001
-- `crates/stilyagi-markdown`
-  - owns the first concrete IR producer: Markdown-specific extraction and
-    flattening logic
-- `crates/stilyagi-tree-sitter`
-  - reserved home for tree-sitter integration and syntax-tree helpers
-- `crates/stilyagi-extract`
-  - home for cross-syntax extraction orchestration that composes the lower-level
-    crates
-  - now owns the `extract_document(...)` path used by the PyO3 bridge,
-    including Markdown IR attachment
-- `python/stilyagi/__init__.py`
-  - public Python package surface that re-exports the supported package
-    boundaries and imports the embedded Rust extension
-- `python/stilyagi/cli.py`
-  - command-line entrypoint placeholder for the future CLI contract from
-    RFC 0003
-- `python/stilyagi/config.py`
-  - configuration boundary for Python-side runtime settings and validation
-- `python/stilyagi/diagnostics.py`
-  - diagnostic object boundary for future reporting and fix planning
-- `python/stilyagi/engine/`
-  - future execution planner, runner, fix-planning, and renderer surfaces
-- `python/stilyagi/model/`
-  - future document, region, sentence, and token runtime types
-- `python/stilyagi/nlp/`
-  - future NLP provider protocols and provider-specific configuration surfaces
-- `python/stilyagi/plugins.py`
-  - source of truth for Python entry-point group names such as
-    `stilyagi.rules` and `stilyagi.capabilities`
-- `python/stilyagi/rules/`
-  - rule namespace root for bundled and third-party rules
-
-Those boundaries deliberately mirror the ownership split in section 2. When a
-change belongs to extraction fidelity, syntax parsing, or source mapping, it
-should usually start in one of the Rust crates. When a change belongs to
-configuration discovery, diagnostics, plugin registration, capability planning,
-or rule orchestration, it should usually start in one of the Python modules
-above.
+Use [repository layout](repository-layout.md) for the current path inventory
+and module responsibilities. This guide keeps the maintainer workflow rules:
+the Rust crates own extraction fidelity, syntax parsing, source mapping, and IR
+construction; the Python package owns configuration discovery, diagnostics,
+plugin registration, capability planning, rule orchestration, and user-facing
+runtime models.
 
 There are also two concrete cross-boundary rules worth preserving:
 
@@ -687,10 +641,10 @@ Their responsibilities are:
   - run Whitaker for all workspace crates, targets, and features with warnings
     denied
 - `make typecheck`
-  - rebuilds the editable environment if needed
-  - run `cargo check` for all workspace crates, targets, and features with
-    warnings denied
-  - runs `ty check` through `uv`
+  - It rebuilds the editable environment when needed.
+  - It runs `cargo check` for all workspace crates, targets, and features with
+    warnings denied.
+  - It runs `ty check` through `uv`.
 - `make test`
   - verify Rust formatting
   - rerun `cargo clippy`

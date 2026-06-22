@@ -10,14 +10,13 @@ use crate::{IrRegion, IrSegment, SegmentOrigin, SourceSpan, SyntheticReason};
 #[derive(Debug, Clone)]
 enum SegmentSpec {
     Source(String),
-    Synthetic(&'static str),
+    Synthetic(SyntheticReason),
 }
 
 fn segment_spec() -> impl Strategy<Value = SegmentSpec> {
     prop_oneof![
         "[a-z]{1,8}".prop_map(SegmentSpec::Source),
-        prop_oneof![Just("softbreak_space"), Just("hardbreak_space")]
-            .prop_map(SegmentSpec::Synthetic),
+        prop::sample::select(SyntheticReason::ALL).prop_map(SegmentSpec::Synthetic),
     ]
 }
 
@@ -76,9 +75,7 @@ fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
                 segments.push(IrSegment::new(
                     text_start,
                     " ",
-                    SegmentOrigin::Synthetic {
-                        reason: (*reason).to_owned(),
-                    },
+                    SegmentOrigin::Synthetic { reason: *reason },
                 ));
             }
         }

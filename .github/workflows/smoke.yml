@@ -32,7 +32,7 @@ jobs:
         uses: astral-sh/setup-uv@4cda7d73322c50eac316ad623a716f09a2db2ac7
 
       - name: Install test runner
-        run: cargo binstall --no-confirm cargo-nextest
+        run: cargo binstall --no-confirm cargo-nextest@0.9.138
 
       - name: Install bun
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76

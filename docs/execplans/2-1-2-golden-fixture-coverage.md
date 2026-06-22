@@ -1224,5 +1224,10 @@ flattener, validator, fixtures, bridge, Makefile gates), the Firecrawl and
 installed-source findings on markdown-rs mdast span fidelity, and the
 Logisphere design review that reshaped the design toward a validator re-slice,
 thin structural containers, synthetic-only alt and title, a `RegionKind` single
-source of truth, and an ADR-routed `frontmatter_field` deferral. No
-implementation has begun; the plan awaits approval.
+source of truth, and an ADR-routed `frontmatter_field` deferral.
+
+That paragraph records the initial plan state before implementation began. The
+plan is now implemented and validated; post-implementation review cleanup
+covered CodeScene feedback, Markdown test argument semantics, duplicated IR
+consistency setup, and branch-specific review fixes on
+`2-1-2-golden-fixture-coverage`.

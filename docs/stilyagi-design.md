@@ -15,6 +15,8 @@
     adr-001-spell-checking-provider.md)
   - [ADR 002: Ratify the packaging boundary](
     adr-002-packaging-boundary.md)
+  - [ADR 005: Scope Markdown region vocabulary](
+    adr-005-markdown-region-vocabulary-scope.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,

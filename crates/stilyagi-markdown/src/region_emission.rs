@@ -74,7 +74,9 @@ impl MarkdownIrBuilder<'_> {
             Node::TableCell(_) => Some(RegionKind::TableCell),
             Node::Yaml(_) | Node::Toml(_) => Some(RegionKind::Frontmatter),
             Node::Image(image) if !image.alt.is_empty() => Some(RegionKind::ImageAlt),
-            Node::Link(link) if link.title.is_some() => Some(RegionKind::LinkTitle),
+            Node::Link(link) if link.title.as_deref().is_some_and(|title| !title.is_empty()) => {
+                Some(RegionKind::LinkTitle)
+            }
             _ => None,
         };
         if let Some(kind) = region_kind {
@@ -211,7 +213,7 @@ impl MarkdownIrBuilder<'_> {
                 0,
                 text.to_owned(),
                 SegmentOrigin::Synthetic {
-                    reason: SyntheticReason::DecodedText.as_str().to_owned(),
+                    reason: SyntheticReason::DecodedText,
                 },
             )]
         };

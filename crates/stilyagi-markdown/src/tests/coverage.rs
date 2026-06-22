@@ -80,6 +80,10 @@ fn image_alt_and_link_title_regions_are_synthetic_decoded_text() {
     assert_decoded_text_regions_contain(&image_alt, "plain alt");
     assert_decoded_text_regions_contain(&image_alt, "AT&T");
     assert_decoded_text_regions_contain(&link_title, "Inline title");
+    assert!(
+        link_title.iter().all(|region| !region.text.is_empty()),
+        "empty link titles must not emit link_title regions"
+    );
 }
 
 fn emitted_region_kinds_for_valid_markdown_corpus() -> BTreeSet<String> {

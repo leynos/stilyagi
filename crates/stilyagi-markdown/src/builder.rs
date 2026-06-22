@@ -71,12 +71,15 @@ impl<'source> MarkdownIrBuilder<'source> {
             flags: NodeFlags::named_source(),
         });
 
-        let structural_parent = self.push_preorder_region_for_node(node, &node_id);
-        if let Some(structural_region) = structural_parent.clone() {
-            self.parent_regions.push(structural_region);
-        }
+        let has_structural_parent =
+            if let Some(structural_region) = self.push_preorder_region_for_node(node, &node_id) {
+                self.parent_regions.push(structural_region);
+                true
+            } else {
+                false
+            };
         let child_ids = self.child_node_ids(node, &node_id, context)?;
-        if structural_parent.is_some() {
+        if has_structural_parent {
             self.parent_regions.pop();
         }
 

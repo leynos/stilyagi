@@ -189,6 +189,25 @@ fn validate_ir_consistency(
 ) -> Result<(), Message> {
     validate_document_metadata(document, source, context)?;
 
+    if let Some(duplicate_id) =
+        first_duplicate_id(document.nodes.iter().map(|node| node.id.as_str()))
+    {
+        return Err(stilyagi_markdown_message(
+            context,
+            "ir-node-id-duplicate",
+            format!("duplicate node id {duplicate_id}"),
+        ));
+    }
+    if let Some(duplicate_id) =
+        first_duplicate_id(document.regions.iter().map(|region| region.id.as_str()))
+    {
+        return Err(stilyagi_markdown_message(
+            context,
+            "ir-region-id-duplicate",
+            format!("duplicate region id {duplicate_id}"),
+        ));
+    }
+
     let node_ids = document
         .nodes
         .iter()
@@ -212,6 +231,11 @@ fn validate_ir_consistency(
     }
 
     Ok(())
+}
+
+fn first_duplicate_id<'id>(ids: impl IntoIterator<Item = &'id str>) -> Option<&'id str> {
+    let mut seen = BTreeSet::new();
+    ids.into_iter().find(|id| !seen.insert(*id))
 }
 
 fn validate_document_metadata(

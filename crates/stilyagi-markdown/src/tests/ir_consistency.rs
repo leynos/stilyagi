@@ -134,6 +134,45 @@ fn validate_ir_consistency_reports_line_index_mismatches() {
 }
 
 #[rstest]
+fn validate_ir_consistency_reports_duplicate_node_ids() {
+    assert_validation_reports(
+        |document| {
+            let duplicate_id = document
+                .nodes
+                .first()
+                .expect("expected at least one node")
+                .id
+                .clone();
+            let node = document.nodes.get_mut(1).expect("expected a second node");
+            node.id = duplicate_id;
+        },
+        "ir-node-id-duplicate",
+        &["duplicate node id"],
+    );
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_duplicate_region_ids() {
+    assert_validation_reports(
+        |document| {
+            let duplicate_id = document
+                .regions
+                .first()
+                .expect("expected at least one region")
+                .id
+                .clone();
+            let region = document
+                .regions
+                .get_mut(1)
+                .expect("expected a second region");
+            region.id = duplicate_id;
+        },
+        "ir-region-id-duplicate",
+        &["duplicate region id"],
+    );
+}
+
+#[rstest]
 fn validate_ir_consistency_reports_region_text_mismatches() {
     assert_validation_reports_on_first_region(
         |region| region.text.push_str(" drift"),
@@ -222,6 +261,30 @@ fn markdown_ir_document_uses_synthetic_segment_for_decoded_text() {
     assert!(paragraph.segments.iter().all(|segment| {
         segment.source.is_none() && segment.synthetic.as_deref() == Some("decoded_text")
     }));
+}
+
+#[rstest]
+fn markdown_ir_document_uses_synthetic_segment_for_normalized_multiline_code_span() {
+    use markdown::mdast::InlineCode;
+    use markdown::unist::Position;
+
+    use crate::flatten::{SourceNodeId, flatten_region};
+
+    let node = Node::InlineCode(InlineCode {
+        value: "first second".to_owned(),
+        position: Some(Position::new(1, 1, 0, 2, 8, 14)),
+    });
+
+    let region = flatten_region(&node, SourceNodeId::new("n0"), "`first\nsecond`");
+
+    assert_eq!(region.text, "first second");
+    assert_eq!(region.segments.len(), 1);
+    let segment = region
+        .segments
+        .first()
+        .expect("expected normalized inline code fallback segment");
+    assert_eq!(segment.source, None);
+    assert_eq!(segment.synthetic.as_deref(), Some("decoded_text"));
 }
 
 #[rstest]

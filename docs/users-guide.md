@@ -110,13 +110,15 @@ The new extraction path is intentionally narrow in this slice:
 - Markdown documents expose a parsed `document.ir` mapping containing the
   canonical Markdown IR envelope. That mapping includes schema metadata,
   `line_index`, Markdown tree nodes, region `segments`, and content hashes.
-- Advanced integrations that need to inspect the raw Rust bridge can call
-  `stilyagi._stilyagi_rs.supported_region_kinds()` to list the canonical IR
-  region-kind vocabulary, but normal user code should treat
-  `document.ir["regions"]` as the supported inspection surface.
-- `stilyagi._stilyagi_rs` remains an internal bridge module. User code should
-  call `stilyagi.engine.extract_document(...)` rather than importing the raw
-  bridge directly.
+- Markdown IR regions currently include text-bearing `heading`, `paragraph`,
+  and `table_cell` regions; structural `list_item` and `blockquote` container
+  regions; source-backed whole-block `frontmatter`; and synthetic decoded
+  `image_alt` and `link_title` regions.
+- `list_item` and `blockquote` regions are containers. Their prose normally
+  appears in child regions linked through `parent_region`.
+- `image_alt` and `link_title` expose decoded lint text. They are inspection
+  surfaces in `document.ir`, but their segments are synthetic until
+  byte-accurate edit spans are implemented.
 
 ## 1b. Package smoke check
 

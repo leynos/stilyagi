@@ -229,7 +229,8 @@ these kinds:
 - `blockquote`
 - `table_cell`
 - `frontmatter`
-- `frontmatter_field`
+- `frontmatter_field` (reserved; not emitted by Markdown v1 until field-level
+  YAML/TOML spans can be produced without guessing)
 - `image_alt`
 - `link_title`
 - `python_docstring`

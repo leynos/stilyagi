@@ -1,7 +1,10 @@
-//! Fixture I/O helpers for reading repository test fixtures. This module
-//! composes with [`crate::fixture_paths::corpus_fixture_path`] so all reads
-//! validate repository-relative paths first and surface
-//! [`crate::fixture_paths::FixturePathError`] through [`FixtureReadError`].
+//! Fixture I/O helpers for reading repository test fixtures.
+//!
+//! Paths are validated with [`crate::fixture_paths::normalize_repository_path`]
+//! before fixtures are opened through a repository-root [`Dir`]. Callers
+//! receive invalid-path failures as [`crate::fixture_paths::FixturePathError`]
+//! through [`FixtureReadError`] and I/O failures as [`std::io::Error`] through
+//! [`FixtureReadError`].
 
 use std::path::{Path, PathBuf};
 
@@ -90,5 +93,6 @@ pub fn fixture_paths_in(relative_dir: impl AsRef<Path>) -> Result<Vec<String>, F
         path.push(entry.file_name());
         paths.push(normalize_repository_path(path)?);
     }
+    paths.sort();
     Ok(paths)
 }
