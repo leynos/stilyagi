@@ -43,6 +43,7 @@ class _BridgeDocument(typ.TypedDict):
 
 
 _PYTHON_SYNTAX_SPELLINGS = frozenset(syntax.value for syntax in model.Syntax)
+_KNOWN_IR_REGION_KINDS = frozenset(bridge_supported_region_kinds())
 _SYNTAX_VOCAB_VALIDATED = False
 _LOGGER = logging.getLogger(__name__)
 
@@ -202,8 +203,7 @@ def _warn_unknown_ir_region_kinds(ir_payload: cabc.Mapping[str, typ.Any]) -> Non
     if not isinstance(regions, list):
         return
     regions = typ.cast("list[object]", regions)
-    known_region_kinds = frozenset(bridge_supported_region_kinds())
-    for index, kind in _iter_unknown_region_kinds(regions, known_region_kinds):
+    for index, kind in _iter_unknown_region_kinds(regions, _KNOWN_IR_REGION_KINDS):
         _LOGGER.warning(
             "Unknown IR region kind from Rust bridge at index %s: %s",
             index,

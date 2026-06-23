@@ -263,7 +263,11 @@ fn flatten_inline_code_node(
         return;
     };
     let source_start = source_value_start(flattened.source, span, &code.value);
-    let Some(value_span) = SourceSpan::new(source_start, span.byte_end) else {
+    let Some(source_end) = source_start.checked_add(code.value.len()) else {
+        flattened.push_decoded_text(&code.value);
+        return;
+    };
+    let Some(value_span) = SourceSpan::new(source_start, source_end) else {
         flattened.push_decoded_text(&code.value);
         return;
     };

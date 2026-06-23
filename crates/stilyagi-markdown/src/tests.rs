@@ -45,6 +45,8 @@ mod markers;
 mod parser;
 #[path = "tests/properties.rs"]
 mod properties;
+#[path = "tests/segment_validation.rs"]
+mod segment_validation;
 
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, SourceIdentity, SourceSpan, SyntheticReason};

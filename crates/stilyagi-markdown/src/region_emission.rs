@@ -86,20 +86,25 @@ impl MarkdownIrBuilder<'_> {
                 kind,
                 node_id,
             };
-            let region = match node {
-                Node::Yaml(_) => self.frontmatter_region(identity, "yaml", node),
-                Node::Toml(_) => self.frontmatter_region(identity, "toml", node),
-                Node::Image(image) => {
-                    self.decoded_text_region(identity, &image.alt, image_attrs(image))
-                }
-                Node::Link(link) => self.decoded_text_region(
-                    identity,
-                    link.title.as_deref().unwrap_or_default(),
-                    link_attrs(link),
-                ),
-                _ => self.flattened_region(identity, node),
-            };
-            self.regions.push(region);
+            if let Some(emitted_region) = self.postorder_region(identity, node) {
+                self.regions.push(emitted_region);
+            }
+        }
+    }
+
+    fn postorder_region(&self, identity: RegionIdentity<'_>, node: &Node) -> Option<IrRegion> {
+        match node {
+            Node::Yaml(_) => self.frontmatter_region(identity, "yaml", node),
+            Node::Toml(_) => self.frontmatter_region(identity, "toml", node),
+            Node::Image(image) => {
+                Some(self.decoded_text_region(identity, &image.alt, image_attrs(image)))
+            }
+            Node::Link(link) => Some(self.decoded_text_region(
+                identity,
+                link.title.as_deref().unwrap_or_default(),
+                link_attrs(link),
+            )),
+            _ => Some(self.flattened_region(identity, node)),
         }
     }
 
@@ -158,30 +163,20 @@ impl MarkdownIrBuilder<'_> {
         identity: RegionIdentity<'_>,
         format: &str,
         node: &Node,
-    ) -> IrRegion {
-        let span = span_from_positioned_node(node);
-        let text = span
-            .and_then(|source_span| {
-                self.source
-                    .get(source_span.byte_start..source_span.byte_end)
-            })
-            .unwrap_or_default()
-            .to_owned();
-        let segments = span
-            .map(|source_span| {
-                vec![IrSegment::new(
-                    0,
-                    text.clone(),
-                    SegmentOrigin::Source {
-                        span: source_span,
-                        node: identity.node_id.to_owned(),
-                    },
-                )]
-            })
-            .unwrap_or_default();
+    ) -> Option<IrRegion> {
+        let span = span_from_positioned_node(node)?;
+        let text = self.source.get(span.byte_start..span.byte_end)?.to_owned();
+        let segments = vec![IrSegment::new(
+            0,
+            text.clone(),
+            SegmentOrigin::Source {
+                span,
+                node: identity.node_id.to_owned(),
+            },
+        )];
         let mut attrs = BTreeMap::new();
         attrs.insert("format".to_owned(), serde_json::json!(format));
-        IrRegion {
+        Some(IrRegion {
             id: identity.id,
             kind: RegionKind::Frontmatter.as_str().to_owned(),
             scope: vec![
@@ -197,7 +192,7 @@ impl MarkdownIrBuilder<'_> {
             owner: None,
             attrs,
             parent_region: self.current_parent_region_id(),
-        }
+        })
     }
 
     fn decoded_text_region(

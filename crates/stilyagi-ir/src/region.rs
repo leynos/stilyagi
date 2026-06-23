@@ -247,16 +247,23 @@ pub enum SegmentOrigin {
 
 impl IrSegment {
     /// Build an IR segment from flattened text and its origin.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `text_start + segment_text.len()` would overflow `usize`.
     #[must_use]
     pub fn new(text_start: usize, segment_text: impl Into<String>, origin: SegmentOrigin) -> Self {
         let text = segment_text.into();
+        let Some(text_end) = text_start.checked_add(text.len()) else {
+            panic!("segment text range overflowed usize");
+        };
         let (source, synthetic, node) = match origin {
             SegmentOrigin::Source { span, node } => (Some(span), None, Some(node)),
             SegmentOrigin::Synthetic { reason } => (None, Some(reason.as_str().to_owned()), None),
         };
         Self {
             text_start,
-            text_end: text_start + text.len(),
+            text_end,
             source,
             synthetic,
             node,

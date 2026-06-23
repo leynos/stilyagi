@@ -93,7 +93,7 @@ fn bridge_can_call_the_rust_extraction_entrypoint(bridge_state: &mut BridgeState
 #[when("the bridge extracts a Markdown document")]
 fn bridge_extracts_a_markdown_document(bridge_state: &mut BridgeState) {
     perform_extraction("# Heading", "markdown", bridge_state);
-    bridge_state.expected_document_text = Some("# Heading".to_owned());
+    bridge_state.expected_document_text = Some("Heading".to_owned());
 }
 
 #[when("the bridge extracts the shared Markdown fixture")]
@@ -101,7 +101,7 @@ fn bridge_extracts_the_shared_markdown_fixture(bridge_state: &mut BridgeState) {
     let source = read_shared_corpus_fixture(SHARED_MARKDOWN_FIXTURE_PATH);
 
     perform_extraction(&source, "markdown", bridge_state);
-    bridge_state.expected_document_text = Some(source);
+    bridge_state.expected_document_text = Some("Fixture Heading".to_owned());
 }
 
 #[when("the bridge extracts a blank Markdown document")]
@@ -192,16 +192,13 @@ fn assert_source_backed_region_payload(
     let first_region_any = must_ok!(regions.get_item(0), "missing first region");
     let first_region = must_ok!(first_region_any.cast::<PyDict>(), "expected PyDict");
 
-    assert_region_count(regions, 1);
-    assert_region_field(first_region, "kind", "document");
+    assert_has_regions(regions);
+    assert_region_field(first_region, "kind", "heading");
     assert_region_field(first_region, "text", expected_text);
 }
 
-fn assert_region_count(regions: &Bound<'_, PyList>, expected_count: usize) {
-    assert_eq!(
-        must_ok!(regions.len(), "expected list length"),
-        expected_count
-    );
+fn assert_has_regions(regions: &Bound<'_, PyList>) {
+    assert_ne!(must_ok!(regions.len(), "expected list length"), 0);
 }
 
 fn assert_region_field(region: &Bound<'_, PyDict>, key: &str, expected: &str) {

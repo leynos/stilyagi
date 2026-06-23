@@ -548,11 +548,9 @@ test still represents a genuine PyO3 contract violation.
 ### 4.2 Current mixed-package skeleton
 
 Use [repository layout](repository-layout.md) for the current path inventory
-and module responsibilities. This guide keeps the maintainer workflow rules:
-the Rust crates own extraction fidelity, syntax parsing, source mapping, and IR
-construction; the Python package owns configuration discovery, diagnostics,
-plugin registration, capability planning, rule orchestration, and user-facing
-runtime models.
+and module responsibilities. This guide keeps only the maintainer workflow
+boundary: Rust owns extraction and source fidelity; Python owns orchestration
+and the user-facing runtime.
 
 There are also two concrete cross-boundary rules worth preserving:
 
@@ -685,9 +683,8 @@ is that Python linting has two tiers:
 The repository root `clippy.toml` owns the Clippy thresholds used by the
 workspace, including the four-argument maximum and the low complexity and
 function-length ceilings. Those limits apply to production code, unit tests,
-integration tests, doctests, and PyO3 bridge code because the Makefile uses
-`--workspace --all-targets --all-features` for `cargo check`, `cargo clippy`,
-Whitaker, and Rust tests.
+integration tests, and PyO3 bridge code because the Makefile runs all-target,
+all-feature checks for `cargo check`, `cargo clippy`, Whitaker, and Rust tests.
 
 Run the full lint gate with:
 

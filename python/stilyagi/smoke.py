@@ -27,7 +27,7 @@ Call the same check programmatically with a test extractor:
 >>> def extract_document(source: str, syntax: model.Syntax) -> model.Document:
 ...     return model.Document(
 ...         syntax=syntax,
-...         regions=(model.Region(kind="document", text=source),),
+...         regions=(model.Region(kind="heading", text="Stilyagi smoke"),),
 ...     )
 >>> smoke_installed_package(extract_fn=extract_document).syntax is model.Syntax.MARKDOWN
 True
@@ -133,7 +133,7 @@ def _assert_has_regions(document: model.Document) -> None:
 
 def _assert_has_expected_smoke_region(document: model.Document) -> None:
     """Raise SmokeCheckError if the expected smoke region is absent."""
-    expected_region = model.Region(kind="document", text=SMOKE_SOURCE)
+    expected_region = model.Region(kind="heading", text="Stilyagi smoke")
     if expected_region in document.regions:
         return
     msg = f"smoke extraction must include source-backed region: {expected_region!r}"

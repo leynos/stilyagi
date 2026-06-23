@@ -124,7 +124,7 @@ def test_engine_extract_document_maps_regions_into_model_regions() -> None:
     """Adapt the bridge payload into the Python model surface."""
     document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
 
-    assert document.regions == (model.Region(kind="document", text="# Heading"),)
+    assert document.regions == (model.Region(kind="heading", text="Heading"),)
 
 
 def test_engine_extract_document_drops_blank_markdown_region() -> None:

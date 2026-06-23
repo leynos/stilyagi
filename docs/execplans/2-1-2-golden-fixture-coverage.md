@@ -1,14 +1,14 @@
 # Cover every v1 Markdown region kind with golden fixtures
 
-This ExecPlan (execution plan) is a living document. The sections `Constraints`,
-`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
-and `Outcomes & Retrospective` must be kept up to date as work proceeds.
+This completed ExecPlan records the implementation history for roadmap item
+2.1.2. The sections `Constraints`, `Tolerances`, `Risks`, `Progress`,
+`Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` were
+maintained while work proceeded and are now retained as retrospective evidence.
 
 Status: COMPLETE
 
-Approval gate: this plan must not be implemented until explicit user approval
-is recorded in the `Decision Log`. After approval, `Status` changes to
-`APPROVED`, then to `IN PROGRESS` when implementation begins.
+Approval gate: implementation was approved in the `Decision Log` before work
+began. This document is now archival and no longer represents an active gate.
 
 ## Purpose / big picture
 

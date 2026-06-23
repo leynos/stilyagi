@@ -10,7 +10,7 @@ import yaml
 from stilyagi import model, smoke
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
-EXPECTED_SMOKE_REGION = model.Region(kind="document", text=smoke.SMOKE_SOURCE)
+EXPECTED_SMOKE_REGION = model.Region(kind="heading", text="Stilyagi smoke")
 ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
 WorkflowStep = typ.TypedDict(
     "WorkflowStep",
@@ -99,7 +99,7 @@ def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
         (
             lambda _source, _syntax: model.Document(
                 syntax=model.Syntax.PYTHON_DOCSTRING,
-                regions=(model.Region(kind="document", text="# Stilyagi smoke"),),
+                regions=(EXPECTED_SMOKE_REGION,),
             ),
             "unexpected syntax",
         ),
@@ -113,7 +113,7 @@ def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
         (
             lambda _source, syntax: model.Document(
                 syntax=syntax,
-                regions=(model.Region(kind="document", text="# Unexpected smoke"),),
+                regions=(model.Region(kind="heading", text="Unexpected smoke"),),
             ),
             "source-backed region",
         ),

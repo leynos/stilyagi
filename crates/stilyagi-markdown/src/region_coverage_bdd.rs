@@ -37,7 +37,7 @@ fn valid_markdown_fixture_corpus_is_extracted(region_coverage_state: &mut Region
             let source = must_read_fixture(&relative_path);
             let identity = SourceIdentity::new(
                 Some(relative_path.clone()),
-                Some(format!("file:///{relative_path}")),
+                Some(format!("file:///repo/{relative_path}")),
             );
             let document = match markdown_ir_document(&source, identity) {
                 Ok(document) => document,

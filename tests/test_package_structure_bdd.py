@@ -131,7 +131,7 @@ def package_reports_a_markdown_document_extracted_by_rust(
     payload = json.loads(boundary_probe["stdout"])
     regions = payload["regions"]
     assert payload["syntax"] == "markdown"
-    assert {"kind": "document", "text": "# Heading"} in regions
+    assert {"kind": "heading", "text": "Heading"} in regions
 
 
 @when("I import the legacy pure-Python fallback module")
