@@ -54,9 +54,20 @@ owns a long-lived architectural role:
 
   document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
   assert document.syntax is model.Syntax.MARKDOWN
-  assert document.regions[0].text == "# Heading"
+  assert document.regions[0].kind == "heading"
+  assert document.regions[0].text == "Heading"
   assert document.ir is not None
   assert document.ir["schema_version"] == "1.0.0"
+  ```
+
+  Query the current IR region-kind vocabulary before writing code that
+  branches on region kinds:
+
+  ```python
+  from stilyagi import engine
+
+  assert "heading" in engine.supported_region_kinds()
+  assert "link_title" in engine.supported_region_kinds()
   ```
 
 - `stilyagi.model` is the future home for document, region, sentence, and
@@ -114,6 +125,10 @@ The new extraction path is intentionally narrow in this slice:
   and `table_cell` regions; structural `list_item` and `blockquote` container
   regions; source-backed whole-block `frontmatter`; and synthetic decoded
   `image_alt` and `link_title` regions.
+- `document.regions` exposes the same supported region-kind spellings as a
+  compact typed Python view. Inspect `region.kind` and `region.text` for common
+  workflows, and use `document.ir["regions"]` when byte spans, scopes, or
+  segment origins are needed.
 - `list_item` and `blockquote` regions are containers. Their prose normally
   appears in child regions linked through `parent_region`.
 - `image_alt` and `link_title` expose decoded lint text. They are inspection

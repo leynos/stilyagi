@@ -36,6 +36,7 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
                 "FixPlan",
                 "RendererRegistry",
                 "extract_document",
+                "supported_region_kinds",
             ],
         ),
         (model, ["Document", "Region", "Sentence", "Syntax", "Token"]),
@@ -168,9 +169,7 @@ def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
 
 def test_engine_bridge_region_kind_spellings_match_the_rust_ir_vocab() -> None:
     """Expose the canonical Rust IR region kind spellings to Python."""
-    from stilyagi._stilyagi_rs import supported_region_kinds
-
-    assert supported_region_kinds() == (
+    assert engine.supported_region_kinds() == (
         "heading",
         "paragraph",
         "list_item",
@@ -214,7 +213,7 @@ def test_engine_extract_document_warns_and_preserves_unknown_ir_region_kind(
         record.message
         for record in caplog.records
         if record.name == "stilyagi.engine.extraction"
-    ] == ["Unknown IR region kind from Rust bridge at index 0: future_kind"]
+    ] == ["Unknown IR region kind from Rust bridge at index 0"]
 
 
 @pytest.mark.parametrize(

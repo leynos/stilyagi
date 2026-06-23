@@ -338,3 +338,26 @@ fn span_from_positioned_node(node: &Node) -> Option<SourceSpan> {
     let position = node.position()?;
     SourceSpan::new(position.start.offset, position.end.offset)
 }
+
+#[cfg(test)]
+mod tests {
+    //! Regression tests for Markdown region emission edge cases.
+
+    use markdown::mdast::{Node, Yaml};
+    use rstest::rstest;
+
+    use crate::builder::MarkdownIrBuilder;
+
+    #[rstest]
+    fn frontmatter_without_position_does_not_emit_empty_region() {
+        let mut builder = MarkdownIrBuilder::new("---\ntitle: Example\n---");
+        let node = Node::Yaml(Yaml {
+            value: "title: Example".to_owned(),
+            position: None,
+        });
+
+        builder.push_postorder_region_for_node(&node, "n0");
+
+        assert!(builder.regions.is_empty());
+    }
+}
