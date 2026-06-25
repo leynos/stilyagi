@@ -86,6 +86,18 @@ fn image_alt_and_link_title_regions_are_synthetic_decoded_text() {
     );
 }
 
+#[rstest]
+fn empty_link_title_does_not_produce_a_region() {
+    let document = document_for(Path::new(
+        "tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture",
+    ));
+    let link_titles = regions_of_kind(&document, RegionKind::LinkTitle);
+    assert!(
+        link_titles.iter().all(|region| !region.text.is_empty()),
+        "every emitted link_title region must have non-empty text"
+    );
+}
+
 fn emitted_region_kinds_for_valid_markdown_corpus() -> BTreeSet<String> {
     valid_markdown_fixture_paths()
         .into_iter()

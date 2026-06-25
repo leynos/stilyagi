@@ -137,16 +137,11 @@ fn validate_ir_consistency_reports_line_index_mismatches() {
 fn validate_ir_consistency_reports_duplicate_node_ids() {
     assert_validation_reports(
         |document| {
-            let duplicate_id = document
-                .nodes
-                .first()
-                .expect("expected at least one node")
-                .id
-                .clone();
-            let node = document.nodes.get_mut(1).expect("expected a second node");
-            node.id = duplicate_id;
+            if let Some(node) = document.nodes.first().cloned() {
+                document.nodes.push(node);
+            }
         },
-        "ir-node-id-duplicate",
+        "ir-duplicate-node-id",
         &["duplicate node id"],
     );
 }
@@ -155,19 +150,11 @@ fn validate_ir_consistency_reports_duplicate_node_ids() {
 fn validate_ir_consistency_reports_duplicate_region_ids() {
     assert_validation_reports(
         |document| {
-            let duplicate_id = document
-                .regions
-                .first()
-                .expect("expected at least one region")
-                .id
-                .clone();
-            let region = document
-                .regions
-                .get_mut(1)
-                .expect("expected a second region");
-            region.id = duplicate_id;
+            if let Some(region) = document.regions.first().cloned() {
+                document.regions.push(region);
+            }
         },
-        "ir-region-id-duplicate",
+        "ir-duplicate-region-id",
         &["duplicate region id"],
     );
 }

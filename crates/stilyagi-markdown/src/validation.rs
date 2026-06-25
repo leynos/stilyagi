@@ -19,7 +19,7 @@ pub(crate) fn validate_ir_consistency(
     {
         return Err(stilyagi_markdown_message(
             context,
-            "ir-node-id-duplicate",
+            "ir-duplicate-node-id",
             format!("duplicate node id {duplicate_id}"),
         ));
     }
@@ -28,7 +28,7 @@ pub(crate) fn validate_ir_consistency(
     {
         return Err(stilyagi_markdown_message(
             context,
-            "ir-region-id-duplicate",
+            "ir-duplicate-region-id",
             format!("duplicate region id {duplicate_id}"),
         ));
     }

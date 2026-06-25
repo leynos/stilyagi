@@ -10,7 +10,7 @@ expression: json
     "syntax": "markdown",
     "natural_language": null,
     "encoding": "utf-8",
-    "content_hash": "sha256:958eb58e749c5b7db6cecec1c6d467149d2ac728e16ac177d1da06d8020198f9"
+    "content_hash": "sha256:2cee5f70491a681389fb066eb35c264390d8cd8e48b8737f2a7f07ad7425184a"
   },
   "producers": [
     {
@@ -30,7 +30,9 @@ expression: json
     226,
     266,
     267,
-    322
+    310,
+    311,
+    366
   ],
   "trees": [
     {
@@ -48,13 +50,14 @@ expression: json
       "parent": null,
       "children": [
         "n1",
-        "n19"
+        "n19",
+        "n22"
       ],
       "fields": {},
       "props": {},
       "span": {
         "byte_start": 0,
-        "byte_end": 322
+        "byte_end": 366
       },
       "flags": {
         "named": true,
@@ -430,14 +433,75 @@ expression: json
     {
       "id": "n19",
       "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n0",
+      "children": [
+        "n20"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 267,
+        "byte_end": 309
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n20",
+      "tree": "t0",
+      "kind": "link",
+      "parent": "n19",
+      "children": [
+        "n21"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 267,
+        "byte_end": 309
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n21",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n20",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 268,
+        "byte_end": 284
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n22",
+      "tree": "t0",
       "kind": "definition",
       "parent": "n0",
       "children": [],
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 267,
-        "byte_end": 321
+        "byte_start": 311,
+        "byte_end": 365
       },
       "flags": {
         "named": true,
@@ -723,6 +787,36 @@ expression: json
       ],
       "origin_nodes": [
         "n1"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r4",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "empty title link",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 16,
+          "source": {
+            "byte_start": 268,
+            "byte_end": 284
+          },
+          "synthetic": null,
+          "node": "n19",
+          "text": "empty title link"
+        }
+      ],
+      "origin_nodes": [
+        "n19"
       ],
       "owner": null,
       "attrs": {},

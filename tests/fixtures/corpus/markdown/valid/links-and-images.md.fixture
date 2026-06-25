@@ -3,4 +3,6 @@ This paragraph has [an inline link](https://example.com "Inline title"),
 an autolink <https://example.org>, an image ![plain alt](plain.png), and a
 decoded image ![AT&amp;T](decoded.png).
 
+[empty title link](https://example.com "")
+
 [design]: https://example.com/design "Reference title"
