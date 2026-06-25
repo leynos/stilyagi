@@ -672,7 +672,7 @@ is that Python linting has two tiers:
 2. Pylint runs second through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
 
-`make lint` then continues into Stilyagi's Rust lint tiers:
+`make lint` then continues into the Rust lint tiers owned by the repository:
 
 1. `cargo doc --workspace --all-features --no-deps` with
    `RUSTDOCFLAGS=-D warnings`
@@ -684,7 +684,7 @@ The repository root `clippy.toml` owns the Clippy thresholds used by the
 workspace, including the four-argument maximum and the low complexity and
 function-length ceilings. Those limits apply to production code, unit tests,
 integration tests, and PyO3 bridge code because the Makefile runs all-targets,
-all-features checks for `cargo check`, `cargo clippy`, Whitaker, and Rust tests.
+all-feature checks for `cargo check`, `cargo clippy`, Whitaker, and Rust tests.
 
 Run the full lint gate with:
 
