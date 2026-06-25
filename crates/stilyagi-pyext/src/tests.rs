@@ -54,6 +54,39 @@ fn assert_markdown_ir_json_contract(ir_json: &str) {
     );
 }
 
+fn assert_supported_tuple_matches(
+    py: Python<'_>,
+    tuple_result: PyResult<Py<PyTuple>>,
+    expected: &[String],
+    failure_context: &str,
+) {
+    let supported_values = match tuple_result {
+        Ok(tuple) => tuple,
+        Err(error) => panic!("unexpected {failure_context} failure: {error}"),
+    };
+    let supported_tuple = supported_values.bind(py);
+    let tuple_len = match supported_tuple.len() {
+        Ok(len) => len,
+        Err(error) => panic!("expected tuple length: {error}"),
+    };
+
+    assert_eq!(tuple_len, expected.len());
+    let actual = (0..tuple_len)
+        .map(|index| {
+            let item = match supported_tuple.get_item(index) {
+                Ok(item) => item,
+                Err(error) => panic!("missing tuple item: {error}"),
+            };
+            match item.extract::<String>() {
+                Ok(value) => value,
+                Err(error) => panic!("expected tuple string: {error}"),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(actual, expected);
+}
+
 #[rstest]
 fn hello_delegates_to_the_core_smoke_greeting() {
     assert_eq!(hello(), stilyagi_core::smoke_hello());
@@ -68,31 +101,6 @@ fn hello_is_not_the_legacy_python_fallback(#[case] legacy_fallback: &str) {
 #[rstest]
 fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
     Python::attach(|py| {
-        let syntax_tuple_result = supported_syntaxes_py(py);
-
-        assert!(syntax_tuple_result.is_ok());
-        let supported_syntaxes = match syntax_tuple_result {
-            Ok(syntax_tuple) => syntax_tuple,
-            Err(error) => panic!("unexpected supported_syntaxes failure: {error}"),
-        };
-        let supported_syntaxes_bound = supported_syntaxes.bind(py);
-        let supported_syntax_tuple = supported_syntaxes_bound
-            .cast::<PyTuple>()
-            .unwrap_or_else(|error| panic!("expected PyTuple but got {error}"));
-
-        assert_eq!(
-            supported_syntax_tuple.len().expect("expected tuple length"),
-            ExtractSyntax::ALL.len(),
-        );
-        let actual = (0..supported_syntax_tuple.len().expect("expected tuple length"))
-            .map(|index| {
-                supported_syntax_tuple
-                    .get_item(index)
-                    .expect("missing syntax")
-                    .extract::<String>()
-                    .expect("expected syntax string")
-            })
-            .collect::<Vec<_>>();
         let expected = ExtractSyntax::ALL
             .iter()
             .copied()
@@ -100,34 +108,18 @@ fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
             .map(str::to_owned)
             .collect::<Vec<_>>();
 
-        assert_eq!(actual, expected);
+        assert_supported_tuple_matches(
+            py,
+            supported_syntaxes_py(py),
+            &expected,
+            "supported_syntaxes",
+        );
     });
 }
 
 #[rstest]
 fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
     Python::attach(|py| {
-        let region_tuple_result = supported_region_kinds_py(py);
-
-        assert!(region_tuple_result.is_ok());
-        let supported_regions = match region_tuple_result {
-            Ok(region_tuple) => region_tuple,
-            Err(error) => panic!("unexpected supported_region_kinds failure: {error}"),
-        };
-        let supported_regions_bound = supported_regions.bind(py);
-        let supported_region_tuple = supported_regions_bound
-            .cast::<PyTuple>()
-            .unwrap_or_else(|error| panic!("expected PyTuple but got {error}"));
-
-        let actual = (0..supported_region_tuple.len().expect("expected tuple length"))
-            .map(|index| {
-                supported_region_tuple
-                    .get_item(index)
-                    .expect("missing region kind")
-                    .extract::<String>()
-                    .expect("expected region kind string")
-            })
-            .collect::<Vec<_>>();
         let expected = IrRegionKind::ALL
             .iter()
             .copied()
@@ -135,7 +127,12 @@ fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
             .map(str::to_owned)
             .collect::<Vec<_>>();
 
-        assert_eq!(actual, expected);
+        assert_supported_tuple_matches(
+            py,
+            supported_region_kinds_py(py),
+            &expected,
+            "supported_region_kinds",
+        );
     });
 }
 
