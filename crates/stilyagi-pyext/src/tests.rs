@@ -84,30 +84,23 @@ fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
             supported_syntax_tuple.len().expect("expected tuple length"),
             ExtractSyntax::ALL.len(),
         );
-        assert_eq!(
-            supported_syntax_tuple
-                .get_item(0)
-                .expect("missing first syntax")
-                .extract::<&str>()
-                .expect("expected syntax string"),
-            "markdown",
-        );
-        assert_eq!(
-            supported_syntax_tuple
-                .get_item(1)
-                .expect("missing second syntax")
-                .extract::<&str>()
-                .expect("expected syntax string"),
-            "python_docstring",
-        );
-        assert_eq!(
-            supported_syntax_tuple
-                .get_item(2)
-                .expect("missing third syntax")
-                .extract::<&str>()
-                .expect("expected syntax string"),
-            "rust_doc_comment",
-        );
+        let actual = (0..supported_syntax_tuple.len().expect("expected tuple length"))
+            .map(|index| {
+                supported_syntax_tuple
+                    .get_item(index)
+                    .expect("missing syntax")
+                    .extract::<String>()
+                    .expect("expected syntax string")
+            })
+            .collect::<Vec<_>>();
+        let expected = ExtractSyntax::ALL
+            .iter()
+            .copied()
+            .map(ExtractSyntax::as_str)
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+
+        assert_eq!(actual, expected);
     });
 }
 
@@ -253,6 +246,9 @@ fn bridge_extract_document_rejects_unknown_syntaxes() {
         Ok(document) => panic!("expected unknown syntax error, got {document:?}"),
         Err(error) => error,
     };
+    Python::attach(|py| {
+        assert!(error.is_instance_of::<PyValueError>(py));
+    });
     assert!(error.to_string().contains("not_a_real_syntax"));
 }
 

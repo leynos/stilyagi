@@ -14,6 +14,7 @@ Example: `from stilyagi import model`
 import json
 import logging
 import typing as typ
+from functools import cache
 
 from stilyagi import model
 from stilyagi._stilyagi_rs import (
@@ -41,8 +42,6 @@ class _BridgeDocument(typ.TypedDict):
 
 
 _PYTHON_SYNTAX_SPELLINGS = frozenset(syntax.value for syntax in model.Syntax)
-_SUPPORTED_REGION_KINDS = bridge_supported_region_kinds()
-_KNOWN_IR_REGION_KINDS = frozenset(_SUPPORTED_REGION_KINDS)
 _SYNTAX_VOCAB_VALIDATED = False
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +66,18 @@ def _validate_syntax_vocab_once() -> None:
     _SYNTAX_VOCAB_VALIDATED = True
 
 
+@cache
+def _supported_region_kinds() -> tuple[str, ...]:
+    """Return bridge region kinds, loaded lazily to keep imports side-effect free."""
+    return bridge_supported_region_kinds()
+
+
+@cache
+def _known_ir_region_kinds() -> frozenset[str]:
+    """Return the cached canonical region-kind lookup set."""
+    return frozenset(_supported_region_kinds())
+
+
 def supported_region_kinds() -> tuple[str, ...]:
     """Return the stable IR region-kind spellings advertised by the bridge.
 
@@ -75,7 +86,7 @@ def supported_region_kinds() -> tuple[str, ...]:
     tuple[str, ...]
         Canonical region-kind spellings in bridge order.
     """
-    return _SUPPORTED_REGION_KINDS
+    return _supported_region_kinds()
 
 
 def extract_document(source: str, syntax: model.Syntax) -> model.Document:
@@ -213,7 +224,7 @@ def _warn_unknown_ir_region_kinds(ir_payload: cabc.Mapping[str, typ.Any]) -> Non
     if not isinstance(regions, list):
         return
     regions = typ.cast("list[object]", regions)
-    for index, _kind in _iter_unknown_region_kinds(regions, _KNOWN_IR_REGION_KINDS):
+    for index, _kind in _iter_unknown_region_kinds(regions, _known_ir_region_kinds()):
         _LOGGER.warning(
             "Unknown IR region kind from Rust bridge at index %s",
             index,

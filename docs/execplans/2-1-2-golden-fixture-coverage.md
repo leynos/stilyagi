@@ -613,8 +613,9 @@ of truth (`RegionKind`), the thin-container convention, the documented `scope`
 and `attrs` conventions per kind, the synthetic-only alt and title decision,
 and the re-slice validator invariant. Update `docs/stilyagi-design.md` §6 and
 §7.1 only to reflect resolved ambiguities (the scope and attrs conventions, the
-deferral). Update `docs/users-guide.md` only if the supported Python surface
-changed (the `supported_region_kinds()` function, if added).
+deferral). Update `docs/users-guide.md` to document the
+`supported_region_kinds()` Python API and the warn-and-preserve behaviour for
+unknown future canonical IR region kinds.
 
 Mark roadmap item 2.1.2 done in `docs/roadmap.md`. Run the documentation gates
 and then the full gates:
@@ -1216,8 +1217,8 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   site, but it keeps source-byte and emitted-text cursors synchronized across
   source-backed chunks, CRLF line endings, synthetic soft breaks, hard breaks,
   and decoded text fallbacks. Replacing it with loose `usize` variables would
-  make the same correctness guarantee harder to audit. Date/Author:
-  2026-06-25, implementation agent.
+  make the same correctness guarantee harder to audit. Date/Author: 2026-06-25,
+  implementation agent.
 
 - Decision: retain the Rust `proptest` coverage added for segment invariants.
   Rationale: the generated cases exercise contiguous and non-contiguous segment
@@ -1228,9 +1229,9 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
 
 - Decision: retain capability-oriented fixture I/O through `cap-std`.
   Rationale: fixture reads are shared by multiple crates and tests, and the
-  repository-root `Dir` plus normalized relative paths enforce the same
-  sandbox boundary the tests are asserting. Plain `std::fs` calls could read
-  the fixtures but would drop the path-confinement guarantee. Date/Author:
+  repository-root `Dir` plus normalized relative paths enforce the same sandbox
+  boundary the tests are asserting. Plain `std::fs` calls could read the
+  fixtures but would drop the path-confinement guarantee. Date/Author:
   2026-06-25, implementation agent.
 
 - Decision: retain the `ExpectedText<'a>` test newtype. Rationale: it
@@ -1245,12 +1246,11 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
 Roadmap item 2.1.2 is implemented. The valid Markdown corpus now exercises the
 promised emitted Markdown region kinds: `heading`, `paragraph`, `list_item`,
 `blockquote`, `table_cell`, `frontmatter`, `image_alt`, and `link_title`.
-Malformed fixtures, CRLF fixtures, adversarial fixtures, property tests,
-plain coverage tests, and snapshots cover parser recovery and the important IR
-invariants.
-Post-implementation maintainability cleanups also addressed CodeScene
-biomarkers in the Markdown test modules without changing emitted IR behaviour
-or snapshots.
+Malformed fixtures, CRLF fixtures, adversarial fixtures, property tests, plain
+coverage tests, and snapshots cover parser recovery and the important IR
+invariants. Post-implementation maintainability cleanups also addressed
+CodeScene biomarkers in the Markdown test modules without changing emitted IR
+behaviour or snapshots.
 
 The thin-container decision aged well through implementation. It avoided
 duplicating prose bytes for list items and blockquotes while still giving rules

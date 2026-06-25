@@ -269,7 +269,9 @@ pub(super) fn parent_regions_reference_earlier_regions(document: &IrDocument) ->
         {
             return false;
         }
-        seen.insert(region.id.as_str());
+        if !seen.insert(region.id.as_str()) {
+            return false;
+        }
     }
     true
 }

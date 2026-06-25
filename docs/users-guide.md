@@ -60,8 +60,8 @@ owns a long-lived architectural role:
   assert document.ir["schema_version"] == "1.0.0"
   ```
 
-  Query the current IR region-kind vocabulary before writing code that
-  branches on region kinds:
+  Query the current IR region-kind vocabulary before writing code that branches
+  on region kinds:
 
   ```python
   from stilyagi import engine
@@ -129,6 +129,9 @@ The new extraction path is intentionally narrow in this slice:
   compact typed Python view. Inspect `region.kind` and `region.text` for common
   workflows, and use `document.ir["regions"]` when byte spans, scopes, or
   segment origins are needed.
+- When `document.ir["regions"]` contains an unknown future region kind, the
+  Python adapter logs a warning and preserves the region in `document.ir`
+  rather than rejecting the document.
 - `list_item` and `blockquote` regions are containers. Their prose normally
   appears in child regions linked through `parent_region`.
 - `image_alt` and `link_title` expose decoded lint text. They are inspection

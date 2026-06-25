@@ -63,6 +63,13 @@
   contributors should treat carefully.
 - [Documentation style guide](documentation-style-guide.md) defines the
   repository-wide writing and Markdown conventions.
+- [`rstest-bdd` user's guide](rstest-bdd-users-guide.md) documents the
+  repository's Rust BDD test framework conventions.
+- [Reliable testing in Rust via dependency injection](
+  reliable-testing-in-rust-via-dependency-injection.md) records deterministic
+  Rust testing patterns for IO and process-boundary code.
+- [Rust testing with `rstest` fixtures](rust-testing-with-rstest-fixtures.md)
+  records Rust fixture and parameterized-test conventions.
 - [Scripting standards](scripting-standards.md) describes the expectations for
   shell and automation scripts in this repository.
 - [Local validation with act and pytest](
