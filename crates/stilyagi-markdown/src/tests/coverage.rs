@@ -93,6 +93,10 @@ fn empty_link_title_does_not_produce_a_region() {
     ));
     let link_titles = regions_of_kind(&document, RegionKind::LinkTitle);
     assert!(
+        link_titles.iter().any(|region| !region.text.is_empty()),
+        "fixture must emit at least one non-empty link_title region"
+    );
+    assert!(
         link_titles.iter().all(|region| !region.text.is_empty()),
         "every emitted link_title region must have non-empty text"
     );
