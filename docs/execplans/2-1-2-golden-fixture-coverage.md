@@ -130,8 +130,6 @@ Before implementing this plan, load and apply these skills:
 - `rust-unit-testing` and `nextest`, for `rstest` fixtures, parametrized table
   tests, and targeted Rust test execution.
 - `proptest`, for the segment-invariant property tests.
-- `rstest-bdd` guidance in `docs/rstest-bdd-users-guide.md`, for the Rust
-  behaviour feature.
 - `arch-decision-records`, for the Y-Statement ADR that records the
   `frontmatter_field` deferral and region-vocabulary governance.
 - `python-router`, then `python-testing`, for the Python bridge parity test and
@@ -222,10 +220,10 @@ source at `markdown-1.0.0/src/mdast.rs`):
   and blockquote indentation, anything that `mdformat-all` or markdownlint
   MD041 would rewrite) use the `.md.fixture` suffix. Only formatter-safe
   fixtures use `.md`.
-- Use `rstest` for Rust unit tests, `rstest-bdd` for Rust behaviour tests,
-  `insta` for Rust snapshots, `proptest` for Rust segment invariants, `pytest`
-  for Python unit tests, `pytest-bdd` only where an externally observable
-  behaviour needs a Gherkin scenario, and `syrupy` for Python snapshots.
+- Use `rstest` for Rust unit and behaviour tests, `insta` for Rust snapshots,
+  `proptest` for Rust segment invariants, `pytest` for Python unit tests,
+  `pytest-bdd` only where an externally observable behaviour needs a Gherkin
+  scenario, and `syrupy` for Python snapshots.
 - Run format, typecheck, lint, and tests sequentially using the Makefile
   targets, capturing long output with `tee` into `/tmp` logs. Do not run gates
   in parallel.
@@ -550,10 +548,8 @@ references an earlier region; and synthetic reasons come only from the
 centralized allow-list. Prefer strategies that construct valid layouts directly
 over filtering.
 
-Add the Rust BDD feature. Create
-`crates/stilyagi-markdown/tests/features/region_coverage.feature` with a
-scenario stating that extracting the valid Markdown corpus yields at least one
-region for each promised v1 Markdown kind, and wire it with `rstest-bdd`. Run:
+Add the Rust coverage test stating that extracting the valid Markdown corpus
+yields at least one region for each promised v1 Markdown kind. Run:
 
 ```bash
 cargo test -p stilyagi-ir -p stilyagi-markdown 2>&1 \
@@ -953,8 +949,8 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
 
 - Observation: Stage 4 adds malformed recovery snapshots, literal CRLF fixture
   guards, adversarial nested-blockquote and empty-list-item assertions,
-  Markdown-generated `proptest` invariant coverage, and an `rstest-bdd`
-  region-coverage scenario. Evidence:
+  Markdown-generated `proptest` invariant coverage, and a plain Rust
+  region-coverage test. Evidence:
   `/tmp/test-stage4-targeted-stilyagi-2-1-2-golden-fixture-coverage.out` shows
   48 `stilyagi-markdown` tests passing after the malformed snapshots were
   accepted, and `/tmp/test-stage4-stilyagi-2-1-2-golden-fixture-coverage.out`
@@ -964,12 +960,11 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   allow-list invariants are now exercised against both fixtures and generated
   Markdown constructs.
 
-- Observation: Stage 4 keeps the new focused Rust files below the repository
-  size limit. Evidence: `wc -l` reports 127 lines for
-  `crates/stilyagi-markdown/src/region_coverage_bdd.rs`, 122 for
-  `crates/stilyagi-markdown/src/tests/malformed.rs`, 72 for
-  `crates/stilyagi-markdown/src/tests/properties.rs`, 226 for
-  `crates/stilyagi-markdown/src/tests.rs`, and 333 for
+- Observation: Stage 4 keeps the focused Rust files below the repository size
+  limit. Evidence: after the architectural-complexity cleanup, `wc -l` reports
+  116 lines for `crates/stilyagi-markdown/src/tests/malformed.rs`, 72 for
+  `crates/stilyagi-markdown/src/tests/properties.rs`, 275 for
+  `crates/stilyagi-markdown/src/tests.rs`, and 225 for
   `crates/stilyagi-markdown/src/lib.rs`. Impact: the additional coverage does
   not require another test-module split.
 
@@ -1196,13 +1191,63 @@ mirroring `supported_syntaxes`. No new external crate dependency is expected.
   would become less clear if forced through a region-only helper. Date/Author:
   2026-06-16, implementation agent.
 
+- Decision: collapse the Markdown-only `rstest-bdd` coverage scenario into the
+  existing plain Rust coverage test. Rationale: the scenario had one
+  instantiation, duplicated
+  `valid_markdown_corpus_covers_promised_markdown_region_kinds`, and is not
+  expected to gain another Markdown scenario in the next two roadmap slices.
+  Removing `crates/stilyagi-markdown/src/region_coverage_bdd.rs`, its feature
+  file, and the `stilyagi-markdown` BDD dev-dependencies preserves the same
+  fixture guarantee with less test vocabulary to learn. Date/Author:
+  2026-06-25, implementation agent.
+
+- Decision: retain `MarkdownIrBuilder` and its context stacks, and keep
+  Markdown region emission in `region_emission.rs`. Rationale: the builder is
+  instantiated once, but the stacks encode traversal state that is reused by
+  structural parents, scopes, owner nodes, node IDs, list depth, blockquote
+  depth, table-cell coordinates, and region IDs during one recursive Markdown
+  walk. Replacing those stacks with ad hoc locals would weaken the parent/child
+  and scope invariants, while folding `region_emission.rs` into `builder.rs`
+  would push the combined file over the repository's 400-line limit and mix
+  traversal mechanics with mdast-to-region mapping. Date/Author: 2026-06-25,
+  implementation agent.
+
+- Decision: retain `SourceTextCursor`. Rationale: it has one instantiation
+  site, but it keeps source-byte and emitted-text cursors synchronized across
+  source-backed chunks, CRLF line endings, synthetic soft breaks, hard breaks,
+  and decoded text fallbacks. Replacing it with loose `usize` variables would
+  make the same correctness guarantee harder to audit. Date/Author:
+  2026-06-25, implementation agent.
+
+- Decision: retain the Rust `proptest` coverage added for segment invariants.
+  Rationale: the generated cases exercise contiguous and non-contiguous segment
+  layouts across the canonical synthetic-reason vocabulary, which fixed
+  examples cannot cover economically. The next roadmap slices are likely to add
+  more span and suppression invariants, so the dependency has near-term reuse
+  potential. Date/Author: 2026-06-25, implementation agent.
+
+- Decision: retain capability-oriented fixture I/O through `cap-std`.
+  Rationale: fixture reads are shared by multiple crates and tests, and the
+  repository-root `Dir` plus normalized relative paths enforce the same
+  sandbox boundary the tests are asserting. Plain `std::fs` calls could read
+  the fixtures but would drop the path-confinement guarantee. Date/Author:
+  2026-06-25, implementation agent.
+
+- Decision: retain the `ExpectedText<'a>` test newtype. Rationale: it
+  distinguishes expected prose from fixture paths, snapshot names, and Markdown
+  source strings in tests that still pass several string-like values together;
+  collapsing it would reintroduce the argument-semantics ambiguity that the
+  maintainability cleanup removed. Date/Author: 2026-06-25, implementation
+  agent.
+
 ## Outcomes & Retrospective
 
 Roadmap item 2.1.2 is implemented. The valid Markdown corpus now exercises the
 promised emitted Markdown region kinds: `heading`, `paragraph`, `list_item`,
 `blockquote`, `table_cell`, `frontmatter`, `image_alt`, and `link_title`.
-Malformed fixtures, CRLF fixtures, adversarial fixtures, property tests, BDD
-coverage, and snapshots cover parser recovery and the important IR invariants.
+Malformed fixtures, CRLF fixtures, adversarial fixtures, property tests,
+plain coverage tests, and snapshots cover parser recovery and the important IR
+invariants.
 Post-implementation maintainability cleanups also addressed CodeScene
 biomarkers in the Markdown test modules without changing emitted IR behaviour
 or snapshots.

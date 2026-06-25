@@ -1328,8 +1328,6 @@ dependencies = [
  "markdown",
  "proptest",
  "rstest",
- "rstest-bdd",
- "rstest-bdd-macros",
  "serde_json",
  "stilyagi-ir",
  "stilyagi-test-support",
