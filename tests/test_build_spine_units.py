@@ -148,6 +148,7 @@ def test_smoke_helper_wraps_extractor_failures() -> None:
         _source: str,
         _syntax: model.Syntax,
     ) -> model.Document:
+        """Raise a synthetic bridge failure."""
         raise BridgeFailureError
 
     with pytest.raises(smoke.SmokeCheckError, match="unexpected error") as error:
@@ -163,6 +164,7 @@ def test_smoke_helper_rejects_malformed_extractor_result() -> None:
         _source: str,
         _syntax: model.Syntax,
     ) -> model.Document:
+        """Return a malformed extractor result."""
         return typ.cast("model.Document", {"syntax": "markdown"})
 
     with pytest.raises(smoke.SmokeCheckError, match="unexpected type") as error:
@@ -178,6 +180,7 @@ def test_smoke_helper_accepts_expected_region_after_other_regions() -> None:
         _source: str,
         syntax: model.Syntax,
     ) -> model.Document:
+        """Return the smoke region after another region."""
         return model.Document(
             syntax=syntax,
             regions=(
@@ -211,6 +214,7 @@ def test_smoke_main_failure(
     """Return one and print a prefixed SmokeCheckError message to stderr."""
 
     def fail_smoke_installed_package() -> None:
+        """Raise a synthetic smoke failure."""
         raise smoke.SmokeCheckError("broken")
 
     monkeypatch.setattr(smoke, "smoke_installed_package", fail_smoke_installed_package)

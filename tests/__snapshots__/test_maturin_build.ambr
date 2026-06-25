@@ -13,6 +13,7 @@
       'stilyagi/config.py',
       'stilyagi/diagnostics.py',
       'stilyagi/engine/__init__.py',
+      'stilyagi/engine/api.py',
       'stilyagi/engine/extraction.py',
       'stilyagi/engine/fixes.py',
       'stilyagi/engine/planner.py',

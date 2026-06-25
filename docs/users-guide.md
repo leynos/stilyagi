@@ -232,7 +232,7 @@ extension from the `python/` plus `crates/` mixed-package skeleton, but
 Stilyagi is still in the roadmap phase where architectural contracts are being
 ratified before feature-complete releases land.[^2][^3]
 
-For day-to-day users, the mixed-package skeleton changes three practical things:
+For day-to-day users, the mixed-package skeleton changes four practical things:
 
 - the installation model is still one Python package, even though the
   repository now has explicit `python/` and `crates/` source roots;
@@ -246,10 +246,15 @@ For day-to-day users, the mixed-package skeleton changes three practical things:
   smoke check through the public Python engine API and embedded Rust extension.
 
 The first implemented extractor proof now crosses the embedded Rust boundary
-without shelling out to a helper binary. Non-blank Markdown input still returns
-the compatibility `document` region used by earlier slices, blank Markdown
-input returns zero compatibility regions, and Markdown input now also carries a
-canonical IR envelope on `Document.ir`.
+without shelling out to a helper binary. Non-blank Markdown input returns typed
+`document.regions` for source-backed regions such as `heading`, `paragraph`,
+and `table_cell`, plus container and decoded-text region kinds when the source
+contains lists, blockquotes, frontmatter, images, or link titles. Blank Markdown
+input returns zero regions. Markdown input also carries a canonical IR envelope
+on `Document.ir`; use `engine.supported_region_kinds()` to inspect the current
+region vocabulary before branching on `region.kind`. The package smoke check
+now calls `engine.extract_document()` and requires the canonical smoke heading
+region to prove the public Python API can cross the embedded Rust bridge.
 
 Until the command-line interface (CLI) and feature slices are implemented,
 treat this guide as a record of the stable user-facing v1 contract rather than

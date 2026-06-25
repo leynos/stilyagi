@@ -1,6 +1,7 @@
 """Execution-engine package boundary for Stilyagi."""
 
-from .extraction import extract_document, supported_region_kinds
+from .api import extract_document
+from .extraction import supported_region_kinds
 from .fixes import FixPlan
 from .planner import ExecutionPlan
 from .renderers import RendererRegistry

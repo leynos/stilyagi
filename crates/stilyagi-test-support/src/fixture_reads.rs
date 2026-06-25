@@ -96,3 +96,20 @@ pub fn fixture_paths_in(relative_dir: impl AsRef<Path>) -> Result<Vec<String>, F
     paths.sort();
     Ok(paths)
 }
+
+#[cfg(test)]
+mod tests {
+    //! Tests for repository-relative fixture reading helpers.
+
+    use super::fixture_paths_in;
+
+    #[test]
+    fn fixture_paths_in_returns_sorted_paths() {
+        let paths = fixture_paths_in("tests/fixtures/corpus/markdown/valid")
+            .expect("valid Markdown fixture directory should be readable");
+        let mut sorted_paths = paths.clone();
+        sorted_paths.sort();
+
+        assert_eq!(paths, sorted_paths);
+    }
+}

@@ -41,6 +41,7 @@ _DIST_INFO_SUFFIXES: dict[str, str] = {
 
 
 def _resolve_uv(root: pathlib.Path) -> str | None:
+    """Return the preferred uv executable visible to build tests."""
     uv_name = "uv.exe" if sys.platform == "win32" else "uv"
     venv_bin = "Scripts" if sys.platform == "win32" else "bin"
     local_uv_paths = [root / ".uv-tools" / uv_name, root / ".venv" / venv_bin / uv_name]
@@ -53,6 +54,7 @@ def _resolve_uv(root: pathlib.Path) -> str | None:
 
 
 def _read_maturin_pins(root: pathlib.Path) -> dict[str, str]:
+    """Return maturin pins from dependency and build-system tables."""
     pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     dependency_groups = _object_mapping(pyproject["dependency-groups"])
     build_system = _object_mapping(pyproject["build-system"])
@@ -62,10 +64,12 @@ def _read_maturin_pins(root: pathlib.Path) -> dict[str, str]:
 
 
 def _read_expected_maturin_version(root: pathlib.Path) -> str:
+    """Return the maturin version expected by the development dependency pin."""
     return _read_maturin_pins(root)["[dependency-groups].dev"]
 
 
 def _installed_maturin_version() -> str | None:
+    """Return the installed maturin package version when importable."""
     try:
         return im.version("maturin") if _maturin_module_available() else None
     except im.PackageNotFoundError:
@@ -73,6 +77,7 @@ def _installed_maturin_version() -> str | None:
 
 
 def _toolchain_available() -> bool:
+    """Return whether native wheel build prerequisites are available."""
     return bool(
         shutil.which("cargo") and shutil.which("rustc") and _maturin_module_available()
     )
@@ -126,6 +131,7 @@ def _wheel_build_snapshot(whl_path: pathlib.Path) -> dict[str, object]:
 
 
 def _object_mapping(value: object) -> dict[str, object]:
+    """Return a TOML table as a string-keyed mapping."""
     if not isinstance(value, dict):
         msg = f"Expected TOML table, found {type(value).__name__}"
         raise TypeError(msg)
@@ -133,6 +139,7 @@ def _object_mapping(value: object) -> dict[str, object]:
 
 
 def _require_maturin_pin(dependencies: object, location: str) -> str:
+    """Return the exact maturin pin from a dependency list."""
     if not isinstance(dependencies, list):
         msg = f"Expected dependency list at {location}"
         raise TypeError(msg)
@@ -147,6 +154,7 @@ def _require_maturin_pin(dependencies: object, location: str) -> str:
 
 
 def _maturin_module_available() -> bool:
+    """Return whether the maturin module can be imported."""
     try:
         return importlib.util.find_spec("maturin") is not None
     except ImportError:
@@ -154,11 +162,13 @@ def _maturin_module_available() -> bool:
 
 
 def _header_value(headers: dict[str, list[str]], key: str) -> str | None:
+    """Return the first parsed metadata header value for key."""
     values = headers.get(key)
     return values[0] if values else None
 
 
 def _parse_metadata(raw_metadata: str) -> dict[str, object]:
+    """Parse wheel METADATA into the reviewed snapshot shape."""
     headers: dict[str, list[str]] = {}
     current_key: str | None = None
     for line in raw_metadata.splitlines():
@@ -181,6 +191,7 @@ def _parse_metadata(raw_metadata: str) -> dict[str, object]:
 
 
 def _normalize_wheel_entry(name: str) -> str:
+    """Normalize one wheel archive entry for stable snapshots."""
     if _EXTENSION_MODULE_RE.match(name):
         return "stilyagi/_stilyagi_rs.cpython-<platform>.<ext>"
     if "/sboms/" in name:
@@ -192,11 +203,13 @@ def _normalize_wheel_entry(name: str) -> str:
 
 
 def _normalize_wheel_tag(tag: str) -> str:
+    """Normalize the platform component of one wheel tag."""
     python_tag, abi_tag, _platform_tag = tag.split("-", maxsplit=2)
     return f"{python_tag}-{abi_tag}-<platform>"
 
 
 def _locate_dist_info_wheel(entry_names: list[str]) -> str:
+    """Return the WHEEL metadata entry from a built wheel archive."""
     wheel_name = next(
         (name for name in entry_names if name.endswith(".dist-info/WHEEL")),
         None,

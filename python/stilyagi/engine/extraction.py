@@ -49,6 +49,13 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
 
+class UnknownIrRegionKind(typ.NamedTuple):
+    """Diagnostic for one canonical IR region kind unknown to Python."""
+
+    index: int
+    kind: str
+
+
 def _validate_syntax_vocab_once() -> None:
     """Fail fast if the Python and Rust syntax vocabularies drift apart."""
     global _SYNTAX_VOCAB_VALIDATED
@@ -109,8 +116,6 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
         extract_document_bridge(source, syntax.value),
     )
     ir_payload = _parse_ir_json(bridge_document.get("ir_json"))
-    if ir_payload is not None:
-        _warn_unknown_ir_region_kinds(ir_payload)
     return model.Document(
         syntax=model.Syntax(bridge_document["syntax"]),
         regions=tuple(
@@ -208,24 +213,39 @@ def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
 def _iter_unknown_region_kinds(
     regions: list[object],
     known_region_kinds: frozenset[str],
-) -> cabc.Iterator[tuple[int, str]]:
-    """Yield ``(index, kind)`` for every unknown region kind."""
+) -> cabc.Iterator[UnknownIrRegionKind]:
+    """Yield diagnostics for every unknown region kind."""
     for index, region in enumerate(regions):
         if not isinstance(region, dict):
             continue
         kind = typ.cast("dict[str, object]", region).get("kind")
         if isinstance(kind, str) and kind not in known_region_kinds:
-            yield index, kind
+            yield UnknownIrRegionKind(index=index, kind=kind)
 
 
-def _warn_unknown_ir_region_kinds(ir_payload: cabc.Mapping[str, typ.Any]) -> None:
-    """Warn when canonical IR includes a region kind unknown to this adapter."""
+def _unknown_ir_region_kinds(
+    ir_payload: cabc.Mapping[str, typ.Any] | None,
+) -> tuple[UnknownIrRegionKind, ...]:
+    """Return unknown canonical IR region-kind diagnostics."""
+    if ir_payload is None:
+        return ()
     regions = ir_payload.get("regions")
     if not isinstance(regions, list):
-        return
+        return ()
     regions = typ.cast("list[object]", regions)
-    for index, _kind in _iter_unknown_region_kinds(regions, _known_ir_region_kinds()):
+    return tuple(_iter_unknown_region_kinds(regions, _known_ir_region_kinds()))
+
+
+def warn_unknown_ir_region_kinds(
+    ir_payload: cabc.Mapping[str, typ.Any] | None,
+    *,
+    operation: str,
+) -> None:
+    """Warn when canonical IR includes region kinds unknown to Python."""
+    for diagnostic in _unknown_ir_region_kinds(ir_payload):
         _LOGGER.warning(
-            "Unknown IR region kind from Rust bridge at index %s",
-            index,
+            "Unknown IR region kind from Rust bridge during %s: index=%s kind=%r",
+            operation,
+            diagnostic.index,
+            diagnostic.kind,
         )

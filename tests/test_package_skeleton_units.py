@@ -191,6 +191,7 @@ def test_engine_extract_document_warns_and_preserves_unknown_ir_region_kind(
     """Warn on unknown canonical IR kinds without rejecting the payload."""
 
     def bridge_payload(source: str, syntax: str) -> dict[str, object]:
+        """Return a bridge payload with a future IR kind."""
         assert source == "Example"
         assert syntax == model.Syntax.MARKDOWN.value
         return {
@@ -209,11 +210,50 @@ def test_engine_extract_document_warns_and_preserves_unknown_ir_region_kind(
 
     assert document.ir is not None
     assert document.ir["regions"] == [{"kind": "future_kind", "text": "Example"}]
-    assert [
-        record.message
+    records = [
+        record
         for record in caplog.records
         if record.name == "stilyagi.engine.extraction"
-    ] == ["Unknown IR region kind from Rust bridge at index 0"]
+    ]
+    assert len(records) == 1
+    assert records[0].message == (
+        "Unknown IR region kind from Rust bridge during "
+        "stilyagi.engine.extract_document: index=0 kind='future_kind'"
+    )
+    assert records[0].args == ("stilyagi.engine.extract_document", 0, "future_kind")
+
+
+def test_extraction_adapter_preserves_unknown_ir_region_kind_without_logging(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep the low-level extraction adapter read-only."""
+
+    def bridge_payload(source: str, syntax: str) -> dict[str, object]:
+        """Return a bridge payload with a future IR kind."""
+        assert source == "Example"
+        assert syntax == model.Syntax.MARKDOWN.value
+        return {
+            "syntax": syntax,
+            "regions": [],
+            "ir_json": json.dumps({
+                "schema_version": "1.0.0",
+                "regions": [{"kind": "future_kind", "text": "Example"}],
+            }),
+        }
+
+    monkeypatch.setattr(extraction_module, "extract_document_bridge", bridge_payload)
+    caplog.set_level(logging.WARNING, logger="stilyagi.engine.extraction")
+
+    document = extraction_module.extract_document("Example", model.Syntax.MARKDOWN)
+
+    assert document.ir is not None
+    assert document.ir["regions"] == [{"kind": "future_kind", "text": "Example"}]
+    assert not [
+        record
+        for record in caplog.records
+        if record.name == "stilyagi.engine.extraction"
+    ]
 
 
 @pytest.mark.parametrize(
