@@ -139,21 +139,23 @@ fn extracted_document_reports_markdown_syntax(bridge_state: &BridgeState) {
 
 #[then("the extracted document preserves one source-backed region")]
 fn extracted_document_preserves_one_source_backed_region(bridge_state: &BridgeState) {
+    assert_expected_document_payload(bridge_state, assert_source_backed_region_payload);
+}
+
+fn assert_expected_document_payload(
+    bridge_state: &BridgeState,
+    assertion: impl FnOnce(Python<'_>, &Py<PyDict>, &str),
+) {
     let extracted_document = must_some!(
         bridge_state.extracted_document.as_ref(),
         "an extracted document should be present"
     );
+    let expected_text = must_some!(
+        bridge_state.expected_document_text.as_deref(),
+        "expected_document_text must be provided for this BDD scenario"
+    );
 
-    Python::attach(|py| {
-        assert_source_backed_region_payload(
-            py,
-            extracted_document,
-            must_some!(
-                bridge_state.expected_document_text.as_deref(),
-                "expected_document_text must be provided for this BDD scenario"
-            ),
-        );
-    });
+    Python::attach(|py| assertion(py, extracted_document, expected_text));
 }
 
 #[then("the extracted document has no regions")]
@@ -182,25 +184,41 @@ fn assert_source_backed_region_payload(
     extracted_document: &Py<PyDict>,
     expected_text: &str,
 ) {
-    let extracted_document_bound = extracted_document.bind(py);
-    let extracted_document_dict =
-        must_ok!(extracted_document_bound.cast::<PyDict>(), "expected PyDict");
+    let (extracted_document_dict, regions) = extracted_document_regions(py, extracted_document);
+    let first_region_any = must_ok!(regions.get_item(0), "missing first region");
+    let first_region = must_ok!(first_region_any.cast::<PyDict>(), "expected PyDict");
+
+    assert_has_regions(&regions);
+    assert_heading_region_payload(first_region, expected_text);
+    assert_canonical_ir_preserves_one_source_backed_heading(
+        &extracted_document_dict,
+        expected_text,
+    );
+}
+
+fn extracted_document_regions<'py>(
+    py: Python<'py>,
+    extracted_document: &'py Py<PyDict>,
+) -> (Bound<'py, PyDict>, Bound<'py, PyList>) {
+    let extracted_document_dict = must_ok!(
+        extracted_document.bind(py).clone().cast_into::<PyDict>(),
+        "expected PyDict"
+    );
     let regions_any = must_ok!(
         extracted_document_dict.get_item("regions"),
         "missing regions payload"
     );
-    let regions = must_ok!(regions_any.cast::<PyList>(), "expected PyList");
-    let first_region_any = must_ok!(regions.get_item(0), "missing first region");
-    let first_region = must_ok!(first_region_any.cast::<PyDict>(), "expected PyDict");
-
-    assert_has_regions(regions);
-    assert_region_field(first_region, "kind", "heading");
-    assert_region_field(first_region, "text", expected_text);
-    assert_canonical_ir_preserves_one_source_backed_heading(extracted_document_dict, expected_text);
+    let regions = must_ok!(regions_any.cast_into::<PyList>(), "expected PyList");
+    (extracted_document_dict, regions)
 }
 
 fn assert_has_regions(regions: &Bound<'_, PyList>) {
     assert_eq!(must_ok!(regions.len(), "expected list length"), 1);
+}
+
+fn assert_heading_region_payload(region: &Bound<'_, PyDict>, expected_text: &str) {
+    assert_region_field(region, "kind", "heading");
+    assert_region_field(region, "text", expected_text);
 }
 
 fn assert_region_field(region: &Bound<'_, PyDict>, key: &str, expected: &str) {
@@ -271,38 +289,16 @@ fn assert_first_region_payload(
     extracted_document: &Py<PyDict>,
     expected_text: &str,
 ) {
-    let extracted_document_bound = extracted_document.bind(py);
-    let extracted_document_dict =
-        must_ok!(extracted_document_bound.cast::<PyDict>(), "expected PyDict");
-    let regions_any = must_ok!(
-        extracted_document_dict.get_item("regions"),
-        "missing regions payload"
-    );
-    let regions = must_ok!(regions_any.cast::<PyList>(), "expected PyList");
+    let (_extracted_document_dict, regions) = extracted_document_regions(py, extracted_document);
     assert_ne!(must_ok!(regions.len(), "expected list length"), 0);
     let first_region_any = must_ok!(regions.get_item(0), "missing first region");
     let first_region = must_ok!(first_region_any.cast::<PyDict>(), "expected PyDict");
-    assert_region_field(first_region, "kind", "heading");
-    assert_region_field(first_region, "text", expected_text);
+    assert_heading_region_payload(first_region, expected_text);
 }
 
 #[then("the extracted document preserves the shared Markdown fixture")]
 fn extracted_document_preserves_the_shared_markdown_fixture(bridge_state: &BridgeState) {
-    let extracted_document = must_some!(
-        bridge_state.extracted_document.as_ref(),
-        "an extracted document should be present"
-    );
-
-    Python::attach(|py| {
-        assert_first_region_payload(
-            py,
-            extracted_document,
-            must_some!(
-                bridge_state.expected_document_text.as_deref(),
-                "expected_document_text must be provided for this BDD scenario"
-            ),
-        );
-    });
+    assert_expected_document_payload(bridge_state, assert_first_region_payload);
 }
 
 #[scenario(
