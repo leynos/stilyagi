@@ -184,11 +184,28 @@ def test_engine_bridge_region_kind_spellings_match_the_rust_ir_vocab() -> None:
     )
 
 
-def test_engine_extract_document_warns_and_preserves_unknown_ir_region_kind(
+@pytest.mark.parametrize(
+    ("extract_document", "expected_warning_args"),
+    [
+        pytest.param(
+            engine.extract_document,
+            ("stilyagi.engine.extract_document", 0, "future_kind"),
+            id="public-engine-boundary",
+        ),
+        pytest.param(
+            extraction_module.extract_document,
+            None,
+            id="read-only-extraction-adapter",
+        ),
+    ],
+)
+def test_extract_document_preserves_unknown_ir_region_kind(
     caplog: pytest.LogCaptureFixture,
+    extract_document: cabc.Callable[[str, model.Syntax], model.Document],
+    expected_warning_args: tuple[str, int, str] | None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Warn on unknown canonical IR kinds without rejecting the payload."""
+    """Preserve unknown IR kinds and only warn at the public command boundary."""
 
     def bridge_payload(source: str, syntax: str) -> dict[str, object]:
         """Return a bridge payload with a future IR kind."""
@@ -206,7 +223,7 @@ def test_engine_extract_document_warns_and_preserves_unknown_ir_region_kind(
     monkeypatch.setattr(extraction_module, "extract_document_bridge", bridge_payload)
     caplog.set_level(logging.WARNING, logger="stilyagi.engine.extraction")
 
-    document = engine.extract_document("Example", model.Syntax.MARKDOWN)
+    document = extract_document("Example", model.Syntax.MARKDOWN)
 
     assert document.ir is not None
     assert document.ir["regions"] == [{"kind": "future_kind", "text": "Example"}]
@@ -215,45 +232,15 @@ def test_engine_extract_document_warns_and_preserves_unknown_ir_region_kind(
         for record in caplog.records
         if record.name == "stilyagi.engine.extraction"
     ]
-    assert len(records) == 1
-    assert records[0].message == (
-        "Unknown IR region kind from Rust bridge during "
-        "stilyagi.engine.extract_document: index=0 kind='future_kind'"
-    )
-    assert records[0].args == ("stilyagi.engine.extract_document", 0, "future_kind")
-
-
-def test_extraction_adapter_preserves_unknown_ir_region_kind_without_logging(
-    caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Keep the low-level extraction adapter read-only."""
-
-    def bridge_payload(source: str, syntax: str) -> dict[str, object]:
-        """Return a bridge payload with a future IR kind."""
-        assert source == "Example"
-        assert syntax == model.Syntax.MARKDOWN.value
-        return {
-            "syntax": syntax,
-            "regions": [],
-            "ir_json": json.dumps({
-                "schema_version": "1.0.0",
-                "regions": [{"kind": "future_kind", "text": "Example"}],
-            }),
-        }
-
-    monkeypatch.setattr(extraction_module, "extract_document_bridge", bridge_payload)
-    caplog.set_level(logging.WARNING, logger="stilyagi.engine.extraction")
-
-    document = extraction_module.extract_document("Example", model.Syntax.MARKDOWN)
-
-    assert document.ir is not None
-    assert document.ir["regions"] == [{"kind": "future_kind", "text": "Example"}]
-    assert not [
-        record
-        for record in caplog.records
-        if record.name == "stilyagi.engine.extraction"
-    ]
+    if expected_warning_args is None:
+        assert records == []
+    else:
+        assert len(records) == 1
+        assert records[0].message == (
+            "Unknown IR region kind from Rust bridge during "
+            "stilyagi.engine.extract_document: index=0 kind='future_kind'"
+        )
+        assert records[0].args == expected_warning_args
 
 
 @pytest.mark.parametrize(

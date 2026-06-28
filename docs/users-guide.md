@@ -227,34 +227,20 @@ expectations in the first releases are defined around English only.
 
 ## 5. Current state of the product
 
-The repository already uses `maturin` to build and develop the embedded
-extension from the `python/` plus `crates/` mixed-package skeleton, but
 Stilyagi is still in the roadmap phase where architectural contracts are being
-ratified before feature-complete releases land.[^2][^3]
+ratified before feature-complete releases land.[^2][^3] The stable user-facing
+surface is the Python package API.
 
-For day-to-day users, the mixed-package skeleton changes four practical things:
+Use `engine.extract_document()` to extract Markdown through the public engine
+boundary. Non-blank Markdown input returns typed `document.regions` for
+source-backed regions such as `heading`, `paragraph`, and `table_cell`, plus
+container and decoded-text region kinds when the source contains lists,
+blockquotes, frontmatter, images, or link titles. Blank Markdown input returns
+zero regions.
 
-- the installation model is still one Python package, even though the
-  repository now has explicit `python/` and `crates/` source roots;
-- editable installations compile the embedded Rust extension into the Python
-  package namespace as `stilyagi._stilyagi_rs`; and
-- the placeholder engine, model, NLP, diagnostic, plugin, and rule modules now
-  exist as stable import locations for later feature slices, so users should
-  expect future releases to extend those modules rather than moving them again.
-- source checkouts use `make build` for development installs and
-  `make release` for release wheel builds; both workflows run the same package
-  smoke check through the public Python engine API and embedded Rust extension.
-
-The first implemented extractor proof now crosses the embedded Rust boundary
-without shelling out to a helper binary. Non-blank Markdown input returns typed
-`document.regions` for source-backed regions such as `heading`, `paragraph`,
-and `table_cell`, plus container and decoded-text region kinds when the source
-contains lists, blockquotes, frontmatter, images, or link titles. Blank Markdown
-input returns zero regions. Markdown input also carries a canonical IR envelope
-on `Document.ir`; use `engine.supported_region_kinds()` to inspect the current
-region vocabulary before branching on `region.kind`. The package smoke check
-now calls `engine.extract_document()` and requires the canonical smoke heading
-region to prove the public Python API can cross the embedded Rust bridge.
+Markdown input also carries a canonical IR envelope on `Document.ir`.
+`engine.supported_region_kinds()` returns the region-kind vocabulary supported
+by the installed package version.
 
 Until the command-line interface (CLI) and feature slices are implemented,
 treat this guide as a record of the stable user-facing v1 contract rather than
