@@ -1,10 +1,21 @@
 """Direct unit tests for Makefile recipe contracts."""
 
+import dataclasses as dc
 import pathlib
 
 import pytest
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+@dc.dataclass(frozen=True)
+class MakefileTargetCase:
+    """Expected recipe contract for one Makefile target."""
+
+    target: str
+    expected_header_fragments: tuple[str, ...]
+    expected_recipe_fragments: tuple[str, ...]
+    should_include_pytest: bool
 
 
 def _collect_recipe_lines(lines: list[str], start: int) -> tuple[str, ...]:
@@ -35,63 +46,93 @@ def makefile_text() -> str:
     return (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 
 
-def test_makefile_lint_target_runs_expected_recipe(makefile_text: str) -> None:
-    """Lint must run Python and Rust lint tiers in the Makefile recipe."""
-    header, recipe = _make_target(makefile_text, "lint")
-
-    assert "tools-lint" in header
-    assert "$(UV_RUN) ruff check" in recipe
-    assert "$(PYLINT) $(PYLINT_TARGETS)" in recipe
-    assert (
-        'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)'
-        in recipe
-    )
-    assert "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)" in recipe
-    assert (
-        'RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all -- $(CARGO_FLAGS)'
-        in recipe
-    )
-
-
-def test_makefile_typecheck_target_runs_expected_recipe(makefile_text: str) -> None:
-    """Typecheck must build first, then run Rust and Python type checks."""
-    header, recipe = _make_target(makefile_text, "typecheck")
-
-    assert "build" in header
-    assert "tools-check" in header
-    assert (
-        'RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)'
-        in recipe
-    )
-    assert "$(UV_RUN) ty --version" in recipe
-    assert "$(UV_RUN) ty check" in recipe
-
-
-def test_makefile_test_target_runs_expected_recipe(makefile_text: str) -> None:
-    """Test must run formatting, lint-adjacent checks, Rust tests, and pytest."""
-    header, recipe = _make_target(makefile_text, "test")
+@pytest.mark.parametrize(
+    "case",
+    [
+        pytest.param(
+            MakefileTargetCase(
+                target="lint",
+                expected_header_fragments=("tools-lint",),
+                expected_recipe_fragments=(
+                    "$(UV_RUN) ruff check",
+                    "$(PYLINT) $(PYLINT_TARGETS)",
+                    (
+                        'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" '
+                        "$(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)"
+                    ),
+                    "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)",
+                    (
+                        'RUSTFLAGS="$(RUST_FLAGS)" '
+                        "$(CARGO_BUILD_ENV) whitaker --all -- $(CARGO_FLAGS)"
+                    ),
+                ),
+                should_include_pytest=False,
+            ),
+            id="lint",
+        ),
+        pytest.param(
+            MakefileTargetCase(
+                target="typecheck",
+                expected_header_fragments=("build", "tools-check"),
+                expected_recipe_fragments=(
+                    (
+                        'RUSTFLAGS="$(RUST_FLAGS)" '
+                        "$(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)"
+                    ),
+                    "$(UV_RUN) ty --version",
+                    "$(UV_RUN) ty check",
+                ),
+                should_include_pytest=False,
+            ),
+            id="typecheck",
+        ),
+        pytest.param(
+            MakefileTargetCase(
+                target="test",
+                expected_header_fragments=("build", "tools-lint"),
+                expected_recipe_fragments=(
+                    (
+                        "$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) "
+                        "--all -- --check"
+                    ),
+                    "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)",
+                    "nextest run --profile default --no-tests pass",
+                    "cargo-nextest not installed, falling back to cargo test",
+                    "$(CARGO) test $(TEST_FLAGS) $(BUILD_JOBS)",
+                    "$(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)",
+                    '"$$VENV_PYTHON" -m pytest -v',
+                ),
+                should_include_pytest=True,
+            ),
+            id="test",
+        ),
+        pytest.param(
+            MakefileTargetCase(
+                target="test-ci",
+                expected_header_fragments=("build", "tools-lint"),
+                expected_recipe_fragments=(
+                    "nextest run --profile ci --no-tests pass",
+                    "$(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)",
+                ),
+                should_include_pytest=False,
+            ),
+            id="test-ci",
+        ),
+    ],
+)
+def test_makefile_targets_run_expected_recipes(
+    makefile_text: str,
+    case: MakefileTargetCase,
+) -> None:
+    """Makefile targets must keep their reviewed recipe contracts."""
+    header, recipe = _make_target(makefile_text, case.target)
     joined_recipe = "\n".join(recipe)
 
-    assert "build" in header
-    assert "tools-lint" in header
-    assert (
-        "$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check" in recipe
-    )
-    assert "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)" in recipe
-    assert "nextest run --profile default --no-tests pass" in joined_recipe
-    assert "cargo-nextest not installed, falling back to cargo test" in joined_recipe
-    assert "$(CARGO) test $(TEST_FLAGS) $(BUILD_JOBS)" in joined_recipe
-    assert "$(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)" in joined_recipe
-    assert '"$$VENV_PYTHON" -m pytest -v' in recipe
-
-
-def test_makefile_test_ci_target_runs_expected_recipe(makefile_text: str) -> None:
-    """CI test must use the CI nextest profile and Rust doc tests."""
-    header, recipe = _make_target(makefile_text, "test-ci")
-    joined_recipe = "\n".join(recipe)
-
-    assert "build" in header
-    assert "tools-lint" in header
-    assert "nextest run --profile ci --no-tests pass" in joined_recipe
-    assert "$(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)" in joined_recipe
-    assert "pytest" not in joined_recipe
+    for expected_header_fragment in case.expected_header_fragments:
+        assert expected_header_fragment in header
+    for expected_recipe_fragment in case.expected_recipe_fragments:
+        assert expected_recipe_fragment in joined_recipe
+    if case.should_include_pytest:
+        assert '"$$VENV_PYTHON" -m pytest -v' in recipe
+    else:
+        assert "pytest" not in joined_recipe

@@ -236,7 +236,7 @@ def _unknown_ir_region_kinds(
     return tuple(_iter_unknown_region_kinds(regions, _known_ir_region_kinds()))
 
 
-def warn_unknown_ir_region_kinds(
+def _warn_unknown_ir_region_kinds(
     ir_payload: cabc.Mapping[str, typ.Any] | None,
     *,
     operation: str,

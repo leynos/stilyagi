@@ -107,6 +107,10 @@ mod tests {
     fn fixture_paths_in_returns_sorted_paths() {
         let paths = fixture_paths_in("tests/fixtures/corpus/markdown/valid")
             .expect("valid Markdown fixture directory should be readable");
+        assert!(
+            paths.len() > 1,
+            "ordering coverage requires multiple Markdown fixtures"
+        );
         let mut sorted_paths = paths.clone();
         sorted_paths.sort();
 
