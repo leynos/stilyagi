@@ -558,6 +558,11 @@ There are also two concrete cross-boundary rules worth preserving:
   `stilyagi._stilyagi_rs` and then expose user-facing orchestration from the
   `stilyagi` package surface, rather than letting callers bind to a second
   top-level module.
+- The Python extraction adapter lazily caches bridge vocabularies at process
+  scope. Syntax-vocabulary validation is protected by a module lock so
+  concurrent callers share one validated state, and bridge-patching tests must
+  reset that state through the dedicated test helper before observing patched
+  vocabularies.
 - The Rust workspace should not depend on Python package modules for policy or
   plugin decisions. Python owns orchestration and registration; Rust owns
   extraction and source fidelity.
