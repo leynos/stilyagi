@@ -1,9 +1,11 @@
 """Unit tests for the mixed-package Python skeleton."""
 
+import concurrent.futures
 import dataclasses as dc
 import json
 import logging
 import pathlib
+import threading
 import typing as typ
 
 import pytest
@@ -16,6 +18,14 @@ type JSONType = dict[str, JSONType] | list[JSONType] | str | int | float | bool 
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+
+
+@pytest.fixture(autouse=True)
+def reset_extraction_state() -> cabc.Iterator[None]:
+    """Reset process-wide extraction adapter state around every test."""
+    extraction_module._reset_extraction_state_for_tests()
+    yield
+    extraction_module._reset_extraction_state_for_tests()
 
 
 def test_public_package_re_exports_the_supported_boundaries() -> None:
@@ -207,8 +217,6 @@ def test_extraction_state_reset_refreshes_region_kind_cache(
         extraction_module._reset_extraction_state_for_tests()
         assert extraction_module.supported_region_kinds() == ("second_kind",)
 
-    extraction_module._reset_extraction_state_for_tests()
-
 
 def test_syntax_vocab_validation_is_resettable_for_bridge_tests(
     monkeypatch: pytest.MonkeyPatch,
@@ -236,7 +244,39 @@ def test_syntax_vocab_validation_is_resettable_for_bridge_tests(
         ):
             extraction_module._validate_syntax_vocab_once()
 
-    extraction_module._reset_extraction_state_for_tests()
+
+def test_syntax_vocab_validation_is_shared_by_concurrent_callers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validate bridge syntax vocabulary once across concurrent callers."""
+    call_count = 0
+    call_count_lock = threading.Lock()
+    supported = (
+        model.Syntax.MARKDOWN.value,
+        model.Syntax.PYTHON_DOCSTRING.value,
+        model.Syntax.RUST_DOC_COMMENT.value,
+    )
+
+    def bridge_supported_syntaxes() -> tuple[str, ...]:
+        """Return supported syntax spellings while counting bridge calls."""
+        nonlocal call_count
+        with call_count_lock:
+            call_count += 1
+        return supported
+
+    monkeypatch.setattr(
+        extraction_module, "bridge_supported_syntaxes", bridge_supported_syntaxes
+    )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [
+            executor.submit(extraction_module._validate_syntax_vocab_once)
+            for _ in range(8)
+        ]
+        for future in futures:
+            future.result()
+
+    assert call_count == 1
 
 
 @pytest.mark.parametrize(

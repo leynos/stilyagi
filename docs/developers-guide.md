@@ -684,7 +684,7 @@ The repository root `clippy.toml` owns the Clippy thresholds used by the
 workspace, including the four-argument maximum and the low complexity and
 function-length ceilings. Those limits apply to production code, unit tests,
 integration tests, and PyO3 bridge code because the Makefile runs all-targets,
-all-feature checks for `cargo clippy` and Whitaker.
+all-features checks through `cargo clippy`.
 
 Run the full lint gate with:
 
