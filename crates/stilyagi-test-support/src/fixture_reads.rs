@@ -101,12 +101,15 @@ pub fn fixture_paths_in(relative_dir: impl AsRef<Path>) -> Result<Vec<String>, F
 mod tests {
     //! Tests for repository-relative fixture reading helpers.
 
-    use super::fixture_paths_in;
+    use super::{fixture_paths_in, read_corpus_fixture, read_corpus_fixture_bytes};
 
     #[test]
     fn fixture_paths_in_returns_sorted_paths() {
         let paths = fixture_paths_in("tests/fixtures/corpus/markdown/valid")
             .expect("valid Markdown fixture directory should be readable");
+        assert!(paths.contains(
+            &"tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md".to_owned()
+        ));
         assert!(
             paths.len() > 1,
             "ordering coverage requires multiple Markdown fixtures"
@@ -115,5 +118,16 @@ mod tests {
         sorted_paths.sort();
 
         assert_eq!(paths, sorted_paths);
+    }
+
+    #[test]
+    fn read_corpus_fixture_reads_text_and_bytes() {
+        let path = "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md";
+        let text = read_corpus_fixture(path).expect("shared Markdown fixture should be readable");
+        let bytes = read_corpus_fixture_bytes(path)
+            .expect("shared Markdown fixture bytes should be readable");
+
+        assert!(text.starts_with("# Fixture Heading\n"));
+        assert_eq!(bytes, text.as_bytes());
     }
 }

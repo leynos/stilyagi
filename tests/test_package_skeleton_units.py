@@ -184,6 +184,61 @@ def test_engine_bridge_region_kind_spellings_match_the_rust_ir_vocab() -> None:
     )
 
 
+def test_extraction_state_reset_refreshes_region_kind_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refresh lazy region-kind caches when tests patch the Rust bridge."""
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            extraction_module,
+            "bridge_supported_region_kinds",
+            lambda: ("first_kind",),
+        )
+        extraction_module._reset_extraction_state_for_tests()
+        assert extraction_module.supported_region_kinds() == ("first_kind",)
+
+        patch.setattr(
+            extraction_module,
+            "bridge_supported_region_kinds",
+            lambda: ("second_kind",),
+        )
+        assert extraction_module.supported_region_kinds() == ("first_kind",)
+
+        extraction_module._reset_extraction_state_for_tests()
+        assert extraction_module.supported_region_kinds() == ("second_kind",)
+
+    extraction_module._reset_extraction_state_for_tests()
+
+
+def test_syntax_vocab_validation_is_resettable_for_bridge_tests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reset one-time syntax validation when tests patch bridge vocabularies."""
+    supported = (
+        model.Syntax.MARKDOWN.value,
+        model.Syntax.PYTHON_DOCSTRING.value,
+        model.Syntax.RUST_DOC_COMMENT.value,
+    )
+
+    with monkeypatch.context() as patch:
+        patch.setattr(extraction_module, "bridge_supported_syntaxes", lambda: supported)
+        extraction_module._reset_extraction_state_for_tests()
+        extraction_module._validate_syntax_vocab_once()
+
+        patch.setattr(
+            extraction_module, "bridge_supported_syntaxes", lambda: ("drift",)
+        )
+        extraction_module._validate_syntax_vocab_once()
+
+        extraction_module._reset_extraction_state_for_tests()
+        with pytest.raises(
+            RuntimeError, match="Python and Rust syntax spellings differ"
+        ):
+            extraction_module._validate_syntax_vocab_once()
+
+    extraction_module._reset_extraction_state_for_tests()
+
+
 @pytest.mark.parametrize(
     ("extract_document", "expected_warning_args"),
     [

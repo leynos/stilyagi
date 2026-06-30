@@ -9,10 +9,17 @@ want the public typed API rather than the raw extension payload.
 Example: `from stilyagi import model`
 `from stilyagi.engine.extraction import extract_document`
 `result = extract_document("# Heading", model.Syntax.MARKDOWN)`
+
+Process-wide bridge vocabulary state is loaded lazily. Region-kind caches use
+`functools.cache`, and syntax-vocabulary validation is guarded by a module lock
+so concurrent callers share one validated state. Tests that patch bridge
+functions must call `_reset_extraction_state_for_tests` before observing patched
+vocabulary behaviour.
 """
 
 import json
 import logging
+import threading
 import typing as typ
 from functools import cache
 
@@ -43,6 +50,7 @@ class _BridgeDocument(typ.TypedDict):
 
 _PYTHON_SYNTAX_SPELLINGS = frozenset(syntax.value for syntax in model.Syntax)
 _SYNTAX_VOCAB_VALIDATED = False
+_SYNTAX_VOCAB_LOCK = threading.Lock()
 _LOGGER = logging.getLogger(__name__)
 
 if typ.TYPE_CHECKING:
@@ -57,20 +65,33 @@ class UnknownIrRegionKind(typ.NamedTuple):
 
 
 def _validate_syntax_vocab_once() -> None:
-    """Fail fast if the Python and Rust syntax vocabularies drift apart."""
+    """Fail fast once if the Python and Rust syntax vocabularies drift apart."""
     global _SYNTAX_VOCAB_VALIDATED
     if _SYNTAX_VOCAB_VALIDATED:
         return
 
-    rust_syntax_spellings = frozenset(bridge_supported_syntaxes())
-    if rust_syntax_spellings != _PYTHON_SYNTAX_SPELLINGS:
-        msg = (
-            "Python and Rust syntax spellings differ: "
-            f"python={sorted(_PYTHON_SYNTAX_SPELLINGS)!r}, "
-            f"rust={sorted(rust_syntax_spellings)!r}"
-        )
-        raise RuntimeError(msg)
-    _SYNTAX_VOCAB_VALIDATED = True
+    with _SYNTAX_VOCAB_LOCK:
+        if _SYNTAX_VOCAB_VALIDATED:
+            return
+
+        rust_syntax_spellings = frozenset(bridge_supported_syntaxes())
+        if rust_syntax_spellings != _PYTHON_SYNTAX_SPELLINGS:
+            msg = (
+                "Python and Rust syntax spellings differ: "
+                f"python={sorted(_PYTHON_SYNTAX_SPELLINGS)!r}, "
+                f"rust={sorted(rust_syntax_spellings)!r}"
+            )
+            raise RuntimeError(msg)
+        _SYNTAX_VOCAB_VALIDATED = True
+
+
+def _reset_extraction_state_for_tests() -> None:
+    """Reset process-wide extraction caches used by tests that patch the bridge."""
+    global _SYNTAX_VOCAB_VALIDATED
+    with _SYNTAX_VOCAB_LOCK:
+        _SYNTAX_VOCAB_VALIDATED = False
+        _supported_region_kinds.cache_clear()
+        _known_ir_region_kinds.cache_clear()
 
 
 @cache
