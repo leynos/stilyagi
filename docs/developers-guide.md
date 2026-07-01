@@ -175,17 +175,19 @@ implementation should be called explicitly.
 #### Canonical IR region vocabulary
 
 The canonical IR region vocabulary lives in `crates/stilyagi-ir` as
-`stilyagi_ir::RegionKind`. This enum is separate from the coarse
-`stilyagi-extract::RegionKind::Document` compatibility region exposed through
-the early Python bridge. Use `stilyagi_ir::RegionKind::ALL` and
-`RegionKind::as_str()` when code needs the stable IR spellings, including the
-`supported_region_kinds()` PyO3 export.
+`stilyagi_ir::RegionKind`. The Python-facing bridge exposes those canonical
+region kinds, not the older `stilyagi-extract::RegionKind::Document`
+compatibility region. Use `stilyagi_ir::RegionKind::ALL` and
+`RegionKind::as_str()` when code needs the stable IR spellings; the
+`supported_region_kinds()` PyO3 export is built from that same source of
+truth.
 
 Markdown region emission follows ADR 005:
 
 - `list_item` and `blockquote` are thin structural regions. They carry empty
-  `text` and `segments`, while child prose regions point back with
-  `parent_region`.
+  `text` and `segments`; child paragraph, table, and other prose regions keep
+  the structure context through `parent_region`, `scope`, and the structural
+  region's `attrs` together.
 - `frontmatter` is source-backed over the whole fenced YAML or TOML block.
   `frontmatter_field` is reserved and not emitted until field-level spans can
   be proven without guessing.
