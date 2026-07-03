@@ -21,6 +21,9 @@ PYLINT_TARGETS ?= python/stilyagi tests
 PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b
 PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)
 PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy
+INTERROGATE ?= interrogate
+INTERROGATE_TARGETS ?= python/stilyagi tests
+INTERROGATE_FLAGS ?= --fail-under 100
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
 RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" ]; then VENV_PYTHON=".venv/Scripts/python.exe"; fi
@@ -94,6 +97,7 @@ tools-docs:
 
 tools-lint: tools-check
 	$(call ensure_tool,whitaker)
+	$(call ensure_tool,$(INTERROGATE))
 
 fmt: tools ## Format sources
 	$(UV_RUN) ruff format
@@ -107,6 +111,7 @@ check-fmt: tools-check ## Verify formatting
 
 lint: tools-lint ## Run linters
 	$(UV_RUN) ruff check
+	$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
 	$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)

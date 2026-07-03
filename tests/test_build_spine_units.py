@@ -337,6 +337,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         for step in python_steps
     )
     assert all(step["with"]["python-version"] == "3.14" for step in python_steps)
+    assert "uv tool install interrogate==1.7.0" in run_commands
     assert all("mdformat-all" not in str(step) for step in workflow_steps)
     assert any(
         "uv tool install nixie-cli==1.0.0" in str(step.get("run", ""))

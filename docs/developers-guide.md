@@ -665,18 +665,21 @@ Their responsibilities are:
 
 The Python tools are intentionally run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
-the host `PATH`. Pylint is the exception: `make lint` invokes it through
-`uv tool run --python pypy` with the pinned
-[`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper, after
-Ruff and before the Rust lint tiers.
+the host `PATH`. Interrogate and Pylint are the exceptions: Interrogate runs as
+an installed `uv tool` with a 100% docstring-coverage threshold, and Pylint runs
+through `uv tool run --python pypy` with the pinned
+[`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper. They
+run after Ruff and before the Rust lint tiers.
 
 ### 6a. Python linting architecture
 
 ADR 004 records the accepted Python linting architecture.[^4] The short version
-is that Python linting has two tiers:
+is that Python linting has three tiers:
 
 1. Ruff runs first through `uv run --group dev ruff check`.
-2. Pylint runs second through `uv tool run --python pypy` and the pinned
+2. Interrogate runs second with `--fail-under 100` over `python/stilyagi` and
+   `tests`.
+3. Pylint runs third through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
 
 `make lint` then continues into the Rust lint tiers owned by the repository:
@@ -711,6 +714,9 @@ Table: Lint runner Makefile variables.
 | `UV`                   | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                 | Selects the `uv` executable used by Makefile Python commands.   |
 | `UV_ENV`               | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                | Keeps `uv` cache and tool state inside the repository worktree. |
 | `UV_RUN`               | `$(UV_ENV) $(UV) run --group dev`                                                             | Runs commands in the locked development dependency group.       |
+| `INTERROGATE`          | `interrogate`                                                                                 | Selects the docstring-coverage executable used by `make lint`.  |
+| `INTERROGATE_TARGETS`  | `python/stilyagi tests`                                                                       | Selects the directories checked by Interrogate.                 |
+| `INTERROGATE_FLAGS`    | `--fail-under 100`                                                                            | Requires complete Python docstring coverage.                    |
 | `PYLINT_PYTHON`        | `pypy`                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.     |
 | `PYLINT_TARGETS`       | `python/stilyagi tests`                                                                       | Selects the directories checked by the Pylint tier.             |
 | `PYLINT_PYPY_SHIM_REF` | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                    | Pins the shim commit used by the Pylint tier.                   |

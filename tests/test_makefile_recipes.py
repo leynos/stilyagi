@@ -55,6 +55,7 @@ def makefile_text() -> str:
                 expected_header_fragments=("tools-lint",),
                 expected_recipe_fragments=(
                     "$(UV_RUN) ruff check",
+                    "$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)",
                     "$(PYLINT) $(PYLINT_TARGETS)",
                     (
                         'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" '

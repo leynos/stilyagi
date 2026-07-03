@@ -54,6 +54,10 @@ jobs:
         run: |
           uv tool install nixie-cli==1.0.0
 
+      - name: Install Interrogate
+        run: |
+          uv tool install interrogate==1.7.0
+
       - name: Check formatting
         run: make check-fmt
 
