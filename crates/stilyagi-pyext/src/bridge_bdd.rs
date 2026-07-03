@@ -87,9 +87,7 @@ fn greeting_is_not_the_legacy_python_fallback(bridge_state: &BridgeState) {
 }
 
 #[given("the bridge can call the Rust extraction entrypoint")]
-fn bridge_can_call_the_rust_extraction_entrypoint(bridge_state: &mut BridgeState) {
-    let _ = bridge_state;
-}
+fn bridge_can_call_the_rust_extraction_entrypoint() {}
 
 #[when("the bridge extracts a Markdown document")]
 fn bridge_extracts_a_markdown_document(bridge_state: &mut BridgeState) {
@@ -305,24 +303,27 @@ fn extracted_document_preserves_the_shared_markdown_fixture(bridge_state: &Bridg
     path = "tests/features/bridge_structure.feature",
     name = "Bridge delegates the smoke greeting to the core crate"
 )]
-fn bridge_delegates_the_smoke_greeting_to_the_core_crate(bridge_state: BridgeState) {
-    let _ = bridge_state;
+fn bridge_delegates_the_smoke_greeting_to_the_core_crate(
+    #[from(bridge_state)] _bridge_state: BridgeState,
+) {
 }
 
 #[scenario(
     path = "tests/features/bridge_structure.feature",
     name = "Bridge greeting is not the legacy Python fallback"
 )]
-fn bridge_greeting_is_not_the_legacy_python_fallback(bridge_state: BridgeState) {
-    let _ = bridge_state;
+fn bridge_greeting_is_not_the_legacy_python_fallback(
+    #[from(bridge_state)] _bridge_state: BridgeState,
+) {
 }
 
 #[scenario(
     path = "tests/features/bridge_structure.feature",
     name = "Bridge extracts a Markdown document through the Rust boundary"
 )]
-fn bridge_extracts_a_markdown_document_through_the_rust_boundary(bridge_state: BridgeState) {
-    let _ = bridge_state;
+fn bridge_extracts_a_markdown_document_through_the_rust_boundary(
+    #[from(bridge_state)] _bridge_state: BridgeState,
+) {
 }
 
 #[scenario(
@@ -330,15 +331,12 @@ fn bridge_extracts_a_markdown_document_through_the_rust_boundary(bridge_state: B
     name = "Bridge extracts the shared Markdown fixture through the Rust boundary"
 )]
 fn bridge_extracts_the_shared_markdown_fixture_through_the_rust_boundary(
-    bridge_state: BridgeState,
+    #[from(bridge_state)] _bridge_state: BridgeState,
 ) {
-    let _ = bridge_state;
 }
 
 #[scenario(
     path = "tests/features/bridge_structure.feature",
     name = "Bridge yields no regions for blank Markdown"
 )]
-fn bridge_yields_no_regions_for_blank_markdown(bridge_state: BridgeState) {
-    let _ = bridge_state;
-}
+fn bridge_yields_no_regions_for_blank_markdown(#[from(bridge_state)] _bridge_state: BridgeState) {}
