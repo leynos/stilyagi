@@ -642,6 +642,7 @@ Their responsibilities are:
   - validate Mermaid diagrams in Markdown files
 - `make lint`
   - run Ruff checks through `uv`
+  - run Interrogate docstring-coverage checks requiring 100% coverage
   - run focused Pylint checks through the pinned `pylint-pypy-shim` wrapper
     under PyPy
   - run `cargo doc` for all workspace crates and features with Rustdoc warnings
