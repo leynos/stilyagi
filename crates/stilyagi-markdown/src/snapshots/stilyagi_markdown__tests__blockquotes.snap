@@ -1,0 +1,296 @@
+---
+source: crates/stilyagi-markdown/src/tests.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/blockquotes.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/blockquotes.md.fixture",
+    "syntax": "markdown",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:951e5479d91ad868030c26117e68ff6d8422d2c797c756ee5e223661fb97ca68"
+  },
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "version": "1.0.0",
+      "options": {
+        "frontmatter": true,
+        "gfm": true
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    20,
+    22,
+    40
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "mdast",
+      "syntax": "markdown",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "root",
+      "parent": null,
+      "children": [
+        "n1"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 40
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "blockquote",
+      "parent": "n0",
+      "children": [
+        "n2",
+        "n4"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 39
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n1",
+      "children": [
+        "n3"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 2,
+        "byte_end": 19
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n2",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 2,
+        "byte_end": 19
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
+      "kind": "blockquote",
+      "parent": "n1",
+      "children": [
+        "n5"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 24,
+        "byte_end": 39
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n5",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n4",
+      "children": [
+        "n6"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 26,
+        "byte_end": 39
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n6",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n5",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 26,
+        "byte_end": 39
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "blockquote",
+      "scope": [
+        "markdown",
+        "blockquote",
+        "depth1"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": null,
+      "attrs": {
+        "depth": 1
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph",
+        "blockquote"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Quoted paragraph.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 17,
+          "source": {
+            "byte_start": 2,
+            "byte_end": 19
+          },
+          "synthetic": null,
+          "node": "n2",
+          "text": "Quoted paragraph."
+        }
+      ],
+      "origin_nodes": [
+        "n2"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": "r0"
+    },
+    {
+      "id": "r2",
+      "kind": "blockquote",
+      "scope": [
+        "markdown",
+        "blockquote",
+        "depth2"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n4"
+      ],
+      "owner": null,
+      "attrs": {
+        "depth": 2
+      },
+      "parent_region": "r0"
+    },
+    {
+      "id": "r3",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph",
+        "blockquote",
+        "blockquote"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Nested quote.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 13,
+          "source": {
+            "byte_start": 26,
+            "byte_end": 39
+          },
+          "synthetic": null,
+          "node": "n5",
+          "text": "Nested quote."
+        }
+      ],
+      "origin_nodes": [
+        "n5"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": "r2"
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}

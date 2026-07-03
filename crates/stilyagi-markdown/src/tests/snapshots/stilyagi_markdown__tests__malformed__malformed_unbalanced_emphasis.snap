@@ -1,0 +1,6 @@
+---
+source: crates/stilyagi-markdown/src/tests/malformed.rs
+expression: degraded_region_text(&document)
+---
+heading: "Unbalanced emphasis"
+paragraph: "This paragraph has *unclosed emphasis and should recover as literal text."

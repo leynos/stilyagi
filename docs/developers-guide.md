@@ -54,7 +54,7 @@ the standard build target:
 make build
 ```
 
-That target performs three steps:
+That target performs four steps:
 
 1. Recreate `.venv`
 2. Sync the `dev` dependency group with `uv`
@@ -172,6 +172,31 @@ Prefer `new_typed` and `region_kind` in Rust code that works with
 PyO3 serialization boundary, where `RegionKind::as_str` or the `Display`
 implementation should be called explicitly.
 
+#### Canonical IR region vocabulary
+
+The canonical IR region vocabulary lives in `crates/stilyagi-ir` as
+`stilyagi_ir::RegionKind`. The Python-facing bridge exposes those canonical
+region kinds, not the older `stilyagi-extract::RegionKind::Document`
+compatibility region. Use `stilyagi_ir::RegionKind::ALL` and
+`RegionKind::as_str()` when code needs the stable IR spellings; the
+`supported_region_kinds()` PyO3 export is built from that same source of
+truth.
+
+Markdown region emission follows ADR 005:
+
+- `list_item` and `blockquote` are thin structural regions. They carry empty
+  `text` and `segments`; child paragraph, table, and other prose regions keep
+  the structure context through `parent_region`, `scope`, and the structural
+  region's `attrs` together.
+- `frontmatter` is source-backed over the whole fenced YAML or TOML block.
+  `frontmatter_field` is reserved and not emitted until field-level spans can
+  be proven without guessing.
+- `image_alt` and `link_title` are synthetic `decoded_text` regions with
+  `attrs.source_backed = false`.
+- Source-backed segments must re-slice exactly to `segment.text`; the Markdown
+  IR validator rejects span drift, unresolved `parent_region` links, and
+  missing or invalid `origin_nodes`.
+
 #### stilyagi-test-support API reference
 
 The `stilyagi-test-support` crate (at `crates/stilyagi-test-support/`) provides
@@ -186,13 +211,18 @@ Table: Repository fixture utilities and signatures.
 | `repository_root`              | `() -> PathBuf`                                                  | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
 | `corpus_fixture_path`          | `(impl AsRef<Path>) -> PathBuf`                                  | Resolves a repository-relative path against the workspace root.                                                                           |
 | `read_corpus_fixture`          | `(impl AsRef<Path>) -> Result<String, io::Error>`                | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
+| `read_corpus_fixture_bytes`    | `(impl AsRef<Path>) -> Result<Vec<u8>, FixtureReadError>`        | Reads a repository-relative corpus fixture as raw bytes for byte-level tests.                                                             |
+| `fixture_paths_in`             | `(impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError>`    | Lists repository-relative fixture entries in deterministic sorted order.                                                                  |
 | `golden_markdown_ir_fixture`   | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`        | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                                  |
 | `normalize_repository_path`    | `(impl AsRef<Path>) -> String`                                   | Converts repository-relative paths to `/`-separated snapshot text.                                                                        |
 | `apply_round_trip_edits`       | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>` | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                               |
 
 Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
 require repository-relative fixture access. Do not copy the `repository_root`
-resolution pattern into individual crates.
+resolution pattern into individual crates. Bridge and API contract tests should
+use these helpers when asserting canonical IR region kinds, raw source bytes, or
+directory-wide fixture coverage so the test corpus is read through one
+capability-oriented path.
 
 #### Snapshot and round-trip helper workflow
 
@@ -310,6 +340,10 @@ particular.
   - Region kinds `comment_block` and `jsdoc_block` are no longer part of the
     stable extractor vocabulary, and `summary_line` is now a derived
     analysis-layer view rather than an extractor-level region kind.
+  - Markdown `list_item` and `blockquote` IR regions are thin containers.
+    `frontmatter_field` is reserved but not yet emitted, and Markdown
+    `image_alt` / `link_title` regions are synthetic decoded-text surfaces
+    until byte-accurate source spans are implemented.[^5]
   - When maintainers update fixtures, adapters, or runtime wrappers, they
     should treat the field migration explicitly. The minimal before or after
     mapping is:
@@ -480,12 +514,11 @@ build-system and dev-tooling dependencies.
 
 ### 4.1 Maturin and PyO3 compatibility tests
 
-The repository pins maturin in both `pyproject.toml`
-`[dependency-groups].dev` and `[build-system].requires`. Keep those pins in
-sync when updating maturin. The Python tests in `tests/test_maturin_build.py`
-validate that contract, assert that the installed maturin module matches the
-pin, and build a native wheel whose normalized metadata and layout are compared
-with a syrupy snapshot.
+The repository pins maturin in both `pyproject.toml` `[dependency-groups].dev`
+and `[build-system].requires`. Keep those pins in sync when updating maturin.
+The Python tests in `tests/test_maturin_build.py` validate that contract,
+assert that the installed maturin module matches the pin, and build a native
+wheel whose normalized metadata and layout are compared with a syrupy snapshot.
 
 To refresh the native wheel snapshot after a maturin or PyO3 update, run:
 
@@ -494,10 +527,9 @@ uv run --group dev pytest tests/test_maturin_build.py \
     --snapshot-update -k test_maturin_wheel_build_snapshot
 ```
 
-The PyO3 bridge crate also uses
-[trybuild](https://github.com/dtolnay/trybuild) to validate representative
-macro patterns at compile time. The UI fixtures live under
-`crates/stilyagi-pyext/tests/ui/`:
+The PyO3 bridge crate also uses [trybuild](https://github.com/dtolnay/trybuild)
+to validate representative macro patterns at compile time. The UI fixtures live
+under `crates/stilyagi-pyext/tests/ui/`:
 
 - `pass/` contains Rust files that must compile.
 - `fail/` contains Rust files that must fail with diagnostics matching the
@@ -522,58 +554,10 @@ test still represents a genuine PyO3 contract violation.
 
 ### 4.2 Current mixed-package skeleton
 
-The general architecture above now maps to concrete repository modules and
-crates. Maintainers should use these names when discussing or extending the
-current skeleton:
-
-- `crates/stilyagi-pyext`
-  - PyO3 bridge crate that builds the package-scoped
-    `stilyagi._stilyagi_rs` extension module
-  - should stay thin and delegate executable logic into library crates
-- `crates/stilyagi-core`
-  - smallest shared Rust library boundary used by the bridge today
-  - current home of the Rust-backed smoke behaviour
-- `crates/stilyagi-ir`
-  - owns the syntax-neutral intermediate representation (IR) vocabulary,
-    canonical envelope, and adapters described by RFC 0001
-- `crates/stilyagi-markdown`
-  - owns the first concrete IR producer: Markdown-specific extraction and
-    flattening logic
-- `crates/stilyagi-tree-sitter`
-  - reserved home for tree-sitter integration and syntax-tree helpers
-- `crates/stilyagi-extract`
-  - home for cross-syntax extraction orchestration that composes the lower-level
-    crates
-  - now owns the `extract_document(...)` path used by the PyO3 bridge,
-    including Markdown IR attachment
-- `python/stilyagi/__init__.py`
-  - public Python package surface that re-exports the supported package
-    boundaries and imports the embedded Rust extension
-- `python/stilyagi/cli.py`
-  - command-line entrypoint placeholder for the future CLI contract from
-    RFC 0003
-- `python/stilyagi/config.py`
-  - configuration boundary for Python-side runtime settings and validation
-- `python/stilyagi/diagnostics.py`
-  - diagnostic object boundary for future reporting and fix planning
-- `python/stilyagi/engine/`
-  - future execution planner, runner, fix-planning, and renderer surfaces
-- `python/stilyagi/model/`
-  - future document, region, sentence, and token runtime types
-- `python/stilyagi/nlp/`
-  - future NLP provider protocols and provider-specific configuration surfaces
-- `python/stilyagi/plugins.py`
-  - source of truth for Python entry-point group names such as
-    `stilyagi.rules` and `stilyagi.capabilities`
-- `python/stilyagi/rules/`
-  - rule namespace root for bundled and third-party rules
-
-Those boundaries deliberately mirror the ownership split in section 2. When a
-change belongs to extraction fidelity, syntax parsing, or source mapping, it
-should usually start in one of the Rust crates. When a change belongs to
-configuration discovery, diagnostics, plugin registration, capability planning,
-or rule orchestration, it should usually start in one of the Python modules
-above.
+Use [repository layout](repository-layout.md) for the current path inventory
+and module responsibilities. This guide keeps only the maintainer workflow
+boundary: Rust owns extraction and source fidelity; Python owns orchestration
+and the user-facing runtime.
 
 There are also two concrete cross-boundary rules worth preserving:
 
@@ -581,6 +565,11 @@ There are also two concrete cross-boundary rules worth preserving:
   `stilyagi._stilyagi_rs` and then expose user-facing orchestration from the
   `stilyagi` package surface, rather than letting callers bind to a second
   top-level module.
+- The Python extraction adapter lazily caches bridge vocabularies at process
+  scope. Syntax-vocabulary validation is protected by a module lock so
+  concurrent callers share one validated state, and bridge-patching tests must
+  reset that state through the dedicated test helper before observing patched
+  vocabularies.
 - The Rust workspace should not depend on Python package modules for policy or
   plugin decisions. Python owns orchestration and registration; Rust owns
   extraction and source fidelity.
@@ -619,10 +608,11 @@ behaviourally identical to `release`.
 The `.github/workflows/smoke.yml` workflow is the bounded CI smoke path for
 this repository. Its Ubuntu `lint-test` job installs Python, Rust, `uv`, and
 the support tools required by the checked targets, then runs `make check-fmt`,
-`make markdownlint`, `make nixie`, `make lint`, and `make test`. Its
-`release-smoke` matrix builds and smoke-tests release wheels on Ubuntu, macOS,
-and Windows. The workflow is not release publishing automation; it proves that
-local development installs and release wheels exercise the same PyO3 boundary.
+`make markdownlint`, `make nixie`, `make typecheck`, `make lint`, and
+`make test`. Its `release-smoke` matrix builds and smoke-tests release wheels
+on Ubuntu, macOS, and Windows. The workflow is not release publishing
+automation; it proves that local development installs and release wheels
+exercise the same PyO3 boundary.
 
 ## 6. Lint, typecheck, and test workflow
 
@@ -652,17 +642,25 @@ Their responsibilities are:
   - validate Mermaid diagrams in Markdown files
 - `make lint`
   - run Ruff checks through `uv`
+  - run Interrogate docstring-coverage checks requiring 100% coverage
   - run focused Pylint checks through the pinned `pylint-pypy-shim` wrapper
     under PyPy
-  - run `cargo clippy` with warnings denied
-  - run Whitaker from `crates/stilyagi-pyext/`
+  - run `cargo doc` for all workspace crates and features with Rustdoc warnings
+    denied
+  - run `cargo clippy` for all workspace crates, targets, and features with
+    warnings denied
+  - run Whitaker for all workspace crates, targets, and features with warnings
+    denied
 - `make typecheck`
-  - rebuilds the editable environment if needed
-  - runs `ty check` through `uv`
+  - It rebuilds the editable environment when needed.
+  - It runs `cargo check` for all workspace crates, targets, and features with
+    warnings denied.
+  - It runs `ty check` through `uv`.
 - `make test`
   - verify Rust formatting
   - rerun `cargo clippy`
   - run Rust tests with `cargo-nextest` when available, otherwise `cargo test`
+  - run Rust doc tests explicitly with Rustdoc warnings denied
   - run Python tests through `.venv/bin/python -m pytest -v`
 - `make smoke`
   - run `python -m stilyagi.smoke` against the development install
@@ -673,24 +671,36 @@ Their responsibilities are:
 
 The Python tools are intentionally run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
-the host `PATH`. Pylint is the exception: `make lint` invokes it through
-`uv tool run --python pypy` with the pinned
-[`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper, after
-Ruff and before the Rust lint tiers.
+the host `PATH`. Interrogate and Pylint are the exceptions: Interrogate runs as
+an installed `uv tool` with a 100% docstring-coverage threshold, and Pylint runs
+through `uv tool run --python pypy` with the pinned
+[`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper. They
+run after Ruff and before the Rust lint tiers.
 
 ### 6a. Python linting architecture
 
 ADR 004 records the accepted Python linting architecture.[^4] The short version
-is that Python linting has two tiers:
+is that Python linting has three tiers:
 
 1. Ruff runs first through `uv run --group dev ruff check`.
-2. Pylint runs second through `uv tool run --python pypy` and the pinned
+2. Interrogate runs second with `--fail-under 100` over `python/stilyagi` and
+   `tests`.
+3. Pylint runs third through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
 
-`make lint` then continues into the Rust lint tiers:
+`make lint` then continues into the Rust lint tiers owned by the repository:
 
-1. `cargo clippy --workspace --all-targets -- -D warnings`
-2. `whitaker --all` from `crates/stilyagi-pyext/`
+1. `cargo doc --workspace --all-features --no-deps` with
+   `RUSTDOCFLAGS=-D warnings`
+2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+3. `whitaker --all -- --workspace --all-targets --all-features` with
+   `RUSTFLAGS=-D warnings`
+
+The repository root `clippy.toml` owns the Clippy thresholds used by the
+workspace, including the four-argument maximum and the low complexity and
+function-length ceilings. Those limits apply to production code, unit tests,
+integration tests, and PyO3 bridge code because the Makefile runs all-targets,
+all-features checks through `cargo clippy`.
 
 Run the full lint gate with:
 
@@ -710,6 +720,9 @@ Table: Lint runner Makefile variables.
 | `UV`                   | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                 | Selects the `uv` executable used by Makefile Python commands.   |
 | `UV_ENV`               | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                | Keeps `uv` cache and tool state inside the repository worktree. |
 | `UV_RUN`               | `$(UV_ENV) $(UV) run --group dev`                                                             | Runs commands in the locked development dependency group.       |
+| `INTERROGATE`          | `interrogate`                                                                                 | Selects the docstring-coverage executable used by `make lint`.  |
+| `INTERROGATE_TARGETS`  | `python/stilyagi tests`                                                                       | Selects the directories checked by Interrogate.                 |
+| `INTERROGATE_FLAGS`    | `--fail-under 100`                                                                            | Requires complete Python docstring coverage.                    |
 | `PYLINT_PYTHON`        | `pypy`                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.     |
 | `PYLINT_TARGETS`       | `python/stilyagi tests`                                                                       | Selects the directories checked by the Pylint tier.             |
 | `PYLINT_PYPY_SHIM_REF` | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                    | Pins the shim commit used by the Pylint tier.                   |
@@ -796,6 +809,8 @@ single-language package.
 [^3]: [PyO3 FAQ: linker issues with `cargo test`](https://pyo3.rs/main/faq)
 [^4]: [ADR 004: Adopt two-tier Python linting](
     adr-004-python-linting-architecture.md)
+[^5]: [ADR 005: Scope Markdown region vocabulary](
+    adr-005-markdown-region-vocabulary-scope.md)
 
 Substantial architecture changes should update both the code and the documents
 that define the current contracts. Stale documentation is treated as a defect,

@@ -557,7 +557,8 @@ expression: json
       "kind": "table_cell",
       "scope": [
         "markdown",
-        "table_cell"
+        "table_cell",
+        "header"
       ],
       "syntax": "markdown",
       "natural_language": null,
@@ -579,7 +580,9 @@ expression: json
         "n11"
       ],
       "owner": null,
-      "attrs": {},
+      "attrs": {
+        "header": true
+      },
       "parent_region": null
     },
     {
@@ -587,7 +590,8 @@ expression: json
       "kind": "table_cell",
       "scope": [
         "markdown",
-        "table_cell"
+        "table_cell",
+        "header"
       ],
       "syntax": "markdown",
       "natural_language": null,
@@ -609,7 +613,9 @@ expression: json
         "n13"
       ],
       "owner": null,
-      "attrs": {},
+      "attrs": {
+        "header": true
+      },
       "parent_region": null
     },
     {
@@ -617,7 +623,8 @@ expression: json
       "kind": "table_cell",
       "scope": [
         "markdown",
-        "table_cell"
+        "table_cell",
+        "body"
       ],
       "syntax": "markdown",
       "natural_language": null,
@@ -639,7 +646,9 @@ expression: json
         "n16"
       ],
       "owner": null,
-      "attrs": {},
+      "attrs": {
+        "header": false
+      },
       "parent_region": null
     },
     {
@@ -647,7 +656,8 @@ expression: json
       "kind": "table_cell",
       "scope": [
         "markdown",
-        "table_cell"
+        "table_cell",
+        "body"
       ],
       "syntax": "markdown",
       "natural_language": null,
@@ -669,7 +679,9 @@ expression: json
         "n18"
       ],
       "owner": null,
-      "attrs": {},
+      "attrs": {
+        "header": false
+      },
       "parent_region": null
     }
   ],

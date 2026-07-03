@@ -1,10 +1,11 @@
 //! Tests for Markdown IR envelope construction and consistency validation.
 
 use std::collections::BTreeSet;
+use std::path::Path;
 
 use markdown::mdast::Node;
 use rstest::rstest;
-use stilyagi_ir::{IrDocument, SourceSpan};
+use stilyagi_ir::{IrDocument, IrRegion, SourceSpan};
 
 use super::source_identity;
 use crate::source_text::decoded_text_maps_to_source;
@@ -25,7 +26,7 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
     let source = "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi design](../../../../../docs/stilyagi-design.md).\n\n| Term | Meaning |\n| ---- | ------- |\n| IR   | Intermediate representation |\n";
     let document = markdown_ir_document(
         source,
-        source_identity("tests/fixtures/corpus/markdown/valid/example.md"),
+        source_identity(Path::new("tests/fixtures/corpus/markdown/valid/example.md")),
     );
 
     assert!(matches!(&document, Ok(value) if value.document.syntax == "markdown"));
@@ -55,8 +56,8 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
 #[rstest]
 fn markdown_ir_document_preserves_canonical_source_identity_helpers() {
     let source = "# Heading\n\nBody";
-    let document = markdown_ir_document(source, source_identity("docs/example.md"))
-        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    let document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
+        .expect("expected Markdown IR document");
 
     assert_eq!(
         document.document.content_hash,
@@ -74,8 +75,8 @@ fn assert_validation_reports(
     expected_reason_fragments: &[&str],
 ) {
     let source = "# Heading\n\nBody";
-    let mut document = markdown_ir_document(source, source_identity("docs/example.md"))
-        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    let mut document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
+        .expect("expected Markdown IR document");
     mutate(&mut document);
     let context = diagnostic_context();
 
@@ -94,6 +95,24 @@ fn assert_validation_reports(
             error.reason
         );
     }
+}
+
+fn assert_validation_reports_on_first_region(
+    mutate_region: impl FnOnce(&mut IrRegion),
+    expected_rule_id: &str,
+    expected_reason_fragments: &[&str],
+) {
+    assert_validation_reports(
+        |document| {
+            let region = document
+                .regions
+                .first_mut()
+                .expect("expected at least one Markdown IR region");
+            mutate_region(region);
+        },
+        expected_rule_id,
+        expected_reason_fragments,
+    );
 }
 
 #[rstest]
@@ -115,24 +134,78 @@ fn validate_ir_consistency_reports_line_index_mismatches() {
 }
 
 #[rstest]
-fn validate_ir_consistency_reports_region_text_mismatches() {
+fn validate_ir_consistency_reports_duplicate_node_ids() {
     assert_validation_reports(
         |document| {
-            let region = document
-                .regions
-                .first_mut()
-                .unwrap_or_else(|| panic!("expected at least one Markdown IR region"));
-            region.text.push_str(" drift");
+            if let Some(node) = document.nodes.first().cloned() {
+                document.nodes.push(node);
+            }
         },
+        "ir-duplicate-node-id",
+        &["duplicate node id"],
+    );
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_duplicate_region_ids() {
+    assert_validation_reports(
+        |document| {
+            if let Some(region) = document.regions.first().cloned() {
+                document.regions.push(region);
+            }
+        },
+        "ir-duplicate-region-id",
+        &["duplicate region id"],
+    );
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_region_text_mismatches() {
+    assert_validation_reports_on_first_region(
+        |region| region.text.push_str(" drift"),
         "ir-region-text-mismatch",
         &["region text mismatch"],
     );
 }
 
 #[rstest]
+fn validate_ir_consistency_reports_source_span_mismatches() {
+    assert_validation_reports(
+        |document| {
+            let segment = document
+                .regions
+                .first_mut()
+                .and_then(|region| region.segments.first_mut())
+                .expect("expected at least one source-backed segment");
+            segment.source = SourceSpan::new(0, segment.text.len());
+        },
+        "ir-segment-source-mismatch",
+        &["source segment mismatch", "region id=", "segment text="],
+    );
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_unresolved_parent_regions() {
+    assert_validation_reports_on_first_region(
+        |region| region.parent_region = Some("missing-region".to_owned()),
+        "ir-parent-region-unresolved",
+        &["parent_region", "missing-region"],
+    );
+}
+
+#[rstest]
+fn validate_ir_consistency_reports_invalid_origin_nodes() {
+    assert_validation_reports_on_first_region(
+        |region| region.origin_nodes.clear(),
+        "ir-origin-nodes-invalid",
+        &["origin_nodes", "empty"],
+    );
+}
+
+#[rstest]
 fn markdown_ir_document_records_soft_breaks_as_synthetic_segments() {
     let source = "First line\nsecond line\n";
-    let document = markdown_ir_document(source, source_identity("docs/example.md"));
+    let document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")));
 
     assert!(matches!(&document, Ok(value) if value.regions.len() == 1));
     if let Ok(value) = document {
@@ -150,8 +223,8 @@ fn markdown_ir_document_records_soft_breaks_as_synthetic_segments() {
 
 #[rstest]
 fn markdown_ir_document_keeps_empty_heading_regions() {
-    let document = markdown_ir_document("#\n", source_identity("docs/example.md"))
-        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    let document = markdown_ir_document("#\n", source_identity(Path::new("docs/example.md")))
+        .expect("expected Markdown IR document");
 
     assert!(document.regions.iter().any(|region| {
         region.kind == "heading"
@@ -163,13 +236,13 @@ fn markdown_ir_document_keeps_empty_heading_regions() {
 
 #[rstest]
 fn markdown_ir_document_uses_synthetic_segment_for_decoded_text() {
-    let document = markdown_ir_document("AT&amp;T", source_identity("docs/example.md"))
-        .unwrap_or_else(|error| panic!("expected Markdown IR document: {error}"));
+    let document = markdown_ir_document("AT&amp;T", source_identity(Path::new("docs/example.md")))
+        .expect("expected Markdown IR document");
     let paragraph = document
         .regions
         .iter()
         .find(|region| region.kind == "paragraph")
-        .unwrap_or_else(|| panic!("expected paragraph region"));
+        .expect("expected paragraph region");
 
     assert_eq!(paragraph.text, "AT&T");
     assert!(paragraph.segments.iter().all(|segment| {
@@ -178,10 +251,34 @@ fn markdown_ir_document_uses_synthetic_segment_for_decoded_text() {
 }
 
 #[rstest]
+fn markdown_ir_document_uses_synthetic_segment_for_normalized_multiline_code_span() {
+    use markdown::mdast::InlineCode;
+    use markdown::unist::Position;
+
+    use crate::flatten::{SourceNodeId, flatten_region};
+
+    let node = Node::InlineCode(InlineCode {
+        value: "first second".to_owned(),
+        position: Some(Position::new(1, 1, 0, 2, 8, 14)),
+    });
+
+    let region = flatten_region(&node, SourceNodeId::new("n0"), "`first\nsecond`");
+
+    assert_eq!(region.text, "first second");
+    assert_eq!(region.segments.len(), 1);
+    let segment = region
+        .segments
+        .first()
+        .expect("expected normalized inline code fallback segment");
+    assert_eq!(segment.source, None);
+    assert_eq!(segment.synthetic.as_deref(), Some("decoded_text"));
+}
+
+#[rstest]
 fn decoded_text_mapping_rejects_source_chunks_past_span_end() {
     let source = "abcd";
-    let span = SourceSpan::new(0, 3)
-        .unwrap_or_else(|| panic!("expected source span for rejected source chunk to be valid"));
+    let span =
+        SourceSpan::new(0, 3).expect("expected source span for rejected source chunk to be valid");
 
     assert!(!decoded_text_maps_to_source(source, span, "abcd"));
 }
@@ -189,8 +286,7 @@ fn decoded_text_mapping_rejects_source_chunks_past_span_end() {
 #[rstest]
 fn decoded_text_mapping_rejects_split_crlf_spans() {
     let source = "a\r\nb";
-    let span = SourceSpan::new(0, 2)
-        .unwrap_or_else(|| panic!("expected source span for split CRLF test to be valid"));
+    let span = SourceSpan::new(0, 2).expect("expected source span for split CRLF test to be valid");
 
     assert!(!decoded_text_maps_to_source(source, span, "a\r\n"));
 }
@@ -217,7 +313,7 @@ fn flatten_inline_code_with_inverted_span_falls_back_to_decoded_text() {
     let segment = region
         .segments
         .first()
-        .unwrap_or_else(|| panic!("expected a single synthetic fallback segment"));
+        .expect("expected a single synthetic fallback segment");
     assert_eq!(segment.text, "code");
     assert_eq!((segment.text_start, segment.text_end), (0, 4));
     assert_eq!(segment.synthetic.as_deref(), Some("decoded_text"));
@@ -242,11 +338,14 @@ fn source_span_rejects_nodes_without_a_position() {
 
     assert!(matches!(
         result,
-        Err(ref error)
-            if error.source.as_ref() == "stilyagi-markdown"
-                && error.rule_id.as_ref() == "missing-node-span"
-                && error.reason.contains("no source position")
+        Err(ref error) if is_missing_node_span_error(error)
     ));
+}
+
+fn is_missing_node_span_error(error: &markdown::message::Message) -> bool {
+    error.source.as_ref() == "stilyagi-markdown"
+        && error.rule_id.as_ref() == "missing-node-span"
+        && error.reason.contains("no source position")
 }
 
 fn region_kinds(regions: &[stilyagi_ir::IrRegion]) -> BTreeSet<&str> {

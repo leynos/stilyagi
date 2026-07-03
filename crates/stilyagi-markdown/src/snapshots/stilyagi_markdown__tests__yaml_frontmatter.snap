@@ -125,6 +125,39 @@ expression: json
   "regions": [
     {
       "id": "r0",
+      "kind": "frontmatter",
+      "scope": [
+        "markdown",
+        "frontmatter",
+        "yaml"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "---\ntitle: Fixture title\n---",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 28,
+          "source": {
+            "byte_start": 0,
+            "byte_end": 28
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "---\ntitle: Fixture title\n---"
+        }
+      ],
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": null,
+      "attrs": {
+        "format": "yaml"
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r1",
       "kind": "paragraph",
       "scope": [
         "markdown",

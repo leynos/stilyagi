@@ -14,7 +14,9 @@ mod tree;
 pub use canonical_json::{content_hash_for, line_index_for};
 pub use diagnostics::{IrError, IrSuppression};
 pub use document::{DocumentMetadata, IrBuildContext, IrDocument, ProducerMetadata};
-pub use region::{IrOwner, IrRegion, IrSegment, SegmentOrigin};
+pub use region::{
+    InvalidRegionKind, IrOwner, IrRegion, IrSegment, RegionKind, SegmentOrigin, SyntheticReason,
+};
 pub use source_identity::SourceIdentity;
 pub use tree::{IrNode, IrTree, NodeFlags, SourceSpan};
 

@@ -10,7 +10,7 @@ import yaml
 from stilyagi import model, smoke
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
-EXPECTED_SMOKE_REGION = model.Region(kind="document", text=smoke.SMOKE_SOURCE)
+EXPECTED_SMOKE_REGION = model.Region(kind="heading", text="Stilyagi smoke")
 ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
 WorkflowStep = typ.TypedDict(
     "WorkflowStep",
@@ -99,7 +99,7 @@ def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
         (
             lambda _source, _syntax: model.Document(
                 syntax=model.Syntax.PYTHON_DOCSTRING,
-                regions=(model.Region(kind="document", text="# Stilyagi smoke"),),
+                regions=(EXPECTED_SMOKE_REGION,),
             ),
             "unexpected syntax",
         ),
@@ -113,7 +113,7 @@ def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
         (
             lambda _source, syntax: model.Document(
                 syntax=syntax,
-                regions=(model.Region(kind="document", text="# Unexpected smoke"),),
+                regions=(model.Region(kind="heading", text="Unexpected smoke"),),
             ),
             "source-backed region",
         ),
@@ -148,6 +148,7 @@ def test_smoke_helper_wraps_extractor_failures() -> None:
         _source: str,
         _syntax: model.Syntax,
     ) -> model.Document:
+        """Raise a synthetic bridge failure."""
         raise BridgeFailureError
 
     with pytest.raises(smoke.SmokeCheckError, match="unexpected error") as error:
@@ -163,6 +164,7 @@ def test_smoke_helper_rejects_malformed_extractor_result() -> None:
         _source: str,
         _syntax: model.Syntax,
     ) -> model.Document:
+        """Return a malformed extractor result."""
         return typ.cast("model.Document", {"syntax": "markdown"})
 
     with pytest.raises(smoke.SmokeCheckError, match="unexpected type") as error:
@@ -178,6 +180,7 @@ def test_smoke_helper_accepts_expected_region_after_other_regions() -> None:
         _source: str,
         syntax: model.Syntax,
     ) -> model.Document:
+        """Return the smoke region after another region."""
         return model.Document(
             syntax=syntax,
             regions=(
@@ -211,6 +214,7 @@ def test_smoke_main_failure(
     """Return one and print a prefixed SmokeCheckError message to stderr."""
 
     def fail_smoke_installed_package() -> None:
+        """Raise a synthetic smoke failure."""
         raise smoke.SmokeCheckError("broken")
 
     monkeypatch.setattr(smoke, "smoke_installed_package", fail_smoke_installed_package)
@@ -304,6 +308,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         "make check-fmt",
         "make markdownlint",
         "make nixie",
+        "make typecheck",
         "make lint",
         "make test",
     }.issubset(run_commands)
@@ -332,11 +337,14 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         for step in python_steps
     )
     assert all(step["with"]["python-version"] == "3.14" for step in python_steps)
+    assert "uv tool install interrogate==1.7.0" in run_commands
     assert all("mdformat-all" not in str(step) for step in workflow_steps)
     assert any(
         "uv tool install nixie-cli==1.0.0" in str(step.get("run", ""))
         for step in workflow_steps
     )
+    test_runner_step = _workflow_step_named(jobs["lint-test"], "Install test runner")
+    assert "cargo binstall --no-confirm cargo-nextest" in test_runner_step["run"]
     whitaker_step = _workflow_step_named(jobs["lint-test"], "Install Whitaker")
     whitaker_run = str(whitaker_step["run"])
     assert "github.com/leynos/whitaker" in whitaker_run

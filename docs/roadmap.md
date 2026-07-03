@@ -131,12 +131,13 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
   - Include source-backed positions, synthetic insertions, and content hashes.
   - Success: canonical IR JSON round-trips representative Markdown fixtures
     without span drift.
-- [ ] 2.1.2. Cover headings, lists, blockquotes, tables, links, frontmatter,
+- [x] 2.1.2. Cover headings, lists, blockquotes, tables, links, frontmatter,
   inline markup, and malformed Markdown with golden fixtures. See Stilyagi
   design (stilyagi-design.md) §7.1.
   - Requires 2.1.1.
   - Success: every promised v1 Markdown region kind is exercised by at least
     one fixture.
+  - Current status: complete.
 - [ ] 2.1.3. Parse Markdown suppression directives into the IR. See Stilyagi
   design (stilyagi-design.md) §7.1.
   - Requires 2.1.1.

@@ -9,14 +9,26 @@ want the public typed API rather than the raw extension payload.
 Example: `from stilyagi import model`
 `from stilyagi.engine.extraction import extract_document`
 `result = extract_document("# Heading", model.Syntax.MARKDOWN)`
+
+Process-wide bridge vocabulary state is loaded lazily. Region-kind caches use
+`functools.cache`, and syntax-vocabulary validation is guarded by a module lock
+so concurrent callers share one validated state. Tests that patch bridge
+functions must call `_reset_extraction_state_for_tests` before observing patched
+vocabulary behaviour.
 """
 
 import json
+import logging
+import threading
 import typing as typ
+from functools import cache
 
 from stilyagi import model
 from stilyagi._stilyagi_rs import (
     extract_document as extract_document_bridge,
+)
+from stilyagi._stilyagi_rs import (
+    supported_region_kinds as bridge_supported_region_kinds,
 )
 from stilyagi._stilyagi_rs import supported_syntaxes as bridge_supported_syntaxes
 
@@ -38,26 +50,71 @@ class _BridgeDocument(typ.TypedDict):
 
 _PYTHON_SYNTAX_SPELLINGS = frozenset(syntax.value for syntax in model.Syntax)
 _SYNTAX_VOCAB_VALIDATED = False
+_SYNTAX_VOCAB_LOCK = threading.Lock()
+_LOGGER = logging.getLogger(__name__)
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
 
+class UnknownIrRegionKind(typ.NamedTuple):
+    """Diagnostic for one canonical IR region kind unknown to Python."""
+
+    index: int
+    kind: str
+
+
 def _validate_syntax_vocab_once() -> None:
-    """Fail fast if the Python and Rust syntax vocabularies drift apart."""
+    """Fail fast once if the Python and Rust syntax vocabularies drift apart."""
     global _SYNTAX_VOCAB_VALIDATED
     if _SYNTAX_VOCAB_VALIDATED:
         return
 
-    rust_syntax_spellings = frozenset(bridge_supported_syntaxes())
-    if rust_syntax_spellings != _PYTHON_SYNTAX_SPELLINGS:
-        msg = (
-            "Python and Rust syntax spellings differ: "
-            f"python={sorted(_PYTHON_SYNTAX_SPELLINGS)!r}, "
-            f"rust={sorted(rust_syntax_spellings)!r}"
-        )
-        raise RuntimeError(msg)
-    _SYNTAX_VOCAB_VALIDATED = True
+    with _SYNTAX_VOCAB_LOCK:
+        if _SYNTAX_VOCAB_VALIDATED:
+            return
+
+        rust_syntax_spellings = frozenset(bridge_supported_syntaxes())
+        if rust_syntax_spellings != _PYTHON_SYNTAX_SPELLINGS:
+            msg = (
+                "Python and Rust syntax spellings differ: "
+                f"python={sorted(_PYTHON_SYNTAX_SPELLINGS)!r}, "
+                f"rust={sorted(rust_syntax_spellings)!r}"
+            )
+            raise RuntimeError(msg)
+        _SYNTAX_VOCAB_VALIDATED = True
+
+
+def _reset_extraction_state_for_tests() -> None:
+    """Reset process-wide extraction caches used by tests that patch the bridge."""
+    global _SYNTAX_VOCAB_VALIDATED
+    with _SYNTAX_VOCAB_LOCK:
+        _SYNTAX_VOCAB_VALIDATED = False
+        _supported_region_kinds.cache_clear()
+        _known_ir_region_kinds.cache_clear()
+
+
+@cache
+def _supported_region_kinds() -> tuple[str, ...]:
+    """Return bridge region kinds, loaded lazily to keep imports side-effect free."""
+    return bridge_supported_region_kinds()
+
+
+@cache
+def _known_ir_region_kinds() -> frozenset[str]:
+    """Return the cached canonical region-kind lookup set."""
+    return frozenset(_supported_region_kinds())
+
+
+def supported_region_kinds() -> tuple[str, ...]:
+    """Return the stable IR region-kind spellings advertised by the bridge.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Canonical region-kind spellings in bridge order.
+    """
+    return _supported_region_kinds()
 
 
 def extract_document(source: str, syntax: model.Syntax) -> model.Document:
@@ -79,13 +136,14 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
     bridge_document = _coerce_bridge_document(
         extract_document_bridge(source, syntax.value),
     )
+    ir_payload = _parse_ir_json(bridge_document.get("ir_json"))
     return model.Document(
         syntax=model.Syntax(bridge_document["syntax"]),
         regions=tuple(
             model.Region(kind=region["kind"], text=region["text"])
             for region in bridge_document["regions"]
         ),
-        ir=_parse_ir_json(bridge_document.get("ir_json")),
+        ir=ir_payload,
     )
 
 
@@ -136,6 +194,17 @@ def _coerce_bridge_document(payload: object) -> _BridgeDocument:
     return document
 
 
+def _assert_str_region_field(
+    region_dict: dict[str, object], index: int, field: str
+) -> str:
+    """Return ``region_dict[field]`` as ``str``, or raise ``TypeError``."""
+    value = region_dict.get(field)
+    if not isinstance(value, str):
+        msg = f"expected Rust bridge payload['regions'][{index}][{field!r}] to be str"
+        raise TypeError(msg)
+    return value
+
+
 def _coerce_bridge_region(index: int, region: object) -> _BridgeRegion:
     """Validate one raw bridge region before adapting it to Python models."""
     if not isinstance(region, dict):
@@ -145,17 +214,10 @@ def _coerce_bridge_region(index: int, region: object) -> _BridgeRegion:
         )
         raise TypeError(msg)
     region_dict = typ.cast("dict[str, object]", region)
-
-    kind = region_dict.get("kind")
-    text = region_dict.get("text")
-    if not isinstance(kind, str):
-        msg = f"expected Rust bridge payload['regions'][{index}]['kind'] to be str"
-        raise TypeError(msg)
-    if not isinstance(text, str):
-        msg = f"expected Rust bridge payload['regions'][{index}]['text'] to be str"
-        raise TypeError(msg)
-
-    return {"kind": kind, "text": text}
+    return {
+        "kind": _assert_str_region_field(region_dict, index, "kind"),
+        "text": _assert_str_region_field(region_dict, index, "text"),
+    }
 
 
 def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
@@ -167,3 +229,44 @@ def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
         msg = "expected Rust bridge payload['ir_json'] to decode to dict"
         raise TypeError(msg)
     return typ.cast("cabc.Mapping[str, typ.Any]", parsed)
+
+
+def _iter_unknown_region_kinds(
+    regions: list[object],
+    known_region_kinds: frozenset[str],
+) -> cabc.Iterator[UnknownIrRegionKind]:
+    """Yield diagnostics for every unknown region kind."""
+    for index, region in enumerate(regions):
+        if not isinstance(region, dict):
+            continue
+        kind = typ.cast("dict[str, object]", region).get("kind")
+        if isinstance(kind, str) and kind not in known_region_kinds:
+            yield UnknownIrRegionKind(index=index, kind=kind)
+
+
+def _unknown_ir_region_kinds(
+    ir_payload: cabc.Mapping[str, typ.Any] | None,
+) -> tuple[UnknownIrRegionKind, ...]:
+    """Return unknown canonical IR region-kind diagnostics."""
+    if ir_payload is None:
+        return ()
+    regions = ir_payload.get("regions")
+    if not isinstance(regions, list):
+        return ()
+    regions = typ.cast("list[object]", regions)
+    return tuple(_iter_unknown_region_kinds(regions, _known_ir_region_kinds()))
+
+
+def _warn_unknown_ir_region_kinds(
+    ir_payload: cabc.Mapping[str, typ.Any] | None,
+    *,
+    operation: str,
+) -> None:
+    """Warn when canonical IR includes region kinds unknown to Python."""
+    for diagnostic in _unknown_ir_region_kinds(ir_payload):
+        _LOGGER.warning(
+            "Unknown IR region kind from Rust bridge during %s: index=%s kind=%r",
+            operation,
+            diagnostic.index,
+            diagnostic.kind,
+        )

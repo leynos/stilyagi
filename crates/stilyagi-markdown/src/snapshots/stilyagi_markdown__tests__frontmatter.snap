@@ -1,0 +1,194 @@
+---
+source: crates/stilyagi-markdown/src/tests.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/frontmatter.md.fixture",
+    "syntax": "markdown",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:553fda009cfe8bc5ce2a9e4707c2cf908c13239c977c7b72a55be7f31cabab8f"
+  },
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "version": "1.0.0",
+      "options": {
+        "frontmatter": true,
+        "gfm": true
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    4,
+    27,
+    68,
+    72,
+    73,
+    112
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "mdast",
+      "syntax": "markdown",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "root",
+      "parent": null,
+      "children": [
+        "n1",
+        "n2"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 112
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "yaml",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 71
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n0",
+      "children": [
+        "n3"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 73,
+        "byte_end": 111
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n2",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 73,
+        "byte_end": 111
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "frontmatter",
+      "scope": [
+        "markdown",
+        "frontmatter",
+        "yaml"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "---\ntitle: Golden Fixtures\nsummary: Covers frontmatter as a region.\n---",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 71,
+          "source": {
+            "byte_start": 0,
+            "byte_end": 71
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "---\ntitle: Golden Fixtures\nsummary: Covers frontmatter as a region.\n---"
+        }
+      ],
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": null,
+      "attrs": {
+        "format": "yaml"
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Paragraph after dedicated frontmatter.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 38,
+          "source": {
+            "byte_start": 73,
+            "byte_end": 111
+          },
+          "synthetic": null,
+          "node": "n2",
+          "text": "Paragraph after dedicated frontmatter."
+        }
+      ],
+      "origin_nodes": [
+        "n2"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}

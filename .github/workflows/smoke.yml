@@ -31,6 +31,9 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@4cda7d73322c50eac316ad623a716f09a2db2ac7
 
+      - name: Install test runner
+        run: cargo binstall --no-confirm cargo-nextest@0.9.138
+
       - name: Install bun
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
         with:
@@ -51,6 +54,10 @@ jobs:
         run: |
           uv tool install nixie-cli==1.0.0
 
+      - name: Install Interrogate
+        run: |
+          uv tool install interrogate==1.7.0
+
       - name: Check formatting
         run: make check-fmt
 
@@ -67,6 +74,9 @@ jobs:
             --rev "${WHITAKER_INSTALLER_REV}" \
             whitaker-installer
           whitaker-installer --cranelift
+
+      - name: Typecheck
+        run: make typecheck
 
       - name: Lint
         run: make lint

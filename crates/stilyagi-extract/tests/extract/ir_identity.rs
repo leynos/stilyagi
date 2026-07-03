@@ -14,7 +14,7 @@ fn markdown_extraction_uses_anonymous_ir_identity_by_default(
 ) {
     let ir = extracted_markdown
         .ir()
-        .unwrap_or_else(|| panic!("expected Markdown IR payload"));
+        .expect("expected Markdown IR payload");
 
     assert_eq!(ir.document.path, None);
     assert_eq!(ir.document.uri, None);
@@ -29,9 +29,7 @@ fn markdown_extraction_propagates_explicit_source_identity() {
             Some("file:///repo/docs/example.md".to_owned()),
         ),
     );
-    let ir = document
-        .ir()
-        .unwrap_or_else(|| panic!("expected Markdown IR payload"));
+    let ir = document.ir().expect("expected Markdown IR payload");
 
     assert_eq!(ir.document.path.as_deref(), Some("docs/example.md"));
     assert_eq!(

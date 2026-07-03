@@ -54,9 +54,20 @@ owns a long-lived architectural role:
 
   document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
   assert document.syntax is model.Syntax.MARKDOWN
-  assert document.regions[0].text == "# Heading"
+  assert document.regions[0].kind == "heading"
+  assert document.regions[0].text == "Heading"
   assert document.ir is not None
   assert document.ir["schema_version"] == "1.0.0"
+  ```
+
+  Query the current IR region-kind vocabulary before writing code that branches
+  on region kinds:
+
+  ```python
+  from stilyagi import engine
+
+  assert "heading" in engine.supported_region_kinds()
+  assert "link_title" in engine.supported_region_kinds()
   ```
 
 - `stilyagi.model` is the future home for document, region, sentence, and
@@ -110,9 +121,22 @@ The new extraction path is intentionally narrow in this slice:
 - Markdown documents expose a parsed `document.ir` mapping containing the
   canonical Markdown IR envelope. That mapping includes schema metadata,
   `line_index`, Markdown tree nodes, region `segments`, and content hashes.
-- `stilyagi._stilyagi_rs` remains an internal bridge module. User code should
-  call `stilyagi.engine.extract_document(...)` rather than importing the raw
-  bridge directly.
+- Markdown IR regions currently include text-bearing `heading`, `paragraph`,
+  and `table_cell` regions; structural `list_item` and `blockquote` container
+  regions; source-backed whole-block `frontmatter`; and synthetic decoded
+  `image_alt` and `link_title` regions.
+- `document.regions` exposes the same supported region-kind spellings as a
+  compact typed Python view. Inspect `region.kind` and `region.text` for common
+  workflows, and use `document.ir["regions"]` when byte spans, scopes, or
+  segment origins are needed.
+- When `document.ir["regions"]` contains an unknown future region kind, the
+  Python adapter logs a warning and preserves the region in `document.ir`
+  rather than rejecting the document.
+- `list_item` and `blockquote` regions are containers. Their prose normally
+  appears in child regions linked through `parent_region`.
+- `image_alt` and `link_title` expose decoded lint text. They are inspection
+  surfaces in `document.ir`, but their segments are synthetic until
+  byte-accurate edit spans are implemented.
 
 ## 1b. Package smoke check
 
@@ -203,29 +227,20 @@ expectations in the first releases are defined around English only.
 
 ## 5. Current state of the product
 
-The repository already uses `maturin` to build and develop the embedded
-extension from the `python/` plus `crates/` mixed-package skeleton, but
 Stilyagi is still in the roadmap phase where architectural contracts are being
-ratified before feature-complete releases land.[^2][^3]
+ratified before feature-complete releases land.[^2][^3] The stable user-facing
+surface is the Python package API.
 
-For day-to-day users, the mixed-package skeleton changes three practical things:
+Use `engine.extract_document()` to extract Markdown through the public engine
+boundary. Non-blank Markdown input returns typed `document.regions` for
+source-backed regions such as `heading`, `paragraph`, and `table_cell`, plus
+container and decoded-text region kinds when the source contains lists,
+blockquotes, frontmatter, images, or link titles. Blank Markdown input returns
+zero regions.
 
-- the installation model is still one Python package, even though the
-  repository now has explicit `python/` and `crates/` source roots;
-- editable installations compile the embedded Rust extension into the Python
-  package namespace as `stilyagi._stilyagi_rs`; and
-- the placeholder engine, model, NLP, diagnostic, plugin, and rule modules now
-  exist as stable import locations for later feature slices, so users should
-  expect future releases to extend those modules rather than moving them again.
-- source checkouts use `make build` for development installs and
-  `make release` for release wheel builds; both workflows run the same package
-  smoke check through the public Python engine API and embedded Rust extension.
-
-The first implemented extractor proof now crosses the embedded Rust boundary
-without shelling out to a helper binary. Non-blank Markdown input still returns
-the compatibility `document` region used by earlier slices, blank Markdown
-input returns zero compatibility regions, and Markdown input now also carries a
-canonical IR envelope on `Document.ir`.
+Markdown input also carries a canonical IR envelope on `Document.ir`.
+`engine.supported_region_kinds()` returns the region-kind vocabulary supported
+by the installed package version.
 
 Until the command-line interface (CLI) and feature slices are implemented,
 treat this guide as a record of the stable user-facing v1 contract rather than

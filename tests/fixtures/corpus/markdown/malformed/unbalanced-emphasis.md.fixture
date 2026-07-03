@@ -1,0 +1,3 @@
+# Unbalanced emphasis
+
+This paragraph has *unclosed emphasis and should recover as literal text.

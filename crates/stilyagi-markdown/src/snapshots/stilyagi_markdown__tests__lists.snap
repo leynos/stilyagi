@@ -1,0 +1,693 @@
+---
+source: crates/stilyagi-markdown/src/tests.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/lists.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/lists.md.fixture",
+    "syntax": "markdown",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:5399d7cc5689c7f46fbb6c16f76fef4197bc0ff8a21dbae9b9a05e02fa9f7f82"
+  },
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "version": "1.0.0",
+      "options": {
+        "frontmatter": true,
+        "gfm": true
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    17,
+    36,
+    57,
+    58,
+    74,
+    98
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "mdast",
+      "syntax": "markdown",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "root",
+      "parent": null,
+      "children": [
+        "n1",
+        "n11"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 98
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "list",
+      "parent": "n0",
+      "children": [
+        "n2",
+        "n5",
+        "n8"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 57
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "listItem",
+      "parent": "n1",
+      "children": [
+        "n3"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 16
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n2",
+      "children": [
+        "n4"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 2,
+        "byte_end": 16
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n3",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 2,
+        "byte_end": 16
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n5",
+      "tree": "t0",
+      "kind": "listItem",
+      "parent": "n1",
+      "children": [
+        "n6"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 17,
+        "byte_end": 35
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n6",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n5",
+      "children": [
+        "n7"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 23,
+        "byte_end": 35
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n7",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n6",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 23,
+        "byte_end": 35
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n8",
+      "tree": "t0",
+      "kind": "listItem",
+      "parent": "n1",
+      "children": [
+        "n9"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 36,
+        "byte_end": 57
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n9",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n8",
+      "children": [
+        "n10"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 42,
+        "byte_end": 56
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n10",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n9",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 42,
+        "byte_end": 56
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n11",
+      "tree": "t0",
+      "kind": "list",
+      "parent": "n0",
+      "children": [
+        "n12",
+        "n15"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 58,
+        "byte_end": 97
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n12",
+      "tree": "t0",
+      "kind": "listItem",
+      "parent": "n11",
+      "children": [
+        "n13"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 58,
+        "byte_end": 73
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n13",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n12",
+      "children": [
+        "n14"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 61,
+        "byte_end": 73
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n14",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n13",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 61,
+        "byte_end": 73
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n15",
+      "tree": "t0",
+      "kind": "listItem",
+      "parent": "n11",
+      "children": [
+        "n16"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 74,
+        "byte_end": 97
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n16",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n15",
+      "children": [
+        "n17"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 77,
+        "byte_end": 97
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n17",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n16",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 77,
+        "byte_end": 97
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "list_item",
+      "scope": [
+        "markdown",
+        "list_item",
+        "unordered"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n2"
+      ],
+      "owner": null,
+      "attrs": {
+        "ordered": false,
+        "spread": false
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph",
+        "list_item"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Unordered item",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 14,
+          "source": {
+            "byte_start": 2,
+            "byte_end": 16
+          },
+          "synthetic": null,
+          "node": "n3",
+          "text": "Unordered item"
+        }
+      ],
+      "origin_nodes": [
+        "n3"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": "r0"
+    },
+    {
+      "id": "r2",
+      "kind": "list_item",
+      "scope": [
+        "markdown",
+        "list_item",
+        "unordered",
+        "task"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n5"
+      ],
+      "owner": null,
+      "attrs": {
+        "checked": true,
+        "ordered": false,
+        "spread": false
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r3",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph",
+        "list_item"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Checked task",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 12,
+          "source": {
+            "byte_start": 23,
+            "byte_end": 35
+          },
+          "synthetic": null,
+          "node": "n6",
+          "text": "Checked task"
+        }
+      ],
+      "origin_nodes": [
+        "n6"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": "r2"
+    },
+    {
+      "id": "r4",
+      "kind": "list_item",
+      "scope": [
+        "markdown",
+        "list_item",
+        "unordered",
+        "task"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n8"
+      ],
+      "owner": null,
+      "attrs": {
+        "checked": false,
+        "ordered": false,
+        "spread": false
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r5",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph",
+        "list_item"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Unchecked task",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 14,
+          "source": {
+            "byte_start": 42,
+            "byte_end": 56
+          },
+          "synthetic": null,
+          "node": "n9",
+          "text": "Unchecked task"
+        }
+      ],
+      "origin_nodes": [
+        "n9"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": "r4"
+    },
+    {
+      "id": "r6",
+      "kind": "list_item",
+      "scope": [
+        "markdown",
+        "list_item",
+        "ordered"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n12"
+      ],
+      "owner": null,
+      "attrs": {
+        "ordered": true,
+        "spread": false,
+        "start": 3
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r7",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph",
+        "list_item"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Ordered item",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 12,
+          "source": {
+            "byte_start": 61,
+            "byte_end": 73
+          },
+          "synthetic": null,
+          "node": "n13",
+          "text": "Ordered item"
+        }
+      ],
+      "origin_nodes": [
+        "n13"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": "r6"
+    },
+    {
+      "id": "r8",
+      "kind": "list_item",
+      "scope": [
+        "markdown",
+        "list_item",
+        "ordered"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "",
+      "segments": [],
+      "origin_nodes": [
+        "n15"
+      ],
+      "owner": null,
+      "attrs": {
+        "ordered": true,
+        "spread": false,
+        "start": 3
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r9",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph",
+        "list_item"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Ordered continuation",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 20,
+          "source": {
+            "byte_start": 77,
+            "byte_end": 97
+          },
+          "synthetic": null,
+          "node": "n16",
+          "text": "Ordered continuation"
+        }
+      ],
+      "origin_nodes": [
+        "n16"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": "r8"
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}

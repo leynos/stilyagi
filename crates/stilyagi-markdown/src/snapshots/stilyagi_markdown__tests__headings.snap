@@ -1,0 +1,219 @@
+---
+source: crates/stilyagi-markdown/src/tests.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/headings.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/headings.md.fixture",
+    "syntax": "markdown",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:87e6e0c1672c2050b3a204c6c8f3cda949bb1f169160cd11a4530ac91b44461e"
+  },
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "version": "1.0.0",
+      "options": {
+        "frontmatter": true,
+        "gfm": true
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    12,
+    13,
+    30
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "mdast",
+      "syntax": "markdown",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "root",
+      "parent": null,
+      "children": [
+        "n1",
+        "n3"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 30
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "heading",
+      "parent": "n0",
+      "children": [
+        "n2"
+      ],
+      "fields": {},
+      "props": {
+        "depth": 1
+      },
+      "span": {
+        "byte_start": 0,
+        "byte_end": 11
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 2,
+        "byte_end": 11
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "heading",
+      "parent": "n0",
+      "children": [
+        "n4"
+      ],
+      "fields": {},
+      "props": {
+        "depth": 3
+      },
+      "span": {
+        "byte_start": 13,
+        "byte_end": 29
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n3",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 17,
+        "byte_end": 29
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "heading",
+      "scope": [
+        "markdown",
+        "heading",
+        "h1"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Top Level",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 9,
+          "source": {
+            "byte_start": 2,
+            "byte_end": 11
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "Top Level"
+        }
+      ],
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": null,
+      "attrs": {
+        "depth": 1
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "heading",
+      "scope": [
+        "markdown",
+        "heading",
+        "h3"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Nested Level",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 12,
+          "source": {
+            "byte_start": 17,
+            "byte_end": 29
+          },
+          "synthetic": null,
+          "node": "n3",
+          "text": "Nested Level"
+        }
+      ],
+      "origin_nodes": [
+        "n3"
+      ],
+      "owner": null,
+      "attrs": {
+        "depth": 3
+      },
+      "parent_region": null
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}

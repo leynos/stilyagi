@@ -7,6 +7,12 @@ WORKSPACE_MANIFEST ?= Cargo.toml
 PYEXT_MANIFEST ?= crates/stilyagi-pyext/Cargo.toml
 BUILD_JOBS ?=
 RUST_FLAGS ?=
+RUST_FLAGS := -D warnings $(RUST_FLAGS)
+RUSTDOC_FLAGS ?=
+RUSTDOC_FLAGS := -D warnings $(RUSTDOC_FLAGS)
+CARGO_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets --all-features
+CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
+DOC_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features --no-deps
 UV ?= $(shell command -v uv 2>/dev/null || printf '%s/.local/bin/uv' "$$HOME")
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 UV_RUN = $(UV_ENV) $(UV) run --group dev
@@ -15,8 +21,11 @@ PYLINT_TARGETS ?= python/stilyagi tests
 PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b
 PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)
 PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy
+INTERROGATE ?= interrogate
+INTERROGATE_TARGETS ?= python/stilyagi tests
+INTERROGATE_FLAGS ?= --fail-under 100
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
-TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace
+TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
 RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" ]; then VENV_PYTHON=".venv/Scripts/python.exe"; fi
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
@@ -88,6 +97,7 @@ tools-docs:
 
 tools-lint: tools-check
 	$(call ensure_tool,whitaker)
+	$(call ensure_tool,$(INTERROGATE))
 
 fmt: tools ## Format sources
 	$(UV_RUN) ruff format
@@ -101,12 +111,14 @@ check-fmt: tools-check ## Verify formatting
 
 lint: tools-lint ## Run linters
 	$(UV_RUN) ruff check
+	$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
-	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
-	# Whitaker resolves cargo metadata from the crate directory in this repo.
-	cd crates/stilyagi-pyext && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all
+	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
+	$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all -- $(CARGO_FLAGS)
 
 typecheck: build tools-check ## Run typechecking
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)
 	$(UV_RUN) ty --version
 	$(UV_RUN) ty check
 
@@ -118,13 +130,14 @@ nixie: tools-docs ## Validate Mermaid diagrams
 
 test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
-	$(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
+	$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
 	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS); \
 	else \
 		echo "cargo-nextest not installed, falling back to cargo test"; \
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) test $(TEST_FLAGS) $(BUILD_JOBS); \
 	fi
+	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)
 	# Run pytest through the venv interpreter so the maturin-developed extension
 	# remains installed instead of being replaced by the uv_build wheel.
 	$(RESOLVE_VENV_PYTHON); \
@@ -132,6 +145,7 @@ test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 
 test-ci: build tools-lint ## Run Rust tests with the CI nextest profile
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile ci --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS)
+	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)
 
 test-quick: build tools-lint ## Run Rust library tests only with nextest
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass --lib $(TEST_FLAGS) $(BUILD_JOBS)

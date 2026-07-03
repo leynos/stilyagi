@@ -63,6 +63,13 @@
   contributors should treat carefully.
 - [Documentation style guide](documentation-style-guide.md) defines the
   repository-wide writing and Markdown conventions.
+- [`rstest-bdd` user's guide](rstest-bdd-users-guide.md) documents the
+  repository's Rust BDD test framework conventions.
+- [Reliable testing in Rust via dependency injection](
+  reliable-testing-in-rust-via-dependency-injection.md) records deterministic
+  Rust testing patterns for IO and process-boundary code.
+- [Rust testing with `rstest` fixtures](rust-testing-with-rstest-fixtures.md)
+  records Rust fixture and parameterized-test conventions.
 - [Scripting standards](scripting-standards.md) describes the expectations for
   shell and automation scripts in this repository.
 - [Local validation with act and pytest](
@@ -88,6 +95,10 @@
     adr-004-python-linting-architecture.md)
     records the accepted Ruff-first, focused-Pylint-second Python linting
     architecture and its Makefile execution model.
+  - [ADR 005: Scope Markdown region vocabulary](
+    adr-005-markdown-region-vocabulary-scope.md)
+    records the accepted thin-container convention and the reserved
+    `frontmatter_field` / source-backing deferrals for Markdown IR regions.
 
 ## Requests for comments (RFCs)
 

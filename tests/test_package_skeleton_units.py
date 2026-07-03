@@ -1,12 +1,16 @@
 """Unit tests for the mixed-package Python skeleton."""
 
+import concurrent.futures
 import dataclasses as dc
 import json
+import logging
 import pathlib
+import threading
 import typing as typ
 
 import pytest
 import stilyagi
+import stilyagi.engine.extraction as extraction_module
 from stilyagi import cli, config, diagnostics, engine, model, nlp, plugins, rules
 from stilyagi.nlp import spacy_provider
 
@@ -14,6 +18,14 @@ type JSONType = dict[str, JSONType] | list[JSONType] | str | int | float | bool 
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+
+
+@pytest.fixture(autouse=True)
+def reset_extraction_state() -> cabc.Iterator[None]:
+    """Reset process-wide extraction adapter state around every test."""
+    extraction_module._reset_extraction_state_for_tests()
+    yield
+    extraction_module._reset_extraction_state_for_tests()
 
 
 def test_public_package_re_exports_the_supported_boundaries() -> None:
@@ -34,6 +46,7 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
                 "FixPlan",
                 "RendererRegistry",
                 "extract_document",
+                "supported_region_kinds",
             ],
         ),
         (model, ["Document", "Region", "Sentence", "Syntax", "Token"]),
@@ -122,7 +135,7 @@ def test_engine_extract_document_maps_regions_into_model_regions() -> None:
     """Adapt the bridge payload into the Python model surface."""
     document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
 
-    assert document.regions == (model.Region(kind="document", text="# Heading"),)
+    assert document.regions == (model.Region(kind="heading", text="Heading"),)
 
 
 def test_engine_extract_document_drops_blank_markdown_region() -> None:
@@ -162,6 +175,167 @@ def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
         model.Syntax.PYTHON_DOCSTRING.value,
         model.Syntax.RUST_DOC_COMMENT.value,
     )
+
+
+def test_engine_bridge_region_kind_spellings_match_the_rust_ir_vocab() -> None:
+    """Expose the canonical Rust IR region kind spellings to Python."""
+    assert engine.supported_region_kinds() == (
+        "heading",
+        "paragraph",
+        "list_item",
+        "blockquote",
+        "table_cell",
+        "frontmatter",
+        "frontmatter_field",
+        "image_alt",
+        "link_title",
+        "python_docstring",
+        "rust_doc_comment",
+    )
+
+
+def test_extraction_state_reset_refreshes_region_kind_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refresh lazy region-kind caches when tests patch the Rust bridge."""
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            extraction_module,
+            "bridge_supported_region_kinds",
+            lambda: ("first_kind",),
+        )
+        extraction_module._reset_extraction_state_for_tests()
+        assert extraction_module.supported_region_kinds() == ("first_kind",)
+
+        patch.setattr(
+            extraction_module,
+            "bridge_supported_region_kinds",
+            lambda: ("second_kind",),
+        )
+        assert extraction_module.supported_region_kinds() == ("first_kind",)
+
+        extraction_module._reset_extraction_state_for_tests()
+        assert extraction_module.supported_region_kinds() == ("second_kind",)
+
+
+def test_syntax_vocab_validation_is_resettable_for_bridge_tests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reset one-time syntax validation when tests patch bridge vocabularies."""
+    supported = (
+        model.Syntax.MARKDOWN.value,
+        model.Syntax.PYTHON_DOCSTRING.value,
+        model.Syntax.RUST_DOC_COMMENT.value,
+    )
+
+    with monkeypatch.context() as patch:
+        patch.setattr(extraction_module, "bridge_supported_syntaxes", lambda: supported)
+        extraction_module._reset_extraction_state_for_tests()
+        extraction_module._validate_syntax_vocab_once()
+
+        patch.setattr(
+            extraction_module, "bridge_supported_syntaxes", lambda: ("drift",)
+        )
+        extraction_module._validate_syntax_vocab_once()
+
+        extraction_module._reset_extraction_state_for_tests()
+        with pytest.raises(
+            RuntimeError, match="Python and Rust syntax spellings differ"
+        ):
+            extraction_module._validate_syntax_vocab_once()
+
+
+def test_syntax_vocab_validation_is_shared_by_concurrent_callers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validate bridge syntax vocabulary once across concurrent callers."""
+    call_count = 0
+    call_count_lock = threading.Lock()
+    supported = (
+        model.Syntax.MARKDOWN.value,
+        model.Syntax.PYTHON_DOCSTRING.value,
+        model.Syntax.RUST_DOC_COMMENT.value,
+    )
+
+    def bridge_supported_syntaxes() -> tuple[str, ...]:
+        """Return supported syntax spellings while counting bridge calls."""
+        nonlocal call_count
+        with call_count_lock:
+            call_count += 1
+        return supported
+
+    monkeypatch.setattr(
+        extraction_module, "bridge_supported_syntaxes", bridge_supported_syntaxes
+    )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [
+            executor.submit(extraction_module._validate_syntax_vocab_once)
+            for _ in range(8)
+        ]
+        for future in futures:
+            future.result()
+
+    assert call_count == 1
+
+
+@pytest.mark.parametrize(
+    ("extract_document", "expected_warning_args"),
+    [
+        pytest.param(
+            engine.extract_document,
+            ("stilyagi.engine.extract_document", 0, "future_kind"),
+            id="public-engine-boundary",
+        ),
+        pytest.param(
+            extraction_module.extract_document,
+            None,
+            id="read-only-extraction-adapter",
+        ),
+    ],
+)
+def test_extract_document_preserves_unknown_ir_region_kind(
+    caplog: pytest.LogCaptureFixture,
+    extract_document: cabc.Callable[[str, model.Syntax], model.Document],
+    expected_warning_args: tuple[str, int, str] | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Preserve unknown IR kinds and only warn at the public command boundary."""
+
+    def bridge_payload(source: str, syntax: str) -> dict[str, object]:
+        """Return a bridge payload with a future IR kind."""
+        assert source == "Example"
+        assert syntax == model.Syntax.MARKDOWN.value
+        return {
+            "syntax": syntax,
+            "regions": [],
+            "ir_json": json.dumps({
+                "schema_version": "1.0.0",
+                "regions": [{"kind": "future_kind", "text": "Example"}],
+            }),
+        }
+
+    monkeypatch.setattr(extraction_module, "extract_document_bridge", bridge_payload)
+    caplog.set_level(logging.WARNING, logger="stilyagi.engine.extraction")
+
+    document = extract_document("Example", model.Syntax.MARKDOWN)
+
+    assert document.ir is not None
+    assert document.ir["regions"] == [{"kind": "future_kind", "text": "Example"}]
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "stilyagi.engine.extraction"
+    ]
+    if expected_warning_args is None:
+        assert records == []
+    else:
+        assert len(records) == 1
+        assert records[0].message == (
+            "Unknown IR region kind from Rust bridge during "
+            "stilyagi.engine.extract_document: index=0 kind='future_kind'"
+        )
+        assert records[0].args == expected_warning_args
 
 
 @pytest.mark.parametrize(

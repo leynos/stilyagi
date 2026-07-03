@@ -1,0 +1,829 @@
+---
+source: crates/stilyagi-markdown/src/tests.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/links-and-images.md.fixture",
+    "syntax": "markdown",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:2cee5f70491a681389fb066eb35c264390d8cd8e48b8737f2a7f07ad7425184a"
+  },
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "version": "1.0.0",
+      "options": {
+        "frontmatter": true,
+        "gfm": true
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    73,
+    151,
+    226,
+    266,
+    267,
+    310,
+    311,
+    366
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "mdast",
+      "syntax": "markdown",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "root",
+      "parent": null,
+      "children": [
+        "n1",
+        "n19",
+        "n22"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 366
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n0",
+      "children": [
+        "n2",
+        "n3",
+        "n5",
+        "n6",
+        "n8",
+        "n9",
+        "n11",
+        "n12",
+        "n14",
+        "n15",
+        "n16",
+        "n17",
+        "n18"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 265
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 19
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "link",
+      "parent": "n1",
+      "children": [
+        "n4"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 19,
+        "byte_end": 71
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n3",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 20,
+        "byte_end": 34
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n5",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 71,
+        "byte_end": 73
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n6",
+      "tree": "t0",
+      "kind": "linkReference",
+      "parent": "n1",
+      "children": [
+        "n7"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 73,
+        "byte_end": 99
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n7",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n6",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 74,
+        "byte_end": 90
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n8",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 99,
+        "byte_end": 121
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n9",
+      "tree": "t0",
+      "kind": "link",
+      "parent": "n1",
+      "children": [
+        "n10"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 121,
+        "byte_end": 149
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n10",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n9",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 122,
+        "byte_end": 135
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n11",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 149,
+        "byte_end": 163
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n12",
+      "tree": "t0",
+      "kind": "link",
+      "parent": "n1",
+      "children": [
+        "n13"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 163,
+        "byte_end": 184
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n13",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n12",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 164,
+        "byte_end": 183
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n14",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 184,
+        "byte_end": 195
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n15",
+      "tree": "t0",
+      "kind": "image",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 195,
+        "byte_end": 218
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n16",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 218,
+        "byte_end": 240
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n17",
+      "tree": "t0",
+      "kind": "image",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 240,
+        "byte_end": 264
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n18",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 264,
+        "byte_end": 265
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n19",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n0",
+      "children": [
+        "n20"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 267,
+        "byte_end": 309
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n20",
+      "tree": "t0",
+      "kind": "link",
+      "parent": "n19",
+      "children": [
+        "n21"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 267,
+        "byte_end": 309
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n21",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n20",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 268,
+        "byte_end": 284
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n22",
+      "tree": "t0",
+      "kind": "definition",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 311,
+        "byte_end": 365
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "link_title",
+      "scope": [
+        "markdown",
+        "link_title",
+        "decoded"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Inline title",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 12,
+          "source": null,
+          "synthetic": "decoded_text",
+          "node": null,
+          "text": "Inline title"
+        }
+      ],
+      "origin_nodes": [
+        "n3"
+      ],
+      "owner": null,
+      "attrs": {
+        "source_backed": false,
+        "title": "Inline title",
+        "url": "https://example.com"
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "image_alt",
+      "scope": [
+        "markdown",
+        "image_alt",
+        "decoded"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "plain alt",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 9,
+          "source": null,
+          "synthetic": "decoded_text",
+          "node": null,
+          "text": "plain alt"
+        }
+      ],
+      "origin_nodes": [
+        "n15"
+      ],
+      "owner": null,
+      "attrs": {
+        "source_backed": false,
+        "url": "plain.png"
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r2",
+      "kind": "image_alt",
+      "scope": [
+        "markdown",
+        "image_alt",
+        "decoded"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "AT&T",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 4,
+          "source": null,
+          "synthetic": "decoded_text",
+          "node": null,
+          "text": "AT&T"
+        }
+      ],
+      "origin_nodes": [
+        "n17"
+      ],
+      "owner": null,
+      "attrs": {
+        "source_backed": false,
+        "url": "decoded.png"
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r3",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "This paragraph has an inline link, a reference link, an empty-title link without title, an autolink https://example.org, an image , and a decoded image .",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 19,
+          "source": {
+            "byte_start": 0,
+            "byte_end": 19
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "This paragraph has "
+        },
+        {
+          "text_start": 19,
+          "text_end": 33,
+          "source": {
+            "byte_start": 20,
+            "byte_end": 34
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "an inline link"
+        },
+        {
+          "text_start": 33,
+          "text_end": 34,
+          "source": {
+            "byte_start": 71,
+            "byte_end": 72
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": ","
+        },
+        {
+          "text_start": 34,
+          "text_end": 35,
+          "source": null,
+          "synthetic": "softbreak_space",
+          "node": null,
+          "text": " "
+        },
+        {
+          "text_start": 35,
+          "text_end": 51,
+          "source": {
+            "byte_start": 74,
+            "byte_end": 90
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "a reference link"
+        },
+        {
+          "text_start": 51,
+          "text_end": 73,
+          "source": {
+            "byte_start": 99,
+            "byte_end": 121
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": ", an empty-title link "
+        },
+        {
+          "text_start": 73,
+          "text_end": 86,
+          "source": {
+            "byte_start": 122,
+            "byte_end": 135
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "without title"
+        },
+        {
+          "text_start": 86,
+          "text_end": 87,
+          "source": {
+            "byte_start": 149,
+            "byte_end": 150
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": ","
+        },
+        {
+          "text_start": 87,
+          "text_end": 88,
+          "source": null,
+          "synthetic": "softbreak_space",
+          "node": null,
+          "text": " "
+        },
+        {
+          "text_start": 88,
+          "text_end": 100,
+          "source": {
+            "byte_start": 151,
+            "byte_end": 163
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "an autolink "
+        },
+        {
+          "text_start": 100,
+          "text_end": 119,
+          "source": {
+            "byte_start": 164,
+            "byte_end": 183
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "https://example.org"
+        },
+        {
+          "text_start": 119,
+          "text_end": 130,
+          "source": {
+            "byte_start": 184,
+            "byte_end": 195
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": ", an image "
+        },
+        {
+          "text_start": 130,
+          "text_end": 137,
+          "source": {
+            "byte_start": 218,
+            "byte_end": 225
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": ", and a"
+        },
+        {
+          "text_start": 137,
+          "text_end": 138,
+          "source": null,
+          "synthetic": "softbreak_space",
+          "node": null,
+          "text": " "
+        },
+        {
+          "text_start": 138,
+          "text_end": 152,
+          "source": {
+            "byte_start": 226,
+            "byte_end": 240
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "decoded image "
+        },
+        {
+          "text_start": 152,
+          "text_end": 153,
+          "source": {
+            "byte_start": 264,
+            "byte_end": 265
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": "."
+        }
+      ],
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r4",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "empty title link",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 16,
+          "source": {
+            "byte_start": 268,
+            "byte_end": 284
+          },
+          "synthetic": null,
+          "node": "n19",
+          "text": "empty title link"
+        }
+      ],
+      "origin_nodes": [
+        "n19"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}

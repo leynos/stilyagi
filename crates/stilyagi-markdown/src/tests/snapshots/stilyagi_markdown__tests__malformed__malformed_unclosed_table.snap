@@ -1,0 +1,11 @@
+---
+source: crates/stilyagi-markdown/src/tests/malformed.rs
+expression: degraded_region_text(&document)
+---
+heading: "Broken Table Fixture"
+paragraph: "This malformed Markdown fixture keeps recovery tests anchored to source text."
+table_cell: "Term"
+table_cell: "Meaning"
+table_cell: "IR"
+table_cell: "Intermediate representation"
+paragraph: "[unfinished link](not-closed"

@@ -92,24 +92,20 @@ pub enum FixturePathErrorKind {
 /// Panics if `CARGO_MANIFEST_DIR` does not resolve to a crate nested directly
 /// under the repository's `crates/` directory.
 #[must_use]
-#[expect(
-    clippy::expect_used,
-    reason = "test helper should fail loudly when crate layout assumptions break"
-)]
 pub fn repository_root() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let crates_dir = manifest_dir
-        .parent()
-        .expect("failed to determine crate parent from CARGO_MANIFEST_DIR");
+    let Some(crates_dir) = manifest_dir.parent() else {
+        panic!("failed to determine crate parent from CARGO_MANIFEST_DIR");
+    };
     assert_eq!(
         crates_dir.file_name(),
         Some(OsStr::new("crates")),
         "CARGO_MANIFEST_DIR layout drift: expected crate to be nested directly under repository crates/ directory"
     );
-    crates_dir
-        .parent()
-        .expect("failed to determine repository root from CARGO_MANIFEST_DIR")
-        .to_path_buf()
+    let Some(repository_root) = crates_dir.parent() else {
+        panic!("failed to determine repository root from CARGO_MANIFEST_DIR");
+    };
+    repository_root.to_path_buf()
 }
 
 /// Return an absolute path for a repository-relative corpus fixture.
@@ -139,15 +135,7 @@ pub fn normalize_repository_path(input_path: impl AsRef<Path>) -> Result<String,
         .try_fold(Vec::new(), |mut parts, component| {
             match component {
                 Component::Normal(path_part) => {
-                    for normalized_part in path_part.to_string_lossy().split('\\') {
-                        if matches!(normalized_part, "" | "." | "..") {
-                            return Err(FixturePathError::new(
-                                repository_path,
-                                FixturePathErrorKind::EmptyComponent,
-                            ));
-                        }
-                        parts.push(normalized_part.to_owned());
-                    }
+                    push_normalized_path_parts(&mut parts, path_part, repository_path)?;
                 }
                 Component::CurDir => {}
                 Component::ParentDir => {
@@ -179,6 +167,23 @@ pub fn normalize_repository_path(input_path: impl AsRef<Path>) -> Result<String,
     }
 
     Ok(parts.join("/"))
+}
+
+fn push_normalized_path_parts(
+    parts: &mut Vec<String>,
+    path_part: &std::ffi::OsStr,
+    repository_path: &Path,
+) -> Result<(), FixturePathError> {
+    for normalized_part in path_part.to_string_lossy().split('\\') {
+        if matches!(normalized_part, "" | "." | "..") {
+            return Err(FixturePathError::new(
+                repository_path,
+                FixturePathErrorKind::EmptyComponent,
+            ));
+        }
+        parts.push(normalized_part.to_owned());
+    }
+    Ok(())
 }
 
 pub(crate) fn validate_repository_path(path: &Path) -> Result<(), FixturePathError> {

@@ -14,6 +14,7 @@ stilyagi-ir = { path = "../stilyagi-ir" }
 
 [dev-dependencies]
 insta.workspace = true
+proptest.workspace = true
 rstest.workspace = true
 stilyagi-test-support = { path = "../stilyagi-test-support" }
 

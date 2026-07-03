@@ -63,7 +63,7 @@ fn empty_markdown_extraction_yields_no_regions(
 ) {
     let document = extracted_blank_markdown_documents
         .first()
-        .unwrap_or_else(|| panic!("expected empty Markdown fixture"));
+        .expect("expected empty Markdown fixture");
 
     assert!(document.regions().is_empty());
     assert!(document.ir().is_some());
@@ -75,7 +75,7 @@ fn whitespace_markdown_extraction_yields_no_regions(
 ) {
     let document = extracted_blank_markdown_documents
         .get(1)
-        .unwrap_or_else(|| panic!("expected whitespace Markdown fixture"));
+        .expect("expected whitespace Markdown fixture");
 
     assert!(document.regions().is_empty());
     assert!(document.ir().is_some());

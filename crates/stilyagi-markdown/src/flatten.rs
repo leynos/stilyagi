@@ -1,7 +1,7 @@
 //! Markdown inline flattening into source-mapped IR region text.
 
 use markdown::mdast::Node;
-use stilyagi_ir::{IrSegment, SegmentOrigin, SourceSpan};
+use stilyagi_ir::{IrSegment, SegmentOrigin, SourceSpan, SyntheticReason};
 
 use crate::source_text::{
     SourceTextEvent, decoded_text_maps_to_source, source_line_ending_len, source_text_event,
@@ -22,6 +22,59 @@ struct PositionedChunk<'a> {
     source_start: usize,
 }
 
+struct SourceTextCursor {
+    chunk_start: usize,
+    chunk_source_start: usize,
+    source_cursor: usize,
+    byte_offset: usize,
+}
+
+impl SourceTextCursor {
+    const fn new(source_start: usize) -> Self {
+        Self {
+            chunk_start: 0,
+            chunk_source_start: source_start,
+            source_cursor: source_start,
+            byte_offset: 0,
+        }
+    }
+
+    const fn advance_character(&mut self, character_len: usize) {
+        self.source_cursor += character_len;
+        self.byte_offset += character_len;
+    }
+
+    const fn advance_line_ending(&mut self, source_line_ending_len: usize, line_ending_len: usize) {
+        self.source_cursor += source_line_ending_len;
+        self.byte_offset += line_ending_len;
+        self.chunk_start = self.byte_offset;
+        self.chunk_source_start = self.source_cursor;
+    }
+
+    const fn positioned_chunk<'value>(&self, value: &'value str) -> PositionedChunk<'value> {
+        PositionedChunk {
+            value,
+            range: self.chunk_start..self.byte_offset,
+            source_start: self.chunk_source_start - self.chunk_start,
+        }
+    }
+
+    const fn final_chunk<'value>(&self, value: &'value str) -> PositionedChunk<'value> {
+        PositionedChunk {
+            value,
+            range: self.chunk_start..value.len(),
+            source_start: self.chunk_source_start - self.chunk_start,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LineEnding<'value, 'node> {
+    value: &'value str,
+    node_id: SourceNodeId<'node>,
+    len: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SourceNodeId<'a>(&'a str);
 
@@ -35,23 +88,6 @@ impl<'a> SourceNodeId<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SyntheticReason {
-    SoftbreakSpace,
-    HardbreakSpace,
-    DecodedText,
-}
-
-impl SyntheticReason {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::SoftbreakSpace => "softbreak_space",
-            Self::HardbreakSpace => "hardbreak_space",
-            Self::DecodedText => "decoded_text",
-        }
-    }
-}
-
 impl FlattenedRegion<'_> {
     fn emit_chunk_for_range(&mut self, chunk: PositionedChunk<'_>, node_id: SourceNodeId<'_>) {
         let PositionedChunk {
@@ -59,13 +95,15 @@ impl FlattenedRegion<'_> {
             range,
             source_start,
         } = chunk;
-        let Some(text) = value.get(range.clone()) else {
+        let range_start = range.start;
+        let range_end = range.end;
+        let Some(text) = value.get(range_start..range_end) else {
             return;
         };
         if text.is_empty() {
             return;
         }
-        let Some(span) = SourceSpan::new(source_start + range.start, source_start + range.end)
+        let Some(span) = SourceSpan::new(source_start + range_start, source_start + range_end)
         else {
             return;
         };
@@ -79,49 +117,54 @@ impl FlattenedRegion<'_> {
     }
 
     fn push_source_text(&mut self, value: &str, source_start: usize, node_id: SourceNodeId<'_>) {
-        let mut chunk_start = 0;
-        let mut chunk_source_start = source_start;
-        let mut source_cursor = source_start;
-        let mut byte_offset = 0;
-        while byte_offset < value.len() {
-            match source_text_event(value, byte_offset) {
-                SourceTextEvent::LineEnding(line_ending_len) => {
-                    self.emit_chunk_for_range(
-                        PositionedChunk {
-                            value,
-                            range: chunk_start..byte_offset,
-                            source_start: chunk_source_start - chunk_start,
-                        },
+        let mut cursor = SourceTextCursor::new(source_start);
+        while cursor.byte_offset < value.len()
+            && self.push_source_text_event(value, node_id, &mut cursor)
+        {}
+        self.emit_chunk_for_range(cursor.final_chunk(value), node_id);
+    }
+
+    fn push_source_text_event(
+        &mut self,
+        value: &str,
+        node_id: SourceNodeId<'_>,
+        cursor: &mut SourceTextCursor,
+    ) -> bool {
+        match source_text_event(value, cursor.byte_offset) {
+            SourceTextEvent::LineEnding(line_ending_len) => self
+                .push_line_ending(
+                    LineEnding {
+                        value,
                         node_id,
-                    );
-                    let Some(source_line_ending_len) =
-                        source_line_ending_len(self.source, source_cursor, self.source.len())
-                    else {
-                        break;
-                    };
-                    source_cursor += source_line_ending_len;
-                    byte_offset += line_ending_len;
-                    chunk_start = byte_offset;
-                    chunk_source_start = source_cursor;
-                    if let Some(source_span) = SourceSpan::new(source_cursor, source_cursor) {
-                        self.push_source_chunk_before_break("", source_span, node_id);
-                    }
-                }
-                SourceTextEvent::Character(character_len) => {
-                    source_cursor += character_len;
-                    byte_offset += character_len;
-                }
-                SourceTextEvent::InvalidOffset => break,
+                        len: line_ending_len,
+                    },
+                    cursor,
+                )
+                .is_some(),
+            SourceTextEvent::Character(character_len) => {
+                cursor.advance_character(character_len);
+                true
             }
+            SourceTextEvent::InvalidOffset => false,
         }
+    }
+
+    fn push_line_ending(
+        &mut self,
+        line_ending: LineEnding<'_, '_>,
+        cursor: &mut SourceTextCursor,
+    ) -> Option<()> {
+        let source_line_ending_len =
+            source_line_ending_len(self.source, cursor.source_cursor, self.source.len())?;
         self.emit_chunk_for_range(
-            PositionedChunk {
-                value,
-                range: chunk_start..value.len(),
-                source_start: chunk_source_start - chunk_start,
-            },
-            node_id,
+            cursor.positioned_chunk(line_ending.value),
+            line_ending.node_id,
         );
+        cursor.advance_line_ending(source_line_ending_len, line_ending.len);
+        if let Some(source_span) = SourceSpan::new(cursor.source_cursor, cursor.source_cursor) {
+            self.push_source_chunk_before_break("", source_span, line_ending.node_id);
+        }
+        Some(())
     }
 
     fn push_source_chunk_before_break(
@@ -149,12 +192,7 @@ impl FlattenedRegion<'_> {
     }
 
     fn push_synthetic_segment(&mut self, text: &str, reason: SyntheticReason) {
-        self.push_segment(
-            text,
-            SegmentOrigin::Synthetic {
-                reason: reason.as_str().to_owned(),
-            },
-        );
+        self.push_segment(text, SegmentOrigin::Synthetic { reason });
     }
 
     fn push_decoded_text(&mut self, text: &str) {
@@ -225,6 +263,18 @@ fn flatten_inline_code_node(
         return;
     };
     let source_start = source_value_start(flattened.source, span, &code.value);
+    let Some(source_end) = source_start.checked_add(code.value.len()) else {
+        flattened.push_decoded_text(&code.value);
+        return;
+    };
+    let Some(value_span) = SourceSpan::new(source_start, source_end) else {
+        flattened.push_decoded_text(&code.value);
+        return;
+    };
+    if !decoded_text_maps_to_source(flattened.source, value_span, &code.value) {
+        flattened.push_decoded_text(&code.value);
+        return;
+    }
     flattened.push_source_text(&code.value, source_start, node_id);
 }
 

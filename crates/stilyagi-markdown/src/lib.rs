@@ -1,18 +1,21 @@
 //! Markdown-specific extraction support.
 
+mod builder;
 mod flatten;
 mod node_kind;
+mod region_emission;
 mod source_text;
+mod validation;
 
 use std::{any::Any, collections::BTreeMap, panic::catch_unwind};
 
-use flatten::{SourceNodeId, flatten_region};
+use builder::MarkdownIrBuilder;
 use markdown::{ParseOptions, mdast::Node, message::Message, to_mdast};
-use node_kind::node_kind;
 use stilyagi_ir::{
-    DocumentMetadata, IrBuildContext, IrDocument, IrNode, IrRegion, IrTree, NodeFlags,
-    ProducerMetadata, SourceIdentity, SourceSpan,
+    DocumentMetadata, IrBuildContext, IrDocument, IrTree, ProducerMetadata, SourceIdentity,
+    SourceSpan,
 };
+pub(crate) use validation::validate_ir_consistency;
 
 /// Marker type for the future Markdown extraction boundary.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -177,53 +180,6 @@ fn markdown_ir_document_with_context(
     Ok(document)
 }
 
-fn validate_ir_consistency(
-    document: &IrDocument,
-    source: &str,
-    context: &MarkdownDiagnosticContext<'_>,
-) -> Result<(), Message> {
-    let expected_hash = stilyagi_ir::content_hash_for(source);
-    if document.document.content_hash != expected_hash {
-        return Err(stilyagi_markdown_message(
-            context,
-            "ir-content-hash-mismatch",
-            format!(
-                "content_hash mismatch expected={} actual={}",
-                expected_hash, document.document.content_hash
-            ),
-        ));
-    }
-
-    let expected_line_index = stilyagi_ir::line_index_for(source);
-    if document.line_index != expected_line_index {
-        return Err(stilyagi_markdown_message(
-            context,
-            "ir-line-index-mismatch",
-            format!(
-                "line_index mismatch expected={:?} actual={:?}",
-                expected_line_index, document.line_index
-            ),
-        ));
-    }
-
-    for region in &document.regions {
-        if !region.segments_reconstruct_text() {
-            return Err(stilyagi_markdown_message(
-                context,
-                "ir-region-text-mismatch",
-                format!(
-                    "region text mismatch id={} expected={} actual={}",
-                    region.id,
-                    region.reconstructed_text(),
-                    region.text
-                ),
-            ));
-        }
-    }
-
-    Ok(())
-}
-
 /// Version of the `markdown-rs` parser recorded as the IR producer version.
 ///
 /// `markdown-rs` does not expose its own version at compile time, so this
@@ -241,110 +197,6 @@ fn markdown_producer() -> ProducerMetadata {
         version: MARKDOWN_RS_VERSION.to_owned(),
         options,
     }
-}
-
-struct MarkdownIrBuilder<'source> {
-    source: &'source str,
-    next_node: usize,
-    next_region: usize,
-    nodes: Vec<IrNode>,
-    regions: Vec<IrRegion>,
-}
-
-impl<'source> MarkdownIrBuilder<'source> {
-    const fn new(source: &'source str) -> Self {
-        Self {
-            source,
-            next_node: 0,
-            next_region: 0,
-            nodes: Vec::new(),
-            regions: Vec::new(),
-        }
-    }
-
-    fn push_node(
-        &mut self,
-        node: &Node,
-        parent: Option<&str>,
-        context: &MarkdownDiagnosticContext<'_>,
-    ) -> Result<String, Message> {
-        let node_id = self.next_node_id();
-        let node_index = self.nodes.len();
-        self.nodes.push(IrNode {
-            id: node_id.clone(),
-            tree: "t0".to_owned(),
-            kind: node_kind(node).to_owned(),
-            parent: parent.map(str::to_owned),
-            children: Vec::new(),
-            fields: BTreeMap::new(),
-            props: node_props(node),
-            span: source_span(node, context)?,
-            flags: NodeFlags::named_source(),
-        });
-
-        let mut child_ids = Vec::new();
-        if let Some(children) = node.children() {
-            for child in children {
-                child_ids.push(self.push_node(child, Some(&node_id), context)?);
-            }
-        }
-
-        if let Some(stored_node) = self.nodes.get_mut(node_index) {
-            stored_node.children = child_ids;
-        }
-        self.push_region_for_node(node, &node_id);
-        Ok(node_id)
-    }
-
-    fn next_node_id(&mut self) -> String {
-        let id = format!("n{}", self.next_node);
-        self.next_node += 1;
-        id
-    }
-
-    fn next_region_id(&mut self) -> String {
-        let id = format!("r{}", self.next_region);
-        self.next_region += 1;
-        id
-    }
-
-    fn push_region_for_node(&mut self, node: &Node, node_id: &str) {
-        let region_kind = match node {
-            Node::Heading(_) => Some("heading"),
-            Node::Paragraph(_) => Some("paragraph"),
-            Node::TableCell(_) => Some("table_cell"),
-            _ => None,
-        };
-        if let Some(kind) = region_kind {
-            let flattened = flatten_region(node, SourceNodeId::new(node_id), self.source);
-            let mut attrs = BTreeMap::new();
-            if let Node::Heading(heading) = node {
-                attrs.insert("depth".to_owned(), serde_json::json!(heading.depth));
-            }
-            let region_id = self.next_region_id();
-            self.regions.push(IrRegion {
-                id: region_id,
-                kind: kind.to_owned(),
-                scope: scope_for(kind, node),
-                syntax: "markdown".to_owned(),
-                natural_language: None,
-                text: flattened.text,
-                segments: flattened.segments,
-                origin_nodes: vec![node_id.to_owned()],
-                owner: None,
-                attrs,
-                parent_region: None,
-            });
-        }
-    }
-}
-
-fn scope_for(kind: &str, node: &Node) -> Vec<String> {
-    let mut scope = vec!["markdown".to_owned(), kind.to_owned()];
-    if let Node::Heading(heading) = node {
-        scope.push(format!("h{}", heading.depth));
-    }
-    scope
 }
 
 fn source_span(
@@ -367,14 +219,6 @@ fn source_span(
     };
 
     Ok(source_span)
-}
-
-fn node_props(node: &Node) -> BTreeMap<String, serde_json::Value> {
-    let mut props = BTreeMap::new();
-    if let Node::Heading(heading) = node {
-        props.insert("depth".to_owned(), serde_json::json!(heading.depth));
-    }
-    props
 }
 
 #[cfg(test)]
