@@ -165,6 +165,7 @@ def test_engine_extract_document_ir_matches_reviewed_rust_snapshot() -> None:
     assert document.ir is not None
     assert _normalize_ir_identity(document.ir) == _normalize_ir_identity(rust_snapshot)
 
+
 def test_engine_extract_document_exposes_python_docstrings() -> None:
     """Expose supported Python docstring extraction through the typed adapter."""
     document = engine.extract_document(
@@ -182,6 +183,8 @@ def test_engine_extract_document_exposes_python_docstrings() -> None:
         "Function docs.",
     ]
     assert document.ir is not None
+
+
 def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
     """Keep the Python enum and the Rust bridge syntax spellings aligned."""
     from stilyagi._stilyagi_rs import supported_syntaxes

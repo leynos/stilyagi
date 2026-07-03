@@ -23,6 +23,7 @@ fn golden_markdown_ir_fixture_serializes_the_shared_fixture() {
     insta::assert_snapshot!(document.to_canonical_json());
 }
 
+#[rstest]
 fn golden_python_ir_fixture_serializes_the_shared_fixture() {
     let document = golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
         .unwrap_or_else(|error| panic!("expected shared Python golden IR: {error}"));
@@ -33,6 +34,8 @@ fn golden_python_ir_fixture_serializes_the_shared_fixture() {
             .unwrap_or_else(|error| panic!("expected canonical Python IR JSON: {error}"))
     );
 }
+
+#[rstest]
 fn round_trip_edits_apply_source_backed_replacements() {
     let result = apply_round_trip_edits(
         "alpha beta gamma",

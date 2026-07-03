@@ -222,7 +222,7 @@ source maps that docstring rules need across Python and Rust. See
   - Success: IR fixtures identify both the prose region and its owning symbol.
   - Completed with validation evidence in
     [the Python docstring extraction execplan](execplans/3-1-1-python-docstring-extraction.md);
-    see [ADR 005](adr-005-docstring-owner-metadata.md) for owner metadata
+    see [ADR 006](adr-006-docstring-owner-metadata.md) for owner metadata
     decisions.
 - [ ] 3.1.2. Implement Rust documentation-comment extraction with equivalent
   owner metadata. See Stilyagi design (stilyagi-design.md) §7.1.

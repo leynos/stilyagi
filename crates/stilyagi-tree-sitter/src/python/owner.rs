@@ -86,6 +86,8 @@ pub(super) fn qualname_for(stack: &[OwnerFrame]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit and property tests for owner-frame qualified-name derivation.
+
     use proptest::prelude::*;
     use rstest::rstest;
 

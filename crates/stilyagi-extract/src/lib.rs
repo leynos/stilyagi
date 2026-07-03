@@ -379,7 +379,14 @@ fn extract_python_document(
 
     Ok(ExtractDocument::new(ExtractSyntax::PythonDocstring, regions).with_ir(ir))
 }
+
+#[cfg(test)]
 mod tests {
+    //! Tests for extraction error mapping at crate-private seams.
+
+    use super::{ExtractError, MarkdownIrFailure, extract_markdown_document_with};
+    use rstest::rstest;
+
     #[rstest]
     fn markdown_ir_builder_failures_map_to_extract_error() {
         let result = extract_markdown_document_with("# Heading", |_| {

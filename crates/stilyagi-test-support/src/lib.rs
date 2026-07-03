@@ -1,8 +1,8 @@
 //! Dev-only helpers providing centralised repository-relative fixture access for
 //! `stilyagi-extract` and `stilyagi-pyext` tests via [`repository_root`],
 //! [`corpus_fixture_path`], [`read_corpus_fixture`], [`fixture_paths_in`],
-//! [`golden_markdown_ir_fixture`], [`apply_round_trip_edits`], and
-//! [`SHARED_MARKDOWN_FIXTURE_PATH`].
+//! [`golden_markdown_ir_fixture`], [`golden_python_ir_fixture`],
+//! [`apply_round_trip_edits`], and [`SHARED_MARKDOWN_FIXTURE_PATH`].
 
 mod fixture_paths;
 mod fixture_reads;

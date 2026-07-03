@@ -19,6 +19,9 @@ pub const SHARED_PYTHON_FIXTURE_PATH: &str =
 /// Repository-relative path to the malformed Python docstring fixture.
 pub const MALFORMED_PYTHON_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt";
+
+/// Failure raised when a fixture path is not repository-relative.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixturePathError {
     /// Rejected path rendered for diagnostics.
     pub path: String,

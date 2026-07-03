@@ -103,8 +103,8 @@
     adr-005-markdown-region-vocabulary-scope.md)
     records the accepted thin-container convention and the reserved
     `frontmatter_field` / source-backing deferrals for Markdown IR regions.
-  - [ADR 005: Adopt docstring owner metadata](
-    adr-005-docstring-owner-metadata.md)
+  - [ADR 006: Adopt docstring owner metadata](
+    adr-006-docstring-owner-metadata.md)
     records the accepted owner metadata shape, Python `__qualname__`
     semantics, verbatim docstring extraction, and bounded Python node-store
     policy.

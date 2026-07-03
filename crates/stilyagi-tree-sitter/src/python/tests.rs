@@ -36,10 +36,7 @@ fn shared_fixture_extracts_owner_metadata() {
         .regions
         .iter()
         .map(|region| {
-            let owner = region
-                .owner
-                .as_ref()
-                .unwrap_or_else(|| panic!("expected docstring owner"));
+            let owner = region.owner.as_ref().expect("expected docstring owner");
             (
                 region.text.as_str(),
                 owner.kind.as_str(),
@@ -132,7 +129,7 @@ fn crlf_docstring_reconstructs_exactly() {
     let region = document
         .regions
         .first()
-        .unwrap_or_else(|| panic!("expected CR-LF docstring region"));
+        .expect("expected CR-LF docstring region");
 
     assert_eq!(region.text, "line one\r\n    line two");
     assert!(region.segments_reconstruct_text());

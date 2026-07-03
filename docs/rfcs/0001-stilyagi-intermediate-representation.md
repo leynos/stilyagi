@@ -301,7 +301,7 @@ section context or other non-code ancestry. If a region needs heading or
 debugging context, that information SHOULD live in `attrs` or in a separate
 dedicated field rather than overloading `owner`.
 
-ADR 005 records the concrete Python docstring owner policy: Python class and
+ADR 006 records the concrete Python docstring owner policy: Python class and
 function regions use Python `__qualname__` semantics, including `<locals>` for
 definitions nested inside function bodies; module owners remain anonymous until
 a future package-aware extraction entrypoint can supply trustworthy module
@@ -466,5 +466,5 @@ interchange contract.[^4]
 [^5]: <https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html>
 [^6]: [ADR 005: Scope Markdown region vocabulary](
     ../adr-005-markdown-region-vocabulary-scope.md)
-[^7]: [ADR 005: Adopt docstring owner metadata](
-    ../adr-005-docstring-owner-metadata.md)
+[^7]: [ADR 006: Adopt docstring owner metadata](
+    ../adr-006-docstring-owner-metadata.md)

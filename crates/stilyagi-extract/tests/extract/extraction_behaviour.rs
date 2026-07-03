@@ -114,6 +114,7 @@ fn markdown_extraction_preserves_unicode_text(
     );
 }
 
+#[derive(Clone)]
 struct ExtractionExpectation<'a> {
     syntax: stilyagi_extract::ExtractSyntax,
     region_count: Option<usize>,
@@ -121,10 +122,14 @@ struct ExtractionExpectation<'a> {
     kind_str: &'static str,
     text: &'a str,
 }
+
 impl Copy for ExtractionExpectation<'_> {}
+
 fn assert_shared_fixture_extraction(source: &str, expected: ExtractionExpectation<'_>) {
-    let document = stilyagi_extract::extract_document(source, expected.syntax)
-        .unwrap_or_else(|error| panic!("expected shared fixture extraction: {error}"));
+    let document = match stilyagi_extract::extract_document(source, expected.syntax) {
+        Ok(document) => document,
+        Err(error) => panic!("expected shared fixture extraction: {error}"),
+    };
     let first_region = document.regions().first();
 
     assert_eq!(document.syntax(), expected.syntax);
@@ -144,6 +149,8 @@ fn assert_shared_fixture_extraction(source: &str, expected: ExtractionExpectatio
         Some(expected.text)
     );
 }
+
+#[rstest]
 fn markdown_extraction_preserves_the_shared_markdown_fixture(shared_markdown_source: String) {
     assert_shared_fixture_extraction(
         shared_markdown_source.as_str(),
@@ -157,6 +164,7 @@ fn markdown_extraction_preserves_the_shared_markdown_fixture(shared_markdown_sou
     );
 }
 
+#[rstest]
 fn python_extraction_preserves_shared_fixture_docstrings(shared_python_source: String) {
     assert_shared_fixture_extraction(
         &shared_python_source,
@@ -169,6 +177,11 @@ fn python_extraction_preserves_shared_fixture_docstrings(shared_python_source: S
         },
     );
 }
+
+#[rstest]
+#[case("tests/fixtures/corpus/markdown/malformed/unclosed-table.md")]
+#[case("tests/fixtures/corpus/python/malformed/unclosed-function.py.txt")]
+#[case("tests/fixtures/corpus/rust/malformed/unclosed-item.rs")]
 fn malformed_corpus_fixtures_are_readable_utf8_sources(#[case] relative_path: &str) {
     let source = read_corpus_fixture(relative_path)
         .unwrap_or_else(|error| panic!("expected readable fixture {relative_path}: {error}"));

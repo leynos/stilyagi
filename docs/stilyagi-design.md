@@ -21,8 +21,8 @@
     adr-004-python-linting-architecture.md)
   - [ADR 005: Scope Markdown region vocabulary](
     adr-005-markdown-region-vocabulary-scope.md)
-  - [ADR 005: Adopt docstring owner metadata](
-    adr-005-docstring-owner-metadata.md)
+  - [ADR 006: Adopt docstring owner metadata](
+    adr-006-docstring-owner-metadata.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,
@@ -842,7 +842,7 @@ Current implementation note for roadmap item 3.1.1:
   syntax-neutral, so the later Rust documentation comment producer can emit the
   same canonical shape without adding syntax-specific fields to the IR domain.
 - Python docstring owner metadata is resolved by
-  [ADR 005](adr-005-docstring-owner-metadata.md). Python regions use
+  [ADR 006](adr-006-docstring-owner-metadata.md). Python regions use
   `owner.kind` values of `module`, `class`, or `function`; class and function
   owners carry Python `__qualname__`-style qualified names, including
   `<locals>` for definitions nested inside function bodies. Module owners stay
@@ -1201,14 +1201,14 @@ The design must be validated with the following test classes.
   without forcing it as the only in-process transport, and limits formal v1
   locale support to English.
 - Exact owner metadata shape for Python docstrings: resolved by
-  [ADR 005](adr-005-docstring-owner-metadata.md), which accepts explicit region
+  [ADR 006](adr-006-docstring-owner-metadata.md), which accepts explicit region
   owner metadata, Python `__qualname__` semantics, verbatim string-content
   extraction, and a bounded Python node store.
 
 ### Can resolve during implementation
 
 - Exact owner metadata shape for Rust documentation comments. Recommendation:
-  implementation spike plus RFC amendment, reusing the ADR 005 `owner` field
+  implementation spike plus RFC amendment, reusing the ADR 006 `owner` field
   contract while defining Rust-specific owner kinds and qualified-name
   semantics.
 - Spelling capability names, planner semantics, and acceptance gates after ADR

@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 005: Adopt docstring owner metadata
+# Architectural decision record (ADR) 006: Adopt docstring owner metadata
 
 ## Status
 

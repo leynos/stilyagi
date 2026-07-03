@@ -12,7 +12,7 @@ narrower contracts live in:
   boundary between the Python package and the embedded Rust engine
 - [ADR 003](adr-003-v1-contract-scope.md) for the accepted v1 syntax scope, IR
   transport policy, and locale support boundary
-- [ADR 005](adr-005-docstring-owner-metadata.md) for the accepted docstring
+- [ADR 006](adr-006-docstring-owner-metadata.md) for the accepted docstring
   owner metadata shape, Python qualified-name policy, and bounded Python
   node-store contract
 - [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md) for the
@@ -184,8 +184,7 @@ The canonical IR region vocabulary lives in `crates/stilyagi-ir` as
 region kinds, not the older `stilyagi-extract::RegionKind::Document`
 compatibility region. Use `stilyagi_ir::RegionKind::ALL` and
 `RegionKind::as_str()` when code needs the stable IR spellings; the
-`supported_region_kinds()` PyO3 export is built from that same source of
-truth.
+`supported_region_kinds()` PyO3 export is built from that same source of truth.
 
 Markdown region emission follows ADR 005:
 
@@ -210,26 +209,26 @@ that need access to repository-local files:
 
 Table: Repository fixture utilities and signatures.
 
-| Symbol                          | Signature                                                           | Description                                                                                                                               |
-| ------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `SHARED_MARKDOWN_FIXTURE_PATH`  | `&str`                                                              | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
-| `SHARED_PYTHON_FIXTURE_PATH`    | `&str`                                                              | Repository-relative path to the shared valid Python docstring corpus fixture.                                                             |
-| `MALFORMED_PYTHON_FIXTURE_PATH` | `&str`                                                              | Repository-relative path to the malformed Python fixture used for recovery tests.                                                         |
-| `repository_root`               | `() -> PathBuf`                                                     | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
-| `corpus_fixture_path`           | `(impl AsRef<Path>) -> PathBuf`                                     | Resolves a repository-relative path against the workspace root.                                                                           |
-| `read_corpus_fixture`           | `(impl AsRef<Path>) -> Result<String, io::Error>`                   | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
-| `read_corpus_fixture_bytes`     | `(impl AsRef<Path>) -> Result<Vec<u8>, FixtureReadError>`           | Reads a repository-relative corpus fixture as raw bytes for byte-level tests.                                                             |
-| `fixture_paths_in`              | `(impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError>`       | Lists repository-relative fixture entries in deterministic sorted order.                                                                  |
-| `golden_markdown_ir_fixture`    | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`           | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                                  |
+| Symbol                          | Signature                                                            | Description                                                                                                                               |
+| ------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHARED_MARKDOWN_FIXTURE_PATH`  | `&str`                                                               | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
+| `SHARED_PYTHON_FIXTURE_PATH`    | `&str`                                                               | Repository-relative path to the shared valid Python docstring corpus fixture.                                                             |
+| `MALFORMED_PYTHON_FIXTURE_PATH` | `&str`                                                               | Repository-relative path to the malformed Python fixture used for recovery tests.                                                         |
+| `repository_root`               | `() -> PathBuf`                                                      | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
+| `corpus_fixture_path`           | `(impl AsRef<Path>) -> PathBuf`                                      | Resolves a repository-relative path against the workspace root.                                                                           |
+| `read_corpus_fixture`           | `(impl AsRef<Path>) -> Result<String, io::Error>`                    | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
+| `read_corpus_fixture_bytes`     | `(impl AsRef<Path>) -> Result<Vec<u8>, FixtureReadError>`            | Reads a repository-relative corpus fixture as raw bytes for byte-level tests.                                                             |
+| `fixture_paths_in`              | `(impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError>`        | Lists repository-relative fixture entries in deterministic sorted order.                                                                  |
+| `golden_markdown_ir_fixture`    | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`            | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                                  |
 | `golden_python_ir_fixture`      | `(impl AsRef<Path>) -> Result<IrDocument, GoldenPythonFixtureError>` | Builds the canonical Python docstring IR used by Rust snapshot tests.                                                                     |
-| `normalize_repository_path`     | `(impl AsRef<Path>) -> String`                                     | Converts repository-relative paths to `/`-separated snapshot text.                                                                        |
-| `apply_round_trip_edits`        | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>`    | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                               |
+| `normalize_repository_path`     | `(impl AsRef<Path>) -> String`                                       | Converts repository-relative paths to `/`-separated snapshot text.                                                                        |
+| `apply_round_trip_edits`        | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>`     | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                               |
 
 Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
 require repository-relative fixture access. Do not copy the `repository_root`
 resolution pattern into individual crates. Bridge and API contract tests should
-use these helpers when asserting canonical IR region kinds, raw source bytes, or
-directory-wide fixture coverage so the test corpus is read through one
+use these helpers when asserting canonical IR region kinds, raw source bytes,
+or directory-wide fixture coverage so the test corpus is read through one
 capability-oriented path.
 
 #### Snapshot and round-trip helper workflow
@@ -383,7 +382,7 @@ particular.
     `NodeTarget` usage should stay narrow and debug-oriented until later slices
     prove a broader node contract.
   - Python docstring owner metadata follows
-    [ADR 005](adr-005-docstring-owner-metadata.md). Module docstrings use
+    [ADR 006](adr-006-docstring-owner-metadata.md). Module docstrings use
     `owner.kind == "module"` with `name` and `qualname` serialized as `null`.
     Class and function docstrings use Python `__qualname__` semantics; a
     definition nested inside a function receives `<locals>` after the function
@@ -592,10 +591,9 @@ test still represents a genuine PyO3 contract violation.
 ### 4.2 Current mixed-package skeleton
 
 The general architecture above now maps to concrete repository modules and
-crates. Maintainers should use
-[repository layout](repository-layout.md) as the authoritative directory
-ownership and responsibility map when discussing or extending the current
-skeleton.
+crates. Maintainers should use [repository layout](repository-layout.md) as the
+authoritative directory ownership and responsibility map when discussing or
+extending the current skeleton.
 
 Those boundaries deliberately mirror the ownership split in section 2. When a
 change belongs to extraction fidelity, syntax parsing, or source mapping, it
@@ -717,8 +715,8 @@ Their responsibilities are:
 The Python tools are intentionally run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
 the host `PATH`. Interrogate and Pylint are the exceptions: Interrogate runs as
-an installed `uv tool` with a 100% docstring-coverage threshold, and Pylint runs
-through `uv tool run --python pypy` with the pinned
+an installed `uv tool` with a 100% docstring-coverage threshold, and Pylint
+runs through `uv tool run --python pypy` with the pinned
 [`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper. They
 run after Ruff and before the Rust lint tiers.
 

@@ -52,6 +52,7 @@ fn shared_markdown_fixture_has_a_golden_ir_snapshot() {
     );
 }
 
+#[rstest]
 fn shared_python_fixture_has_a_golden_ir_snapshot() {
     let document = stilyagi_test_support::golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
         .unwrap_or_else(|error| panic!("expected shared Python golden IR: {error}"));
@@ -64,6 +65,7 @@ fn shared_python_fixture_has_a_golden_ir_snapshot() {
     );
 }
 
+#[rstest]
 fn malformed_python_fixture_has_a_golden_ir_snapshot() {
     let document = stilyagi_test_support::golden_python_ir_fixture(MALFORMED_PYTHON_FIXTURE_PATH)
         .unwrap_or_else(|error| panic!("expected malformed Python golden IR: {error}"));
@@ -72,7 +74,7 @@ fn malformed_python_fixture_has_a_golden_ir_snapshot() {
     let region = document
         .regions
         .first()
-        .unwrap_or_else(|| panic!("expected one malformed Python docstring region"));
+        .expect("expected one malformed Python docstring region");
     assert_eq!(region.kind, "python_docstring");
     assert_eq!(
         region.text,
@@ -87,6 +89,8 @@ fn malformed_python_fixture_has_a_golden_ir_snapshot() {
             .unwrap_or_else(|error| panic!("expected canonical Python IR JSON: {error}"))
     );
 }
+
+#[rstest]
 fn markdown_extraction_attaches_markdown_ir(shared_markdown_source: String) {
     let document = stilyagi_extract::extract_document(
         &shared_markdown_source,
@@ -105,15 +109,14 @@ fn markdown_extraction_attaches_markdown_ir(shared_markdown_source: String) {
     ));
 }
 
+#[rstest]
 fn python_extraction_attaches_owner_aware_ir(shared_python_source: String) {
     let document = stilyagi_extract::extract_document(
         &shared_python_source,
         stilyagi_extract::ExtractSyntax::PythonDocstring,
     )
     .unwrap_or_else(|error| panic!("expected shared Python extraction: {error}"));
-    let ir = document
-        .ir()
-        .unwrap_or_else(|| panic!("expected Python IR payload"));
+    let ir = document.ir().expect("expected Python IR payload");
 
     assert_eq!(ir.document.syntax, "python");
     assert!(!ir.regions.is_empty());

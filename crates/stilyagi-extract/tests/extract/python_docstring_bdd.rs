@@ -159,12 +159,13 @@ fn the_module_docstring_is_still_extracted(python_docstring_state: &PythonDocstr
         region.text,
         "Module docstring before malformed Python source."
     );
-    assert!(matches!(
-        region.owner.as_ref(),
-        Some(owner) if owner.kind == "module"
-            && owner.name.is_none()
-            && owner.qualname.is_none()
-    ));
+    let owner = region
+        .owner
+        .as_ref()
+        .expect("expected module owner metadata");
+    assert_eq!(owner.kind, "module");
+    assert!(owner.name.is_none());
+    assert!(owner.qualname.is_none());
 }
 
 #[then("a recoverable parse error is recorded")]
@@ -183,10 +184,16 @@ fn a_recoverable_parse_error_is_recorded(python_docstring_state: &PythonDocstrin
     path = "tests/features/python_docstring_extraction.feature",
     name = "Extract docstrings with their owning symbols"
 )]
-fn extract_docstrings_with_their_owning_symbols(python_docstring_state: PythonDocstringState) {}
+fn extract_docstrings_with_their_owning_symbols(
+    #[from(python_docstring_state)] _python_docstring_state: PythonDocstringState,
+) {
+}
 
 #[scenario(
     path = "tests/features/python_docstring_extraction.feature",
     name = "Recover from a malformed Python file"
 )]
-fn recover_from_a_malformed_python_file(python_docstring_state: PythonDocstringState) {}
+fn recover_from_a_malformed_python_file(
+    #[from(python_docstring_state)] _python_docstring_state: PythonDocstringState,
+) {
+}

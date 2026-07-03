@@ -1,3 +1,11 @@
+//! Placeholder crate for tree-sitter-backed source extraction.
+
+mod python;
+
+pub use python::{PythonExtractError, python_docstring_ir_document};
+
+/// Marker type for the future tree-sitter extraction boundary.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct TreeSitterBoundary;
 
 #[cfg(test)]
@@ -57,36 +65,27 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "test parser setup should fail loudly when the grammar cannot load"
-    )]
     fn python_parser() -> Parser {
         let mut parser = Parser::new();
         let language = tree_sitter_python::LANGUAGE.into();
-        parser
-            .set_language(&language)
-            .expect("tree-sitter-python grammar should load");
+        if let Err(error) = parser.set_language(&language) {
+            panic!("tree-sitter-python grammar should load: {error}");
+        }
         parser
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "test parser should fail loudly when tree-sitter returns no tree"
-    )]
     fn parse_python(source: &str) -> tree_sitter::Tree {
-        python_parser()
-            .parse(source, None)
-            .expect("tree-sitter should return a parse tree")
+        let Some(tree) = python_parser().parse(source, None) else {
+            panic!("tree-sitter should return a parse tree");
+        };
+        tree
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "grammar shape tests should fail loudly when expected children are absent"
-    )]
     fn first_named_child(node: Node<'_>) -> Node<'_> {
-        node.named_child(0)
-            .expect("node should have a first named child")
+        let Some(child) = node.named_child(0) else {
+            panic!("node should have a first named child");
+        };
+        child
     }
 
     fn first_named_child_with_kind(node: Node<'_>, kind: NodeKind) -> Node<'_> {
@@ -99,18 +98,20 @@ mod tests {
     fn direct_named_child_with_kind(node: Node<'_>, kind: NodeKind) -> Node<'_> {
         let mut cursor = node.walk();
 
-        node.named_children(&mut cursor)
+        let Some(child) = node
+            .named_children(&mut cursor)
             .find(|child| child.kind() == kind.as_str())
-            .unwrap_or_else(|| panic!("{} child should exist", kind.as_str()))
+        else {
+            panic!("{} child should exist", kind.as_str());
+        };
+        child
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "grammar shape tests should fail loudly on invalid UTF-8 spans"
-    )]
     fn text_for_node<'source>(source: &'source str, node: Node<'_>) -> &'source str {
-        node.utf8_text(source.as_bytes())
-            .expect("node byte range should select valid UTF-8")
+        match node.utf8_text(source.as_bytes()) {
+            Ok(text) => text,
+            Err(error) => panic!("node byte range should select valid UTF-8: {error}"),
+        }
     }
 
     fn named_children_with_kind(node: Node<'_>, kind: NodeKind) -> Vec<Node<'_>> {
@@ -144,10 +145,6 @@ mod tests {
 
     /// Pin the grammar shape used by the owner-aware extractor.
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "fixture grammar test should fail loudly on missing fixture data"
-    )]
     fn python_fixture_exposes_docstring_content_spans() {
         let source = read_corpus_fixture(SHARED_PYTHON_FIXTURE)
             .expect("shared Python fixture should be readable");
@@ -175,10 +172,6 @@ mod tests {
 
     /// Pin decorated definitions as transparent wrappers around their owners.
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "fixture grammar test should fail loudly on missing decorator nodes"
-    )]
     fn python_fixture_reaches_staticmethod_definition_through_decorator() {
         let source = read_corpus_fixture(SHARED_PYTHON_FIXTURE)
             .expect("shared Python fixture should be readable");
@@ -201,10 +194,6 @@ mod tests {
 
     /// Pin grammar signals used to reject v1 non-docstring first statements.
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "grammar signal test should fail loudly on missing grammar nodes"
-    )]
     fn python_grammar_marks_fstrings_and_concatenated_strings() {
         let f_string_source = "def interpolated():\n    f\"\"\"{value}\"\"\"\n";
         let f_string_tree = parse_python(f_string_source);
@@ -239,10 +228,6 @@ mod tests {
 
     /// Pin malformed recovery so later extraction can safely emit partial IR.
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "malformed fixture test should fail loudly on missing recovery nodes"
-    )]
     fn malformed_python_fixture_recovers_the_module_docstring() {
         let source = read_corpus_fixture(MALFORMED_PYTHON_FIXTURE)
             .expect("malformed Python fixture should be readable");
@@ -271,7 +256,3 @@ mod tests {
         assert!(function_nodes.is_empty());
     }
 }
-
-//! Placeholder crate for tree-sitter-backed source extraction.
-
-mod python;
