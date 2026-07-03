@@ -211,13 +211,18 @@ Table: Repository fixture utilities and signatures.
 | `repository_root`              | `() -> PathBuf`                                                  | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
 | `corpus_fixture_path`          | `(impl AsRef<Path>) -> PathBuf`                                  | Resolves a repository-relative path against the workspace root.                                                                           |
 | `read_corpus_fixture`          | `(impl AsRef<Path>) -> Result<String, io::Error>`                | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
+| `read_corpus_fixture_bytes`    | `(impl AsRef<Path>) -> Result<Vec<u8>, FixtureReadError>`        | Reads a repository-relative corpus fixture as raw bytes for byte-level tests.                                                             |
+| `fixture_paths_in`             | `(impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError>`    | Lists repository-relative fixture entries in deterministic sorted order.                                                                  |
 | `golden_markdown_ir_fixture`   | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`        | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                                  |
 | `normalize_repository_path`    | `(impl AsRef<Path>) -> String`                                   | Converts repository-relative paths to `/`-separated snapshot text.                                                                        |
 | `apply_round_trip_edits`       | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>` | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                               |
 
 Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
 require repository-relative fixture access. Do not copy the `repository_root`
-resolution pattern into individual crates.
+resolution pattern into individual crates. Bridge and API contract tests should
+use these helpers when asserting canonical IR region kinds, raw source bytes, or
+directory-wide fixture coverage so the test corpus is read through one
+capability-oriented path.
 
 #### Snapshot and round-trip helper workflow
 
