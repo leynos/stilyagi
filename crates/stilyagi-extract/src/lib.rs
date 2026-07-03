@@ -11,7 +11,7 @@ use stilyagi_tree_sitter::{PythonExtractError, TreeSitterBoundary, python_docstr
 pub enum ExtractSyntax {
     /// Markdown prose extracted directly from `.md` sources.
     Markdown,
-    /// Python docstring extraction, reserved for a later roadmap slice.
+    /// Python docstring prose extracted with owner metadata.
     PythonDocstring,
     /// Rust documentation-comment extraction, reserved for a later slice.
     RustDocComment,
@@ -307,6 +307,8 @@ impl ExtractBoundary {
 /// Returns [`ExtractError::UnsupportedSyntax`] when the syntax is part of the
 /// current model vocabulary but not yet implemented. Returns
 /// [`ExtractError::MarkdownIr`] when Markdown parsing or IR construction fails.
+/// Returns [`ExtractError::PythonIr`] when Python parsing or IR construction
+/// fails fatally.
 /// Returns [`ExtractError::UnknownSyntax`] only when a caller first converts an
 /// arbitrary string into [`ExtractSyntax`] via `TryFrom<&str>`.
 pub fn extract_document(
@@ -323,6 +325,8 @@ pub fn extract_document(
 /// Returns [`ExtractError::UnsupportedSyntax`] when the syntax is part of the
 /// current model vocabulary but not yet implemented. Returns
 /// [`ExtractError::MarkdownIr`] when Markdown parsing or IR construction fails.
+/// Returns [`ExtractError::PythonIr`] when Python parsing or IR construction
+/// fails fatally.
 /// Returns [`ExtractError::UnknownSyntax`] only when a caller first converts an
 /// arbitrary string into [`ExtractSyntax`] via `TryFrom<&str>`.
 pub fn extract_document_with_source_identity(
@@ -370,7 +374,7 @@ fn extract_python_document(
     let regions = ir
         .regions
         .iter()
-        .map(|region| ExtractRegion::new_typed(RegionKind::PythonDocstring, region.text.clone()))
+        .map(|region| ExtractRegion::new(region.kind.clone(), region.text.clone()))
         .collect();
 
     Ok(ExtractDocument::new(ExtractSyntax::PythonDocstring, regions).with_ir(ir))

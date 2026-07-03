@@ -49,9 +49,10 @@ full release path fails. Observable success is `make check-fmt`, `make lint`,
 ## Risks
 
 - Risk: Wheel snapshots can become noisy if platform-specific filenames,
-  generated metadata, or SBOM entries are not normalized. Severity: medium.
-  Likelihood: medium. Mitigation: normalize platform tags, extension filenames,
-  versioned dist-info entries, and SBOM filenames before snapshotting.
+  generated metadata, or Software Bill of Materials (SBOM) entries are not
+  normalized. Severity: medium. Likelihood: medium. Mitigation: normalize
+  platform tags, extension filenames, versioned dist-info entries, and SBOM
+  filenames before snapshotting.
 - Risk: A native wheel build can be slow on a cold runner.
   Severity: medium. Likelihood: medium. Mitigation: mark the snapshot test with
   `pytest.mark.timeout(0)` as cuprum does and keep the full build behind normal

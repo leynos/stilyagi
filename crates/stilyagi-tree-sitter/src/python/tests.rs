@@ -2,16 +2,16 @@
 
 use rstest::rstest;
 use stilyagi_ir::SourceIdentity;
-use stilyagi_test_support::read_corpus_fixture;
+use stilyagi_test_support::{
+    MALFORMED_PYTHON_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, read_corpus_fixture,
+};
 
 use super::python_docstring_ir_document;
 
-const SHARED_PYTHON_FIXTURE: &str =
-    "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py";
+const SHARED_PYTHON_FIXTURE: &str = SHARED_PYTHON_FIXTURE_PATH;
 const NESTED_PYTHON_FIXTURE: &str = "tests/fixtures/corpus/python/valid/nested-declarations.py";
 const EDGE_CASE_PYTHON_FIXTURE: &str = "tests/fixtures/corpus/python/valid/docstring-edge-cases.py";
-const MALFORMED_PYTHON_FIXTURE: &str =
-    "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt";
+const MALFORMED_PYTHON_FIXTURE: &str = MALFORMED_PYTHON_FIXTURE_PATH;
 
 fn extract_python(source: &str) -> stilyagi_ir::IrDocument {
     match python_docstring_ir_document(source, SourceIdentity::anonymous()) {

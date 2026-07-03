@@ -56,13 +56,18 @@ fn docstring_from_statement<'tree>(source: &str, statement: Node<'tree>) -> Opti
 
 fn first_statement_descendant(node: Node<'_>) -> Option<Node<'_>> {
     let mut cursor = node.walk();
-    for child in node.named_children(&mut cursor) {
-        if child.kind() == "expression_statement" {
-            return Some(child);
+    let mut pending = node.named_children(&mut cursor).collect::<Vec<_>>();
+    pending.reverse();
+    while let Some(current) = pending.pop() {
+        if current.kind() == "expression_statement" {
+            return Some(current);
         }
-        if let Some(found) = first_statement_descendant(child) {
-            return Some(found);
-        }
+        let mut current_cursor = current.walk();
+        let mut children = current
+            .named_children(&mut current_cursor)
+            .collect::<Vec<_>>();
+        children.reverse();
+        pending.extend(children);
     }
     None
 }
@@ -100,18 +105,33 @@ fn string_start_has_format_prefix(source: &str, string: Node<'_>) -> bool {
 }
 
 fn has_descendant_kind(node: Node<'_>, kind: NodeKind) -> bool {
-    let mut cursor = node.walk();
-    node.named_children(&mut cursor)
-        .any(|child| child.kind() == kind.as_str() || has_descendant_kind(child, kind))
+    let mut pending = vec![node];
+    while let Some(current) = pending.pop() {
+        let mut cursor = current.walk();
+        for child in current.named_children(&mut cursor) {
+            if child.kind() == kind.as_str() {
+                return true;
+            }
+            pending.push(child);
+        }
+    }
+    false
 }
 
 pub(super) fn collect_error_nodes<'tree>(node: Node<'tree>, errors: &mut Vec<Node<'tree>>) {
-    if node.is_error() || node.is_missing() {
-        errors.push(node);
-    }
-    let mut cursor = node.walk();
-    for child in node.named_children(&mut cursor) {
-        collect_error_nodes(child, errors);
+    // Iterative pre-order walk over an explicit stack so deeply nested or
+    // adversarial malformed files cannot overflow the call stack. Children are
+    // reversed onto the stack so the leftmost is visited first, preserving the
+    // document-order collection that a recursive descent would produce.
+    let mut pending = vec![node];
+    while let Some(current) = pending.pop() {
+        if current.is_error() || current.is_missing() {
+            errors.push(current);
+        }
+        let mut cursor = current.walk();
+        let mut children: Vec<Node<'tree>> = current.children(&mut cursor).collect();
+        children.reverse();
+        pending.extend(children);
     }
 }
 

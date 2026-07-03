@@ -116,6 +116,7 @@ fn python_extraction_attaches_owner_aware_ir(shared_python_source: String) {
         .unwrap_or_else(|| panic!("expected Python IR payload"));
 
     assert_eq!(ir.document.syntax, "python");
+    assert!(!ir.regions.is_empty());
     assert!(ir.regions.iter().all(|region| region.owner.is_some()));
     assert!(
         ir.regions

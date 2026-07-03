@@ -85,6 +85,7 @@ struct PythonIrBuilder<'source> {
     next_node: usize,
     next_region: usize,
     nodes: Vec<IrNode>,
+    node_positions: BTreeMap<String, usize>,
     regions: Vec<IrRegion>,
     errors: Vec<IrError>,
 }
@@ -96,6 +97,7 @@ impl<'source> PythonIrBuilder<'source> {
             next_node: 0,
             next_region: 0,
             nodes: Vec::new(),
+            node_positions: BTreeMap::new(),
             regions: Vec::new(),
             errors: Vec::new(),
         }
@@ -104,7 +106,7 @@ impl<'source> PythonIrBuilder<'source> {
     fn push_module_root(&mut self, root: Node<'_>) {
         let node_id = self.next_node_id();
         debug_assert_eq!(node_id.as_str(), root_node_id().as_str());
-        self.nodes.push(IrNode {
+        self.push_node(IrNode {
             id: node_id.into(),
             tree: TREE_ID.to_owned(),
             kind: NodeKind("module").as_str().to_owned(),
@@ -188,7 +190,7 @@ impl<'source> PythonIrBuilder<'source> {
                 fields.insert("name".to_owned(), name_text);
             }
         }
-        self.nodes.push(IrNode {
+        self.push_node(IrNode {
             id: node_id.clone().into(),
             tree: TREE_ID.to_owned(),
             kind: NodeKind(node.kind()).as_str().to_owned(),
@@ -216,7 +218,7 @@ impl<'source> PythonIrBuilder<'source> {
             return;
         };
         let string_node_id = self.next_node_id();
-        self.nodes.push(IrNode {
+        self.push_node(IrNode {
             id: string_node_id.clone().into(),
             tree: TREE_ID.to_owned(),
             kind: NodeKind("string").as_str().to_owned(),
@@ -256,11 +258,17 @@ impl<'source> PythonIrBuilder<'source> {
         });
     }
 
+    fn push_node(&mut self, node: IrNode) {
+        let index = self.nodes.len();
+        self.node_positions.insert(node.id.clone(), index);
+        self.nodes.push(node);
+    }
+
     fn push_child(&mut self, parent_id: &NodeId, child_id: &NodeId) {
         if let Some(parent) = self
-            .nodes
-            .iter_mut()
-            .find(|node| node.id == parent_id.as_str())
+            .node_positions
+            .get(parent_id.as_str())
+            .and_then(|index| self.nodes.get_mut(*index))
         {
             parent.children.push(child_id.clone().into());
         }

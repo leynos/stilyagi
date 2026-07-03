@@ -160,19 +160,16 @@ Keep these repository documents open:
   on 2.1.1 and 1.3.1.
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially §§3.2, 4, 7.1,
   10, 11, and the §12 open question on owner metadata shape.
-- [docs/rfcs/0001-stilyagi-intermediate-representation.md](
-  ../rfcs/0001-stilyagi-intermediate-representation.md), especially the regions
-  and owner sections.
+- [RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md), especially
+  the regions and owner sections.
 - [docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md), which
   fixes Python docstrings as a stable v1 syntax surface.
 - [docs/execplans/2-1-1-markdown-ir-envelope.md](2-1-1-markdown-ir-envelope.md),
   the precursor slice whose shape this plan mirrors.
-- [docs/complexity-antipatterns-and-refactoring-strategies.md](
-  ../complexity-antipatterns-and-refactoring-strategies.md), to keep the
-  traversal and owner-derivation logic small enough to review.
-- [docs/rust-testing-with-rstest-fixtures.md](
-  ../rust-testing-with-rstest-fixtures.md) and
-  [docs/reliable-testing-in-rust-via-dependency-injection.md]( ../reliable-testing-in-rust-via-dependency-injection.md),
+- [Complexity antipatterns](../complexity-antipatterns-and-refactoring-strategies.md),
+  to keep the traversal and owner-derivation logic small enough to review.
+- [Rust testing with rstest fixtures](../rust-testing-with-rstest-fixtures.md)
+  and [reliable testing via dependency injection](../reliable-testing-in-rust-via-dependency-injection.md),
   for Rust test style and explicit IO boundaries.
 - [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), if new public
   Rust documentation includes examples.
@@ -741,12 +738,12 @@ Add Python tests:
 - a `hypothesis` property test that keeps the Python *shape* fixed and varies
   only the prose: it renders the template `def {name}():\n    """{body}"""`
   from an identifier strategy (`[A-Za-z_][A-Za-z0-9_]*`, excluding Python
-  keywords) and a body strategy drawn from text excluding `"`, `\`, and
-  newlines and not empty, then asserts the extractor returns exactly one
-  `python_docstring` region whose `owner.qualname` equals `{name}` and whose
-  region text equals `{body}`. Generating full Python syntax with hypothesis is
-  deliberately avoided; the fixed-shape table cases above carry the structural
-  coverage.
+  keywords) and a body strategy drawn from text excluding `"`, `\`, newlines,
+  and null characters (`\x00`) and not empty, then asserts the extractor
+  returns exactly one `python_docstring` region whose `owner.qualname` equals
+  `{name}` and whose region text equals `{body}`. Generating full Python syntax
+  with hypothesis is deliberately avoided; the fixed-shape table cases above
+  carry the structural coverage.
 
 Build and run targeted Python tests:
 

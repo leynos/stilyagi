@@ -591,10 +591,18 @@ test still represents a genuine PyO3 contract violation.
 
 ### 4.2 Current mixed-package skeleton
 
-Use [repository layout](repository-layout.md) for the current path inventory
-and module responsibilities. This guide keeps only the maintainer workflow
-boundary: Rust owns extraction and source fidelity; Python owns orchestration
-and the user-facing runtime.
+The general architecture above now maps to concrete repository modules and
+crates. Maintainers should use
+[repository layout](repository-layout.md) as the authoritative directory
+ownership and responsibility map when discussing or extending the current
+skeleton.
+
+Those boundaries deliberately mirror the ownership split in section 2. When a
+change belongs to extraction fidelity, syntax parsing, or source mapping, it
+should usually start in one of the Rust crates. When a change belongs to
+configuration discovery, diagnostics, plugin registration, capability planning,
+or rule orchestration, it should usually start in one of the Python modules
+listed in the repository layout.
 
 There are also three concrete cross-boundary rules worth preserving:
 

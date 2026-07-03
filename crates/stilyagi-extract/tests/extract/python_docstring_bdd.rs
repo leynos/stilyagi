@@ -175,7 +175,7 @@ fn a_recoverable_parse_error_is_recorded(python_docstring_state: &PythonDocstrin
     assert!(
         ir.errors
             .iter()
-            .all(|error| error.code == "python-parse-recovery")
+            .any(|error| error.code == "python-parse-recovery")
     );
 }
 

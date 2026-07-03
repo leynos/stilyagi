@@ -54,6 +54,10 @@
     execplans/1-3-3-cold-and-warm-baseline-performance-probes.md)
     plans the repository-local cold and warm structural performance probes
     that let later slices preserve the structural fast path.
+  - [3.1.1 Python docstring extraction](
+    execplans/3-1-1-python-docstring-extraction.md)
+    plans owner-aware Python docstring extraction for modules, classes, and
+    functions, including IR bridge coverage and validation evidence.
   - [maturin and PyO3 compatibility tests](
     execplans/maturin-pyo3-test-upgrade.md)
     plans the maturin pin update, native wheel snapshot coverage, and PyO3

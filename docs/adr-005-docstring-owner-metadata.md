@@ -2,8 +2,11 @@
 
 ## Status
 
-Accepted on 2026-06-15. Python docstring regions expose explicit owner metadata
-while preserving source-faithful docstring text and spans.
+Accepted
+
+## Date
+
+2026-06-15
 
 ## Context and Problem Statement
 
@@ -56,6 +59,22 @@ Table: Python docstring owner metadata alternatives.
   classes, or package-qualified module names must plan a later full-tree or
   richer-owner migration instead of inferring those facts from the v1 bounded
   node store.
+
+## Architectural Rationale
+
+Explicit owner metadata keeps the v1 rule contract centred on stable IR facts
+rather than parser navigation. Rules can ask whether a region belongs to a
+module, class, or function without knowing tree-sitter node names, decorator
+wrappers, or traversal details. That makes the Python slice useful now while
+leaving room for Rust documentation-comment extraction to reuse the same owner
+field with Rust-specific owner kinds and qualified-name semantics.
+
+The bounded node store also preserves the source-backed segment contract.
+Regions still point back to concrete source spans and contributing nodes, but
+the API does not promise full concrete syntax tree access. That boundary keeps
+future parser and grammar upgrades manageable, avoids premature coupling to
+Python CST details, and lets later slices deliberately expand syntax metadata
+only when rule requirements justify it.
 
 ## Follow-on work
 
