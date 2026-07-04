@@ -215,85 +215,57 @@ fn extract_document_py_exposes_markdown_document() {
     });
 }
 
+fn region_at<'py>(regions: &pyo3::Bound<'py, PyList>, index: usize) -> pyo3::Bound<'py, PyDict> {
+    let item = match regions.get_item(index) {
+        Ok(region) => region,
+        Err(error) => panic!("missing region at index {index}: {error}"),
+    };
+    match item.cast::<PyDict>() {
+        Ok(dict) => dict.clone(),
+        Err(error) => panic!("expected PyDict but got {error}"),
+    }
+}
+
+fn assert_region(region: &pyo3::Bound<'_, PyDict>, expected_kind: &str, expected_text: &str) {
+    for (key, expected) in [("kind", expected_kind), ("text", expected_text)] {
+        let value = match region.get_item(key) {
+            Ok(payload) => payload,
+            Err(error) => panic!("missing {key} payload: {error}"),
+        };
+        let actual = match value.extract::<String>() {
+            Ok(text) => text,
+            Err(error) => panic!("expected {key} string: {error}"),
+        };
+        assert_eq!(actual, expected, "unexpected {key}");
+    }
+}
+
 #[rstest]
 fn extract_document_py_exposes_python_docstrings() {
-    Python::attach(|py| {
-        let args = PyTuple::new(
-            py,
-            [
-                "\"\"\"Module docs.\"\"\"\n\ndef example():\n    \"\"\"Function docs.\"\"\"\n",
-                "python_docstring",
-            ],
-        )
-        .expect("expected argument tuple");
-        let document_result = extract_document_py(py, &args);
+    let source = "\"\"\"Module docs.\"\"\"\n\ndef example():\n    \"\"\"Function docs.\"\"\"\n";
+    let document = bridge_extract_document(source, "python_docstring")
+        .unwrap_or_else(|error| panic!("unexpected extraction failure: {error}"));
 
-        assert!(document_result.is_ok());
-        let extracted_document = match document_result {
-            Ok(document) => document,
-            Err(error) => panic!("unexpected extraction failure: {error}"),
-        };
-        let extracted_document_bound = extracted_document.bind(py);
-        let extracted_document_dict = extracted_document_bound
-            .cast::<PyDict>()
-            .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
-        let regions_any = extracted_document_dict
+    Python::attach(|py| {
+        let document_dict = document.bind(py);
+        let regions_any = document_dict
             .get_item("regions")
             .expect("missing regions payload");
         let regions = regions_any
             .cast::<PyList>()
             .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
-        let first_region_any = regions.get_item(0).expect("missing first region");
-        let first_region = first_region_any
-            .cast::<PyDict>()
-            .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
 
         assert_eq!(
-            extracted_document_dict
+            document_dict
                 .get_item("syntax")
                 .expect("missing syntax payload")
                 .extract::<&str>()
                 .expect("expected syntax string"),
             ExtractSyntax::PythonDocstring.as_str(),
         );
-        assert_eq!(regions.len().expect("expected list length"), 2,);
-        assert_eq!(
-            first_region
-                .get_item("kind")
-                .expect("missing kind payload")
-                .extract::<&str>()
-                .expect("expected kind string"),
-            "python_docstring",
-        );
-        assert_eq!(
-            first_region
-                .get_item("text")
-                .expect("missing text payload")
-                .extract::<&str>()
-                .expect("expected text string"),
-            "Module docs.",
-        );
-
-        let second_region_any = regions.get_item(1).expect("missing second region");
-        let second_region = second_region_any
-            .cast::<PyDict>()
-            .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
-        assert_eq!(
-            second_region
-                .get_item("kind")
-                .expect("missing kind payload")
-                .extract::<&str>()
-                .expect("expected kind string"),
-            "python_docstring",
-        );
-        assert_eq!(
-            second_region
-                .get_item("text")
-                .expect("missing text payload")
-                .extract::<&str>()
-                .expect("expected text string"),
-            "Function docs.",
-        );
+        assert_eq!(regions.len().expect("expected list length"), 2);
+        assert_region(&region_at(regions, 0), "python_docstring", "Module docs.");
+        assert_region(&region_at(regions, 1), "python_docstring", "Function docs.");
     });
 }
 
