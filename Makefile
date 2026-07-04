@@ -35,7 +35,13 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
 
 .DEFAULT_GOAL := all
 
-all: release ## Build the release artifact
+all: ## Run commit gates
+	$(MAKE) check-fmt
+	$(MAKE) typecheck
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) markdownlint
+	$(MAKE) nixie
 
 .venv: pyproject.toml uv.lock $(WORKSPACE_MANIFEST) Cargo.lock
 	UV_VENV_CLEAR=1 $(UV_ENV) $(UV) venv

@@ -491,11 +491,11 @@ make test      2>&1 | tee "/tmp/test-baseline-stilyagi-${BRANCH}.out"
 ```
 
 The deterministic commit gates are the separate `make` targets `check-fmt`,
-`typecheck`, `lint`, and `test` (AGENTS.md lines 63-94, 156-178); `make all`
-only builds the release wheel (`all: release`) and smoke-tests it, so it runs
-none of these gates and must never be used as a gate here. Run the four targets
-sequentially so the build cache is reused. Record the baseline result in
-`Surprises & Discoveries`. If a
+`typecheck`, `lint`, and `test` (AGENTS.md lines 63-94, 156-178). The recovery
+pass later updated `make all` so it now runs the commit gates explicitly and
+sequentially. This plan keeps the individual target invocations below because
+they preserve per-gate logs and make failure recovery clearer. Record the
+baseline result in `Surprises & Discoveries`. If a
 baseline gate fails for reasons unrelated to this plan, decide whether the
 failure blocks verification before proceeding. Prefer delegating this run to the
 `scrutineer` subagent.
@@ -1039,13 +1039,12 @@ make nixie
 ```
 
 These four targets are the authoritative commit gates in AGENTS.md (lines 63-94,
-156-178); `make typecheck` runs the typecheck on current `origin/main`. `make
-all` is NOT a gate — it resolves to `all: release`, which only builds the
-maturin release wheel and runs `python -m stilyagi.smoke`, executing no
-formatting check, no typecheck, no lint, and none of the Rust, Python, BDD, or
-property test suites; never substitute it for the targets above. Capture all
-long gate output with `tee` into `/tmp` logs and read the log before retrying a
-failure; re-run a gate only after applying a fix.
+156-178); `make typecheck` runs the typecheck on current `origin/main`.
+Earlier recovery evidence found that `make all` only resolved to the release
+smoke path, but the Makefile has since been updated so `make all` runs the
+commit-gate sequence. Capture all long gate output with `tee` into `/tmp` logs
+and read the log before retrying a failure; re-run a gate only after applying a
+fix.
 
 ## Idempotence and recovery
 
@@ -1165,15 +1164,15 @@ other new external dependency without approval.
   `function_item` again, this plan must be updated alongside the tests.
 
 - Observation: the addendum branch initially reported green `make all` evidence,
-  but this repository's `make all` target is only the release build and smoke
-  path, not the full commit-gate set.
+  but this repository's `make all` target was only the release build and smoke
+  path at that point, not the full commit-gate set.
   Evidence: the manual recovery pass reran `make check-fmt`, `make typecheck`,
   `make lint`, `make test`, `make markdownlint`, and `make nixie`; `make lint`
   caught a Clippy nesting failure and then a module-size failure that `make all`
   had not exposed.
   Impact: the addendum branch needed a manual fix before integration. This is
   recorded as workflow validation evidence rather than treated as a Stilyagi
-  roadmap blocker.
+  roadmap blocker, and `make all` has been changed to run the commit gates.
 
 ## Decision log
 
@@ -1357,3 +1356,9 @@ manual gate failures found during operator recovery. The roadmap addendum
 checkboxes are now checked, the malformed Rust snapshot includes the explicit
 doc-comment-drop diagnostic, and the manual CodeRabbit plus gate evidence is
 recorded above for integration.
+
+Round 8 revision (2026-07-04): recorded the project-side mitigation for the
+addendum gate gap. `make all` now runs the commit gates explicitly and
+sequentially, while `make release` remains the release wheel and smoke-test
+path. The plan still records the historical false-positive evidence because it
+explains the manual recovery work and df12-build issue.

@@ -667,8 +667,10 @@ exercise the same PyO3 boundary.
 
 ## 6. Lint, typecheck, and test workflow
 
-The Makefile is the canonical workflow entrypoint. The current checks are:
+The Makefile is the canonical workflow entrypoint. `make all` runs the local
+commit gates in sequence and is the default target. The current checks are:
 
+- `make all`
 - `make fmt`
 - `make check-fmt`
 - `make markdownlint`
@@ -679,6 +681,13 @@ The Makefile is the canonical workflow entrypoint. The current checks are:
 
 Their responsibilities are:
 
+- `make all`
+  - run `make check-fmt`
+  - run `make typecheck`
+  - run `make lint`
+  - run `make test`
+  - run `make markdownlint`
+  - run `make nixie`
 - `make fmt`
   - format Python with Ruff
   - fix import ordering with Ruff

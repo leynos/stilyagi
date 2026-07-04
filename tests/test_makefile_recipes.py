@@ -51,6 +51,22 @@ def makefile_text() -> str:
     [
         pytest.param(
             MakefileTargetCase(
+                target="all",
+                expected_header_fragments=("## Run commit gates",),
+                expected_recipe_fragments=(
+                    "$(MAKE) check-fmt",
+                    "$(MAKE) typecheck",
+                    "$(MAKE) lint",
+                    "$(MAKE) test",
+                    "$(MAKE) markdownlint",
+                    "$(MAKE) nixie",
+                ),
+                should_include_pytest=False,
+            ),
+            id="all",
+        ),
+        pytest.param(
+            MakefileTargetCase(
                 target="lint",
                 expected_header_fragments=("tools-lint",),
                 expected_recipe_fragments=(
