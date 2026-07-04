@@ -121,6 +121,9 @@ fn edge_case_fixture_preserves_verbatim_content_and_rejects_non_docstrings() {
     assert!(texts.contains(&""));
     assert!(texts.contains(&"   "));
     assert!(!texts.iter().any(|text| text.contains("Not a v1 docstring")));
+    // A leading byte-string literal (`b"""..."""`) is never a docstring, so its
+    // ": bytes." marker must not appear in any extracted region.
+    assert!(!texts.iter().any(|text| text.contains("bytes")));
 }
 
 #[rstest]
