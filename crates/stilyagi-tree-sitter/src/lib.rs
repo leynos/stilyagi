@@ -13,7 +13,7 @@ mod tests {
     //! Tests for the placeholder tree-sitter extraction boundary marker.
 
     use super::TreeSitterBoundary;
-    use stilyagi_test_support::{
+    use stilyagi_test_fixtures::{
         MALFORMED_PYTHON_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, read_corpus_fixture,
     };
     use tree_sitter::{Node, Parser};

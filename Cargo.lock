@@ -1394,14 +1394,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "stilyagi-test-support"
+name = "stilyagi-test-fixtures"
 version = "0.1.0"
 dependencies = [
  "cap-std",
+]
+
+[[package]]
+name = "stilyagi-test-support"
+version = "0.1.0"
+dependencies = [
  "insta",
  "proptest",
  "rstest",
  "stilyagi-ir",
+ "stilyagi-test-fixtures",
  "stilyagi-tree-sitter",
 ]
 
@@ -1417,7 +1424,7 @@ dependencies = [
  "rstest-bdd-macros",
  "serde_json",
  "stilyagi-ir",
- "stilyagi-test-support",
+ "stilyagi-test-fixtures",
  "tracing",
  "tree-sitter",
  "tree-sitter-python",

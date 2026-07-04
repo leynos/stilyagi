@@ -21,7 +21,7 @@ proptest.workspace = true
 rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true
-stilyagi-test-support = { path = "../stilyagi-test-support" }
+stilyagi-test-fixtures = { path = "../stilyagi-test-fixtures" }
 
 [lints]
 workspace = true

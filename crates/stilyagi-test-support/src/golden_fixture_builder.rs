@@ -9,8 +9,10 @@ use std::path::Path;
 use stilyagi_ir::{IrDocument, SourceIdentity, line_index_for};
 use stilyagi_tree_sitter::{PythonExtractError, python_docstring_ir_document};
 
-use crate::fixture_paths::{FixturePathError, normalize_repository_path};
-use crate::fixture_reads::{FixtureReadError, read_corpus_fixture};
+use stilyagi_test_fixtures::{
+    FixturePathError, FixtureReadError, normalize_repository_path, read_corpus_fixture,
+};
+
 use crate::golden_ir::{ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, Segment};
 
 /// Failure raised when building a production Python golden IR document.

@@ -2,7 +2,7 @@
 
 use rstest::rstest;
 use stilyagi_ir::SourceIdentity;
-use stilyagi_test_support::{
+use stilyagi_test_fixtures::{
     EDGE_CASE_PYTHON_FIXTURE_PATH, MALFORMED_PYTHON_FIXTURE_PATH, NESTED_PYTHON_FIXTURE_PATH,
     SHARED_PYTHON_FIXTURE_PATH, read_corpus_fixture,
 };

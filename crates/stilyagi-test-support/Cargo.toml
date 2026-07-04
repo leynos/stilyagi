@@ -8,8 +8,8 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-cap-std.workspace = true
 stilyagi-ir = { path = "../stilyagi-ir" }
+stilyagi-test-fixtures = { path = "../stilyagi-test-fixtures" }
 stilyagi-tree-sitter = { path = "../stilyagi-tree-sitter" }
 
 [dev-dependencies]

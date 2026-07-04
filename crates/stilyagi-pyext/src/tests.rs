@@ -349,6 +349,10 @@ fn map_extract_error_uses_runtime_error_for_python_ir() {
         let error = map_extract_error(&ExtractError::PythonIr(PythonExtractError::NoParseTree));
 
         assert!(error.is_instance_of::<PyRuntimeError>(py));
+        assert!(
+            error.to_string().contains("python IR extraction failed"),
+            "unexpected python IR error display: {error}"
+        );
     });
 }
 
