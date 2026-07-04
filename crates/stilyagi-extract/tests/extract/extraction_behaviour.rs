@@ -114,7 +114,7 @@ fn markdown_extraction_preserves_unicode_text(
     );
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct ExtractionExpectation<'a> {
     syntax: stilyagi_extract::ExtractSyntax,
     region_count: Option<usize>,
@@ -122,8 +122,6 @@ struct ExtractionExpectation<'a> {
     kind_str: &'static str,
     text: &'a str,
 }
-
-impl Copy for ExtractionExpectation<'_> {}
 
 fn assert_shared_fixture_extraction(source: &str, expected: ExtractionExpectation<'_>) {
     let document = match stilyagi_extract::extract_document(source, expected.syntax) {
