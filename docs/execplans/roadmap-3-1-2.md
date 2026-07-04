@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds. Each
 revision must remain self-contained.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 Approval gate: satisfied. The user request for roadmap item 3.1.2 is the
 explicit approval recorded for this plan. Begin implementation stage work in
@@ -1140,6 +1140,13 @@ other new external dependency without approval.
   deferred and must be retried or replaced by another review path before this
   item is considered fully closed.
 
+- Observation: the recovery adoption pass reran `coderabbit review --agent` and
+  received a completed review envelope with zero findings.
+  Evidence: `/tmp/coderabbit-adopt-stilyagi-roadmap-3-1-2.out` ends with
+  `{"type":"complete","status":"review_completed","findings":0}`.
+  Impact: the external AI review gap from the interrupted implementation run is
+  closed for this branch.
+
 ## Decision log
 
 - Decision: approve roadmap item 3.1.2 for implementation in this worktree.
@@ -1177,12 +1184,47 @@ other new external dependency without approval.
   the 3.1.1 decision.
   Date/Author: 2026-07-04, planning agent.
 
+- Decision: close the plan after the recovery adoption validation pass.
+  Rationale: the branch is clean, the deterministic gates passed on the
+  recovered commit, CodeRabbit returned a completed zero-finding review, and the
+  roadmap checkbox plus documentation updates already match the implemented
+  Rust documentation-comment extraction behaviour.
+  Date/Author: 2026-07-04, operator.
+
 ## Outcomes & retrospective
 
-To be completed at milestones and at completion. Compare the result against the
-purpose: owner-aware Rust doc-comment extraction into the shared IR envelope,
-observable through canonical IR JSON and the Python bridge, with Markdown and
-Python behaviour unchanged.
+Roadmap item 3.1.2 is complete on this branch. Stilyagi now extracts Rust
+documentation comments through the same public extraction path used by Markdown
+and Python, emits `rust_doc_comment` IR regions with exact source-backed
+segments, and attaches Rust owner metadata for modules, item declarations,
+impl blocks, methods, and free functions. The shared and malformed Rust
+fixtures have canonical IR snapshots, the PyO3 bridge exposes
+`rust_doc_comment` to Python, and the user, developer, design, RFC, and ADR
+documents describe the new syntax surface.
+
+The recovery adoption validation pass on 2026-07-04 recorded fresh deterministic
+gate evidence for commit `85ae214`:
+
+- `make check-fmt` passed; log:
+  `/tmp/check-fmt-adopt-stilyagi-roadmap-3-1-2.out`.
+- `make typecheck` passed; log:
+  `/tmp/typecheck-adopt-stilyagi-roadmap-3-1-2.out`.
+- `make lint` passed; log:
+  `/tmp/lint-adopt-stilyagi-roadmap-3-1-2.out`.
+- `make test` passed; log:
+  `/tmp/test-adopt-stilyagi-roadmap-3-1-2.out`.
+  The Rust nextest run passed 236/236 tests, Rust doctests passed, and pytest
+  passed 117/117 tests with six snapshots. Pytest emitted
+  `pytest_bdd` deprecation warnings from third-party fixture registration; no
+  project warning or test failure was introduced by this slice.
+- `coderabbit review --agent` completed with zero findings; log:
+  `/tmp/coderabbit-adopt-stilyagi-roadmap-3-1-2.out`.
+
+The main lesson is that closure evidence must be durable enough for recovery
+assessment. The implementation run had already produced a coherent complete
+slice, but the stalled CodeRabbit review and unfilled retrospective made the
+branch ambiguous to the recovery workflow. Recording the gate and review
+evidence here keeps the branch self-contained for adoption.
 
 ## Revision note
 
@@ -1209,3 +1251,9 @@ Round 3 revision (2026-07-04): recorded the external review stall from the
 the review service never returned findings or completion before the run was
 aborted, so review remains deferred and should be retried or superseded by a
 different review path.
+
+Round 4 revision (2026-07-04): recovery adoption validation reran the
+deterministic gates and CodeRabbit review on the preserved branch. All four
+commit gates passed, CodeRabbit completed with zero findings, and this plan's
+status plus retrospective now reflect the completed branch. Remaining work:
+route the branch through ordinary recovery review and integration.
