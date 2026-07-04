@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use markdown::{mdast::Node, message::Message};
-use stilyagi_ir::{IrNode, IrRegion, NodeFlags};
+use stilyagi_ir::{IrNode, IrRegion, NodeFlags, SourceSpan};
 
 use crate::{MarkdownDiagnosticContext, node_kind::node_kind, source_span};
 
@@ -13,10 +13,17 @@ pub(super) struct MarkdownIrBuilder<'source> {
     pub(super) next_region: usize,
     pub(super) nodes: Vec<IrNode>,
     pub(super) regions: Vec<IrRegion>,
+    pub(super) suppression_candidates: Vec<SuppressionCandidate>,
     pub(super) parent_regions: Vec<StructuralParent>,
     pub(super) list_contexts: Vec<ListContext>,
     pub(super) table_row_contexts: Vec<TableRowContext>,
     pub(super) blockquote_depth: usize,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct SuppressionCandidate {
+    pub(super) node_id: String,
+    pub(super) span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +51,7 @@ impl<'source> MarkdownIrBuilder<'source> {
             next_region: 0,
             nodes: Vec::new(),
             regions: Vec::new(),
+            suppression_candidates: Vec::new(),
             parent_regions: Vec::new(),
             list_contexts: Vec::new(),
             table_row_contexts: Vec::new(),
@@ -59,6 +67,7 @@ impl<'source> MarkdownIrBuilder<'source> {
     ) -> Result<String, Message> {
         let node_id = self.next_node_id();
         let node_index = self.nodes.len();
+        let span = source_span(node, context)?;
         self.nodes.push(IrNode {
             id: node_id.clone(),
             tree: "t0".to_owned(),
@@ -67,9 +76,15 @@ impl<'source> MarkdownIrBuilder<'source> {
             children: Vec::new(),
             fields: BTreeMap::new(),
             props: node_props(node),
-            span: source_span(node, context)?,
+            span,
             flags: NodeFlags::named_source(),
         });
+        if matches!(node, Node::Html(_)) {
+            self.suppression_candidates.push(SuppressionCandidate {
+                node_id: node_id.clone(),
+                span,
+            });
+        }
 
         let has_structural_parent =
             if let Some(structural_region) = self.push_preorder_region_for_node(node, &node_id) {

@@ -12,7 +12,7 @@ mod source_identity;
 mod tree;
 
 pub use canonical_json::{content_hash_for, line_index_for};
-pub use diagnostics::{IrError, IrSuppression};
+pub use diagnostics::{IrError, IrSuppression, SuppressionKind};
 pub use document::{DocumentMetadata, IrBuildContext, IrDocument, ProducerMetadata};
 pub use region::{
     InvalidRegionKind, IrOwner, IrRegion, IrSegment, RegionKind, SegmentOrigin, SyntheticReason,

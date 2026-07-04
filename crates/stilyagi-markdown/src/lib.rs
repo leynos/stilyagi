@@ -5,16 +5,18 @@ mod flatten;
 mod node_kind;
 mod region_emission;
 mod source_text;
+mod suppression;
 mod validation;
 
 use std::{any::Any, collections::BTreeMap, panic::catch_unwind};
 
-use builder::MarkdownIrBuilder;
+use builder::{MarkdownIrBuilder, SuppressionCandidate};
 use markdown::{ParseOptions, mdast::Node, message::Message, to_mdast};
 use stilyagi_ir::{
-    DocumentMetadata, IrBuildContext, IrDocument, IrTree, ProducerMetadata, SourceIdentity,
-    SourceSpan,
+    DocumentMetadata, IrBuildContext, IrDocument, IrError, IrSuppression, IrTree, ProducerMetadata,
+    SourceIdentity, SourceSpan,
 };
+use suppression::{DirectiveError, DirectiveOutcome, parse_comment_directive, verb_kind};
 pub(crate) use validation::validate_ir_consistency;
 
 /// Marker type for the future Markdown extraction boundary.
@@ -175,6 +177,10 @@ fn markdown_ir_document_with_context(
     }
     document.nodes = builder.nodes;
     document.regions = builder.regions;
+    let suppression_candidates = builder.suppression_candidates;
+    let (suppressions, errors) = suppressions_from_candidates(source, suppression_candidates);
+    document.suppressions = suppressions;
+    document.errors.extend(errors);
 
     validate_ir_consistency(&document, source, validation_context)?;
     Ok(document)
@@ -196,6 +202,77 @@ fn markdown_producer() -> ProducerMetadata {
         name: "markdown-rs".to_owned(),
         version: MARKDOWN_RS_VERSION.to_owned(),
         options,
+    }
+}
+
+fn suppressions_from_candidates(
+    source: &str,
+    candidates: Vec<SuppressionCandidate>,
+) -> (Vec<IrSuppression>, Vec<IrError>) {
+    let mut suppressions = Vec::new();
+    let mut errors = Vec::new();
+
+    for candidate in candidates {
+        let Some(comment) = source.get(candidate.span.byte_start..candidate.span.byte_end) else {
+            errors.push(suppression_span_error(
+                candidate.span,
+                &candidate.node_id,
+                "suppression span is outside the source",
+            ));
+            continue;
+        };
+        let Some(inner) = comment
+            .strip_prefix("<!--")
+            .and_then(|value| value.strip_suffix("-->"))
+        else {
+            continue;
+        };
+
+        match parse_comment_directive(inner) {
+            DirectiveOutcome::NotADirective => {}
+            DirectiveOutcome::Parsed(parsed) => {
+                let suppression_id = suppressions.len();
+                suppressions.push(IrSuppression {
+                    id: format!("s{suppression_id}"),
+                    kind: verb_kind(parsed.verb),
+                    codes: parsed.codes,
+                    span: candidate.span,
+                    origin: candidate.node_id,
+                });
+            }
+            DirectiveOutcome::Rejected(DirectiveError::BlanketForbidden) => {
+                errors.push(suppression_error(
+                    "suppression-blanket-forbidden",
+                    candidate.span,
+                    "blanket suppression directives must name at least one code",
+                ));
+            }
+            DirectiveOutcome::Rejected(DirectiveError::UnknownVerb) => {
+                errors.push(suppression_error(
+                    "suppression-unknown-verb",
+                    candidate.span,
+                    "suppression directive verb is not recognised",
+                ));
+            }
+        }
+    }
+
+    (suppressions, errors)
+}
+
+fn suppression_error(code: &'static str, span: SourceSpan, message: &str) -> IrError {
+    IrError {
+        code: code.to_owned(),
+        message: message.to_owned(),
+        span: Some(span),
+    }
+}
+
+fn suppression_span_error(span: SourceSpan, node_id: &str, message: &str) -> IrError {
+    IrError {
+        code: "suppression-span-invalid".to_owned(),
+        message: format!("node={node_id} {message}"),
+        span: Some(span),
     }
 }
 

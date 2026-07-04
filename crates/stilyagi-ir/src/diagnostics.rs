@@ -4,17 +4,35 @@ use serde::{Deserialize, Serialize};
 
 use crate::SourceSpan;
 
+/// Directive stratum recorded in the IR.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SuppressionKind {
+    /// Inline suppression that applies to the next lintable unit.
+    Inline,
+    /// Range suppression that brackets a span of source text.
+    Range,
+    /// File suppression that applies to the entire document.
+    File,
+    /// Configuration-originated suppression.
+    Config,
+}
+
 /// Source-level suppression directive discovered during extraction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IrSuppression {
     /// Stable suppression identifier.
     pub id: String,
+    /// Directive stratum recorded by the frontend.
+    pub kind: SuppressionKind,
+    /// Rule codes or prefixes named by the directive.
+    ///
+    /// File-scope directives may intentionally carry an empty list.
+    pub codes: Vec<String>,
     /// Source span covered by the directive.
     pub span: SourceSpan,
-    /// Suppressed rule names or families.
-    pub rules: Vec<String>,
-    /// Optional directive reason.
-    pub reason: Option<String>,
+    /// IR node id of the comment node that produced this directive.
+    pub origin: String,
 }
 
 /// Non-fatal parser or extractor anomaly.

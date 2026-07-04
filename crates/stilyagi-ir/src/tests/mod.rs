@@ -11,6 +11,7 @@ use super::{
 };
 
 mod segment_properties;
+mod suppression;
 
 /// Keep the marker type default stable and comparable.
 #[test]

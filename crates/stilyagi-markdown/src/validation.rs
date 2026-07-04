@@ -54,6 +54,7 @@ pub(crate) fn validate_ir_consistency(
     for region in &document.regions {
         validate_region_consistency(region, &refs)?;
     }
+    validate_suppressions(document, &refs)?;
 
     Ok(())
 }
@@ -110,6 +111,17 @@ fn validate_region_consistency(
     validate_parent_region(region, refs.context, refs.region_ids)?;
     validate_origin_nodes(region, refs.context, refs.node_ids)?;
     validate_source_segments(region, refs)?;
+    Ok(())
+}
+
+fn validate_suppressions(
+    document: &IrDocument,
+    refs: &IrValidationRefs<'_, '_>,
+) -> Result<(), Message> {
+    for suppression in &document.suppressions {
+        validate_suppression_origin(suppression, refs.context, refs.node_ids)?;
+        validate_suppression_span(suppression, refs)?;
+    }
     Ok(())
 }
 
@@ -232,6 +244,45 @@ fn validate_source_segment(
         format!(
             "source segment mismatch region id={} segment text={} span={:?} actual={:?}",
             region.id, segment.text, span, actual
+        ),
+    ))
+}
+
+fn validate_suppression_origin(
+    suppression: &stilyagi_ir::IrSuppression,
+    context: &MarkdownDiagnosticContext<'_>,
+    node_ids: &BTreeSet<&str>,
+) -> Result<(), Message> {
+    if node_ids.contains(suppression.origin.as_str()) {
+        return Ok(());
+    }
+    Err(stilyagi_markdown_message(
+        context,
+        "ir-suppression-origin-unresolved",
+        format!(
+            "suppression id={} origin={} does not resolve",
+            suppression.id, suppression.origin
+        ),
+    ))
+}
+
+fn validate_suppression_span(
+    suppression: &stilyagi_ir::IrSuppression,
+    refs: &IrValidationRefs<'_, '_>,
+) -> Result<(), Message> {
+    if refs
+        .source
+        .get(suppression.span.byte_start..suppression.span.byte_end)
+        .is_some()
+    {
+        return Ok(());
+    }
+    Err(stilyagi_markdown_message(
+        refs.context,
+        "ir-suppression-source-mismatch",
+        format!(
+            "suppression span mismatch id={} origin={} span={:?}",
+            suppression.id, suppression.origin, suppression.span
         ),
     ))
 }

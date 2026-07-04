@@ -47,6 +47,8 @@ mod parser;
 mod properties;
 #[path = "tests/segment_validation.rs"]
 mod segment_validation;
+#[path = "tests/suppression.rs"]
+mod suppression;
 
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, SourceIdentity, SourceSpan, SyntheticReason};
