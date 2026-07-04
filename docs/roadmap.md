@@ -224,12 +224,16 @@ source maps that docstring rules need across Python and Rust. See
     [the Python docstring extraction execplan](execplans/3-1-1-python-docstring-extraction.md);
     see [ADR 006](adr-006-docstring-owner-metadata.md) for owner metadata
     decisions.
-- [ ] 3.1.2. Implement Rust documentation-comment extraction with equivalent
+- [x] 3.1.2. Implement Rust documentation-comment extraction with equivalent
   owner metadata. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 2.1.1 and 1.3.1.
   - Cover module, type, function, and item-level documentation comments.
   - Success: Rust doc comments participate in the same IR contract as Markdown
     prose and Python docstrings.
+  - Completed with validation evidence in
+    [the roadmap 3.1.2 execplan](execplans/roadmap-3-1-2.md);
+    see [ADR 007](adr-007-rust-doc-comment-owner-metadata.md) for owner
+    metadata decisions.
 - [ ] 3.1.3. Extend suppression parsing to Python and Rust syntax-native
   comments. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 3.1.1 and 3.1.2.

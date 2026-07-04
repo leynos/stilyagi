@@ -16,17 +16,32 @@ pub const SHARED_MARKDOWN_FIXTURE_PATH: &str =
 pub const SHARED_PYTHON_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py";
 
+/// Repository-relative path to the shared valid Rust doc-comment fixture.
+pub const SHARED_RUST_FIXTURE_PATH: &str = "tests/fixtures/corpus/rust/valid/item-doc-comments.rs";
+
 /// Repository-relative path to the malformed Python docstring fixture.
 pub const MALFORMED_PYTHON_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt";
+
+/// Repository-relative path to the malformed Rust doc-comment fixture.
+pub const MALFORMED_RUST_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/rust/malformed/unclosed-item.rs";
 
 /// Repository-relative path to the nested-declarations Python docstring fixture.
 pub const NESTED_PYTHON_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/python/valid/nested-declarations.py";
 
+/// Repository-relative path to the nested Rust doc-comment fixture.
+pub const NESTED_RUST_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/rust/valid/nested-modules-impls.rs";
+
 /// Repository-relative path to the docstring edge-cases Python fixture.
 pub const EDGE_CASE_PYTHON_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/python/valid/docstring-edge-cases.py";
+
+/// Repository-relative path to the multiline Rust doc-comment fixture.
+pub const MULTILINE_RUST_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/rust/valid/doc-comment-multiline.rs";
 
 /// Failure raised when a fixture path is not repository-relative.
 #[derive(Debug, Clone, PartialEq, Eq)]

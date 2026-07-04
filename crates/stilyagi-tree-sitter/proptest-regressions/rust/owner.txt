@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc fe7c705eca3d168703ef4bd5751b30d0b802c674493baa57c2c3fbb36a70b8cf # shrinks to stack = [OwnerFrame { kind: Struct, name: Some("a"), emitted_node_id: None }]
+cc 03f5c96c67f93cd3f8c848610fcf4f908aac23ff0b3c7f63ad2d307ae19b00b1 # shrinks to stack = [OwnerFrame { kind: Module, name: Some("A"), emitted_node_id: None }, OwnerFrame { kind: Impl, name: None, emitted_node_id: None }]

@@ -830,9 +830,9 @@ V1 sufficiency:
 Current implementation note for roadmap item 3.1.1:
 
 - The first live Rust-to-Python bridge delegates to Rust for Markdown, Python
-  docstring, and Rust documentation comment extraction. Markdown and Python
-  docstrings are currently implemented; Rust documentation comments remain
-  gated by unsupported-syntax errors.
+  docstring, and Rust documentation comment extraction. Markdown, Python
+  docstrings, and Rust documentation comments are implemented and surface the
+  canonical IR envelope through the in-process bridge.
 - Markdown and Python docstring extraction now carry the canonical IR envelope
   through the in-process bridge. The Python `Document.ir` mapping exposes
   schema metadata, `line_index`, bounded or debug-only tree node access, region
@@ -1161,10 +1161,10 @@ The source validation corpus lives under `tests/fixtures/corpus/`, grouped by
 syntax and by `valid` or `malformed` case. It currently covers Markdown,
 Python, and Rust source inputs for headings, tables, links, docstrings,
 documentation comments, suppressions, and recovery-oriented malformed inputs;
-the Python and Rust entries are fixture-only, not currently supported at the
-bridge boundary. Those future-facing fixtures provide coverage for later
-roadmap slices that build Golden IR snapshots and fix round-trip fixtures,
-rather than duplicating source text in ad hoc tests.
+the Python and Rust entries are fixture-only test inputs that now exercise the
+bridge boundary. Those fixtures provide coverage for later roadmap slices that
+build Golden IR snapshots and fix round-trip fixtures, rather than duplicating
+source text in ad hoc tests.
 
 ## 11. Validation Plan
 
@@ -1220,10 +1220,10 @@ The design must be validated with the following test classes.
 
 ### Can resolve during implementation
 
-- Exact owner metadata shape for Rust documentation comments. Recommendation:
-  implementation spike plus RFC amendment, reusing the ADR 006 `owner` field
-  contract while defining Rust-specific owner kinds and qualified-name
-  semantics.
+- Exact owner metadata shape for Rust documentation comments: resolved by
+  [ADR 007](adr-007-rust-doc-comment-owner-metadata.md), which reuses the ADR
+  006 `owner` field contract while defining Rust-specific owner kinds and
+  qualified-name semantics.
 - Spelling capability names, planner semantics, and acceptance gates after ADR
   001's provider selection. Recommendation: implementation spike plus RFC
   amendment.

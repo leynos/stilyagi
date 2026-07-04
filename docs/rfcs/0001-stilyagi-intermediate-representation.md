@@ -305,7 +305,9 @@ ADR 006 records the concrete Python docstring owner policy: Python class and
 function regions use Python `__qualname__` semantics, including `<locals>` for
 definitions nested inside function bodies; module owners remain anonymous until
 a future package-aware extraction entrypoint can supply trustworthy module
-identity.[^7]
+identity.[^7] ADR 007 records the concrete Rust documentation-comment owner
+policy, reusing the same `owner` contract with Rust-specific `::` qualnames and
+inner/outer attachment rules.[^8]
 
 ## 7. Region invariants
 
@@ -468,3 +470,5 @@ interchange contract.[^4]
     ../adr-005-markdown-region-vocabulary-scope.md)
 [^7]: [ADR 006: Adopt docstring owner metadata](
     ../adr-006-docstring-owner-metadata.md)
+[^8]: [ADR 007: Adopt Rust documentation-comment owner metadata](
+    ../adr-007-rust-doc-comment-owner-metadata.md)

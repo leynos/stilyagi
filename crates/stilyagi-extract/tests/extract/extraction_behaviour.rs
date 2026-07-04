@@ -6,7 +6,7 @@ use stilyagi_test_support::read_corpus_fixture;
 
 use crate::test_utils::{
     boundary, extracted_blank_markdown_documents, extracted_markdown, extracted_unicode_markdown,
-    must_reject_document, must_reject_syntax_name, shared_markdown_source, shared_python_source,
+    must_reject_syntax_name, shared_markdown_source, shared_python_source, shared_rust_source,
 };
 
 #[rstest]
@@ -177,6 +177,20 @@ fn python_extraction_preserves_shared_fixture_docstrings(shared_python_source: S
 }
 
 #[rstest]
+fn rust_extraction_preserves_shared_fixture_doc_comments(shared_rust_source: String) {
+    assert_shared_fixture_extraction(
+        &shared_rust_source,
+        ExtractionExpectation {
+            syntax: ExtractSyntax::RustDocComment,
+            region_count: Some(4),
+            region_kind: stilyagi_extract::RegionKind::RustDocComment,
+            kind_str: "rust_doc_comment",
+            text: " Crate-level documentation comment for the shared Stilyagi corpus.",
+        },
+    );
+}
+
+#[rstest]
 #[case("tests/fixtures/corpus/markdown/malformed/unclosed-table.md")]
 #[case("tests/fixtures/corpus/python/malformed/unclosed-function.py.txt")]
 #[case("tests/fixtures/corpus/rust/malformed/unclosed-item.rs")]
@@ -188,14 +202,15 @@ fn malformed_corpus_fixtures_are_readable_utf8_sources(#[case] relative_path: &s
 }
 
 #[rstest]
-#[case(ExtractSyntax::RustDocComment)]
-fn unsupported_syntaxes_are_rejected(#[case] syntax: ExtractSyntax) {
-    let error = must_reject_document("example", syntax);
+fn rust_doc_comment_syntax_is_supported() {
+    let document = stilyagi_extract::extract_document(
+        "/// Rust doc comment\npub fn example() {}\n",
+        ExtractSyntax::RustDocComment,
+    )
+    .unwrap_or_else(|error| panic!("expected Rust extraction: {error}"));
 
-    assert_eq!(
-        error,
-        stilyagi_extract::ExtractError::UnsupportedSyntax(syntax)
-    );
+    assert_eq!(document.syntax(), ExtractSyntax::RustDocComment);
+    assert!(document.ir().is_some());
 }
 
 #[rstest]

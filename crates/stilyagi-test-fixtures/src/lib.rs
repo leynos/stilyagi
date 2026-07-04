@@ -13,8 +13,10 @@ mod fixture_reads;
 
 pub use fixture_paths::{
     EDGE_CASE_PYTHON_FIXTURE_PATH, FixturePathError, FixturePathErrorKind,
-    MALFORMED_PYTHON_FIXTURE_PATH, NESTED_PYTHON_FIXTURE_PATH, SHARED_MARKDOWN_FIXTURE_PATH,
-    SHARED_PYTHON_FIXTURE_PATH, corpus_fixture_path, normalize_repository_path, repository_root,
+    MALFORMED_PYTHON_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, MULTILINE_RUST_FIXTURE_PATH,
+    NESTED_PYTHON_FIXTURE_PATH, NESTED_RUST_FIXTURE_PATH, SHARED_MARKDOWN_FIXTURE_PATH,
+    SHARED_PYTHON_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH, corpus_fixture_path,
+    normalize_repository_path, repository_root,
 };
 pub use fixture_reads::{
     FixtureReadError, fixture_paths_in, read_corpus_fixture, read_corpus_fixture_bytes,

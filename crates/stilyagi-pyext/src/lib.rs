@@ -139,7 +139,7 @@ fn map_extract_error(error: &ExtractError) -> PyErr {
     match error {
         ExtractError::UnsupportedSyntax(_) => PyNotImplementedError::new_err(error.to_string()),
         ExtractError::UnknownSyntax(_) => PyValueError::new_err(error.to_string()),
-        ExtractError::MarkdownIr(_) | ExtractError::PythonIr(_) => {
+        ExtractError::MarkdownIr(_) | ExtractError::PythonIr(_) | ExtractError::RustIr(_) => {
             PyRuntimeError::new_err(error.to_string())
         }
     }

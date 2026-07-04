@@ -357,19 +357,20 @@ def test_extract_document_preserves_unknown_ir_region_kind(
         assert records[0].args == expected_warning_args
 
 
-@pytest.mark.parametrize(
-    "syntax",
-    [model.Syntax.RUST_DOC_COMMENT],
-)
-def test_engine_extract_document_rejects_unsupported_syntaxes(
-    syntax: model.Syntax,
-) -> None:
-    """Reject recognized syntaxes that the Rust bridge does not implement yet."""
-    with pytest.raises(
-        NotImplementedError,
-        match=rf"^{syntax.value} extraction is not implemented yet\.$",
-    ):
-        engine.extract_document("Example", syntax)
+def test_engine_extract_document_exposes_rust_doc_comments() -> None:
+    """Expose supported Rust doc-comment extraction through the typed adapter."""
+    document = engine.extract_document(
+        "/// Rust doc comment\npub fn example() {}\n",
+        model.Syntax.RUST_DOC_COMMENT,
+    )
+
+    assert document.syntax is model.Syntax.RUST_DOC_COMMENT
+    assert [region.kind for region in document.regions] == [
+        model.Syntax.RUST_DOC_COMMENT.value,
+    ]
+    assert [region.text for region in document.regions] == [
+        " Rust doc comment",
+    ]
 
 
 def test_model_skeleton_dataclasses_preserve_defaults_and_children() -> None:

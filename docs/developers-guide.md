@@ -80,8 +80,8 @@ the Python runtime as `stilyagi._stilyagi_rs`.[^1]
 
 The accepted v1 contract scope is narrower than the architecture's long-term
 extension points. Current implemented extraction support covers Markdown and
-Python docstrings. Rust documentation comments remain in the stable v1 syntax
-vocabulary, but their extractor currently reports an unsupported-syntax error.
+Python docstrings. Rust documentation comments are implemented in the stable
+v1 syntax vocabulary through `rust_doc_comment` regions with owner metadata.
 Markdown with JSX (MDX) remains preview-only, canonical JSON remains required
 for the IR bridge, `dump-ir`, fixtures, and compatibility review, and English
 is the only formally supported v1 locale.[^2]
@@ -137,9 +137,8 @@ Python tests should load corpus files through focused `pathlib.Path` helpers
 like the ones in `tests/test_corpus.py`. Rust tests should load shared corpus
 files through the dev-only `stilyagi-test-support` crate instead of duplicating
 repository-root discovery in each crate. Python docstring tests should assert
-real extraction behaviour. Until the Rust documentation-comment extractor is
-implemented, tests may assert that Rust fixtures are loadable and that
-extraction still reports the current unsupported-syntax error.
+real extraction behaviour. Rust documentation-comment tests should assert real
+extraction behaviour, including owner metadata and recoverable parse errors.
 
 <!-- markdownlint-disable MD001 -->
 
@@ -209,11 +208,16 @@ that need access to repository-local files:
 
 Table: Repository fixture utilities and signatures.
 
+<!-- markdownlint-disable MD060 -->
 | Symbol                          | Signature                                                            | Description                                                                                                                               |
 | ------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `SHARED_MARKDOWN_FIXTURE_PATH`  | `&str`                                                               | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
 | `SHARED_PYTHON_FIXTURE_PATH`    | `&str`                                                               | Repository-relative path to the shared valid Python docstring corpus fixture.                                                             |
+| `SHARED_RUST_FIXTURE_PATH`      | `&str`                                                               | Repository-relative path to the shared valid Rust doc-comment corpus fixture.                                                             |
 | `MALFORMED_PYTHON_FIXTURE_PATH` | `&str`                                                               | Repository-relative path to the malformed Python fixture used for recovery tests.                                                         |
+| `MALFORMED_RUST_FIXTURE_PATH`   | `&str`                                                               | Repository-relative path to the malformed Rust fixture used for recovery tests.                                                           |
+| `NESTED_RUST_FIXTURE_PATH`      | `&str`                                                               | Repository-relative path to the nested Rust doc-comment corpus fixture.                                                                    |
+| `MULTILINE_RUST_FIXTURE_PATH`   | `&str`                                                               | Repository-relative path to the multiline Rust doc-comment corpus fixture.                                                                 |
 | `repository_root`               | `() -> PathBuf`                                                      | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
 | `corpus_fixture_path`           | `(impl AsRef<Path>) -> PathBuf`                                      | Resolves a repository-relative path against the workspace root.                                                                           |
 | `read_corpus_fixture`           | `(impl AsRef<Path>) -> Result<String, io::Error>`                    | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
@@ -221,8 +225,10 @@ Table: Repository fixture utilities and signatures.
 | `fixture_paths_in`              | `(impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError>`        | Lists repository-relative fixture entries in deterministic sorted order.                                                                  |
 | `golden_markdown_ir_fixture`    | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`            | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                                  |
 | `golden_python_ir_fixture`      | `(impl AsRef<Path>) -> Result<IrDocument, GoldenPythonFixtureError>` | Builds the canonical Python docstring IR used by Rust snapshot tests.                                                                     |
+| `golden_rust_ir_fixture`        | `(impl AsRef<Path>) -> Result<IrDocument, GoldenRustFixtureError>`   | Builds the canonical Rust doc-comment IR used by Rust snapshot tests.                                                                     |
 | `normalize_repository_path`     | `(impl AsRef<Path>) -> String`                                       | Converts repository-relative paths to `/`-separated snapshot text.                                                                        |
 | `apply_round_trip_edits`        | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>`     | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                               |
+<!-- markdownlint-enable MD060 -->
 
 Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
 require repository-relative fixture access. Do not copy the `repository_root`
@@ -238,8 +244,10 @@ from RFC 0004 remains future work. Rust snapshot tests use `insta` and write
 snapshot files next to the owning test module, for example under
 `crates/stilyagi-extract/tests/snapshots/` or
 `crates/stilyagi-test-support/tests/snapshots/`. Python snapshot tests use
-`syrupy` and write JSON snapshots under `tests/__snapshots__/`. Update
-snapshots only when the reviewed contract changes:
+`syrupy` and write JSON snapshots under `tests/__snapshots__/`. Markdown,
+Python docstring, and Rust doc-comment golden helpers all follow the same
+canonical IR contract. Update snapshots only when the reviewed contract
+changes:
 
 ```bash
 INSTA_UPDATE=always cargo test -p stilyagi-ir -p stilyagi-test-support -p stilyagi-extract
@@ -329,10 +337,8 @@ For the near-term phases, developers should preserve four boundaries in
 particular.
 
 - Syntax and locale scope
-  - Current implemented extraction support covers Markdown and Python
-    docstrings. Rust documentation comments remain in the stable v1 syntax
-    vocabulary, but their extractor currently reports an unsupported-syntax
-    error.
+  - Current implemented extraction support covers Markdown, Python
+    docstrings, and Rust documentation comments.
   - MDX remains preview-only until later evidence upgrades it into the stable
     support matrix.
   - English is the only formally supported locale in v1. Architecture may stay
@@ -513,23 +519,25 @@ URIs. Callers with real file context should use the identity-aware extraction
 API once the relevant adapter or CLI surface exposes it, so source identity is
 supplied at the boundary rather than invented inside the IR domain.
 
-Table: Current Markdown and Python extraction differences.
+Table: Current Markdown, Python, and Rust extraction differences.
 
-| Topic          | Markdown extraction                                                                           | Python docstring extraction                                                                                          |
-| -------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Parse entry    | Markdown parser over the full source document.                                                | `tree-sitter-python` parser over the full source file.                                                               |
-| Traversal      | Markdown flattener walks Markdown structure and emits rendered prose regions.                 | Depth-first tree-sitter walk inspects module, class, and function first statements.                                  |
-| Error recovery | Markdown parser recovery is represented through Markdown IR behaviour and malformed fixtures. | tree-sitter recovery emits partial docstring regions plus `python-parse-recovery` errors.                            |
-| Owner metadata | `owner` remains `null`; section context must not overload the owner field.                    | `owner` identifies module, class, or function using Python `__qualname__` semantics.                                 |
-| Node store     | Markdown currently exposes the structural nodes needed by Markdown region mapping.            | Python exposes a bounded store: synthetic module root, docstring-owning definitions, and docstring string nodes.     |
-| Text surface   | Markup is flattened and may use synthetic segments for rendered prose.                        | Region text is verbatim `string_content`; no escape decoding, dedent, or PEP 257 cleaning happens during extraction. |
+<!-- markdownlint-disable MD060 -->
+| Topic          | Markdown extraction                                                                           | Python docstring extraction                                                                                          | Rust doc-comment extraction                                                                                          |
+| -------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Parse entry    | Markdown parser over the full source document.                                                | `tree-sitter-python` parser over the full source file.                                                               | `tree-sitter-rust` parser over the full source file.                                                                  |
+| Traversal      | Markdown flattener walks Markdown structure and emits rendered prose regions.                 | Depth-first tree-sitter walk inspects module, class, and function first statements.                                  | Depth-first tree-sitter walk inspects modules, owner-bearing items, and item bodies for doc comments.                 |
+| Error recovery | Markdown parser recovery is represented through Markdown IR behaviour and malformed fixtures. | tree-sitter recovery emits partial docstring regions plus `python-parse-recovery` errors.                            | tree-sitter recovery emits partial doc-comment regions plus `rust-parse-recovery` errors.                            |
+| Owner metadata | `owner` remains `null`; section context must not overload the owner field.                    | `owner` identifies module, class, or function using Python `__qualname__` semantics.                                 | `owner` identifies module, struct, enum, trait, function, impl, or item using `::` semantics and inner/outer rules. |
+| Node store     | Markdown currently exposes the structural nodes needed by Markdown region mapping.            | Python exposes a bounded store: synthetic module root, docstring-owning definitions, and docstring string nodes.     | Rust exposes a bounded store: synthetic crate root, owning items, and doc-comment nodes.                             |
+| Text surface   | Markup is flattened and may use synthetic segments for rendered prose.                        | Region text is verbatim `string_content`; no escape decoding, dedent, or PEP 257 cleaning happens during extraction. | Region text is verbatim marker-stripped prose with synthetic separators for merged line runs.                         |
+<!-- markdownlint-enable MD060 -->
 
 The `crates/stilyagi-ir` crate owns the syntax-neutral IR vocabulary and
 document envelope. The `crates/stilyagi-markdown` crate owns Markdown-specific
-IR production, while `crates/stilyagi-tree-sitter` owns Python docstring IR
-production. Future Rust documentation comment producers must emit the same
-`IrDocument` shape, but unsupported syntaxes must not receive placeholder IR
-payloads.
+IR production, while the `crates/stilyagi-tree-sitter` crate owns Python
+docstring and Rust doc-comment IR production. All three producers emit the
+same `IrDocument` shape, and unsupported syntaxes must not receive placeholder
+IR payloads.
 
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine

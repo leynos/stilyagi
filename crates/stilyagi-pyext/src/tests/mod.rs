@@ -1,5 +1,7 @@
 //! Tests for the Python extension bridge payload and error mapping.
 
+mod rust_doc_comment;
+
 use super::{
     extract_document_function, extract_document_py, hello, map_extract_error,
     supported_region_kinds_py, supported_syntaxes_py,
@@ -8,7 +10,9 @@ use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::{Py, PyErr, PyResult, Python};
 use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
 use rstest::rstest;
-use stilyagi_extract::{ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError};
+use stilyagi_extract::{
+    ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError, RustExtractError,
+};
 use stilyagi_ir::RegionKind as IrRegionKind;
 
 fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {

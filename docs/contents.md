@@ -108,6 +108,10 @@
     records the accepted owner metadata shape, Python `__qualname__`
     semantics, verbatim docstring extraction, and bounded Python node-store
     policy.
+  - [ADR 007: Adopt Rust documentation-comment owner metadata](
+    adr-007-rust-doc-comment-owner-metadata.md)
+    records the Rust `owner` contract reuse, `::` qualified-name semantics,
+    verbatim doc-comment extraction, and bounded Rust node-store policy.
 
 ## Requests for comments (RFCs)
 

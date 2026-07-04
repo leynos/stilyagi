@@ -1,0 +1,393 @@
+---
+source: crates/stilyagi-extract/tests/extract/ir_identity.rs
+expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expected canonical Rust IR JSON: {error}\"))"
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": null,
+    "path": "tests/fixtures/corpus/rust/valid/item-doc-comments.rs",
+    "syntax": "rust",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:858c2946b2e820122d8dab6c9c82b981e1e61bd957c12740f4dabdb7809bd77c"
+  },
+  "producers": [
+    {
+      "kind": "tree-sitter",
+      "name": "tree-sitter-rust",
+      "version": "0.24.2",
+      "options": {
+        "doc_comment_content": "verbatim",
+        "node_store": "bounded",
+        "owner_qualname": "rust"
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    70,
+    71,
+    146,
+    173,
+    174,
+    196,
+    257,
+    310,
+    331,
+    337,
+    339,
+    340,
+    382,
+    445,
+    474,
+    475
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "tree-sitter",
+      "syntax": "rust",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "module",
+      "parent": null,
+      "children": [
+        "n1",
+        "n2",
+        "n4",
+        "n7"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 475
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 70
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "struct_item",
+      "parent": "n0",
+      "children": [
+        "n3"
+      ],
+      "fields": {
+        "name": "FixtureExample"
+      },
+      "props": {},
+      "span": {
+        "byte_start": 146,
+        "byte_end": 172
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n2",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 71,
+        "byte_end": 146
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
+      "kind": "impl_item",
+      "parent": "n0",
+      "children": [
+        "n5"
+      ],
+      "fields": {
+        "type": "FixtureExample"
+      },
+      "props": {},
+      "span": {
+        "byte_start": 174,
+        "byte_end": 338
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n5",
+      "tree": "t0",
+      "kind": "function_item",
+      "parent": "n4",
+      "children": [
+        "n6"
+      ],
+      "fields": {
+        "name": "documented_value"
+      },
+      "props": {},
+      "span": {
+        "byte_start": 261,
+        "byte_end": 336
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n6",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n5",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 200,
+        "byte_end": 257
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n7",
+      "tree": "t0",
+      "kind": "function_item",
+      "parent": "n0",
+      "children": [
+        "n8"
+      ],
+      "fields": {
+        "name": "fixture_function"
+      },
+      "props": {},
+      "span": {
+        "byte_start": 445,
+        "byte_end": 473
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n8",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n7",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 382,
+        "byte_end": 445
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "module"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Crate-level documentation comment for the shared Stilyagi corpus.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 66,
+          "source": {
+            "byte_start": 3,
+            "byte_end": 69
+          },
+          "synthetic": null,
+          "node": "n1",
+          "text": " Crate-level documentation comment for the shared Stilyagi corpus."
+        }
+      ],
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": {
+        "kind": "module",
+        "name": null,
+        "qualname": null
+      },
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "struct"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Item-level documentation comment used by later Rust extraction slices.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 71,
+          "source": {
+            "byte_start": 74,
+            "byte_end": 145
+          },
+          "synthetic": null,
+          "node": "n3",
+          "text": " Item-level documentation comment used by later Rust extraction slices."
+        }
+      ],
+      "origin_nodes": [
+        "n3"
+      ],
+      "owner": {
+        "kind": "struct",
+        "name": "FixtureExample",
+        "qualname": "FixtureExample"
+      },
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r2",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "function"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Method documentation comment with extractable prose.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 53,
+          "source": {
+            "byte_start": 203,
+            "byte_end": 256
+          },
+          "synthetic": null,
+          "node": "n6",
+          "text": " Method documentation comment with extractable prose."
+        }
+      ],
+      "origin_nodes": [
+        "n6"
+      ],
+      "owner": {
+        "kind": "function",
+        "name": "documented_value",
+        "qualname": "FixtureExample::documented_value"
+      },
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r3",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "function"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Function documentation comment after a suppression marker.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 59,
+          "source": {
+            "byte_start": 385,
+            "byte_end": 444
+          },
+          "synthetic": null,
+          "node": "n8",
+          "text": " Function documentation comment after a suppression marker."
+        }
+      ],
+      "origin_nodes": [
+        "n8"
+      ],
+      "owner": {
+        "kind": "function",
+        "name": "fixture_function",
+        "qualname": "fixture_function"
+      },
+      "attrs": {},
+      "parent_region": null
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}

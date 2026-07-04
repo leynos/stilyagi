@@ -271,7 +271,9 @@ container and decoded-text region kinds when the source contains lists,
 blockquotes, frontmatter, images, or link titles. Blank Markdown input returns
 zero regions.
 
-Markdown input also carries a canonical IR envelope on `Document.ir`.
+Markdown input also carries a canonical IR envelope on `Document.ir`, and
+Python docstring plus Rust doc-comment inputs expose `python_docstring` and
+`rust_doc_comment` regions with owner metadata through the same payload.
 `engine.supported_region_kinds()` returns the region-kind vocabulary supported
 by the installed package version.
 

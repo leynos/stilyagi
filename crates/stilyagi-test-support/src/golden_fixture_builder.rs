@@ -7,7 +7,10 @@
 use std::path::Path;
 
 use stilyagi_ir::{IrDocument, SourceIdentity, line_index_for};
-use stilyagi_tree_sitter::{PythonExtractError, python_docstring_ir_document};
+use stilyagi_tree_sitter::{
+    PythonExtractError, RustExtractError, python_docstring_ir_document,
+    rust_doc_comment_ir_document,
+};
 
 use stilyagi_test_fixtures::{
     FixturePathError, FixtureReadError, normalize_repository_path, read_corpus_fixture,
@@ -60,6 +63,51 @@ impl From<PythonExtractError> for GoldenPythonFixtureError {
     }
 }
 
+/// Failure raised when building a production Rust golden IR document.
+#[derive(Debug)]
+pub enum GoldenRustFixtureError {
+    /// The requested corpus fixture could not be read.
+    Fixture(FixtureReadError),
+    /// The Rust extractor could not produce IR.
+    Extract(RustExtractError),
+}
+
+impl std::fmt::Display for GoldenRustFixtureError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fixture(error) => write!(formatter, "{error}"),
+            Self::Extract(error) => write!(formatter, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for GoldenRustFixtureError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Fixture(error) => Some(error),
+            Self::Extract(error) => Some(error),
+        }
+    }
+}
+
+impl From<FixtureReadError> for GoldenRustFixtureError {
+    fn from(error: FixtureReadError) -> Self {
+        Self::Fixture(error)
+    }
+}
+
+impl From<FixturePathError> for GoldenRustFixtureError {
+    fn from(error: FixturePathError) -> Self {
+        Self::Fixture(FixtureReadError::from(error))
+    }
+}
+
+impl From<RustExtractError> for GoldenRustFixtureError {
+    fn from(error: RustExtractError) -> Self {
+        Self::Extract(error)
+    }
+}
+
 /// Build the private golden IR shape for a supported Markdown corpus fixture.
 ///
 /// # Errors
@@ -97,6 +145,25 @@ pub fn golden_python_ir_fixture(
     let fixture = normalize_repository_path(path)?;
 
     Ok(python_docstring_ir_document(
+        &source,
+        SourceIdentity::new(Some(fixture), None),
+    )?)
+}
+
+/// Build production Rust doc-comment IR for a corpus fixture.
+///
+/// # Errors
+///
+/// Returns an error if the fixture path is invalid, cannot be read, or cannot
+/// be parsed by the Rust extractor.
+pub fn golden_rust_ir_fixture(
+    relative_path: impl AsRef<Path>,
+) -> Result<IrDocument, GoldenRustFixtureError> {
+    let path = relative_path.as_ref();
+    let source = read_corpus_fixture(path)?;
+    let fixture = normalize_repository_path(path)?;
+
+    Ok(rust_doc_comment_ir_document(
         &source,
         SourceIdentity::new(Some(fixture), None),
     )?)

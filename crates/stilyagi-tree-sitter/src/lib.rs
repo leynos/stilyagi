@@ -1,8 +1,10 @@
 //! Placeholder crate for tree-sitter-backed source extraction.
 
 mod python;
+mod rust;
 
 pub use python::{PythonExtractError, python_docstring_ir_document};
+pub use rust::{RustExtractError, rust_doc_comment_ir_document};
 
 /// Marker type for the future tree-sitter extraction boundary.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

@@ -4,8 +4,10 @@ use core::fmt;
 pub use stilyagi_ir::SourceIdentity;
 use stilyagi_ir::{IrBoundary, IrDocument};
 use stilyagi_markdown::{MarkdownBoundary, markdown_ir_document};
-pub use stilyagi_tree_sitter::PythonExtractError;
-use stilyagi_tree_sitter::{TreeSitterBoundary, python_docstring_ir_document};
+pub use stilyagi_tree_sitter::{PythonExtractError, RustExtractError};
+use stilyagi_tree_sitter::{
+    TreeSitterBoundary, python_docstring_ir_document, rust_doc_comment_ir_document,
+};
 
 /// Supported source syntaxes for the initial extraction boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +54,8 @@ pub enum ExtractError {
     MarkdownIr(MarkdownIrFailure),
     /// Python parsing or IR construction failed fatally.
     PythonIr(PythonExtractError),
+    /// Rust parsing or IR construction failed fatally.
+    RustIr(RustExtractError),
 }
 
 const EXTRACT_ERROR_SIZE_LIMIT_BYTES: usize = 128;
@@ -125,6 +129,7 @@ impl fmt::Display for ExtractError {
                 write!(formatter, "markdown IR extraction failed: {diagnostic}")
             }
             Self::PythonIr(error) => write!(formatter, "python IR extraction failed: {error}"),
+            Self::RustIr(error) => write!(formatter, "rust IR extraction failed: {error}"),
         }
     }
 }
@@ -152,6 +157,8 @@ pub enum RegionKind {
     Document,
     /// Python docstring prose extracted from source code.
     PythonDocstring,
+    /// Rust doc-comment prose extracted from source code.
+    RustDocComment,
 }
 
 impl RegionKind {
@@ -161,6 +168,7 @@ impl RegionKind {
         match self {
             Self::Document => "document",
             Self::PythonDocstring => "python_docstring",
+            Self::RustDocComment => "rust_doc_comment",
         }
     }
 }
@@ -178,6 +186,7 @@ impl TryFrom<&str> for RegionKind {
         match value {
             "document" => Ok(Self::Document),
             "python_docstring" => Ok(Self::PythonDocstring),
+            "rust_doc_comment" => Ok(Self::RustDocComment),
             _ => Err(value.to_owned()),
         }
     }
@@ -338,7 +347,7 @@ pub fn extract_document_with_source_identity(
     match syntax {
         ExtractSyntax::Markdown => extract_markdown_document(source, identity),
         ExtractSyntax::PythonDocstring => extract_python_document(source, identity),
-        ExtractSyntax::RustDocComment => Err(ExtractError::UnsupportedSyntax(syntax)),
+        ExtractSyntax::RustDocComment => extract_rust_document(source, identity),
     }
 }
 
@@ -379,6 +388,20 @@ fn extract_python_document(
         .collect();
 
     Ok(ExtractDocument::new(ExtractSyntax::PythonDocstring, regions).with_ir(ir))
+}
+
+fn extract_rust_document(
+    source: &str,
+    identity: SourceIdentity,
+) -> Result<ExtractDocument, ExtractError> {
+    let ir = rust_doc_comment_ir_document(source, identity).map_err(ExtractError::RustIr)?;
+    let regions = ir
+        .regions
+        .iter()
+        .map(|region| ExtractRegion::new(region.kind.clone(), region.text.clone()))
+        .collect();
+
+    Ok(ExtractDocument::new(ExtractSyntax::RustDocComment, regions).with_ir(ir))
 }
 
 #[cfg(test)]

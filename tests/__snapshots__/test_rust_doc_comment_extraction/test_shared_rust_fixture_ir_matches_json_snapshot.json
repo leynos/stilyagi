@@ -1,0 +1,389 @@
+{
+  "document": {
+    "content_hash": "<content-hash>",
+    "encoding": "utf-8",
+    "natural_language": null,
+    "path": "<normalized>",
+    "syntax": "rust",
+    "uri": "<normalized>"
+  },
+  "errors": [],
+  "line_index": [
+    0,
+    70,
+    71,
+    146,
+    173,
+    174,
+    196,
+    257,
+    310,
+    331,
+    337,
+    339,
+    340,
+    382,
+    445,
+    474,
+    475
+  ],
+  "metadata": {},
+  "nodes": [
+    {
+      "children": [
+        "n1",
+        "n2",
+        "n4",
+        "n7"
+      ],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n0",
+      "kind": "module",
+      "parent": null,
+      "props": {},
+      "span": {
+        "byte_end": 475,
+        "byte_start": 0
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n1",
+      "kind": "line_comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 70,
+        "byte_start": 0
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [
+        "n3"
+      ],
+      "fields": {
+        "name": "FixtureExample"
+      },
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n2",
+      "kind": "struct_item",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 172,
+        "byte_start": 146
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n3",
+      "kind": "line_comment",
+      "parent": "n2",
+      "props": {},
+      "span": {
+        "byte_end": 146,
+        "byte_start": 71
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [
+        "n5"
+      ],
+      "fields": {
+        "type": "FixtureExample"
+      },
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n4",
+      "kind": "impl_item",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 338,
+        "byte_start": 174
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [
+        "n6"
+      ],
+      "fields": {
+        "name": "documented_value"
+      },
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n5",
+      "kind": "function_item",
+      "parent": "n4",
+      "props": {},
+      "span": {
+        "byte_end": 336,
+        "byte_start": 261
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n6",
+      "kind": "line_comment",
+      "parent": "n5",
+      "props": {},
+      "span": {
+        "byte_end": 257,
+        "byte_start": 200
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [
+        "n8"
+      ],
+      "fields": {
+        "name": "fixture_function"
+      },
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n7",
+      "kind": "function_item",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 473,
+        "byte_start": 445
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n8",
+      "kind": "line_comment",
+      "parent": "n7",
+      "props": {},
+      "span": {
+        "byte_end": 445,
+        "byte_start": 382
+      },
+      "tree": "t0"
+    }
+  ],
+  "producers": [
+    {
+      "kind": "tree-sitter",
+      "name": "tree-sitter-rust",
+      "options": {
+        "doc_comment_content": "verbatim",
+        "node_store": "bounded",
+        "owner_qualname": "rust"
+      },
+      "version": "<tree-sitter-rust-version>"
+    }
+  ],
+  "regions": [
+    {
+      "attrs": {},
+      "id": "r0",
+      "kind": "rust_doc_comment",
+      "natural_language": null,
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": {
+        "kind": "module",
+        "name": null,
+        "qualname": null
+      },
+      "parent_region": null,
+      "scope": [
+        "rust",
+        "doc_comment",
+        "module"
+      ],
+      "segments": [
+        {
+          "node": "n1",
+          "source": {
+            "byte_end": 69,
+            "byte_start": 3
+          },
+          "synthetic": null,
+          "text": " Crate-level documentation comment for the shared Stilyagi corpus.",
+          "text_end": 66,
+          "text_start": 0
+        }
+      ],
+      "syntax": "rust",
+      "text": " Crate-level documentation comment for the shared Stilyagi corpus."
+    },
+    {
+      "attrs": {},
+      "id": "r1",
+      "kind": "rust_doc_comment",
+      "natural_language": null,
+      "origin_nodes": [
+        "n3"
+      ],
+      "owner": {
+        "kind": "struct",
+        "name": "FixtureExample",
+        "qualname": "FixtureExample"
+      },
+      "parent_region": null,
+      "scope": [
+        "rust",
+        "doc_comment",
+        "struct"
+      ],
+      "segments": [
+        {
+          "node": "n3",
+          "source": {
+            "byte_end": 145,
+            "byte_start": 74
+          },
+          "synthetic": null,
+          "text": " Item-level documentation comment used by later Rust extraction slices.",
+          "text_end": 71,
+          "text_start": 0
+        }
+      ],
+      "syntax": "rust",
+      "text": " Item-level documentation comment used by later Rust extraction slices."
+    },
+    {
+      "attrs": {},
+      "id": "r2",
+      "kind": "rust_doc_comment",
+      "natural_language": null,
+      "origin_nodes": [
+        "n6"
+      ],
+      "owner": {
+        "kind": "function",
+        "name": "documented_value",
+        "qualname": "FixtureExample::documented_value"
+      },
+      "parent_region": null,
+      "scope": [
+        "rust",
+        "doc_comment",
+        "function"
+      ],
+      "segments": [
+        {
+          "node": "n6",
+          "source": {
+            "byte_end": 256,
+            "byte_start": 203
+          },
+          "synthetic": null,
+          "text": " Method documentation comment with extractable prose.",
+          "text_end": 53,
+          "text_start": 0
+        }
+      ],
+      "syntax": "rust",
+      "text": " Method documentation comment with extractable prose."
+    },
+    {
+      "attrs": {},
+      "id": "r3",
+      "kind": "rust_doc_comment",
+      "natural_language": null,
+      "origin_nodes": [
+        "n8"
+      ],
+      "owner": {
+        "kind": "function",
+        "name": "fixture_function",
+        "qualname": "fixture_function"
+      },
+      "parent_region": null,
+      "scope": [
+        "rust",
+        "doc_comment",
+        "function"
+      ],
+      "segments": [
+        {
+          "node": "n8",
+          "source": {
+            "byte_end": 444,
+            "byte_start": 385
+          },
+          "synthetic": null,
+          "text": " Function documentation comment after a suppression marker.",
+          "text_end": 59,
+          "text_start": 0
+        }
+      ],
+      "syntax": "rust",
+      "text": " Function documentation comment after a suppression marker."
+    }
+  ],
+  "schema_version": "1.0.0",
+  "suppressions": [],
+  "trees": [
+    {
+      "family": "tree-sitter",
+      "id": "t0",
+      "root": "n0",
+      "syntax": "rust"
+    }
+  ]
+}
