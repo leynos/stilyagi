@@ -1296,3 +1296,13 @@ and undocumented ancestors collapse to the nearest emitted owner in the bounded
 node store. Added a corpus fixture for `///` plus `#[derive]` interleaving, a
 Rust unit test for attribute pass-through, a nested-fixture canonical JSON
 snapshot, and a Python bridge assertion for the new attribute fixture.
+
+Round 6 revision (2026-07-04): resolved the recovered branch's final review
+disposition. The round-two fix added source-byte oracle coverage and recorded
+the verified tree-sitter malformed-recovery ground truth; the full sequential
+gate set and CodeRabbit review then passed at commit `ee71e58`. The remaining
+round-three review proposals are accepted as follow-up hardening and contract
+work rather than blockers for the completed 3.1.2 extraction slice. They are
+tracked as roadmap addenda `3.1.2.1` through `3.1.2.4` so later Rust
+doc-comment rules can either consume the improved contracts or see an explicit
+documented limitation.

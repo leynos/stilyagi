@@ -234,6 +234,26 @@ source maps that docstring rules need across Python and Rust. See
     [the roadmap 3.1.2 execplan](execplans/roadmap-3-1-2.md);
     see [ADR 007](adr-007-rust-doc-comment-owner-metadata.md) for owner
     metadata decisions.
+  - [ ] 3.1.2.1. Make Rust impl-member qualified names module-rooted, or record
+    a formal v1 limitation before owner-aware rules depend on them.
+    - Requires 3.1.2.
+    - Success: impl-associated items are globally resolvable across modules, or
+      the limitation is documented and covered by tests.
+  - [ ] 3.1.2.2. Decide and test Rust doc-comment attachment across intervening
+    non-doc `//` comments.
+    - Requires 3.1.2.
+    - Success: the extractor either matches Rust attachment semantics for this
+      case or documents the limitation with a regression fixture.
+  - [ ] 3.1.2.3. Harden Rust doc-comment extraction for CR-LF, empty doc lines,
+    and mixed whitespace.
+    - Requires 3.1.2.
+    - Success: source-byte oracle coverage includes line-ending and whitespace
+      edge cases without span drift.
+  - [ ] 3.1.2.4. Improve diagnostics or recovery for doc comments absorbed into
+    tree-sitter `ERROR` subtrees.
+    - Requires 3.1.2.
+    - Success: malformed Rust input either preserves recoverable doc comments
+      inside error spans or emits an explicit diagnostic explaining the drop.
 - [ ] 3.1.3. Extend suppression parsing to Python and Rust syntax-native
   comments. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 3.1.1 and 3.1.2.
