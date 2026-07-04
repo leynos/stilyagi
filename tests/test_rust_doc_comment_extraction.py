@@ -24,6 +24,9 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 SHARED_RUST_FIXTURE = pathlib.Path(
     "tests/fixtures/corpus/rust/valid/item-doc-comments.rs",
 )
+ATTRIBUTE_RUST_FIXTURE = pathlib.Path(
+    "tests/fixtures/corpus/rust/valid/item-doc-comments-with-attributes.rs",
+)
 MALFORMED_RUST_FIXTURE = pathlib.Path(
     "tests/fixtures/corpus/rust/malformed/unclosed-item.rs",
 )
@@ -215,6 +218,22 @@ def test_generated_rust_doc_comments_preserve_owner_and_text(
     assert [region.text for region in document.regions] == [f" {body}"]
     region = _rust_doc_comment_ir_regions(_require_ir(document))[0]
     assert _owner_tuple(region) == ("function", name, name)
+
+
+def test_rust_doc_comments_survive_attribute_interleaving() -> None:
+    """Extract a Rust struct document comment across attribute nodes."""
+    source = _fixture_source(ATTRIBUTE_RUST_FIXTURE)
+    document = engine.extract_document(source, model.Syntax.RUST_DOC_COMMENT)
+
+    assert [region.text for region in document.regions] == [
+        " Documentation comment that must attach to the struct, not the derive.",
+    ]
+    region = _rust_doc_comment_ir_regions(_require_ir(document))[0]
+    assert _owner_tuple(region) == (
+        "struct",
+        "AttributeFixture",
+        "attribute_fixture::AttributeFixture",
+    )
 
 
 def _fixture_source(relative_path: pathlib.Path) -> str:

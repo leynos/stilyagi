@@ -10,8 +10,8 @@ use super::builder_state::{
 };
 use super::helpers::{
     classify_doc_comment, collect_recovery_nodes, current_owner_node_id, doc_comment_content_span,
-    is_recovery_node, item_body, line_comment_content_end, node_flags, owner_frame_for_item,
-    source_span, text_for_field,
+    is_recovery_node, item_body, line_comment_content_end, module_body_has_leading_inner_docs,
+    node_flags, owner_frame_for_item, source_span, text_for_field,
 };
 use super::owner::{OwnerFrame, owner_for};
 use super::types::{NodeId, NodeKind};
@@ -140,13 +140,17 @@ impl<'source> RustIrBuilder<'source> {
         frame: OwnerFrame,
         state: &mut NonDocCommentState<'_, 'source>,
     ) {
+        let should_emit_owner = !state.pending_outer.is_empty()
+            || module_body_has_leading_inner_docs(self.source, child);
         state.stack.push(frame);
-        let owner_node_id = self.push_owner_node(child, state.stack);
-        self.flush_pending_groups(
-            state.stack,
-            state.pending_outer,
-            Some(owner_node_id.clone()),
-        );
+        if should_emit_owner {
+            let owner_node_id = self.push_owner_node(child, state.stack);
+            self.flush_pending_groups(
+                state.stack,
+                state.pending_outer,
+                Some(owner_node_id.clone()),
+            );
+        }
         self.visit_item_body(child, state.stack, state.depth + 1);
         let _ = state.stack.pop();
     }
@@ -156,6 +160,10 @@ impl<'source> RustIrBuilder<'source> {
         child: Node<'source>,
         state: &mut NonDocCommentState<'_, 'source>,
     ) {
+        if matches!(child.kind(), "attribute_item" | "inner_attribute_item") {
+            return;
+        }
+
         let Some(frame) = owner_frame_for_item(self.source, child) else {
             state.pending_outer.clear();
             state.pending_inner.clear();

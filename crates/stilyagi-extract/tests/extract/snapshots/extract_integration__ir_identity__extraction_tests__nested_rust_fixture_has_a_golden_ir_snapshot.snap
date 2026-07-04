@@ -1,0 +1,540 @@
+---
+source: crates/stilyagi-extract/tests/extract/ir_identity.rs
+expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expected canonical Rust IR JSON: {error}\"))"
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": null,
+    "path": "tests/fixtures/corpus/rust/valid/nested-modules-impls.rs",
+    "syntax": "rust",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:3b8bed237237bdc137f5ad58df10e7812768cbdde7eaa09f7d9f3c040bc7a7cc"
+  },
+  "producers": [
+    {
+      "kind": "tree-sitter",
+      "name": "tree-sitter-rust",
+      "version": "0.24.2",
+      "options": {
+        "doc_comment_content": "verbatim",
+        "node_store": "bounded",
+        "owner_qualname": "rust"
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    67,
+    83,
+    148,
+    149,
+    169,
+    219,
+    254,
+    255,
+    288,
+    312,
+    313,
+    352,
+    353,
+    409,
+    419,
+    420,
+    467,
+    528,
+    577,
+    578,
+    638,
+    677,
+    678,
+    729,
+    786,
+    815,
+    829,
+    839,
+    845,
+    847
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "tree-sitter",
+      "syntax": "rust",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "module",
+      "parent": null,
+      "children": [
+        "n1",
+        "n3"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 847
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "mod_item",
+      "parent": "n0",
+      "children": [
+        "n2",
+        "n4",
+        "n6",
+        "n8",
+        "n10"
+      ],
+      "fields": {
+        "name": "outer"
+      },
+      "props": {},
+      "span": {
+        "byte_start": 67,
+        "byte_end": 846
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n1",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 67
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 87,
+        "byte_end": 148
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
+      "kind": "struct_item",
+      "parent": "n1",
+      "children": [
+        "n5"
+      ],
+      "fields": {
+        "name": "FixtureExample"
+      },
+      "props": {},
+      "span": {
+        "byte_start": 227,
+        "byte_end": 253
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n5",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n4",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 177,
+        "byte_end": 219
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n6",
+      "tree": "t0",
+      "kind": "const_item",
+      "parent": "n1",
+      "children": [
+        "n7"
+      ],
+      "fields": {
+        "name": "VALUE"
+      },
+      "props": {},
+      "span": {
+        "byte_start": 540,
+        "byte_end": 576
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n7",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n6",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 479,
+        "byte_end": 528
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n8",
+      "tree": "t0",
+      "kind": "type_item",
+      "parent": "n1",
+      "children": [
+        "n9"
+      ],
+      "fields": {
+        "name": "Alias"
+      },
+      "props": {},
+      "span": {
+        "byte_start": 650,
+        "byte_end": 676
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n9",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n8",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 590,
+        "byte_end": 638
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n10",
+      "tree": "t0",
+      "kind": "function_item",
+      "parent": "n1",
+      "children": [
+        "n11"
+      ],
+      "fields": {
+        "name": "documented_value"
+      },
+      "props": {},
+      "span": {
+        "byte_start": 741,
+        "byte_end": 828
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n11",
+      "tree": "t0",
+      "kind": "line_comment",
+      "parent": "n10",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 690,
+        "byte_end": 729
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "module"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Outer module documentation comment for nested Rust extraction.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 63,
+          "source": {
+            "byte_start": 3,
+            "byte_end": 66
+          },
+          "synthetic": null,
+          "node": "n2",
+          "text": " Outer module documentation comment for nested Rust extraction."
+        }
+      ],
+      "origin_nodes": [
+        "n2"
+      ],
+      "owner": {
+        "kind": "module",
+        "name": "outer",
+        "qualname": "outer"
+      },
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "module"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Inner module documentation comment for the outer module.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 57,
+          "source": {
+            "byte_start": 90,
+            "byte_end": 147
+          },
+          "synthetic": null,
+          "node": "n3",
+          "text": " Inner module documentation comment for the outer module."
+        }
+      ],
+      "origin_nodes": [
+        "n3"
+      ],
+      "owner": {
+        "kind": "module",
+        "name": "outer",
+        "qualname": "outer"
+      },
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r2",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "struct"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Documented struct in a nested module.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 38,
+          "source": {
+            "byte_start": 180,
+            "byte_end": 218
+          },
+          "synthetic": null,
+          "node": "n5",
+          "text": " Documented struct in a nested module."
+        }
+      ],
+      "origin_nodes": [
+        "n5"
+      ],
+      "owner": {
+        "kind": "struct",
+        "name": "FixtureExample",
+        "qualname": "outer::inner::FixtureExample"
+      },
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r3",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "const"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Documented associated const in a trait impl.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 45,
+          "source": {
+            "byte_start": 482,
+            "byte_end": 527
+          },
+          "synthetic": null,
+          "node": "n7",
+          "text": " Documented associated const in a trait impl."
+        }
+      ],
+      "origin_nodes": [
+        "n7"
+      ],
+      "owner": {
+        "kind": "const",
+        "name": "VALUE",
+        "qualname": "FixtureExample::VALUE"
+      },
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r4",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "type"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Documented associated type in a trait impl.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 44,
+          "source": {
+            "byte_start": 593,
+            "byte_end": 637
+          },
+          "synthetic": null,
+          "node": "n9",
+          "text": " Documented associated type in a trait impl."
+        }
+      ],
+      "origin_nodes": [
+        "n9"
+      ],
+      "owner": {
+        "kind": "type",
+        "name": "Alias",
+        "qualname": "FixtureExample::Alias"
+      },
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r5",
+      "kind": "rust_doc_comment",
+      "scope": [
+        "rust",
+        "doc_comment",
+        "function"
+      ],
+      "syntax": "rust",
+      "natural_language": null,
+      "text": " Documented method in a trait impl.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 35,
+          "source": {
+            "byte_start": 693,
+            "byte_end": 728
+          },
+          "synthetic": null,
+          "node": "n11",
+          "text": " Documented method in a trait impl."
+        }
+      ],
+      "origin_nodes": [
+        "n11"
+      ],
+      "owner": {
+        "kind": "function",
+        "name": "documented_value",
+        "qualname": "FixtureExample::documented_value"
+      },
+      "attrs": {},
+      "parent_region": null
+    }
+  ],
+  "suppressions": [],
+  "errors": [],
+  "metadata": {}
+}

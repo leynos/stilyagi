@@ -3,8 +3,9 @@
 use rstest::rstest;
 use stilyagi_extract::SourceIdentity;
 use stilyagi_test_support::{
-    MALFORMED_PYTHON_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, SHARED_MARKDOWN_FIXTURE_PATH,
-    SHARED_PYTHON_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH, golden_rust_ir_fixture,
+    MALFORMED_PYTHON_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, NESTED_RUST_FIXTURE_PATH,
+    SHARED_MARKDOWN_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH,
+    golden_rust_ir_fixture,
 };
 
 use crate::test_utils::{
@@ -108,6 +109,28 @@ fn shared_rust_fixture_has_a_golden_ir_snapshot() {
 
     insta::assert_snapshot!(
         "extraction_tests__shared_rust_fixture_has_a_golden_ir_snapshot",
+        document
+            .to_canonical_json()
+            .unwrap_or_else(|error| panic!("expected canonical Rust IR JSON: {error}"))
+    );
+}
+
+#[rstest]
+fn nested_rust_fixture_has_a_golden_ir_snapshot() {
+    let document = golden_rust_ir_fixture(NESTED_RUST_FIXTURE_PATH)
+        .unwrap_or_else(|error| panic!("expected nested Rust golden IR: {error}"));
+
+    assert_eq!(document.document.syntax, "rust");
+    assert!(document.regions.iter().all(|region| region.owner.is_some()));
+    assert!(
+        document
+            .regions
+            .iter()
+            .all(stilyagi_ir::IrRegion::segments_reconstruct_text)
+    );
+
+    insta::assert_snapshot!(
+        "extraction_tests__nested_rust_fixture_has_a_golden_ir_snapshot",
         document
             .to_canonical_json()
             .unwrap_or_else(|error| panic!("expected canonical Rust IR JSON: {error}"))

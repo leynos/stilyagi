@@ -3,14 +3,15 @@
 use rstest::rstest;
 use stilyagi_ir::SourceIdentity;
 use stilyagi_test_fixtures::{
-    MALFORMED_RUST_FIXTURE_PATH, MULTILINE_RUST_FIXTURE_PATH, NESTED_RUST_FIXTURE_PATH,
-    SHARED_RUST_FIXTURE_PATH, read_corpus_fixture,
+    ATTRIBUTE_RUST_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, MULTILINE_RUST_FIXTURE_PATH,
+    NESTED_RUST_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH, read_corpus_fixture,
 };
 use tree_sitter::{Node, Parser};
 
 use super::rust_doc_comment_ir_document;
 
 const SHARED_RUST_FIXTURE: &str = SHARED_RUST_FIXTURE_PATH;
+const ATTRIBUTE_RUST_FIXTURE: &str = ATTRIBUTE_RUST_FIXTURE_PATH;
 const MALFORMED_RUST_FIXTURE: &str = MALFORMED_RUST_FIXTURE_PATH;
 const NESTED_RUST_FIXTURE: &str = NESTED_RUST_FIXTURE_PATH;
 const MULTILINE_RUST_FIXTURE: &str = MULTILINE_RUST_FIXTURE_PATH;
@@ -150,6 +151,46 @@ fn shared_fixture_exposes_doc_comment_nodes_and_siblings() {
         .expect("expected suppression marker");
     assert!(text_for_node(&source, suppressed_comment).starts_with("//"));
     assert!(!text_for_node(&source, suppressed_comment).starts_with("///"));
+}
+
+#[rstest]
+fn attribute_fixture_carries_doc_comments_across_attributes() {
+    let document = fixture_document(ATTRIBUTE_RUST_FIXTURE);
+    let kinds = document
+        .nodes
+        .iter()
+        .map(|node| node.kind.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(document.regions.len(), 1);
+    assert_eq!(
+        document
+            .regions
+            .first()
+            .expect("expected attribute fixture doc-comment")
+            .owner
+            .as_ref()
+            .map(|owner| (
+                owner.kind.as_str(),
+                owner.name.as_deref(),
+                owner.qualname.as_deref()
+            )),
+        Some((
+            "struct",
+            Some("AttributeFixture"),
+            Some("attribute_fixture::AttributeFixture"),
+        ))
+    );
+    assert_eq!(
+        document
+            .regions
+            .first()
+            .expect("expected attribute fixture doc-comment")
+            .text,
+        " Documentation comment that must attach to the struct, not the derive."
+    );
+    assert!(!kinds.contains(&"attribute_item"));
+    assert!(!kinds.contains(&"inner_attribute_item"));
 }
 
 #[rstest]

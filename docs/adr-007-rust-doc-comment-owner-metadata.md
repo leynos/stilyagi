@@ -63,6 +63,10 @@ emit anonymous module owners (`kind: "module"`, `name: null`,
   `owner_qualname: "rust"`. Rules that need the full Rust CST, rustdoc
   cleaning, or package-qualified module names must plan a later contract
   expansion.
+- The bounded node store only emits doc-comment-owning item nodes, plus the
+  synthetic crate root and emitted doc-comment nodes. Undocumented enclosing
+  items collapse to the nearest emitted owner, matching the Python extractor's
+  bounded-store behaviour.
 - Recoverable Rust parse anomalies stay in `IrError` entries rather than
   aborting extraction, so the bridge can surface partial IR alongside the
   surviving doc-comment regions.

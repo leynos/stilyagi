@@ -109,6 +109,7 @@ pub(super) fn owner_frame_for_item(source: &str, node: Node<'_>) -> Option<Owner
         "static_item" => OwnerKind::Static,
         "type_item" => OwnerKind::Type,
         "macro_definition" => OwnerKind::Macro,
+        "attribute_item" | "inner_attribute_item" => return None,
         kind if kind.ends_with("_item") => OwnerKind::Item,
         _ => return None,
     };
@@ -127,6 +128,23 @@ pub(super) fn owner_name(source: &str, node: Node<'_>) -> Option<String> {
 /// Return the body node for a Rust owner-bearing item, if one exists.
 pub(super) fn item_body(node: Node<'_>) -> Option<Node<'_>> {
     node.child_by_field_name("body")
+}
+
+/// Return whether a module item starts with inner doc comments.
+pub(super) fn module_body_has_leading_inner_docs(source: &str, node: Node<'_>) -> bool {
+    let Some(body) = item_body(node) else {
+        return false;
+    };
+
+    let mut cursor = body.walk();
+    for child in body.named_children(&mut cursor) {
+        if matches!(child.kind(), "attribute_item" | "inner_attribute_item") {
+            continue;
+        }
+        return classify_doc_comment(source, child).is_some_and(DocCommentFlavor::is_inner);
+    }
+
+    false
 }
 
 /// Return whether two line comments can merge without a blank-line gap.

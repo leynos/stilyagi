@@ -17,9 +17,10 @@ pub use round_trip_edits::{
     RoundTripEdit, RoundTripEditError, RoundTripEditResult, apply_round_trip_edits,
 };
 pub use stilyagi_test_fixtures::{
-    EDGE_CASE_PYTHON_FIXTURE_PATH, FixturePathError, FixturePathErrorKind, FixtureReadError,
-    MALFORMED_PYTHON_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, MULTILINE_RUST_FIXTURE_PATH,
-    NESTED_PYTHON_FIXTURE_PATH, NESTED_RUST_FIXTURE_PATH, SHARED_MARKDOWN_FIXTURE_PATH,
-    SHARED_PYTHON_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH, corpus_fixture_path, fixture_paths_in,
-    normalize_repository_path, read_corpus_fixture, read_corpus_fixture_bytes, repository_root,
+    ATTRIBUTE_RUST_FIXTURE_PATH, EDGE_CASE_PYTHON_FIXTURE_PATH, FixturePathError,
+    FixturePathErrorKind, FixtureReadError, MALFORMED_PYTHON_FIXTURE_PATH,
+    MALFORMED_RUST_FIXTURE_PATH, MULTILINE_RUST_FIXTURE_PATH, NESTED_PYTHON_FIXTURE_PATH,
+    NESTED_RUST_FIXTURE_PATH, SHARED_MARKDOWN_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH,
+    SHARED_RUST_FIXTURE_PATH, corpus_fixture_path, fixture_paths_in, normalize_repository_path,
+    read_corpus_fixture, read_corpus_fixture_bytes, repository_root,
 };

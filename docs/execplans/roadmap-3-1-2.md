@@ -320,8 +320,9 @@ External prior art relied on during planning:
 - Keep the non-Markdown structural surface minimal, exactly as ADR 006 requires
   for Python. The Rust extractor emits a bounded node store: a synthetic
   `module` (crate) root, each doc-comment-owning item node, and each emitted
-  doc-comment node, with honest parent/child links. It does not emit the full
-  Rust concrete syntax tree. The producer options record
+  doc-comment node, with honest parent/child links. Undocumented enclosing
+  items collapse to the nearest emitted owner. It does not emit the full Rust
+  concrete syntax tree. The producer options record
   `node_store: "bounded"` and `owner_qualname: "rust"`.
 - Malformed Rust must produce partial extraction plus recoverable `errors`
   entries, never a panic or aborted run. Never unwrap tree-sitter results; walk
@@ -411,12 +412,13 @@ External prior art relied on during planning:
   newline sits inside the content.
 
 - Risk: owner derivation is wrong for outer-versus-inner attachment, for impl
-  methods (`Type::method`), or for nested modules. Severity: high. Likelihood:
-  medium. Mitigation: implement owner derivation as a small, table-tested
-  function over an explicit owner stack plus the emitted-node relationship
-  (following sibling for outer, enclosing frame for inner); cover crate module,
-  `mod`, struct, enum, trait, free function, impl method, nested module, and a
-  block doc comment before snapshotting.
+  methods (`Type::method`), for nested modules, or for doc comments separated
+  from their item by attributes. Severity: high. Likelihood: medium.
+  Mitigation: implement owner derivation as a small, table-tested function over
+  an explicit owner stack plus the emitted-node relationship (following
+  sibling for outer, enclosing frame for inner); cover crate module, `mod`,
+  struct, enum, trait, free function, impl method, nested module, and a block
+  doc comment before snapshotting.
 
 - Risk: malformed Rust aborts extraction or panics instead of degrading.
   Severity: high. Likelihood: medium. Mitigation: never unwrap tree-sitter
@@ -1171,6 +1173,14 @@ other new external dependency without approval.
   reconstruction.
   Date/Author: 2026-07-04, planning agent.
 
+- Decision: treat Rust attribute nodes as transparent for owner attachment and
+  emit owner nodes only for doc-comment-owning items.
+  Rationale: doc comments that precede `#[derive]`/`#[cfg]`/similar attributes
+  must still reach the real item, and the bounded node store should match the
+  Python extractor by collapsing undocumented ancestors to the nearest emitted
+  owner instead of materialising every enclosing item.
+  Date/Author: 2026-07-04, implementation agent.
+
 - Decision: reuse the ADR 006 `owner` field contract with Rust-specific kinds
   and `::` qualnames; impl methods use `Type::method`; trait impls use the
   `Type` prefix; crate module owners carry `null` name/qualname.
@@ -1257,3 +1267,11 @@ deterministic gates and CodeRabbit review on the preserved branch. All four
 commit gates passed, CodeRabbit completed with zero findings, and this plan's
 status plus retrospective now reflect the completed branch. Remaining work:
 route the branch through ordinary recovery review and integration.
+
+Round 5 revision (2026-07-04): addressed the round-one blocking review for the
+Rust doc-comment slice. Attribute nodes now pass through without capturing
+pending outer docs, owner nodes are emitted only for doc-comment-owning items,
+and undocumented ancestors collapse to the nearest emitted owner in the bounded
+node store. Added a corpus fixture for `///` plus `#[derive]` interleaving, a
+Rust unit test for attribute pass-through, a nested-fixture canonical JSON
+snapshot, and a Python bridge assertion for the new attribute fixture.

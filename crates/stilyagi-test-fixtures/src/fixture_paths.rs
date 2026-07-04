@@ -19,6 +19,10 @@ pub const SHARED_PYTHON_FIXTURE_PATH: &str =
 /// Repository-relative path to the shared valid Rust doc-comment fixture.
 pub const SHARED_RUST_FIXTURE_PATH: &str = "tests/fixtures/corpus/rust/valid/item-doc-comments.rs";
 
+/// Repository-relative path to the Rust fixture that interleaves attributes and doc comments.
+pub const ATTRIBUTE_RUST_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/rust/valid/item-doc-comments-with-attributes.rs";
+
 /// Repository-relative path to the malformed Python docstring fixture.
 pub const MALFORMED_PYTHON_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt";

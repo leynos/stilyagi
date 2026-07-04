@@ -61,7 +61,7 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
         "n1",
         "n2",
         "n4",
-        "n7"
+        "n6"
       ],
       "fields": {},
       "props": {},
@@ -140,33 +140,10 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
     {
       "id": "n4",
       "tree": "t0",
-      "kind": "impl_item",
+      "kind": "function_item",
       "parent": "n0",
       "children": [
         "n5"
-      ],
-      "fields": {
-        "type": "FixtureExample"
-      },
-      "props": {},
-      "span": {
-        "byte_start": 174,
-        "byte_end": 338
-      },
-      "flags": {
-        "named": true,
-        "error": false,
-        "missing": false,
-        "synthetic": false
-      }
-    },
-    {
-      "id": "n5",
-      "tree": "t0",
-      "kind": "function_item",
-      "parent": "n4",
-      "children": [
-        "n6"
       ],
       "fields": {
         "name": "documented_value"
@@ -184,10 +161,10 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       }
     },
     {
-      "id": "n6",
+      "id": "n5",
       "tree": "t0",
       "kind": "line_comment",
-      "parent": "n5",
+      "parent": "n4",
       "children": [],
       "fields": {},
       "props": {},
@@ -203,12 +180,12 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       }
     },
     {
-      "id": "n7",
+      "id": "n6",
       "tree": "t0",
       "kind": "function_item",
       "parent": "n0",
       "children": [
-        "n8"
+        "n7"
       ],
       "fields": {
         "name": "fixture_function"
@@ -226,10 +203,10 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       }
     },
     {
-      "id": "n8",
+      "id": "n7",
       "tree": "t0",
       "kind": "line_comment",
-      "parent": "n7",
+      "parent": "n6",
       "children": [],
       "fields": {},
       "props": {},
@@ -336,12 +313,12 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
             "byte_end": 256
           },
           "synthetic": null,
-          "node": "n6",
+          "node": "n5",
           "text": " Method documentation comment with extractable prose."
         }
       ],
       "origin_nodes": [
-        "n6"
+        "n5"
       ],
       "owner": {
         "kind": "function",
@@ -371,12 +348,12 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
             "byte_end": 444
           },
           "synthetic": null,
-          "node": "n8",
+          "node": "n7",
           "text": " Function documentation comment after a suppression marker."
         }
       ],
       "origin_nodes": [
-        "n8"
+        "n7"
       ],
       "owner": {
         "kind": "function",
