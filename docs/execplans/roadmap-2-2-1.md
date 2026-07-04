@@ -1,0 +1,946 @@
+# Implement `stilyagi check` for Markdown files with nearest-config discovery
+
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
+
+Status: DRAFT
+
+Approval gate: NOT yet satisfied. Do not begin implementation until the user
+explicitly approves this plan. This is planning round 3, revised to resolve the
+design reviewer's two blocking points: the unimplementable exit-`1` path that
+relied on malformed Markdown fabricating recoverable IR errors, and the
+mis-applied cross-syntax snapshot claim used to justify it. See the Revision
+note. (Rounds 1 and 2 resolved the earlier `make all` gate claim and the strict
+config schema that rejected the RFC 0003 §6 baseline.)
+
+## Purpose / big picture
+
+Roadmap item 2.2.1 (see [docs/roadmap.md](../roadmap.md) §2.2) delivers the
+first user-facing command of the Markdown vertical slice: `stilyagi check`. It
+answers whether the v1 command-line interface (CLI) contract is already strong
+enough to support normal repository linting for Markdown-only users, per
+[Stilyagi design](../stilyagi-design.md) §7.3 and
+[RFC 0003](../rfcs/0003-stilyagi-cli-contract.md).
+
+After this change a maintainer can run, from a documentation repository:
+
+- `stilyagi check .` and have Stilyagi discover every Markdown file beneath the
+  current directory in a deterministic, path-sorted order, resolve the nearest
+  supported configuration file for each target, extract each file through the
+  existing Rust bridge, and print human-readable diagnostics;
+- `stilyagi check docs/ --output-format json` and receive stable machine
+  readable JavaScript Object Notation (JSON) diagnostics derived from one
+  internal diagnostic model;
+- `stilyagi check README.md --isolated` to bypass configuration discovery
+  entirely; and
+- observe the documented exit-code discipline: `0` when no violations remain,
+  `1` when violations remain, and `2` on invalid configuration or CLI usage.
+
+The observable success condition is behavioural, not "the code compiles". A
+new behaviour-driven-development (BDD) feature drives `stilyagi check` over
+temporary Markdown trees and asserts file ordering, config resolution, output
+formats, and exit codes; snapshot tests pin the text and JSON renderings; and
+an end-to-end test invokes the command as a subprocess.
+
+### Scope boundary (what this slice deliberately excludes)
+
+This slice implements the `check` *loop* and its supporting config, discovery,
+diagnostic, and rendering machinery. It deliberately stops short of:
+
+- Built-in lint rules. Those land in roadmap item 2.3.1. Until then the rule
+  registry is an explicit, empty extension seam; `--select`/`--ignore` are
+  parsed and threaded into the resolved configuration but match no rules yet.
+- Safe-fix planning and the `--fix`, `--unsafe-fixes`, and `--diff` flags. Those
+  land in roadmap item 2.2.2. This slice does not define them; passing one is a
+  usage error (exit `2`).
+- The `config`, `clean`, and `dump-ir` sub-commands and `--no-cache` cache
+  behaviour beyond flag acceptance. Those land in roadmap item 2.2.3.
+- Python and Rust discovery defaults (`*.py`, `*.rs`). Roadmap item 2.2.1
+  explicitly limits discovery scope to Markdown; `*.py`/`*.rs` land in 3.2.1.
+- Full `.gitignore` honouring. See the Decision Log; this is deferred to avoid
+  introducing a new runtime dependency in this slice, which the RFC permits
+  because gitignore handling is a SHOULD, not a SHALL.
+
+Because no rules exist yet, there is no *content-driven* way to reach the
+exit-`1` "violations remain" path in this slice. The real Markdown extractor
+recovers malformed input to degraded regions and deliberately does **not**
+populate the IR `errors[]` array for user content (verified below), so malformed
+Markdown exits `0`, not `1`; the only extraction failure mode is an internal
+parser panic or invalid span, which raises a Python exception and maps to
+exit `2` ("internal error", RFC 0003 §12), not `1`. The exit-`1` path is
+therefore a real *production* code path — the exit-code computation returns `1`
+whenever the collected diagnostics list is non-empty — that this slice exercises
+at the unit level by driving a synthetic `Diagnostic` through the empty
+rule-registry seam, rather than by fabricating a malformed-Markdown extraction
+that the real extractor never produces. The same diagnostics pipeline carries
+real rule diagnostics in 2.3.1, at which point exit `1` becomes reachable from
+content. See the Decision Log entry "exit-`1` is exercised synthetically" and
+the "malformed Markdown recovers with empty `errors[]`" discovery.
+
+## Context and orientation
+
+The repository is a mixed Rust and Python project. Rust crates live under
+`crates/`, the Python package lives under `python/stilyagi/`, Python tests live
+under `tests/`, shared corpus fixtures live under `tests/fixtures/corpus/`, and
+BDD feature files live under `features/`. The developer workflow and quality
+gates are described in [docs/developers-guide.md](../developers-guide.md) and
+[AGENTS.md](../../AGENTS.md).
+
+Key existing surfaces this plan builds on:
+
+- `python/stilyagi/cli.py` currently defines `def main() -> int` that prints a
+  "not implemented" message to stderr and returns `2`. This is a placeholder to
+  replace. Two tests exercise it today and must be updated in lockstep:
+  `tests/test_package_skeleton_units.py::test_cli_main_reports_placeholder_exit_code`
+  (asserts `cli.main() == 2`) and `tests/test_round_trip_helpers.py` line 93
+  (`exit_code = cli.main()`).
+- `python/stilyagi/config.py` defines the frozen dataclass `StilyagiConfig`
+  (currently only `cache_dir`) and `InvalidCacheDirError`. Both are imported by
+  `tests/test_package_skeleton_units.py`. Any refactor must keep
+  `from stilyagi import config`, `config.StilyagiConfig`, and
+  `config.InvalidCacheDirError` importable.
+- `python/stilyagi/engine/api.py` exposes
+  `extract_document(source: str, syntax: model.Syntax) -> model.Document`, which
+  delegates to `python/stilyagi/engine/extraction.py`. The returned
+  `model.Document` carries `.syntax`, `.regions`, and `.ir` (the canonical
+  intermediate-representation (IR) mapping, or `None`).
+- The IR envelope (`crates/stilyagi-ir/src/document.rs`) carries `line_index`,
+  `regions`, `suppressions`, and `errors` (`IrError`). The `"errors"` array is
+  always present in the JSON shape but, for Markdown user content in this slice,
+  is always **empty**. Verified against the real Markdown extractor, not a
+  cross-syntax analogue: the golden snapshot
+  `crates/stilyagi-markdown/src/snapshots/stilyagi_markdown__tests__frontmatter.snap`
+  line 192 shows `"errors": []`, and the malformed-fixture test
+  `crates/stilyagi-markdown/src/tests/malformed.rs:47-49` asserts
+  `document.errors.is_empty()` for all three malformed fixtures (unclosed-table,
+  unbalanced-emphasis, broken-reference-link) with the comment that "non-fatal
+  error emission belong[s] to roadmap item 2.1.3, so parser recovery must not
+  fabricate IR errors in this slice". Python extraction is out of scope here
+  (`model.Syntax.MARKDOWN` only; Python defers to 3.2.1), so no Python snapshot
+  is evidence for the Markdown path and none is relied upon. Consequence: the IR
+  `errors[]` → diagnostic adapter this slice ships is a forward-looking seam for
+  2.1.3, pinned against a synthetically constructed IR mapping and against the
+  real extractor's *empty* Markdown `errors[]`; it is not a content-reachable
+  exit-`1` trigger today.
+- `python/stilyagi/diagnostics.py` holds placeholder `NodeRef`, `Fix`, and
+  `Diagnostic` dataclasses.
+- `python/stilyagi/engine/renderers.py` holds a placeholder `RendererRegistry`.
+- `python/stilyagi/rules/` and `python/stilyagi/rules/builtin/` are namespace
+  packages with no rules yet.
+- `python/stilyagi/plugins.py` defines the entry-point group names but no loader.
+
+Load-bearing external-behaviour facts verified in this worktree (not assumed):
+
+- The Rust bridge `extract_document` accepts exactly `(source, syntax)` as
+  positional arguments and rejects unexpected keyword arguments. Verified in
+  `crates/stilyagi-pyext/src/tests.rs:14`
+  (`bridge_extract_document(source, syntax)`) and the negative test
+  `extract_document_function_rejects_unexpected_kwargs`
+  (`crates/stilyagi-pyext/src/tests.rs:140`). Consequence: **the extractor is
+  path-agnostic**. It does not receive the on-disk path, so the `check` command
+  must own the mapping from a discovered file path to the diagnostics it
+  produces; the IR `source.path` field must not be relied upon to carry the
+  caller's path.
+- `model.Syntax` is a closed `StrEnum` with `MARKDOWN = "markdown"`
+  (`python/stilyagi/model/document.py`). Markdown is the only syntax this slice
+  targets.
+- TOML parsing is available from the standard library via `tomllib` (Python
+  3.11+; the project targets 3.14 per `pyproject.toml` `requires-python`). No
+  new dependency is needed to read configuration files.
+- `argparse` from the standard library is sufficient for the sub-command and
+  option surface this slice needs. No CLI framework dependency is added. See
+  Decision Log.
+
+## Constraints
+
+Hard invariants that must hold throughout implementation. Violation requires
+escalation, not a workaround.
+
+- Work only inside this worktree
+  (`/home/leynos/Projects/stilyagi.worktrees/roadmap-2-2-1`).
+- Do not add any new runtime (non-dev) dependency. The project currently
+  declares zero `[project.dependencies]`; keep it that way. Use `tomllib` and
+  `argparse` from the standard library. If a work item appears to require a new
+  runtime dependency (for example, a gitignore matcher such as `pathspec`),
+  stop and escalate.
+- Preserve public import paths already relied upon by tests:
+  `from stilyagi import cli, config, diagnostics, engine, model, nlp, plugins,
+  rules`, plus `config.StilyagiConfig`, `config.InvalidCacheDirError`, and
+  `engine.extract_document`.
+- Do not change the Rust extraction bridge signature or the IR schema. This
+  slice is Python-only above the existing bridge.
+- Keep discovery scope limited to Markdown (`*.md`, `*.markdown`). Do not add
+  `*.py`/`*.rs` discovery (roadmap 2.2.1 constraint; that is 3.2.1).
+- Do not implement fixes (`--fix`, `--diff`, `--unsafe-fixes`); those are
+  roadmap 2.2.2.
+- No single code file may exceed 400 lines (AGENTS.md §Code style). Split by
+  feature into sibling modules or a package.
+- All prose, comments, docstrings, and commit messages use en-GB Oxford
+  spelling ("-ize"/"-yse"/"-our"), per AGENTS.md and the `en-gb-oxendict` skill.
+- Follow Red-Green-Refactor: add the failing test first for each behaviour.
+
+## Tolerances (exception triggers)
+
+- Scope: if the implementation of any single work item requires net changes to
+  more than 8 files or more than 500 net lines, stop and escalate.
+- Interface: if delivering a work item requires changing the Rust bridge
+  signature or the IR JSON schema, stop and escalate.
+- Dependencies: if any work item requires a new runtime dependency, stop and
+  escalate (see Constraints).
+- Iterations: if a focused test still fails after 5 fix attempts, stop and
+  escalate.
+- Ambiguity: if the config-precedence rules, exit-code mapping, or file-ordering
+  rule admit two materially different interpretations not resolved by RFC 0003
+  or the design doc, stop and present options.
+
+## Risks
+
+- Risk: Existing skeleton tests (`test_cli_main_reports_placeholder_exit_code`,
+  `test_round_trip_helpers.py`) assume `cli.main()` returns `2` with no args.
+  Severity: medium. Likelihood: high. Mitigation: update those tests as part of
+  W5, changing `main()` to accept an explicit `argv` and giving no-arg
+  invocation a defined meaning (default target `.`); make the change in the same
+  commit as the CLI rewrite so no gate is left red.
+- Risk: `.gitignore` honouring is a documented SHOULD but has no dependency-free
+  implementation. Severity: low. Likelihood: high. Mitigation: deferred with an
+  explicit Decision Log entry and a logged notice; discovery still skips VCS and
+  build noise directories and restricts discovery to the fixed Markdown
+  extension set (`.md`, `.markdown`) owned by W3. Escalate only
+  if the user requires full gitignore semantics in this slice.
+- Risk: The extractor is path-agnostic, so span→line/column mapping for
+  diagnostics must use the IR `line_index` rather than any bridge-provided path.
+  Severity: low. Likelihood: medium. Mitigation: W4 maps offsets to line/column
+  using `document.ir["line_index"]`; a property test asserts the mapping is
+  monotonic and within bounds.
+- Risk: `maturin` is the build backend; adding `[project.scripts]` must not
+  break the wheel build. Severity: low. Likelihood: low. Mitigation: W5 adds the
+  entry point and validates the wheel/console script with `make all` (which
+  builds and smoke-tests the release wheel via `python -m stilyagi.smoke`; it
+  runs no lint/typecheck/test gates), and validates behaviour with a subprocess
+  e2e test through `python -m stilyagi` under `make test`.
+
+## Progress
+
+- [ ] W1 — Configuration schema and same-directory TOML loading.
+- [ ] W2 — Nearest-config discovery, `extend` chain, CLI overrides, `--isolated`.
+- [ ] W3 — Deterministic Markdown file discovery.
+- [ ] W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam.
+- [ ] W5 — `check` command, argparse CLI, exit codes, console entry point.
+- [ ] W6 — Standard-input support (`-` and `--stdin-filename`).
+- [ ] W7 — Documentation and roadmap update.
+
+## Surprises & discoveries
+
+- Observation: The Rust extraction bridge takes only `(source, syntax)` and
+  rejects extra kwargs. Evidence: `crates/stilyagi-pyext/src/tests.rs:14` and
+  `:140`. Impact: the CLI, not the extractor, owns file-path attribution for
+  diagnostics; recorded as a Constraint and reflected in W4/W5.
+- Observation: Malformed Markdown recovers to degraded regions and never
+  populates IR `errors[]` in this slice; non-fatal error emission is roadmap
+  2.1.3 work, not 2.2.1. Evidence: `crates/stilyagi-markdown/src/tests/malformed.rs:47-49`
+  asserts `document.errors.is_empty()` for every malformed fixture, and the
+  frontmatter snapshot line 192 shows `"errors": []`. Impact: the round-2 design
+  (exit-`1` driven by extraction errors) was unimplementable — no malformed
+  Markdown content can produce a diagnostic today. The plan now exercises the
+  exit-`1` path synthetically through the empty rule-registry seam (see the
+  Decision Log and the reworked W4/W5), and pins the IR-error adapter against a
+  hand-built IR mapping plus the real extractor's empty Markdown `errors[]`.
+
+## Decision log
+
+- Decision: Use the standard-library `argparse` for the CLI rather than a
+  third-party framework (Click, Typer, Cyclopts).
+  Rationale: The project declares zero runtime dependencies and a Constraint
+  forbids adding one. `argparse` supports sub-commands and the option surface
+  this slice needs. Ruff's *contract* (command names, precedence, exit codes) is
+  the model, not its Rust `clap` implementation.
+  Date/Author: 2026-07-04, planning agent.
+- Decision: Parse configuration with the standard-library `tomllib`.
+  Rationale: Available since Python 3.11; project targets 3.14. No dependency
+  needed. Date/Author: 2026-07-04, planning agent.
+- Decision: Defer full `.gitignore` honouring to a later slice.
+  Rationale: RFC 0003 §7 states Stilyagi SHOULD respect `.gitignore`; it is not
+  a SHALL. A correct implementation needs a gitignore matcher (for example
+  `pathspec`), which would be a new runtime dependency and breach a Constraint.
+  Discovery still skips `.git` and obvious build directories and restricts to
+  the fixed Markdown extension set (`.md`, `.markdown`); the RFC §6
+  `respect-gitignore` key is accepted (and preserved) in config and its deferral
+  is logged in verbose mode. Date/Author: 2026-07-04, planning agent.
+- Decision: In this slice the exit-`1` "violations remain" path is exercised
+  **synthetically** at the unit level, not by real Markdown content.
+  Rationale: The round-2 design assumed malformed Markdown yields recoverable
+  `IrError` entries that surface as diagnostics. The real Markdown extractor
+  contradicts this — `crates/stilyagi-markdown/src/tests/malformed.rs:47-49`
+  asserts `document.errors.is_empty()` for every malformed fixture, and non-fatal
+  error emission is explicitly roadmap 2.1.3 work (2.2.1 requires only 2.1.1 and
+  1.2.3, so it cannot depend on 2.1.3). With zero rules and empty `errors[]`,
+  no CLI content can reach exit `1`; an internal parser panic raises and maps to
+  exit `2` ("internal error", RFC 0003 §12), not `1`. The exit-code computation
+  is nonetheless real production code, so W5 tests it two ways: (1) a direct unit
+  test that `compute_exit_code([<one synthetic Diagnostic>])` returns `1`; and
+  (2) a `run_check` unit test that monkeypatches the empty rule-registry seam
+  `run_rules` to return one synthetic `Diagnostic`, asserting the whole compose
+  path returns `1` and renders it. Real malformed Markdown is pinned to exit `0`
+  (recovers cleanly, no diagnostics). This exercises the genuine exit-`1` code
+  path without fabricating an extraction behaviour the extractor never produces;
+  when 2.3.1 adds rules, exit `1` becomes reachable from content through the same
+  seam. The reviewer's option (b) — depend on 2.1.3 and reorder — is rejected
+  because it would change the roadmap's stated dependencies for 2.2.1.
+  Date/Author: 2026-07-04 (round 3), planning agent.
+- Decision: The IR `errors[]` → `Diagnostic` adapter is retained as a
+  forward-looking seam for 2.1.3, but pinned honestly.
+  Rationale: The adapter (`map_ir_errors`) is small and lets 2.1.3 light up the
+  violations path without reworking the checker. In this slice it is tested (1)
+  in isolation against a hand-built IR mapping carrying a synthetic `errors[]`
+  entry — asserting the mapping shape — and (2) against the **real** Markdown
+  extractor: extracting a real malformed fixture yields `ir["errors"] == []` and
+  therefore zero diagnostics. No Python snapshot or other cross-syntax evidence
+  is used to justify Markdown behaviour. Date/Author: 2026-07-04 (round 3).
+- Decision: The config schema accepts the full RFC 0003 §6 v1 baseline;
+  reserved keys are preserved, not rejected.
+  Rationale: RFC 0003 §6 documents a recommended baseline containing
+  `line-length`, `[lint] fixable`/`unfixable`, `[lint.per-file-ignores]`,
+  `[nlp]`, and `[rule.<CODE>]`. A repo copying that baseline (or already carrying
+  a matching `[tool.stilyagi]` block) must not fail with exit `2`, or the plan
+  would break the established config contract and CI parity. W1 therefore models
+  the whole §6 key set: keys the slice consumes drive behaviour now; keys
+  reserved for 2.2.2/2.3.1/later NLP slices are accepted, type-checked for basic
+  shape, and preserved on the resolved config untouched. `InvalidConfigError` is
+  raised only for keys outside the §6 contract entirely. TOML kebab-case keys are
+  mapped to snake-case fields by an explicit key map. The round-1 invented
+  `[lint] extend-select` and `[discovery] include` keys are removed
+  (`--extend-select` is a CLI flag per §§3.1/8; discovery scope is a fixed
+  Markdown extension set, not a schema key). Date/Author: 2026-07-04 (round 2).
+- Decision: Whole-change validation runs `make lint`, `make typecheck`, and
+  `make test`, plus `make all` only as a wheel/console build-integrity check.
+  Rationale: On current `origin/main` `make all` resolves to `all: release` →
+  `release-artifact` + `smoke-release` (`Makefile:38,48`); it builds the release
+  wheel and runs `python -m stilyagi.smoke` but invokes no lint, typecheck, or
+  test target. The behavioural acceptance (BDD, unit, property, snapshot, e2e)
+  runs under `make test`; formatting/lint under `make lint`; `ty check` under
+  `make typecheck`. Date/Author: 2026-07-04 (round 2).
+- Decision: Convert `python/stilyagi/config.py` into a `python/stilyagi/config/`
+  package that re-exports `StilyagiConfig` and `InvalidCacheDirError` from its
+  `__init__`, keeping `from stilyagi import config` and its attributes stable.
+  Rationale: The full config surface (schema, discovery, resolution) would
+  exceed the 400-line file limit in one module. Date/Author: 2026-07-04.
+
+## Outcomes & retrospective
+
+To be completed at milestones and on completion. Compare the delivered command
+behaviour against the Purpose section and note lessons.
+
+## Plan of work
+
+The work proceeds bottom-up: configuration, then discovery, then the diagnostic
+model and renderers, then the command that composes them, then stdin, then
+documentation. Each work item is independently committable and must pass the
+commit gates before the next begins. Each ends with its own validation.
+
+### W1 — Configuration schema and same-directory TOML loading
+
+Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md)
+§§4, 6; [Stilyagi design](../stilyagi-design.md) §4 "Config file schema" and
+§7.3; [ADR 003](../adr-003-v1-contract-scope.md) for v1 contract scope.
+Skills to load: `python-router` (then the smaller skills it routes to, e.g.
+`python-data-shapes`, `python-types-and-apis`, `python-errors-and-logging`),
+`python-verification` then `hypothesis`, `leta` for navigation, `en-gb-oxendict`.
+
+Convert `python/stilyagi/config.py` into a package `python/stilyagi/config/`:
+
+- `python/stilyagi/config/__init__.py` re-exports the public surface:
+  `StilyagiConfig`, `InvalidCacheDirError`, the new `InvalidConfigError`,
+  `LintConfig`, `MarkdownExtractConfig`, and the
+  loader/resolver functions added in W2. Preserve the existing `StilyagiConfig()`
+  default and `InvalidCacheDirError` behaviour.
+- `python/stilyagi/config/schema.py` defines frozen dataclasses for the **whole
+  RFC 0003 §6 v1 baseline**, not a Markdown-only subset, so that a user copying
+  the documented baseline (or a repo already carrying a matching
+  `[tool.stilyagi]` block) parses cleanly instead of tripping exit `2`. Two
+  tiers of keys, both accepted:
+  - *Consumed this slice* (drive `check` behaviour now): top-level `cache-dir`,
+    `respect-gitignore`, `plugins`; `[lint]` `select`, `ignore`, `preview`;
+    `[extract.markdown]` `gfm`, `frontmatter`, `mdx`.
+  - *Reserved for later slices* (accepted-and-preserved, validated for basic
+    type shape but not acted upon here): top-level `line-length`; `[lint]`
+    `fixable`, `unfixable`; `[lint.per-file-ignores]`; `[nlp]` (`model`,
+    `sentence-provider`); and `[rule.<CODE>]` per-rule tables (for example
+    `[rule.PUN201] min_items`). These land in 2.2.2/2.3.1/later NLP slices;
+    rejecting them now would break the RFC's own §6 baseline and CI parity, so
+    the loader retains them on the resolved config object (a `reserved: Mapping`
+    field) and threads them through untouched.
+
+  TOML keys in §6 are **kebab-case** (`cache-dir`, `respect-gitignore`,
+  `line-length`, `sentence-provider`); the loader maps kebab-case TOML keys to
+  the snake-case dataclass fields explicitly (a fixed key map, not a blanket
+  `replace("-", "_")`), so the documented baseline binds to the schema. Rejection
+  is **narrowed**: `InvalidConfigError` (subclass of `ValueError`, naming the
+  file and offending key) is raised only for a key that is neither consumed nor
+  in the reserved v1 set above — i.e. genuinely outside the RFC 0003 §6 contract.
+  The invented `[lint] extend-select` key from the round-1 draft is **removed**:
+  `--extend-select` is a CLI flag per RFC §§3.1/8, not a config key; likewise the
+  invented `[discovery] include` table is **removed** from the schema. Discovery
+  scope in this slice is a fixed Markdown extension set (`.md`, `.markdown`)
+  owned by W3, not a user-configurable schema key, so no key absent from RFC
+  §6/§7 is introduced. Keep each module under 400 lines.
+- `python/stilyagi/config/load.py` implements `load_config_file(path)` reading a
+  single TOML file with `tomllib`, applying the `[tool.stilyagi]` prefix for
+  `pyproject.toml` and the bare prefix for `stilyagi.toml`/`.stilyagi.toml`, and
+  `discover_same_directory_config(directory)` implementing RFC 0003 §4
+  precedence (`.stilyagi.toml` > `stilyagi.toml` > `pyproject.toml`).
+
+Tests (Red first):
+
+- `tests/test_config_schema.py` (unit, pytest): default `StilyagiConfig()`
+  round-trips; **the verbatim RFC 0003 §6 baseline config (including
+  `line-length`, `[lint] fixable`/`unfixable`, `[lint.per-file-ignores]`,
+  `[nlp]`, and `[rule.PUN201]`) parses without error and its consumed keys bind
+  to the schema while its reserved keys are preserved** — this pins the
+  accept-and-preserve contract that resolves round-1/round-2 blocking point 2
+  and is copied directly from the RFC §6 code block so the two cannot drift; a
+  key genuinely outside the §6 contract (for example `[lint] made-up-key`)
+  raises `InvalidConfigError` naming the file/key; kebab-case TOML keys
+  (`cache-dir`, `respect-gitignore`, `line-length`) bind to their snake-case
+  dataclass fields; blank `cache_dir` still raises `InvalidCacheDirError`; each
+  config-file kind parses under the correct prefix; same-directory precedence
+  resolves in the documented order when several files coexist.
+- `tests/test_config_schema_properties.py` (property, `hypothesis`): for any
+  subset of the three recognised filenames present in a directory, the resolved
+  file is always the highest-precedence present one (a total, deterministic
+  choice). Use `python-verification` to confirm Hypothesis is the right adversary
+  before writing.
+- Update `tests/test_package_skeleton_units.py` where it constructs
+  `StilyagiConfig` so imports and equality assertions still hold against the
+  extended dataclass (add explicit defaults; keep `config.StilyagiConfig()`
+  valid).
+
+Acceptance: focused tests fail before implementation (Red) and pass after
+(Green); `make lint`, `make typecheck`, `make test` pass.
+
+### W2 — Nearest-config discovery, `extend` chain, CLI overrides, `--isolated`
+
+Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §5
+(discovery and precedence); [Stilyagi design](../stilyagi-design.md) §4 "Config
+file schema" (nearest-config, explicit `extend`, no user-level autoload).
+Skills: `python-router` → `python-abstractions`, `python-errors-and-logging`;
+`python-verification`; `leta`; `en-gb-oxendict`.
+
+In `python/stilyagi/config/resolve.py` implement:
+
+- `resolve_config_for_path(target, *, cli_overrides, explicit_config,
+  isolated)`:
+  1. if `isolated`, skip discovery and return defaults with CLI overrides
+     applied;
+  2. else discover the nearest supported config walking up the directory
+     hierarchy from `target` (nearest wins; do **not** implicitly merge parent
+     configs);
+  3. follow any explicit `extend` chain (a list or string of paths), detecting
+     cycles and raising `InvalidConfigError`;
+  4. apply CLI precedence per RFC 0003 §5: dedicated flags, then
+     `--config "key = value"` overrides, then an explicitly named
+     `--config path`, then discovered nearest config, then defaults.
+- A small in-run cache keyed by resolved directory so repeated lookups during a
+  multi-file run are cheap and deterministic.
+
+Tests (Red first):
+
+- `tests/test_config_resolution.py` (unit): nearest-config wins over an
+  ancestor; ancestors are **not** merged unless named by `extend`; `extend`
+  chains compose in order and cycles raise; `--isolated` bypasses discovery;
+  `--config path` overrides discovery; `--config "key = value"` overrides both;
+  a missing/invalid config raises the typed error (the exit-`2` path in W5).
+- `tests/test_config_resolution.py::test_extend_precedence` asserts the exact
+  precedence ladder using a temporary directory tree built by a fixture.
+
+Acceptance: focused tests Red→Green; `make lint`, `make typecheck`, `make test`
+pass.
+
+### W3 — Deterministic Markdown file discovery
+
+Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §7
+(file discovery); [Stilyagi design](../stilyagi-design.md) §4 system
+requirements ("sort files by normalized path before execution") and §7.3.
+Skills: `python-router` → `python-iterators-and-generators`,
+`python-data-shapes`; `python-verification` → `hypothesis`; `leta`;
+`en-gb-oxendict`.
+
+Add `python/stilyagi/discovery.py`:
+
+- `discover_markdown_files(targets, config) -> list[pathlib.Path]`: for each
+  target, if it is a file, include it when its suffix is `.md`/`.markdown`
+  (explicitly named files are always analysed per RFC §7); if it is a directory,
+  recurse, matching only the fixed Markdown extension set (`.md`/`.markdown`),
+  skipping VCS/build noise directories (`.git`, `target`, `dist`, `build`,
+  `.venv`, `node_modules`). The extension set is owned by W3, not a config key
+  (RFC §6/§7 define no `[discovery]` table). De-duplicate by resolved path.
+  Return the files sorted by normalized (POSIX-form, resolved-relative) path so
+  ordering is stable across platforms.
+- Emit a verbose-mode log notice that `respect-gitignore` is accepted but not
+  yet enforced in this slice (see Decision Log).
+
+Tests (Red first):
+
+- `tests/test_discovery.py` (unit): recursion finds nested `.md`; non-Markdown
+  files are excluded; an explicitly named non-Markdown file passed directly is
+  reported as an ignored/rejected target (documented behaviour, not silently
+  linted); noise directories are skipped; ordering is the sorted normalized
+  path order for a fixture tree.
+- `tests/test_discovery_properties.py` (property, `hypothesis`): for any set of
+  generated relative Markdown paths materialised under a temporary root, the
+  returned list equals the input set sorted by normalized path (total order,
+  no duplicates, deterministic regardless of filesystem enumeration order).
+
+Acceptance: Red→Green; `make lint`, `make typecheck`, `make test` pass.
+
+### W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam
+
+Documents to read first: [Stilyagi design](../stilyagi-design.md) §4
+"Diagnostics output" and "Fix and edit model"; [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md)
+§§11, 12; [RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md) for
+`line_index`, `regions`, and `errors` shape; [developers guide](../developers-guide.md)
+§§7.1, 8. Skills: `python-router` → `python-data-shapes`,
+`python-types-and-apis`; `python-verification` → `hypothesis`; `leta`;
+`en-gb-oxendict`. Snapshot testing uses `syrupy` per AGENTS.md.
+
+Extend `python/stilyagi/diagnostics.py` into the one internal diagnostic model
+all renderers derive from (design §Diagnostics output): a frozen `Diagnostic`
+carrying `path: pathlib.Path`, `code: str`, `message: str`, `severity`
+(an enum: `error`/`warning`), an optional source location
+(`line: int`, `column: int`, both 1-based) resolved from byte offsets via the
+IR `line_index`, and a `fix` applicability field left `None` in this slice.
+Keep it under 400 lines; if the offset→line/column helper grows, put it in
+`python/stilyagi/diagnostics_location.py`.
+
+Add an IR-error adapter (in a new `python/stilyagi/engine/checker.py`),
+`map_ir_errors(document) -> list[Diagnostic]`: map each IR `errors[]` entry for
+a file into a `Diagnostic` with a stable synthetic code (for example `IR000`),
+the error message, and the resolved location when the error carries an offset.
+This is a **forward-looking seam for roadmap 2.1.3** (non-fatal error emission);
+it is **not** a content-reachable exit-`1` trigger in this slice, because the
+real Markdown extractor never populates `errors[]` for user content
+(`crates/stilyagi-markdown/src/tests/malformed.rs:47-49`; frontmatter snapshot
+line 192 `"errors": []`). It is therefore verified against a hand-built IR
+mapping and against the real extractor's empty Markdown `errors[]`, never by
+fabricating a malformed-Markdown extraction that yields errors.
+
+Rewrite `python/stilyagi/engine/renderers.py` so `RendererRegistry` produces:
+
+- `text`: one line per diagnostic, `path:line:col: CODE message`, deterministic
+  ordering (by path, then location, then code), plus a trailing summary line;
+- `json`: a stable object with a top-level `diagnostics` array; each entry
+  includes `path`, `code`, `message`, `severity`, `location`, and
+  `fix_applicable` (always `false`/absent in this slice), matching the design's
+  "JSON output includes fix applicability" requirement.
+
+Note: `sarif` is named in RFC 0003 §11 but is out of scope for 2.2.1. Expose
+only `text` and `json` in the `--output-format` choices to avoid promising an
+unimplemented format; record the `sarif` deferral in W7 docs.
+
+Tests (Red first):
+
+- `tests/test_diagnostics_location.py` (unit + property): offset→line/column
+  mapping against a known `line_index`; property test asserts the mapping is
+  monotonic non-decreasing and always within `[1, n_lines]` for arbitrary
+  offsets within bounds (`hypothesis`).
+- `tests/test_renderers.py` (unit + snapshot): given a fixed list of
+  `Diagnostic`s, the `text` and `json` renderings are asserted semantically
+  (fields present, ordering) **and** pinned with `syrupy` snapshots. Keep
+  snapshots focused on the stable output boundary and pair each with semantic
+  assertions per AGENTS.md; redact absolute paths to repo-relative form before
+  snapshotting to avoid churn.
+- `tests/test_ir_error_adapter.py` (unit): pins the adapter honestly against the
+  real extractor and a synthetic IR mapping. (1) A hand-built IR `document`
+  mapping carrying one synthetic `errors[]` entry maps to exactly one
+  `Diagnostic` with code `IR000`, the entry's message, and the resolved
+  location; an empty `errors[]` maps to none. (2) The real-extractor pin: for
+  each real malformed Markdown fixture under
+  `tests/fixtures/corpus/markdown/malformed/`, `engine.extract_document(text,
+  model.Syntax.MARKDOWN)` returns a document whose `ir["errors"]` is `[]`, so the
+  adapter yields **zero** diagnostics — documenting that malformed Markdown
+  recovers cleanly in this slice and does not drive exit `1`. This is the test
+  that pins the Markdown behaviour against the real Markdown extractor per the
+  design reviewer, replacing the round-2 `test_extraction_error_mapping.py` that
+  wrongly assumed populated errors.
+
+Acceptance: Red→Green; snapshots reviewed and stable on re-run; `make lint`,
+`make typecheck`, `make test` pass.
+
+### W5 — `check` command, argparse CLI, exit codes, console entry point
+
+Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md)
+§§3.1, 5, 8, 10 (flags), 12 (exit codes), 16 (examples); [Stilyagi design](../stilyagi-design.md)
+§4 "CLI" and "First run on a docs repository" user flow, §7.3. Skills:
+`python-router` → `python-errors-and-logging`, `python-abstractions`;
+`python-testing` (pytest-bdd); `python-verification`; `leta`; `en-gb-oxendict`.
+Because this is CLI behaviour, add BDD and an end-to-end test per AGENTS.md
+§"Python verification and testing".
+
+Rewrite `python/stilyagi/cli.py` (splitting into a `python/stilyagi/cli/`
+package — `__init__.py`, `parser.py`, `check.py` — if a single file would exceed
+400 lines):
+
+- `build_parser()` constructs an `argparse` parser with a `check` sub-command
+  accepting `FILES...` (default `["."]`) and the v1-relevant options this slice
+  supports: `--select`, `--ignore`, `--extend-select`, `--output-format`
+  (choices `text`, `json`; default `text`), `--config`, `--isolated`,
+  `--no-cache` (accepted, inert this slice), `--quiet`, `--verbose`, `--silent`.
+  A global `-V`/`--version`. Flags reserved for later slices (`--fix`,
+  `--unsafe-fixes`, `--diff`, and `--stdin-filename` until W6) are **not**
+  defined, so passing them yields argparse's usage error → exit `2`.
+- `main(argv: list[str] | None = None) -> int` parses `argv` (defaulting to
+  `sys.argv[1:]`), dispatches `check`, and returns the exit code. Invalid CLI
+  usage and invalid configuration return `2` with an actionable stderr message;
+  a clean run returns `0`; remaining diagnostics return `1`.
+- `run_check(args) -> int` composes W1–W4: resolve CLI overrides, discover
+  Markdown files (W3), for each file resolve the nearest config (W2), read the
+  file, call `engine.extract_document(text, model.Syntax.MARKDOWN)`, collect
+  diagnostics from (a) the empty rule registry seam and (b) the IR-error adapter
+  (W4, which returns `[]` for real Markdown in this slice), render via the chosen
+  format (W4), and compute the exit code via `compute_exit_code`. If
+  `engine.extract_document` raises (an internal parser panic or invalid span),
+  catch it, print an actionable stderr message, and return `2` ("internal
+  error", RFC 0003 §12) — never `1`.
+- `compute_exit_code(diagnostics, *, had_error) -> int` is the pure exit-code
+  mapping: return `2` if `had_error` (invalid config/usage/internal error), else
+  `1` if `diagnostics` is non-empty, else `0` (RFC 0003 §12). Keeping it a small
+  pure function lets W5 unit-test the exit-`1` branch directly with a synthetic
+  diagnostic, since no real Markdown content reaches it in this slice.
+- Define the explicit empty rule-registry seam
+  (`python/stilyagi/rules/registry.py`): `run_rules(document, config) -> list`
+  returns `[]` today, documented as the extension point 2.3.1 fills. This keeps
+  the check loop honest without introducing rules out of order.
+
+Add `python/stilyagi/__main__.py` calling `raise SystemExit(cli.main())` so
+`python -m stilyagi check ...` works for tests and users without relying on
+`PATH`.
+
+Add the console entry point in `pyproject.toml`:
+
+```toml
+[project.scripts]
+stilyagi = "stilyagi.cli:main"
+```
+
+BDD (embed the feature in the plan and keep it synchronized):
+
+Create `features/stilyagi_check_command.feature` and step definitions under
+`tests/steps/` (create the directory; it is already referenced by the ruff
+per-file-ignores in `pyproject.toml`). Feature outline:
+
+```gherkin
+Feature: stilyagi check for Markdown files
+
+  Scenario: check reports clean Markdown with exit code zero
+    Given a temporary tree with two well-formed Markdown files
+    When I run "stilyagi check ." in that tree
+    Then the exit code is 0
+    And the text output lists no diagnostics
+
+  Scenario: check visits Markdown files in deterministic path order
+    Given a temporary tree with Markdown files "b.md", "a.md", and "sub/c.md"
+    When I run "stilyagi check . --output-format json"
+    Then the diagnostics and processed paths follow sorted normalized order
+
+  Scenario: check recovers malformed Markdown cleanly in this slice
+    Given a temporary tree containing malformed Markdown
+    When I run "stilyagi check ."
+    Then the exit code is 0
+    And no diagnostics are reported
+
+  Scenario: check fails with exit code 2 on invalid configuration
+    Given a temporary tree with an invalid stilyagi.toml
+    When I run "stilyagi check ."
+    Then the exit code is 2
+    And an actionable error is printed to standard error
+
+  Scenario: isolated mode ignores discovered configuration
+    Given a temporary tree with a stilyagi.toml and a Markdown file
+    When I run "stilyagi check . --isolated"
+    Then discovery is skipped and defaults are used
+```
+
+Tests (Red first):
+
+- `tests/test_check_command.py` (unit): `main([...])` return codes for the
+  clean (`0`) and usage/config-error (`2`) paths; default target is `.`;
+  `--output-format json` emits parseable JSON. The exit-`1` "violations remain"
+  branch is exercised two ways without fabricating extraction behaviour: (a)
+  `compute_exit_code([<one synthetic Diagnostic>], had_error=False) == 1` and the
+  boundary cases `[] → 0`, `had_error=True → 2`; and (b) a `run_check` test that
+  monkeypatches the empty rule-registry seam
+  `stilyagi.rules.registry.run_rules` to return a single synthetic `Diagnostic`,
+  asserting the composed run returns `1` and renders that diagnostic. A separate
+  case pins that a tree of real malformed Markdown exits `0` (recovers cleanly),
+  matching the BDD scenario and the W4 real-extractor pin.
+- `tests/test_cli_e2e.py` (end-to-end): invoke `python -m stilyagi check` as a
+  subprocess against a temporary tree; assert exit code and stdout/stderr for the
+  content-reachable codes `0` (clean tree, and a malformed-Markdown tree that
+  recovers cleanly) and `2` (invalid config/usage). Exit `1` is **not** reachable
+  by any real Markdown content in this slice, so it is not asserted through the
+  subprocess boundary; it is covered by the `compute_exit_code` and stubbed-seam
+  unit tests above. This is documented, not a silent gap. Covers the externally
+  observable command boundary per AGENTS.md §e2e.
+- Update `tests/test_package_skeleton_units.py::test_cli_main_reports_placeholder_exit_code`
+  and `tests/test_round_trip_helpers.py` (line 93) to the new contract: a
+  clean-tree invocation returns `0`, and a usage error returns `2`. Make these
+  edits in the same commit as the CLI rewrite so no gate is left failing.
+
+Acceptance: the BDD scenarios fail before implementation and pass after; unit
+and e2e tests Red→Green; the gate suite `make lint`, `make typecheck`, and
+`make test` passes (these are the targets that actually run formatting checks,
+lint, `ty check`, and the pytest/BDD/e2e suites — see the Validation section).
+Separately, `make all` (`all: release` → `release-artifact` + `smoke-release`,
+`Makefile:38,48`) must still succeed: it builds the release wheel and runs
+`python -m stilyagi.smoke`, confirming the new `[project.scripts]` console entry
+point and the wheel build survive. `make all` does **not** run lint, typecheck,
+or the test suites, so it is an additional build-integrity check, not the
+behavioural gate.
+
+### W6 — Standard-input support (`-` and `--stdin-filename`)
+
+Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §3.1
+(stdin and `--stdin-filename`). Skills: `python-router` →
+`python-errors-and-logging`; `python-testing`; `leta`; `en-gb-oxendict`.
+
+Extend the `check` parser and `run_check` so a single `-` target reads source
+from standard input. Add `--stdin-filename` so Stilyagi can infer syntax and
+report a plausible path; when reading stdin without a filename, default the
+reported path to `<stdin>` and infer Markdown syntax (the only syntax this
+slice supports). Reject mixing `-` with other file targets (usage error →
+exit `2`).
+
+Tests (Red first):
+
+- `tests/test_check_stdin.py` (unit + e2e): piping Markdown via `-` with
+  `--stdin-filename README.md` produces diagnostics attributed to that path;
+  a clean stdin document exits `0`; mixing `-` with a path exits `2`.
+- Add one BDD scenario to `features/stilyagi_check_command.feature` covering the
+  stdin path and keep the step definitions in sync.
+
+Acceptance: Red→Green; `make lint`, `make typecheck`, `make test` pass.
+
+### W7 — Documentation and roadmap update
+
+Documents to read/update: [docs/users-guide.md](../users-guide.md) (add a
+"Checking Markdown with `stilyagi check`" section: usage, targets, output
+formats, exit codes, `--isolated`, stdin); [docs/developers-guide.md](../developers-guide.md)
+§§2, 3, 8 (record the new `config`, `discovery`, `diagnostics`, renderer, and
+CLI boundaries and the empty rule-registry seam); [docs/roadmap.md](../roadmap.md)
+(tick 2.2.1 and add a completion note referencing this ExecPlan, mirroring the
+3.1.1 entry). Confirm no design-doc change is required; if the gitignore or
+`sarif` deferrals need recording beyond this plan, add a short note to the
+design doc §7.3, and if a deferral is a durable decision consider whether an
+ADR is warranted (escalate rather than author an ADR unilaterally). Skills:
+`scribe` for prose edits, `en-gb-oxendict`, `changelog` if a CHANGELOG entry is
+expected.
+
+Format only the Markdown files changed by this work item: run
+`mdtablefix` then `markdownlint-cli2 --fix` on exactly the docs touched, then
+run the repository Markdown gates below.
+
+Tests: none new (docs-only). Validation is the Markdown gates.
+
+Acceptance: `make markdownlint` and `make nixie` pass; the code gate suite
+(`make lint`, `make typecheck`, `make test`) remains green and `make all` still
+builds and smoke-tests the wheel.
+
+## Concrete steps
+
+Run everything from the worktree root
+`/home/leynos/Projects/stilyagi.worktrees/roadmap-2-2-1`.
+
+For each work item, in order:
+
+1. Write the failing test(s) named in that work item and run the focused suite
+   to observe the Red failure for the intended reason, e.g.:
+
+   ```bash
+   .venv/bin/python -m pytest tests/test_config_schema.py -x -q
+   ```
+
+   Expect the new test to fail before implementation.
+
+2. Implement the minimal production change to make the focused test pass
+   (Green), then re-run the focused suite.
+
+3. Refactor for clarity within the 400-line file limit, then run the commit
+   gates and commit. Prefer delegating the full gate run to the `scrutineer`
+   subagent, which runs gates sequentially and captures logs under `/tmp`.
+
+Because gate output is truncated in this environment, when running gates
+directly capture to a log:
+
+```bash
+make test 2>&1 | tee "/tmp/test-stilyagi-$(git branch --show-current).out"
+```
+
+Commit after each work item once its gates pass (use the `commit-message`
+skill; end the message with the required `Co-Authored-By` trailer).
+
+## Validation and acceptance
+
+Per-work-item validation is stated above. The whole-change acceptance is:
+
+- Behaviour: the BDD scenarios in
+  `features/stilyagi_check_command.feature` fail before W5 and pass after; the
+  end-to-end test in `tests/test_cli_e2e.py` drives `python -m stilyagi check`
+  over a temporary Markdown tree and observes the content-reachable exit codes
+  `0` (a clean tree, and a malformed-Markdown tree that recovers cleanly) and `2`
+  (invalid config/usage). Exit `1` ("violations remain") is not reachable from
+  Markdown content in this slice — the extractor never populates IR `errors[]`
+  and no rules exist — so it is exercised at unit level via `compute_exit_code`
+  and via `run_check` with the empty rule-registry seam stubbed to return a
+  synthetic diagnostic (W5), and becomes content-reachable through the same seam
+  when 2.3.1 adds rules.
+- Determinism: `tests/test_discovery_properties.py` proves file ordering is the
+  sorted normalized-path order for arbitrary inputs.
+- Renderers: `tests/test_renderers.py` `syrupy` snapshots for `text` and `json`
+  are stable on re-run and paired with semantic assertions.
+
+Run the full repository gate suite (path-safe; no hand-written file lists). On
+current `origin/main` the gate targets are separate and unchained: `make all`
+resolves to `all: release` → `release-artifact` + `smoke-release`
+(`Makefile:38,48`) and only builds the release wheel and runs
+`python -m stilyagi.smoke`; it does **not** invoke lint, typecheck, or the test
+suites. The behavioural acceptance for this change (the BDD feature, unit,
+property, snapshot, and e2e tests) runs under `make test`; formatting and lint
+run under `make lint`; the `typecheck` (`ty check`) target runs under
+`make typecheck`. Run all three explicitly:
+
+```bash
+make lint
+make typecheck
+make test
+```
+
+Additionally run `make all` to confirm the release wheel and the new console
+entry point still build and smoke-test (build integrity only — it runs no
+gates):
+
+```bash
+make all
+```
+
+For the documentation changes in W7 also run the Markdown gates:
+
+```bash
+make markdownlint
+make nixie
+```
+
+Quality criteria for "done":
+
+- Tests: all unit, BDD, property, snapshot, and e2e tests pass under `make test`
+  (not `make all`, which builds and smoke-tests the wheel but runs no tests).
+- Lint/typecheck: `make lint` and `make typecheck` report no violations.
+- Formatting: `make check-fmt` clean (apply with `make fmt` only against changed
+  files; do not run a repo-global reformat that churns unrelated files).
+- Markdown: `make markdownlint` and `make nixie` clean.
+
+## Idempotence and recovery
+
+Every step is re-runnable. Tests use temporary directories (`tmp_path`), so
+reruns do not accumulate state. Converting `config.py` to a package is a
+one-time move; if interrupted, re-running the move is safe because the public
+re-exports are the contract. No destructive filesystem operations are involved.
+If a gate fails, read the cited `/tmp` log, fix, and re-run that single gate
+before proceeding.
+
+## Interfaces and dependencies
+
+Use only the standard library plus existing project code. No new runtime
+dependency. Prescriptive end-state surfaces:
+
+- `python/stilyagi/config/__init__.py` re-exports `StilyagiConfig`,
+  `InvalidCacheDirError`, `InvalidConfigError`, `LintConfig`,
+  `MarkdownExtractConfig`, `load_config_file`,
+  `discover_same_directory_config`, and `resolve_config_for_path`.
+- `python/stilyagi/discovery.py` defines
+  `discover_markdown_files(targets: cabc.Iterable[pathlib.Path], config:
+  StilyagiConfig) -> list[pathlib.Path]`.
+- `python/stilyagi/diagnostics.py` defines the frozen `Diagnostic` and a
+  `Severity` enum; offset→location logic lives here or in
+  `python/stilyagi/diagnostics_location.py`.
+- `python/stilyagi/engine/renderers.py` `RendererRegistry` exposes
+  `render(diagnostics, output_format) -> str` for `text` and `json`.
+- `python/stilyagi/engine/checker.py` defines
+  `map_ir_errors(document) -> list[Diagnostic]`, the forward-looking IR-error
+  adapter seam (returns `[]` for real Markdown in this slice).
+- `python/stilyagi/rules/registry.py` defines
+  `run_rules(document, config) -> list[Diagnostic]` returning `[]` (the 2.3.1
+  seam).
+- `python/stilyagi/cli.py` (or `cli/` package) defines
+  `build_parser() -> argparse.ArgumentParser`,
+  `main(argv: list[str] | None = None) -> int`, `run_check(args) -> int`, and the
+  pure `compute_exit_code(diagnostics, *, had_error) -> int` (RFC 0003 §12
+  mapping).
+- `python/stilyagi/__main__.py` runs `raise SystemExit(cli.main())`.
+- `pyproject.toml` gains `[project.scripts] stilyagi = "stilyagi.cli:main"`.
+
+## Revision note
+
+Round 1 draft (2026-07-04). Decomposes roadmap 2.2.1 into seven ordered,
+independently committable work items (config schema, config resolution,
+discovery, diagnostics/renderers, the `check` command, stdin, docs). Pins
+`argparse` and `tomllib` (no new runtime dependency), records the extractor's
+path-agnostic bridge signature as a Constraint, and scopes out rules (2.3.1),
+fixes (2.2.2), other sub-commands (2.2.3), non-Markdown discovery (3.2.1), and
+full `.gitignore` honouring (deferred, RFC SHOULD).
+
+Round 2 (2026-07-04) — resolves the design reviewer's two blocking points:
+
+1. **`make all` does not run the gates.** Verified against the worktree Makefile:
+   `all: release` (`Makefile:38`) and `release: release-artifact smoke-release`
+   (`Makefile:48`) — `make all` only builds the release wheel and runs
+   `python -m stilyagi.smoke`; it never invokes `lint`, `typecheck`, or `test`
+   (separate targets at `Makefile:112,120,131`). Every assertion that `make all`
+   runs the gates was removed. Whole-change validation, the W5 and W7 acceptance
+   lines, the W5 risk mitigation, and the "done" criteria now invoke the actual
+   gate suite (`make lint`, `make typecheck`, `make test`) plus `make markdownlint`
+   and `make nixie` for docs; `make all` is retained only as a wheel/console
+   build-integrity check with that role stated explicitly.
+2. **Strict schema rejected the RFC 0003 §6 baseline.** W1's schema now models
+   the whole RFC 0003 §6 v1 baseline. Keys consumed this slice drive behaviour;
+   keys reserved for later slices (`line-length`, `[lint] fixable`/`unfixable`,
+   `[lint.per-file-ignores]`, `[nlp]`, `[rule.<CODE>]`) are accepted-and-preserved,
+   not rejected, so copying the documented baseline (or a repo already carrying
+   a matching `[tool.stilyagi]` block) no longer trips exit `2`. Kebab-case TOML
+   keys map to snake-case fields via an explicit key map; `InvalidConfigError` is
+   raised only for keys outside the §6 contract. A new `test_config_schema.py`
+   case pins the verbatim §6 baseline as parseable, and the round-1 invented
+   `[lint] extend-select`/`[discovery] include` keys are removed. See the
+   Decision Log for both.
+
+Round 3 (2026-07-04) — resolves the design reviewer's two blocking points:
+
+1. **The extraction-error exit-`1` path was unimplementable.** Verified against
+   the real Markdown extractor: `crates/stilyagi-markdown/src/tests/malformed.rs:47-49`
+   asserts `document.errors.is_empty()` for all three malformed fixtures, and the
+   frontmatter snapshot line 192 shows `"errors": []`. Malformed Markdown recovers
+   to degraded regions and never populates IR `errors[]` in this slice (non-fatal
+   error emission is roadmap 2.1.3; 2.2.1 requires only 2.1.1 and 1.2.3, so it
+   cannot depend on 2.1.3). Applying the reviewer's option (a): the plan no longer
+   claims real malformed Markdown yields exit `1`. The exit-`1` code path is
+   exercised synthetically — a pure `compute_exit_code([<synthetic Diagnostic>])`
+   unit test and a `run_check` test that stubs the empty rule-registry seam to
+   return one synthetic diagnostic. The IR-error adapter is retained as a 2.1.3
+   seam (`map_ir_errors`), tested against a hand-built IR mapping and pinned to
+   the real extractor's empty Markdown `errors[]`. Real malformed Markdown now
+   asserts exit `0`. Updated: Purpose, the Context IR bullet, a new Surprises
+   entry, two Decision Log entries, W4 (renamed to "IR-error adapter seam", test
+   renamed to `test_ir_error_adapter.py`), W5 (`compute_exit_code`, stubbed-seam
+   and synthetic exit-`1` unit tests, internal-error→exit-`2` handling), the BDD
+   scenario (now "recovers malformed Markdown cleanly", exit `0`), the e2e test
+   (exit `1` explicitly unit-only, not asserted through the subprocess), the
+   whole-change acceptance, and the interfaces list.
+2. **Mis-applied cross-syntax snapshot claim.** The round-2 Context bullet cited
+   "the malformed Python snapshot confirms `errors` is populated on malformed
+   input" to justify Markdown behaviour. This is a Markdown-only slice
+   (`model.Syntax.MARKDOWN`; Python extraction defers to 3.2.1), so the Python
+   snapshot is not evidence for the Markdown path. That claim is removed; the
+   Markdown behaviour is now pinned solely against the real Markdown extractor
+   (`malformed.rs:47-49` and the frontmatter snapshot), and the W4 real-extractor
+   test enforces `ir["errors"] == []` for real malformed Markdown fixtures.
+
+No implementation started; awaiting approval.
