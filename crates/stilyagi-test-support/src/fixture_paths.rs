@@ -20,6 +20,14 @@ pub const SHARED_PYTHON_FIXTURE_PATH: &str =
 pub const MALFORMED_PYTHON_FIXTURE_PATH: &str =
     "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt";
 
+/// Repository-relative path to the nested-declarations Python docstring fixture.
+pub const NESTED_PYTHON_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/python/valid/nested-declarations.py";
+
+/// Repository-relative path to the docstring edge-cases Python fixture.
+pub const EDGE_CASE_PYTHON_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/python/valid/docstring-edge-cases.py";
+
 /// Failure raised when a fixture path is not repository-relative.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixturePathError {

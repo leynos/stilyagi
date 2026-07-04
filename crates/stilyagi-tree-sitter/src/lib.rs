@@ -13,13 +13,13 @@ mod tests {
     //! Tests for the placeholder tree-sitter extraction boundary marker.
 
     use super::TreeSitterBoundary;
-    use stilyagi_test_support::read_corpus_fixture;
+    use stilyagi_test_support::{
+        MALFORMED_PYTHON_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, read_corpus_fixture,
+    };
     use tree_sitter::{Node, Parser};
 
-    const SHARED_PYTHON_FIXTURE: &str =
-        "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py";
-    const MALFORMED_PYTHON_FIXTURE: &str =
-        "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt";
+    const SHARED_PYTHON_FIXTURE: &str = SHARED_PYTHON_FIXTURE_PATH;
+    const MALFORMED_PYTHON_FIXTURE: &str = MALFORMED_PYTHON_FIXTURE_PATH;
 
     /// Keep the marker type default stable and comparable.
     #[test]

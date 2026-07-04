@@ -4,7 +4,8 @@ use core::fmt;
 pub use stilyagi_ir::SourceIdentity;
 use stilyagi_ir::{IrBoundary, IrDocument};
 use stilyagi_markdown::{MarkdownBoundary, markdown_ir_document};
-use stilyagi_tree_sitter::{PythonExtractError, TreeSitterBoundary, python_docstring_ir_document};
+pub use stilyagi_tree_sitter::PythonExtractError;
+use stilyagi_tree_sitter::{TreeSitterBoundary, python_docstring_ir_document};
 
 /// Supported source syntaxes for the initial extraction boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -24,7 +24,7 @@ policy into the Rust extractor before the rule layer exists.
 How should Python docstring regions expose owner identity and source text
 without binding v1 rules to the full Python tree-sitter syntax tree?
 
-## Decision
+## Decision outcome
 
 Adopt explicit `owner` metadata with `kind`, optional `name`, and optional
 `qualname`. Python class and function owners use Python `__qualname__`
@@ -35,7 +35,7 @@ Python docstring text is emitted verbatim from tree-sitter `string_content`
 source spans. The Python producer exposes a bounded node store rather than the
 full concrete syntax tree.
 
-## Alternatives considered
+## Options considered
 
 | Alternative                                                                                      | Rationale                                    | Trade-offs                                                                        |
 | ------------------------------------------------------------------------------------------------ | -------------------------------------------- | --------------------------------------------------------------------------------- |

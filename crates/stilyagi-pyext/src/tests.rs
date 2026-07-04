@@ -8,7 +8,7 @@ use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::{Py, PyErr, PyResult, Python};
 use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
 use rstest::rstest;
-use stilyagi_extract::{ExtractError, ExtractSyntax, MarkdownIrFailure};
+use stilyagi_extract::{ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError};
 use stilyagi_ir::RegionKind as IrRegionKind;
 
 fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
@@ -338,6 +338,15 @@ fn map_extract_error_uses_runtime_error_for_markdown_ir() {
             "bad-ir",
             "bad IR",
         )));
+
+        assert!(error.is_instance_of::<PyRuntimeError>(py));
+    });
+}
+
+#[rstest]
+fn map_extract_error_uses_runtime_error_for_python_ir() {
+    Python::attach(|py| {
+        let error = map_extract_error(&ExtractError::PythonIr(PythonExtractError::NoParseTree));
 
         assert!(error.is_instance_of::<PyRuntimeError>(py));
     });
