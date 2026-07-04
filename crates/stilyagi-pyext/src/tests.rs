@@ -265,6 +265,35 @@ fn extract_document_py_exposes_python_docstrings() {
                 .expect("expected kind string"),
             "python_docstring",
         );
+        assert_eq!(
+            first_region
+                .get_item("text")
+                .expect("missing text payload")
+                .extract::<&str>()
+                .expect("expected text string"),
+            "Module docs.",
+        );
+
+        let second_region_any = regions.get_item(1).expect("missing second region");
+        let second_region = second_region_any
+            .cast::<PyDict>()
+            .unwrap_or_else(|error| panic!("expected PyDict but got {error}"));
+        assert_eq!(
+            second_region
+                .get_item("kind")
+                .expect("missing kind payload")
+                .extract::<&str>()
+                .expect("expected kind string"),
+            "python_docstring",
+        );
+        assert_eq!(
+            second_region
+                .get_item("text")
+                .expect("missing text payload")
+                .extract::<&str>()
+                .expect("expected text string"),
+            "Function docs.",
+        );
     });
 }
 
