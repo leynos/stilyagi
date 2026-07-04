@@ -458,7 +458,7 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       "owner": {
         "kind": "const",
         "name": "VALUE",
-        "qualname": "FixtureExample::VALUE"
+        "qualname": "outer::inner::FixtureExample::VALUE"
       },
       "attrs": {},
       "parent_region": null
@@ -493,7 +493,7 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       "owner": {
         "kind": "type",
         "name": "Alias",
-        "qualname": "FixtureExample::Alias"
+        "qualname": "outer::inner::FixtureExample::Alias"
       },
       "attrs": {},
       "parent_region": null
@@ -528,7 +528,7 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       "owner": {
         "kind": "function",
         "name": "documented_value",
-        "qualname": "FixtureExample::documented_value"
+        "qualname": "outer::inner::FixtureExample::documented_value"
       },
       "attrs": {},
       "parent_region": null

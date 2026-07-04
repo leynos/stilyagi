@@ -123,6 +123,14 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
   "suppressions": [],
   "errors": [
     {
+      "code": "rust-doc-comment-error-subtree",
+      "message": "dropped Rust doc comment(s) absorbed into a tree-sitter ERROR subtree",
+      "span": {
+        "byte_start": 0,
+        "byte_end": 189
+      }
+    },
+    {
       "code": "rust-parse-recovery",
       "message": "recovered ERROR node at bytes 0..189",
       "span": {

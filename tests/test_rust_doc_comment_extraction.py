@@ -155,6 +155,7 @@ def rust_ir_records_a_recoverable_parse_error(
 
     assert errors
     assert {error["code"] for error in errors} == {
+        "rust-doc-comment-error-subtree",
         "rust-parse-recovery",
     }
 

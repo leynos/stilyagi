@@ -210,6 +210,26 @@ pub(super) fn collect_doc_comment_nodes<'tree>(
     }
 }
 
+/// Count doc comments covered by a recovery node.
+pub(super) fn recovery_doc_comment_count(source: &str, node: Node<'_>) -> usize {
+    let mut comments = Vec::new();
+    collect_doc_comment_nodes(source, node, &mut comments);
+    comments
+        .len()
+        .max(recovery_doc_comment_marker_count(source, node))
+}
+
+fn recovery_doc_comment_marker_count(source: &str, node: Node<'_>) -> usize {
+    source
+        .get(node.start_byte()..node.end_byte())
+        .map_or(0, |text| {
+            ["///", "//!", "/**", "/*!"]
+                .into_iter()
+                .map(|marker| text.matches(marker).count())
+                .sum()
+        })
+}
+
 /// Return the nearest emitted owner node id up the stack.
 pub(super) fn nearest_emitted_owner(stack: &[OwnerFrame]) -> Option<NodeId> {
     stack
