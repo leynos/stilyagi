@@ -82,16 +82,10 @@ pub(super) fn owner_for(stack: &[OwnerFrame]) -> IrOwner {
 
 /// Build a Rust qualified name from owner frames.
 ///
-/// When the stack contains an `impl` frame, v1 uses the self type and any
-/// nested item names from that frame onwards.
+/// Rust v1 keeps impl-associated items module-rooted so nested modules remain
+/// visible in the resulting qualified name.
 pub(super) fn qualname_for(stack: &[OwnerFrame]) -> Option<String> {
-    let start_index = stack
-        .iter()
-        .rposition(|frame| matches!(frame.kind, OwnerKind::Impl))
-        .unwrap_or(0);
     let parts = stack
-        .get(start_index..)
-        .unwrap_or(&[])
         .iter()
         .filter_map(|frame| frame.name.as_deref())
         .map(str::to_owned)
@@ -151,6 +145,17 @@ mod tests {
         Some("documented_value"),
         Some("FixtureExample::documented_value")
     )]
+    #[case::nested_impl_method(
+        vec![
+            frame(OwnerKind::Module, Some("outer")),
+            frame(OwnerKind::Module, Some("inner")),
+            frame(OwnerKind::Impl, Some("FixtureExample")),
+            frame(OwnerKind::Function, Some("documented_value"))
+        ],
+        "function",
+        Some("documented_value"),
+        Some("outer::inner::FixtureExample::documented_value")
+    )]
     fn owner_metadata_matches_rust_qualname_semantics(
         #[case] stack: Vec<OwnerFrame>,
         #[case] kind: &str,
@@ -201,24 +206,15 @@ mod tests {
 
         #[test]
         fn qualname_contains_frame_names_in_order(stack in owner_stack()) {
-            let start_index = stack
+            let expected = stack
                 .iter()
-                .rposition(|frame| matches!(frame.kind, OwnerKind::Impl))
-                .unwrap_or(0);
+                .filter_map(|frame| frame.name.as_deref())
+                .collect::<Vec<_>>();
             let Some(qualname) = qualname_for(&stack) else {
-                prop_assert!(stack
-                    .get(start_index..)
-                    .unwrap_or(&[])
-                    .iter()
-                    .all(|frame| frame.name.is_none()));
+                prop_assert!(expected.is_empty());
                 return Ok(());
             };
 
-            let expected = stack
-                .iter()
-                .skip(start_index)
-                .filter_map(|frame| frame.name.as_deref())
-                .collect::<Vec<_>>();
             let actual = qualname.split("::").collect::<Vec<_>>();
 
             prop_assert_eq!(actual, expected);

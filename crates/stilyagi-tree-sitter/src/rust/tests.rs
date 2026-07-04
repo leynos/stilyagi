@@ -304,19 +304,19 @@ fn nested_fixture_uses_rust_qualname_semantics() {
         " Documented associated const in a trait impl.",
         "const",
         Some("VALUE"),
-        Some("FixtureExample::VALUE"),
+        Some("outer::inner::FixtureExample::VALUE"),
     )));
     assert!(owners.contains(&(
         " Documented associated type in a trait impl.",
         "type",
         Some("Alias"),
-        Some("FixtureExample::Alias"),
+        Some("outer::inner::FixtureExample::Alias"),
     )));
     assert!(owners.contains(&(
         " Documented method in a trait impl.",
         "function",
         Some("documented_value"),
-        Some("FixtureExample::documented_value"),
+        Some("outer::inner::FixtureExample::documented_value"),
     )));
 }
 

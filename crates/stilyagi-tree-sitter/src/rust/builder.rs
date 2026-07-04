@@ -9,9 +9,10 @@ use super::builder_state::{
     DocCommentEntry, DocCommentGroup, DocCommentRegionParts, NonDocCommentState, push_group,
 };
 use super::helpers::{
-    classify_doc_comment, collect_recovery_nodes, current_owner_node_id, doc_comment_content_span,
-    is_recovery_node, item_body, line_comment_content_end, module_body_has_leading_inner_docs,
-    node_flags, owner_frame_for_item, source_span, text_for_field,
+    classify_doc_comment, collect_doc_comment_nodes, collect_recovery_nodes,
+    current_owner_node_id, doc_comment_content_span, is_recovery_node, item_body,
+    line_comment_content_end, module_body_has_leading_inner_docs, node_flags,
+    owner_frame_for_item, source_span, text_for_field,
 };
 use super::owner::{OwnerFrame, owner_for};
 use super::types::{NodeId, NodeKind};
@@ -97,6 +98,11 @@ impl<'source> RustIrBuilder<'source> {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
             if is_recovery_node(child) {
+                let mut absorbed_comments = Vec::new();
+                collect_doc_comment_nodes(self.source, child, &mut absorbed_comments);
+                if !absorbed_comments.is_empty() {
+                    self.record_recovery_doc_comment_drop(child, absorbed_comments.len());
+                }
                 pending_outer.clear();
                 pending_inner.clear();
                 continue;
@@ -160,7 +166,10 @@ impl<'source> RustIrBuilder<'source> {
         child: Node<'source>,
         state: &mut NonDocCommentState<'_, 'source>,
     ) {
-        if matches!(child.kind(), "attribute_item" | "inner_attribute_item") {
+        if matches!(
+            child.kind(),
+            "attribute_item" | "inner_attribute_item" | "line_comment" | "block_comment"
+        ) {
             return;
         }
 
@@ -345,6 +354,17 @@ impl<'source> RustIrBuilder<'source> {
         self.errors.push(IrError {
             code: "rust-doc-comment-span".to_owned(),
             message: "failed to derive Rust doc-comment content span".to_owned(),
+            span: Some(span),
+        });
+    }
+
+    fn record_recovery_doc_comment_drop(&mut self, node: Node<'source>, count: usize) {
+        let span = source_span(node);
+        self.errors.push(IrError {
+            code: "rust-doc-comment-error-subtree".to_owned(),
+            message: format!(
+                "dropped {count} Rust doc comment(s) absorbed into a tree-sitter ERROR subtree"
+            ),
             span: Some(span),
         });
     }

@@ -32,16 +32,19 @@ prefix.
 
 Rust doc-comment regions reuse the ADR 006 owner contract with Rust-specific
 `kind`, optional `name`, and optional `qualname` fields. Outer doc comments
-attach to the immediately following item; inner doc comments attach to the
-enclosing item or crate root. Consecutive same-flavour line comments merge into
-one `rust_doc_comment` region, with synthetic separators inserted between the
-source-backed segments so the flattened prose still reconstructs exactly.
+attach to the immediately following item, even when ordinary `//` comments
+intervene; inner doc comments attach to the enclosing item or crate root, even
+when ordinary comments intervene. Consecutive same-flavour line comments merge
+into one `rust_doc_comment` region, with synthetic separators inserted between
+the source-backed segments so the flattened prose still reconstructs exactly.
 
-Rust `qualname` semantics use `::`-joined enclosing named items. Impl methods
-use the implementor type as the prefix (`Type::method`), and trait-impl methods
-follow the same implementor-type prefix in v1. Crate-root inner doc comments
-emit anonymous module owners (`kind: "module"`, `name: null`,
-`qualname: null`), and unrecognised item kinds fall back to `kind: "item"`.
+Rust `qualname` semantics use `::`-joined enclosing named items from the module
+root through the owned item. Impl methods use the implementor type as the
+prefix after any enclosing modules (`outer::inner::Type::method`), and
+trait-impl methods follow the same module-rooted implementor-type prefix in
+v1. Crate-root inner doc comments emit anonymous module owners
+(`kind: "module"`, `name: null`, `qualname: null`), and unrecognised item
+kinds fall back to `kind: "item"`.
 
 ## Options considered
 
@@ -71,5 +74,5 @@ emit anonymous module owners (`kind: "module"`, `name: null`,
   aborting extraction, so the bridge can surface partial IR alongside the
   surviving doc-comment regions. When tree-sitter collapses a malformed item
   into an `ERROR` subtree, the extractor keeps the crate-level and later
-  surviving doc-comment regions, but docs absorbed into that `ERROR` subtree
-  are not recovered as separate regions.
+  surviving doc-comment regions, emits a diagnostic for doc comments absorbed
+  into that `ERROR` subtree, and does not recover them as separate regions.

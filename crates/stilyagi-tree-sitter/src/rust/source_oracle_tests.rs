@@ -27,6 +27,25 @@ fn assert_source_backed_segments_match_source(document: &stilyagi_ir::IrDocument
     }
 }
 
+#[test]
+fn crlf_empty_line_and_mixed_whitespace_doc_comments_match_the_source_oracle() {
+    let source = concat!(
+        "/// First line\r\n",
+        "///\r\n",
+        "///\tThird line\r\n",
+        "pub fn crlf_doc_comment() {}\r\n",
+    );
+    let document = extract_rust(source);
+    let Some(region) = document.regions.first() else {
+        panic!("expected a merged Rust doc-comment region");
+    };
+
+    assert_eq!(document.regions.len(), 1);
+    assert_eq!(region.text, " First line  \tThird line");
+    assert!(region.segments_reconstruct_text());
+    assert_source_backed_segments_match_source(&document, source);
+}
+
 proptest! {
     #[test]
     fn line_doc_comment_segments_match_the_source_oracle(

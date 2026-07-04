@@ -138,7 +138,10 @@ pub(super) fn module_body_has_leading_inner_docs(source: &str, node: Node<'_>) -
 
     let mut cursor = body.walk();
     for child in body.named_children(&mut cursor) {
-        if matches!(child.kind(), "attribute_item" | "inner_attribute_item") {
+        if matches!(
+            child.kind(),
+            "attribute_item" | "inner_attribute_item" | "line_comment" | "block_comment"
+        ) {
             continue;
         }
         return classify_doc_comment(source, child).is_some_and(DocCommentFlavor::is_inner);
@@ -188,6 +191,22 @@ pub(super) fn collect_recovery_nodes<'tree>(node: Node<'tree>, errors: &mut Vec<
         let mut children = current.children(&mut cursor).collect::<Vec<_>>();
         children.reverse();
         pending.extend(children);
+    }
+}
+
+/// Collect documentation comments beneath a node, including descendants of
+/// recovered subtrees.
+pub(super) fn collect_doc_comment_nodes<'tree>(
+    source: &str,
+    node: Node<'tree>,
+    comments: &mut Vec<Node<'tree>>,
+) {
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        if classify_doc_comment(source, child).is_some() {
+            comments.push(child);
+        }
+        collect_doc_comment_nodes(source, child, comments);
     }
 }
 
