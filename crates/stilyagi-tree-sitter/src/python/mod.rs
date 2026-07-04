@@ -1,11 +1,12 @@
 //! Python docstring extraction backed by `tree-sitter-python`.
 
 mod helpers;
+mod observe;
 mod owner;
 mod support;
 mod types;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use stilyagi_ir::{
     DocumentMetadata, IrDocument, IrError, IrNode, IrRegion, IrSegment, IrTree, NodeFlags,
@@ -17,11 +18,21 @@ use helpers::{
     collect_error_nodes, definition_docstring, docstring_content, module_docstring,
     nearest_emitted_owner, node_flags, owner_frame_for_definition, source_span,
 };
+use observe::{record_extraction_outcome, record_fatal_error};
 use owner::{OwnerFrame, owner_for};
 use support::{parse_python, python_producer, validate_ir_consistency};
 use types::{NodeId, NodeKind};
 
 const TREE_ID: &str = "t0";
+
+/// Maximum concrete-syntax-tree depth walked during docstring extraction.
+///
+/// Real Python source never nests declarations this deeply, but tree-sitter
+/// builds arbitrarily deep trees from adversarial or generated input. Capping
+/// the recursive descent keeps stack usage bounded and records a recoverable
+/// error instead of overflowing, matching the partial-extraction contract used
+/// for other malformed input.
+const MAX_TRAVERSAL_DEPTH: usize = 256;
 
 /// Fatal failure while building Python docstring IR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +41,16 @@ pub enum PythonExtractError {
     GrammarLoad,
     /// tree-sitter returned no parse tree for the source.
     NoParseTree,
+}
+
+impl PythonExtractError {
+    /// Stable, low-cardinality category label for logs and metrics.
+    const fn category(self) -> &'static str {
+        match self {
+            Self::GrammarLoad => "grammar_load",
+            Self::NoParseTree => "no_parse_tree",
+        }
+    }
 }
 
 impl std::fmt::Display for PythonExtractError {
@@ -50,11 +71,17 @@ impl std::error::Error for PythonExtractError {}
 /// Returns a fatal extraction error only when the grammar cannot be loaded or
 /// no parse tree can be produced. Recoverable parse anomalies belong in the IR
 /// document `errors` list.
+#[tracing::instrument(
+    name = "python_docstring_extraction",
+    skip(source, identity),
+    fields(syntax = "python", source_len = source.len())
+)]
 pub fn python_docstring_ir_document(
     source: &str,
     identity: SourceIdentity,
 ) -> Result<IrDocument, PythonExtractError> {
-    let tree = parse_python(source)?;
+    metrics::counter!("stilyagi_python_extraction_documents_total").increment(1);
+    let tree = parse_python(source).inspect_err(|error| record_fatal_error(*error))?;
     let root = tree.root_node();
     let mut document = IrDocument::empty(
         DocumentMetadata::new("python", identity.path, identity.uri, source),
@@ -77,7 +104,15 @@ pub fn python_docstring_ir_document(
     document.regions = builder.regions;
     document.errors = builder.errors;
     validate_ir_consistency(&document, source);
+    record_extraction_outcome(&document);
     Ok(document)
+}
+
+/// Mutable state threaded through the recursive descent: the owner-frame stack
+/// and the current concrete-syntax-tree depth used to bound recursion.
+struct WalkContext<'frames> {
+    stack: &'frames mut Vec<OwnerFrame>,
+    depth: usize,
 }
 
 struct PythonIrBuilder<'source> {
@@ -85,19 +120,21 @@ struct PythonIrBuilder<'source> {
     next_node: usize,
     next_region: usize,
     nodes: Vec<IrNode>,
-    node_positions: BTreeMap<String, usize>,
+    // Node id -> index into `nodes` for O(1) parent lookup during child
+    // attachment, avoiding a linear scan of `nodes` on every emit.
+    node_positions: HashMap<String, usize>,
     regions: Vec<IrRegion>,
     errors: Vec<IrError>,
 }
 
 impl<'source> PythonIrBuilder<'source> {
-    const fn new(source: &'source str) -> Self {
+    fn new(source: &'source str) -> Self {
         Self {
             source,
             next_node: 0,
             next_region: 0,
             nodes: Vec::new(),
-            node_positions: BTreeMap::new(),
+            node_positions: HashMap::new(),
             regions: Vec::new(),
             errors: Vec::new(),
         }
@@ -143,34 +180,73 @@ impl<'source> PythonIrBuilder<'source> {
         if let Some(docstring) = module_docstring(self.source, root) {
             self.push_docstring_region(docstring, &stack, &root_node_id());
         }
-        self.visit_children(root, &mut stack);
+        let mut context = WalkContext {
+            stack: &mut stack,
+            depth: 0,
+        };
+        self.visit_children(root, &mut context);
     }
 
-    fn visit_children(&mut self, node: Node<'_>, stack: &mut Vec<OwnerFrame>) {
+    fn visit_children(&mut self, node: Node<'_>, context: &mut WalkContext<'_>) {
+        if context.depth >= MAX_TRAVERSAL_DEPTH {
+            self.record_depth_limit(node);
+            return;
+        }
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
-            self.visit_node(child, stack);
+            context.depth += 1;
+            self.visit_node(child, context);
+            context.depth -= 1;
         }
     }
 
-    fn visit_node(&mut self, node: Node<'_>, stack: &mut Vec<OwnerFrame>) {
+    fn visit_node(&mut self, node: Node<'_>, context: &mut WalkContext<'_>) {
         if let Some((kind, name)) = owner_frame_for_definition(self.source, node) {
-            self.visit_definition(node, stack, OwnerFrame::new(kind, name));
+            self.visit_definition(node, context, OwnerFrame::new(kind, name));
         } else {
-            self.visit_children(node, stack);
+            self.visit_children(node, context);
         }
     }
 
-    fn visit_definition(&mut self, node: Node<'_>, stack: &mut Vec<OwnerFrame>, frame: OwnerFrame) {
-        stack.push(frame);
+    fn visit_definition(
+        &mut self,
+        node: Node<'_>,
+        context: &mut WalkContext<'_>,
+        frame: OwnerFrame,
+    ) {
+        context.stack.push(frame);
         if let Some(docstring) = definition_docstring(self.source, node) {
-            let owner_node_id = self.push_owner_node(node, stack);
-            self.push_docstring_region(docstring, stack, &owner_node_id);
+            let owner_node_id = self.push_owner_node(node, context.stack);
+            self.push_docstring_region(docstring, context.stack, &owner_node_id);
         }
         if let Some(body) = node.child_by_field_name("body") {
-            self.visit_children(body, stack);
+            self.visit_children(body, context);
         }
-        let _ = stack.pop();
+        let _ = context.stack.pop();
+    }
+
+    /// Record a recoverable error when the traversal reaches the maximum depth.
+    ///
+    /// Bounding the recursive descent prevents stack overflow on deeply nested
+    /// or adversarial input; the untraversed subtree is reported through the IR
+    /// `errors` list rather than silently dropped.
+    fn record_depth_limit(&mut self, node: Node<'_>) {
+        let span = source_span(node);
+        tracing::warn!(
+            byte_start = span.byte_start,
+            byte_end = span.byte_end,
+            max_depth = MAX_TRAVERSAL_DEPTH,
+            "python docstring traversal stopped at the maximum tree depth"
+        );
+        self.errors.push(IrError {
+            code: "python-traversal-depth-limit".to_owned(),
+            message: format!(
+                "stopped Python docstring traversal at the maximum depth of \
+                 {MAX_TRAVERSAL_DEPTH} at bytes {}..{}",
+                span.byte_start, span.byte_end
+            ),
+            span: Some(span),
+        });
     }
 
     fn push_owner_node(&mut self, node: Node<'_>, stack: &mut [OwnerFrame]) -> NodeId {
@@ -231,6 +307,11 @@ impl<'source> PythonIrBuilder<'source> {
         });
         self.push_child(owner_node_id, &string_node_id);
 
+        let owner = owner_for(stack);
+        tracing::trace!(
+            owner_kind = owner.kind.as_str(),
+            "emitting python docstring region"
+        );
         let region_id = self.next_region_id();
         self.regions.push(IrRegion {
             id: region_id,
@@ -238,7 +319,7 @@ impl<'source> PythonIrBuilder<'source> {
             scope: vec![
                 "python".to_owned(),
                 "docstring".to_owned(),
-                owner_for(stack).kind,
+                owner.kind.clone(),
             ],
             syntax: "python".to_owned(),
             natural_language: None,
@@ -252,7 +333,7 @@ impl<'source> PythonIrBuilder<'source> {
                 },
             )],
             origin_nodes: vec![string_node_id.into()],
-            owner: Some(owner_for(stack)),
+            owner: Some(owner),
             attrs: BTreeMap::new(),
             parent_region: None,
         });

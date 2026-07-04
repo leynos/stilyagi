@@ -852,6 +852,19 @@ Current implementation note for roadmap item 3.1.1:
   advertises `node_store: "bounded"` in producer metadata. Rules must rely on
   region `owner` metadata and source-backed `segments`, not on navigating a
   full Python concrete syntax tree.
+- The Python producer bounds its recursive descent at a fixed
+  concrete-syntax-tree depth so deeply nested or adversarial input cannot
+  overflow the stack. Reaching the cap records a recoverable
+  `python-traversal-depth-limit` error instead of failing, keeping the
+  partial-extraction contract used for other malformed input. Parent-to-child
+  attachment uses a node-id index rather than a linear scan, so emission stays
+  linear in the number of extracted nodes.
+- Extraction is instrumented for operability: the entry point opens a
+  `python_docstring_extraction` `tracing` span, parse-boundary failures log
+  their error category, recoverable anomalies log a count, and per-boundary
+  `metrics` counters record document throughput and fatal and recovery error
+  rates. As a library the producer only emits `tracing` and `metrics`; hosts
+  install the subscribers and recorders.
 - The compatibility payload still includes `syntax` plus regions with `kind`
   and `text` fields, while later roadmap slices migrate callers onto richer
   source-fidelity surfaces.
