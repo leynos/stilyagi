@@ -64,3 +64,27 @@ pub(super) fn validate_ir_consistency(document: &IrDocument, source: &str) {
             .all(IrRegion::segments_reconstruct_text)
     );
 }
+
+#[cfg(test)]
+mod tests {
+    //! Regression guard keeping the grammar version metadata pinned in step
+    //! with the `tree-sitter-python` dependency.
+
+    use super::PYTHON_GRAMMAR_VERSION;
+
+    #[test]
+    fn python_grammar_version_matches_the_pinned_dependency() {
+        let manifest = stilyagi_test_fixtures::read_corpus_fixture("Cargo.toml")
+            .expect("workspace manifest should be readable");
+        let pinned = manifest
+            .lines()
+            .find(|line| line.trim_start().starts_with("tree-sitter-python "))
+            .and_then(|line| line.split('"').nth(1))
+            .expect("tree-sitter-python should be pinned in the workspace manifest");
+
+        assert_eq!(
+            pinned, PYTHON_GRAMMAR_VERSION,
+            "PYTHON_GRAMMAR_VERSION must match the pinned tree-sitter-python version"
+        );
+    }
+}

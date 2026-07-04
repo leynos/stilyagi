@@ -20,7 +20,7 @@ class DecoratedExample:
     """Document a class containing decorated methods."""
 
     @classmethod
-    def from_value(cls) -> DecoratedExample:
+    def from_value(cls) -> "DecoratedExample":  # noqa: UP037 - forward reference to the enclosing class.
         """Document a class method."""
         return cls()
 

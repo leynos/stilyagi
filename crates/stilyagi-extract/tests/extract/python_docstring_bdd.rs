@@ -33,7 +33,7 @@ fn read_python_fixture(relative_path: &str) -> String {
 )]
 #[expect(
     clippy::missing_const_for_fn,
-    reason = "CodeRabbit requested a regular test helper because it relies on runtime panic paths"
+    reason = "cannot be const: the access chain uses the non-const Option::expect and ExtractDocument::ir"
 )]
 fn extracted_ir(python_docstring_state: &PythonDocstringState) -> &stilyagi_ir::IrDocument {
     python_docstring_state

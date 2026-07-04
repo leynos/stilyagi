@@ -4,7 +4,7 @@ mod helpers;
 mod observe;
 mod owner;
 mod support;
-mod types;
+pub(super) mod types;
 
 use std::collections::{BTreeMap, HashMap};
 

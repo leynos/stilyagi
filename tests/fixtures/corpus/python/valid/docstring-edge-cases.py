@@ -32,3 +32,7 @@ def f_string_first_statement(value: str) -> None:  # noqa: D103 - f-string must 
 def concatenated_first_statement() -> None:
     # Preserve adjacent string grammar as negative docstring test data.
     "Not " "a v1 docstring."  # fmt: skip  # noqa: ISC001 - preserve grammar shape.
+
+
+def byte_string_first_statement() -> None:  # noqa: D103 - byte string must not be a docstring.
+    b"""Not a v1 docstring: bytes."""  # noqa: B018 - negative parser fixture.

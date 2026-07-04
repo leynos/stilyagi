@@ -13,6 +13,7 @@ mod tests {
     //! Tests for the placeholder tree-sitter extraction boundary marker.
 
     use super::TreeSitterBoundary;
+    use crate::python::types::NodeKind;
     use stilyagi_test_fixtures::{
         MALFORMED_PYTHON_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, read_corpus_fixture,
     };
@@ -54,15 +55,6 @@ mod tests {
 
         assert_eq!(first, second);
         assert_eq!(first, original);
-    }
-
-    #[derive(Clone, Copy)]
-    struct NodeKind(&'static str);
-
-    impl NodeKind {
-        const fn as_str(self) -> &'static str {
-            self.0
-        }
     }
 
     fn python_parser() -> Parser {

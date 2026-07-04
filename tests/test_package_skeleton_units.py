@@ -364,7 +364,7 @@ def test_extract_document_preserves_unknown_ir_region_kind(
 def test_engine_extract_document_rejects_unsupported_syntaxes(
     syntax: model.Syntax,
 ) -> None:
-    """Reject recognised syntaxes that the Rust bridge does not implement yet."""
+    """Reject recognized syntaxes that the Rust bridge does not implement yet."""
     with pytest.raises(
         NotImplementedError,
         match=rf"^{syntax.value} extraction is not implemented yet\.$",

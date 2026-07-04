@@ -26,12 +26,12 @@ fn golden_markdown_ir_fixture_serializes_the_shared_fixture() {
 #[rstest]
 fn golden_python_ir_fixture_serializes_the_shared_fixture() {
     let document = golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
-        .unwrap_or_else(|error| panic!("expected shared Python golden IR: {error}"));
+        .expect("expected shared Python golden IR");
 
     insta::assert_snapshot!(
         document
             .to_canonical_json()
-            .unwrap_or_else(|error| panic!("expected canonical Python IR JSON: {error}"))
+            .expect("expected canonical Python IR JSON")
     );
 }
 

@@ -26,12 +26,15 @@ impl From<NodeId> for String {
 }
 
 /// tree-sitter node kind discriminator used by Python extraction helpers.
+///
+/// Exposed at `pub(crate)` so the crate-level grammar-shape tests can reuse the
+/// same newtype instead of redeclaring it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct NodeKind(pub &'static str);
+pub(crate) struct NodeKind(pub &'static str);
 
 impl NodeKind {
     /// Return the tree-sitter kind spelling.
-    pub(super) const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         self.0
     }
 }

@@ -26,6 +26,12 @@ SHARED_PYTHON_FIXTURE = pathlib.Path(
 MALFORMED_PYTHON_FIXTURE = pathlib.Path(
     "tests/fixtures/corpus/python/malformed/unclosed-function.py.txt",
 )
+# This path is insta's auto-generated snapshot filename, derived from the Rust
+# test name ``shared_python_fixture_has_a_golden_ir_snapshot`` in
+# ``crates/stilyagi-extract/tests/extract/ir_identity.rs``. Renaming or moving
+# that Rust test changes the generated snapshot name, which would break
+# ``test_python_docstring_ir_matches_reviewed_rust_snapshot`` with a
+# ``FileNotFoundError``; keep the two in sync.
 RUST_PYTHON_SNAPSHOT = pathlib.Path(
     "crates/stilyagi-extract/tests/extract/snapshots/"
     "extract_integration__ir_identity__extraction_tests__shared_python_fixture_has_a_golden_ir_snapshot.snap",

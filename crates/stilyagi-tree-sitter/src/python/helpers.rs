@@ -86,22 +86,28 @@ pub(super) fn docstring_content(source: &str, string: Node<'_>) -> Option<(Strin
 
 /// Decide whether a first statement is a v1 Python docstring candidate.
 /// V1 accepts only plain `string` nodes. Interpolations and `f`/`F` prefixes
-/// are executable f-string content, while adjacent strings parse separately as
-/// `concatenated_string`.
+/// are executable f-string content, `b`/`B` prefixes are byte-string literals
+/// (which Python never treats as docstrings), and adjacent strings parse
+/// separately as `concatenated_string`.
 fn is_plain_string_docstring(source: &str, string: Node<'_>) -> bool {
     string.kind() == "string"
         && !has_descendant_kind(string, NodeKind("interpolation"))
-        && !string_start_has_format_prefix(source, string)
+        && !string_start_has_disallowed_prefix(source, string)
 }
 
-fn string_start_has_format_prefix(source: &str, string: Node<'_>) -> bool {
+/// Detect string-start prefixes that disqualify a literal from being a v1
+/// docstring: `f`/`F` (f-strings) and `b`/`B` (byte strings, including combined
+/// forms such as `rb`/`br`). Raw (`r`/`R`) and unicode (`u`/`U`) prefixes are
+/// left as plain docstrings.
+fn string_start_has_disallowed_prefix(source: &str, string: Node<'_>) -> bool {
     let Some(start) = direct_named_child_with_kind(string, NodeKind("string_start")) else {
         return false;
     };
     let Some(start_text) = text_for_node(source, start) else {
         return false;
     };
-    start_text.to_ascii_lowercase().contains('f')
+    let prefix = start_text.to_ascii_lowercase();
+    prefix.contains('f') || prefix.contains('b')
 }
 
 fn has_descendant_kind(node: Node<'_>, kind: NodeKind) -> bool {

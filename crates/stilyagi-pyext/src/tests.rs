@@ -23,7 +23,7 @@ fn invalid_syntax_error(syntax: &str) -> PyErr {
         .expect_err(&format!("expected an error for syntax {syntax:?}"))
 }
 
-fn assert_markdown_ir_json_contract(ir_json: &str) {
+fn assert_ir_json_contract(ir_json: &str) {
     let parsed = match serde_json::from_str::<serde_json::Value>(ir_json) {
         Ok(parsed) => parsed,
         Err(error) => panic!("expected parseable IR JSON: {error}"),
@@ -211,7 +211,7 @@ fn extract_document_py_exposes_markdown_document() {
         let ir_json = ir_json_any
             .extract::<&str>()
             .expect("expected IR JSON string");
-        assert_markdown_ir_json_contract(ir_json);
+        assert_ir_json_contract(ir_json);
     });
 }
 
@@ -266,6 +266,13 @@ fn extract_document_py_exposes_python_docstrings() {
         assert_eq!(regions.len().expect("expected list length"), 2);
         assert_region(&region_at(regions, 0), "python_docstring", "Module docs.");
         assert_region(&region_at(regions, 1), "python_docstring", "Function docs.");
+
+        let ir_json = document_dict
+            .get_item("ir_json")
+            .expect("missing IR payload")
+            .extract::<String>()
+            .expect("expected IR JSON string");
+        assert_ir_json_contract(&ir_json);
     });
 }
 
