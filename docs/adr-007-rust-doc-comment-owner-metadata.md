@@ -69,4 +69,7 @@ emit anonymous module owners (`kind: "module"`, `name: null`,
   bounded-store behaviour.
 - Recoverable Rust parse anomalies stay in `IrError` entries rather than
   aborting extraction, so the bridge can surface partial IR alongside the
-  surviving doc-comment regions.
+  surviving doc-comment regions. When tree-sitter collapses a malformed item
+  into an `ERROR` subtree, the extractor keeps the crate-level and later
+  surviving doc-comment regions, but docs absorbed into that `ERROR` subtree
+  are not recovered as separate regions.

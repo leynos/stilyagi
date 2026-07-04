@@ -99,4 +99,7 @@ fn root_node_id() -> types::NodeId {
 }
 
 #[cfg(test)]
+mod source_oracle_tests;
+
+#[cfg(test)]
 mod tests;

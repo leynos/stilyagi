@@ -554,12 +554,12 @@ classification edge rules.
 Also spike the malformed fixture
 `tests/fixtures/corpus/rust/malformed/unclosed-item.rs`: print the recovered
 tree's `to_sexp()` and the spans of any `ERROR`/`MISSING` nodes, and record in
-the `Decision Log` exactly how tree-sitter recovers it — in particular, confirm
-that the crate `//!` doc comment and the `///` doc comment on
-`broken_function` survive recovery, that the owning `function_item` is still
-reachable (even with a `MISSING` `}`), and that the string
-`"unterminated block"` inside the body is not classified as a doc comment. This
-captured behaviour becomes the ground truth for the Stage 3 malformed snapshot.
+the `Decision Log` exactly how tree-sitter recovers it. The current ground
+truth is that the crate `//!` doc comment survives, the malformed
+`broken_function` item is absorbed into an `ERROR` subtree, the `///` doc
+comment on that absorbed item is dropped, and the later well-formed struct doc
+comment still survives. This captured behaviour becomes the ground truth for
+the Stage 3 malformed snapshot.
 
 Run the targeted test:
 
@@ -1108,6 +1108,9 @@ other new external dependency without approval.
 - [x] Stage 4: Rust BDD behaviour coverage.
 - [x] Stage 5: PyO3 bridge and Python model adaptation.
 - [x] Stage 6: documentation, ADR, and roadmap completion.
+- [x] 2026-07-04 fix round 2: added Rust source-byte oracle property tests for
+  line, merged-line, and block doc comments; recorded the malformed recovery
+  ground truth; reran the `stilyagi-tree-sitter` crate tests green.
 
 ## Surprises & discoveries
 
@@ -1148,6 +1151,15 @@ other new external dependency without approval.
   `{"type":"complete","status":"review_completed","findings":0}`.
   Impact: the external AI review gap from the interrupted implementation run is
   closed for this branch.
+
+- Observation: the malformed Rust parse tree currently absorbs the broken
+  function and its doc comment into a top-level `ERROR` subtree.
+  Evidence: `tree.root_node().to_sexp()` for
+  `tests/fixtures/corpus/rust/malformed/unclosed-item.rs` shows the crate doc
+  comment, the absorbed `ERROR` subtree, and the later `struct_item`.
+  Impact: the malformed snapshot and regression tests intentionally codify the
+  current ground truth. If a future grammar version exposes the broken
+  `function_item` again, this plan must be updated alongside the tests.
 
 ## Decision log
 
@@ -1200,6 +1212,15 @@ other new external dependency without approval.
   roadmap checkbox plus documentation updates already match the implemented
   Rust documentation-comment extraction behaviour.
   Date/Author: 2026-07-04, operator.
+
+- Decision: keep the malformed-recovery tests pinned to the observed `ERROR`
+  subtree behaviour instead of forcing synthetic owner recovery.
+  Rationale: the parser currently absorbs the broken function and its doc
+  comment into a top-level `ERROR` node, so the safest and most truthful
+  contract is to preserve the surviving crate and later docs, record the
+  dropped absorbed doc as part of the ground truth, and document the recovery
+  limit explicitly.
+  Date/Author: 2026-07-04, implementation agent.
 
 ## Outcomes & retrospective
 

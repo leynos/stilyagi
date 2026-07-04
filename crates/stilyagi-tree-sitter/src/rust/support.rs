@@ -55,6 +55,13 @@ pub(super) fn validate_ir_consistency(document: &IrDocument, source: &str) {
             .iter()
             .all(IrRegion::segments_reconstruct_text)
     );
+    debug_assert!(document.regions.iter().all(|region| {
+        region.segments.iter().all(|segment| {
+            segment.source.is_none_or(|span| {
+                source.get(span.byte_start..span.byte_end) == Some(segment.text.as_str())
+            })
+        })
+    }));
 }
 
 #[cfg(test)]
