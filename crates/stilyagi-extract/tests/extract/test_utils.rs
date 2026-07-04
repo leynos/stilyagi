@@ -7,6 +7,9 @@ use stilyagi_extract::{
 };
 use stilyagi_test_support::{SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture};
 
+pub(crate) const SHARED_PYTHON_FIXTURE_PATH: &str =
+    "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py";
+
 pub(crate) fn boundary() -> stilyagi_extract::ExtractBoundary {
     stilyagi_extract::ExtractBoundary::default()
 }
@@ -57,6 +60,14 @@ pub(crate) fn shared_markdown_source() -> String {
     match read_corpus_fixture(SHARED_MARKDOWN_FIXTURE_PATH) {
         Ok(source) => source,
         Err(error) => panic!("expected shared Markdown corpus fixture to be readable: {error}"),
+    }
+}
+
+#[fixture]
+pub(crate) fn shared_python_source() -> String {
+    match read_corpus_fixture(SHARED_PYTHON_FIXTURE_PATH) {
+        Ok(source) => source,
+        Err(error) => panic!("expected shared Python corpus fixture to be readable: {error}"),
     }
 }
 

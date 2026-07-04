@@ -1,20 +1,18 @@
 # Validate maturin and PyO3 upgrade compatibility
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETED
 
 ## Purpose / big picture
 
-Stilyagi already relies on `maturin` to build the package-scoped PyO3
-extension and on PyO3 to expose the Rust bridge as `stilyagi._stilyagi_rs`.
-This change updates the repository to the current stable maturin pin, verifies
-that the current PyO3 release remains in use, and imports the compatibility
-test shape proven in the cuprum commit
-`df25f6c09e388cba1a055d167a5a88d13a8826fd`.
+Stilyagi already relies on `maturin` to build the package-scoped PyO3 extension
+and on PyO3 to expose the Rust bridge as `stilyagi._stilyagi_rs`. This change
+updates the repository to the current stable maturin pin, verifies that the
+current PyO3 release remains in use, and imports the compatibility test shape
+proven in the cuprum commit `df25f6c09e388cba1a055d167a5a88d13a8826fd`.
 
 After this change, maintainers can bump maturin or PyO3 and run focused tests
 that catch wheel metadata drift and compile-time PyO3 macro breakage before the
@@ -51,25 +49,24 @@ full release path fails. Observable success is `make check-fmt`, `make lint`,
 ## Risks
 
 - Risk: Wheel snapshots can become noisy if platform-specific filenames,
-  generated metadata, or SBOM entries are not normalized.
-  Severity: medium. Likelihood: medium. Mitigation: normalize platform tags,
-  extension filenames, versioned dist-info entries, and SBOM filenames before
-  snapshotting.
+  generated metadata, or Software Bill of Materials (SBOM) entries are not
+  normalized. Severity: medium. Likelihood: medium. Mitigation: normalize
+  platform tags, extension filenames, versioned dist-info entries, and SBOM
+  filenames before snapshotting.
 - Risk: A native wheel build can be slow on a cold runner.
   Severity: medium. Likelihood: medium. Mitigation: mark the snapshot test with
   `pytest.mark.timeout(0)` as cuprum does and keep the full build behind normal
   test execution rather than import-time setup.
 - Risk: PyO3 compile-time fixtures might accidentally test toy signatures that
-  drift from Stilyagi's bridge.
-  Severity: medium. Likelihood: low. Mitigation: mirror the `_stilyagi_rs`
-  module shape, `Bound<PyModule>` registration, `#[pyfunction]` export, and
-  `py.detach` extraction call pattern.
+  drift from Stilyagi's bridge. Severity: medium. Likelihood: low. Mitigation:
+  mirror the `_stilyagi_rs` module shape, `Bound<PyModule>` registration,
+  `#[pyfunction]` export, and `py.detach` extraction call pattern.
 
 ## Progress
 
 - [x] 2026-06-04T23:34:48Z Loaded `leta`, `python-router`,
-  `rust-router`, `hexagonal-architecture`, `execplans`,
-  `arch-supply-chain`, and `python-testing`.
+  `rust-router`, `hexagonal-architecture`, `execplans`, `arch-supply-chain`, and
+  `python-testing`.
 - [x] 2026-06-04T23:34:48Z Created a Leta workspace for the repository.
 - [x] 2026-06-04T23:34:48Z Confirmed the branch is
   `test/maturin-pyo3-test-upgrade`, not the main branch.
@@ -93,8 +90,8 @@ full release path fails. Observable success is `make check-fmt`, `make lint`,
   `cargo test --manifest-path Cargo.toml -p stilyagi-pyext compile_time_ui`
   passes.
 - [x] 2026-06-04T23:34:48Z Verified
-  `.venv/bin/python -m pytest tests/test_maturin_build.py -v` passes with
-  three tests and one snapshot.
+  `.venv/bin/python -m pytest tests/test_maturin_build.py -v` passes with three
+  tests and one snapshot.
 - [x] 2026-06-04T23:34:48Z Ran and passed `make markdownlint` and
   `make nixie`.
 - [x] 2026-06-04T23:34:48Z Ran and passed final `make check-fmt`.
@@ -115,8 +112,8 @@ full release path fails. Observable success is `make check-fmt`, `make lint`,
   PyO3 itself.
 - PyPI lists maturin `1.13.3`, uploaded on 2026-05-11, as the current release.
   Stilyagi's `uv.lock` previously resolved maturin `1.13.1` because
-  `pyproject.toml` only required `maturin>=1.9.4,<2.0`; this PR
-  pins the requirement to exactly `1.13.3`.
+  `pyproject.toml` only required `maturin>=1.9.4,<2.0`; this PR pins the
+  requirement to exactly `1.13.3`.
 - Stilyagi has a single GitHub Actions smoke workflow rather than cuprum's
   separate build-wheels workflow and composite action, so the pin
   synchronization test should cover Stilyagi's actual pin locations:
@@ -146,12 +143,11 @@ full release path fails. Observable success is `make check-fmt`, `make lint`,
 
 ## Outcomes & Retrospective
 
-The implementation pins maturin to `1.13.3`, keeps PyO3 at the current
-`0.28.3` release, and adds compatibility tests for both build-tool surfaces.
-The new Python tests validate synchronized maturin pins, installed-tool
-alignment, and normalized native wheel output. The new Rust trybuild tests
-validate the PyO3 module-registration and `py.detach` patterns used by the
-bridge crate.
+The implementation pins maturin to `1.13.3`, keeps PyO3 at the current `0.28.3`
+release, and adds compatibility tests for both build-tool surfaces. The new
+Python tests validate synchronized maturin pins, installed-tool alignment, and
+normalized native wheel output. The new Rust trybuild tests validate the PyO3
+module-registration and `py.detach` patterns used by the bridge crate.
 
 The full project gates passed after two small lint corrections: TOML shape
 guards now raise `TypeError`, and the new Rust module-level doc comment marks

@@ -7,5 +7,21 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[dependencies]
+metrics.workspace = true
+serde_json.workspace = true
+stilyagi-ir = { path = "../stilyagi-ir" }
+tracing.workspace = true
+tree-sitter.workspace = true
+tree-sitter-python.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+proptest.workspace = true
+rstest.workspace = true
+rstest-bdd.workspace = true
+rstest-bdd-macros.workspace = true
+stilyagi-test-fixtures = { path = "../stilyagi-test-fixtures" }
+
 [lints]
 workspace = true

@@ -54,6 +54,10 @@
     execplans/1-3-3-cold-and-warm-baseline-performance-probes.md)
     plans the repository-local cold and warm structural performance probes
     that let later slices preserve the structural fast path.
+  - [3.1.1 Python docstring extraction](
+    execplans/3-1-1-python-docstring-extraction.md)
+    plans owner-aware Python docstring extraction for modules, classes, and
+    functions, including IR bridge coverage and validation evidence.
   - [maturin and PyO3 compatibility tests](
     execplans/maturin-pyo3-test-upgrade.md)
     plans the maturin pin update, native wheel snapshot coverage, and PyO3
@@ -99,6 +103,11 @@
     adr-005-markdown-region-vocabulary-scope.md)
     records the accepted thin-container convention and the reserved
     `frontmatter_field` / source-backing deferrals for Markdown IR regions.
+  - [ADR 006: Adopt docstring owner metadata](
+    adr-006-docstring-owner-metadata.md)
+    records the accepted owner metadata shape, Python `__qualname__`
+    semantics, verbatim docstring extraction, and bounded Python node-store
+    policy.
 
 ## Requests for comments (RFCs)
 

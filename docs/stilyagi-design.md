@@ -1,7 +1,7 @@
 # Stilyagi design
 
 - Status: Draft
-- Updated: 2026-04-19
+- Updated: 2026-06-15
 - Audience: Maintainers and reviewers implementing Stilyagi as a wholesale
   replacement for the current Vale-oriented repository.
 - Companion documents:
@@ -15,8 +15,14 @@
     adr-001-spell-checking-provider.md)
   - [ADR 002: Ratify the packaging boundary](
     adr-002-packaging-boundary.md)
+  - [ADR 003: Ratify the v1 contract scope](
+    adr-003-v1-contract-scope.md)
+  - [ADR 004: Adopt two-tier Python linting](
+    adr-004-python-linting-architecture.md)
   - [ADR 005: Scope Markdown region vocabulary](
     adr-005-markdown-region-vocabulary-scope.md)
+  - [ADR 006: Adopt docstring owner metadata](
+    adr-006-docstring-owner-metadata.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,
@@ -821,20 +827,44 @@ V1 sufficiency:
 - The current RFC is close, but not sufficient until the transport versus
   schema distinction and the `language` naming problem are fixed.
 
-Current implementation note for roadmap items 1.2.2 and 2.1.1:
+Current implementation note for roadmap item 3.1.1:
 
 - The first live Rust-to-Python bridge delegates to Rust for Markdown, Python
-  docstring, and Rust documentation comment extraction. Markdown is currently
-  implemented; Python docstrings and Rust documentation comments remain gated
-  by unsupported-syntax errors.
-- Markdown extraction now carries the canonical IR envelope through the
-  in-process bridge. The Python `Document.ir` mapping exposes schema metadata,
-  `line_index`, tree nodes, region `segments`, synthetic insertions, and
-  content hashes for Markdown input.
-- Markdown is the first concrete IR producer, not a limitation of the IR model.
-  The `IrDocument` envelope and metadata vocabulary remain syntax-neutral, so
-  later Python docstring and Rust documentation comment producers can emit the
-  same canonical shape without adding Markdown-specific fields to the IR domain.
+  docstring, and Rust documentation comment extraction. Markdown and Python
+  docstrings are currently implemented; Rust documentation comments remain
+  gated by unsupported-syntax errors.
+- Markdown and Python docstring extraction now carry the canonical IR envelope
+  through the in-process bridge. The Python `Document.ir` mapping exposes
+  schema metadata, `line_index`, bounded or debug-only tree node access, region
+  `segments`, synthetic insertions, and content hashes for supported inputs.
+- Markdown was the first concrete IR producer, not a limitation of the IR
+  model. The `IrDocument` envelope and metadata vocabulary remain
+  syntax-neutral, so the later Rust documentation comment producer can emit the
+  same canonical shape without adding syntax-specific fields to the IR domain.
+- Python docstring owner metadata is resolved by
+  [ADR 006](adr-006-docstring-owner-metadata.md). Python regions use
+  `owner.kind` values of `module`, `class`, or `function`; class and function
+  owners carry Python `__qualname__`-style qualified names, including
+  `<locals>` for definitions nested inside function bodies. Module owners stay
+  anonymous in v1 because string-only extraction has no package-resolution
+  context.
+- The Python tree-sitter producer emits verbatim `string_content` text and
+  advertises `node_store: "bounded"` in producer metadata. Rules must rely on
+  region `owner` metadata and source-backed `segments`, not on navigating a
+  full Python concrete syntax tree.
+- The Python producer bounds its recursive descent at a fixed
+  concrete-syntax-tree depth so deeply nested or adversarial input cannot
+  overflow the stack. Reaching the cap records a recoverable
+  `python-traversal-depth-limit` error instead of failing, keeping the
+  partial-extraction contract used for other malformed input. Parent-to-child
+  attachment uses a node-id index rather than a linear scan, so emission stays
+  linear in the number of extracted nodes.
+- Extraction is instrumented for operability: the entry point opens a
+  `python_docstring_extraction` `tracing` span, parse-boundary failures log
+  their error category, recoverable anomalies log a count, and per-boundary
+  `metrics` counters record document throughput and fatal and recovery error
+  rates. As a library the producer only emits `tracing` and `metrics`; hosts
+  install the subscribers and recorders.
 - The compatibility payload still includes `syntax` plus regions with `kind`
   and `text` fields, while later roadmap slices migrate callers onto richer
   source-fidelity surfaces.
@@ -1183,11 +1213,17 @@ The design must be validated with the following test classes.
   keeps MDX preview-only, keeps JSON canonical for debug and compatibility
   without forcing it as the only in-process transport, and limits formal v1
   locale support to English.
+- Exact owner metadata shape for Python docstrings: resolved by
+  [ADR 006](adr-006-docstring-owner-metadata.md), which accepts explicit region
+  owner metadata, Python `__qualname__` semantics, verbatim string-content
+  extraction, and a bounded Python node store.
 
 ### Can resolve during implementation
 
-- Exact owner metadata shape for docstrings and comments. Recommendation:
-  implementation spike plus RFC amendment.
+- Exact owner metadata shape for Rust documentation comments. Recommendation:
+  implementation spike plus RFC amendment, reusing the ADR 006 `owner` field
+  contract while defining Rust-specific owner kinds and qualified-name
+  semantics.
 - Spelling capability names, planner semantics, and acceptance gates after ADR
   001's provider selection. Recommendation: implementation spike plus RFC
   amendment.

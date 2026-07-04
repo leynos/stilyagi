@@ -28,6 +28,7 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 │   ├── stilyagi-ir/
 │   ├── stilyagi-markdown/
 │   ├── stilyagi-pyext/
+│   ├── stilyagi-test-fixtures/
 │   ├── stilyagi-test-support/
 │   └── stilyagi-tree-sitter/
 ├── .rules/
@@ -89,10 +90,16 @@ new maintainer needs to recognize quickly and omits transient cache contents.
   `crates/stilyagi-tree-sitter/`, and `crates/stilyagi-extract/`
   - Long-lived skeleton crates reserved for the future IR, Markdown,
     tree-sitter, and extraction boundaries described by the design.
+- `crates/stilyagi-test-fixtures/`
+  - Dependency-free, syntax-agnostic fixture path and read helpers.
+  - Owns the shared corpus path constants and repository-relative readers so
+    extractor crates can consume them from tests without depending back on
+    `stilyagi-test-support`.
 - `crates/stilyagi-test-support/`
   - Shared Rust test-support crate.
-  - Owns reusable fixtures, helpers, and snapshots used to keep Rust tests
-    consistent across crate boundaries.
+  - Owns reusable golden IR builders, round-trip helpers, and snapshots, and
+    re-exports the `stilyagi-test-fixtures` path and read helpers to keep Rust
+    tests consistent across crate boundaries.
 
 The ownership boundary matters. Rust is the home for source-fidelity and
 extension-boundary concerns. Python is the home for package integration and the

@@ -166,6 +166,25 @@ def test_engine_extract_document_ir_matches_reviewed_rust_snapshot() -> None:
     assert _normalize_ir_identity(document.ir) == _normalize_ir_identity(rust_snapshot)
 
 
+def test_engine_extract_document_exposes_python_docstrings() -> None:
+    """Expose supported Python docstring extraction through the typed adapter."""
+    document = engine.extract_document(
+        '"""Module docs."""\n\ndef example():\n    """Function docs."""\n',
+        model.Syntax.PYTHON_DOCSTRING,
+    )
+
+    assert document.syntax is model.Syntax.PYTHON_DOCSTRING
+    assert [region.kind for region in document.regions] == [
+        model.Syntax.PYTHON_DOCSTRING.value,
+        model.Syntax.PYTHON_DOCSTRING.value,
+    ]
+    assert [region.text for region in document.regions] == [
+        "Module docs.",
+        "Function docs.",
+    ]
+    assert document.ir is not None
+
+
 def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
     """Keep the Python enum and the Rust bridge syntax spellings aligned."""
     from stilyagi._stilyagi_rs import supported_syntaxes
@@ -340,12 +359,12 @@ def test_extract_document_preserves_unknown_ir_region_kind(
 
 @pytest.mark.parametrize(
     "syntax",
-    [model.Syntax.PYTHON_DOCSTRING, model.Syntax.RUST_DOC_COMMENT],
+    [model.Syntax.RUST_DOC_COMMENT],
 )
 def test_engine_extract_document_rejects_unsupported_syntaxes(
     syntax: model.Syntax,
 ) -> None:
-    """Reject syntaxes that the first Rust bridge does not implement yet."""
+    """Reject recognized syntaxes that the Rust bridge does not implement yet."""
     with pytest.raises(
         NotImplementedError,
         match=rf"^{syntax.value} extraction is not implemented yet\.$",

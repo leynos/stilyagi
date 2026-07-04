@@ -113,18 +113,23 @@ The new extraction path is intentionally narrow in this slice:
 
 - `stilyagi.engine.extract_document(...)` is the supported public API for the
   first real Rust extraction call.
-- `model.Syntax.MARKDOWN` is the only currently implemented syntax for that
-  API.
-- `model.Syntax.PYTHON_DOCSTRING` and `model.Syntax.RUST_DOC_COMMENT` are part
-  of the planned model vocabulary, but they currently raise
-  `NotImplementedError` when passed to `extract_document(...)`.
-- Markdown documents expose a parsed `document.ir` mapping containing the
-  canonical Markdown IR envelope. That mapping includes schema metadata,
-  `line_index`, Markdown tree nodes, region `segments`, and content hashes.
+- `model.Syntax.MARKDOWN` and `model.Syntax.PYTHON_DOCSTRING` are currently
+  implemented for that API.
+- `model.Syntax.RUST_DOC_COMMENT` remains part of the planned model vocabulary,
+  but currently raises `NotImplementedError` when passed to
+  `extract_document(...)`.
+- Markdown documents and Python docstrings expose a parsed `document.ir`
+  mapping containing the canonical IR envelope. That mapping includes schema
+  metadata, `line_index`, tree nodes, region `segments`, and content hashes.
 - Markdown IR regions currently include text-bearing `heading`, `paragraph`,
   and `table_cell` regions; structural `list_item` and `blockquote` container
   regions; source-backed whole-block `frontmatter`; and synthetic decoded
   `image_alt` and `link_title` regions.
+- Python docstring extraction emits `python_docstring` regions for module,
+  class, and function docstrings. Each region includes source-backed `segments`
+  and `owner` metadata in `document.ir`, so later rules can tell whether the
+  prose belongs to a module, class, method, or function without walking raw
+  Python syntax nodes.
 - `document.regions` exposes the same supported region-kind spellings as a
   compact typed Python view. Inspect `region.kind` and `region.text` for common
   workflows, and use `document.ir["regions"]` when byte spans, scopes, or
@@ -137,6 +142,34 @@ The new extraction path is intentionally narrow in this slice:
 - `image_alt` and `link_title` expose decoded lint text. They are inspection
   surfaces in `document.ir`, but their segments are synthetic until
   byte-accurate edit spans are implemented.
+- `stilyagi._stilyagi_rs` remains an internal bridge module. User code should
+  call `stilyagi.engine.extract_document(...)` rather than importing the raw
+  bridge directly.
+
+A minimal Python docstring extraction example:
+
+```python
+from stilyagi import engine, model
+
+source = '''"""Module docs."""
+
+
+class Example:
+    """Class docs."""
+'''
+
+document = engine.extract_document(source, model.Syntax.PYTHON_DOCSTRING)
+assert [region.kind for region in document.regions] == [
+    "python_docstring",
+    "python_docstring",
+]
+assert document.ir is not None
+assert document.ir["regions"][1]["owner"] == {
+    "kind": "class",
+    "name": "Example",
+    "qualname": "Example",
+}
+```
 
 ## 1b. Package smoke check
 

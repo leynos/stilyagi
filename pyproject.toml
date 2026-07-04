@@ -310,6 +310,12 @@ enable = [
     "too-many-statements",
 ]
 
+[tool.interrogate]
+# Corpus fixtures under tests/fixtures are test data, not documented code.
+# Negative docstring fixtures (f-strings, concatenated strings) are intentionally
+# undocumented, so exclude the fixture tree from docstring-coverage enforcement.
+exclude = ["tests/fixtures"]
+
 [tool.pytest.ini_options]
 # Tests automatically killed after seconds elapsed
 timeout = 30

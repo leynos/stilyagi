@@ -1,0 +1,365 @@
+{
+  "document": {
+    "content_hash": "<content-hash>",
+    "encoding": "utf-8",
+    "natural_language": null,
+    "path": "<normalized>",
+    "syntax": "python",
+    "uri": "<normalized>"
+  },
+  "errors": [],
+  "line_index": [
+    0,
+    55,
+    56,
+    57,
+    98,
+    120,
+    179,
+    180,
+    198,
+    223,
+    288,
+    316,
+    317,
+    318,
+    350,
+    421
+  ],
+  "metadata": {},
+  "nodes": [
+    {
+      "children": [
+        "n1",
+        "n2",
+        "n6"
+      ],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n0",
+      "kind": "module",
+      "parent": null,
+      "props": {},
+      "span": {
+        "byte_end": 421,
+        "byte_start": 0
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n1",
+      "kind": "string",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 54,
+        "byte_start": 0
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [
+        "n3",
+        "n4"
+      ],
+      "fields": {
+        "name": "FixtureExample"
+      },
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n2",
+      "kind": "class_definition",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 315,
+        "byte_start": 98
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n3",
+      "kind": "string",
+      "parent": "n2",
+      "props": {},
+      "span": {
+        "byte_end": 178,
+        "byte_start": 124
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [
+        "n5"
+      ],
+      "fields": {
+        "name": "method"
+      },
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n4",
+      "kind": "function_definition",
+      "parent": "n2",
+      "props": {},
+      "span": {
+        "byte_end": 315,
+        "byte_start": 202
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n5",
+      "kind": "string",
+      "parent": "n4",
+      "props": {},
+      "span": {
+        "byte_end": 287,
+        "byte_start": 231
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [
+        "n7"
+      ],
+      "fields": {
+        "name": "fixture_function"
+      },
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n6",
+      "kind": "function_definition",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 420,
+        "byte_start": 318
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n7",
+      "kind": "string",
+      "parent": "n6",
+      "props": {},
+      "span": {
+        "byte_end": 420,
+        "byte_start": 354
+      },
+      "tree": "t0"
+    }
+  ],
+  "producers": [
+    {
+      "kind": "tree-sitter",
+      "name": "tree-sitter-python",
+      "options": {
+        "docstring_content": "verbatim",
+        "node_store": "bounded",
+        "owner_qualname": "python"
+      },
+      "version": "<tree-sitter-python-version>"
+    }
+  ],
+  "regions": [
+    {
+      "attrs": {},
+      "id": "r0",
+      "kind": "python_docstring",
+      "natural_language": null,
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": {
+        "kind": "module",
+        "name": null,
+        "qualname": null
+      },
+      "parent_region": null,
+      "scope": [
+        "python",
+        "docstring",
+        "module"
+      ],
+      "segments": [
+        {
+          "node": "n1",
+          "source": {
+            "byte_end": 51,
+            "byte_start": 3
+          },
+          "synthetic": null,
+          "text": "Module docstring for the shared Stilyagi corpus.",
+          "text_end": 48,
+          "text_start": 0
+        }
+      ],
+      "syntax": "python",
+      "text": "Module docstring for the shared Stilyagi corpus."
+    },
+    {
+      "attrs": {},
+      "id": "r1",
+      "kind": "python_docstring",
+      "natural_language": null,
+      "origin_nodes": [
+        "n3"
+      ],
+      "owner": {
+        "kind": "class",
+        "name": "FixtureExample",
+        "qualname": "FixtureExample"
+      },
+      "parent_region": null,
+      "scope": [
+        "python",
+        "docstring",
+        "class"
+      ],
+      "segments": [
+        {
+          "node": "n3",
+          "source": {
+            "byte_end": 175,
+            "byte_start": 127
+          },
+          "synthetic": null,
+          "text": "Class docstring with prose for extraction tests.",
+          "text_end": 48,
+          "text_start": 0
+        }
+      ],
+      "syntax": "python",
+      "text": "Class docstring with prose for extraction tests."
+    },
+    {
+      "attrs": {},
+      "id": "r2",
+      "kind": "python_docstring",
+      "natural_language": null,
+      "origin_nodes": [
+        "n5"
+      ],
+      "owner": {
+        "kind": "function",
+        "name": "method",
+        "qualname": "FixtureExample.method"
+      },
+      "parent_region": null,
+      "scope": [
+        "python",
+        "docstring",
+        "function"
+      ],
+      "segments": [
+        {
+          "node": "n5",
+          "source": {
+            "byte_end": 284,
+            "byte_start": 234
+          },
+          "synthetic": null,
+          "text": "Return a documented value from a method docstring.",
+          "text_end": 50,
+          "text_start": 0
+        }
+      ],
+      "syntax": "python",
+      "text": "Return a documented value from a method docstring."
+    },
+    {
+      "attrs": {},
+      "id": "r3",
+      "kind": "python_docstring",
+      "natural_language": null,
+      "origin_nodes": [
+        "n7"
+      ],
+      "owner": {
+        "kind": "function",
+        "name": "fixture_function",
+        "qualname": "fixture_function"
+      },
+      "parent_region": null,
+      "scope": [
+        "python",
+        "docstring",
+        "function"
+      ],
+      "segments": [
+        {
+          "node": "n7",
+          "source": {
+            "byte_end": 417,
+            "byte_start": 357
+          },
+          "synthetic": null,
+          "text": "Use a function docstring for later Python extraction slices.",
+          "text_end": 60,
+          "text_start": 0
+        }
+      ],
+      "syntax": "python",
+      "text": "Use a function docstring for later Python extraction slices."
+    }
+  ],
+  "schema_version": "1.0.0",
+  "suppressions": [],
+  "trees": [
+    {
+      "family": "tree-sitter",
+      "id": "t0",
+      "root": "n0",
+      "syntax": "python"
+    }
+  ]
+}

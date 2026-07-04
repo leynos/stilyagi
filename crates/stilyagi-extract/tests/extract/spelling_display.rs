@@ -9,9 +9,10 @@ use stilyagi_extract::{ExtractError, ExtractSyntax, RegionKind};
 enum ExpectedSpelling {
     Document,
     Markdown,
+    PythonDocstringRegion,
     PythonDocstring,
     RustDocComment,
-    UnsupportedPythonDocstring,
+    UnsupportedRustDocComment,
     UnknownBogus,
 }
 
@@ -19,11 +20,11 @@ impl AsRef<str> for ExpectedSpelling {
     fn as_ref(&self) -> &str {
         match self {
             Self::Document => "document",
+            Self::PythonDocstringRegion | Self::PythonDocstring => "python_docstring",
             Self::Markdown => "markdown",
-            Self::PythonDocstring => "python_docstring",
             Self::RustDocComment => "rust_doc_comment",
-            Self::UnsupportedPythonDocstring => {
-                "python_docstring extraction is not implemented yet."
+            Self::UnsupportedRustDocComment => {
+                "rust_doc_comment extraction is not implemented yet."
             }
             Self::UnknownBogus => "unknown syntax 'bogus'",
         }
@@ -54,6 +55,7 @@ fn syntax_display_matches_as_str(
 
 #[rstest]
 #[case(RegionKind::Document, ExpectedSpelling::Document)]
+#[case(RegionKind::PythonDocstring, ExpectedSpelling::PythonDocstringRegion)]
 fn region_kind_as_str_returns_the_expected_spelling(
     #[case] kind: RegionKind,
     #[case] expected: ExpectedSpelling,
@@ -63,6 +65,7 @@ fn region_kind_as_str_returns_the_expected_spelling(
 
 #[rstest]
 #[case("document", RegionKind::Document)]
+#[case("python_docstring", RegionKind::PythonDocstring)]
 fn region_kind_try_from_accepts_the_expected_spelling(
     #[case] input: &str,
     #[case] expected: RegionKind,
@@ -72,6 +75,7 @@ fn region_kind_try_from_accepts_the_expected_spelling(
 
 #[rstest]
 #[case(RegionKind::Document, ExpectedSpelling::Document)]
+#[case(RegionKind::PythonDocstring, ExpectedSpelling::PythonDocstringRegion)]
 fn region_kind_display_matches_as_str(
     #[case] kind: RegionKind,
     #[case] expected: ExpectedSpelling,
@@ -81,12 +85,14 @@ fn region_kind_display_matches_as_str(
 
 #[rstest]
 #[case(RegionKind::Document)]
+#[case(RegionKind::PythonDocstring)]
 fn region_kind_as_str_round_trips_through_try_from(#[case] kind: RegionKind) {
     assert_eq!(RegionKind::try_from(kind.as_str()), Ok(kind));
 }
 
 #[rstest]
 #[case("document")]
+#[case("python_docstring")]
 fn region_kind_try_from_round_trips_through_as_str(#[case] spelling: &str) {
     let kind = RegionKind::try_from(spelling)
         .unwrap_or_else(|_| panic!("expected '{spelling}' to be a valid RegionKind"));
@@ -95,8 +101,8 @@ fn region_kind_try_from_round_trips_through_as_str(#[case] spelling: &str) {
 
 #[rstest]
 #[case(
-    ExtractError::UnsupportedSyntax(ExtractSyntax::PythonDocstring),
-    ExpectedSpelling::UnsupportedPythonDocstring
+    ExtractError::UnsupportedSyntax(ExtractSyntax::RustDocComment),
+    ExpectedSpelling::UnsupportedRustDocComment
 )]
 #[case(ExtractError::UnknownSyntax("bogus".to_owned()), ExpectedSpelling::UnknownBogus)]
 fn extract_error_display_is_informative(

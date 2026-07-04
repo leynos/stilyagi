@@ -4,8 +4,8 @@ use proptest::prelude::*;
 use rstest::rstest;
 use stilyagi_test_support::{
     ByteSpan, FixturePathError, FixturePathErrorKind, RoundTripEdit, RoundTripEditError,
-    SHARED_MARKDOWN_FIXTURE_PATH, apply_round_trip_edits, golden_markdown_ir_fixture,
-    normalize_repository_path,
+    SHARED_MARKDOWN_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, apply_round_trip_edits,
+    golden_markdown_ir_fixture, golden_python_ir_fixture, normalize_repository_path,
 };
 
 fn span(start: usize, end: usize) -> ByteSpan {
@@ -21,6 +21,18 @@ fn golden_markdown_ir_fixture_serializes_the_shared_fixture() {
         .expect("expected shared Markdown golden IR");
 
     insta::assert_snapshot!(document.to_canonical_json());
+}
+
+#[rstest]
+fn golden_python_ir_fixture_serializes_the_shared_fixture() {
+    let document = golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
+        .expect("expected shared Python golden IR");
+
+    insta::assert_snapshot!(
+        document
+            .to_canonical_json()
+            .expect("expected canonical Python IR JSON")
+    );
 }
 
 #[rstest]

@@ -8,7 +8,7 @@ use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::{Py, PyErr, PyResult, Python};
 use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
 use rstest::rstest;
-use stilyagi_extract::{ExtractError, ExtractSyntax, MarkdownIrFailure};
+use stilyagi_extract::{ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError};
 use stilyagi_ir::RegionKind as IrRegionKind;
 
 fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
@@ -23,7 +23,7 @@ fn invalid_syntax_error(syntax: &str) -> PyErr {
         .expect_err(&format!("expected an error for syntax {syntax:?}"))
 }
 
-fn assert_markdown_ir_json_contract(ir_json: &str) {
+fn assert_ir_json_contract(ir_json: &str) {
     let parsed = match serde_json::from_str::<serde_json::Value>(ir_json) {
         Ok(parsed) => parsed,
         Err(error) => panic!("expected parseable IR JSON: {error}"),
@@ -211,14 +211,74 @@ fn extract_document_py_exposes_markdown_document() {
         let ir_json = ir_json_any
             .extract::<&str>()
             .expect("expected IR JSON string");
-        assert_markdown_ir_json_contract(ir_json);
+        assert_ir_json_contract(ir_json);
+    });
+}
+
+fn region_at<'py>(regions: &pyo3::Bound<'py, PyList>, index: usize) -> pyo3::Bound<'py, PyDict> {
+    let item = match regions.get_item(index) {
+        Ok(region) => region,
+        Err(error) => panic!("missing region at index {index}: {error}"),
+    };
+    match item.cast::<PyDict>() {
+        Ok(dict) => dict.clone(),
+        Err(error) => panic!("expected PyDict but got {error}"),
+    }
+}
+
+fn assert_region(region: &pyo3::Bound<'_, PyDict>, expected_kind: &str, expected_text: &str) {
+    for (key, expected) in [("kind", expected_kind), ("text", expected_text)] {
+        let value = match region.get_item(key) {
+            Ok(payload) => payload,
+            Err(error) => panic!("missing {key} payload: {error}"),
+        };
+        let actual = match value.extract::<String>() {
+            Ok(text) => text,
+            Err(error) => panic!("expected {key} string: {error}"),
+        };
+        assert_eq!(actual, expected, "unexpected {key}");
+    }
+}
+
+#[rstest]
+fn extract_document_py_exposes_python_docstrings() {
+    let source = "\"\"\"Module docs.\"\"\"\n\ndef example():\n    \"\"\"Function docs.\"\"\"\n";
+    let document = bridge_extract_document(source, "python_docstring")
+        .unwrap_or_else(|error| panic!("unexpected extraction failure: {error}"));
+
+    Python::attach(|py| {
+        let document_dict = document.bind(py);
+        let regions_any = document_dict
+            .get_item("regions")
+            .expect("missing regions payload");
+        let regions = regions_any
+            .cast::<PyList>()
+            .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
+
+        assert_eq!(
+            document_dict
+                .get_item("syntax")
+                .expect("missing syntax payload")
+                .extract::<&str>()
+                .expect("expected syntax string"),
+            ExtractSyntax::PythonDocstring.as_str(),
+        );
+        assert_eq!(regions.len().expect("expected list length"), 2);
+        assert_region(&region_at(regions, 0), "python_docstring", "Module docs.");
+        assert_region(&region_at(regions, 1), "python_docstring", "Function docs.");
+
+        let ir_json = document_dict
+            .get_item("ir_json")
+            .expect("missing IR payload")
+            .extract::<String>()
+            .expect("expected IR JSON string");
+        assert_ir_json_contract(&ir_json);
     });
 }
 
 /// Keep rejection behaviour stable for both unsupported and unknown syntax
 /// strings.
 #[rstest]
-#[case("python_docstring", "python_docstring")]
 #[case("not_a_syntax", "not_a_syntax")]
 fn extract_document_py_rejects_invalid_syntaxes(
     #[case] syntax: &str,
@@ -259,6 +319,19 @@ fn map_extract_error_uses_runtime_error_for_markdown_ir() {
         )));
 
         assert!(error.is_instance_of::<PyRuntimeError>(py));
+    });
+}
+
+#[rstest]
+fn map_extract_error_uses_runtime_error_for_python_ir() {
+    Python::attach(|py| {
+        let error = map_extract_error(&ExtractError::PythonIr(PythonExtractError::NoParseTree));
+
+        assert!(error.is_instance_of::<PyRuntimeError>(py));
+        assert!(
+            error.to_string().contains("python IR extraction failed"),
+            "unexpected python IR error display: {error}"
+        );
     });
 }
 
