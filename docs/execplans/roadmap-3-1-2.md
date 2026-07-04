@@ -1111,6 +1111,9 @@ other new external dependency without approval.
 - [x] 2026-07-04 fix round 2: added Rust source-byte oracle property tests for
   line, merged-line, and block doc comments; recorded the malformed recovery
   ground truth; reran the `stilyagi-tree-sitter` crate tests green.
+- [x] 2026-07-04 addendum pass: implemented roadmap addenda `3.1.2.1` through
+  `3.1.2.4`, retried CodeRabbit after the rate-limit window, fixed the branch
+  so all required gates passed, and marked the addendum checkboxes complete.
 
 ## Surprises & discoveries
 
@@ -1160,6 +1163,17 @@ other new external dependency without approval.
   Impact: the malformed snapshot and regression tests intentionally codify the
   current ground truth. If a future grammar version exposes the broken
   `function_item` again, this plan must be updated alongside the tests.
+
+- Observation: the addendum branch initially reported green `make all` evidence,
+  but this repository's `make all` target is only the release build and smoke
+  path, not the full commit-gate set.
+  Evidence: the manual recovery pass reran `make check-fmt`, `make typecheck`,
+  `make lint`, `make test`, `make markdownlint`, and `make nixie`; `make lint`
+  caught a Clippy nesting failure and then a module-size failure that `make all`
+  had not exposed.
+  Impact: the addendum branch needed a manual fix before integration. This is
+  recorded as workflow validation evidence rather than treated as a Stilyagi
+  roadmap blocker.
 
 ## Decision log
 
@@ -1222,6 +1236,15 @@ other new external dependency without approval.
   limit explicitly.
   Date/Author: 2026-07-04, implementation agent.
 
+- Decision: close addenda `3.1.2.1` through `3.1.2.4` after the manual
+  recovery pass.
+  Rationale: module-rooted impl-member qualnames are now pinned in the nested
+  Rust snapshot, intervening ordinary comments are covered by parameterized
+  addendum tests, CR-LF and whitespace source-oracle cases pass, and malformed
+  Rust recovery emits an explicit `rust-doc-comment-error-subtree` diagnostic
+  when doc comments are absorbed into a tree-sitter `ERROR` subtree.
+  Date/Author: 2026-07-04, operator.
+
 ## Outcomes & retrospective
 
 Roadmap item 3.1.2 is complete on this branch. Stilyagi now extracts Rust
@@ -1256,6 +1279,27 @@ assessment. The implementation run had already produced a coherent complete
 slice, but the stalled CodeRabbit review and unfilled retrospective made the
 branch ambiguous to the recovery workflow. Recording the gate and review
 evidence here keeps the branch self-contained for adoption.
+
+The addendum recovery pass on 2026-07-04 closed the four roadmap addenda on
+commits `c302ee5` and `34f6ce5`. CodeRabbit completed with zero findings after
+the earlier rate limit cleared:
+`/tmp/coderabbit-stilyagi-roadmap-3-1-2-addendum-manual-final.out`.
+The required sequential gates then passed with durable logs:
+
+- `make check-fmt` passed; log:
+  `/tmp/check-fmt-stilyagi-roadmap-3-1-2-addendum-manual.out`.
+- `make typecheck` passed; log:
+  `/tmp/typecheck-stilyagi-roadmap-3-1-2-addendum-manual.out`.
+- `make lint` passed; log:
+  `/tmp/lint-stilyagi-roadmap-3-1-2-addendum-manual.out`.
+- `make test` passed; log:
+  `/tmp/test-stilyagi-roadmap-3-1-2-addendum-manual.out`.
+  The Rust nextest run passed 246/246 tests, Rust doctests passed, and pytest
+  passed 118/118 tests with six snapshots.
+- `make markdownlint` passed; log:
+  `/tmp/markdownlint-stilyagi-roadmap-3-1-2-addendum-manual.out`.
+- `make nixie` passed; log:
+  `/tmp/nixie-stilyagi-roadmap-3-1-2-addendum-manual.out`.
 
 ## Revision note
 
@@ -1306,3 +1350,10 @@ work rather than blockers for the completed 3.1.2 extraction slice. They are
 tracked as roadmap addenda `3.1.2.1` through `3.1.2.4` so later Rust
 doc-comment rules can either consume the improved contracts or see an explicit
 documented limitation.
+
+Round 7 revision (2026-07-04): completed the addendum pass. Commit `c302ee5`
+implemented the four accepted follow-up items, and commit `34f6ce5` fixed the
+manual gate failures found during operator recovery. The roadmap addendum
+checkboxes are now checked, the malformed Rust snapshot includes the explicit
+doc-comment-drop diagnostic, and the manual CodeRabbit plus gate evidence is
+recorded above for integration.
