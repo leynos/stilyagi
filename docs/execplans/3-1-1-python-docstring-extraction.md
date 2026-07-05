@@ -72,7 +72,7 @@ The relevant Rust crates are:
   `ExtractError::UnsupportedSyntax(ExtractSyntax::PythonDocstring)`. This slice
   wires that variant to the new extractor.
 - `crates/stilyagi-pyext/`, the PyO3 bridge. `extract_document_py` already
-  serialises an attached `IrDocument` to canonical `ir_json`. Enabling Python
+  serializes an attached `IrDocument` to canonical `ir_json`. Enabling Python
   extraction makes `python_docstring` a supported syntax through the existing
   bridge shape with no new bridge fields.
 - `crates/stilyagi-test-support/`, which provides fixture access
@@ -233,7 +233,7 @@ External prior art checked during planning (Firecrawl):
   RFC 0001 code-entity contract (`kind`, optional `name`, optional `qualname`).
   It must not be reused for non-code ancestry. The `IrOwner` `name` and
   `qualname` fields are plain `Option` with no `skip_serializing_if`, so a
-  `None` serialises as JSON `null` (not an omitted key); module owners
+  `None` serializes as JSON `null` (not an omitted key); module owners
   therefore emit `"name": null, "qualname": null`.
 - Traversal and identifiers are deterministic: walk named children depth-first,
   left-to-right; assign node identifiers (`n0`, `n1`, …) in emission order;
@@ -706,7 +706,7 @@ resolve concerns, and commit.
 
 ### Stage 5: PyO3 bridge and Python model adaptation
 
-The bridge already serialises an attached `IrDocument` to `ir_json`. Enabling
+The bridge already serializes an attached `IrDocument` to `ir_json`. Enabling
 Python extraction therefore needs no new bridge fields. Update:
 
 - `crates/stilyagi-pyext/src/lib.rs`: change the test that asserts
@@ -733,7 +733,7 @@ Add Python tests:
   normalization (the 2.1.1 parity pattern; do not compare `ir_json` to itself).
   Define one shared redaction helper used by both the syrupy snapshot and the
   parity check that replaces the producer grammar `version` with a placeholder,
-  normalises path separators to `/`, and canonicalises the source identity, so
+  normalizes path separators to `/`, and canonicalizes the source identity, so
   the two sides differ only in genuine contract terms. Run the parity test
   against the already-reviewed, checked-in Rust snapshot.
 - a `hypothesis` property test that keeps the Python *shape* fixed and varies
@@ -1042,7 +1042,7 @@ Doggylump, Dinolump) stress-tested this draft before delivery. Accepted
 revisions folded into the plan: keep `lib.rs` as a thin spine over a `python`
 module (no premature generalization); commit `ExtractError::PythonIr` to a
 small fieldless payload so the 128-byte size assertion holds; specify `None`
-owner fields serialise as `null`; make the single-source-backed-segment
+owner fields serialize as `null`; make the single-source-backed-segment
 reconstruction guarantee explicit (covers CR-LF, raw strings, escapes, embedded
 quotes, empty docstrings); pin determinism of traversal and identifier
 assignment; concretise f-string and `concatenated_string` rejection; expand the
@@ -1531,7 +1531,7 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   size assertion holds without a deliberate budget raise. Date/Author:
   2026-06-12, planning agent (community-of-experts review).
 
-- Decision: `IrOwner` `name`/`qualname` `None` serialises as JSON `null` (the
+- Decision: `IrOwner` `name`/`qualname` `None` serializes as JSON `null` (the
   fields have no `skip_serializing_if`), so module owners emit
   `"name": null, "qualname": null`. Module owners stay anonymous in v1 because
   string-only extraction has no package context; a package-qualified module

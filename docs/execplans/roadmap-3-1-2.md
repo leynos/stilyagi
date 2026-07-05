@@ -100,7 +100,7 @@ The relevant Rust crates are:
   This slice wires that arm to a new `extract_rust_document`, mirroring the
   existing `ExtractSyntax::PythonDocstring => extract_python_document` arm.
 - `crates/stilyagi-pyext/`, the PyO3 bridge.
-  `crates/stilyagi-pyext/src/lib.rs` serialises an attached `IrDocument` to
+  `crates/stilyagi-pyext/src/lib.rs` serializes an attached `IrDocument` to
   canonical `ir_json` and maps `ExtractError::UnsupportedSyntax(_)` to
   `PyNotImplementedError`. `crates/stilyagi-pyext/src/tests.rs` has
   `extract_document_py_exposes_python_docstrings`; a Rust analogue is added.
@@ -312,7 +312,7 @@ External prior art relied on during planning:
   comments own the enclosing item. Crate-root inner doc comments emit
   `kind: "module"`, `name: null`, `qualname: null`, mirroring the Python module
   owner. `IrOwner` `name`/`qualname` are plain `Option` with no
-  `skip_serializing_if`, so a `None` serialises as JSON `null`.
+  `skip_serializing_if`, so a `None` serializes as JSON `null`.
 - Traversal and identifiers are deterministic: walk named children depth-first,
   left-to-right; assign node identifiers (`n0`, `n1`, …) in emission order;
   assign region identifiers (`r0`, `r1`, …) in doc-comment-discovery order; and
@@ -825,7 +825,7 @@ then the full deterministic commit gates (`make check-fmt`, `make typecheck`,
 
 ### Stage 5: PyO3 bridge and Python model adaptation
 
-The bridge already serialises an attached `IrDocument` to `ir_json`, so enabling
+The bridge already serializes an attached `IrDocument` to `ir_json`, so enabling
 Rust extraction needs no new bridge fields. Update:
 
 - `crates/stilyagi-pyext/src/tests.rs`: add
@@ -851,8 +851,8 @@ Add Python tests under `tests/`:
   redacting nondeterministic identity fields, plus a parity assertion that the
   Python-parsed IR matches the reviewed Rust canonical snapshot after the same
   normalization (the 2.1.1 / 3.1.1 parity pattern; reuse the shared redaction
-  helper that replaces the producer grammar `version`, normalises path
-  separators, and canonicalises the source identity).
+  helper that replaces the producer grammar `version`, normalizes path
+  separators, and canonicalizes the source identity).
 - a `hypothesis` property test that keeps the Rust shape fixed and varies only
   the prose: render `/// {body}\npub fn {name}() {{}}\n` from an identifier
   strategy (`[A-Za-z_][A-Za-z0-9_]*`, excluding Rust keywords) and a body
@@ -1203,7 +1203,7 @@ other new external dependency without approval.
   Rationale: doc comments that precede `#[derive]`/`#[cfg]`/similar attributes
   must still reach the real item, and the bounded node store should match the
   Python extractor by collapsing undocumented ancestors to the nearest emitted
-  owner instead of materialising every enclosing item.
+  owner instead of materializing every enclosing item.
   Date/Author: 2026-07-04, implementation agent.
 
 - Decision: reuse the ADR 006 `owner` field contract with Rust-specific kinds

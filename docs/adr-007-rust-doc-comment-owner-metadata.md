@@ -25,7 +25,7 @@ In the context of Rust documentation-comment extraction for v1, facing owner
 metadata, inner and outer attachment, and `::` qualified names, we decided for
 explicit `owner` metadata, merged doc-comment regions, verbatim content
 segments, and a bounded node store, and against raw CST navigation or
-rustdoc-style normalisation, to achieve stable source-faithful IR and
+rustdoc-style normalization, to achieve stable source-faithful IR and
 recoverable parse behaviour, accepting the downside that crate-root module
 owners stay anonymous and trait-impl method names use the implementor-type
 prefix.
@@ -43,7 +43,7 @@ root through the owned item. Impl methods use the implementor type as the
 prefix after any enclosing modules (`outer::inner::Type::method`), and
 trait-impl methods follow the same module-rooted implementor-type prefix in
 v1. Crate-root inner doc comments emit anonymous module owners
-(`kind: "module"`, `name: null`, `qualname: null`), and unrecognised item
+(`kind: "module"`, `name: null`, `qualname: null`), and unrecognized item
 kinds fall back to `kind: "item"`.
 
 ## Options considered
@@ -52,7 +52,7 @@ kinds fall back to `kind: "item"`.
 | Alternative                                                                      | Rationale                                 | Trade-offs                                                                    |
 | -------------------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------- |
 | Derive owner identity from raw CST traversal in rules                            | Keeps the extractor thinner.              | Couples rules to parser details and duplicates owner logic in every rule pack. |
-| Normalise or clean doc comments during extraction                                | Produces rustdoc-style prose immediately. | Breaks the verbatim source contract and weakens segment reconstruction.        |
+| Normalize or clean doc comments during extraction                                | Produces rustdoc-style prose immediately. | Breaks the verbatim source contract and weakens segment reconstruction.        |
 | Expose the full Rust tree-sitter tree as a stable v1 rule contract               | Gives rules maximum syntax access.        | Makes grammar upgrades much harder to absorb.                                  |
 <!-- markdownlint-enable MD060 -->
 

@@ -14,7 +14,7 @@ Roadmap item 1.3.3 records the repository-local measurement method for cold and
 warm structural runs before richer natural language processing (NLP) features
 land. After this work, maintainers should be able to run one documented probe
 that measures the current structural fast path through the mixed Python and
-Rust build spine, records normalised machine-readable output, and gives later
+Rust build spine, records normalized machine-readable output, and gives later
 roadmap slices a stable way to show they have not made structural-only runs
 collapse.
 
@@ -81,7 +81,7 @@ plan:
   10, and 11, for the IR boundary, build spine, and validation plan.
 - [docs/rfcs/0004-stilyagi-rule-testing-framework.md](
   ../rfcs/0004-stilyagi-rule-testing-framework.md) for subprocess isolation,
-  path normalisation, and future rule-test harness expectations.
+  path normalization, and future rule-test harness expectations.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](
   ../complexity-antipatterns-and-refactoring-strategies.md) for keeping the
   first harness small and avoiding a premature performance framework.
@@ -163,7 +163,7 @@ External tooling references resolved during planning:
 - Do not expose a new public Rust or Python API solely for performance
   measurement. Prefer private test modules, internal support modules, or a
   clearly maintainer-facing module under `tests/performance/`.
-- Keep the probe output free of machine-specific absolute paths. Normalise
+- Keep the probe output free of machine-specific absolute paths. Normalize
   repository paths with `/` separators and include environment metadata only in
   fields that tests can redact or classify.
 - Snapshot tests must avoid raw timestamps, raw durations, process IDs, random
@@ -176,7 +176,7 @@ External tooling references resolved during planning:
   format consistency is relevant.
 - Use `proptest` for Rust or `hypothesis` for Python only where the
   implementation introduces an invariant over a range of inputs. The likely
-  target is deterministic probe-result normalisation, not wall-clock timing.
+  target is deterministic probe-result normalization, not wall-clock timing.
 - Do not introduce Kani, CrossHair, or Verus proofs unless a substantive
   invariant emerges that is better proved than tested.
 - Keep Makefile commands canonical. Prefer `make check-fmt`, `make lint`,
@@ -254,7 +254,7 @@ External tooling references resolved during planning:
 
 Milestone 1 records the method and failing tests. Add a small
 `tests/performance/` package for the structural probe and create tests first.
-Python unit tests should expect deterministic corpus discovery, normalised
+Python unit tests should expect deterministic corpus discovery, normalized
 paths, cold and warm run classifications, and a stable JSON result shape.
 Python BDD coverage should describe a maintainer running the structural probe
 against the shared Markdown fixture and receiving a JSON report with cold and
@@ -344,7 +344,7 @@ design decision not already captured there. Update `docs/users-guide.md` only
 if a public command or public API changes; otherwise record in `Decision Log`
 that this is maintainer-facing only.
 
-If a stable sample baseline is checked in, keep it normalised and clearly
+If a stable sample baseline is checked in, keep it normalized and clearly
 labelled as a sample captured on this branch, not as a universal threshold. If
 the implementation instead stores only snapshots of the redacted schema, record
 that decision in `Decision Log`.
@@ -404,7 +404,7 @@ During implementation, use red-green-refactor discipline:
 Targeted validation should include:
 
 - Python unit tests with `pytest` for corpus discovery, result building, JSON
-  parsing, path normalisation, and mode classification.
+  parsing, path normalization, and mode classification.
 - Python behavioural tests with `pytest-bdd` for running the maintainer-facing
   structural probe and receiving a cold/warm report.
 - Python snapshot tests with `syrupy` for redacted JSON output shape when the
@@ -412,7 +412,7 @@ Targeted validation should include:
 - Rust `rstest` tests only if Rust probe DTOs or helpers are introduced.
 - Rust `insta` snapshots only if Rust code owns an output format.
 - Property tests with `hypothesis` or `proptest` only for deterministic
-  normalisation invariants, not for absolute wall-clock timing.
+  normalization invariants, not for absolute wall-clock timing.
 
 End-to-end coverage is required because this slice affects an externally
 observable maintainer workflow. The end-to-end check should run the probe

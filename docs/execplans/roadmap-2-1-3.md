@@ -11,7 +11,7 @@ Status: COMPLETE
 
 Today the Markdown frontend flattens a document into an intermediate
 representation (IR) that already carries a `suppressions` array, but nothing
-ever fills it: `crates/stilyagi-ir/src/document.rs` initialises
+ever fills it: `crates/stilyagi-ir/src/document.rs` initializes
 `suppressions: Vec::new()` and the Markdown builder
 (`crates/stilyagi-markdown/src/lib.rs`) never touches it. Suppression comments
 such as `<!-- stilyagi: ignore-next PUN201 -->` are parsed by `markdown-rs`
@@ -69,7 +69,7 @@ Hard invariants that must hold throughout implementation.
   document-level `suppressions` array only, never `regions`. This respects
   `docs/adr-005-markdown-region-vocabulary-scope.md`, which fixes the Markdown
   region vocabulary and does not include a suppression/HTML-comment region kind.
-- Canonical grammar: the only recognised directive form is the RFC 0003 §9.1
+- Canonical grammar: the only recognized directive form is the RFC 0003 §9.1
   logical grammar delivered through the Markdown HTML-comment form of RFC 0003
   §9.2, namely `<!-- stilyagi: <verb> [CODE[,CODE...]] -->` where `<verb>` is
   one of `ignore-next`, `disable`, `enable`, `ignore-file`. `ignore-file` may
@@ -120,7 +120,7 @@ Hard invariants that must hold throughout implementation.
   which do NOT match RFC 0001 §8 (`{id, kind, codes, span, origin}`). Aligning
   the type changes the canonical IR JSON schema for the `suppressions` element.
   Severity: medium. Likelihood: certain. Mitigation: the array has only ever
-  serialised as `[]` (no producer populated it), so no consumer depends on the
+  serialized as `[]` (no producer populated it), so no consumer depends on the
   element shape; align now, before the first populated suppression ships, and
   keep `SCHEMA_VERSION` at `1.0.0` because no field *meaning* changes for
   already-emitted data (empty array stays empty). See Decision D2.
@@ -138,7 +138,7 @@ Hard invariants that must hold throughout implementation.
   `stilyagi-disable-next-line terminology`. If the parser were made lenient
   enough to accept it, four existing golden snapshots plus a Python snapshot
   would churn and the 1.3.1 corpus invariant would be muddied. Severity: low.
-  Likelihood: low. Mitigation: the parser recognises only the canonical
+  Likelihood: low. Mitigation: the parser recognizes only the canonical
   `stilyagi:` marker; the placeholder is ignored by design and pinned by a
   regression test (WI-2). See Decision D4.
 - Risk R4: HTML comments can appear inline inside a paragraph as well as at
@@ -170,7 +170,7 @@ Hard invariants that must hold throughout implementation.
 - Observation S2: `IrSuppression` (`crates/stilyagi-ir/src/diagnostics.rs`)
   fields `{id, span, rules, reason}` diverge from RFC 0001 §8
   (`{id, kind, codes, span, origin}`). Evidence: file read versus RFC 0001 §8.
-  Impact: WI-1 harmonises the type. Recorded here because it is a real contract
+  Impact: WI-1 harmonizes the type. Recorded here because it is a real contract
   gap, not an anticipated risk.
 - Observation S3: `firecrawl_scrape` of `docs.rs` for the `markdown-rs`
   `mdast::Html` struct was denied in this planning session ("Claude requested
@@ -190,7 +190,7 @@ Hard invariants that must hold throughout implementation.
 
 ## Decision log
 
-- Decision D1: recognise only the canonical RFC 0003 §9.1/§9.2 directive form
+- Decision D1: recognize only the canonical RFC 0003 §9.1/§9.2 directive form
   `<!-- stilyagi: <verb> CODE[,CODE...] -->`. Rationale: RFC 0003 §9.2 forbids
   inventing a second suppression grammar; the design (§7.1) and RFC 0001 §8
   treat this as the contract. Date/Author: 2026-07-04, planning agent.
@@ -278,7 +278,7 @@ The reader is assumed to know nothing about this repository. Key facts:
   - `src/document.rs` — `IrDocument` envelope. Field
     `pub suppressions: Vec<IrSuppression>` at line 30; constructed empty in
     `IrDocument::empty` at line 53. `to_canonical_json` (line 65) is the
-    canonical "dump-ir" serialisation (deterministic pretty JSON).
+    canonical "dump-ir" serialization (deterministic pretty JSON).
   - `src/diagnostics.rs` — `IrSuppression` and `IrError` (the non-fatal anomaly
     type with `{code, message, span}`).
   - `src/region.rs` — `IrRegion`, `RegionKind`, and `origin_nodes` (line 176),
@@ -295,9 +295,9 @@ The reader is assumed to know nothing about this repository. Key facts:
     ids `n0`, `n1`, ... in pre-order and maps every mdast node into an
     `IrNode`. `node_kind(node)` returns `"html"` for `Node::Html`
     (`src/node_kind.rs:22`).
-  - `src/tests.rs` — the parameterised `#[case]` harness
+  - `src/tests.rs` — the parameterized `#[case]` harness
     `hardening_fixture_ir_json_round_trips_without_span_drift` (line ~121) that
-    builds the full IR, serialises canonical JSON, checks span re-slicing, and
+    builds the full IR, serializes canonical JSON, checks span re-slicing, and
     `insta::assert_snapshot!`s the envelope. Snapshots live in
     `crates/stilyagi-markdown/src/snapshots/`.
   - `src/tests/properties.rs` — proptest-based invariants over generated
@@ -316,7 +316,7 @@ The reader is assumed to know nothing about this repository. Key facts:
 Terms of art (defined on first use):
 
 - IR (intermediate representation): the structured, source-mapped document the
-  frontend emits; its canonical serialisation is deterministic JSON.
+  frontend emits; its canonical serialization is deterministic JSON.
 - Directive/suppression: an author-written comment asking Stilyagi to ignore
   one or more rule codes for the next block, a range, or the whole file.
 - Region: a lintable prose span in the IR. Suppressions are not regions.
@@ -396,8 +396,8 @@ suggests a bump is required, stop per the Schema tolerance.
 Tests (Red first): add a serde round-trip unit test in
 `crates/stilyagi-ir/src/tests/mod.rs` (or a new `suppression.rs` test module
 wired the same way as the existing test modules) asserting that a hand-built
-`IrSuppression { kind: Inline, codes: vec!["PUN201"], ... }` serialises with
-keys `id`, `kind` (`"inline"`), `codes`, `span`, `origin` and deserialises back
+`IrSuppression { kind: Inline, codes: vec!["PUN201"], ... }` serializes with
+keys `id`, `kind` (`"inline"`), `codes`, `span`, `origin` and deserializes back
 to an equal value. This is a unit test with no runtime component, so the
 observable substitute for a "running system" is the serde contract itself.
 
@@ -526,7 +526,7 @@ Also provide `verb_kind(verb) -> SuppressionKind` implementing Decision D5.
 
 Parser tests (Red first, then Green):
 
-- Unit (rstest, parameterised) in a new
+- Unit (rstest, parameterized) in a new
   `crates/stilyagi-markdown/src/tests/suppression.rs` module (wired via
   `#[path = ...]` like the sibling test modules): each verb parses; codes with
   and without spaces; `ignore-file MD,DOC` yields two codes; codeless inline

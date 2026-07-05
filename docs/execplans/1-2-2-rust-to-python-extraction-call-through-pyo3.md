@@ -343,7 +343,7 @@ real extension boundary.
 
 ## Milestone 4: record the design decisions and user-visible behaviour
 
-Do the documentation work in the same change, not afterward.
+Do the documentation work in the same change, not afterwards.
 
 Update these documents:
 

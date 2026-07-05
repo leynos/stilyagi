@@ -349,7 +349,7 @@ the shared PyO3 boundary.
   `ImportError: cannot import name 'smoke' from 'stilyagi'`, proving the
   missing shared helper.
 - [x] 2026-04-24: Added `python -m stilyagi.smoke`, wired `make build` to
-  `make smoke`, split release artifact construction into `release-artifact`,
+  `make smoke`, split release artefact construction into `release-artifact`,
   and wired `make release` to `smoke-release`.
 - [x] 2026-04-24: Added `.github/workflows/smoke.yml` as a bounded GitHub
   Actions workflow that calls `make check-fmt`, `make lint`, and `make test` on
