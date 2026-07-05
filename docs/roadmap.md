@@ -144,6 +144,22 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
   - Do not let later rules infer suppression state ad hoc.
   - Success: `dump-ir` exposes suppressions and later steps can trust one
     source of truth.
+- [ ] 2.1.3.1. Harden Markdown suppression parsing against coalesced or
+  adjacent HTML comment nodes.
+  - Addendum (from review:2.1.3; low). Split multi-comment HTML nodes or scan
+    for multiple canonical directives within one node so no directive is lost.
+    Lightweight addendum pass.
+- [ ] 2.1.3.2. Add coverage for inline suppression directives in paragraphs.
+  - Addendum (from review:2.1.3; low). Exercise within-paragraph HTML
+    comments so verb-driven classification stays pinned. Lightweight addendum
+    pass.
+- [ ] 2.1.4. Preserve range-suppression polarity in the IR.
+  - Requires 2.1.3.
+  - Encode the open/close role in the suppression contract so downstream
+    stages do not need to re-scan comment bytes to resolve range boundaries.
+  - Success: range suppressions are fully resolvable from the IR alone and the
+    canonical contract can drive later rule application without ad hoc comment
+    inspection.
 
 ### 2.2. Deliver the day-one Markdown CLI loop
 
@@ -542,3 +558,17 @@ They stay on the roadmap precisely so the v1 scope stays disciplined.
 - [ ] 6.3.2. Prototype an editor-facing transport on top of the settled CLI and
   IR contracts. See Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 6.3.1 and 5.3.3.
+
+### 6.4. Keep the region vocabulary aligned across crates
+
+This step answers whether the IR crate and the extractor crate can keep a
+single region-kind vocabulary without silently diverging as more region kinds
+land.
+
+- [ ] 6.4.1. Unify the region-kind vocabulary across `stilyagi-ir` and
+  `stilyagi-extract`. See Stilyagi design (stilyagi-design.md) §7.1.
+  - Requires 3.1.1 and 3.1.2.
+  - Keep the shared vocabulary as the single source of truth or add a
+    cross-checking test that fails on drift.
+  - Success: the two crates cannot silently diverge on region names or
+    meanings.

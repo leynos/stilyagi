@@ -254,6 +254,15 @@ coverage prove the contract end to end:
 Validation is green at the required gates: `make check-fmt`, `make typecheck`,
 `make lint`, `make test`, `make markdownlint`, and `make nixie`.
 
+## Addenda
+
+- Addendum (from review:2.1.3; low). Roadmap 2.1.3.1: split coalesced or
+  adjacent HTML comment nodes before parsing suppression directives so
+  canonical directives are not lost. Lightweight addendum pass.
+- Addendum (from review:2.1.3; low). Roadmap 2.1.3.2: add explicit
+  within-paragraph suppression coverage so verb-driven classification stays
+  pinned. Lightweight addendum pass.
+
 ## Context and orientation
 
 The reader is assumed to know nothing about this repository. Key facts:
