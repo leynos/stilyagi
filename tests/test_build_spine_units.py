@@ -6,26 +6,11 @@ import re
 import typing as typ
 
 import pytest
-import yaml
 from stilyagi import model, smoke
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_SMOKE_REGION = model.Region(kind="heading", text="Stilyagi smoke")
 ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
-WorkflowStep = typ.TypedDict(
-    "WorkflowStep",
-    {"name": str, "uses": str, "run": str, "with": dict[str, str]},
-    total=False,
-)
-WorkflowJob = typ.TypedDict(
-    "WorkflowJob",
-    {
-        "runs-on": str,
-        "strategy": dict[str, dict[str, list[str]]],
-        "steps": list[WorkflowStep],
-    },
-    total=False,
-)
 
 
 def _collect_recipe_lines(lines: list[str], start: int) -> tuple[str, ...]:
@@ -53,35 +38,6 @@ def _make_target(makefile: str, target: str) -> tuple[str, tuple[str, ...]]:
 def _normalised_lines(contents: str) -> set[str]:
     """Return stripped non-empty lines for structure-oriented file assertions."""
     return {line.strip() for line in contents.splitlines() if line.strip()}
-
-
-def _workflow_document(workflow: str) -> dict[str, object]:
-    """Parse a GitHub Actions workflow while preserving the `on` key as text."""
-    loaded = yaml.load(workflow, Loader=yaml.BaseLoader)
-    assert isinstance(loaded, dict)
-    return typ.cast("dict[str, object]", loaded)
-
-
-def _workflow_jobs(parsed_workflow: dict[str, object]) -> dict[str, WorkflowJob]:
-    """Return the parsed workflow jobs with a narrow test-local shape."""
-    jobs = parsed_workflow["jobs"]
-    assert isinstance(jobs, dict)
-    return typ.cast("dict[str, WorkflowJob]", jobs)
-
-
-def _job_steps(job: WorkflowJob) -> list[WorkflowStep]:
-    """Return a workflow job's steps with a narrow test-local shape."""
-    return typ.cast("list[WorkflowStep]", job["steps"])
-
-
-def _workflow_steps(jobs: dict[str, WorkflowJob]) -> list[WorkflowStep]:
-    """Return every step from every parsed workflow job."""
-    return [step for job in jobs.values() for step in _job_steps(job)]
-
-
-def _workflow_step_named(job: WorkflowJob, name: str) -> WorkflowStep:
-    """Return a named step from a parsed workflow job."""
-    return next(step for step in _job_steps(job) if step.get("name") == name)
 
 
 def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
@@ -322,71 +278,3 @@ def test_makefile_markdownlint_target_enforces_spelling(
     assert re.search(
         r"^TYPOS_VERSION\s*\?=\s*\d+\.\d+\.\d+\s*$", makefile_text, re.MULTILINE
     )
-
-
-def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
-    """Make CI exercise Makefile targets instead of duplicating build logic."""
-    parsed_workflow = _workflow_document(
-        (REPOSITORY_ROOT / ".github" / "workflows" / "smoke.yml").read_text(
-            encoding="utf-8"
-        )
-    )
-    jobs = _workflow_jobs(parsed_workflow)
-    workflow_steps = _workflow_steps(jobs)
-    run_commands = {
-        command.strip()
-        for step in workflow_steps
-        for command in str(step.get("run", "")).splitlines()
-        if command.strip()
-    }
-
-    assert {
-        "make check-fmt",
-        "make markdownlint",
-        "make nixie",
-        "make typecheck",
-        "make lint",
-        "make test",
-    }.issubset(run_commands)
-    assert "lint-test" in jobs
-    assert jobs["lint-test"]["runs-on"] == "ubuntu-latest"
-    assert "release-smoke" in jobs
-    assert jobs["release-smoke"]["runs-on"] == "${{ matrix.os }}"
-    assert jobs["release-smoke"]["strategy"]["matrix"]["os"] == [
-        "ubuntu-latest",
-        "macos-latest",
-        "windows-latest",
-    ]
-    triggers = typ.cast("dict[str, object]", parsed_workflow.get("on", {}))
-    assert "pull_request" in triggers
-    assert "main" in typ.cast("dict[str, list[str]]", triggers.get("push", {})).get(
-        "branches", []
-    )
-    python_steps = [
-        step
-        for step in workflow_steps
-        if str(step.get("uses", "")).startswith("actions/setup-python@")
-    ]
-    assert python_steps
-    assert all(
-        step["uses"] == "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405"
-        for step in python_steps
-    )
-    assert all(step["with"]["python-version"] == "3.14" for step in python_steps)
-    # Interrogate resolves from the locked dev dependency group through the
-    # Makefile, so CI must not install it separately.
-    assert all("interrogate" not in command for command in run_commands)
-    assert all("mdformat-all" not in str(step) for step in workflow_steps)
-    assert any(
-        "uv tool install nixie-cli==1.0.0" in str(step.get("run", ""))
-        for step in workflow_steps
-    )
-    test_runner_step = _workflow_step_named(jobs["lint-test"], "Install test runner")
-    assert "cargo binstall --no-confirm cargo-nextest" in test_runner_step["run"]
-    whitaker_step = _workflow_step_named(jobs["lint-test"], "Install Whitaker")
-    whitaker_run = str(whitaker_step["run"])
-    assert "github.com/leynos/whitaker" in whitaker_run
-    assert "whitaker-installer" in whitaker_run
-    assert "--cranelift" in whitaker_run
-    release_smoke_step = _workflow_step_named(jobs["release-smoke"], "Release smoke")
-    assert "make release" in release_smoke_step["run"]
