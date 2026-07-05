@@ -31,7 +31,7 @@ SmokeWorkflow = tuple[dict[str, "WorkflowJob"], list["WorkflowStep"], set[str]]
 
 def _workflow_document(workflow: str) -> dict[str, object]:
     """Parse a GitHub Actions workflow while preserving the `on` key as text."""
-    # BaseLoader is required here; safe_load would drop the literal `on` key in GitHub Actions workflows.
+    # BaseLoader is required here; safe_load drops the literal `on` workflow key.
     loaded = yaml.load(workflow, Loader=yaml.BaseLoader)
     assert isinstance(loaded, dict)
     return typ.cast("dict[str, object]", loaded)
@@ -56,7 +56,15 @@ def _workflow_steps(jobs: dict[str, WorkflowJob]) -> list[WorkflowStep]:
 
 def _workflow_step_named(job: WorkflowJob, name: str) -> WorkflowStep:
     """Return a named step from a parsed workflow job."""
-    return next(step for step in _job_steps(job) if step.get("name") == name)
+    for step in _job_steps(job):
+        if step.get("name") == name:
+            return step
+    available_names = [step.get("name", "<unnamed>") for step in _job_steps(job)]
+    msg = (
+        f"workflow step {name!r} not found in job {job!r}; "
+        f"available steps: {available_names!r}"
+    )
+    raise AssertionError(msg)
 
 
 def _smoke_workflow_document() -> dict[str, object]:

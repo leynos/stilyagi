@@ -255,7 +255,9 @@ def test_makefile_markdownlint_target_excludes_release_smoke_venv(
         "./.venv-release-smoke/*",
         "./.venv/*",
         "./.uv-cache/*",
+        "./.uv-tools/*",
         "./target/*",
+        "./crates/stilyagi-pyext/target/*",
     ):
         assert f"-not -path '{excluded}'" in md_find_definitions[0]
 

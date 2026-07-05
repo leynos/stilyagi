@@ -4,17 +4,28 @@ The generator is a standalone ``uv run`` script rather than a package
 module, so it is loaded here through ``importlib`` from its file path.
 """
 
+from __future__ import annotations
+
 import importlib.util
 import pathlib
+import tempfile
 import typing as typ
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 if typ.TYPE_CHECKING:
     import types
 
 SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[1] / "generate_typos_config.py"
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
+SAFE_FILENAME_CHARS = tuple("abcdefghijklmnopqrstuvwxyz0123456789_-")
+SAFE_TYPOS_FILENAMES = st.lists(
+    st.sampled_from(SAFE_FILENAME_CHARS),
+    min_size=1,
+    max_size=32,
+).map(lambda chars: f"{''.join(chars)}.toml")
 
 
 @pytest.fixture(name="generator", scope="module")
@@ -26,6 +37,12 @@ def generator_fixture() -> types.ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.fixture(name="rendered_config", scope="module")
+def rendered_config_fixture(generator: types.ModuleType) -> str:
+    """Render the generator output once for property tests."""
+    return typ.cast("str", generator.render_config())
 
 
 def test_render_config_emits_every_stem_and_suffix_pair(
@@ -55,6 +72,45 @@ def test_render_config_ends_with_trailing_newline(
     rendered = generator.render_config()
     assert rendered.endswith("\n")
     assert not rendered.endswith("\n\n")
+
+
+@given(data=st.data())
+def test_render_config_property_emits_sampled_stem_suffix_pair(
+    generator: types.ModuleType,
+    rendered_config: str,
+    data: st.DataObject,
+) -> None:
+    """A sampled stem and suffix pair gets correction and identity entries."""
+    stem = data.draw(st.sampled_from(generator.STEMS))
+    ise, ize = data.draw(st.sampled_from(generator.SUFFIX_PAIRS))
+
+    assert f'{stem}{ise} = "{stem}{ize}"' in rendered_config
+    assert f'{stem}{ize} = "{stem}{ize}"' in rendered_config
+
+
+@given(data=st.data())
+def test_render_config_property_accepts_sampled_extra_word(
+    generator: types.ModuleType,
+    rendered_config: str,
+    data: st.DataObject,
+) -> None:
+    """A sampled extra accepted word gets an identity entry."""
+    word = data.draw(st.sampled_from(sorted(generator.EXTRA_ACCEPTED_WORDS)))
+
+    assert f'{word} = "{word}"' in rendered_config
+
+
+@given(filename=SAFE_TYPOS_FILENAMES)
+def test_main_property_writes_rendered_config_without_mutation(
+    generator: types.ModuleType,
+    filename: str,
+) -> None:
+    """main() writes rendered content exactly to a sampled safe filename."""
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        output = pathlib.Path(temporary_directory) / filename
+        generator.main(output)
+
+        assert output.read_text(encoding="utf-8") == generator.render_config()
 
 
 def test_main_writes_rendered_config_to_explicit_path(
