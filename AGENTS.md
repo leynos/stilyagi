@@ -17,7 +17,9 @@
   what was changed and why.
 - **Use consistent spelling and grammar.** Comments must use en-GB-oxendict
   ("-ize" / "-yse" / "-our") spelling and grammar, with the exception of
-  references to external APIs.
+  references to external APIs. Markdown prose is enforced mechanically by the
+  `typos` spelling gate inside `make markdownlint`; see the Markdown guidance
+  section below for how to maintain its configuration.
 - **Illustrate with clear examples.** Function documentation must include clear
   examples demonstrating usage and outcome. Test documentation should omit
   examples that only restate the test logic.
@@ -71,6 +73,9 @@
 - **For Python files:**
   - **Testing:** Passes all relevant unit and behavioural tests (`make test`).
   - **Linting:** Passes lint checks (`make lint`).
+  - **Docstring coverage:** Interrogate, run as part of `make lint`, requires
+    100% docstring coverage over `python/stilyagi` and `tests`. Add
+    docstrings with new code rather than suppressing the check.
   - **Formatting:** Adheres to formatting standards (`make check-fmt`; use
     `make fmt` to apply fixes).
   - **Typechecking:** Passes type checking (`make typecheck`).
@@ -81,6 +86,8 @@
     `make fmt` to apply fixes).
 - **Markdown files (`.md` only):**
   - **Linting:** Passes markdown lint checks (`make markdownlint`).
+  - **Spelling:** Passes the en-GB-oxendict `typos` gate, which runs as part
+    of `make markdownlint`.
   - **Mermaid diagrams:** Passes validation using nixie (`make nixie`).
 - **Committing:**
   - Only changes that meet all quality gates should be committed.
@@ -92,6 +99,12 @@
       *why* in wrapped lines (approximately 72 columns).
     - **Formatting:** Use Markdown for formatted text inside the message body.
   - Do not commit changes that fail any quality gate.
+- **Tool versions:** The Makefile and CI must use identical lint tool
+  versions. Ruff and Interrogate are pinned in the `pyproject.toml` `dev`
+  dependency group and resolved from `uv.lock`; `typos` is pinned by the
+  Makefile `TYPOS_VERSION` variable. Bump the pin at its single source of
+  truth rather than installing a different version ad hoc, and never add a
+  separate tool-install step to CI for a tool the Makefile already provides.
 
 ## Refactoring heuristics and workflow
 
@@ -320,7 +333,18 @@ project:
 
 ## Markdown guidance
 
-- Validate Markdown files using `make markdownlint`.
+- Validate Markdown files using `make markdownlint`. This target also
+  enforces en-GB-oxendict spelling with `typos`, pinned by the Makefile
+  `TYPOS_VERSION` variable so local runs and CI use the same version.
+- The spelling configuration `typos.toml` is generated; never edit its
+  entries by hand. To handle a false positive or add a new Oxford `-ize`
+  stem, edit `scripts/generate_typos_config.py` (the `STEMS`,
+  `EXTRA_ACCEPTED_WORDS`, or `extend-ignore-re` lists) and regenerate with
+  `uv run scripts/generate_typos_config.py`. See the spelling gate section
+  of `docs/developers-guide.md` for details.
+- Quoted APIs and identifiers keep their upstream spelling; put them in
+  backticks or fenced code blocks, which the spelling gate ignores, rather
+  than adding word-level exceptions.
 - Run `make fmt` after documentation changes to format Markdown and fix table
   markup.
 - Validate Mermaid diagrams in Markdown by running `make nixie`.

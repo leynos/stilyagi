@@ -855,6 +855,81 @@ or the suppression. Ruff suppressions use `# noqa`, while Pylint suppressions
 use `# pylint: disable=...`; do not use one tool's suppression syntax to hide
 the other tool's finding.
 
+
+### 6b. Spelling gate
+
+`make markdownlint` enforces en-GB-oxendict (Oxford) spelling over the
+repository's Markdown prose with [`typos`](https://github.com/crate-ci/typos),
+as required by the [documentation style guide](documentation-style-guide.md).
+The configuration lives in the repository-root `typos.toml` and works in two
+layers:
+
+1. The `en-gb` locale corrects American spellings (`color` to `colour`,
+   `behavior` to `behaviour`, `analyzed` to `analysed`).
+2. Generated `extend-words` entries restore Oxford spelling, which the locale
+   alone would not enforce: identity entries accept `-ize` inflections that
+   the locale would otherwise "correct" to `-ise`, and `-ise` entries are
+   corrected to `-ize`. Stems taking `-yse` (`analyse`, `paralyse`) are left
+   to the locale, which already enforces them.
+
+`typos.toml` is a generated file. Never edit its entries by hand; change
+`scripts/generate_typos_config.py` and regenerate:
+
+```bash
+uv run scripts/generate_typos_config.py
+```
+
+The generator script owns three maintainer-facing lists:
+
+- `STEMS` — word stems that take Oxford `-ize`. When the gate flags a
+  legitimate `-ize` word (or silently accepts its `-ise` variant) because the
+  stem is missing, add the stem here and regenerate. Do not add genuinely
+  `-ise`-only words (`advise`, `revise`, `exercise`, `supervise`).
+- `EXTRA_ACCEPTED_WORDS` — words accepted verbatim, such as the `astroid`
+  library, suffix fragments quoted in prose, and non-English example text.
+- `extend-ignore-re` patterns in `HEADER` — regions exempt from spelling
+  checks: inline code spans, fenced code blocks, tool and target names that
+  keep their upstream spelling (`rust-analyzer`, `release-artifact`), and
+  verbatim citation titles. Quoted APIs keep US spelling per the
+  documentation style guide, so put them in backticks rather than adding
+  word-level exceptions.
+
+The gate runs over the `MD_FILES_FIND` file list shared with markdownlint and
+nixie, with `--force-exclude` so the `typos.toml` excludes also apply to
+explicitly passed paths (for example, Markdown that appears inside `.uv-cache`
+checkouts or `target` build output). To fix findings mechanically, rerun the
+gate's `typos` command with `--write-changes` appended, using the same pinned
+version the Makefile prints when `make markdownlint` runs:
+
+```bash
+env UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools \
+  uv tool run typos@<TYPOS_VERSION> --config typos.toml --force-exclude \
+  --write-changes <files>
+```
+
+Review automated rewrites before committing; spelling corrections must not
+touch code samples, API names, or quoted material.
+
+
+### 6c. Tool version alignment between the Makefile and CI
+
+The Makefile and `.github/workflows/smoke.yml` must resolve identical lint
+tool versions. The repository uses two mechanisms:
+
+- Ruff and Interrogate are pinned in the `pyproject.toml` `dev` dependency
+  group and run through `uv run --group dev`, so both the Makefile and CI
+  resolve the same locked version from `uv.lock`. CI must not install either
+  tool separately; `tests/test_build_spine_units.py` asserts that no
+  standalone Interrogate install step exists in the workflow.
+- `typos` is a Rust binary rather than a locked Python dependency, so its
+  version is pinned once in the Makefile `TYPOS_VERSION` variable and run
+  through `uv tool run typos@$(TYPOS_VERSION)`. CI inherits the pin by
+  calling `make markdownlint`.
+
+When bumping any of these versions, update the single source of truth (the
+dependency-group pin or `TYPOS_VERSION`), refresh `uv.lock` where relevant,
+and rerun the affected gates.
+
 ## 7. Development responsibilities
 
 Maintainer responsibilities in this repository are stricter than a normal
