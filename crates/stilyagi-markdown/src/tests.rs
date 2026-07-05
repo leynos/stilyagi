@@ -118,6 +118,11 @@ fn source_identity(path: &Path) -> SourceIdentity {
     "frontmatter",
     ExpectedText("Paragraph after dedicated frontmatter.")
 )]
+#[case(
+    Path::new("tests/fixtures/corpus/markdown/valid/suppression-directives.md.fixture"),
+    "suppression_directives",
+    ExpectedText("Apples, bananas and pears.")
+)]
 fn hardening_fixture_ir_json_round_trips_without_span_drift(
     #[case] relative_path: &Path,
     #[case] snapshot_name: &str,

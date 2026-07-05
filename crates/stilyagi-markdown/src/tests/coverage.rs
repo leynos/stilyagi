@@ -102,6 +102,29 @@ fn empty_link_title_does_not_produce_a_region() {
     );
 }
 
+#[rstest]
+fn suppression_directive_fixture_emits_all_document_suppression_kinds() {
+    let relative_path =
+        Path::new("tests/fixtures/corpus/markdown/valid/suppression-directives.md.fixture");
+    let source = must_read_fixture(relative_path);
+    let document = must_markdown_ir_document(&source, relative_path);
+    let kinds = document
+        .suppressions
+        .iter()
+        .map(|suppression| suppression.kind)
+        .collect::<Vec<_>>();
+
+    assert_eq!(document.errors, Vec::new());
+    assert!(kinds.contains(&stilyagi_ir::SuppressionKind::Inline));
+    assert!(kinds.contains(&stilyagi_ir::SuppressionKind::Range));
+    assert!(kinds.contains(&stilyagi_ir::SuppressionKind::File));
+    assert!(document.suppressions.iter().all(|suppression| {
+        source
+            .get(suppression.span.byte_start..suppression.span.byte_end)
+            .is_some()
+    }));
+}
+
 fn emitted_region_kinds_for_valid_markdown_corpus() -> BTreeSet<String> {
     valid_markdown_fixture_paths()
         .into_iter()

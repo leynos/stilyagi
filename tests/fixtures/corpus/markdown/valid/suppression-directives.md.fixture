@@ -1,0 +1,11 @@
+<!-- markdownlint-disable -->
+# Suppression Fixture
+
+<!-- stilyagi: ignore-next PUN201 -->
+Apples, bananas and pears.
+
+<!-- stilyagi: disable STY -->
+A questionable section.
+<!-- stilyagi: enable STY -->
+
+<!-- stilyagi: ignore-file MD,DOC -->

@@ -138,7 +138,7 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
   - Success: every promised v1 Markdown region kind is exercised by at least
     one fixture.
   - Current status: complete.
-- [ ] 2.1.3. Parse Markdown suppression directives into the IR. See Stilyagi
+- [x] 2.1.3. Parse Markdown suppression directives into the IR. See Stilyagi
   design (stilyagi-design.md) §7.1.
   - Requires 2.1.1.
   - Do not let later rules infer suppression state ad hoc.

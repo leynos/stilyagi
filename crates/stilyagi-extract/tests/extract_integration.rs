@@ -6,6 +6,8 @@ mod extraction_behaviour;
 mod fixture_path_validation;
 #[path = "extract/ir_identity.rs"]
 mod ir_identity;
+#[path = "extract/markdown_suppression_bdd.rs"]
+mod markdown_suppression_bdd;
 #[path = "extract/python_docstring_bdd.rs"]
 mod python_docstring_bdd;
 #[path = "extract/rust_doc_comment_bdd.rs"]

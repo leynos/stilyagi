@@ -1,0 +1,443 @@
+---
+source: crates/stilyagi-markdown/src/tests.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "document": {
+    "uri": "file:///repo/tests/fixtures/corpus/markdown/valid/suppression-directives.md.fixture",
+    "path": "tests/fixtures/corpus/markdown/valid/suppression-directives.md.fixture",
+    "syntax": "markdown",
+    "natural_language": null,
+    "encoding": "utf-8",
+    "content_hash": "sha256:d7ac4910d7915e242f4e4e3b178d0075f0a15b43c175e0b1060d06e43d151d41"
+  },
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "version": "1.0.0",
+      "options": {
+        "frontmatter": true,
+        "gfm": true
+      }
+    }
+  ],
+  "line_index": [
+    0,
+    30,
+    52,
+    53,
+    91,
+    118,
+    119,
+    150,
+    174,
+    204,
+    205,
+    243
+  ],
+  "trees": [
+    {
+      "id": "t0",
+      "family": "mdast",
+      "syntax": "markdown",
+      "root": "n0"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "tree": "t0",
+      "kind": "root",
+      "parent": null,
+      "children": [
+        "n1",
+        "n2",
+        "n4",
+        "n5",
+        "n7",
+        "n8",
+        "n10",
+        "n11"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 243
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n1",
+      "tree": "t0",
+      "kind": "html",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 0,
+        "byte_end": 29
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n2",
+      "tree": "t0",
+      "kind": "heading",
+      "parent": "n0",
+      "children": [
+        "n3"
+      ],
+      "fields": {},
+      "props": {
+        "depth": 1
+      },
+      "span": {
+        "byte_start": 30,
+        "byte_end": 51
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n3",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n2",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 32,
+        "byte_end": 51
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n4",
+      "tree": "t0",
+      "kind": "html",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 53,
+        "byte_end": 90
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n5",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n0",
+      "children": [
+        "n6"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 91,
+        "byte_end": 117
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n6",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n5",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 91,
+        "byte_end": 117
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n7",
+      "tree": "t0",
+      "kind": "html",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 119,
+        "byte_end": 149
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n8",
+      "tree": "t0",
+      "kind": "paragraph",
+      "parent": "n0",
+      "children": [
+        "n9"
+      ],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 150,
+        "byte_end": 173
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n9",
+      "tree": "t0",
+      "kind": "text",
+      "parent": "n8",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 150,
+        "byte_end": 173
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n10",
+      "tree": "t0",
+      "kind": "html",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 174,
+        "byte_end": 203
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n11",
+      "tree": "t0",
+      "kind": "html",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 205,
+        "byte_end": 242
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "kind": "heading",
+      "scope": [
+        "markdown",
+        "heading",
+        "h1"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Suppression Fixture",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 19,
+          "source": {
+            "byte_start": 32,
+            "byte_end": 51
+          },
+          "synthetic": null,
+          "node": "n2",
+          "text": "Suppression Fixture"
+        }
+      ],
+      "origin_nodes": [
+        "n2"
+      ],
+      "owner": null,
+      "attrs": {
+        "depth": 1
+      },
+      "parent_region": null
+    },
+    {
+      "id": "r1",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "Apples, bananas and pears.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 26,
+          "source": {
+            "byte_start": 91,
+            "byte_end": 117
+          },
+          "synthetic": null,
+          "node": "n5",
+          "text": "Apples, bananas and pears."
+        }
+      ],
+      "origin_nodes": [
+        "n5"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    },
+    {
+      "id": "r2",
+      "kind": "paragraph",
+      "scope": [
+        "markdown",
+        "paragraph"
+      ],
+      "syntax": "markdown",
+      "natural_language": null,
+      "text": "A questionable section.",
+      "segments": [
+        {
+          "text_start": 0,
+          "text_end": 23,
+          "source": {
+            "byte_start": 150,
+            "byte_end": 173
+          },
+          "synthetic": null,
+          "node": "n8",
+          "text": "A questionable section."
+        }
+      ],
+      "origin_nodes": [
+        "n8"
+      ],
+      "owner": null,
+      "attrs": {},
+      "parent_region": null
+    }
+  ],
+  "suppressions": [
+    {
+      "id": "s0",
+      "kind": "inline",
+      "codes": [
+        "PUN201"
+      ],
+      "span": {
+        "byte_start": 53,
+        "byte_end": 90
+      },
+      "origin": "n4"
+    },
+    {
+      "id": "s1",
+      "kind": "range",
+      "codes": [
+        "STY"
+      ],
+      "span": {
+        "byte_start": 119,
+        "byte_end": 149
+      },
+      "origin": "n7"
+    },
+    {
+      "id": "s2",
+      "kind": "range",
+      "codes": [
+        "STY"
+      ],
+      "span": {
+        "byte_start": 174,
+        "byte_end": 203
+      },
+      "origin": "n10"
+    },
+    {
+      "id": "s3",
+      "kind": "file",
+      "codes": [
+        "MD",
+        "DOC"
+      ],
+      "span": {
+        "byte_start": 205,
+        "byte_end": 242
+      },
+      "origin": "n11"
+    }
+  ],
+  "errors": [],
+  "metadata": {}
+}

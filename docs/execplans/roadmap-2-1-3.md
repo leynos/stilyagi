@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -156,9 +156,9 @@ Hard invariants that must hold throughout implementation.
   inline/range blanket-directive `errors`). The parser and its sole library
   consumer land together so no crate-private item is dead code in the `--lib`
   build (design-review round 3, point 1).
-- [ ] WI-3: Fixtures, golden snapshots, coverage, and behavioural (BDD)
+- [x] WI-3: Fixtures, golden snapshots, coverage, and behavioural (BDD)
   observability.
-- [ ] WI-4: Documentation touch-ups and final full-gate validation.
+- [x] WI-4: Documentation touch-ups and final full-gate validation.
 
 ## Surprises & discoveries
 
@@ -184,6 +184,9 @@ Hard invariants that must hold throughout implementation.
   `crates/stilyagi-markdown/src/tests.rs`. Impact: the "dump-ir exposes
   suppressions" observable is delivered by adding one `#[case]` to that
   existing harness rather than by building a new dump path.
+- Observation S5: the current docs already describe suppression emission from
+  the frontend, so WI-4 did not require prose changes. Impact: the docs audit
+  was a confirmatory check only; the plan still records the validation step.
 
 ## Decision log
 
@@ -231,13 +234,25 @@ Hard invariants that must hold throughout implementation.
   blanket for every verb, and requires the `IrSuppression.codes` doc comment to
   drop its "never empty" claim. Date/Author: 2026-07-04, planning agent
   (design-review round 3).
+- Decision D7: no documentation text needed updating for WI-4 because the
+  design and users' guide already describe suppression emission from the
+  frontend. Rationale: the docs audit was confirmatory, not corrective, so the
+  durable record is the completed validation step rather than a prose diff.
+  Date/Author: 2026-07-05, implementation agent.
 
 ## Outcomes & retrospective
 
-To be completed at milestones and at closure. Compare against Purpose: the
-Markdown frontend is the single producer of Markdown suppression state, visible
-in canonical IR JSON, with source-faithful spans and refused blanket
-directives.
+The roadmap is complete. Markdown suppression directives now flow from the
+frontend into the IR `suppressions` array, and the canonical snapshot plus BDD
+coverage prove the contract end to end:
+
+- canonical directives populate the IR with source-faithful spans
+- blanket inline and range directives without codes are rejected as IR errors
+- file-level directives without codes are accepted as whole-file exemptions
+- the existing placeholder suppression fixture remains ignored
+
+Validation is green at the required gates: `make check-fmt`, `make typecheck`,
+`make lint`, `make test`, `make markdownlint`, and `make nixie`.
 
 ## Context and orientation
 
