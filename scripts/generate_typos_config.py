@@ -29,8 +29,6 @@ The stem ``organ`` produces entries such as ``organised = "organized"``
 and ``organized = "organized"`` for every suffix pair.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 
 #: Word stems that take Oxford ``-ize``; each stem is the word up to but
@@ -232,14 +230,21 @@ def render_config() -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> None:
-    """Write ``typos.toml`` beside this script's repository root.
+def main(output: Path | None = None) -> None:
+    """Write the rendered configuration to *output*.
+
+    Parameters
+    ----------
+    output : Path or None
+        Destination file. Defaults to ``typos.toml`` in the repository
+        root, resolved relative to this script.
 
     Examples
     --------
     >>> main()  # doctest: +SKIP
     """
-    output = Path(__file__).resolve().parent.parent / "typos.toml"
+    if output is None:
+        output = Path(__file__).resolve().parent.parent / "typos.toml"
     output.write_text(render_config(), encoding="utf-8")
 
 

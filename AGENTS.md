@@ -335,7 +335,7 @@ project:
 
 - Validate Markdown files using `make markdownlint`. This target also
   enforces en-GB-oxendict spelling with `typos`, pinned by the Makefile
-  `TYPOS_VERSION` variable so local runs and CI use the same version.
+  `TYPOS_VERSION` variable, so local runs and CI use the same version.
 - The spelling configuration `typos.toml` is generated; never edit its
   entries by hand. To handle a false positive or add a new Oxford `-ize`
   stem, edit `scripts/generate_typos_config.py` (the `STEMS`,
