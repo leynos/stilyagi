@@ -288,10 +288,10 @@ def test_makefile_lint_tools_resolve_through_uv(makefile_text: str) -> None:
         r"^INTERROGATE\s*\?=\s*\$\(UV_RUN\)\s*interrogate\s*$",
         makefile_text,
         re.MULTILINE,
-    )
+    ), "INTERROGATE no longer resolves through $(UV_RUN)"
     assert re.search(
         r"^TYPOS\s*=\s*env\s+\$\(UV_ENV\)\s+\$\(UV\)\s+tool\s+run\s+"
         r"typos@\$\(TYPOS_VERSION\)\s*$",
         makefile_text,
         re.MULTILINE,
-    )
+    ), "TYPOS no longer resolves through the pinned uv tool command"
