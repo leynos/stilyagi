@@ -4,19 +4,15 @@ The generator is a standalone ``uv run`` script rather than a package
 module, so it is loaded here through ``importlib`` from its file path.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import pathlib
 import tempfile
+import types
 import typing as typ
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-
-if typ.TYPE_CHECKING:
-    import types
 
 SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[1] / "generate_typos_config.py"
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -36,6 +32,7 @@ def generator_fixture() -> types.ModuleType:
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    assert isinstance(module, types.ModuleType)
     return module
 
 
