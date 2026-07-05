@@ -280,3 +280,18 @@ def test_makefile_markdownlint_target_enforces_spelling(
     assert re.search(
         r"^TYPOS_VERSION\s*\?=\s*\d+\.\d+\.\d+\s*$", makefile_text, re.MULTILINE
     )
+
+
+def test_makefile_lint_tools_resolve_through_uv(makefile_text: str) -> None:
+    """Lint helper tools must resolve through uv-managed commands."""
+    assert re.search(
+        r"^INTERROGATE\s*\?=\s*\$\(UV_RUN\)\s*interrogate\s*$",
+        makefile_text,
+        re.MULTILINE,
+    )
+    assert re.search(
+        r"^TYPOS\s*=\s*env\s+\$\(UV_ENV\)\s+\$\(UV\)\s+tool\s+run\s+"
+        r"typos@\$\(TYPOS_VERSION\)\s*$",
+        makefile_text,
+        re.MULTILINE,
+    )
