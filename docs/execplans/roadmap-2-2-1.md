@@ -7,12 +7,19 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 Status: DRAFT
 
 Approval gate: NOT yet satisfied. Do not begin implementation until the user
-explicitly approves this plan. This is planning round 3, revised to resolve the
-design reviewer's two blocking points: the unimplementable exit-`1` path that
-relied on malformed Markdown fabricating recoverable IR errors, and the
-mis-applied cross-syntax snapshot claim used to justify it. See the Revision
-note. (Rounds 1 and 2 resolved the earlier `make all` gate claim and the strict
-config schema that rejected the RFC 0003 §6 baseline.)
+explicitly approves this plan. This is planning round 4. It closes the two
+remaining blocking defects from the saved Round-1 adversarial review
+([roadmap-2-2-1-review-round-1.md](roadmap-2-2-1-review-round-1.md)) that earlier
+rounds left open — defect 2 (the incomplete enumeration of skeleton tests broken
+by the W4 diagnostic/renderer reshape, which would leave a red gate at the W4
+commit) and defect 3 (the mischaracterised, non-hermetic `cli.main()` snapshot
+test and its stored artifact) — and lands the review's six advisories (file
+failure modes, `Document.ir is None`, the JSON `path` form, the `sarif` error
+message, the fate of `NodeRef`/`Fix`, and `--config` inline-vs-path
+disambiguation). See the Revision note. (Round 1 decomposed the task; round 2
+resolved review defect 1 — the `make all` gate claim — and review defect 4 — the
+strict config schema that rejected the RFC 0003 §6 baseline; round 3 resolved the
+unimplementable exit-`1` path and the mis-applied cross-syntax snapshot claim.)
 
 ## Purpose / big picture
 
@@ -124,8 +131,33 @@ Key existing surfaces this plan builds on:
   real extractor's *empty* Markdown `errors[]`; it is not a content-reachable
   exit-`1` trigger today.
 - `python/stilyagi/diagnostics.py` holds placeholder `NodeRef`, `Fix`, and
-  `Diagnostic` dataclasses.
-- `python/stilyagi/engine/renderers.py` holds a placeholder `RendererRegistry`.
+  `Diagnostic` dataclasses. The current `Diagnostic(code, message, span=NodeRef)`
+  shape is pinned by
+  `tests/test_package_skeleton_units.py::test_diagnostic_preserves_code_and_message`
+  (line 92, verified this worktree). W4 reshapes `Diagnostic` (adds a required
+  `path`, replaces `span` with resolved `line`/`column`), so that test **must**
+  be rewritten in the same commit or the W4 gate stays red. See W4 for the
+  decided fate of `NodeRef` and `Fix`.
+- `python/stilyagi/engine/renderers.py` holds a placeholder `RendererRegistry`
+  whose no-argument construction and `default_format == "text"` are pinned by
+  `tests/test_package_skeleton_units.py::test_engine_skeleton_dataclasses_preserve_their_fields`
+  (line 115, verified this worktree). W4 rewrites `RendererRegistry` to render
+  diagnostics, so that assertion **must** be updated in lockstep with the W4
+  commit.
+- Two tests call `cli.main()` with **no arguments** and would, under a default
+  target of `.`, recurse the repository working directory the test runs in —
+  slow, current-working-directory-coupled, and non-deterministic:
+  `tests/test_package_skeleton_units.py::test_cli_main_reports_placeholder_exit_code`
+  (asserts `== 2`) and
+  `tests/test_round_trip_helpers.py::test_cli_placeholder_output_matches_snapshot`
+  (a `syrupy` snapshot of `{exit_code, stdout, stderr}` stored at
+  `tests/__snapshots__/test_round_trip_helpers/test_cli_placeholder_output_matches_snapshot.json`,
+  verified present this worktree). W5 redefines **both** to pass an explicit
+  `argv` against a `tmp_path` tree (hermetic; never the repo CWD) and accounts for
+  the stored snapshot artifact (regenerate for the new hermetic output, or delete
+  it and drop `test_cli_placeholder_output_matches_snapshot`, replacing its
+  coverage with the W5 `text`/`json` renderer snapshots). This closes Round-1
+  review defect 3.
 - `python/stilyagi/rules/` and `python/stilyagi/rules/builtin/` are namespace
   packages with no rules yet.
 - `python/stilyagi/plugins.py` defines the entry-point group names but no loader.
@@ -202,6 +234,23 @@ escalation, not a workaround.
   W5, changing `main()` to accept an explicit `argv` and giving no-arg
   invocation a defined meaning (default target `.`); make the change in the same
   commit as the CLI rewrite so no gate is left red.
+- Risk: The W4 reshape of `Diagnostic` (add `path`, replace `span`) and rewrite
+  of `RendererRegistry` (render diagnostics, drop the `default_format`-only
+  placeholder) break two existing skeleton assertions —
+  `test_package_skeleton_units.py::test_diagnostic_preserves_code_and_message`
+  (line 92) and `::test_engine_skeleton_dataclasses_preserve_their_fields`
+  (line 115). Severity: medium. Likelihood: high. Mitigation: W4 enumerates both
+  as in-lockstep edits in the same commit as the reshape, and decides the fate of
+  `NodeRef`/`Fix` and of `RendererRegistry`'s no-arg construction explicitly, so
+  the W4 gate is never left red. This closes Round-1 review defect 2.
+- Risk: Malformed on-disk inputs (non-UTF-8 bytes, permission-denied files,
+  symlink cycles during recursion) could crash discovery or extraction rather
+  than producing a clean exit code. Severity: medium. Likelihood: medium.
+  Mitigation: W3 walks directories without following symlinked directories (so a
+  symlink cycle cannot loop) and W5 wraps per-file read/decode in a typed handler
+  that maps `UnicodeDecodeError`, `PermissionError`, `FileNotFoundError`, and
+  `IsADirectoryError` to an actionable stderr message and exit `2` ("internal
+  error"/invalid usage, RFC 0003 §12) — never `1`. Tests cover each mode.
 - Risk: `.gitignore` honouring is a documented SHOULD but has no dependency-free
   implementation. Severity: low. Likelihood: high. Mitigation: deferred with an
   explicit Decision Log entry and a logged notice; discovery still skips VCS and
@@ -246,6 +295,16 @@ escalation, not a workaround.
   exit-`1` path synthetically through the empty rule-registry seam (see the
   Decision Log and the reworked W4/W5), and pins the IR-error adapter against a
   hand-built IR mapping plus the real extractor's empty Markdown `errors[]`.
+
+- Observation: `firecrawl_scrape` required an interactive permission grant that
+  the planning session could not satisfy, so external library docs were not
+  fetched in this round. Evidence: the tool returned "requested permissions …
+  but you haven't granted it yet". Impact: none on load-bearing choices — this
+  slice adds no runtime library (CLI via stdlib `argparse`, TOML via stdlib
+  `tomllib`), so no locked third-party API needs external verification. All
+  load-bearing facts here are pinned to in-worktree source (`crates/…`,
+  `python/…`, `pyproject.toml`, `Makefile`) or to in-repo contract docs, not to
+  scraped web pages.
 
 ## Decision log
 
@@ -325,6 +384,78 @@ escalation, not a workaround.
   `__init__`, keeping `from stilyagi import config` and its attributes stable.
   Rationale: The full config surface (schema, discovery, resolution) would
   exceed the 400-line file limit in one module. Date/Author: 2026-07-04.
+- Decision (round 4): Retire the placeholder `NodeRef` diagnostic span and the
+  `Fix` placeholder when reshaping `Diagnostic`; keep `Diagnostic` the single
+  internal model with `path`/`code`/`message`/`severity`/`line`/`column` and a
+  `fix` field left `None` this slice.
+  Rationale: `NodeRef(kind, text)` carries no source position and cannot express
+  the `path:line:col` the renderers need; keeping it would create two competing
+  span notions. `Fix` is unused until roadmap 2.2.2 and is re-introduced there
+  with the real edit model (design §"Fix and edit model"). W4 removes both from
+  `diagnostics.py` and rewrites
+  `test_diagnostic_preserves_code_and_message` to construct the new `Diagnostic`
+  (with a `path` and resolved location) rather than a `NodeRef` span. If any
+  other module imports `NodeRef`/`Fix`, W4 sweeps them first (none do today:
+  verified — only `tests/test_package_skeleton_units.py` references `NodeRef`).
+  Date/Author: 2026-07-04 (round 4), planning agent. Closes review advisory
+  "fate of `NodeRef`/`Fix`".
+- Decision (round 4): `RendererRegistry` keeps a no-argument constructor and a
+  `default_format` attribute (default `"text"`) in addition to gaining
+  `render(diagnostics, output_format)`.
+  Rationale: Preserving the no-arg construction and `default_format` keeps
+  `test_engine_skeleton_dataclasses_preserve_their_fields` meaningful (updated,
+  not deleted) and matches the design's "default is text" contract (RFC 0003 §11).
+  W4 updates that test to also assert the new `render` behaviour. Date/Author:
+  2026-07-04 (round 4). Closes part of review defect 2.
+- Decision (round 4): The user-facing `path` in both `text` and `json` output is
+  the target path **as supplied on the command line, normalised to POSIX
+  separators**, not an absolute or `resolve()`d path. For discovered files it is
+  the path relative to the invocation directory (the join of the target argument
+  and the walk-relative sub-path); for an explicitly named file it is that
+  argument verbatim (POSIX-normalised); for stdin it is the `--stdin-filename`
+  value or `<stdin>`.
+  Rationale: Absolute paths churn snapshots and leak the runner's home directory;
+  CWD-relative POSIX paths are stable, reproducible across machines, and match how
+  Ruff reports. Internally, discovery still de-duplicates and orders by the
+  resolved path (W3), but the *reported* path is the CWD-relative form. Tests pin
+  this form directly (not only via snapshot redaction), closing review advisory
+  "pin the JSON `path` form". Date/Author: 2026-07-04 (round 4).
+- Decision (round 4): `--output-format` accepts only `text` and `json` via
+  `argparse` `choices`; `sarif` (named v1 in RFC 0003 §11) is deferred. When a
+  user passes `--output-format sarif`, argparse's `choices` error is augmented by
+  a custom message stating that `sarif` is planned but not yet available in this
+  slice, so the rejection is explicit rather than a bare "invalid choice".
+  Rationale: Promising an unimplemented format is worse than an honest, signposted
+  deferral; roadmap 2.2.1 requires only text/json. The deferral is recorded in the
+  W7 user guide. Date/Author: 2026-07-04 (round 4). Closes review advisory
+  "`sarif` rejected by choices".
+- Decision (round 4): A single `--config VALUE` is disambiguated as an **inline
+  override** when `VALUE` contains an `=` and does not name an existing file;
+  otherwise it is treated as a **config file path** (which must exist, or exit
+  `2`). Multiple `--config` values compose in the RFC 0003 §5 precedence order
+  (inline `"key = value"` overrides rank above an explicitly named file).
+  Rationale: RFC §5 lists inline overrides and explicit file paths as distinct
+  precedence tiers but shares one flag spelling; the `=`-plus-not-a-file
+  heuristic is unambiguous for the realistic inputs and is the same rule Ruff
+  uses. Tests in W2 pin both interpretations and the "file must exist" error.
+  Date/Author:
+  2026-07-04 (round 4). Closes review advisory "`--config` disambiguation".
+- Decision (round 4): Every consumer of `document.ir` guards `ir is None`.
+  `map_ir_errors` returns `[]` when `document.ir is None` or lacks an `errors`
+  array; the offset→location helper falls back to `line=1, column=1` when no
+  `line_index` is available. Rationale: `Document.ir` is typed `Mapping | None`
+  (`python/stilyagi/model/document.py`); a `None` IR must degrade gracefully, not
+  raise. Tests cover the `None` path. Date/Author: 2026-07-04 (round 4). Closes
+  review advisory "`Document.ir` is `Mapping | None`".
+- Decision (round 4): Per-file I/O and decode failures map to exit `2`.
+  Rationale: The design's exit-code contract (RFC 0003 §12) reserves `2` for
+  invalid usage and internal error; a file that cannot be read or UTF-8 decoded
+  is an operational failure, not a lint violation, so it must not silently
+  become exit `0` nor be miscounted as an exit-`1` violation. W5 maps
+  `UnicodeDecodeError`/`PermissionError`/`FileNotFoundError`/`IsADirectoryError`
+  to an actionable stderr message and exit `2`; W3 does not follow symlinked
+  directories, so recursion cannot loop. Date/Author: 2026-07-04 (round 4). Closes
+  review advisory "file failure modes unspecified".
 
 ## Outcomes & retrospective
 
@@ -439,7 +570,12 @@ In `python/stilyagi/config/resolve.py` implement:
      cycles and raising `InvalidConfigError`;
   4. apply CLI precedence per RFC 0003 §5: dedicated flags, then
      `--config "key = value"` overrides, then an explicitly named
-     `--config path`, then discovered nearest config, then defaults.
+     `--config path`, then discovered nearest config, then defaults. A single
+     `--config VALUE` is classified (round-4 Decision Log entry): if `VALUE`
+     contains `=` and does not name an existing file it is an **inline override**
+     (parsed as a one-line TOML fragment); otherwise it is a **file path** that
+     must exist (missing file → `InvalidConfigError` → exit `2` in W5). Multiple
+     `--config` values compose in the §5 order (inline above named file).
 - A small in-run cache keyed by resolved directory so repeated lookups during a
   multi-file run are cheap and deterministic.
 
@@ -449,7 +585,11 @@ Tests (Red first):
   ancestor; ancestors are **not** merged unless named by `extend`; `extend`
   chains compose in order and cycles raise; `--isolated` bypasses discovery;
   `--config path` overrides discovery; `--config "key = value"` overrides both;
-  a missing/invalid config raises the typed error (the exit-`2` path in W5).
+  `--config VALUE` disambiguation is pinned in both directions — a value with `=`
+  and no matching file is parsed as an inline override, a value naming an existing
+  file loads that file, and a value naming a **non-existent** file raises the
+  typed error (not silently treated as inline); a missing/invalid config raises
+  the typed error (the exit-`2` path in W5).
 - `tests/test_config_resolution.py::test_extend_precedence` asserts the exact
   precedence ladder using a temporary directory tree built by a fixture.
 
@@ -472,10 +612,18 @@ Add `python/stilyagi/discovery.py`:
   (explicitly named files are always analysed per RFC §7); if it is a directory,
   recurse, matching only the fixed Markdown extension set (`.md`/`.markdown`),
   skipping VCS/build noise directories (`.git`, `target`, `dist`, `build`,
-  `.venv`, `node_modules`). The extension set is owned by W3, not a config key
+  `.venv`, `node_modules`). Recursion **does not follow symlinked directories**,
+  so a symlink cycle cannot loop the walk (review advisory "symlink cycles"); use
+  `os.walk(..., followlinks=False)` or an equivalent `pathlib` walk that skips
+  directory symlinks. The extension set is owned by W3, not a config key
   (RFC §6/§7 define no `[discovery]` table). De-duplicate by resolved path.
-  Return the files sorted by normalized (POSIX-form, resolved-relative) path so
-  ordering is stable across platforms.
+  Order internally by the resolved path so ordering is stable across platforms,
+  but retain, for each file, the **command-line-relative POSIX path** used for
+  reporting (per the round-4 Decision Log entry on the reported `path` form): the
+  join of the target argument and the walk-relative sub-path, normalised to POSIX
+  separators. `discover_markdown_files` returns objects (or `(reported_path,
+  resolved_path)` pairs) carrying both, so W5 can report the stable relative form
+  while de-duplicating/ordering on the resolved form.
 - Emit a verbose-mode log notice that `respect-gitignore` is accepted but not
   yet enforced in this slice (see Decision Log).
 
@@ -485,7 +633,10 @@ Tests (Red first):
   files are excluded; an explicitly named non-Markdown file passed directly is
   reported as an ignored/rejected target (documented behaviour, not silently
   linted); noise directories are skipped; ordering is the sorted normalized
-  path order for a fixture tree.
+  path order for a fixture tree; a symlinked directory that points back at an
+  ancestor is **not** followed (no infinite recursion, no duplicate entries), and
+  each returned file exposes both its resolved path and its command-line-relative
+  POSIX reported path.
 - `tests/test_discovery_properties.py` (property, `hypothesis`): for any set of
   generated relative Markdown paths materialized under a temporary root, the
   returned list equals the input set sorted by normalized path (total order,
@@ -505,17 +656,41 @@ Documents to read first: [Stilyagi design](../stilyagi-design.md) §4
 
 Extend `python/stilyagi/diagnostics.py` into the one internal diagnostic model
 all renderers derive from (design §Diagnostics output): a frozen `Diagnostic`
-carrying `path: pathlib.Path`, `code: str`, `message: str`, `severity`
+carrying `path: str` (the command-line-relative POSIX reported path per the
+round-4 Decision Log entry), `code: str`, `message: str`, `severity`
 (an enum: `error`/`warning`), an optional source location
 (`line: int`, `column: int`, both 1-based) resolved from byte offsets via the
 IR `line_index`, and a `fix` applicability field left `None` in this slice.
-Keep it under 400 lines; if the offset→line/column helper grows, put it in
+Remove the placeholder `NodeRef` span and the unused `Fix` placeholder (round-4
+Decision Log entry): `NodeRef` cannot express a source position, and `Fix`
+returns in roadmap 2.2.2 with the real edit model. Before removing them, sweep
+for importers with `leta refs` — only `tests/test_package_skeleton_units.py`
+references `NodeRef` today (verified this worktree). Keep the module under 400
+lines; if the offset→line/column helper grows, put it in
 `python/stilyagi/diagnostics_location.py`.
 
+Enumerated in-lockstep test edits (same commit as the reshape, so the W4 gate is
+never left red — this closes Round-1 review defect 2):
+
+- `tests/test_package_skeleton_units.py::test_diagnostic_preserves_code_and_message`
+  (line 92): rewrite to construct the new `Diagnostic(path=..., code=...,
+  message=..., line=..., column=...)` and drop the `NodeRef` span; assert the
+  round-trip (`dc.replace`) equality still holds on the new shape.
+- `tests/test_package_skeleton_units.py::test_engine_skeleton_dataclasses_preserve_their_fields`
+  (line 115): keep the `engine.RendererRegistry().default_format == "text"`
+  assertion (the round-4 decision retains no-arg construction and
+  `default_format`) and extend it to assert the new `render(...)` surface exists.
+  Do **not** delete the case; update it.
+- Remove the `NodeRef` import usage from that test module if it becomes unused.
+
 Add an IR-error adapter (in a new `python/stilyagi/engine/checker.py`),
-`map_ir_errors(document) -> list[Diagnostic]`: map each IR `errors[]` entry for
-a file into a `Diagnostic` with a stable synthetic code (for example `IR000`),
-the error message, and the resolved location when the error carries an offset.
+`map_ir_errors(document, reported_path) -> list[Diagnostic]`: map each IR
+`errors[]` entry for a file into a `Diagnostic` with a stable synthetic code (for
+example `IR000`), the error message, and the resolved location when the error
+carries an offset. It returns `[]` when `document.ir is None` or the mapping
+lacks an `errors` array (round-4 Decision Log entry on `Document.ir is None`), so
+a `None` IR degrades gracefully rather than raising. The offset→location helper
+likewise falls back to `line=1, column=1` when no `line_index` is present.
 This is a **forward-looking seam for roadmap 2.1.3** (non-fatal error emission);
 it is **not** a content-reachable exit-`1` trigger in this slice, because the
 real Markdown extractor never populates `errors[]` for user content
@@ -533,27 +708,40 @@ Rewrite `python/stilyagi/engine/renderers.py` so `RendererRegistry` produces:
   `fix_applicable` (always `false`/absent in this slice), matching the design's
   "JSON output includes fix applicability" requirement.
 
+The reported `path` in both renderings is the command-line-relative POSIX form
+(round-4 Decision Log entry), pinned directly by assertion, not only by snapshot
+redaction. The `json` `path` is therefore reproducible across machines and does
+not leak an absolute home directory.
+
 Note: `sarif` is named in RFC 0003 §11 but is out of scope for 2.2.1. Expose
 only `text` and `json` in the `--output-format` choices to avoid promising an
-unimplemented format; record the `sarif` deferral in W7 docs.
+unimplemented format. When a user passes `--output-format sarif`, augment
+argparse's bare "invalid choice" with an explicit message that `sarif` is planned
+for a later slice but unavailable now (round-4 Decision Log entry); record the
+`sarif` deferral in W7 docs.
 
 Tests (Red first):
 
 - `tests/test_diagnostics_location.py` (unit + property): offset→line/column
-  mapping against a known `line_index`; property test asserts the mapping is
+  mapping against a known `line_index`; the `None`/absent-`line_index` fallback
+  returns `line=1, column=1`; property test asserts the mapping is
   monotonic non-decreasing and always within `[1, n_lines]` for arbitrary
   offsets within bounds (`hypothesis`).
 - `tests/test_renderers.py` (unit + snapshot): given a fixed list of
   `Diagnostic`s, the `text` and `json` renderings are asserted semantically
-  (fields present, ordering) **and** pinned with `syrupy` snapshots. Keep
-  snapshots focused on the stable output boundary and pair each with semantic
-  assertions per AGENTS.md; redact absolute paths to repo-relative form before
-  snapshotting to avoid churn.
+  (fields present, ordering, and the exact command-line-relative POSIX `path`
+  form) **and** pinned with `syrupy` snapshots. Because the `path` field is
+  already the stable relative form, snapshots do not depend on redacting an
+  absolute path; assert the `path` value directly so a real contract change
+  (not a machine-specific prefix) is what breaks the snapshot. Keep snapshots
+  focused on the stable output boundary and pair each with semantic assertions
+  per AGENTS.md.
 - `tests/test_ir_error_adapter.py` (unit): pins the adapter honestly against the
   real extractor and a synthetic IR mapping. (1) A hand-built IR `document`
   mapping carrying one synthetic `errors[]` entry maps to exactly one
-  `Diagnostic` with code `IR000`, the entry's message, and the resolved
-  location; an empty `errors[]` maps to none. (2) The real-extractor pin: for
+  `Diagnostic` with code `IR000`, the entry's message, the passed `reported_path`,
+  and the resolved location; an empty `errors[]` maps to none; a document with
+  `ir is None` maps to none (no raise). (2) The real-extractor pin: for
   each real malformed Markdown fixture under
   `tests/fixtures/corpus/markdown/malformed/`, `engine.extract_document(text,
   model.Syntax.MARKDOWN)` returns a document whose `ir["errors"]` is `[]`, so the
@@ -596,11 +784,19 @@ package — `__init__.py`, `parser.py`, `check.py` — if a single file would ex
   Markdown files (W3), for each file resolve the nearest config (W2), read the
   file, call `engine.extract_document(text, model.Syntax.MARKDOWN)`, collect
   diagnostics from (a) the empty rule registry seam and (b) the IR-error adapter
-  (W4, which returns `[]` for real Markdown in this slice), render via the chosen
-  format (W4), and compute the exit code via `compute_exit_code`. If
+  (W4, which returns `[]` for real Markdown in this slice, and `[]` when
+  `document.ir is None`), attribute each diagnostic to the file's
+  command-line-relative POSIX reported path (W3), render via the chosen
+  format (W4), and compute the exit code via `compute_exit_code`. Wrap each
+  per-file read/decode in a handler that maps `UnicodeDecodeError` (non-UTF-8),
+  `PermissionError`, `FileNotFoundError` (a file removed mid-run), and
+  `IsADirectoryError` to an actionable stderr message and `had_error=True` →
+  exit `2` (round-4 Decision Log entry on file failure modes) — never `1`. If
   `engine.extract_document` raises (an internal parser panic or invalid span),
-  catch it, print an actionable stderr message, and return `2` ("internal
-  error", RFC 0003 §12) — never `1`.
+  catch it likewise, print an actionable stderr message, and return `2`
+  ("internal error", RFC 0003 §12) — never `1`. Read files as UTF-8 text
+  explicitly (`Path.read_text(encoding="utf-8")`) so the decode failure mode is
+  deterministic rather than locale-dependent.
 - `compute_exit_code(diagnostics, *, had_error) -> int` is the pure exit-code
   mapping: return `2` if `had_error` (invalid config/usage/internal error), else
   `1` if `diagnostics` is non-empty, else `0` (RFC 0003 §12). Keeping it a small
@@ -681,10 +877,31 @@ Tests (Red first):
   subprocess boundary; it is covered by the `compute_exit_code` and stubbed-seam
   unit tests above. This is documented, not a silent gap. Covers the externally
   observable command boundary per AGENTS.md §e2e.
-- Update `tests/test_package_skeleton_units.py::test_cli_main_reports_placeholder_exit_code`
-  and `tests/test_round_trip_helpers.py` (line 93) to the new contract: a
-  clean-tree invocation returns `0`, and a usage error returns `2`. Make these
-  edits in the same commit as the CLI rewrite so no gate is left failing.
+- Add `tests/test_check_files.py` (unit + e2e): a non-UTF-8 `.md` file, a
+  permission-denied file (skip on platforms that cannot express it), and a target
+  removed between discovery and read each yield exit `2` with an actionable
+  stderr message — never `1`. A directory containing a symlink cycle completes
+  (proves W3's non-following recursion) and exits `0`.
+- Make **both** existing no-argument `cli.main()` tests hermetic in the same
+  commit as the CLI rewrite so no gate is left failing (closes Round-1 review
+  defect 3):
+  - `tests/test_package_skeleton_units.py::test_cli_main_reports_placeholder_exit_code`:
+    redefine to call `cli.main([...])` with an explicit `argv` against a
+    `tmp_path` tree (or a usage-error argv), asserting `0` for a clean tree and
+    `2` for a usage error. It must **not** call `cli.main()` with no arguments,
+    because the default target `.` would recurse the test's current working
+    directory.
+  - `tests/test_round_trip_helpers.py::test_cli_placeholder_output_matches_snapshot`:
+    this is a `syrupy` snapshot of `{exit_code, stdout, stderr}` whose stored
+    artifact lives at
+    `tests/__snapshots__/test_round_trip_helpers/test_cli_placeholder_output_matches_snapshot.json`.
+    Either (preferred) **delete** the test and its stored snapshot file, since the
+    W4 `tests/test_renderers.py` snapshots now pin the real `text`/`json` output
+    on hermetic input; or redefine it to run `cli.main([...])` against a
+    `tmp_path` tree and **regenerate** the stored snapshot (`pytest
+    --snapshot-update` scoped to that test) so it captures the new deterministic
+    output. Do not leave the stale placeholder snapshot on disk. Account for the
+    artifact explicitly in the commit (deleted or regenerated), not implicitly.
 
 Acceptance: the BDD scenarios fail before implementation and pass after; unit
 and e2e tests Red→Green; the gate suite `make lint`, `make typecheck`, and
@@ -942,5 +1159,38 @@ Round 3 (2026-07-04) — resolves the design reviewer's two blocking points:
    Markdown behaviour is now pinned solely against the real Markdown extractor
    (`malformed.rs:47-49` and the frontmatter snapshot), and the W4 real-extractor
    test enforces `ir["errors"] == []` for real malformed Markdown fixtures.
+
+Round 4 (2026-07-05) — closes the two Round-1 review defects earlier rounds left
+open, plus the six advisories:
+
+1. **Incomplete enumeration of tests broken by the W4 reshape (review defect 2).**
+   Verified this worktree:
+   `tests/test_package_skeleton_units.py::test_diagnostic_preserves_code_and_message`
+   (line 92) constructs `Diagnostic(code, message, span=NodeRef(...))`, and
+   `::test_engine_skeleton_dataclasses_preserve_their_fields` (line 115) asserts
+   `RendererRegistry().default_format == "text"`. Both are now enumerated in W4
+   as in-lockstep edits in the same commit as the reshape, with the fate of
+   `NodeRef`/`Fix` (removed) and of `RendererRegistry`'s no-arg construction and
+   `default_format` (retained) decided explicitly in the Decision Log, so the W4
+   gate is never red.
+2. **Mischaracterised, non-hermetic `cli.main()` snapshot test (review defect 3).**
+   `tests/test_round_trip_helpers.py::test_cli_placeholder_output_matches_snapshot`
+   is a `syrupy` snapshot (not a `== 2` assertion) with a stored artifact at
+   `tests/__snapshots__/test_round_trip_helpers/test_cli_placeholder_output_matches_snapshot.json`.
+   W5 now redefines **both** no-arg `cli.main()` tests to pass an explicit `argv`
+   against a `tmp_path` tree (never the repo CWD) and explicitly deletes or
+   regenerates the stored snapshot artifact.
+
+Advisories landed: file failure modes (non-UTF-8/permission/removed/symlink cycle
+→ exit `2` or non-following recursion, new `tests/test_check_files.py`);
+`Document.ir is None` guarded in `map_ir_errors` and the location helper; the
+reported `path` pinned to command-line-relative POSIX form and asserted directly;
+`--output-format sarif` given an explicit "planned, not yet available" message;
+`NodeRef`/`Fix` retired; `--config` inline-vs-path disambiguation specified and
+tested. Updated: header, Context (three new/expanded bullets), Risks (two new),
+Decision Log (seven round-4 entries), W2 (`--config` classification + test), W3
+(symlink non-following + dual reported/resolved path), W4 (enumerated test edits,
+`ir is None`, path-form assertions, `sarif` message), and W5 (file-failure
+handler, hermetic test redefinition, snapshot-artifact handling).
 
 No implementation started; awaiting approval.
