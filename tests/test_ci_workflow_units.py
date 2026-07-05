@@ -31,6 +31,7 @@ SmokeWorkflow = tuple[dict[str, "WorkflowJob"], list["WorkflowStep"], set[str]]
 
 def _workflow_document(workflow: str) -> dict[str, object]:
     """Parse a GitHub Actions workflow while preserving the `on` key as text."""
+    # BaseLoader is required here; safe_load would drop the literal `on` key in GitHub Actions workflows.
     loaded = yaml.load(workflow, Loader=yaml.BaseLoader)
     assert isinstance(loaded, dict)
     return typ.cast("dict[str, object]", loaded)
