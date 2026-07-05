@@ -282,10 +282,46 @@ def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
 def test_makefile_markdownlint_target_excludes_release_smoke_venv(
     makefile_text: str,
 ) -> None:
-    """Markdownlint must depend on tools-docs and exclude the release smoke venv."""
+    """Markdownlint must depend on tools-docs and exclude generated trees.
+
+    The Markdown file list is shared through the ``MD_FILES_FIND`` variable, so
+    the exclusions are asserted on its single definition rather than on each
+    recipe line.
+    """
     header, recipe = _make_target(makefile_text, "markdownlint")
     assert "tools-docs" in header
-    assert any("-not -path './.venv-release-smoke/*'" in line for line in recipe)
+    assert any("$(MD_FILES_FIND)" in line for line in recipe)
+    md_find_definitions = [
+        line for line in makefile_text.splitlines() if line.startswith("MD_FILES_FIND")
+    ]
+    assert len(md_find_definitions) == 1
+    for excluded in (
+        "./.venv-release-smoke/*",
+        "./.venv/*",
+        "./.uv-cache/*",
+        "./target/*",
+    ):
+        assert f"-not -path '{excluded}'" in md_find_definitions[0]
+
+
+def test_makefile_markdownlint_target_enforces_spelling(
+    makefile_text: str,
+) -> None:
+    """Markdownlint must run typos over the shared Markdown file list.
+
+    The spelling gate must go through the pinned ``$(TYPOS)`` command with the
+    repository configuration and ``--force-exclude`` so the ``typos.toml``
+    excludes hold even for explicitly passed paths.
+    """
+    _header, recipe = _make_target(makefile_text, "markdownlint")
+    typos_lines = [line for line in recipe if "$(TYPOS)" in line]
+    assert len(typos_lines) == 1
+    assert "$(MD_FILES_FIND)" in typos_lines[0]
+    assert "--config typos.toml" in typos_lines[0]
+    assert "--force-exclude" in typos_lines[0]
+    assert re.search(
+        r"^TYPOS_VERSION\s*\?=\s*\d+\.\d+\.\d+\s*$", makefile_text, re.MULTILINE
+    )
 
 
 def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
@@ -337,7 +373,9 @@ def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
         for step in python_steps
     )
     assert all(step["with"]["python-version"] == "3.14" for step in python_steps)
-    assert "uv tool install interrogate==1.7.0" in run_commands
+    # Interrogate resolves from the locked dev dependency group through the
+    # Makefile, so CI must not install it separately.
+    assert all("interrogate" not in command for command in run_commands)
     assert all("mdformat-all" not in str(step) for step in workflow_steps)
     assert any(
         "uv tool install nixie-cli==1.0.0" in str(step.get("run", ""))

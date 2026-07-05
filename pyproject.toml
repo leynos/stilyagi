@@ -16,7 +16,10 @@ dev = [
     "maturin==1.13.3",
     "pytest",
     "pytest-xdist",
-    "ruff",
+    # Pin the lint tools so the Makefile and CI resolve identical versions
+    # from the lockfile.
+    "interrogate==1.7.0",
+    "ruff==0.15.13",
     "ty",
     "pytest-timeout",
     "pytest-bdd",

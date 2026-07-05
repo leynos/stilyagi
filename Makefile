@@ -21,9 +21,16 @@ PYLINT_TARGETS ?= python/stilyagi tests
 PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b
 PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)
 PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy
-INTERROGATE ?= interrogate
+INTERROGATE ?= $(UV_RUN) interrogate
 INTERROGATE_TARGETS ?= python/stilyagi tests
 INTERROGATE_FLAGS ?= --fail-under 100
+# Single source of truth for the typos version; CI consumes it through the
+# markdownlint target, so the Makefile and CI cannot drift apart.
+TYPOS_VERSION ?= 1.48.0
+# The env prefix lets xargs execute the command despite the leading
+# variable assignments in UV_ENV.
+TYPOS = env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)
+MD_FILES_FIND = find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './.uv-cache/*' -not -path './.uv-tools/*' -not -path './target/*' -not -path './crates/stilyagi-pyext/target/*' -print0
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
 RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" ]; then VENV_PYTHON=".venv/Scripts/python.exe"; fi
@@ -100,10 +107,10 @@ tools-check:
 tools-docs:
 	$(call ensure_tool,$(MDLINT))
 	$(call ensure_tool,$(NIXIE))
+	$(call ensure_tool,uv)
 
 tools-lint: tools-check
 	$(call ensure_tool,whitaker)
-	$(call ensure_tool,$(INTERROGATE))
 
 fmt: tools ## Format sources
 	$(UV_RUN) ruff format
@@ -128,11 +135,12 @@ typecheck: build tools-check ## Run typechecking
 	$(UV_RUN) ty --version
 	$(UV_RUN) ty check
 
-markdownlint: tools-docs ## Lint Markdown files
-	find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(MDLINT)
+markdownlint: tools-docs ## Lint Markdown files and enforce en-GB-oxendict spelling
+	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
+	$(MD_FILES_FIND) | xargs -0 $(TYPOS) --config typos.toml --force-exclude
 
 nixie: tools-docs ## Validate Mermaid diagrams
-	find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './crates/stilyagi-pyext/target/*' -print0 | xargs -0 $(NIXIE) --no-sandbox
+	$(MD_FILES_FIND) | xargs -0 $(NIXIE) --no-sandbox
 
 test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check

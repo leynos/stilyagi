@@ -701,6 +701,9 @@ Their responsibilities are:
   - verify Rust formatting with `cargo fmt --check`
 - `make markdownlint`
   - lint all Markdown files in the repository
+  - enforce en-GB-oxendict (Oxford) spelling over the same files with
+    `typos`, run at the version pinned by the Makefile `TYPOS_VERSION`
+    variable through `uv tool run`
 - `make nixie`
   - validate Mermaid diagrams in Markdown files
 - `make lint`
@@ -734,11 +737,12 @@ Their responsibilities are:
 
 The Python tools are intentionally run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
-the host `PATH`. Interrogate and Pylint are the exceptions: Interrogate runs as
-an installed `uv tool` with a 100% docstring-coverage threshold, and Pylint
-runs through `uv tool run --python pypy` with the pinned
-[`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper. They
-run after Ruff and before the Rust lint tiers.
+the host `PATH`. Ruff and Interrogate are both pinned in the `dev` dependency
+group, so the Makefile and CI resolve identical versions from `uv.lock`.
+Pylint is the exception: it runs through `uv tool run --python pypy` with the
+pinned [`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim)
+wrapper. Interrogate and Pylint run after Ruff and before the Rust lint
+tiers, with Interrogate enforcing a 100% docstring-coverage threshold.
 
 ### 6a. Python linting architecture
 
@@ -783,7 +787,7 @@ Table: Lint runner Makefile variables.
 | `UV`                   | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                 | Selects the `uv` executable used by Makefile Python commands.   |
 | `UV_ENV`               | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                | Keeps `uv` cache and tool state inside the repository worktree. |
 | `UV_RUN`               | `$(UV_ENV) $(UV) run --group dev`                                                             | Runs commands in the locked development dependency group.       |
-| `INTERROGATE`          | `interrogate`                                                                                 | Selects the docstring-coverage executable used by `make lint`.  |
+| `INTERROGATE`          | `$(UV_RUN) interrogate`                                                                       | Selects the docstring-coverage command used by `make lint`.     |
 | `INTERROGATE_TARGETS`  | `python/stilyagi tests`                                                                       | Selects the directories checked by Interrogate.                 |
 | `INTERROGATE_FLAGS`    | `--fail-under 100`                                                                            | Requires complete Python docstring coverage.                    |
 | `PYLINT_PYTHON`        | `pypy`                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.     |
@@ -791,6 +795,8 @@ Table: Lint runner Makefile variables.
 | `PYLINT_PYPY_SHIM_REF` | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                    | Pins the shim commit used by the Pylint tier.                   |
 | `PYLINT_PYPY_SHIM`     | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                  | Expands the pinned shim package source.                         |
 | `PYLINT`               | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy` | Builds the complete Pylint command used by `make lint`.         |
+| `TYPOS_VERSION`        | `1.48.0`                                                                                      | Pins the `typos` version shared by the Makefile and CI.         |
+| `TYPOS`                | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                         | Builds the spelling-check command used by `make markdownlint`.  |
 
 Override these variables only for local diagnosis unless the project-wide lint
 policy is intentionally changing. For example:
