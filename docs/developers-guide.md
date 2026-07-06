@@ -129,9 +129,11 @@ Fixture names should describe the source shape, not the current implementation
 limitation. For example, use names like `heading-table-link-suppression.md`,
 `module-class-function-docstrings.py`, or `item-doc-comments.rs`. Invalid
 Python syntax that repository formatters must not parse can use a `.py.txt`
-suffix under `python/malformed/`. Each malformed fixture must remain readable
-UTF-8 source text and must not need to be imported, compiled, or executed by
-tests.
+suffix under `python/malformed/`. Malformed Markdown fixtures under
+`markdown/malformed/` use a `.md.fixture` suffix for the same reason: the
+suffix prevents repository-wide Markdown formatting and lint sweeps from
+processing them. Each malformed fixture must remain readable UTF-8 source text
+and must not need to be imported, compiled, or executed by tests.
 
 Python tests should load corpus files through focused `pathlib.Path` helpers
 like the ones in `tests/test_corpus.py`. Rust tests should load shared corpus
@@ -139,6 +141,26 @@ files through the dev-only `stilyagi-test-support` crate instead of duplicating
 repository-root discovery in each crate. Python docstring tests should assert
 real extraction behaviour. Rust documentation-comment tests should assert real
 extraction behaviour, including owner metadata and recoverable parse errors.
+
+
+### The `.md.fixture` corpus convention
+
+Because `stilyagi check` discovers only `.md` and `.markdown` files, any test
+that exercises discovery must strip the trailing `.fixture` suffix when
+materialising fixtures into a temporary tree; otherwise the fixtures are
+invisible to discovery and the test passes vacuously.
+
+The shared helper `tests/support/malformed_corpus.py` centralises this:
+`materialize_malformed_corpus(destination)` copies each fixture from
+`tests/fixtures/corpus/markdown/malformed/` into `destination` under its
+discoverable name (suffix stripped), and returns the sorted tuple of
+discoverable filenames written. Discovery-facing tests should assert the
+discovered file set against that return value so the whole corpus is genuinely
+exercised.
+
+This convention exists because a single `.md`-suffixed fixture previously
+slipped through the sweep and was the only malformed case reaching discovery.
+The `.md.fixture` suffix closes that gap permanently.
 
 <!-- markdownlint-disable MD001 -->
 
@@ -311,6 +333,114 @@ the first Rust helper property verifies that a single replacement preserves the
 generated prefix and suffix.
 
 <!-- markdownlint-enable MD001 -->
+
+
+## 2b. The `stilyagi check` pipeline
+
+The `check` command is the first end-to-end pipeline that crosses the
+Rust–Python boundary for a user-facing operation. Understanding its seams
+helps maintainers add steps, insert new collaborators, and write tests at the
+right level.
+
+
+### Entry point
+
+`cli.py` `main()` builds the argument parser via `cli_args.build_parser()`,
+parses the arguments into an immutable `CheckOptions` via
+`cli_args.options_from_args()`, and then calls
+`run_check(options, *, resolver=None, renderer=None)`.
+
+
+### Collaborator injection
+
+`run_check` constructs its own collaborators when the caller does not supply
+them: a fresh `config.ConfigResolver` and a fresh `engine.RendererRegistry`.
+Because both are created inside the call, no configuration cache is shared
+between separate `run_check` invocations. Passing pre-constructed collaborators
+is the intended seam for tests that need to inspect or stub out either
+collaborator.
+
+
+### Discovery
+
+`run_check` delegates target collection to `_discover_targets`, which calls:
+
+```python
+discovery.discover_markdown_files(targets, config) -> list[DiscoveredFile]
+```
+
+`DiscoveredFile` is a frozen dataclass with two fields:
+
+- `reported_path` — the command-line-relative POSIX path used for
+  user-facing output
+- `resolved_path` — the fully resolved filesystem path used for
+  de-duplication and stable ordering
+
+Discovery is a single deterministic pass, sorted by resolved path, that skips
+known build-noise directories (`.git`, `build`, `dist`, `node_modules`,
+`target`, `.venv`) and does not follow symlinked directories. The configuration
+that governs discovery is resolved by `cli._resolve_discovery_config` for the
+current working directory rather than for each individual file, so `--isolated`,
+explicit `--config` values, and CLI rule overrides all stay in force during the
+discovery pass.
+
+
+### Configuration loading and resolution
+
+- `config/load.py` loads and validates individual config files
+  (`load_config_file`, `discover_same_directory_config`) through a shared
+  `_read_config_document` helper that maps missing, unreadable, or malformed
+  files to a typed `InvalidConfigError`.
+- `config/resolve.py` defines `ConfigResolver`, which owns the per-run
+  discovery and resolved-table caches so one `run_check` invocation reuses
+  parsed config across many targets while leaking no state between runs. The
+  module-level `resolve_config_for_path` wraps a fresh single-use resolver for
+  callers that resolve only one target.
+- `config/schema.py` holds the frozen config dataclasses (`StilyagiConfig`,
+  `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
+  `ConfigError` base class, with `InvalidCacheDirError` and `InvalidConfigError`
+  as typed subclasses.
+- `config/validate.py` holds the boundary type validators.
+
+
+### Diagnostics
+
+For each discovered file, `_check_one_file` extracts the document through the
+Rust bridge, resolves the per-file config, and collects diagnostics from two
+sources:
+
+- `engine/checker.py` `map_ir_errors(document, reported_path)` maps the
+  canonical IR error envelope on `Document.ir` into `diagnostics.Diagnostic`
+  objects, propagating each IR-provided error code and falling back to a generic
+  `IR000` placeholder only when the IR omits one.
+- `rules_registry.run_rules(document, resolved_config)` runs the registered
+  rule set against the extracted document.
+
+`diagnostics_location.py` converts IR byte offsets into 1-based line and column
+positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
+`Severity` enum.
+
+
+### Rendering
+
+`engine/renderers.py` `RendererRegistry.render(diagnostics, output_format)`
+sorts diagnostics by path, location, and code, then renders either:
+
+- deterministic text: one line per finding formatted as
+  `path:line:column: severity code message`, followed by a summary line; or
+- a stable JSON document.
+
+Unknown format strings raise `ValueError`.
+
+
+### Exit codes
+
+`cli.compute_exit_code` returns:
+
+- `0` — no diagnostics found
+- `1` — one or more diagnostics found
+- `2` — error (failed file read, invalid config, extractor failure, or usage
+  error)
 
 ## 3. Roadmap-aligned implementation boundaries
 

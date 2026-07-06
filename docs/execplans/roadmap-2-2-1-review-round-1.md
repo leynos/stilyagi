@@ -105,26 +105,30 @@ mixed-extension malformed fixtures; the RFC 0003 §6 baseline key set; roadmap
 2.2.1 scope ("JSON or text diagnostics", "Requires 2.1.1 and 1.2.3" — so the
 sarif deferral and the refusal of a 2.1.3 dependency are both conformant).
 
-Remaining blocking defects (fresh, must fix before approval):
+Resolved since round 5 (verified against current source):
 
-1. Prescriptive-interface contradiction — `discover_markdown_files`. The
-   "Interfaces and dependencies" section declares the return type
-   `list[pathlib.Path]`, but W3/W5 require each entry to carry BOTH the resolved
-   path (de-dup/order) and the command-line-relative POSIX reported path
-   (attribution + the pinned renderer `path` form). Taking the prescriptive
-   section verbatim discards the reported path and breaks the W4/W5 path
-   contract. Reconcile onto one explicit return type.
-2. Prescriptive-interface contradiction — `map_ir_errors`. The Interfaces
-   section declares `map_ir_errors(document) -> list[Diagnostic]`, but W4's body
-   and `tests/test_ir_error_adapter.py` require
-   `map_ir_errors(document, reported_path)`. Fix the Interfaces entry to the
-   two-argument form the tests pin.
+1. `discover_markdown_files` — the "Interfaces and dependencies" section had
+   declared a return type of `list[pathlib.Path]`, which would have discarded
+   the command-line-relative POSIX reported path required by W3/W5 for
+   attribution and the pinned renderer `path` form. Verified in current
+   `python/stilyagi/discovery.py`: `discover_markdown_files` now returns
+   `list[DiscoveredFile]`, where `DiscoveredFile` is a frozen dataclass with
+   fields `reported_path: str` (command-line-relative POSIX) and
+   `resolved_path: pathlib.Path`. The interface contradiction is resolved.
+2. `map_ir_errors` — the "Interfaces" entry had declared a single-argument
+   form `map_ir_errors(document) -> list[Diagnostic]`, mismatching the
+   two-argument form required by W4 and `tests/test_ir_error_adapter.py`.
+   Verified in current `python/stilyagi/engine/checker.py`:
+   `map_ir_errors(document, reported_path) -> list[diagnostics.Diagnostic]`.
+   The interface contradiction is resolved.
 
 Advisory (fresh):
 
-- Stale citation: bridge facts are cited as `crates/stilyagi-pyext/src/tests.rs:14`
-  and `:140`; that file does not exist. Real locations are
-  `crates/stilyagi-pyext/src/tests/mod.rs:18` (signature) and `:144`
-  (`extract_document_function_rejects_unexpected_kwargs`). The claim is TRUE and
-  non-load-bearing (Rust untouched this slice), but correct the path in the
-  Context section and the first Surprises entry.
+- Stale citation corrected: bridge facts were cited as
+  `crates/stilyagi-pyext/src/tests.rs:14` and `:140`; that file does not
+  exist. Citations have been corrected to
+  `crates/stilyagi-pyext/src/tests/mod.rs:18` (signature region,
+  `bridge_extract_document`) and `:144`
+  (`extract_document_function_rejects_unexpected_kwargs`). The main plan
+  (`roadmap-2-2-1.md`) already uses the corrected paths. The underlying
+  claim is non-load-bearing (Rust is untouched this slice).
