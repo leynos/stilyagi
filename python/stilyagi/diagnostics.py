@@ -1,40 +1,44 @@
-"""Diagnostics boundary placeholders for Stilyagi."""
+"""Internal diagnostic model for Stilyagi renderers."""
+
+from __future__ import annotations
 
 import dataclasses as dc
+import enum
 
 
-@dc.dataclass(frozen=True, slots=True)
-class NodeRef:
-    """Placeholder node reference for the future rule runtime."""
+class Severity(enum.StrEnum):
+    """Severity labels carried by diagnostics."""
 
-    kind: str
-    text: str
-
-
-@dc.dataclass(frozen=True, slots=True)
-class Fix:
-    """Placeholder fix object for the future rule runtime."""
-
-    description: str
+    ERROR = "error"
+    WARNING = "warning"
 
 
 @dc.dataclass(frozen=True, slots=True)
 class Diagnostic:
-    """Minimal diagnostic placeholder for the package skeleton.
+    """Diagnostic entry shared by the renderers.
 
     Parameters
     ----------
+    path:
+        Command-line-relative POSIX path reported to the user.
     code:
-        Stable identifier for the future diagnostic.
+        Stable diagnostic identifier.
     message:
-        Human-readable explanation of the future diagnostic.
-    span:
-        Placeholder source node reference associated with the diagnostic.
+        Human-readable explanation.
+    severity:
+        Diagnostic severity label.
+    line:
+        1-based source line, when known.
+    column:
+        1-based source column, when known.
     fix:
-        Optional placeholder fix attached to the diagnostic.
+        Placeholder fix payload for the future edit model.
     """
 
+    path: str
     code: str
     message: str
-    span: NodeRef
-    fix: Fix | None = None
+    severity: Severity = Severity.ERROR
+    line: int | None = None
+    column: int | None = None
+    fix: object | None = None

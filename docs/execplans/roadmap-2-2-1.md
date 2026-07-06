@@ -301,7 +301,7 @@ escalation, not a workaround.
     after the package layout changed.
 - [x] W2 — Nearest-config discovery, `extend` chain, CLI overrides, `--isolated`.
 - [x] W3 — Deterministic Markdown file discovery.
-- [ ] W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam.
+- [x] W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam.
 - [ ] W5 — `check` command, argparse CLI, exit codes, console entry point.
 - [ ] W6 — Standard-input support (`-` and `--stdin-filename`).
 - [ ] W7 — Documentation and roadmap update.
@@ -365,6 +365,12 @@ escalation, not a workaround.
   `workspace/` directory until the test switched to an explicit cleanup step.
   Impact: the generated-path property stays hermetic without changing the
   implementation contract.
+
+- Observation (W4): `interrogate` counts the new private helpers in
+  `diagnostics_location.py`, `checker.py`, and `renderers.py`, so the helper
+  functions needed docstrings to keep coverage at 100%. The wheel snapshot also
+  changed intentionally to include `python/stilyagi/diagnostics_location.py` in
+  the built artefact list.
 
 - Observation (W1): `interrogate` counts the new private helpers in
   `python/stilyagi/config` and `tests`, so the W1 config surface needed

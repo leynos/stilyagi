@@ -98,29 +98,27 @@ def test_stilyagi_config_rejects_a_blank_cache_directory() -> None:
 
 
 def test_diagnostic_preserves_code_and_message() -> None:
-    """Store the placeholder diagnostic fields exactly as provided."""
-    span = diagnostics.NodeRef(kind="paragraph", text="Example")
-
-    assert diagnostics.Diagnostic(
+    """Store the diagnostic fields exactly as provided."""
+    diagnostic = diagnostics.Diagnostic(
+        path="docs/example.md",
         code="STY001",
         message="Example",
-        span=span,
-    ) == dc.replace(
-        diagnostics.Diagnostic(
-            code="STY001",
-            message="Example",
-            span=span,
-        )
+        severity=diagnostics.Severity.WARNING,
+        line=3,
+        column=5,
     )
+
+    assert diagnostic == dc.replace(diagnostic)
 
 
 def test_engine_skeleton_dataclasses_preserve_their_fields() -> None:
-    """Keep the engine placeholder dataclasses predictable."""
+    """Keep the engine dataclasses predictable."""
     execution_plan = engine.ExecutionPlan(syntax="markdown")
 
     assert execution_plan.syntax == "markdown"
     assert engine.FixPlan(applicability="safe").applicability == "safe"
     assert engine.RendererRegistry().default_format == "text"
+    assert engine.RendererRegistry().render([], "text") == "0 diagnostics found\n"
     assert engine.EngineRunner(execution_plan=execution_plan).execution_plan is (
         execution_plan
     )
