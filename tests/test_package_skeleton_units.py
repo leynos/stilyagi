@@ -455,6 +455,7 @@ def _normalize_ir_identity(ir: cabc.Mapping[str, JSONType]) -> dict[str, JSONTyp
     normalized["document"] = document
     return normalized
 
+
 def test_cli_main_checks_a_temporary_tree_and_exits_zero(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -471,6 +472,7 @@ def test_cli_main_checks_a_temporary_tree_and_exits_zero(
     captured = capsys.readouterr()
     assert captured.err == ""
     assert captured.out == "0 diagnostics found\n"
+
 
 def test_cli_main_returns_one_for_synthetic_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
@@ -501,6 +503,7 @@ def test_cli_main_returns_one_for_synthetic_diagnostics(
     assert cli.main(["check", "."]) == 1
     captured = capsys.readouterr()
     assert "STY999 Synthetic diagnostic" in captured.out
+
 
 def test_python_module_entrypoint_reports_invalid_config(
     tmp_path: pathlib.Path,
