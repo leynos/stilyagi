@@ -76,7 +76,15 @@ def test_rules_package_re_exports_the_builtin_namespace() -> None:
 def test_stilyagi_config_uses_the_default_cache_directory() -> None:
     """Apply the documented default cache directory."""
     assert config.StilyagiConfig() == config.StilyagiConfig(
-        cache_dir=pathlib.Path(".stilyagi_cache")
+        cache_dir=pathlib.Path(".stilyagi_cache"),
+        respect_gitignore=True,
+        line_length=88,
+        plugins=("builtin",),
+        lint=config.LintConfig(),
+        extract=config.MarkdownExtractConfig(),
+        nlp=config.NlpConfig(),
+        rules={},
+        reserved={},
     )
 
 

@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: APPROVED
+Status: IN PROGRESS
 
 Approval gate: NOT yet satisfied. Do not begin implementation until the user
 explicitly approves this plan. This is planning round 6. Round 6 closes the two
@@ -293,7 +293,12 @@ escalation, not a workaround.
 
 ## Progress
 
-- [ ] W1 — Configuration schema and same-directory TOML loading.
+- [x] W1 — Configuration schema and same-directory TOML loading.
+  - Implemented the `python/stilyagi/config/` package split with schema
+    dataclasses, same-directory TOML loading, and preserved raw reserved
+    values.
+  - Added focused schema and property tests, then refreshed the wheel snapshot
+    after the package layout changed.
 - [ ] W2 — Nearest-config discovery, `extend` chain, CLI overrides, `--isolated`.
 - [ ] W3 — Deterministic Markdown file discovery.
 - [ ] W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam.
@@ -353,6 +358,11 @@ escalation, not a workaround.
   asserting `default_format == "text"`) are present as the plan describes. No
   roadmap-2.2.1 implementation is committed on this branch; the plan's premises
   hold.
+
+- Observation (W1): `interrogate` counts the new private helpers in
+  `python/stilyagi/config` and `tests`, so the W1 config surface needed
+  docstrings to keep the repo at 100% coverage. The wheel snapshot also changed
+  deliberately because the package split moved `config.py` into `config/`.
 
 ## Decision log
 
