@@ -15,7 +15,7 @@ Citations verified against source in this worktree:
 - `crates/stilyagi-markdown/src/validation.rs:251-288` — origin/span validators
   produce `ir-suppression-origin-unresolved` / `ir-suppression-source-mismatch`
   and return `Result<(), Message>` (not `IrError`).
-- `crates/stilyagi-ir/src/document.rs:30` — `suppressions` serialises
+- `crates/stilyagi-ir/src/document.rs:30` — `suppressions` serializes
   unconditionally; `dump-ir` visibility is automatic. ✅
 - `crates/stilyagi-tree-sitter/src/rust/helpers.rs:31-45` — `classify_doc_comment`
   returns `None` for plain `//`; filter is sound.

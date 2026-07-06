@@ -77,9 +77,9 @@ escalation, not a workaround.
   `suppression-span-invalid`, `s{n}` identifier scheme, origin/span validation)
   must remain byte-for-byte observable; the Markdown golden snapshot for
   `heading-table-link-suppression.md` must not change.
-- Rust suppression directives are recognised only in non-doc line comments
+- Rust suppression directives are recognized only in non-doc line comments
   (`//`). Doc comments (`///`, `//!`) and block comments are not suppression
-  directives (see Decision Log). Python directives are recognised only in `#`
+  directives (see Decision Log). Python directives are recognized only in `#`
   line comments.
 - Python and Rust emit a source-backed `"comment"` IR node **only** for a comment
   whose delimiter-stripped, trimmed inner text begins with the canonical
@@ -159,7 +159,7 @@ escalation, not a workaround.
 
 ## Surprises & discoveries
 
-- Observation: the `IrDocument` envelope already carries and serialises
+- Observation: the `IrDocument` envelope already carries and serializes
   `suppressions` unconditionally.
   Evidence: `crates/stilyagi-ir/src/document.rs:29-30,53` — `pub suppressions:
   Vec<IrSuppression>` with no `skip_serializing_if`.
@@ -199,7 +199,7 @@ escalation, not a workaround.
   shared implementation with no new dependency edges and satisfies "extracted
   once".
   Date/Author: 2026-07-05, planner.
-- Decision: recognise Rust directives only in non-doc line comments (`//`), and
+- Decision: recognize Rust directives only in non-doc line comments (`//`), and
   do not treat block comments (`/* ... */`) as suppression directives.
   Rationale: design §4 line 624 states "Rust and JavaScript use `//`"; it does
   not mention block comments. Restricting to `//` keeps the contract exactly as
@@ -726,7 +726,7 @@ pub const fn verb_kind(verb: DirectiveVerb) -> crate::SuppressionKind;
 pub fn is_directive_marker(inner: &str) -> bool; // inner.trim().starts_with("stilyagi:")
 ```
 
-At the end of WI-Assembly, in `stilyagi-ir` (module path to be finalised, e.g.
+At the end of WI-Assembly, in `stilyagi-ir` (module path to be finalized, e.g.
 `crate::suppression`):
 
 ```rust
