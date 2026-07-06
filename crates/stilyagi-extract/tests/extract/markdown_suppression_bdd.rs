@@ -40,6 +40,19 @@ fn a_markdown_document_with_an_ignore_next_comment(
     );
 }
 
+#[given("a paragraph contains an inline \"stilyagi: ignore-next PUN201\" comment")]
+fn a_paragraph_contains_an_inline_ignore_next_comment(
+    markdown_suppression_state: &mut MarkdownSuppressionState,
+) {
+    markdown_suppression_state.source = Some(
+        concat!(
+            "# Suppression Fixture\n\n",
+            "Apples <!-- stilyagi: ignore-next PUN201 --> and pears.\n",
+        )
+        .to_owned(),
+    );
+}
+
 #[given("a Markdown document with a \"stilyagi: disable\" comment naming no code")]
 fn a_markdown_document_with_a_blanket_disable_comment(
     markdown_suppression_state: &mut MarkdownSuppressionState,
@@ -320,6 +333,15 @@ fn the_second_ir_suppression_records_the_enable_as_a_range_close(
     name = "A canonical ignore-next directive becomes a suppression"
 )]
 fn a_canonical_ignore_next_directive_becomes_a_suppression(
+    #[from(markdown_suppression_state)] _markdown_suppression_state: MarkdownSuppressionState,
+) {
+}
+
+#[scenario(
+    path = "tests/features/markdown_suppression.feature",
+    name = "An inline directive within a paragraph becomes a suppression"
+)]
+fn an_inline_directive_within_a_paragraph_becomes_a_suppression(
     #[from(markdown_suppression_state)] _markdown_suppression_state: MarkdownSuppressionState,
 ) {
 }

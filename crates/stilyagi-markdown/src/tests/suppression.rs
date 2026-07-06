@@ -2,16 +2,11 @@
 
 use std::path::Path;
 
-use proptest::prelude::*;
 use rstest::rstest;
 use stilyagi_ir::{SourceSpan, SuppressionKind};
 
 use super::source_identity;
-use super::suppression_support::{
-    boundary_text_strategy, comment_body_strategy, directive_codes_and_padding, expected_kind,
-    expected_kind_from_token, find_html_node, html_node_ids, html_nodes, separator_strategy,
-    whitespace_strategy,
-};
+use super::suppression_support::{expected_kind, find_html_node, html_node_ids, html_nodes};
 use crate::{
     markdown_ir_document, parse_markdown_ast, suppression::DirectiveError,
     suppression::DirectiveOutcome, suppression::DirectiveVerb,
@@ -83,8 +78,9 @@ fn parse_comment_directive_accepts_file_blankets_or_ignores_non_directives(#[cas
 }
 
 #[rstest]
-fn markdown_parser_exposes_html_comment_spans() {
-    let source = "<!-- stilyagi: ignore-next PUN201 -->\n";
+#[case("<!-- stilyagi: ignore-next PUN201 -->\n")]
+#[case("Apples <!-- stilyagi: ignore-next PUN201 --> and pears.\n")]
+fn markdown_parser_exposes_html_comment_spans(#[case] source: &str) {
     let tree = parse_markdown_ast(source).expect("expected Markdown AST");
     let html = find_html_node(&tree).expect("expected html comment node");
     let position = html.position().expect("expected html node position");
@@ -92,6 +88,60 @@ fn markdown_parser_exposes_html_comment_spans() {
     assert_eq!(
         source.get(position.start.offset..position.end.offset),
         Some("<!-- stilyagi: ignore-next PUN201 -->")
+    );
+}
+
+#[rstest]
+#[case(
+    "Apples <!-- stilyagi: ignore-next PUN201 --> and pears.\n",
+    SuppressionKind::Inline,
+    &["PUN201"],
+    "<!-- stilyagi: ignore-next PUN201 -->",
+)]
+#[case(
+    "Apples <!-- stilyagi: disable STY --> and pears.\n",
+    SuppressionKind::Range,
+    &["STY"],
+    "<!-- stilyagi: disable STY -->",
+)]
+#[case(
+    "Apples <!-- stilyagi: enable STY --> and pears.\n",
+    SuppressionKind::Range,
+    &["STY"],
+    "<!-- stilyagi: enable STY -->",
+)]
+#[case(
+    "Apples <!-- stilyagi: ignore-file MD,DOC --> and pears.\n",
+    SuppressionKind::File,
+    &["MD", "DOC"],
+    "<!-- stilyagi: ignore-file MD,DOC -->",
+)]
+fn markdown_ir_document_collects_inline_paragraph_suppressions(
+    #[case] source: &str,
+    #[case] expected_kind: SuppressionKind,
+    #[case] expected_codes: &[&str],
+    #[case] expected_comment: &str,
+) {
+    let document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
+        .expect("expected Markdown IR document");
+    let html_node_ids = html_node_ids(&document);
+    let node_id = html_node_ids
+        .first()
+        .expect("expected an inline html node id");
+    let suppression = document
+        .suppressions
+        .first()
+        .expect("expected a suppression entry");
+
+    assert!(document.errors.is_empty());
+    assert_eq!(document.suppressions.len(), 1);
+    assert_eq!(html_node_ids.len(), 1);
+    assert_eq!(suppression.kind, expected_kind);
+    assert_eq!(suppression.codes, expected_codes);
+    assert_eq!(suppression.origin, node_id.as_str());
+    assert_eq!(
+        source.get(suppression.span.byte_start..suppression.span.byte_end),
+        Some(expected_comment)
     );
 }
 
@@ -235,24 +285,31 @@ fn codeless_file_directives_produce_one_file_suppression() {
 }
 
 #[rstest]
-#[case("<!-- stilyagi: ignore-next -->\n")]
-#[case("<!-- stilyagi: disable -->\n")]
-fn blanket_inline_and_range_directives_emit_errors_only(#[case] source: &str) {
+#[case("<!-- stilyagi: ignore-next -->\n", "<!-- stilyagi: ignore-next -->")]
+#[case("<!-- stilyagi: disable -->\n", "<!-- stilyagi: disable -->")]
+#[case("<!-- stilyagi: enable -->\n", "<!-- stilyagi: enable -->")]
+#[case(
+    "Apples <!-- stilyagi: ignore-next --> and pears.\n",
+    "<!-- stilyagi: ignore-next -->"
+)]
+fn blanket_inline_and_range_directives_emit_errors_only(
+    #[case] source: &str,
+    #[case] expected_comment: &str,
+) {
     let document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
         .expect("expected Markdown IR document");
-
-    assert!(document.suppressions.is_empty());
-    assert_eq!(document.errors.len(), 1);
     let error = document
         .errors
         .first()
         .expect("expected a blanket suppression error");
     let span = error.span.expect("expected suppression error span");
 
+    assert!(document.suppressions.is_empty());
+    assert_eq!(document.errors.len(), 1);
     assert_eq!(error.code, "suppression-blanket-forbidden");
     assert_eq!(
         source.get(span.byte_start..span.byte_end),
-        Some(source.trim_end())
+        Some(expected_comment)
     );
 }
 
@@ -296,96 +353,4 @@ fn validate_ir_consistency_rejects_invalid_suppression_spans() {
     assert_eq!(error.rule_id.as_ref(), "ir-suppression-source-mismatch");
 }
 
-proptest! {
-    #[test]
-    fn scan_comment_spans_preserves_each_comment_boundary(
-        prefix in boundary_text_strategy(),
-        bodies in prop::collection::vec(comment_body_strategy(), 1..4),
-        separators in prop::collection::vec(separator_strategy(), 0..3),
-        suffix in boundary_text_strategy(),
-    ) {
-        let mut source = prefix;
-        for (index, body) in bodies.iter().enumerate() {
-            source.push_str("<!--");
-            source.push_str(body);
-            source.push_str("-->");
-            if let Some(separator) = separators.get(index) {
-                source.push_str(separator);
-            }
-        }
-        source.push_str(&suffix);
-
-        let comments = crate::suppression::scan_comment_spans(&source);
-        prop_assert_eq!(comments.len(), bodies.len());
-
-        for (comment, body) in comments.iter().zip(bodies.iter()) {
-            prop_assert_eq!(comment.inner, body);
-            let expected_comment = format!("<!--{body}-->");
-            prop_assert_eq!(
-                source.get(comment.span.byte_start..comment.span.byte_end),
-                Some(expected_comment.as_str())
-            );
-        }
-    }
-
-    #[test]
-    fn parse_comment_directive_preserves_trimmed_codes(
-        verb in prop_oneof![
-            Just("ignore-next"),
-            Just("disable"),
-            Just("enable"),
-            Just("ignore-file"),
-        ],
-        codes_and_padding in directive_codes_and_padding(),
-        leading_ws in whitespace_strategy(),
-        trailing_ws in whitespace_strategy(),
-    ) {
-        let (codes, padding) = codes_and_padding;
-        let mut body = format!("{leading_ws}stilyagi: {verb}");
-        if let Some(first_code) = codes.first() {
-            body.push(' ');
-            body.push_str(first_code);
-            for (code, pad) in codes.iter().skip(1).zip(padding.iter()) {
-                body.push(',');
-                body.push_str(pad);
-                body.push_str(code);
-            }
-        }
-        body.push_str(&trailing_ws);
-
-        let DirectiveOutcome::Parsed(parsed) = parse_comment_directive(&body) else {
-            panic!("expected parsed directive for {body:?}");
-        };
-
-        prop_assert_eq!(parsed.codes, codes);
-        prop_assert_eq!(verb_kind(parsed.verb), expected_kind_from_token(verb));
-    }
-
-    #[test]
-    fn ignore_next_disable_and_enable_require_codes(
-        verb in prop_oneof![Just("ignore-next"), Just("disable"), Just("enable")],
-        leading_ws in whitespace_strategy(),
-        trailing_ws in whitespace_strategy(),
-    ) {
-        let body = format!("{leading_ws}stilyagi: {verb}{trailing_ws}");
-        let DirectiveOutcome::Rejected(error) = parse_comment_directive(&body) else {
-            panic!("expected blanket rejection for {body:?}");
-        };
-
-        prop_assert_eq!(error, DirectiveError::BlanketForbidden);
-    }
-
-    #[test]
-    fn ignore_file_allows_empty_codes(
-        leading_ws in whitespace_strategy(),
-        trailing_ws in whitespace_strategy(),
-    ) {
-        let body = format!("{leading_ws}stilyagi: ignore-file{trailing_ws}");
-        let DirectiveOutcome::Parsed(parsed) = parse_comment_directive(&body) else {
-            panic!("expected parsed ignore-file directive for {body:?}");
-        };
-
-        prop_assert_eq!(parsed.verb, DirectiveVerb::IgnoreFile);
-        prop_assert!(parsed.codes.is_empty());
-    }
-}
+mod suppression_proptest;

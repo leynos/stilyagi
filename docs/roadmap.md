@@ -149,7 +149,7 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
   - Addendum (from review:2.1.3; low). Split multi-comment HTML nodes or scan
     for multiple canonical directives within one node so no directive is lost.
     Lightweight addendum pass.
-- [ ] 2.1.3.2. Add coverage for inline suppression directives in paragraphs.
+- [x] 2.1.3.2. Add coverage for inline suppression directives in paragraphs.
   - Addendum (from review:2.1.3; low). Exercise within-paragraph HTML
     comments so verb-driven classification stays pinned. Lightweight addendum
     pass.
