@@ -1,0 +1,25 @@
+name: Mutation testing
+
+# Thin caller of the shared mutation-testing reusable workflow; caller
+# guide: leynos/shared-actions docs/mutation-cargo-workflow.md.
+on:
+  schedule:
+    - cron: "50 8 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: mutation-testing-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mutation-rust:
+    permissions:
+      contents: read
+      id-token: write # OIDC workflow-source resolution
+    uses: leynos/shared-actions/.github/workflows/mutation-cargo.yml@47aea18960d24f33aedc4782ec6b73e365418313
+    with:
+      paths: "crates/"
+      exclude-globs: "crates/stilyagi-test-fixtures/**,crates/stilyagi-test-support/**"
+      extra-args: "--all-features --test-workspace=true"
