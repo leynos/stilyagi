@@ -37,31 +37,41 @@ def map_ir_errors(
 
     line_index = _coerce_line_index(ir.get("line_index"))
 
-    mapped_errors: list[diagnostics.Diagnostic] = []
-    for error in raw_errors:
-        if not isinstance(error, cabc.Mapping):
-            continue
+    mapped_errors = (
+        _map_one_error(error, line_index, reported_path) for error in raw_errors
+    )
+    return [error for error in mapped_errors if error is not None]
 
-        span = error.get("span")
-        offset: int | None = None
-        if isinstance(span, cabc.Mapping):
-            byte_start = span.get("byte_start")
-            if isinstance(byte_start, int):
-                offset = byte_start
 
-        line, column = line_column_from_offset(line_index, offset)
-        mapped_errors.append(
-            diagnostics.Diagnostic(
-                path=reported_path,
-                code="IR000",
-                message=str(error.get("message", "")),
-                severity=diagnostics.Severity.ERROR,
-                line=line,
-                column=column,
-            ),
-        )
+def _map_one_error(
+    error: object,
+    line_index: tuple[int, ...] | None,
+    reported_path: str,
+) -> diagnostics.Diagnostic | None:
+    """Map one raw IR error entry into a diagnostic, if well formed."""
+    if not isinstance(error, cabc.Mapping):
+        return None
 
-    return mapped_errors
+    line, column = line_column_from_offset(
+        line_index,
+        _byte_start_from_span(error.get("span")),
+    )
+    return diagnostics.Diagnostic(
+        path=reported_path,
+        code="IR000",
+        message=str(error.get("message", "")),
+        severity=diagnostics.Severity.ERROR,
+        line=line,
+        column=column,
+    )
+
+
+def _byte_start_from_span(span: object) -> int | None:
+    """Return the span's byte start when the IR provides one."""
+    if not isinstance(span, cabc.Mapping):
+        return None
+    byte_start = span.get("byte_start")
+    return byte_start if isinstance(byte_start, int) else None
 
 
 def _coerce_line_index(raw_line_index: object) -> tuple[int, ...] | None:

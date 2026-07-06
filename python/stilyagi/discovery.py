@@ -99,29 +99,29 @@ def discover_markdown_files(
     discovered: dict[pathlib.Path, DiscoveredFile] = {}
     for target in targets:
         target_path = pathlib.Path(target).expanduser()
-        if _is_symlinked_directory(target_path):
-            _LOGGER.info(
-                "skipping symlinked directory target: %s", target_path.as_posix()
-            )
-            continue
-        if target_path.is_file():
-            _record_candidate(
-                discovered,
-                _discover_explicit_file(target_path),
-            )
-            continue
-        if target_path.is_dir():
-            for candidate in _discover_directory(target_path):
-                _record_candidate(discovered, candidate)
-            continue
-        _LOGGER.info(
-            "ignoring missing or unsupported target: %s", target_path.as_posix()
-        )
+        for candidate in _candidates_for_target(target_path):
+            _record_candidate(discovered, candidate)
 
     return [
         discovered[resolved_path]
         for resolved_path in sorted(discovered, key=lambda path: path.as_posix())
     ]
+
+
+def _candidates_for_target(
+    target_path: pathlib.Path,
+) -> cabc.Iterator[DiscoveredFile | None]:
+    """Yield Markdown candidates for one command-line target."""
+    if _is_symlinked_directory(target_path):
+        _LOGGER.info("skipping symlinked directory target: %s", target_path.as_posix())
+        return
+    if target_path.is_file():
+        yield _discover_explicit_file(target_path)
+        return
+    if target_path.is_dir():
+        yield from _discover_directory(target_path)
+        return
+    _LOGGER.info("ignoring missing or unsupported target: %s", target_path.as_posix())
 
 
 def _discover_explicit_file(target_path: pathlib.Path) -> DiscoveredFile | None:

@@ -15,6 +15,14 @@ from .schema import (
     NlpConfig,
     StilyagiConfig,
 )
+from .validate import (
+    ensure_bool,
+    ensure_extend_value,
+    ensure_int,
+    ensure_mapping,
+    ensure_string,
+    ensure_string_sequence,
+)
 
 _SUPPORTED_DIRECTORY_FILENAMES = (
     ".stilyagi.toml",
@@ -29,68 +37,6 @@ class LoadedConfig:
 
     path: pathlib.Path
     config: StilyagiConfig
-
-
-def _ensure_mapping(
-    value: object, *, path: pathlib.Path, key: str
-) -> cabc.Mapping[str, object]:
-    """Validate that a config value is a mapping."""
-    if not isinstance(value, cabc.Mapping):
-        raise InvalidConfigError(path, key, "must be a mapping")
-    return typ.cast("cabc.Mapping[str, object]", value)
-
-
-def _ensure_bool(value: object, *, path: pathlib.Path, key: str) -> bool:
-    """Validate that a config value is a boolean."""
-    if not isinstance(value, bool):
-        raise InvalidConfigError(path, key, "must be a bool")
-    return value
-
-
-def _ensure_int(value: object, *, path: pathlib.Path, key: str) -> int:
-    """Validate that a config value is an integer."""
-    if not isinstance(value, int) or isinstance(value, bool):
-        raise InvalidConfigError(path, key, "must be an int")
-    return value
-
-
-def _ensure_string(value: object, *, path: pathlib.Path, key: str) -> str:
-    """Validate that a config value is a string."""
-    if not isinstance(value, str):
-        raise InvalidConfigError(path, key, "must be a string")
-    return value
-
-
-def _ensure_string_sequence(
-    value: object,
-    *,
-    path: pathlib.Path,
-    key: str,
-) -> tuple[str, ...]:
-    """Validate that a config value is a sequence of strings."""
-    if not isinstance(value, cabc.Iterable) or isinstance(value, str):
-        raise InvalidConfigError(path, key, "must be a sequence of strings")
-    items = tuple(value)
-    if any(not isinstance(item, str) for item in items):
-        raise InvalidConfigError(path, key, "must contain strings only")
-    return typ.cast("tuple[str, ...]", items)
-
-
-def _ensure_extend_value(
-    value: object,
-    *,
-    path: pathlib.Path,
-    key: str,
-) -> object:
-    """Validate the raw `extend` value without changing its shape."""
-    if isinstance(value, str):
-        return value
-    if not isinstance(value, cabc.Sequence) or isinstance(value, (bytes, bytearray)):
-        raise InvalidConfigError(path, key, "must be a string or a sequence of strings")
-    items = tuple(value)
-    if any(not isinstance(item, str) for item in items):
-        raise InvalidConfigError(path, key, "must contain strings only")
-    return value
 
 
 def _parse_lint_config(
@@ -116,7 +62,7 @@ def _parse_lint_config(
         raise InvalidConfigError(path, "lint.per-file-ignores", "must be a mapping")
 
     per_file_ignores = {
-        str(file_name): _ensure_string_sequence(
+        str(file_name): ensure_string_sequence(
             rule_codes,
             path=path,
             key=f"lint.per-file-ignores.{file_name}",
@@ -125,21 +71,19 @@ def _parse_lint_config(
     }
 
     return LintConfig(
-        select=_ensure_string_sequence(
+        select=ensure_string_sequence(
             table.get("select", ("MD", "DOC", "PUN", "STY", "PYDOC")),
             path=path,
             key="lint.select",
         ),
-        ignore=_ensure_string_sequence(
+        ignore=ensure_string_sequence(
             table.get("ignore", ()), path=path, key="lint.ignore"
         ),
-        preview=_ensure_bool(
-            table.get("preview", False), path=path, key="lint.preview"
-        ),
-        fixable=_ensure_string_sequence(
+        preview=ensure_bool(table.get("preview", False), path=path, key="lint.preview"),
+        fixable=ensure_string_sequence(
             table.get("fixable", ("ALL",)), path=path, key="lint.fixable"
         ),
-        unfixable=_ensure_string_sequence(
+        unfixable=ensure_string_sequence(
             table.get("unfixable", ()), path=path, key="lint.unfixable"
         ),
         per_file_ignores=per_file_ignores,
@@ -172,15 +116,15 @@ def _parse_extract_config(
         raise InvalidConfigError(path, key, "is not supported")
 
     return MarkdownExtractConfig(
-        gfm=_ensure_bool(
+        gfm=ensure_bool(
             markdown.get("gfm", True), path=path, key="extract.markdown.gfm"
         ),
-        frontmatter=_ensure_bool(
+        frontmatter=ensure_bool(
             markdown.get("frontmatter", True),
             path=path,
             key="extract.markdown.frontmatter",
         ),
-        mdx=_ensure_bool(
+        mdx=ensure_bool(
             markdown.get("mdx", False), path=path, key="extract.markdown.mdx"
         ),
     )
@@ -198,10 +142,10 @@ def _parse_nlp_config(
         raise InvalidConfigError(path, key, "is not supported")
 
     return NlpConfig(
-        model=_ensure_string(
+        model=ensure_string(
             table.get("model", "en_core_web_sm"), path=path, key="nlp.model"
         ),
-        sentence_provider=_ensure_string(
+        sentence_provider=ensure_string(
             table.get("sentence-provider", "sentencizer"),
             path=path,
             key="nlp.sentence-provider",
@@ -246,61 +190,97 @@ def _parse_config_table(
     if unknown_keys:
         raise InvalidConfigError(path, min(unknown_keys), "is not supported")
 
-    lint = _parse_lint_config(
-        _ensure_mapping(table.get("lint", {}), path=path, key="lint"), path=path
-    )
-    extract = _parse_extract_config(
-        _ensure_mapping(table.get("extract", {}), path=path, key="extract"),
-        path=path,
-    )
-    nlp = _parse_nlp_config(
-        _ensure_mapping(table.get("nlp", {}), path=path, key="nlp"), path=path
-    )
-    rules = _parse_rule_tables(
-        _ensure_mapping(table.get("rule", {}), path=path, key="rule"),
-        path=path,
-    )
-
-    cache_dir_value = table.get("cache-dir", pathlib.Path(".stilyagi_cache"))
-    if isinstance(cache_dir_value, pathlib.Path):
-        cache_dir = cache_dir_value
-    elif isinstance(cache_dir_value, str):
-        cache_dir = pathlib.Path(cache_dir_value)
-    else:
-        raise InvalidConfigError(path, "cache-dir", "must be a string")
-
-    reserved: dict[str, object] = {
-        "line-length": _ensure_int(
-            table.get("line-length", 88), path=path, key="line-length"
-        ),
-        "lint": lint.reserved,
-        "nlp": nlp.reserved,
-        "rule": rules,
-    }
-    if "extend" in table:
-        reserved["extend"] = _ensure_extend_value(
-            table["extend"], path=path, key="extend"
-        )
+    sections = _parse_config_sections(table, path=path)
 
     return StilyagiConfig(
-        cache_dir=cache_dir,
-        respect_gitignore=_ensure_bool(
+        cache_dir=_parse_cache_dir(table, path=path),
+        respect_gitignore=ensure_bool(
             table.get("respect-gitignore", True),
             path=path,
             key="respect-gitignore",
         ),
-        line_length=_ensure_int(
+        line_length=ensure_int(
             table.get("line-length", 88), path=path, key="line-length"
         ),
-        plugins=_ensure_string_sequence(
+        plugins=ensure_string_sequence(
             table.get("plugins", ("builtin",)), path=path, key="plugins"
         ),
-        lint=lint,
-        extract=extract,
-        nlp=nlp,
-        rules=rules,
-        reserved=reserved,
+        lint=sections.lint,
+        extract=sections.extract,
+        nlp=sections.nlp,
+        rules=sections.rules,
+        reserved=_build_reserved_table(table, sections, path=path),
     )
+
+
+@dc.dataclass(frozen=True, slots=True)
+class _ParsedSections:
+    """The typed sub-tables parsed from one config namespace."""
+
+    lint: LintConfig
+    extract: MarkdownExtractConfig
+    nlp: NlpConfig
+    rules: dict[str, dict[str, object]]
+
+
+def _parse_config_sections(
+    table: cabc.Mapping[str, object],
+    *,
+    path: pathlib.Path,
+) -> _ParsedSections:
+    """Parse the typed sub-tables of one config namespace."""
+    return _ParsedSections(
+        lint=_parse_lint_config(
+            ensure_mapping(table.get("lint", {}), path=path, key="lint"), path=path
+        ),
+        extract=_parse_extract_config(
+            ensure_mapping(table.get("extract", {}), path=path, key="extract"),
+            path=path,
+        ),
+        nlp=_parse_nlp_config(
+            ensure_mapping(table.get("nlp", {}), path=path, key="nlp"), path=path
+        ),
+        rules=_parse_rule_tables(
+            ensure_mapping(table.get("rule", {}), path=path, key="rule"),
+            path=path,
+        ),
+    )
+
+
+def _parse_cache_dir(
+    table: cabc.Mapping[str, object],
+    *,
+    path: pathlib.Path,
+) -> pathlib.Path:
+    """Parse the `cache-dir` value into a path object."""
+    value = table.get("cache-dir", pathlib.Path(".stilyagi_cache"))
+    if isinstance(value, pathlib.Path):
+        return value
+    if isinstance(value, str):
+        return pathlib.Path(value)
+    raise InvalidConfigError(path, "cache-dir", "must be a string")
+
+
+def _build_reserved_table(
+    table: cabc.Mapping[str, object],
+    sections: _ParsedSections,
+    *,
+    path: pathlib.Path,
+) -> dict[str, object]:
+    """Preserve raw values that later slices will interpret."""
+    reserved: dict[str, object] = {
+        "line-length": ensure_int(
+            table.get("line-length", 88), path=path, key="line-length"
+        ),
+        "lint": sections.lint.reserved,
+        "nlp": sections.nlp.reserved,
+        "rule": sections.rules,
+    }
+    if "extend" in table:
+        reserved["extend"] = ensure_extend_value(
+            table["extend"], path=path, key="extend"
+        )
+    return reserved
 
 
 def _load_toml(path: pathlib.Path) -> cabc.Mapping[str, object]:

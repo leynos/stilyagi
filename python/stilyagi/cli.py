@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import dataclasses as dc
 import logging
 import pathlib
@@ -10,33 +9,28 @@ import sys
 import typing as typ
 
 from stilyagi import config, diagnostics, discovery, engine, model
+from stilyagi.cli_args import (
+    PACKAGE_VERSION,
+    PROGRAM_NAME,
+    CheckOptions,
+    build_parser,
+    options_from_args,
+)
 from stilyagi.engine.checker import map_ir_errors
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
-PACKAGE_VERSION = "0.1.0"
-_OUTPUT_FORMATS = {"text", "json"}
-_PROGRAM_NAME = "stilyagi"
-
-
-@dc.dataclass(frozen=True, slots=True)
-class CheckOptions:
-    """Options for one `stilyagi check` invocation."""
-
-    targets: tuple[str, ...]
-    stdin_filename: str | None = None
-    output_format: str = "text"
-    explicit_config: tuple[str | pathlib.Path, ...] = ()
-    isolated: bool = False
-    no_cache: bool = False
-    select: tuple[str, ...] = ()
-    ignore: tuple[str, ...] = ()
-    extend_select: tuple[str, ...] = ()
-    quiet: bool = False
-    verbose: bool = False
-    silent: bool = False
+__all__ = [
+    "PACKAGE_VERSION",
+    "CheckInput",
+    "CheckOptions",
+    "build_parser",
+    "compute_exit_code",
+    "main",
+    "run_check",
+]
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -46,34 +40,6 @@ class CheckInput:
     reported_path: str
     resolved_path: pathlib.Path
     source_text: str | None = None
-
-
-def build_parser() -> argparse.ArgumentParser:
-    """Build the parser for the `check` command.
-
-    Examples
-    --------
-    >>> parser = build_parser()
-    >>> parser.prog
-    'stilyagi'
-    """
-    parser = argparse.ArgumentParser(prog=_PROGRAM_NAME)
-    parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=f"{_PROGRAM_NAME} {PACKAGE_VERSION}",
-    )
-    subparsers = parser.add_subparsers(dest="command")
-    check_parser = subparsers.add_parser("check", help="Check Markdown files.")
-    check_parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=f"{_PROGRAM_NAME} {PACKAGE_VERSION}",
-    )
-    _add_check_arguments(check_parser)
-    return parser
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
@@ -94,90 +60,9 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
     except SystemExit as exc:
         return typ.cast("int", exc.code)
 
-    options = CheckOptions(
-        targets=tuple(args.targets),
-        stdin_filename=args.stdin_filename,
-        output_format=args.output_format,
-        explicit_config=tuple(args.config),
-        isolated=args.isolated,
-        no_cache=args.no_cache,
-        select=tuple(code for group in args.select for code in group),
-        ignore=tuple(code for group in args.ignore for code in group),
-        extend_select=tuple(code for group in args.extend_select for code in group),
-        quiet=args.quiet,
-        verbose=args.verbose,
-        silent=args.silent,
-    )
+    options = options_from_args(args)
     _configure_logging(options)
     return run_check(options)
-
-
-def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add the `check` command arguments to one parser."""
-    parser.add_argument(
-        "--select",
-        action="append",
-        default=(),
-        type=_parse_rule_codes,
-        metavar="CODES",
-        help="Select additional rule codes or prefixes.",
-    )
-    parser.add_argument(
-        "--ignore",
-        action="append",
-        default=(),
-        type=_parse_rule_codes,
-        metavar="CODES",
-        help="Ignore rule codes or prefixes.",
-    )
-    parser.add_argument(
-        "--extend-select",
-        action="append",
-        default=(),
-        type=_parse_rule_codes,
-        metavar="CODES",
-        help="Extend the active rule selection.",
-    )
-    parser.add_argument(
-        "--output-format",
-        default="text",
-        metavar="{text,json}",
-        type=_parse_output_format,
-        help="Render diagnostics as text or JSON.",
-    )
-    parser.add_argument(
-        "--config",
-        action="append",
-        default=(),
-        metavar="VALUE",
-        help="Use one explicit config file or inline TOML fragment.",
-    )
-    parser.add_argument(
-        "--stdin-filename",
-        metavar="VALUE",
-        help="Report stdin diagnostics with this path instead of <stdin>.",
-    )
-    parser.add_argument(
-        "--isolated",
-        action="store_true",
-        help="Skip config discovery for the checked targets.",
-    )
-    parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="Accept cache disabling requests without changing behaviour yet.",
-    )
-    verbosity = parser.add_mutually_exclusive_group()
-    verbosity.add_argument("--quiet", action="store_true", help="Reduce chatter.")
-    verbosity.add_argument("--verbose", action="store_true", help="Increase chatter.")
-    verbosity.add_argument("--silent", action="store_true", help="Suppress chatter.")
-    parser.add_argument(
-        "targets",
-        nargs="*",
-        default=("."),
-        metavar="FILES",
-        help="Markdown files or directories to check.",
-    )
 
 
 def _configure_logging(options: CheckOptions) -> None:
@@ -186,26 +71,6 @@ def _configure_logging(options: CheckOptions) -> None:
         logging.basicConfig(level=logging.WARNING)
     elif options.verbose:
         logging.basicConfig(level=logging.INFO)
-
-
-def _parse_rule_codes(value: str) -> tuple[str, ...]:
-    """Split one comma-delimited rule-code list."""
-    items = tuple(code.strip() for code in value.split(",") if code.strip())
-    if not items:
-        message = "expected at least one rule code or prefix"
-        raise argparse.ArgumentTypeError(message)
-    return items
-
-
-def _parse_output_format(value: str) -> str:
-    """Validate the supported output formats."""
-    if value in _OUTPUT_FORMATS:
-        return value
-    if value == "sarif":
-        message = "`sarif` is planned for a later slice but is not yet available"
-        raise argparse.ArgumentTypeError(message)
-    message = f"invalid output format {value!r}; choose from text or json"
-    raise argparse.ArgumentTypeError(message)
 
 
 def _build_cli_overrides(options: CheckOptions) -> dict[str, object]:
@@ -313,19 +178,7 @@ def _discover_targets(
         message = "stdin target cannot be combined with file targets"
         raise ValueError(message)
     if has_stdin_target:
-        reported_path = (
-            pathlib.Path(stdin_filename).as_posix() if stdin_filename else "<stdin>"
-        )
-        resolved_path = (
-            pathlib.Path(stdin_filename) if stdin_filename else pathlib.Path("<stdin>")
-        )
-        return [
-            CheckInput(
-                reported_path=reported_path,
-                resolved_path=resolved_path,
-                source_text=sys.stdin.read(),
-            ),
-        ]
+        return [_stdin_check_input(stdin_filename)]
     return [
         CheckInput(
             reported_path=discovered_file.reported_path,
@@ -338,11 +191,23 @@ def _discover_targets(
     ]
 
 
-def _check_one_file(
-    check_input: CheckInput,
-    options: CheckOptions,
-) -> tuple[list[diagnostics.Diagnostic], bool]:
-    """Check one discovered Markdown file or stdin payload."""
+def _stdin_check_input(stdin_filename: str | None) -> CheckInput:
+    """Build the check input that consumes standard input."""
+    reported_path = (
+        pathlib.Path(stdin_filename).as_posix() if stdin_filename else "<stdin>"
+    )
+    resolved_path = (
+        pathlib.Path(stdin_filename) if stdin_filename else pathlib.Path("<stdin>")
+    )
+    return CheckInput(
+        reported_path=reported_path,
+        resolved_path=resolved_path,
+        source_text=sys.stdin.read(),
+    )
+
+
+def _read_source(check_input: CheckInput) -> str | None:
+    """Return the source text for one input, reporting read failures."""
     try:
         source = check_input.source_text
         if source is None:
@@ -354,6 +219,17 @@ def _check_one_file(
         UnicodeDecodeError,
     ) as exc:
         _report_file_error(check_input.resolved_path, exc)
+        return None
+    return source
+
+
+def _check_one_file(
+    check_input: CheckInput,
+    options: CheckOptions,
+) -> tuple[list[diagnostics.Diagnostic], bool]:
+    """Check one discovered Markdown file or stdin payload."""
+    source = _read_source(check_input)
+    if source is None:
         return [], True
 
     try:
@@ -381,7 +257,7 @@ def _check_one_file(
 def _report_file_error(path: pathlib.Path, error: Exception) -> None:
     """Print a human-readable file read failure."""
     message = f"failed to read {path.as_posix()}: {error}"
-    print(f"{_PROGRAM_NAME} check: {message}", file=sys.stderr)
+    print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)
 
 
 def _report_check_error(path: pathlib.Path | None, error: Exception) -> None:
@@ -390,4 +266,4 @@ def _report_check_error(path: pathlib.Path | None, error: Exception) -> None:
         message = str(error)
     else:
         message = f"failed to check {path.as_posix()}: {error}"
-    print(f"{_PROGRAM_NAME} check: {message}", file=sys.stderr)
+    print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)

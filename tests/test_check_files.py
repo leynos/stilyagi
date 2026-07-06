@@ -5,140 +5,162 @@ from __future__ import annotations
 import pathlib
 import typing as typ
 
+import pytest
 from stilyagi import cli, engine
 
 if typ.TYPE_CHECKING:
-    import pytest
+    import collections.abc as cabc
+
+    _FailureSetup = cabc.Callable[
+        [pathlib.Path, pytest.MonkeyPatch],
+        tuple[pathlib.Path, tuple[str, ...]],
+    ]
 
 
-def test_cli_run_check_maps_unreadable_utf8_files_to_exit_two(
-    tmp_path: pathlib.Path,
+def _run_failing_check(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    target: pathlib.Path,
+) -> str:
+    """Run one failing check against a stubbed target and return stderr."""
+    _stub_discovery(monkeypatch, target)
+
+    exit_code = cli.run_check(cli.CheckOptions(targets=(target.name,)))
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert not captured.out
+    return captured.err
+
+
+def _patch_read_text_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    target: pathlib.Path,
+    error_factory: cabc.Callable[[], Exception],
 ) -> None:
-    """Reject non-UTF-8 Markdown files with the documented file error."""
+    """Make reads of the target file raise the supplied error."""
+    original_read_text = pathlib.Path.read_text
+
+    def read_text(path: pathlib.Path, *args: object, **kwargs: object) -> str:
+        """Raise the injected failure for the target file only."""
+        if path == target:
+            raise error_factory()
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "read_text", read_text)
+
+
+def _read_failure_fragments(
+    target: pathlib.Path,
+    detail: str,
+) -> tuple[str, ...]:
+    """Return the stderr fragments expected for one failed file read."""
+    return ("stilyagi check: failed to read ", target.as_posix(), detail)
+
+
+def _setup_unreadable_utf8(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[pathlib.Path, tuple[str, ...]]:
+    """Arrange a Markdown file whose bytes are not valid UTF-8."""
     target = tmp_path / "broken.md"
     target.write_bytes(b"\xff")
-    _stub_discovery(monkeypatch, target)
-
-    exit_code = cli.run_check(cli.CheckOptions(targets=("broken.md",)))
-    captured = capsys.readouterr()
-
-    assert exit_code == 2
-    assert "stilyagi check: failed to read " in captured.err
-    assert target.as_posix() in captured.err
-    assert "can't decode byte 0xff" in captured.err
-    assert not captured.out
+    return target, _read_failure_fragments(target, "can't decode byte 0xff")
 
 
-def test_cli_run_check_maps_permission_errors_to_exit_two(
+def _setup_permission_error(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Reject permission failures with the documented file error."""
+) -> tuple[pathlib.Path, tuple[str, ...]]:
+    """Arrange a Markdown file whose read raises a permission failure."""
     target = tmp_path / "restricted.md"
     target.write_text("# Restricted\n", encoding="utf-8")
-    _stub_discovery(monkeypatch, target)
-
-    original_read_text = pathlib.Path.read_text
-
-    def read_text(path: pathlib.Path, *args: object, **kwargs: object) -> str:
-        """Raise the permission failure for the target file only."""
-        if path == target:
-            message = "permission denied"
-            raise PermissionError(message)
-        return original_read_text(path, *args, **kwargs)
-
-    monkeypatch.setattr(pathlib.Path, "read_text", read_text)
-
-    exit_code = cli.run_check(cli.CheckOptions(targets=("restricted.md",)))
-    captured = capsys.readouterr()
-
-    assert exit_code == 2
-    assert not captured.out
-    assert f"stilyagi check: failed to read {target.as_posix()}: permission denied" in (
-        captured.err
+    _patch_read_text_failure(
+        monkeypatch,
+        target,
+        lambda: PermissionError("permission denied"),
     )
+    expected = f"stilyagi check: failed to read {target.as_posix()}: permission denied"
+    return target, (expected,)
 
 
-def test_cli_run_check_maps_mid_run_disappearances_to_exit_two(
+def _setup_mid_run_disappearance(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Reject files removed after discovery with the documented file error."""
+) -> tuple[pathlib.Path, tuple[str, ...]]:
+    """Arrange a Markdown file that vanishes between discovery and read."""
     target = tmp_path / "vanished.md"
     target.write_text("# Vanished\n", encoding="utf-8")
-    _stub_discovery(monkeypatch, target)
 
-    original_read_text = pathlib.Path.read_text
-
-    def read_text(path: pathlib.Path, *args: object, **kwargs: object) -> str:
+    def vanish() -> FileNotFoundError:
         """Remove the target before the read to emulate a race."""
-        if path == target:
-            target.unlink()
-            message = "target disappeared during read"
-            raise FileNotFoundError(message)
-        return original_read_text(path, *args, **kwargs)
+        target.unlink()
+        return FileNotFoundError("target disappeared during read")
 
-    monkeypatch.setattr(pathlib.Path, "read_text", read_text)
-
-    exit_code = cli.run_check(cli.CheckOptions(targets=("vanished.md",)))
-    captured = capsys.readouterr()
-
-    assert exit_code == 2
-    assert not captured.out
-    assert (
+    _patch_read_text_failure(monkeypatch, target, vanish)
+    expected = (
         f"stilyagi check: failed to read {target.as_posix()}: "
         "target disappeared during read"
-    ) in captured.err
+    )
+    return target, (expected,)
 
 
-def test_cli_run_check_maps_directory_reads_to_exit_two(
+def _setup_directory_read(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Reject directory inputs with the documented file error."""
+) -> tuple[pathlib.Path, tuple[str, ...]]:
+    """Arrange a directory masquerading as one discovered input."""
     target = tmp_path / "docs"
     target.mkdir()
-    _stub_discovery(monkeypatch, target)
-
-    exit_code = cli.run_check(cli.CheckOptions(targets=("docs",)))
-    captured = capsys.readouterr()
-
-    assert exit_code == 2
-    assert not captured.out
-    assert "stilyagi check: failed to read " in captured.err
-    assert target.as_posix() in captured.err
-    assert "Is a directory" in captured.err
+    return target, _read_failure_fragments(target, "Is a directory")
 
 
-def test_cli_run_check_maps_extractor_failures_to_exit_two(
+def _setup_extractor_failure(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Reject extraction failures with the documented check error."""
+) -> tuple[pathlib.Path, tuple[str, ...]]:
+    """Arrange a readable file whose extraction blows up in the bridge."""
     target = tmp_path / "notes.md"
     target.write_text("# Notes\n", encoding="utf-8")
-    _stub_discovery(monkeypatch, target)
     monkeypatch.setattr(
         engine,
         "extract_document",
         lambda source, syntax: _raise_runtime_error(),
     )
+    expected = f"stilyagi check: failed to check {target.as_posix()}: bridge exploded"
+    return target, (expected,)
 
-    exit_code = cli.run_check(cli.CheckOptions(targets=("notes.md",)))
-    captured = capsys.readouterr()
 
-    assert exit_code == 2
-    assert not captured.out
-    assert (
-        f"stilyagi check: failed to check {target.as_posix()}: bridge exploded"
-        in captured.err
-    )
+@pytest.mark.parametrize(
+    "setup_failure",
+    [
+        _setup_unreadable_utf8,
+        _setup_permission_error,
+        _setup_mid_run_disappearance,
+        _setup_directory_read,
+        _setup_extractor_failure,
+    ],
+    ids=[
+        "unreadable-utf8",
+        "permission-error",
+        "mid-run-disappearance",
+        "directory-read",
+        "extractor-failure",
+    ],
+)
+def test_cli_run_check_maps_file_failures_to_exit_two(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    setup_failure: _FailureSetup,
+) -> None:
+    """Reject each documented file failure with exit code 2 and stderr."""
+    target, expected_fragments = setup_failure(tmp_path, monkeypatch)
+
+    stderr = _run_failing_check(monkeypatch, capsys, target)
+
+    for fragment in expected_fragments:
+        assert fragment in stderr
 
 
 def test_cli_main_recovers_from_real_malformed_markdown(

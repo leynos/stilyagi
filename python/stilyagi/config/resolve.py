@@ -13,6 +13,7 @@ from .load import (
     discover_same_directory_config,
 )
 from .schema import InvalidConfigError, StilyagiConfig
+from .validate import ensure_extend_value
 
 _DISCOVERY_CACHE: dict[pathlib.Path, pathlib.Path | None] = {}
 _RESOLVED_TABLE_CACHE: dict[pathlib.Path, dict[str, object]] = {}
@@ -44,16 +45,10 @@ def _normalise_extend_values(
     """Normalise the raw `extend` value to an ordered tuple of strings."""
     if value is None:
         return ()
-    if isinstance(value, str):
-        return (value,)
-    if not isinstance(value, cabc.Sequence) or isinstance(value, (bytes, bytearray)):
-        raise InvalidConfigError(
-            path, "extend", "must be a string or a list of strings"
-        )
-    items = tuple(value)
-    if any(not isinstance(item, str) for item in items):
-        raise InvalidConfigError(path, "extend", "must contain strings only")
-    return typ.cast("tuple[str, ...]", items)
+    validated = ensure_extend_value(value, path=path, key="extend")
+    if isinstance(validated, str):
+        return (validated,)
+    return tuple(typ.cast("cabc.Sequence[str]", validated))
 
 
 def _load_inline_config(
@@ -131,18 +126,22 @@ def _target_directory(target: pathlib.Path) -> pathlib.Path:
 
 def _discover_nearest_config(directory: pathlib.Path) -> pathlib.Path | None:
     """Return the nearest supported config file for one directory."""
-    cached = _DISCOVERY_CACHE.get(directory)
-    if cached is not None or directory in _DISCOVERY_CACHE:
-        return cached
+    if directory in _DISCOVERY_CACHE:
+        return _DISCOVERY_CACHE[directory]
 
+    discovered_path = _search_ancestors_for_config(directory)
+    _DISCOVERY_CACHE[directory] = discovered_path
+    return discovered_path
+
+
+def _search_ancestors_for_config(directory: pathlib.Path) -> pathlib.Path | None:
+    """Walk from a directory to the filesystem root looking for config."""
     current = directory
     while True:
         discovered = discover_same_directory_config(current)
         if discovered is not None:
-            _DISCOVERY_CACHE[directory] = discovered.path
             return discovered.path
         if current.parent == current:
-            _DISCOVERY_CACHE[directory] = None
             return None
         current = current.parent
 
@@ -162,6 +161,43 @@ def _classify_explicit_config(
     raise InvalidConfigError(candidate, "config", "does not exist")
 
 
+def _split_explicit_config(
+    explicit_config: cabc.Iterable[str | pathlib.Path] | None,
+) -> tuple[list[pathlib.Path], list[str]]:
+    """Split `--config` values into file paths and inline fragments."""
+    explicit_paths: list[pathlib.Path] = []
+    explicit_inline: list[str] = []
+    for value in explicit_config or ():
+        kind, payload = _classify_explicit_config(value)
+        if kind == "path":
+            explicit_paths.append(typ.cast("pathlib.Path", payload))
+        else:
+            explicit_inline.append(typ.cast("str", payload))
+    return explicit_paths, explicit_inline
+
+
+def _merge_explicit_configs(
+    resolved_table: dict[str, object],
+    explicit_config: cabc.Iterable[str | pathlib.Path] | None,
+    *,
+    target: pathlib.Path,
+) -> dict[str, object]:
+    """Layer explicit config files, then inline fragments, over one table."""
+    explicit_paths, explicit_inline = _split_explicit_config(explicit_config)
+
+    for config_path in explicit_paths:
+        resolved_table = _merge_config_tables(
+            resolved_table, _resolve_config_table(config_path)
+        )
+
+    for fragment in explicit_inline:
+        resolved_table = _merge_config_tables(
+            resolved_table, _load_inline_config(fragment, path=target)
+        )
+
+    return resolved_table
+
+
 def resolve_config_for_path(
     target: pathlib.Path,
     *,
@@ -177,24 +213,9 @@ def resolve_config_for_path(
         if discovered_path is not None:
             resolved_table = _resolve_config_table(discovered_path)
 
-    explicit_paths: list[pathlib.Path] = []
-    explicit_inline: list[str] = []
-    for value in explicit_config or ():
-        kind, payload = _classify_explicit_config(value)
-        if kind == "path":
-            explicit_paths.append(typ.cast("pathlib.Path", payload))
-        else:
-            explicit_inline.append(typ.cast("str", payload))
-
-    for config_path in explicit_paths:
-        resolved_table = _merge_config_tables(
-            resolved_table, _resolve_config_table(config_path)
-        )
-
-    for fragment in explicit_inline:
-        resolved_table = _merge_config_tables(
-            resolved_table, _load_inline_config(fragment, path=target)
-        )
+    resolved_table = _merge_explicit_configs(
+        resolved_table, explicit_config, target=target
+    )
 
     if cli_overrides:
         resolved_table = _merge_config_tables(resolved_table, dict(cli_overrides))

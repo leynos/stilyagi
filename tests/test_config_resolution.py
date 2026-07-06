@@ -14,6 +14,24 @@ def _write_config(path: pathlib.Path, body: str) -> None:
     path.write_text(textwrap.dedent(body).strip() + "\n", encoding="utf-8")
 
 
+def _write_discovered_cache_dir(tmp_path: pathlib.Path, cache_dir: str) -> None:
+    """Write a discoverable pyproject config that sets one cache-dir."""
+    _write_config(
+        tmp_path / "pyproject.toml",
+        f"""
+        [tool.stilyagi]
+        cache-dir = "{cache_dir}"
+        """,
+    )
+
+
+def _make_markdown_target(directory: pathlib.Path) -> pathlib.Path:
+    """Create one Markdown target file for config resolution."""
+    target = directory / "note.md"
+    target.write_text("# note\n", encoding="utf-8")
+    return target
+
+
 def test_nearest_config_wins_without_ancestor_merging(tmp_path: pathlib.Path) -> None:
     """The nearest config should win, without inheriting unrelated ancestors."""
     _write_config(
@@ -36,8 +54,7 @@ def test_nearest_config_wins_without_ancestor_merging(tmp_path: pathlib.Path) ->
         """,
     )
 
-    target = nested / "note.md"
-    target.write_text("# note\n", encoding="utf-8")
+    target = _make_markdown_target(nested)
 
     resolved = config.resolve_config_for_path(
         target,
@@ -114,8 +131,7 @@ def test_extend_cycle_raises_a_typed_error(tmp_path: pathlib.Path) -> None:
         """,
     )
 
-    target = tmp_path / "doc.md"
-    target.write_text("# note\n", encoding="utf-8")
+    target = _make_markdown_target(tmp_path)
 
     with pytest.raises(config.InvalidConfigError, match=r"extend.*cycle detected"):
         config.resolve_config_for_path(
@@ -128,16 +144,9 @@ def test_extend_cycle_raises_a_typed_error(tmp_path: pathlib.Path) -> None:
 
 def test_isolated_bypasses_discovery(tmp_path: pathlib.Path) -> None:
     """`--isolated` should ignore discovered config files and keep overrides."""
-    _write_config(
-        tmp_path / "pyproject.toml",
-        """
-        [tool.stilyagi]
-        cache-dir = ".discovered"
-        """,
-    )
+    _write_discovered_cache_dir(tmp_path, ".discovered")
 
-    target = tmp_path / "note.md"
-    target.write_text("# note\n", encoding="utf-8")
+    target = _make_markdown_target(tmp_path)
 
     resolved = config.resolve_config_for_path(
         target,
@@ -154,13 +163,7 @@ def test_explicit_config_path_and_inline_override_precedence(
     tmp_path: pathlib.Path,
 ) -> None:
     """Inline `--config` fragments should outrank named config files."""
-    _write_config(
-        tmp_path / "pyproject.toml",
-        """
-        [tool.stilyagi]
-        cache-dir = ".discovered"
-        """,
-    )
+    _write_discovered_cache_dir(tmp_path, ".discovered")
 
     named_config = tmp_path / "named=override.toml"
     _write_config(
@@ -170,8 +173,7 @@ def test_explicit_config_path_and_inline_override_precedence(
         """,
     )
 
-    target = tmp_path / "note.md"
-    target.write_text("# note\n", encoding="utf-8")
+    target = _make_markdown_target(tmp_path)
 
     resolved = config.resolve_config_for_path(
         target,
@@ -187,13 +189,7 @@ def test_cli_overrides_win_over_every_config_source(
     tmp_path: pathlib.Path,
 ) -> None:
     """Dedicated CLI flags should take precedence over every config source."""
-    _write_config(
-        tmp_path / "pyproject.toml",
-        """
-        [tool.stilyagi]
-        cache-dir = ".discovered"
-        """,
-    )
+    _write_discovered_cache_dir(tmp_path, ".discovered")
 
     explicit_config = tmp_path / "explicit.toml"
     _write_config(
@@ -203,8 +199,7 @@ def test_cli_overrides_win_over_every_config_source(
         """,
     )
 
-    target = tmp_path / "note.md"
-    target.write_text("# note\n", encoding="utf-8")
+    target = _make_markdown_target(tmp_path)
 
     resolved = config.resolve_config_for_path(
         target,
@@ -216,37 +211,30 @@ def test_cli_overrides_win_over_every_config_source(
     assert resolved.cache_dir == pathlib.Path(".cli")
 
 
-def test_missing_explicit_config_raises_a_typed_error(
+@pytest.mark.parametrize(
+    ("filename", "content", "match"),
+    [
+        pytest.param("missing.toml", None, r"missing\.toml.*config", id="missing"),
+        pytest.param("broken.toml", "[lint\n", r"broken\.toml.*toml", id="malformed"),
+    ],
+)
+def test_bad_explicit_config_raises_a_typed_error(
     tmp_path: pathlib.Path,
+    filename: str,
+    content: str | None,
+    match: str,
 ) -> None:
-    """Missing explicit config files should fail with the typed error."""
-    missing_config = tmp_path / "missing.toml"
-    target = tmp_path / "note.md"
-    target.write_text("# note\n", encoding="utf-8")
+    """Missing or malformed explicit config files should fail typed."""
+    explicit_config = tmp_path / filename
+    if content is not None:
+        explicit_config.write_text(content, encoding="utf-8")
 
-    with pytest.raises(config.InvalidConfigError, match=r"missing\.toml.*config"):
+    target = _make_markdown_target(tmp_path)
+
+    with pytest.raises(config.InvalidConfigError, match=match):
         config.resolve_config_for_path(
             target,
             cli_overrides=None,
-            explicit_config=[str(missing_config)],
-            isolated=True,
-        )
-
-
-def test_invalid_explicit_config_file_raises_a_typed_error(
-    tmp_path: pathlib.Path,
-) -> None:
-    """Malformed config files should fail with the typed error."""
-    broken = tmp_path / "broken.toml"
-    broken.write_text("[lint\n", encoding="utf-8")
-
-    target = tmp_path / "note.md"
-    target.write_text("# note\n", encoding="utf-8")
-
-    with pytest.raises(config.InvalidConfigError, match=r"broken\.toml.*toml"):
-        config.resolve_config_for_path(
-            target,
-            cli_overrides=None,
-            explicit_config=[broken],
+            explicit_config=[str(explicit_config)],
             isolated=True,
         )

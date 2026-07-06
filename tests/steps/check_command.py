@@ -9,7 +9,7 @@ import shutil
 import sys
 import typing as typ
 
-from pytest_bdd import given, then, when
+from pytest_bdd import given, parsers, then, when
 from stilyagi import cli, engine, model
 
 if typ.TYPE_CHECKING:
@@ -116,62 +116,20 @@ def extractor_emits_one_synthetic_ir_error_per_file(
     )
 
 
-@when('I run "stilyagi check ." in that tree')
-def run_stilyagi_check_in_that_tree(
+@when(parsers.parse('I run "{command}" in that tree'))
+def run_stilyagi_command_in_that_tree(
     check_command_state: CheckCommandState,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    command: str,
 ) -> None:
-    """Run the command against the temporary tree in-process."""
+    """Run one quoted `stilyagi` invocation in-process and capture it."""
+    program, *argv = command.split()
+    assert program == "stilyagi", f"unsupported command: {command}"
+    if "-" in argv:
+        monkeypatch.setattr(sys, "stdin", io.StringIO("# Notes\n"))
     monkeypatch.chdir(check_command_state["root"])
-    check_command_state["exit_code"] = cli.main(["check", "."])
-    captured = capsys.readouterr()
-    check_command_state["stdout"] = captured.out
-    check_command_state["stderr"] = captured.err
-
-
-@when('I run "stilyagi check . --output-format json" in that tree')
-def run_stilyagi_check_json_in_that_tree(
-    check_command_state: CheckCommandState,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Run the JSON output path against the temporary tree in-process."""
-    monkeypatch.chdir(check_command_state["root"])
-    check_command_state["exit_code"] = cli.main(
-        ["check", ".", "--output-format", "json"],
-    )
-    captured = capsys.readouterr()
-    check_command_state["stdout"] = captured.out
-    check_command_state["stderr"] = captured.err
-
-
-@when('I run "stilyagi check . --isolated" in that tree')
-def run_stilyagi_check_isolated_in_that_tree(
-    check_command_state: CheckCommandState,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Run the isolated command path against the temporary tree in-process."""
-    monkeypatch.chdir(check_command_state["root"])
-    check_command_state["exit_code"] = cli.main(["check", ".", "--isolated"])
-    captured = capsys.readouterr()
-    check_command_state["stdout"] = captured.out
-    check_command_state["stderr"] = captured.err
-
-
-@when('I run "stilyagi check - --stdin-filename README.md" in that tree')
-def run_stilyagi_check_from_stdin_in_that_tree(
-    check_command_state: CheckCommandState,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Run the stdin command path against the temporary tree in-process."""
-    monkeypatch.chdir(check_command_state["root"])
-    monkeypatch.setattr(sys, "stdin", io.StringIO("# Notes\n"))
-    check_command_state["exit_code"] = cli.main(
-        ["check", "-", "--stdin-filename", "README.md"],
-    )
+    check_command_state["exit_code"] = cli.main(argv)
     captured = capsys.readouterr()
     check_command_state["stdout"] = captured.out
     check_command_state["stderr"] = captured.err

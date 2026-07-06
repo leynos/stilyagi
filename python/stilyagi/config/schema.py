@@ -45,6 +45,21 @@ def _coerce_string_to_string_tuple_map(
     return coerced
 
 
+def _require_instance(
+    value: object,
+    expected: type | tuple[type, ...],
+) -> None:
+    """Raise ``TypeError`` when a field has an unexpected type."""
+    if not isinstance(value, expected):
+        raise TypeError
+
+
+def _require_strict_int(value: object) -> None:
+    """Raise ``TypeError`` unless a field is an integer (and not a bool)."""
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError
+
+
 def _copy_mapping(value: object, *, field_name: str) -> dict[str, object]:
     """Copy a mapping into a plain dictionary with string keys."""
     if not isinstance(value, cabc.Mapping):
@@ -125,8 +140,7 @@ class LintConfig:
         object.__setattr__(
             self, "reserved", _copy_mapping(self.reserved, field_name="reserved")
         )
-        if not isinstance(self.preview, bool):
-            raise TypeError
+        _require_instance(self.preview, bool)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -139,12 +153,9 @@ class MarkdownExtractConfig:
 
     def __post_init__(self) -> None:
         """Validate the booleans eagerly."""
-        if not isinstance(self.gfm, bool):
-            raise TypeError
-        if not isinstance(self.frontmatter, bool):
-            raise TypeError
-        if not isinstance(self.mdx, bool):
-            raise TypeError
+        _require_instance(self.gfm, bool)
+        _require_instance(self.frontmatter, bool)
+        _require_instance(self.mdx, bool)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -157,10 +168,8 @@ class NlpConfig:
 
     def __post_init__(self) -> None:
         """Validate and normalise the preserved values."""
-        if not isinstance(self.model, str):
-            raise TypeError
-        if not isinstance(self.sentence_provider, str):
-            raise TypeError
+        _require_instance(self.model, str)
+        _require_instance(self.sentence_provider, str)
         object.__setattr__(
             self, "reserved", _copy_mapping(self.reserved, field_name="reserved")
         )
@@ -210,21 +219,15 @@ class StilyagiConfig:
                 f"Invalid cache_dir: {self.cache_dir!r}. It must be a non-empty path."
             )
             raise InvalidCacheDirError(message) from None
-        if not isinstance(self.respect_gitignore, bool):
-            raise TypeError
-        if not isinstance(self.line_length, int) or isinstance(self.line_length, bool):
-            raise TypeError
+        _require_instance(self.respect_gitignore, bool)
+        _require_strict_int(self.line_length)
         object.__setattr__(
             self, "plugins", _coerce_string_tuple(self.plugins, field_name="plugins")
         )
-        if not isinstance(self.lint, LintConfig):
-            raise TypeError
-        if not isinstance(self.extract, MarkdownExtractConfig):
-            raise TypeError
-        if not isinstance(self.nlp, NlpConfig):
-            raise TypeError
-        if not isinstance(self.rules, cabc.Mapping):
-            raise TypeError
+        _require_instance(self.lint, LintConfig)
+        _require_instance(self.extract, MarkdownExtractConfig)
+        _require_instance(self.nlp, NlpConfig)
+        _require_instance(self.rules, cabc.Mapping)
         object.__setattr__(
             self,
             "rules",
