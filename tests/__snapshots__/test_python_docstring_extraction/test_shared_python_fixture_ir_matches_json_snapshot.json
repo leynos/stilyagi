@@ -352,7 +352,7 @@
       "text": "Use a function docstring for later Python extraction slices."
     }
   ],
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "suppressions": [],
   "trees": [
     {

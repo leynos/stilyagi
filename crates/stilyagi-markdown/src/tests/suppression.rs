@@ -15,7 +15,8 @@ use super::suppression_support::{
 use crate::{
     markdown_ir_document, parse_markdown_ast, suppression::DirectiveError,
     suppression::DirectiveOutcome, suppression::DirectiveVerb,
-    suppression::parse_comment_directive, suppression::verb_kind, validate_ir_consistency,
+    suppression::parse_comment_directive, suppression::verb_kind, suppression::verb_range_role,
+    validate_ir_consistency,
 };
 
 #[rstest]
@@ -49,6 +50,7 @@ fn parse_comment_directive_parses_canonical_verbs(
             .collect::<Vec<_>>()
     );
     assert_eq!(verb_kind(parsed.verb), expected_kind(expected_verb));
+    assert_eq!(verb_range_role(parsed.verb), verb_range_role(expected_verb));
 }
 
 #[rstest]

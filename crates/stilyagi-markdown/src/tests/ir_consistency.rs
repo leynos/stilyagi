@@ -31,7 +31,7 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
 
     assert!(matches!(&document, Ok(value) if value.document.syntax == "markdown"));
     if let Ok(value) = document {
-        assert_eq!(value.schema_version, "1.0.0");
+        assert_eq!(value.schema_version, "1.1.0");
         assert!(
             value
                 .producers

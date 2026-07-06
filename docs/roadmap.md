@@ -153,7 +153,7 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
   - Addendum (from review:2.1.3; low). Exercise within-paragraph HTML
     comments so verb-driven classification stays pinned. Lightweight addendum
     pass.
-- [ ] 2.1.4. Preserve range-suppression polarity in the IR.
+- [x] 2.1.4. Preserve range-suppression polarity in the IR.
   - Requires 2.1.3.
   - Encode the open/close role in the suppression contract so downstream
     stages do not need to re-scan comment bytes to resolve range boundaries.

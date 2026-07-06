@@ -123,7 +123,7 @@ fn empty_document_uses_line_index_and_content_hash() {
         source,
     );
 
-    assert_eq!(document.schema_version, "1.0.0");
+    assert_eq!(document.schema_version, "1.1.0");
     assert_eq!(document.line_index, vec![0, 8, 12]);
     assert!(document.document.content_hash.starts_with("sha256:"));
 }

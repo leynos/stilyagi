@@ -125,7 +125,7 @@ def test_engine_extract_document_returns_a_model_document() -> None:
     assert isinstance(document, model.Document)
     assert document.syntax is model.Syntax.MARKDOWN
     assert document.ir is not None
-    assert document.ir["schema_version"] == "1.0.0"
+    assert document.ir["schema_version"] == "1.1.0"
     ir_document = typ.cast("dict[str, JSONType]", document.ir["document"])
     assert ir_document["path"] is None
     assert ir_document["uri"] is None
@@ -329,7 +329,7 @@ def test_extract_document_preserves_unknown_ir_region_kind(
             "syntax": syntax,
             "regions": [],
             "ir_json": json.dumps({
-                "schema_version": "1.0.0",
+                "schema_version": "1.1.0",
                 "regions": [{"kind": "future_kind", "text": "Example"}],
             }),
         }

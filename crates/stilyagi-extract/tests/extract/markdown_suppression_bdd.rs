@@ -3,7 +3,7 @@
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use stilyagi_extract::{ExtractDocument, ExtractSyntax, extract_document};
-use stilyagi_ir::{IrDocument, SuppressionKind};
+use stilyagi_ir::{IrDocument, RangeRole, SuppressionKind};
 
 #[derive(Default)]
 struct MarkdownSuppressionState {
@@ -45,6 +45,21 @@ fn a_markdown_document_with_a_blanket_disable_comment(
     markdown_suppression_state: &mut MarkdownSuppressionState,
 ) {
     markdown_suppression_state.source = Some("<!-- stilyagi: disable -->\n".to_owned());
+}
+
+#[given("a Markdown document with a \"stilyagi: disable STY\"/\"enable STY\" pair")]
+fn a_markdown_document_with_a_disable_and_enable_pair(
+    markdown_suppression_state: &mut MarkdownSuppressionState,
+) {
+    markdown_suppression_state.source = Some(
+        concat!(
+            "# Suppression Fixture\n\n",
+            "<!-- stilyagi: disable STY -->\n",
+            "Suppressed content stays hidden here.\n",
+            "<!-- stilyagi: enable STY -->\n",
+        )
+        .to_owned(),
+    );
 }
 
 #[given("a Markdown document with two same-line suppression comments")]
@@ -271,11 +286,49 @@ fn the_ir_errors_contain_a_blanket_forbidden_entry(
     );
 }
 
+#[then("the first IR suppression records the disable as a range open")]
+fn the_first_ir_suppression_records_the_disable_as_a_range_open(
+    markdown_suppression_state: &MarkdownSuppressionState,
+) {
+    let ir = extracted_ir(markdown_suppression_state);
+    let Some(suppression) = ir.suppressions.first() else {
+        panic!("expected a suppression entry");
+    };
+
+    assert_eq!(ir.suppressions.len(), 2);
+    assert_eq!(suppression.kind, SuppressionKind::Range);
+    assert_eq!(suppression.codes, vec!["STY".to_owned()]);
+    assert_eq!(suppression.range_role, Some(RangeRole::Open));
+}
+
+#[then("the second IR suppression records the enable as a range close")]
+fn the_second_ir_suppression_records_the_enable_as_a_range_close(
+    markdown_suppression_state: &MarkdownSuppressionState,
+) {
+    let ir = extracted_ir(markdown_suppression_state);
+    let Some(suppression) = ir.suppressions.get(1) else {
+        panic!("expected a second suppression entry");
+    };
+
+    assert_eq!(ir.suppressions.len(), 2);
+    assert_eq!(suppression.kind, SuppressionKind::Range);
+    assert_eq!(suppression.codes, vec!["STY".to_owned()]);
+    assert_eq!(suppression.range_role, Some(RangeRole::Close));
+}
 #[scenario(
     path = "tests/features/markdown_suppression.feature",
     name = "A canonical ignore-next directive becomes a suppression"
 )]
 fn a_canonical_ignore_next_directive_becomes_a_suppression(
+    #[from(markdown_suppression_state)] _markdown_suppression_state: MarkdownSuppressionState,
+) {
+}
+
+#[scenario(
+    path = "tests/features/markdown_suppression.feature",
+    name = "A range disable and enable pair record open and close polarity"
+)]
+fn a_range_disable_and_enable_pair_record_open_and_close_polarity(
     #[from(markdown_suppression_state)] _markdown_suppression_state: MarkdownSuppressionState,
 ) {
 }

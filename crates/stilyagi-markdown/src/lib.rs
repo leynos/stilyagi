@@ -18,6 +18,7 @@ use stilyagi_ir::{
 };
 use suppression::{
     DirectiveError, DirectiveOutcome, parse_comment_directive, scan_comment_spans, verb_kind,
+    verb_range_role,
 };
 pub(crate) use validation::validate_ir_consistency;
 
@@ -237,6 +238,7 @@ fn suppressions_from_candidates(
                     suppressions.push(IrSuppression {
                         id: format!("s{suppression_id}"),
                         kind: verb_kind(parsed.verb),
+                        range_role: verb_range_role(parsed.verb),
                         codes: parsed.codes,
                         span,
                         origin: candidate.node_id.clone(),
@@ -302,4 +304,8 @@ fn source_span(
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::self_named_module_files,
+    reason = "tests.rs keeps the inline Markdown test harness colocated with lib.rs"
+)]
 mod tests;

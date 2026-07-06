@@ -65,7 +65,7 @@ corresponds to one source file or one standard input (stdin) payload.
 A Stilyagi IR document SHALL contain these top-level fields:
 
 - `schema_version`: semantic version string for the IR schema, for example
-  `1.0.0`.
+  `1.1.0`.
 - `document`: metadata about the source document.
 - `producers`: the parsers and extractors that produced the IR.
 - `line_index`: monotonically increasing UTF-8 byte offsets for line starts.
@@ -73,7 +73,7 @@ A Stilyagi IR document SHALL contain these top-level fields:
 - `nodes`: the node store for those trees.
 - `regions`: extracted lintable prose regions.
 - `suppressions`: source-level suppression directives discovered by the
-  frontend.
+  frontend, including range polarity when applicable.
 - `errors`: non-fatal parse and extraction anomalies.
 - `metadata`: extensible map for future additions.
 
@@ -104,7 +104,7 @@ collections that later sections populate in more detail:
 
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "document": {
     "uri": "file:///repo/docs/guide.md",
     "path": "docs/guide.md",
@@ -333,6 +333,9 @@ Each suppression SHALL contain:
 
 - `id`
 - `kind` (`inline`, `range`, `file`, `config`)
+- `range_role` for `range` suppressions, with `open` for a `disable`
+  directive and `close` for an `enable` directive; it MUST be absent for
+  other kinds.
 - `codes`
 - `span`
 - `origin`
@@ -361,6 +364,8 @@ Compatibility rules:
 - Consumers SHOULD ignore unknown fields within the same major version.
 - Producers MUST NOT change field meaning within a major version.
 - Optional fields MAY be added in minor versions.
+- `range_role` is an additive optional field introduced with schema version
+  `1.1.0`; non-range suppressions remain serialised without the field.
 
 ## 10. Example
 
@@ -370,7 +375,7 @@ region text back to original bytes:
 
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "document": {
     "uri": "file:///repo/docs/guide.md",
     "path": "docs/guide.md",

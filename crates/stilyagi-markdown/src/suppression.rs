@@ -1,6 +1,6 @@
 //! Markdown suppression directive parsing helpers.
 
-use stilyagi_ir::{SourceSpan, SuppressionKind};
+use stilyagi_ir::{RangeRole, SourceSpan, SuppressionKind};
 
 /// A comment slice found inside a Markdown HTML node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,6 +88,15 @@ pub(crate) const fn verb_kind(verb: DirectiveVerb) -> SuppressionKind {
         DirectiveVerb::IgnoreNext => SuppressionKind::Inline,
         DirectiveVerb::Disable | DirectiveVerb::Enable => SuppressionKind::Range,
         DirectiveVerb::IgnoreFile => SuppressionKind::File,
+    }
+}
+
+/// Map a range directive verb onto its IR polarity.
+pub(crate) const fn verb_range_role(verb: DirectiveVerb) -> Option<RangeRole> {
+    match verb {
+        DirectiveVerb::Disable => Some(RangeRole::Open),
+        DirectiveVerb::Enable => Some(RangeRole::Close),
+        DirectiveVerb::IgnoreNext | DirectiveVerb::IgnoreFile => None,
     }
 }
 

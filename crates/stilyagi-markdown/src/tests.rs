@@ -49,6 +49,7 @@ mod properties;
 mod segment_validation;
 #[path = "tests/suppression.rs"]
 mod suppression;
+mod suppression_range_role;
 #[path = "tests/suppression_support.rs"]
 mod suppression_support;
 

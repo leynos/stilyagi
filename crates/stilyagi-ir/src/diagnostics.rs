@@ -18,6 +18,16 @@ pub enum SuppressionKind {
     Config,
 }
 
+/// Polarity carried by a range suppression.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RangeRole {
+    /// Directive that opens a suppressed span.
+    Open,
+    /// Directive that closes a suppressed span.
+    Close,
+}
+
 /// Source-level suppression directive discovered during extraction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IrSuppression {
@@ -25,6 +35,9 @@ pub struct IrSuppression {
     pub id: String,
     /// Directive stratum recorded by the frontend.
     pub kind: SuppressionKind,
+    /// Role carried by range suppressions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_role: Option<RangeRole>,
     /// Rule codes or prefixes named by the directive.
     ///
     /// File-scope directives may intentionally carry an empty list.

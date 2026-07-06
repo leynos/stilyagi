@@ -3,7 +3,7 @@ source: crates/stilyagi-extract/tests/extract/ir_identity.rs
 expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expected canonical Python IR JSON: {error}\"))"
 ---
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "document": {
     "uri": null,
     "path": "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py",

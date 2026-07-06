@@ -35,7 +35,7 @@ fn assert_ir_json_contract(ir_json: &str) {
 
     assert_eq!(
         parsed.get("schema_version"),
-        Some(&serde_json::json!("1.0.0"))
+        Some(&serde_json::json!("1.1.0"))
     );
     assert!(
         parsed

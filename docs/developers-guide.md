@@ -457,6 +457,9 @@ particular.
   - V1 suppression remains syntax-native and deliberately narrow: configuration
     ignores, file-level directives, and named inline or range directives in
     host-language comments. Blanket inline suppression remains out of scope.
+  - `range_role` records `disable` as `open` and `enable` as `close`, so rule
+    authors and downstream stages can rely on the IR instead of re-parsing
+    comment bytes.
 - Safe-fix planning
   - Fix planning stays source-faithful and conservative. Safe fixes may target
     only source-backed spans, must reject overlapping non-identical edits, and

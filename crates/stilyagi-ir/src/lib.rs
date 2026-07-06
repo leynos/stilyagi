@@ -12,7 +12,7 @@ mod source_identity;
 mod tree;
 
 pub use canonical_json::{content_hash_for, line_index_for};
-pub use diagnostics::{IrError, IrSuppression, SuppressionKind};
+pub use diagnostics::{IrError, IrSuppression, RangeRole, SuppressionKind};
 pub use document::{DocumentMetadata, IrBuildContext, IrDocument, ProducerMetadata};
 pub use region::{
     InvalidRegionKind, IrOwner, IrRegion, IrSegment, RegionKind, SegmentOrigin, SyntheticReason,
@@ -21,7 +21,7 @@ pub use source_identity::SourceIdentity;
 pub use tree::{IrNode, IrTree, NodeFlags, SourceSpan};
 
 /// Current schema version for Stilyagi IR documents.
-pub const SCHEMA_VERSION: &str = "1.0.0";
+pub const SCHEMA_VERSION: &str = "1.1.0";
 
 /// Marker type for the future IR crate boundary.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

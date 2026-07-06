@@ -14,6 +14,12 @@ Feature: Markdown suppression directives surface in the IR
     Then the IR suppressions are empty
     And the IR errors contain a blanket-forbidden entry
 
+  Scenario: A range disable and enable pair record open and close polarity
+    Given a Markdown document with a "stilyagi: disable STY"/"enable STY" pair
+    When the document is extracted
+    Then the first IR suppression records the disable as a range open
+    And the second IR suppression records the enable as a range close
+
   Scenario: A same-line coalesced directive node becomes two suppressions
     Given a Markdown document with two same-line suppression comments
     When the document is extracted

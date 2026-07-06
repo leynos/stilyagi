@@ -623,6 +623,8 @@ Implementation consequences:
 - Suppression parsing belongs in extraction.
 - Markdown uses HTML comments; Python uses `#`; Rust and JavaScript use `//`.
 - Suppression state must be visible in IR and debug output.
+- Range suppressions carry open/close polarity in the IR so downstream stages
+  can resolve range boundaries without re-scanning comment bytes.
 - Blanket inline suppression remains forbidden in v1.
 
 ## 5. Business requirements

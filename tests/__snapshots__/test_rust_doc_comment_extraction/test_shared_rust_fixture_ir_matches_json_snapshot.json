@@ -353,7 +353,7 @@
       "text": " Function documentation comment after a suppression marker."
     }
   ],
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "suppressions": [],
   "trees": [
     {
