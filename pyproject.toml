@@ -10,6 +10,8 @@ authors = [{ name = "Payton McIntosh", email = "pmcintosh@df12.net" }]
 Homepage = "https://df12.studio/docs.html"
 Repository = "https://github.com/leynos/stilyagi"
 
+[project.scripts]
+stilyagi = "stilyagi.cli:main"
 [dependency-groups]
 dev = [
     # Keep in sync with [build-system].requires.

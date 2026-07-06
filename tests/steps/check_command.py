@@ -1,0 +1,142 @@
+"""Shared BDD steps for the `stilyagi check` command."""
+
+from __future__ import annotations
+
+import json
+import typing as typ
+
+from pytest_bdd import given, then, when
+from stilyagi import cli, engine, model
+
+if typ.TYPE_CHECKING:
+    import pathlib
+
+    import pytest
+
+
+class CheckCommandState(typ.TypedDict, total=False):
+    """State shared across the `stilyagi check` scenarios."""
+
+    root: pathlib.Path
+    exit_code: int
+    stdout: str
+    stderr: str
+
+
+@given(
+    "a temporary tree with two well-formed Markdown files",
+    target_fixture="check_command_state",
+)
+def temporary_tree_with_two_well_formed_markdown_files(
+    tmp_path: pathlib.Path,
+) -> CheckCommandState:
+    """Create a Markdown tree that should produce no diagnostics."""
+    _write_markdown(tmp_path / "docs" / "alpha.md", "Alpha")
+    _write_markdown(tmp_path / "docs" / "beta.md", "Beta")
+    return {"root": tmp_path}
+
+
+@given(
+    'a temporary tree with Markdown files "b.md", "a.md", and "sub/c.md"',
+    target_fixture="check_command_state",
+)
+def temporary_tree_with_markdown_files_in_unsorted_order(
+    tmp_path: pathlib.Path,
+) -> CheckCommandState:
+    """Create a Markdown tree with intentionally unsorted file names."""
+    _write_markdown(tmp_path / "b.md", "Bravo")
+    _write_markdown(tmp_path / "a.md", "Alpha")
+    _write_markdown(tmp_path / "sub" / "c.md", "Charlie")
+    return {"root": tmp_path}
+
+
+@given("the extractor emits one synthetic IR error per file")
+def extractor_emits_one_synthetic_ir_error_per_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Replace the Rust-backed extractor with a deterministic IR error stub."""
+    synthetic_document = model.Document(
+        syntax=model.Syntax.MARKDOWN,
+        ir={
+            "line_index": [0, 8],
+            "errors": [
+                {
+                    "message": "Synthetic IR error",
+                    "span": {"byte_start": 0},
+                },
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        engine,
+        "extract_document",
+        lambda source, syntax: synthetic_document,
+    )
+
+
+@when('I run "stilyagi check ." in that tree')
+def run_stilyagi_check_in_that_tree(
+    check_command_state: CheckCommandState,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Run the command against the temporary tree in-process."""
+    monkeypatch.chdir(check_command_state["root"])
+    check_command_state["exit_code"] = cli.main(["check", "."])
+    captured = capsys.readouterr()
+    check_command_state["stdout"] = captured.out
+    check_command_state["stderr"] = captured.err
+
+
+@when('I run "stilyagi check . --output-format json" in that tree')
+def run_stilyagi_check_json_in_that_tree(
+    check_command_state: CheckCommandState,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Run the JSON output path against the temporary tree in-process."""
+    monkeypatch.chdir(check_command_state["root"])
+    check_command_state["exit_code"] = cli.main(
+        ["check", ".", "--output-format", "json"],
+    )
+    captured = capsys.readouterr()
+    check_command_state["stdout"] = captured.out
+    check_command_state["stderr"] = captured.err
+
+
+@then("the exit code is 0")
+def the_exit_code_is_zero(check_command_state: CheckCommandState) -> None:
+    """Assert that the clean-tree command path succeeded."""
+    assert check_command_state["exit_code"] == 0
+
+
+@then("the exit code is 1")
+def the_exit_code_is_one(check_command_state: CheckCommandState) -> None:
+    """Assert that the synthetic-diagnostic path reports findings."""
+    assert check_command_state["exit_code"] == 1
+
+
+@then("the text output lists no diagnostics")
+def the_text_output_lists_no_diagnostics(
+    check_command_state: CheckCommandState,
+) -> None:
+    """Assert the rendered text contract for an empty run."""
+    assert check_command_state["stdout"] == "0 diagnostics found\n"
+    assert check_command_state["stderr"] == ""
+
+
+@then("the diagnostics and processed paths follow sorted normalized order")
+def the_diagnostics_and_processed_paths_follow_sorted_normalized_order(
+    check_command_state: CheckCommandState,
+) -> None:
+    """Assert that JSON output preserves the renderer's sorted path order."""
+    payload = json.loads(check_command_state["stdout"])
+    paths = [item["path"] for item in payload["diagnostics"]]
+    assert paths == ["a.md", "b.md", "sub/c.md"]
+    assert check_command_state["stderr"] == ""
+
+
+def _write_markdown(path: pathlib.Path, title: str) -> None:
+    """Write one tiny Markdown file for a BDD scenario."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"# {title}\n", encoding="utf-8")

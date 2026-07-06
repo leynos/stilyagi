@@ -302,7 +302,7 @@ escalation, not a workaround.
 - [x] W2 — Nearest-config discovery, `extend` chain, CLI overrides, `--isolated`.
 - [x] W3 — Deterministic Markdown file discovery.
 - [x] W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam.
-- [ ] W5 — `check` command, argparse CLI, exit codes, console entry point.
+- [x] W5 — `check` command, argparse CLI, exit codes, console entry point.
 - [ ] W6 — Standard-input support (`-` and `--stdin-filename`).
 - [ ] W7 — Documentation and roadmap update.
 
@@ -332,6 +332,13 @@ escalation, not a workaround.
   load-bearing facts here are pinned to in-worktree source (`crates/…`,
   `python/…`, `pyproject.toml`, `Makefile`) or to in-repo contract docs, not to
   scraped web pages.
+
+- Observation (W5): the new BDD steps under `tests/steps/` did not register
+  reliably until `tests` became a real package in this worktree. Evidence: the
+  feature collected but pytest-bdd reported missing step definitions until
+  `tests/__init__.py` was added and the step module was loaded as a pytest
+  plugin. Impact: keep the shared step module importable through the package
+  path when extending the CLI scenario coverage.
 
 - Observation (round 5): the worktree Makefile has advanced since round 2. `all`
   is now `all: ## Run commit gates` chaining `check-fmt`, `typecheck`, `lint`,

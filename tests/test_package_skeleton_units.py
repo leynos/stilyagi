@@ -4,13 +4,17 @@ import concurrent.futures
 import dataclasses as dc
 import json
 import logging
+import os
 import pathlib
+import subprocess  # noqa: S404 - tests invoke a trusted local interpreter.
+import sys
 import threading
 import typing as typ
 
 import pytest
 import stilyagi
 import stilyagi.engine.extraction as extraction_module
+from pytest_bdd import scenarios
 from stilyagi import cli, config, diagnostics, engine, model, nlp, plugins, rules
 from stilyagi.nlp import spacy_provider
 
@@ -18,6 +22,12 @@ type JSONType = dict[str, JSONType] | list[JSONType] | str | int | float | bool 
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+
+
+pytest_plugins = ("tests.steps.check_command",)
+
+
+scenarios("../features/stilyagi_check_command.feature")
 
 
 @pytest.fixture(autouse=True)
@@ -445,10 +455,76 @@ def _normalize_ir_identity(ir: cabc.Mapping[str, JSONType]) -> dict[str, JSONTyp
     normalized["document"] = document
     return normalized
 
-
-def test_cli_main_reports_placeholder_exit_code(
+def test_cli_main_checks_a_temporary_tree_and_exits_zero(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Return the documented placeholder exit code for the unimplemented CLI."""
-    assert cli.main() == 2
-    assert "CLI commands are not implemented yet." in capsys.readouterr().err
+    """Check a hermetic Markdown tree without consulting the repository root."""
+    target = tmp_path / "docs" / "notes.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("# Notes\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert cli.main(["check", "."]) == 0
+    assert cli.compute_exit_code([]) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == "0 diagnostics found\n"
+
+def test_cli_main_returns_one_for_synthetic_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Exercise the exit-1 branch with a synthetic diagnostic seam."""
+    target = tmp_path / "docs" / "notes.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("# Notes\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    synthetic_diagnostic = diagnostics.Diagnostic(
+        path="docs/notes.md",
+        code="STY999",
+        message="Synthetic diagnostic",
+        severity=diagnostics.Severity.WARNING,
+        line=1,
+        column=1,
+    )
+    monkeypatch.setattr(
+        "stilyagi.rules.registry.run_rules",
+        lambda document, config: [synthetic_diagnostic],
+    )
+
+    assert cli.compute_exit_code([synthetic_diagnostic]) == 1
+    assert cli.compute_exit_code([], had_error=True) == 2
+    assert cli.main(["check", "."]) == 1
+    captured = capsys.readouterr()
+    assert "STY999 Synthetic diagnostic" in captured.out
+
+def test_python_module_entrypoint_reports_invalid_config(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Exercise the console entry point through `python -m stilyagi`."""
+    (tmp_path / "stilyagi.toml").write_text("[lint\n", encoding="utf-8")
+    (tmp_path / "notes.md").write_text("# Notes\n", encoding="utf-8")
+    python_path = pathlib.Path(__file__).resolve().parents[1] / "python"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = (
+        f"{python_path}{os.pathsep}{env['PYTHONPATH']}"
+        if env.get("PYTHONPATH")
+        else str(python_path)
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "stilyagi"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert completed.returncode == 2
+    assert "stilyagi check:" in completed.stderr
+    assert "toml" in completed.stderr.lower()
