@@ -42,7 +42,7 @@ without touching the source text again. Success is observable three ways:
 - The suppression contract lives in RFC 0001 §8 (`docs/rfcs/`
   `0001-stilyagi-intermediate-representation.md`). The new field must be an
   **optional** addition: existing `inline`, `file`, and `config` suppressions
-  MUST serialise byte-for-byte as they do today (RFC 0001 §9 compatibility
+  MUST serialize byte-for-byte as they do today (RFC 0001 §9 compatibility
   rules: "Producers MUST NOT change field meaning within a major version";
   "Optional fields MAY be added in minor versions").
 - `SuppressionKind` string values (`inline`, `range`, `file`, `config`) MUST NOT
@@ -145,7 +145,7 @@ without touching the source text again. Success is observable three ways:
   Impact: this **shared extract fixture only** needs no new range-suppression
   *content*; the extract integration snapshot never gains a `suppressions`
   entry from work item 2. **This scoping is deliberately narrow.** It does NOT
-  generalise to the markdown crate's own snapshots — see the next observation,
+  generalize to the markdown crate's own snapshots — see the next observation,
   which corrects a load-bearing scope error.
 - Observation (BLOCKING correction, round 3): the claim "no existing golden
   snapshot needs new range-suppression content" is **false** for the markdown
@@ -174,7 +174,7 @@ without touching the source text again. Success is observable three ways:
   `schema_version` field churn covered in the next observation.
 - Observation (correction to the round-1 draft): the `schema_version` bump
   churns **18 snapshot files**, not just the extract golden snapshots. The
-  round-1 draft wrongly generalised "no range-suppression content churn" into
+  round-1 draft wrongly generalized "no range-suppression content churn" into
   "no markdown snapshot churn at all". In fact every full-document IR dump —
   including the twelve `crates/stilyagi-markdown/src/snapshots/*.snap` and the
   one `crates/stilyagi-test-support/tests/snapshots/round_trip_helpers__…​.snap`
@@ -228,12 +228,12 @@ without touching the source text again. Success is observable three ways:
   Bumping in lock-step keeps the emitted `schema_version` honest at every commit
   rather than emitting a new field under a version that does not advertise it.
   Date/Author: 2026-07-05, planning agent.
-- Decision: Serialise the field with `#[serde(default,
+- Decision: Serialize the field with `#[serde(default,
   skip_serializing_if = "Option::is_none")]`.
-  Rationale: preserves the exact serialised shape of inline/file/config
+  Rationale: preserves the exact serialized shape of inline/file/config
   suppressions (guarding the RFC-shape round-trip test and every golden
   snapshot that embeds a non-range suppression) and lets older payloads
-  deserialise unchanged.
+  deserialize unchanged.
   Date/Author: 2026-07-05, planning agent.
 
 ## Outcomes & retrospective
@@ -257,7 +257,7 @@ comments.
 Stilyagi is a Rust workspace. The pieces relevant to this task:
 
 - `crates/stilyagi-ir/src/diagnostics.rs` — defines `SuppressionKind` (the
-  `inline`/`range`/`file`/`config` enum) and `IrSuppression` (the serialisable
+  `inline`/`range`/`file`/`config` enum) and `IrSuppression` (the serializable
   suppression record: `id`, `kind`, `codes`, `span`, `origin`). This is the IR
   contract type that carries polarity after this change.
 - `crates/stilyagi-ir/src/lib.rs` — re-exports `IrSuppression`, `SuppressionKind`
@@ -322,7 +322,7 @@ Terms:
 
 - `docs/roadmap.md` task 2.1.4 (and its parent step 2.1).
 - `docs/rfcs/0001-stilyagi-intermediate-representation.md` §8 (suppression
-  fields) and §9 (serialisation and compatibility).
+  fields) and §9 (serialization and compatibility).
 - `docs/stilyagi-design.md`, the "Suppression syntax" heading (`####` at
   line 603; the load-bearing sentence "Suppression state must be visible in IR
   and debug output" is at line 625). Note: this is a distinct section from
@@ -486,7 +486,7 @@ Tests this work item adds/updates:
 - Unit: `range_directives_record_open_and_close_polarity`; a `verb_range_role`
   mapping test.
 - Property (`proptest`): role invariant for each verb.
-- Snapshot (`insta` inline): serialised range-suppression pair.
+- Snapshot (`insta` inline): serialized range-suppression pair.
 - Golden snapshot (`insta`, regenerated): the single existing markdown snapshot
   `crates/stilyagi-markdown/src/snapshots/`
   `stilyagi_markdown__tests__suppression_directives.snap`, whose sole content
@@ -621,13 +621,13 @@ Do not report gates green unless every one passes at HEAD.
 Red-Green-Refactor evidence to record per work item:
 
 - Work item 1 — Red: `cargo test -p stilyagi-ir
-  range_role_serialises_open_and_close` fails to compile (missing
+  range_role_serializes_open_and_close` fails to compile (missing
   `RangeRole`/field). Green: after adding the enum, field, and re-export, the
   test passes and `make test` is green with regenerated snapshots.
 - Work item 2 — Red: `range_directives_record_open_and_close_polarity` fails
   (frontend still emits `None`), and the pre-existing
   `hardening_fixture_ir_json_round_trips_without_span_drift` case flips red
-  (`s1`/`s2` now serialise `range_role`, so the golden snapshot and
+  (`s1`/`s2` now serialize `range_role`, so the golden snapshot and
   `assert_eq!(parsed, document)` mismatch). Green: after `verb_range_role` is
   wired in AND the `stilyagi_markdown__tests__suppression_directives.snap`
   snapshot is re-accepted (sole delta: two `range_role` lines), the new unit
@@ -728,7 +728,7 @@ Work item 2 now explicitly regenerates and re-accepts that one snapshot
 (`cargo test -p stilyagi-markdown` + `cargo insta accept`), lists it under
 "Tests this work item adds/updates", and its Stage D pins the expected delta to
 exactly two new `range_role` lines. (2) The Surprises section previously
-generalised the "no golden snapshot needs new range-suppression content" claim
+generalized the "no golden snapshot needs new range-suppression content" claim
 across all snapshots; it was true only of the shared **extract** fixture
 (`heading-table-link-suppression.md`, ignored marker, no suppressions). Rescoped
 observation 1 to the shared extract fixture only and added a BLOCKING-correction

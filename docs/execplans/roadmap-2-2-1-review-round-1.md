@@ -46,7 +46,7 @@ Verdict: **REVISE** — not implementable/design-conformant as written.
    recurse and extract every Markdown file in the repo working directory the
    tests run in — slow, CWD-coupled, non-deterministic. Redefine both to pass
    explicit argv against a `tmp_path` tree (or make no-arg invocation hermetic),
-   and account for the snapshot artifact.
+   and account for the snapshot artefact.
 
 4. **Config schema contradicts RFC 0003 §6/§7.** W1 models only a Markdown
    subset and "rejects unknown keys" (exit 2), but RFC §6's v1 baseline

@@ -24,7 +24,7 @@ This is **false**. Verified against the worktree:
   `stilyagi_markdown__tests__suppression_directives.snap`.
 - That snapshot contains two `range` suppressions, `s1` and `s2` (codes `STY`,
   origins `n7`/`n10`) — i.e. a canonical `disable STY` / `enable STY` pair.
-- It is produced by the parametrised test case
+- It is produced by the parametrized test case
   `crates/stilyagi-markdown/src/tests.rs:122` (`suppression_directives`,
   fixture `tests/fixtures/corpus/markdown/valid/suppression-directives.md.fixture`),
   which runs `markdown_ir_document` → the frontend construction site at
@@ -50,8 +50,8 @@ Work item 2 does not account for this:
 
 This is exactly the class of error Round 1 flagged (a narrow fixture fact —
 "the *shared* markdown fixture uses the non-canonical marker and emits no
-suppressions" — over-generalised into "no existing golden snapshot changes").
-The shared-fixture observation is correct; its generalisation to *all* golden
+suppressions" — over-generalized into "no existing golden snapshot changes").
+The shared-fixture observation is correct; its generalization to *all* golden
 snapshots is not.
 
 ### Required fix
@@ -85,7 +85,7 @@ snapshots is not.
 - `IrSuppression` fields (`id`, `kind`, `codes`, `span`, `origin`) and
   `SuppressionKind` snake_case enum — confirmed in `diagnostics.rs`. Additive
   `Option<RangeRole>` with `#[serde(default, skip_serializing_if =
-  "Option::is_none")]` preserves the serialised shape of non-range suppressions.
+  "Option::is_none")]` preserves the serialized shape of non-range suppressions.
 - RFC 0001 §8 (line 327, field list) and §9 (line 346, compatibility rules:
   "Optional fields MAY be added in minor versions"; "Producers MUST NOT change
   field meaning within a major version") support the additive-field + `1.1.0`

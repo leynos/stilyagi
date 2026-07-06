@@ -386,12 +386,12 @@ current implementation limitation rather than the source shape.
 - [x] (2026-05-01T00:00:00Z) Final gates passed: `make check-fmt`,
   `make lint`, `make test`, `make markdownlint`, and `make nixie`.
 - [x] (2026-05-06T00:00:00Z) Addressed review comments by adding a Rust
-  test-support crate for shared corpus path helpers, centralising the shared
+  test-support crate for shared corpus path helpers, centralizing the shared
   Markdown fixture path in Rust and Python tests, strengthening malformed
   fixture filename assertions, and expanding uncommon acronyms in this plan.
 - [x] (2026-05-07T00:00:00Z) Addressed follow-up review comments by moving the
   `stilyagi-extract` Rust tests into an integration test file, moving PyO3 BDD
-  tests into a dedicated test module, centralising `RegionKind` string parsing,
+  tests into a dedicated test module, centralizing `RegionKind` string parsing,
   making repository-root discovery fail fast, and replacing loose Python BDD
   state with a `TypedDict`.
 - [x] (2026-05-07T00:00:00Z) Validated the follow-up changes with

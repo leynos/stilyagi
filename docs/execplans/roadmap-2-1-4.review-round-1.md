@@ -36,7 +36,7 @@ item ends green and is independently committable" and the deterministic
 
 Note: the "Suppression syntax" claim in Surprises (that the extract shared
 markdown fixture carries no canonical suppression) is itself correct — the
-defect is that the plan generalises "no range-suppression *content* churn" into
+defect is that the plan generalizes "no range-suppression *content* churn" into
 "no markdown snapshot churn at all", ignoring the `schema_version` field that
 every full-document markdown snapshot embeds.
 

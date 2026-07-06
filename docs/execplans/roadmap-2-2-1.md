@@ -406,7 +406,7 @@ Tests (Red first):
   config-file kind parses under the correct prefix; same-directory precedence
   resolves in the documented order when several files coexist.
 - `tests/test_config_schema_properties.py` (property, `hypothesis`): for any
-  subset of the three recognised filenames present in a directory, the resolved
+  subset of the three recognized filenames present in a directory, the resolved
   file is always the highest-precedence present one (a total, deterministic
   choice). Use `python-verification` to confirm Hypothesis is the right adversary
   before writing.
@@ -487,7 +487,7 @@ Tests (Red first):
   linted); noise directories are skipped; ordering is the sorted normalized
   path order for a fixture tree.
 - `tests/test_discovery_properties.py` (property, `hypothesis`): for any set of
-  generated relative Markdown paths materialised under a temporary root, the
+  generated relative Markdown paths materialized under a temporary root, the
   returned list equals the input set sorted by normalized path (total order,
   no duplicates, deterministic regardless of filesystem enumeration order).
 

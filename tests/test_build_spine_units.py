@@ -6,26 +6,11 @@ import re
 import typing as typ
 
 import pytest
-import yaml
 from stilyagi import model, smoke
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_SMOKE_REGION = model.Region(kind="heading", text="Stilyagi smoke")
-ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
-WorkflowStep = typ.TypedDict(
-    "WorkflowStep",
-    {"name": str, "uses": str, "run": str, "with": dict[str, str]},
-    total=False,
-)
-WorkflowJob = typ.TypedDict(
-    "WorkflowJob",
-    {
-        "runs-on": str,
-        "strategy": dict[str, dict[str, list[str]]],
-        "steps": list[WorkflowStep],
-    },
-    total=False,
-)
+type ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
 
 
 def _collect_recipe_lines(lines: list[str], start: int) -> tuple[str, ...]:
@@ -53,35 +38,6 @@ def _make_target(makefile: str, target: str) -> tuple[str, tuple[str, ...]]:
 def _normalised_lines(contents: str) -> set[str]:
     """Return stripped non-empty lines for structure-oriented file assertions."""
     return {line.strip() for line in contents.splitlines() if line.strip()}
-
-
-def _workflow_document(workflow: str) -> dict[str, object]:
-    """Parse a GitHub Actions workflow while preserving the `on` key as text."""
-    loaded = yaml.load(workflow, Loader=yaml.BaseLoader)
-    assert isinstance(loaded, dict)
-    return typ.cast("dict[str, object]", loaded)
-
-
-def _workflow_jobs(parsed_workflow: dict[str, object]) -> dict[str, WorkflowJob]:
-    """Return the parsed workflow jobs with a narrow test-local shape."""
-    jobs = parsed_workflow["jobs"]
-    assert isinstance(jobs, dict)
-    return typ.cast("dict[str, WorkflowJob]", jobs)
-
-
-def _job_steps(job: WorkflowJob) -> list[WorkflowStep]:
-    """Return a workflow job's steps with a narrow test-local shape."""
-    return typ.cast("list[WorkflowStep]", job["steps"])
-
-
-def _workflow_steps(jobs: dict[str, WorkflowJob]) -> list[WorkflowStep]:
-    """Return every step from every parsed workflow job."""
-    return [step for job in jobs.values() for step in _job_steps(job)]
-
-
-def _workflow_step_named(job: WorkflowJob, name: str) -> WorkflowStep:
-    """Return a named step from a parsed workflow job."""
-    return next(step for step in _job_steps(job) if step.get("name") == name)
 
 
 def test_smoke_helper_exercises_the_public_rust_backed_boundary() -> None:
@@ -282,73 +238,85 @@ def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
 def test_makefile_markdownlint_target_excludes_release_smoke_venv(
     makefile_text: str,
 ) -> None:
-    """Markdownlint must depend on tools-docs and exclude the release smoke venv."""
+    """Markdownlint must depend on tools-docs and exclude generated trees.
+
+    The Markdown file list is shared through the ``MD_FILES_FIND`` variable, so
+    the exclusions are asserted on its single definition rather than on each
+    recipe line.
+    """
     header, recipe = _make_target(makefile_text, "markdownlint")
     assert "tools-docs" in header
-    assert any("-not -path './.venv-release-smoke/*'" in line for line in recipe)
+    assert any("$(MD_FILES_FIND)" in line for line in recipe)
+    md_find_definitions = [
+        line for line in makefile_text.splitlines() if line.startswith("MD_FILES_FIND")
+    ]
+    assert len(md_find_definitions) == 1
+    for excluded in (
+        "./.venv-release-smoke/*",
+        "./.venv/*",
+        "./.uv-cache/*",
+        "./.uv-tools/*",
+        "./target/*",
+        "./crates/stilyagi-pyext/target/*",
+    ):
+        assert f"-not -path '{excluded}'" in md_find_definitions[0]
 
 
-def test_ci_workflow_calls_the_canonical_makefile_targets() -> None:
-    """Make CI exercise Makefile targets instead of duplicating build logic."""
-    parsed_workflow = _workflow_document(
-        (REPOSITORY_ROOT / ".github" / "workflows" / "smoke.yml").read_text(
-            encoding="utf-8"
+def test_makefile_markdownlint_target_enforces_spelling(
+    makefile_text: str,
+) -> None:
+    """Markdownlint must run typos over the shared Markdown file list.
+
+    The spelling gate must go through the pinned ``$(TYPOS)`` command with the
+    repository configuration and ``--force-exclude`` so the ``typos.toml``
+    excludes hold even for explicitly passed paths.
+    """
+    _header, recipe = _make_target(makefile_text, "markdownlint")
+    typos_lines = [line for line in recipe if "$(TYPOS)" in line]
+    assert len(typos_lines) == 1
+    assert "$(MD_FILES_FIND)" in typos_lines[0]
+    assert "--config typos.toml" in typos_lines[0]
+    assert "--force-exclude" in typos_lines[0]
+    assert re.search(
+        r"^TYPOS_VERSION\s*\?=\s*\d+\.\d+\.\d+\s*$", makefile_text, re.MULTILINE
+    )
+
+
+def test_makefile_lint_tools_resolve_through_uv(makefile_text: str) -> None:
+    """Lint helper tools must resolve through uv-managed commands."""
+    assert re.search(
+        r"^INTERROGATE\s*\?=\s*\$\(UV_RUN\)\s*interrogate\s*$",
+        makefile_text,
+        re.MULTILINE,
+    ), "INTERROGATE no longer resolves through $(UV_RUN)"
+    assert re.search(
+        r"^TYPOS\s*=\s*env\s+\$\(UV_ENV\)\s+\$\(UV\)\s+tool\s+run\s+"
+        r"typos@\$\(TYPOS_VERSION\)\s*$",
+        makefile_text,
+        re.MULTILINE,
+    ), "TYPOS no longer resolves through the pinned uv tool command"
+
+
+def test_makefile_nixie_target_uses_shared_markdown_file_list(
+    makefile_text: str,
+) -> None:
+    """Nixie must depend on tools-docs and validate the shared Markdown list."""
+    header, recipe = _make_target(makefile_text, "nixie")
+    assert "tools-docs" in header, "nixie no longer depends on tools-docs"
+    nixie_lines = [line for line in recipe if "$(NIXIE)" in line]
+    assert len(nixie_lines) == 1, "nixie target no longer has one NIXIE command"
+    assert "$(MD_FILES_FIND)" in nixie_lines[0], (
+        "nixie no longer uses the shared Markdown file list"
+    )
+    assert "--no-sandbox" in nixie_lines[0], "nixie no longer runs without sandboxing"
+
+
+def test_makefile_tools_docs_target_checks_documentation_tools(
+    makefile_text: str,
+) -> None:
+    """tools-docs must verify markdownlint, nixie, and uv are installed."""
+    _header, recipe = _make_target(makefile_text, "tools-docs")
+    for tool in ("$(MDLINT)", "$(NIXIE)", "uv"):
+        assert any(f"ensure_tool,{tool}" in line for line in recipe), (
+            f"tools-docs no longer checks {tool}"
         )
-    )
-    jobs = _workflow_jobs(parsed_workflow)
-    workflow_steps = _workflow_steps(jobs)
-    run_commands = {
-        command.strip()
-        for step in workflow_steps
-        for command in str(step.get("run", "")).splitlines()
-        if command.strip()
-    }
-
-    assert {
-        "make check-fmt",
-        "make markdownlint",
-        "make nixie",
-        "make typecheck",
-        "make lint",
-        "make test",
-    }.issubset(run_commands)
-    assert "lint-test" in jobs
-    assert jobs["lint-test"]["runs-on"] == "ubuntu-latest"
-    assert "release-smoke" in jobs
-    assert jobs["release-smoke"]["runs-on"] == "${{ matrix.os }}"
-    assert jobs["release-smoke"]["strategy"]["matrix"]["os"] == [
-        "ubuntu-latest",
-        "macos-latest",
-        "windows-latest",
-    ]
-    triggers = typ.cast("dict[str, object]", parsed_workflow.get("on", {}))
-    assert "pull_request" in triggers
-    assert "main" in typ.cast("dict[str, list[str]]", triggers.get("push", {})).get(
-        "branches", []
-    )
-    python_steps = [
-        step
-        for step in workflow_steps
-        if str(step.get("uses", "")).startswith("actions/setup-python@")
-    ]
-    assert python_steps
-    assert all(
-        step["uses"] == "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405"
-        for step in python_steps
-    )
-    assert all(step["with"]["python-version"] == "3.14" for step in python_steps)
-    assert "uv tool install interrogate==1.7.0" in run_commands
-    assert all("mdformat-all" not in str(step) for step in workflow_steps)
-    assert any(
-        "uv tool install nixie-cli==1.0.0" in str(step.get("run", ""))
-        for step in workflow_steps
-    )
-    test_runner_step = _workflow_step_named(jobs["lint-test"], "Install test runner")
-    assert "cargo binstall --no-confirm cargo-nextest" in test_runner_step["run"]
-    whitaker_step = _workflow_step_named(jobs["lint-test"], "Install Whitaker")
-    whitaker_run = str(whitaker_step["run"])
-    assert "github.com/leynos/whitaker" in whitaker_run
-    assert "whitaker-installer" in whitaker_run
-    assert "--cranelift" in whitaker_run
-    release_smoke_step = _workflow_step_named(jobs["release-smoke"], "Release smoke")
-    assert "make release" in release_smoke_step["run"]

@@ -17,7 +17,7 @@ The plugin SHOULD combine two proven ideas:
 - `valedate`'s isolated sandbox and assertion-helper model for exercising a
   real linter without touching global configuration, and
 - `pytest-flake8-path`'s path-like `tmp_path` wrapper with one deliberate
-  runner method and a normalised result object.[^1][^2][^3]
+  runner method and a normalized result object.[^1][^2][^3]
 
 The result SHOULD not be a giant domain-specific language (DSL). It SHOULD be a
 thin test harness that makes the common case easy:
@@ -39,7 +39,7 @@ plumbing:
 - arrange Python import paths or distribution metadata for test-only rule packs,
 - invoke `stilyagi` in a subprocess with the right isolation flags,
 - parse JSON output,
-- normalise paths across Linux, macOS, and Windows,
+- normalize paths across Linux, macOS, and Windows,
 - write repetitive assertions for "diagnostic exists", "only these codes
   fired", or "no diagnostics were emitted",
 - and debug failures caused by hidden user config, stale caches, or path
@@ -76,7 +76,7 @@ global styles trees or user config.[^1] That is the right philosophy for
 Stilyagi: real execution, isolated state, thin helpers.
 
 `pytest-flake8-path` wraps pytest's `tmp_path` fixture in a path-like object
-with one runner method, and returns a parsed result object with normalised
+with one runner method, and returns a parsed result object with normalized
 output lines.[^2] That is the right ergonomics lesson for Stilyagi: tests
 should feel like ordinary file-based pytest tests, not like a framework inside
 the framework.
@@ -99,7 +99,7 @@ temporary project root and a way to synthesize entry-point-backed rule packs.
   - Provide a small set of assertion helpers for the most common diagnostic
     expectations.
   - Keep test output stable across operating systems through path
-    normalisation.
+    normalization.
 - Non-goals:
   - Replace unit tests for low-level Rust or Python internals.
   - Provide a full declarative fixture DSL for writing projects without files.
@@ -251,7 +251,7 @@ It SHOULD include at least:
 - `diagnostics_by_path: dict[str, list[Diagnostic]] | None`
 - `ir_documents: list[dict] | None`
 
-The result object SHOULD normalise paths into a stable Unix-like form such as
+The result object SHOULD normalize paths into a stable Unix-like form such as
 `./path/to/file.md`, following the same cross-platform testing principle that
 `pytest-flake8-path` uses for flake8 output.[^2]
 
@@ -404,7 +404,7 @@ isolation should be the default.
   points.
 - The framework MUST support temporary capability-provider installation through
   entry points.
-- The framework MUST normalise paths in parsed output for cross-platform test
+- The framework MUST normalize paths in parsed output for cross-platform test
   stability.
 
 ### Technical requirements
@@ -454,7 +454,7 @@ engine version.
 Rejected.
 
 This would avoid pytest-plugin packaging, but every test suite would still need
-to wire up `tmp_path`, subprocess defaults, and path normalisation manually.
+to wire up `tmp_path`, subprocess defaults, and path normalization manually.
 That is precisely the repetition this RFC is trying to eliminate.
 
 ### Option B: separate `pytest-stilyagi` distribution

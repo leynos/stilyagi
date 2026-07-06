@@ -365,7 +365,7 @@ Compatibility rules:
 - Producers MUST NOT change field meaning within a major version.
 - Optional fields MAY be added in minor versions.
 - `range_role` is an additive optional field introduced with schema version
-  `1.1.0`; non-range suppressions remain serialised without the field.
+  `1.1.0`; non-range suppressions remain serialized without the field.
 
 ## 10. Example
 
