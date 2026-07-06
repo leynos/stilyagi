@@ -66,6 +66,32 @@ def temporary_tree_containing_malformed_markdown(
     return {"root": tmp_path}
 
 
+@given(
+    "a temporary tree with an invalid stilyagi.toml",
+    target_fixture="check_command_state",
+)
+def temporary_tree_with_an_invalid_stilyagi_toml(
+    tmp_path: pathlib.Path,
+) -> CheckCommandState:
+    """Create a tree whose discovered config should fail fast."""
+    (tmp_path / "stilyagi.toml").write_text("[lint\n", encoding="utf-8")
+    _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
+    return {"root": tmp_path}
+
+
+@given(
+    "a temporary tree with a stilyagi.toml and a Markdown file",
+    target_fixture="check_command_state",
+)
+def temporary_tree_with_a_stilyagi_toml_and_a_markdown_file(
+    tmp_path: pathlib.Path,
+) -> CheckCommandState:
+    """Create a tree where isolated mode must ignore the discovered config."""
+    (tmp_path / "stilyagi.toml").write_text("[lint\n", encoding="utf-8")
+    _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
+    return {"root": tmp_path}
+
+
 @given("the extractor emits one synthetic IR error per file")
 def extractor_emits_one_synthetic_ir_error_per_file(
     monkeypatch: pytest.MonkeyPatch,
@@ -120,6 +146,20 @@ def run_stilyagi_check_json_in_that_tree(
     check_command_state["stderr"] = captured.err
 
 
+@when('I run "stilyagi check . --isolated" in that tree')
+def run_stilyagi_check_isolated_in_that_tree(
+    check_command_state: CheckCommandState,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Run the isolated command path against the temporary tree in-process."""
+    monkeypatch.chdir(check_command_state["root"])
+    check_command_state["exit_code"] = cli.main(["check", ".", "--isolated"])
+    captured = capsys.readouterr()
+    check_command_state["stdout"] = captured.out
+    check_command_state["stderr"] = captured.err
+
+
 @when('I run "stilyagi check - --stdin-filename README.md" in that tree')
 def run_stilyagi_check_from_stdin_in_that_tree(
     check_command_state: CheckCommandState,
@@ -147,6 +187,12 @@ def the_exit_code_is_zero(check_command_state: CheckCommandState) -> None:
 def the_exit_code_is_one(check_command_state: CheckCommandState) -> None:
     """Assert that the synthetic-diagnostic path reports findings."""
     assert check_command_state["exit_code"] == 1
+
+
+@then("the exit code is 2")
+def the_exit_code_is_two(check_command_state: CheckCommandState) -> None:
+    """Assert that invalid config and usage failures fail fast."""
+    assert check_command_state["exit_code"] == 2
 
 
 @then("the text output lists no diagnostics")
@@ -179,6 +225,16 @@ def the_text_output_attributes_the_synthetic_diagnostic_to_readme(
         == "README.md:1:1: IR000 Synthetic IR error\n1 diagnostic found\n"
     )
     assert check_command_state["stderr"] == ""
+
+
+@then("the standard error reports an actionable configuration error")
+def the_standard_error_reports_an_actionable_configuration_error(
+    check_command_state: CheckCommandState,
+) -> None:
+    """Assert that invalid discovery errors are routed to stderr."""
+    assert "stilyagi check:" in check_command_state["stderr"]
+    assert "toml" in check_command_state["stderr"].lower()
+    assert check_command_state["stdout"] == ""
 
 
 def _write_markdown(path: pathlib.Path, title: str) -> None:

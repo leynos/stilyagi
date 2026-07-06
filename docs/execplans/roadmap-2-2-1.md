@@ -306,6 +306,13 @@ escalation, not a workaround.
     for non-UTF-8, permission-denied, removed-mid-run, directory, and extractor
     failure paths, and added a real malformed-Markdown CLI acceptance case so the
     documented exit-`0` recovery path is exercised end-to-end.
+  - Restored the named W5 coverage surface that the round-6 plan called for:
+    `tests/test_check_command.py` now owns the `main([...])` return-code and JSON
+    renderer assertions, `tests/test_cli_e2e.py` exercises `python -m stilyagi
+    check` through the subprocess boundary, and
+    `features/stilyagi_check_command.feature` now contains the two missing
+    behavioural scenarios for invalid configuration and isolated-mode config
+    skipping.
 - [x] W6 — Standard-input support (`-` and `--stdin-filename`).
 - [x] W7 — Documentation and roadmap update.
 
@@ -342,6 +349,13 @@ escalation, not a workaround.
   `tests/__init__.py` was added and the step module was loaded as a pytest
   plugin. Impact: keep the shared step module importable through the package
   path when extending the CLI scenario coverage.
+
+- Observation (W5 fix round 2): the saved round-6 plan explicitly named six
+  behavioural scenarios, a dedicated `tests/test_check_command.py`, and a
+  dedicated `tests/test_cli_e2e.py`, but the worktree only retained four feature
+  scenarios and scattered CLI assertions. Impact: this fix round restores the
+  named surfaces rather than treating the dispersed coverage as an acceptable
+  substitute, so the ExecPlan now matches the committed tree again.
 
 - Observation (W6): stdin support now reads from `sys.stdin`, uses
   `--stdin-filename` for reported-path attribution and config resolution, and

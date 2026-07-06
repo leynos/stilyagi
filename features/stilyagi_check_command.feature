@@ -27,3 +27,15 @@ Feature: stilyagi check for Markdown files with nearest-config
     When I run "stilyagi check ." in that tree
     Then the exit code is 0
     And the text output lists no diagnostics
+
+  Scenario: check fails with exit code 2 on invalid configuration
+    Given a temporary tree with an invalid stilyagi.toml
+    When I run "stilyagi check ." in that tree
+    Then the exit code is 2
+    And the standard error reports an actionable configuration error
+
+  Scenario: isolated mode ignores discovered configuration
+    Given a temporary tree with a stilyagi.toml and a Markdown file
+    When I run "stilyagi check . --isolated" in that tree
+    Then the exit code is 0
+    And the text output lists no diagnostics
