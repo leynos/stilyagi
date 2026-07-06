@@ -170,10 +170,10 @@ def test_corpus_covers_required_source_shapes() -> None:
     assert '"""Module docstring' in python.text
     assert '"""Class docstring' in python.text
     assert '"""Use a function docstring' in python.text
-    assert "stilyagi-disable-next-line" in python.text
+    assert "stilyagi: ignore-next" in python.text
     assert "/// Item-level documentation comment" in rust.text
     assert "//! Crate-level documentation comment" in rust.text
-    assert "stilyagi-disable-next-line" in rust.text
+    assert "stilyagi: ignore-next" in rust.text
 
 
 def test_malformed_fixtures_remain_readable_sources(

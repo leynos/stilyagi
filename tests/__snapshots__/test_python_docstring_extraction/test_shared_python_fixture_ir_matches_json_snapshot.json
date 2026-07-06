@@ -7,24 +7,39 @@
     "syntax": "python",
     "uri": "<normalized>"
   },
-  "errors": [],
+  "errors": [
+    {
+      "code": "suppression-blanket-forbidden",
+      "message": "blanket suppression directives must name at least one code",
+      "span": {
+        "byte_end": 524,
+        "byte_start": 505
+      }
+    }
+  ],
   "line_index": [
     0,
     55,
     56,
     57,
-    98,
-    120,
-    179,
-    180,
-    198,
-    223,
-    288,
-    316,
-    317,
-    318,
-    350,
-    421
+    93,
+    115,
+    174,
+    175,
+    193,
+    218,
+    283,
+    311,
+    312,
+    313,
+    345,
+    377,
+    448,
+    449,
+    450,
+    481,
+    505,
+    525
   ],
   "metadata": {},
   "nodes": [
@@ -32,7 +47,12 @@
       "children": [
         "n1",
         "n2",
-        "n6"
+        "n6",
+        "n8",
+        "n9",
+        "n10",
+        "n11",
+        "n12"
       ],
       "fields": {},
       "flags": {
@@ -46,7 +66,7 @@
       "parent": null,
       "props": {},
       "span": {
-        "byte_end": 421,
+        "byte_end": 525,
         "byte_start": 0
       },
       "tree": "t0"
@@ -89,8 +109,8 @@
       "parent": "n0",
       "props": {},
       "span": {
-        "byte_end": 315,
-        "byte_start": 98
+        "byte_end": 310,
+        "byte_start": 93
       },
       "tree": "t0"
     },
@@ -108,8 +128,8 @@
       "parent": "n2",
       "props": {},
       "span": {
-        "byte_end": 178,
-        "byte_start": 124
+        "byte_end": 173,
+        "byte_start": 119
       },
       "tree": "t0"
     },
@@ -131,8 +151,8 @@
       "parent": "n2",
       "props": {},
       "span": {
-        "byte_end": 315,
-        "byte_start": 202
+        "byte_end": 310,
+        "byte_start": 197
       },
       "tree": "t0"
     },
@@ -150,8 +170,8 @@
       "parent": "n4",
       "props": {},
       "span": {
-        "byte_end": 287,
-        "byte_start": 231
+        "byte_end": 282,
+        "byte_start": 226
       },
       "tree": "t0"
     },
@@ -173,8 +193,8 @@
       "parent": "n0",
       "props": {},
       "span": {
-        "byte_end": 420,
-        "byte_start": 318
+        "byte_end": 447,
+        "byte_start": 345
       },
       "tree": "t0"
     },
@@ -192,8 +212,103 @@
       "parent": "n6",
       "props": {},
       "span": {
-        "byte_end": 420,
-        "byte_start": 354
+        "byte_end": 447,
+        "byte_start": 381
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n8",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 92,
+        "byte_start": 57
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n9",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 344,
+        "byte_start": 313
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n10",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 480,
+        "byte_start": 450
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n11",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 504,
+        "byte_start": 481
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n12",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 524,
+        "byte_start": 505
       },
       "tree": "t0"
     }
@@ -269,8 +384,8 @@
         {
           "node": "n3",
           "source": {
-            "byte_end": 175,
-            "byte_start": 127
+            "byte_end": 170,
+            "byte_start": 122
           },
           "synthetic": null,
           "text": "Class docstring with prose for extraction tests.",
@@ -304,8 +419,8 @@
         {
           "node": "n5",
           "source": {
-            "byte_end": 284,
-            "byte_start": 234
+            "byte_end": 279,
+            "byte_start": 229
           },
           "synthetic": null,
           "text": "Return a documented value from a method docstring.",
@@ -339,8 +454,8 @@
         {
           "node": "n7",
           "source": {
-            "byte_end": 417,
-            "byte_start": 357
+            "byte_end": 444,
+            "byte_start": 384
           },
           "synthetic": null,
           "text": "Use a function docstring for later Python extraction slices.",
@@ -353,7 +468,56 @@
     }
   ],
   "schema_version": "1.1.0",
-  "suppressions": [],
+  "suppressions": [
+    {
+      "codes": [
+        "terminology"
+      ],
+      "id": "s0",
+      "kind": "inline",
+      "origin": "n8",
+      "span": {
+        "byte_end": 92,
+        "byte_start": 57
+      }
+    },
+    {
+      "codes": [
+        "terminology"
+      ],
+      "id": "s1",
+      "kind": "range",
+      "origin": "n9",
+      "range_role": "open",
+      "span": {
+        "byte_end": 344,
+        "byte_start": 313
+      }
+    },
+    {
+      "codes": [
+        "terminology"
+      ],
+      "id": "s2",
+      "kind": "range",
+      "origin": "n10",
+      "range_role": "close",
+      "span": {
+        "byte_end": 480,
+        "byte_start": 450
+      }
+    },
+    {
+      "codes": [],
+      "id": "s3",
+      "kind": "file",
+      "origin": "n11",
+      "span": {
+        "byte_end": 504,
+        "byte_start": 481
+      }
+    }
+  ],
   "trees": [
     {
       "family": "tree-sitter",

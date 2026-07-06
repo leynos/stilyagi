@@ -1,7 +1,8 @@
 //! Integration tests for Markdown IR identity and snapshot contracts.
 
 use rstest::rstest;
-use stilyagi_extract::SourceIdentity;
+use stilyagi_extract::{ExtractSyntax, SourceIdentity};
+use stilyagi_ir::SuppressionKind;
 use stilyagi_test_support::{
     MALFORMED_PYTHON_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, NESTED_RUST_FIXTURE_PATH,
     SHARED_MARKDOWN_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH,
@@ -161,6 +162,30 @@ fn malformed_rust_fixture_has_a_golden_ir_snapshot() {
             .to_canonical_json()
             .unwrap_or_else(|error| panic!("expected canonical Rust IR JSON: {error}"))
     );
+}
+
+#[rstest]
+fn suppressions_are_shape_parity_across_the_v1_syntaxes() {
+    let sources = [
+        (ExtractSyntax::Markdown, "<!-- stilyagi: disable X001 -->\n"),
+        (ExtractSyntax::PythonDocstring, "# stilyagi: disable X001\n"),
+        (ExtractSyntax::RustDocComment, "// stilyagi: disable X001\n"),
+    ];
+
+    for (syntax, source) in sources {
+        let document = stilyagi_extract::extract_document(source, syntax)
+            .unwrap_or_else(|error| panic!("expected {syntax:?} extraction: {error}"));
+        let ir = document.ir().expect("expected IR payload");
+        let suppression = ir
+            .suppressions
+            .first()
+            .expect("expected a single suppression");
+
+        assert_eq!(ir.suppressions.len(), 1);
+        assert_eq!(suppression.kind, SuppressionKind::Range);
+        assert_eq!(suppression.codes, vec!["X001".to_owned()]);
+        assert_eq!(suppression.id, "s0");
+    }
 }
 
 #[rstest]

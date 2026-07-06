@@ -3,13 +3,13 @@
 use std::path::Path;
 
 use rstest::rstest;
-use stilyagi_ir::RangeRole;
-
-use super::source_identity;
-use crate::{
-    markdown_ir_document,
+use stilyagi_ir::{
+    RangeRole,
     suppression::{DirectiveVerb, verb_range_role},
 };
+
+use super::source_identity;
+use crate::markdown_ir_document;
 
 #[rstest]
 #[case(DirectiveVerb::IgnoreNext, None)]

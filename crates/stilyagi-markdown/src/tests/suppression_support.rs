@@ -5,11 +5,6 @@ use proptest::prelude::*;
 use proptest::string::string_regex;
 use stilyagi_ir::SuppressionKind;
 
-/// Return the canonical suppression kind for a directive verb.
-pub(super) fn expected_kind(verb: crate::suppression::DirectiveVerb) -> SuppressionKind {
-    crate::suppression::verb_kind(verb)
-}
-
 /// Return the canonical suppression kind for a directive token.
 pub(super) fn expected_kind_from_token(token: &str) -> SuppressionKind {
     match token {
@@ -44,21 +39,6 @@ pub(super) fn whitespace_strategy() -> impl Strategy<Value = String> {
 /// Generate optional padding after commas in a directive code list.
 pub(super) fn space_padding_strategy() -> impl Strategy<Value = String> {
     string_regex("[ \t]{0,2}").expect("valid space padding regex")
-}
-
-/// Generate source text that must not accidentally look like a comment marker.
-pub(super) fn boundary_text_strategy() -> impl Strategy<Value = String> {
-    string_regex("[A-Za-z0-9 \t\n]{0,3}").expect("valid boundary text regex")
-}
-
-/// Generate an HTML comment body for comment-scanner property tests.
-pub(super) fn comment_body_strategy() -> impl Strategy<Value = String> {
-    string_regex("[A-Z][A-Z0-9]{0,7}").expect("valid comment body regex")
-}
-
-/// Generate a separator between HTML comments.
-pub(super) fn separator_strategy() -> impl Strategy<Value = String> {
-    string_regex("[ \t\n]{0,2}").expect("valid separator regex")
 }
 
 /// Collect the IR node identifiers that correspond to HTML comments.

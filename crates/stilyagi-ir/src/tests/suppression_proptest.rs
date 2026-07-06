@@ -1,12 +1,11 @@
-//! Proptest coverage for Markdown suppression directive parsing.
+//! Property tests for suppression parsing and marker detection.
 
 use proptest::prelude::*;
 
-use super::super::suppression_support::{
-    directive_codes_and_padding, expected_kind_from_token, whitespace_strategy,
-};
-use stilyagi_ir::suppression::{
-    DirectiveError, DirectiveOutcome, DirectiveVerb, parse_comment_directive, verb_kind,
+use super::{directive_codes_and_padding, expected_kind_from_token, whitespace_strategy};
+use crate::suppression::{
+    DirectiveError, DirectiveOutcome, DirectiveVerb, is_directive_marker, parse_comment_directive,
+    verb_kind,
 };
 
 proptest! {
@@ -69,5 +68,24 @@ proptest! {
 
         prop_assert_eq!(parsed.verb, DirectiveVerb::IgnoreFile);
         prop_assert!(parsed.codes.is_empty());
+    }
+
+    #[test]
+    fn is_directive_marker_matches_parser_acceptance(
+        case in prop_oneof![
+            Just("stilyagi: ignore-next PUN201".to_owned()),
+            Just("  stilyagi: disable PUN201  ".to_owned()),
+            Just("stilyagi: ignore-file".to_owned()),
+            Just("stilyagi: unknown PUN201".to_owned()),
+            Just("stilyagi: disable".to_owned()),
+            Just("see stilyagi: docs".to_owned()),
+            Just("stilyagi-disable-next-line terminology".to_owned()),
+            Just("   ".to_owned()),
+        ]
+    ) {
+        let marker = is_directive_marker(&case);
+        let parser_accepts = !matches!(parse_comment_directive(&case), DirectiveOutcome::NotADirective);
+
+        prop_assert_eq!(marker, parser_accepts, "case={:?}", case);
     }
 }

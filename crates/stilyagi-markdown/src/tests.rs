@@ -3,6 +3,10 @@
 //! The fixture round-trip tests stay in this module root so their `insta`
 //! snapshots remain anchored to `src/snapshots/`. Other test categories live
 //! in focused sibling modules to keep each file within the size budget.
+#![expect(
+    clippy::self_named_module_files,
+    reason = "tests.rs keeps the inline Markdown test harness colocated with lib.rs"
+)]
 
 macro_rules! must_ok {
     ($expression:expr, $($message:tt)+) => {

@@ -270,7 +270,7 @@ source maps that docstring rules need across Python and Rust. See
     - Requires 3.1.2.
     - Success: malformed Rust input either preserves recoverable doc comments
       inside error spans or emits an explicit diagnostic explaining the drop.
-- [ ] 3.1.3. Extend suppression parsing to Python and Rust syntax-native
+- [x] 3.1.3. Extend suppression parsing to Python and Rust syntax-native
   comments. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 3.1.1 and 3.1.2.
   - Success: suppression state is extracted once and applied consistently

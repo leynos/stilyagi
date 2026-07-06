@@ -1,13 +1,15 @@
 //! Tests for Python docstring extraction.
 
 use rstest::rstest;
-use stilyagi_ir::SourceIdentity;
+use stilyagi_ir::{SourceIdentity, SuppressionKind};
 use stilyagi_test_fixtures::{
     EDGE_CASE_PYTHON_FIXTURE_PATH, MALFORMED_PYTHON_FIXTURE_PATH, NESTED_PYTHON_FIXTURE_PATH,
     SHARED_PYTHON_FIXTURE_PATH, read_corpus_fixture,
 };
+use tree_sitter::Node;
 
 use super::python_docstring_ir_document;
+use super::support::parse_python;
 
 const SHARED_PYTHON_FIXTURE: &str = SHARED_PYTHON_FIXTURE_PATH;
 const NESTED_PYTHON_FIXTURE: &str = NESTED_PYTHON_FIXTURE_PATH;
@@ -28,6 +30,20 @@ fn fixture_document(path: &str) -> stilyagi_ir::IrDocument {
     };
 
     extract_python(&source)
+}
+
+fn first_comment(node: Node<'_>) -> Option<Node<'_>> {
+    let mut pending = vec![node];
+    while let Some(current) = pending.pop() {
+        if current.kind() == "comment" {
+            return Some(current);
+        }
+        let mut cursor = current.walk();
+        let mut children = current.children(&mut cursor).collect::<Vec<_>>();
+        children.reverse();
+        pending.extend(children);
+    }
+    None
 }
 
 #[rstest]
@@ -83,6 +99,112 @@ fn shared_fixture_extracts_owner_metadata() {
             .regions
             .iter()
             .all(stilyagi_ir::IrRegion::segments_reconstruct_text)
+    );
+}
+
+#[rstest]
+#[case(
+    "ignore-next",
+    SuppressionKind::Inline,
+    vec!["PYDOC210"],
+)]
+#[case(
+    "disable",
+    SuppressionKind::Range,
+    vec!["PYDOC210"],
+)]
+#[case(
+    "enable",
+    SuppressionKind::Range,
+    vec!["PYDOC210"],
+)]
+#[case(
+    "ignore-file",
+    SuppressionKind::File,
+    Vec::<&str>::new(),
+)]
+fn directive_comments_emit_source_backed_suppressions(
+    #[case] verb: &str,
+    #[case] kind: SuppressionKind,
+    #[case] codes: Vec<&str>,
+) {
+    let source = format!("# stilyagi: {verb} {}\n", codes.join(", "));
+    let document = extract_python(&source);
+    let comment = document
+        .nodes
+        .iter()
+        .find(|node| node.kind == "comment")
+        .expect("expected a source-backed comment node");
+    let suppression = document
+        .suppressions
+        .first()
+        .expect("expected one suppression");
+
+    assert_eq!(document.suppressions.len(), 1);
+    assert_eq!(document.errors, Vec::<stilyagi_ir::IrError>::new());
+    assert_eq!(suppression.kind, kind);
+    assert_eq!(
+        suppression.codes,
+        codes.into_iter().map(ToOwned::to_owned).collect::<Vec<_>>()
+    );
+    assert_eq!(suppression.origin, comment.id);
+    assert_eq!(suppression.span, comment.span);
+    assert!(
+        document
+            .nodes
+            .iter()
+            .any(|node| node.kind == "comment" && node.id == suppression.origin)
+    );
+}
+
+#[rstest]
+fn directive_comments_use_the_comment_node_kind() {
+    let tree = parse_python("# stilyagi: disable PYDOC210\n")
+        .expect("expected the Python grammar to parse directive comments");
+    let comment = first_comment(tree.root_node()).expect("expected a comment node");
+
+    assert_eq!(comment.kind(), "comment");
+    assert_eq!(
+        comment
+            .utf8_text(b"# stilyagi: disable PYDOC210\n")
+            .expect("expected directive comment text"),
+        "# stilyagi: disable PYDOC210"
+    );
+}
+
+#[rstest]
+fn ordinary_comments_do_not_change_node_identity() {
+    let baseline = extract_python("def f():\n    pass\n");
+    let with_comment = extract_python("# ordinary note\ndef f():\n    pass\n");
+
+    let baseline_ids = baseline
+        .nodes
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<Vec<_>>();
+    let comment_ids = with_comment
+        .nodes
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(baseline.nodes.len(), with_comment.nodes.len());
+    assert_eq!(baseline_ids, comment_ids);
+    assert!(with_comment.suppressions.is_empty());
+}
+
+#[rstest]
+fn blanket_directives_are_rejected_without_emitting_suppressions() {
+    let document = extract_python("# stilyagi: disable\n");
+
+    assert!(document.suppressions.is_empty());
+    assert_eq!(
+        document
+            .errors
+            .iter()
+            .map(|error| error.code.as_str())
+            .collect::<Vec<_>>(),
+        vec!["suppression-blanket-forbidden"]
     );
 }
 

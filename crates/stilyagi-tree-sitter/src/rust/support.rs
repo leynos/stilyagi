@@ -1,8 +1,8 @@
 //! Parser and IR envelope support for Rust extraction.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use stilyagi_ir::{IrDocument, IrRegion, ProducerMetadata};
+use stilyagi_ir::{IrDocument, IrRegion, ProducerMetadata, suppression::validate_suppressions};
 use tree_sitter::Parser;
 
 use super::RustExtractError;
@@ -44,24 +44,49 @@ pub(super) fn rust_producer() -> ProducerMetadata {
 
 /// Validate Rust IR consistency in debug builds.
 pub(super) fn validate_ir_consistency(document: &IrDocument, source: &str) {
-    debug_assert_eq!(
-        document.document.content_hash,
-        stilyagi_ir::content_hash_for(source)
-    );
-    debug_assert_eq!(document.line_index, stilyagi_ir::line_index_for(source));
-    debug_assert!(
-        document
-            .regions
-            .iter()
-            .all(IrRegion::segments_reconstruct_text)
-    );
-    debug_assert!(document.regions.iter().all(|region| {
+    debug_assert!(document_metadata_matches_source(document, source));
+    debug_assert!(regions_reconstruct_text(document));
+    let node_ids = document
+        .nodes
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<BTreeSet<_>>();
+    debug_assert!(suppressions_remain_valid(
+        &document.suppressions,
+        source,
+        &node_ids
+    ));
+    debug_assert!(segments_match_source(document, source));
+}
+
+fn document_metadata_matches_source(document: &IrDocument, source: &str) -> bool {
+    document.document.content_hash == stilyagi_ir::content_hash_for(source)
+        && document.line_index == stilyagi_ir::line_index_for(source)
+}
+
+fn regions_reconstruct_text(document: &IrDocument) -> bool {
+    document
+        .regions
+        .iter()
+        .all(IrRegion::segments_reconstruct_text)
+}
+
+fn suppressions_remain_valid(
+    suppressions: &[stilyagi_ir::IrSuppression],
+    source: &str,
+    node_ids: &BTreeSet<&str>,
+) -> bool {
+    validate_suppressions(suppressions, source, node_ids).is_ok()
+}
+
+fn segments_match_source(document: &IrDocument, source: &str) -> bool {
+    document.regions.iter().all(|region| {
         region.segments.iter().all(|segment| {
             segment.source.is_none_or(|span| {
                 source.get(span.byte_start..span.byte_end) == Some(segment.text.as_str())
             })
         })
-    }));
+    })
 }
 
 #[cfg(test)]
@@ -70,6 +95,8 @@ mod tests {
     //! with the `tree-sitter-rust` dependency.
 
     use super::RUST_GRAMMAR_VERSION;
+    use super::{rust_producer, validate_ir_consistency};
+    use stilyagi_ir::{DocumentMetadata, IrDocument, IrSuppression, SourceSpan, SuppressionKind};
 
     #[test]
     fn rust_grammar_version_matches_the_pinned_dependency() {
@@ -85,5 +112,27 @@ mod tests {
             pinned, RUST_GRAMMAR_VERSION,
             "RUST_GRAMMAR_VERSION must match the pinned tree-sitter-rust version"
         );
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "assertion failed: suppressions_remain_valid")]
+    fn validate_ir_consistency_checks_suppressions_in_debug_builds() {
+        let source = "";
+        let mut document = IrDocument::empty(
+            DocumentMetadata::new("rust", None, None, source),
+            vec![rust_producer()],
+            source,
+        );
+        document.suppressions.push(IrSuppression {
+            id: "s0".to_owned(),
+            kind: SuppressionKind::Inline,
+            range_role: None,
+            codes: vec!["RUST210".to_owned()],
+            span: SourceSpan::new(0, 0).expect("expected valid empty span"),
+            origin: "n1".to_owned(),
+        });
+
+        validate_ir_consistency(&document, source);
     }
 }

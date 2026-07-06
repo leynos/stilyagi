@@ -5,20 +5,16 @@ mod flatten;
 mod node_kind;
 mod region_emission;
 mod source_text;
-mod suppression;
 mod validation;
 
 use std::{any::Any, collections::BTreeMap, panic::catch_unwind};
 
-use builder::{MarkdownIrBuilder, SuppressionCandidate};
+use builder::MarkdownIrBuilder;
 use markdown::{ParseOptions, mdast::Node, message::Message, to_mdast};
+use stilyagi_ir::suppression::suppressions_from_candidates;
 use stilyagi_ir::{
-    DocumentMetadata, IrBuildContext, IrDocument, IrError, IrSuppression, IrTree, ProducerMetadata,
-    SourceIdentity, SourceSpan,
-};
-use suppression::{
-    DirectiveError, DirectiveOutcome, parse_comment_directive, scan_comment_spans, verb_kind,
-    verb_range_role,
+    DocumentMetadata, IrBuildContext, IrDocument, IrTree, ProducerMetadata, SourceIdentity,
+    SourceSpan,
 };
 pub(crate) use validation::validate_ir_consistency;
 
@@ -181,7 +177,7 @@ fn markdown_ir_document_with_context(
     document.nodes = builder.nodes;
     document.regions = builder.regions;
     let suppression_candidates = builder.suppression_candidates;
-    let (suppressions, errors) = suppressions_from_candidates(source, suppression_candidates);
+    let (suppressions, errors) = suppressions_from_candidates(suppression_candidates);
     document.suppressions = suppressions;
     document.errors.extend(errors);
 
@@ -208,79 +204,6 @@ fn markdown_producer() -> ProducerMetadata {
     }
 }
 
-fn suppressions_from_candidates(
-    source: &str,
-    candidates: Vec<SuppressionCandidate>,
-) -> (Vec<IrSuppression>, Vec<IrError>) {
-    let mut suppressions = Vec::new();
-    let mut errors = Vec::new();
-
-    for candidate in candidates {
-        let Some(source_slice) = source.get(candidate.span.byte_start..candidate.span.byte_end)
-        else {
-            errors.push(suppression_span_error(
-                candidate.span,
-                &candidate.node_id,
-                "suppression span is outside the source",
-            ));
-            continue;
-        };
-        for comment in scan_comment_spans(source_slice) {
-            let span = SourceSpan {
-                byte_start: candidate.span.byte_start + comment.span.byte_start,
-                byte_end: candidate.span.byte_start + comment.span.byte_end,
-            };
-
-            match parse_comment_directive(comment.inner) {
-                DirectiveOutcome::NotADirective => {}
-                DirectiveOutcome::Parsed(parsed) => {
-                    let suppression_id = suppressions.len();
-                    suppressions.push(IrSuppression {
-                        id: format!("s{suppression_id}"),
-                        kind: verb_kind(parsed.verb),
-                        range_role: verb_range_role(parsed.verb),
-                        codes: parsed.codes,
-                        span,
-                        origin: candidate.node_id.clone(),
-                    });
-                }
-                DirectiveOutcome::Rejected(DirectiveError::BlanketForbidden) => {
-                    errors.push(suppression_error(
-                        "suppression-blanket-forbidden",
-                        span,
-                        "blanket suppression directives must name at least one code",
-                    ));
-                }
-                DirectiveOutcome::Rejected(DirectiveError::UnknownVerb) => {
-                    errors.push(suppression_error(
-                        "suppression-unknown-verb",
-                        span,
-                        "suppression directive verb is not recognised",
-                    ));
-                }
-            }
-        }
-    }
-
-    (suppressions, errors)
-}
-
-fn suppression_error(code: &'static str, span: SourceSpan, message: &str) -> IrError {
-    IrError {
-        code: code.to_owned(),
-        message: message.to_owned(),
-        span: Some(span),
-    }
-}
-
-fn suppression_span_error(span: SourceSpan, node_id: &str, message: &str) -> IrError {
-    IrError {
-        code: "suppression-span-invalid".to_owned(),
-        message: format!("node={node_id} {message}"),
-        span: Some(span),
-    }
-}
-
 fn source_span(
     node: &Node,
     context: &MarkdownDiagnosticContext<'_>,
@@ -304,8 +227,4 @@ fn source_span(
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::self_named_module_files,
-    reason = "tests.rs keeps the inline Markdown test harness colocated with lib.rs"
-)]
 mod tests;

@@ -1,7 +1,8 @@
 //! Parser and IR envelope support for Python extraction.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
+use stilyagi_ir::suppression::validate_suppressions;
 use stilyagi_ir::{IrDocument, IrRegion, ProducerMetadata};
 use tree_sitter::Parser;
 
@@ -62,6 +63,15 @@ pub(super) fn validate_ir_consistency(document: &IrDocument, source: &str) {
             .regions
             .iter()
             .all(IrRegion::segments_reconstruct_text)
+    );
+    let node_ids = document
+        .nodes
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<BTreeSet<_>>();
+    debug_assert!(
+        validate_suppressions(&document.suppressions, source, &node_ids).is_ok(),
+        "Python suppressions must remain source-backed and origin-resolved"
     );
 }
 

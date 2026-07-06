@@ -6,6 +6,7 @@ mod helpers;
 mod observe;
 mod owner;
 mod support;
+mod suppressions;
 pub(super) mod types;
 
 use stilyagi_ir::{DocumentMetadata, IrDocument, IrTree, SourceIdentity};
@@ -13,6 +14,7 @@ use stilyagi_ir::{DocumentMetadata, IrDocument, IrTree, SourceIdentity};
 use builder::RustIrBuilder;
 use observe::{record_extraction_outcome, record_fatal_error};
 use support::{parse_rust, rust_producer, validate_ir_consistency};
+use suppressions::collect_comment_suppressions;
 
 const TREE_ID: &str = "t0";
 
@@ -84,11 +86,14 @@ pub fn rust_doc_comment_ir_document(
     builder.push_module_root(root);
     builder.push_recovery_errors(root);
     builder.visit_container(root, &mut Vec::new(), 0);
+    let (suppressions, suppression_errors) = collect_comment_suppressions(&mut builder, root);
 
     let (nodes, regions, errors) = builder.into_ir();
     document.nodes = nodes;
     document.regions = regions;
+    document.suppressions = suppressions;
     document.errors = errors;
+    document.errors.extend(suppression_errors);
     validate_ir_consistency(&document, source);
     record_extraction_outcome(&document);
     Ok(document)
@@ -100,6 +105,9 @@ fn root_node_id() -> types::NodeId {
 
 #[cfg(test)]
 mod addendum_tests;
+
+#[cfg(test)]
+mod suppression_tests;
 
 #[cfg(test)]
 mod source_oracle_tests;

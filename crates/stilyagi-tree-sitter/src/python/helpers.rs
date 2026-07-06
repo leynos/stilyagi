@@ -141,6 +141,28 @@ pub(super) fn collect_error_nodes<'tree>(node: Node<'tree>, errors: &mut Vec<Nod
     }
 }
 
+/// Collect comment nodes beneath a node, including descendants of recovered
+/// subtrees.
+pub(super) fn collect_comment_nodes<'tree>(node: Node<'tree>, comments: &mut Vec<Node<'tree>>) {
+    let mut pending = vec![node];
+    while let Some(current) = pending.pop() {
+        if current.kind() == "comment" {
+            comments.push(current);
+        }
+        let mut cursor = current.walk();
+        let mut children: Vec<Node<'tree>> = current.children(&mut cursor).collect();
+        children.reverse();
+        pending.extend(children);
+    }
+}
+
+/// Return a Python comment body with the leading `#` removed.
+pub(super) fn comment_body(source: &str, comment: Node<'_>) -> Option<String> {
+    text_for_node(source, comment)?
+        .strip_prefix('#')
+        .map(ToOwned::to_owned)
+}
+
 fn direct_named_child_with_kind(node: Node<'_>, kind: NodeKind) -> Option<Node<'_>> {
     let mut cursor = node.walk();
     node.named_children(&mut cursor)

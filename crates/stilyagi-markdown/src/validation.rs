@@ -3,7 +3,10 @@
 use std::collections::BTreeSet;
 
 use markdown::message::Message;
-use stilyagi_ir::{IrDocument, IrRegion, IrSegment, SourceSpan};
+use stilyagi_ir::{
+    IrDocument, IrRegion, IrSegment, SourceSpan,
+    suppression::{SuppressionValidationError, validate_suppressions as validate_ir_suppressions},
+};
 
 use crate::{MarkdownDiagnosticContext, stilyagi_markdown_message};
 
@@ -118,11 +121,8 @@ fn validate_suppressions(
     document: &IrDocument,
     refs: &IrValidationRefs<'_, '_>,
 ) -> Result<(), Message> {
-    for suppression in &document.suppressions {
-        validate_suppression_origin(suppression, refs.context, refs.node_ids)?;
-        validate_suppression_span(suppression, refs)?;
-    }
-    Ok(())
+    validate_ir_suppressions(&document.suppressions, refs.source, refs.node_ids)
+        .map_err(|error| suppression_validation_message(refs.context, error))
 }
 
 fn validate_region_text(
@@ -248,41 +248,27 @@ fn validate_source_segment(
     ))
 }
 
-fn validate_suppression_origin(
-    suppression: &stilyagi_ir::IrSuppression,
+fn suppression_validation_message(
     context: &MarkdownDiagnosticContext<'_>,
-    node_ids: &BTreeSet<&str>,
-) -> Result<(), Message> {
-    if node_ids.contains(suppression.origin.as_str()) {
-        return Ok(());
-    }
-    Err(stilyagi_markdown_message(
-        context,
-        "ir-suppression-origin-unresolved",
-        format!(
-            "suppression id={} origin={} does not resolve",
-            suppression.id, suppression.origin
+    error: SuppressionValidationError,
+) -> Message {
+    match error {
+        SuppressionValidationError::OriginUnresolved {
+            suppression_id,
+            origin,
+        } => stilyagi_markdown_message(
+            context,
+            "ir-suppression-origin-unresolved",
+            format!("suppression id={suppression_id} origin={origin} does not resolve"),
         ),
-    ))
-}
-
-fn validate_suppression_span(
-    suppression: &stilyagi_ir::IrSuppression,
-    refs: &IrValidationRefs<'_, '_>,
-) -> Result<(), Message> {
-    if refs
-        .source
-        .get(suppression.span.byte_start..suppression.span.byte_end)
-        .is_some()
-    {
-        return Ok(());
-    }
-    Err(stilyagi_markdown_message(
-        refs.context,
-        "ir-suppression-source-mismatch",
-        format!(
-            "suppression span mismatch id={} origin={} span={:?}",
-            suppression.id, suppression.origin, suppression.span
+        SuppressionValidationError::SpanInvalid {
+            suppression_id,
+            origin,
+            span,
+        } => stilyagi_markdown_message(
+            context,
+            "ir-suppression-source-mismatch",
+            format!("suppression span mismatch id={suppression_id} origin={origin} span={span:?}"),
         ),
-    ))
+    }
 }

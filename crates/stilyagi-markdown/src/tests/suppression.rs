@@ -6,76 +6,8 @@ use rstest::rstest;
 use stilyagi_ir::{SourceSpan, SuppressionKind};
 
 use super::source_identity;
-use super::suppression_support::{expected_kind, find_html_node, html_node_ids, html_nodes};
-use crate::{
-    markdown_ir_document, parse_markdown_ast, suppression::DirectiveError,
-    suppression::DirectiveOutcome, suppression::DirectiveVerb,
-    suppression::parse_comment_directive, suppression::verb_kind, suppression::verb_range_role,
-    validate_ir_consistency,
-};
-
-#[rstest]
-#[case(
-    "stilyagi: ignore-next PUN201",
-    DirectiveVerb::IgnoreNext,
-    &["PUN201"],
-)]
-#[case("stilyagi: disable STY", DirectiveVerb::Disable, &["STY"])]
-#[case("stilyagi: enable STY", DirectiveVerb::Enable, &["STY"])]
-#[case(
-    "stilyagi: ignore-file MD,DOC",
-    DirectiveVerb::IgnoreFile,
-    &["MD", "DOC"],
-)]
-fn parse_comment_directive_parses_canonical_verbs(
-    #[case] inner: &str,
-    #[case] expected_verb: DirectiveVerb,
-    #[case] expected_codes: &[&str],
-) {
-    let DirectiveOutcome::Parsed(parsed) = parse_comment_directive(inner) else {
-        panic!("expected parsed directive for {inner:?}");
-    };
-
-    assert_eq!(parsed.verb, expected_verb);
-    assert_eq!(
-        parsed.codes,
-        expected_codes
-            .iter()
-            .map(|code| (*code).to_owned())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(verb_kind(parsed.verb), expected_kind(expected_verb));
-    assert_eq!(verb_range_role(parsed.verb), verb_range_role(expected_verb));
-}
-
-#[rstest]
-#[case("stilyagi: ignore-next")]
-#[case("stilyagi: disable")]
-#[case("stilyagi: enable")]
-fn parse_comment_directive_rejects_blanket_inline_and_range_directives(#[case] inner: &str) {
-    let DirectiveOutcome::Rejected(error) = parse_comment_directive(inner) else {
-        panic!("expected blanket rejection for {inner:?}");
-    };
-
-    assert_eq!(error, DirectiveError::BlanketForbidden);
-}
-
-#[rstest]
-#[case("stilyagi: ignore-file")]
-#[case("stilyagi-disable-next-line terminology")]
-#[case("<!-- comment -->")]
-fn parse_comment_directive_accepts_file_blankets_or_ignores_non_directives(#[case] inner: &str) {
-    match parse_comment_directive(inner) {
-        DirectiveOutcome::Parsed(parsed) => {
-            assert_eq!(parsed.verb, DirectiveVerb::IgnoreFile);
-            assert!(parsed.codes.is_empty());
-        }
-        DirectiveOutcome::NotADirective => {}
-        DirectiveOutcome::Rejected(error) => {
-            panic!("unexpected directive outcome: {error:?}")
-        }
-    }
-}
+use super::suppression_support::{find_html_node, html_node_ids, html_nodes};
+use crate::{markdown_ir_document, parse_markdown_ast, validate_ir_consistency};
 
 #[rstest]
 #[case("<!-- stilyagi: ignore-next PUN201 -->\n")]
@@ -235,31 +167,6 @@ fn markdown_ir_document_collects_canonical_suppressions() {
             source.get(suppression.span.byte_start..suppression.span.byte_end),
             Some(expected.2),
             "suppression #{index}"
-        );
-    }
-}
-
-#[rstest]
-#[case("", &[])]
-#[case("<!--alpha-->", &[("alpha", "<!--alpha-->")])]
-#[case("x<!--alpha-->", &[("alpha", "<!--alpha-->")])]
-#[case(
-    "<!--alpha-->\n<!--beta-->\n",
-    &[("alpha", "<!--alpha-->"), ("beta", "<!--beta-->")],
-)]
-#[case("<!--alpha", &[])]
-fn scan_comment_spans_reports_each_comment_boundary(
-    #[case] source: &str,
-    #[case] expected_comments: &[(&str, &str)],
-) {
-    let comments = crate::suppression::scan_comment_spans(source);
-
-    assert_eq!(comments.len(), expected_comments.len());
-    for (comment, (expected_inner, expected_slice)) in comments.iter().zip(expected_comments) {
-        assert_eq!(comment.inner, *expected_inner);
-        assert_eq!(
-            source.get(comment.span.byte_start..comment.span.byte_end),
-            Some(*expected_slice)
         );
     }
 }

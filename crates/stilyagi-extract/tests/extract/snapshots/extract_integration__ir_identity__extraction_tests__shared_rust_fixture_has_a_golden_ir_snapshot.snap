@@ -1,5 +1,6 @@
 ---
 source: crates/stilyagi-extract/tests/extract/ir_identity.rs
+assertion_line: 111
 expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expected canonical Rust IR JSON: {error}\"))"
 ---
 {
@@ -10,7 +11,7 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
     "syntax": "rust",
     "natural_language": null,
     "encoding": "utf-8",
-    "content_hash": "sha256:858c2946b2e820122d8dab6c9c82b981e1e61bd957c12740f4dabdb7809bd77c"
+    "content_hash": "sha256:c13596b2073e963f7b52e8d97b6db9e94365ca6be240567118df322c1e276146"
   },
   "producers": [
     {
@@ -28,20 +29,23 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
     0,
     70,
     71,
-    146,
-    173,
-    174,
-    196,
-    257,
-    310,
-    331,
-    337,
-    339,
-    340,
-    382,
-    445,
-    474,
-    475
+    108,
+    183,
+    210,
+    211,
+    244,
+    266,
+    327,
+    380,
+    401,
+    407,
+    409,
+    410,
+    442,
+    467,
+    488,
+    551,
+    580
   ],
   "trees": [
     {
@@ -61,13 +65,18 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
         "n1",
         "n2",
         "n4",
-        "n6"
+        "n6",
+        "n8",
+        "n9",
+        "n10",
+        "n11",
+        "n12"
       ],
       "fields": {},
       "props": {},
       "span": {
         "byte_start": 0,
-        "byte_end": 475
+        "byte_end": 580
       },
       "flags": {
         "named": true,
@@ -108,8 +117,8 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       },
       "props": {},
       "span": {
-        "byte_start": 146,
-        "byte_end": 172
+        "byte_start": 183,
+        "byte_end": 209
       },
       "flags": {
         "named": true,
@@ -127,8 +136,8 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 71,
-        "byte_end": 146
+        "byte_start": 108,
+        "byte_end": 183
       },
       "flags": {
         "named": true,
@@ -150,8 +159,8 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       },
       "props": {},
       "span": {
-        "byte_start": 261,
-        "byte_end": 336
+        "byte_start": 331,
+        "byte_end": 406
       },
       "flags": {
         "named": true,
@@ -169,8 +178,8 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 200,
-        "byte_end": 257
+        "byte_start": 270,
+        "byte_end": 327
       },
       "flags": {
         "named": true,
@@ -192,8 +201,8 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       },
       "props": {},
       "span": {
-        "byte_start": 445,
-        "byte_end": 473
+        "byte_start": 551,
+        "byte_end": 579
       },
       "flags": {
         "named": true,
@@ -211,8 +220,103 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       "fields": {},
       "props": {},
       "span": {
-        "byte_start": 382,
-        "byte_end": 445
+        "byte_start": 488,
+        "byte_end": 551
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n8",
+      "tree": "t0",
+      "kind": "comment",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 71,
+        "byte_end": 107
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n9",
+      "tree": "t0",
+      "kind": "comment",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 211,
+        "byte_end": 243
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n10",
+      "tree": "t0",
+      "kind": "comment",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 410,
+        "byte_end": 441
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n11",
+      "tree": "t0",
+      "kind": "comment",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 442,
+        "byte_end": 466
+      },
+      "flags": {
+        "named": true,
+        "error": false,
+        "missing": false,
+        "synthetic": false
+      }
+    },
+    {
+      "id": "n12",
+      "tree": "t0",
+      "kind": "comment",
+      "parent": "n0",
+      "children": [],
+      "fields": {},
+      "props": {},
+      "span": {
+        "byte_start": 467,
+        "byte_end": 487
       },
       "flags": {
         "named": true,
@@ -274,8 +378,8 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
           "text_start": 0,
           "text_end": 71,
           "source": {
-            "byte_start": 74,
-            "byte_end": 145
+            "byte_start": 111,
+            "byte_end": 182
           },
           "synthetic": null,
           "node": "n3",
@@ -309,8 +413,8 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
           "text_start": 0,
           "text_end": 53,
           "source": {
-            "byte_start": 203,
-            "byte_end": 256
+            "byte_start": 273,
+            "byte_end": 326
           },
           "synthetic": null,
           "node": "n5",
@@ -344,8 +448,8 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
           "text_start": 0,
           "text_end": 59,
           "source": {
-            "byte_start": 385,
-            "byte_end": 444
+            "byte_start": 491,
+            "byte_end": 550
           },
           "synthetic": null,
           "node": "n7",
@@ -364,7 +468,65 @@ expression: "document.to_canonical_json().unwrap_or_else(|error|\npanic!(\"expec
       "parent_region": null
     }
   ],
-  "suppressions": [],
-  "errors": [],
+  "suppressions": [
+    {
+      "id": "s0",
+      "kind": "inline",
+      "codes": [
+        "terminology"
+      ],
+      "span": {
+        "byte_start": 71,
+        "byte_end": 107
+      },
+      "origin": "n8"
+    },
+    {
+      "id": "s1",
+      "kind": "range",
+      "range_role": "open",
+      "codes": [
+        "terminology"
+      ],
+      "span": {
+        "byte_start": 211,
+        "byte_end": 243
+      },
+      "origin": "n9"
+    },
+    {
+      "id": "s2",
+      "kind": "range",
+      "range_role": "close",
+      "codes": [
+        "terminology"
+      ],
+      "span": {
+        "byte_start": 410,
+        "byte_end": 441
+      },
+      "origin": "n10"
+    },
+    {
+      "id": "s3",
+      "kind": "file",
+      "codes": [],
+      "span": {
+        "byte_start": 442,
+        "byte_end": 466
+      },
+      "origin": "n11"
+    }
+  ],
+  "errors": [
+    {
+      "code": "suppression-blanket-forbidden",
+      "message": "blanket suppression directives must name at least one code",
+      "span": {
+        "byte_start": 467,
+        "byte_end": 487
+      }
+    }
+  ],
   "metadata": {}
 }

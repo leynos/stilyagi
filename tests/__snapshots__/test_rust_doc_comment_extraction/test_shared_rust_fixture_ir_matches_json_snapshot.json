@@ -7,25 +7,37 @@
     "syntax": "rust",
     "uri": "<normalized>"
   },
-  "errors": [],
+  "errors": [
+    {
+      "code": "suppression-blanket-forbidden",
+      "message": "blanket suppression directives must name at least one code",
+      "span": {
+        "byte_end": 487,
+        "byte_start": 467
+      }
+    }
+  ],
   "line_index": [
     0,
     70,
     71,
-    146,
-    173,
-    174,
-    196,
-    257,
-    310,
-    331,
-    337,
-    339,
-    340,
-    382,
-    445,
-    474,
-    475
+    108,
+    183,
+    210,
+    211,
+    244,
+    266,
+    327,
+    380,
+    401,
+    407,
+    409,
+    410,
+    442,
+    467,
+    488,
+    551,
+    580
   ],
   "metadata": {},
   "nodes": [
@@ -34,7 +46,12 @@
         "n1",
         "n2",
         "n4",
-        "n6"
+        "n6",
+        "n8",
+        "n9",
+        "n10",
+        "n11",
+        "n12"
       ],
       "fields": {},
       "flags": {
@@ -48,7 +65,7 @@
       "parent": null,
       "props": {},
       "span": {
-        "byte_end": 475,
+        "byte_end": 580,
         "byte_start": 0
       },
       "tree": "t0"
@@ -90,8 +107,8 @@
       "parent": "n0",
       "props": {},
       "span": {
-        "byte_end": 172,
-        "byte_start": 146
+        "byte_end": 209,
+        "byte_start": 183
       },
       "tree": "t0"
     },
@@ -109,8 +126,8 @@
       "parent": "n2",
       "props": {},
       "span": {
-        "byte_end": 146,
-        "byte_start": 71
+        "byte_end": 183,
+        "byte_start": 108
       },
       "tree": "t0"
     },
@@ -132,8 +149,8 @@
       "parent": "n0",
       "props": {},
       "span": {
-        "byte_end": 336,
-        "byte_start": 261
+        "byte_end": 406,
+        "byte_start": 331
       },
       "tree": "t0"
     },
@@ -151,8 +168,8 @@
       "parent": "n4",
       "props": {},
       "span": {
-        "byte_end": 257,
-        "byte_start": 200
+        "byte_end": 327,
+        "byte_start": 270
       },
       "tree": "t0"
     },
@@ -174,8 +191,8 @@
       "parent": "n0",
       "props": {},
       "span": {
-        "byte_end": 473,
-        "byte_start": 445
+        "byte_end": 579,
+        "byte_start": 551
       },
       "tree": "t0"
     },
@@ -193,8 +210,103 @@
       "parent": "n6",
       "props": {},
       "span": {
-        "byte_end": 445,
-        "byte_start": 382
+        "byte_end": 551,
+        "byte_start": 488
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n8",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 107,
+        "byte_start": 71
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n9",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 243,
+        "byte_start": 211
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n10",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 441,
+        "byte_start": 410
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n11",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 466,
+        "byte_start": 442
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n12",
+      "kind": "comment",
+      "parent": "n0",
+      "props": {},
+      "span": {
+        "byte_end": 487,
+        "byte_start": 467
       },
       "tree": "t0"
     }
@@ -270,8 +382,8 @@
         {
           "node": "n3",
           "source": {
-            "byte_end": 145,
-            "byte_start": 74
+            "byte_end": 182,
+            "byte_start": 111
           },
           "synthetic": null,
           "text": " Item-level documentation comment used by later Rust extraction slices.",
@@ -305,8 +417,8 @@
         {
           "node": "n5",
           "source": {
-            "byte_end": 256,
-            "byte_start": 203
+            "byte_end": 326,
+            "byte_start": 273
           },
           "synthetic": null,
           "text": " Method documentation comment with extractable prose.",
@@ -340,8 +452,8 @@
         {
           "node": "n7",
           "source": {
-            "byte_end": 444,
-            "byte_start": 385
+            "byte_end": 550,
+            "byte_start": 491
           },
           "synthetic": null,
           "text": " Function documentation comment after a suppression marker.",
@@ -354,7 +466,56 @@
     }
   ],
   "schema_version": "1.1.0",
-  "suppressions": [],
+  "suppressions": [
+    {
+      "codes": [
+        "terminology"
+      ],
+      "id": "s0",
+      "kind": "inline",
+      "origin": "n8",
+      "span": {
+        "byte_end": 107,
+        "byte_start": 71
+      }
+    },
+    {
+      "codes": [
+        "terminology"
+      ],
+      "id": "s1",
+      "kind": "range",
+      "origin": "n9",
+      "range_role": "open",
+      "span": {
+        "byte_end": 243,
+        "byte_start": 211
+      }
+    },
+    {
+      "codes": [
+        "terminology"
+      ],
+      "id": "s2",
+      "kind": "range",
+      "origin": "n10",
+      "range_role": "close",
+      "span": {
+        "byte_end": 441,
+        "byte_start": 410
+      }
+    },
+    {
+      "codes": [],
+      "id": "s3",
+      "kind": "file",
+      "origin": "n11",
+      "span": {
+        "byte_end": 466,
+        "byte_start": 442
+      }
+    }
+  ],
   "trees": [
     {
       "family": "tree-sitter",

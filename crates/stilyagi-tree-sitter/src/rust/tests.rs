@@ -147,7 +147,7 @@ fn shared_fixture_exposes_doc_comment_nodes_and_siblings() {
 
     let suppressed_comment = descendants_with_kind(root, "line_comment")
         .into_iter()
-        .find(|node| text_for_node(&source, *node).starts_with("// stilyagi-disable-next-line"))
+        .find(|node| text_for_node(&source, *node).starts_with("// stilyagi: ignore-next"))
         .expect("expected suppression marker");
     assert!(text_for_node(&source, suppressed_comment).starts_with("//"));
     assert!(!text_for_node(&source, suppressed_comment).starts_with("///"));

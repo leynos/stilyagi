@@ -3,7 +3,10 @@
 use std::collections::BTreeMap;
 
 use markdown::{mdast::Node, message::Message};
-use stilyagi_ir::{IrNode, IrRegion, NodeFlags, SourceSpan};
+use stilyagi_ir::{
+    IrNode, IrRegion, NodeFlags, SourceSpan,
+    suppression::{SuppressionCandidate, scan_comment_spans},
+};
 
 use crate::{MarkdownDiagnosticContext, node_kind::node_kind, source_span};
 
@@ -18,12 +21,6 @@ pub(super) struct MarkdownIrBuilder<'source> {
     pub(super) list_contexts: Vec<ListContext>,
     pub(super) table_row_contexts: Vec<TableRowContext>,
     pub(super) blockquote_depth: usize,
-}
-
-#[derive(Debug, Clone)]
-pub(super) struct SuppressionCandidate {
-    pub(super) node_id: String,
-    pub(super) span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
@@ -80,10 +77,7 @@ impl<'source> MarkdownIrBuilder<'source> {
             flags: NodeFlags::named_source(),
         });
         if matches!(node, Node::Html(_)) {
-            self.suppression_candidates.push(SuppressionCandidate {
-                node_id: node_id.clone(),
-                span,
-            });
+            self.push_suppression_candidates_for_html(&node_id, span);
         }
 
         let has_structural_parent =
@@ -157,6 +151,23 @@ impl<'source> MarkdownIrBuilder<'source> {
         let id = format!("r{}", self.next_region);
         self.next_region += 1;
         id
+    }
+
+    fn push_suppression_candidates_for_html(&mut self, node_id: &str, span: SourceSpan) {
+        let Some(source_slice) = self.source.get(span.byte_start..span.byte_end) else {
+            return;
+        };
+
+        for comment in scan_comment_spans(source_slice) {
+            self.suppression_candidates.push(SuppressionCandidate {
+                origin: node_id.to_owned(),
+                span: SourceSpan {
+                    byte_start: span.byte_start + comment.span.byte_start,
+                    byte_end: span.byte_start + comment.span.byte_end,
+                },
+                body: comment.inner.trim().to_owned(),
+            });
+        }
     }
 
     fn next_node_id(&mut self) -> String {

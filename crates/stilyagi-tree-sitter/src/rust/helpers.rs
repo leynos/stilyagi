@@ -173,6 +173,28 @@ pub(super) fn line_comment_content_end(source: &str, node: Node<'_>) -> usize {
     }
 }
 
+/// Return the content text for a Rust documentation comment node.
+pub(super) fn doc_comment_content(
+    source: &str,
+    node: Node<'_>,
+    flavor: DocCommentFlavor,
+) -> String {
+    let start = node.start_byte();
+    match flavor {
+        DocCommentFlavor::OuterLine | DocCommentFlavor::InnerLine => {
+            let end = line_comment_content_end(source, node);
+            source.get(start + 3..end).unwrap_or_default().to_owned()
+        }
+        DocCommentFlavor::OuterBlock | DocCommentFlavor::InnerBlock => {
+            let end = node.end_byte();
+            source
+                .get(start + 3..end.saturating_sub(2))
+                .unwrap_or_default()
+                .to_owned()
+        }
+    }
+}
+
 /// Return whether a node should be counted as a recovery anomaly.
 pub(super) fn is_recovery_node(node: Node<'_>) -> bool {
     node.is_error() || node.is_missing()

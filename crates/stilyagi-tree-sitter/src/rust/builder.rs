@@ -9,8 +9,8 @@ use super::builder_state::{
     DocCommentEntry, DocCommentGroup, DocCommentRegionParts, NonDocCommentState, push_group,
 };
 use super::helpers::{
-    classify_doc_comment, collect_recovery_nodes, current_owner_node_id, doc_comment_content_span,
-    is_recovery_node, item_body, line_comment_content_end, module_body_has_leading_inner_docs,
+    classify_doc_comment, collect_recovery_nodes, current_owner_node_id, doc_comment_content,
+    doc_comment_content_span, is_recovery_node, item_body, module_body_has_leading_inner_docs,
     node_flags, owner_frame_for_item, recovery_doc_comment_count, source_span, text_for_field,
 };
 use super::owner::{OwnerFrame, owner_for};
@@ -20,7 +20,7 @@ const TREE_ID: &str = "t0";
 
 /// Stateful builder for owner-aware Rust doc-comment IR.
 pub(super) struct RustIrBuilder<'source> {
-    source: &'source str,
+    pub(super) source: &'source str,
     next_node: usize,
     next_region: usize,
     nodes: Vec<IrNode>,
@@ -125,7 +125,7 @@ impl<'source> RustIrBuilder<'source> {
             let entry = DocCommentEntry {
                 node: child,
                 flavor,
-                content: self.doc_comment_content(child, flavor),
+                content: doc_comment_content(self.source, child, flavor),
                 content_span,
             };
             if flavor.is_inner() {
@@ -260,7 +260,11 @@ impl<'source> RustIrBuilder<'source> {
         });
     }
 
-    fn push_owner_node(&mut self, node: Node<'source>, stack: &mut [OwnerFrame]) -> NodeId {
+    pub(super) fn push_owner_node(
+        &mut self,
+        node: Node<'source>,
+        stack: &mut [OwnerFrame],
+    ) -> NodeId {
         let current_index = stack.len().saturating_sub(1);
         if let Some(node_id) = stack
             .get(current_index)
@@ -298,32 +302,6 @@ impl<'source> RustIrBuilder<'source> {
             owner.emitted_node_id = Some(node_id.clone());
         }
         node_id
-    }
-
-    fn doc_comment_content(
-        &self,
-        node: Node<'source>,
-        flavor: super::helpers::DocCommentFlavor,
-    ) -> String {
-        let start = node.start_byte();
-        match flavor {
-            super::helpers::DocCommentFlavor::OuterLine
-            | super::helpers::DocCommentFlavor::InnerLine => {
-                let end = line_comment_content_end(self.source, node);
-                self.source
-                    .get(start + 3..end)
-                    .unwrap_or_default()
-                    .to_owned()
-            }
-            super::helpers::DocCommentFlavor::OuterBlock
-            | super::helpers::DocCommentFlavor::InnerBlock => {
-                let end = node.end_byte();
-                self.source
-                    .get(start + 3..end.saturating_sub(2))
-                    .unwrap_or_default()
-                    .to_owned()
-            }
-        }
     }
 
     fn record_depth_limit(&mut self, node: Node<'source>) {
@@ -369,13 +347,13 @@ impl<'source> RustIrBuilder<'source> {
         });
     }
 
-    fn push_node(&mut self, node: IrNode) {
+    pub(super) fn push_node(&mut self, node: IrNode) {
         let index = self.nodes.len();
         self.node_positions.insert(node.id.clone(), index);
         self.nodes.push(node);
     }
 
-    fn push_child(&mut self, parent_id: &NodeId, child_id: &NodeId) {
+    pub(super) fn push_child(&mut self, parent_id: &NodeId, child_id: &NodeId) {
         if let Some(parent) = self
             .node_positions
             .get(parent_id.as_str())
@@ -385,7 +363,7 @@ impl<'source> RustIrBuilder<'source> {
         }
     }
 
-    fn next_node_id(&mut self) -> NodeId {
+    pub(super) fn next_node_id(&mut self) -> NodeId {
         let id = NodeId(format!("n{}", self.next_node));
         self.next_node += 1;
         id

@@ -4,6 +4,7 @@ mod helpers;
 mod observe;
 mod owner;
 mod support;
+mod suppressions;
 pub(super) mod types;
 
 use std::collections::{BTreeMap, HashMap};
@@ -21,6 +22,7 @@ use helpers::{
 use observe::{record_extraction_outcome, record_fatal_error};
 use owner::{OwnerFrame, owner_for};
 use support::{parse_python, python_producer, validate_ir_consistency};
+use suppressions::collect_comment_suppressions;
 use types::{NodeId, NodeKind};
 
 const TREE_ID: &str = "t0";
@@ -98,11 +100,13 @@ pub fn python_docstring_ir_document(
     let mut builder = PythonIrBuilder::new(source);
     builder.push_module_root(root);
     builder.push_recovery_errors(root);
-    builder.visit_module(root);
+    let (suppressions, suppression_errors) = builder.visit_module(root);
 
     document.nodes = builder.nodes;
     document.regions = builder.regions;
+    document.suppressions = suppressions;
     document.errors = builder.errors;
+    document.errors.extend(suppression_errors);
     validate_ir_consistency(&document, source);
     record_extraction_outcome(&document);
     Ok(document)
@@ -175,7 +179,7 @@ impl<'source> PythonIrBuilder<'source> {
         }
     }
 
-    fn visit_module(&mut self, root: Node<'_>) {
+    fn visit_module(&mut self, root: Node<'_>) -> (Vec<stilyagi_ir::IrSuppression>, Vec<IrError>) {
         let mut stack = Vec::new();
         if let Some(docstring) = module_docstring(self.source, root) {
             self.push_docstring_region(docstring, &stack, &root_node_id());
@@ -185,6 +189,7 @@ impl<'source> PythonIrBuilder<'source> {
             depth: 0,
         };
         self.visit_children(root, &mut context);
+        collect_comment_suppressions(self, root)
     }
 
     fn visit_children(&mut self, node: Node<'_>, context: &mut WalkContext<'_>) {

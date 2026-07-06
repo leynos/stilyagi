@@ -9,6 +9,7 @@ mod diagnostics;
 mod document;
 mod region;
 mod source_identity;
+pub mod suppression;
 mod tree;
 
 pub use canonical_json::{content_hash_for, line_index_for};
@@ -18,6 +19,11 @@ pub use region::{
     InvalidRegionKind, IrOwner, IrRegion, IrSegment, RegionKind, SegmentOrigin, SyntheticReason,
 };
 pub use source_identity::SourceIdentity;
+pub use suppression::{
+    DirectiveError, DirectiveOutcome, DirectiveVerb, ParsedDirective, SuppressionCandidate,
+    SuppressionValidationError, is_directive_marker, parse_comment_directive,
+    suppressions_from_candidates, validate_suppressions, verb_kind,
+};
 pub use tree::{IrNode, IrTree, NodeFlags, SourceSpan};
 
 /// Current schema version for Stilyagi IR documents.
