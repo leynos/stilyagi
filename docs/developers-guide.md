@@ -855,7 +855,6 @@ or the suppression. Ruff suppressions use `# noqa`, while Pylint suppressions
 use `# pylint: disable=...`; do not use one tool's suppression syntax to hide
 the other tool's finding.
 
-
 ### 6b. Spelling gate
 
 `make markdownlint` enforces en-GB-oxendict (Oxford) spelling over the
@@ -909,7 +908,6 @@ env UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools \
 
 Review automated rewrites before committing; spelling corrections must not
 touch code samples, API names, or quoted material.
-
 
 ### 6c. Tool version alignment between the Makefile and CI
 

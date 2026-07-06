@@ -257,7 +257,7 @@ escalation, not a workaround.
 ## Outcomes & retrospective
 
 Work item 3 is complete. Roadmap item 2.1.3.1 is ticked, and this ExecPlan is
-now finalised.
+now finalized.
 
 Compare against Purpose: every canonical directive in a multi-directive HTML
 node must surface as its own IR suppression or error with a byte-exact span.
@@ -734,11 +734,11 @@ tooling-failure rule; not a design blocker.)
   The agent therefore cannot self-commit, and cannot clean the pre-existing
   `review-r1.md` modification (no `git checkout`/`git restore` available and the
   HEAD bytes are not otherwise recoverable). The `review-r1.md` file is the
-  design reviewer's artifact; it is deliberately left untouched (not deleted) so
+  design reviewer's artefact; it is deliberately left untouched (not deleted) so
   no review evidence is lost.
 - Durable remedy (for the entity with git access — orchestrator integration or a
   session where the permission grant exists): from the worktree root, commit both
-  dirty design artifacts with the prepared message —
+  dirty design artefacts with the prepared message —
   `git add docs/execplans/roadmap-2-1-3-1.md docs/execplans/roadmap-2-1-3-1.review-r1.md`
   then `git commit -F ../.commit-msg-roadmap-2-1-3-1.txt`. Committing both paths
   (not the plan alone) is what clears the "path beyond the plan file" condition
@@ -768,7 +768,7 @@ tooling-failure rule; not a design blocker.)
   consume. This round writes that file (en-GB imperative subject, body matching
   the proven `.commit-msg-roadmap-2-2-1.txt` format). The entity with git access
   (orchestrator integration or a session with the permission grant) commits both
-  dirty design artifacts from the worktree root:
+  dirty design artefacts from the worktree root:
   `git add docs/execplans/roadmap-2-1-3-1.md docs/execplans/roadmap-2-1-3-1.review-r1.md`
   then `git commit -F ../.commit-msg-roadmap-2-1-3-1.txt`. Committing both paths
   (not the plan alone) clears the "path beyond the plan file" condition that made

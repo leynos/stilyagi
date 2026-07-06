@@ -78,4 +78,4 @@ extract markdown golden uses the ignored marker — both unaffected).
 - Work item 3's Stage C assumes the extract boundary already propagates
   `range_role`; it hedges correctly ("if the extract boundary drops the field
   … fix within tolerance"). No change required, but confirm the extract path
-  serialises via the same `IrSuppression` so the assumption holds.
+  serializes via the same `IrSuppression` so the assumption holds.
