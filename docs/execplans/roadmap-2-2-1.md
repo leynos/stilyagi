@@ -7,13 +7,23 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 Status: DRAFT
 
 Approval gate: NOT yet satisfied. Do not begin implementation until the user
-explicitly approves this plan. This is planning round 4. It closes the two
-remaining blocking defects from the saved Round-1 adversarial review
+explicitly approves this plan. This is planning round 5. Round 5 corrects the
+whole validation/gate story after re-verifying the worktree Makefile: the branch
+Makefile has advanced since round 2, so `make all` now **chains** the commit
+gates (`Makefile:38`) and `make release` (`Makefile:54`) is what builds the
+wheel — reversing the round-2/round-3/round-4 claim that "`make all` runs no
+gates". The deterministic commit gates are now stated as the four distinct
+targets the workflow host re-runs, in order — `make check-fmt`, then
+`make typecheck`, then `make lint`, then `make test` — with `make check-fmt`
+(formatting) listed as its own gate rather than folded into `make lint`, per
+AGENTS.md §"Rust specific guidance". No work item's mechanism changed; only the
+validation commands and the `make all`/`make release` narrative. Round 4 closed
+the two remaining blocking defects from the saved Round-1 adversarial review
 ([roadmap-2-2-1-review-round-1.md](roadmap-2-2-1-review-round-1.md)) that earlier
 rounds left open — defect 2 (the incomplete enumeration of skeleton tests broken
 by the W4 diagnostic/renderer reshape, which would leave a red gate at the W4
 commit) and defect 3 (the mischaracterised, non-hermetic `cli.main()` snapshot
-test and its stored artifact) — and lands the review's six advisories (file
+test and its stored artifact) — and landed the review's six advisories (file
 failure modes, `Document.ir is None`, the JSON `path` form, the `sarif` error
 message, the fate of `NodeRef`/`Fix`, and `--config` inline-vs-path
 disambiguation). See the Revision note. (Round 1 decomposed the task; round 2
@@ -264,7 +274,7 @@ escalation, not a workaround.
   monotonic and within bounds.
 - Risk: `maturin` is the build backend; adding `[project.scripts]` must not
   break the wheel build. Severity: low. Likelihood: low. Mitigation: W5 adds the
-  entry point and validates the wheel/console script with `make all` (which
+  entry point and validates the wheel/console script with `make release` (which
   builds and smoke-tests the release wheel via `python -m stilyagi.smoke`; it
   runs no lint/typecheck/test gates), and validates behaviour with a subprocess
   e2e test through `python -m stilyagi` under `make test`.
@@ -305,6 +315,32 @@ escalation, not a workaround.
   load-bearing facts here are pinned to in-worktree source (`crates/…`,
   `python/…`, `pyproject.toml`, `Makefile`) or to in-repo contract docs, not to
   scraped web pages.
+
+- Observation (round 5): the worktree Makefile has advanced since round 2. `all`
+  is now `all: ## Run commit gates` chaining `check-fmt`, `typecheck`, `lint`,
+  `test`, `markdownlint`, and `nixie` (`Makefile:38-44`), and `release:
+  release-artifact smoke-release` (`Makefile:54`) is what builds/smoke-tests the
+  wheel — the opposite of the round-2 `all: release` finding this plan carried
+  forward. AGENTS.md §"Rust specific guidance" (lines 156-186) confirms the four
+  gate targets are distinct and that `make check-fmt` (not `make lint`) performs
+  the formatting check. Impact: the validation commands, the Decision Log gate
+  entry, both W-item and whole-change acceptance lines, and the wheel-build
+  reference were corrected to the four deterministic gates in host order and to
+  `make release` for the wheel check. No work-item mechanism changed.
+
+- Observation (round 5): `git` (log/status/diff) and `grep` via the shell were
+  denied by the session's command-approval layer, so branch history could not be
+  read through git in this planning session. Evidence: repeated "This command
+  requires approval" on `git -C … log`. Impact: none on implementability —
+  branch-local premises were re-verified by direct file inspection instead: the
+  `check` command is still the placeholder `def main() -> int` returning `2`
+  (`python/stilyagi/cli.py`), `config.py` is still a single module (not yet a
+  package), no `features/stilyagi_check_command.feature` exists, and the skeleton
+  test anchors (`test_diagnostic_preserves_code_and_message` line 92 using
+  `NodeRef`; `test_engine_skeleton_dataclasses_preserve_their_fields` line 115
+  asserting `default_format == "text"`) are present as the plan describes. No
+  roadmap-2.2.1 implementation is committed on this branch; the plan's premises
+  hold.
 
 ## Decision log
 
@@ -371,14 +407,23 @@ escalation, not a workaround.
   `[lint] extend-select` and `[discovery] include` keys are removed
   (`--extend-select` is a CLI flag per §§3.1/8; discovery scope is a fixed
   Markdown extension set, not a schema key). Date/Author: 2026-07-04 (round 2).
-- Decision: Whole-change validation runs `make lint`, `make typecheck`, and
-  `make test`, plus `make all` only as a wheel/console build-integrity check.
-  Rationale: On current `origin/main` `make all` resolves to `all: release` →
-  `release-artifact` + `smoke-release` (`Makefile:38,48`); it builds the release
-  wheel and runs `python -m stilyagi.smoke` but invokes no lint, typecheck, or
-  test target. The behavioural acceptance (BDD, unit, property, snapshot, e2e)
-  runs under `make test`; formatting/lint under `make lint`; `ty check` under
-  `make typecheck`. Date/Author: 2026-07-04 (round 2).
+- Decision: The deterministic commit gates are `make check-fmt`, then
+  `make typecheck`, then `make lint`, then `make test`; `make release` is run
+  separately only as a wheel/console build-integrity check.
+  Rationale (superseded round 5): the round-2 claim that "`make all` resolves to
+  `all: release` and runs no gates" was pinned to the then-current `origin/main`
+  Makefile. On the current worktree branch the Makefile has advanced —
+  `all: ## Run commit gates` (`Makefile:38`) chains `check-fmt`, `typecheck`,
+  `lint`, `test`, `markdownlint`, and `nixie`, and `release: release-artifact
+  smoke-release` (`Makefile:54`) is what builds and smoke-tests the wheel.
+  AGENTS.md §"Rust specific guidance" (lines 156-186) is authoritative: the four
+  gate targets are **distinct**, and `make check-fmt` (not `make lint`) runs the
+  formatting check (`ruff format --check` + `cargo fmt --check`). Formatting is
+  therefore listed as its own gate, ahead of typecheck/lint/test, matching the
+  order the workflow host re-runs. The behavioural acceptance (BDD, unit,
+  property, snapshot, e2e) runs under `make test`; `ty check` under
+  `make typecheck`; ruff/pylint/clippy/Whitaker under `make lint`. Date/Author:
+  2026-07-04 (round 2); corrected 2026-07-06 (round 5), planning agent.
 - Decision: Convert `python/stilyagi/config.py` into a `python/stilyagi/config/`
   package that re-exports `StilyagiConfig` and `InvalidCacheDirError` from its
   `__init__`, keeping `from stilyagi import config` and its attributes stable.
@@ -547,7 +592,7 @@ Tests (Red first):
   valid).
 
 Acceptance: focused tests fail before implementation (Red) and pass after
-(Green); `make lint`, `make typecheck`, `make test` pass.
+(Green); `make check-fmt`, `make typecheck`, `make lint`, `make test` pass.
 
 ### W2 — Nearest-config discovery, `extend` chain, CLI overrides, `--isolated`
 
@@ -593,8 +638,8 @@ Tests (Red first):
 - `tests/test_config_resolution.py::test_extend_precedence` asserts the exact
   precedence ladder using a temporary directory tree built by a fixture.
 
-Acceptance: focused tests Red→Green; `make lint`, `make typecheck`, `make test`
-pass.
+Acceptance: focused tests Red→Green; `make check-fmt`, `make typecheck`,
+`make lint`, `make test` pass.
 
 ### W3 — Deterministic Markdown file discovery
 
@@ -642,7 +687,8 @@ Tests (Red first):
   returned list equals the input set sorted by normalized path (total order,
   no duplicates, deterministic regardless of filesystem enumeration order).
 
-Acceptance: Red→Green; `make lint`, `make typecheck`, `make test` pass.
+Acceptance: Red→Green; `make check-fmt`, `make typecheck`, `make lint`,
+`make test` pass.
 
 ### W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam
 
@@ -743,7 +789,12 @@ Tests (Red first):
   and the resolved location; an empty `errors[]` maps to none; a document with
   `ir is None` maps to none (no raise). (2) The real-extractor pin: for
   each real malformed Markdown fixture under
-  `tests/fixtures/corpus/markdown/malformed/`, `engine.extract_document(text,
+  `tests/fixtures/corpus/markdown/malformed/` — verified present this worktree as
+  `unclosed-table.md`, `unbalanced-emphasis.md.fixture`, and
+  `broken-reference-link.md.fixture` (note the mixed `.md`/`.md.fixture`
+  extensions, so glob the directory contents rather than assuming `*.md`; the
+  extension is irrelevant to extraction because `MARKDOWN` is passed explicitly) —
+  `engine.extract_document(text,
   model.Syntax.MARKDOWN)` returns a document whose `ir["errors"]` is `[]`, so the
   adapter yields **zero** diagnostics — documenting that malformed Markdown
   recovers cleanly in this slice and does not drive exit `1`. This is the test
@@ -751,8 +802,8 @@ Tests (Red first):
   design reviewer, replacing the round-2 `test_extraction_error_mapping.py` that
   wrongly assumed populated errors.
 
-Acceptance: Red→Green; snapshots reviewed and stable on re-run; `make lint`,
-`make typecheck`, `make test` pass.
+Acceptance: Red→Green; snapshots reviewed and stable on re-run;
+`make check-fmt`, `make typecheck`, `make lint`, `make test` pass.
 
 ### W5 — `check` command, argparse CLI, exit codes, console entry point
 
@@ -904,15 +955,19 @@ Tests (Red first):
     artifact explicitly in the commit (deleted or regenerated), not implicitly.
 
 Acceptance: the BDD scenarios fail before implementation and pass after; unit
-and e2e tests Red→Green; the gate suite `make lint`, `make typecheck`, and
-`make test` passes (these are the targets that actually run formatting checks,
-lint, `ty check`, and the pytest/BDD/e2e suites — see the Validation section).
-Separately, `make all` (`all: release` → `release-artifact` + `smoke-release`,
-`Makefile:38,48`) must still succeed: it builds the release wheel and runs
-`python -m stilyagi.smoke`, confirming the new `[project.scripts]` console entry
-point and the wheel build survive. `make all` does **not** run lint, typecheck,
-or the test suites, so it is an additional build-integrity check, not the
-behavioural gate.
+and e2e tests Red→Green; the deterministic commit gates `make check-fmt`,
+`make typecheck`, `make lint`, `make test` pass (`make check-fmt` runs
+`ruff format --check` and `cargo fmt --check`; `make typecheck` runs `ty check`;
+`make lint` runs `ruff check`, `pylint`, `clippy`, and Whitaker; `make test`
+runs the pytest/BDD/e2e suites — AGENTS.md §"Rust specific guidance" and the
+Validation section). Separately, `make release` (`release: release-artifact
+smoke-release`, `Makefile:54`) must still succeed: it builds the release wheel
+and runs `python -m stilyagi.smoke`, confirming the new `[project.scripts]`
+console entry point and the wheel build survive. `make release` does **not** run
+lint, typecheck, or the test suites, so it is an additional build-integrity
+check, not the behavioural gate. (On this branch `make all` at `Makefile:38`
+chains all four gates plus `make markdownlint`/`make nixie` but not the wheel
+build, so run `make release` explicitly for the wheel/console check.)
 
 ### W6 — Standard-input support (`-` and `--stdin-filename`)
 
@@ -935,7 +990,8 @@ Tests (Red first):
 - Add one BDD scenario to `features/stilyagi_check_command.feature` covering the
   stdin path and keep the step definitions in sync.
 
-Acceptance: Red→Green; `make lint`, `make typecheck`, `make test` pass.
+Acceptance: Red→Green; `make check-fmt`, `make typecheck`, `make lint`,
+`make test` pass.
 
 ### W7 — Documentation and roadmap update
 
@@ -959,8 +1015,8 @@ run the repository Markdown gates below.
 Tests: none new (docs-only). Validation is the Markdown gates.
 
 Acceptance: `make markdownlint` and `make nixie` pass; the code gate suite
-(`make lint`, `make typecheck`, `make test`) remains green and `make all` still
-builds and smoke-tests the wheel.
+(`make check-fmt`, `make typecheck`, `make lint`, `make test`) remains green and
+`make release` still builds and smoke-tests the wheel.
 
 ## Concrete steps
 
@@ -1015,28 +1071,35 @@ Per-work-item validation is stated above. The whole-change acceptance is:
 - Renderers: `tests/test_renderers.py` `syrupy` snapshots for `text` and `json`
   are stable on re-run and paired with semantic assertions.
 
-Run the full repository gate suite (path-safe; no hand-written file lists). On
-current `origin/main` the gate targets are separate and unchained: `make all`
-resolves to `all: release` → `release-artifact` + `smoke-release`
-(`Makefile:38,48`) and only builds the release wheel and runs
-`python -m stilyagi.smoke`; it does **not** invoke lint, typecheck, or the test
-suites. The behavioural acceptance for this change (the BDD feature, unit,
-property, snapshot, and e2e tests) runs under `make test`; formatting and lint
-run under `make lint`; the `typecheck` (`ty check`) target runs under
-`make typecheck`. Run all three explicitly:
+Run the deterministic commit gates (path-safe; no hand-written file lists), in
+the order the workflow host re-runs them. On this branch the gate targets are
+distinct (verified against the worktree Makefile and AGENTS.md §"Rust specific
+guidance"): `make check-fmt` runs `ruff format --check` and `cargo fmt --check`
+(`Makefile:114`); `make typecheck` runs `ty check` (`Makefile:126`); `make lint`
+runs `ruff check`, `pylint`, `clippy -D warnings`, and Whitaker (`Makefile:118`);
+`make test` runs the workspace tests and the pytest/BDD/property/snapshot/e2e
+suites (`Makefile:137`). Formatting is a **separate** gate from lint — do not
+conflate them. Run all four explicitly, in order:
 
 ```bash
-make lint
+make check-fmt
 make typecheck
+make lint
 make test
 ```
 
-Additionally run `make all` to confirm the release wheel and the new console
-entry point still build and smoke-test (build integrity only — it runs no
-gates):
+(On this branch `make all` at `Makefile:38` chains these four plus
+`make markdownlint` and `make nixie`; the host nonetheless re-runs the four
+deterministic gates individually, so a gatesGreen claim must be reproducible
+target-by-target.)
+
+Separately run `make release` to confirm the release wheel and the new console
+entry point still build and smoke-test (build integrity only — `release:
+release-artifact smoke-release`, `Makefile:54`; it runs no lint/typecheck/test
+gate):
 
 ```bash
-make all
+make release
 ```
 
 For the documentation changes in W7 also run the Markdown gates:
@@ -1048,11 +1111,12 @@ make nixie
 
 Quality criteria for "done":
 
-- Tests: all unit, BDD, property, snapshot, and e2e tests pass under `make test`
-  (not `make all`, which builds and smoke-tests the wheel but runs no tests).
-- Lint/typecheck: `make lint` and `make typecheck` report no violations.
 - Formatting: `make check-fmt` clean (apply with `make fmt` only against changed
   files; do not run a repo-global reformat that churns unrelated files).
+- Typecheck: `make typecheck` (`ty check`) reports no violations.
+- Lint: `make lint` (ruff, pylint, clippy, Whitaker) reports no violations.
+- Tests: all unit, BDD, property, snapshot, and e2e tests pass under `make test`
+  (not `make release`, which builds and smoke-tests the wheel but runs no tests).
 - Markdown: `make markdownlint` and `make nixie` clean.
 
 ## Idempotence and recovery
@@ -1192,5 +1256,32 @@ Decision Log (seven round-4 entries), W2 (`--config` classification + test), W3
 (symlink non-following + dual reported/resolved path), W4 (enumerated test edits,
 `ir is None`, path-form assertions, `sarif` message), and W5 (file-failure
 handler, hermetic test redefinition, snapshot-artifact handling).
+
+Round 5 (2026-07-06) — corrects the validation/gate story after re-verifying the
+worktree Makefile and AGENTS.md; no work-item mechanism changed:
+
+1. **The `make all` "runs no gates" claim was stale.** Rounds 2-4 asserted, on
+   the then-current `origin/main`, that `all: release` built only the wheel and
+   ran no gates. The worktree Makefile has since advanced: `all: ## Run commit
+   gates` (`Makefile:38-44`) chains `check-fmt`, `typecheck`, `lint`, `test`,
+   `markdownlint`, and `nixie`; the wheel is built by `release: release-artifact
+   smoke-release` (`Makefile:54`). Every sentence that conflated `make all` with
+   the wheel build was corrected, and the wheel/console build-integrity check now
+   invokes `make release`, not `make all`.
+2. **`make check-fmt` promoted to its own gate.** AGENTS.md §"Rust specific
+   guidance" (lines 156-186) shows `make check-fmt` (`ruff format --check` +
+   `cargo fmt --check`) is distinct from `make lint` (ruff/pylint/clippy/
+   Whitaker). The plan previously implied `make lint` ran the formatting check
+   and omitted `check-fmt` from the per-work-item acceptance lines. The
+   deterministic commit gates are now stated everywhere as the four targets the
+   workflow host re-runs, in order: `make check-fmt`, `make typecheck`,
+   `make lint`, `make test` (plus `make markdownlint`/`make nixie` for W7 docs).
+   Updated: header, a new Decision Log correction, two new Surprises entries
+   (Makefile change; git-tool unavailability with the branch-local re-verification
+   that no 2.2.1 code is committed), the whole-change Validation block and command
+   list, the W1-W7 acceptance lines, the W5 acceptance narrative, the W5 wheel
+   risk mitigation, and a W4 note on the mixed-extension malformed fixtures
+   (`unclosed-table.md`, `unbalanced-emphasis.md.fixture`,
+   `broken-reference-link.md.fixture` — glob the directory, do not assume `*.md`).
 
 No implementation started; awaiting approval.
