@@ -12,6 +12,7 @@
       'stilyagi/cli.py',
       'stilyagi/config/__init__.py',
       'stilyagi/config/load.py',
+      'stilyagi/config/resolve.py',
       'stilyagi/config/schema.py',
       'stilyagi/diagnostics.py',
       'stilyagi/engine/__init__.py',

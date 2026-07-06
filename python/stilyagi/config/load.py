@@ -76,6 +76,23 @@ def _ensure_string_sequence(
     return typ.cast("tuple[str, ...]", items)
 
 
+def _ensure_extend_value(
+    value: object,
+    *,
+    path: pathlib.Path,
+    key: str,
+) -> object:
+    """Validate the raw `extend` value without changing its shape."""
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, cabc.Sequence) or isinstance(value, (bytes, bytearray)):
+        raise InvalidConfigError(path, key, "must be a string or a sequence of strings")
+    items = tuple(value)
+    if any(not isinstance(item, str) for item in items):
+        raise InvalidConfigError(path, key, "must contain strings only")
+    return value
+
+
 def _parse_lint_config(
     table: cabc.Mapping[str, object],
     *,
@@ -219,6 +236,7 @@ def _parse_config_table(
         "cache-dir",
         "respect-gitignore",
         "line-length",
+        "extend",
         "plugins",
         "lint",
         "extract",
@@ -251,6 +269,19 @@ def _parse_config_table(
     else:
         raise InvalidConfigError(path, "cache-dir", "must be a string")
 
+    reserved: dict[str, object] = {
+        "line-length": _ensure_int(
+            table.get("line-length", 88), path=path, key="line-length"
+        ),
+        "lint": lint.reserved,
+        "nlp": nlp.reserved,
+        "rule": rules,
+    }
+    if "extend" in table:
+        reserved["extend"] = _ensure_extend_value(
+            table["extend"], path=path, key="extend"
+        )
+
     return StilyagiConfig(
         cache_dir=cache_dir,
         respect_gitignore=_ensure_bool(
@@ -268,14 +299,7 @@ def _parse_config_table(
         extract=extract,
         nlp=nlp,
         rules=rules,
-        reserved={
-            "line-length": _ensure_int(
-                table.get("line-length", 88), path=path, key="line-length"
-            ),
-            "lint": lint.reserved,
-            "nlp": nlp.reserved,
-            "rule": rules,
-        },
+        reserved=reserved,
     )
 
 
@@ -283,6 +307,17 @@ def _load_toml(path: pathlib.Path) -> cabc.Mapping[str, object]:
     """Load a TOML file into a mapping."""
     with path.open("rb") as handle:
         return typ.cast("cabc.Mapping[str, object]", tomllib.load(handle))
+
+
+def _load_config_table(path: pathlib.Path) -> cabc.Mapping[str, object]:
+    """Load and select the supported config table for one file."""
+    try:
+        raw_document = _load_toml(path)
+    except FileNotFoundError as exc:
+        raise InvalidConfigError(path, "config", "does not exist") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise InvalidConfigError(path, "toml", str(exc)) from exc
+    return _select_config_table(raw_document, path=path)
 
 
 def _select_config_table(
@@ -318,8 +353,7 @@ def _has_supported_content(
 
 def load_config_file(path: pathlib.Path) -> StilyagiConfig:
     """Load a single supported config file."""
-    raw_document = _load_toml(path)
-    config_table = _select_config_table(raw_document, path=path)
+    config_table = _load_config_table(path)
     return _parse_config_table(config_table, path=path)
 
 
@@ -329,8 +363,18 @@ def discover_same_directory_config(directory: pathlib.Path) -> LoadedConfig | No
         candidate = directory / filename
         if not candidate.is_file():
             continue
-        raw_document = _load_toml(candidate)
+        try:
+            raw_document = _load_toml(candidate)
+        except FileNotFoundError as exc:
+            raise InvalidConfigError(candidate, "config", "does not exist") from exc
+        except tomllib.TOMLDecodeError as exc:
+            raise InvalidConfigError(candidate, "toml", str(exc)) from exc
         if not _has_supported_content(raw_document, path=candidate):
             continue
-        return LoadedConfig(path=candidate, config=load_config_file(candidate))
+        return LoadedConfig(
+            path=candidate,
+            config=_parse_config_table(
+                _select_config_table(raw_document, path=candidate), path=candidate
+            ),
+        )
     return None

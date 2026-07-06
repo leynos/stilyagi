@@ -299,7 +299,7 @@ escalation, not a workaround.
     values.
   - Added focused schema and property tests, then refreshed the wheel snapshot
     after the package layout changed.
-- [ ] W2 — Nearest-config discovery, `extend` chain, CLI overrides, `--isolated`.
+- [x] W2 — Nearest-config discovery, `extend` chain, CLI overrides, `--isolated`.
 - [ ] W3 — Deterministic Markdown file discovery.
 - [ ] W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam.
 - [ ] W5 — `check` command, argparse CLI, exit codes, console entry point.
@@ -363,6 +363,10 @@ escalation, not a workaround.
   `python/stilyagi/config` and `tests`, so the W1 config surface needed
   docstrings to keep the repo at 100% coverage. The wheel snapshot also changed
   deliberately because the package split moved `config.py` into `config/`.
+
+- Observation (W2): adding `python/stilyagi/config/resolve.py` changed the
+  maturin wheel contents, so `tests/test_maturin_build.py::test_maturin_wheel_build_snapshot`
+  needed a snapshot refresh after the new module landed.
 
 ## Decision log
 
