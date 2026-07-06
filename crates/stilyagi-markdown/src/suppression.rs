@@ -1,6 +1,15 @@
 //! Markdown suppression directive parsing helpers.
 
-use stilyagi_ir::SuppressionKind;
+use stilyagi_ir::{SourceSpan, SuppressionKind};
+
+/// A comment slice found inside a Markdown HTML node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CommentSpan<'source> {
+    /// Comment span relative to the scanned source slice.
+    pub span: SourceSpan,
+    /// Comment body between `<!--` and `-->`.
+    pub inner: &'source str,
+}
 
 /// Canonical suppression directive verbs recognised in Markdown comments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +89,44 @@ pub(crate) const fn verb_kind(verb: DirectiveVerb) -> SuppressionKind {
         DirectiveVerb::Disable | DirectiveVerb::Enable => SuppressionKind::Range,
         DirectiveVerb::IgnoreFile => SuppressionKind::File,
     }
+}
+
+/// Return every HTML comment found in a Markdown node source slice.
+pub(crate) fn scan_comment_spans(source: &str) -> Vec<CommentSpan<'_>> {
+    let mut comments = Vec::new();
+    let mut search_start = 0;
+
+    while let Some(relative_start) = source
+        .get(search_start..)
+        .and_then(|slice| slice.find("<!--"))
+    {
+        let start = search_start + relative_start;
+        let inner_start = start + 4;
+        let Some(relative_end) = source
+            .get(inner_start..)
+            .and_then(|slice| slice.find("-->"))
+        else {
+            search_start = inner_start;
+            continue;
+        };
+
+        let inner_end = inner_start + relative_end;
+        let end = inner_end + 3;
+        let Some(inner) = source.get(inner_start..inner_end) else {
+            search_start = end;
+            continue;
+        };
+        comments.push(CommentSpan {
+            span: SourceSpan {
+                byte_start: start,
+                byte_end: end,
+            },
+            inner,
+        });
+        search_start = end;
+    }
+
+    comments
 }
 
 fn parse_codes(remainder: &str) -> Vec<String> {

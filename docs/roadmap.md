@@ -144,7 +144,7 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
   - Do not let later rules infer suppression state ad hoc.
   - Success: `dump-ir` exposes suppressions and later steps can trust one
     source of truth.
-- [ ] 2.1.3.1. Harden Markdown suppression parsing against coalesced or
+- [x] 2.1.3.1. Harden Markdown suppression parsing against coalesced or
   adjacent HTML comment nodes.
   - Addendum (from review:2.1.3; low). Split multi-comment HTML nodes or scan
     for multiple canonical directives within one node so no directive is lost.

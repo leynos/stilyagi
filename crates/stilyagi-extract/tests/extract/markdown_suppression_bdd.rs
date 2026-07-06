@@ -47,6 +47,32 @@ fn a_markdown_document_with_a_blanket_disable_comment(
     markdown_suppression_state.source = Some("<!-- stilyagi: disable -->\n".to_owned());
 }
 
+#[given("a Markdown document with two same-line suppression comments")]
+fn a_markdown_document_with_two_same_line_suppression_comments(
+    markdown_suppression_state: &mut MarkdownSuppressionState,
+) {
+    markdown_suppression_state.source = Some(
+        concat!(
+            "<!-- stilyagi: disable STY --> ",
+            "<!-- stilyagi: enable STY -->\n",
+        )
+        .to_owned(),
+    );
+}
+
+#[given("a Markdown document with a same-line suppression and a blanket comment")]
+fn a_markdown_document_with_a_same_line_suppression_and_a_blanket_comment(
+    markdown_suppression_state: &mut MarkdownSuppressionState,
+) {
+    markdown_suppression_state.source = Some(
+        concat!(
+            "<!-- stilyagi: disable STY --> ",
+            "<!-- stilyagi: disable -->\n",
+        )
+        .to_owned(),
+    );
+}
+
 #[when("the document is extracted")]
 fn the_document_is_extracted(markdown_suppression_state: &mut MarkdownSuppressionState) {
     let Some(source) = markdown_suppression_state.source.as_deref() else {
@@ -100,6 +126,126 @@ fn the_ir_suppressions_are_empty(markdown_suppression_state: &MarkdownSuppressio
     assert!(ir.suppressions.is_empty());
 }
 
+#[then("the IR suppressions contain two range entries naming STY")]
+fn the_ir_suppressions_contain_two_range_entries_naming_sty(
+    markdown_suppression_state: &MarkdownSuppressionState,
+) {
+    let ir = extracted_ir(markdown_suppression_state);
+
+    assert!(ir.errors.is_empty());
+    assert_eq!(ir.suppressions.len(), 2);
+    for suppression in &ir.suppressions {
+        assert_eq!(suppression.kind, SuppressionKind::Range);
+        assert_eq!(suppression.codes, vec!["STY".to_owned()]);
+    }
+}
+
+#[then("the IR errors contain a blanket-forbidden entry for the second comment")]
+fn the_ir_errors_contain_a_blanket_forbidden_entry_for_the_second_comment(
+    markdown_suppression_state: &MarkdownSuppressionState,
+) {
+    let Some(source) = markdown_suppression_state.source.as_deref() else {
+        panic!("expected Markdown source to be configured");
+    };
+    let ir = extracted_ir(markdown_suppression_state);
+    let Some(error) = ir
+        .errors
+        .iter()
+        .find(|error| error.code == "suppression-blanket-forbidden")
+    else {
+        panic!("expected a blanket suppression error");
+    };
+    let Some(span) = error.span else {
+        panic!("expected suppression error span");
+    };
+
+    assert_eq!(
+        source.get(span.byte_start..span.byte_end),
+        Some("<!-- stilyagi: disable -->")
+    );
+}
+
+#[then("the blanket error span re-slices to the second coalesced comment")]
+fn the_blanket_error_span_re_slices_to_the_second_coalesced_comment(
+    markdown_suppression_state: &MarkdownSuppressionState,
+) {
+    let Some(source) = markdown_suppression_state.source.as_deref() else {
+        panic!("expected Markdown source to be configured");
+    };
+    let ir = extracted_ir(markdown_suppression_state);
+    let Some(error) = ir
+        .errors
+        .iter()
+        .find(|error| error.code == "suppression-blanket-forbidden")
+    else {
+        panic!("expected a blanket suppression error");
+    };
+    let Some(span) = error.span else {
+        panic!("expected suppression error span");
+    };
+
+    assert_eq!(
+        source.get(span.byte_start..span.byte_end),
+        Some("<!-- stilyagi: disable -->")
+    );
+}
+
+#[then("the suppression spans re-slice to the coalesced comments")]
+fn the_suppression_spans_re_slice_to_the_coalesced_comments(
+    markdown_suppression_state: &MarkdownSuppressionState,
+) {
+    let Some(source) = markdown_suppression_state.source.as_deref() else {
+        panic!("expected Markdown source to be configured");
+    };
+    let ir = extracted_ir(markdown_suppression_state);
+
+    assert_eq!(ir.suppressions.len(), 2);
+    let expected_comments = [
+        "<!-- stilyagi: disable STY -->",
+        "<!-- stilyagi: enable STY -->",
+    ];
+
+    for (suppression, expected_comment) in ir.suppressions.iter().zip(expected_comments) {
+        assert_eq!(
+            source.get(suppression.span.byte_start..suppression.span.byte_end),
+            Some(expected_comment)
+        );
+    }
+}
+
+#[then("the IR suppressions contain one range entry naming STY")]
+fn the_ir_suppressions_contain_one_range_entry_naming_sty(
+    markdown_suppression_state: &MarkdownSuppressionState,
+) {
+    let ir = extracted_ir(markdown_suppression_state);
+
+    assert_eq!(ir.errors.len(), 1);
+    assert_eq!(ir.suppressions.len(), 1);
+    let Some(suppression) = ir.suppressions.first() else {
+        panic!("expected a suppression entry");
+    };
+    assert_eq!(suppression.kind, SuppressionKind::Range);
+    assert_eq!(suppression.codes, vec!["STY".to_owned()]);
+}
+
+#[then("the suppression span re-slices to the first coalesced comment")]
+fn the_suppression_span_re_slices_to_the_first_coalesced_comment(
+    markdown_suppression_state: &MarkdownSuppressionState,
+) {
+    let Some(source) = markdown_suppression_state.source.as_deref() else {
+        panic!("expected Markdown source to be configured");
+    };
+    let ir = extracted_ir(markdown_suppression_state);
+    let Some(suppression) = ir.suppressions.first() else {
+        panic!("expected a suppression entry");
+    };
+
+    assert_eq!(
+        source.get(suppression.span.byte_start..suppression.span.byte_end),
+        Some("<!-- stilyagi: disable STY -->")
+    );
+}
+
 #[then("the IR errors contain a blanket-forbidden entry")]
 fn the_ir_errors_contain_a_blanket_forbidden_entry(
     markdown_suppression_state: &MarkdownSuppressionState,
@@ -139,6 +285,24 @@ fn a_canonical_ignore_next_directive_becomes_a_suppression(
     name = "A blanket directive is refused"
 )]
 fn a_blanket_directive_is_refused(
+    #[from(markdown_suppression_state)] _markdown_suppression_state: MarkdownSuppressionState,
+) {
+}
+
+#[scenario(
+    path = "tests/features/markdown_suppression.feature",
+    name = "A same-line coalesced directive node becomes two suppressions"
+)]
+fn a_same_line_coalesced_directive_node_becomes_two_suppressions(
+    #[from(markdown_suppression_state)] _markdown_suppression_state: MarkdownSuppressionState,
+) {
+}
+
+#[scenario(
+    path = "tests/features/markdown_suppression.feature",
+    name = "A mixed same-line suppression and blanket comment"
+)]
+fn a_same_line_suppression_and_a_blanket_comment_produce_one_suppression_and_one_error(
     #[from(markdown_suppression_state)] _markdown_suppression_state: MarkdownSuppressionState,
 ) {
 }

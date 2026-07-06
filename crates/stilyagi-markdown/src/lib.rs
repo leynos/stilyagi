@@ -16,7 +16,9 @@ use stilyagi_ir::{
     DocumentMetadata, IrBuildContext, IrDocument, IrError, IrSuppression, IrTree, ProducerMetadata,
     SourceIdentity, SourceSpan,
 };
-use suppression::{DirectiveError, DirectiveOutcome, parse_comment_directive, verb_kind};
+use suppression::{
+    DirectiveError, DirectiveOutcome, parse_comment_directive, scan_comment_spans, verb_kind,
+};
 pub(crate) use validation::validate_ir_consistency;
 
 /// Marker type for the future Markdown extraction boundary.
@@ -213,7 +215,8 @@ fn suppressions_from_candidates(
     let mut errors = Vec::new();
 
     for candidate in candidates {
-        let Some(comment) = source.get(candidate.span.byte_start..candidate.span.byte_end) else {
+        let Some(source_slice) = source.get(candidate.span.byte_start..candidate.span.byte_end)
+        else {
             errors.push(suppression_span_error(
                 candidate.span,
                 &candidate.node_id,
@@ -221,38 +224,38 @@ fn suppressions_from_candidates(
             ));
             continue;
         };
-        let Some(inner) = comment
-            .strip_prefix("<!--")
-            .and_then(|value| value.strip_suffix("-->"))
-        else {
-            continue;
-        };
+        for comment in scan_comment_spans(source_slice) {
+            let span = SourceSpan {
+                byte_start: candidate.span.byte_start + comment.span.byte_start,
+                byte_end: candidate.span.byte_start + comment.span.byte_end,
+            };
 
-        match parse_comment_directive(inner) {
-            DirectiveOutcome::NotADirective => {}
-            DirectiveOutcome::Parsed(parsed) => {
-                let suppression_id = suppressions.len();
-                suppressions.push(IrSuppression {
-                    id: format!("s{suppression_id}"),
-                    kind: verb_kind(parsed.verb),
-                    codes: parsed.codes,
-                    span: candidate.span,
-                    origin: candidate.node_id,
-                });
-            }
-            DirectiveOutcome::Rejected(DirectiveError::BlanketForbidden) => {
-                errors.push(suppression_error(
-                    "suppression-blanket-forbidden",
-                    candidate.span,
-                    "blanket suppression directives must name at least one code",
-                ));
-            }
-            DirectiveOutcome::Rejected(DirectiveError::UnknownVerb) => {
-                errors.push(suppression_error(
-                    "suppression-unknown-verb",
-                    candidate.span,
-                    "suppression directive verb is not recognised",
-                ));
+            match parse_comment_directive(comment.inner) {
+                DirectiveOutcome::NotADirective => {}
+                DirectiveOutcome::Parsed(parsed) => {
+                    let suppression_id = suppressions.len();
+                    suppressions.push(IrSuppression {
+                        id: format!("s{suppression_id}"),
+                        kind: verb_kind(parsed.verb),
+                        codes: parsed.codes,
+                        span,
+                        origin: candidate.node_id.clone(),
+                    });
+                }
+                DirectiveOutcome::Rejected(DirectiveError::BlanketForbidden) => {
+                    errors.push(suppression_error(
+                        "suppression-blanket-forbidden",
+                        span,
+                        "blanket suppression directives must name at least one code",
+                    ));
+                }
+                DirectiveOutcome::Rejected(DirectiveError::UnknownVerb) => {
+                    errors.push(suppression_error(
+                        "suppression-unknown-verb",
+                        span,
+                        "suppression directive verb is not recognised",
+                    ));
+                }
             }
         }
     }

@@ -2,13 +2,16 @@
 
 use std::path::Path;
 
-use markdown::mdast::Node;
 use proptest::prelude::*;
-use proptest::string::string_regex;
 use rstest::rstest;
-use stilyagi_ir::{IrDocument, SourceSpan, SuppressionKind};
+use stilyagi_ir::{SourceSpan, SuppressionKind};
 
 use super::source_identity;
+use super::suppression_support::{
+    boundary_text_strategy, comment_body_strategy, directive_codes_and_padding, expected_kind,
+    expected_kind_from_token, find_html_node, html_node_ids, html_nodes, separator_strategy,
+    whitespace_strategy,
+};
 use crate::{
     markdown_ir_document, parse_markdown_ast, suppression::DirectiveError,
     suppression::DirectiveOutcome, suppression::DirectiveVerb,
@@ -91,6 +94,44 @@ fn markdown_parser_exposes_html_comment_spans() {
 }
 
 #[rstest]
+fn markdown_parser_separates_adjacent_line_html_comment_nodes() {
+    let source = concat!(
+        "<!-- stilyagi: disable STY -->\n",
+        "<!-- stilyagi: enable STY -->\n",
+    );
+    let tree = parse_markdown_ast(source).expect("expected Markdown AST");
+    let html_nodes = html_nodes(&tree);
+
+    assert_eq!(html_nodes.len(), 2);
+    for (node, expected_comment) in html_nodes.iter().zip([
+        "<!-- stilyagi: disable STY -->",
+        "<!-- stilyagi: enable STY -->",
+    ]) {
+        let position = node.position().expect("expected html node position");
+        assert_eq!(
+            source.get(position.start.offset..position.end.offset),
+            Some(expected_comment)
+        );
+    }
+
+    let document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
+        .expect("expected Markdown IR document");
+    assert_eq!(document.errors, Vec::new());
+    assert_eq!(document.suppressions.len(), 2);
+    for (suppression, expected_comment) in document.suppressions.iter().zip([
+        "<!-- stilyagi: disable STY -->",
+        "<!-- stilyagi: enable STY -->",
+    ]) {
+        assert_eq!(suppression.kind, SuppressionKind::Range);
+        assert_eq!(suppression.codes, vec!["STY".to_owned()]);
+        assert_eq!(
+            source.get(suppression.span.byte_start..suppression.span.byte_end),
+            Some(expected_comment)
+        );
+    }
+}
+
+#[rstest]
 fn markdown_ir_document_collects_canonical_suppressions() {
     let source = concat!(
         "# Suppression Fixture\n\n",
@@ -126,7 +167,6 @@ fn markdown_ir_document_collects_canonical_suppressions() {
             "<!-- stilyagi: ignore-file MD,DOC -->",
         ),
     ];
-
     assert_eq!(document.errors, Vec::new());
     assert_eq!(document.suppressions.len(), expectations.len());
     for (((suppression, expected), node_id), index) in document
@@ -143,6 +183,31 @@ fn markdown_ir_document_collects_canonical_suppressions() {
             source.get(suppression.span.byte_start..suppression.span.byte_end),
             Some(expected.2),
             "suppression #{index}"
+        );
+    }
+}
+
+#[rstest]
+#[case("", &[])]
+#[case("<!--alpha-->", &[("alpha", "<!--alpha-->")])]
+#[case("x<!--alpha-->", &[("alpha", "<!--alpha-->")])]
+#[case(
+    "<!--alpha-->\n<!--beta-->\n",
+    &[("alpha", "<!--alpha-->"), ("beta", "<!--beta-->")],
+)]
+#[case("<!--alpha", &[])]
+fn scan_comment_spans_reports_each_comment_boundary(
+    #[case] source: &str,
+    #[case] expected_comments: &[(&str, &str)],
+) {
+    let comments = crate::suppression::scan_comment_spans(source);
+
+    assert_eq!(comments.len(), expected_comments.len());
+    for (comment, (expected_inner, expected_slice)) in comments.iter().zip(expected_comments) {
+        assert_eq!(comment.inner, *expected_inner);
+        assert_eq!(
+            source.get(comment.span.byte_start..comment.span.byte_end),
+            Some(*expected_slice)
         );
     }
 }
@@ -231,6 +296,37 @@ fn validate_ir_consistency_rejects_invalid_suppression_spans() {
 
 proptest! {
     #[test]
+    fn scan_comment_spans_preserves_each_comment_boundary(
+        prefix in boundary_text_strategy(),
+        bodies in prop::collection::vec(comment_body_strategy(), 1..4),
+        separators in prop::collection::vec(separator_strategy(), 0..3),
+        suffix in boundary_text_strategy(),
+    ) {
+        let mut source = prefix;
+        for (index, body) in bodies.iter().enumerate() {
+            source.push_str("<!--");
+            source.push_str(body);
+            source.push_str("-->");
+            if let Some(separator) = separators.get(index) {
+                source.push_str(separator);
+            }
+        }
+        source.push_str(&suffix);
+
+        let comments = crate::suppression::scan_comment_spans(&source);
+        prop_assert_eq!(comments.len(), bodies.len());
+
+        for (comment, body) in comments.iter().zip(bodies.iter()) {
+            prop_assert_eq!(comment.inner, body);
+            let expected_comment = format!("<!--{body}-->");
+            prop_assert_eq!(
+                source.get(comment.span.byte_start..comment.span.byte_end),
+                Some(expected_comment.as_str())
+            );
+        }
+    }
+
+    #[test]
     fn parse_comment_directive_preserves_trimmed_codes(
         verb in prop_oneof![
             Just("ignore-next"),
@@ -290,56 +386,4 @@ proptest! {
         prop_assert_eq!(parsed.verb, DirectiveVerb::IgnoreFile);
         prop_assert!(parsed.codes.is_empty());
     }
-}
-
-fn expected_kind(verb: DirectiveVerb) -> SuppressionKind {
-    verb_kind(verb)
-}
-
-fn expected_kind_from_token(token: &str) -> SuppressionKind {
-    match token {
-        "ignore-next" => SuppressionKind::Inline,
-        "disable" | "enable" => SuppressionKind::Range,
-        "ignore-file" => SuppressionKind::File,
-        other => panic!("unexpected verb token {other:?}"),
-    }
-}
-
-fn directive_codes_and_padding() -> impl Strategy<Value = (Vec<String>, Vec<String>)> {
-    prop::collection::vec(code_token_strategy(), 1..5).prop_flat_map(|codes| {
-        let padding_len = codes.len().saturating_sub(1);
-        (
-            Just(codes),
-            prop::collection::vec(space_padding_strategy(), padding_len),
-        )
-    })
-}
-
-fn code_token_strategy() -> impl Strategy<Value = String> {
-    string_regex("[A-Z][A-Z0-9]{0,7}").expect("valid code regex")
-}
-
-fn whitespace_strategy() -> impl Strategy<Value = String> {
-    string_regex("[ \t]{0,3}").expect("valid whitespace regex")
-}
-
-fn space_padding_strategy() -> impl Strategy<Value = String> {
-    string_regex("[ \t]{0,2}").expect("valid space padding regex")
-}
-
-fn html_node_ids(document: &IrDocument) -> Vec<String> {
-    document
-        .nodes
-        .iter()
-        .filter(|node| node.kind == "html")
-        .map(|node| node.id.clone())
-        .collect()
-}
-
-fn find_html_node(node: &Node) -> Option<&Node> {
-    if matches!(node, Node::Html(_)) {
-        return Some(node);
-    }
-    node.children()
-        .and_then(|children| children.iter().find_map(find_html_node))
 }
