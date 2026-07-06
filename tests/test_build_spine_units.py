@@ -10,7 +10,7 @@ from stilyagi import model, smoke
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_SMOKE_REGION = model.Region(kind="heading", text="Stilyagi smoke")
-ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
+type ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
 
 
 def _collect_recipe_lines(lines: list[str], start: int) -> tuple[str, ...]:
@@ -302,11 +302,13 @@ def test_makefile_nixie_target_uses_shared_markdown_file_list(
 ) -> None:
     """Nixie must depend on tools-docs and validate the shared Markdown list."""
     header, recipe = _make_target(makefile_text, "nixie")
-    assert "tools-docs" in header
+    assert "tools-docs" in header, "nixie no longer depends on tools-docs"
     nixie_lines = [line for line in recipe if "$(NIXIE)" in line]
-    assert len(nixie_lines) == 1
-    assert "$(MD_FILES_FIND)" in nixie_lines[0]
-    assert "--no-sandbox" in nixie_lines[0]
+    assert len(nixie_lines) == 1, "nixie target no longer has one NIXIE command"
+    assert "$(MD_FILES_FIND)" in nixie_lines[0], (
+        "nixie no longer uses the shared Markdown file list"
+    )
+    assert "--no-sandbox" in nixie_lines[0], "nixie no longer runs without sandboxing"
 
 
 def test_makefile_tools_docs_target_checks_documentation_tools(
