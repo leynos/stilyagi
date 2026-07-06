@@ -26,7 +26,7 @@ WorkflowJob = typ.TypedDict(
     },
     total=False,
 )
-SmokeWorkflow = tuple[dict[str, "WorkflowJob"], list["WorkflowStep"], set[str]]
+type SmokeWorkflow = tuple[dict[str, WorkflowJob], list[WorkflowStep], set[str]]
 
 
 def _workflow_document(workflow: str) -> dict[str, object]:

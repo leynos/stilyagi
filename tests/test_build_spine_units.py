@@ -295,3 +295,26 @@ def test_makefile_lint_tools_resolve_through_uv(makefile_text: str) -> None:
         makefile_text,
         re.MULTILINE,
     ), "TYPOS no longer resolves through the pinned uv tool command"
+
+
+def test_makefile_nixie_target_uses_shared_markdown_file_list(
+    makefile_text: str,
+) -> None:
+    """Nixie must depend on tools-docs and validate the shared Markdown list."""
+    header, recipe = _make_target(makefile_text, "nixie")
+    assert "tools-docs" in header
+    nixie_lines = [line for line in recipe if "$(NIXIE)" in line]
+    assert len(nixie_lines) == 1
+    assert "$(MD_FILES_FIND)" in nixie_lines[0]
+    assert "--no-sandbox" in nixie_lines[0]
+
+
+def test_makefile_tools_docs_target_checks_documentation_tools(
+    makefile_text: str,
+) -> None:
+    """tools-docs must verify markdownlint, nixie, and uv are installed."""
+    _header, recipe = _make_target(makefile_text, "tools-docs")
+    for tool in ("$(MDLINT)", "$(NIXIE)", "uv"):
+        assert any(f"ensure_tool,{tool}" in line for line in recipe), (
+            f"tools-docs no longer checks {tool}"
+        )
