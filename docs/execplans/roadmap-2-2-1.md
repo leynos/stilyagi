@@ -302,6 +302,10 @@ escalation, not a workaround.
 - [x] W3 — Deterministic Markdown file discovery.
 - [x] W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam.
 - [x] W5 — `check` command, argparse CLI, exit codes, console entry point.
+  - Added the missing file-failure regression surface in `tests/test_check_files.py`
+    for non-UTF-8, permission-denied, removed-mid-run, directory, and extractor
+    failure paths, and added a real malformed-Markdown CLI acceptance case so the
+    documented exit-`0` recovery path is exercised end-to-end.
 - [x] W6 — Standard-input support (`-` and `--stdin-filename`).
 - [x] W7 — Documentation and roadmap update.
 

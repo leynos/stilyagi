@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import io
 import json
+import pathlib
+import shutil
 import sys
 import typing as typ
 
@@ -11,8 +13,6 @@ from pytest_bdd import given, then, when
 from stilyagi import cli, engine, model
 
 if typ.TYPE_CHECKING:
-    import pathlib
-
     import pytest
 
 
@@ -49,6 +49,20 @@ def temporary_tree_with_markdown_files_in_unsorted_order(
     _write_markdown(tmp_path / "b.md", "Bravo")
     _write_markdown(tmp_path / "a.md", "Alpha")
     _write_markdown(tmp_path / "sub" / "c.md", "Charlie")
+    return {"root": tmp_path}
+
+
+@given(
+    "a temporary tree containing malformed Markdown",
+    target_fixture="check_command_state",
+)
+def temporary_tree_containing_malformed_markdown(
+    tmp_path: pathlib.Path,
+) -> CheckCommandState:
+    """Copy the real malformed Markdown corpus into a temporary tree."""
+    source_root = pathlib.Path("tests/fixtures/corpus/markdown/malformed")
+    target_root = tmp_path / "docs"
+    shutil.copytree(source_root, target_root)
     return {"root": tmp_path}
 
 

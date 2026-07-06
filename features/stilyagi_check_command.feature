@@ -21,3 +21,9 @@ Feature: stilyagi check for Markdown files with nearest-config
     When I run "stilyagi check - --stdin-filename README.md" in that tree
     Then the exit code is 1
     And the text output attributes the synthetic diagnostic to "README.md"
+
+  Scenario: check recovers malformed Markdown cleanly
+    Given a temporary tree containing malformed Markdown
+    When I run "stilyagi check ." in that tree
+    Then the exit code is 0
+    And the text output lists no diagnostics
