@@ -15,6 +15,7 @@
       'stilyagi/config/resolve.py',
       'stilyagi/config/schema.py',
       'stilyagi/diagnostics.py',
+      'stilyagi/discovery.py',
       'stilyagi/engine/__init__.py',
       'stilyagi/engine/api.py',
       'stilyagi/engine/extraction.py',
