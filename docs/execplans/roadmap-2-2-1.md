@@ -4,10 +4,9 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
-Approval gate: NOT yet satisfied. Do not begin implementation until the user
-explicitly approves this plan. This is planning round 6. Round 6 closes the two
+Approval gate: satisfied. This is planning round 6. Round 6 closes the two
 fresh blocking defects from the saved re-review
 ([roadmap-2-2-1-review-round-1.md](roadmap-2-2-1-review-round-1.md) §Re-review):
 the prescriptive-interface contradictions on `discover_markdown_files` (now a
@@ -304,7 +303,7 @@ escalation, not a workaround.
 - [x] W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam.
 - [x] W5 — `check` command, argparse CLI, exit codes, console entry point.
 - [x] W6 — Standard-input support (`-` and `--stdin-filename`).
-- [ ] W7 — Documentation and roadmap update.
+- [x] W7 — Documentation and roadmap update.
 
 ## Surprises & discoveries
 
@@ -566,8 +565,10 @@ escalation, not a workaround.
 
 ## Outcomes & retrospective
 
-To be completed at milestones and on completion. Compare the delivered command
-behaviour against the Purpose section and note lessons.
+Completed the documentation pass for the Markdown `check` slice. The user
+guide now explains `stilyagi check` for Markdown repositories, the developer
+guide no longer describes it as future work, and the roadmap item is marked
+complete. No implementation or test behaviour changed in this work item.
 
 ## Plan of work
 
@@ -1383,4 +1384,4 @@ EXECPLAN DURABILITY blocking point: the round-6 body edits (and this note) are
 committed on the task branch, so the durable committed ExecPlan is the source of
 truth and the worktree is left clean.
 
-No implementation started; awaiting approval.
+Implementation and documentation update completed and committed.

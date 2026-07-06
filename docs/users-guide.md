@@ -249,6 +249,24 @@ default recursive file set will cover `*.md`, `*.py`, and `*.rs`. MDX stays
 outside that default set until preview behaviour graduates into the stable
 support matrix.
 
+### Checking Markdown with `stilyagi check`
+
+The first command-line surface in v1 is `stilyagi check` for Markdown files.
+It discovers Markdown targets recursively, resolves the nearest supported
+configuration for each file, and renders deterministic diagnostics.
+
+Use `--output-format json` when you need machine-readable output, and
+`--isolated` when you want to bypass configuration discovery entirely. The
+command currently analyses Markdown files only (`*.md` and `*.markdown`).
+
+Examples:
+
+```shell
+stilyagi check .
+stilyagi check docs/ --output-format json
+stilyagi check README.md --isolated
+```
+
 ## 4. Locale policy in v1
 
 English is the only formally supported v1 locale. The design keeps locale and
@@ -262,7 +280,8 @@ expectations in the first releases are defined around English only.
 
 Stilyagi is still in the roadmap phase where architectural contracts are being
 ratified before feature-complete releases land.[^2][^3] The stable user-facing
-surface is the Python package API.
+surface is still the Python package API, but `stilyagi check` is now available
+for Markdown repositories.
 
 Use `engine.extract_document()` to extract Markdown through the public engine
 boundary. Non-blank Markdown input returns typed `document.regions` for
@@ -277,9 +296,11 @@ Python docstring plus Rust doc-comment inputs expose `python_docstring` and
 `engine.supported_region_kinds()` returns the region-kind vocabulary supported
 by the installed package version.
 
-Until the command-line interface (CLI) and feature slices are implemented,
-treat this guide as a record of the stable user-facing v1 contract rather than
-as a complete operating manual.
+`stilyagi check` currently discovers Markdown files only, resolves the nearest
+supported configuration for each target, and renders either text or JSON
+diagnostics. The remaining CLI subcommands and fix workflows land in later
+roadmap slices, so treat this guide as a record of the settled user-facing
+v1 contract rather than as a complete operating manual.
 
 ## References
 

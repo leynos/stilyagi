@@ -268,8 +268,8 @@ regression tests, not the final public pytest plugin.
 The cold and warm structural baseline probe is maintainer-facing test
 scaffolding. It records the pre-NLP structural fast path through
 `stilyagi.engine.extract_document` and the embedded Rust extractor. It does not
-exercise the future `stilyagi check` CLI, and it does not set a universal
-wall-clock budget for every workstation.
+exercise `stilyagi check`, and it does not set a universal wall-clock budget
+for every workstation.
 
 Run the probe after `make build` so the editable Python environment points at
 the current PyO3 extension:
@@ -299,9 +299,9 @@ interpreter before the measured iterations run in that same interpreter.
 Use the probe output as review evidence when changing the structural extractor,
 Python adapter, or build spine. Compare cold with cold and warm with warm, and
 look for large regressions in context rather than treating one noisy local
-sample as a hard threshold. If later roadmap slices introduce the real CLI
-entry point or persistent Stilyagi caches, update this section and the
-ExecPlan-backed tests together.
+sample as a hard threshold. If later roadmap slices extend `stilyagi check`
+with additional subcommands or persistent Stilyagi caches, update this section
+and the ExecPlan-backed tests together.
 
 Round-trip edit helpers exist to test fix safety before the full rule engine
 lands. They must preserve source text outside edited ranges, accept adjacent

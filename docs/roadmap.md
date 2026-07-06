@@ -168,7 +168,7 @@ support normal repository linting and debugging for Markdown-only users. See
 [Stilyagi design](stilyagi-design.md) §§4, 7.3, 13 and
 [RFC 0003](rfcs/0003-stilyagi-cli-contract.md).
 
-- [ ] 2.2.1. Implement `stilyagi check` for Markdown files with nearest-config
+- [x] 2.2.1. Implement `stilyagi check` for Markdown files with nearest-config
   discovery, deterministic file order, and JSON or text diagnostics. See
   Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 2.1.1 and 1.2.3.
