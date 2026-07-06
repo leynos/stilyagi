@@ -7,7 +7,19 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 Status: DRAFT
 
 Approval gate: NOT yet satisfied. Do not begin implementation until the user
-explicitly approves this plan. This is planning round 5. Round 5 corrects the
+explicitly approves this plan. This is planning round 6. Round 6 closes the two
+fresh blocking defects from the saved re-review
+([roadmap-2-2-1-review-round-1.md](roadmap-2-2-1-review-round-1.md) §Re-review):
+the prescriptive-interface contradictions on `discover_markdown_files` (now a
+single authoritative `list[DiscoveredFile]` return type carrying both the
+resolved path and the command-line-relative POSIX reported path, replacing the
+`list[pathlib.Path]` declaration and the "objects or pairs" menu) and on
+`map_ir_errors` (the Interfaces entry now reads the two-argument
+`map_ir_errors(document, reported_path)` the W4 body and
+`tests/test_ir_error_adapter.py` pin), and corrects the stale
+`crates/stilyagi-pyext/src/tests.rs:14`/`:140` citations to the real
+`crates/stilyagi-pyext/src/tests/mod.rs:18`/`:144`. No work-item mechanism
+changed. Round 5 corrects the
 whole validation/gate story after re-verifying the worktree Makefile: the branch
 Makefile has advanced since round 2, so `make all` now **chains** the commit
 gates (`Makefile:38`) and `make release` (`Makefile:54`) is what builds the
@@ -176,10 +188,10 @@ Load-bearing external-behaviour facts verified in this worktree (not assumed):
 
 - The Rust bridge `extract_document` accepts exactly `(source, syntax)` as
   positional arguments and rejects unexpected keyword arguments. Verified in
-  `crates/stilyagi-pyext/src/tests.rs:14`
+  `crates/stilyagi-pyext/src/tests/mod.rs:18`
   (`bridge_extract_document(source, syntax)`) and the negative test
   `extract_document_function_rejects_unexpected_kwargs`
-  (`crates/stilyagi-pyext/src/tests.rs:140`). Consequence: **the extractor is
+  (`crates/stilyagi-pyext/src/tests/mod.rs:144`). Consequence: **the extractor is
   path-agnostic**. It does not receive the on-disk path, so the `check` command
   must own the mapping from a discovered file path to the diagnostics it
   produces; the IR `source.path` field must not be relied upon to carry the
@@ -292,8 +304,8 @@ escalation, not a workaround.
 ## Surprises & discoveries
 
 - Observation: The Rust extraction bridge takes only `(source, syntax)` and
-  rejects extra kwargs. Evidence: `crates/stilyagi-pyext/src/tests.rs:14` and
-  `:140`. Impact: the CLI, not the extractor, owns file-path attribution for
+  rejects extra kwargs. Evidence: `crates/stilyagi-pyext/src/tests/mod.rs:18`
+  and `:144`. Impact: the CLI, not the extractor, owns file-path attribution for
   diagnostics; recorded as a Constraint and reflected in W4/W5.
 - Observation: Malformed Markdown recovers to degraded regions and never
   populates IR `errors[]` in this slice; non-fatal error emission is roadmap
@@ -344,6 +356,16 @@ escalation, not a workaround.
 
 ## Decision log
 
+- Decision: Discovery returns a `list[DiscoveredFile]`, where `DiscoveredFile`
+  is a frozen dataclass with `reported_path: str` (command-line-relative POSIX)
+  and `resolved_path: pathlib.Path`, rather than a bare `list[pathlib.Path]`.
+  Rationale: W4/W5 need the resolved path for de-duplication and deterministic
+  ordering and, independently, the command-line-relative POSIX reported path for
+  diagnostic attribution and the pinned renderer `path` form. A single explicit
+  element type removes the round-5 prescriptive contradiction between the
+  Interfaces section and the W3/W5 bodies; `map_ir_errors(document,
+  reported_path)` consumes `DiscoveredFile.reported_path`.
+  Date/Author: 2026-07-06, planning agent.
 - Decision: Use the standard-library `argparse` for the CLI rather than a
   third-party framework (Click, Typer, Cyclopts).
   Rationale: The project declares zero runtime dependencies and a Constraint
@@ -652,7 +674,14 @@ Skills: `python-router` → `python-iterators-and-generators`,
 
 Add `python/stilyagi/discovery.py`:
 
-- `discover_markdown_files(targets, config) -> list[pathlib.Path]`: for each
+- A frozen dataclass `DiscoveredFile(reported_path: str, resolved_path:
+  pathlib.Path)` is the single element type carried through discovery, rendering,
+  and attribution: `reported_path` is the command-line-relative POSIX path used
+  for diagnostic attribution and the pinned renderer `path` form (W4/W5), and
+  `resolved_path` is the fully resolved filesystem path used for de-duplication
+  and deterministic ordering. This is the one authoritative return element type;
+  no variant returns bare `pathlib.Path`.
+- `discover_markdown_files(targets, config) -> list[DiscoveredFile]`: for each
   target, if it is a file, include it when its suffix is `.md`/`.markdown`
   (explicitly named files are always analysed per RFC §7); if it is a directory,
   recurse, matching only the fixed Markdown extension set (`.md`/`.markdown`),
@@ -666,9 +695,10 @@ Add `python/stilyagi/discovery.py`:
   but retain, for each file, the **command-line-relative POSIX path** used for
   reporting (per the round-4 Decision Log entry on the reported `path` form): the
   join of the target argument and the walk-relative sub-path, normalised to POSIX
-  separators. `discover_markdown_files` returns objects (or `(reported_path,
-  resolved_path)` pairs) carrying both, so W5 can report the stable relative form
-  while de-duplicating/ordering on the resolved form.
+  separators. `discover_markdown_files` returns a `list[DiscoveredFile]` whose
+  elements each carry both `reported_path` and `resolved_path`, so W5 can report
+  the stable relative form while de-duplicating/ordering on the resolved form.
+  The list is sorted by `resolved_path`.
 - Emit a verbose-mode log notice that `respect-gitignore` is accepted but not
   yet enforced in this slice (see Decision Log).
 
@@ -683,9 +713,11 @@ Tests (Red first):
   each returned file exposes both its resolved path and its command-line-relative
   POSIX reported path.
 - `tests/test_discovery_properties.py` (property, `hypothesis`): for any set of
-  generated relative Markdown paths materialized under a temporary root, the
-  returned list equals the input set sorted by normalized path (total order,
-  no duplicates, deterministic regardless of filesystem enumeration order).
+  generated relative Markdown paths materialised under a temporary root, the
+  `resolved_path` values of the returned `list[DiscoveredFile]` equal the input
+  set sorted by resolved path (total order, no duplicates, deterministic
+  regardless of filesystem enumeration order), and each element's `reported_path`
+  is the command-line-relative POSIX form of that file.
 
 Acceptance: Red→Green; `make check-fmt`, `make typecheck`, `make lint`,
 `make test` pass.
@@ -793,9 +825,9 @@ Tests (Red first):
   `unclosed-table.md`, `unbalanced-emphasis.md.fixture`, and
   `broken-reference-link.md.fixture` (note the mixed `.md`/`.md.fixture`
   extensions, so glob the directory contents rather than assuming `*.md`; the
-  extension is irrelevant to extraction because `MARKDOWN` is passed explicitly) —
-  `engine.extract_document(text,
-  model.Syntax.MARKDOWN)` returns a document whose `ir["errors"]` is `[]`, so the
+  extension is irrelevant to extraction because `MARKDOWN` is passed
+  explicitly) — `engine.extract_document(text, model.Syntax.MARKDOWN)` returns a
+  document whose `ir["errors"]` is `[]`, so the
   adapter yields **zero** diagnostics — documenting that malformed Markdown
   recovers cleanly in this slice and does not drive exit `1`. This is the test
   that pins the Markdown behaviour against the real Markdown extractor per the
@@ -1137,17 +1169,24 @@ dependency. Prescriptive end-state surfaces:
   `InvalidCacheDirError`, `InvalidConfigError`, `LintConfig`,
   `MarkdownExtractConfig`, `load_config_file`,
   `discover_same_directory_config`, and `resolve_config_for_path`.
-- `python/stilyagi/discovery.py` defines
+- `python/stilyagi/discovery.py` defines the frozen dataclass
+  `DiscoveredFile(reported_path: str, resolved_path: pathlib.Path)` and
   `discover_markdown_files(targets: cabc.Iterable[pathlib.Path], config:
-  StilyagiConfig) -> list[pathlib.Path]`.
+  StilyagiConfig) -> list[DiscoveredFile]`. Each element carries the resolved
+  path (for de-duplication and ordering) and the command-line-relative POSIX
+  reported path (for diagnostic attribution and the renderer `path` form); no
+  variant returns bare `pathlib.Path`.
 - `python/stilyagi/diagnostics.py` defines the frozen `Diagnostic` and a
   `Severity` enum; offset→location logic lives here or in
   `python/stilyagi/diagnostics_location.py`.
 - `python/stilyagi/engine/renderers.py` `RendererRegistry` exposes
   `render(diagnostics, output_format) -> str` for `text` and `json`.
 - `python/stilyagi/engine/checker.py` defines
-  `map_ir_errors(document) -> list[Diagnostic]`, the forward-looking IR-error
-  adapter seam (returns `[]` for real Markdown in this slice).
+  `map_ir_errors(document, reported_path) -> list[Diagnostic]`, the
+  forward-looking IR-error adapter seam (returns `[]` for real Markdown in this
+  slice). The `reported_path` argument is the command-line-relative POSIX
+  reported path (`DiscoveredFile.reported_path`) that each emitted `Diagnostic`
+  carries as its `path`, matching W4's body and `tests/test_ir_error_adapter.py`.
 - `python/stilyagi/rules/registry.py` defines
   `run_rules(document, config) -> list[Diagnostic]` returning `[]` (the 2.3.1
   seam).
@@ -1283,5 +1322,25 @@ worktree Makefile and AGENTS.md; no work-item mechanism changed:
    risk mitigation, and a W4 note on the mixed-extension malformed fixtures
    (`unclosed-table.md`, `unbalanced-emphasis.md.fixture`,
    `broken-reference-link.md.fixture` — glob the directory, do not assume `*.md`).
+
+Round 6 (2026-07-06) — reconciles the two fresh interface contradictions the
+saved re-review raised, and durably commits the result:
+
+1. **`discover_markdown_files` return type contradicted itself.** The Interfaces
+   section declared `list[pathlib.Path]` while the W3/W5 bodies needed both a
+   resolved path and a command-line-relative POSIX reported path. Resolved by
+   declaring a single authoritative frozen `DiscoveredFile(reported_path: str,
+   resolved_path: pathlib.Path)` element type everywhere (Interfaces, W3, W5,
+   Decision Log), carrying both paths; no variant returns bare `pathlib.Path`.
+2. **`map_ir_errors` arity was ambiguous.** The Interfaces entry now reads the
+   two-argument `map_ir_errors(document, reported_path)` form the W4 body and
+   `tests/test_ir_error_adapter.py` pin, and the stale
+   `crates/stilyagi-pyext/src/tests.rs:14`/`:140` citations were corrected to the
+   real `crates/stilyagi-pyext/src/tests/mod.rs:18`/`:144`.
+
+No work-item mechanism changed in round 6. This revision also closes the
+EXECPLAN DURABILITY blocking point: the round-6 body edits (and this note) are
+committed on the task branch, so the durable committed ExecPlan is the source of
+truth and the worktree is left clean.
 
 No implementation started; awaiting approval.

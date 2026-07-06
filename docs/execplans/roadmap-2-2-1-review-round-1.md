@@ -84,3 +84,47 @@ Skills: `logisphere-design-review`. Sources: `docs/roadmap.md` §2.2;
 lines 302/405/495 and §7.3; `Makefile`; `pyproject.toml`; direct inspection of
 `python/stilyagi/{cli,config,diagnostics,model/document,engine/api}.py` and the
 affected tests/snapshots. Branch-local facts verified by file inspection.
+
+---
+
+
+## Re-review (fresh adversarial pass over the round-5 plan, 2026-07-06)
+
+The four original blocking defects above are all resolved in the current draft
+(gate story corrected to the four distinct targets; W4 in-lockstep test edits
+enumerated; the snapshot artifact accounted for; the schema now accepts and
+preserves the whole RFC 0003 §6 baseline). All six advisories are landed.
+
+Re-verified against real source this pass: `Makefile:38-54,114-146`;
+`AGENTS.md` §§Quality-gates/Rust-guidance; the placeholder `cli.py` and
+single-module `config.py`; the skeleton anchors at
+`test_package_skeleton_units.py:92/109/115` and `test_round_trip_helpers.py:93`;
+`diagnostics.py` (`NodeRef` only consumed by the one test, no `Fix` importer);
+`crates/stilyagi-markdown/src/tests/malformed.rs` (`errors.is_empty()`); the
+mixed-extension malformed fixtures; the RFC 0003 §6 baseline key set; roadmap
+2.2.1 scope ("JSON or text diagnostics", "Requires 2.1.1 and 1.2.3" — so the
+sarif deferral and the refusal of a 2.1.3 dependency are both conformant).
+
+Remaining blocking defects (fresh, must fix before approval):
+
+1. Prescriptive-interface contradiction — `discover_markdown_files`. The
+   "Interfaces and dependencies" section declares the return type
+   `list[pathlib.Path]`, but W3/W5 require each entry to carry BOTH the resolved
+   path (de-dup/order) and the command-line-relative POSIX reported path
+   (attribution + the pinned renderer `path` form). Taking the prescriptive
+   section verbatim discards the reported path and breaks the W4/W5 path
+   contract. Reconcile onto one explicit return type.
+2. Prescriptive-interface contradiction — `map_ir_errors`. The Interfaces
+   section declares `map_ir_errors(document) -> list[Diagnostic]`, but W4's body
+   and `tests/test_ir_error_adapter.py` require
+   `map_ir_errors(document, reported_path)`. Fix the Interfaces entry to the
+   two-argument form the tests pin.
+
+Advisory (fresh):
+
+- Stale citation: bridge facts are cited as `crates/stilyagi-pyext/src/tests.rs:14`
+  and `:140`; that file does not exist. Real locations are
+  `crates/stilyagi-pyext/src/tests/mod.rs:18` (signature) and `:144`
+  (`extract_document_function_rejects_unexpected_kwargs`). The claim is TRUE and
+  non-load-bearing (Rust untouched this slice), but correct the path in the
+  Context section and the first Surprises entry.
