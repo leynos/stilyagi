@@ -47,7 +47,7 @@ def test_main_renders_json_for_synthetic_diagnostics(
     )
     monkeypatch.setattr(
         "stilyagi.rules.registry.run_rules",
-        lambda document, config: [synthetic_diagnostic],
+        lambda _document, _config: [synthetic_diagnostic],
     )
 
     assert cli.compute_exit_code([], had_error=True) == 2

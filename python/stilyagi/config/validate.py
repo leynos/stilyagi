@@ -80,11 +80,11 @@ def ensure_extend_value(
     *,
     path: pathlib.Path,
     key: str,
-) -> object:
+) -> str | cabc.Sequence[str]:
     """Validate the raw `extend` value without changing its shape."""
     if isinstance(value, str):
         return value
     if not isinstance(value, cabc.Sequence) or isinstance(value, (bytes, bytearray)):
         raise InvalidConfigError(path, key, "must be a string or a sequence of strings")
     ensure_all_strings(tuple(value), path=path, key=key)
-    return value
+    return typ.cast("cabc.Sequence[str]", value)

@@ -32,7 +32,23 @@ class RendererRegistry:
         diagnostics_list: cabc.Iterable[diagnostics.Diagnostic],
         output_format: str | None = None,
     ) -> str:
-        """Render diagnostics as either text or JSON."""
+        """Render diagnostics as either text or JSON.
+
+        Parameters
+        ----------
+        diagnostics_list:
+            The diagnostics to render. They are sorted by path, location, and
+            code before rendering, so the input order is not significant.
+        output_format:
+            Either ``"text"`` or ``"json"``. Falls back to
+            :attr:`default_format` when omitted.
+
+        Returns
+        -------
+        str
+            The rendered diagnostics in the requested format, terminated by a
+            trailing newline.
+        """
         effective_format = output_format or self.default_format
         ordered_diagnostics = sorted(
             diagnostics_list,
@@ -63,7 +79,7 @@ def _render_text(
     """Render diagnostics as one human-readable line per finding."""
     lines = [
         f"{diagnostic.path}:{diagnostic.line or 1}:{diagnostic.column or 1}: "
-        f"{diagnostic.code} {diagnostic.message}"
+        f"{diagnostic.severity.value} {diagnostic.code} {diagnostic.message}"
         for diagnostic in diagnostics_list
     ]
     count = len(diagnostics_list)

@@ -10,7 +10,7 @@ ASCII_TEXT = st.text(
     alphabet=st.characters(
         min_codepoint=32,
         max_codepoint=126,
-        blacklist_characters="\n",
+        exclude_characters="\n",
     ),
     min_size=1,
     max_size=12,

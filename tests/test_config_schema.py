@@ -84,9 +84,25 @@ def test_config_file_kinds_parse_under_their_expected_prefix(
     assert parsed.plugins == ("builtin",)
 
 
-def test_default_config_round_trips() -> None:
-    """Keep the public default constructor stable."""
-    assert config.StilyagiConfig() == config.StilyagiConfig()
+def test_default_config_exposes_the_documented_defaults() -> None:
+    """Pin the public default constructor to its documented field values."""
+    defaults = config.StilyagiConfig()
+
+    assert defaults.cache_dir == pathlib.Path(".stilyagi_cache")
+    assert defaults.respect_gitignore is True
+    assert defaults.line_length == 88
+    assert defaults.plugins == ("builtin",)
+    assert defaults.lint.select == ("MD", "DOC", "PUN", "STY", "PYDOC")
+    assert not defaults.lint.ignore
+    assert defaults.lint.preview is False
+    assert defaults.lint.fixable == ("ALL",)
+    assert defaults.extract.gfm is True
+    assert defaults.extract.frontmatter is True
+    assert defaults.extract.mdx is False
+    assert defaults.nlp.model == "en_core_web_sm"
+    assert defaults.nlp.sentence_provider == "sentencizer"
+    assert not defaults.rules
+    assert not defaults.reserved
 
 
 def test_baseline_config_parses_and_preserves_reserved_values(

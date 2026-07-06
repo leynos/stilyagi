@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import pathlib
 import textwrap
+from concurrent import futures
 
 import pytest
 from stilyagi import config
+
+type _ResolveCase = tuple[pathlib.Path, pathlib.Path]
 
 
 def _write_config(path: pathlib.Path, body: str) -> None:
@@ -238,3 +241,74 @@ def test_bad_explicit_config_raises_a_typed_error(
             explicit_config=[str(explicit_config)],
             isolated=True,
         )
+
+
+def _resolve_discovered(
+    resolver: config.ConfigResolver,
+    target: pathlib.Path,
+) -> config.StilyagiConfig:
+    """Resolve one target through a resolver using nearest-config discovery."""
+    return resolver.resolve_config_for_path(
+        target,
+        cli_overrides=None,
+        explicit_config=None,
+        isolated=False,
+    )
+
+
+def test_fresh_resolvers_observe_config_changes_between_runs(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Separate resolvers must not share a process-wide config cache."""
+    _write_discovered_cache_dir(tmp_path, ".first")
+    target = _make_markdown_target(tmp_path)
+
+    first = _resolve_discovered(config.ConfigResolver(), target)
+    assert first.cache_dir == pathlib.Path(".first")
+
+    _write_discovered_cache_dir(tmp_path, ".second")
+    second = _resolve_discovered(config.ConfigResolver(), target)
+    assert second.cache_dir == pathlib.Path(".second")
+
+
+def test_single_resolver_reuses_its_cache_within_one_run(
+    tmp_path: pathlib.Path,
+) -> None:
+    """One resolver caches parsed config for the duration of a single run."""
+    _write_discovered_cache_dir(tmp_path, ".first")
+    target = _make_markdown_target(tmp_path)
+    resolver = config.ConfigResolver()
+
+    first = _resolve_discovered(resolver, target)
+    _write_discovered_cache_dir(tmp_path, ".second")
+    second = _resolve_discovered(resolver, target)
+
+    # A run treats config files as stable, so the second resolution reuses the
+    # cached table rather than re-reading the changed file.
+    assert first.cache_dir == pathlib.Path(".first")
+    assert second.cache_dir == pathlib.Path(".first")
+
+
+def test_concurrent_resolution_stays_isolated_per_resolver(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Concurrent resolvers over changing configs must not race each other."""
+    projects: list[_ResolveCase] = []
+    for index in range(8):
+        project_dir = tmp_path / f"project-{index}"
+        project_dir.mkdir()
+        _write_discovered_cache_dir(project_dir, f".cache-{index}")
+        target = _make_markdown_target(project_dir)
+        projects.append((target, pathlib.Path(f".cache-{index}")))
+
+    def resolve(item: _ResolveCase) -> _ResolveCase:
+        """Resolve one project with its own single-use resolver."""
+        target, expected = item
+        resolved = _resolve_discovered(config.ConfigResolver(), target)
+        return resolved.cache_dir, expected
+
+    with futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(resolve, projects))
+
+    for actual, expected in results:
+        assert actual == expected

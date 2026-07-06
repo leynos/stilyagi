@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import os
 import pathlib
-import shutil
 import subprocess  # noqa: S404 - tests invoke a trusted local interpreter.
 import sys
+
+from tests.support.malformed_corpus import materialize_malformed_corpus
 
 
 def test_python_module_entrypoint_exits_zero_for_a_clean_markdown_tree(
@@ -27,15 +28,7 @@ def test_python_module_entrypoint_exits_zero_for_a_malformed_markdown_tree(
     tmp_path: pathlib.Path,
 ) -> None:
     """A malformed Markdown tree should still recover cleanly in this slice."""
-    source_root = (
-        pathlib.Path(__file__).resolve().parents[1]
-        / "tests"
-        / "fixtures"
-        / "corpus"
-        / "markdown"
-        / "malformed"
-    )
-    shutil.copytree(source_root, tmp_path / "docs")
+    materialize_malformed_corpus(tmp_path / "docs")
 
     completed = _run_check(tmp_path)
 

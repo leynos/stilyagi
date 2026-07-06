@@ -284,20 +284,40 @@ def _build_reserved_table(
 
 
 def _load_toml(path: pathlib.Path) -> cabc.Mapping[str, object]:
-    """Load a TOML file into a mapping."""
-    with path.open("rb") as handle:
-        return typ.cast("cabc.Mapping[str, object]", tomllib.load(handle))
+    """Load a TOML file into a mapping.
 
-
-def _load_config_table(path: pathlib.Path) -> cabc.Mapping[str, object]:
-    """Load and select the supported config table for one file."""
+    A missing file propagates as ``FileNotFoundError`` so that callers can add
+    the appropriate context, while any other read failure (a directory, a
+    permission error) is converted into a typed ``InvalidConfigError`` rather
+    than letting a raw ``OSError`` traceback escape.
+    """
     try:
-        raw_document = _load_toml(path)
+        with path.open("rb") as handle:
+            return typ.cast("cabc.Mapping[str, object]", tomllib.load(handle))
+    except FileNotFoundError:
+        raise
+    except OSError as exc:
+        raise InvalidConfigError(path, "config", f"cannot be read: {exc}") from exc
+
+
+def _read_config_document(path: pathlib.Path) -> cabc.Mapping[str, object]:
+    """Read one TOML config file, mapping load failures to typed errors.
+
+    Centralising the read keeps the ``FileNotFoundError`` and
+    ``TOMLDecodeError`` handling identical for both explicit config paths and
+    discovered candidate files.
+    """
+    try:
+        return _load_toml(path)
     except FileNotFoundError as exc:
         raise InvalidConfigError(path, "config", "does not exist") from exc
     except tomllib.TOMLDecodeError as exc:
         raise InvalidConfigError(path, "toml", str(exc)) from exc
-    return _select_config_table(raw_document, path=path)
+
+
+def _load_config_table(path: pathlib.Path) -> cabc.Mapping[str, object]:
+    """Load and select the supported config table for one file."""
+    return _select_config_table(_read_config_document(path), path=path)
 
 
 def _select_config_table(
@@ -343,12 +363,7 @@ def discover_same_directory_config(directory: pathlib.Path) -> LoadedConfig | No
         candidate = directory / filename
         if not candidate.is_file():
             continue
-        try:
-            raw_document = _load_toml(candidate)
-        except FileNotFoundError as exc:
-            raise InvalidConfigError(candidate, "config", "does not exist") from exc
-        except tomllib.TOMLDecodeError as exc:
-            raise InvalidConfigError(candidate, "toml", str(exc)) from exc
+        raw_document = _read_config_document(candidate)
         if not _has_supported_content(raw_document, path=candidate):
             continue
         return LoadedConfig(

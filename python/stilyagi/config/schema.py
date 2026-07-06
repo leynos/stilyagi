@@ -8,23 +8,26 @@ import pathlib
 import typing as typ
 
 
-def _coerce_path(value: object) -> pathlib.Path:
+def _coerce_path(value: object, *, field_name: str) -> pathlib.Path:
     """Normalise a cache-directory value to a path object."""
     if isinstance(value, pathlib.Path):
         return value
     if isinstance(value, str):
         return pathlib.Path(value)
-    raise TypeError
+    message = f"{field_name} must be a path or string"
+    raise TypeError(message)
 
 
 def _coerce_string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
     """Normalise a sequence field to an immutable tuple of strings."""
     if isinstance(value, str) or not isinstance(value, cabc.Iterable):
-        raise TypeError
+        message = f"{field_name} must be a sequence of strings"
+        raise TypeError(message)
 
     items = tuple(value)
     if any(not isinstance(item, str) for item in items):
-        raise TypeError
+        message = f"{field_name} must contain only strings"
+        raise TypeError(message)
     return typ.cast("tuple[str, ...]", items)
 
 
@@ -35,12 +38,14 @@ def _coerce_string_to_string_tuple_map(
 ) -> dict[str, tuple[str, ...]]:
     """Normalise a mapping of string lists into string tuples."""
     if not isinstance(value, cabc.Mapping):
-        raise TypeError
+        message = f"{field_name} must be a mapping"
+        raise TypeError(message)
 
     coerced: dict[str, tuple[str, ...]] = {}
     for key, items in value.items():
         if not isinstance(key, str):
-            raise TypeError
+            message = f"{field_name} keys must be strings"
+            raise TypeError(message)
         coerced[key] = _coerce_string_tuple(items, field_name=f"{field_name}[{key!r}]")
     return coerced
 
@@ -48,31 +53,44 @@ def _coerce_string_to_string_tuple_map(
 def _require_instance(
     value: object,
     expected: type | tuple[type, ...],
+    *,
+    field_name: str,
 ) -> None:
     """Raise ``TypeError`` when a field has an unexpected type."""
     if not isinstance(value, expected):
-        raise TypeError
+        message = f"{field_name} has an unexpected type: {type(value).__name__}"
+        raise TypeError(message)
 
 
-def _require_strict_int(value: object) -> None:
+def _require_strict_int(value: object, *, field_name: str) -> None:
     """Raise ``TypeError`` unless a field is an integer (and not a bool)."""
     if not isinstance(value, int) or isinstance(value, bool):
-        raise TypeError
+        message = f"{field_name} must be an int"
+        raise TypeError(message)
 
 
 def _copy_mapping(value: object, *, field_name: str) -> dict[str, object]:
     """Copy a mapping into a plain dictionary with string keys."""
     if not isinstance(value, cabc.Mapping):
-        raise TypeError
+        message = f"{field_name} must be a mapping"
+        raise TypeError(message)
     mapping = typ.cast("cabc.Mapping[object, object]", value)
     return {str(key): item for key, item in mapping.items()}
 
 
-class InvalidCacheDirError(ValueError):
+class ConfigError(ValueError):
+    """Base class for all Stilyagi configuration errors.
+
+    Subclassing a single base lets callers catch every config-related failure
+    with one ``except`` clause while still distinguishing specific causes.
+    """
+
+
+class InvalidCacheDirError(ConfigError):
     """Raised when the cache-directory setting is blank."""
 
 
-class InvalidConfigError(ValueError):
+class InvalidConfigError(ConfigError):
     """Raised when a config file contains an unsupported key."""
 
     def __init__(self, path: pathlib.Path, key: str, detail: str) -> None:
@@ -80,7 +98,8 @@ class InvalidConfigError(ValueError):
         self.path = path
         self.key = key
         self.detail = detail
-        super().__init__(f"Invalid config in {path}: {key}: {detail}")
+        message = f"Invalid config in {path}: {key}: {detail}"
+        super().__init__(message)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -140,12 +159,22 @@ class LintConfig:
         object.__setattr__(
             self, "reserved", _copy_mapping(self.reserved, field_name="reserved")
         )
-        _require_instance(self.preview, bool)
+        _require_instance(self.preview, bool, field_name="preview")
 
 
 @dc.dataclass(frozen=True, slots=True)
 class MarkdownExtractConfig:
-    """Markdown extraction configuration carried through the schema layer."""
+    """Markdown extraction configuration carried through the schema layer.
+
+    Parameters
+    ----------
+    gfm:
+        Whether GitHub Flavoured Markdown extensions are enabled.
+    frontmatter:
+        Whether YAML frontmatter is extracted.
+    mdx:
+        Whether MDX syntax is enabled.
+    """
 
     gfm: bool = True
     frontmatter: bool = True
@@ -153,14 +182,24 @@ class MarkdownExtractConfig:
 
     def __post_init__(self) -> None:
         """Validate the booleans eagerly."""
-        _require_instance(self.gfm, bool)
-        _require_instance(self.frontmatter, bool)
-        _require_instance(self.mdx, bool)
+        _require_instance(self.gfm, bool, field_name="gfm")
+        _require_instance(self.frontmatter, bool, field_name="frontmatter")
+        _require_instance(self.mdx, bool, field_name="mdx")
 
 
 @dc.dataclass(frozen=True, slots=True)
 class NlpConfig:
-    """NLP configuration preserved from the RFC baseline."""
+    """NLP configuration preserved from the RFC baseline.
+
+    Parameters
+    ----------
+    model:
+        Name of the language model used by later NLP slices.
+    sentence_provider:
+        Identifier of the sentence-segmentation provider.
+    reserved:
+        Preserved raw values for later slices.
+    """
 
     model: str = "en_core_web_sm"
     sentence_provider: str = "sentencizer"
@@ -168,8 +207,8 @@ class NlpConfig:
 
     def __post_init__(self) -> None:
         """Validate and normalise the preserved values."""
-        _require_instance(self.model, str)
-        _require_instance(self.sentence_provider, str)
+        _require_instance(self.model, str, field_name="model")
+        _require_instance(self.sentence_provider, str, field_name="sentence_provider")
         object.__setattr__(
             self, "reserved", _copy_mapping(self.reserved, field_name="reserved")
         )
@@ -213,21 +252,23 @@ class StilyagiConfig:
 
     def __post_init__(self) -> None:
         """Normalise and validate the config boundary values."""
-        object.__setattr__(self, "cache_dir", _coerce_path(self.cache_dir))
+        object.__setattr__(
+            self, "cache_dir", _coerce_path(self.cache_dir, field_name="cache_dir")
+        )
         if not str(self.cache_dir).strip():
             message = (
                 f"Invalid cache_dir: {self.cache_dir!r}. It must be a non-empty path."
             )
             raise InvalidCacheDirError(message) from None
-        _require_instance(self.respect_gitignore, bool)
-        _require_strict_int(self.line_length)
+        _require_instance(self.respect_gitignore, bool, field_name="respect_gitignore")
+        _require_strict_int(self.line_length, field_name="line_length")
         object.__setattr__(
             self, "plugins", _coerce_string_tuple(self.plugins, field_name="plugins")
         )
-        _require_instance(self.lint, LintConfig)
-        _require_instance(self.extract, MarkdownExtractConfig)
-        _require_instance(self.nlp, NlpConfig)
-        _require_instance(self.rules, cabc.Mapping)
+        _require_instance(self.lint, LintConfig, field_name="lint")
+        _require_instance(self.extract, MarkdownExtractConfig, field_name="extract")
+        _require_instance(self.nlp, NlpConfig, field_name="nlp")
+        _require_instance(self.rules, cabc.Mapping, field_name="rules")
         object.__setattr__(
             self,
             "rules",

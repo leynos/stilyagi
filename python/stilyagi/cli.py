@@ -96,9 +96,10 @@ def _build_cli_overrides(options: CheckOptions) -> dict[str, object]:
 def _resolve_config(
     target: pathlib.Path,
     options: CheckOptions,
+    resolver: config.ConfigResolver,
 ) -> config.StilyagiConfig:
     """Resolve the effective config for one target path."""
-    return config.resolve_config_for_path(
+    return resolver.resolve_config_for_path(
         target,
         cli_overrides=_build_cli_overrides(options) or None,
         explicit_config=options.explicit_config or None,
@@ -106,16 +107,33 @@ def _resolve_config(
     )
 
 
-def run_check(options: CheckOptions) -> int:
-    """Run the check command and print rendered diagnostics."""
+def run_check(
+    options: CheckOptions,
+    *,
+    resolver: config.ConfigResolver | None = None,
+    renderer: engine.RendererRegistry | None = None,
+) -> int:
+    """Run the check command and print rendered diagnostics.
+
+    Parameters
+    ----------
+    options:
+        The parsed options for one `check` invocation.
+    resolver:
+        Configuration resolver to reuse across every checked file. A fresh
+        single-use resolver is created when one is not supplied, so no
+        configuration cache is shared between invocations.
+    renderer:
+        Renderer used to serialise diagnostics. Defaults to a new
+        :class:`~stilyagi.engine.RendererRegistry`.
+    """
+    resolver = resolver if resolver is not None else config.ConfigResolver()
+    renderer = renderer if renderer is not None else engine.RendererRegistry()
     had_error = False
     diagnostics_list: list[diagnostics.Diagnostic] = []
 
     try:
-        discovered_files = _discover_targets(
-            options.targets,
-            options.stdin_filename,
-        )
+        discovered_files = _discover_targets(options, resolver)
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
@@ -125,7 +143,9 @@ def run_check(options: CheckOptions) -> int:
         return 2
 
     for discovered_file in discovered_files:
-        file_diagnostics, file_error = _check_one_file(discovered_file, options)
+        file_diagnostics, file_error = _check_one_file(
+            discovered_file, options, resolver
+        )
         diagnostics_list.extend(file_diagnostics)
         had_error = had_error or file_error
         if had_error:
@@ -134,10 +154,7 @@ def run_check(options: CheckOptions) -> int:
     if had_error:
         return 2
 
-    rendered = engine.RendererRegistry().render(
-        diagnostics_list,
-        options.output_format,
-    )
+    rendered = renderer.render(diagnostics_list, options.output_format)
     print(rendered, end="")
     return compute_exit_code(diagnostics_list)
 
@@ -168,17 +185,18 @@ def compute_exit_code(
 
 
 def _discover_targets(
-    targets: cabc.Iterable[str],
-    stdin_filename: str | None,
+    options: CheckOptions,
+    resolver: config.ConfigResolver,
 ) -> list[CheckInput]:
     """Discover Markdown files beneath the requested targets."""
-    resolved_targets = [pathlib.Path(target).expanduser() for target in targets]
+    resolved_targets = [pathlib.Path(target).expanduser() for target in options.targets]
     has_stdin_target = any(target.as_posix() == "-" for target in resolved_targets)
     if has_stdin_target and len(resolved_targets) > 1:
         message = "stdin target cannot be combined with file targets"
         raise ValueError(message)
     if has_stdin_target:
-        return [_stdin_check_input(stdin_filename)]
+        return [_stdin_check_input(options.stdin_filename)]
+    discovery_config = _resolve_discovery_config(options, resolver)
     return [
         CheckInput(
             reported_path=discovered_file.reported_path,
@@ -186,9 +204,28 @@ def _discover_targets(
         )
         for discovered_file in discovery.discover_markdown_files(
             resolved_targets,
-            config.StilyagiConfig(),
+            discovery_config,
         )
     ]
+
+
+def _resolve_discovery_config(
+    options: CheckOptions,
+    resolver: config.ConfigResolver,
+) -> config.StilyagiConfig:
+    """Resolve the configuration that governs Markdown discovery.
+
+    Discovery is a single pass over every target, so it is governed by the
+    configuration resolved for the current working directory rather than by any
+    individual file's nearest config. Resolving it here keeps ``--isolated``,
+    explicit ``--config`` values, and CLI overrides in force during discovery.
+    """
+    return resolver.resolve_config_for_path(
+        pathlib.Path(),
+        cli_overrides=_build_cli_overrides(options) or None,
+        explicit_config=options.explicit_config or None,
+        isolated=options.isolated,
+    )
 
 
 def _stdin_check_input(stdin_filename: str | None) -> CheckInput:
@@ -226,6 +263,7 @@ def _read_source(check_input: CheckInput) -> str | None:
 def _check_one_file(
     check_input: CheckInput,
     options: CheckOptions,
+    resolver: config.ConfigResolver,
 ) -> tuple[list[diagnostics.Diagnostic], bool]:
     """Check one discovered Markdown file or stdin payload."""
     source = _read_source(check_input)
@@ -239,7 +277,7 @@ def _check_one_file(
         return [], True
 
     try:
-        resolved_config = _resolve_config(check_input.resolved_path, options)
+        resolved_config = _resolve_config(check_input.resolved_path, options, resolver)
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,

@@ -27,7 +27,7 @@ def test_map_ir_errors_maps_a_synthetic_error_to_a_diagnostic() -> None:
     assert map_ir_errors(document, "docs/example.md") == [
         diagnostics.Diagnostic(
             path="docs/example.md",
-            code="IR000",
+            code="IR123",
             message="Synthetic IR error",
             severity=diagnostics.Severity.ERROR,
             line=2,

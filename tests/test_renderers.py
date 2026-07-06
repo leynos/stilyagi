@@ -57,9 +57,9 @@ def test_text_renderer_orders_and_formats_diagnostics(
     rendered = engine.RendererRegistry().render(_build_diagnostics(), "text")
 
     assert rendered.splitlines() == [
-        "docs/a.md:1:1: STY001 First",
-        "docs/a.md:1:2: STY010 Later code",
-        "docs/b.md:3:4: STY002 Second",
+        "docs/a.md:1:1: error STY001 First",
+        "docs/a.md:1:2: error STY010 Later code",
+        "docs/b.md:3:4: warning STY002 Second",
         "3 diagnostics found",
     ]
     assert rendered.splitlines() == snapshot(extension_class=JSONSnapshotExtension)

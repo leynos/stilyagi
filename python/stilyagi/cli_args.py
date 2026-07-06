@@ -15,13 +15,35 @@ from __future__ import annotations
 import argparse
 import dataclasses as dc
 import typing as typ
+from importlib import metadata
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
     import pathlib
 
-PACKAGE_VERSION = "0.1.0"
 PROGRAM_NAME = "stilyagi"
+
+
+def _resolve_package_version() -> str:
+    """Return the installed distribution version for the CLI.
+
+    Reading the version from installed package metadata keeps ``--version`` in
+    step with the version declared in ``pyproject.toml`` instead of drifting
+    from a hardcoded literal.
+
+    Returns
+    -------
+    str
+        The installed distribution version, or a sentinel when running from an
+        uninstalled source checkout where no metadata is available.
+    """
+    try:
+        return metadata.version(PROGRAM_NAME)
+    except metadata.PackageNotFoundError:  # pragma: no cover - source checkout
+        return "0+unknown"
+
+
+PACKAGE_VERSION = _resolve_package_version()
 _OUTPUT_FORMATS = {"text", "json"}
 
 
@@ -45,6 +67,12 @@ class CheckOptions:
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the parser for the `check` command.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        A parser exposing the top-level `--version` flag and the `check`
+        subcommand with all of its options.
 
     Examples
     --------
@@ -72,7 +100,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def options_from_args(args: argparse.Namespace) -> CheckOptions:
-    """Build one `CheckOptions` from parsed command-line arguments."""
+    """Build one `CheckOptions` from parsed command-line arguments.
+
+    Parameters
+    ----------
+    args:
+        The namespace produced by :func:`build_parser` after parsing one
+        `check` invocation.
+
+    Returns
+    -------
+    CheckOptions
+        The immutable options object consumed by the check command, with
+        repeated comma-delimited rule-code flags flattened into single tuples.
+    """
     return CheckOptions(
         targets=tuple(args.targets),
         stdin_filename=args.stdin_filename,
@@ -158,7 +199,7 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "targets",
         nargs="*",
-        default=("."),
+        default=(".",),
         metavar="FILES",
         help="Markdown files or directories to check.",
     )

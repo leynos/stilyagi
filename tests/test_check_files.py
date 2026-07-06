@@ -6,7 +6,9 @@ import pathlib
 import typing as typ
 
 import pytest
-from stilyagi import cli, engine
+from stilyagi import cli, config, discovery, engine
+
+from tests.support.malformed_corpus import materialize_malformed_corpus
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -60,7 +62,7 @@ def _read_failure_fragments(
 
 def _setup_unreadable_utf8(
     tmp_path: pathlib.Path,
-    monkeypatch: pytest.MonkeyPatch,
+    _monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[pathlib.Path, tuple[str, ...]]:
     """Arrange a Markdown file whose bytes are not valid UTF-8."""
     target = tmp_path / "broken.md"
@@ -107,7 +109,7 @@ def _setup_mid_run_disappearance(
 
 def _setup_directory_read(
     tmp_path: pathlib.Path,
-    monkeypatch: pytest.MonkeyPatch,
+    _monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[pathlib.Path, tuple[str, ...]]:
     """Arrange a directory masquerading as one discovered input."""
     target = tmp_path / "docs"
@@ -125,7 +127,7 @@ def _setup_extractor_failure(
     monkeypatch.setattr(
         engine,
         "extract_document",
-        lambda source, syntax: _raise_runtime_error(),
+        lambda _source, _syntax: _raise_runtime_error(),
     )
     expected = f"stilyagi check: failed to check {target.as_posix()}: bridge exploded"
     return target, (expected,)
@@ -168,17 +170,18 @@ def test_cli_main_recovers_from_real_malformed_markdown(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Accept a malformed Markdown tree without emitting diagnostics."""
-    fixture_root = pathlib.Path("tests/fixtures/corpus/markdown/malformed")
+    """Accept every malformed Markdown fixture without emitting diagnostics."""
     target_root = tmp_path / "docs"
-    target_root.mkdir()
-    for fixture_path in sorted(fixture_root.iterdir()):
-        if fixture_path.is_file():
-            (target_root / fixture_path.name).write_text(
-                fixture_path.read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
+    expected_names = materialize_malformed_corpus(target_root)
     monkeypatch.chdir(tmp_path)
+
+    # Assert the whole malformed corpus reaches discovery; otherwise a fixture
+    # that is skipped would let this regression pass vacuously.
+    discovered = discovery.discover_markdown_files(
+        [target_root], config.StilyagiConfig()
+    )
+    discovered_names = tuple(sorted(item.resolved_path.name for item in discovered))
+    assert discovered_names == expected_names
 
     exit_code = cli.main(["check", "."])
     captured = capsys.readouterr()
@@ -200,7 +203,7 @@ def _stub_discovery(
     monkeypatch.setattr(
         cli,
         "_discover_targets",
-        lambda targets, stdin_filename: [discovered_file],
+        lambda _options, _resolver: [discovered_file],
     )
 
 

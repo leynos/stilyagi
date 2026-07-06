@@ -191,7 +191,7 @@ fn rust_extraction_preserves_shared_fixture_doc_comments(shared_rust_source: Str
 }
 
 #[rstest]
-#[case("tests/fixtures/corpus/markdown/malformed/unclosed-table.md")]
+#[case("tests/fixtures/corpus/markdown/malformed/unclosed-table.md.fixture")]
 #[case("tests/fixtures/corpus/python/malformed/unclosed-function.py.txt")]
 #[case("tests/fixtures/corpus/rust/malformed/unclosed-item.rs")]
 fn malformed_corpus_fixtures_are_readable_utf8_sources(#[case] relative_path: &str) {

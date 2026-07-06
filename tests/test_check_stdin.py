@@ -23,7 +23,7 @@ def test_cli_main_reads_stdin_and_attributes_diagnostic_to_filename(
     monkeypatch.setattr(sys, "stdin", io.StringIO("# Notes\n"))
     monkeypatch.setattr(
         "stilyagi.rules.registry.run_rules",
-        lambda document, config: [
+        lambda _document, _config: [
             diagnostics.Diagnostic(
                 path="README.md",
                 code="IR000",
@@ -34,8 +34,8 @@ def test_cli_main_reads_stdin_and_attributes_diagnostic_to_filename(
 
     assert cli.main(["check", "-", "--stdin-filename", "README.md"]) == 1
     captured = capsys.readouterr()
-    assert (
-        captured.out == "README.md:1:1: IR000 Synthetic IR error\n1 diagnostic found\n"
+    assert captured.out == (
+        "README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"
     )
     assert not captured.err
 

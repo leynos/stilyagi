@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import io
 import json
-import pathlib
-import shutil
 import sys
 import typing as typ
 
 from pytest_bdd import given, parsers, then, when
 from stilyagi import cli, engine, model
 
+from tests.support.malformed_corpus import materialize_malformed_corpus
+
 if typ.TYPE_CHECKING:
+    import pathlib
+
     import pytest
 
 
@@ -59,10 +61,8 @@ def temporary_tree_with_markdown_files_in_unsorted_order(
 def temporary_tree_containing_malformed_markdown(
     tmp_path: pathlib.Path,
 ) -> CheckCommandState:
-    """Copy the real malformed Markdown corpus into a temporary tree."""
-    source_root = pathlib.Path("tests/fixtures/corpus/markdown/malformed")
-    target_root = tmp_path / "docs"
-    shutil.copytree(source_root, target_root)
+    """Materialise the real malformed Markdown corpus as discoverable files."""
+    materialize_malformed_corpus(tmp_path / "docs")
     return {"root": tmp_path}
 
 
@@ -112,7 +112,7 @@ def extractor_emits_one_synthetic_ir_error_per_file(
     monkeypatch.setattr(
         engine,
         "extract_document",
-        lambda source, syntax: synthetic_document,
+        lambda _source, _syntax: synthetic_document,
     )
 
 
@@ -180,7 +180,7 @@ def the_text_output_attributes_the_synthetic_diagnostic_to_readme(
     """Assert the stdin path is reflected in the rendered text output."""
     assert (
         check_command_state["stdout"]
-        == "README.md:1:1: IR000 Synthetic IR error\n1 diagnostic found\n"
+        == "README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"
     )
     assert check_command_state["stderr"] == ""
 

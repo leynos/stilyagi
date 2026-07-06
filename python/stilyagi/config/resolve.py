@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import collections.abc as cabc
+import dataclasses as dc
 import pathlib
 import tomllib
 import typing as typ
@@ -14,9 +15,6 @@ from .load import (
 )
 from .schema import InvalidConfigError, StilyagiConfig
 from .validate import ensure_extend_value
-
-_DISCOVERY_CACHE: dict[pathlib.Path, pathlib.Path | None] = {}
-_RESOLVED_TABLE_CACHE: dict[pathlib.Path, dict[str, object]] = {}
 
 
 def _merge_config_tables(
@@ -48,7 +46,7 @@ def _normalise_extend_values(
     validated = ensure_extend_value(value, path=path, key="extend")
     if isinstance(validated, str):
         return (validated,)
-    return tuple(typ.cast("cabc.Sequence[str]", validated))
+    return tuple(validated)
 
 
 def _load_inline_config(
@@ -81,57 +79,11 @@ def _resolve_config_reference(
     raise InvalidConfigError(path, "extend", f"missing config file: {reference}")
 
 
-def _resolve_config_table(
-    path: pathlib.Path,
-    *,
-    stack: tuple[pathlib.Path, ...] = (),
-) -> dict[str, object]:
-    """Resolve a config file and its explicit `extend` chain."""
-    resolved_path = path.expanduser().resolve()
-    if resolved_path in stack:
-        cycle = " -> ".join(str(item) for item in (*stack, resolved_path))
-        raise InvalidConfigError(path, "extend", f"cycle detected: {cycle}")
-
-    cached = _RESOLVED_TABLE_CACHE.get(resolved_path)
-    if cached is not None:
-        return cached
-
-    config_table = dict(_load_config_table(resolved_path))
-    extend_values = _normalise_extend_values(
-        config_table.get("extend"), path=resolved_path
-    )
-
-    merged: dict[str, object] = {}
-    next_stack = (*stack, resolved_path)
-    for extend_value in extend_values:
-        parent_path = _resolve_config_reference(
-            extend_value,
-            base_directory=resolved_path.parent,
-            path=resolved_path,
-        )
-        parent_table = _resolve_config_table(parent_path, stack=next_stack)
-        merged = _merge_config_tables(merged, parent_table)
-
-    merged = _merge_config_tables(merged, config_table)
-    _RESOLVED_TABLE_CACHE[resolved_path] = merged
-    return merged
-
-
 def _target_directory(target: pathlib.Path) -> pathlib.Path:
     """Return the directory from which config discovery should start."""
     if target.is_dir():
         return target.expanduser().resolve()
     return target.expanduser().parent.resolve()
-
-
-def _discover_nearest_config(directory: pathlib.Path) -> pathlib.Path | None:
-    """Return the nearest supported config file for one directory."""
-    if directory in _DISCOVERY_CACHE:
-        return _DISCOVERY_CACHE[directory]
-
-    discovered_path = _search_ancestors_for_config(directory)
-    _DISCOVERY_CACHE[directory] = discovered_path
-    return discovered_path
 
 
 def _search_ancestors_for_config(directory: pathlib.Path) -> pathlib.Path | None:
@@ -176,26 +128,114 @@ def _split_explicit_config(
     return explicit_paths, explicit_inline
 
 
-def _merge_explicit_configs(
-    resolved_table: dict[str, object],
-    explicit_config: cabc.Iterable[str | pathlib.Path] | None,
-    *,
-    target: pathlib.Path,
-) -> dict[str, object]:
-    """Layer explicit config files, then inline fragments, over one table."""
-    explicit_paths, explicit_inline = _split_explicit_config(explicit_config)
+@dc.dataclass(slots=True)
+class ConfigResolver:
+    """Resolve the effective configuration for target paths.
 
-    for config_path in explicit_paths:
-        resolved_table = _merge_config_tables(
-            resolved_table, _resolve_config_table(config_path)
+    The resolver owns its discovery and resolved-table caches so that a single
+    run reuses parsed config files across many targets without leaking mutable
+    state between invocations. Construct one resolver per run; an instance is
+    not safe to share across threads.
+    """
+
+    _discovery_cache: dict[pathlib.Path, pathlib.Path | None] = dc.field(
+        default_factory=dict
+    )
+    _resolved_table_cache: dict[pathlib.Path, dict[str, object]] = dc.field(
+        default_factory=dict
+    )
+
+    def resolve_config_for_path(
+        self,
+        target: pathlib.Path,
+        *,
+        cli_overrides: cabc.Mapping[str, object] | None,
+        explicit_config: cabc.Iterable[str | pathlib.Path] | None,
+        isolated: bool,
+    ) -> StilyagiConfig:
+        """Resolve the effective config for one target path."""
+        resolved_table: dict[str, object] = {}
+
+        if not isolated:
+            discovered_path = self._discover_nearest_config(_target_directory(target))
+            if discovered_path is not None:
+                resolved_table = self._resolve_config_table(discovered_path)
+
+        resolved_table = self._merge_explicit_configs(
+            resolved_table, explicit_config, target=target
         )
 
-    for fragment in explicit_inline:
-        resolved_table = _merge_config_tables(
-            resolved_table, _load_inline_config(fragment, path=target)
+        if cli_overrides:
+            resolved_table = _merge_config_tables(resolved_table, dict(cli_overrides))
+
+        return _parse_config_table(resolved_table, path=target)
+
+    def _resolve_config_table(
+        self,
+        path: pathlib.Path,
+        *,
+        stack: tuple[pathlib.Path, ...] = (),
+    ) -> dict[str, object]:
+        """Resolve a config file and its explicit `extend` chain."""
+        resolved_path = path.expanduser().resolve()
+        if resolved_path in stack:
+            cycle = " -> ".join(str(item) for item in (*stack, resolved_path))
+            raise InvalidConfigError(path, "extend", f"cycle detected: {cycle}")
+
+        cached = self._resolved_table_cache.get(resolved_path)
+        if cached is not None:
+            return cached
+
+        config_table = dict(_load_config_table(resolved_path))
+        extend_values = _normalise_extend_values(
+            config_table.get("extend"), path=resolved_path
         )
 
-    return resolved_table
+        merged: dict[str, object] = {}
+        next_stack = (*stack, resolved_path)
+        for extend_value in extend_values:
+            parent_path = _resolve_config_reference(
+                extend_value,
+                base_directory=resolved_path.parent,
+                path=resolved_path,
+            )
+            parent_table = self._resolve_config_table(parent_path, stack=next_stack)
+            merged = _merge_config_tables(merged, parent_table)
+
+        merged = _merge_config_tables(merged, config_table)
+        self._resolved_table_cache[resolved_path] = merged
+        return merged
+
+    def _discover_nearest_config(self, directory: pathlib.Path) -> pathlib.Path | None:
+        """Return the nearest supported config file for one directory."""
+        if directory in self._discovery_cache:
+            return self._discovery_cache[directory]
+
+        discovered_path = _search_ancestors_for_config(directory)
+        self._discovery_cache[directory] = discovered_path
+        return discovered_path
+
+    def _merge_explicit_configs(
+        self,
+        resolved_table: dict[str, object],
+        explicit_config: cabc.Iterable[str | pathlib.Path] | None,
+        *,
+        target: pathlib.Path,
+    ) -> dict[str, object]:
+        """Layer explicit config files, then inline fragments, over one table."""
+        explicit_paths, explicit_inline = _split_explicit_config(explicit_config)
+
+        for config_path in explicit_paths:
+            resolved_table = _merge_config_tables(
+                resolved_table, self._resolve_config_table(config_path)
+            )
+
+        for fragment in explicit_inline:
+            resolved_table = _merge_config_tables(
+                resolved_table, _load_inline_config(fragment, path=target)
+            )
+
+        return resolved_table
 
 
 def resolve_config_for_path(
@@ -205,19 +245,16 @@ def resolve_config_for_path(
     explicit_config: cabc.Iterable[str | pathlib.Path] | None,
     isolated: bool,
 ) -> StilyagiConfig:
-    """Resolve the effective config for one target path."""
-    resolved_table: dict[str, object] = {}
+    """Resolve the effective config for one target with a single-use resolver.
 
-    if not isolated:
-        discovered_path = _discover_nearest_config(_target_directory(target))
-        if discovered_path is not None:
-            resolved_table = _resolve_config_table(discovered_path)
-
-    resolved_table = _merge_explicit_configs(
-        resolved_table, explicit_config, target=target
+    Each call builds a fresh :class:`ConfigResolver`, so no configuration cache
+    is shared across invocations. Callers that resolve many targets in one run
+    should construct one :class:`ConfigResolver` and reuse it to benefit from
+    its caches.
+    """
+    return ConfigResolver().resolve_config_for_path(
+        target,
+        cli_overrides=cli_overrides,
+        explicit_config=explicit_config,
+        isolated=isolated,
     )
-
-    if cli_overrides:
-        resolved_table = _merge_config_tables(resolved_table, dict(cli_overrides))
-
-    return _parse_config_table(resolved_table, path=target)

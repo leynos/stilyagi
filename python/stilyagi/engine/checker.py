@@ -7,12 +7,28 @@ import collections.abc as cabc
 from stilyagi import diagnostics, model
 from stilyagi.diagnostics_location import line_column_from_offset
 
+_DEFAULT_IR_CODE = "IR000"
+
 
 def map_ir_errors(
     document: model.Document,
     reported_path: str,
 ) -> list[diagnostics.Diagnostic]:
     """Map canonical IR errors into public diagnostics.
+
+    Parameters
+    ----------
+    document:
+        The extracted document whose ``ir`` envelope may carry recoverable
+        error entries.
+    reported_path:
+        Command-line-relative POSIX path attributed to each diagnostic.
+
+    Returns
+    -------
+    list[diagnostics.Diagnostic]
+        One diagnostic per well-formed IR error entry, in source order. Returns
+        an empty list when the IR is absent or carries no error sequence.
 
     Examples
     --------
@@ -58,12 +74,19 @@ def _map_one_error(
     )
     return diagnostics.Diagnostic(
         path=reported_path,
-        code="IR000",
+        code=_ir_code(error.get("code")),
         message=str(error.get("message", "")),
         severity=diagnostics.Severity.ERROR,
         line=line,
         column=column,
     )
+
+
+def _ir_code(raw_code: object) -> str:
+    """Return the IR-provided error code, or a generic placeholder."""
+    if isinstance(raw_code, str) and raw_code:
+        return raw_code
+    return _DEFAULT_IR_CODE
 
 
 def _byte_start_from_span(span: object) -> int | None:
