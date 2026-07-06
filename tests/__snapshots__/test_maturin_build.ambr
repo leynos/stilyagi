@@ -2,11 +2,13 @@
 # name: test_maturin_wheel_build_snapshot
   dict({
     'entries': list([
+      'stilyagi-0.1.0.dist-info/entry_points.txt',
       'stilyagi-<version>.dist-info/METADATA',
       'stilyagi-<version>.dist-info/RECORD',
       'stilyagi-<version>.dist-info/WHEEL',
       'stilyagi-<version>.dist-info/sboms/<sbom>.cyclonedx.json',
       'stilyagi/__init__.py',
+      'stilyagi/__main__.py',
       'stilyagi/_stilyagi_rs.cpython-<platform>.<ext>',
       'stilyagi/_stilyagi_rs.pyi',
       'stilyagi/cli.py',

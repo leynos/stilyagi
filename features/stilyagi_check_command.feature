@@ -14,3 +14,10 @@ Feature: stilyagi check for Markdown files with nearest-config
     When I run "stilyagi check . --output-format json" in that tree
     Then the exit code is 1
     And the diagnostics and processed paths follow sorted normalized order
+
+  Scenario: check attributes stdin diagnostics to the supplied filename
+    Given a temporary tree with two well-formed Markdown files
+    And the extractor emits one synthetic IR error per file
+    When I run "stilyagi check - --stdin-filename README.md" in that tree
+    Then the exit code is 1
+    And the text output attributes the synthetic diagnostic to "README.md"

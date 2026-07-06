@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import json
+import sys
 import typing as typ
 
 from pytest_bdd import given, then, when
@@ -104,6 +106,23 @@ def run_stilyagi_check_json_in_that_tree(
     check_command_state["stderr"] = captured.err
 
 
+@when('I run "stilyagi check - --stdin-filename README.md" in that tree')
+def run_stilyagi_check_from_stdin_in_that_tree(
+    check_command_state: CheckCommandState,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Run the stdin command path against the temporary tree in-process."""
+    monkeypatch.chdir(check_command_state["root"])
+    monkeypatch.setattr(sys, "stdin", io.StringIO("# Notes\n"))
+    check_command_state["exit_code"] = cli.main(
+        ["check", "-", "--stdin-filename", "README.md"],
+    )
+    captured = capsys.readouterr()
+    check_command_state["stdout"] = captured.out
+    check_command_state["stderr"] = captured.err
+
+
 @then("the exit code is 0")
 def the_exit_code_is_zero(check_command_state: CheckCommandState) -> None:
     """Assert that the clean-tree command path succeeded."""
@@ -133,6 +152,18 @@ def the_diagnostics_and_processed_paths_follow_sorted_normalized_order(
     payload = json.loads(check_command_state["stdout"])
     paths = [item["path"] for item in payload["diagnostics"]]
     assert paths == ["a.md", "b.md", "sub/c.md"]
+    assert check_command_state["stderr"] == ""
+
+
+@then('the text output attributes the synthetic diagnostic to "README.md"')
+def the_text_output_attributes_the_synthetic_diagnostic_to_readme(
+    check_command_state: CheckCommandState,
+) -> None:
+    """Assert the stdin path is reflected in the rendered text output."""
+    assert (
+        check_command_state["stdout"]
+        == "README.md:1:1: IR000 Synthetic IR error\n1 diagnostic found\n"
+    )
     assert check_command_state["stderr"] == ""
 
 

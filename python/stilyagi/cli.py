@@ -16,8 +16,6 @@ from stilyagi.rules import registry as rules_registry
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
-    from stilyagi.discovery import DiscoveredFile
-
 PACKAGE_VERSION = "0.1.0"
 _OUTPUT_FORMATS = {"text", "json"}
 _PROGRAM_NAME = "stilyagi"
@@ -28,6 +26,7 @@ class CheckOptions:
     """Options for one `stilyagi check` invocation."""
 
     targets: tuple[str, ...]
+    stdin_filename: str | None = None
     output_format: str = "text"
     explicit_config: tuple[str | pathlib.Path, ...] = ()
     isolated: bool = False
@@ -38,6 +37,15 @@ class CheckOptions:
     quiet: bool = False
     verbose: bool = False
     silent: bool = False
+
+
+@dc.dataclass(frozen=True, slots=True)
+class CheckInput:
+    """One resolved `check` input, from disk or standard input."""
+
+    reported_path: str
+    resolved_path: pathlib.Path
+    source_text: str | None = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -88,6 +96,7 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
 
     options = CheckOptions(
         targets=tuple(args.targets),
+        stdin_filename=args.stdin_filename,
         output_format=args.output_format,
         explicit_config=tuple(args.config),
         isolated=args.isolated,
@@ -142,6 +151,11 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         default=(),
         metavar="VALUE",
         help="Use one explicit config file or inline TOML fragment.",
+    )
+    parser.add_argument(
+        "--stdin-filename",
+        metavar="VALUE",
+        help="Report stdin diagnostics with this path instead of <stdin>.",
     )
     parser.add_argument(
         "--isolated",
@@ -233,7 +247,10 @@ def run_check(options: CheckOptions) -> int:
     diagnostics_list: list[diagnostics.Diagnostic] = []
 
     try:
-        discovered_files = _discover_targets(options.targets)
+        discovered_files = _discover_targets(
+            options.targets,
+            options.stdin_filename,
+        )
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
@@ -287,51 +304,75 @@ def compute_exit_code(
 
 def _discover_targets(
     targets: cabc.Iterable[str],
-) -> list[DiscoveredFile]:
+    stdin_filename: str | None,
+) -> list[CheckInput]:
     """Discover Markdown files beneath the requested targets."""
     resolved_targets = [pathlib.Path(target).expanduser() for target in targets]
-    if any(target.as_posix() == "-" for target in resolved_targets):
-        message = "stdin support is not yet available; use a real file path"
+    has_stdin_target = any(target.as_posix() == "-" for target in resolved_targets)
+    if has_stdin_target and len(resolved_targets) > 1:
+        message = "stdin target cannot be combined with file targets"
         raise ValueError(message)
-    return discovery.discover_markdown_files(
-        resolved_targets,
-        config.StilyagiConfig(),
-    )
+    if has_stdin_target:
+        reported_path = (
+            pathlib.Path(stdin_filename).as_posix() if stdin_filename else "<stdin>"
+        )
+        resolved_path = (
+            pathlib.Path(stdin_filename) if stdin_filename else pathlib.Path("<stdin>")
+        )
+        return [
+            CheckInput(
+                reported_path=reported_path,
+                resolved_path=resolved_path,
+                source_text=sys.stdin.read(),
+            ),
+        ]
+    return [
+        CheckInput(
+            reported_path=discovered_file.reported_path,
+            resolved_path=discovered_file.resolved_path,
+        )
+        for discovered_file in discovery.discover_markdown_files(
+            resolved_targets,
+            config.StilyagiConfig(),
+        )
+    ]
 
 
 def _check_one_file(
-    discovered_file: DiscoveredFile,
+    check_input: CheckInput,
     options: CheckOptions,
 ) -> tuple[list[diagnostics.Diagnostic], bool]:
-    """Check one discovered Markdown file."""
+    """Check one discovered Markdown file or stdin payload."""
     try:
-        source = discovered_file.resolved_path.read_text(encoding="utf-8")
+        source = check_input.source_text
+        if source is None:
+            source = check_input.resolved_path.read_text(encoding="utf-8")
     except (
         FileNotFoundError,
         IsADirectoryError,
         PermissionError,
         UnicodeDecodeError,
     ) as exc:
-        _report_file_error(discovered_file.resolved_path, exc)
+        _report_file_error(check_input.resolved_path, exc)
         return [], True
 
     try:
         document = engine.extract_document(source, model.Syntax.MARKDOWN)
     except Exception as exc:  # noqa: BLE001 - the bridge maps internal failures here.
-        _report_check_error(discovered_file.resolved_path, exc)
+        _report_check_error(check_input.resolved_path, exc)
         return [], True
 
     try:
-        resolved_config = _resolve_config(discovered_file.resolved_path, options)
+        resolved_config = _resolve_config(check_input.resolved_path, options)
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
     ) as exc:
-        _report_check_error(discovered_file.resolved_path, exc)
+        _report_check_error(check_input.resolved_path, exc)
         return [], True
 
     diagnostics_list = [
-        *map_ir_errors(document, discovered_file.reported_path),
+        *map_ir_errors(document, check_input.reported_path),
         *rules_registry.run_rules(document, resolved_config),
     ]
     return diagnostics_list, False

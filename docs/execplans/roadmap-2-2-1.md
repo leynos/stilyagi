@@ -303,7 +303,7 @@ escalation, not a workaround.
 - [x] W3 — Deterministic Markdown file discovery.
 - [x] W4 — Diagnostic model and `text`/`json` renderers; IR-error adapter seam.
 - [x] W5 — `check` command, argparse CLI, exit codes, console entry point.
-- [ ] W6 — Standard-input support (`-` and `--stdin-filename`).
+- [x] W6 — Standard-input support (`-` and `--stdin-filename`).
 - [ ] W7 — Documentation and roadmap update.
 
 ## Surprises & discoveries
@@ -339,6 +339,12 @@ escalation, not a workaround.
   `tests/__init__.py` was added and the step module was loaded as a pytest
   plugin. Impact: keep the shared step module importable through the package
   path when extending the CLI scenario coverage.
+
+- Observation (W6): stdin support now reads from `sys.stdin`, uses
+  `--stdin-filename` for reported-path attribution and config resolution, and
+  rejects mixed stdin/file targets with exit `2`. The gate run also surfaced a
+  stale wheel snapshot, which was regenerated so the test suite reflects the
+  current wheel layout.
 
 - Observation (round 5): the worktree Makefile has advanced since round 2. `all`
   is now `all: ## Run commit gates` chaining `check-fmt`, `typecheck`, `lint`,
