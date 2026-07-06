@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: APPROVED
 
 Approval gate: NOT yet satisfied. Do not begin implementation until the user
 explicitly approves this plan. This is planning round 6. Round 6 closes the two
