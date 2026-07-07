@@ -246,6 +246,18 @@ escalation, not a workaround.
   `RegionKind::RustDocComment.as_str().to_owned()`.
   Impact: producer-side shared spelling drift now requires changing the IR
   source of truth instead of editing independent string literals.
+- Observation: rebasing onto `origin/main` on 2026-07-07 brought in
+  syntax-native suppression parsing, the tree-sitter 0.26 update, and related
+  Rust doc-comment builder changes. The rebase applied without textual
+  conflicts, but the rebased Work item 3 import edit dropped the IR type import
+  that `main` still needs in `crates/stilyagi-tree-sitter/src/rust/builder.rs`.
+  Evidence: the first post-rebase gate run failed to compile
+  `stilyagi-tree-sitter` because `IrNode`, `IrRegion`, and `IrError` were not
+  in scope. Restoring `use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags,
+  RegionKind};` preserves `main`'s builder changes while keeping this branch's
+  shared-vocabulary hardening.
+  Impact: the branch now reflects `main`'s newer suppression and tree-sitter
+  patterns without losing the region-kind single-source-of-truth change.
 - Observation: `stilyagi-extract`'s own spelling test coverage is already
   incomplete — `region_kind_as_str_round_trips_through_try_from` and the
   display/`as_str` cases in
@@ -544,7 +556,7 @@ Static cross-check (adversarial, exhaustive over `RegionKind::ALL`):
 Behavioural cross-check (proves the *emitted* IR only uses vocabulary kinds,
 catching tree-sitter/markdown literal drift feeding `IrRegion.kind`):
 
-- `extracted_ir_regions_use_only_the_shared_vocabulary`: parametrised over the
+- `extracted_ir_regions_use_only_the_shared_vocabulary`: parametrized over the
   Python and Rust shared fixtures (reuse `shared_python_source` /
   `shared_rust_source` and/or the `stilyagi-test-support` fixture constants used
   in `ir_identity.rs`). For each, call the extract entry point

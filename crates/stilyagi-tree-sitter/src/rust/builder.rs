@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags, RegionKind};
 use tree_sitter::Node;
 
 use super::builder_state::{
