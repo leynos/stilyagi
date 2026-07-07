@@ -7,6 +7,7 @@ module, so it is loaded here through ``importlib`` from its file path.
 import importlib.util
 import pathlib
 import tempfile
+import tomllib
 import types
 import typing as typ
 
@@ -69,6 +70,24 @@ def test_render_config_ends_with_trailing_newline(
     rendered = generator.render_config()
     assert rendered.endswith("\n")
     assert not rendered.endswith("\n\n")
+
+
+def test_render_config_parses_as_valid_toml(
+    generator: types.ModuleType,
+) -> None:
+    """Rendered output is valid TOML with no colliding extend-words keys.
+
+    ``tomllib`` (like ``typos`` itself) rejects duplicate keys, so a stem or
+    suffix collision raises ``TOMLDecodeError`` here rather than surfacing
+    later when ``typos`` loads the config. The exact entry count confirms
+    every emitted key survives as a distinct table entry.
+    """
+    parsed = tomllib.loads(generator.render_config())
+    extend_words = parsed["default"]["extend-words"]
+    expected = len(generator.EXTRA_ACCEPTED_WORDS) + 2 * len(generator.STEMS) * len(
+        generator.SUFFIX_PAIRS
+    )
+    assert len(extend_words) == expected
 
 
 @given(data=st.data())
@@ -139,3 +158,16 @@ def test_committed_config_matches_generator_output(
     """The committed typos.toml must not drift from the generator."""
     committed = (REPOSITORY_ROOT / "typos.toml").read_text(encoding="utf-8")
     assert committed == generator.render_config()
+
+
+def test_committed_config_parses_as_valid_toml() -> None:
+    """A hand-edited or corrupted committed typos.toml fails fast.
+
+    Parsing the file on disk (rather than the freshly rendered output) guards
+    against manual edits that introduce duplicate keys or otherwise malformed
+    TOML, which ``tomllib`` and ``typos`` would both reject at load time.
+    """
+    committed = (REPOSITORY_ROOT / "typos.toml").read_text(encoding="utf-8")
+    parsed = tomllib.loads(committed)
+    assert parsed["default"]["locale"] == "en-gb"
+    assert parsed["default"]["extend-words"]
