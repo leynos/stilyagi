@@ -337,16 +337,21 @@ v1 SHALL support:
 
 - `text`
 - `json`
-- `sarif`, the Static Analysis Results Interchange Format
 
 `text` SHALL be the default.
 
 `json` SHALL be the stable machine-readable form for local tooling.
 
-`sarif` SHALL conform to the SARIF 2.1.0 family of expectations closely enough
-to interoperate with downstream static-analysis consumers. SARIF exists
-specifically to standardize static-analysis output interchange, which is
-exactly the job here.[^3]
+`sarif` (the Static Analysis Results Interchange Format) is deferred to a later
+slice and is NOT part of the v1 contract. Until it lands, `--output-format
+sarif` SHALL be rejected with a usage error stating that `sarif` is planned but
+not yet available, matching the behaviour of `_parse_output_format`.
+
+When it does land, `sarif` will conform to the SARIF 2.1.0 family of
+expectations closely enough to interoperate with downstream static-analysis
+consumers. SARIF exists specifically to standardize static-analysis output
+interchange, which is exactly the job here, so it remains the intended forward
+format for that use case.[^3]
 
 ## 12. Exit codes
 
