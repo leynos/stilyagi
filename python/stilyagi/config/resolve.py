@@ -137,10 +137,10 @@ class ConfigResolver:
     """
 
     _discovery_cache: dict[pathlib.Path, pathlib.Path | None] = dc.field(
-        default_factory=dict
+        default_factory=dict, init=False
     )
     _resolved_table_cache: dict[pathlib.Path, dict[str, object]] = dc.field(
-        default_factory=dict
+        default_factory=dict, init=False
     )
 
     def resolve_config_for_path(
