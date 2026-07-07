@@ -162,13 +162,29 @@ pub enum RegionKind {
 }
 
 impl RegionKind {
+    /// All bridge region kinds, in canonical order.
+    pub const ALL: &'static [Self] = &[Self::Document, Self::PythonDocstring, Self::RustDocComment];
+
+    /// Return the canonical IR kind for bridge regions that share IR
+    /// vocabulary.
+    ///
+    /// `Document` is a coarse bridge-only region and deliberately has no
+    /// `stilyagi_ir` equivalent.
+    #[must_use]
+    pub const fn ir_region_kind(self) -> Option<stilyagi_ir::RegionKind> {
+        match self {
+            Self::Document => None,
+            Self::PythonDocstring => Some(stilyagi_ir::RegionKind::PythonDocstring),
+            Self::RustDocComment => Some(stilyagi_ir::RegionKind::RustDocComment),
+        }
+    }
+
     /// Return the stable bridge spelling for this region kind.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Document => "document",
-            Self::PythonDocstring => "python_docstring",
-            Self::RustDocComment => "rust_doc_comment",
+        match self.ir_region_kind() {
+            Some(kind) => kind.as_str(),
+            None => "document",
         }
     }
 }
@@ -408,8 +424,33 @@ fn extract_rust_document(
 mod tests {
     //! Tests for extraction error mapping at crate-private seams.
 
-    use super::{ExtractError, MarkdownIrFailure, extract_markdown_document_with};
+    use super::{ExtractError, MarkdownIrFailure, RegionKind, extract_markdown_document_with};
     use rstest::rstest;
+
+    const fn known_region_kind(kind: RegionKind) {
+        match kind {
+            RegionKind::Document | RegionKind::PythonDocstring | RegionKind::RustDocComment => {}
+        }
+    }
+
+    #[test]
+    fn region_kind_all_is_exhaustive() {
+        assert_eq!(RegionKind::ALL.len(), 3);
+
+        for kind in RegionKind::ALL {
+            known_region_kind(*kind);
+        }
+    }
+
+    #[test]
+    fn shared_bridge_spelling_comes_from_ir() {
+        for kind in RegionKind::ALL {
+            match kind.ir_region_kind() {
+                Some(ir_kind) => assert_eq!(kind.as_str(), ir_kind.as_str()),
+                None => assert!(stilyagi_ir::RegionKind::try_from(kind.as_str()).is_err()),
+            }
+        }
+    }
 
     #[rstest]
     fn markdown_ir_builder_failures_map_to_extract_error() {

@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
 ## Purpose / big picture
 
@@ -130,7 +130,17 @@ escalation, not a workaround.
 
 ## Progress
 
-- [ ] Work item 1: `stilyagi-ir` is the single source of truth for shared bridge
+- [x] 2026-07-07: Confirmed the branch is `roadmap-6-4-1`, already tracking
+      `origin/roadmap-6-4-1`; renamed the Lody session to
+      `roadmap-6-4-1 region vocabulary unification`.
+- [x] 2026-07-07: Re-read the plan, RFC 0001 §6, ADR 003, ADR 005, the design
+      note's IR section, the developer guide's region-kind notes, and the
+      `leta`, `execplans`, `rust-router`, `rust-types-and-apis`,
+      `rust-unit-testing`, and `sem` skills before editing.
+- [x] 2026-07-07: Work item 1 implemented, red evidence recorded, deterministic
+      gates passed, and `coderabbit review --agent` completed with zero
+      findings.
+- [x] Work item 1: `stilyagi-ir` is the single source of truth for shared bridge
       spellings; `stilyagi_extract::RegionKind` forwards to it and gains
       `ALL` + an `ir_region_kind` mapping.
 - [ ] Work item 2: exhaustive + behavioural cross-check test proves every
@@ -142,6 +152,37 @@ escalation, not a workaround.
 
 ## Surprises & discoveries
 
+- Observation: Memtrace is available in this session, but its briefing reported
+  no indexed repository for this worktree. The repository-list/index tools were
+  not exposed after tool discovery.
+  Evidence: `get_codebase_briefing` returned "No indexed repository found. Run
+  index_directory first."
+  Impact: source-code navigation for this task uses `leta` plus bounded
+  exact-path reads from this ExecPlan, rather than Memtrace graph queries.
+- Observation: the Work item 1 consistent-IR-rename drift demonstration fails
+  at the extract spelling round-trip boundary, as intended.
+  Evidence: after temporarily changing the IR Python docstring spelling in
+  `crates/stilyagi-ir/src/region.rs` from `python_docstring` to
+  `py_docstring` in both `as_str` and `TryFrom`, the focused command
+  `cargo test -p stilyagi-extract region_kind_as_str_round_trips_through_try_from`
+  failed with
+  `spelling_display::region_kind_as_str_round_trips_through_try_from::case_2`;
+  the assertion reported `left: Err("py_docstring")` and
+  `right: Ok(PythonDocstring)`. The temporary mutation was reverted before
+  continuing.
+  Impact: a consistent IR spelling rename cannot silently pass extract's
+  existing typed spelling round-trip once `as_str` forwards to the IR.
+- Observation: the Work item 1 un-forwarding drift demonstration fails at the
+  new `shared_bridge_spelling_comes_from_ir` guard, as intended.
+  Evidence: after temporarily replacing the forwarding arm in
+  `stilyagi_extract::RegionKind::as_str` with `Some(_) => "py_docstring"`, the
+  focused command
+  `cargo test -p stilyagi-extract shared_bridge_spelling_comes_from_ir` failed;
+  the assertion reported `left: "py_docstring"` and
+  `right: "python_docstring"`. The temporary mutation was reverted before
+  continuing.
+  Impact: a future edit that reintroduces divergent local spellings in extract
+  is caught by a named guard.
 - Observation: `stilyagi-extract`'s own spelling test coverage is already
   incomplete — `region_kind_as_str_round_trips_through_try_from` and the
   display/`as_str` cases in
@@ -170,6 +211,19 @@ escalation, not a workaround.
 
 ## Decision log
 
+- Decision: proceed with implementation even though the existing plan header
+  said `Status: DRAFT`.
+  Rationale: the user explicitly instructed this agent on 2026-07-07 to proceed
+  with implementation of `docs/execplans/roadmap-6-4-1.md`, which serves as the
+  execution approval required by the `execplans` skill.
+  Date/Author: 2026-07-07, implementation agent.
+- Decision: do not add a property test for Work item 1's closed
+  `RegionKind::ALL` invariant.
+  Rationale: the verification skill routes input-space gaps to `proptest`, but
+  this invariant is over a closed enum set. The exhaustive `ALL` iteration plus
+  compile-time non-wildcard match gives the necessary coverage with less
+  machinery.
+  Date/Author: 2026-07-07, implementation agent.
 - Decision: implement *both* allowed mechanisms — single source of truth (Work
   item 1) and a cross-checking drift test (Work item 2) — rather than only one.
   Rationale: the roadmap permits either; doing both is strictly stronger and
