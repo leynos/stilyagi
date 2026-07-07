@@ -1,11 +1,9 @@
 """Tests for the IR-error adapter seam."""
 
-from __future__ import annotations
-
-import pathlib
-
 from stilyagi import diagnostics, engine, model
 from stilyagi.engine.checker import map_ir_errors
+
+from tests.support.malformed_corpus import MALFORMED_MARKDOWN_CORPUS
 
 
 def test_map_ir_errors_maps_a_synthetic_error_to_a_diagnostic() -> None:
@@ -52,7 +50,7 @@ def test_map_ir_errors_handles_empty_or_missing_ir_errors() -> None:
 
 def test_map_ir_errors_keeps_real_malformed_markdown_clean() -> None:
     """Pin the extractor's current Markdown recovery behaviour."""
-    fixture_root = pathlib.Path("tests/fixtures/corpus/markdown/malformed")
+    fixture_root = MALFORMED_MARKDOWN_CORPUS
     for fixture_path in sorted(fixture_root.iterdir()):
         if not fixture_path.is_file():
             continue

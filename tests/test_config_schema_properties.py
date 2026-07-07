@@ -19,10 +19,12 @@ def test_same_directory_precedence_is_deterministic(
     present: tuple[bool, bool, bool],
 ) -> None:
     """Always return the highest-precedence file that exists."""
+    # The filename tuple doubles as the precedence order (highest first).
     filenames = (".stilyagi.toml", "stilyagi.toml", "pyproject.toml")
-    precedence = (".stilyagi.toml", "stilyagi.toml", "pyproject.toml")
     case_dir = tmp_path / "".join("1" if exists else "0" for exists in present)
-    case_dir.mkdir()
+    # Hypothesis can replay the same present-tuple against the reused tmp_path,
+    # so the case directory may already exist.
+    case_dir.mkdir(exist_ok=True)
 
     for filename, should_exist in zip(filenames, present, strict=True):
         if not should_exist:
@@ -37,7 +39,7 @@ def test_same_directory_precedence_is_deterministic(
     discovered = config.discover_same_directory_config(case_dir)
 
     expected_name = next(
-        (name for name, exists in zip(precedence, present, strict=True) if exists), None
+        (name for name, exists in zip(filenames, present, strict=True) if exists), None
     )
     if expected_name is None:
         assert discovered is None

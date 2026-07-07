@@ -9,8 +9,6 @@ discovery and the test passes vacuously. These helpers centralise that
 suffix-stripping copy so every discovery-facing test exercises the whole corpus.
 """
 
-from __future__ import annotations
-
 import pathlib
 import typing as typ
 

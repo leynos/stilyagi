@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import dataclasses as dc
 import logging
-import os
 import pathlib
 import typing as typ
 
@@ -137,13 +136,13 @@ def _discover_explicit_file(target_path: pathlib.Path) -> DiscoveredFile | None:
 
 def _discover_directory(target_path: pathlib.Path) -> cabc.Iterator[DiscoveredFile]:
     """Yield Markdown files discovered beneath one directory target."""
-    target_text = target_path.as_posix()
-    for root, dirnames, filenames in os.walk(target_text, followlinks=False):
-        root_path = pathlib.Path(root)
+    reported_base = pathlib.PurePosixPath(target_path.as_posix())
+    for root_path, dirnames, filenames in target_path.walk(follow_symlinks=False):
         _prune_ignored_directories(root_path, dirnames)
-        reported_root = pathlib.PurePosixPath(target_text) / pathlib.PurePosixPath(
-            os.path.relpath(root, start=target_text)
+        relative_root = pathlib.PurePosixPath(
+            root_path.relative_to(target_path).as_posix()
         )
+        reported_root = reported_base / relative_root
         for filename in sorted(filenames):
             candidate = root_path / filename
             if not _is_markdown_file(candidate):

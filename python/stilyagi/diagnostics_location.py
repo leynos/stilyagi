@@ -1,7 +1,5 @@
 """Map IR byte offsets onto 1-based source locations."""
 
-from __future__ import annotations
-
 import typing as typ
 from bisect import bisect_right
 
@@ -14,6 +12,21 @@ def line_column_from_offset(
     offset: int | None,
 ) -> tuple[int, int]:
     """Return a 1-based line and column for a byte offset.
+
+    Parameters
+    ----------
+    line_index:
+        Byte offsets of the line starts, or ``None`` when the IR omits line
+        metadata. A leading zero is inferred when the sequence does not already
+        begin at offset zero.
+    offset:
+        The 0-based byte offset to locate, or ``None`` when it is unknown.
+
+    Returns
+    -------
+    tuple[int, int]
+        The 1-based ``(line, column)`` position for ``offset``. Falls back to
+        ``(1, 1)`` when the line index or offset is missing or malformed.
 
     Examples
     --------
@@ -48,7 +61,9 @@ def _normalised_line_starts(
     """
     try:
         starts = tuple(int(start) for start in line_index)
-    except TypeError, ValueError:
+    # Parenthesise the exception tuple for clarity and pre-3.14 portability;
+    # ruff format would otherwise strip the parentheses under the 3.14 target.
+    except (TypeError, ValueError):  # fmt: skip
         return None
 
     if not starts:

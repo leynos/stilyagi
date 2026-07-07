@@ -91,7 +91,18 @@ class InvalidCacheDirError(ConfigError):
 
 
 class InvalidConfigError(ConfigError):
-    """Raised when a config file contains an unsupported key."""
+    """Raised when a config file contains an unsupported or malformed value.
+
+    Parameters
+    ----------
+    path:
+        Path of the config file (or resolution target) that failed validation.
+    key:
+        The offending config key, or a category such as ``"toml"`` or
+        ``"config"`` when the failure is not tied to a single key.
+    detail:
+        Human-readable explanation of why the value was rejected.
+    """
 
     def __init__(self, path: pathlib.Path, key: str, detail: str) -> None:
         """Store the file path and key that failed validation."""

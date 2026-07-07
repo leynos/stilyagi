@@ -1,7 +1,5 @@
 """Configuration resolution helpers for Stilyagi."""
 
-from __future__ import annotations
-
 import collections.abc as cabc
 import dataclasses as dc
 import pathlib
@@ -14,7 +12,7 @@ from .load import (
     discover_same_directory_config,
 )
 from .schema import InvalidConfigError, StilyagiConfig
-from .validate import ensure_extend_value
+from .validate import _ensure_extend_value
 
 
 def _merge_config_tables(
@@ -43,7 +41,7 @@ def _normalise_extend_values(
     """Normalise the raw `extend` value to an ordered tuple of strings."""
     if value is None:
         return ()
-    validated = ensure_extend_value(value, path=path, key="extend")
+    validated = _ensure_extend_value(value, path=path, key="extend")
     if isinstance(validated, str):
         return (validated,)
     return tuple(validated)
@@ -153,7 +151,26 @@ class ConfigResolver:
         explicit_config: cabc.Iterable[str | pathlib.Path] | None,
         isolated: bool,
     ) -> StilyagiConfig:
-        """Resolve the effective config for one target path."""
+        """Resolve the effective config for one target path.
+
+        Parameters
+        ----------
+        target:
+            The file or directory whose nearest configuration is resolved.
+        cli_overrides:
+            Highest-precedence overrides from command-line flags, or ``None``.
+        explicit_config:
+            Explicit ``--config`` values (file paths or inline TOML fragments)
+            layered over the discovered config, or ``None``.
+        isolated:
+            When ``True``, skip nearest-config discovery and use only the
+            explicit config and CLI overrides.
+
+        Returns
+        -------
+        StilyagiConfig
+            The merged, validated configuration for ``target``.
+        """
         resolved_table: dict[str, object] = {}
 
         if not isolated:
@@ -251,6 +268,24 @@ def resolve_config_for_path(
     is shared across invocations. Callers that resolve many targets in one run
     should construct one :class:`ConfigResolver` and reuse it to benefit from
     its caches.
+
+    Parameters
+    ----------
+    target:
+        The file or directory whose nearest configuration is resolved.
+    cli_overrides:
+        Highest-precedence overrides from command-line flags, or ``None``.
+    explicit_config:
+        Explicit ``--config`` values (file paths or inline TOML fragments)
+        layered over the discovered config, or ``None``.
+    isolated:
+        When ``True``, skip nearest-config discovery and use only the explicit
+        config and CLI overrides.
+
+    Returns
+    -------
+    StilyagiConfig
+        The merged, validated configuration for ``target``.
     """
     return ConfigResolver().resolve_config_for_path(
         target,

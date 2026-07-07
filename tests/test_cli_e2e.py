@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-import os
-import pathlib
 import subprocess  # noqa: S404 - tests invoke a trusted local interpreter.
 import sys
+import typing as typ
 
 from tests.support.malformed_corpus import materialize_malformed_corpus
+from tests.support.subprocess_env import python_module_environment
+
+if typ.TYPE_CHECKING:
+    import pathlib
 
 
 def test_python_module_entrypoint_exits_zero_for_a_clean_markdown_tree(
@@ -57,23 +60,11 @@ def _run_check(cwd: pathlib.Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "stilyagi", "check", "."],
         cwd=cwd,
-        env=_python_module_environment(),
+        env=python_module_environment(),
         capture_output=True,
         check=False,
         text=True,
     )
-
-
-def _python_module_environment() -> dict[str, str]:
-    """Return an environment that can import the local `stilyagi` package."""
-    python_path = pathlib.Path(__file__).resolve().parents[1] / "python"
-    env = dict(os.environ)
-    env["PYTHONPATH"] = (
-        f"{python_path}{os.pathsep}{env['PYTHONPATH']}"
-        if env.get("PYTHONPATH")
-        else str(python_path)
-    )
-    return env
 
 
 def _write_markdown(path: pathlib.Path, title: str) -> None:

@@ -1,7 +1,5 @@
 """Command-line interface for Stilyagi."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 import logging
 import pathlib
@@ -148,15 +146,10 @@ def run_check(
         )
         diagnostics_list.extend(file_diagnostics)
         had_error = had_error or file_error
-        if had_error:
-            break
-
-    if had_error:
-        return 2
 
     rendered = renderer.render(diagnostics_list, options.output_format)
     print(rendered, end="")
-    return compute_exit_code(diagnostics_list)
+    return compute_exit_code(diagnostics_list, had_error=had_error)
 
 
 def compute_exit_code(

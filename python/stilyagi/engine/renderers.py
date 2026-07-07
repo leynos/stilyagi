@@ -58,7 +58,11 @@ class RendererRegistry:
             return _render_json(ordered_diagnostics)
         if effective_format == "text":
             return _render_text(ordered_diagnostics)
-        raise ValueError(effective_format)
+        message = (
+            f"unsupported output format {effective_format!r}; "
+            "choose from 'text' or 'json'"
+        )
+        raise ValueError(message)
 
 
 def _diagnostic_sort_key(

@@ -1,12 +1,10 @@
 """Failure-mode coverage for the `stilyagi check` command."""
 
-from __future__ import annotations
-
 import pathlib
 import typing as typ
 
 import pytest
-from stilyagi import cli, config, discovery, engine
+from stilyagi import cli, config, discovery, engine, model
 
 from tests.support.malformed_corpus import materialize_malformed_corpus
 
@@ -31,7 +29,9 @@ def _run_failing_check(
     captured = capsys.readouterr()
 
     assert exit_code == 2
-    assert not captured.out
+    # A hard file error still renders the (empty) accumulated diagnostics before
+    # the exit-2 signal, rather than suppressing stdout entirely.
+    assert captured.out == "0 diagnostics found\n"
     return captured.err
 
 
@@ -189,6 +189,47 @@ def test_cli_main_recovers_from_real_malformed_markdown(
     assert exit_code == 0
     assert not captured.err
     assert captured.out == "0 diagnostics found\n"
+
+
+def _synthetic_ir_extract(source: str, _syntax: object) -> model.Document:
+    """Return a document that carries one IR error for the 'warn' source only."""
+    errors = (
+        [{"code": "IR900", "message": "synthetic", "span": {"byte_start": 0}}]
+        if "WARN" in source
+        else []
+    )
+    return model.Document(
+        syntax=model.Syntax.MARKDOWN,
+        ir={"line_index": [0, 8], "errors": errors},
+    )
+
+
+def test_cli_main_checks_every_file_and_renders_earlier_diagnostics_on_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A mid-batch failure must not stop earlier diagnostics or later files."""
+    root = tmp_path / "docs"
+    root.mkdir()
+    (root / "a-clean.md").write_text("# Clean\n", encoding="utf-8")
+    (root / "b-warn.md").write_text("WARN\n", encoding="utf-8")
+    # Sorted discovery order puts the unreadable file last, so the earlier warn
+    # diagnostic is accumulated before the failure is encountered.
+    (root / "c-broken.md").write_bytes(b"\xff")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(engine, "extract_document", _synthetic_ir_extract)
+
+    exit_code = cli.main(["check", "."])
+    captured = capsys.readouterr()
+
+    # The unreadable file forces exit 2, yet the earlier file's diagnostic is
+    # still rendered and the clean file did not short-circuit the batch.
+    assert exit_code == 2
+    assert "docs/b-warn.md:1:1: error IR900 synthetic" in captured.out
+    assert "1 diagnostic found" in captured.out
+    assert "failed to read" in captured.err
+    assert "c-broken.md" in captured.err
 
 
 def _stub_discovery(

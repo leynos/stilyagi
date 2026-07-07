@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import io
-import os
-import pathlib
 import subprocess  # noqa: S404 - tests invoke a trusted local interpreter.
 import sys
 import typing as typ
 
 from stilyagi import cli, diagnostics
 
+from tests.support.subprocess_env import python_module_environment
+
 if typ.TYPE_CHECKING:
+    import pathlib
+
     import pytest
 
 
@@ -55,7 +57,7 @@ def test_python_module_entrypoint_reads_clean_stdin_and_exits_zero(
             "README.md",
         ],
         cwd=tmp_path,
-        env=_python_module_environment(),
+        env=python_module_environment(),
         input="# Notes\n",
         capture_output=True,
         check=False,
@@ -82,7 +84,7 @@ def test_python_module_entrypoint_rejects_stdin_mixed_with_path(
             "notes.md",
         ],
         cwd=tmp_path,
-        env=_python_module_environment(),
+        env=python_module_environment(),
         input="# Notes\n",
         capture_output=True,
         check=False,
@@ -91,15 +93,3 @@ def test_python_module_entrypoint_rejects_stdin_mixed_with_path(
 
     assert completed.returncode == 2
     assert "stdin target cannot be combined with file targets" in completed.stderr
-
-
-def _python_module_environment() -> dict[str, str]:
-    """Return an environment that can import the local `stilyagi` package."""
-    python_path = pathlib.Path(__file__).resolve().parents[1] / "python"
-    env = dict(os.environ)
-    env["PYTHONPATH"] = (
-        f"{python_path}{os.pathsep}{env['PYTHONPATH']}"
-        if env.get("PYTHONPATH")
-        else str(python_path)
-    )
-    return env

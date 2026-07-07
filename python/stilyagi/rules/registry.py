@@ -6,17 +6,16 @@ replace the empty list with real rule diagnostics without changing the
 composition flow.
 """
 
-from __future__ import annotations
-
 import typing as typ
 
 if typ.TYPE_CHECKING:
     from stilyagi import diagnostics, model
+    from stilyagi.config import StilyagiConfig
 
 
 def run_rules(
-    document: model.Document,
-    config: object,
+    _document: model.Document,
+    _config: StilyagiConfig,
 ) -> list[diagnostics.Diagnostic]:
     """Return no diagnostics until the rule engine lands.
 

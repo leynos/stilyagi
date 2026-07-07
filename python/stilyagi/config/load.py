@@ -16,12 +16,12 @@ from .schema import (
     StilyagiConfig,
 )
 from .validate import (
-    ensure_bool,
-    ensure_extend_value,
-    ensure_int,
-    ensure_mapping,
-    ensure_string,
-    ensure_string_sequence,
+    _ensure_bool,
+    _ensure_extend_value,
+    _ensure_int,
+    _ensure_mapping,
+    _ensure_string,
+    _ensure_string_sequence,
 )
 
 _SUPPORTED_DIRECTORY_FILENAMES = (
@@ -62,7 +62,7 @@ def _parse_lint_config(
         raise InvalidConfigError(path, "lint.per-file-ignores", "must be a mapping")
 
     per_file_ignores = {
-        str(file_name): ensure_string_sequence(
+        str(file_name): _ensure_string_sequence(
             rule_codes,
             path=path,
             key=f"lint.per-file-ignores.{file_name}",
@@ -71,19 +71,21 @@ def _parse_lint_config(
     }
 
     return LintConfig(
-        select=ensure_string_sequence(
+        select=_ensure_string_sequence(
             table.get("select", ("MD", "DOC", "PUN", "STY", "PYDOC")),
             path=path,
             key="lint.select",
         ),
-        ignore=ensure_string_sequence(
+        ignore=_ensure_string_sequence(
             table.get("ignore", ()), path=path, key="lint.ignore"
         ),
-        preview=ensure_bool(table.get("preview", False), path=path, key="lint.preview"),
-        fixable=ensure_string_sequence(
+        preview=_ensure_bool(
+            table.get("preview", False), path=path, key="lint.preview"
+        ),
+        fixable=_ensure_string_sequence(
             table.get("fixable", ("ALL",)), path=path, key="lint.fixable"
         ),
-        unfixable=ensure_string_sequence(
+        unfixable=_ensure_string_sequence(
             table.get("unfixable", ()), path=path, key="lint.unfixable"
         ),
         per_file_ignores=per_file_ignores,
@@ -116,15 +118,15 @@ def _parse_extract_config(
         raise InvalidConfigError(path, key, "is not supported")
 
     return MarkdownExtractConfig(
-        gfm=ensure_bool(
+        gfm=_ensure_bool(
             markdown.get("gfm", True), path=path, key="extract.markdown.gfm"
         ),
-        frontmatter=ensure_bool(
+        frontmatter=_ensure_bool(
             markdown.get("frontmatter", True),
             path=path,
             key="extract.markdown.frontmatter",
         ),
-        mdx=ensure_bool(
+        mdx=_ensure_bool(
             markdown.get("mdx", False), path=path, key="extract.markdown.mdx"
         ),
     )
@@ -142,10 +144,10 @@ def _parse_nlp_config(
         raise InvalidConfigError(path, key, "is not supported")
 
     return NlpConfig(
-        model=ensure_string(
+        model=_ensure_string(
             table.get("model", "en_core_web_sm"), path=path, key="nlp.model"
         ),
-        sentence_provider=ensure_string(
+        sentence_provider=_ensure_string(
             table.get("sentence-provider", "sentencizer"),
             path=path,
             key="nlp.sentence-provider",
@@ -194,15 +196,15 @@ def _parse_config_table(
 
     return StilyagiConfig(
         cache_dir=_parse_cache_dir(table, path=path),
-        respect_gitignore=ensure_bool(
+        respect_gitignore=_ensure_bool(
             table.get("respect-gitignore", True),
             path=path,
             key="respect-gitignore",
         ),
-        line_length=ensure_int(
+        line_length=_ensure_int(
             table.get("line-length", 88), path=path, key="line-length"
         ),
-        plugins=ensure_string_sequence(
+        plugins=_ensure_string_sequence(
             table.get("plugins", ("builtin",)), path=path, key="plugins"
         ),
         lint=sections.lint,
@@ -231,17 +233,17 @@ def _parse_config_sections(
     """Parse the typed sub-tables of one config namespace."""
     return _ParsedSections(
         lint=_parse_lint_config(
-            ensure_mapping(table.get("lint", {}), path=path, key="lint"), path=path
+            _ensure_mapping(table.get("lint", {}), path=path, key="lint"), path=path
         ),
         extract=_parse_extract_config(
-            ensure_mapping(table.get("extract", {}), path=path, key="extract"),
+            _ensure_mapping(table.get("extract", {}), path=path, key="extract"),
             path=path,
         ),
         nlp=_parse_nlp_config(
-            ensure_mapping(table.get("nlp", {}), path=path, key="nlp"), path=path
+            _ensure_mapping(table.get("nlp", {}), path=path, key="nlp"), path=path
         ),
         rules=_parse_rule_tables(
-            ensure_mapping(table.get("rule", {}), path=path, key="rule"),
+            _ensure_mapping(table.get("rule", {}), path=path, key="rule"),
             path=path,
         ),
     )
@@ -269,7 +271,7 @@ def _build_reserved_table(
 ) -> dict[str, object]:
     """Preserve raw values that later slices will interpret."""
     reserved: dict[str, object] = {
-        "line-length": ensure_int(
+        "line-length": _ensure_int(
             table.get("line-length", 88), path=path, key="line-length"
         ),
         "lint": sections.lint.reserved,
@@ -277,7 +279,7 @@ def _build_reserved_table(
         "rule": sections.rules,
     }
     if "extend" in table:
-        reserved["extend"] = ensure_extend_value(
+        reserved["extend"] = _ensure_extend_value(
             table["extend"], path=path, key="extend"
         )
     return reserved
@@ -286,10 +288,8 @@ def _build_reserved_table(
 def _load_toml(path: pathlib.Path) -> cabc.Mapping[str, object]:
     """Load a TOML file into a mapping.
 
-    A missing file propagates as ``FileNotFoundError`` so that callers can add
-    the appropriate context, while any other read failure (a directory, a
-    permission error) is converted into a typed ``InvalidConfigError`` rather
-    than letting a raw ``OSError`` traceback escape.
+    A missing file propagates as ``FileNotFoundError``; any other read failure
+    (a directory, permission denied) becomes a typed ``InvalidConfigError``.
     """
     try:
         with path.open("rb") as handle:
@@ -303,9 +303,8 @@ def _load_toml(path: pathlib.Path) -> cabc.Mapping[str, object]:
 def _read_config_document(path: pathlib.Path) -> cabc.Mapping[str, object]:
     """Read one TOML config file, mapping load failures to typed errors.
 
-    Centralising the read keeps the ``FileNotFoundError`` and
-    ``TOMLDecodeError`` handling identical for both explicit config paths and
-    discovered candidate files.
+    Centralises ``FileNotFoundError`` and ``TOMLDecodeError`` handling for both
+    explicit config paths and discovered candidate files.
     """
     try:
         return _load_toml(path)
@@ -352,13 +351,38 @@ def _has_supported_content(
 
 
 def load_config_file(path: pathlib.Path) -> StilyagiConfig:
-    """Load a single supported config file."""
+    """Load and parse a single supported config file.
+
+    Parameters
+    ----------
+    path:
+        Path to a ``.stilyagi.toml``, ``stilyagi.toml``, or ``pyproject.toml``
+        file. The Stilyagi namespace is selected according to the file kind.
+
+    Returns
+    -------
+    StilyagiConfig
+        The parsed, validated configuration.
+    """
     config_table = _load_config_table(path)
     return _parse_config_table(config_table, path=path)
 
 
 def discover_same_directory_config(directory: pathlib.Path) -> LoadedConfig | None:
-    """Return the highest-precedence config file in a directory, if any."""
+    """Return the highest-precedence config file in one directory, if any.
+
+    Parameters
+    ----------
+    directory:
+        Directory searched for the supported config filenames in precedence
+        order (``.stilyagi.toml``, ``stilyagi.toml``, ``pyproject.toml``).
+
+    Returns
+    -------
+    LoadedConfig | None
+        The path and parsed config of the highest-precedence supported file
+        present, or ``None`` when the directory holds no Stilyagi config.
+    """
     for filename in _SUPPORTED_DIRECTORY_FILENAMES:
         candidate = directory / filename
         if not candidate.is_file():
