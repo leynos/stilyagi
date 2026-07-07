@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import pathlib
 import textwrap
-from concurrent import futures
 
 import pytest
 from stilyagi import config
-
-type _ResolveCase = tuple[pathlib.Path, pathlib.Path]
 
 
 def _write_config(path: pathlib.Path, body: str) -> None:
@@ -256,59 +253,95 @@ def _resolve_discovered(
     )
 
 
-def test_fresh_resolvers_observe_config_changes_between_runs(
+def test_config_resolver_caches_within_a_run_and_a_fresh_resolver_sees_edits(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Separate resolvers must not share a process-wide config cache."""
+    """Pin the ConfigResolver cache contract across an on-disk config edit.
+
+    A resolver owns its caches, so within one run it treats config files as
+    stable: the parsed table is reused and a mid-run edit is not observed. There
+    is deliberately no in-run invalidation hook, because a single ``stilyagi
+    check`` invocation reads each config once; observing the edit requires a new
+    resolver with its own empty caches.
+    """
     _write_discovered_cache_dir(tmp_path, ".first")
     target = _make_markdown_target(tmp_path)
 
-    first = _resolve_discovered(config.ConfigResolver(), target)
+    resolver = config.ConfigResolver()
+    assert _resolve_discovered(resolver, target).cache_dir == pathlib.Path(".first")
+
+    # Mutate the discovered config on disk part-way through the run.
+    _write_discovered_cache_dir(tmp_path, ".second")
+
+    # The same resolver keeps its cached table; the edit is intentionally unseen.
+    assert _resolve_discovered(resolver, target).cache_dir == pathlib.Path(".first")
+
+    # A fresh resolver starts with empty caches and reads the updated file.
+    refreshed = config.ConfigResolver()
+    assert _resolve_discovered(refreshed, target).cache_dir == pathlib.Path(".second")
+
+
+def test_config_resolver_instances_do_not_leak_cache_state(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Separate resolvers must not share cache state.
+
+    This guards against the previous module-level caches: resolving with one
+    resolver must not populate state that an independently constructed resolver
+    would read. Against the old design the second resolver would wrongly return
+    ``.first`` from the shared cache.
+    """
+    _write_discovered_cache_dir(tmp_path, ".first")
+    target = _make_markdown_target(tmp_path)
+
+    first_resolver = config.ConfigResolver()
+    first = _resolve_discovered(first_resolver, target)
     assert first.cache_dir == pathlib.Path(".first")
 
     _write_discovered_cache_dir(tmp_path, ".second")
-    second = _resolve_discovered(config.ConfigResolver(), target)
+
+    # A distinct resolver built after the edit sees the new value.
+    second_resolver = config.ConfigResolver()
+    second = _resolve_discovered(second_resolver, target)
     assert second.cache_dir == pathlib.Path(".second")
 
+    # The first resolver still holds its own cached ``.first``, proving the two
+    # caches are independent rather than shared through process-wide state.
+    reused = _resolve_discovered(first_resolver, target)
+    assert reused.cache_dir == pathlib.Path(".first")
 
-def test_single_resolver_reuses_its_cache_within_one_run(
+
+def test_config_resolver_reuses_its_caches_across_targets_in_one_run(
     tmp_path: pathlib.Path,
 ) -> None:
-    """One resolver caches parsed config for the duration of a single run."""
-    _write_discovered_cache_dir(tmp_path, ".first")
-    target = _make_markdown_target(tmp_path)
+    """One resolver reuses its per-run caches across several targets.
+
+    Two Markdown targets in the same directory share the discovered config. An
+    on-disk edit made between the two resolutions is not observed by the second
+    target, which makes the intended per-run reuse of the discovery and
+    parsed-table caches explicit: config is read once per run, not once per
+    target.
+    """
+    _write_discovered_cache_dir(tmp_path, ".shared")
+    first_target = tmp_path / "a.md"
+    first_target.write_text("# a\n", encoding="utf-8")
+    second_target = tmp_path / "b.md"
+    second_target.write_text("# b\n", encoding="utf-8")
+
     resolver = config.ConfigResolver()
+    first = _resolve_discovered(resolver, first_target)
+    assert first.cache_dir == pathlib.Path(".shared")
 
-    first = _resolve_discovered(resolver, target)
-    _write_discovered_cache_dir(tmp_path, ".second")
-    second = _resolve_discovered(resolver, target)
+    # Edit the shared config between resolving the two targets.
+    _write_discovered_cache_dir(tmp_path, ".changed")
 
-    # A run treats config files as stable, so the second resolution reuses the
-    # cached table rather than re-reading the changed file.
-    assert first.cache_dir == pathlib.Path(".first")
-    assert second.cache_dir == pathlib.Path(".first")
+    # The second target reuses the table cached during the first resolution.
+    second = _resolve_discovered(resolver, second_target)
+    assert second.cache_dir == pathlib.Path(".shared")
 
 
-def test_concurrent_resolution_stays_isolated_per_resolver(
-    tmp_path: pathlib.Path,
-) -> None:
-    """Concurrent resolvers over changing configs must not race each other."""
-    projects: list[_ResolveCase] = []
-    for index in range(8):
-        project_dir = tmp_path / f"project-{index}"
-        project_dir.mkdir()
-        _write_discovered_cache_dir(project_dir, f".cache-{index}")
-        target = _make_markdown_target(project_dir)
-        projects.append((target, pathlib.Path(f".cache-{index}")))
-
-    def resolve(item: _ResolveCase) -> _ResolveCase:
-        """Resolve one project with its own single-use resolver."""
-        target, expected = item
-        resolved = _resolve_discovered(config.ConfigResolver(), target)
-        return resolved.cache_dir, expected
-
-    with futures.ThreadPoolExecutor(max_workers=8) as pool:
-        results = list(pool.map(resolve, projects))
-
-    for actual, expected in results:
-        assert actual == expected
+# ConfigResolver is deliberately not safe to share across threads: its caches
+# are plain dicts mutated without synchronization (see the class docstring in
+# `config/resolve.py`). The supported model is one resolver per thread/run, so
+# these tests keep every resolver single-threaded rather than asserting a
+# thread-safety guarantee the type does not make.

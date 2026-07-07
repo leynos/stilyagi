@@ -389,7 +389,18 @@ discovery pass.
   discovery and resolved-table caches so one `run_check` invocation reuses
   parsed config across many targets while leaking no state between runs. The
   module-level `resolve_config_for_path` wraps a fresh single-use resolver for
-  callers that resolve only one target.
+  callers that resolve only one target. The cache contract is deliberate and
+  narrow:
+  - Caches belong to the instance; separate resolvers never share state, so the
+    former process-wide caches cannot leak a stale table into an unrelated run.
+  - Within a run, config files are treated as stable: a file is read and parsed
+    once and reused for every target, so an on-disk edit made mid-run is not
+    observed. There is no in-run invalidation hook because a single
+    `stilyagi check` invocation reads each config once; observing an edit
+    requires constructing a new resolver.
+  - A single `ConfigResolver` is not safe to share across threads (its caches
+    are unsynchronized dicts). The supported model is one resolver per run, so
+    concurrent work should give each thread its own resolver.
 - `config/schema.py` holds the frozen config dataclasses (`StilyagiConfig`,
   `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
   `ConfigError` base class, with `InvalidCacheDirError` and `InvalidConfigError`
