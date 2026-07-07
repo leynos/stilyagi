@@ -142,15 +142,14 @@ repository-root discovery in each crate. Python docstring tests should assert
 real extraction behaviour. Rust documentation-comment tests should assert real
 extraction behaviour, including owner metadata and recoverable parse errors.
 
-
 ### The `.md.fixture` corpus convention
 
 Because `stilyagi check` discovers only `.md` and `.markdown` files, any test
 that exercises discovery must strip the trailing `.fixture` suffix when
-materialising fixtures into a temporary tree; otherwise the fixtures are
+materializing fixtures into a temporary tree; otherwise the fixtures are
 invisible to discovery and the test passes vacuously.
 
-The shared helper `tests/support/malformed_corpus.py` centralises this:
+The shared helper `tests/support/malformed_corpus.py` centralizes this:
 `materialize_malformed_corpus(destination)` copies each fixture from
 `tests/fixtures/corpus/markdown/malformed/` into `destination` under its
 discoverable name (suffix stripped), and returns the sorted tuple of
@@ -334,7 +333,6 @@ generated prefix and suffix.
 
 <!-- markdownlint-enable MD001 -->
 
-
 ## 2b. The `stilyagi check` pipeline
 
 The `check` command is the first end-to-end pipeline that crosses the
@@ -342,14 +340,12 @@ Rust–Python boundary for a user-facing operation. Understanding its seams
 helps maintainers add steps, insert new collaborators, and write tests at the
 right level.
 
-
 ### Entry point
 
 `cli.py` `main()` builds the argument parser via `cli_args.build_parser()`,
 parses the arguments into an immutable `CheckOptions` via
 `cli_args.options_from_args()`, and then calls
 `run_check(options, *, resolver=None, renderer=None)`.
-
 
 ### Collaborator injection
 
@@ -359,7 +355,6 @@ Because both are created inside the call, no configuration cache is shared
 between separate `run_check` invocations. Passing pre-constructed collaborators
 is the intended seam for tests that need to inspect or stub out either
 collaborator.
-
 
 ### Discovery
 
@@ -384,7 +379,6 @@ current working directory rather than for each individual file, so `--isolated`,
 explicit `--config` values, and CLI rule overrides all stay in force during the
 discovery pass.
 
-
 ### Configuration loading and resolution
 
 - `config/load.py` loads and validates individual config files
@@ -401,7 +395,6 @@ discovery pass.
   `ConfigError` base class, with `InvalidCacheDirError` and `InvalidConfigError`
   as typed subclasses.
 - `config/validate.py` holds the boundary type validators.
-
 
 ### Diagnostics
 
@@ -420,7 +413,6 @@ sources:
 positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 `Severity` enum.
 
-
 ### Rendering
 
 `engine/renderers.py` `RendererRegistry.render(diagnostics, output_format)`
@@ -431,7 +423,6 @@ sorts diagnostics by path, location, and code, then renders either:
 - a stable JSON document.
 
 Unknown format strings raise `ValueError`.
-
 
 ### Exit codes
 

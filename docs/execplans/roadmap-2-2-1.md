@@ -34,7 +34,7 @@ the two remaining blocking defects from the saved Round-1 adversarial review
 rounds left open — defect 2 (the incomplete enumeration of skeleton tests broken
 by the W4 diagnostic/renderer reshape, which would leave a red gate at the W4
 commit) and defect 3 (the mischaracterised, non-hermetic `cli.main()` snapshot
-test and its stored artifact) — and landed the review's six advisories (file
+test and its stored artefact) — and landed the review's six advisories (file
 failure modes, `Document.ir is None`, the JSON `path` form, the `sarif` error
 message, the fate of `NodeRef`/`Fix`, and `--config` inline-vs-path
 disambiguation). See the Revision note. (Round 1 decomposed the task; round 2
@@ -175,7 +175,7 @@ Key existing surfaces this plan builds on:
   `tests/__snapshots__/test_round_trip_helpers/test_cli_placeholder_output_matches_snapshot.json`,
   verified present this worktree). W5 redefines **both** to pass an explicit
   `argv` against a `tmp_path` tree (hermetic; never the repo CWD) and accounts for
-  the stored snapshot artifact (regenerate for the new hermetic output, or delete
+  the stored snapshot artefact (regenerate for the new hermetic output, or delete
   it and drop `test_cli_placeholder_output_matches_snapshot`, replacing its
   coverage with the W5 `text`/`json` renderer snapshots). This closes Round-1
   review defect 3.
@@ -532,11 +532,11 @@ escalation, not a workaround.
   W4 updates that test to also assert the new `render` behaviour. Date/Author:
   2026-07-04 (round 4). Closes part of review defect 2.
 - Decision (round 4): The user-facing `path` in both `text` and `json` output is
-  the target path **as supplied on the command line, normalised to POSIX
+  the target path **as supplied on the command line, normalized to POSIX
   separators**, not an absolute or `resolve()`d path. For discovered files it is
   the path relative to the invocation directory (the join of the target argument
   and the walk-relative sub-path); for an explicitly named file it is that
-  argument verbatim (POSIX-normalised); for stdin it is the `--stdin-filename`
+  argument verbatim (POSIX-normalized); for stdin it is the `--stdin-filename`
   value or `<stdin>`.
   Rationale: Absolute paths churn snapshots and leak the runner's home directory;
   CWD-relative POSIX paths are stable, reproducible across machines, and match how
@@ -753,7 +753,7 @@ Add `python/stilyagi/discovery.py`:
   Order internally by the resolved path so ordering is stable across platforms,
   but retain, for each file, the **command-line-relative POSIX path** used for
   reporting (per the round-4 Decision Log entry on the reported `path` form): the
-  join of the target argument and the walk-relative sub-path, normalised to POSIX
+  join of the target argument and the walk-relative sub-path, normalized to POSIX
   separators. `discover_markdown_files` returns a `list[DiscoveredFile]` whose
   elements each carry both `reported_path` and `resolved_path`, so W5 can report
   the stable relative form while de-duplicating/ordering on the resolved form.
@@ -772,7 +772,7 @@ Tests (Red first):
   each returned file exposes both its resolved path and its command-line-relative
   POSIX reported path.
 - `tests/test_discovery_properties.py` (property, `hypothesis`): for any set of
-  generated relative Markdown paths materialised under a temporary root, the
+  generated relative Markdown paths materialized under a temporary root, the
   `resolved_path` values of the returned `list[DiscoveredFile]` equal the input
   set sorted by resolved path (total order, no duplicates, deterministic
   regardless of filesystem enumeration order), and each element's `reported_path`
@@ -1035,7 +1035,7 @@ Tests (Red first):
     directory.
   - `tests/test_round_trip_helpers.py::test_cli_placeholder_output_matches_snapshot`:
     this is a `syrupy` snapshot of `{exit_code, stdout, stderr}` whose stored
-    artifact lives at
+    artefact lives at
     `tests/__snapshots__/test_round_trip_helpers/test_cli_placeholder_output_matches_snapshot.json`.
     Either (preferred) **delete** the test and its stored snapshot file, since the
     W4 `tests/test_renderers.py` snapshots now pin the real `text`/`json` output
@@ -1043,7 +1043,7 @@ Tests (Red first):
     `tmp_path` tree and **regenerate** the stored snapshot (`pytest
     --snapshot-update` scoped to that test) so it captures the new deterministic
     output. Do not leave the stale placeholder snapshot on disk. Account for the
-    artifact explicitly in the commit (deleted or regenerated), not implicitly.
+    artefact explicitly in the commit (deleted or regenerated), not implicitly.
 
 Acceptance: the BDD scenarios fail before implementation and pass after; unit
 and e2e tests Red→Green; the deterministic commit gates `make check-fmt`,
@@ -1337,11 +1337,11 @@ open, plus the six advisories:
    gate is never red.
 2. **Mischaracterised, non-hermetic `cli.main()` snapshot test (review defect 3).**
    `tests/test_round_trip_helpers.py::test_cli_placeholder_output_matches_snapshot`
-   is a `syrupy` snapshot (not a `== 2` assertion) with a stored artifact at
+   is a `syrupy` snapshot (not a `== 2` assertion) with a stored artefact at
    `tests/__snapshots__/test_round_trip_helpers/test_cli_placeholder_output_matches_snapshot.json`.
    W5 now redefines **both** no-arg `cli.main()` tests to pass an explicit `argv`
    against a `tmp_path` tree (never the repo CWD) and explicitly deletes or
-   regenerates the stored snapshot artifact.
+   regenerates the stored snapshot artefact.
 
 Advisories landed: file failure modes (non-UTF-8/permission/removed/symlink cycle
 → exit `2` or non-following recursion, new `tests/test_check_files.py`);
@@ -1353,7 +1353,7 @@ tested. Updated: header, Context (three new/expanded bullets), Risks (two new),
 Decision Log (seven round-4 entries), W2 (`--config` classification + test), W3
 (symlink non-following + dual reported/resolved path), W4 (enumerated test edits,
 `ir is None`, path-form assertions, `sarif` message), and W5 (file-failure
-handler, hermetic test redefinition, snapshot-artifact handling).
+handler, hermetic test redefinition, snapshot-artefact handling).
 
 Round 5 (2026-07-06) — corrects the validation/gate story after re-verifying the
 worktree Makefile and AGENTS.md; no work-item mechanism changed:

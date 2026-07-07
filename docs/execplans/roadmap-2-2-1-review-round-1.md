@@ -87,12 +87,11 @@ affected tests/snapshots. Branch-local facts verified by file inspection.
 
 ---
 
-
 ## Re-review (fresh adversarial pass over the round-5 plan, 2026-07-06)
 
 The four original blocking defects above are all resolved in the current draft
 (gate story corrected to the four distinct targets; W4 in-lockstep test edits
-enumerated; the snapshot artifact accounted for; the schema now accepts and
+enumerated; the snapshot artefact accounted for; the schema now accepts and
 preserves the whole RFC 0003 §6 baseline). All six advisories are landed.
 
 Re-verified against real source this pass: `Makefile:38-54,114-146`;
