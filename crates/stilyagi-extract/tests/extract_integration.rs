@@ -10,6 +10,8 @@ mod ir_identity;
 mod markdown_suppression_bdd;
 #[path = "extract/python_docstring_bdd.rs"]
 mod python_docstring_bdd;
+#[path = "extract/region_vocabulary.rs"]
+mod region_vocabulary;
 #[path = "extract/rust_doc_comment_bdd.rs"]
 mod rust_doc_comment_bdd;
 #[path = "extract/spelling_display.rs"]

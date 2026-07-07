@@ -143,7 +143,12 @@ escalation, not a workaround.
 - [x] Work item 1: `stilyagi-ir` is the single source of truth for shared bridge
       spellings; `stilyagi_extract::RegionKind` forwards to it and gains
       `ALL` + an `ir_region_kind` mapping.
-- [ ] Work item 2: exhaustive + behavioural cross-check test proves every
+- [x] 2026-07-07: Work item 2 implemented. Added the registered
+      `region_vocabulary` integration test, filled the `RustDocComment`
+      spelling-display coverage gap, and captured both required drift
+      demonstrations. Deterministic gates passed after one style fix, and
+      `coderabbit review --agent` completed with zero findings.
+- [x] Work item 2: exhaustive + behavioural cross-check test proves every
       extract-emitted region kind is in the IR vocabulary (bar the documented
       `document` exception); fill the pre-existing `RustDocComment` coverage gap.
 - [ ] Work item 3 (recommended hardening): replace the hand-written
@@ -183,6 +188,50 @@ escalation, not a workaround.
   continuing.
   Impact: a future edit that reintroduces divergent local spellings in extract
   is caught by a named guard.
+- Observation: `RegionKind` is `#[non_exhaustive]`, so external integration
+  tests cannot exhaustively match all variants without a wildcard.
+  Evidence: the first Work item 2 focused compile failed in
+  `crates/stilyagi-extract/tests/extract/region_vocabulary.rs` with
+  `E0004: non-exhaustive patterns: &_ not covered` when matching
+  `RegionKind::Document | RegionKind::PythonDocstring |
+  RegionKind::RustDocComment`.
+  Impact: the integration cross-check now uses the public
+  `RegionKind::ir_region_kind()` mapping and a direct equality check for the
+  `Document` exception, preserving the invariant without depending on an
+  externally exhaustive match.
+- Observation: Work item 2's first full gate run caught local style issues in
+  the new `region_vocabulary` integration test before CodeRabbit review.
+  Evidence: `make check-fmt` reported rustfmt wrapping drift at
+  `crates/stilyagi-extract/tests/extract/region_vocabulary.rs:35`, and
+  `make lint` reported Clippy `single_match_else` at line 11. The test was
+  reshaped to use `if let` for the mapped IR kind and rustfmt-compatible
+  assertion wrapping.
+  Impact: this stayed within the first fix attempt for Work item 2 and did not
+  alter the tested invariant.
+- Observation: the Work item 2 tree-sitter drift demonstration fails at the new
+  behavioural cross-check, as intended.
+  Evidence: after temporarily changing
+  `crates/stilyagi-tree-sitter/src/python/mod.rs` from
+  `kind: "python_docstring".to_owned()` to `kind: "python_doc".to_owned()`, the
+  focused command
+  `cargo test -p stilyagi-extract extracted_ir_regions_use_only_the_shared_vocabulary`
+  failed with
+  `region_vocabulary::extracted_ir_regions_use_only_the_shared_vocabulary::case_1_python_docstrings`;
+  the Rust doc-comment case passed. The temporary mutation was reverted before
+  continuing.
+  Impact: a producer-side typo in emitted IR region spellings is caught before
+  it can silently cross the extract boundary.
+- Observation: the Work item 2 `document` exception demonstration fails at the
+  new static cross-check, as intended.
+  Evidence: after temporarily changing the bridge-only `Document` spelling in
+  `stilyagi_extract::RegionKind::as_str` from `document` to `paragraph`, the
+  focused command
+  `cargo test -p stilyagi-extract every_shared_bridge_kind_is_an_ir_kind`
+  failed with `region_vocabulary::every_shared_bridge_kind_is_an_ir_kind`; the
+  assertion expected `stilyagi_ir::RegionKind::try_from(kind.as_str())` to be
+  `Err`. The temporary mutation was reverted before continuing.
+  Impact: a future change that makes the bridge-only `Document` kind collide
+  with the canonical IR vocabulary is caught by a named guard.
 - Observation: `stilyagi-extract`'s own spelling test coverage is already
   incomplete — `region_kind_as_str_round_trips_through_try_from` and the
   display/`as_str` cases in
@@ -218,11 +267,13 @@ escalation, not a workaround.
   execution approval required by the `execplans` skill.
   Date/Author: 2026-07-07, implementation agent.
 - Decision: do not add a property test for Work item 1's closed
-  `RegionKind::ALL` invariant.
+  `RegionKind::ALL` invariant or Work item 2's static bridge-kind
+  cross-check.
   Rationale: the verification skill routes input-space gaps to `proptest`, but
   this invariant is over a closed enum set. The exhaustive `ALL` iteration plus
-  compile-time non-wildcard match gives the necessary coverage with less
-  machinery.
+  compile-time non-wildcard match in crate-private tests and the public
+  `ir_region_kind()` mapping in integration tests give the necessary coverage
+  with less machinery.
   Date/Author: 2026-07-07, implementation agent.
 - Decision: implement *both* allowed mechanisms — single source of truth (Work
   item 1) and a cross-checking drift test (Work item 2) — rather than only one.

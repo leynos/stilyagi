@@ -56,6 +56,7 @@ fn syntax_display_matches_as_str(
 #[rstest]
 #[case(RegionKind::Document, ExpectedSpelling::Document)]
 #[case(RegionKind::PythonDocstring, ExpectedSpelling::PythonDocstringRegion)]
+#[case(RegionKind::RustDocComment, ExpectedSpelling::RustDocComment)]
 fn region_kind_as_str_returns_the_expected_spelling(
     #[case] kind: RegionKind,
     #[case] expected: ExpectedSpelling,
@@ -66,6 +67,7 @@ fn region_kind_as_str_returns_the_expected_spelling(
 #[rstest]
 #[case("document", RegionKind::Document)]
 #[case("python_docstring", RegionKind::PythonDocstring)]
+#[case("rust_doc_comment", RegionKind::RustDocComment)]
 fn region_kind_try_from_accepts_the_expected_spelling(
     #[case] input: &str,
     #[case] expected: RegionKind,
@@ -76,6 +78,7 @@ fn region_kind_try_from_accepts_the_expected_spelling(
 #[rstest]
 #[case(RegionKind::Document, ExpectedSpelling::Document)]
 #[case(RegionKind::PythonDocstring, ExpectedSpelling::PythonDocstringRegion)]
+#[case(RegionKind::RustDocComment, ExpectedSpelling::RustDocComment)]
 fn region_kind_display_matches_as_str(
     #[case] kind: RegionKind,
     #[case] expected: ExpectedSpelling,
@@ -86,6 +89,7 @@ fn region_kind_display_matches_as_str(
 #[rstest]
 #[case(RegionKind::Document)]
 #[case(RegionKind::PythonDocstring)]
+#[case(RegionKind::RustDocComment)]
 fn region_kind_as_str_round_trips_through_try_from(#[case] kind: RegionKind) {
     assert_eq!(RegionKind::try_from(kind.as_str()), Ok(kind));
 }
@@ -93,6 +97,7 @@ fn region_kind_as_str_round_trips_through_try_from(#[case] kind: RegionKind) {
 #[rstest]
 #[case("document")]
 #[case("python_docstring")]
+#[case("rust_doc_comment")]
 fn region_kind_try_from_round_trips_through_as_str(#[case] spelling: &str) {
     let kind = RegionKind::try_from(spelling)
         .unwrap_or_else(|_| panic!("expected '{spelling}' to be a valid RegionKind"));
