@@ -393,6 +393,8 @@ discovery pass.
   narrow:
   - Caches belong to the instance; separate resolvers never share state, so the
     former process-wide caches cannot leak a stale table into an unrelated run.
+  - Nearest-config discovery hands its raw table to the resolver, so a config
+    file found while walking ancestors is not read again when it is resolved.
   - Within a run, config files are treated as stable: a file is read and parsed
     once and reused for every target, so an on-disk edit made mid-run is not
     observed. There is no in-run invalidation hook because a single

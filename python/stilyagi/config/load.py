@@ -33,10 +33,14 @@ _SUPPORTED_DIRECTORY_FILENAMES = (
 
 @dc.dataclass(frozen=True, slots=True)
 class LoadedConfig:
-    """A config file path together with its parsed configuration."""
+    """A config path with its parsed config and raw pre-parse table.
+
+    ``raw_table`` lets a caller reuse the read from discovery, not re-read it.
+    """
 
     path: pathlib.Path
     config: StilyagiConfig
+    raw_table: cabc.Mapping[str, object] = dc.field(default_factory=dict)
 
 
 def _parse_lint_config(
@@ -301,11 +305,7 @@ def _load_toml(path: pathlib.Path) -> cabc.Mapping[str, object]:
 
 
 def _read_config_document(path: pathlib.Path) -> cabc.Mapping[str, object]:
-    """Read one TOML config file, mapping load failures to typed errors.
-
-    Centralises ``FileNotFoundError`` and ``TOMLDecodeError`` handling for both
-    explicit config paths and discovered candidate files.
-    """
+    """Read one TOML config file, mapping load failures to typed errors."""
     try:
         return _load_toml(path)
     except FileNotFoundError as exc:
@@ -390,10 +390,10 @@ def discover_same_directory_config(directory: pathlib.Path) -> LoadedConfig | No
         raw_document = _read_config_document(candidate)
         if not _has_supported_content(raw_document, path=candidate):
             continue
+        selected = _select_config_table(raw_document, path=candidate)
         return LoadedConfig(
             path=candidate,
-            config=_parse_config_table(
-                _select_config_table(raw_document, path=candidate), path=candidate
-            ),
+            config=_parse_config_table(selected, path=candidate),
+            raw_table=selected,
         )
     return None

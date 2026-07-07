@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import pathlib
 import textwrap
+from concurrent import futures
 
 import pytest
 from stilyagi import config
+
+type _ResolverCase = tuple[pathlib.Path, pathlib.Path]
 
 
 def _write_config(path: pathlib.Path, body: str) -> None:
@@ -338,6 +341,37 @@ def test_config_resolver_reuses_its_caches_across_targets_in_one_run(
     # The second target reuses the table cached during the first resolution.
     second = _resolve_discovered(resolver, second_target)
     assert second.cache_dir == pathlib.Path(".shared")
+
+
+def test_config_resolver_instances_stay_isolated_under_concurrency(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Per-thread resolvers over changing configs keep isolated caches.
+
+    Each worker constructs its own resolver over its own project directory, so
+    there is no shared mutable state and the outcome is deterministic. This
+    exercises interleaved resolver use without asserting a thread-safety
+    guarantee for a single shared instance, which the type does not provide.
+    """
+    cases: list[_ResolverCase] = []
+    for index in range(8):
+        project_dir = tmp_path / f"project-{index}"
+        project_dir.mkdir()
+        _write_discovered_cache_dir(project_dir, f".cache-{index}")
+        target = _make_markdown_target(project_dir)
+        cases.append((target, pathlib.Path(f".cache-{index}")))
+
+    def resolve_one(case: _ResolverCase) -> _ResolverCase:
+        """Resolve one project with its own single-use resolver."""
+        target, expected = case
+        resolved = _resolve_discovered(config.ConfigResolver(), target)
+        return resolved.cache_dir, expected
+
+    with futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(resolve_one, cases))
+
+    for actual, expected in results:
+        assert actual == expected
 
 
 # ConfigResolver is deliberately not safe to share across threads: its caches

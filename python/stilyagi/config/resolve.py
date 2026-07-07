@@ -2,6 +2,7 @@
 
 import collections.abc as cabc
 import dataclasses as dc
+import logging
 import pathlib
 import tomllib
 import typing as typ
@@ -13,6 +14,11 @@ from .load import (
 )
 from .schema import InvalidConfigError, StilyagiConfig
 from .validate import _ensure_extend_value
+
+if typ.TYPE_CHECKING:
+    from .load import LoadedConfig
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _merge_config_tables(
@@ -84,13 +90,13 @@ def _target_directory(target: pathlib.Path) -> pathlib.Path:
     return target.expanduser().parent.resolve()
 
 
-def _search_ancestors_for_config(directory: pathlib.Path) -> pathlib.Path | None:
+def _search_ancestors_for_config(directory: pathlib.Path) -> LoadedConfig | None:
     """Walk from a directory to the filesystem root looking for config."""
     current = directory
     while True:
         discovered = discover_same_directory_config(current)
         if discovered is not None:
-            return discovered.path
+            return discovered
         if current.parent == current:
             return None
         current = current.parent
@@ -140,6 +146,9 @@ class ConfigResolver:
         default_factory=dict, init=False
     )
     _resolved_table_cache: dict[pathlib.Path, dict[str, object]] = dc.field(
+        default_factory=dict, init=False
+    )
+    _raw_table_cache: dict[pathlib.Path, cabc.Mapping[str, object]] = dc.field(
         default_factory=dict, init=False
     )
 
@@ -203,7 +212,7 @@ class ConfigResolver:
         if cached is not None:
             return cached
 
-        config_table = dict(_load_config_table(resolved_path))
+        config_table = dict(self._raw_config_table(resolved_path))
         extend_values = _normalise_extend_values(
             config_table.get("extend"), path=resolved_path
         )
@@ -223,14 +232,35 @@ class ConfigResolver:
         self._resolved_table_cache[resolved_path] = merged
         return merged
 
+    def _raw_config_table(
+        self, resolved_path: pathlib.Path
+    ) -> cabc.Mapping[str, object]:
+        """Return the raw config table, reusing the read from discovery."""
+        cached = self._raw_table_cache.get(resolved_path)
+        if cached is not None:
+            _LOGGER.debug("reusing discovered config table for %s", resolved_path)
+            return cached
+        return _load_config_table(resolved_path)
+
     def _discover_nearest_config(self, directory: pathlib.Path) -> pathlib.Path | None:
         """Return the nearest supported config file for one directory."""
         if directory in self._discovery_cache:
+            _LOGGER.debug("config discovery cache hit for %s", directory)
             return self._discovery_cache[directory]
 
-        discovered_path = _search_ancestors_for_config(directory)
-        self._discovery_cache[directory] = discovered_path
-        return discovered_path
+        discovered = _search_ancestors_for_config(directory)
+        if discovered is None:
+            self._discovery_cache[directory] = None
+            _LOGGER.debug("no nearest config discovered from %s", directory)
+            return None
+
+        # Reuse the read performed during discovery so resolving this config
+        # does not re-read the same file on the hot path.
+        resolved_path = discovered.path.expanduser().resolve()
+        self._raw_table_cache.setdefault(resolved_path, discovered.raw_table)
+        self._discovery_cache[directory] = discovered.path
+        _LOGGER.debug("discovered nearest config %s", discovered.path)
+        return discovered.path
 
     def _merge_explicit_configs(
         self,
