@@ -1181,7 +1181,7 @@ make test
 
 (On this branch `make all` at `Makefile:38` chains these four plus
 `make markdownlint` and `make nixie`; the host nonetheless re-runs the four
-deterministic gates individually, so a gatesGreen claim must be reproducible
+deterministic gates individually, so a gates-green claim must be reproducible
 target-by-target.)
 
 Separately run `make release` to confirm the release wheel and the new console

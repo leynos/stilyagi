@@ -130,4 +130,4 @@ Advisory (fresh):
   `bridge_extract_document`) and `:144`
   (`extract_document_function_rejects_unexpected_kwargs`). The main plan
   (`roadmap-2-2-1.md`) already uses the corrected paths. The underlying
-  claim is non-load-bearing (Rust is untouched this slice).
+  claim is non-load-bearing (Rust is untouched in this slice).
