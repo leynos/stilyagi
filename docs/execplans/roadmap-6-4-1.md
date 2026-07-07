@@ -151,7 +151,12 @@ escalation, not a workaround.
 - [x] Work item 2: exhaustive + behavioural cross-check test proves every
       extract-emitted region kind is in the IR vocabulary (bar the documented
       `document` exception); fill the pre-existing `RustDocComment` coverage gap.
-- [ ] Work item 3 (recommended hardening): replace the hand-written
+- [x] 2026-07-07: Work item 3 implemented. Replaced the two producer-side
+      tree-sitter region-kind literals with `stilyagi_ir::RegionKind` spellings
+      and confirmed the focused extract vocabulary test still passes.
+      Deterministic gates passed, and `coderabbit review --agent` completed
+      with zero findings.
+- [x] Work item 3 (recommended hardening): replace the hand-written
       `"python_docstring"` / `"rust_doc_comment"` literals in
       `stilyagi-tree-sitter` with the shared `stilyagi_ir::RegionKind` constants.
 
@@ -232,6 +237,15 @@ escalation, not a workaround.
   `Err`. The temporary mutation was reverted before continuing.
   Impact: a future change that makes the bridge-only `Document` kind collide
   with the canonical IR vocabulary is caught by a named guard.
+- Observation: after Work item 3, the Python and Rust tree-sitter producers no
+  longer contain hand-written `python_docstring` or `rust_doc_comment` region
+  `kind` assignments.
+  Evidence: `crates/stilyagi-tree-sitter/src/python/mod.rs` now uses
+  `RegionKind::PythonDocstring.as_str().to_owned()`, and
+  `crates/stilyagi-tree-sitter/src/rust/builder.rs` now uses
+  `RegionKind::RustDocComment.as_str().to_owned()`.
+  Impact: producer-side shared spelling drift now requires changing the IR
+  source of truth instead of editing independent string literals.
 - Observation: `stilyagi-extract`'s own spelling test coverage is already
   incomplete — `region_kind_as_str_round_trips_through_try_from` and the
   display/`as_str` cases in
@@ -308,9 +322,22 @@ escalation, not a workaround.
 
 ## Outcomes & retrospective
 
-To be completed at implementation. Compare against Purpose: a shared spelling
-lives in one place, and a named test fails the moment the two crates (or the
-tree-sitter IR producer) disagree on a region name.
+Implemented the roadmap 6.4.1 region-vocabulary guard.
+`stilyagi_extract::RegionKind` now forwards shared Python and Rust bridge
+spellings through `stilyagi_ir::RegionKind`, while keeping `document` as the
+single bridge-only exception. The extract integration suite now has a registered
+`region_vocabulary` test module that proves shared bridge spellings round-trip
+through the IR vocabulary and that emitted Python/Rust IR regions use only
+canonical IR region kinds. The existing spelling-display test matrix now covers
+`RustDocComment`.
+
+The recommended tree-sitter hardening also landed: Python docstring and Rust
+doc-comment producers now populate `IrRegion.kind` from
+`stilyagi_ir::RegionKind` instead of independent literals.
+
+The drift guards were deliberately mutated and observed to fail before each
+mutation was reverted. Deterministic gates passed for all three work items, and
+CodeRabbit review completed with zero findings after each major milestone.
 
 ## Context and orientation
 
