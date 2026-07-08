@@ -343,6 +343,33 @@ def test_config_resolver_reuses_its_caches_across_targets_in_one_run(
     assert second.cache_dir == pathlib.Path(".shared")
 
 
+def test_config_resolver_reports_cache_hit_and_miss_counts(
+    tmp_path: pathlib.Path,
+) -> None:
+    """`cache_stats` tracks discovery and resolved-table hits and misses."""
+    _write_discovered_cache_dir(tmp_path, ".x")
+    target = _make_markdown_target(tmp_path)
+    resolver = config.ConfigResolver()
+
+    # A fresh resolver records no cache activity yet.
+    assert resolver.cache_stats == {}
+
+    _resolve_discovered(resolver, target)
+    after_first = resolver.cache_stats
+    assert after_first["discovery_misses"] == 1
+    assert after_first["resolved_table_misses"] == 1
+    assert after_first.get("discovery_hits", 0) == 0
+    assert after_first.get("resolved_table_hits", 0) == 0
+
+    # Resolving the same directory again hits both caches without new misses.
+    _resolve_discovered(resolver, target)
+    after_second = resolver.cache_stats
+    assert after_second["discovery_hits"] == 1
+    assert after_second["resolved_table_hits"] == 1
+    assert after_second["discovery_misses"] == 1
+    assert after_second["resolved_table_misses"] == 1
+
+
 def test_config_resolver_instances_stay_isolated_under_concurrency(
     tmp_path: pathlib.Path,
 ) -> None:

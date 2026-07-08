@@ -1,5 +1,6 @@
 """Configuration resolution helpers for Stilyagi."""
 
+import collections
 import collections.abc as cabc
 import dataclasses as dc
 import logging
@@ -7,11 +8,8 @@ import pathlib
 import tomllib
 import typing as typ
 
-from .load import (
-    _load_config_table,
-    _parse_config_table,
-    discover_same_directory_config,
-)
+from .load import _load_config_table, discover_same_directory_config
+from .parse import _parse_config_table
 from .schema import InvalidConfigError, StilyagiConfig
 from .validate import _ensure_extend_value
 
@@ -151,6 +149,19 @@ class ConfigResolver:
     _raw_table_cache: dict[pathlib.Path, cabc.Mapping[str, object]] = dc.field(
         default_factory=dict, init=False
     )
+    _cache_stats: collections.Counter[str] = dc.field(
+        default_factory=collections.Counter, init=False
+    )
+
+    @property
+    def cache_stats(self) -> dict[str, int]:
+        """Return cache hit/miss counts accumulated over this resolver's run.
+
+        Keys include ``discovery_hits``/``discovery_misses`` for nearest-config
+        discovery and ``resolved_table_hits``/``resolved_table_misses`` for
+        parsed-table resolution. Absent keys imply a count of zero.
+        """
+        return dict(self._cache_stats)
 
     def resolve_config_for_path(
         self,
@@ -210,7 +221,9 @@ class ConfigResolver:
 
         cached = self._resolved_table_cache.get(resolved_path)
         if cached is not None:
+            self._cache_stats["resolved_table_hits"] += 1
             return cached
+        self._cache_stats["resolved_table_misses"] += 1
 
         config_table = dict(self._raw_config_table(resolved_path))
         extend_values = _normalise_extend_values(
@@ -245,8 +258,10 @@ class ConfigResolver:
     def _discover_nearest_config(self, directory: pathlib.Path) -> pathlib.Path | None:
         """Return the nearest supported config file for one directory."""
         if directory in self._discovery_cache:
+            self._cache_stats["discovery_hits"] += 1
             _LOGGER.debug("config discovery cache hit for %s", directory)
             return self._discovery_cache[directory]
+        self._cache_stats["discovery_misses"] += 1
 
         discovered = _search_ancestors_for_config(directory)
         if discovered is None:

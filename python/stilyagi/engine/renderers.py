@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import dataclasses as dc
 import json
+import logging
 import typing as typ
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
     from stilyagi import diagnostics
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -54,10 +57,16 @@ class RendererRegistry:
             diagnostics_list,
             key=_diagnostic_sort_key,
         )
+        _LOGGER.debug(
+            "rendering %d diagnostic(s) as %s",
+            len(ordered_diagnostics),
+            effective_format,
+        )
         if effective_format == "json":
             return _render_json(ordered_diagnostics)
         if effective_format == "text":
             return _render_text(ordered_diagnostics)
+        _LOGGER.error("unsupported output format %r", effective_format)
         message = (
             f"unsupported output format {effective_format!r}; "
             "choose from 'text' or 'json'"

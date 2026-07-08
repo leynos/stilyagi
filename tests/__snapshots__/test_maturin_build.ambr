@@ -15,6 +15,7 @@
       'stilyagi/cli_args.py',
       'stilyagi/config/__init__.py',
       'stilyagi/config/load.py',
+      'stilyagi/config/parse.py',
       'stilyagi/config/resolve.py',
       'stilyagi/config/schema.py',
       'stilyagi/config/validate.py',

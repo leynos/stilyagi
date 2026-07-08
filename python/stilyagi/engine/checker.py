@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import collections.abc as cabc
+import logging
 
 from stilyagi import diagnostics, model
 from stilyagi.diagnostics_location import line_column_from_offset
 
 _DEFAULT_IR_CODE = "IR000"
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def map_ir_errors(
@@ -42,6 +45,7 @@ def map_ir_errors(
     """
     ir = document.ir
     if ir is None:
+        _LOGGER.debug("no IR envelope to map for %s", reported_path)
         return []
 
     raw_errors = ir.get("errors")
@@ -49,6 +53,7 @@ def map_ir_errors(
         raw_errors,
         (str, bytes),
     ):
+        _LOGGER.debug("IR for %s carries no error sequence", reported_path)
         return []
 
     line_index = _coerce_line_index(ir.get("line_index"))
@@ -56,7 +61,9 @@ def map_ir_errors(
     mapped_errors = (
         _map_one_error(error, line_index, reported_path) for error in raw_errors
     )
-    return [error for error in mapped_errors if error is not None]
+    diagnostics_list = [error for error in mapped_errors if error is not None]
+    _LOGGER.debug("mapped %d IR error(s) for %s", len(diagnostics_list), reported_path)
+    return diagnostics_list
 
 
 def _map_one_error(
@@ -66,6 +73,9 @@ def _map_one_error(
 ) -> diagnostics.Diagnostic | None:
     """Map one raw IR error entry into a diagnostic, if well formed."""
     if not isinstance(error, cabc.Mapping):
+        _LOGGER.warning(
+            "skipping malformed IR error entry for %s: %r", reported_path, error
+        )
         return None
 
     line, column = line_column_from_offset(

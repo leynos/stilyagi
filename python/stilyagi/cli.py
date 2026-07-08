@@ -30,6 +30,8 @@ __all__ = [
     "run_check",
 ]
 
+_LOGGER = logging.getLogger(__name__)
+
 
 @dc.dataclass(frozen=True, slots=True)
 class CheckInput:
@@ -130,6 +132,7 @@ def run_check(
     had_error = False
     diagnostics_list: list[diagnostics.Diagnostic] = []
 
+    _LOGGER.debug("target discovery started for %r", options.targets)
     try:
         discovered_files = _discover_targets(options, resolver)
     except (
@@ -137,8 +140,10 @@ def run_check(
         config.InvalidConfigError,
         ValueError,
     ) as error:
+        _LOGGER.warning("target discovery failed: %s", error)
         _report_check_error(None, error)
         return 2
+    _LOGGER.debug("target discovery finished: %d input(s)", len(discovered_files))
 
     for discovered_file in discovered_files:
         file_diagnostics, file_error = _check_one_file(
@@ -147,9 +152,16 @@ def run_check(
         diagnostics_list.extend(file_diagnostics)
         had_error = had_error or file_error
 
+    _LOGGER.debug(
+        "rendering %d diagnostic(s) as %s",
+        len(diagnostics_list),
+        options.output_format,
+    )
     rendered = renderer.render(diagnostics_list, options.output_format)
     print(rendered, end="")
-    return compute_exit_code(diagnostics_list, had_error=had_error)
+    exit_code = compute_exit_code(diagnostics_list, had_error=had_error)
+    _LOGGER.debug("check complete: exit code %d", exit_code)
+    return exit_code
 
 
 def compute_exit_code(
@@ -263,12 +275,14 @@ def _check_one_file(
     if source is None:
         return [], True
 
+    _LOGGER.debug("extracting %s", check_input.reported_path)
     try:
         document = engine.extract_document(source, model.Syntax.MARKDOWN)
     except Exception as exc:  # noqa: BLE001 - the bridge maps internal failures here.
         _report_check_error(check_input.resolved_path, exc)
         return [], True
 
+    _LOGGER.debug("resolving config for %s", check_input.reported_path)
     try:
         resolved_config = _resolve_config(check_input.resolved_path, options, resolver)
     except (
@@ -286,15 +300,17 @@ def _check_one_file(
 
 
 def _report_file_error(path: pathlib.Path, error: Exception) -> None:
-    """Print a human-readable file read failure."""
+    """Print and log a human-readable file read failure."""
     message = f"failed to read {path.as_posix()}: {error}"
+    _LOGGER.warning("%s", message)
     print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)
 
 
 def _report_check_error(path: pathlib.Path | None, error: Exception) -> None:
-    """Print a human-readable extraction failure."""
+    """Print and log a human-readable extraction failure."""
     if path is None:
         message = str(error)
     else:
         message = f"failed to check {path.as_posix()}: {error}"
+    _LOGGER.warning("%s", message)
     print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import typing as typ
 
-from stilyagi import cli, diagnostics
+from stilyagi import cli, diagnostics, engine
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -85,6 +86,53 @@ def test_main_returns_two_for_invalid_configuration(
     assert "stilyagi check:" in captured.err
     assert "toml" in captured.err.lower()
     assert not captured.out
+
+
+def test_check_pipeline_emits_stage_boundary_logs(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The clean check path logs discovery, config resolution, and rendering."""
+    _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
+    monkeypatch.chdir(tmp_path)
+
+    with caplog.at_level(logging.DEBUG):
+        assert cli.main(["check", "."]) == 0
+
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "target discovery started" in logged
+    assert "resolving config for" in logged
+    assert "rendering" in logged
+
+
+def test_check_logs_extraction_failure_alongside_stderr(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed extraction is logged in addition to the user-facing stderr."""
+    _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(engine, "extract_document", _raise_bridge_error)
+
+    with caplog.at_level(logging.WARNING):
+        assert cli.main(["check", "."]) == 2
+
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno >= logging.WARNING
+    ]
+    assert any("failed to check" in message for message in warnings)
+    assert "stilyagi check: failed to check" in capsys.readouterr().err
+
+
+def _raise_bridge_error(_source: str, _syntax: object) -> typ.NoReturn:
+    """Raise the deterministic extractor failure used by the logging test."""
+    message = "bridge exploded"
+    raise RuntimeError(message)
 
 
 def _write_markdown(path: pathlib.Path, title: str) -> None:

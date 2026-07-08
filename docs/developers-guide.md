@@ -403,6 +403,12 @@ discovery pass.
   - A single `ConfigResolver` is not safe to share across threads (its caches
     are unsynchronized dicts). The supported model is one resolver per run, so
     concurrent work should give each thread its own resolver.
+  - The resolver records discovery and resolved-table cache hit/miss counts,
+    queryable through the `cache_stats` property. Each pipeline stage
+    (discovery, config load/resolve, extraction, diagnostics mapping,
+    rendering, and exit-code computation) emits log records through a
+    per-module `logging` logger, so runs can be traced without changing any
+    user-facing output.
 - `config/schema.py` holds the frozen config dataclasses (`StilyagiConfig`,
   `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
   `ConfigError` base class, with `InvalidCacheDirError` and `InvalidConfigError`
