@@ -177,8 +177,18 @@ def test_ci_workflow_installs_test_runner_and_whitaker(
     assert "cargo binstall --no-confirm cargo-nextest" in test_runner_step["run"]
     whitaker_step = _workflow_step_named(jobs["lint-test"], "Install Whitaker")
     whitaker_run = str(whitaker_step["run"])
-    assert "github.com/leynos/whitaker" in whitaker_run
-    assert "whitaker-installer" in whitaker_run
+    # The installer is pinned via the workflow-level env var and expanded by
+    # the shell (never inlined with ``${{ env … }}``, which zizmor flags as
+    # template injection), fetched with ``--locked``, and falls back to a
+    # crates.io build when cargo-binstall is unavailable.
+    assert (
+        'cargo binstall --no-confirm --locked "whitaker-installer@'
+        '${WHITAKER_INSTALLER_VERSION}"'
+    ) in whitaker_run
+    assert (
+        "cargo install --locked whitaker-installer --version "
+        '"${WHITAKER_INSTALLER_VERSION}"'
+    ) in whitaker_run
     assert "--cranelift" in whitaker_run
 
 

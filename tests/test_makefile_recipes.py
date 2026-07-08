@@ -80,7 +80,7 @@ def makefile_text() -> str:
                     "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)",
                     (
                         'RUSTFLAGS="$(RUST_FLAGS)" '
-                        "$(CARGO_BUILD_ENV) whitaker --all -- $(CARGO_FLAGS)"
+                        "$(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)"
                     ),
                 ),
                 should_include_pytest=False,
