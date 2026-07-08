@@ -43,6 +43,12 @@ def rendered_config_fixture(generator: types.ModuleType) -> str:
     return typ.cast("str", generator.render_config())
 
 
+@pytest.fixture(name="committed_config", scope="module")
+def committed_config_fixture() -> str:
+    """Read the committed typos.toml once for the drift and parse tests."""
+    return (REPOSITORY_ROOT / "typos.toml").read_text(encoding="utf-8")
+
+
 def test_render_config_emits_every_stem_and_suffix_pair(
     generator: types.ModuleType,
 ) -> None:
@@ -75,19 +81,15 @@ def test_render_config_ends_with_trailing_newline(
 def test_render_config_parses_as_valid_toml(
     generator: types.ModuleType,
 ) -> None:
-    """Rendered output is valid TOML with no colliding extend-words keys.
-
-    ``tomllib`` (like ``typos`` itself) rejects duplicate keys, so a stem or
-    suffix collision raises ``TOMLDecodeError`` here rather than surfacing
-    later when ``typos`` loads the config. The exact entry count confirms
-    every emitted key survives as a distinct table entry.
-    """
+    """Rendered config is valid TOML with no duplicate extend-words keys."""
     parsed = tomllib.loads(generator.render_config())
     extend_words = parsed["default"]["extend-words"]
     expected = len(generator.EXTRA_ACCEPTED_WORDS) + 2 * len(generator.STEMS) * len(
         generator.SUFFIX_PAIRS
     )
-    assert len(extend_words) == expected
+    assert len(extend_words) == expected, (
+        f"expected {expected} extend-words entries, got {len(extend_words)}"
+    )
 
 
 @given(data=st.data())
@@ -154,20 +156,15 @@ def test_main_default_path_resolves_to_repository_root(
 
 def test_committed_config_matches_generator_output(
     generator: types.ModuleType,
+    committed_config: str,
 ) -> None:
     """The committed typos.toml must not drift from the generator."""
-    committed = (REPOSITORY_ROOT / "typos.toml").read_text(encoding="utf-8")
-    assert committed == generator.render_config()
+    assert committed_config == generator.render_config()
 
 
-def test_committed_config_parses_as_valid_toml() -> None:
-    """A hand-edited or corrupted committed typos.toml fails fast.
-
-    Parsing the file on disk (rather than the freshly rendered output) guards
-    against manual edits that introduce duplicate keys or otherwise malformed
-    TOML, which ``tomllib`` and ``typos`` would both reject at load time.
-    """
-    committed = (REPOSITORY_ROOT / "typos.toml").read_text(encoding="utf-8")
-    parsed = tomllib.loads(committed)
-    assert parsed["default"]["locale"] == "en-gb"
-    assert parsed["default"]["extend-words"]
+def test_committed_config_parses_as_valid_toml(committed_config: str) -> None:
+    """Committed typos.toml is valid TOML with the expected locale and extend-words."""
+    parsed = tomllib.loads(committed_config)
+    locale = parsed["default"]["locale"]
+    assert locale == "en-gb", f'expected locale "en-gb", got {locale!r}'
+    assert parsed["default"]["extend-words"], "extend-words table is unexpectedly empty"
