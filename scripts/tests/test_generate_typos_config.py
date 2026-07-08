@@ -5,7 +5,11 @@ module, so it is loaded here through ``importlib`` from its file path.
 """
 
 import importlib.util
+import json
 import pathlib
+import re
+import shutil
+import subprocess  # noqa: S404 - runs the pinned, trusted typos binary via uv.
 import tempfile
 import tomllib
 import types
@@ -168,3 +172,73 @@ def test_committed_config_parses_as_valid_toml(committed_config: str) -> None:
     locale = parsed["default"]["locale"]
     assert locale == "en-gb", f'expected locale "en-gb", got {locale!r}'
     assert parsed["default"]["extend-words"], "extend-words table is unexpectedly empty"
+
+
+def _pinned_typos_version() -> str:
+    """Read the pinned typos version from the Makefile single source of truth.
+
+    The Makefile ``markdownlint`` gate runs ``typos`` at ``TYPOS_VERSION``;
+    the smoke test resolves the same pin here rather than duplicating it, so
+    the end-to-end check always exercises the version the gate enforces.
+    """
+    makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+    match = re.search(r"^TYPOS_VERSION\s*\?=\s*(\S+)", makefile, re.MULTILINE)
+    assert match is not None, "TYPOS_VERSION not found in Makefile"
+    return match.group(1)
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(120)
+def test_generated_config_loads_in_typos(
+    generator: types.ModuleType,
+    tmp_path: pathlib.Path,
+) -> None:
+    """The real typos binary loads the config and enforces Oxford spelling.
+
+    ``tomllib`` parsing proves the document is well-formed TOML, but only the
+    ``typos`` binary proves the config is one it will actually accept and act
+    on. A duplicate key or a rejected setting makes typos exit without the
+    expected correction, so this asserts the British ``organise`` is corrected
+    to the Oxford ``organize``. Skipped when the pinned binary cannot be run.
+    """
+    uv_executable = shutil.which("uv")
+    if uv_executable is None:
+        pytest.skip("uv is unavailable to run the pinned typos binary")
+
+    config = tmp_path / "typos.toml"
+    generator.main(config)
+    sample = tmp_path / "sample.md"
+    sample.write_text("The team will organise the release.\n", encoding="utf-8")
+
+    try:
+        result = subprocess.run(  # noqa: S603 - argv is trusted literals and repo paths; no user input.
+            [
+                uv_executable,
+                "tool",
+                "run",
+                f"typos@{_pinned_typos_version()}",
+                "--config",
+                str(config),
+                "--format",
+                "json",
+                str(sample),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=90,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        pytest.skip(f"could not run the pinned typos binary: {exc}")
+
+    corrections = {
+        entry["typo"]: entry.get("corrections", [])
+        for line in result.stdout.splitlines()
+        if line.strip()
+        for entry in (json.loads(line),)
+        if entry.get("type") == "typo"
+    }
+    assert corrections.get("organise") == ["organize"], (
+        "generated config did not load or enforce Oxford spelling; "
+        f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
