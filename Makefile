@@ -2,6 +2,7 @@ MDLINT ?= markdownlint-cli2
 NIXIE ?= nixie
 MDFORMAT_ALL ?= mdformat-all
 CARGO ?= cargo
+WHITAKER ?= whitaker
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.local/bin:$(HOME)/.bun/bin:$(PATH)
 WORKSPACE_MANIFEST ?= Cargo.toml
 PYEXT_MANIFEST ?= crates/stilyagi-pyext/Cargo.toml
@@ -110,7 +111,7 @@ tools-docs:
 	$(call ensure_tool,uv)
 
 tools-lint: tools-check
-	$(call ensure_tool,whitaker)
+	$(call ensure_tool,$(WHITAKER))
 
 fmt: tools ## Format sources
 	$(UV_RUN) ruff format
@@ -122,13 +123,13 @@ check-fmt: tools-check ## Verify formatting
 	$(UV_RUN) ruff format --check
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
 
-lint: tools-lint ## Run linters
+lint: tools-lint ## Run linters, including the Whitaker Dylint suite
 	$(UV_RUN) ruff check
 	$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
 	$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
-	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all -- $(CARGO_FLAGS)
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
 
 typecheck: build tools-check ## Run typechecking
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)
