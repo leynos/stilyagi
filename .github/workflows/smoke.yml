@@ -29,7 +29,7 @@ jobs:
         uses: leynos/shared-actions/.github/actions/setup-rust@d28e04c9ea359650a85d697d1ab3d0be0b5674e7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@4cda7d73322c50eac316ad623a716f09a2db2ac7
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
 
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest@0.9.138
@@ -104,7 +104,7 @@ jobs:
         uses: leynos/shared-actions/.github/actions/setup-rust@d28e04c9ea359650a85d697d1ab3d0be0b5674e7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@4cda7d73322c50eac316ad623a716f09a2db2ac7
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
 
       - name: Release smoke
         run: make release
