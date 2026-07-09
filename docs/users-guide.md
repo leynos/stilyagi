@@ -249,6 +249,52 @@ default recursive file set will cover `*.md`, `*.py`, and `*.rs`. MDX stays
 outside that default set until preview behaviour graduates into the stable
 support matrix.
 
+### Checking Markdown with `stilyagi check`
+
+The first command-line surface in v1 is `stilyagi check` for Markdown files.
+It discovers Markdown targets recursively, resolves the nearest supported
+configuration for each file, and renders deterministic diagnostics. The
+command currently analyses Markdown files only (`*.md` and `*.markdown`).
+
+#### Output formats
+
+Use `--output-format text` (the default) for human-readable output: one line
+per diagnostic followed by a summary line. Use `--output-format json` for
+machine-readable output: a stable JSON document. `--output-format sarif` is
+planned for a later slice and is not yet available; requesting it fails with
+a message stating it is planned but not yet available.
+
+#### Configuration
+
+Pass `--config` with an explicit config file path or an inline TOML fragment
+to supply configuration directly. Use `--isolated` to bypass configuration
+discovery entirely.
+
+#### Standard input
+
+Pass `-` as the target to read Markdown from standard input instead of from
+files on disk. Use `--stdin-filename PATH` to attribute diagnostics to PATH
+rather than the default `<stdin>`. Combining `-` with file targets is a
+usage error (exit code 2).
+
+#### Exit codes
+
+The command exits with one of three codes:
+
+- `0` — no diagnostics found.
+- `1` — one or more diagnostics found.
+- `2` — error: a failed file read, invalid configuration, an extractor
+  failure, or a usage error.
+
+Examples:
+
+```shell
+stilyagi check .
+stilyagi check docs/ --output-format json
+stilyagi check README.md --isolated
+stilyagi check - --stdin-filename README.md
+```
+
 ## 4. Locale policy in v1
 
 English is the only formally supported v1 locale. The design keeps locale and
@@ -262,7 +308,8 @@ expectations in the first releases are defined around English only.
 
 Stilyagi is still in the roadmap phase where architectural contracts are being
 ratified before feature-complete releases land.[^2][^3] The stable user-facing
-surface is the Python package API.
+surface is still the Python package API, but `stilyagi check` is now available
+for Markdown repositories.
 
 Use `engine.extract_document()` to extract Markdown through the public engine
 boundary. Non-blank Markdown input returns typed `document.regions` for
@@ -277,9 +324,9 @@ Python docstring plus Rust doc-comment inputs expose `python_docstring` and
 `engine.supported_region_kinds()` returns the region-kind vocabulary supported
 by the installed package version.
 
-Until the command-line interface (CLI) and feature slices are implemented,
-treat this guide as a record of the stable user-facing v1 contract rather than
-as a complete operating manual.
+The remaining CLI subcommands and fix workflows land in later roadmap slices,
+so treat this guide as a record of the settled user-facing v1 contract rather
+than as a complete operating manual.
 
 ## References
 

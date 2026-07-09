@@ -15,7 +15,7 @@ use crate::markdown_ir_document;
 
 #[rstest]
 #[case::unclosed_table(
-    "tests/fixtures/corpus/markdown/malformed/unclosed-table.md",
+    "tests/fixtures/corpus/markdown/malformed/unclosed-table.md.fixture",
     "malformed_unclosed_table"
 )]
 #[case::unbalanced_emphasis(

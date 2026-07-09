@@ -4,20 +4,30 @@ import concurrent.futures
 import dataclasses as dc
 import json
 import logging
+import os
 import pathlib
+import subprocess  # noqa: S404 - tests invoke a trusted local interpreter.
+import sys
 import threading
 import typing as typ
 
 import pytest
 import stilyagi
 import stilyagi.engine.extraction as extraction_module
-from stilyagi import cli, config, diagnostics, engine, model, nlp, plugins, rules
+from pytest_bdd import scenarios
+from stilyagi import config, diagnostics, engine, model, nlp, plugins, rules
 from stilyagi.nlp import spacy_provider
 
 type JSONType = dict[str, JSONType] | list[JSONType] | str | int | float | bool | None
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+
+
+pytest_plugins = ("tests.steps.check_command",)
+
+
+scenarios("../features/stilyagi_check_command.feature")
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +86,15 @@ def test_rules_package_re_exports_the_builtin_namespace() -> None:
 def test_stilyagi_config_uses_the_default_cache_directory() -> None:
     """Apply the documented default cache directory."""
     assert config.StilyagiConfig() == config.StilyagiConfig(
-        cache_dir=pathlib.Path(".stilyagi_cache")
+        cache_dir=pathlib.Path(".stilyagi_cache"),
+        respect_gitignore=True,
+        line_length=88,
+        plugins=("builtin",),
+        lint=config.LintConfig(),
+        extract=config.MarkdownExtractConfig(),
+        nlp=config.NlpConfig(),
+        rules={},
+        reserved={},
     )
 
 
@@ -90,29 +108,27 @@ def test_stilyagi_config_rejects_a_blank_cache_directory() -> None:
 
 
 def test_diagnostic_preserves_code_and_message() -> None:
-    """Store the placeholder diagnostic fields exactly as provided."""
-    span = diagnostics.NodeRef(kind="paragraph", text="Example")
-
-    assert diagnostics.Diagnostic(
+    """Store the diagnostic fields exactly as provided."""
+    diagnostic = diagnostics.Diagnostic(
+        path="docs/example.md",
         code="STY001",
         message="Example",
-        span=span,
-    ) == dc.replace(
-        diagnostics.Diagnostic(
-            code="STY001",
-            message="Example",
-            span=span,
-        )
+        severity=diagnostics.Severity.WARNING,
+        line=3,
+        column=5,
     )
+
+    assert diagnostic == dc.replace(diagnostic)
 
 
 def test_engine_skeleton_dataclasses_preserve_their_fields() -> None:
-    """Keep the engine placeholder dataclasses predictable."""
+    """Keep the engine dataclasses predictable."""
     execution_plan = engine.ExecutionPlan(syntax="markdown")
 
     assert execution_plan.syntax == "markdown"
     assert engine.FixPlan(applicability="safe").applicability == "safe"
     assert engine.RendererRegistry().default_format == "text"
+    assert engine.RendererRegistry().render([], "text") == "0 diagnostics found\n"
     assert engine.EngineRunner(execution_plan=execution_plan).execution_plan is (
         execution_plan
     )
@@ -440,9 +456,29 @@ def _normalize_ir_identity(ir: cabc.Mapping[str, JSONType]) -> dict[str, JSONTyp
     return normalized
 
 
-def test_cli_main_reports_placeholder_exit_code(
-    capsys: pytest.CaptureFixture[str],
+def test_python_module_entrypoint_reports_invalid_config(
+    tmp_path: pathlib.Path,
 ) -> None:
-    """Return the documented placeholder exit code for the unimplemented CLI."""
-    assert cli.main() == 2
-    assert "CLI commands are not implemented yet." in capsys.readouterr().err
+    """Exercise the console entry point through `python -m stilyagi`."""
+    (tmp_path / "stilyagi.toml").write_text("[lint\n", encoding="utf-8")
+    (tmp_path / "notes.md").write_text("# Notes\n", encoding="utf-8")
+    python_path = pathlib.Path(__file__).resolve().parents[1] / "python"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = (
+        f"{python_path}{os.pathsep}{env['PYTHONPATH']}"
+        if env.get("PYTHONPATH")
+        else str(python_path)
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "stilyagi"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert completed.returncode == 2
+    assert "stilyagi check:" in completed.stderr
+    assert "toml" in completed.stderr.lower()

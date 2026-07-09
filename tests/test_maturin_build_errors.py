@@ -6,7 +6,8 @@ import typing as typ
 import zipfile
 
 import pytest
-from test_maturin_build import _read_maturin_pins, _wheel_build_snapshot
+
+from tests.test_maturin_build import _read_maturin_pins, _wheel_build_snapshot
 
 if typ.TYPE_CHECKING:
     import pathlib

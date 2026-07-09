@@ -1,0 +1,37 @@
+{
+  "diagnostics": [
+    {
+      "code": "STY001",
+      "fix_applicable": false,
+      "location": {
+        "column": 1,
+        "line": 1
+      },
+      "message": "First",
+      "path": "docs/a.md",
+      "severity": "error"
+    },
+    {
+      "code": "STY010",
+      "fix_applicable": false,
+      "location": {
+        "column": 2,
+        "line": 1
+      },
+      "message": "Later code",
+      "path": "docs/a.md",
+      "severity": "error"
+    },
+    {
+      "code": "STY002",
+      "fix_applicable": false,
+      "location": {
+        "column": 4,
+        "line": 3
+      },
+      "message": "Second",
+      "path": "docs/b.md",
+      "severity": "warning"
+    }
+  ]
+}

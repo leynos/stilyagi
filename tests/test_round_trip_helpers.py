@@ -21,6 +21,8 @@ from tests.support.round_trip import (
 )
 
 if typ.TYPE_CHECKING:
+    import pathlib
+
     from syrupy.assertion import SnapshotAssertion
 
 UNICODE_TEXT = st.text(
@@ -85,12 +87,19 @@ def test_golden_markdown_ir_matches_json_snapshot(
     )
 
 
-def test_cli_placeholder_output_matches_snapshot(
+def test_cli_check_json_output_matches_snapshot(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     snapshot: SnapshotAssertion,
 ) -> None:
-    """Pin the current placeholder CLI contract without volatile values."""
-    exit_code = cli.main()
+    """Pin the CLI JSON output contract for a hermetic Markdown tree."""
+    markdown = tmp_path / "docs" / "notes.md"
+    markdown.parent.mkdir(parents=True, exist_ok=True)
+    markdown.write_text("# Notes\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = cli.main(["check", ".", "--output-format", "json"])
     captured = capsys.readouterr()
 
     assert {
@@ -189,7 +198,7 @@ def test_round_trip_edits_accept_empty_edit_sets_as_noops() -> None:
 
     assert result.before == "some text"
     assert result.after == "some text"
-    assert result.applied_edits == ()
+    assert not result.applied_edits
 
 
 def test_round_trip_edits_preserve_untouched_ranges() -> None:

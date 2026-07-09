@@ -36,6 +36,7 @@ _DIST_INFO_SUFFIXES: dict[str, str] = {
     ".dist-info/RECORD": "stilyagi-<version>.dist-info/RECORD",
     ".dist-info/METADATA": "stilyagi-<version>.dist-info/METADATA",
     ".dist-info/WHEEL": "stilyagi-<version>.dist-info/WHEEL",
+    ".dist-info/entry_points.txt": "stilyagi-<version>.dist-info/entry_points.txt",
     ".dist-info/licenses/LICENSE": "stilyagi-<version>.dist-info/licenses/LICENSE",
 }
 

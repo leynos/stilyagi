@@ -84,3 +84,50 @@ Skills: `logisphere-design-review`. Sources: `docs/roadmap.md` §2.2;
 lines 302/405/495 and §7.3; `Makefile`; `pyproject.toml`; direct inspection of
 `python/stilyagi/{cli,config,diagnostics,model/document,engine/api}.py` and the
 affected tests/snapshots. Branch-local facts verified by file inspection.
+
+---
+
+## Re-review (fresh adversarial pass over the round-5 plan, 2026-07-06)
+
+The four original blocking defects above are all resolved in the current draft
+(gate story corrected to the four distinct targets; W4 in-lockstep test edits
+enumerated; the snapshot artefact accounted for; the schema now accepts and
+preserves the whole RFC 0003 §6 baseline). All six advisories are landed.
+
+Re-verified against real source this pass: `Makefile:38-54,114-146`;
+`AGENTS.md` §§Quality-gates/Rust-guidance; the placeholder `cli.py` and
+single-module `config.py`; the skeleton anchors at
+`test_package_skeleton_units.py:92/109/115` and `test_round_trip_helpers.py:93`;
+`diagnostics.py` (`NodeRef` only consumed by the one test, no `Fix` importer);
+`crates/stilyagi-markdown/src/tests/malformed.rs` (`errors.is_empty()`); the
+mixed-extension malformed fixtures; the RFC 0003 §6 baseline key set; roadmap
+2.2.1 scope ("JSON or text diagnostics", "Requires 2.1.1 and 1.2.3" — so the
+sarif deferral and the refusal of a 2.1.3 dependency are both conformant).
+
+Resolved since round 5 (verified against current source):
+
+1. `discover_markdown_files` — the "Interfaces and dependencies" section had
+   declared a return type of `list[pathlib.Path]`, which would have discarded
+   the command-line-relative POSIX reported path required by W3/W5 for
+   attribution and the pinned renderer `path` form. Verified in current
+   `python/stilyagi/discovery.py`: `discover_markdown_files` now returns
+   `list[DiscoveredFile]`, where `DiscoveredFile` is a frozen dataclass with
+   fields `reported_path: str` (command-line-relative POSIX) and
+   `resolved_path: pathlib.Path`. The interface contradiction is resolved.
+2. `map_ir_errors` — the "Interfaces" entry had declared a single-argument
+   form `map_ir_errors(document) -> list[Diagnostic]`, mismatching the
+   two-argument form required by W4 and `tests/test_ir_error_adapter.py`.
+   Verified in current `python/stilyagi/engine/checker.py`:
+   `map_ir_errors(document, reported_path) -> list[diagnostics.Diagnostic]`.
+   The interface contradiction is resolved.
+
+Advisory (fresh):
+
+- Stale citation corrected: bridge facts were cited as
+  `crates/stilyagi-pyext/src/tests.rs:14` and `:140`; that file does not
+  exist. Citations have been corrected to
+  `crates/stilyagi-pyext/src/tests/mod.rs:18` (signature region,
+  `bridge_extract_document`) and `:144`
+  (`extract_document_function_rejects_unexpected_kwargs`). The main plan
+  (`roadmap-2-2-1.md`) already uses the corrected paths. The underlying
+  claim is non-load-bearing (Rust is untouched in this slice).
