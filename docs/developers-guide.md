@@ -200,11 +200,34 @@ implementation should be called explicitly.
 #### Canonical IR region vocabulary
 
 The canonical IR region vocabulary lives in `crates/stilyagi-ir` as
-`stilyagi_ir::RegionKind`. The Python-facing bridge exposes those canonical
-region kinds, not the older `stilyagi-extract::RegionKind::Document`
-compatibility region. Use `stilyagi_ir::RegionKind::ALL` and
-`RegionKind::as_str()` when code needs the stable IR spellings; the
-`supported_region_kinds()` PyO3 export is built from that same source of truth.
+`stilyagi_ir::RegionKind`. The Python-facing bridge exposes a separate,
+`#[non_exhaustive]` `stilyagi-extract::RegionKind` enum with three bridge
+variants:
+
+```rust
+#[non_exhaustive]
+pub enum RegionKind {
+    Document,
+    PythonDocstring,
+    RustDocComment,
+}
+```
+
+`RegionKind::ALL` is the bridge enum's exhaustive helper slice for those three
+variants only. It is distinct from `stilyagi_ir::RegionKind::ALL`, which is
+the canonical IR vocabulary. Use `RegionKind::ir_region_kind()` when code
+needs to map bridge variants into the IR vocabulary:
+
+- `RegionKind::Document` maps to `None`, because it is a bridge-only coarse
+  region with no IR equivalent.
+- `RegionKind::PythonDocstring` maps to
+  `Some(stilyagi_ir::RegionKind::PythonDocstring)`.
+- `RegionKind::RustDocComment` maps to
+  `Some(stilyagi_ir::RegionKind::RustDocComment)`.
+
+Use `stilyagi_ir::RegionKind::ALL` and `RegionKind::as_str()` when code needs
+the stable IR spellings; the `supported_region_kinds()` PyO3 export is built
+from that same source of truth.
 
 Markdown region emission follows ADR 005:
 

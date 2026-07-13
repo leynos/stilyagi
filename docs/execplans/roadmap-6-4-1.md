@@ -130,6 +130,8 @@ escalation, not a workaround.
 
 ## Progress
 
+- [x] 2026-07-14: The developer API docs and roadmap completion state were
+      synchronized after verification.
 - [x] 2026-07-14: The two inline documentation findings were verified and
       corrected.
 - [x] 2026-07-14: The post-turn Whitaker gate's reported test-only
