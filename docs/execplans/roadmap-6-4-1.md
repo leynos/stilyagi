@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -385,9 +385,10 @@ Key code:
   `extract_python_document`, `extract_rust_document` (copy `IrRegion.kind`).
 - `crates/stilyagi-extract/tests/extract/spelling_display.rs`: existing extract
   spelling/round-trip tests (with the `RustDocComment` coverage gap).
-- `crates/stilyagi-extract/tests/extract/ir_identity.rs` and
-  `crates/stilyagi-extract/tests/extract/mod.rs` / `test_utils`: existing
-  integration-test harness, including `shared_python_source` /
+- `crates/stilyagi-extract/tests/extract/ir_identity.rs`,
+  `crates/stilyagi-extract/tests/extract_integration.rs`, and
+  `crates/stilyagi-extract/tests/extract/test_utils.rs`: existing
+  integration-test harness and helpers, including `shared_python_source` /
   `shared_rust_source` helpers and `stilyagi-test-support` fixture constants —
   reuse these for the behavioural cross-check.
 - `crates/stilyagi-tree-sitter/src/python/mod.rs:318` and
@@ -767,5 +768,5 @@ Also folded in both advisories: Work item 2's behavioural test now uses the
 `Option`-returning `document.ir().expect(...)` accessor (mirroring
 `ir_identity.rs:192`), and the coverage-gap fix reuses the existing
 `ExpectedSpelling::RustDocComment` arm (no new `RustDocCommentRegion` arm) with
-the exact `#[case]`s enumerated. No implementation has begun; Status stays DRAFT
-pending re-review.
+the exact `#[case]`s enumerated. No implementation had begun at that point;
+Status was DRAFT pending re-review.
