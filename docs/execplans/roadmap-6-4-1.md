@@ -130,6 +130,13 @@ escalation, not a workaround.
 
 ## Progress
 
+- [x] 2026-07-14: The two inline documentation findings were verified and
+      corrected.
+- [x] 2026-07-14: The post-turn Whitaker gate's reported test-only
+      `unwrap_or_else` panic sites were verified by wyvern, minimal `expect`
+      replacements were applied across the affected test modules, and all six
+      gates (`check-fmt`, `lint`, `typecheck`, `test`, `markdownlint`,
+      `nixie`) passed.
 - [x] 2026-07-07: Confirmed the branch is `roadmap-6-4-1`, already tracking
       `origin/roadmap-6-4-1`; renamed the Lody session to
       `roadmap-6-4-1 region vocabulary unification`.
@@ -162,6 +169,10 @@ escalation, not a workaround.
 
 ## Surprises & discoveries
 
+- Observation: the full lint gate exposed the same `no_unwrap_or_else_panic`
+  rule beyond the initial three hook-reported sites.
+  Impact: the test-only `unwrap_or_else` panics need the same replacement
+  treatment once wyvern verification confirms the remaining hits.
 - Observation: Memtrace is available in this session, but its briefing reported
   no indexed repository for this worktree. The repository-list/index tools were
   not exposed after tool discovery.

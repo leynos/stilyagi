@@ -10,7 +10,7 @@ fn every_shared_bridge_kind_is_an_ir_kind() {
     for kind in RegionKind::ALL {
         if let Some(expected_ir_kind) = kind.ir_region_kind() {
             let ir_kind = stilyagi_ir::RegionKind::try_from(kind.as_str())
-                .unwrap_or_else(|error| panic!("expected IR spelling for {kind}: {error}"));
+                .expect("expected shared kind to have an IR spelling");
             assert_eq!(ir_kind, expected_ir_kind);
             assert_eq!(ir_kind.as_str(), kind.as_str());
         } else {
@@ -28,7 +28,7 @@ fn extracted_ir_regions_use_only_the_shared_vocabulary(
     #[case] source: String,
 ) {
     let document = stilyagi_extract::extract_document(&source, syntax)
-        .unwrap_or_else(|error| panic!("expected shared {syntax} extraction: {error}"));
+        .expect("expected shared syntax extraction");
     let ir = document.ir().expect("expected IR payload");
 
     assert!(!ir.regions.is_empty());

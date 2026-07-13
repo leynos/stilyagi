@@ -40,7 +40,7 @@ proptest! {
     ) {
         let source = markdown_source_for(&constructs);
         let document = markdown_ir_document(&source, SourceIdentity::anonymous())
-            .unwrap_or_else(|error| panic!("expected generated Markdown to parse: {error}"));
+            .expect("expected generated Markdown to parse");
 
         prop_assert!(regions_reconstruct_text(&document));
         prop_assert!(region_segments_are_contiguous(&document));
