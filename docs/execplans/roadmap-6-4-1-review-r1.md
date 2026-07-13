@@ -8,7 +8,7 @@ Verified against source in this worktree:
 - `stilyagi_ir::RegionKind` — 11 variants, `pub const fn as_str`, `pub const ALL`,
   `TryFrom<&str>` (`crates/stilyagi-ir/src/region.rs`). No `document` variant.
   Matches the plan and RFC 0001 §6 / ADR 005. ✔
-- `stilyagi_extract::RegionKind` — `#[non_exhaustive]`, three variants, hand-written
+- `stilyagi_extract::RegionKind` — `#[non_exhaustive]`, three variants, handwritten
   `as_str`/`TryFrom` (`crates/stilyagi-extract/src/lib.rs:152–193`). ✔
 - Tree-sitter literals at `python/mod.rs:318` (`"python_docstring"`) and
   `rust/builder.rs:246` (`"rust_doc_comment"`); `rust/builder.rs` import group
@@ -52,10 +52,10 @@ because `k.as_str()` *is* `ir.as_str()` by construction. The WI1 Red-evidence st
 is wrong: a consistent IR rename propagates through the forward to *both* sides
 of that equality, so `shared_bridge_spelling_comes_from_ir` keeps passing. Only
 the extract `region_kind_*_round_trips_*` tests (forwarded `as_str` vs extract's
-still hand-written `TryFrom`) actually fail under that mutation.
+still handwritten `TryFrom`) actually fail under that mutation.
 
 The named guard *does* have value as a regression guard against a future edit that
-un-forwards `as_str` (reintroduces a hand-written literal) — but that is a different
+un-forwards `as_str` (reintroduces a handwritten literal) — but that is a different
 mutation than the one the plan prescribes. As written, the implementer cannot
 produce the claimed Red transcript for `shared_bridge_spelling_comes_from_ir`, which
 breaks the plan's own "prove each guard bites" discipline.
