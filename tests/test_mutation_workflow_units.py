@@ -29,9 +29,10 @@ WORKFLOW_PATH = (
 )
 
 #: The estate-wide pin for leynos/shared-actions (the merge commit of
-#: leynos/shared-actions PR #319). Bump the workflow and this test
-#: together.
-PINNED_SHA = "47aea18960d24f33aedc4782ec6b73e365418313"
+#: leynos/shared-actions PR #334, which adds the `cs-coverage check`
+#: mode consumed by the CodeScene coverage rollout). Bump the workflow
+#: and this test together.
+PINNED_SHA = "927edd45ae77be4251a8a18ca9eb5613a2e32cbd"
 
 EXPECTED_USES = (
     "leynos/shared-actions/.github/workflows/mutation-cargo.yml@" + PINNED_SHA

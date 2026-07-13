@@ -10,6 +10,10 @@ env:
   CARGO_TERM_COLOR: always
   BUILD_PROFILE: debug
   WHITAKER_INSTALLER_VERSION: '0.2.5'
+  # The 927edd4 shared-actions pin adds a 600s cargo wall-clock cap;
+  # stilyagi's trybuild-heavy suite and the maturin extension build need
+  # more headroom under cold coverage instrumentation.
+  RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
 
 jobs:
   lint-test:
@@ -19,6 +23,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          # Coverage generation on pull requests needs the merge base
+          # reachable for a future `cs-coverage check` gate (see the
+          # deferred-gate note on the coverage step below).
+          fetch-depth: 0
 
       - name: Install Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
@@ -26,7 +35,7 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@d28e04c9ea359650a85d697d1ab3d0be0b5674e7
+        uses: leynos/shared-actions/.github/actions/setup-rust@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
 
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
@@ -92,6 +101,30 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Generate coverage
+        # Coverage is generated on pull requests only: coverage-main.yml
+        # regenerates and uploads it on every push to main, and running
+        # both here would duplicate the work (and, once ratcheted, the
+        # baseline write).
+        if: github.event_name == 'pull_request'
+        uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        with:
+          output-path: coverage.xml
+          format: cobertura
+          use-cargo-nextest: 'true'
+          with-ratchet: 'true'
+          pytest-workers: ''
+      # The `mode: check` step is deliberately not wired in yet: CodeScene
+      # project 74422 has no coverage-gates configuration, so
+      # `cs-coverage check` fails every run with "HTTP call succeeded,
+      # but the received project-config isn't valid. Lacks the gates
+      # configuration." — a CodeScene-side per-project setting, not a CI
+      # defect (see leynos/ddlint#287 and leynos/chutoro#156 for the same
+      # failure on other projects). Add the check step in a fast-follow
+      # PR once coverage-main.yml has uploaded to main at least once and
+      # the gate is confirmed to resolve, or once CodeScene confirms the
+      # project's coverage gate is enabled.
+
   release-smoke:
     strategy:
       fail-fast: false
@@ -113,7 +146,7 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@d28e04c9ea359650a85d697d1ab3d0be0b5674e7
+        uses: leynos/shared-actions/.github/actions/setup-rust@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
 
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
