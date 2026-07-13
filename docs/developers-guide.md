@@ -165,18 +165,21 @@ The `.md.fixture` suffix closes that gap permanently.
 
 #### RegionKind and typed ExtractRegion API
 
-`RegionKind` is the closed enum in `crates/stilyagi-extract` that names the
-stable region discriminators surfaced through the bridge:
+`RegionKind` is the `#[non_exhaustive]` enum in `crates/stilyagi-extract`
+that names the stable discriminators surfaced through that boundary:
 
 ```rust
+#[non_exhaustive]
 pub enum RegionKind {
     Document,  // whole-document prose from Markdown extraction
     PythonDocstring,  // docstring prose from Python extraction
+    RustDocComment,  // doc-comment prose from Rust extraction
 }
 ```
 
 `RegionKind::as_str(self) -> &'static str` returns the stable Python-facing
-spelling, for example `"document"` or `"python_docstring"`.
+spelling, for example `"document"`, `"python_docstring"`, or
+`"rust_doc_comment"`.
 `impl fmt::Display for RegionKind` delegates to `as_str`.
 `TryFrom<&str> for RegionKind` is the canonical string-to-kind conversion; call
 sites that receive a kind string from an external boundary should use that
@@ -200,18 +203,10 @@ implementation should be called explicitly.
 #### Canonical IR region vocabulary
 
 The canonical IR region vocabulary lives in `crates/stilyagi-ir` as
-`stilyagi_ir::RegionKind`. The Python-facing bridge exposes a separate,
-`#[non_exhaustive]` `stilyagi-extract::RegionKind` enum with three bridge
-variants:
-
-```rust
-#[non_exhaustive]
-pub enum RegionKind {
-    Document,
-    PythonDocstring,
-    RustDocComment,
-}
-```
+`stilyagi_ir::RegionKind`. The bridge enum described above keeps a separate
+`#[non_exhaustive]` `stilyagi-extract::RegionKind` surface for Python-facing
+extraction, while `stilyagi_ir::RegionKind` remains the canonical IR
+vocabulary.
 
 `RegionKind::ALL` is the bridge enum's exhaustive helper slice for those three
 variants only. It is distinct from `stilyagi_ir::RegionKind::ALL`, which is
