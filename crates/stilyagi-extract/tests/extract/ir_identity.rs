@@ -45,27 +45,21 @@ fn markdown_extraction_propagates_explicit_source_identity() {
 }
 
 #[rstest]
-fn shared_markdown_fixture_has_a_golden_ir_snapshot() {
-    let document = stilyagi_test_support::golden_markdown_ir_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
-        .expect("expected shared Markdown golden IR");
-
-    insta::assert_snapshot!(
+#[case::markdown(
         "extraction_tests__shared_markdown_fixture_has_a_golden_ir_snapshot",
-        document.to_canonical_json()
-    );
-}
-
-#[rstest]
-fn shared_python_fixture_has_a_golden_ir_snapshot() {
-    let document = stilyagi_test_support::golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
-        .expect("expected shared Python golden IR");
-
-    insta::assert_snapshot!(
+        || stilyagi_test_support::golden_markdown_ir_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
+            .expect("expected shared Markdown golden IR")
+            .to_canonical_json()
+    )]
+#[case::python(
         "extraction_tests__shared_python_fixture_has_a_golden_ir_snapshot",
-        document
+        || stilyagi_test_support::golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
+            .expect("expected shared Python golden IR")
             .to_canonical_json()
             .expect("expected canonical Python IR JSON")
-    );
+    )]
+fn shared_fixture_has_a_golden_ir_snapshot(#[case] name: &str, #[case] build: impl Fn() -> String) {
+    insta::assert_snapshot!(name, build());
 }
 
 #[rstest]
