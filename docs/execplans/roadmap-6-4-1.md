@@ -40,10 +40,9 @@ meanings."
 
 After this change:
 
-1. `stilyagi_ir::RegionKind` is the *single source of truth* for every region
-   spelling that both crates share. `stilyagi_extract::RegionKind` derives those
-   spellings from it instead of re-typing string literals, so a shared spelling
-   physically exists in exactly one place.
+1. `stilyagi_ir::RegionKind` owns the canonical emitted `as_str` spellings,
+   while `stilyagi_extract::RegionKind::try_from` remains separate and may
+   retain test-pinned compatibility parsing spellings.
 2. An exhaustive, adversarial cross-checking test proves that every region kind
    `stilyagi-extract` can emit — including the kinds that flow through the IR
    from the tree-sitter extractor — is a member of the shared IR vocabulary,
@@ -132,6 +131,9 @@ escalation, not a workaround.
 
 - [x] 2026-07-14: The developer API docs and roadmap completion state were
       synchronized after verification.
+- [x] 2026-07-17: Review follow-up recorded the Rustdoc examples, explicit
+      `document` exception guards, and clarified spelling ownership between
+      emitted `as_str` spellings and the separate parser.
 - [x] 2026-07-14: The two inline documentation findings were verified and
       corrected.
 - [x] 2026-07-14: The post-turn Whitaker gate's reported test-only
@@ -482,8 +484,8 @@ Edit `crates/stilyagi-extract/src/lib.rs` on the `RegionKind` enum:
    ```
 
 Leave `TryFrom<&str>` as-is for now (it still hand-writes the three spellings);
-Work item 2's test pins it against the forwarded `as_str`, so it cannot drift
-from the source of truth without a failure.
+Work item 2's test pins the accepted spellings, so it cannot drift from the
+IR-owned emitted spellings without a failure.
 
 Tests (unit, in `crates/stilyagi-extract/src/lib.rs` `#[cfg(test)] mod tests`,
 or extend `tests/extract/spelling_display.rs`):

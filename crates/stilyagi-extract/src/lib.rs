@@ -170,6 +170,18 @@ impl RegionKind {
     ///
     /// `Document` is a coarse bridge-only region and deliberately has no
     /// `stilyagi_ir` equivalent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use stilyagi_extract::RegionKind;
+    ///
+    /// assert_eq!(
+    ///     RegionKind::PythonDocstring.ir_region_kind(),
+    ///     Some(stilyagi_ir::RegionKind::PythonDocstring),
+    /// );
+    /// assert_eq!(RegionKind::Document.ir_region_kind(), None);
+    /// ```
     #[must_use]
     pub const fn ir_region_kind(self) -> Option<stilyagi_ir::RegionKind> {
         match self {
@@ -180,6 +192,15 @@ impl RegionKind {
     }
 
     /// Return the stable bridge spelling for this region kind.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use stilyagi_extract::RegionKind;
+    ///
+    /// assert_eq!(RegionKind::PythonDocstring.as_str(), "python_docstring");
+    /// assert_eq!(RegionKind::Document.as_str(), "document");
+    /// ```
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self.ir_region_kind() {
@@ -444,10 +465,12 @@ mod tests {
 
     #[test]
     fn shared_bridge_spelling_comes_from_ir() {
+        assert_eq!(RegionKind::Document.ir_region_kind(), None);
+        assert!(stilyagi_ir::RegionKind::try_from(RegionKind::Document.as_str()).is_err());
+
         for kind in RegionKind::ALL {
-            match kind.ir_region_kind() {
-                Some(ir_kind) => assert_eq!(kind.as_str(), ir_kind.as_str()),
-                None => assert!(stilyagi_ir::RegionKind::try_from(kind.as_str()).is_err()),
+            if let Some(ir_kind) = kind.ir_region_kind() {
+                assert_eq!(kind.as_str(), ir_kind.as_str());
             }
         }
     }

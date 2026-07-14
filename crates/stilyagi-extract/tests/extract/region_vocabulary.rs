@@ -7,15 +7,15 @@ use crate::test_utils::{shared_python_source, shared_rust_source};
 
 #[test]
 fn every_shared_bridge_kind_is_an_ir_kind() {
+    assert_eq!(RegionKind::Document.ir_region_kind(), None);
+    assert!(stilyagi_ir::RegionKind::try_from(RegionKind::Document.as_str()).is_err());
+
     for kind in RegionKind::ALL {
         if let Some(expected_ir_kind) = kind.ir_region_kind() {
             let ir_kind = stilyagi_ir::RegionKind::try_from(kind.as_str())
                 .expect("expected shared kind to have an IR spelling");
             assert_eq!(ir_kind, expected_ir_kind);
             assert_eq!(ir_kind.as_str(), kind.as_str());
-        } else {
-            assert_eq!(*kind, RegionKind::Document);
-            assert!(stilyagi_ir::RegionKind::try_from(kind.as_str()).is_err());
         }
     }
 }
