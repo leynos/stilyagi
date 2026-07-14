@@ -134,6 +134,9 @@ escalation, not a workaround.
 - [x] 2026-07-17: Review follow-up recorded the Rustdoc examples, explicit
       `document` exception guards, and clarified spelling ownership between
       emitted `as_str` spellings and the separate parser.
+- [x] 2026-07-17: Review follow-up tightened the `ALL` drift guard so only
+      `Document` lacks an IR mapping, and added fixture-specific emitted
+      spelling checks for Python and Rust extraction.
 - [x] 2026-07-14: The two inline documentation findings were verified and
       corrected.
 - [x] 2026-07-14: The post-turn Whitaker gate's reported test-only
