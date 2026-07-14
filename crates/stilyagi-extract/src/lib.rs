@@ -1,6 +1,11 @@
 //! Source extraction orchestration for the first Rust-to-Python bridge.
 
 use core::fmt;
+mod error;
+mod region;
+
+pub use error::{ExtractError, MarkdownIrFailure};
+pub use region::{ExtractRegion, RegionKind};
 pub use stilyagi_ir::SourceIdentity;
 use stilyagi_ir::{IrBoundary, IrDocument};
 use stilyagi_markdown::{MarkdownBoundary, markdown_ir_document};
@@ -41,101 +46,6 @@ impl fmt::Display for ExtractSyntax {
     }
 }
 
-/// Extraction failures surfaced by the narrow v1 bridge.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExtractError {
-    /// The requested syntax is part of the long-term model, but not yet
-    /// implemented by the extractor.
-    UnsupportedSyntax(ExtractSyntax),
-    /// The caller provided a syntax name that is not part of the supported
-    /// syntax vocabulary.
-    UnknownSyntax(String),
-    /// Markdown parsing or IR construction failed.
-    MarkdownIr(MarkdownIrFailure),
-    /// Python parsing or IR construction failed fatally.
-    PythonIr(PythonExtractError),
-    /// Rust parsing or IR construction failed fatally.
-    RustIr(RustExtractError),
-}
-
-const EXTRACT_ERROR_SIZE_LIMIT_BYTES: usize = 128;
-const _: () = assert!(core::mem::size_of::<ExtractError>() <= EXTRACT_ERROR_SIZE_LIMIT_BYTES);
-
-/// Structured Markdown IR diagnostic preserved across extraction boundaries.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MarkdownIrFailure {
-    /// Diagnostic namespace that emitted the failure.
-    pub source: String,
-    /// Stable diagnostic rule identifier.
-    pub rule_id: String,
-    /// Human-readable diagnostic reason.
-    pub reason: String,
-    /// Ordered lower-level causes, when a producer provides them.
-    pub causes: Vec<String>,
-}
-
-impl MarkdownIrFailure {
-    /// Create a Markdown IR diagnostic without nested causes.
-    #[must_use]
-    pub fn new(
-        source: impl Into<String>,
-        rule_id: impl Into<String>,
-        reason: impl Into<String>,
-    ) -> Self {
-        Self {
-            source: source.into(),
-            rule_id: rule_id.into(),
-            reason: reason.into(),
-            causes: Vec::new(),
-        }
-    }
-}
-
-impl From<markdown::message::Message> for MarkdownIrFailure {
-    fn from(message: markdown::message::Message) -> Self {
-        Self {
-            source: *message.source,
-            rule_id: *message.rule_id,
-            reason: message.reason,
-            causes: Vec::new(),
-        }
-    }
-}
-
-impl fmt::Display for MarkdownIrFailure {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "{}:{}: {}",
-            self.source, self.rule_id, self.reason
-        )?;
-        for cause in &self.causes {
-            write!(formatter, "; caused by: {cause}")?;
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Display for ExtractError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnsupportedSyntax(syntax) => {
-                write!(formatter, "{syntax} extraction is not implemented yet.")
-            }
-            Self::UnknownSyntax(syntax) => {
-                write!(formatter, "unknown syntax '{syntax}'")
-            }
-            Self::MarkdownIr(diagnostic) => {
-                write!(formatter, "markdown IR extraction failed: {diagnostic}")
-            }
-            Self::PythonIr(error) => write!(formatter, "python IR extraction failed: {error}"),
-            Self::RustIr(error) => write!(formatter, "rust IR extraction failed: {error}"),
-        }
-    }
-}
-
-impl std::error::Error for ExtractError {}
-
 impl TryFrom<&str> for ExtractSyntax {
     type Error = ExtractError;
 
@@ -146,128 +56,6 @@ impl TryFrom<&str> for ExtractSyntax {
             "rust_doc_comment" => Ok(Self::RustDocComment),
             _ => Err(ExtractError::UnknownSyntax(value.to_owned())),
         }
-    }
-}
-
-/// Stable kind names for extracted prose regions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum RegionKind {
-    /// Whole-document prose extracted from a source file.
-    Document,
-    /// Python docstring prose extracted from source code.
-    PythonDocstring,
-    /// Rust doc-comment prose extracted from source code.
-    RustDocComment,
-}
-
-impl RegionKind {
-    /// All bridge region kinds, in canonical order.
-    pub const ALL: &'static [Self] = &[Self::Document, Self::PythonDocstring, Self::RustDocComment];
-
-    /// Return the canonical IR kind for bridge regions that share IR
-    /// vocabulary.
-    ///
-    /// `Document` is a coarse bridge-only region and deliberately has no
-    /// `stilyagi_ir` equivalent.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use stilyagi_extract::RegionKind;
-    ///
-    /// assert_eq!(
-    ///     RegionKind::PythonDocstring.ir_region_kind(),
-    ///     Some(stilyagi_ir::RegionKind::PythonDocstring),
-    /// );
-    /// assert_eq!(RegionKind::Document.ir_region_kind(), None);
-    /// ```
-    #[must_use]
-    pub const fn ir_region_kind(self) -> Option<stilyagi_ir::RegionKind> {
-        match self {
-            Self::Document => None,
-            Self::PythonDocstring => Some(stilyagi_ir::RegionKind::PythonDocstring),
-            Self::RustDocComment => Some(stilyagi_ir::RegionKind::RustDocComment),
-        }
-    }
-
-    /// Return the stable bridge spelling for this region kind.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use stilyagi_extract::RegionKind;
-    ///
-    /// assert_eq!(RegionKind::PythonDocstring.as_str(), "python_docstring");
-    /// assert_eq!(RegionKind::Document.as_str(), "document");
-    /// ```
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self.ir_region_kind() {
-            Some(kind) => kind.as_str(),
-            None => "document",
-        }
-    }
-}
-
-impl fmt::Display for RegionKind {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
-impl TryFrom<&str> for RegionKind {
-    type Error = String;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "document" => Ok(Self::Document),
-            "python_docstring" => Ok(Self::PythonDocstring),
-            "rust_doc_comment" => Ok(Self::RustDocComment),
-            _ => Err(value.to_owned()),
-        }
-    }
-}
-
-/// Minimal source-backed prose region for the first extraction bridge.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExtractRegion {
-    kind: String,
-    text: String,
-}
-
-impl ExtractRegion {
-    /// Create a region with the supplied stable kind name and text.
-    #[must_use]
-    pub fn new(kind: impl Into<String>, text: impl Into<String>) -> Self {
-        Self {
-            kind: kind.into(),
-            text: text.into(),
-        }
-    }
-
-    /// Create a region from the typed region kind and supplied text.
-    #[must_use]
-    pub fn new_typed(kind: RegionKind, text: impl Into<String>) -> Self {
-        Self::new(kind.as_str(), text)
-    }
-
-    /// Return the stable region kind name.
-    #[must_use]
-    pub fn kind(&self) -> &str {
-        &self.kind
-    }
-
-    /// Return the typed region kind when it is in the built-in vocabulary.
-    #[must_use]
-    pub fn region_kind(&self) -> Option<RegionKind> {
-        RegionKind::try_from(self.kind()).ok()
-    }
-
-    /// Return the extracted region text.
-    #[must_use]
-    pub fn text(&self) -> &str {
-        &self.text
     }
 }
 
@@ -442,53 +230,4 @@ fn extract_rust_document(
 }
 
 #[cfg(test)]
-mod tests {
-    //! Tests for extraction error mapping at crate-private seams.
-
-    use super::{ExtractError, MarkdownIrFailure, RegionKind, extract_markdown_document_with};
-    use rstest::rstest;
-
-    const fn known_region_kind(kind: RegionKind) {
-        match kind {
-            RegionKind::Document | RegionKind::PythonDocstring | RegionKind::RustDocComment => {}
-        }
-    }
-
-    #[test]
-    fn region_kind_all_is_exhaustive() {
-        assert_eq!(RegionKind::ALL.len(), 3);
-
-        for kind in RegionKind::ALL {
-            known_region_kind(*kind);
-        }
-    }
-
-    #[test]
-    fn shared_bridge_spelling_comes_from_ir() {
-        assert_eq!(RegionKind::Document.ir_region_kind(), None);
-        assert!(stilyagi_ir::RegionKind::try_from(RegionKind::Document.as_str()).is_err());
-
-        for kind in RegionKind::ALL {
-            if let Some(ir_kind) = kind.ir_region_kind() {
-                assert_eq!(kind.as_str(), ir_kind.as_str());
-            }
-        }
-    }
-
-    #[rstest]
-    fn markdown_ir_builder_failures_map_to_extract_error() {
-        let result = extract_markdown_document_with("# Heading", |_| {
-            Err(MarkdownIrFailure::new(
-                "stilyagi-markdown",
-                "injected-ir-failure",
-                "injected IR failure",
-            ))
-        });
-        let Err(ExtractError::MarkdownIr(diagnostic)) = result else {
-            panic!("expected MarkdownIr failure");
-        };
-        assert_eq!(diagnostic.source, "stilyagi-markdown");
-        assert_eq!(diagnostic.rule_id, "injected-ir-failure");
-        assert_eq!(diagnostic.reason, "injected IR failure");
-    }
-}
+mod tests;
