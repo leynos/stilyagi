@@ -171,8 +171,26 @@ pub fn extract_document_with_source_identity(
 ) -> Result<ExtractDocument, ExtractError> {
     match syntax {
         ExtractSyntax::Markdown => extract_markdown_document(source, identity),
-        ExtractSyntax::PythonDocstring => extract_python_document(source, identity),
-        ExtractSyntax::RustDocComment => extract_rust_document(source, identity),
+        ExtractSyntax::PythonDocstring => {
+            // A module docstring yields a `python_docstring` region with canonical IR.
+            extract_document_from_ir(
+                source,
+                identity,
+                ExtractSyntax::PythonDocstring,
+                python_docstring_ir_document,
+                ExtractError::PythonIr,
+            )
+        }
+        ExtractSyntax::RustDocComment => {
+            // An item doc comment yields a `rust_doc_comment` region with canonical IR.
+            extract_document_from_ir(
+                source,
+                identity,
+                ExtractSyntax::RustDocComment,
+                rust_doc_comment_ir_document,
+                ExtractError::RustIr,
+            )
+        }
     }
 }
 
@@ -232,40 +250,6 @@ fn extract_document_from_ir<E>(
         .collect();
 
     Ok(ExtractDocument::new(syntax, regions).with_ir(ir))
-}
-
-/// Preserves parser-defined Python docstring regions from canonical IR.
-///
-/// For example, a module docstring returns a `python_docstring` bridge region
-/// with the parser's canonical IR attached.
-fn extract_python_document(
-    source: &str,
-    identity: SourceIdentity,
-) -> Result<ExtractDocument, ExtractError> {
-    extract_document_from_ir(
-        source,
-        identity,
-        ExtractSyntax::PythonDocstring,
-        python_docstring_ir_document,
-        ExtractError::PythonIr,
-    )
-}
-
-/// Preserves parser-defined Rust doc-comment regions from canonical IR.
-///
-/// For example, an item doc comment returns a `rust_doc_comment` bridge region
-/// with the parser's canonical IR attached.
-fn extract_rust_document(
-    source: &str,
-    identity: SourceIdentity,
-) -> Result<ExtractDocument, ExtractError> {
-    extract_document_from_ir(
-        source,
-        identity,
-        ExtractSyntax::RustDocComment,
-        rust_doc_comment_ir_document,
-        ExtractError::RustIr,
-    )
 }
 
 #[cfg(test)]
