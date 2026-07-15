@@ -67,6 +67,7 @@ fn extract_document_py(py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<Py
     Ok(document_dict.unbind())
 }
 
+/// Return canonical IR regions when available, otherwise bridge extraction regions.
 fn region_items_for_document(
     py: Python<'_>,
     document: &ExtractDocument,
@@ -77,6 +78,7 @@ fn region_items_for_document(
     extract_region_items(py, document.regions())
 }
 
+/// Convert canonical IR regions into Python dictionaries.
 fn canonical_region_items(py: Python<'_>, regions: &[IrRegion]) -> PyResult<Vec<Py<PyDict>>> {
     regions
         .iter()
@@ -84,6 +86,7 @@ fn canonical_region_items(py: Python<'_>, regions: &[IrRegion]) -> PyResult<Vec<
         .collect::<PyResult<Vec<_>>>()
 }
 
+/// Convert bridge extraction regions into Python dictionaries.
 fn extract_region_items(py: Python<'_>, regions: &[ExtractRegion]) -> PyResult<Vec<Py<PyDict>>> {
     regions
         .iter()
@@ -91,6 +94,7 @@ fn extract_region_items(py: Python<'_>, regions: &[ExtractRegion]) -> PyResult<V
         .collect::<PyResult<Vec<_>>>()
 }
 
+/// Build a Python dictionary for one extracted region.
 fn region_item(py: Python<'_>, kind: &str, text: &str) -> PyResult<Py<PyDict>> {
     let region_dict = PyDict::new(py);
     region_dict.set_item("kind", kind)?;
@@ -98,6 +102,7 @@ fn region_item(py: Python<'_>, kind: &str, text: &str) -> PyResult<Py<PyDict>> {
     Ok(region_dict.unbind())
 }
 
+/// Create the Python `extract_document` callable.
 fn extract_document_function(py: Python<'_>) -> PyResult<Bound<'_, PyCFunction>> {
     PyCFunction::new_closure(
         py,
@@ -120,6 +125,7 @@ struct ExtractDocumentRequest {
 }
 
 impl ExtractDocumentRequest {
+    /// Parse positional Python arguments into an extraction request.
     fn from_args(args: &Bound<'_, PyTuple>) -> PyResult<Self> {
         if args.len() != 2 {
             return Err(PyTypeError::new_err(format!(
@@ -135,6 +141,7 @@ impl ExtractDocumentRequest {
     }
 }
 
+/// Map extraction failures to Python exceptions.
 fn map_extract_error(error: &ExtractError) -> PyErr {
     match error {
         ExtractError::UnsupportedSyntax(_) => PyNotImplementedError::new_err(error.to_string()),
