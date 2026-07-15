@@ -176,6 +176,7 @@ pub fn extract_document_with_source_identity(
     }
 }
 
+/// Extracts a Markdown document and returns its regions and canonical IR.
 fn extract_markdown_document(
     source: &str,
     identity: SourceIdentity,
@@ -185,6 +186,7 @@ fn extract_markdown_document(
     })
 }
 
+/// Builds a Markdown document with the supplied IR builder and returns its regions and IR.
 fn extract_markdown_document_with<E>(
     source: &str,
     build_ir: impl FnOnce(&str) -> Result<IrDocument, E>,
@@ -201,6 +203,7 @@ where
     Ok(ExtractDocument::new(ExtractSyntax::Markdown, regions).with_ir(ir))
 }
 
+/// Extracts Python docstrings and returns their regions and canonical IR.
 fn extract_python_document(
     source: &str,
     identity: SourceIdentity,
@@ -215,6 +218,7 @@ fn extract_python_document(
     Ok(ExtractDocument::new(ExtractSyntax::PythonDocstring, regions).with_ir(ir))
 }
 
+/// Extracts Rust doc comments and returns their regions and canonical IR.
 fn extract_rust_document(
     source: &str,
     identity: SourceIdentity,

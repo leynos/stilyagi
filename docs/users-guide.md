@@ -171,6 +171,13 @@ assert document.ir["regions"][1]["owner"] == {
 }
 ```
 
+> **Bridge helpers:** `stilyagi_extract::RegionKind::ALL` and
+> `RegionKind::ir_region_kind()` are Rust-internal bridge helpers and are not
+> exposed across the Python boundary. Use `engine.supported_region_kinds()` as
+> the Python-facing source of truth for supported region kinds. See the
+> [RegionKind and typed ExtractRegion API](developers-guide.md#regionkind-and-typed-extractregion-api)
+> for the Rust details.
+
 ## 1b. Package smoke check
 
 Stilyagi ships a built-in smoke check that confirms the embedded Rust extension
