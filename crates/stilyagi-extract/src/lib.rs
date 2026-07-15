@@ -203,19 +203,40 @@ where
     Ok(ExtractDocument::new(ExtractSyntax::Markdown, regions).with_ir(ir))
 }
 
-/// Extracts Python docstrings and returns their regions and canonical IR.
-fn extract_python_document(
+/// Builds an extraction document from a syntax-specific canonical IR.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the private helper's five parameters are its extraction boundary"
+)]
+fn extract_document_from_ir<E>(
     source: &str,
     identity: SourceIdentity,
+    syntax: ExtractSyntax,
+    build_ir: impl FnOnce(&str, SourceIdentity) -> Result<IrDocument, E>,
+    map_err: impl FnOnce(E) -> ExtractError,
 ) -> Result<ExtractDocument, ExtractError> {
-    let ir = python_docstring_ir_document(source, identity).map_err(ExtractError::PythonIr)?;
+    let ir = build_ir(source, identity).map_err(map_err)?;
     let regions = ir
         .regions
         .iter()
         .map(|region| ExtractRegion::new(region.kind.clone(), region.text.clone()))
         .collect();
 
-    Ok(ExtractDocument::new(ExtractSyntax::PythonDocstring, regions).with_ir(ir))
+    Ok(ExtractDocument::new(syntax, regions).with_ir(ir))
+}
+
+/// Extracts Python docstrings and returns their regions and canonical IR.
+fn extract_python_document(
+    source: &str,
+    identity: SourceIdentity,
+) -> Result<ExtractDocument, ExtractError> {
+    extract_document_from_ir(
+        source,
+        identity,
+        ExtractSyntax::PythonDocstring,
+        python_docstring_ir_document,
+        ExtractError::PythonIr,
+    )
 }
 
 /// Extracts Rust doc comments and returns their regions and canonical IR.
@@ -223,14 +244,13 @@ fn extract_rust_document(
     source: &str,
     identity: SourceIdentity,
 ) -> Result<ExtractDocument, ExtractError> {
-    let ir = rust_doc_comment_ir_document(source, identity).map_err(ExtractError::RustIr)?;
-    let regions = ir
-        .regions
-        .iter()
-        .map(|region| ExtractRegion::new(region.kind.clone(), region.text.clone()))
-        .collect();
-
-    Ok(ExtractDocument::new(ExtractSyntax::RustDocComment, regions).with_ir(ir))
+    extract_document_from_ir(
+        source,
+        identity,
+        ExtractSyntax::RustDocComment,
+        rust_doc_comment_ir_document,
+        ExtractError::RustIr,
+    )
 }
 
 #[cfg(test)]
