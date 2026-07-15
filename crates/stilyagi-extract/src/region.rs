@@ -73,10 +73,21 @@ impl TryFrom<&str> for RegionKind {
     type Error = String;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "document" => Ok(Self::Document),
-            "python_docstring" => Ok(Self::PythonDocstring),
-            "rust_doc_comment" => Ok(Self::RustDocComment),
+        if value == "document" {
+            Ok(Self::Document)
+        } else {
+            Self::from_shared_ir_kind(value)
+        }
+    }
+}
+
+impl RegionKind {
+    fn from_shared_ir_kind(value: &str) -> Result<Self, String> {
+        let ir_kind = stilyagi_ir::RegionKind::try_from(value).map_err(|_| value.to_owned())?;
+
+        match ir_kind {
+            stilyagi_ir::RegionKind::PythonDocstring => Ok(Self::PythonDocstring),
+            stilyagi_ir::RegionKind::RustDocComment => Ok(Self::RustDocComment),
             _ => Err(value.to_owned()),
         }
     }

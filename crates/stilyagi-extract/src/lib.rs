@@ -176,7 +176,10 @@ pub fn extract_document_with_source_identity(
     }
 }
 
-/// Extracts a Markdown document and returns its regions and canonical IR.
+/// Keeps Markdown bridge regions coarse while canonical IR retains detail.
+///
+/// For example, `"# Heading"` returns one bridge-only `Document` region and
+/// attaches canonical IR that retains the heading structure.
 fn extract_markdown_document(
     source: &str,
     identity: SourceIdentity,
@@ -186,7 +189,10 @@ fn extract_markdown_document(
     })
 }
 
-/// Builds a Markdown document with the supplied IR builder and returns its regions and IR.
+/// Injects Markdown IR construction so tests can isolate the extraction boundary.
+///
+/// For example, a supplied heading IR yields one `Document` region and returns
+/// that exact IR on the extraction document.
 fn extract_markdown_document_with<E>(
     source: &str,
     build_ir: impl FnOnce(&str) -> Result<IrDocument, E>,
@@ -203,7 +209,10 @@ where
     Ok(ExtractDocument::new(ExtractSyntax::Markdown, regions).with_ir(ir))
 }
 
-/// Builds an extraction document from a syntax-specific canonical IR.
+/// Derives bridge regions from canonical IR rather than re-encoding source syntax.
+///
+/// For example, a `python_docstring` IR region becomes an equally named bridge
+/// region and remains attached to the returned extraction document.
 #[expect(
     clippy::too_many_arguments,
     reason = "the private helper's five parameters are its extraction boundary"
@@ -225,7 +234,10 @@ fn extract_document_from_ir<E>(
     Ok(ExtractDocument::new(syntax, regions).with_ir(ir))
 }
 
-/// Extracts Python docstrings and returns their regions and canonical IR.
+/// Preserves parser-defined Python docstring regions from canonical IR.
+///
+/// For example, a module docstring returns a `python_docstring` bridge region
+/// with the parser's canonical IR attached.
 fn extract_python_document(
     source: &str,
     identity: SourceIdentity,
@@ -239,7 +251,10 @@ fn extract_python_document(
     )
 }
 
-/// Extracts Rust doc comments and returns their regions and canonical IR.
+/// Preserves parser-defined Rust doc-comment regions from canonical IR.
+///
+/// For example, an item doc comment returns a `rust_doc_comment` bridge region
+/// with the parser's canonical IR attached.
 fn extract_rust_document(
     source: &str,
     identity: SourceIdentity,
