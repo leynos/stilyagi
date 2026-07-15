@@ -82,6 +82,11 @@ impl TryFrom<&str> for RegionKind {
 }
 
 impl RegionKind {
+    /// Converts shared Python and Rust prose spellings into bridge kinds.
+    ///
+    /// For example, `"python_docstring"` returns `Ok(Self::PythonDocstring)`,
+    /// while the unrelated IR spelling `"heading"` returns
+    /// `Err("heading".to_owned())`.
     fn from_shared_ir_kind(value: &str) -> Result<Self, String> {
         let ir_kind = stilyagi_ir::RegionKind::try_from(value).map_err(|_| value.to_owned())?;
 

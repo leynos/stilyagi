@@ -171,26 +171,20 @@ pub fn extract_document_with_source_identity(
 ) -> Result<ExtractDocument, ExtractError> {
     match syntax {
         ExtractSyntax::Markdown => extract_markdown_document(source, identity),
-        ExtractSyntax::PythonDocstring => {
-            // A module docstring yields a `python_docstring` region with canonical IR.
-            extract_document_from_ir(
-                source,
-                identity,
-                ExtractSyntax::PythonDocstring,
-                python_docstring_ir_document,
-                ExtractError::PythonIr,
-            )
-        }
-        ExtractSyntax::RustDocComment => {
-            // An item doc comment yields a `rust_doc_comment` region with canonical IR.
-            extract_document_from_ir(
-                source,
-                identity,
-                ExtractSyntax::RustDocComment,
-                rust_doc_comment_ir_document,
-                ExtractError::RustIr,
-            )
-        }
+        ExtractSyntax::PythonDocstring => extract_document_from_ir(
+            source,
+            identity,
+            ExtractSyntax::PythonDocstring,
+            python_docstring_ir_document,
+            ExtractError::PythonIr,
+        ),
+        ExtractSyntax::RustDocComment => extract_document_from_ir(
+            source,
+            identity,
+            ExtractSyntax::RustDocComment,
+            rust_doc_comment_ir_document,
+            ExtractError::RustIr,
+        ),
     }
 }
 

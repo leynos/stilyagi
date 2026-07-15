@@ -49,12 +49,11 @@ After this change:
    with the coarse bridge-only `document` region as the single, explicitly
    documented exception.
 
-Observable success: running `make test` passes; and if a developer changes a
-shared spelling in only one crate (for example renames the IR spelling of
-`python_docstring`, or edits the handwritten `"rust_doc_comment"` literal in
-`stilyagi-tree-sitter`), a named test fails and names the drift. The plan
-records the exact temporary-mutation demonstration that proves each guard test
-actually catches drift.
+Observable success: `make test` passes, and a deliberate temporary mutation
+to either the `python_docstring` IR spelling or a reintroduced divergent
+producer-side spelling in `stilyagi-tree-sitter` causes the matching named
+test to fail and report the drift. The plan records the exact temporary-
+mutation demonstration that proves each guard test actually catches drift.
 
 ## Constraints
 

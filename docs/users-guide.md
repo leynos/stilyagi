@@ -116,9 +116,10 @@ The new extraction path is intentionally narrow in this slice:
 - `model.Syntax.MARKDOWN` and `model.Syntax.PYTHON_DOCSTRING` are currently
   implemented for that API.
 - `model.Syntax.RUST_DOC_COMMENT` is implemented for that API.
-- Markdown documents and Python docstrings expose a parsed `document.ir`
-  mapping containing the canonical IR envelope. That mapping includes schema
-  metadata, `line_index`, tree nodes, region `segments`, and content hashes.
+- Markdown documents, Python docstrings, and Rust doc comments expose a
+  parsed `document.ir` mapping containing the canonical IR envelope. That
+  mapping includes schema metadata, `line_index`, tree nodes, region
+  `segments`, and content hashes.
 - Markdown IR regions currently include text-bearing `heading`, `paragraph`,
   and `table_cell` regions; structural `list_item` and `blockquote` container
   regions; source-backed whole-block `frontmatter`; and synthetic decoded
