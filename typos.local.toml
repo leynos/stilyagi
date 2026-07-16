@@ -1,0 +1,28 @@
+# Repository-specific identifiers, quotations and deliberate fixtures.
+
+schema = 1
+
+[oxford]
+stems = []
+
+[words]
+accepted = [
+  "astroid",
+  "inventario",
+  "mis",
+]
+
+[words.corrections]
+
+[patterns]
+ignore = [
+  'rust-analyzer',
+  'release-artifact',
+  '## Artifacts and notes',
+  'Center \| Microsoft Learn',
+]
+
+[files]
+exclude = [
+  "tests/fixtures",
+]

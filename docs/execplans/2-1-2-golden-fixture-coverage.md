@@ -397,7 +397,7 @@ home is alongside `SegmentOrigin`; if it must stay in `stilyagi-markdown`,
 expose a `pub(crate)` `ALL`). Rewrite the test oracle
 `synthetic_segments_use_known_reasons`
 (`crates/stilyagi-markdown/src/tests.rs`) to derive its allow-list from that
-constant rather than a hand-written `matches!`. No new reason is added in this
+constant rather than a handwritten `matches!`. No new reason is added in this
 slice.
 
 Run the targeted Rust gates, then the full gates:

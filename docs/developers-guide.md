@@ -1018,44 +1018,52 @@ the other tool's finding.
 `make markdownlint` enforces en-GB-oxendict (Oxford) spelling over the
 repository's Markdown prose with [`typos`](https://github.com/crate-ci/typos),
 as required by the [documentation style guide](documentation-style-guide.md).
-The configuration lives in the repository-root `typos.toml` and works in two
-layers:
+The generated configuration lives in the repository-root `typos.toml` and
+works in three layers:
 
 1. The `en-gb` locale corrects American spellings (`color` to `colour`,
    `behavior` to `behaviour`, `analyzed` to `analysed`).
-2. Generated `extend-words` entries restore Oxford spelling, which the locale
-   alone would not enforce: identity entries accept `-ize` inflections that
-   the locale would otherwise "correct" to `-ise`, and `-ise` entries are
-   corrected to `-ize`. Stems taking `-yse` (`analyse`, `paralyse`) are left
-   to the locale, which already enforces them.
+2. The estate-wide base dictionary bundled by `leynos/typos-config-builder`
+   restores Oxford spelling, which the locale alone would not enforce. Identity
+   entries accept `-ize` inflections that the locale would otherwise "correct"
+   to `-ise`, while `-ise` entries are corrected to `-ize`. Stems taking `-yse`
+   (`analyse`, `paralyse`) remain with the locale, which already enforces them.
+3. `typos.local.toml` adds only Stilyagi-specific accepted words, quoted
+   upstream names, and excluded fixtures.
 
-`typos.toml` is a generated file. Never edit its entries by hand; change
-`scripts/generate_typos_config.py` and regenerate:
+`typos.toml` is a generated file. Never edit its entries by hand. The focused
+builder is pinned to immutable commit
+`b604f198797fdd36a567dd0f8f07b13f9539b241`. Regenerate from its bundled shared
+base and the local overlay with:
 
 ```bash
-uv run scripts/generate_typos_config.py
+make spelling-config-write
 ```
 
-The generator script owns three maintainer-facing lists:
+The builder conditionally refreshes `.typos-oxendict-base.toml` from its bundled
+authority before rendering. The cached base and its
+`.typos-oxendict-base.json` freshness metadata are untracked. A newer valid
+local cache is not overwritten by an older source, and a populated cache
+supports offline generation. `make spelling-config` checks generated drift
+without rewriting the tracked output.
 
-- `STEMS` — word stems that take Oxford `-ize`. When the gate flags a
-  legitimate `-ize` word (or silently accepts its `-ise` variant) because the
-  stem is missing, add the stem here and regenerate. Do not add genuinely
+Spelling policy has two maintainer-facing homes:
+
+- Generic Oxford stems, accepted terms, and phrase corrections belong in the
+  bundled authority in `leynos/typos-config-builder`. Do not add genuinely
   `-ise`-only words (`advise`, `revise`, `exercise`, `supervise`).
-- `EXTRA_ACCEPTED_WORDS` — words accepted verbatim, such as the `astroid`
-  library, suffix fragments quoted in prose, and non-English example text.
-- `extend-ignore-re` patterns in `HEADER` — regions exempt from spelling
-  checks: inline code spans, fenced code blocks, tool and target names that
-  keep their upstream spelling (`rust-analyzer`, `release-artifact`), and
-  verbatim citation titles. Quoted APIs keep US spelling per the
-  documentation style guide, so put them in backticks rather than adding
+- Stilyagi-only accepted words, ignore patterns, and file exclusions belong in
+  `typos.local.toml`. Keep exceptions narrow: quoted APIs retain upstream
+  spelling and should normally be put in backticks rather than added as
   word-level exceptions.
 
-The gate runs over the `MD_FILES_FIND` file list shared with markdownlint and
-nixie, with `--force-exclude` so the `typos.toml` excludes also apply to
-explicitly passed paths (for example, Markdown that appears inside `.uv-cache`
-checkouts or `target` build output). To fix findings mechanically, rerun the
-gate's `typos` command with `--write-changes` appended, using the same pinned
+The spelling gate first checks generated configuration, then applies shared
+exact-phrase corrections to eligible tracked UTF-8 text. This enforces
+`hand-written` to `handwritten`, which Typos cannot represent after tokenizing a
+hyphenated phrase. Typos then runs over the `MD_FILES_FIND` list shared with
+markdownlint and nixie. It uses `--force-exclude` so the `typos.toml` excludes
+also apply to explicitly passed paths. To fix Typos findings mechanically,
+rerun the gate's command with `--write-changes` appended, using the same pinned
 version the Makefile prints when `make markdownlint` runs:
 
 ```bash
@@ -1066,6 +1074,10 @@ env UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools \
 
 Review automated rewrites before committing; spelling corrections must not
 touch code samples, API names, or quoted material.
+
+The phrase helper follows the CodeRabbit-reviewed consumer baseline. Its
+isolated test runner supplies Pathspec 1.1.1 without adding a project runtime or
+locked development dependency.
 
 ### 6c. Tool version alignment between the Makefile and CI
 

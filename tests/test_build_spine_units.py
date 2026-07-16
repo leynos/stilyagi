@@ -265,18 +265,29 @@ def test_makefile_markdownlint_target_excludes_release_smoke_venv(
 def test_makefile_markdownlint_target_enforces_spelling(
     makefile_text: str,
 ) -> None:
-    """Markdownlint must run typos over the shared Markdown file list.
+    """Markdownlint must depend on the complete spelling gate.
 
     The spelling gate must go through the pinned ``$(TYPOS)`` command with the
     repository configuration and ``--force-exclude`` so the ``typos.toml``
     excludes hold even for explicitly passed paths.
     """
-    _header, recipe = _make_target(makefile_text, "markdownlint")
-    typos_lines = [line for line in recipe if "$(TYPOS)" in line]
+    markdown_header, _markdown_recipe = _make_target(makefile_text, "markdownlint")
+    assert "spelling" in markdown_header
+    _spelling_header, spelling_recipe = _make_target(makefile_text, "spelling")
+    typos_lines = [line for line in spelling_recipe if "$(TYPOS)" in line]
     assert len(typos_lines) == 1
     assert "$(MD_FILES_FIND)" in typos_lines[0]
     assert "--config typos.toml" in typos_lines[0]
     assert "--force-exclude" in typos_lines[0]
+    assert typos_lines[0].endswith(" --")
+    config_header, config_recipe = _make_target(makefile_text, "spelling-config")
+    assert "spelling-helper-test" in config_header
+    assert config_recipe == ("$(TYPOS_CONFIG_BUILDER) --repository . --check",)
+    assert re.search(
+        r"^TYPOS_CONFIG_BUILDER_COMMIT\s*:=\s*[0-9a-f]{40}\s*$",
+        makefile_text,
+        re.MULTILINE,
+    )
     assert re.search(
         r"^TYPOS_VERSION\s*\?=\s*\d+\.\d+\.\d+\s*$", makefile_text, re.MULTILINE
     )

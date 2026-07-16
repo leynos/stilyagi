@@ -23,7 +23,7 @@ Citations verified against source in this worktree:
   accurate. Gate targets (`check-fmt`/`typecheck`/`lint`/`test`,
   `markdownlint`/`nixie`) match `Makefile` and `AGENTS.md`. ✅
 - No standalone red-test commit is required; commit-after-green is compliant.
-- No hand-written formatter file lists that could name nonexistent files.
+- No handwritten formatter file lists that could name nonexistent files.
 
 ## 🔴 BLOCKING — unconditional comment-node emission contradicts the plan's own no-churn invariant
 
