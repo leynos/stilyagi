@@ -99,7 +99,7 @@ fn region_kind_as_str_round_trips_through_try_from(#[case] kind: RegionKind) {
 #[case("python_docstring")]
 #[case("rust_doc_comment")]
 fn region_kind_try_from_round_trips_through_as_str(#[case] spelling: &str) {
-    let kind = RegionKind::try_from(spelling).expect("expected a valid RegionKind spelling");
+    let kind = RegionKind::try_from(spelling).expect("known RegionKind spelling should parse");
     assert_eq!(kind.as_str(), spelling);
 }
 
