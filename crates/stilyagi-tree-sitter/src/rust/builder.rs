@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags};
+use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags, RegionKind};
 use tree_sitter::Node;
 
 use super::builder_state::{
@@ -243,7 +243,7 @@ impl<'source> RustIrBuilder<'source> {
         let region_id = self.next_region_id();
         self.regions.push(IrRegion {
             id: region_id,
-            kind: "rust_doc_comment".to_owned(),
+            kind: RegionKind::RustDocComment.as_str().to_owned(),
             scope: vec![
                 "rust".to_owned(),
                 "doc_comment".to_owned(),

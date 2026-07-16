@@ -1,0 +1,22 @@
+Revise 6.4.1 execplan to fix drift-guard defects
+
+Resolve the two round-1 design-review blocking defects on the roadmap
+6.4.1 ExecPlan:
+
+- Correct Work item 2's test registration: this crate has no
+  tests/extract/mod.rs; integration tests are registered in
+  extract_integration.rs via #[path = ...] mod, so name the exact
+  region_vocabulary entry and warn that an unregistered file never runs.
+- Correct Work item 1's Red evidence: a consistent IR rename forwards
+  through as_str to both sides of shared_bridge_spelling_comes_from_ir's
+  equality, so that guard keeps passing; attribute the IR-rename mutation
+  to the extract round-trip tests and add an un-forwarding mutation that
+  actually makes the named guard bite. Fix the Acceptance section to match.
+
+Fold in both advisories: use the Option-returning document.ir().expect(...)
+accessor in the behavioural test, and reuse the existing
+ExpectedSpelling::RustDocComment arm for the coverage-gap cases.
+
+Status stays DRAFT pending re-review.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>

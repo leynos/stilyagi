@@ -193,9 +193,9 @@ fn anonymous_source_identity_serializes_as_null_metadata_fields() {
     );
     let json = document
         .to_canonical_json()
-        .unwrap_or_else(|error| panic!("expected canonical JSON: {error}"));
+        .expect("expected canonical JSON");
     let parsed = serde_json::from_str::<serde_json::Value>(&json)
-        .unwrap_or_else(|error| panic!("expected parseable canonical JSON: {error}"));
+        .expect("expected parseable canonical JSON");
     let metadata = parsed
         .get("document")
         .and_then(serde_json::Value::as_object)

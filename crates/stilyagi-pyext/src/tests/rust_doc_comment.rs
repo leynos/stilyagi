@@ -15,7 +15,7 @@ fn extract_document_py_exposes_rust_doc_comments() {
         stilyagi_test_support::read_corpus_fixture(stilyagi_test_support::SHARED_RUST_FIXTURE_PATH)
             .expect("expected shared Rust fixture to be readable");
     let document = bridge_extract_document(&source, "rust_doc_comment")
-        .unwrap_or_else(|error| panic!("unexpected extraction failure: {error}"));
+        .expect("unexpected extraction failure");
 
     Python::attach(|py| {
         let document_dict = document.bind(py);
@@ -23,9 +23,7 @@ fn extract_document_py_exposes_rust_doc_comments() {
             .get_item("regions")
             .expect("missing regions payload");
         let regions_value = regions_any.expect("missing regions value");
-        let regions = regions_value
-            .cast::<PyList>()
-            .unwrap_or_else(|error| panic!("expected PyList but got {error}"));
+        let regions = regions_value.cast::<PyList>().expect("expected PyList");
         let first_region = region_at(regions, 0);
 
         assert_eq!(

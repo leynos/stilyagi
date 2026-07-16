@@ -115,12 +115,11 @@ The new extraction path is intentionally narrow in this slice:
   first real Rust extraction call.
 - `model.Syntax.MARKDOWN` and `model.Syntax.PYTHON_DOCSTRING` are currently
   implemented for that API.
-- `model.Syntax.RUST_DOC_COMMENT` remains part of the planned model vocabulary,
-  but currently raises `NotImplementedError` when passed to
-  `extract_document(...)`.
-- Markdown documents and Python docstrings expose a parsed `document.ir`
-  mapping containing the canonical IR envelope. That mapping includes schema
-  metadata, `line_index`, tree nodes, region `segments`, and content hashes.
+- `model.Syntax.RUST_DOC_COMMENT` is implemented for that API.
+- Markdown documents, Python docstrings, and Rust doc comments expose a
+  parsed `document.ir` mapping containing the canonical IR envelope. That
+  mapping includes schema metadata, `line_index`, tree nodes, region
+  `segments`, and content hashes.
 - Markdown IR regions currently include text-bearing `heading`, `paragraph`,
   and `table_cell` regions; structural `list_item` and `blockquote` container
   regions; source-backed whole-block `frontmatter`; and synthetic decoded
@@ -170,6 +169,13 @@ assert document.ir["regions"][1]["owner"] == {
     "qualname": "Example",
 }
 ```
+
+> **Bridge helpers:** `stilyagi_extract::RegionKind::ALL` and
+> `RegionKind::ir_region_kind()` are Rust-internal bridge helpers and are not
+> exposed across the Python boundary. Use `engine.supported_region_kinds()` as
+> the Python-facing source of truth for supported region kinds. See the
+> [RegionKind and typed ExtractRegion API](developers-guide.md#regionkind-and-typed-extractregion-api)
+> for the Rust details.
 
 ## 1b. Package smoke check
 

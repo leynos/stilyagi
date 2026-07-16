@@ -565,7 +565,7 @@ This step answers whether the IR crate and the extractor crate can keep a
 single region-kind vocabulary without silently diverging as more region kinds
 land.
 
-- [ ] 6.4.1. Unify the region-kind vocabulary across `stilyagi-ir` and
+- [x] 6.4.1. Unify the region-kind vocabulary across `stilyagi-ir` and
   `stilyagi-extract`. See Stilyagi design (stilyagi-design.md) §7.1.
   - Requires 3.1.1 and 3.1.2.
   - Keep the shared vocabulary as the single source of truth or add a

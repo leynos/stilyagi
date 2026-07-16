@@ -1,0 +1,13 @@
+Record round 1 design review for roadmap 6.4.1 ExecPlan
+
+Capture two blocking defects found in the adversarial Logisphere design
+review: Work item 2 names a non-existent test-registration file
+(tests/extract/mod.rs) instead of tests/extract_integration.rs, so the drift
+cross-check would never compile or run; and Work item 1's Red-evidence step
+names a guard (shared_bridge_spelling_comes_from_ir) that cannot fail under
+its prescribed IR-spelling mutation, since the forwarded as_str keeps both
+sides of the equality equal.
+
+Status left DRAFT: the plan is not approved.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>

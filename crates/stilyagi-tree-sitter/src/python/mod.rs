@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use stilyagi_ir::{
     DocumentMetadata, IrDocument, IrError, IrNode, IrRegion, IrSegment, IrTree, NodeFlags,
-    SegmentOrigin, SourceIdentity,
+    RegionKind, SegmentOrigin, SourceIdentity,
 };
 use tree_sitter::Node;
 
@@ -320,7 +320,7 @@ impl<'source> PythonIrBuilder<'source> {
         let region_id = self.next_region_id();
         self.regions.push(IrRegion {
             id: region_id,
-            kind: "python_docstring".to_owned(),
+            kind: RegionKind::PythonDocstring.as_str().to_owned(),
             scope: vec![
                 "python".to_owned(),
                 "docstring".to_owned(),
