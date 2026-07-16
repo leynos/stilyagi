@@ -195,7 +195,8 @@ fn rust_extraction_preserves_shared_fixture_doc_comments(shared_rust_source: Str
 #[case("tests/fixtures/corpus/python/malformed/unclosed-function.py.txt")]
 #[case("tests/fixtures/corpus/rust/malformed/unclosed-item.rs")]
 fn malformed_corpus_fixtures_are_readable_utf8_sources(#[case] relative_path: &str) {
-    let source = read_corpus_fixture(relative_path).expect("expected readable corpus fixture");
+    let source = read_corpus_fixture(relative_path)
+        .expect("malformed corpus fixture should be readable UTF-8");
 
     assert!(!source.is_empty());
 }
@@ -206,7 +207,7 @@ fn rust_doc_comment_syntax_is_supported() {
         "/// Rust doc comment\npub fn example() {}\n",
         ExtractSyntax::RustDocComment,
     )
-    .expect("expected Rust extraction");
+    .expect("Rust doc-comment extraction should succeed");
 
     assert_eq!(document.syntax(), ExtractSyntax::RustDocComment);
     assert!(document.ir().is_some());

@@ -48,15 +48,15 @@ fn markdown_extraction_propagates_explicit_source_identity() {
 #[case::markdown(
         "extraction_tests__shared_markdown_fixture_has_a_golden_ir_snapshot",
         || stilyagi_test_support::golden_markdown_ir_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
-            .expect("expected shared Markdown golden IR")
+            .expect("shared Markdown fixture should produce golden IR")
             .to_canonical_json()
     )]
 #[case::python(
         "extraction_tests__shared_python_fixture_has_a_golden_ir_snapshot",
         || stilyagi_test_support::golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
-            .expect("expected shared Python golden IR")
+            .expect("shared Python fixture should produce golden IR")
             .to_canonical_json()
-            .expect("expected canonical Python IR JSON")
+            .expect("shared Python golden IR should serialize to canonical JSON")
     )]
 fn shared_fixture_has_a_golden_ir_snapshot(#[case] name: &str, #[case] build: impl Fn() -> String) {
     insta::assert_snapshot!(name, build());
@@ -65,7 +65,7 @@ fn shared_fixture_has_a_golden_ir_snapshot(#[case] name: &str, #[case] build: im
 #[rstest]
 fn malformed_python_fixture_has_a_golden_ir_snapshot() {
     let document = stilyagi_test_support::golden_python_ir_fixture(MALFORMED_PYTHON_FIXTURE_PATH)
-        .expect("expected malformed Python golden IR");
+        .expect("malformed Python fixture should produce golden IR");
 
     assert_eq!(document.regions.len(), 1);
     let region = document
@@ -83,14 +83,14 @@ fn malformed_python_fixture_has_a_golden_ir_snapshot() {
         "extraction_tests__malformed_python_fixture_has_a_golden_ir_snapshot",
         document
             .to_canonical_json()
-            .expect("expected canonical Python IR JSON")
+            .expect("malformed Python golden IR should serialize to canonical JSON")
     );
 }
 
 #[rstest]
 fn shared_rust_fixture_has_a_golden_ir_snapshot() {
-    let document =
-        golden_rust_ir_fixture(SHARED_RUST_FIXTURE_PATH).expect("expected shared Rust golden IR");
+    let document = golden_rust_ir_fixture(SHARED_RUST_FIXTURE_PATH)
+        .expect("shared Rust fixture should produce golden IR");
 
     assert_eq!(document.document.syntax, "rust");
     assert_eq!(document.regions.len(), 4);
@@ -106,14 +106,14 @@ fn shared_rust_fixture_has_a_golden_ir_snapshot() {
         "extraction_tests__shared_rust_fixture_has_a_golden_ir_snapshot",
         document
             .to_canonical_json()
-            .expect("expected canonical Rust IR JSON")
+            .expect("shared Rust golden IR should serialize to canonical JSON")
     );
 }
 
 #[rstest]
 fn nested_rust_fixture_has_a_golden_ir_snapshot() {
-    let document =
-        golden_rust_ir_fixture(NESTED_RUST_FIXTURE_PATH).expect("expected nested Rust golden IR");
+    let document = golden_rust_ir_fixture(NESTED_RUST_FIXTURE_PATH)
+        .expect("nested Rust fixture should produce golden IR");
 
     assert_eq!(document.document.syntax, "rust");
     assert!(document.regions.iter().all(|region| region.owner.is_some()));
@@ -128,14 +128,14 @@ fn nested_rust_fixture_has_a_golden_ir_snapshot() {
         "extraction_tests__nested_rust_fixture_has_a_golden_ir_snapshot",
         document
             .to_canonical_json()
-            .expect("expected canonical Rust IR JSON")
+            .expect("nested Rust golden IR should serialize to canonical JSON")
     );
 }
 
 #[rstest]
 fn malformed_rust_fixture_has_a_golden_ir_snapshot() {
     let document = golden_rust_ir_fixture(MALFORMED_RUST_FIXTURE_PATH)
-        .expect("expected malformed Rust golden IR");
+        .expect("malformed Rust fixture should produce golden IR");
 
     assert_eq!(document.document.syntax, "rust");
     assert_eq!(document.regions.len(), 1);
@@ -154,7 +154,7 @@ fn malformed_rust_fixture_has_a_golden_ir_snapshot() {
         "extraction_tests__malformed_rust_fixture_has_a_golden_ir_snapshot",
         document
             .to_canonical_json()
-            .expect("expected canonical Rust IR JSON")
+            .expect("malformed Rust golden IR should serialize to canonical JSON")
     );
 }
 
@@ -168,7 +168,7 @@ fn suppressions_are_shape_parity_across_the_v1_syntaxes() {
 
     for (syntax, source) in sources {
         let document = stilyagi_extract::extract_document(source, syntax)
-            .expect("expected shared syntax extraction");
+            .expect("supported syntax should extract successfully");
         let ir = document.ir().expect("expected IR payload");
         let suppression = ir
             .suppressions
@@ -188,7 +188,7 @@ fn markdown_extraction_attaches_markdown_ir(shared_markdown_source: String) {
         &shared_markdown_source,
         stilyagi_extract::ExtractSyntax::Markdown,
     )
-    .expect("expected shared Markdown extraction");
+    .expect("shared Markdown source should extract successfully");
     let ir = document.ir();
 
     assert!(matches!(ir, Some(value) if value.document.syntax == "markdown"));
@@ -207,7 +207,7 @@ fn python_extraction_attaches_owner_aware_ir(shared_python_source: String) {
         &shared_python_source,
         stilyagi_extract::ExtractSyntax::PythonDocstring,
     )
-    .expect("expected shared Python extraction");
+    .expect("shared Python source should extract successfully");
     let ir = document.ir().expect("expected Python IR payload");
 
     assert_eq!(ir.document.syntax, "python");
@@ -226,7 +226,7 @@ fn rust_extraction_attaches_owner_aware_ir(shared_rust_source: String) {
         &shared_rust_source,
         stilyagi_extract::ExtractSyntax::RustDocComment,
     )
-    .expect("expected shared Rust extraction");
+    .expect("shared Rust source should extract successfully");
     let ir = document.ir().expect("expected Rust IR payload");
 
     assert_eq!(ir.document.syntax, "rust");

@@ -172,16 +172,20 @@ fn extract_document_py_exposes_markdown_document() {
         let extracted_document_bound = extracted_document.bind(py);
         let extracted_document_dict = extracted_document_bound
             .cast::<PyDict>()
-            .expect("expected PyDict");
+            .expect("extracted Markdown document should be a PyDict");
         let regions_any = extracted_document_dict
             .get_item("regions")
             .expect("missing regions payload");
         let ir_json_any = extracted_document_dict
             .get_item("ir_json")
             .expect("missing IR payload");
-        let regions = regions_any.cast::<PyList>().expect("expected PyList");
+        let regions = regions_any
+            .cast::<PyList>()
+            .expect("Markdown regions payload should be a PyList");
         let first_region_any = regions.get_item(0).expect("missing first region");
-        let first_region = first_region_any.cast::<PyDict>().expect("expected PyDict");
+        let first_region = first_region_any
+            .cast::<PyDict>()
+            .expect("first Markdown region should be a PyDict");
 
         assert_eq!(
             extracted_document_dict
@@ -243,15 +247,17 @@ fn assert_region(region: &pyo3::Bound<'_, PyDict>, expected_kind: &str, expected
 #[rstest]
 fn extract_document_py_exposes_python_docstrings() {
     let source = "\"\"\"Module docs.\"\"\"\n\ndef example():\n    \"\"\"Function docs.\"\"\"\n";
-    let document =
-        bridge_extract_document(source, "python_docstring").expect("unexpected extraction failure");
+    let document = bridge_extract_document(source, "python_docstring")
+        .expect("Python docstring extraction should succeed");
 
     Python::attach(|py| {
         let document_dict = document.bind(py);
         let regions_any = document_dict
             .get_item("regions")
             .expect("missing regions payload");
-        let regions = regions_any.cast::<PyList>().expect("expected PyList");
+        let regions = regions_any
+            .cast::<PyList>()
+            .expect("Python regions payload should be a PyList");
 
         assert_eq!(
             document_dict
