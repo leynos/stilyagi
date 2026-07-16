@@ -28,16 +28,37 @@ INTERROGATE_FLAGS ?= --fail-under 100
 # Single source of truth for the typos version; CI consumes it through the
 # markdownlint target, so the Makefile and CI cannot drift apart.
 TYPOS_VERSION ?= 1.48.0
+PATHSPEC_VERSION ?= 1.1.1
+PYTEST_VERSION ?= 9.1.1
+CMD_MOX_VERSION ?= 0.2.0
+CYCLOPTS_VERSION ?= 4.21.1
+PLUMBUM_VERSION ?= 2.0.1
+TYPOS_CONFIG_BUILDER_COMMIT := b604f198797fdd36a567dd0f8f07b13f9539b241
+TYPOS_CONFIG_BUILDER_SOURCE := \
+	git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_COMMIT)
+TYPOS_CONFIG_BUILDER := $(UV_ENV) $(UV) tool run --python 3.14 \
+	--from "$(TYPOS_CONFIG_BUILDER_SOURCE)" typos-config-builder
 # The env prefix lets xargs execute the command despite the leading
 # variable assignments in UV_ENV.
 TYPOS = env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)
+SPELLING_PY_ENV := PYTHONDONTWRITEBYTECODE=1
+SPELLING_PY_SRCS := \
+	scripts/typos_rollout_check.py scripts/tests/typos_rollout_check_testcases.py
+SPELLING_HELPER_PYTEST := PYTHONPATH=scripts $(SPELLING_PY_ENV) \
+	$(UV_ENV) $(UV) run --no-project --python 3.14 \
+	--with cmd-mox==$(CMD_MOX_VERSION) --with cyclopts==$(CYCLOPTS_VERSION) \
+	--with pathspec==$(PATHSPEC_VERSION) --with plumbum==$(PLUMBUM_VERSION) \
+	--with pytest==$(PYTEST_VERSION) \
+	python -m pytest
 MD_FILES_FIND = find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './.uv-cache/*' -not -path './.uv-tools/*' -not -path './target/*' -not -path './crates/stilyagi-pyext/target/*' -print0
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
 RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" ]; then VENV_PYTHON=".venv/Scripts/python.exe"; fi
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
-        markdownlint nixie test test-ci test-quick typecheck tools \
+        markdownlint nixie spelling spelling-config spelling-config-write \
+        spelling-helper-test spelling-phrase-check test test-ci test-quick \
+        typecheck tools \
         tools-check tools-docs tools-lint release release-artifact smoke \
         smoke-release
 
@@ -136,9 +157,28 @@ typecheck: build tools-check ## Run typechecking
 	$(UV_RUN) ty --version
 	$(UV_RUN) ty check
 
-markdownlint: tools-docs ## Lint Markdown files and enforce en-GB-oxendict spelling
+markdownlint: tools-docs spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
 	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
-	$(MD_FILES_FIND) | xargs -0 $(TYPOS) --config typos.toml --force-exclude
+
+spelling: spelling-phrase-check ## Enforce en-GB-oxendict spelling
+	$(MD_FILES_FIND) | xargs -0 $(TYPOS) --config typos.toml --force-exclude --
+
+spelling-phrase-check: spelling-config ## Enforce shared exact-phrase corrections
+	PYTHONPATH=scripts $(SPELLING_PY_ENV) $(UV_ENV) $(UV) run --no-project \
+		--python 3.14 --with pathspec==$(PATHSPEC_VERSION) \
+		scripts/typos_rollout_check.py --repository .
+
+spelling-config: spelling-helper-test ## Check generated spelling configuration
+	$(TYPOS_CONFIG_BUILDER) --repository . --check
+
+spelling-config-write: spelling-helper-test ## Regenerate spelling configuration
+	$(TYPOS_CONFIG_BUILDER) --repository .
+
+spelling-helper-test: ## Validate the standalone spelling phrase helper
+	$(UV_RUN) ruff format --check $(SPELLING_PY_SRCS)
+	$(UV_RUN) ruff check $(SPELLING_PY_SRCS)
+	$(SPELLING_HELPER_PYTEST) scripts/tests/typos_rollout_check_testcases.py \
+		-c /dev/null --rootdir=. -p no:cacheprovider
 
 nixie: tools-docs ## Validate Mermaid diagrams
 	$(MD_FILES_FIND) | xargs -0 $(NIXIE) --no-sandbox

@@ -337,11 +337,11 @@ project:
   enforces en-GB-oxendict spelling with `typos`, pinned by the Makefile
   `TYPOS_VERSION` variable, so local runs and CI use the same version.
 - The spelling configuration `typos.toml` is generated; never edit its
-  entries by hand. To handle a false positive or add a new Oxford `-ize`
-  stem, edit `scripts/generate_typos_config.py` (the `STEMS`,
-  `EXTRA_ACCEPTED_WORDS`, or `extend-ignore-re` lists) and regenerate with
-  `uv run scripts/generate_typos_config.py`. See the spelling gate section
-  of `docs/developers-guide.md` for details.
+  entries by hand. Generic Oxford policy belongs in the shared authority
+  bundled by `leynos/typos-config-builder`; repository-specific accepted words,
+  patterns, and exclusions belong in `typos.local.toml`. Regenerate with
+  `make spelling-config-write`. See the spelling gate section of
+  `docs/developers-guide.md` for details.
 - Quoted APIs and identifiers keep their upstream spelling; put them in
   backticks or fenced code blocks, which the spelling gate ignores, rather
   than adding word-level exceptions.

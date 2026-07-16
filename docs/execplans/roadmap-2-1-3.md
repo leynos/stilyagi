@@ -105,7 +105,7 @@ Hard invariants that must hold throughout implementation.
   (see Risk R1 and Decision D2).
 - Dependencies: if a new external crate is required (for example a dedicated
   parser for the directive grammar), stop and escalate. The grammar is simple
-  enough for hand-written parsing over `&str`.
+  enough for handwritten parsing over `&str`.
 - Parser behaviour: if `markdown-rs` does not expose HTML comments as
   positioned `Node::Html` nodes as assumed (Risk R2), stop and escalate before
   inventing a byte-scanning workaround.

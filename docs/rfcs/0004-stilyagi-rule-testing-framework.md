@@ -438,7 +438,7 @@ recommended approach for rule-pack tests.
 
 Migration from ad hoc helpers should be straightforward:
 
-- replace hand-written `tmp_path` plus subprocess glue with `stilyagi_path`,
+- replace handwritten `tmp_path` plus subprocess glue with `stilyagi_path`,
 - replace JSON-search boilerplate with assertion helpers,
 - replace test-only editable installs with `install_rule_pack(...)` where
   entry-point testing is needed.

@@ -660,7 +660,7 @@ make markdownlint
 make nixie
 ```
 
-Prefer these repository gates over hand-written file lists. If formatting
+Prefer these repository gates over handwritten file lists. If formatting
 changed Rust files, `make check-fmt` (rustfmt) is the authority; do not run a
 repo-global Markdown reformat that churns unrelated files. Delegate full gate
 runs to the `scrutineer` subagent, which captures each gate's output to a

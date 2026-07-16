@@ -1162,7 +1162,7 @@ Per-work-item validation is stated above. The whole-change acceptance is:
 - Renderers: `tests/test_renderers.py` `syrupy` snapshots for `text` and `json`
   are stable on re-run and paired with semantic assertions.
 
-Run the deterministic commit gates (path-safe; no hand-written file lists), in
+Run the deterministic commit gates (path-safe; no handwritten file lists), in
 the order the workflow host re-runs them. On this branch the gate targets are
 distinct (verified against the worktree Makefile and AGENTS.md §"Rust specific
 guidance"): `make check-fmt` runs `ruff format --check` and `cargo fmt --check`

@@ -1045,7 +1045,7 @@ small fieldless payload so the 128-byte size assertion holds; specify `None`
 owner fields serialize as `null`; make the single-source-backed-segment
 reconstruction guarantee explicit (covers CR-LF, raw strings, escapes, embedded
 quotes, empty docstrings); pin determinism of traversal and identifier
-assignment; concretise f-string and `concatenated_string` rejection; expand the
+assignment; concretize f-string and `concatenated_string` rejection; expand the
 owner test table (`async`, `@classmethod`/`@staticmethod`/`@property`, nested
 decorators, function-in-function, class-in-function, statement-nested defs) and
 add `nested-declarations.py` and `docstring-edge-cases.py` fixtures; require
