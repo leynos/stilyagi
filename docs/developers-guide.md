@@ -220,9 +220,9 @@ needs to map bridge variants into the IR vocabulary:
 - `RegionKind::RustDocComment` maps to
   `Some(stilyagi_ir::RegionKind::RustDocComment)`.
 
-Use `stilyagi_ir::RegionKind::ALL` and `RegionKind::as_str()` when code needs
-the stable IR spellings; the `supported_region_kinds()` PyO3 export is built
-from that same source of truth.
+Use `stilyagi_ir::RegionKind::ALL` and call `RegionKind::as_str()` on each
+`stilyagi_ir::RegionKind` value when code needs the stable IR spellings; the
+`supported_region_kinds()` PyO3 export is built from that same source of truth.
 
 Markdown region emission follows ADR 005:
 

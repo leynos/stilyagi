@@ -130,27 +130,27 @@ escalation, not a workaround.
 
 - [x] 2026-07-14: The developer API docs and roadmap completion state were
       synchronized after verification.
-- [x] 2026-07-17: Review follow-up recorded the Rustdoc examples, explicit
+- [x] 2026-07-14: Review follow-up recorded the Rustdoc examples, explicit
       `document` exception guards, and clarified spelling ownership between
       emitted `as_str` spellings and the separate parser.
-- [x] 2026-07-17: Review follow-up tightened the `ALL` drift guard so only
+- [x] 2026-07-14: Review follow-up tightened the `ALL` drift guard so only
       `Document` lacks an IR mapping, and added fixture-specific emitted
       spelling checks for Python and Rust extraction.
-- [x] 2026-07-17: CodeRabbit follow-up added the `ALL`-driven
+- [x] 2026-07-15: CodeRabbit follow-up added the `ALL`-driven
       `RegionKind` parser round-trip, preserved Python and Rust
       extraction-error causes, and rejected the Markdown diagnostic newtypes
       suggestion as a breaking public API redesign.
-- [x] 2026-07-17: Checked review follow-up on focused extract modules, an
+- [x] 2026-07-15: Checked review follow-up on focused extract modules, an
       explicit bridge mapping guard, and path-independent plan commands.
-- [x] 2026-07-17: CodeRabbit required runnable Rustdoc examples for the public
+- [x] 2026-07-15: CodeRabbit required runnable Rustdoc examples for the public
       `MarkdownIrFailure::new` constructor and `ExtractRegion` API after the
       module split; added focused usage-and-outcome doctests.
-- [x] 2026-07-17: Replaced the `RegionKind::ALL` length literal with an
+- [x] 2026-07-15: Replaced the `RegionKind::ALL` length literal with an
       explicit expected vocabulary and consolidated `ExtractError::source`
       coverage into `rstest` cases. Rejected a direct `as_str` match because it
       would restore handwritten shared spellings instead of forwarding the IR
       vocabulary.
-- [x] 2026-07-17: Rejected CodeRabbit's source-span provenance proposal for
+- [x] 2026-07-15: Rejected CodeRabbit's source-span provenance proposal for
       `ExtractRegion`: it would expand the established public model and is not
       a regression introduced by this vocabulary-focused module split.
 - [x] 2026-07-14: The two inline documentation findings were verified and
