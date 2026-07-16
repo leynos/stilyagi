@@ -247,9 +247,8 @@ fn assert_region(region: &pyo3::Bound<'_, PyDict>, expected_kind: &str, expected
 #[rstest]
 fn extract_document_py_exposes_python_docstrings() {
     let source = "\"\"\"Module docs.\"\"\"\n\ndef example():\n    \"\"\"Function docs.\"\"\"\n";
-    let document =
-        bridge_extract_document(source, "python_docstring")
-            .expect("Python docstring extraction should succeed");
+    let document = bridge_extract_document(source, "python_docstring")
+        .expect("Python docstring extraction should succeed");
 
     Python::attach(|py| {
         let document_dict = document.bind(py);

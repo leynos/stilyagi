@@ -89,9 +89,8 @@ fn malformed_python_fixture_has_a_golden_ir_snapshot() {
 
 #[rstest]
 fn shared_rust_fixture_has_a_golden_ir_snapshot() {
-    let document =
-        golden_rust_ir_fixture(SHARED_RUST_FIXTURE_PATH)
-            .expect("shared Rust fixture should produce golden IR");
+    let document = golden_rust_ir_fixture(SHARED_RUST_FIXTURE_PATH)
+        .expect("shared Rust fixture should produce golden IR");
 
     assert_eq!(document.document.syntax, "rust");
     assert_eq!(document.regions.len(), 4);
@@ -113,9 +112,8 @@ fn shared_rust_fixture_has_a_golden_ir_snapshot() {
 
 #[rstest]
 fn nested_rust_fixture_has_a_golden_ir_snapshot() {
-    let document =
-        golden_rust_ir_fixture(NESTED_RUST_FIXTURE_PATH)
-            .expect("nested Rust fixture should produce golden IR");
+    let document = golden_rust_ir_fixture(NESTED_RUST_FIXTURE_PATH)
+        .expect("nested Rust fixture should produce golden IR");
 
     assert_eq!(document.document.syntax, "rust");
     assert!(document.regions.iter().all(|region| region.owner.is_some()));
