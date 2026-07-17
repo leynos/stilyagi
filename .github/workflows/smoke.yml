@@ -9,7 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   BUILD_PROFILE: debug
-  WHITAKER_INSTALLER_VERSION: '0.2.5'
+  WHITAKER_INSTALLER_VERSION: '0.2.6'
   # The 927edd4 shared-actions pin adds a 600s cargo wall-clock cap;
   # stilyagi's trybuild-heavy suite and the maturin extension build need
   # more headroom under cold coverage instrumentation.
