@@ -1068,6 +1068,77 @@ When bumping any of these versions, update the single source of truth (the
 dependency-group pin or `TYPOS_VERSION`), refresh `uv.lock` where relevant,
 and rerun the affected gates.
 
+### 6d. Mutation-testing workflow contract tests
+
+The repository runs scheduled, informational mutation testing through a thin
+caller workflow,
+[`.github/workflows/mutation-testing.yml`](../.github/workflows/mutation-testing.yml),
+which delegates to the shared reusable workflow
+`leynos/shared-actions/.github/workflows/mutation-cargo.yml`. The heavy
+lifting — running `cargo-mutants`, sharding, and summarizing survivors —
+lives in `shared-actions`; this repository carries only declarative
+configuration. The run is informational only: it never gates a pull request.
+Survivors are reported through the job summary and downloadable artefacts so
+they can be triaged into tests, not enforced as a blocking check. The Rust
+workspace is the only mutation target; the Python package is a `maturin`
+native-extension package whose pytest suite depends on the compiled bridge
+and repository-root artefacts, which the shared caller's sandbox cannot
+honour.
+
+The workflow runs in two modes. A daily schedule (`50 8 * * *` UTC) fires a
+change-scoped run that mutates only the source files touched within the
+detection window, so quiet days are cheap no-ops. A manual dispatch (the
+Actions "Run workflow" control) mutates the whole workspace with no input
+parameters; select a branch in that control to exercise a feature branch.
+
+The caller passes three configuration inputs to the `mutation-rust` job, each
+carrying intent:
+
+- `paths` — `crates/`, the change-detection glob that decides whether a
+  scheduled run has anything to mutate, bounding it to real source changes.
+- `exclude-globs` — `crates/stilyagi-test-fixtures/**` and
+  `crates/stilyagi-test-support/**`, the workspace's own test-scaffolding
+  crates, whose surviving mutants are noise rather than genuine test gaps.
+- `extra-args` — `--all-features --test-workspace=true`, so every workspace
+  member is mutated against the full workspace test run, matching the CI
+  `--all-features`/`--workspace` baseline rather than a single crate's tests.
+
+The `uses:` reference pins the shared workflow to a full 40-character commit
+SHA rather than a branch or tag, so a force-push upstream cannot silently
+change what runs here. The contract test hard-codes the expected SHA in a
+`PINNED_SHA` constant and asserts the `uses:` line matches it, so bumping the
+pin means editing the workflow's `uses:` line and that constant together in
+the same change.
+
+Because the caller is configuration rather than code, `tests/test_mutation_workflow_units.py`
+pins the shape it must uphold, failing the pull request when the caller
+drifts — repointing the pin at a branch, widening permissions, or dropping a
+configuration input — rather than letting the breakage surface only in a
+scheduled run. It parses the workflow with PyYAML and has no
+`WORKFLOW_PATH`-existence guard, so it always runs as part of the ordinary
+pytest suite; run it on its own with:
+
+```bash
+uv run --group dev pytest tests/test_mutation_workflow_units.py -v
+```
+
+The test validates:
+
+- `test_uses_reference_is_pinned_to_the_documented_sha` — the `uses:`
+  reference targets `mutation-cargo.yml`, pinned to the documented full
+  40-character lowercase-hex commit SHA;
+- `test_job_permissions_are_exactly_least_privilege` — the `mutation-rust`
+  job grants exactly `contents: read` and `id-token: write`, nothing broader;
+- `test_workflow_default_permissions_are_empty` — the workflow-level default
+  token scope is an empty mapping;
+- `test_concurrency_serializes_per_ref_without_cancelling` — `concurrency`
+  serializes runs per `github.ref` without cancelling one in progress; and
+- `test_triggers_keep_schedule_and_plain_dispatch` — the triggers keep the
+  daily schedule and a plain `workflow_dispatch` with no inputs.
+- `test_with_block_carries_the_exact_caller_configuration` — the `with:`
+  block carries exactly the `paths`, `exclude-globs`, and `extra-args` values
+  above, nothing more and nothing less.
+
 ## 7. Development responsibilities
 
 Maintainer responsibilities in this repository are stricter than a normal
