@@ -1,44 +1,45 @@
 # Preserve range-suppression polarity in the IR
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
 ## Purpose / big picture
 
 Roadmap task 2.1.4 (`docs/roadmap.md`) requires that range suppressions be
-*fully resolvable from the IR alone*. Today the Markdown frontend collapses both
-range directives — `stilyagi: disable CODE` (opens a suppressed span) and
+*fully resolvable from the IR alone*. Today the Markdown frontend collapses
+both range directives — `stilyagi: disable CODE` (opens a suppressed span) and
 `stilyagi: enable CODE` (closes it) — onto the single IR value
 `SuppressionKind::Range` (see `crates/stilyagi-ir/src/diagnostics.rs` and
 `crates/stilyagi-markdown/src/suppression.rs::verb_kind`). A downstream stage
-that wants to pair an opening directive with its closing directive has no way to
-tell the two apart without re-reading the comment bytes named by each
+that wants to pair an opening directive with its closing directive has no way
+to tell the two apart without re-reading the comment bytes named by each
 suppression's `span`. That is exactly the "re-scan comment bytes" the roadmap
 task forbids.
 
 After this change, every range suppression in the IR carries an explicit
-open/close role. A reader can walk `document.suppressions`, match each `disable`
-against a later `enable` for the same code(s), and resolve every suppressed span
-without touching the source text again. Success is observable three ways:
+open/close role. A reader can walk `document.suppressions`, match each
+`disable` against a later `enable` for the same code(s), and resolve every
+suppressed span without touching the source text again. Success is observable
+three ways:
 
 1. `IrSuppression` for a `disable` directive reports the new role `open`; for an
    `enable` directive it reports `close`; for `inline`/`file`/`config`
    suppressions the role is absent.
-2. The canonical IR JSON (`IrDocument::to_canonical_json`, the form `dump-ir` and
-   golden fixtures use) shows `"range_role": "open"` / `"close"` on range
+2. The canonical IR JSON (`IrDocument::to_canonical_json`, the form `dump-ir`
+   and golden fixtures use) shows `"range_role": "open"` / `"close"` on range
    suppressions and omits the field elsewhere.
-3. `cargo test --workspace` passes, with new unit, property, and behaviour-driven
-   development (BDD) tests that fail before the change and pass after.
+3. `cargo test --workspace` passes, with new unit, property, and
+   behaviour-driven development (BDD) tests that fail before the change and
+   pass after.
 
 ## Constraints
 
 - Work occurs exclusively in the worktree
-  `/home/leynos/Projects/stilyagi.worktrees/roadmap-2-1-4`. Do not edit the root
-  or control worktree.
+  `/home/leynos/Projects/stilyagi.worktrees/roadmap-2-1-4`. Do not edit the
+  root or control worktree.
 - The suppression contract lives in RFC 0001 §8 (`docs/rfcs/`
   `0001-stilyagi-intermediate-representation.md`). The new field must be an
   **optional** addition: existing `inline`, `file`, and `config` suppressions
@@ -47,8 +48,8 @@ without touching the source text again. Success is observable three ways:
   "Optional fields MAY be added in minor versions").
 - `SuppressionKind` string values (`inline`, `range`, `file`, `config`) MUST NOT
   change; RFC 0001 §8 enumerates them and the golden-shape test in
-  `crates/stilyagi-ir/src/tests/suppression.rs` pins them. Polarity is carried by
-  a *new* field, not by splitting the `range` variant.
+  `crates/stilyagi-ir/src/tests/suppression.rs` pins them. Polarity is carried
+  by a *new* field, not by splitting the `range` variant.
 - en-GB Oxford spelling ("-ize"/"-yse"/"-our") in all prose, comments, and
   commit messages (AGENTS.md; `docs/documentation-style-guide.md`).
 - Rust style per AGENTS.md: module-level `//!` docs, Rustdoc `///` on public
@@ -82,39 +83,35 @@ without touching the source text again. Success is observable three ways:
 
 - Risk: Bumping `SCHEMA_VERSION` churns golden snapshots and version
   assertions across three crates (`stilyagi-extract`, `stilyagi-markdown`,
-  `stilyagi-test-support`) plus the three version assertions in
-  `stilyagi-ir`/`stilyagi-markdown`/`stilyagi-pyext`. The snapshot churn is
-  **18 files** (5 extract + 12 markdown + 1 test-support), not just the extract
-  golden snapshots.
-  Severity: low. Likelihood: high.
-  Mitigation: the churn is mechanical (regenerate `insta` snapshots across all
-  three crates, update three string assertions). Fold it into the first work
-  item so the contract is never dishonest, and review the regenerated snapshots
-  to confirm the *only* per-file delta is the line-6 `schema_version` string.
-  Regenerating only the extract snapshots would leave the twelve markdown and
-  one test-support snapshots stale and fail `make test` at the HEAD of work
-  item 1, so work item 1 must run `cargo test -p stilyagi-markdown` and
+  `stilyagi-test-support`) plus the three version assertions in `stilyagi-ir`/
+  `stilyagi-markdown`/`stilyagi-pyext`. The snapshot churn is **18 files** (5
+  extract + 12 markdown + 1 test-support), not just the extract golden
+  snapshots. Severity: low. Likelihood: high. Mitigation: the churn is
+  mechanical (regenerate `insta` snapshots across all three crates, update
+  three string assertions). Fold it into the first work item so the contract is
+  never dishonest, and review the regenerated snapshots to confirm the *only*
+  per-file delta is the line-6 `schema_version` string. Regenerating only the
+  extract snapshots would leave the twelve markdown and one test-support
+  snapshots stale and fail `make test` at the HEAD of work item 1, so work item
+  1 must run `cargo test -p stilyagi-markdown` and
   `cargo test -p stilyagi-test-support` as well as the extract integration test.
 - Risk: `serde` `skip_serializing_if` is mis-applied and a `null` `range_role`
   leaks into non-range suppressions, breaking the RFC-shape round-trip test.
-  Severity: medium. Likelihood: low.
-  Mitigation: the existing test
+  Severity: medium. Likelihood: low. Mitigation: the existing test
   `suppression_serialises_and_deserialises_with_the_rfc_shape` acts as a guard;
-  a new test asserts the field is *absent* (not `null`) for inline
-  suppressions.
+  a new test asserts the field is *absent* (not `null`) for inline suppressions.
 - Risk: A future consumer treats a missing `range_role` on a `range`
-  suppression as valid.
-  Severity: low. Likelihood: low.
-  Mitigation: the Markdown frontend always sets `range_role` for range
-  directives; a unit test pins that every `range` suppression it emits carries
-  `Some(role)`. Document the invariant in RFC 0001 §8.
+  suppression as valid. Severity: low. Likelihood: low. Mitigation: the
+  Markdown frontend always sets `range_role` for range directives; a unit test
+  pins that every `range` suppression it emits carries `Some(role)`. Document
+  the invariant in RFC 0001 §8.
 
 ## Progress
 
 - [x] Work item 1: Introduce the versioned `range_role` contract field on
   `IrSuppression` (type + optional serde field + schema bump), all inline/file
-  suppressions unchanged. Delivered as `RangeRole { Open, Close }`, an
-  optional `range_role` on `IrSuppression`, `SCHEMA_VERSION = "1.1.0"`, and
+  suppressions unchanged. Delivered as `RangeRole { Open, Close }`, an optional
+  `range_role` on `IrSuppression`, `SCHEMA_VERSION = "1.1.0"`, and
   schema/version assertion updates in Rust and Python contract tests.
 - [x] Work item 2: Populate range polarity in the Markdown frontend
   (`verb_range_role`, wired into `suppressions_from_candidates`). Implemented
@@ -136,104 +133,101 @@ without touching the source text again. Success is observable three ways:
   (`tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md`,
   consumed by the `stilyagi-extract` integration snapshot) uses the
   *non-canonical* marker `stilyagi-disable-next-line`, which the parser
-  deliberately ignores, so it emits **no** suppressions.
-  Evidence: `crates/stilyagi-extract/tests/extract/snapshots/`
+  deliberately ignores, so it emits **no** suppressions. Evidence:
+  `crates/stilyagi-extract/tests/extract/snapshots/`
   `extract_integration__ir_identity__extraction_tests__shared_markdown_fixture_has_a_golden_ir_snapshot.snap`
   contains only that literal comment text and an empty suppression set;
   `crates/stilyagi-markdown/src/tests/suppression.rs::placeholder_non_canonical_marker_is_ignored`
-  confirms the behaviour.
-  Impact: this **shared extract fixture only** needs no new range-suppression
-  *content*; the extract integration snapshot never gains a `suppressions`
-  entry from work item 2. **This scoping is deliberately narrow.** It does NOT
-  generalize to the markdown crate's own snapshots — see the next observation,
-  which corrects a load-bearing scope error.
+  confirms the behaviour. Impact: this **shared extract fixture only** needs
+  no new range-suppression *content*; the extract integration snapshot never
+  gains a `suppressions` entry from work item 2. **This scoping is deliberately
+  narrow.** It does NOT generalize to the markdown crate's own snapshots — see
+  the next observation, which corrects a load-bearing scope error.
 - Observation (BLOCKING correction, round 3): the claim "no existing golden
   snapshot needs new range-suppression content" is **false** for the markdown
   crate's own fixture. `tests/fixtures/corpus/markdown/valid/`
   `suppression-directives.md.fixture` uses the **canonical** `disable STY` /
   `enable STY` pair (fixture lines 7 and 9) and emits **two** `"kind": "range"`
-  suppressions. Its golden snapshot
-  `crates/stilyagi-markdown/src/snapshots/`
+  suppressions. Its golden snapshot `crates/stilyagi-markdown/src/snapshots/`
   `stilyagi_markdown__tests__suppression_directives.snap` records them as `s1`
   (snapshot line 405) and `s2` (line 417), and the case is driven by
   `hardening_fixture_ir_json_round_trips_without_span_drift`
   (`crates/stilyagi-markdown/src/tests.rs:121-125`), which both asserts
   `insta::assert_snapshot!` on the canonical JSON (`tests.rs:150`) AND asserts
-  `assert_eq!(parsed, document)` (`tests.rs:146`).
-  Evidence: fixture and snapshot read directly in the worktree, 2026-07-05
-  (round-3 planning); `grep -n '"kind": "range"'` on the snapshot returns lines
-  405 and 417.
-  Impact: **work item 2** (which wires `range_role: verb_range_role(parsed.verb)`
-  at the construction site) makes `s1` gain `"range_role": "open"` and `s2` gain
-  `"range_role": "close"`. That is a *legitimate, expected* content delta — the
-  snapshot and the `assert_eq!` round-trip would fail at work item 2's HEAD
-  unless the snapshot is regenerated. Work item 2 therefore explicitly
-  regenerates and re-accepts this ONE snapshot (see work item 2, Stage C/D), and
-  its expected delta is **exactly two new `range_role` lines** (one on `s1`, one
-  on `s2`) and nothing else. This is content churn, distinct from the
-  `schema_version` field churn covered in the next observation.
+  `assert_eq!(parsed, document)` (`tests.rs:146`). Evidence: fixture and
+  snapshot read directly in the worktree, 2026-07-05 (round-3 planning);
+  `grep -n '"kind": "range"'` on the snapshot returns lines 405 and 417.
+  Impact: **work item 2** (which wires
+  `range_role: verb_range_role(parsed.verb)` at the construction site) makes
+  `s1` gain `"range_role": "open"` and `s2` gain `"range_role": "close"`. That
+  is a *legitimate, expected* content delta — the snapshot and the `assert_eq!`
+  round-trip would fail at work item 2's HEAD unless the snapshot is
+  regenerated. Work item 2 therefore explicitly regenerates and re-accepts this
+  ONE snapshot (see work item 2, Stage C/D), and its expected delta is
+  **exactly two new `range_role` lines** (one on `s1`, one on `s2`) and nothing
+  else. This is content churn, distinct from the `schema_version` field churn
+  covered in the next observation.
 - Observation (correction to the round-1 draft): the `schema_version` bump
   churns **18 snapshot files**, not just the extract golden snapshots. The
   round-1 draft wrongly generalized "no range-suppression content churn" into
   "no markdown snapshot churn at all". In fact every full-document IR dump —
   including the twelve `crates/stilyagi-markdown/src/snapshots/*.snap` and the
-  one `crates/stilyagi-test-support/tests/snapshots/round_trip_helpers__…​.snap`
-  — embeds `"schema_version": "1.0.0"` at line 6 and must be regenerated.
-  Evidence: `grep -rl '"schema_version": "1.0.0"' crates` returns 18 files
-  (5 extract + 12 markdown + 1 test-support).
-  Impact: work item 1 must regenerate snapshots in all three crates
-  (`stilyagi-extract`, `stilyagi-markdown`, `stilyagi-test-support`), not just
-  the extract integration test, or `make test` fails at its HEAD. The blast
-  radius is enumerable and mechanical (only the line-6 string moves per file),
-  but it is 18 edited snapshot files, not "small".
+  one
+  `crates/stilyagi-test-support/tests/snapshots/round_trip_helpers__…​.snap` —
+  embeds `"schema_version": "1.0.0"` at line 6 and must be regenerated.
+  Evidence: `grep -rl '"schema_version": "1.0.0"' crates` returns 18 files (5
+  extract + 12 markdown + 1 test-support). Impact: work item 1 must regenerate
+  snapshots in all three crates (`stilyagi-extract`, `stilyagi-markdown`,
+  `stilyagi-test-support`), not just the extract integration test, or
+  `make test` fails at its HEAD. The blast radius is enumerable and mechanical
+  (only the line-6 string moves per file), but it is 18 edited snapshot files,
+  not "small".
 - Observation: Only two sites construct `IrSuppression`: the frontend at
   `crates/stilyagi-markdown/src/lib.rs:235` and the shape test at
-  `crates/stilyagi-ir/src/tests/suppression.rs:9`.
-  Evidence: `grep -rn "IrSuppression {" crates`.
-  Impact: the *type change* (adding the field) has a small, enumerable
-  construction-site blast radius (two sites). The *snapshot* blast radius from
-  the co-located `schema_version` bump is larger (18 files) and is handled
-  separately in work item 1.
+  `crates/stilyagi-ir/src/tests/suppression.rs:9`. Evidence:
+  `grep -rn "IrSuppression {" crates`. Impact: the *type change* (adding the
+  field) has a small, enumerable construction-site blast radius (two sites).
+  The *snapshot* blast radius from the co-located `schema_version` bump is
+  larger (18 files) and is handled separately in work item 1.
 - Observation: the new BDD scenario for the `disable`/`enable` pair passed on
   the first run against the already-wired `stilyagi-extract` path. No
   production change was required for work item 3 because work items 1 and 2 had
   already carried polarity through the Markdown frontend into the extracted IR.
-  Evidence: `cargo test --manifest-path Cargo.toml --workspace --all-features --doc`
-  and the `pytest`/nextest portion of `make test` both reported the new
+  Evidence:
+  `cargo test --manifest-path Cargo.toml --workspace --all-features --doc` and
+  the `pytest`/nextest portion of `make test` both reported the new
   `markdown_suppression_bdd::a_range_disable_and_enable_pair_record_open_and_close_polarity`
   scenario as passing.
 - Observation: the `schema_version` contract also has top-level Python
   assertions and JSON snapshots in `tests/` that must move with the IR version
   bump; leaving them at `1.0.0` causes `make test` to fail even after the Rust
-  workspace passes.
-  Evidence: `tests/test_package_skeleton_units.py` and the two
-  `tests/__snapshots__/*schema_version*.json` fixtures.
-  Impact: work item 1 includes the repo-level Python contract assertions that
-  exercise the same IR payload, not just the crate-local Rust tests.
+  workspace passes. Evidence: `tests/test_package_skeleton_units.py` and the two
+  `tests/__snapshots__/*schema_version*.json` fixtures. Impact: work item 1
+  includes the repo-level Python contract assertions that exercise the same IR
+  payload, not just the crate-local Rust tests.
 
 ## Decision log
 
-- Decision: Carry polarity in a new optional field `range_role:
-  Option<RangeRole>` (`RangeRole::{Open, Close}`), not by splitting
-  `SuppressionKind::Range` into `RangeOpen`/`RangeClose`.
-  Rationale: RFC 0001 §8 enumerates the four `kind` values as the frozen
-  contract and §9 forbids changing field meaning within a major version while
-  permitting *additive optional* fields in a minor version. A type-safe enum
-  beats a boolean (AGENTS.md: model domain values, avoid "integer soup") and
-  keeps `kind == range` stable for existing consumers.
-  Date/Author: 2026-07-05, planning agent.
+- Decision: Carry polarity in a new optional field
+  `range_role: Option<RangeRole>` (`RangeRole::{Open, Close}`), not by splitting
+  `SuppressionKind::Range` into `RangeOpen`/`RangeClose`. Rationale: RFC 0001
+  §8 enumerates the four `kind` values as the frozen contract and §9 forbids
+  changing field meaning within a major version while permitting *additive
+  optional* fields in a minor version. A type-safe enum beats a boolean
+  (AGENTS.md: model domain values, avoid "integer soup") and keeps
+  `kind == range` stable for existing consumers. Date/Author: 2026-07-05,
+  planning agent.
 - Decision: Bump `SCHEMA_VERSION` from `1.0.0` to `1.1.0` in the same work item
-  that adds the field.
-  Rationale: RFC 0001 §9 says optional fields "MAY be added in minor versions".
-  Bumping in lock-step keeps the emitted `schema_version` honest at every commit
-  rather than emitting a new field under a version that does not advertise it.
-  Date/Author: 2026-07-05, planning agent.
-- Decision: Serialize the field with `#[serde(default,
-  skip_serializing_if = "Option::is_none")]`.
-  Rationale: preserves the exact serialized shape of inline/file/config
-  suppressions (guarding the RFC-shape round-trip test and every golden
-  snapshot that embeds a non-range suppression) and lets older payloads
-  deserialize unchanged.
+  that adds the field. Rationale: RFC 0001 §9 says optional fields "MAY be
+  added in minor versions". Bumping in lock-step keeps the emitted
+  `schema_version` honest at every commit rather than emitting a new field
+  under a version that does not advertise it. Date/Author: 2026-07-05, planning
+  agent.
+- Decision: Serialize the field with
+  `#[serde(default, skip_serializing_if = "Option::is_none")]`. Rationale:
+  preserves the exact serialized shape of inline/file/config suppressions
+  (guarding the RFC-shape round-trip test and every golden snapshot that embeds
+  a non-range suppression) and lets older payloads deserialize unchanged.
   Date/Author: 2026-07-05, planning agent.
 
 ## Outcomes & retrospective
@@ -246,11 +240,10 @@ splitting the new range-polarity tests into a sibling module so Whitaker's
 module-length limit stayed green.
 
 Work item 4 is complete: RFC 0001 now records `range_role` as the additive
-optional range-suppression polarity field introduced in schema version
-`1.1.0`, the design's suppression syntax section explains that downstream
-stages can resolve boundaries without re-reading comment bytes, and the
-developers' guide points rule authors at the IR field rather than the raw
-comments.
+optional range-suppression polarity field introduced in schema version `1.1.0`,
+the design's suppression syntax section explains that downstream stages can
+resolve boundaries without re-reading comment bytes, and the developers' guide
+points rule authors at the IR field rather than the raw comments.
 
 ## Context and orientation
 
@@ -260,13 +253,14 @@ Stilyagi is a Rust workspace. The pieces relevant to this task:
   `inline`/`range`/`file`/`config` enum) and `IrSuppression` (the serializable
   suppression record: `id`, `kind`, `codes`, `span`, `origin`). This is the IR
   contract type that carries polarity after this change.
-- `crates/stilyagi-ir/src/lib.rs` — re-exports `IrSuppression`, `SuppressionKind`
-  and defines `pub const SCHEMA_VERSION: &str = "1.0.0"`.
+- `crates/stilyagi-ir/src/lib.rs` — re-exports `IrSuppression`,
+  `SuppressionKind` and defines `pub const SCHEMA_VERSION: &str = "1.0.0"`.
 - `crates/stilyagi-ir/src/document.rs` — `IrDocument`, its `schema_version`
   field, and `to_canonical_json` (deterministic pretty JSON via
   `serde_json::to_string_pretty`, preserving struct field order).
 - `crates/stilyagi-ir/src/tests/suppression.rs` — the golden-shape serde test.
-- `crates/stilyagi-ir/src/tests/mod.rs:126` — asserts `schema_version == "1.0.0"`.
+- `crates/stilyagi-ir/src/tests/mod.rs:126` — asserts
+  `schema_version == "1.0.0"`.
 - `crates/stilyagi-markdown/src/suppression.rs` — parses HTML-comment
   directives. `DirectiveVerb::{IgnoreNext, Disable, Enable, IgnoreFile}` is the
   parsed verb; `verb_kind` maps a verb onto `SuppressionKind`, currently
@@ -283,8 +277,8 @@ Stilyagi is a Rust workspace. The pieces relevant to this task:
 - `crates/stilyagi-extract/tests/features/markdown_suppression.feature` and
   `crates/stilyagi-extract/tests/extract/markdown_suppression_bdd.rs` — the BDD
   feature and step definitions (rstest-bdd).
-- `crates/stilyagi-extract/tests/extract/snapshots/*.snap` — golden IR snapshots.
-  Five of these (the rust and python full-document dumps) embed
+- `crates/stilyagi-extract/tests/extract/snapshots/*.snap` — golden IR
+  snapshots. Five of these (the rust and python full-document dumps) embed
   `schema_version` at line 6 and must be regenerated after the bump. The
   extract **markdown** golden snapshot
   (`..._shared_markdown_fixture_has_a_golden_ir_snapshot.snap`) is the only
@@ -298,8 +292,8 @@ Stilyagi is a Rust workspace. The pieces relevant to this task:
   **twelve** `crates/stilyagi-markdown/src/snapshots/*.snap` (blockquotes,
   frontmatter, headings, links_and_images, lists, paragraph_inline_markup,
   paragraph_soft_break, paragraph_soft_break_crlf,
-  shared_markdown_ir_json_round_trips_without_span_drift, suppression_directives,
-  table, yaml_frontmatter); and **one**
+  shared_markdown_ir_json_round_trips_without_span_drift,
+  suppression_directives, table, yaml_frontmatter); and **one**
   `crates/stilyagi-test-support/tests/snapshots/`
   `round_trip_helpers__golden_python_ir_fixture_serializes_the_shared_fixture.snap`.
   That is **18 snapshot files** in total (5 + 12 + 1). Each embeds
@@ -311,8 +305,8 @@ Stilyagi is a Rust workspace. The pieces relevant to this task:
 Terms:
 
 - *Range suppression*: a pair of directives (`disable CODE`, later
-  `enable CODE`) that brackets a span of source in which the named rule codes are
-  suppressed.
+  `enable CODE`) that brackets a span of source in which the named rule codes
+  are suppressed.
 - *Polarity / role*: whether a single range directive **opens** (`disable`) or
   **closes** (`enable`) a suppressed span.
 - *Canonical IR JSON*: the deterministic JSON produced by
@@ -326,8 +320,8 @@ Terms:
 - `docs/stilyagi-design.md`, the "Suppression syntax" heading (`####` at
   line 603; the load-bearing sentence "Suppression state must be visible in IR
   and debug output" is at line 625). Note: this is a distinct section from
-  "§7.1 Intermediate representation" (heading at line 786) — cite the heading by
-  name, not by a "§7.1" label, to avoid editing the wrong section.
+  "§7.1 Intermediate representation" (heading at line 786) — cite the heading
+  by name, not by a "§7.1" label, to avoid editing the wrong section.
 - `AGENTS.md` — Rust guidance, testing rules, Markdown guidance.
 - `docs/developers-guide.md` — internal-interface documentation conventions.
 
@@ -380,7 +374,8 @@ Implements RFC 0001 §8 (adds a field to the suppression record) and §9
    - Bump `SCHEMA_VERSION` to `"1.1.0"` in `crates/stilyagi-ir/src/lib.rs`.
 3. Keep the workspace compiling: update the two construction sites and the two
    remaining version assertions.
-   - `crates/stilyagi-markdown/src/lib.rs:235`: add `range_role: None` (behaviour
+   - `crates/stilyagi-markdown/src/lib.rs:235`: add `range_role: None`
+     (behaviour
      lands in work item 2).
    - `crates/stilyagi-ir/src/tests/suppression.rs:9`: add `range_role: None` to
      the inline fixture.
@@ -402,8 +397,8 @@ Implements RFC 0001 §8 (adds a field to the suppression record) and §9
    `1.1.0` (18 files: 5 extract + 12 markdown + 1 test-support). The line-19
    `"version"` (`MARKDOWN_RS_VERSION`) in the markdown snapshots must **not**
    move. If any snapshot shows any other delta, do not accept — inspect it
-   first (it signals an unintended behaviour change or a stale range-suppression
-   assumption).
+   first (it signals an unintended behaviour change or a stale
+   range-suppression assumption).
 5. Stage D. Run the full gate set, including `make test`, and confirm it is
    green at HEAD (all 18 regenerated snapshots committed) before considering
    this work item complete.
@@ -416,8 +411,8 @@ Tests this work item adds/updates:
   `crates/stilyagi-markdown/src/tests/ir_consistency.rs`,
   `crates/stilyagi-pyext/src/tests/mod.rs`.
 - Golden snapshots (`insta`) regenerated for **all 18** snapshots that embed
-  `schema_version`: 5 in `crates/stilyagi-extract/tests/extract/snapshots/`,
-  12 in `crates/stilyagi-markdown/src/snapshots/`, and 1 in
+  `schema_version`: 5 in `crates/stilyagi-extract/tests/extract/snapshots/`, 12
+  in `crates/stilyagi-markdown/src/snapshots/`, and 1 in
   `crates/stilyagi-test-support/tests/snapshots/`. The sole per-file delta is
   the line-6 `schema_version` string.
 
@@ -439,19 +434,19 @@ roadmap 2.1.4's success criterion.
      `disable`/`enable` pair, proving `"range_role": "open"`/`"close"` reaches
      the canonical JSON (per AGENTS.md snapshot rules: narrow, reviewer-useful,
      paired with the semantic assertions above).
-   - Add a `verb_range_role` unit assertion (verb → expected role) and extend the
+   - Add a `verb_range_role` unit assertion (verb → expected role) and extend
+     the
      existing `proptest` `parse_comment_directive_preserves_trimmed_codes` (or add
      a sibling property) to assert: for `disable` the role is `Open`, for
      `enable` it is `Close`, for `ignore-next`/`ignore-file` it is `None`.
    These fail (the mapping/field wiring does not exist yet).
 2. Stage C (green). In `crates/stilyagi-markdown/src/suppression.rs` add
-   `pub(crate) const fn verb_range_role(verb: DirectiveVerb) ->
-   Option<RangeRole>` returning `Some(RangeRole::Open)` for `Disable`,
-   `Some(RangeRole::Close)` for `Enable`, and `None` otherwise. Import
-   `RangeRole` from `stilyagi_ir`. In `crates/stilyagi-markdown/src/lib.rs`
-   import `verb_range_role` and set
-   `range_role: verb_range_role(parsed.verb)` at the construction site (replacing
-   the `None` placeholder from work item 1).
+   `pub(crate) const fn verb_range_role(verb: DirectiveVerb) -> Option<RangeRole>`
+   returning `Some(RangeRole::Open)` for `Disable`, `Some(RangeRole::Close)`
+   for `Enable`, and `None` otherwise. Import `RangeRole` from `stilyagi_ir`. In
+   `crates/stilyagi-markdown/src/lib.rs` import `verb_range_role` and set
+   `range_role: verb_range_role(parsed.verb)` at the construction site
+   (replacing the `None` placeholder from work item 1).
 3. Regenerate the ONE existing golden snapshot whose *content* changes now that
    the frontend emits polarity: the hardening-fixture snapshot for the canonical
    `disable`/`enable` pair. Wiring `range_role` makes `s1`/`s2` in
@@ -468,10 +463,10 @@ roadmap 2.1.4's success criterion.
    cargo insta accept    # or hand-review and commit the .snap update
    ```
 
-   No other existing snapshot changes in work item 2: the `schema_version` churn
-   was already handled in work item 1, and the shared **extract** fixture emits
-   no suppressions (Surprises, observation 1), so only this one markdown snapshot
-   moves here.
+   No other existing snapshot changes in work item 2: the `schema_version`
+   churn was already handled in work item 1, and the shared **extract** fixture
+   emits no suppressions (Surprises, observation 1), so only this one markdown
+   snapshot moves here.
 4. Stage D. Run the full gate set. Confirm the new unit, property, and inline
    snapshot tests pass. Before accepting the regenerated
    `stilyagi_markdown__tests__suppression_directives.snap`, confirm with
@@ -509,15 +504,15 @@ of truth" end-to-end through `stilyagi-extract`.
      And the IR suppressions record the enable as a range close
    ```
 
-   Add the matching `#[given]`/`#[then]` steps and a `#[scenario(...)]`
-   binding in
-   `crates/stilyagi-extract/tests/extract/markdown_suppression_bdd.rs`, importing
-   `RangeRole` from `stilyagi_ir`. Run the BDD test and observe it fail (the
-   steps assert `range_role` values before wiring is trusted end-to-end).
+   Add the matching `#[given]`/`#[then]` steps and a `#[scenario(...)]` binding
+   in `crates/stilyagi-extract/tests/extract/markdown_suppression_bdd.rs`,
+   importing `RangeRole` from `stilyagi_ir`. Run the BDD test and observe it
+   fail (the steps assert `range_role` values before wiring is trusted
+   end-to-end).
 2. Stage C (green). No production change should be required if work items 1-2
-   are complete; the scenario turns green because the frontend already populates
-   the field. (If the extract boundary drops the field, that is a discovery —
-   record it and fix the boundary within tolerance.)
+   are complete; the scenario turns green because the frontend already
+   populates the field. (If the extract boundary drops the field, that is a
+   discovery — record it and fix the boundary within tolerance.)
 3. Stage D. Run the full gate set.
 
 Tests this work item adds:
@@ -527,8 +522,8 @@ Tests this work item adds:
 
 ### Work item 4 — Update design and contract documentation
 
-Implements AGENTS.md documentation-maintenance rules; keeps `docs/` the source of
-truth.
+Implements AGENTS.md documentation-maintenance rules; keeps `docs/` the source
+of truth.
 
 1. `docs/rfcs/0001-stilyagi-intermediate-representation.md` §8: add
    `range_role` to the suppression field list, stating it is present only for
@@ -539,21 +534,21 @@ truth.
    `1.1.0` or add a note that they are historical `1.0.0` illustrations, so the
    RFC does not advertise `1.0.0` while the emitter produces `1.1.0`.
 2. `docs/stilyagi-design.md`, the "Suppression syntax" section (heading at
-   line 603) implementation
-   consequences: add a bullet that range suppressions record open/close polarity
-   in the IR so downstream stages resolve range boundaries without re-scanning
-   comment bytes.
+   line 603) implementation consequences: add a bullet that range suppressions
+   record open/close polarity in the IR so downstream stages resolve range
+   boundaries without re-scanning comment bytes.
 3. `docs/developers-guide.md`: add a short note (in the IR/extraction internal
    interface material) documenting the `range_role` field and the
-   `disable → open`, `enable → close` mapping, so rule authors rely on it rather
-   than re-parsing comments.
+   `disable → open`, `enable → close` mapping, so rule authors rely on it
+   rather than re-parsing comments.
 4. Validate Markdown: `make markdownlint` and `make nixie` (no Mermaid is added,
    but `nixie` is required for `.md` changes per AGENTS.md). Wrap prose at 80
    columns; use en-GB Oxford spelling.
 
 Before committing this work item, format only the touched Markdown files:
-`mdtablefix <changed .md files>` then `markdownlint-cli2 --fix <changed .md
-files>`, then run the gates. Do not run a repo-global Markdown format.
+`mdtablefix <changed .md files>` then
+`markdownlint-cli2 --fix <changed .md files>`, then run the gates. Do not run a
+repo-global Markdown format.
 
 ## Concrete steps
 
@@ -620,10 +615,11 @@ Do not report gates green unless every one passes at HEAD.
 
 Red-Green-Refactor evidence to record per work item:
 
-- Work item 1 — Red: `cargo test -p stilyagi-ir
-  range_role_serializes_open_and_close` fails to compile (missing
-  `RangeRole`/field). Green: after adding the enum, field, and re-export, the
-  test passes and `make test` is green with regenerated snapshots.
+- Work item 1 — Red:
+  `cargo test -p stilyagi-ir range_role_serializes_open_and_close` fails to
+  compile (missing `RangeRole`/field). Green: after adding the enum, field, and
+  re-export, the test passes and `make test` is green with regenerated
+  snapshots.
 - Work item 2 — Red: `range_directives_record_open_and_close_polarity` fails
   (frontend still emits `None`), and the pre-existing
   `hardening_fixture_ir_json_round_trips_without_span_drift` case flips red
@@ -639,9 +635,10 @@ Red-Green-Refactor evidence to record per work item:
 
 Behavioural acceptance (observable):
 
-- Extract a document containing `<!-- stilyagi: disable STY -->` … `<!-- stilyagi:
-  enable STY -->` and inspect `document.suppressions`: the first range entry has
-  `range_role == Some(RangeRole::Open)`, the second `Some(RangeRole::Close)`.
+- Extract a document containing `<!-- stilyagi: disable STY -->` …
+  `<!-- stilyagi: enable STY -->` and inspect `document.suppressions`: the
+  first range entry has `range_role == Some(RangeRole::Open)`, the second
+  `Some(RangeRole::Close)`.
 - `IrDocument::to_canonical_json` emits `"range_role": "open"` / `"close"` on
   those entries and omits the key for inline/file suppressions.
 - `schema_version` is `"1.1.0"`.
@@ -649,8 +646,8 @@ Behavioural acceptance (observable):
 Quality criteria ("done"):
 
 - Tests: new unit, property, and BDD tests pass; `cargo test --workspace` green.
-- Lint/typecheck: `make lint` and `make typecheck` clean (no new Clippy warnings,
-  no silenced lints).
+- Lint/typecheck: `make lint` and `make typecheck` clean (no new Clippy
+  warnings, no silenced lints).
 - Formatting: `make check-fmt` clean.
 - Compatibility: inline/file/config suppression JSON unchanged; only additive
   field plus `schema_version` bump differ from `1.0.0`.
@@ -659,12 +656,12 @@ Quality criteria ("done"):
 
 - All steps are re-runnable. Regenerating snapshots is idempotent. The accepted
   snapshot delta is **scoped per work item**: in **work item 1** the only
-  permitted per-file change is the line-6 `schema_version` string (18 files); in
-  **work item 2** the only permitted change is the two new `range_role` lines on
-  the `s1`/`s2` range entries of
+  permitted per-file change is the line-6 `schema_version` string (18 files);
+  in **work item 2** the only permitted change is the two new `range_role`
+  lines on the `s1`/`s2` range entries of
   `stilyagi_markdown__tests__suppression_directives.snap`. A diff that shows
-  anything beyond the delta expected for the current work item must be inspected
-  before acceptance, not accepted.
+  anything beyond the delta expected for the current work item must be
+  inspected before acceptance, not accepted.
 - If a gate fails, read the cited `/tmp/*.out` log, apply a fix, and re-run only
   the failing gate, then re-run the sequence from `make check-fmt`.
 - No destructive operations. Leave the worktree clean (no stray stashes; if a
@@ -718,8 +715,8 @@ Round 3 (2026-07-05): resolved both blocking points from the round-3 design
 review. (1) Work item 2 previously ended red: wiring
 `range_role: verb_range_role(parsed.verb)` makes the canonical `disable STY` /
 `enable STY` pair in `tests/fixtures/corpus/markdown/valid/`
-`suppression-directives.md.fixture` gain `"range_role"` on its two `"kind":
-"range"` entries (`s1` line 405, `s2` line 417 of
+`suppression-directives.md.fixture` gain `"range_role"` on its two
+`"kind": "range"` entries (`s1` line 405, `s2` line 417 of
 `stilyagi_markdown__tests__suppression_directives.snap`), so the
 `insta::assert_snapshot!` and `assert_eq!(parsed, document)` in
 `hardening_fixture_ir_json_round_trips_without_span_drift`
@@ -730,24 +727,26 @@ Work item 2 now explicitly regenerates and re-accepts that one snapshot
 exactly two new `range_role` lines. (2) The Surprises section previously
 generalized the "no golden snapshot needs new range-suppression content" claim
 across all snapshots; it was true only of the shared **extract** fixture
-(`heading-table-link-suppression.md`, ignored marker, no suppressions). Rescoped
-observation 1 to the shared extract fixture only and added a BLOCKING-correction
-observation naming the markdown crate's own fixture as the snapshot that does
-gain content in work item 2. Also rescoped the Idempotence guidance so the
-legitimate work-item-2 `range_role` delta is not mistaken for a regression to
-reject. Verified fixture, snapshot, and test wiring directly in the worktree.
+(`heading-table-link-suppression.md`, ignored marker, no suppressions).
+Rescoped observation 1 to the shared extract fixture only and added a
+BLOCKING-correction observation naming the markdown crate's own fixture as the
+snapshot that does gain content in work item 2. Also rescoped the Idempotence
+guidance so the legitimate work-item-2 `range_role` delta is not mistaken for a
+regression to reject. Verified fixture, snapshot, and test wiring directly in
+the worktree.
 
-Round 2 (2026-07-05): resolved the design reviewer's single blocking point — the
-incomplete `schema_version` snapshot blast-radius analysis. The round-1 draft
-wrongly claimed the `1.0.0 → 1.1.0` bump churned only the extract rust/python
-golden snapshots and that "the markdown golden snapshot does not embed it … so
-it is unaffected". Verified via `grep -rl '"schema_version": "1.0.0"' crates`
-that 18 snapshot files embed `schema_version` (5 extract + 12 markdown + 1
-test-support). Corrected the Context, Risks, Surprises, and Tolerances sections
-to state the true 18-file churn, and expanded work item 1 step 4 (and the
-Concrete-steps regeneration block) to run `cargo test -p stilyagi-markdown` and
-`cargo test -p stilyagi-test-support` alongside the extract integration test, so
-every snapshot is regenerated and `make test` is green at the HEAD of work
+Round 2 (2026-07-05): resolved the design reviewer's single blocking point —
+the incomplete `schema_version` snapshot blast-radius analysis. The round-1
+draft wrongly claimed the `1.0.0 → 1.1.0` bump churned only the extract
+rust/python golden snapshots and that "the markdown golden snapshot does not
+embed it … so it is unaffected". Verified via
+`grep -rl '"schema_version": "1.0.0"' crates` that 18 snapshot files embed
+`schema_version` (5 extract + 12 markdown + 1 test-support). Corrected the
+Context, Risks, Surprises, and Tolerances sections to state the true 18-file
+churn, and expanded work item 1 step 4 (and the Concrete-steps regeneration
+block) to run `cargo test -p stilyagi-markdown` and
+`cargo test -p stilyagi-test-support` alongside the extract integration test,
+so every snapshot is regenerated and `make test` is green at the HEAD of work
 item 1. Also resolved both advisories: replaced the "§7.1 Suppression syntax"
 mislabel with the correct "Suppression syntax" heading (line 603, distinct from
 "§7.1 Intermediate representation" at line 786), and added a step to reconcile

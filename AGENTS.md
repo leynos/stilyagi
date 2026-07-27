@@ -102,9 +102,9 @@
 - **Tool versions:** The Makefile and CI must use identical lint tool
   versions. Ruff and Interrogate are pinned in the `pyproject.toml` `dev`
   dependency group and resolved from `uv.lock`; `typos` is pinned by the
-  Makefile `TYPOS_VERSION` variable. Bump the pin at its single source of
-  truth rather than installing a different version ad hoc, and never add a
-  separate tool-install step to CI for a tool the Makefile already provides.
+  Makefile `TYPOS_VERSION` variable. Bump the pin at its single source of truth
+  rather than installing a different version ad hoc, and never add a separate
+  tool-install step to CI for a tool the Makefile already provides.
 
 ## Refactoring heuristics and workflow
 
@@ -343,8 +343,8 @@ project:
   `make spelling-config-write`. See the spelling gate section of
   `docs/developers-guide.md` for details.
 - Quoted APIs and identifiers keep their upstream spelling; put them in
-  backticks or fenced code blocks, which the spelling gate ignores, rather
-  than adding word-level exceptions.
+  backticks or fenced code blocks, which the spelling gate ignores, rather than
+  adding word-level exceptions.
 - Run `make fmt` after documentation changes to format Markdown and fix table
   markup.
 - Validate Mermaid diagrams in Markdown by running `make nixie`.

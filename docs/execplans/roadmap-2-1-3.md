@@ -1,9 +1,8 @@
 # Parse Markdown suppression directives into the IR (roadmap 2.1.3)
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -22,11 +21,11 @@ Markdown file causes that directive to appear as a structured entry in the IR
 `suppressions` array, visible in the canonical IR JSON ("dump-ir"). A reader
 can observe success by running the Markdown crate's fixture round-trip snapshot
 test and seeing a populated `"suppressions"` block whose spans re-slice the
-original source bytes, whose `kind` classifies the directive
-(`inline`/`range`/`file`), and whose `codes` list the named rule codes. A
-blanket inline directive (one that names no code) is refused and recorded as a
-non-fatal IR error rather than silently accepted, matching the v1 contract that
-"blanket inline suppression is forbidden".
+original source bytes, whose `kind` classifies the directive (`inline`/`range`/
+`file`), and whose `codes` list the named rule codes. A blanket inline
+directive (one that names no code) is refused and recorded as a non-fatal IR
+error rather than silently accepted, matching the v1 contract that "blanket
+inline suppression is forbidden".
 
 The point of the roadmap item is single-source-of-truth: later rule and CLI
 work (2.2.x, 3.1.3) must trust the frontend's `suppressions` array and must not
@@ -38,9 +37,9 @@ suppression state for Markdown.
 1. The AGENTS.md commit gates pass: `make check-fmt`, `make lint`, `make test`,
    and `make typecheck` (AGENTS.md:156; Makefile targets `check-fmt`, `lint`,
    `test`, `typecheck`). Note: `make all` builds and smoke-tests the release
-   wheel (Makefile:38 `all: release`; Makefile:48 `release: release-artifact
-   smoke-release`) and does NOT run the test suite, Clippy, fmt-check, or `ty`
-   typecheck — so it is not the validation gate here.
+   wheel (Makefile:38 `all: release`; Makefile:48
+   `release: release-artifact smoke-release`) and does NOT run the test suite,
+   Clippy, fmt-check, or `ty` typecheck — so it is not the validation gate here.
 2. In `crates/stilyagi-markdown`, a new fixture round-trip snapshot shows a
    populated `"suppressions"` array for a document containing canonical
    directives, and each suppression `span` satisfies `source[span]` equal to
@@ -91,8 +90,7 @@ Hard invariants that must hold throughout implementation.
   asserts the placeholder string `stilyagi-disable-next-line` appears in the
   Markdown, Python, and Rust corpus fixtures (roadmap 1.3.1). That placeholder
   is deliberately *not* canonical directive syntax; leave it and its assertions
-  untouched (Python/Rust directive parsing is roadmap 3.1.3, out of scope
-  here).
+  untouched (Python/Rust directive parsing is roadmap 3.1.3, out of scope here).
 
 ## Tolerances (exception triggers)
 
@@ -133,8 +131,9 @@ Hard invariants that must hold throughout implementation.
   parser, that a lone HTML comment yields a `Node::Html` whose `position`
   re-slices to the comment bytes; if that assumption is false the test fails
   loudly before any wiring is built.
-- Risk R3: the fixture `tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md`
-  is named for suppression but its comment uses the non-canonical placeholder
+- Risk R3: the fixture
+  `tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md` is
+  named for suppression but its comment uses the non-canonical placeholder
   `stilyagi-disable-next-line terminology`. If the parser were made lenient
   enough to accept it, four existing golden snapshots plus a Python snapshot
   would churn and the 1.3.1 corpus invariant would be muddied. Severity: low.
@@ -145,8 +144,8 @@ Hard invariants that must hold throughout implementation.
   block level. An inline comment's span still re-slices, but its classification
   as `inline`/`range` must be driven by the directive verb, not by the node's
   block/inline placement. Severity: low. Likelihood: medium. Mitigation:
-  classification is a pure function of the verb (WI-2); placement does not enter
-  into it.
+  classification is a pure function of the verb (WI-2); placement does not
+  enter into it.
 
 ## Progress
 
@@ -174,10 +173,10 @@ Hard invariants that must hold throughout implementation.
   gap, not an anticipated risk.
 - Observation S3: `firecrawl_scrape` of `docs.rs` for the `markdown-rs`
   `mdast::Html` struct was denied in this planning session ("Claude requested
-  permissions ... but you haven't granted it yet"), and the Cargo registry
-  source lies outside the sandbox's allowed directories. Impact: the
-  `markdown-rs` HTML-comment behaviour is pinned by a red test (WI-2) rather
-  than by citing vendored source; see Risk R2.
+  permissions … but you haven't granted it yet"), and the Cargo registry source
+  lies outside the sandbox's allowed directories. Impact: the `markdown-rs`
+  HTML-comment behaviour is pinned by a red test (WI-2) rather than by citing
+  vendored source; see Risk R2.
 - Observation S4: the full canonical IR envelope (including `"suppressions"`
   and `"schema_version"`) is already snapshotted per-fixture by
   `hardening_fixture_ir_json_round_trips_without_span_drift` in
@@ -209,20 +208,20 @@ Hard invariants that must hold throughout implementation.
   ids keeps one referencing convention across the IR and gives downstream
   consumers a stable back-pointer. Date/Author: 2026-07-04, planning agent.
 - Decision D4: the non-canonical placeholder `stilyagi-disable-next-line ...`
-  is ignored entirely (no suppression, no error), because it lacks the
-  canonical `stilyagi:` marker. Rationale: preserves the 1.3.1 corpus invariant
-  and avoids churning four existing golden snapshots; Python/Rust directive
-  parsing is roadmap 3.1.3. Date/Author: 2026-07-04, planning agent.
+  is ignored entirely (no suppression, no error), because it lacks the canonical
+  `stilyagi:` marker. Rationale: preserves the 1.3.1 corpus invariant and
+  avoids churning four existing golden snapshots; Python/Rust directive parsing
+  is roadmap 3.1.3. Date/Author: 2026-07-04, planning agent.
 - Decision D5: map directive verbs to `kind` as: `ignore-next` -> `inline`,
   `disable`/`enable` -> `range`, `ignore-file` -> `file`. The `config` kind of
   RFC 0001 §8 is produced by configuration loading, not by the Markdown
   frontend, and is out of scope here. Rationale: RFC 0003 §9 strata map onto
   RFC 0001 §8 kinds this way. Date/Author: 2026-07-04, planning agent.
 - Decision D6: the blanket-code prohibition is scoped by verb, not applied to
-  all four verbs. A codeless inline (`ignore-next`) or range
-  (`disable`/`enable`) directive is refused (`Rejected(BlanketForbidden)`); a
-  codeless file directive (`ignore-file`) is *accepted* as a whole-file
-  exemption with an empty `codes` vector. Rationale: RFC 0003 §9.1
+  all four verbs. A codeless inline (`ignore-next`) or range (`disable`/
+  `enable`) directive is refused (`Rejected(BlanketForbidden)`); a codeless
+  file directive (`ignore-file`) is *accepted* as a whole-file exemption with
+  an empty `codes` vector. Rationale: RFC 0003 §9.1
   (`docs/rfcs/0003-stilyagi-cli-contract.md:281`) scopes the "MUST name at
   least one code" mandate to "Range and inline directives" and forbids only
   "Blanket inline suppression"; design §7.1 (`docs/stilyagi-design.md:626`)
@@ -292,7 +291,7 @@ The reader is assumed to know nothing about this repository. Key facts:
     `validate_ir_consistency`. This is where `document.suppressions` and
     `document.errors` must be populated.
   - `src/builder.rs` — `MarkdownIrBuilder`. `push_node` (line 54) assigns node
-    ids `n0`, `n1`, ... in pre-order and maps every mdast node into an
+    ids `n0`, `n1`, … in pre-order and maps every mdast node into an
     `IrNode`. `node_kind(node)` returns `"html"` for `Node::Html`
     (`src/node_kind.rs:22`).
   - `src/tests.rs` — the parameterized `#[case]` harness
@@ -328,9 +327,8 @@ Design and contract references, by section:
   belongs in extraction", "Suppression state must be visible in IR and debug
   output", "Blanket inline suppression remains forbidden in v1".
 - `docs/rfcs/0001-stilyagi-intermediate-representation.md` §8 — suppression
-  fields `{id, kind, codes, span, origin}` and kinds
-  `inline`/`range`/`file`/`config`; §9 — canonical JSON and compatibility
-  rules.
+  fields `{id, kind, codes, span, origin}` and kinds `inline`/`range`/`file`/
+  `config`; §9 — canonical JSON and compatibility rules.
 - `docs/rfcs/0003-stilyagi-cli-contract.md` §9, §9.1, §9.2 — three suppression
   strata, the logical directive grammar, the Markdown HTML-comment form, and
   the prohibition on inventing a second grammar.
@@ -419,16 +417,16 @@ prohibition, "visible in IR"); RFC 0001 §8; roadmap 2.1.3 ("Do not let later
 rules infer suppression state ad hoc").
 
 Gate-passability note (design-review round 3, point 1): the pure parser
-(`parse_comment_directive`, `verb_kind`) is crate-private
-(`pub(crate)`/module-private) and its ONLY library consumer is the IR wiring in
-`markdown_ir_document_with_context`. `make lint` runs `cargo clippy
---all-targets --workspace -- -D warnings` (AGENTS.md:172; Makefile:117); the
-plain `--lib` target compiles with `cfg(test)` OFF, so a crate-private item
-referenced only from `#[cfg(test)]` code is `dead_code` and `-D warnings`
-promotes it to a hard error. Existing `pub(crate)` helpers such as
-`flatten_region`/`validate_ir_consistency` avoid this only because non-test lib
-code calls them. Therefore the parser and its wiring MUST be introduced in the
-SAME commit as a single work item; committing the parser alone would fail
+(`parse_comment_directive`, `verb_kind`) is crate-private (`pub(crate)`
+/module-private) and its ONLY library consumer is the IR wiring in
+`markdown_ir_document_with_context`. `make lint` runs
+`cargo clippy --all-targets --workspace -- -D warnings` (AGENTS.md:172;
+Makefile:117); the plain `--lib` target compiles with `cfg(test)` OFF, so a
+crate-private item referenced only from `#[cfg(test)]` code is `dead_code` and
+`-D warnings` promotes it to a hard error. Existing `pub(crate)` helpers such as
+`flatten_region`/`validate_ir_consistency` avoid this only because non-test
+lib code calls them. Therefore the parser and its wiring MUST be introduced in
+the SAME commit as a single work item; committing the parser alone would fail
 `make lint`. This is the reason the former WI-2 (parser) and WI-3 (wiring) are
 fused here.
 
@@ -557,13 +555,24 @@ and, for each:
 1. Slice the comment bytes from `source` using the recorded span, strip the
    `<!--` / `-->` delimiters to obtain the inner text, and call
    `parse_comment_directive`.
-2. On `Parsed`, push an `IrSuppression { id: "s{n}", kind: verb_kind(verb),
-   codes, span, origin: node_id }` onto `document.suppressions`.
+2. On `Parsed`, push:
+
+   ```rust
+   IrSuppression {
+       id: "s{n}",
+       kind: verb_kind(verb),
+       codes,
+       span,
+       origin: node_id,
+   }
+   ```
+
+   onto `document.suppressions`.
 3. On `Rejected(BlanketForbidden)`, push an `IrError { code:
    "suppression-blanket-forbidden", message: <descriptive>, span: Some(span) }`
    onto `document.errors`; emit no suppression.
-4. On `Rejected(UnknownVerb)`, push an `IrError { code:
-   "suppression-unknown-verb", ... }`; emit no suppression.
+4. On `Rejected(UnknownVerb)`, push an
+   `IrError { code: "suppression-unknown-verb", ... }`; emit no suppression.
 5. On `NotADirective`, do nothing.
 
 Keep classification purely verb-driven (Risk R4). Suppression ids are assigned
@@ -702,8 +711,8 @@ unimplemented, update it to reflect that the Markdown frontend now emits
 is warranted, record that in the Decision Log and skip.
 
 Validation: run the AGENTS.md commit gates (AGENTS.md:156) — `make check-fmt`,
-`make lint`, `make test`, and `make typecheck` — delegated to `scrutineer`; and,
-if any `docs/**.md` file was edited in this work item, additionally
+`make lint`, `make test`, and `make typecheck` — delegated to `scrutineer`;
+and, if any `docs/**.md` file was edited in this work item, additionally
 `make markdownlint` and `make nixie` (the Markdown gates; Makefile:125,128).
 (`make all` is not a gate: it only builds and smoke-tests the release wheel.)
 
@@ -743,9 +752,9 @@ Run everything from the worktree root
    ```
 
    Do NOT substitute `make all`: `all: release` (Makefile:38) only builds and
-   smoke-tests the release wheel (Makefile:48-70) and runs none of `cargo test
-   --workspace`, Clippy, fmt-check, or the `ty` typecheck — so a green `make
-   all` would leave every test written for this task unexecuted.
+   smoke-tests the release wheel (Makefile:48-70) and runs none of
+   `cargo test --workspace`, Clippy, fmt-check, or the `ty` typecheck — so a
+   green `make all` would leave every test written for this task unexecuted.
 
    If a `docs/**.md` file was edited (only possible in WI-4), also run the
    Markdown gates:
@@ -771,8 +780,8 @@ Quality criteria ("done"):
   fix warnings, do not silence). `make check-fmt` passes (Rust + Python format
   check).
 - Observable: the `suppression_directives` fixture snapshot shows a populated
-  `"suppressions"` array; the blanket-directive test shows an `errors` entry and
-  no suppression; the placeholder regression test shows neither.
+  `"suppressions"` array; the blanket-directive test shows an `errors` entry
+  and no suppression; the placeholder regression test shows neither.
 
 Do NOT use `make all` as the acceptance gate: `all: release` (Makefile:38) only
 builds and smoke-tests the release wheel (Makefile:48-70); it never runs the
@@ -808,11 +817,11 @@ Red-Green-Refactor evidence to record in Progress as work proceeds:
 
 Prescriptive end-state:
 
-- In `crates/stilyagi-ir/src/diagnostics.rs`: `pub enum SuppressionKind {
-  Inline, Range, File, Config }` (serde `snake_case`) and `pub struct
-  IrSuppression { id: String, kind: SuppressionKind, codes: Vec<String>, span:
-  SourceSpan, origin: String }`, both re-exported from
-  `crates/stilyagi-ir/src/lib.rs`.
+- In `crates/stilyagi-ir/src/diagnostics.rs`:
+  `pub enum SuppressionKind { Inline, Range, File, Config }` (serde
+  `snake_case`) and
+  `pub struct IrSuppression { id: String, kind: SuppressionKind, codes: Vec<String>, span: SourceSpan, origin: String }`,
+  both re-exported from `crates/stilyagi-ir/src/lib.rs`.
 - In `crates/stilyagi-markdown/src/suppression.rs` (new, crate-private):
   `parse_comment_directive(inner: &str) -> DirectiveOutcome` and
   `verb_kind(verb: DirectiveVerb) -> stilyagi_ir::SuppressionKind`.
@@ -832,17 +841,17 @@ unverifiable citation.
 Revision 2 (2026-07-04). Design-review round 2: corrected the validation gate
 throughout. The plan previously named `make all` as the authoritative gate in
 every work item, in Concrete Steps step 4, and in Validation & Acceptance.
-Verified against the worktree `Makefile`: `.DEFAULT_GOAL := all`, `all: release`
-(Makefile:38), `release: release-artifact smoke-release` (Makefile:48), where
-`release-artifact` runs only `maturin build --release` (Makefile:50-52) and
-`smoke-release` builds a wheel and runs `stilyagi.smoke` (Makefile:60-70). Thus
-`make all` compiles and smoke-tests the release wheel but never runs the
-workspace test suite, Clippy, `ty` typecheck, or fmt-check. Replaced it
-everywhere with the AGENTS.md commit-gate set (AGENTS.md:156) — `make check-fmt`,
-`make lint`, `make test` (`cargo test --workspace`, AGENTS.md:178-182), and
-`make typecheck` (Makefile:120-123) — retaining `make markdownlint` and
-`make nixie` (Makefile:125,128) as the additional gates for the documentation
-work item's `docs/**.md` edit.
+Verified against the worktree `Makefile`: `.DEFAULT_GOAL := all`,
+`all: release` (Makefile:38), `release: release-artifact smoke-release`
+(Makefile:48), where `release-artifact` runs only `maturin build --release`
+(Makefile:50-52) and `smoke-release` builds a wheel and runs `stilyagi.smoke`
+(Makefile:60-70). Thus `make all` compiles and smoke-tests the release wheel
+but never runs the workspace test suite, Clippy, `ty` typecheck, or fmt-check.
+Replaced it everywhere with the AGENTS.md commit-gate set (AGENTS.md:156) —
+`make check-fmt`, `make lint`, `make test` (`cargo test --workspace`,
+AGENTS.md:178-182), and `make typecheck` (Makefile:120-123) — retaining
+`make markdownlint` and `make nixie` (Makefile:125,128) as the additional gates
+for the documentation work item's `docs/**.md` edit.
 
 Revision 3 (2026-07-04). Design-review round 3 resolved two blocking points.
 
@@ -872,6 +881,6 @@ exemptions" as a first-class stratum. Emitting an error for a codeless
 D6: the blanket refusal is now verb-scoped — codeless inline/range directives
 are refused, but a codeless `ignore-file` is accepted as a whole-file exemption
 with an empty `codes` vector. Corrected parsing rule 4, the "Blanket refusal"
-constraint, Decision D5's cross-reference, the `IrSuppression.codes` doc comment
-(dropped the "never empty" claim), and added parser and wiring tests for the
-codeless-`ignore-file` case.
+constraint, Decision D5's cross-reference, the `IrSuppression.codes` doc
+comment (dropped the "never empty" claim), and added parser and wiring tests
+for the codeless-`ignore-file` case.

@@ -11,10 +11,11 @@ Accepted
 ## Context and Problem Statement
 
 Rust documentation-comment extraction now needs the same IR guarantees as
-Python docstrings: stable owner metadata, exact source-backed text, deterministic
-region ordering, and recoverable parse behaviour. The extractor must also
-preserve Rust-specific semantics for inner versus outer doc comments, repeated
-line-comment runs, and qualified names across nested modules and impl blocks.
+Python docstrings: stable owner metadata, exact source-backed text,
+deterministic region ordering, and recoverable parse behaviour. The extractor
+must also preserve Rust-specific semantics for inner versus outer doc comments,
+repeated line-comment runs, and qualified names across nested modules and impl
+blocks.
 
 How should Rust doc-comment regions expose owner identity and source text
 without forcing rules to navigate the full tree-sitter concrete syntax tree?
@@ -41,19 +42,19 @@ the source-backed segments so the flattened prose still reconstructs exactly.
 Rust `qualname` semantics use `::`-joined enclosing named items from the module
 root through the owned item. Impl methods use the implementor type as the
 prefix after any enclosing modules (`outer::inner::Type::method`), and
-trait-impl methods follow the same module-rooted implementor-type prefix in
-v1. Crate-root inner doc comments emit anonymous module owners
-(`kind: "module"`, `name: null`, `qualname: null`), and unrecognized item
-kinds fall back to `kind: "item"`.
+trait-impl methods follow the same module-rooted implementor-type prefix in v1.
+Crate-root inner doc comments emit anonymous module owners (`kind: "module"`,
+`name: null`, `qualname: null`), and unrecognized item kinds fall back to
+`kind: "item"`.
 
 ## Options considered
 
 <!-- markdownlint-disable MD060 -->
-| Alternative                                                                      | Rationale                                 | Trade-offs                                                                    |
-| -------------------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------- |
-| Derive owner identity from raw CST traversal in rules                            | Keeps the extractor thinner.              | Couples rules to parser details and duplicates owner logic in every rule pack. |
-| Normalize or clean doc comments during extraction                                | Produces rustdoc-style prose immediately. | Breaks the verbatim source contract and weakens segment reconstruction.        |
-| Expose the full Rust tree-sitter tree as a stable v1 rule contract               | Gives rules maximum syntax access.        | Makes grammar upgrades much harder to absorb.                                  |
+| Alternative                                                        | Rationale                                 | Trade-offs                                                                     |
+| ------------------------------------------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------ |
+| Derive owner identity from raw CST traversal in rules              | Keeps the extractor thinner.              | Couples rules to parser details and duplicates owner logic in every rule pack. |
+| Normalize or clean doc comments during extraction                  | Produces rustdoc-style prose immediately. | Breaks the verbatim source contract and weakens segment reconstruction.        |
+| Expose the full Rust tree-sitter tree as a stable v1 rule contract | Gives rules maximum syntax access.        | Makes grammar upgrades much harder to absorb.                                  |
 <!-- markdownlint-enable MD060 -->
 
 ## Consequences

@@ -343,9 +343,10 @@ v1 SHALL support:
 `json` SHALL be the stable machine-readable form for local tooling.
 
 `sarif` (the Static Analysis Results Interchange Format) is deferred to a later
-slice and is NOT part of the v1 contract. Until it lands, `--output-format
-sarif` SHALL be rejected with a usage error stating that `sarif` is planned but
-not yet available, matching the behaviour of `_parse_output_format`.
+slice and is NOT part of the v1 contract. Until it lands,
+`--output-format sarif` SHALL be rejected with a usage error stating that
+`sarif` is planned but not yet available, matching the behaviour of
+`_parse_output_format`.
 
 When it does land, `sarif` will conform to the SARIF 2.1.0 family of
 expectations closely enough to interoperate with downstream static-analysis

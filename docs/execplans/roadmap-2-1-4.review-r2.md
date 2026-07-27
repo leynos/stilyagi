@@ -1,7 +1,7 @@
 # Logisphere design review — roadmap 2.1.4 ExecPlan (Round 2)
 
-Status: **CHANGES REQUESTED** (plan Status remains DRAFT)
-Reviewer: Logisphere crew (adversarial), 2026-07-05.
+Status: **CHANGES REQUESTED** (plan Status remains DRAFT) Reviewer: Logisphere
+crew (adversarial), 2026-07-05.
 
 ## Verdict
 
@@ -25,8 +25,8 @@ This is **false**. Verified against the worktree:
 - That snapshot contains two `range` suppressions, `s1` and `s2` (codes `STY`,
   origins `n7`/`n10`) — i.e. a canonical `disable STY` / `enable STY` pair.
 - It is produced by the parametrized test case
-  `crates/stilyagi-markdown/src/tests.rs:122` (`suppression_directives`,
-  fixture `tests/fixtures/corpus/markdown/valid/suppression-directives.md.fixture`),
+  `crates/stilyagi-markdown/src/tests.rs:122` (`suppression_directives`, fixture
+  `tests/fixtures/corpus/markdown/valid/suppression-directives.md.fixture`),
   which runs `markdown_ir_document` → the frontend construction site at
   `crates/stilyagi-markdown/src/lib.rs:235` → `to_canonical_json`.
 
@@ -38,7 +38,8 @@ regenerated and accepted.
 
 Work item 2 does not account for this:
 
-- Its "Tests this work item adds/updates" list omits `suppression_directives.snap`.
+- Its "Tests this work item adds/updates" list omits
+  `suppression_directives.snap`.
 - Step 2/3 give no instruction to regenerate or review it; step 3 only says
   "Run the full gate set. Confirm the property and inline-snapshot tests pass."
 - Worse, the plan's own Tolerances rule ("A snapshot diff that changes any
@@ -84,8 +85,9 @@ snapshots is not.
   `stilyagi-pyext/src/tests/mod.rs:38` — all present as cited.
 - `IrSuppression` fields (`id`, `kind`, `codes`, `span`, `origin`) and
   `SuppressionKind` snake_case enum — confirmed in `diagnostics.rs`. Additive
-  `Option<RangeRole>` with `#[serde(default, skip_serializing_if =
-  "Option::is_none")]` preserves the serialized shape of non-range suppressions.
+  `Option<RangeRole>` with
+  `#[serde(default, skip_serializing_if = "Option::is_none")]` preserves the
+  serialized shape of non-range suppressions.
 - RFC 0001 §8 (line 327, field list) and §9 (line 346, compatibility rules:
   "Optional fields MAY be added in minor versions"; "Producers MUST NOT change
   field meaning within a major version") support the additive-field + `1.1.0`
@@ -105,6 +107,6 @@ snapshots is not.
 
 - Field position: the plan does not state where `range_role` sits within
   `IrSuppression`. Because `to_canonical_json` preserves struct field order,
-  appending it after `origin` is the least surprising choice and keeps the
-  new key last on range entries. Worth stating explicitly so the regenerated
+  appending it after `origin` is the least surprising choice and keeps the new
+  key last on range entries. Worth stating explicitly so the regenerated
   `suppression_directives.snap` diff is predictable during review.

@@ -21,29 +21,30 @@ metadata and source maps that documentation-comment rules need for Rust
 modules, types, functions, and item-level declarations?
 
 After the approved implementation, a maintainer can call the existing
-extraction path with the `rust_doc_comment` syntax on a representative Rust file
-and inspect canonical IR JSON that contains, for each documentation comment, a
-`rust_doc_comment` region whose flattened `text` is the prose carried by the
-doc-comment markers, whose `segments` map that text back to exact source bytes,
-and whose `owner` identifies the owning item (module, struct, enum, trait,
-function, impl, or item-level declaration) by `kind`, `name`, and `qualname`.
+extraction path with the `rust_doc_comment` syntax on a representative Rust
+file and inspect canonical IR JSON that contains, for each documentation
+comment, a `rust_doc_comment` region whose flattened `text` is the prose
+carried by the doc-comment markers, whose `segments` map that text back to
+exact source bytes, and whose `owner` identifies the owning item (module,
+struct, enum, trait, function, impl, or item-level declaration) by `kind`,
+`name`, and `qualname`.
 
 The observable success condition is not "the code compiles". For the shared
 Rust fixture, canonical IR JSON snapshots must be stable, every emitted region's
-`segments` must reconstruct its `text` exactly, every region's `owner` must name
-the correct owning item, and a malformed Rust fixture must still produce partial
-extraction plus a recoverable error rather than aborting the run. The Rust
-`ExtractSyntax::ALL` and Python `Syntax` vocabularies must still agree, and the
-PyO3 bridge must accept `"rust_doc_comment"` and return `ir_json` whose
+`segments` must reconstruct its `text` exactly, every region's `owner` must
+name the correct owning item, and a malformed Rust fixture must still produce
+partial extraction plus a recoverable error rather than aborting the run. The
+Rust `ExtractSyntax::ALL` and Python `Syntax` vocabularies must still agree,
+and the PyO3 bridge must accept `"rust_doc_comment"` and return `ir_json` whose
 `Document.ir` exposes the regions with owner metadata.
 
 This slice deliberately stops at owner-aware extraction. It does not implement
 Rust documentation-comment lint rules (roadmap item 3.2.2), Rust suppression
 parsing (roadmap item 3.1.3), discovery defaults for `*.rs` (roadmap item
 3.2.1), or any Markdown-inside-doc-comment analysis. It supplies the IR facts
-those later items must trust. It reuses the ADR 006 `owner` field contract while
-defining Rust-specific owner kinds and qualified-name semantics, exactly as
-[docs/stilyagi-design.md](../stilyagi-design.md) §12 ("Exact owner metadata
+those later items must trust. It reuses the ADR 006 `owner` field contract
+while defining Rust-specific owner kinds and qualified-name semantics, exactly
+as [docs/stilyagi-design.md](../stilyagi-design.md) §12 ("Exact owner metadata
 shape for Rust documentation comments") anticipates.
 
 ## Context and orientation
@@ -67,8 +68,9 @@ The relevant Rust crates are:
 - `crates/stilyagi-ir/`, which owns the stable IR domain vocabulary. It defines
   `IrDocument`, `DocumentMetadata`, `ProducerMetadata`, `IrTree`, `IrNode`,
   `NodeFlags`, `SourceSpan`, `IrRegion`, `IrSegment`, `SegmentOrigin`,
-  `IrOwner`, `IrError`, `SourceIdentity`, the `content_hash_for`/`line_index_for`
-  helpers, and `SCHEMA_VERSION`. The owner contract already exists:
+  `IrOwner`, `IrError`, `SourceIdentity`, the `content_hash_for`/
+  `line_index_for` helpers, and `SCHEMA_VERSION`. The owner contract already
+  exists:
   `IrOwner { kind: String, name: Option<String>, qualname: Option<String> }` in
   `crates/stilyagi-ir/src/region.rs`. Do not redefine these types elsewhere.
 - `crates/stilyagi-tree-sitter/`, the tree-sitter-backed source extractor. It
@@ -76,9 +78,9 @@ The relevant Rust crates are:
   (`crates/stilyagi-tree-sitter/src/python/`) plus the public
   `python_docstring_ir_document` and `PythonExtractError`, re-exported from
   `crates/stilyagi-tree-sitter/src/lib.rs`. The Python module is split into
-  `mod.rs`, `helpers.rs`, `observe.rs`, `owner.rs`, `support.rs`, and `types.rs`.
-  This crate gains a sibling `rust` module with the same layout, so item 3.1.2
-  reshapes nothing that item 3.1.1 built.
+  `mod.rs`, `helpers.rs`, `observe.rs`, `owner.rs`, `support.rs`, and
+  `types.rs`. This crate gains a sibling `rust` module with the same layout, so
+  item 3.1.2 reshapes nothing that item 3.1.1 built.
 - `crates/stilyagi-markdown/`, the Markdown adapter. Its
   `crates/stilyagi-markdown/src/flatten.rs` is the reference implementation for
   emitting a region whose `text` is assembled from more than one segment,
@@ -93,12 +95,12 @@ The relevant Rust crates are:
   `RustDocComment` variant spelled `"rust_doc_comment"`), `RegionKind` (with
   `Document` and `PythonDocstring` variants), and `ExtractError` (with
   `MarkdownIr`, `PythonIr`, `UnsupportedSyntax`, `UnknownSyntax` arms and a
-  compile-time size assertion `size_of::<ExtractError>() <=
-  EXTRACT_ERROR_SIZE_LIMIT_BYTES`). Today
+  compile-time size assertion
+  `size_of::<ExtractError>() <= EXTRACT_ERROR_SIZE_LIMIT_BYTES`). Today
   `extract_document_with_source_identity` returns
-  `Err(ExtractError::UnsupportedSyntax(ExtractSyntax::RustDocComment))` for Rust.
-  This slice wires that arm to a new `extract_rust_document`, mirroring the
-  existing `ExtractSyntax::PythonDocstring => extract_python_document` arm.
+  `Err(ExtractError::UnsupportedSyntax(ExtractSyntax::RustDocComment))` for
+  Rust. This slice wires that arm to a new `extract_rust_document`, mirroring
+  the existing `ExtractSyntax::PythonDocstring => extract_python_document` arm.
 - `crates/stilyagi-pyext/`, the PyO3 bridge.
   `crates/stilyagi-pyext/src/lib.rs` serializes an attached `IrDocument` to
   canonical `ir_json` and maps `ExtractError::UnsupportedSyntax(_)` to
@@ -108,8 +110,8 @@ The relevant Rust crates are:
 - `crates/stilyagi-test-support/`, which provides fixture access and golden IR
   builders. `crates/stilyagi-test-support/src/golden_fixture_builder.rs` defines
   `golden_python_ir_fixture(...) -> Result<IrDocument, GoldenPythonFixtureError>`,
-  which reads a corpus fixture and calls the production Python extractor so the
-  golden output cannot invent a second schema. A `golden_rust_ir_fixture`
+  which reads a corpus fixture and calls the production Python extractor so
+  the golden output cannot invent a second schema. A `golden_rust_ir_fixture`
   sibling is added the same way.
 - `crates/stilyagi-test-fixtures/`, which owns fixture path constants and
   readers. `crates/stilyagi-test-fixtures/src/fixture_paths.rs` defines
@@ -132,8 +134,8 @@ The relevant Python modules are:
 The relevant fixtures (added by roadmap item 1.3.1, already on `main`) are:
 
 - `tests/fixtures/corpus/rust/valid/item-doc-comments.rs`, which contains a
-  crate-level inner doc comment (`//!`), an item-level outer doc comment (`///`)
-  on `pub struct FixtureExample`, a method outer doc comment inside
+  crate-level inner doc comment (`//!`), an item-level outer doc comment
+  (`///`) on `pub struct FixtureExample`, a method outer doc comment inside
   `impl FixtureExample`, a plain non-doc comment
   (`// stilyagi-disable-next-line terminology`), and a free-function outer doc
   comment on `pub fn fixture_function()`.
@@ -173,8 +175,8 @@ Definitions used in this plan:
 - tree-sitter is the incremental, error-tolerant parsing library mandated by the
   design. tree-sitter-rust is its Rust grammar. In that grammar, documentation
   comments parse as `line_comment` and `block_comment` nodes; the extractor
-  classifies and slices them by their leading source bytes (see the mechanism in
-  Stage 2), a policy that does not depend on grammar-version-specific
+  classifies and slices them by their leading source bytes (see the mechanism
+  in Stage 2), a policy that does not depend on grammar-version-specific
   doc-comment child nodes.
 - Span drift means any mismatch between a reported source offset and the bytes
   that actually produced the corresponding region text.
@@ -218,8 +220,8 @@ Keep these repository documents open:
 
 - [docs/roadmap.md](../roadmap.md), item 3.1.2 and its requirements on 2.1.1 and
   1.3.1.
-- [docs/stilyagi-design.md](../stilyagi-design.md), especially §§3.2, 4, 7.1, 10,
-  11, and the §12 open question "Exact owner metadata shape for Rust
+- [docs/stilyagi-design.md](../stilyagi-design.md), especially §§3.2, 4, 7.1,
+  10, 11, and the §12 open question "Exact owner metadata shape for Rust
   documentation comments".
 - [RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md), the regions
   and owner sections.
@@ -234,8 +236,8 @@ Keep these repository documents open:
 - [docs/execplans/2-1-1-markdown-ir-envelope.md](2-1-1-markdown-ir-envelope.md),
   for the Markdown envelope shape and the Python-versus-Rust parity pattern.
 - [Complexity antipatterns](../complexity-antipatterns-and-refactoring-strategies.md),
-  to keep the traversal, classification, and owner-derivation logic small enough
-  to review.
+  to keep the traversal, classification, and owner-derivation logic small
+  enough to review.
 - [reliable testing via dependency injection](../reliable-testing-in-rust-via-dependency-injection.md),
   for explicit IO boundaries.
 - [docs/rust-doctest-dry-guide.md](../rust-doctest-dry-guide.md), if new public
@@ -248,21 +250,23 @@ Keep these repository documents open:
 External prior art relied on during planning:
 
 - The `tree-sitter` Rust crate is pinned at `0.25.10` in the workspace
-  (`Cargo.toml` `[workspace.dependencies]`). tree-sitter-python `0.25.0` already
-  builds against it and exposes its grammar through the `LANGUAGE` constant
-  (`tree_sitter_python::LANGUAGE`); the Rust grammar crate follows the same
-  `LANGUAGE: LanguageFn` convention. The exact compatible `tree-sitter-rust`
-  version is confirmed empirically in Stage 1 before pinning, because the
-  session's web tooling (Firecrawl `firecrawl_*`, `WebFetch`, `WebSearch`) and
-  the out-of-worktree Cargo registry cache are not accessible here, so the exact
-  published version list could not be read during planning. This is a version
-  confirmation, not a mechanism fork: the mechanism (a tree-sitter-rust grammar
-  loaded through `LANGUAGE`, parsed with `tree-sitter` `0.25.x`) is fixed.
-- The Rust Reference, "Comments" (<https://doc.rust-lang.org/reference/comments.html>),
-  fixes doc-comment forms and their inner/outer attachment. As noted above, the
-  page could not be fetched in this session; every attachment and
-  classification claim is pinned by a Stage 1 spike assertion or a Stage 2 table
-  test rather than taken on trust.
+  (`Cargo.toml` `[workspace.dependencies]`). tree-sitter-python `0.25.0`
+  already builds against it and exposes its grammar through the `LANGUAGE`
+  constant (`tree_sitter_python::LANGUAGE`); the Rust grammar crate follows the
+  same `LANGUAGE: LanguageFn` convention. The exact compatible
+  `tree-sitter-rust` version is confirmed empirically in Stage 1 before
+  pinning, because the session's web tooling (Firecrawl `firecrawl_*`,
+  `WebFetch`, `WebSearch`) and the out-of-worktree Cargo registry cache are not
+  accessible here, so the exact published version list could not be read during
+  planning. This is a version confirmation, not a mechanism fork: the mechanism
+  (a tree-sitter-rust grammar loaded through `LANGUAGE`, parsed with
+  `tree-sitter` `0.25.x`) is fixed.
+- The Rust Reference, "Comments"
+  (<https://doc.rust-lang.org/reference/comments.html>), fixes doc-comment
+  forms and their inner/outer attachment. As noted above, the page could not be
+  fetched in this session; every attachment and classification claim is pinned
+  by a Stage 1 spike assertion or a Stage 2 table test rather than taken on
+  trust.
 
 ## Constraints
 
@@ -271,9 +275,10 @@ External prior art relied on during planning:
 - Preserve roadmap scope. This item implements owner-aware Rust
   documentation-comment extraction into the existing IR envelope. It does not
   implement Rust suppression parsing (3.1.3), discovery defaults (3.2.1),
-  documentation-comment rules (3.2.2), or cache-key separation (3.3.1). The plain
-  `//` non-doc comment in the shared fixture (the `stilyagi-disable-next-line`
-  line) must be ignored by extraction; suppression handling is out of scope.
+  documentation-comment rules (3.2.2), or cache-key separation (3.3.1). The
+  plain `//` non-doc comment in the shared fixture (the
+  `stilyagi-disable-next-line` line) must be ignored by extraction; suppression
+  handling is out of scope.
 - Keep Markdown and Python behaviour unchanged. Their paths, snapshots, and
   public surfaces must not regress. Do not touch the `python` module of
   `stilyagi-tree-sitter` except to place the new `rust` module beside it.
@@ -284,28 +289,28 @@ External prior art relied on during planning:
   `SourceSpan` (UTF-8 bytes); any line or column data is derived from
   `line_index` and never replaces byte offsets as ground truth.
 - Region `segments` must reconstruct `text` exactly
-  (`IrRegion::segments_reconstruct_text` must hold for every emitted region). If
-  a doc-comment shape cannot satisfy this, that shape stays out of scope and is
-  recorded as a limitation rather than emitted incorrectly.
+  (`IrRegion::segments_reconstruct_text` must hold for every emitted region).
+  If a doc-comment shape cannot satisfy this, that shape stays out of scope and
+  is recorded as a limitation rather than emitted incorrectly.
 - The doc-comment lint surface is the verbatim source bytes carried by the
   markers, with the markers themselves treated as elided markup. For a line doc
   comment the content is the bytes after the `///`/`//!` marker to the end of
   that line, verbatim (leading spaces are content, not stripped). For a block
-  doc comment the content is the bytes between the opening `/**`/`/*!` marker and
-  the closing `*/`, verbatim. v1 does not apply rustdoc's leading-space stripping,
-  common-indentation removal, `*`-column stripping, or Markdown parsing during
-  extraction; that normalization belongs to the later rule layer. This keeps
-  every source-backed segment fix-safe.
+  doc comment the content is the bytes between the opening `/**`/`/*!` marker
+  and the closing `*/`, verbatim. v1 does not apply rustdoc's leading-space
+  stripping, common-indentation removal, `*`-column stripping, or Markdown
+  parsing during extraction; that normalization belongs to the later rule
+  layer. This keeps every source-backed segment fix-safe.
 - Consecutive line doc comments of the same flavour (`///` or `//!`) that
   attach to the same owner, with no intervening item, blank line, or non-doc
   token, merge into one `rust_doc_comment` region. The merged region's `text`
   joins each line's content using synthetic `IrSegment` separators exactly as
   `crates/stilyagi-markdown/src/flatten.rs` joins soft-broken lines, so
   `segments_reconstruct_text` holds and the source-backed segments still
-  re-slice to their exact source bytes. A block doc comment is one region with a
-  single source-backed content segment. Line ending handling for the synthetic
-  separators follows the Markdown soft-break convention and is pinned by
-  snapshot and property tests rather than restated here.
+  re-slice to their exact source bytes. A block doc comment is one region with
+  a single source-backed content segment. Line ending handling for the
+  synthetic separators follows the Markdown soft-break convention and is pinned
+  by snapshot and property tests rather than restated here.
 - `owner` is populated for every `rust_doc_comment` region and follows the
   RFC 0001 / ADR 006 code-entity contract (`kind`, optional `name`, optional
   `qualname`). Outer doc comments own the immediately following item; inner doc
@@ -322,20 +327,20 @@ External prior art relied on during planning:
   `module` (crate) root, each doc-comment-owning item node, and each emitted
   doc-comment node, with honest parent/child links. Undocumented enclosing
   items collapse to the nearest emitted owner. It does not emit the full Rust
-  concrete syntax tree. The producer options record
-  `node_store: "bounded"` and `owner_qualname: "rust"`.
+  concrete syntax tree. The producer options record `node_store: "bounded"` and
+  `owner_qualname: "rust"`.
 - Malformed Rust must produce partial extraction plus recoverable `errors`
   entries, never a panic or aborted run. Never unwrap tree-sitter results; walk
   the recovered tree, skip `ERROR`/`MISSING` subtrees while still emitting
-  well-formed doc comments, and record one `IrError` per top-level
-  `ERROR`/`MISSING` subtree in source order.
+  well-formed doc comments, and record one `IrError` per top-level `ERROR`/
+  `MISSING` subtree in source order.
 - Extraction is pure over `(source, identity)`. No filesystem or environment
   access inside the extractor; IO stays at test and orchestration boundaries.
 - Determinism: traversal order, generated identifiers, JSON field order, and
   canonical JSON output must not depend on hash-map ordering or platform
-  specifics. Canonical JSON snapshots must avoid machine-specific absolute paths,
-  timestamps, nondeterministic ordering, terminal colour, and environment
-  values.
+  specifics. Canonical JSON snapshots must avoid machine-specific absolute
+  paths, timestamps, nondeterministic ordering, terminal colour, and
+  environment values.
 - Corpus `.rs` fixtures added by this plan must be `rustfmt`-clean so
   `make check-fmt` never rewrites them and churns snapshot spans. Formatter- or
   line-ending-sensitive shapes (CR-LF doc comments, `////` non-doc comments,
@@ -373,9 +378,9 @@ External prior art relied on during planning:
   already imposes this requirement, so it should already be satisfied. If a
   build host lacks a C compiler, stop and escalate.
 - Public API: if a supported Python API or public Rust API must be removed or
-  renamed rather than extended compatibly, stop and present options. Updating the
-  pyext behaviour that maps `rust_doc_comment` to `PyNotImplementedError` into a
-  success path is an expected, in-scope change, not a breaking change.
+  renamed rather than extended compatibly, stop and present options. Updating
+  the pyext behaviour that maps `rust_doc_comment` to `PyNotImplementedError`
+  into a success path is an expected, in-scope change, not a breaking change.
 - Owner semantics: if the shared fixture, nested cases, or the malformed fixture
   reveal that the chosen inner/outer attachment or `qualname` semantics produce
   ambiguous or incorrect owners, stop and record options before changing the
@@ -399,14 +404,14 @@ External prior art relied on during planning:
   differently across versions, so relying on grammar-specific doc-comment child
   nodes would be brittle. Severity: high. Likelihood: medium. Mitigation: the
   extractor classifies and slices doc comments from the raw `line_comment`/
-  `block_comment` node bytes (leading-marker inspection), a policy independent of
-  grammar-specific child nodes. The Stage 1 spike prints the node kinds and
+  `block_comment` node bytes (leading-marker inspection), a policy independent
+  of grammar-specific child nodes. The Stage 1 spike prints the node kinds and
   pins the exact bytes so a grammar upgrade that changes them is caught.
 
 - Risk: byte spans for a line-comment node include or exclude the trailing
-  newline inconsistently, causing span drift when merging lines. Severity: high.
-  Likelihood: medium. Mitigation: the Stage 1 spike asserts, for the shared
-  fixture, that each `line_comment` node's byte range excludes the line
+  newline inconsistently, causing span drift when merging lines. Severity:
+  high. Likelihood: medium. Mitigation: the Stage 1 spike asserts, for the
+  shared fixture, that each `line_comment` node's byte range excludes the line
   terminator and that the sliced content after the marker equals the expected
   prose; the merge uses synthetic separators rather than assuming a source
   newline sits inside the content.
@@ -415,10 +420,10 @@ External prior art relied on during planning:
   methods (`Type::method`), for nested modules, or for doc comments separated
   from their item by attributes. Severity: high. Likelihood: medium.
   Mitigation: implement owner derivation as a small, table-tested function over
-  an explicit owner stack plus the emitted-node relationship (following
-  sibling for outer, enclosing frame for inner); cover crate module, `mod`,
-  struct, enum, trait, free function, impl method, nested module, and a block
-  doc comment before snapshotting.
+  an explicit owner stack plus the emitted-node relationship (following sibling
+  for outer, enclosing frame for inner); cover crate module, `mod`, struct,
+  enum, trait, free function, impl method, nested module, and a block doc
+  comment before snapshotting.
 
 - Risk: malformed Rust aborts extraction or panics instead of degrading.
   Severity: high. Likelihood: medium. Mitigation: never unwrap tree-sitter
@@ -431,38 +436,40 @@ External prior art relied on during planning:
 
 - Risk: a `rustfmt` pass over a new valid `.rs` corpus fixture rewrites it and
   churns snapshot spans. Severity: medium. Likelihood: medium. Mitigation: keep
-  all corpus `.rs` fixtures `rustfmt`-clean and run `make check-fmt` right after
-  adding them (Stage 1); keep formatter-sensitive shapes inline.
+  all corpus `.rs` fixtures `rustfmt`-clean and run `make check-fmt` right
+  after adding them (Stage 1); keep formatter-sensitive shapes inline.
 
 - Risk: consecutive `///` lines are the norm in real Rust, so a per-line region
-  policy would fragment prose and make later summary-line rules awkward, while a
-  merge policy adds synthetic-segment complexity. Severity: medium. Likelihood:
-  high. Mitigation: adopt merging as the single policy (see `Decision Log`),
-  reuse the proven Markdown synthetic-separator implementation, and pin exact
-  output with snapshots and a reconstruction property test.
+  policy would fragment prose and make later summary-line rules awkward, while
+  a merge policy adds synthetic-segment complexity. Severity: medium.
+  Likelihood: high. Mitigation: adopt merging as the single policy (see
+  `Decision Log`), reuse the proven Markdown synthetic-separator
+  implementation, and pin exact output with snapshots and a reconstruction
+  property test.
 
 - Risk: enabling `rust_doc_comment` breaks the pyext behaviour that maps it to
   `PyNotImplementedError` and any syntax-vocabulary parity check. Severity:
-  medium. Likelihood: high (this is expected). Mitigation: update those tests as
-  part of the bridge stage and confirm the Python `Syntax` enum and the Rust
+  medium. Likelihood: high (this is expected). Mitigation: update those tests
+  as part of the bridge stage and confirm the Python `Syntax` enum and the Rust
   `ExtractSyntax::ALL` still agree.
 
 - Risk: the new `ExtractError::RustIr` arm pushes `size_of::<ExtractError>()`
   past `EXTRACT_ERROR_SIZE_LIMIT_BYTES`. Severity: low. Likelihood: medium.
   Mitigation: keep `RustExtractError` a small `Copy` enum like
-  `PythonExtractError`; if the assertion fails, raise the budget deliberately and
-  record why, exactly as 3.1.1 allowed for `PythonIr`.
+  `PythonExtractError`; if the assertion fails, raise the budget deliberately
+  and record why, exactly as 3.1.1 allowed for `PythonIr`.
 
 - Risk: the tree-sitter-rust grammar adds cold build time and binary size.
-  Severity: medium. Likelihood: medium. Mitigation: scope the grammar to the one
-  crate that needs it, measure the cold build in Stage 1, and re-run the 1.3.3
-  structural performance probe after Stage 2 to catch warm-path regression.
+  Severity: medium. Likelihood: medium. Mitigation: scope the grammar to the
+  one crate that needs it, measure the cold build in Stage 1, and re-run the
+  1.3.3 structural performance probe after Stage 2 to catch warm-path
+  regression.
 
 - Risk: Rust and Python golden IR helpers drift into two contracts. Severity:
-  medium. Likelihood: medium. Mitigation: make Rust canonical JSON the source of
-  truth; the Python parity test compares `Document.ir` against the reviewed Rust
-  snapshot after the same source-identity normalization, as established in 2.1.1
-  and reused in 3.1.1.
+  medium. Likelihood: medium. Mitigation: make Rust canonical JSON the source
+  of truth; the Python parity test compares `Document.ir` against the reviewed
+  Rust snapshot after the same source-identity normalization, as established in
+  2.1.1 and reused in 3.1.1.
 
 ## Plan of work
 
@@ -495,18 +502,17 @@ The deterministic commit gates are the separate `make` targets `check-fmt`,
 pass later updated `make all` so it now runs the commit gates explicitly and
 sequentially. This plan keeps the individual target invocations below because
 they preserve per-gate logs and make failure recovery clearer. Record the
-baseline result in `Surprises & Discoveries`. If a
-baseline gate fails for reasons unrelated to this plan, decide whether the
-failure blocks verification before proceeding. Prefer delegating this run to the
-`scrutineer` subagent.
+baseline result in `Surprises & Discoveries`. If a baseline gate fails for
+reasons unrelated to this plan, decide whether the failure blocks verification
+before proceeding. Prefer delegating this run to the `scrutineer` subagent.
 
 ### Stage 1: dependency pin and tree-sitter-rust grammar spike
 
 Add `tree-sitter-rust` to `[workspace.dependencies]` in the root `Cargo.toml`
 (version chosen empirically to be ABI-compatible with `tree-sitter = "0.25.10"`
 and to expose `LANGUAGE`), and depend on it from
-`crates/stilyagi-tree-sitter/Cargo.toml`. Confirm the C toolchain and measure the
-cold build:
+`crates/stilyagi-tree-sitter/Cargo.toml`. Confirm the C toolchain and measure
+the cold build:
 
 ```bash
 cargo build -p stilyagi-tree-sitter 2>&1 \
@@ -520,8 +526,8 @@ compiler is missing, stop and escalate (see `Tolerances`). Record the resolved
 
 Add a `PYTHON_GRAMMAR_VERSION`-style `RUST_GRAMMAR_VERSION` regression guard in
 the new `rust` module's `support` submodule that reads the workspace manifest
-and asserts the pinned dependency matches the producer-metadata version, exactly
-as `crates/stilyagi-tree-sitter/src/python/support.rs` does for Python.
+and asserts the pinned dependency matches the producer-metadata version,
+exactly as `crates/stilyagi-tree-sitter/src/python/support.rs` does for Python.
 
 Write a spike test in `stilyagi-tree-sitter` that parses
 `tests/fixtures/corpus/rust/valid/item-doc-comments.rs`, loads the grammar
@@ -530,8 +536,8 @@ through `tree_sitter_rust::LANGUAGE`, and asserts:
 1. The root node kind is `source_file`.
 2. The crate-level `//!` comment parses as a `line_comment` node whose sliced
    bytes begin with `//!` and whose content after the marker equals
-   `Crate-level documentation comment for the shared Stilyagi corpus.`
-   (leading space retained).
+   `Crate-level documentation comment for the shared Stilyagi corpus.` (leading
+   space retained).
 3. The `///` comment before `pub struct FixtureExample` parses as a
    `line_comment` node whose bytes begin with `///` (and not `////`), and the
    node's next named sibling is a `struct_item` whose `name` field is
@@ -580,10 +586,11 @@ commit.
 
 ### Stage 2: owner-aware Rust doc-comment extractor and syntax dispatch
 
-Implement the extractor in a new `crates/stilyagi-tree-sitter/src/rust/` module,
-a sibling of `python/`, with the same submodule layout (`mod.rs`, `helpers.rs`,
-`observe.rs`, `owner.rs`, `support.rs`, `types.rs`). Re-export the public surface
-from `crates/stilyagi-tree-sitter/src/lib.rs` beside the Python re-exports.
+Implement the extractor in a new `crates/stilyagi-tree-sitter/src/rust/`
+module, a sibling of `python/`, with the same submodule layout (`mod.rs`,
+`helpers.rs`, `observe.rs`, `owner.rs`, `support.rs`, `types.rs`). Re-export
+the public surface from `crates/stilyagi-tree-sitter/src/lib.rs` beside the
+Python re-exports.
 
 Provide a public function equivalent to:
 
@@ -594,21 +601,21 @@ pub fn rust_doc_comment_ir_document(
 ) -> Result<stilyagi_ir::IrDocument, RustExtractError>;
 ```
 
-`RustExtractError` covers only fatal failures (grammar load failure or an absent
-parse tree). Model it on `PythonExtractError`: a small `Copy` enum with
+`RustExtractError` covers only fatal failures (grammar load failure or an
+absent parse tree). Model it on `PythonExtractError`: a small `Copy` enum with
 `GrammarLoad` and `NoParseTree` variants, a `category` label, and `Display` /
-`Error` impls. Recoverable parse anomalies are not errors; they become `IrError`
-entries on the document.
+`Error` impls. Recoverable parse anomalies are not errors; they become
+`IrError` entries on the document.
 
 The extractor:
 
 1. Builds the envelope with
    `IrDocument::empty(DocumentMetadata::new("rust", identity.path, identity.uri,
-   source), vec![rust_producer()], source)`. `rust_producer()` records
-   `kind: "tree-sitter"`, `name: "tree-sitter-rust"`, the pinned
-   `RUST_GRAMMAR_VERSION`, and deterministic options
-   `doc_comment_content: "verbatim"`, `node_store: "bounded"`,
-   `owner_qualname: "rust"`.
+   source), vec![rust_producer()], source)`.
+   `rust_producer()` records `kind: "tree-sitter"`,
+   `name: "tree-sitter-rust"`, the pinned `RUST_GRAMMAR_VERSION`, and
+   deterministic options `doc_comment_content: "verbatim"`,
+   `node_store: "bounded"`, `owner_qualname: "rust"`.
 2. Parses the source with tree-sitter and walks named children depth-first,
    left-to-right, maintaining an explicit owner stack. `mod_item` pushes a
    `module` frame (with its `name`); `impl_item` pushes a frame carrying its
@@ -618,15 +625,16 @@ The extractor:
    recursion with a `MAX_TRAVERSAL_DEPTH` cap as the Python extractor does.
 3. Classifies each `line_comment`/`block_comment` node by its leading source
    bytes into outer-line (`///`, not `////`), inner-line (`//!`), outer-block
-   (`/**`, not `/**/`/`/***`), inner-block (`/*!`), or non-doc. Non-doc comments
-   yield no region. Computes the content span by stripping the marker prefix
-   (and the trailing `*/` for block comments), keeping the content verbatim.
+   (`/**`, not `/**/`/`/***`), inner-block (`/*!`), or non-doc. Non-doc
+   comments yield no region. Computes the content span by stripping the marker
+   prefix (and the trailing `*/` for block comments), keeping the content
+   verbatim.
 4. Groups consecutive same-flavour line doc comments that attach to the same
    owner (no intervening item, blank line, or non-doc token) into one region.
    Emits the merged `text` from the per-line content spans joined by synthetic
-   `IrSegment` separators, following
-   `crates/stilyagi-markdown/src/flatten.rs`. A block doc comment is one region
-   with a single source-backed content segment.
+   `IrSegment` separators, following `crates/stilyagi-markdown/src/flatten.rs`.
+   A block doc comment is one region with a single source-backed content
+   segment.
 5. Derives `owner` per region: outer doc comments own the immediately following
    item (its owner kind/name/qualname); inner doc comments own the enclosing
    frame (crate root → `kind: "module"`, `name: None`, `qualname: None`; a
@@ -634,14 +642,14 @@ The extractor:
 6. Populates each region with `kind: "rust_doc_comment"`,
    `scope: ["rust", "doc_comment", <owner_kind>]`, `syntax: "rust"`,
    `natural_language: None`, the source-backed (and, when merged, synthetic)
-   segments, `origin_nodes` referencing the emitted doc-comment node(s), `owner`,
-   empty `attrs`, and `parent_region: None`. Mirror the exact field set the
-   Python extractor uses so the two region shapes stay parallel.
+   segments, `origin_nodes` referencing the emitted doc-comment node(s),
+   `owner`, empty `attrs`, and `parent_region: None`. Mirror the exact field
+   set the Python extractor uses so the two region shapes stay parallel.
 7. Emits the bounded node store: a synthetic `module` (crate) root, each
    doc-comment-owning item node, and each emitted doc-comment node, under one
    `IrTree { family: "tree-sitter", syntax: "rust", root: <crate id> }`. Node
-   `flags` use `NodeFlags::named_source()`; nodes inside recovered error regions
-   set `flags.error`/`flags.missing` as tree-sitter reports them.
+   `flags` use `NodeFlags::named_source()`; nodes inside recovered error
+   regions set `flags.error`/`flags.missing` as tree-sitter reports them.
 8. On recovery anomalies, appends one `IrError` per top-level `ERROR`/`MISSING`
    subtree, in source order, with `code: "rust-parse-recovery"`, a message
    naming the node kind and byte span, and `span: Some(...)`. Well-formed doc
@@ -665,9 +673,8 @@ comment's inner/outer flavour):
   `qualname` = enclosing path plus name.
 - impl method outer doc: `kind: "function"`, `name: Some(<method name>)`,
   `qualname: Some("<Self type>::<method>")` (the enclosing `impl` frame
-  contributes the Self type name). For a trait impl
-  `impl Trait for Type`, v1 uses the `Type` name for the qualname prefix; record
-  this in the ADR.
+  contributes the Self type name). For a trait impl `impl Trait for Type`, v1
+  uses the `Type` name for the qualname prefix; record this in the ADR.
 - an outer doc comment directly on an `impl` block: `kind: "impl"`,
   `name: Some(<Self type>)`, `qualname: Some(<Self type>)`.
 - an item kind not in the recognized set: `kind: "item"`, `name` from the
@@ -719,15 +726,15 @@ comment with embedded quotes and backslashes.
 Tests for this stage (Red before the extractor, Green after):
 
 - rstest unit tests in `stilyagi-tree-sitter`, parameterized over owner
-  `kind`/`name`/`qualname`, covering at least: crate inner doc; `mod` inner doc;
-  nested `mod` inner doc (`a::b`); struct outer doc; enum outer doc; trait outer
-  doc; free function outer doc; impl method outer doc (`Type::method`); trait
-  impl method (`Type::method`); documented `impl` block; documented `const` /
-  `static` / `type`; an unrecognized item kind (fallback `kind: "item"`); a
-  non-doc `//` comment and a `////` comment (no region); a merged three-line
-  `///` run (one region, exact reconstruction); a block doc comment (one
-  source-backed segment); and CR-LF, empty, and embedded-quote doc comments
-  (each reconstructs exactly).
+  `kind`/`name`/`qualname`, covering at least: crate inner doc; `mod` inner
+  doc; nested `mod` inner doc (`a::b`); struct outer doc; enum outer doc; trait
+  outer doc; free function outer doc; impl method outer doc (`Type::method`);
+  trait impl method (`Type::method`); documented `impl` block; documented
+  `const` / `static` / `type`; an unrecognized item kind (fallback
+  `kind: "item"`); a non-doc `//` comment and a `////` comment (no region); a
+  merged three-line `///` run (one region, exact reconstruction); a block doc
+  comment (one source-backed segment); and CR-LF, empty, and embedded-quote doc
+  comments (each reconstructs exactly).
 - malformed-recovery rstest cases: the corpus malformed fixture must yield
   exactly the surviving doc-comment regions plus at least one `errors` entry,
   and must not panic; plus an inline
@@ -778,10 +785,10 @@ existing `..._shared_..._fixture_has_a_golden_ir_snapshot` naming convention
 `crates/stilyagi-extract/tests/extract/ir_identity.rs`.
 
 Accept a snapshot only after diffing it and confirming each region's `text`,
-`segments`, and `owner.kind`/`name`/`qualname` are correct and no spurious nodes
-or regions appear. The malformed snapshot must show the surviving doc-comment
-regions plus at least one `errors` entry whose `span` covers the unclosed body,
-and no region for the string inside the broken body.
+`segments`, and `owner.kind`/`name`/`qualname` are correct and no spurious
+nodes or regions appear. The malformed snapshot must show the surviving
+doc-comment regions plus at least one `errors` entry whose `span` covers the
+unclosed body, and no region for the string inside the broken body.
 
 ```bash
 INSTA_UPDATE=always cargo test -p stilyagi-test-support -p stilyagi-extract 2>&1 \
@@ -796,7 +803,8 @@ Run the full deterministic commit gates (`make check-fmt`, `make typecheck`,
 ### Stage 4: Rust BDD behaviour coverage
 
 Add an rstest-bdd feature describing owner-aware Rust doc-comment extraction,
-following `crates/stilyagi-extract/tests/features/python_docstring_extraction.feature`
+following
+`crates/stilyagi-extract/tests/features/python_docstring_extraction.feature`
 and the [rstest-bdd users' guide](../rstest-bdd-users-guide.md). Place the
 feature at
 `crates/stilyagi-extract/tests/features/rust_doc_comment_extraction.feature`
@@ -819,14 +827,15 @@ Feature: Owner-aware Rust documentation-comment extraction
     And a recoverable parse error is recorded
 ```
 
-Implement the steps against the `stilyagi-extract` boundary. Run targeted tests,
-then the full deterministic commit gates (`make check-fmt`, `make typecheck`,
-`make lint`, `make test`) sequentially, resolve concerns, and commit.
+Implement the steps against the `stilyagi-extract` boundary. Run targeted
+tests, then the full deterministic commit gates (`make check-fmt`,
+`make typecheck`, `make lint`, `make test`) sequentially, resolve concerns, and
+commit.
 
 ### Stage 5: PyO3 bridge and Python model adaptation
 
-The bridge already serializes an attached `IrDocument` to `ir_json`, so enabling
-Rust extraction needs no new bridge fields. Update:
+The bridge already serializes an attached `IrDocument` to `ir_json`, so
+enabling Rust extraction needs no new bridge fields. Update:
 
 - `crates/stilyagi-pyext/src/tests.rs`: add
   `extract_document_py_exposes_rust_doc_comments`, modelled on
@@ -843,8 +852,8 @@ Add Python tests under `tests/`:
 - `pytest` unit tests calling
   `stilyagi.engine.extraction.extract_document(source, model.Syntax.RUST_DOC_COMMENT)`
   for the shared fixture, asserting the parsed `Document.ir` contains
-  `rust_doc_comment` regions with `owner` `kind`, `name`, and `qualname` for the
-  crate module, struct, impl method, and free function.
+  `rust_doc_comment` regions with `owner` `kind`, `name`, and `qualname` for
+  the crate module, struct, impl method, and free function.
 - a `pytest-bdd` feature under `features/` mirroring the Rust BDD scenarios for
   the externally observable workflow.
 - a `syrupy` JSON snapshot of `Document.ir` for the shared Rust fixture,
@@ -887,8 +896,8 @@ Resolve concerns and commit.
   the verbatim-content flattening decision, the consecutive-line-merge decision
   with synthetic separators, the bounded node-store policy, and the v1
   limitations (no rustdoc leading-space or common-indentation stripping; crate
-  module owners carry `name: null`/`qualname: null`; block-comment edge cases and
-  the unrecognized-item `kind: "item"` fallback). Reference ADR 006 as the
+  module owners carry `name: null`/`qualname: null`; block-comment edge cases
+  and the unrecognized-item `kind: "item"` fallback). Reference ADR 006 as the
   reused owner contract.
 - Resolve the design §12 open question "Exact owner metadata shape for Rust
   documentation comments" by pointing it at ADR 007, and update
@@ -899,10 +908,11 @@ Resolve concerns and commit.
 - Update `docs/developers-guide.md`: extend the extraction section and the
   Markdown-versus-Python comparison into a Markdown-versus-Python-versus-Rust
   comparison (parse entry, traversal, error recovery, owner metadata, node
-  store, doc-comment attachment and merging), document the `.rs` malformed-fixture
-  convention (plain `.rs`, no `.py.txt`), add the new fixture-path constants and
-  the `golden_rust_ir_fixture` helper to their tables, and state plainly that v1
-  rules must rely on `owner` metadata, not on navigating a full Rust tree.
+  store, doc-comment attachment and merging), document the `.rs`
+  malformed-fixture convention (plain `.rs`, no `.py.txt`), add the new
+  fixture-path constants and the `golden_rust_ir_fixture` helper to their
+  tables, and state plainly that v1 rules must rely on `owner` metadata, not on
+  navigating a full Rust tree.
 - Update `docs/users-guide.md` to record that `rust_doc_comment` extraction is
   now supported and that `Document.ir` exposes `rust_doc_comment` regions with
   `owner` metadata.
@@ -993,14 +1003,15 @@ Acceptance for the implemented feature:
 - The four regions carry owners: `{kind: "module"}` (crate, `name`/`qualname`
   null); `{kind: "struct", name: "FixtureExample", qualname: "FixtureExample"}`;
   `{kind: "function", name: "documented_value", qualname:
-  "FixtureExample::documented_value"}`; and `{kind: "function",
-  name: "fixture_function", qualname: "fixture_function"}`.
+  "FixtureExample::documented_value"}`;
+  and
+  `{kind: "function", name: "fixture_function", qualname: "fixture_function"}`.
 - Each region's `segments` reconstruct its `text` exactly, and source-backed
   segment bytes equal the corresponding source slice (no span drift).
 - Running extraction on
   `tests/fixtures/corpus/rust/malformed/unclosed-item.rs` still emits the
-  surviving doc-comment regions and records at least one `errors` entry; it does
-  not panic or abort.
+  surviving doc-comment regions and records at least one `errors` entry; it
+  does not panic or abort.
 - Canonical IR JSON snapshots for both Rust fixtures are stable across repeated
   runs.
 - The PyO3 bridge accepts `"rust_doc_comment"`, returns `ir_json`, and the
@@ -1015,8 +1026,9 @@ Red-Green-Refactor evidence to record as work proceeds:
 
 - Red: a chosen owner/region rstest (for example
   `rust_impl_method_doc_owner_uses_type_qualname`) fails before the extractor
-  exists, because `rust_doc_comment` extraction returns `UnsupportedSyntax`. The
-  malformed-recovery test fails for the expected reason (no region, no error).
+  exists, because `rust_doc_comment` extraction returns `UnsupportedSyntax`.
+  The malformed-recovery test fails for the expected reason (no region, no
+  error).
 - Green: after the extractor and dispatch land, the focused tests pass.
 - Refactor: owner derivation, classification, and merging are tidied; targeted
   tests and the wider gates rerun green.
@@ -1038,8 +1050,8 @@ make markdownlint
 make nixie
 ```
 
-These four targets are the authoritative commit gates in AGENTS.md (lines 63-94,
-156-178); `make typecheck` runs the typecheck on current `origin/main`.
+These four targets are the authoritative commit gates in AGENTS.md (lines
+63-94, 156-178); `make typecheck` runs the typecheck on current `origin/main`.
 Earlier recovery evidence found that `make all` only resolved to the release
 smoke path, but the Makefile has since been updated so `make all` runs the
 commit-gate sequence. Capture all long gate output with `tee` into `/tmp` logs
@@ -1059,8 +1071,8 @@ the dependency changes from the current stage, record the blocker in the
 `Decision Log`, and escalate before broadening build configuration.
 
 If any `git stash` is needed, name it per the workshop convention, for example
-`df12-stash v1 task=3.1.2 kind=discard reason="park formatter churn"`; never use
-a bare stash message.
+`df12-stash v1 task=3.1.2 kind=discard reason="park formatter churn"`; never
+use a bare stash message.
 
 ## Interfaces and dependencies
 
@@ -1082,9 +1094,10 @@ At the end of this plan the following must exist:
   surface.
 
 - In `crates/stilyagi-extract/src/lib.rs`: `ExtractSyntax::RustDocComment`
-  dispatches through `extract_rust_document`; `ExtractError::RustIr(RustExtractError)`
-  exists and keeps the size assertion satisfied; `RegionKind::RustDocComment`
-  exists with `as_str` returning `"rust_doc_comment"` and a `TryFrom<&str>` arm.
+  dispatches through `extract_rust_document`;
+  `ExtractError::RustIr(RustExtractError)` exists and keeps the size assertion
+  satisfied; `RegionKind::RustDocComment` exists with `as_str` returning
+  `"rust_doc_comment"` and a `TryFrom<&str>` arm.
 
 - In `crates/stilyagi-test-support/src/golden_fixture_builder.rs`:
   `golden_rust_ir_fixture(...) -> Result<IrDocument, GoldenRustFixtureError>`.
@@ -1117,146 +1130,137 @@ other new external dependency without approval.
 ## Surprises & discoveries
 
 - Observation: the malformed Rust corpus fixture uses a plain `.rs` suffix,
-  unlike malformed Python which uses `.py.txt`.
-  Evidence: `tests/test_corpus.py` gates the `.py.txt` convention on
+  unlike malformed Python which uses `.py.txt`. Evidence:
+  `tests/test_corpus.py` gates the `.py.txt` convention on
   `syntax == "python" and category == "malformed"` only, and
   `tests/fixtures/corpus/rust/malformed/unclosed-item.rs` already exists and
-  passes gates on `main`.
-  Impact: no `.rs.txt` rename is needed; the extractor and snapshots read the
-  fixture directly, and new valid `.rs` fixtures must stay `rustfmt`-clean to
-  avoid formatter-driven span churn.
+  passes gates on `main`. Impact: no `.rs.txt` rename is needed; the extractor
+  and snapshots read the fixture directly, and new valid `.rs` fixtures must
+  stay `rustfmt`-clean to avoid formatter-driven span churn.
 
 - Observation: web tooling (Firecrawl, WebFetch, WebSearch) and the
   out-of-worktree Cargo registry cache are not accessible in this planning
-  session.
-  Evidence: `firecrawl_search`/`WebFetch` returned permission errors and `find`
-  outside the working directories was sandbox-blocked.
-  Impact: the exact published `tree-sitter-rust` version and the Rust Reference
-  wording are confirmed empirically in Stage 1 (spike) rather than cited from a
-  fetched page; the mechanism is unchanged and every load-bearing grammar and
+  session. Evidence: `firecrawl_search`/`WebFetch` returned permission errors
+  and `find` outside the working directories was sandbox-blocked. Impact: the
+  exact published `tree-sitter-rust` version and the Rust Reference wording are
+  confirmed empirically in Stage 1 (spike) rather than cited from a fetched
+  page; the mechanism is unchanged and every load-bearing grammar and
   attachment claim is pinned by a Stage 1 assertion or a Stage 2 table test.
 
 - Observation: the requested `coderabbit review --agent` pass stalled after
   connecting and setup, then remained in the analysing phase without returning
-  a review envelope before it was aborted.
-  Evidence: the run emitted `review_context`, `status` events for
-  `connecting_to_review_service`, `setting_up`, `preparing_sandbox`, and
-  `summarizing`, but produced no findings or completion record before
-  termination.
-  Impact: the deterministic gates are still green, but external AI review is
-  deferred and must be retried or replaced by another review path before this
-  item is considered fully closed.
+  a review envelope before it was aborted. Evidence: the run emitted
+  `review_context`, `status` events for `connecting_to_review_service`,
+  `setting_up`, `preparing_sandbox`, and `summarizing`, but produced no
+  findings or completion record before termination. Impact: the deterministic
+  gates are still green, but external AI review is deferred and must be retried
+  or replaced by another review path before this item is considered fully
+  closed.
 
 - Observation: the recovery adoption pass reran `coderabbit review --agent` and
-  received a completed review envelope with zero findings.
-  Evidence: `/tmp/coderabbit-adopt-stilyagi-roadmap-3-1-2.out` ends with
-  `{"type":"complete","status":"review_completed","findings":0}`.
-  Impact: the external AI review gap from the interrupted implementation run is
-  closed for this branch.
+  received a completed review envelope with zero findings. Evidence:
+  `/tmp/coderabbit-adopt-stilyagi-roadmap-3-1-2.out` ends with
+  `{"type":"complete","status":"review_completed","findings":0}`. Impact: the
+  external AI review gap from the interrupted implementation run is closed for
+  this branch.
 
 - Observation: the malformed Rust parse tree currently absorbs the broken
-  function and its doc comment into a top-level `ERROR` subtree.
-  Evidence: `tree.root_node().to_sexp()` for
+  function and its doc comment into a top-level `ERROR` subtree. Evidence:
+  `tree.root_node().to_sexp()` for
   `tests/fixtures/corpus/rust/malformed/unclosed-item.rs` shows the crate doc
-  comment, the absorbed `ERROR` subtree, and the later `struct_item`.
-  Impact: the malformed snapshot and regression tests intentionally codify the
-  current ground truth. If a future grammar version exposes the broken
-  `function_item` again, this plan must be updated alongside the tests.
+  comment, the absorbed `ERROR` subtree, and the later `struct_item`. Impact:
+  the malformed snapshot and regression tests intentionally codify the current
+  ground truth. If a future grammar version exposes the broken `function_item`
+  again, this plan must be updated alongside the tests.
 
 - Observation: the addendum branch initially reported green `make all` evidence,
   but this repository's `make all` target was only the release build and smoke
-  path at that point, not the full commit-gate set.
-  Evidence: the manual recovery pass reran `make check-fmt`, `make typecheck`,
-  `make lint`, `make test`, `make markdownlint`, and `make nixie`; `make lint`
-  caught a Clippy nesting failure and then a module-size failure that `make all`
-  had not exposed.
-  Impact: the addendum branch needed a manual fix before integration. This is
-  recorded as workflow validation evidence rather than treated as a Stilyagi
-  roadmap blocker, and `make all` has been changed to run the commit gates.
+  path at that point, not the full commit-gate set. Evidence: the manual
+  recovery pass reran `make check-fmt`, `make typecheck`, `make lint`,
+  `make test`, `make markdownlint`, and `make nixie`; `make lint` caught a
+  Clippy nesting failure and then a module-size failure that `make all` had not
+  exposed. Impact: the addendum branch needed a manual fix before integration.
+  This is recorded as workflow validation evidence rather than treated as a
+  Stilyagi roadmap blocker, and `make all` has been changed to run the commit
+  gates.
 
 ## Decision log
 
 - Decision: approve roadmap item 3.1.2 for implementation in this worktree.
-  Rationale: the user explicitly asked for the approved ExecPlan to be
-  executed item by item in order, so the approval gate is satisfied and the
-  stage work may begin.
-  Date/Author: 2026-07-04, implementation agent.
+  Rationale: the user explicitly asked for the approved ExecPlan to be executed
+  item by item in order, so the approval gate is satisfied and the stage work
+  may begin. Date/Author: 2026-07-04, implementation agent.
 
 - Decision: classify and slice Rust doc comments from the raw
   `line_comment`/`block_comment` node bytes by leading marker, rather than
-  depending on grammar-specific doc-comment child nodes.
-  Rationale: robust across tree-sitter-rust grammar versions and gives exact
-  byte spans; a single mechanism, not a version-dependent fork.
-  Date/Author: 2026-07-04, planning agent.
+  depending on grammar-specific doc-comment child nodes. Rationale: robust
+  across tree-sitter-rust grammar versions and gives exact byte spans; a single
+  mechanism, not a version-dependent fork. Date/Author: 2026-07-04, planning
+  agent.
 
 - Decision: merge consecutive same-flavour line doc comments attaching to the
   same owner into one region using synthetic `IrSegment` separators (Markdown
-  soft-break pattern); treat each block doc comment as one single-segment region.
-  Rationale: a Rust doc block is one prose unit; merging makes later
+  soft-break pattern); treat each block doc comment as one single-segment
+  region. Rationale: a Rust doc block is one prose unit; merging makes later
   summary-line and punctuation rules (3.2.2) meaningful, and the Markdown
   flattener already proves the synthetic-separator pattern preserves exact
-  reconstruction.
-  Date/Author: 2026-07-04, planning agent.
+  reconstruction. Date/Author: 2026-07-04, planning agent.
 
 - Decision: treat Rust attribute nodes as transparent for owner attachment and
-  emit owner nodes only for doc-comment-owning items.
-  Rationale: doc comments that precede `#[derive]`/`#[cfg]`/similar attributes
-  must still reach the real item, and the bounded node store should match the
-  Python extractor by collapsing undocumented ancestors to the nearest emitted
-  owner instead of materializing every enclosing item.
-  Date/Author: 2026-07-04, implementation agent.
+  emit owner nodes only for doc-comment-owning items. Rationale: doc comments
+  that precede `#[derive]`/`#[cfg]`/similar attributes must still reach the
+  real item, and the bounded node store should match the Python extractor by
+  collapsing undocumented ancestors to the nearest emitted owner instead of
+  materializing every enclosing item. Date/Author: 2026-07-04, implementation
+  agent.
 
 - Decision: reuse the ADR 006 `owner` field contract with Rust-specific kinds
   and `::` qualnames; impl methods use `Type::method`; trait impls use the
-  `Type` prefix; crate module owners carry `null` name/qualname.
-  Rationale: ADR 006 "Follow-on work" and design §12 explicitly hand these
-  semantics to this slice; `::` matches Rust path syntax.
-  Date/Author: 2026-07-04, planning agent.
+  `Type` prefix; crate module owners carry `null` name/qualname. Rationale: ADR
+  006 "Follow-on work" and design §12 explicitly hand these semantics to this
+  slice; `::` matches Rust path syntax. Date/Author: 2026-07-04, planning agent.
 
 - Decision: no Kani/CrossHair/Verus work in scope.
   Rationale: the only unbounded invariants (exact reconstruction, deterministic
   qualname derivation) are fully covered by proptest and table tests, matching
-  the 3.1.1 decision.
-  Date/Author: 2026-07-04, planning agent.
+  the 3.1.1 decision. Date/Author: 2026-07-04, planning agent.
 
 - Decision: close the plan after the recovery adoption validation pass.
   Rationale: the branch is clean, the deterministic gates passed on the
-  recovered commit, CodeRabbit returned a completed zero-finding review, and the
-  roadmap checkbox plus documentation updates already match the implemented
-  Rust documentation-comment extraction behaviour.
-  Date/Author: 2026-07-04, operator.
+  recovered commit, CodeRabbit returned a completed zero-finding review, and
+  the roadmap checkbox plus documentation updates already match the implemented
+  Rust documentation-comment extraction behaviour. Date/Author: 2026-07-04,
+  operator.
 
 - Decision: keep the malformed-recovery tests pinned to the observed `ERROR`
-  subtree behaviour instead of forcing synthetic owner recovery.
-  Rationale: the parser currently absorbs the broken function and its doc
-  comment into a top-level `ERROR` node, so the safest and most truthful
-  contract is to preserve the surviving crate and later docs, record the
-  dropped absorbed doc as part of the ground truth, and document the recovery
-  limit explicitly.
+  subtree behaviour instead of forcing synthetic owner recovery. Rationale: the
+  parser currently absorbs the broken function and its doc comment into a
+  top-level `ERROR` node, so the safest and most truthful contract is to
+  preserve the surviving crate and later docs, record the dropped absorbed doc
+  as part of the ground truth, and document the recovery limit explicitly.
   Date/Author: 2026-07-04, implementation agent.
 
 - Decision: close addenda `3.1.2.1` through `3.1.2.4` after the manual
-  recovery pass.
-  Rationale: module-rooted impl-member qualnames are now pinned in the nested
-  Rust snapshot, intervening ordinary comments are covered by parameterized
-  addendum tests, CR-LF and whitespace source-oracle cases pass, and malformed
-  Rust recovery emits an explicit `rust-doc-comment-error-subtree` diagnostic
-  when doc comments are absorbed into a tree-sitter `ERROR` subtree.
-  Date/Author: 2026-07-04, operator.
+  recovery pass. Rationale: module-rooted impl-member qualnames are now pinned
+  in the nested Rust snapshot, intervening ordinary comments are covered by
+  parameterized addendum tests, CR-LF and whitespace source-oracle cases pass,
+  and malformed Rust recovery emits an explicit
+  `rust-doc-comment-error-subtree` diagnostic when doc comments are absorbed
+  into a tree-sitter `ERROR` subtree. Date/Author: 2026-07-04, operator.
 
 ## Outcomes & retrospective
 
 Roadmap item 3.1.2 is complete on this branch. Stilyagi now extracts Rust
 documentation comments through the same public extraction path used by Markdown
 and Python, emits `rust_doc_comment` IR regions with exact source-backed
-segments, and attaches Rust owner metadata for modules, item declarations,
-impl blocks, methods, and free functions. The shared and malformed Rust
-fixtures have canonical IR snapshots, the PyO3 bridge exposes
-`rust_doc_comment` to Python, and the user, developer, design, RFC, and ADR
-documents describe the new syntax surface.
+segments, and attaches Rust owner metadata for modules, item declarations, impl
+blocks, methods, and free functions. The shared and malformed Rust fixtures
+have canonical IR snapshots, the PyO3 bridge exposes `rust_doc_comment` to
+Python, and the user, developer, design, RFC, and ADR documents describe the
+new syntax surface.
 
-The recovery adoption validation pass on 2026-07-04 recorded fresh deterministic
-gate evidence for commit `85ae214`:
+The recovery adoption validation pass on 2026-07-04 recorded fresh
+deterministic gate evidence for commit `85ae214`:
 
 - `make check-fmt` passed; log:
   `/tmp/check-fmt-adopt-stilyagi-roadmap-3-1-2.out`.
@@ -1265,11 +1269,11 @@ gate evidence for commit `85ae214`:
 - `make lint` passed; log:
   `/tmp/lint-adopt-stilyagi-roadmap-3-1-2.out`.
 - `make test` passed; log:
-  `/tmp/test-adopt-stilyagi-roadmap-3-1-2.out`.
-  The Rust nextest run passed 236/236 tests, Rust doctests passed, and pytest
-  passed 117/117 tests with six snapshots. Pytest emitted
-  `pytest_bdd` deprecation warnings from third-party fixture registration; no
-  project warning or test failure was introduced by this slice.
+  `/tmp/test-adopt-stilyagi-roadmap-3-1-2.out`. The Rust nextest run passed
+  236/236 tests, Rust doctests passed, and pytest passed 117/117 tests with six
+  snapshots. Pytest emitted `pytest_bdd` deprecation warnings from third-party
+  fixture registration; no project warning or test failure was introduced by
+  this slice.
 - `coderabbit review --agent` completed with zero findings; log:
   `/tmp/coderabbit-adopt-stilyagi-roadmap-3-1-2.out`.
 
@@ -1282,8 +1286,8 @@ evidence here keeps the branch self-contained for adoption.
 The addendum recovery pass on 2026-07-04 closed the four roadmap addenda on
 commits `c302ee5` and `34f6ce5`. CodeRabbit completed with zero findings after
 the earlier rate limit cleared:
-`/tmp/coderabbit-stilyagi-roadmap-3-1-2-addendum-manual-final.out`.
-The required sequential gates then passed with durable logs:
+`/tmp/coderabbit-stilyagi-roadmap-3-1-2-addendum-manual-final.out`. The
+required sequential gates then passed with durable logs:
 
 - `make check-fmt` passed; log:
   `/tmp/check-fmt-stilyagi-roadmap-3-1-2-addendum-manual.out`.
@@ -1292,9 +1296,9 @@ The required sequential gates then passed with durable logs:
 - `make lint` passed; log:
   `/tmp/lint-stilyagi-roadmap-3-1-2-addendum-manual.out`.
 - `make test` passed; log:
-  `/tmp/test-stilyagi-roadmap-3-1-2-addendum-manual.out`.
-  The Rust nextest run passed 246/246 tests, Rust doctests passed, and pytest
-  passed 118/118 tests with six snapshots.
+  `/tmp/test-stilyagi-roadmap-3-1-2-addendum-manual.out`. The Rust nextest run
+  passed 246/246 tests, Rust doctests passed, and pytest passed 118/118 tests
+  with six snapshots.
 - `make markdownlint` passed; log:
   `/tmp/markdownlint-stilyagi-roadmap-3-1-2-addendum-manual.out`.
 - `make nixie` passed; log:
@@ -1302,21 +1306,21 @@ The required sequential gates then passed with durable logs:
 
 ## Revision note
 
-Initial draft (2026-07-04): first planning round for roadmap item 3.1.2. Mirrors
-the completed 3.1.1 execplan; adds Rust-specific doc-comment classification,
-consecutive-line merging, and inner/outer owner attachment. Records the `.rs`
-malformed-fixture asymmetry and the planning-session web/registry tooling
-limitation, with the mechanism pinned by a Stage 1 spike so the plan stays
-implementable. Remaining work: all stages (0–6).
+Initial draft (2026-07-04): first planning round for roadmap item 3.1.2.
+Mirrors the completed 3.1.1 execplan; adds Rust-specific doc-comment
+classification, consecutive-line merging, and inner/outer owner attachment.
+Records the `.rs` malformed-fixture asymmetry and the planning-session
+web/registry tooling limitation, with the mechanism pinned by a Stage 1 spike
+so the plan stays implementable. Remaining work: all stages (0–6).
 
 Round 2 revision (2026-07-04): corrected the gate strategy. The prior draft
-wrongly asserted that `make all` runs the formatting check, typecheck, lint, and
-test suites; the Makefile actually defines `all: release`
+wrongly asserted that `make all` runs the formatting check, typecheck, lint,
+and test suites; the Makefile actually defines `all: release`
 (`release: release-artifact smoke-release`), which only builds the maturin
 release wheel and runs `python -m stilyagi.smoke`, so it executes none of the
-commit gates. Every stage gate invocation and the two false prose claims (former
-lines 488 and 1016) now use the authoritative AGENTS.md commit-gate targets
-`make check-fmt`, `make typecheck`, `make lint`, and `make test` run
+commit gates. Every stage gate invocation and the two false prose claims
+(former lines 488 and 1016) now use the authoritative AGENTS.md commit-gate
+targets `make check-fmt`, `make typecheck`, `make lint`, and `make test` run
 sequentially (plus `make markdownlint` and `make nixie` for Markdown-changing
 stages), matching the sibling 3.1.1 execplan. No other content changed.
 

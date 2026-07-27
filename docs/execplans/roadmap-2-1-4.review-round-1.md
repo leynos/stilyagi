@@ -9,8 +9,8 @@ gate mid-run.
 
 The plan asserts the `1.0.0 → 1.1.0` bump only churns the extract rust/python
 golden snapshots, and states outright that "the markdown golden snapshot does
-not embed it ... so it is unaffected" (Context lines 194-196; Risks lines
-78-85; Surprises lines 113-125; work item 1 step 4, lines 273-276).
+not embed it … so it is unaffected" (Context lines 194-196; Risks lines 78-85;
+Surprises lines 113-125; work item 1 step 4, lines 273-276).
 
 That is false for the wider workspace. `schema_version: "1.0.0"` is embedded in
 full-document IR dumps in:
@@ -21,18 +21,18 @@ full-document IR dumps in:
   yaml_frontmatter, suppression_directives, frontmatter, links_and_images,
   lists) — each line 6 `"schema_version": "1.0.0"`.
 - **`crates/stilyagi-test-support/tests/snapshots/`
-  `round_trip_helpers__golden_python_ir_fixture_serializes_the_shared_fixture.snap`**
-  — line 6 `"schema_version": "1.0.0"`. Not referenced anywhere in the plan.
+  `round_trip_helpers__golden_python_ir_fixture_serializes_the_shared_fixture.snap`
+  ** — line 6 `"schema_version": "1.0.0"`. Not referenced anywhere in the plan.
 
 (The `"version": "1.0.0"` at line 19 of those snapshots is the separate
 `MARKDOWN_RS_VERSION` producer constant — it does not move. Only line 6 churns.)
 
 Work item 1's regeneration step runs only
-`cargo test -p stilyagi-extract --test extract_integration` + `cargo insta
-accept`, so these 13 further snapshots stay stale. `make test` therefore fails
-at the HEAD of work item 1, breaking the plan's own invariant that "each work
-item ends green and is independently committable" and the deterministic
-`make test` gate.
+`cargo test -p stilyagi-extract --test extract_integration` +
+`cargo insta accept`, so these 13 further snapshots stay stale. `make test`
+therefore fails at the HEAD of work item 1, breaking the plan's own invariant
+that "each work item ends green and is independently committable" and the
+deterministic `make test` gate.
 
 Note: the "Suppression syntax" claim in Surprises (that the extract shared
 markdown fixture carries no canonical suppression) is itself correct — the
@@ -44,11 +44,11 @@ Fix required:
 
 1. Expand work item 1 to regenerate every workspace snapshot embedding
    `schema_version` — the `stilyagi-markdown` crate snapshots
-   (`cargo test -p stilyagi-markdown`) and the `stilyagi-test-support`
-   snapshot (`cargo test -p stilyagi-test-support`) — not just the extract
-   integration snapshots. State that the only per-file delta must be the
-   `schema_version` string.
-2. Correct the false "markdown golden snapshot ... unaffected" / "small,
+   (`cargo test -p stilyagi-markdown`) and the `stilyagi-test-support` snapshot
+   (`cargo test -p stilyagi-test-support`) — not just the extract integration
+   snapshots. State that the only per-file delta must be the `schema_version`
+   string.
+2. Correct the false "markdown golden snapshot … unaffected" / "small,
    enumerable blast radius" statements in Context, Risks, and Surprises to
    reflect the true ~18-snapshot churn (5 extract + 12 markdown + 1
    test-support).
@@ -89,8 +89,8 @@ Fix required:
   `skip_serializing_if` correctness is genuinely guarded. ✓
 - Gate set (`make check-fmt`, `make typecheck`, `make lint`, `make test`;
   markdown adds `make markdownlint`, `make nixie`) matches AGENTS.md. Plan
-  correctly follows the touched-files-only markdown format rule over the
-  AGENTS default `make fmt`. ✓
+  correctly follows the touched-files-only markdown format rule over the AGENTS
+  default `make fmt`. ✓
 - No standalone red-test commit is mandated; red/green happens within each work
   item. ✓ Deterministic/judgemental boundary and `SuppressionKind` string
   stability are respected. ✓

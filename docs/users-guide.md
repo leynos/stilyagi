@@ -257,31 +257,31 @@ support matrix.
 
 ### Checking Markdown with `stilyagi check`
 
-The first command-line surface in v1 is `stilyagi check` for Markdown files.
-It discovers Markdown targets recursively, resolves the nearest supported
-configuration for each file, and renders deterministic diagnostics. The
-command currently analyses Markdown files only (`*.md` and `*.markdown`).
+The first command-line surface in v1 is `stilyagi check` for Markdown files. It
+discovers Markdown targets recursively, resolves the nearest supported
+configuration for each file, and renders deterministic diagnostics. The command
+currently analyses Markdown files only (`*.md` and `*.markdown`).
 
 #### Output formats
 
 Use `--output-format text` (the default) for human-readable output: one line
 per diagnostic followed by a summary line. Use `--output-format json` for
 machine-readable output: a stable JSON document. `--output-format sarif` is
-planned for a later slice and is not yet available; requesting it fails with
-a message stating it is planned but not yet available.
+planned for a later slice and is not yet available; requesting it fails with a
+message stating it is planned but not yet available.
 
 #### Configuration
 
-Pass `--config` with an explicit config file path or an inline TOML fragment
-to supply configuration directly. Use `--isolated` to bypass configuration
+Pass `--config` with an explicit config file path or an inline TOML fragment to
+supply configuration directly. Use `--isolated` to bypass configuration
 discovery entirely.
 
 #### Standard input
 
 Pass `-` as the target to read Markdown from standard input instead of from
 files on disk. Use `--stdin-filename PATH` to attribute diagnostics to PATH
-rather than the default `<stdin>`. Combining `-` with file targets is a
-usage error (exit code 2).
+rather than the default `<stdin>`. Combining `-` with file targets is a usage
+error (exit code 2).
 
 #### Exit codes
 

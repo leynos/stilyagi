@@ -334,8 +334,8 @@ Each suppression SHALL contain:
 - `id`
 - `kind` (`inline`, `range`, `file`, `config`)
 - `range_role` for `range` suppressions, with `open` for a `disable`
-  directive and `close` for an `enable` directive; it MUST be absent for
-  other kinds.
+  directive and `close` for an `enable` directive; it MUST be absent for other
+  kinds.
 - `codes`
 - `span`
 - `origin`

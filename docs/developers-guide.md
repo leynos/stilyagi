@@ -80,8 +80,8 @@ the Python runtime as `stilyagi._stilyagi_rs`.[^1]
 
 The accepted v1 contract scope is narrower than the architecture's long-term
 extension points. Current implemented extraction support covers Markdown and
-Python docstrings. Rust documentation comments are implemented in the stable
-v1 syntax vocabulary through `rust_doc_comment` regions with owner metadata.
+Python docstrings. Rust documentation comments are implemented in the stable v1
+syntax vocabulary through `rust_doc_comment` regions with owner metadata.
 Markdown with JSX (MDX) remains preview-only, canonical JSON remains required
 for the IR bridge, `dump-ir`, fixtures, and compatibility review, and English
 is the only formally supported v1 locale.[^2]
@@ -165,8 +165,8 @@ The `.md.fixture` suffix closes that gap permanently.
 
 #### RegionKind and typed ExtractRegion API
 
-`RegionKind` is the `#[non_exhaustive]` enum in `crates/stilyagi-extract`
-that names the stable discriminators surfaced through that boundary:
+`RegionKind` is the `#[non_exhaustive]` enum in `crates/stilyagi-extract` that
+names the stable discriminators surfaced through that boundary:
 
 ```rust
 #[non_exhaustive]
@@ -179,8 +179,7 @@ pub enum RegionKind {
 
 `RegionKind::as_str(self) -> &'static str` returns the stable Python-facing
 spelling, for example `"document"`, `"python_docstring"`, or
-`"rust_doc_comment"`.
-`impl fmt::Display for RegionKind` delegates to `as_str`.
+`"rust_doc_comment"`. `impl fmt::Display for RegionKind` delegates to `as_str`.
 `TryFrom<&str> for RegionKind` is the canonical string-to-kind conversion; call
 sites that receive a kind string from an external boundary should use that
 implementation rather than a local match.
@@ -205,13 +204,12 @@ implementation should be called explicitly.
 The canonical IR region vocabulary lives in `crates/stilyagi-ir` as
 `stilyagi_ir::RegionKind`. The bridge enum described above keeps a separate
 `#[non_exhaustive]` `stilyagi-extract::RegionKind` surface for Python-facing
-extraction, while `stilyagi_ir::RegionKind` remains the canonical IR
-vocabulary.
+extraction, while `stilyagi_ir::RegionKind` remains the canonical IR vocabulary.
 
 `RegionKind::ALL` is the bridge enum's exhaustive helper slice for those three
-variants only. It is distinct from `stilyagi_ir::RegionKind::ALL`, which is
-the canonical IR vocabulary. Use `RegionKind::ir_region_kind()` when code
-needs to map bridge variants into the IR vocabulary:
+variants only. It is distinct from `stilyagi_ir::RegionKind::ALL`, which is the
+canonical IR vocabulary. Use `RegionKind::ir_region_kind()` when code needs to
+map bridge variants into the IR vocabulary:
 
 - `RegionKind::Document` maps to `None`, because it is a bridge-only coarse
   region with no IR equivalent.
@@ -255,8 +253,8 @@ Table: Repository fixture utilities and signatures.
 | `SHARED_RUST_FIXTURE_PATH`      | `&str`                                                               | Repository-relative path to the shared valid Rust doc-comment corpus fixture.                                                             |
 | `MALFORMED_PYTHON_FIXTURE_PATH` | `&str`                                                               | Repository-relative path to the malformed Python fixture used for recovery tests.                                                         |
 | `MALFORMED_RUST_FIXTURE_PATH`   | `&str`                                                               | Repository-relative path to the malformed Rust fixture used for recovery tests.                                                           |
-| `NESTED_RUST_FIXTURE_PATH`      | `&str`                                                               | Repository-relative path to the nested Rust doc-comment corpus fixture.                                                                    |
-| `MULTILINE_RUST_FIXTURE_PATH`   | `&str`                                                               | Repository-relative path to the multiline Rust doc-comment corpus fixture.                                                                 |
+| `NESTED_RUST_FIXTURE_PATH`      | `&str`                                                               | Repository-relative path to the nested Rust doc-comment corpus fixture.                                                                   |
+| `MULTILINE_RUST_FIXTURE_PATH`   | `&str`                                                               | Repository-relative path to the multiline Rust doc-comment corpus fixture.                                                                |
 | `repository_root`               | `() -> PathBuf`                                                      | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
 | `corpus_fixture_path`           | `(impl AsRef<Path>) -> PathBuf`                                      | Resolves a repository-relative path against the workspace root.                                                                           |
 | `read_corpus_fixture`           | `(impl AsRef<Path>) -> Result<String, io::Error>`                    | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
@@ -285,8 +283,7 @@ snapshot files next to the owning test module, for example under
 `crates/stilyagi-test-support/tests/snapshots/`. Python snapshot tests use
 `syrupy` and write JSON snapshots under `tests/__snapshots__/`. Markdown,
 Python docstring, and Rust doc-comment golden helpers all follow the same
-canonical IR contract. Update snapshots only when the reviewed contract
-changes:
+canonical IR contract. Update snapshots only when the reviewed contract changes:
 
 ```bash
 INSTA_UPDATE=always cargo test -p stilyagi-ir -p stilyagi-test-support -p stilyagi-extract
@@ -354,9 +351,9 @@ generated prefix and suffix.
 ## 2b. The `stilyagi check` pipeline
 
 The `check` command is the first end-to-end pipeline that crosses the
-Rust–Python boundary for a user-facing operation. Understanding its seams
-helps maintainers add steps, insert new collaborators, and write tests at the
-right level.
+Rust–Python boundary for a user-facing operation. Understanding its seams helps
+maintainers add steps, insert new collaborators, and write tests at the right
+level.
 
 ### Entry point
 
@@ -393,9 +390,9 @@ Discovery is a single deterministic pass, sorted by resolved path, that skips
 known build-noise directories (`.git`, `build`, `dist`, `node_modules`,
 `target`, `.venv`) and does not follow symlinked directories. The configuration
 that governs discovery is resolved by `cli._resolve_discovery_config` for the
-current working directory rather than for each individual file, so `--isolated`,
-explicit `--config` values, and CLI rule overrides all stay in force during the
-discovery pass.
+current working directory rather than for each individual file, so
+`--isolated`, explicit `--config` values, and CLI rule overrides all stay in
+force during the discovery pass.
 
 ### Configuration loading and resolution
 
@@ -429,8 +426,8 @@ discovery pass.
     user-facing output.
 - `config/schema.py` holds the frozen config dataclasses (`StilyagiConfig`,
   `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
-  `ConfigError` base class, with `InvalidCacheDirError` and `InvalidConfigError`
-  as typed subclasses.
+  `ConfigError` base class, with `InvalidCacheDirError` and
+  `InvalidConfigError` as typed subclasses.
 - `config/validate.py` holds the boundary type validators.
 
 ### Diagnostics
@@ -683,22 +680,22 @@ supplied at the boundary rather than invented inside the IR domain.
 Table: Current Markdown, Python, and Rust extraction differences.
 
 <!-- markdownlint-disable MD060 -->
-| Topic          | Markdown extraction                                                                           | Python docstring extraction                                                                                          | Rust doc-comment extraction                                                                                          |
-| -------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Parse entry    | Markdown parser over the full source document.                                                | `tree-sitter-python` parser over the full source file.                                                               | `tree-sitter-rust` parser over the full source file.                                                                  |
-| Traversal      | Markdown flattener walks Markdown structure and emits rendered prose regions.                 | Depth-first tree-sitter walk inspects module, class, and function first statements.                                  | Depth-first tree-sitter walk inspects modules, owner-bearing items, and item bodies for doc comments.                 |
-| Error recovery | Markdown parser recovery is represented through Markdown IR behaviour and malformed fixtures. | tree-sitter recovery emits partial docstring regions plus `python-parse-recovery` errors.                            | tree-sitter recovery emits partial doc-comment regions plus `rust-parse-recovery` errors.                            |
+| Topic          | Markdown extraction                                                                           | Python docstring extraction                                                                                          | Rust doc-comment extraction                                                                                         |
+| -------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Parse entry    | Markdown parser over the full source document.                                                | `tree-sitter-python` parser over the full source file.                                                               | `tree-sitter-rust` parser over the full source file.                                                                |
+| Traversal      | Markdown flattener walks Markdown structure and emits rendered prose regions.                 | Depth-first tree-sitter walk inspects module, class, and function first statements.                                  | Depth-first tree-sitter walk inspects modules, owner-bearing items, and item bodies for doc comments.               |
+| Error recovery | Markdown parser recovery is represented through Markdown IR behaviour and malformed fixtures. | tree-sitter recovery emits partial docstring regions plus `python-parse-recovery` errors.                            | tree-sitter recovery emits partial doc-comment regions plus `rust-parse-recovery` errors.                           |
 | Owner metadata | `owner` remains `null`; section context must not overload the owner field.                    | `owner` identifies module, class, or function using Python `__qualname__` semantics.                                 | `owner` identifies module, struct, enum, trait, function, impl, or item using `::` semantics and inner/outer rules. |
-| Node store     | Markdown currently exposes the structural nodes needed by Markdown region mapping.            | Python exposes a bounded store: synthetic module root, docstring-owning definitions, and docstring string nodes.     | Rust exposes a bounded store: synthetic crate root, owning items, and doc-comment nodes.                             |
-| Text surface   | Markup is flattened and may use synthetic segments for rendered prose.                        | Region text is verbatim `string_content`; no escape decoding, dedent, or PEP 257 cleaning happens during extraction. | Region text is verbatim marker-stripped prose with synthetic separators for merged line runs.                         |
+| Node store     | Markdown currently exposes the structural nodes needed by Markdown region mapping.            | Python exposes a bounded store: synthetic module root, docstring-owning definitions, and docstring string nodes.     | Rust exposes a bounded store: synthetic crate root, owning items, and doc-comment nodes.                            |
+| Text surface   | Markup is flattened and may use synthetic segments for rendered prose.                        | Region text is verbatim `string_content`; no escape decoding, dedent, or PEP 257 cleaning happens during extraction. | Region text is verbatim marker-stripped prose with synthetic separators for merged line runs.                       |
 <!-- markdownlint-enable MD060 -->
 
 The `crates/stilyagi-ir` crate owns the syntax-neutral IR vocabulary and
 document envelope. The `crates/stilyagi-markdown` crate owns Markdown-specific
 IR production, while the `crates/stilyagi-tree-sitter` crate owns Python
-docstring and Rust doc-comment IR production. All three producers emit the
-same `IrDocument` shape, and unsupported syntaxes must not receive placeholder
-IR payloads.
+docstring and Rust doc-comment IR production. All three producers emit the same
+`IrDocument` shape, and unsupported syntaxes must not receive placeholder IR
+payloads.
 
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine
@@ -896,11 +893,11 @@ Their responsibilities are:
 The Python tools are intentionally run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
 the host `PATH`. Ruff and Interrogate are both pinned in the `dev` dependency
-group, so the Makefile and CI resolve identical versions from `uv.lock`.
-Pylint is the exception: it runs through `uv tool run --python pypy` with the
-pinned [`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim)
-wrapper. Interrogate and Pylint run after Ruff and before the Rust lint
-tiers, with Interrogate enforcing a 100% docstring-coverage threshold.
+group, so the Makefile and CI resolve identical versions from `uv.lock`. Pylint
+is the exception: it runs through `uv tool run --python pypy` with the pinned
+[`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper.
+Interrogate and Pylint run after Ruff and before the Rust lint tiers, with
+Interrogate enforcing a 100% docstring-coverage threshold.
 
 ### 6a. Python linting architecture
 
@@ -1018,8 +1015,8 @@ the other tool's finding.
 `make markdownlint` enforces en-GB-oxendict (Oxford) spelling over the
 repository's Markdown prose with [`typos`](https://github.com/crate-ci/typos),
 as required by the [documentation style guide](documentation-style-guide.md).
-The generated configuration lives in the repository-root `typos.toml` and
-works in three layers:
+The generated configuration lives in the repository-root `typos.toml` and works
+in three layers:
 
 1. The `en-gb` locale corrects American spellings (`color` to `colour`,
    `behavior` to `behaviour`, `analyzed` to `analysed`).
@@ -1040,8 +1037,8 @@ base and the local overlay with:
 make spelling-config-write
 ```
 
-The builder conditionally refreshes `.typos-oxendict-base.toml` from its bundled
-authority before rendering. The cached base and its
+The builder conditionally refreshes `.typos-oxendict-base.toml` from its
+bundled authority before rendering. The cached base and its
 `.typos-oxendict-base.json` freshness metadata are untracked. A newer valid
 local cache is not overwritten by an older source, and a populated cache
 supports offline generation. `make spelling-config` checks generated drift
@@ -1059,8 +1056,8 @@ Spelling policy has two maintainer-facing homes:
 
 The spelling gate first checks generated configuration, then applies shared
 exact-phrase corrections to eligible tracked UTF-8 text. This enforces
-`hand-written` to `handwritten`, which Typos cannot represent after tokenizing a
-hyphenated phrase. Typos then runs over the `MD_FILES_FIND` list shared with
+`hand-written` to `handwritten`, which Typos cannot represent after tokenizing
+a hyphenated phrase. Typos then runs over the `MD_FILES_FIND` list shared with
 markdownlint and nixie. It uses `--force-exclude` so the `typos.toml` excludes
 also apply to explicitly passed paths. To fix Typos findings mechanically,
 rerun the gate's command with `--write-changes` appended, using the same pinned
@@ -1076,39 +1073,39 @@ Review automated rewrites before committing; spelling corrections must not
 touch code samples, API names, or quoted material.
 
 The phrase helper follows the CodeRabbit-reviewed consumer baseline. Its
-isolated test runner supplies Pathspec 1.1.1 without adding a project runtime or
-locked development dependency.
+isolated test runner supplies Pathspec 1.1.1 without adding a project runtime
+or locked development dependency.
 
 ### 6c. Tool version alignment between the Makefile and CI
 
-The Makefile and `.github/workflows/smoke.yml` must resolve identical lint
-tool versions. The repository uses two mechanisms:
+The Makefile and `.github/workflows/smoke.yml` must resolve identical lint tool
+versions. The repository uses two mechanisms:
 
 - Ruff and Interrogate are pinned in the `pyproject.toml` `dev` dependency
   group and run through `uv run --group dev`, so both the Makefile and CI
   resolve the same locked version from `uv.lock`. CI must not install either
-  tool separately; `tests/test_build_spine_units.py` asserts that no
-  standalone Interrogate install step exists in the workflow.
+  tool separately; `tests/test_build_spine_units.py` asserts that no standalone
+  Interrogate install step exists in the workflow.
 - `typos` is a Rust binary rather than a locked Python dependency, so its
   version is pinned once in the Makefile `TYPOS_VERSION` variable and run
-  through `uv tool run typos@$(TYPOS_VERSION)`. CI inherits the pin by
-  calling `make markdownlint`.
+  through `uv tool run typos@$(TYPOS_VERSION)`. CI inherits the pin by calling
+  `make markdownlint`.
 
 When bumping any of these versions, update the single source of truth (the
-dependency-group pin or `TYPOS_VERSION`), refresh `uv.lock` where relevant,
-and rerun the affected gates.
+dependency-group pin or `TYPOS_VERSION`), refresh `uv.lock` where relevant, and
+rerun the affected gates.
 
 ### 6d. Workflow pins and Dependabot
 
-Dependabot owns the upgrade of GitHub Actions and reusable workflows,
-including calls into `leynos/shared-actions`. Contract tests that assert a
-caller's exact commit SHA create a lockstep dependency: every time Dependabot
-opens a bump PR, the test fails until a human edits the pinned constant to
-match. That defeats the purpose of automated dependency updates and turns a
-routine bump into a manual chore.
+Dependabot owns the upgrade of GitHub Actions and reusable workflows, including
+calls into `leynos/shared-actions`. Contract tests that assert a caller's exact
+commit SHA create a lockstep dependency: every time Dependabot opens a bump PR,
+the test fails until a human edits the pinned constant to match. That defeats
+the purpose of automated dependency updates and turns a routine bump into a
+manual chore.
 
-Contract tests may still verify the *shape* of a reusable-workflow caller.
-They must not verify the specific SHA value.
+Contract tests may still verify the *shape* of a reusable-workflow caller. They
+must not verify the specific SHA value.
 
 - Do assert the workflow references the correct reusable workflow path.
 - Do assert the ref is pinned to a full 40-character commit SHA, not a

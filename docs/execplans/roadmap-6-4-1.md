@@ -1,9 +1,8 @@
 # Unify the region-kind vocabulary across `stilyagi-ir` and `stilyagi-extract`
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -49,11 +48,11 @@ After this change:
    with the coarse bridge-only `document` region as the single, explicitly
    documented exception.
 
-Observable success: `make test` passes, and a deliberate temporary mutation
-to either the `python_docstring` IR spelling or a reintroduced divergent
-producer-side spelling in `stilyagi-tree-sitter` causes the matching named
-test to fail and report the drift. The plan records the exact temporary-
-mutation demonstration that proves each guard test actually catches drift.
+Observable success: `make test` passes, and a deliberate temporary mutation to
+either the `python_docstring` IR spelling or a reintroduced divergent
+producer-side spelling in `stilyagi-tree-sitter` causes the matching named test
+to fail and report the drift. The plan records the exact temporary- mutation
+demonstration that proves each guard test actually catches drift.
 
 ## Constraints
 
@@ -61,8 +60,8 @@ Hard invariants that must hold throughout implementation. Violation requires
 escalation, not a workaround.
 
 - The stable v1 IR region-kind vocabulary is fixed by RFC 0001 §6
-  (`docs/rfcs/0001-stilyagi-intermediate-representation.md`, the
-  "`kind` SHALL come from a stable, small vocabulary" list) and ADR 005
+  (`docs/rfcs/0001-stilyagi-intermediate-representation.md`, the "`kind` SHALL
+  come from a stable, small vocabulary" list) and ADR 005
   (`docs/adr-005-markdown-region-vocabulary-scope.md`). Do **not** add, remove,
   rename, or reorder any `stilyagi_ir::RegionKind` variant or spelling. In
   particular, `document` is **not** an IR region kind and must not be added to
@@ -89,7 +88,8 @@ escalation, not a workaround.
   `pub const fn` mapping is additive and allowed.
 - Dependencies: if any new external crate dependency is required, stop and
   escalate. (`stilyagi-extract` already depends on `stilyagi-ir`;
-  `stilyagi-tree-sitter` already depends on `stilyagi-ir`. No new deps expected.)
+  `stilyagi-tree-sitter` already depends on `stilyagi-ir`. No new deps
+  expected.)
 - Iterations: if a gate still fails after 3 fix attempts, stop and escalate.
 - Vocabulary: if a genuine product decision is needed about whether `document`
   should join the IR vocabulary (rather than staying a bridge-only exception),
@@ -99,28 +99,24 @@ escalation, not a workaround.
 
 - Risk: the drift-guard tests pass on day one because the spellings already
   coincide, so they read as new behaviour when they are really regression
-  guards.
-  Severity: medium. Likelihood: high.
-  Mitigation: for each guard test, the plan requires a temporary local mutation
-  (flip a shared spelling), observe the named failure, then revert — recording
-  the transcript as the Red evidence. This proves the guard bites.
+  guards. Severity: medium. Likelihood: high. Mitigation: for each guard test,
+  the plan requires a temporary local mutation (flip a shared spelling),
+  observe the named failure, then revert — recording the transcript as the Red
+  evidence. This proves the guard bites.
 - Risk: forwarding `stilyagi_extract::RegionKind::as_str` to
   `stilyagi_ir::RegionKind::as_str` fails to compile in `const` context.
-  Severity: low. Likelihood: low.
-  Mitigation: `stilyagi_ir::RegionKind::as_str` is already `pub const fn`
-  (`crates/stilyagi-ir/src/region.rs`), so a `const fn` in `stilyagi-extract`
-  may call it. If the compiler disagrees, drop the `const` qualifier on the
-  extract method (it is not part of any const-eval contract) and record the
-  reason in the Decision Log.
+  Severity: low. Likelihood: low. Mitigation: `stilyagi_ir::RegionKind::as_str`
+  is already `pub const fn` (`crates/stilyagi-ir/src/region.rs`), so a
+  `const fn` in `stilyagi-extract` may call it. If the compiler disagrees, drop
+  the `const` qualifier on the extract method (it is not part of any const-eval
+  contract) and record the reason in the Decision Log.
 - Risk: the behavioural cross-check depends on shared test fixtures whose region
-  set changes later.
-  Severity: low. Likelihood: low.
-  Mitigation: the behavioural test asserts a *membership* invariant ("every
-  emitted kind parses as an IR kind"), not an exact list, so adding fixtures or
-  regions cannot break it unless a genuine drift occurs.
+  set changes later. Severity: low. Likelihood: low. Mitigation: the
+  behavioural test asserts a *membership* invariant ("every emitted kind parses
+  as an IR kind"), not an exact list, so adding fixtures or regions cannot
+  break it unless a genuine drift occurs.
 - Risk: scope creep into `stilyagi-tree-sitter` (Work item 3) draws objection
-  because the roadmap names only two crates.
-  Severity: low. Likelihood: medium.
+  because the roadmap names only two crates. Severity: low. Likelihood: medium.
   Mitigation: Work item 3 is independently committable and can be dropped
   without weakening Work items 1–2; the behavioural cross-check in Work item 2
   already fails on tree-sitter literal drift even if the literal is left in
@@ -193,43 +189,40 @@ escalation, not a workaround.
 ## Surprises & discoveries
 
 - Observation: the full lint gate exposed the same `no_unwrap_or_else_panic`
-  rule beyond the initial three hook-reported sites.
-  Impact: the test-only `unwrap_or_else` panics need the same replacement
-  treatment once wyvern verification confirms the remaining hits.
+  rule beyond the initial three hook-reported sites. Impact: the test-only
+  `unwrap_or_else` panics need the same replacement treatment once wyvern
+  verification confirms the remaining hits.
 - Observation: Memtrace is available in this session, but its briefing reported
   no indexed repository for this worktree. The repository-list/index tools were
-  not exposed after tool discovery.
-  Evidence: `get_codebase_briefing` returned "No indexed repository found. Run
-  index_directory first."
-  Impact: source-code navigation for this task uses `leta` plus bounded
-  exact-path reads from this ExecPlan, rather than Memtrace graph queries.
+  not exposed after tool discovery. Evidence: `get_codebase_briefing` returned
+  "No indexed repository found. Run index_directory first." Impact: source-code
+  navigation for this task uses `leta` plus bounded exact-path reads from this
+  ExecPlan, rather than Memtrace graph queries.
 - Observation: the Work item 1 consistent-IR-rename drift demonstration fails
-  at the extract spelling round-trip boundary, as intended.
-  Evidence: after temporarily changing the IR Python docstring spelling in
-  `crates/stilyagi-ir/src/region.rs` from `python_docstring` to
-  `py_docstring` in both `as_str` and `TryFrom`, the focused command
+  at the extract spelling round-trip boundary, as intended. Evidence: after
+  temporarily changing the IR Python docstring spelling in
+  `crates/stilyagi-ir/src/region.rs` from `python_docstring` to `py_docstring`
+  in both `as_str` and `TryFrom`, the focused command
   `cargo test -p stilyagi-extract region_kind_as_str_round_trips_through_try_from`
   failed with
   `spelling_display::region_kind_as_str_round_trips_through_try_from::case_2`;
   the assertion reported `left: Err("py_docstring")` and
   `right: Ok(PythonDocstring)`. The temporary mutation was reverted before
-  continuing.
-  Impact: a consistent IR spelling rename cannot silently pass extract's
-  existing typed spelling round-trip once `as_str` forwards to the IR.
+  continuing. Impact: a consistent IR spelling rename cannot silently pass
+  extract's existing typed spelling round-trip once `as_str` forwards to the IR.
 - Observation: the Work item 1 un-forwarding drift demonstration fails at the
-  new `shared_bridge_spelling_comes_from_ir` guard, as intended.
-  Evidence: after temporarily replacing the forwarding arm in
+  new `shared_bridge_spelling_comes_from_ir` guard, as intended. Evidence:
+  after temporarily replacing the forwarding arm in
   `stilyagi_extract::RegionKind::as_str` with `Some(_) => "py_docstring"`, the
   focused command
   `cargo test -p stilyagi-extract shared_bridge_spelling_comes_from_ir` failed;
   the assertion reported `left: "py_docstring"` and
   `right: "python_docstring"`. The temporary mutation was reverted before
-  continuing.
-  Impact: a future edit that reintroduces divergent local spellings in extract
-  is caught by a named guard.
+  continuing. Impact: a future edit that reintroduces divergent local spellings
+  in extract is caught by a named guard.
 - Observation: `RegionKind` is `#[non_exhaustive]`, so external integration
-  tests cannot exhaustively match all variants without a wildcard.
-  Evidence: the first Work item 2 focused compile failed in
+  tests cannot exhaustively match all variants without a wildcard. Evidence:
+  the first Work item 2 focused compile failed in
   `crates/stilyagi-extract/tests/extract/region_vocabulary.rs` with
   `E0004: non-exhaustive patterns: &_ not covered` when matching
   `RegionKind::Document | RegionKind::PythonDocstring |
@@ -244,12 +237,10 @@ escalation, not a workaround.
   `crates/stilyagi-extract/tests/extract/region_vocabulary.rs:35`, and
   `make lint` reported Clippy `single_match_else` at line 11. The test was
   reshaped to use `if let` for the mapped IR kind and rustfmt-compatible
-  assertion wrapping.
-  Impact: this stayed within the first fix attempt for Work item 2 and did not
-  alter the tested invariant.
+  assertion wrapping. Impact: this stayed within the first fix attempt for Work
+  item 2 and did not alter the tested invariant.
 - Observation: the Work item 2 tree-sitter drift demonstration fails at the new
-  behavioural cross-check, as intended.
-  Evidence: after temporarily changing
+  behavioural cross-check, as intended. Evidence: after temporarily changing
   `crates/stilyagi-tree-sitter/src/python/mod.rs` from
   `kind: "python_docstring".to_owned()` to `kind: "python_doc".to_owned()`, the
   focused command
@@ -257,29 +248,26 @@ escalation, not a workaround.
   failed with
   `region_vocabulary::extracted_ir_regions_use_only_the_shared_vocabulary::case_1_python_docstrings`;
   the Rust doc-comment case passed. The temporary mutation was reverted before
-  continuing.
-  Impact: a producer-side typo in emitted IR region spellings is caught before
-  it can silently cross the extract boundary.
+  continuing. Impact: a producer-side typo in emitted IR region spellings is
+  caught before it can silently cross the extract boundary.
 - Observation: the Work item 2 `document` exception demonstration fails at the
-  new static cross-check, as intended.
-  Evidence: after temporarily changing the bridge-only `Document` spelling in
-  `stilyagi_extract::RegionKind::as_str` from `document` to `paragraph`, the
-  focused command
+  new static cross-check, as intended. Evidence: after temporarily changing the
+  bridge-only `Document` spelling in `stilyagi_extract::RegionKind::as_str` from
+  `document` to `paragraph`, the focused command
   `cargo test -p stilyagi-extract every_shared_bridge_kind_is_an_ir_kind`
   failed with `region_vocabulary::every_shared_bridge_kind_is_an_ir_kind`; the
   assertion expected `stilyagi_ir::RegionKind::try_from(kind.as_str())` to be
-  `Err`. The temporary mutation was reverted before continuing.
-  Impact: a future change that makes the bridge-only `Document` kind collide
-  with the canonical IR vocabulary is caught by a named guard.
+  `Err`. The temporary mutation was reverted before continuing. Impact: a
+  future change that makes the bridge-only `Document` kind collide with the
+  canonical IR vocabulary is caught by a named guard.
 - Observation: after Work item 3, the Python and Rust tree-sitter producers no
   longer contain handwritten `python_docstring` or `rust_doc_comment` region
-  `kind` assignments.
-  Evidence: `crates/stilyagi-tree-sitter/src/python/mod.rs` now uses
-  `RegionKind::PythonDocstring.as_str().to_owned()`, and
+  `kind` assignments. Evidence: `crates/stilyagi-tree-sitter/src/python/mod.rs`
+  now uses `RegionKind::PythonDocstring.as_str().to_owned()`, and
   `crates/stilyagi-tree-sitter/src/rust/builder.rs` now uses
-  `RegionKind::RustDocComment.as_str().to_owned()`.
-  Impact: producer-side shared spelling drift now requires changing the IR
-  source of truth instead of editing independent string literals.
+  `RegionKind::RustDocComment.as_str().to_owned()`. Impact: producer-side
+  shared spelling drift now requires changing the IR source of truth instead of
+  editing independent string literals.
 - Observation: rebasing onto `origin/main` on 2026-07-07 brought in
   syntax-native suppression parsing, the tree-sitter 0.26 update, and related
   Rust doc-comment builder changes. The rebase applied without textual
@@ -287,84 +275,79 @@ escalation, not a workaround.
   that `main` still needs in `crates/stilyagi-tree-sitter/src/rust/builder.rs`.
   Evidence: the first post-rebase gate run failed to compile
   `stilyagi-tree-sitter` because `IrNode`, `IrRegion`, and `IrError` were not
-  in scope. Restoring `use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags,
-  RegionKind};` preserves `main`'s builder changes while keeping this branch's
-  shared-vocabulary hardening.
-  Impact: the branch now reflects `main`'s newer suppression and tree-sitter
-  patterns without losing the region-kind single-source-of-truth change.
+  in scope. Restoring
+  `use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags, RegionKind};`
+  preserves `main`'s builder changes while keeping this branch's
+  shared-vocabulary hardening. Impact: the branch now reflects `main`'s newer
+  suppression and tree-sitter patterns without losing the region-kind
+  single-source-of-truth change.
 - Observation: `stilyagi-extract`'s own spelling test coverage is already
   incomplete — `region_kind_as_str_round_trips_through_try_from` and the
   display/`as_str` cases in
   `crates/stilyagi-extract/tests/extract/spelling_display.rs` cover `Document`
-  and `PythonDocstring` but **omit** `RustDocComment`.
-  Evidence: `spelling_display.rs` lines 56–100 (only two `#[case]`s each).
-  Impact: Work item 2 closes this gap while adding the cross-check.
+  and `PythonDocstring` but **omit** `RustDocComment`. Evidence:
+  `spelling_display.rs` lines 56–100 (only two `#[case]`s each). Impact: Work
+  item 2 closes this gap while adding the cross-check.
 - Observation: the tree-sitter extractor hand-writes the same region-kind
   spellings the IR owns (`"python_docstring"` at
   `crates/stilyagi-tree-sitter/src/python/mod.rs:318`, `"rust_doc_comment"` at
   `crates/stilyagi-tree-sitter/src/rust/builder.rs:246`), and those values
   become `IrRegion.kind` that `stilyagi-extract` copies through verbatim.
   Evidence: `extract_python_document` / `extract_rust_document` in
-  `crates/stilyagi-extract/src/lib.rs` map `region.kind.clone()`.
-  Impact: divergence can originate in a *third* crate. Work item 2's behavioural
-  test catches it; Work item 3 removes the hazard at source.
+  `crates/stilyagi-extract/src/lib.rs` map `region.kind.clone()`. Impact:
+  divergence can originate in a *third* crate. Work item 2's behavioural test
+  catches it; Work item 3 removes the hazard at source.
 - Observation: `stilyagi-extract`'s integration tests are **not** registered via
   a `tests/extract/mod.rs` (there is none). The single test binary is
   `crates/stilyagi-extract/tests/extract_integration.rs`, which registers each
   file with `#[path = "extract/<file>.rs"] mod <name>;`. A new file added under
-  `tests/extract/` without a matching entry is not compiled or run.
-  Evidence: `extract_integration.rs` (path-attribute registrations);
-  `ls tests/extract/` shows no `mod.rs`.
-  Impact: Work item 2 must add the `region_vocabulary` registration there or its
-  cross-check silently never runs (round-1 blocking defect B1).
+  `tests/extract/` without a matching entry is not compiled or run. Evidence:
+  `extract_integration.rs` (path-attribute registrations); `ls tests/extract/`
+  shows no `mod.rs`. Impact: Work item 2 must add the `region_vocabulary`
+  registration there or its cross-check silently never runs (round-1 blocking
+  defect B1).
 
 ## Decision log
 
 - Decision: proceed with implementation even though the existing plan header
-  said `Status: DRAFT`.
-  Rationale: the user explicitly instructed this agent on 2026-07-07 to proceed
-  with implementation of `docs/execplans/roadmap-6-4-1.md`, which serves as the
-  execution approval required by the `execplans` skill.
-  Date/Author: 2026-07-07, implementation agent.
+  said `Status: DRAFT`. Rationale: the user explicitly instructed this agent on
+  2026-07-07 to proceed with implementation of
+  `docs/execplans/roadmap-6-4-1.md`, which serves as the execution approval
+  required by the `execplans` skill. Date/Author: 2026-07-07, implementation
+  agent.
 - Decision: do not add a property test for Work item 1's closed
-  `RegionKind::ALL` invariant or Work item 2's static bridge-kind
-  cross-check.
+  `RegionKind::ALL` invariant or Work item 2's static bridge-kind cross-check.
   Rationale: the verification skill routes input-space gaps to `proptest`, but
   this invariant is over a closed enum set. The exhaustive `ALL` iteration plus
   compile-time non-wildcard match in crate-private tests and the public
   `ir_region_kind()` mapping in integration tests give the necessary coverage
-  with less machinery.
-  Date/Author: 2026-07-07, implementation agent.
+  with less machinery. Date/Author: 2026-07-07, implementation agent.
 - Decision: implement *both* allowed mechanisms — single source of truth (Work
   item 1) and a cross-checking drift test (Work item 2) — rather than only one.
   Rationale: the roadmap permits either; doing both is strictly stronger and
   cheap. Forwarding removes the duplicated literal; the test guards the
-  relationship (including drift that originates in tree-sitter, which forwarding
-  alone cannot cover).
-  Date/Author: 2026-07-05, planning agent.
+  relationship (including drift that originates in tree-sitter, which
+  forwarding alone cannot cover). Date/Author: 2026-07-05, planning agent.
 - Decision: keep `document` as a bridge-only region kind and explicitly assert
   it is *not* in the IR vocabulary, instead of adding it to
-  `stilyagi_ir::RegionKind`.
-  Rationale: RFC 0001 §6 fixes the IR vocabulary at eleven kinds and does not
-  include `document`; ADR 005 constrains the Markdown subset. `document` is a
-  coarse whole-source bridge region on `ExtractRegion`, not an `IrRegion` kind.
-  Adding it to the IR enum would be an RFC/ADR change and is out of scope.
-  Date/Author: 2026-07-05, planning agent.
+  `stilyagi_ir::RegionKind`. Rationale: RFC 0001 §6 fixes the IR vocabulary at
+  eleven kinds and does not include `document`; ADR 005 constrains the Markdown
+  subset. `document` is a coarse whole-source bridge region on `ExtractRegion`,
+  not an `IrRegion` kind. Adding it to the IR enum would be an RFC/ADR change
+  and is out of scope. Date/Author: 2026-07-05, planning agent.
 - Decision: include the tree-sitter literal replacement as Work item 3 but mark
-  it independently committable and droppable.
-  Rationale: the roadmap names `stilyagi-ir` and `stilyagi-extract`; touching
-  `stilyagi-tree-sitter` is a scope boundary. Work item 2 already fails on
-  tree-sitter drift, so Work item 3 is hardening (remove the hazard) rather than
-  a correctness prerequisite. Framing it as separable lets a reviewer trim scope
-  without reopening Work items 1–2.
-  Date/Author: 2026-07-05, planning agent.
+  it independently committable and droppable. Rationale: the roadmap names
+  `stilyagi-ir` and `stilyagi-extract`; touching `stilyagi-tree-sitter` is a
+  scope boundary. Work item 2 already fails on tree-sitter drift, so Work item
+  3 is hardening (remove the hazard) rather than a correctness prerequisite.
+  Framing it as separable lets a reviewer trim scope without reopening Work
+  items 1–2. Date/Author: 2026-07-05, planning agent.
 - Decision: Red-Green-Refactor is applied via the temporary-mutation
   demonstration for the drift guards (the guarded invariant already holds, so a
-  natural failing test is unavailable).
-  Rationale: execplans skill permits the nearest observable substitute when
-  Red-Green is genuinely unavailable; a documented mutate-observe-revert step is
-  that substitute and directly proves the guard catches drift.
-  Date/Author: 2026-07-05, planning agent.
+  natural failing test is unavailable). Rationale: execplans skill permits the
+  nearest observable substitute when Red-Green is genuinely unavailable; a
+  documented mutate-observe-revert step is that substitute and directly proves
+  the guard catches drift. Date/Author: 2026-07-05, planning agent.
 
 ## Outcomes & retrospective
 
@@ -406,11 +389,12 @@ Read these before starting. Paths are repository-relative.
 Key code:
 
 - `crates/stilyagi-ir/src/region.rs`: `RegionKind` enum, `RegionKind::ALL`,
-  `as_str` (a `pub const fn`), `Display`, `TryFrom<&str>`, and `InvalidRegionKind`.
-  This is the single source of truth. Existing exhaustiveness/round-trip tests
-  live in `crates/stilyagi-ir/src/tests/mod.rs` (the
-  `region_kind_ordering_is_stable` expected-list test at lines ~54–73 and the
-  `region_kind_round_trips_through_stable_spelling` case list at lines ~75–89).
+  `as_str` (a `pub const fn`), `Display`, `TryFrom<&str>`, and
+  `InvalidRegionKind`. This is the single source of truth. Existing
+  exhaustiveness/round-trip tests live in `crates/stilyagi-ir/src/tests/mod.rs`
+  (the `region_kind_ordering_is_stable` expected-list test at lines ~54–73 and
+  the `region_kind_round_trips_through_stable_spelling` case list at lines
+  ~75–89).
 - `crates/stilyagi-extract/src/lib.rs`: the *second* `RegionKind` enum
   (`Document`, `PythonDocstring`, `RustDocComment`) at lines ~152–193, its
   `as_str` / `Display` / `TryFrom<&str>`, `ExtractRegion` (a coarse bridge
@@ -528,21 +512,23 @@ construction), so a *consistent* IR rename propagates through the forward to
 the forwarding is broken. Record both transcripts in `Surprises & discoveries`:
 
 - Guard for a **consistent IR rename** (extract `TryFrom` still hand-writes the
-  old spelling): temporarily change `stilyagi_ir::RegionKind::PythonDocstring`'s
-  spelling in `crates/stilyagi-ir/src/region.rs` (`as_str` **and** `TryFrom`) to
+  old spelling): temporarily change
+  `stilyagi_ir::RegionKind::PythonDocstring`'s spelling in
+  `crates/stilyagi-ir/src/region.rs` (`as_str` **and** `TryFrom`) to
   `"py_docstring"`, run `make test`, and observe the extract
   `region_kind_*_round_trips_*` tests in `spelling_display.rs` fail — forwarded
   `as_str` now yields `"py_docstring"` while extract `TryFrom` still expects
-  `"python_docstring"`. `shared_bridge_spelling_comes_from_ir` does **not** fail
-  here (both sides moved together); do not claim it does. Then revert.
+  `"python_docstring"`. `shared_bridge_spelling_comes_from_ir` does **not**
+  fail here (both sides moved together); do not claim it does. Then revert.
 - Guard for **un-forwarding** (a handwritten literal reintroduced into extract
-  `as_str`): temporarily replace the `Some(kind) => kind.as_str()` arm of the new
-  `stilyagi_extract::RegionKind::as_str` with a divergent literal, e.g.
+  `as_str`): temporarily replace the `Some(kind) => kind.as_str()` arm of the
+  new `stilyagi_extract::RegionKind::as_str` with a divergent literal, e.g.
   `Some(_) => "py_docstring"`, run `make test`, and observe
   `shared_bridge_spelling_comes_from_ir` fail (for `PythonDocstring`,
-  `k.as_str()` is now `"py_docstring"` but `ir.as_str()` is `"python_docstring"`).
-  Then revert. This is the mutation that proves *this* named guard bites, and it
-  is its true purpose: catch a future edit that stops forwarding.
+  `k.as_str()` is now `"py_docstring"` but `ir.as_str()` is
+  `"python_docstring"`). Then revert. This is the mutation that proves *this*
+  named guard bites, and it is its true purpose: catch a future edit that stops
+  forwarding.
 
 Validation: `make check-fmt` then `make typecheck` then `make lint` then
 `make test`. Commit: `Forward extract region spellings to the IR vocabulary`.
@@ -553,18 +539,19 @@ Implements: roadmap 6.4.1 ("add a cross-checking test that fails on drift";
 "the two crates cannot silently diverge on region names or meanings"); RFC 0001
 §6; AGENTS.md testing rules (unit + behavioural coverage).
 
-Docs to read first: RFC 0001 §6; ADR 005 (the closed vocabulary);
-`AGENTS.md` testing section. Skills to load: `rust-router` →
-`rust-unit-testing`; `rust-verification` (to judge whether a property/`proptest`
-case adds value over the enumerated cross-check — see below); `leta`.
+Docs to read first: RFC 0001 §6; ADR 005 (the closed vocabulary); `AGENTS.md`
+testing section. Skills to load: `rust-router` → `rust-unit-testing`;
+`rust-verification` (to judge whether a property/`proptest` case adds value
+over the enumerated cross-check — see below); `leta`.
 
 Add a new integration test file
 `crates/stilyagi-extract/tests/extract/region_vocabulary.rs`. This crate's
 integration tests are **not** registered through a `tests/extract/mod.rs` file
-(none exists); the single test binary is `crates/stilyagi-extract/tests/extract_integration.rs`,
-which pulls each file in via a `#[path = "extract/<file>.rs"] mod <name>;`
-attribute. Register the new file the same way by adding, in alphabetical
-position alongside the existing entries:
+(none exists); the single test binary is
+`crates/stilyagi-extract/tests/extract_integration.rs`, which pulls each file
+in via a `#[path = "extract/<file>.rs"] mod <name>;` attribute. Register the
+new file the same way by adding, in alphabetical position alongside the
+existing entries:
 
 ```rust
 #[path = "extract/region_vocabulary.rs"]
@@ -580,7 +567,8 @@ Static cross-check (adversarial, exhaustive over `RegionKind::ALL`):
 
 - `every_shared_bridge_kind_is_an_ir_kind`: for each `k` in
   `stilyagi_extract::RegionKind::ALL`, assert exactly one of:
-  - `k == RegionKind::Document` and `stilyagi_ir::RegionKind::try_from(k.as_str())`
+  - `k == RegionKind::Document` and
+    `stilyagi_ir::RegionKind::try_from(k.as_str())`
     is `Err` (the documented, intentional bridge-only exception), or
   - `stilyagi_ir::RegionKind::try_from(k.as_str())` is `Ok(ir)` **and**
     `k != RegionKind::Document` **and** `ir.as_str() == k.as_str()` (spelling
@@ -594,8 +582,8 @@ catching tree-sitter/markdown literal drift feeding `IrRegion.kind`):
 
 - `extracted_ir_regions_use_only_the_shared_vocabulary`: parametrized over the
   Python and Rust shared fixtures (reuse `shared_python_source` /
-  `shared_rust_source` and/or the `stilyagi-test-support` fixture constants used
-  in `ir_identity.rs`). For each, call the extract entry point
+  `shared_rust_source` and/or the `stilyagi-test-support` fixture constants
+  used in `ir_identity.rs`). For each, call the extract entry point
   (`stilyagi_extract::extract_document(&source, syntax)`), then obtain the IR
   via the `Option`-returning accessor exactly as `ir_identity.rs:192` does —
   `let ir = document.ir().expect("expected IR payload");` — and iterate
@@ -656,12 +644,12 @@ Edits:
 
 - `crates/stilyagi-tree-sitter/src/python/mod.rs:318`: replace
   `kind: "python_docstring".to_owned(),` with
-  `kind: stilyagi_ir::RegionKind::PythonDocstring.as_str().to_owned(),`
-  (add `RegionKind` to the existing `use stilyagi_ir::{…}` group).
+  `kind: stilyagi_ir::RegionKind::PythonDocstring.as_str().to_owned(),` (add
+  `RegionKind` to the existing `use stilyagi_ir::{…}` group).
 - `crates/stilyagi-tree-sitter/src/rust/builder.rs:246`: replace
   `kind: "rust_doc_comment".to_owned(),` with
-  `kind: stilyagi_ir::RegionKind::RustDocComment.as_str().to_owned(),`
-  (extend the existing `use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags};`).
+  `kind: stilyagi_ir::RegionKind::RustDocComment.as_str().to_owned(),` (extend
+  the existing `use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags};`).
 
 No serialized value changes (the spellings are identical), so all existing
 tree-sitter, extract, and pyext behavioural tests and golden fixtures continue
@@ -673,8 +661,7 @@ suite stays green *and* Work item 2's behavioural test still passes. As a
 belt-and-braces check, confirm `make test` is green before and after.
 
 Validation: `make check-fmt` then `make typecheck` then `make lint` then
-`make test`. Commit:
-`Source tree-sitter region kinds from the IR vocabulary`.
+`make test`. Commit: `Source tree-sitter region kinds from the IR vocabulary`.
 
 ## Concrete steps
 
@@ -706,8 +693,8 @@ This change touches no Markdown behaviour except this ExecPlan; when committing
 Markdown (this file), also run `make markdownlint` and `make nixie` (this plan
 has no Mermaid, so `nixie` is a no-op but is run for consistency). Format only
 the files you changed: `mdtablefix docs/execplans/roadmap-6-4-1.md` then
-`markdownlint-cli2 --fix docs/execplans/roadmap-6-4-1.md`, then gate. Do not run
-a repo-global format.
+`markdownlint-cli2 --fix docs/execplans/roadmap-6-4-1.md`, then gate. Do not
+run a repo-global format.
 
 Acceptance (behaviour a human can verify):
 
@@ -716,15 +703,15 @@ Acceptance (behaviour a human can verify):
   `crates/stilyagi-ir/src/region.rs` `as_str` **and** `TryFrom`) makes the
   extract `region_kind_*_round_trips_*` tests in `spelling_display.rs` fail
   (forwarded `as_str` vs extract's still handwritten `TryFrom`);
-  `shared_bridge_spelling_comes_from_ir` keeps passing because the forward moves
-  both sides of its equality together. Un-forwarding extract `as_str` (a
+  `shared_bridge_spelling_comes_from_ir` keeps passing because the forward
+  moves both sides of its equality together. Un-forwarding extract `as_str` (a
   divergent literal in its `Some(_)` arm) is what makes
   `shared_bridge_spelling_comes_from_ir` fail. Reverting either restores green.
 - Temporarily editing the `"python_docstring"` literal in
   `crates/stilyagi-tree-sitter/src/python/mod.rs` (before Work item 3) makes
-  `extracted_ir_regions_use_only_the_shared_vocabulary` fail; reverting restores
-  green. After Work item 3 that literal no longer exists, so the drift cannot be
-  written in the first place.
+  `extracted_ir_regions_use_only_the_shared_vocabulary` fail; reverting
+  restores green. After Work item 3 that literal no longer exists, so the drift
+  cannot be written in the first place.
 - Temporarily giving extract `RegionKind::Document` an IR spelling makes
   `every_shared_bridge_kind_is_an_ir_kind` fail.
 
@@ -791,12 +778,13 @@ Round 2 (2026-07-05). Resolved the two blocking defects raised in
   `extract_integration.rs` and confirming no `mod.rs` exists.
 - **B2 (Red evidence for a guard that cannot fail under the stated mutation):**
   corrected Work item 1's mutate-observe-revert step. A *consistent* IR rename
-  forwards through `as_str` to both sides of `shared_bridge_spelling_comes_from_ir`'s
-  equality, so that guard keeps passing; only the extract round-trip tests fail.
-  The plan now attributes the IR-rename mutation to the round-trip tests and adds
-  a distinct un-forwarding mutation (divergent literal in extract `as_str`) that
-  actually makes `shared_bridge_spelling_comes_from_ir` bite. The Acceptance
-  section was corrected to match.
+  forwards through `as_str` to both sides of
+  `shared_bridge_spelling_comes_from_ir`'s equality, so that guard keeps
+  passing; only the extract round-trip tests fail. The plan now attributes the
+  IR-rename mutation to the round-trip tests and adds a distinct un-forwarding
+  mutation (divergent literal in extract `as_str`) that actually makes
+  `shared_bridge_spelling_comes_from_ir` bite. The Acceptance section was
+  corrected to match.
 
 Also folded in both advisories: Work item 2's behavioural test now uses the
 `Option`-returning `document.ir().expect(...)` accessor (mirroring
