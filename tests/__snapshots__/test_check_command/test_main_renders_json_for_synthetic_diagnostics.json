@@ -1,0 +1,15 @@
+{
+  "diagnostics": [
+    {
+      "code": "STY999",
+      "fix_applicable": false,
+      "location": {
+        "column": 1,
+        "line": 1
+      },
+      "message": "Synthetic diagnostic",
+      "path": "docs/notes.md",
+      "severity": "warning"
+    }
+  ]
+}

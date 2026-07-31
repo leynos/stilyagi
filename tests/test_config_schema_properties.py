@@ -1,15 +1,10 @@
 """Property tests for same-directory config discovery."""
 
-from __future__ import annotations
-
-import typing as typ
+import pathlib
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from stilyagi import config
-
-if typ.TYPE_CHECKING:
-    import pathlib
 
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
@@ -42,7 +37,9 @@ def test_same_directory_precedence_is_deterministic(
         (name for name, exists in zip(filenames, present, strict=True) if exists), None
     )
     if expected_name is None:
-        assert discovered is None
+        assert discovered is None, "expected discovered is None"
     else:
-        assert discovered is not None
-        assert discovered.path.name == expected_name
+        assert discovered is not None, "expected discovered is not None"
+        assert discovered.path.name == expected_name, (
+            "expected discovered.path.name == expected_name"
+        )

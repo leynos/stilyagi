@@ -93,20 +93,28 @@ def probe_writes_json_report_with_cold_and_warm_runs(
     output_path = probe_state["output_path"]
 
     assert completed.returncode == 0, completed.stderr
-    assert output_path.is_file()
+    assert output_path.is_file(), "expected output_path.is_file()"
 
     report = json.loads(output_path.read_text(encoding="utf-8"))
-    assert report["probe"] == "structural-markdown"
-    assert [run["mode"] for run in report["runs"]] == ["cold", "warm"]
-    assert all(run["iterations"] == 1 for run in report["runs"])
-    assert all(len(run["durations_ns"]) == 1 for run in report["runs"])
+    assert report["probe"] == "structural-markdown", (
+        "expected report['probe'] == 'structural-markdown'"
+    )
+    assert [run["mode"] for run in report["runs"]] == ["cold", "warm"], (
+        "expected [run['mode'] for run in report['runs']] == ..."
+    )
+    assert all(run["iterations"] == 1 for run in report["runs"]), (
+        "expected all((run['iterations'] == 1 for run in repo..."
+    )
+    assert all(len(run["durations_ns"]) == 1 for run in report["runs"]), (
+        "expected all((len(run['durations_ns']) == 1 for run ..."
+    )
 
 
 def test_discovers_markdown_structural_fixture() -> None:
     """Discover the single Markdown fixture used for baseline probes."""
     fixtures = structural_probe.discover_structural_fixtures(REPOSITORY_ROOT)
 
-    assert fixtures == (MARKDOWN_FIXTURE,)
+    assert fixtures == (MARKDOWN_FIXTURE,), "expected fixtures == (MARKDOWN_FIXTURE,)"
 
 
 @pytest.mark.parametrize(
@@ -121,7 +129,9 @@ def test_discovers_markdown_structural_fixture() -> None:
 )
 def test_normalises_repository_paths(path: pathlib.Path, expected: str) -> None:
     """Normalise repository-local paths for portable JSON reports."""
-    assert structural_probe.normalise_repository_path(path, REPOSITORY_ROOT) == expected
+    assert (
+        structural_probe.normalise_repository_path(path, REPOSITORY_ROOT) == expected
+    ), "expected structural_probe.normalise_repository_path(..."
 
 
 def test_rejects_paths_outside_repository(tmp_path: pathlib.Path) -> None:
@@ -136,12 +146,12 @@ def test_summarises_odd_and_even_duration_sets() -> None:
         "min": 1,
         "median": 5,
         "max": 9,
-    }
+    }, "expected structural_probe.summarise_durations([9, 1,..."
     assert structural_probe.summarise_durations([10, 2, 4, 20]) == {
         "min": 2,
         "median": 7,
         "max": 20,
-    }
+    }, "expected structural_probe.summarise_durations([10, 2..."
 
 
 def test_summarise_durations_rejects_empty_sequence() -> None:
@@ -164,16 +174,22 @@ def test_builds_structural_report_shape() -> None:
         ],
     )
 
-    assert report["schema_version"] == 1
-    assert report["probe"] == "structural-markdown"
-    assert report["entrypoint"] == "stilyagi.engine.extract_document"
+    assert report["schema_version"] == 1, "expected report['schema_version'] == 1"
+    assert report["probe"] == "structural-markdown", (
+        "expected report['probe'] == 'structural-markdown'"
+    )
+    assert report["entrypoint"] == "stilyagi.engine.extract_document", (
+        "expected report['entrypoint'] == 'stilyagi.engine.ex..."
+    )
     assert report["corpus"] == {
         "fixture_paths": [
             "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
         ],
         "file_count": 1,
-    }
-    assert [run["summary_ns"]["median"] for run in report["runs"]] == [5, 4]
+    }, "expected report['corpus'] == <'fixture_paths': ['tes..."
+    assert [run["summary_ns"]["median"] for run in report["runs"]] == [5, 4], (
+        "expected [run['summary_ns']['median'] for run in rep..."
+    )
 
 
 def test_redacted_report_matches_json_snapshot(
@@ -191,7 +207,7 @@ def test_redacted_report_matches_json_snapshot(
 
     assert structural_probe.redact_report(report) == snapshot(
         extension_class=JSONSnapshotExtension,
-    )
+    ), "expected structural_probe.redact_report(report) == s..."
 
 
 def test_redacted_report_contains_no_integer_timings() -> None:
@@ -206,10 +222,18 @@ def test_redacted_report_contains_no_integer_timings() -> None:
     )
     redacted = structural_probe.redact_report(report)
     for run in redacted["runs"]:
-        assert run["durations_ns"] == "<redacted>"
-        assert all(v == "<redacted>" for v in run["summary_ns"].values())
-    assert redacted["environment"]["platform"] == "<redacted>"
-    assert redacted["environment"]["python"] == "<redacted>"
+        assert run["durations_ns"] == "<redacted>", (
+            "expected run['durations_ns'] == '<redacted>'"
+        )
+        assert all(v == "<redacted>" for v in run["summary_ns"].values()), (
+            "expected all((v == '<redacted>' for v in run['summar..."
+        )
+    assert redacted["environment"]["platform"] == "<redacted>", (
+        "expected redacted['environment']['platform'] == '<re..."
+    )
+    assert redacted["environment"]["python"] == "<redacted>", (
+        "expected redacted['environment']['python'] == '<reda..."
+    )
 
 
 def test_measure_probe_rejects_non_positive_iterations() -> None:
@@ -241,19 +265,23 @@ def test_write_report_creates_parent_directories(
         runs=[structural_probe.ProbeRun(mode="warm", durations_ns=(1, 2, 3))],
     )
     structural_probe.write_report(report, output_path)
-    assert output_path.is_file()
+    assert output_path.is_file(), "expected output_path.is_file()"
     written = json.loads(output_path.read_text(encoding="utf-8"))
-    assert written["schema_version"] == 1
+    assert written["schema_version"] == 1, "expected written['schema_version'] == 1"
 
 
 def test_argument_parser_defaults() -> None:
     """Verify default argument values for the structural probe CLI."""
     parser = structural_probe._argument_parser()
     args = parser.parse_args([])
-    assert args.mode == "both"
-    assert args.iterations == structural_probe.DEFAULT_ITERATIONS
-    assert args.output == pathlib.Path("build/performance/structural-baseline.json")
-    assert args.child_run is False
+    assert args.mode == "both", "expected args.mode == 'both'"
+    assert args.iterations == structural_probe.DEFAULT_ITERATIONS, (
+        "expected args.iterations == structural_probe.DEFAULT..."
+    )
+    assert args.output == pathlib.Path("build/performance/structural-baseline.json"), (
+        "expected args.output == pathlib.Path('build/performa..."
+    )
+    assert args.child_run is False, "expected args.child_run is False"
 
 
 def test_argument_parser_rejects_unknown_mode() -> None:
@@ -261,7 +289,7 @@ def test_argument_parser_rejects_unknown_mode() -> None:
     parser = structural_probe._argument_parser()
     with pytest.raises(SystemExit) as exc_info:
         parser.parse_args(["--mode", "unknown"])
-    assert exc_info.value.code == 2
+    assert exc_info.value.code == 2, "expected exc_info.value.code == 2"
 
 
 def test_main_child_run_emits_duration_ns(capsys: pytest.CaptureFixture[str]) -> None:
@@ -272,7 +300,9 @@ def test_main_child_run_emits_duration_ns(capsys: pytest.CaptureFixture[str]) ->
         str(MARKDOWN_FIXTURE),
     ])
     captured = capsys.readouterr()
-    assert exit_code == 0
+    assert exit_code == 0, "expected exit_code == 0"
     payload = json.loads(captured.out)
-    assert isinstance(payload["duration_ns"], int)
-    assert payload["duration_ns"] >= 0
+    assert isinstance(payload["duration_ns"], int), (
+        "expected isinstance(payload['duration_ns'], int)"
+    )
+    assert payload["duration_ns"] >= 0, "expected payload['duration_ns'] >= 0"

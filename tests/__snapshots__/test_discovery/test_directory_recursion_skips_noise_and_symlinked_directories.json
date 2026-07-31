@@ -1,0 +1,10 @@
+[
+  {
+    "reported_path": "docs/alpha.md",
+    "resolved_path": "docs/alpha.md"
+  },
+  {
+    "reported_path": "docs/nested/beta.markdown",
+    "resolved_path": "docs/nested/beta.markdown"
+  }
+]

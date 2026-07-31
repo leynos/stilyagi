@@ -1,7 +1,5 @@
 """Config-file loading helpers for Stilyagi."""
 
-from __future__ import annotations
-
 import collections.abc as cabc
 import dataclasses as dc
 import logging
@@ -40,6 +38,18 @@ def _load_toml(path: pathlib.Path) -> cabc.Mapping[str, object]:
 
     A missing file propagates as ``FileNotFoundError``; any other read failure
     (a directory, permission denied) becomes a typed ``InvalidConfigError``.
+
+    Returns
+    -------
+    collections.abc.Mapping[str, object]
+        The parsed TOML document.
+
+    Raises
+    ------
+    FileNotFoundError
+        The requested configuration file does not exist.
+    InvalidConfigError
+        The configuration path cannot be read.
     """
     try:
         with path.open("rb") as handle:

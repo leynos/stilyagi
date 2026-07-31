@@ -23,6 +23,8 @@ type JSONType = dict[str, JSONType] | list[JSONType] | str | int | float | bool 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
+    from syrupy.assertion import SnapshotAssertion
+
 
 pytest_plugins = ("tests.steps.check_command",)
 
@@ -40,9 +42,11 @@ def reset_extraction_state() -> cabc.Iterator[None]:
 
 def test_public_package_re_exports_the_supported_boundaries() -> None:
     """Re-export the supported package boundaries from the public package."""
-    assert stilyagi.__all__ == ["engine", "hello", "model"]
-    assert stilyagi.engine is engine
-    assert stilyagi.model is model
+    assert stilyagi.__all__ == ["engine", "hello", "model"], (
+        "expected stilyagi.__all__ == ['engine', 'hello', 'mo..."
+    )
+    assert stilyagi.engine is engine, "expected stilyagi.engine is engine"
+    assert stilyagi.model is model, "expected stilyagi.model is model"
 
 
 @pytest.mark.parametrize(
@@ -68,19 +72,25 @@ def test_package_boundaries_re_export_their_documented_types(
     expected: list[str],
 ) -> None:
     """Re-export the documented boundary types from each package surface."""
-    assert module.__all__ == expected
+    assert module.__all__ == expected, "expected module.__all__ == expected"
 
 
 def test_plugin_entry_point_groups_match_the_documented_names() -> None:
     """Keep the plugin discovery constants stable."""
-    assert plugins.RULE_ENTRY_POINT_GROUP == "stilyagi.rules"
-    assert plugins.CAPABILITY_ENTRY_POINT_GROUP == "stilyagi.capabilities"
+    assert plugins.RULE_ENTRY_POINT_GROUP == "stilyagi.rules", (
+        "expected plugins.RULE_ENTRY_POINT_GROUP == 'stilyagi..."
+    )
+    assert plugins.CAPABILITY_ENTRY_POINT_GROUP == "stilyagi.capabilities", (
+        "expected plugins.CAPABILITY_ENTRY_POINT_GROUP == 'st..."
+    )
 
 
 def test_rules_package_re_exports_the_builtin_namespace() -> None:
     """Expose the built-in rule namespace from the rules package."""
-    assert rules.__all__ == ["builtin"]
-    assert rules.builtin.__doc__ is not None
+    assert rules.__all__ == ["builtin"], "expected rules.__all__ == ['builtin']"
+    assert rules.builtin.__doc__ is not None, (
+        "expected rules.builtin.__doc__ is not None"
+    )
 
 
 def test_stilyagi_config_uses_the_default_cache_directory() -> None:
@@ -95,7 +105,7 @@ def test_stilyagi_config_uses_the_default_cache_directory() -> None:
         nlp=config.NlpConfig(),
         rules={},
         reserved={},
-    )
+    ), "expected config.StilyagiConfig() == config.StilyagiC..."
 
 
 def test_stilyagi_config_rejects_a_blank_cache_directory() -> None:
@@ -118,50 +128,70 @@ def test_diagnostic_preserves_code_and_message() -> None:
         column=5,
     )
 
-    assert diagnostic == dc.replace(diagnostic)
+    assert diagnostic == dc.replace(diagnostic), (
+        "expected diagnostic == dc.replace(diagnostic)"
+    )
 
 
 def test_engine_skeleton_dataclasses_preserve_their_fields() -> None:
     """Keep the engine dataclasses predictable."""
     execution_plan = engine.ExecutionPlan(syntax="markdown")
 
-    assert execution_plan.syntax == "markdown"
-    assert engine.FixPlan(applicability="safe").applicability == "safe"
-    assert engine.RendererRegistry().default_format == "text"
-    assert engine.RendererRegistry().render([], "text") == "0 diagnostics found\n"
+    assert execution_plan.syntax == "markdown", (
+        "expected execution_plan.syntax == 'markdown'"
+    )
+    assert engine.FixPlan(applicability="safe").applicability == "safe", (
+        "expected engine.FixPlan(applicability='safe').applic..."
+    )
+    assert engine.RendererRegistry().default_format == "text", (
+        "expected engine.RendererRegistry().default_format ==..."
+    )
+    assert engine.RendererRegistry().render([], "text") == "0 diagnostics found\n", (
+        "expected engine.RendererRegistry().render([], 'text'..."
+    )
     assert engine.EngineRunner(execution_plan=execution_plan).execution_plan is (
         execution_plan
-    )
+    ), "expected engine.EngineRunner(execution_plan=executio..."
 
 
 def test_engine_extract_document_returns_a_model_document() -> None:
     """Expose one typed extraction entrypoint from the engine package."""
     document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
 
-    assert isinstance(document, model.Document)
-    assert document.syntax is model.Syntax.MARKDOWN
-    assert document.ir is not None
-    assert document.ir["schema_version"] == "1.1.0"
+    assert isinstance(document, model.Document), (
+        "expected isinstance(document, model.Document)"
+    )
+    assert document.syntax is model.Syntax.MARKDOWN, (
+        "expected document.syntax is model.Syntax.MARKDOWN"
+    )
+    assert document.ir is not None, "expected document.ir is not None"
+    assert document.ir["schema_version"] == "1.1.0", (
+        "expected document.ir['schema_version'] == '1.1.0'"
+    )
     ir_document = typ.cast("dict[str, JSONType]", document.ir["document"])
-    assert ir_document["path"] is None
-    assert ir_document["uri"] is None
+    assert ir_document["path"] is None, "expected ir_document['path'] is None"
+    assert ir_document["uri"] is None, "expected ir_document['uri'] is None"
 
 
 def test_engine_extract_document_maps_regions_into_model_regions() -> None:
     """Adapt the bridge payload into the Python model surface."""
     document = engine.extract_document("# Heading", model.Syntax.MARKDOWN)
 
-    assert document.regions == (model.Region(kind="heading", text="Heading"),)
+    assert document.regions == (model.Region(kind="heading", text="Heading"),), (
+        "expected document.regions == (model.Region(kind='hea..."
+    )
 
 
 def test_engine_extract_document_drops_blank_markdown_region() -> None:
     """Emit no regions for whitespace-only Markdown at the public boundary."""
     document = engine.extract_document("   \n", model.Syntax.MARKDOWN)
 
-    assert document.syntax is model.Syntax.MARKDOWN
-    assert document.regions == ()
-    assert document.ir is not None
-    assert document.ir["regions"] == []
+    assert document.syntax is model.Syntax.MARKDOWN, (
+        "expected document.syntax is model.Syntax.MARKDOWN"
+    )
+    assert document.regions == (), "expected document.regions == ()"
+    assert document.ir is not None, "expected document.ir is not None"
+    assert document.ir["regions"] == [], "expected document.ir['regions'] == []"
 
 
 def test_engine_extract_document_ir_matches_reviewed_rust_snapshot() -> None:
@@ -178,8 +208,10 @@ def test_engine_extract_document_ir_matches_reviewed_rust_snapshot() -> None:
         ),
     )
 
-    assert document.ir is not None
-    assert _normalize_ir_identity(document.ir) == _normalize_ir_identity(rust_snapshot)
+    assert document.ir is not None, "expected document.ir is not None"
+    assert _normalize_ir_identity(document.ir) == _normalize_ir_identity(
+        rust_snapshot
+    ), "expected _normalize_ir_identity(document.ir) == _nor..."
 
 
 def test_engine_extract_document_exposes_python_docstrings() -> None:
@@ -189,16 +221,18 @@ def test_engine_extract_document_exposes_python_docstrings() -> None:
         model.Syntax.PYTHON_DOCSTRING,
     )
 
-    assert document.syntax is model.Syntax.PYTHON_DOCSTRING
+    assert document.syntax is model.Syntax.PYTHON_DOCSTRING, (
+        "expected document.syntax is model.Syntax.PYTHON_DOCS..."
+    )
     assert [region.kind for region in document.regions] == [
         model.Syntax.PYTHON_DOCSTRING.value,
         model.Syntax.PYTHON_DOCSTRING.value,
-    ]
+    ], "expected [region.kind for region in document.regions..."
     assert [region.text for region in document.regions] == [
         "Module docs.",
         "Function docs.",
-    ]
-    assert document.ir is not None
+    ], "expected [region.text for region in document.regions..."
+    assert document.ir is not None, "expected document.ir is not None"
 
 
 def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
@@ -209,23 +243,15 @@ def test_engine_bridge_syntax_spellings_match_the_python_enum() -> None:
         model.Syntax.MARKDOWN.value,
         model.Syntax.PYTHON_DOCSTRING.value,
         model.Syntax.RUST_DOC_COMMENT.value,
-    )
+    ), "expected supported_syntaxes() == (model.Syntax.MARKD..."
 
 
-def test_engine_bridge_region_kind_spellings_match_the_rust_ir_vocab() -> None:
+def test_engine_bridge_region_kind_spellings_match_the_rust_ir_vocab(
+    snapshot: SnapshotAssertion,
+) -> None:
     """Expose the canonical Rust IR region kind spellings to Python."""
-    assert engine.supported_region_kinds() == (
-        "heading",
-        "paragraph",
-        "list_item",
-        "blockquote",
-        "table_cell",
-        "frontmatter",
-        "frontmatter_field",
-        "image_alt",
-        "link_title",
-        "python_docstring",
-        "rust_doc_comment",
+    assert engine.supported_region_kinds() == snapshot, (
+        "expected the bridge region vocabulary to match its r..."
     )
 
 
@@ -240,17 +266,23 @@ def test_extraction_state_reset_refreshes_region_kind_cache(
             lambda: ("first_kind",),
         )
         extraction_module._reset_extraction_state_for_tests()
-        assert extraction_module.supported_region_kinds() == ("first_kind",)
+        assert extraction_module.supported_region_kinds() == ("first_kind",), (
+            "expected extraction_module.supported_region_kinds() ..."
+        )
 
         patch.setattr(
             extraction_module,
             "bridge_supported_region_kinds",
             lambda: ("second_kind",),
         )
-        assert extraction_module.supported_region_kinds() == ("first_kind",)
+        assert extraction_module.supported_region_kinds() == ("first_kind",), (
+            "expected extraction_module.supported_region_kinds() ..."
+        )
 
         extraction_module._reset_extraction_state_for_tests()
-        assert extraction_module.supported_region_kinds() == ("second_kind",)
+        assert extraction_module.supported_region_kinds() == ("second_kind",), (
+            "expected extraction_module.supported_region_kinds() ..."
+        )
 
 
 def test_syntax_vocab_validation_is_resettable_for_bridge_tests(
@@ -311,7 +343,7 @@ def test_syntax_vocab_validation_is_shared_by_concurrent_callers(
         for future in futures:
             future.result()
 
-    assert call_count == 1
+    assert call_count == 1, "expected call_count == 1"
 
 
 @pytest.mark.parametrize(
@@ -339,8 +371,10 @@ def test_extract_document_preserves_unknown_ir_region_kind(
 
     def bridge_payload(source: str, syntax: str) -> dict[str, object]:
         """Return a bridge payload with a future IR kind."""
-        assert source == "Example"
-        assert syntax == model.Syntax.MARKDOWN.value
+        assert source == "Example", "expected source == 'Example'"
+        assert syntax == model.Syntax.MARKDOWN.value, (
+            "expected syntax == model.Syntax.MARKDOWN.value"
+        )
         return {
             "syntax": syntax,
             "regions": [],
@@ -355,22 +389,26 @@ def test_extract_document_preserves_unknown_ir_region_kind(
 
     document = extract_document("Example", model.Syntax.MARKDOWN)
 
-    assert document.ir is not None
-    assert document.ir["regions"] == [{"kind": "future_kind", "text": "Example"}]
+    assert document.ir is not None, "expected document.ir is not None"
+    assert document.ir["regions"] == [{"kind": "future_kind", "text": "Example"}], (
+        "expected document.ir['regions'] == [<'kind': 'future..."
+    )
     records = [
         record
         for record in caplog.records
         if record.name == "stilyagi.engine.extraction"
     ]
     if expected_warning_args is None:
-        assert records == []
+        assert records == [], "expected records == []"
     else:
-        assert len(records) == 1
+        assert len(records) == 1, "expected len(records) == 1"
         assert records[0].message == (
             "Unknown IR region kind from Rust bridge during "
             "stilyagi.engine.extract_document: index=0 kind='future_kind'"
+        ), 'expected records[0].message == "Unknown IR region ki...'
+        assert records[0].args == expected_warning_args, (
+            "expected records[0].args == expected_warning_args"
         )
-        assert records[0].args == expected_warning_args
 
 
 def test_engine_extract_document_exposes_rust_doc_comments() -> None:
@@ -380,32 +418,44 @@ def test_engine_extract_document_exposes_rust_doc_comments() -> None:
         model.Syntax.RUST_DOC_COMMENT,
     )
 
-    assert document.syntax is model.Syntax.RUST_DOC_COMMENT
+    assert document.syntax is model.Syntax.RUST_DOC_COMMENT, (
+        "expected document.syntax is model.Syntax.RUST_DOC_CO..."
+    )
     assert [region.kind for region in document.regions] == [
         model.Syntax.RUST_DOC_COMMENT.value,
-    ]
+    ], "expected [region.kind for region in document.regions..."
     assert [region.text for region in document.regions] == [
         " Rust doc comment",
-    ]
+    ], "expected [region.text for region in document.regions..."
 
 
 def test_model_skeleton_dataclasses_preserve_defaults_and_children() -> None:
     """Keep the model placeholder dataclasses predictable."""
     region = model.Region(kind="paragraph", text="Hello")
 
-    assert not model.Document(syntax=model.Syntax.MARKDOWN).regions
-    assert model.Document(syntax=model.Syntax.MARKDOWN).ir is None
+    assert not model.Document(syntax=model.Syntax.MARKDOWN).regions, (
+        "expected not model.Document(syntax=model.Syntax.MARK..."
+    )
+    assert model.Document(syntax=model.Syntax.MARKDOWN).ir is None, (
+        "expected model.Document(syntax=model.Syntax.MARKDOWN..."
+    )
     assert model.Document(
         syntax=model.Syntax.MARKDOWN,
         regions=(region,),
-    ).regions == (region,)
-    assert model.Sentence(text="Hello world").text == "Hello world"
-    assert model.Token(text="Hello").text == "Hello"
+    ).regions == (region,), "expected model.Document(syntax=model.Syntax.MARKDOWN..."
+    assert model.Sentence(text="Hello world").text == "Hello world", (
+        "expected model.Sentence(text='Hello world').text == ..."
+    )
+    assert model.Token(text="Hello").text == "Hello", (
+        "expected model.Token(text='Hello').text == 'Hello'"
+    )
 
 
 def test_spacy_provider_config_uses_the_default_model_name() -> None:
     """Apply the documented default spaCy model identifier."""
-    assert nlp.SpacyProviderConfig().model == "en_core_web_sm"
+    assert nlp.SpacyProviderConfig().model == "en_core_web_sm", (
+        "expected nlp.SpacyProviderConfig().model == 'en_core..."
+    )
 
 
 def test_spacy_provider_config_rejects_a_blank_model_name() -> None:
@@ -433,7 +483,9 @@ class DummyProvider:
 
 def test_nlp_provider_protocol_accepts_matching_provider_objects() -> None:
     """Accept objects that satisfy the NLP provider protocol."""
-    assert isinstance(DummyProvider(), RuntimeCheckableNlpProvider)
+    assert isinstance(DummyProvider(), RuntimeCheckableNlpProvider), (
+        "expected isinstance(DummyProvider(), RuntimeCheckabl..."
+    )
 
 
 def _load_insta_json_snapshot(path: pathlib.Path) -> dict[str, JSONType]:
@@ -442,7 +494,7 @@ def _load_insta_json_snapshot(path: pathlib.Path) -> dict[str, JSONType]:
         "\n---\n", maxsplit=1
     )
     parsed = json.loads(json_payload)
-    assert isinstance(parsed, dict)
+    assert isinstance(parsed, dict), "expected isinstance(parsed, dict)"
     return typ.cast("dict[str, JSONType]", parsed)
 
 
@@ -479,6 +531,10 @@ def test_python_module_entrypoint_reports_invalid_config(
         text=True,
     )
 
-    assert completed.returncode == 2
-    assert "stilyagi check:" in completed.stderr
-    assert "toml" in completed.stderr.lower()
+    assert completed.returncode == 2, "expected completed.returncode == 2"
+    assert "stilyagi check:" in completed.stderr, (
+        "expected 'stilyagi check:' in completed.stderr"
+    )
+    assert "toml" in completed.stderr.lower(), (
+        "expected 'toml' in completed.stderr.lower()"
+    )

@@ -146,10 +146,16 @@ def test_makefile_targets_run_expected_recipes(
     joined_recipe = "\n".join(recipe)
 
     for expected_header_fragment in case.expected_header_fragments:
-        assert expected_header_fragment in header
+        assert expected_header_fragment in header, (
+            "expected expected_header_fragment in header"
+        )
     for expected_recipe_fragment in case.expected_recipe_fragments:
-        assert expected_recipe_fragment in joined_recipe
+        assert expected_recipe_fragment in joined_recipe, (
+            "expected expected_recipe_fragment in joined_recipe"
+        )
     if case.should_include_pytest:
-        assert '"$$VENV_PYTHON" -m pytest -v' in recipe
+        assert '"$$VENV_PYTHON" -m pytest -v' in recipe, (
+            "expected '\"$$VENV_PYTHON\" -m pytest -v' in recipe"
+        )
     else:
-        assert "pytest" not in joined_recipe
+        assert "pytest" not in joined_recipe, "expected 'pytest' not in joined_recipe"

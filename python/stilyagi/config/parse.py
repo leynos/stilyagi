@@ -1,7 +1,5 @@
 """Parse raw config tables into typed configuration objects."""
 
-from __future__ import annotations
-
 import collections.abc as cabc
 import dataclasses as dc
 import pathlib
@@ -241,11 +239,13 @@ def _parse_cache_dir(
 ) -> pathlib.Path:
     """Parse the `cache-dir` value into a path object."""
     value = table.get("cache-dir", pathlib.Path(".stilyagi_cache"))
-    if isinstance(value, pathlib.Path):
-        return value
-    if isinstance(value, str):
-        return pathlib.Path(value)
-    raise InvalidConfigError(path, "cache-dir", "must be a string")
+    match value:
+        case pathlib.Path():
+            return value
+        case str():
+            return pathlib.Path(value)
+        case _:
+            raise InvalidConfigError(path, "cache-dir", "must be a string")
 
 
 def _build_reserved_table(

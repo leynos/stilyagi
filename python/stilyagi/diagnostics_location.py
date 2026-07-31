@@ -52,6 +52,11 @@ def _normalised_line_starts(
 ) -> tuple[int, ...] | None:
     """Return validated line starts anchored at offset zero.
 
+    Returns
+    -------
+    tuple[int, ...] | None
+        Normalised line starts, or ``None`` when the input is empty or invalid.
+
     Examples
     --------
     >>> _normalised_line_starts((6, 12))
@@ -76,6 +81,11 @@ def _normalised_line_starts(
 
 def _line_number_for_position(starts: tuple[int, ...], position: int) -> int:
     """Return the 0-based line number containing a byte position.
+
+    Returns
+    -------
+    int
+        The zero-based line number containing the position.
 
     Examples
     --------

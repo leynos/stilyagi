@@ -1,7 +1,5 @@
 """Configuration schema objects for Stilyagi."""
 
-from __future__ import annotations
-
 import collections.abc as cabc
 import dataclasses as dc
 import pathlib
@@ -10,12 +8,14 @@ import typing as typ
 
 def _coerce_path(value: object, *, field_name: str) -> pathlib.Path:
     """Normalise a cache-directory value to a path object."""
-    if isinstance(value, pathlib.Path):
-        return value
-    if isinstance(value, str):
-        return pathlib.Path(value)
-    message = f"{field_name} must be a path or string"
-    raise TypeError(message)
+    match value:
+        case pathlib.Path():
+            return value
+        case str():
+            return pathlib.Path(value)
+        case _:
+            message = f"{field_name} must be a path or string"
+            raise TypeError(message)
 
 
 def _coerce_string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:

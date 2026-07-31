@@ -90,12 +90,12 @@ def _reset_extraction_state_for_tests() -> None:
     global _SYNTAX_VOCAB_VALIDATED
     with _SYNTAX_VOCAB_LOCK:
         _SYNTAX_VOCAB_VALIDATED = False
-        _supported_region_kinds.cache_clear()
+        supported_region_kinds.cache_clear()
         _known_ir_region_kinds.cache_clear()
 
 
 @cache
-def _supported_region_kinds() -> tuple[str, ...]:
+def supported_region_kinds() -> tuple[str, ...]:
     """Return bridge region kinds, loaded lazily to keep imports side-effect free."""
     return bridge_supported_region_kinds()
 
@@ -103,18 +103,7 @@ def _supported_region_kinds() -> tuple[str, ...]:
 @cache
 def _known_ir_region_kinds() -> frozenset[str]:
     """Return the cached canonical region-kind lookup set."""
-    return frozenset(_supported_region_kinds())
-
-
-def supported_region_kinds() -> tuple[str, ...]:
-    """Return the stable IR region-kind spellings advertised by the bridge.
-
-    Returns
-    -------
-    tuple[str, ...]
-        Canonical region-kind spellings in bridge order.
-    """
-    return _supported_region_kinds()
+    return frozenset(supported_region_kinds())
 
 
 def extract_document(source: str, syntax: model.Syntax) -> model.Document:

@@ -6,6 +6,10 @@ import typing as typ
 
 import pytest
 from pytest_bdd import given, scenario, then, when
+from syrupy.extensions.json import JSONSnapshotExtension
+
+if typ.TYPE_CHECKING:
+    from syrupy.assertion import SnapshotAssertion
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORPUS_ROOT = REPOSITORY_ROOT / "tests" / "fixtures" / "corpus"
@@ -144,10 +148,12 @@ def test_each_syntax_has_valid_and_malformed_fixtures(
         if fixture.syntax == syntax and fixture.text
     }
 
-    assert categories == {"valid", "malformed"}
+    assert categories == {"valid", "malformed"}, (
+        "expected categories == <'valid', 'malformed'>"
+    )
 
 
-def test_corpus_covers_required_source_shapes() -> None:
+def test_corpus_covers_required_source_shapes(snapshot: SnapshotAssertion) -> None:
     """The first corpus covers source shapes required by roadmap item 1.3.1."""
     markdown = corpus_fixture(
         "markdown",
@@ -161,19 +167,35 @@ def test_corpus_covers_required_source_shapes() -> None:
     )
     rust = corpus_fixture("rust", "valid", "item-doc-comments.rs")
 
-    assert "# Fixture Heading" in markdown.text
-    assert "Term" in markdown.text
-    assert "Meaning" in markdown.text
-    assert "Intermediate representation" in markdown.text
-    assert "[Stilyagi design]" in markdown.text
-    assert "stilyagi-disable-next-line" in markdown.text
-    assert '"""Module docstring' in python.text
-    assert '"""Class docstring' in python.text
-    assert '"""Use a function docstring' in python.text
-    assert "stilyagi: ignore-next" in python.text
-    assert "/// Item-level documentation comment" in rust.text
-    assert "//! Crate-level documentation comment" in rust.text
-    assert "stilyagi: ignore-next" in rust.text
+    expected_fragments = {
+        "markdown": (
+            "# Fixture Heading",
+            "Term",
+            "Meaning",
+            "Intermediate representation",
+            "[Stilyagi design]",
+            "stilyagi-disable-next-line",
+        ),
+        "python": (
+            '"""Module docstring',
+            '"""Class docstring',
+            '"""Use a function docstring',
+            "stilyagi: ignore-next",
+        ),
+        "rust": (
+            "/// Item-level documentation comment",
+            "//! Crate-level documentation comment",
+            "stilyagi: ignore-next",
+        ),
+    }
+    fixture_text = {"markdown": markdown.text, "python": python.text, "rust": rust.text}
+    observed_fragments = {
+        syntax: {fragment: fragment in fixture_text[syntax] for fragment in fragments}
+        for syntax, fragments in expected_fragments.items()
+    }
+    assert observed_fragments == snapshot(extension_class=JSONSnapshotExtension), (
+        "expected every required source-shape fragment to be ..."
+    )
 
 
 def test_malformed_fixtures_remain_readable_sources(
@@ -188,24 +210,34 @@ def test_malformed_fixtures_remain_readable_sources(
         "markdown",
         "python",
         "rust",
-    }
-    assert all(fixture.text for fixture in malformed_fixtures)
+    }, "expected <fixture.syntax for fixture in malformed_fi..."
+    assert all(fixture.text for fixture in malformed_fixtures), (
+        "expected all((fixture.text for fixture in malformed_..."
+    )
 
     for fixture in malformed_fixtures:
         if fixture.syntax == "python":
-            assert fixture.path.name.endswith(MALFORMED_PYTHON_EXTENSION)
-            assert fixture.path.suffixes[-2:] == [".py", ".txt"]
+            assert fixture.path.name.endswith(MALFORMED_PYTHON_EXTENSION), (
+                "expected fixture.path.name.endswith(MALFORMED_PYTHON..."
+            )
+            assert fixture.path.suffixes[-2:] == [".py", ".txt"], (
+                "expected fixture.path.suffixes[-2:] == ['.py', '.txt']"
+            )
         else:
             expected_suffixes = _extensions_for_syntax_category(
                 fixture.syntax,
                 fixture.category,
             )
-            assert _has_allowed_suffix(fixture.path, expected_suffixes)
+            assert _has_allowed_suffix(fixture.path, expected_suffixes), (
+                "expected _has_allowed_suffix(fixture.path, expected_..."
+            )
 
 
 def test_malformed_python_fixtures_require_text_extension() -> None:
     """Malformed Python fixtures use the explicit source-as-text convention."""
-    assert _extensions_for_syntax_category("python", "malformed") == (".py.txt",)
+    assert _extensions_for_syntax_category("python", "malformed") == (".py.txt",), (
+        "expected _extensions_for_syntax_category('python', '..."
+    )
 
 
 class CorpusState(typ.TypedDict, total=False):
@@ -237,7 +269,9 @@ def every_v1_syntax_has_valid_and_malformed_fixtures(
         categories = {
             fixture.category for fixture in fixtures if fixture.syntax == syntax
         }
-        assert categories == {"valid", "malformed"}
+        assert categories == {"valid", "malformed"}, (
+            "expected categories == <'valid', 'malformed'>"
+        )
 
 
 @then("malformed fixtures can be read without executing them")
@@ -250,11 +284,15 @@ def malformed_fixtures_can_be_read_without_executing_them(
         fixture.path for fixture in fixtures if fixture.category == "malformed"
     ]
 
-    assert all(isinstance(path, pathlib.Path) for path in malformed_paths)
-    assert all(path.exists() for path in malformed_paths)
+    assert all(isinstance(path, pathlib.Path) for path in malformed_paths), (
+        "expected all((isinstance(path, pathlib.Path) for pat..."
+    )
+    assert all(path.exists() for path in malformed_paths), (
+        "expected all((path.exists() for path in malformed_pa..."
+    )
 
 
 def _state_fixtures(corpus_state: CorpusState) -> tuple[CorpusFixture, ...]:
     """Return loaded fixtures from scenario state."""
-    assert "fixtures" in corpus_state
+    assert "fixtures" in corpus_state, "expected 'fixtures' in corpus_state"
     return typ.cast("tuple[CorpusFixture, ...]", corpus_state["fixtures"])

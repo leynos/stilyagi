@@ -132,12 +132,6 @@ def load_policy(repository: pathlib.Path) -> PhrasePolicy:
     ------
     FileNotFoundError
         A required generated or shared policy file is missing.
-    OSError
-        A policy file cannot be read.
-    TypeError
-        A policy document contains a value of the wrong shape.
-    tomllib.TOMLDecodeError
-        A policy file contains invalid TOML.
     """
     generated = _document(repository / "typos.toml")
     shared_cache = repository / ".typos-oxendict-base.toml"
@@ -238,14 +232,6 @@ def check_phrase_corrections(
     tuple[PhraseFinding, ...]
         Findings in deterministic path, phrase, and source order.
 
-    Raises
-    ------
-    OSError
-        An eligible tracked file cannot be read.
-    UnicodeDecodeError
-        An eligible tracked file is not UTF-8 text.
-    plumbum.commands.processes.ProcessExecutionError
-        Git cannot enumerate the repository's tracked files.
     """
     found: list[PhraseFinding] = []
     exclusion_spec = _exclusion_spec(policy)
@@ -271,20 +257,8 @@ def run(repository: pathlib.Path | None = None) -> None:
 
     Raises
     ------
-    FileNotFoundError
-        A required generated or shared policy file is missing.
-    OSError
-        A policy file or eligible tracked file cannot be read.
-    TypeError
-        A policy document contains a value of the wrong shape.
-    UnicodeDecodeError
-        An eligible tracked file is not UTF-8 text.
-    plumbum.commands.processes.ProcessExecutionError
-        Git cannot enumerate the repository's tracked files.
     SystemExit
         Prohibited phrases were found.
-    tomllib.TOMLDecodeError
-        A policy file contains invalid TOML.
     """
     repository = pathlib.Path.cwd() if repository is None else repository
     findings = check_phrase_corrections(repository, load_policy(repository))

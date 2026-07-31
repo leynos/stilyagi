@@ -21,7 +21,17 @@ PYLINT_PYTHON ?= pypy
 PYLINT_TARGETS ?= python/stilyagi tests
 PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b
 PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)
-PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy
+DF12_PYTHON_LINTS_REF ?= v0.1.0
+DF12_PYTHON_LINTS = git+https://github.com/leynos/df12-python-lints.git@$(DF12_PYTHON_LINTS_REF)
+DF12_PYTHON ?= 3.14
+PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) \
+	--from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=
+DF12_PYLINT_MESSAGES = R9101,C9102,R9103,R9104,C9105,C9106,C9107,R9108,R9109,R9110,R9111,C9112
+DF12_PYLINT = $(UV_ENV) $(UV) run --python $(DF12_PYTHON) pylint \
+	--disable=all --load-plugins=df12_python_lints \
+	--enable=$(DF12_PYLINT_MESSAGES)
+AMBRLEAKS = $(UV_ENV) $(UV) tool run --python $(DF12_PYTHON) \
+	--from '$(DF12_PYTHON_LINTS)' ambrleaks
 SKYLOS_VERSION = 4.33.2
 # Skylos parses source using its own Python AST, so Python 3.14 prevents
 # phantom dead-code findings from syntax older tool runtimes cannot parse.
@@ -155,6 +165,8 @@ lint: tools-lint ## Run linters, including Whitaker and Skylos dead-code checks
 	$(UV_RUN) ruff check
 	$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
+	$(DF12_PYLINT) $(PYLINT_TARGETS)
+	$(AMBRLEAKS) tests
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
 	$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)

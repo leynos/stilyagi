@@ -1,7 +1,5 @@
 """Render diagnostics in stable text and JSON formats."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 import json
 import logging
@@ -51,6 +49,11 @@ class RendererRegistry:
         str
             The rendered diagnostics in the requested format, terminated by a
             trailing newline.
+
+        Raises
+        ------
+        ValueError
+            The requested output format is not supported.
         """
         effective_format = output_format or self.default_format
         ordered_diagnostics = sorted(

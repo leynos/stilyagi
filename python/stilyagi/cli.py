@@ -45,6 +45,11 @@ class CheckInput:
 def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Run the Stilyagi command-line interface.
 
+    Returns
+    -------
+    int
+        The command exit status.
+
     Examples
     --------
     >>> main(["check", "--version"])  # doctest: +SKIP
@@ -126,6 +131,12 @@ def run_check(
     renderer:
         Renderer used to serialise diagnostics. Defaults to a new
         :class:`~stilyagi.engine.RendererRegistry`.
+
+    Returns
+    -------
+    int
+        Zero when the check succeeds without findings, one when diagnostics
+        are found, or two when an operational error occurs.
     """
     resolver = resolver if resolver is not None else config.ConfigResolver()
     renderer = renderer if renderer is not None else engine.RendererRegistry()
@@ -170,6 +181,12 @@ def compute_exit_code(
     had_error: bool = False,
 ) -> int:
     """Return the documented exit code for one check run.
+
+    Returns
+    -------
+    int
+        Zero for success, one for diagnostics, or two for an operational
+        error.
 
     Examples
     --------
@@ -224,6 +241,11 @@ def _resolve_discovery_config(
     configuration resolved for the current working directory rather than by any
     individual file's nearest config. Resolving it here keeps ``--isolated``,
     explicit ``--config`` values, and CLI overrides in force during discovery.
+
+    Returns
+    -------
+    config.StilyagiConfig
+        The configuration used to discover Markdown inputs.
     """
     return resolver.resolve_config_for_path(
         pathlib.Path(),

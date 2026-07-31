@@ -10,7 +10,9 @@ def test_hello_uses_rust_extension() -> None:
     """The relocated package should still expose the Rust greeting."""
     importlib.import_module("stilyagi.engine")
     importlib.import_module("stilyagi.model")
-    assert stilyagi.hello() == "hello from Rust"
+    assert stilyagi.hello() == "hello from Rust", (
+        "expected stilyagi.hello() == 'hello from Rust'"
+    )
 
 
 def test_legacy_pure_python_fallback_is_not_importable() -> None:

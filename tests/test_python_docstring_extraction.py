@@ -165,8 +165,10 @@ def test_python_docstring_ir_matches_reviewed_rust_snapshot() -> None:
     document = engine.extract_document(source, model.Syntax.PYTHON_DOCSTRING)
     rust_snapshot = _load_insta_json_snapshot(REPOSITORY_ROOT / RUST_PYTHON_SNAPSHOT)
 
-    assert document.ir is not None
-    assert _normalize_python_ir(document.ir) == _normalize_python_ir(rust_snapshot)
+    assert document.ir is not None, "expected document.ir is not None"
+    assert _normalize_python_ir(document.ir) == _normalize_python_ir(rust_snapshot), (
+        "expected _normalize_python_ir(document.ir) == _norma..."
+    )
 
 
 def test_shared_python_fixture_ir_matches_json_snapshot(
@@ -176,10 +178,10 @@ def test_shared_python_fixture_ir_matches_json_snapshot(
     source = _fixture_source(SHARED_PYTHON_FIXTURE)
     document = engine.extract_document(source, model.Syntax.PYTHON_DOCSTRING)
 
-    assert document.ir is not None
+    assert document.ir is not None, "expected document.ir is not None"
     assert _normalize_python_ir(document.ir) == snapshot(
         extension_class=JSONSnapshotExtension,
-    )
+    ), "expected _normalize_python_ir(document.ir) == snapsh..."
 
 
 @hyp.given(
@@ -203,9 +205,13 @@ def test_generated_function_docstrings_preserve_owner_and_text(
     source = f'def {name}():\n    """{body}"""\n'
     document = engine.extract_document(source, model.Syntax.PYTHON_DOCSTRING)
 
-    assert [region.text for region in document.regions] == [body]
+    assert [region.text for region in document.regions] == [body], (
+        "expected [region.text for region in document.regions..."
+    )
     region = _python_docstring_ir_regions(_require_ir(document))[0]
-    assert _owner_tuple(region) == ("function", name, name)
+    assert _owner_tuple(region) == ("function", name, name), (
+        "expected _owner_tuple(region) == ('function', name, ..."
+    )
 
 
 def _fixture_source(relative_path: pathlib.Path) -> str:
@@ -216,7 +222,7 @@ def _fixture_source(relative_path: pathlib.Path) -> str:
 def _scenario_document(state: PythonDocstringState) -> model.Document:
     """Return the extracted document from BDD scenario state."""
     document = state["document"]
-    assert document is not None
+    assert document is not None, "expected document is not None"
     return document
 
 
@@ -227,7 +233,7 @@ def _scenario_ir(state: PythonDocstringState) -> cabc.Mapping[str, JSONType]:
 
 def _require_ir(document: model.Document) -> cabc.Mapping[str, JSONType]:
     """Return a document IR payload, failing if it is absent."""
-    assert document.ir is not None
+    assert document.ir is not None, "expected document.ir is not None"
     return typ.cast("cabc.Mapping[str, JSONType]", document.ir)
 
 
@@ -257,14 +263,14 @@ def _load_insta_json_snapshot(path: pathlib.Path) -> dict[str, JSONType]:
         "\n---\n", maxsplit=1
     )
     parsed = json.loads(json_payload)
-    assert isinstance(parsed, dict)
+    assert isinstance(parsed, dict), "expected isinstance(parsed, dict)"
     return typ.cast("dict[str, JSONType]", parsed)
 
 
 def _normalize_python_ir(ir: cabc.Mapping[str, JSONType]) -> dict[str, JSONType]:
     """Normalize volatile producer and source-identity fields for snapshots."""
     normalized = json.loads(json.dumps(ir))
-    assert isinstance(normalized, dict)
+    assert isinstance(normalized, dict), "expected isinstance(normalized, dict)"
 
     document = typ.cast("dict[str, JSONType]", normalized["document"])
     document["content_hash"] = "<content-hash>"

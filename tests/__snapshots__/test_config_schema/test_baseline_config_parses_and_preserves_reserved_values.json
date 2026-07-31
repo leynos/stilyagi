@@ -1,0 +1,14 @@
+{
+  "fixable": [
+    "ALL"
+  ],
+  "per-file-ignores": {
+    "CHANGELOG.md": [
+      "PUN201"
+    ],
+    "tests/**": [
+      "PYDOC"
+    ]
+  },
+  "unfixable": []
+}

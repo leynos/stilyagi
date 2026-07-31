@@ -31,7 +31,7 @@ def test_map_ir_errors_maps_a_synthetic_error_to_a_diagnostic() -> None:
             line=2,
             column=2,
         ),
-    ]
+    ], "expected map_ir_errors(document, 'docs/example.md') ..."
 
 
 def test_map_ir_errors_handles_empty_or_missing_ir_errors() -> None:
@@ -44,8 +44,12 @@ def test_map_ir_errors_handles_empty_or_missing_ir_errors() -> None:
         syntax=model.Syntax.MARKDOWN,
     )
 
-    assert not map_ir_errors(empty_document, "docs/example.md")
-    assert not map_ir_errors(none_document, "docs/example.md")
+    assert not map_ir_errors(empty_document, "docs/example.md"), (
+        "expected not map_ir_errors(empty_document, 'docs/exa..."
+    )
+    assert not map_ir_errors(none_document, "docs/example.md"), (
+        "expected not map_ir_errors(none_document, 'docs/exam..."
+    )
 
 
 def test_map_ir_errors_keeps_real_malformed_markdown_clean() -> None:
@@ -59,6 +63,8 @@ def test_map_ir_errors_keeps_real_malformed_markdown_clean() -> None:
             model.Syntax.MARKDOWN,
         )
 
-        assert document.ir is not None
-        assert document.ir["errors"] == []
-        assert not map_ir_errors(document, fixture_path.as_posix())
+        assert document.ir is not None, "expected document.ir is not None"
+        assert document.ir["errors"] == [], "expected document.ir['errors'] == []"
+        assert not map_ir_errors(document, fixture_path.as_posix()), (
+            "expected not map_ir_errors(document, fixture_path.as..."
+        )

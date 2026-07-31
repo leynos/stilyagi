@@ -1,0 +1,16 @@
+# serializer version: 1
+# name: test_engine_bridge_region_kind_spellings_match_the_rust_ir_vocab
+  tuple(
+    'heading',
+    'paragraph',
+    'list_item',
+    'blockquote',
+    'table_cell',
+    'frontmatter',
+    'frontmatter_field',
+    'image_alt',
+    'link_title',
+    'python_docstring',
+    'rust_doc_comment',
+  )
+# ---

@@ -1,0 +1,21 @@
+{
+  "markdown": {
+    "# Fixture Heading": true,
+    "Intermediate representation": true,
+    "Meaning": true,
+    "Term": true,
+    "[Stilyagi design]": true,
+    "stilyagi-disable-next-line": true
+  },
+  "python": {
+    "\"\"\"Class docstring": true,
+    "\"\"\"Module docstring": true,
+    "\"\"\"Use a function docstring": true,
+    "stilyagi: ignore-next": true
+  },
+  "rust": {
+    "//! Crate-level documentation comment": true,
+    "/// Item-level documentation comment": true,
+    "stilyagi: ignore-next": true
+  }
+}

@@ -1,17 +1,11 @@
 """Property tests for deterministic Markdown discovery."""
 
-from __future__ import annotations
-
 import pathlib
 import shutil
-import typing as typ
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from stilyagi import config, discovery
-
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
 
 PATH_COMPONENT = st.text(
     alphabet="abcdefghijklmnopqrstuvwxyz0123456789_",
@@ -23,7 +17,7 @@ MARKDOWN_SUFFIX = st.sampled_from((".md", ".markdown"))
 
 @st.composite
 def relative_markdown_path_strings(
-    draw: cabc.Callable[[st.SearchStrategy[object]], object],
+    draw: st.DrawFn,
 ) -> str:
     """Draw one relative Markdown path string."""
     directories = draw(
@@ -73,4 +67,4 @@ def test_discovery_is_sorted_and_preserves_reported_paths(
     ]
     expected.sort(key=lambda file: file.resolved_path.as_posix())
 
-    assert files == expected
+    assert files == expected, "expected files == expected"

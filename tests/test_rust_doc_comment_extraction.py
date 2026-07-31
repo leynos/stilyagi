@@ -101,19 +101,21 @@ def rust_document_contains_doc_comment_regions(
     """Assert the typed Rust region surface."""
     document = _scenario_document(rust_doc_comment_state)
 
-    assert document.syntax is model.Syntax.RUST_DOC_COMMENT
+    assert document.syntax is model.Syntax.RUST_DOC_COMMENT, (
+        "expected document.syntax is model.Syntax.RUST_DOC_CO..."
+    )
     assert [region.kind for region in document.regions] == [
         "rust_doc_comment",
         "rust_doc_comment",
         "rust_doc_comment",
         "rust_doc_comment",
-    ]
+    ], "expected [region.kind for region in document.regions..."
     assert [region.text for region in document.regions] == [
         " Crate-level documentation comment for the shared Stilyagi corpus.",
         " Item-level documentation comment used by later Rust extraction slices.",
         " Method documentation comment with extractable prose.",
         " Function documentation comment after a suppression marker.",
-    ]
+    ], "expected [region.text for region in document.regions..."
 
 
 @then("the Rust IR records owner metadata")
@@ -130,7 +132,7 @@ def rust_ir_records_owner_metadata(rust_doc_comment_state: RustDocCommentState) 
             "FixtureExample::documented_value",
         ),
         ("function", "fixture_function", "fixture_function"),
-    ]
+    ], "expected [_owner_tuple(region) for region in regions..."
 
 
 @then("the Rust document contains the crate doc-comment")
@@ -142,7 +144,7 @@ def rust_document_contains_the_crate_doc_comment(
 
     assert [region.text for region in document.regions] == [
         " Crate-level documentation before malformed Rust source.",
-    ]
+    ], "expected [region.text for region in document.regions..."
 
 
 @then("the Rust IR records a recoverable parse error")
@@ -153,11 +155,11 @@ def rust_ir_records_a_recoverable_parse_error(
     ir = _scenario_ir(rust_doc_comment_state)
     errors = typ.cast("list[dict[str, JSONType]]", ir["errors"])
 
-    assert errors
+    assert errors, "expected errors"
     assert {error["code"] for error in errors} == {
         "rust-doc-comment-error-subtree",
         "rust-parse-recovery",
-    }
+    }, "expected <error['code'] for error in errors> == <'ru..."
 
 
 def test_rust_doc_comment_ir_matches_reviewed_rust_snapshot() -> None:
@@ -166,7 +168,7 @@ def test_rust_doc_comment_ir_matches_reviewed_rust_snapshot() -> None:
     document = engine.extract_document(source, model.Syntax.RUST_DOC_COMMENT)
     rust_snapshot = load_insta_json_snapshot(REPOSITORY_ROOT / RUST_IR_SNAPSHOT)
 
-    assert document.ir is not None
+    assert document.ir is not None, "expected document.ir is not None"
     assert normalize_ir_identity(
         document.ir,
         producer_name="tree-sitter-rust",
@@ -175,7 +177,7 @@ def test_rust_doc_comment_ir_matches_reviewed_rust_snapshot() -> None:
         rust_snapshot,
         producer_name="tree-sitter-rust",
         producer_version_placeholder="<tree-sitter-rust-version>",
-    )
+    ), "expected normalize_ir_identity(document.ir, producer..."
 
 
 def test_shared_rust_fixture_ir_matches_json_snapshot(
@@ -185,14 +187,14 @@ def test_shared_rust_fixture_ir_matches_json_snapshot(
     source = _fixture_source(SHARED_RUST_FIXTURE)
     document = engine.extract_document(source, model.Syntax.RUST_DOC_COMMENT)
 
-    assert document.ir is not None
+    assert document.ir is not None, "expected document.ir is not None"
     assert normalize_ir_identity(
         document.ir,
         producer_name="tree-sitter-rust",
         producer_version_placeholder="<tree-sitter-rust-version>",
     ) == snapshot(
         extension_class=JSONSnapshotExtension,
-    )
+    ), "expected normalize_ir_identity(document.ir, producer..."
 
 
 @hyp.given(
@@ -216,9 +218,13 @@ def test_generated_rust_doc_comments_preserve_owner_and_text(
     source = f"/// {body}\npub fn {name}() {{}}\n"
     document = engine.extract_document(source, model.Syntax.RUST_DOC_COMMENT)
 
-    assert [region.text for region in document.regions] == [f" {body}"]
+    assert [region.text for region in document.regions] == [f" {body}"], (
+        "expected [region.text for region in document.regions..."
+    )
     region = _rust_doc_comment_ir_regions(_require_ir(document))[0]
-    assert _owner_tuple(region) == ("function", name, name)
+    assert _owner_tuple(region) == ("function", name, name), (
+        "expected _owner_tuple(region) == ('function', name, ..."
+    )
 
 
 def test_rust_doc_comments_survive_attribute_interleaving() -> None:
@@ -228,13 +234,13 @@ def test_rust_doc_comments_survive_attribute_interleaving() -> None:
 
     assert [region.text for region in document.regions] == [
         " Documentation comment that must attach to the struct, not the derive.",
-    ]
+    ], "expected [region.text for region in document.regions..."
     region = _rust_doc_comment_ir_regions(_require_ir(document))[0]
     assert _owner_tuple(region) == (
         "struct",
         "AttributeFixture",
         "attribute_fixture::AttributeFixture",
-    )
+    ), "expected _owner_tuple(region) == ('struct', 'Attribu..."
 
 
 def _fixture_source(relative_path: pathlib.Path) -> str:
@@ -245,7 +251,7 @@ def _fixture_source(relative_path: pathlib.Path) -> str:
 def _scenario_document(state: RustDocCommentState) -> model.Document:
     """Return the extracted document from BDD scenario state."""
     document = state["document"]
-    assert document is not None
+    assert document is not None, "expected document is not None"
     return document
 
 
@@ -256,7 +262,7 @@ def _scenario_ir(state: RustDocCommentState) -> cabc.Mapping[str, JSONType]:
 
 def _require_ir(document: model.Document) -> cabc.Mapping[str, JSONType]:
     """Return a document IR payload, failing if it is absent."""
-    assert document.ir is not None
+    assert document.ir is not None, "expected document.ir is not None"
     return typ.cast("cabc.Mapping[str, JSONType]", document.ir)
 
 

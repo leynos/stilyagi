@@ -10,8 +10,6 @@ Example
 True
 """
 
-from __future__ import annotations
-
 import collections.abc as cabc
 import typing as typ
 
@@ -82,9 +80,17 @@ def _ensure_extend_value(
     key: str,
 ) -> str | cabc.Sequence[str]:
     """Validate the raw `extend` value without changing its shape."""
-    if isinstance(value, str):
-        return value
-    if not isinstance(value, cabc.Sequence) or isinstance(value, (bytes, bytearray)):
-        raise InvalidConfigError(path, key, "must be a string or a sequence of strings")
-    _ensure_all_strings(tuple(value), path=path, key=key)
-    return typ.cast("cabc.Sequence[str]", value)
+    match value:
+        case str():
+            return value
+        case bytes() | bytearray():
+            raise InvalidConfigError(
+                path, key, "must be a string or a sequence of strings"
+            )
+        case cabc.Sequence():
+            _ensure_all_strings(tuple(value), path=path, key=key)
+            return typ.cast("cabc.Sequence[str]", value)
+        case _:
+            raise InvalidConfigError(
+                path, key, "must be a string or a sequence of strings"
+            )
