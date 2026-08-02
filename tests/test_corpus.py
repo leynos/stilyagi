@@ -8,6 +8,8 @@ import pytest
 from pytest_bdd import given, scenario, then, when
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.assertions import assert_with_context
+
 if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
 
@@ -148,8 +150,9 @@ def test_each_syntax_has_valid_and_malformed_fixtures(
         if fixture.syntax == syntax and fixture.text
     }
 
-    assert categories == {"valid", "malformed"}, (
-        "expected categories == <'valid', 'malformed'>"
+    assert_with_context(
+        categories == {"valid", "malformed"},
+        "expected categories == <'valid', 'malformed'>",
     )
 
 
@@ -193,8 +196,9 @@ def test_corpus_covers_required_source_shapes(snapshot: SnapshotAssertion) -> No
         syntax: {fragment: fragment in fixture_text[syntax] for fragment in fragments}
         for syntax, fragments in expected_fragments.items()
     }
-    assert observed_fragments == snapshot(extension_class=JSONSnapshotExtension), (
-        "expected every required source-shape fragment to be ..."
+    assert_with_context(
+        observed_fragments == snapshot(extension_class=JSONSnapshotExtension),
+        "expected every required source-shape fragment to be ...",
     )
 
 
@@ -206,37 +210,46 @@ def test_malformed_fixtures_remain_readable_sources(
         fixture for fixture in all_corpus_fixtures if fixture.category == "malformed"
     ]
 
-    assert {fixture.syntax for fixture in malformed_fixtures} == {
-        "markdown",
-        "python",
-        "rust",
-    }, "expected <fixture.syntax for fixture in malformed_fi..."
-    assert all(fixture.text for fixture in malformed_fixtures), (
-        "expected all((fixture.text for fixture in malformed_..."
+    assert_with_context(
+        {fixture.syntax for fixture in malformed_fixtures}
+        == {
+            "markdown",
+            "python",
+            "rust",
+        },
+        "expected <fixture.syntax for fixture in malformed_fi...",
+    )
+    assert_with_context(
+        all(fixture.text for fixture in malformed_fixtures),
+        "expected all((fixture.text for fixture in malformed_...",
     )
 
     for fixture in malformed_fixtures:
         if fixture.syntax == "python":
-            assert fixture.path.name.endswith(MALFORMED_PYTHON_EXTENSION), (
-                "expected fixture.path.name.endswith(MALFORMED_PYTHON..."
+            assert_with_context(
+                fixture.path.name.endswith(MALFORMED_PYTHON_EXTENSION),
+                "expected fixture.path.name.endswith(MALFORMED_PYTHON...",
             )
-            assert fixture.path.suffixes[-2:] == [".py", ".txt"], (
-                "expected fixture.path.suffixes[-2:] == ['.py', '.txt']"
+            assert_with_context(
+                fixture.path.suffixes[-2:] == [".py", ".txt"],
+                "expected fixture.path.suffixes[-2:] == ['.py', '.txt']",
             )
         else:
             expected_suffixes = _extensions_for_syntax_category(
                 fixture.syntax,
                 fixture.category,
             )
-            assert _has_allowed_suffix(fixture.path, expected_suffixes), (
-                "expected _has_allowed_suffix(fixture.path, expected_..."
+            assert_with_context(
+                _has_allowed_suffix(fixture.path, expected_suffixes),
+                "expected _has_allowed_suffix(fixture.path, expected_...",
             )
 
 
 def test_malformed_python_fixtures_require_text_extension() -> None:
     """Malformed Python fixtures use the explicit source-as-text convention."""
-    assert _extensions_for_syntax_category("python", "malformed") == (".py.txt",), (
-        "expected _extensions_for_syntax_category('python', '..."
+    assert_with_context(
+        _extensions_for_syntax_category("python", "malformed") == (".py.txt",),
+        "expected _extensions_for_syntax_category('python', '...",
     )
 
 
@@ -269,8 +282,9 @@ def every_v1_syntax_has_valid_and_malformed_fixtures(
         categories = {
             fixture.category for fixture in fixtures if fixture.syntax == syntax
         }
-        assert categories == {"valid", "malformed"}, (
-            "expected categories == <'valid', 'malformed'>"
+        assert_with_context(
+            categories == {"valid", "malformed"},
+            "expected categories == <'valid', 'malformed'>",
         )
 
 
@@ -284,11 +298,13 @@ def malformed_fixtures_can_be_read_without_executing_them(
         fixture.path for fixture in fixtures if fixture.category == "malformed"
     ]
 
-    assert all(isinstance(path, pathlib.Path) for path in malformed_paths), (
-        "expected all((isinstance(path, pathlib.Path) for pat..."
+    assert_with_context(
+        all(isinstance(path, pathlib.Path) for path in malformed_paths),
+        "expected all((isinstance(path, pathlib.Path) for pat...",
     )
-    assert all(path.exists() for path in malformed_paths), (
-        "expected all((path.exists() for path in malformed_pa..."
+    assert_with_context(
+        all(path.exists() for path in malformed_paths),
+        "expected all((path.exists() for path in malformed_pa...",
     )
 
 

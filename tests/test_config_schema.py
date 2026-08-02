@@ -8,6 +8,8 @@ import pytest
 from stilyagi import config
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.assertions import assert_with_context
+
 if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
 
@@ -83,8 +85,9 @@ def test_config_file_kinds_parse_under_their_expected_prefix(
 
     parsed = config.load_config_file(path)
 
-    assert parsed.cache_dir == pathlib.Path(".stilyagi_cache"), (
-        "expected parsed.cache_dir == pathlib.Path('.stilyagi..."
+    assert_with_context(
+        parsed.cache_dir == pathlib.Path(".stilyagi_cache"),
+        "expected parsed.cache_dir == pathlib.Path('.stilyagi...",
     )
     assert parsed.plugins == ("builtin",), "expected parsed.plugins == ('builtin',)"
 
@@ -93,32 +96,39 @@ def test_default_config_exposes_the_documented_defaults() -> None:
     """Pin the public default constructor to its documented field values."""
     defaults = config.StilyagiConfig()
 
-    assert defaults.cache_dir == pathlib.Path(".stilyagi_cache"), (
-        "expected defaults.cache_dir == pathlib.Path('.stilya..."
+    assert_with_context(
+        defaults.cache_dir == pathlib.Path(".stilyagi_cache"),
+        "expected defaults.cache_dir == pathlib.Path('.stilya...",
     )
-    assert defaults.respect_gitignore is True, (
-        "expected defaults.respect_gitignore is True"
+    assert_with_context(
+        defaults.respect_gitignore is True,
+        "expected defaults.respect_gitignore is True",
     )
     assert defaults.line_length == 88, "expected defaults.line_length == 88"
     assert defaults.plugins == ("builtin",), "expected defaults.plugins == ('builtin',)"
-    assert defaults.lint.select == ("MD", "DOC", "PUN", "STY", "PYDOC"), (
-        "expected defaults.lint.select == ('MD', 'DOC', 'PUN'..."
+    assert_with_context(
+        defaults.lint.select == ("MD", "DOC", "PUN", "STY", "PYDOC"),
+        "expected defaults.lint.select == ('MD', 'DOC', 'PUN'...",
     )
     assert not defaults.lint.ignore, "expected not defaults.lint.ignore"
     assert defaults.lint.preview is False, "expected defaults.lint.preview is False"
-    assert defaults.lint.fixable == ("ALL",), (
-        "expected defaults.lint.fixable == ('ALL',)"
+    assert_with_context(
+        defaults.lint.fixable == ("ALL",),
+        "expected defaults.lint.fixable == ('ALL',)",
     )
     assert defaults.extract.gfm is True, "expected defaults.extract.gfm is True"
-    assert defaults.extract.frontmatter is True, (
-        "expected defaults.extract.frontmatter is True"
+    assert_with_context(
+        defaults.extract.frontmatter is True,
+        "expected defaults.extract.frontmatter is True",
     )
     assert defaults.extract.mdx is False, "expected defaults.extract.mdx is False"
-    assert defaults.nlp.model == "en_core_web_sm", (
-        "expected defaults.nlp.model == 'en_core_web_sm'"
+    assert_with_context(
+        defaults.nlp.model == "en_core_web_sm",
+        "expected defaults.nlp.model == 'en_core_web_sm'",
     )
-    assert defaults.nlp.sentence_provider == "sentencizer", (
-        "expected defaults.nlp.sentence_provider == 'sentenci..."
+    assert_with_context(
+        defaults.nlp.sentence_provider == "sentencizer",
+        "expected defaults.nlp.sentence_provider == 'sentenci...",
     )
     assert not defaults.rules, "expected not defaults.rules"
     assert not defaults.reserved, "expected not defaults.reserved"
@@ -134,51 +144,75 @@ def test_baseline_config_parses_and_preserves_reserved_values(
 
     parsed = config.load_config_file(path)
 
-    assert parsed.cache_dir == pathlib.Path(".stilyagi_cache"), (
-        "expected parsed.cache_dir == pathlib.Path('.stilyagi..."
+    assert_with_context(
+        parsed.cache_dir == pathlib.Path(".stilyagi_cache"),
+        "expected parsed.cache_dir == pathlib.Path('.stilyagi...",
     )
     assert parsed.respect_gitignore is True, "expected parsed.respect_gitignore is True"
     assert parsed.line_length == 88, "expected parsed.line_length == 88"
     assert parsed.plugins == ("builtin",), "expected parsed.plugins == ('builtin',)"
-    assert parsed.lint.select == ("MD", "DOC", "PUN", "STY", "PYDOC"), (
-        "expected parsed.lint.select == ('MD', 'DOC', 'PUN', ..."
+    assert_with_context(
+        parsed.lint.select == ("MD", "DOC", "PUN", "STY", "PYDOC"),
+        "expected parsed.lint.select == ('MD', 'DOC', 'PUN', ...",
     )
     assert not parsed.lint.ignore, "expected not parsed.lint.ignore"
     assert parsed.lint.fixable == ("ALL",), "expected parsed.lint.fixable == ('ALL',)"
     assert not parsed.lint.unfixable, "expected not parsed.lint.unfixable"
     assert parsed.lint.preview is False, "expected parsed.lint.preview is False"
-    assert parsed.lint.per_file_ignores == {
-        "CHANGELOG.md": ("PUN201",),
-        "tests/**": ("PYDOC",),
-    }, "expected parsed.lint.per_file_ignores == <'CHANGELOG..."
-    assert parsed.extract == config.MarkdownExtractConfig(), (
-        "expected parsed.extract == config.MarkdownExtractCon..."
+    assert_with_context(
+        parsed.lint.per_file_ignores
+        == {
+            "CHANGELOG.md": ("PUN201",),
+            "tests/**": ("PYDOC",),
+        },
+        "expected parsed.lint.per_file_ignores == <'CHANGELOG...",
     )
-    assert parsed.nlp.model == "en_core_web_sm", (
-        "expected parsed.nlp.model == 'en_core_web_sm'"
+    assert_with_context(
+        parsed.extract == config.MarkdownExtractConfig(),
+        "expected parsed.extract == config.MarkdownExtractCon...",
     )
-    assert parsed.nlp.sentence_provider == "sentencizer", (
-        "expected parsed.nlp.sentence_provider == 'sentencizer'"
+    assert_with_context(
+        parsed.nlp.model == "en_core_web_sm",
+        "expected parsed.nlp.model == 'en_core_web_sm'",
     )
-    assert parsed.nlp.reserved == {
-        "model": "en_core_web_sm",
-        "sentence-provider": "sentencizer",
-    }, "expected parsed.nlp.reserved == <'model': 'en_core_w..."
-    assert parsed.rules == {"PUN201": {"min_items": 3}}, (
-        "expected parsed.rules == <'PUN201': <'min_items': 3>>"
+    assert_with_context(
+        parsed.nlp.sentence_provider == "sentencizer",
+        "expected parsed.nlp.sentence_provider == 'sentencizer'",
     )
-    assert parsed.reserved["line-length"] == 88, (
-        "expected parsed.reserved['line-length'] == 88"
+    assert_with_context(
+        parsed.nlp.reserved
+        == {
+            "model": "en_core_web_sm",
+            "sentence-provider": "sentencizer",
+        },
+        "expected parsed.nlp.reserved == <'model': 'en_core_w...",
     )
-    assert parsed.reserved["lint"] == snapshot(
-        extension_class=JSONSnapshotExtension,
-    ), "expected the reserved lint configuration to match it..."
-    assert parsed.reserved["nlp"] == {
-        "model": "en_core_web_sm",
-        "sentence-provider": "sentencizer",
-    }, "expected parsed.reserved['nlp'] == <'model': 'en_cor..."
-    assert parsed.reserved["rule"] == {"PUN201": {"min_items": 3}}, (
-        "expected parsed.reserved['rule'] == <'PUN201': <'min..."
+    assert_with_context(
+        parsed.rules == {"PUN201": {"min_items": 3}},
+        "expected parsed.rules == <'PUN201': <'min_items': 3>>",
+    )
+    assert_with_context(
+        parsed.reserved["line-length"] == 88,
+        "expected parsed.reserved['line-length'] == 88",
+    )
+    assert_with_context(
+        parsed.reserved["lint"]
+        == snapshot(
+            extension_class=JSONSnapshotExtension,
+        ),
+        "expected the reserved lint configuration to match it...",
+    )
+    assert_with_context(
+        parsed.reserved["nlp"]
+        == {
+            "model": "en_core_web_sm",
+            "sentence-provider": "sentencizer",
+        },
+        "expected parsed.reserved['nlp'] == <'model': 'en_cor...",
+    )
+    assert_with_context(
+        parsed.reserved["rule"] == {"PUN201": {"min_items": 3}},
+        "expected parsed.reserved['rule'] == <'PUN201': <'min...",
     )
 
 
@@ -229,9 +263,11 @@ def test_same_directory_precedence_prefers_the_highest_ranked_file(
     discovered = config.discover_same_directory_config(tmp_path)
 
     assert discovered is not None, "expected discovered is not None"
-    assert discovered.path.name == ".stilyagi.toml", (
-        "expected discovered.path.name == '.stilyagi.toml'"
+    assert_with_context(
+        discovered.path.name == ".stilyagi.toml",
+        "expected discovered.path.name == '.stilyagi.toml'",
     )
-    assert discovered.config.cache_dir == pathlib.Path(".dotstilyagi"), (
-        "expected discovered.config.cache_dir == pathlib.Path..."
+    assert_with_context(
+        discovered.config.cache_dir == pathlib.Path(".dotstilyagi"),
+        "expected discovered.config.cache_dir == pathlib.Path...",
     )

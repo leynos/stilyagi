@@ -7,6 +7,7 @@ import typing as typ
 
 from stilyagi import cli, diagnostics
 
+from tests.support.assertions import assert_with_context
 from tests.support.subprocess_env import python_module_environment
 
 if typ.TYPE_CHECKING:
@@ -32,13 +33,16 @@ def test_cli_main_reads_stdin_and_attributes_diagnostic_to_filename(
         ],
     )
 
-    assert cli.main(["check", "-", "--stdin-filename", "README.md"]) == 1, (
-        "expected cli.main(['check', '-', '--stdin-filename',..."
+    assert_with_context(
+        cli.main(["check", "-", "--stdin-filename", "README.md"]) == 1,
+        "expected cli.main(['check', '-', '--stdin-filename',...",
     )
     captured = capsys.readouterr()
-    assert captured.out == (
-        "README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"
-    ), "expected captured.out == 'README.md:1:1: error IR000..."
+    assert_with_context(
+        captured.out
+        == ("README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"),
+        "expected captured.out == 'README.md:1:1: error IR000...",
+    )
     assert not captured.err, "expected not captured.err"
 
 
@@ -65,8 +69,9 @@ def test_python_module_entrypoint_reads_clean_stdin_and_exits_zero(
     )
 
     assert completed.returncode == 0, "expected completed.returncode == 0"
-    assert completed.stdout == "0 diagnostics found\n", (
-        "expected completed.stdout == '0 diagnostics found\\n'"
+    assert_with_context(
+        completed.stdout == "0 diagnostics found\n",
+        "expected completed.stdout == '0 diagnostics found\\n'",
     )
     assert not completed.stderr, "expected not completed.stderr"
 
@@ -94,6 +99,7 @@ def test_python_module_entrypoint_rejects_stdin_mixed_with_path(
     )
 
     assert completed.returncode == 2, "expected completed.returncode == 2"
-    assert "stdin target cannot be combined with file targets" in completed.stderr, (
-        "expected 'stdin target cannot be combined with file ..."
+    assert_with_context(
+        "stdin target cannot be combined with file targets" in completed.stderr,
+        "expected 'stdin target cannot be combined with file ...",
     )

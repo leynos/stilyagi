@@ -10,6 +10,7 @@ from pytest_bdd import given, scenario, then, when
 from stilyagi import cli
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.assertions import assert_with_context
 from tests.support.golden_ir import golden_markdown_ir_fixture
 from tests.support.round_trip import (
     OverlappingEditError,
@@ -70,10 +71,14 @@ def round_trip_helper_preserves_surrounding_text(
 ) -> None:
     """Assert the scenario-visible edit result."""
     result = typ.cast("object", round_trip_state["result"])
-    assert result == apply_round_trip_edits(
-        "before middle after",
-        (SourceEdit(7, 13, "CENTER"),),
-    ), "expected result == apply_round_trip_edits('before mi..."
+    assert_with_context(
+        result
+        == apply_round_trip_edits(
+            "before middle after",
+            (SourceEdit(7, 13, "CENTER"),),
+        ),
+        "expected result == apply_round_trip_edits('before mi...",
+    )
 
 
 def test_golden_markdown_ir_matches_json_snapshot(
@@ -82,9 +87,13 @@ def test_golden_markdown_ir_matches_json_snapshot(
     """Pin the private Python golden IR shape for the shared Markdown fixture."""
     document = golden_markdown_ir_fixture()
 
-    assert document.as_snapshot_payload() == snapshot(
-        extension_class=JSONSnapshotExtension,
-    ), "expected document.as_snapshot_payload() == snapshot(..."
+    assert_with_context(
+        document.as_snapshot_payload()
+        == snapshot(
+            extension_class=JSONSnapshotExtension,
+        ),
+        "expected document.as_snapshot_payload() == snapshot(...",
+    )
 
 
 def test_cli_check_json_output_matches_snapshot(
@@ -102,12 +111,14 @@ def test_cli_check_json_output_matches_snapshot(
     exit_code = cli.main(["check", ".", "--output-format", "json"])
     captured = capsys.readouterr()
 
-    assert {
-        "exit_code": exit_code,
-        "stdout": captured.out,
-        "stderr": captured.err,
-    } == snapshot(extension_class=JSONSnapshotExtension), (
-        "expected <'exit_code': exit_code, 'stdout': captured..."
+    assert_with_context(
+        {
+            "exit_code": exit_code,
+            "stdout": captured.out,
+            "stderr": captured.err,
+        }
+        == snapshot(extension_class=JSONSnapshotExtension),
+        "expected <'exit_code': exit_code, 'stdout': captured...",
     )
 
 
@@ -121,8 +132,9 @@ def test_round_trip_edits_apply_source_backed_replacements() -> None:
         ),
     )
 
-    assert result == dc.replace(result, after="ALPHA beta GAMMA"), (
-        "expected result == dc.replace(result, after='ALPHA b..."
+    assert_with_context(
+        result == dc.replace(result, after="ALPHA beta GAMMA"),
+        "expected result == dc.replace(result, after='ALPHA b...",
     )
 
 
@@ -184,8 +196,9 @@ def test_round_trip_edits_apply_unicode_byte_spans() -> None:
 
     assert result.before == "éa", "expected result.before == '\u00e9a'"
     assert result.after == "éb", "expected result.after == '\u00e9b'"
-    assert result.applied_edits == (SourceEdit(2, 3, "b"),), (
-        "expected result.applied_edits == (SourceEdit(2, 3, '..."
+    assert_with_context(
+        result.applied_edits == (SourceEdit(2, 3, "b"),),
+        "expected result.applied_edits == (SourceEdit(2, 3, '...",
     )
 
 
@@ -214,14 +227,17 @@ def test_round_trip_edits_preserve_untouched_ranges() -> None:
         (SourceEdit(7, 13, "CENTER"),),
     )
 
-    assert result.before == "before middle after", (
-        "expected result.before == 'before middle after'"
+    assert_with_context(
+        result.before == "before middle after",
+        "expected result.before == 'before middle after'",
     )
-    assert result.after == "before CENTER after", (
-        "expected result.after == 'before CENTER after'"
+    assert_with_context(
+        result.after == "before CENTER after",
+        "expected result.after == 'before CENTER after'",
     )
-    assert result.applied_edits == (SourceEdit(7, 13, "CENTER"),), (
-        "expected result.applied_edits == (SourceEdit(7, 13, ..."
+    assert_with_context(
+        result.applied_edits == (SourceEdit(7, 13, "CENTER"),),
+        "expected result.applied_edits == (SourceEdit(7, 13, ...",
     )
 
 
@@ -245,8 +261,9 @@ def test_round_trip_edits_preserve_generated_prefixes_and_suffixes(
 
     result = apply_round_trip_edits(source, (SourceEdit(start, end, replacement),))
 
-    assert result.after == f"{prefix}{replacement}{suffix}", (
-        "expected result.after == f'<prefix><replacement><suf..."
+    assert_with_context(
+        result.after == f"{prefix}{replacement}{suffix}",
+        "expected result.after == f'<prefix><replacement><suf...",
     )
 
 

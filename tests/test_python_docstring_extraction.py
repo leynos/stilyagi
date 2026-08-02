@@ -11,6 +11,8 @@ from pytest_bdd import given, scenario, then, when
 from stilyagi import engine, model
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.assertions import assert_with_context
+
 type JSONType = dict[str, JSONType] | list[JSONType] | str | int | float | bool | None
 
 if typ.TYPE_CHECKING:
@@ -104,18 +106,26 @@ def python_document_contains_docstring_regions(
     document = _scenario_document(python_docstring_state)
 
     assert document.syntax is model.Syntax.PYTHON_DOCSTRING, "Document syntax mismatch"
-    assert [region.kind for region in document.regions] == [
-        "python_docstring",
-        "python_docstring",
-        "python_docstring",
-        "python_docstring",
-    ], "Region kinds do not match expected"
-    assert [region.text for region in document.regions] == [
-        "Module docstring for the shared Stilyagi corpus.",
-        "Class docstring with prose for extraction tests.",
-        "Return a documented value from a method docstring.",
-        "Use a function docstring for later Python extraction slices.",
-    ], "Region texts do not match expected"
+    assert_with_context(
+        [region.kind for region in document.regions]
+        == [
+            "python_docstring",
+            "python_docstring",
+            "python_docstring",
+            "python_docstring",
+        ],
+        "Region kinds do not match expected",
+    )
+    assert_with_context(
+        [region.text for region in document.regions]
+        == [
+            "Module docstring for the shared Stilyagi corpus.",
+            "Class docstring with prose for extraction tests.",
+            "Return a documented value from a method docstring.",
+            "Use a function docstring for later Python extraction slices.",
+        ],
+        "Region texts do not match expected",
+    )
 
 
 @then("the Python IR records owner metadata")
@@ -125,12 +135,16 @@ def python_ir_records_owner_metadata(
     """Assert owner metadata parsed from the bridge IR payload."""
     regions = _python_docstring_ir_regions(_scenario_ir(python_docstring_state))
 
-    assert [_owner_tuple(region) for region in regions] == [
-        ("module", None, None),
-        ("class", "FixtureExample", "FixtureExample"),
-        ("function", "method", "FixtureExample.method"),
-        ("function", "fixture_function", "fixture_function"),
-    ], "Owner metadata does not match expected"
+    assert_with_context(
+        [_owner_tuple(region) for region in regions]
+        == [
+            ("module", None, None),
+            ("class", "FixtureExample", "FixtureExample"),
+            ("function", "method", "FixtureExample.method"),
+            ("function", "fixture_function", "fixture_function"),
+        ],
+        "Owner metadata does not match expected",
+    )
 
 
 @then("the Python document contains the module docstring")
@@ -140,9 +154,13 @@ def python_document_contains_the_module_docstring(
     """Assert malformed extraction preserves the module docstring only."""
     document = _scenario_document(python_docstring_state)
 
-    assert [region.text for region in document.regions] == [
-        "Module docstring before malformed Python source.",
-    ], "Malformed document regions do not match expected"
+    assert_with_context(
+        [region.text for region in document.regions]
+        == [
+            "Module docstring before malformed Python source.",
+        ],
+        "Malformed document regions do not match expected",
+    )
 
 
 @then("the Python IR records a recoverable parse error")
@@ -154,9 +172,13 @@ def python_ir_records_a_recoverable_parse_error(
     errors = typ.cast("list[dict[str, JSONType]]", ir["errors"])
 
     assert errors, "Expected recoverable parse errors"
-    assert {error["code"] for error in errors} == {
-        "python-parse-recovery",
-    }, "Recoverable parse error codes do not match expected"
+    assert_with_context(
+        {error["code"] for error in errors}
+        == {
+            "python-parse-recovery",
+        },
+        "Recoverable parse error codes do not match expected",
+    )
 
 
 def test_python_docstring_ir_matches_reviewed_rust_snapshot() -> None:
@@ -166,8 +188,9 @@ def test_python_docstring_ir_matches_reviewed_rust_snapshot() -> None:
     rust_snapshot = _load_insta_json_snapshot(REPOSITORY_ROOT / RUST_PYTHON_SNAPSHOT)
 
     assert document.ir is not None, "expected document.ir is not None"
-    assert _normalize_python_ir(document.ir) == _normalize_python_ir(rust_snapshot), (
-        "expected _normalize_python_ir(document.ir) == _norma..."
+    assert_with_context(
+        _normalize_python_ir(document.ir) == _normalize_python_ir(rust_snapshot),
+        "expected _normalize_python_ir(document.ir) == _norma...",
     )
 
 
@@ -179,9 +202,13 @@ def test_shared_python_fixture_ir_matches_json_snapshot(
     document = engine.extract_document(source, model.Syntax.PYTHON_DOCSTRING)
 
     assert document.ir is not None, "expected document.ir is not None"
-    assert _normalize_python_ir(document.ir) == snapshot(
-        extension_class=JSONSnapshotExtension,
-    ), "expected _normalize_python_ir(document.ir) == snapsh..."
+    assert_with_context(
+        _normalize_python_ir(document.ir)
+        == snapshot(
+            extension_class=JSONSnapshotExtension,
+        ),
+        "expected _normalize_python_ir(document.ir) == snapsh...",
+    )
 
 
 @hyp.given(
@@ -205,12 +232,14 @@ def test_generated_function_docstrings_preserve_owner_and_text(
     source = f'def {name}():\n    """{body}"""\n'
     document = engine.extract_document(source, model.Syntax.PYTHON_DOCSTRING)
 
-    assert [region.text for region in document.regions] == [body], (
-        "expected [region.text for region in document.regions..."
+    assert_with_context(
+        [region.text for region in document.regions] == [body],
+        "expected [region.text for region in document.regions...",
     )
     region = _python_docstring_ir_regions(_require_ir(document))[0]
-    assert _owner_tuple(region) == ("function", name, name), (
-        "expected _owner_tuple(region) == ('function', name, ..."
+    assert_with_context(
+        _owner_tuple(region) == ("function", name, name),
+        "expected _owner_tuple(region) == ('function', name, ...",
     )
 
 

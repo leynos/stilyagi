@@ -6,6 +6,7 @@ import typing as typ
 import pytest
 from stilyagi import cli, config, discovery, engine, model
 
+from tests.support.assertions import assert_with_context
 from tests.support.malformed_corpus import materialize_malformed_corpus
 
 if typ.TYPE_CHECKING:
@@ -31,8 +32,9 @@ def _run_failing_check(
     assert exit_code == 2, "expected exit_code == 2"
     # A hard file error still renders the (empty) accumulated diagnostics before
     # the exit-2 signal, rather than suppressing stdout entirely.
-    assert captured.out == "0 diagnostics found\n", (
-        "expected captured.out == '0 diagnostics found\\n'"
+    assert_with_context(
+        captured.out == "0 diagnostics found\n",
+        "expected captured.out == '0 diagnostics found\\n'",
     )
     return captured.err
 
@@ -183,8 +185,9 @@ def test_cli_main_recovers_from_real_malformed_markdown(
         [target_root], config.StilyagiConfig()
     )
     discovered_names = tuple(sorted(item.resolved_path.name for item in discovered))
-    assert discovered_names == expected_names, (
-        "expected discovered_names == expected_names"
+    assert_with_context(
+        discovered_names == expected_names,
+        "expected discovered_names == expected_names",
     )
 
     exit_code = cli.main(["check", "."])
@@ -192,8 +195,9 @@ def test_cli_main_recovers_from_real_malformed_markdown(
 
     assert exit_code == 0, "expected exit_code == 0"
     assert not captured.err, "expected not captured.err"
-    assert captured.out == "0 diagnostics found\n", (
-        "expected captured.out == '0 diagnostics found\\n'"
+    assert_with_context(
+        captured.out == "0 diagnostics found\n",
+        "expected captured.out == '0 diagnostics found\\n'",
     )
 
 
@@ -232,11 +236,13 @@ def test_cli_main_checks_every_file_and_renders_earlier_diagnostics_on_failure(
     # The unreadable file forces exit 2, yet the earlier file's diagnostic is
     # still rendered and the clean file did not short-circuit the batch.
     assert exit_code == 2, "expected exit_code == 2"
-    assert "docs/b-warn.md:1:1: error IR900 synthetic" in captured.out, (
-        "expected 'docs/b-warn.md:1:1: error IR900 synthetic'..."
+    assert_with_context(
+        "docs/b-warn.md:1:1: error IR900 synthetic" in captured.out,
+        "expected 'docs/b-warn.md:1:1: error IR900 synthetic'...",
     )
-    assert "1 diagnostic found" in captured.out, (
-        "expected '1 diagnostic found' in captured.out"
+    assert_with_context(
+        "1 diagnostic found" in captured.out,
+        "expected '1 diagnostic found' in captured.out",
     )
     assert "failed to read" in captured.err, "expected 'failed to read' in captured.err"
     assert "c-broken.md" in captured.err, "expected 'c-broken.md' in captured.err"

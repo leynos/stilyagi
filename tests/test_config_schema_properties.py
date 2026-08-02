@@ -6,6 +6,8 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from stilyagi import config
 
+from tests.support.assertions import assert_with_context
+
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(st.tuples(st.booleans(), st.booleans(), st.booleans()))
@@ -40,6 +42,7 @@ def test_same_directory_precedence_is_deterministic(
         assert discovered is None, "expected discovered is None"
     else:
         assert discovered is not None, "expected discovered is not None"
-        assert discovered.path.name == expected_name, (
-            "expected discovered.path.name == expected_name"
+        assert_with_context(
+            discovered.path.name == expected_name,
+            "expected discovered.path.name == expected_name",
         )

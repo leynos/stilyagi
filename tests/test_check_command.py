@@ -7,6 +7,8 @@ import typing as typ
 from stilyagi import cli, diagnostics, engine
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.assertions import assert_with_context
+
 if typ.TYPE_CHECKING:
     import pathlib
 
@@ -25,8 +27,9 @@ def test_main_returns_zero_for_a_clean_tree(
 
     assert cli.main(["check", "."]) == 0, "expected cli.main(['check', '.']) == 0"
     captured = capsys.readouterr()
-    assert captured.out == "0 diagnostics found\n", (
-        "expected captured.out == '0 diagnostics found\\n'"
+    assert_with_context(
+        captured.out == "0 diagnostics found\n",
+        "expected captured.out == '0 diagnostics found\\n'",
     )
     assert not captured.err, "expected not captured.err"
 
@@ -54,20 +57,24 @@ def test_main_renders_json_for_synthetic_diagnostics(
         lambda _document, _config: [synthetic_diagnostic],
     )
 
-    assert cli.compute_exit_code([], had_error=True) == 2, (
-        "expected cli.compute_exit_code([], had_error=True) == 2"
+    assert_with_context(
+        cli.compute_exit_code([], had_error=True) == 2,
+        "expected cli.compute_exit_code([], had_error=True) == 2",
     )
-    assert cli.compute_exit_code([synthetic_diagnostic]) == 1, (
-        "expected cli.compute_exit_code([synthetic_diagnostic..."
+    assert_with_context(
+        cli.compute_exit_code([synthetic_diagnostic]) == 1,
+        "expected cli.compute_exit_code([synthetic_diagnostic...",
     )
     assert cli.compute_exit_code([]) == 0, "expected cli.compute_exit_code([]) == 0"
-    assert cli.main(["check", ".", "--output-format", "json"]) == 1, (
-        "expected cli.main(['check', '.', '--output-format', ..."
+    assert_with_context(
+        cli.main(["check", ".", "--output-format", "json"]) == 1,
+        "expected cli.main(['check', '.', '--output-format', ...",
     )
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload == snapshot(extension_class=JSONSnapshotExtension), (
-        "expected the rendered diagnostic payload to match it..."
+    assert_with_context(
+        payload == snapshot(extension_class=JSONSnapshotExtension),
+        "expected the rendered diagnostic payload to match it...",
     )
 
 
@@ -83,8 +90,9 @@ def test_main_returns_two_for_invalid_configuration(
 
     assert cli.main(["check", "."]) == 2, "expected cli.main(['check', '.']) == 2"
     captured = capsys.readouterr()
-    assert "stilyagi check:" in captured.err, (
-        "expected 'stilyagi check:' in captured.err"
+    assert_with_context(
+        "stilyagi check:" in captured.err,
+        "expected 'stilyagi check:' in captured.err",
     )
     assert "toml" in captured.err.lower(), "expected 'toml' in captured.err.lower()"
     assert not captured.out, "expected not captured.out"
@@ -109,8 +117,9 @@ def test_check_pipeline_emits_stage_boundary_logs(
         "config": any("resolving config for" in message for message in messages),
         "rendering": any("rendering" in message for message in messages),
     }
-    assert observed_stages == snapshot(extension_class=JSONSnapshotExtension), (
-        "expected every check-pipeline stage to be represente..."
+    assert_with_context(
+        observed_stages == snapshot(extension_class=JSONSnapshotExtension),
+        "expected every check-pipeline stage to be represente...",
     )
 
 
@@ -133,11 +142,13 @@ def test_check_logs_extraction_failure_alongside_stderr(
         for record in caplog.records
         if record.levelno >= logging.WARNING
     ]
-    assert any("failed to check" in message for message in warnings), (
-        "expected any(('failed to check' in message for messa..."
+    assert_with_context(
+        any("failed to check" in message for message in warnings),
+        "expected any(('failed to check' in message for messa...",
     )
-    assert "stilyagi check: failed to check" in capsys.readouterr().err, (
-        "expected 'stilyagi check: failed to check' in capsys..."
+    assert_with_context(
+        "stilyagi check: failed to check" in capsys.readouterr().err,
+        "expected 'stilyagi check: failed to check' in capsys...",
     )
 
 

@@ -142,6 +142,13 @@ repository-root discovery in each crate. Python docstring tests should assert
 real extraction behaviour. Rust documentation-comment tests should assert real
 extraction behaviour, including owner metadata and recoverable parse errors.
 
+Multi-line Python assertions whose diagnostic must wrap should use
+`tests.support.assertions.assert_with_context`. The helper evaluates the
+diagnostic on every run, so failure-only message lines do not dilute measured
+test coverage. Keep ordinary assertions when the complete condition and message
+fit on one line, particularly where the assertion narrows a type. The helper is
+test-only and should not be used for application validation or control flow.
+
 ### The `.md.fixture` corpus convention
 
 Because `stilyagi check` discovers only `.md` and `.markdown` files, any test

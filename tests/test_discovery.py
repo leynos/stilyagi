@@ -7,6 +7,8 @@ import typing as typ
 from stilyagi import config, discovery
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.assertions import assert_with_context
+
 if typ.TYPE_CHECKING:
     import pytest
     from syrupy.assertion import SnapshotAssertion
@@ -25,12 +27,16 @@ def test_explicit_markdown_file_is_reported_verbatim(tmp_path: pathlib.Path) -> 
 
     files = discovery.discover_markdown_files([target], config.StilyagiConfig())
 
-    assert files == [
-        discovery.DiscoveredFile(
-            reported_path=target.as_posix(),
-            resolved_path=target.resolve(),
-        ),
-    ], "expected files == [discovery.DiscoveredFile(reported..."
+    assert_with_context(
+        files
+        == [
+            discovery.DiscoveredFile(
+                reported_path=target.as_posix(),
+                resolved_path=target.resolve(),
+            ),
+        ],
+        "expected files == [discovery.DiscoveredFile(reported...",
+    )
 
 
 def test_explicit_non_markdown_file_is_logged_and_skipped(
@@ -45,9 +51,13 @@ def test_explicit_non_markdown_file_is_logged_and_skipped(
         files = discovery.discover_markdown_files([target], config.StilyagiConfig())
 
     assert files == [], "expected files == []"
-    assert any(
-        "ignoring non-Markdown target" in record.message for record in caplog.records
-    ), "expected any(('ignoring non-Markdown target' in reco..."
+    assert_with_context(
+        any(
+            "ignoring non-Markdown target" in record.message
+            for record in caplog.records
+        ),
+        "expected any(('ignoring non-Markdown target' in reco...",
+    )
 
 
 def test_directory_recursion_skips_noise_and_symlinked_directories(
@@ -74,9 +84,11 @@ def test_directory_recursion_skips_noise_and_symlinked_directories(
         }
         for file in files
     ]
-    assert normalised_files == snapshot(extension_class=JSONSnapshotExtension), (
-        "expected deterministic discovery paths without ignor..."
+    assert_with_context(
+        normalised_files == snapshot(extension_class=JSONSnapshotExtension),
+        "expected deterministic discovery paths without ignor...",
     )
-    assert all(isinstance(file, discovery.DiscoveredFile) for file in files), (
-        "expected all((isinstance(file, discovery.DiscoveredF..."
+    assert_with_context(
+        all(isinstance(file, discovery.DiscoveredFile) for file in files),
+        "expected all((isinstance(file, discovery.DiscoveredF...",
     )
