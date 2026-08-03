@@ -134,16 +134,8 @@ def test_default_config_exposes_the_documented_defaults() -> None:
     assert not defaults.reserved, "expected not defaults.reserved"
 
 
-def test_baseline_config_parses_and_preserves_reserved_values(
-    tmp_path: pathlib.Path,
-    snapshot: SnapshotAssertion,
-) -> None:
-    """Accept the whole RFC baseline and preserve the reserved parts."""
-    path = tmp_path / "pyproject.toml"
-    path.write_text(RFC_0003_BASELINE, encoding="utf-8")
-
-    parsed = config.load_config_file(path)
-
+def _assert_baseline_config_fields(parsed: config.StilyagiConfig) -> None:
+    """Assert parsed public fields from the RFC baseline."""
     assert_with_context(
         parsed.cache_dir == pathlib.Path(".stilyagi_cache"),
         "expected parsed.cache_dir == pathlib.Path('.stilyagi...",
@@ -191,6 +183,13 @@ def test_baseline_config_parses_and_preserves_reserved_values(
         parsed.rules == {"PUN201": {"min_items": 3}},
         "expected parsed.rules == <'PUN201': <'min_items': 3>>",
     )
+
+
+def _assert_baseline_reserved_values(
+    parsed: config.StilyagiConfig,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Assert preserved raw fields from the RFC baseline."""
     assert_with_context(
         parsed.reserved["line-length"] == 88,
         "expected parsed.reserved['line-length'] == 88",
@@ -214,6 +213,20 @@ def test_baseline_config_parses_and_preserves_reserved_values(
         parsed.reserved["rule"] == {"PUN201": {"min_items": 3}},
         "expected parsed.reserved['rule'] == <'PUN201': <'min...",
     )
+
+
+def test_baseline_config_parses_and_preserves_reserved_values(
+    tmp_path: pathlib.Path,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Accept the whole RFC baseline and preserve the reserved parts."""
+    path = tmp_path / "pyproject.toml"
+    path.write_text(RFC_0003_BASELINE, encoding="utf-8")
+
+    parsed = config.load_config_file(path)
+
+    _assert_baseline_config_fields(parsed)
+    _assert_baseline_reserved_values(parsed, snapshot)
 
 
 def test_unknown_keys_raise_a_typed_config_error(
