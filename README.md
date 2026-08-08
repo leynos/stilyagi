@@ -1,4 +1,4 @@
-# Stilyagi
+# 🎷 Stilyagi
 
 *A compiler for prose — structural linting for the documentation that lives in
 your source tree.*
