@@ -38,7 +38,7 @@ model, and the text they see has already been parsed properly:
   owns it, and a link's title is not confused with its target.
 - **Deterministic.** Same input, same output, same order. No network, no
   model downloads, no surprises in continuous integration.
-- **Programmable.** Declare the capabilities a rule needs and the engine
+- **Programmable.** Declare the capabilities a rule needs, and the engine
   loads only those. A structural run never pays for a parser it did not ask for.
 
 ______________________________________________________________________
@@ -80,17 +80,18 @@ ______________________________________________________________________
 
 Working today:
 
-- Markdown parsed into a versioned intermediate representation carrying a line
-  index, region segments, content hashes, and explicit markers for synthetic
-  insertions such as soft-break spaces.
-- Python docstring extraction with owner metadata — module, class, and
-  function owners with `__qualname__`-style names, including `<locals>` for
-  definitions nested inside function bodies.
-- Rust documentation-comment extraction with equivalent owner semantics.
-- Suppression comments in all three syntaxes, with range polarity preserved.
+- Markdown parsed into a structured model where every region remembers the
+  bytes it came from.
+- Docstrings lifted out of Python, and documentation comments out of Rust,
+  each tied to the definition that owns it.
+- Suppression comments honoured in all three syntaxes, for a line, the next
+  line, or a range.
 - `stilyagi check` over Markdown, with configuration discovery, text and JSON
   output, and standard input.
 - Wheels that build and smoke-test on Linux, macOS, and Windows.
+
+The [developers' guide](docs/developers-guide.md) covers the intermediate
+representation these rest on.
 
 Designed, not yet built:
 
