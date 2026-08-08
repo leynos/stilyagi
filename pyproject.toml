@@ -4,10 +4,12 @@ version = "0.1.0"
 description = "Prose linter for Markdown and doc comments"
 readme = "README.md"
 requires-python = ">=3.14"
-license = { text = "ISC" }
+license = "ISC"
+license-files = ["LICENSE"]
 authors = [{ name = "Payton McIntosh", email = "pmcintosh@df12.net" }]
 [project.urls]
-Homepage = "https://df12.studio/docs.html"
+Homepage = "https://df12.studio/stilyagi"
+Documentation = "https://df12.studio/stilyagi/docs/"
 Repository = "https://github.com/leynos/stilyagi"
 
 [project.scripts]
