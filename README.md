@@ -1,73 +1,131 @@
 # Stilyagi
 
+*A compiler for prose — structural linting for the documentation that lives in
+your source tree.*
+
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](
 https://deepwiki.com/leynos/stilyagi)
 
-Stilyagi is a prose linter for Markdown files and doc comments.
+Stilyagi reads Markdown pages, Python docstrings, and Rust documentation
+comments as structured regions rather than as undifferentiated lines. Rust does
+the parsing and keeps byte-exact source maps; Python runs the rules.
 
-It reads the human-facing text embedded in a source repository — Markdown
-pages, Python docstrings, Rust documentation comments — and analyses it as
-structured regions rather than as undifferentiated lines. A Rust layer owns
-parsing, extraction, and byte-exact source maps; a Python layer owns the rules.
-Diagnostics point back at the bytes they came from, so a fix can never land on
-text the extractor invented.
+> **Status: pre-0.1.0.** The extraction engine works. No rules ship yet, so
+> `stilyagi check` runs and finds nothing. Come for the architecture, not
+> for the linting — see the [roadmap](docs/roadmap.md) for what has landed.
 
 Website: <https://df12.studio/stilyagi>
 
-## Status
+______________________________________________________________________
 
-Version 0.1.0. **Early.** The extraction half of the design works; the rule
-half has no rules in it yet.
+## Why Stilyagi?
 
-`stilyagi check` runs today and reports `0 diagnostics found`, because no
-built-in rules ship — `stilyagi.rules.builtin` is a reserved namespace, not a
-rule pack. The tool is not yet useful for linting your prose. It is useful if
-you want to read the extraction layer, write a rule pack against the Python
-API, or follow the design.
+Prose linters tend to sit at one of two extremes, and neither is much fun to
+live with:
 
-### Working
+- **Declarative tools** understand document structure but cap what a rule can
+  say. Once your policy outgrows YAML and a regular expression, you are stuck.
+- **Ad hoc scripts** can express anything, but they lose the plot the moment
+  prose lands inside a heading, a table, a docstring, or mixed markup.
 
-- Markdown parsed into a versioned intermediate representation carrying
-  `line_index`, region `segments`, content hashes, and explicit markers for
-  synthetic insertions such as soft-break spaces.
+Stilyagi takes the middle road. Rules are ordinary Python against a typed
+model, and the text they see has already been parsed properly:
+
+- **Source-faithful.** Every region carries the exact byte range it occupies.
+  A fix can only ever touch text that was really there — never a space the
+  flattener invented.
+- **Structural.** A heading is a heading, a docstring knows which function
+  owns it, and a link's title is not confused with its target.
+- **Deterministic.** Same input, same output, same order. No network, no
+  model downloads, no surprises in continuous integration.
+- **Programmable.** Declare the capabilities a rule needs and the engine
+  loads only those. A structural run never pays for a parser it did not ask for.
+
+______________________________________________________________________
+
+## Quick start
+
+Stilyagi is not published yet — the `stilyagi` package currently on the Python
+Package Index is an unrelated older tool. Build from source:
+
+```shell
+git clone https://github.com/leynos/stilyagi.git
+cd stilyagi
+make build
+```
+
+That creates the virtual environment, compiles the Rust extension through
+`maturin`, and installs the package in editable mode. Python 3.14 or newer and
+a Rust toolchain are required.
+
+Then point it at some Markdown:
+
+```shell
+$ uv run stilyagi check docs/
+0 diagnostics found
+```
+
+Zero is the honest answer today: extraction runs over every file, and there are
+no rules yet to have an opinion about what it found. Ask for machine output, or
+pipe prose in on standard input:
+
+```shell
+uv run stilyagi check docs/ --output-format json
+echo '# A heading' | uv run stilyagi check - --stdin-filename docs/guide.md
+```
+
+______________________________________________________________________
+
+## Features
+
+Working today:
+
+- Markdown parsed into a versioned intermediate representation carrying a line
+  index, region segments, content hashes, and explicit markers for synthetic
+  insertions such as soft-break spaces.
 - Python docstring extraction with owner metadata — module, class, and
   function owners with `__qualname__`-style names, including `<locals>` for
-  definitions nested in function bodies.
+  definitions nested inside function bodies.
 - Rust documentation-comment extraction with equivalent owner semantics.
-- Suppression directives parsed in all three syntaxes, with range polarity
-  preserved in the IR.
-- `stilyagi check` over Markdown, with nearest-config discovery.
-- Wheels build and smoke-test on Linux, macOS, and Windows through PyO3 and
-  `maturin`.
+- Suppression comments in all three syntaxes, with range polarity preserved.
+- `stilyagi check` over Markdown, with configuration discovery, text and JSON
+  output, and standard input.
+- Wheels that build and smoke-test on Linux, macOS, and Windows.
 
-### Not built yet
+Designed, not yet built:
 
-- **Built-in rules.** None ship. The rules catalogue on the website describes
-  the intended v1 surface, not shipped behaviour.
-- Safe-fix planning, conflict resolution, `--fix`, and `--diff`.
+- Built-in rules. The catalogue described on the website is the v1 target.
+- Safe-fix planning, `--fix`, and `--diff`.
 - The `dump-ir`, `config`, `clean`, `rules`, and `rule` commands.
-- Grammar and spelling providers, and the capability planner that would load
-  them on demand.
-- Discovery defaults covering `*.py` and `*.rs` alongside `*.md`.
+- Grammar and spelling providers behind the capability planner.
+- Discovery covering `*.py` and `*.rs` alongside `*.md`.
 
-Treat the website and the design documents as a statement of intent. The
-roadmap in [docs/roadmap.md](docs/roadmap.md) is the honest record of what has
-landed: each item is checked off only when it is done.
+The [roadmap](docs/roadmap.md) is the reliable record: an item is ticked only
+once it is done.
 
-## Requirements
+______________________________________________________________________
 
-Python 3.14 or newer. A Rust toolchain is needed to build from source; release
-wheels bundle the compiled extension.
+## Learn more
 
-## Documentation
-
+- [Users' guide](docs/users-guide.md) — what the tool promises, and what it
+  does not.
+- [Developers' guide](docs/developers-guide.md) — building, testing, and the
+  Rust to Python boundary.
 - [Design](docs/stilyagi-design.md) — the normative v1 architecture.
 - [Roadmap](docs/roadmap.md) — delivery plan and current progress.
-- [User's guide](docs/users-guide.md) and
-  [developer's guide](docs/developers-guide.md).
 - [Contents](docs/contents.md) — index of every document, including the RFCs
   and architecture decision records.
 
+______________________________________________________________________
+
 ## Licence
 
-ISC.
+ISC — see [LICENSE](LICENSE) for details.
+
+______________________________________________________________________
+
+## Contributing
+
+Contributions are welcome, and early is a good time to arrive — the rule API is
+still soft enough to shape. See [AGENTS.md](AGENTS.md) for the conventions this
+repository follows.
