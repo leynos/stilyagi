@@ -31,16 +31,16 @@ extend-exclude = [
 [default]
 locale = "en-gb"
 extend-ignore-re = [
-    "-fuse-ld=mold",
-    "mold linker",
-    "Cranelift \\+ mold",
-    "Cranelift and mold",
-    "`mold`",
     "## Artifacts and notes",
     "(?s)```.*?```",
+    "-fuse-ld=mold",
     "Center \\| Microsoft Learn",
+    "Cranelift \\+ mold",
+    "Cranelift and mold",
     "\\brust-analyzer\\b",
     "`[^`\\n]+`",
+    "`mold`",
+    "mold linker",
     "release-artifact",
     "rust-analyzer",
 ]
