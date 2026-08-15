@@ -4,6 +4,7 @@ use std::path::Path;
 
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, SourceSpan};
+use stilyagi_test_fixtures::ExpectValid;
 
 use super::source_identity;
 use crate::{MarkdownDiagnosticContext, markdown_ir_document, validate_ir_consistency};
@@ -16,17 +17,19 @@ const fn diagnostic_context() -> MarkdownDiagnosticContext<'static> {
     }
 }
 
+/// Corrupt a valid document with `mutate` and assert the reported rule.
+///
+/// `#[track_caller]` attributes any failure to the calling test rather than to
+/// this helper.
+#[track_caller]
 fn assert_validation_reports(
     mutate: impl FnOnce(&mut IrDocument),
     expected_rule_id: &str,
     expected_reason_fragments: &[&str],
 ) {
     let source = "# Heading\n\nBody";
-    let Ok(mut document) =
-        markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
-    else {
-        panic!("expected Markdown IR document");
-    };
+    let mut document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
+        .expect_valid("Markdown IR document");
     mutate(&mut document);
     let context = diagnostic_context();
 

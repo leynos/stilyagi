@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use proptest::prelude::*;
 use proptest::string::string_regex;
 use rstest::rstest;
+use stilyagi_test_fixtures::ExpectValid;
 
 use crate::suppression::{
     DirectiveError, DirectiveOutcome, DirectiveVerb, SuppressionCandidate,
@@ -294,11 +295,12 @@ fn space_padding_strategy() -> impl Strategy<Value = String> {
     regex_strategy("[ \t]{0,2}")
 }
 
+/// Build a string strategy from `pattern`.
+///
+/// `string_regex` is fallible but a strategy pipeline has no error channel, so
+/// this funnels through the workspace's documented fixture panic boundary.
 fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
-    let Ok(strategy) = string_regex(pattern) else {
-        panic!("fixture regex pattern {pattern:?} must compile");
-    };
-    strategy
+    string_regex(pattern).expect_valid(pattern)
 }
 
 #[rstest]
