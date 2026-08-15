@@ -197,13 +197,19 @@ the rule engine, diagnostics model, and safe-fix machinery. See
   design (stilyagi-design.md) §7.2.
   - Requires 2.1.2 and 2.2.1.
   - Prioritize structural and lightweight text rules such as heading depth,
-    list punctuation, or other policy checks that do not require spaCy.
+    repeated words, banned terms, weasel-word lists, simple wordy phrases, list
+    punctuation, or other policy checks that do not require spaCy.
+  - Reuse the same policy targeting and source-backed diagnostic substrate that
+    later opinionated packs consume.
   - Success: the slice solves real documentation linting problems on day one.
 - [ ] 2.3.2. Implement `stilyagi rule CODE` and `stilyagi rules` for builtin
   rules. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 2.3.1.
-  - Include metadata, fixability, examples, and machine-readable output where
-    practical.
+  - Include policy configuration, capability requirements, fixability,
+    disabled-by-default enablement, preview status, examples, limitations, and
+    machine-readable output where practical.
+  - Describe typed options for easily identifiable inverse policies and rule
+    variants.
   - Success: maintainers can discover and debug the shipped rules without
     reading source.
 - [ ] 2.3.3. Document the Markdown slice in the user's and developer's guides.
@@ -291,6 +297,11 @@ extractor surface grows. See [Stilyagi design](stilyagi-design.md) §§3-4, 7.2,
   - Requires 3.1.1, 3.1.2, and 2.3.1.
   - Focus on summary-line, punctuation, and owner-aware rules that benefit from
     the new metadata.
+  - State whether each rule targets Markdown, Python docstrings, Rust
+    documentation comments, or a subset through the shared policy targeting
+    model.
+  - Keep arbitrary non-doc comments out of the supported surface; reconsider
+    them only through a post-v1 roadmap item.
   - Success: the second slice provides new value instead of merely exposing IR.
 - [ ] 3.2.3. Extend `dump-ir`, diagnostics, and fixes so mixed-source output is
   still deterministic and source-faithful. See Stilyagi design
@@ -375,13 +386,17 @@ language-aware features exist. See [Stilyagi design](stilyagi-design.md) §§7.2
   dependency pattern support as the second grammar-capability wave. See
   Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.1.2.
+  - Expose spans, markers, heads, punctuation adjacency, and source-backed
+    insertion points as policy-neutral facts rather than house-style decisions.
   - Success: richer rules can request higher-order syntax helpers without
     rebuilding them from raw dependency edges.
 - [ ] 4.2.3. Implement a small set of showcase language-aware rules that prove
   the model. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.2.1 and 4.2.2.
   - Include at least one POS-only rule, one morphology-plus-dependency rule,
-    and one higher-order coordination or clause rule from RFC 0005.
+    and one higher-order coordination or clause rule from RFC 0005 or
+    [RFC 0006](rfcs/0006-editorial-policy-vertical-slices.md), such as person,
+    imperative, passive-voice, serial-comma, or clause-punctuation policy.
   - Success: the slice ships at least one sentence-level rule and one
     syntax-aware editorial rule that would be awkward in the structural-only
     model.
@@ -434,7 +449,22 @@ surface. See
     preserve the structural fast path when disabled, and continue to run fully
     offline with no network access, runtime auto-downloads, or system package
     manager dependencies.
-- [ ] 4.4.3. Accept `spellbook` or switch to the `zspell` fallback using the
+- [ ] 4.4.3. Add dictionary acquisition and configurable override profiles.
+  See [RFC 0006](rfcs/0006-editorial-policy-vertical-slices.md).
+  - Requires 4.4.2.
+  - Provide a simple workflow that downloads Hunspell dictionaries, or a
+    supported equivalent, into the location defined by the Cross-Desktop Group
+    (XDG) Base Directory Specification.
+  - Keep acquisition separate from checking: runtime analysis must remain
+    offline and must not invoke package managers or automatic downloads.
+  - Do not distribute dictionary assets with Stilyagi. Record upstream
+    provenance, licensing, and integrity metadata for acquired dictionaries.
+  - Support opinionated dictionary overrides generically and use
+    `en-GB-oxendict` as the example acceptance profile.
+  - Success: a user can install a supported dictionary into the XDG data-share
+    location and select it explicitly without Stilyagi privileging or bundling
+    one house dictionary.
+- [ ] 4.4.4. Accept `spellbook` or switch to the `zspell` fallback using the
   ADR 001 gate criteria. See ADR 001 (adr-001-spell-checking-provider.md). See
   stilyagi-design.md §11.
   - Requires 4.4.2 and 4.3.3.
@@ -445,6 +475,56 @@ surface. See
   - Success: the spelling capability lands behind one documented provider
     decision rather than an open-ended experiment, and the accepted provider
     clears the offline gate alongside the other ADR 001 acceptance criteria.
+
+### 4.5. Add the `df12-editorial-style` showcase pack
+
+This step proves that Stilyagi's `astroid`-like API can express opinionated,
+logic-driven grammatical rules without hard-coding house style into extractor,
+IR, or provider nodes. The first-party pack enforces df12 house style when
+selected and serves as a worked rule-authoring example. See
+[RFC 0006](rfcs/0006-editorial-policy-vertical-slices.md).
+
+- [ ] 4.5.1. Add policy-rule configuration and lexicon or phrase-table
+  primitives.
+  - Requires 2.3.1, 2.3.2, and 3.2.2.
+  - Expose modes, severities, allowlists, ignored contexts, preview status, and
+    typed options for easily identifiable inverse policies and variants.
+  - Success: rules can enforce either an opinionated policy or its supported
+    inverse and variants without bespoke configuration parsing.
+- [ ] 4.5.2. Add the example opinionated dictionary override.
+  - Requires 4.4.3, 4.4.4, and 4.5.1.
+  - Use `en-GB-oxendict` as the example rather than a built-in universal
+    dictionary policy.
+  - Success: Markdown, Python docstring, and Rust documentation-comment
+    fixtures prove that a separately acquired dictionary can enforce an
+    opinionated profile over every current prose surface.
+- [ ] 4.5.3. Add the six `write-good` gap-probe rules.
+  - Requires 4.1.2, 4.2.1, and 4.5.1.
+  - Include passive voice, E-Prime, lexical illusion, sentence-initial
+    existential `there is` or `there are`, weasel words, and wordy phrases.
+  - Success: the rules expose missing primitives and prove the rule-testing
+    workflow while remaining disabled by default regardless of preview status.
+- [ ] 4.5.4. Add person and imperative policy rules.
+  - Requires 4.2.1 and 4.5.1.
+  - Support configurable first-person, second-person, and imperative variants.
+  - Success: configured Markdown, Python docstring, and Rust documentation-
+    comment regions enforce the selected person and mood policies without
+    automatic rewrites.
+- [ ] 4.5.5. Add clause and coordination punctuation policy rules.
+  - Requires 4.2.2, 4.3.2, and 4.5.1.
+  - Include configurable serial-comma behaviour, commas before selected
+    postposed subordinate clauses, and commas after selected fronted dependent
+    clauses.
+  - Success: rules consume policy-neutral `ClauseNode` and `CoordinationNode`
+    facts, explain their decisions, and only mark unambiguous source-backed
+    insertions safe.
+- [ ] 4.5.6. Document and test disabled-by-default pack adoption.
+  - Requires 4.5.2, 4.5.3, 4.5.4, and 4.5.5.
+  - Keep the pack and every rule disabled by default, like Clippy's `pedantic`
+    and `restriction` lint groups.
+  - Success: users understand rule stability, capability dependencies,
+    configurable variants, limitations, and explicit selection through the
+    pack or individual rules.
 
 ## 5. Vertical slice 4: Team adoption and extension ecosystem
 
@@ -466,7 +546,8 @@ consumers and safe enough for teams to adopt deliberately. See
 - [ ] 5.1.1. Implement entry-point-based discovery for rule packs and
   capability providers. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.2.1 and 2.3.2.
-  - Success: installed but unconfigured packs remain inert by default.
+  - Success: installed but unconfigured packs remain inert by default, and
+    pack selection does not implicitly enable disabled rules.
 - [ ] 5.1.2. Reject duplicate pack names, duplicate rule codes, and invalid
   provider metadata at startup. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 5.1.1.
@@ -492,11 +573,15 @@ without inventing a second test-only universe. See
   diagnostics, fixes, and IR output. See Stilyagi design (stilyagi-design.md)
   §7.2.
   - Requires 5.2.1.
+  - Add provider-backed cases for spelling and grammar rules plus paired cases
+    for configurable inverse policies and variants.
   - Success: rule-pack tests stop copy-pasting JSON parsing and path
     normalization code.
 - [ ] 5.2.3. Document the rule-author workflow, plugin trust model, and stable
   v1 API surface. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 5.1.2 and 5.2.2.
+  - Use `df12-editorial-style` as the worked example of implementing
+    opinionated, logic-driven grammatical rules through the `astroid`-like API.
   - Success: external pack authors know what is supported and what is unstable.
 
 ### 5.3. Harden reporting, CI adoption, and release readiness
@@ -509,6 +594,7 @@ publishing. See [Stilyagi design](stilyagi-design.md) §§5, 8, 11, 13 and
   rendering from the shared diagnostic model. See Stilyagi design
   (stilyagi-design.md) §7.3.
   - Requires 3.2.3.
+  - Preserve policy-pack rule codes, configured variants, and messages.
   - Success: JSON and SARIF stay consistent because they derive from the same
     facts.
 - [ ] 5.3.2. Add Linux, macOS, and Windows wheel smoke tests plus installation
@@ -517,7 +603,7 @@ publishing. See [Stilyagi design](stilyagi-design.md) §§5, 8, 11, 13 and
   - Success: mixed Rust and Python packaging works on every supported platform.
 - [ ] 5.3.3. Define release-candidate criteria for the first meaningful v1
   release. See Stilyagi design (stilyagi-design.md) §7.3.
-  - Requires 2.3.3, 3.3.3, 4.3.3, 5.1.3, 5.2.3, and 5.3.2.
+  - Requires 2.3.3, 3.3.3, 4.3.3, 4.5.6, 5.1.3, 5.2.3, and 5.3.2.
   - Include required commands, supported syntaxes, rule discoverability, debug
     surfaces, and fix safety guarantees.
   - Success: the project can decide objectively when the core v1 promise has
@@ -572,3 +658,21 @@ land.
     cross-checking test that fails on drift.
   - Success: the two crates cannot silently diverge on region names or
     meanings.
+
+### 6.5. Evaluate arbitrary non-doc comments after v1
+
+Arbitrary non-doc comments remain out of scope for the current extraction and
+editorial-policy surfaces. This step preserves a deliberate post-v1 path
+without weakening that boundary. See
+[RFC 0006](rfcs/0006-editorial-policy-vertical-slices.md).
+
+- [ ] 6.5.1. Draft a post-v1 RFC for arbitrary non-doc comment extraction.
+  - Requires 5.3.3.
+  - Define syntax coverage, ownership, source mapping, suppression semantics,
+    false-positive policy, and interaction with documentation-comment rules.
+  - Success: the project has evidence and an explicit contract before non-doc
+    comments enter the supported syntax surface.
+- [ ] 6.5.2. Prototype non-doc comment support behind an explicit preview gate.
+  - Requires 6.5.1.
+  - Success: representative fixtures prove extraction and policy behaviour
+    without broadening the stable v1 promise.
