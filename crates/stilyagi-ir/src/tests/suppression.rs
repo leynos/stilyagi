@@ -283,15 +283,22 @@ fn directive_codes_and_padding() -> impl Strategy<Value = (Vec<String>, Vec<Stri
 }
 
 fn code_token_strategy() -> impl Strategy<Value = String> {
-    string_regex("[A-Z][A-Z0-9]{0,7}").expect("valid code regex")
+    regex_strategy("[A-Z][A-Z0-9]{0,7}")
 }
 
 fn whitespace_strategy() -> impl Strategy<Value = String> {
-    string_regex("[ \t]{0,3}").expect("valid whitespace regex")
+    regex_strategy("[ \t]{0,3}")
 }
 
 fn space_padding_strategy() -> impl Strategy<Value = String> {
-    string_regex("[ \t]{0,2}").expect("valid space padding regex")
+    regex_strategy("[ \t]{0,2}")
+}
+
+fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
+    let Ok(strategy) = string_regex(pattern) else {
+        panic!("fixture regex pattern {pattern:?} must compile");
+    };
+    strategy
 }
 
 #[rstest]

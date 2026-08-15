@@ -58,13 +58,14 @@ fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
                 let source_start = source.len();
                 source.push_str(text);
                 region_text.push_str(text);
+                let Some(span) = SourceSpan::new(source_start, source.len()) else {
+                    panic!("expected source span to be valid for region fixture construction");
+                };
                 segments.push(IrSegment::new(
                     text_start,
                     text.clone(),
                     SegmentOrigin::Source {
-                        span: SourceSpan::new(source_start, source.len()).expect(
-                            "expected source span to be valid for region fixture construction",
-                        ),
+                        span,
                         node: "n1".to_owned(),
                     },
                 ));

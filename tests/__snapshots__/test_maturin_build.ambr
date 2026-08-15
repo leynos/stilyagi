@@ -45,7 +45,7 @@
       'stilyagi/rules/registry.py',
       'stilyagi/smoke.py',
     ]),
-    'generator': '1.13.3',
+    'generator': '1.14.1',
     'metadata': dict({
       'classifiers': list([
       ]),
