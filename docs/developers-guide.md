@@ -697,6 +697,20 @@ docstring and Rust doc-comment IR production. All three producers emit the same
 `IrDocument` shape, and unsupported syntaxes must not receive placeholder IR
 payloads.
 
+`stilyagi_ir::content_hash_for` computes the stable SHA-256 content hash that
+IR documents persist as `document.content_hash`. The digest suffix is rendered
+by the crate-internal `to_lower_hex` helper in `canonical_json.rs` rather than
+with the `{:x}` format specifier, because `sha2` 0.11 changed `digest()` to
+return `hybrid_array::Array<u8, _>`, which does not implement `LowerHex`. The
+rendering stays lowercase and zero-padded so persisted IR hashes remain
+byte-identical.
+
+A [trybuild](https://github.com/dtolnay/trybuild) compile-fail guard under
+`crates/stilyagi-ir/tests/ui/` pins that formatting break:
+`format!("{:x}", Sha256::digest(..))` must fail to compile against `sha2` 0.11,
+so any future downgrade to 0.10, which would recompile it, fails the test and
+flags the regression.
+
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine
 building blocks. A bad boundary exports policy-heavy convenience wrappers that
