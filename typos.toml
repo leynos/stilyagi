@@ -33,9 +33,14 @@ locale = "en-gb"
 extend-ignore-re = [
     "## Artifacts and notes",
     "(?s)```.*?```",
+    "-fuse-ld=mold",
     "Center \\| Microsoft Learn",
+    "Cranelift \\+ mold",
+    "Cranelift and mold",
     "\\brust-analyzer\\b",
     "`[^`\\n]+`",
+    "`mold`",
+    "mold linker",
     "release-artifact",
     "rust-analyzer",
 ]
