@@ -102,8 +102,10 @@ fn empty_list_item_does_not_emit_empty_garbage_text_region() {
 }
 
 fn document_for(relative_path: &str, source: &str) -> IrDocument {
-    markdown_ir_document(source, source_identity(Path::new(relative_path)))
-        .expect("expected Markdown IR document")
+    match markdown_ir_document(source, source_identity(Path::new(relative_path))) {
+        Ok(document) => document,
+        Err(error) => panic!("expected Markdown IR document: {error}"),
+    }
 }
 
 fn degraded_region_text(document: &IrDocument) -> String {
