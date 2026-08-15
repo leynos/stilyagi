@@ -630,6 +630,33 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   required follow-up.
   Date/Author: 2026-08-16, planning agent (round 2).
 
+- **D12 (new, after rebasing onto `ddf791b`). Rust test helpers that sit outside
+  a `#[test]` body use `let`-`else` plus `panic!`, never `.expect()`.**
+  `main` bumped PyO3 from 0.28.3 to 0.29.2 and `maturin` from 1.13.3 to 1.14.1,
+  and in the same commit rewrote the `stilyagi-ir` and `stilyagi-markdown` test
+  helpers to clear every `no_expect_outside_tests` finding. Whitaker's rule is
+  that `allow-expect-in-tests` covers `#[test]` and `#[cfg(test)]` *bodies* but
+  not helper functions beside them, which is where fixture and strategy
+  constructors live. The established shape is:
+
+  ```rust
+  fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
+      let Ok(strategy) = string_regex(pattern) else {
+          panic!("fixture regex pattern {pattern:?} must compile");
+      };
+      strategy
+  }
+  ```
+
+  W6 adds Rust unit tests under `crates/stilyagi-ir/src/tests/`, exactly the
+  directory this convention governs, so any helper it introduces must follow it.
+  Note the helper is duplicated across `crates/stilyagi-ir/src/tests/suppression.rs`
+  and `crates/stilyagi-markdown/src/tests/suppression_support.rs` — it is a
+  pattern, not a shared resource, so do not import it across crates.
+  Consequence: this also retires the "whitaker is red on `main`" baseline this
+  plan previously carried. See `Validation and acceptance`.
+  Date/Author: 2026-08-16, planning agent (post-rebase).
+
 ## Outcomes & retrospective
 
 To be completed at W8. Compare delivered behaviour against the acceptance items
@@ -745,10 +772,7 @@ stop and escalate — the plan was written against a different tree. Then run th
 four gates, record the baseline, and re-run the S3 dry run to confirm the
 233-file figure. Confirm `.uv-cache` exists and is pruned (S13); if no `make`
 target has yet run in this worktree it will be absent, and the figure will look
-correct for the wrong reason. Confirm whether `make lint`'s `whitaker` step is
-still red on
-`main` from pre-existing `no_expect_outside_tests` findings in test helpers; if
-so, record it as a known baseline condition, not a regression from this branch.
+correct for the wrong reason.
 
 Go/no-go: gates recorded, both anchors confirmed.
 
@@ -886,7 +910,8 @@ Go/no-go: milestone-1 tests pass; four gates green; commit.
 **W6-red.** In `crates/stilyagi-ir/src/tests/`, assert
 `is_authored_directive_code` returns `true` for the two suppression codes and
 `false` for each of the six anomaly codes and for an unknown code — the last
-case pinning Constraint 9's fail-safe polarity. In
+case pinning Constraint 9's fail-safe polarity. Follow D12: any helper beside
+these tests uses `let`-`else` plus `panic!`, not `.expect()`. In
 `crates/stilyagi-pyext/src/tests/`, assert the new module function is registered
 and returns the expected shape. In `tests/test_check_files.py`, assert a tree
 containing one malformed `.rs` file exits `0` with a warning-severity
@@ -945,6 +970,14 @@ In `crates/stilyagi-pyext/src/lib.rs`, mirror `supported_syntaxes` exactly: add
 `authored_directive_error_codes() -> tuple[str, ...]`, register it in the module
 list, and declare it in `python/stilyagi/_stilyagi_rs.pyi`. These codes appear
 in bridge payloads, so Constraint 3 applies and Rust owns them.
+
+Mirror the *current* `supported_syntaxes` rather than any remembered form: this
+branch is rebased onto `ddf791b`, which moved PyO3 from 0.28.3 to 0.29.2. The
+bump changed `BoundRef` to `&pyo3::Bound` in `#[pymodule]` signature rejections,
+and the `trybuild` compile-fail expectations in
+`crates/stilyagi-pyext/tests/ui/fail/*.stderr` are pinned to the 0.29 wording.
+If W4's addition perturbs those golden files, that is a signal the new function
+does not match the established shape — fix the function, not the snapshot.
 
 **W5. Classification, exit code, and read hardening.** In
 `python/stilyagi/engine/checker.py`, have `_map_one_error` select
@@ -1227,11 +1260,12 @@ Quality criteria — what "done" means:
 - **Review:** `coderabbit review --agent` reports no outstanding concerns at each
   milestone.
 
-Known pre-existing condition: `make lint`'s `whitaker` step is reported red on
-`main` from `no_expect_outside_tests` findings on pre-existing `.expect()` calls
-in test helpers. Confirm at W0. If it still holds, it is not a regression from
-this branch — record the baseline, do not fix it here, and do not add new
-`.expect()` calls outside `#[cfg(test)]`.
+All six gates are green on this branch as of the rebase onto `ddf791b`,
+including `whitaker`. That is a change from earlier in this branch's life: the
+`no_expect_outside_tests` findings on pre-existing `.expect()` calls in Rust
+test helpers were cleared by `ddf791b` itself, so there is no longer a red
+baseline to work around. Any `whitaker` finding this branch produces is a
+regression it owns. See D12 for the convention that keeps it green.
 
 ## Idempotence and recovery
 
@@ -1426,3 +1460,24 @@ than the one that exits `1`.
 Effect on remaining work: milestone 1 now touches no Rust at all, so it needs no
 `make build` and no bridge round-trip. Milestone 2 carries the whole contract
 risk and should be reviewed on its own.
+
+**Round 2a (2026-08-16).** Rebased onto `ddf791b` (PyO3 0.28.3 → 0.29.2,
+`maturin` 1.13.3 → 1.14.1). No conflicts — `main` touched build, lock, and Rust
+test files while this branch touches one document. Two substantive updates were
+still needed, because that commit changed facts this plan asserted:
+
+- **The whitaker baseline is retired.** This plan carried a "known pre-existing
+  condition" that `make lint`'s `whitaker` step was red on `main` from
+  `no_expect_outside_tests` findings. `ddf791b` cleared those findings, and all
+  four gates now pass on this branch. Any whitaker finding this branch produces
+  is now a regression it owns, so the caveat is replaced by that statement and
+  the W0 instruction to characterize the red baseline is removed.
+- **D12 added.** `ddf791b` established the convention that Rust test helpers
+  outside a `#[test]` body use `let`-`else` plus `panic!` in place of
+  `.expect()`, since `allow-expect-in-tests` does not cover helpers beside the
+  tests. W6 adds tests in exactly the directory this governs, so the convention
+  is recorded and W6-red now cites it. W4 also gained a note that the compile
+  -fail golden files are pinned to PyO3 0.29 wording.
+
+Gate evidence after the rebase: `make check-fmt`, `make typecheck`, `make lint`,
+and `make test` all exit `0`; 198 Python tests pass with 8 snapshots.
