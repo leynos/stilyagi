@@ -29,7 +29,7 @@ dev = [
     "pytest-bdd",
     "hypothesis>=6.165.2,<7.0",
     "parse_type",
-    "syrupy>=5.5.2,<6.0",
+    "syrupy>=5.5.3,<6.0",
     "pyyaml>=6.0.3,<7.0",
 ]
 
