@@ -16,6 +16,7 @@ sha2.workspace = true
 proptest.workspace = true
 rstest.workspace = true
 stilyagi-test-fixtures = { path = "../stilyagi-test-fixtures", version = "0.1.0" }
+trybuild.workspace = true
 
 [lints]
 workspace = true
