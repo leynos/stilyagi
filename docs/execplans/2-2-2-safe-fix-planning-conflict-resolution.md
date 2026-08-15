@@ -902,7 +902,7 @@ Commit: `Read source as bytes and bundle check collaborators`.
 
 Stage B (red): add `tests/test_ir_view.py`. Build documents through
 `engine.extract_document` on the real corpus so the tests exercise the true IR
-shape rather than a hand-written mock.
+shape rather than a handwritten mock.
 
 `tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md` is the
 workhorse fixture — its paragraph region `r1` already contains exactly the mix
