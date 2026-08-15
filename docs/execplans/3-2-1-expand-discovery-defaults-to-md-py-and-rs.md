@@ -630,32 +630,52 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   required follow-up.
   Date/Author: 2026-08-16, planning agent (round 2).
 
-- **D12 (new, after rebasing onto `ddf791b`). Rust test helpers that sit outside
-  a `#[test]` body use `let`-`else` plus `panic!`, never `.expect()`.**
-  `main` bumped PyO3 from 0.28.3 to 0.29.2 and `maturin` from 1.13.3 to 1.14.1,
-  and in the same commit rewrote the `stilyagi-ir` and `stilyagi-markdown` test
-  helpers to clear every `no_expect_outside_tests` finding. Whitaker's rule is
-  that `allow-expect-in-tests` covers `#[test]` and `#[cfg(test)]` *bodies* but
-  not helper functions beside them, which is where fixture and strategy
-  constructors live. The established shape is:
+- **D12 (revised). Rust test helpers follow the house remediation order:
+  propagate, then `#[track_caller]`, then one documented panic boundary.**
+  `ddf791b` bumped PyO3 and `maturin` and, in the same commit, cleared every
+  `no_expect_outside_tests` finding by rewriting the `stilyagi-ir` and
+  `stilyagi-markdown` test helpers. Whitaker's rule is that clippy's
+  `allow-expect-in-tests` covers a `#[test]` or `#[rstest]` *body* but not the
+  helper functions beside it, which is where fixture and strategy constructors
+  live.
 
-  ```rust
-  fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
-      let Ok(strategy) = string_regex(pattern) else {
-          panic!("fixture regex pattern {pattern:?} must compile");
-      };
-      strategy
-  }
-  ```
+  The first draft of this decision recorded that commit's shape — divergent
+  `let`-`else` plus `panic!` — as the convention to follow. That was wrong. It
+  satisfies the lint while reproducing the problem the lint exists to surface:
+  an unnamed panic boundary at every call site, in a third spelling alongside
+  the `must_ok!` and `must_some!` macros the repository already had. The house
+  order is:
+
+  1. **Propagate.** Make the helper return `Result`; the test body unwraps,
+     because a failure there is the test verdict. Do not make the *test* return
+     `Result` — `clippy::panic_in_result_fn` is denied workspace-wide, so
+     `assert!` is unavailable in one.
+  2. **`#[track_caller]`.** Where a helper legitimately asserts, mark it so a
+     failure names the calling test. This is the property that otherwise forces
+     shared assertion shapes to become macros.
+  3. **One documented boundary.** For contexts that genuinely cannot propagate —
+     a `proptest` strategy constructor returning `impl Strategy<Value = T>`, or
+     a `prop_map` closure — use `ExpectValid` from `stilyagi-test-fixtures`:
+
+     ```rust
+     fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
+         string_regex(pattern).expect_valid(pattern)
+     }
+     ```
 
   W6 adds Rust unit tests under `crates/stilyagi-ir/src/tests/`, exactly the
-  directory this convention governs, so any helper it introduces must follow it.
-  Note the helper is duplicated across `crates/stilyagi-ir/src/tests/suppression.rs`
-  and `crates/stilyagi-markdown/src/tests/suppression_support.rs` — it is a
-  pattern, not a shared resource, so do not import it across crates.
+  directory this governs, so any helper it introduces follows this order.
+
+  **Dependency:** `ExpectValid` and the developers' guide §6b that records this
+  order land on a separate branch, `whitaker-fallible-test-helpers`. W6 should
+  not start until that branch merges, or it will have to invent the boundary
+  again. If it has not merged when W6 begins, escalate rather than duplicating
+  it.
+
   Consequence: this also retires the "whitaker is red on `main`" baseline this
   plan previously carried. See `Validation and acceptance`.
-  Date/Author: 2026-08-16, planning agent (post-rebase).
+  Date/Author: 2026-08-16, planning agent (post-rebase; revised after applying
+  the `addressing-whitaker-findings` guidance).
 
 ## Outcomes & retrospective
 
@@ -910,8 +930,10 @@ Go/no-go: milestone-1 tests pass; four gates green; commit.
 **W6-red.** In `crates/stilyagi-ir/src/tests/`, assert
 `is_authored_directive_code` returns `true` for the two suppression codes and
 `false` for each of the six anomaly codes and for an unknown code — the last
-case pinning Constraint 9's fail-safe polarity. Follow D12: any helper beside
-these tests uses `let`-`else` plus `panic!`, not `.expect()`. In
+case pinning Constraint 9's fail-safe polarity. Follow D12's remediation order
+for any helper beside these tests: propagate a `Result` first, reach for
+`#[track_caller]` when the helper asserts, and funnel a genuinely
+non-propagating context through `ExpectValid`. In
 `crates/stilyagi-pyext/src/tests/`, assert the new module function is registered
 and returns the expected shape. In `tests/test_check_files.py`, assert a tree
 containing one malformed `.rs` file exits `0` with a warning-severity
