@@ -282,13 +282,12 @@ fn assert_frontmatter_source_backed(region: &IrRegion, source: &str) {
         1,
         "frontmatter must have exactly one segment"
     );
-    let segment = region
-        .segments
-        .first()
-        .expect("expected frontmatter source segment");
-    let span = segment
-        .source
-        .expect("expected frontmatter to be source-backed");
+    let Some(segment) = region.segments.first() else {
+        panic!("expected frontmatter source segment");
+    };
+    let Some(span) = segment.source else {
+        panic!("expected frontmatter to be source-backed");
+    };
     assert_eq!(
         source.get(span.byte_start..span.byte_end),
         Some(region.text.as_str()),

@@ -1,10 +1,10 @@
-error[E0277]: the trait bound `pyo3::Python<'_>: From<pyo3::impl_::pymethods::BoundRef<'_, '_, PyModule>>` is not satisfied
+error[E0277]: the trait bound `pyo3::Python<'_>: From<&pyo3::Bound<'_, PyModule>>` is not satisfied
  --> tests/ui/fail/pymodule_three_args.rs:9:1
   |
 9 | #[pymodule]
-  | ^^^^^^^^^^^ the trait `From<pyo3::impl_::pymethods::BoundRef<'_, '_, PyModule>>` is not implemented for `pyo3::Python<'_>`
+  | ^^^^^^^^^^^ the trait `From<&pyo3::Bound<'_, PyModule>>` is not implemented for `pyo3::Python<'_>`
   |
-  = note: required for `pyo3::impl_::pymethods::BoundRef<'_, '_, PyModule>` to implement `Into<pyo3::Python<'_>>`
+  = note: required for `&pyo3::Bound<'_, PyModule>` to implement `Into<pyo3::Python<'_>>`
   = note: this error originates in the attribute macro `pymodule` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0061]: this function takes 3 arguments but 1 argument was supplied

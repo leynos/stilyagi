@@ -22,8 +22,11 @@ fn assert_validation_reports(
     expected_reason_fragments: &[&str],
 ) {
     let source = "# Heading\n\nBody";
-    let mut document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
-        .expect("expected Markdown IR document");
+    let Ok(mut document) =
+        markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
+    else {
+        panic!("expected Markdown IR document");
+    };
     mutate(&mut document);
     let context = diagnostic_context();
 

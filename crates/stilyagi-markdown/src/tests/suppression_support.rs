@@ -28,17 +28,26 @@ pub(super) fn directive_codes_and_padding() -> impl Strategy<Value = (Vec<String
 
 /// Generate a comment code token.
 pub(super) fn code_token_strategy() -> impl Strategy<Value = String> {
-    string_regex("[A-Z][A-Z0-9]{0,7}").expect("valid code regex")
+    regex_strategy("[A-Z][A-Z0-9]{0,7}")
 }
 
 /// Generate optional leading or trailing whitespace around a directive.
 pub(super) fn whitespace_strategy() -> impl Strategy<Value = String> {
-    string_regex("[ \t]{0,3}").expect("valid whitespace regex")
+    regex_strategy("[ \t]{0,3}")
 }
 
 /// Generate optional padding after commas in a directive code list.
 pub(super) fn space_padding_strategy() -> impl Strategy<Value = String> {
-    string_regex("[ \t]{0,2}").expect("valid space padding regex")
+    regex_strategy("[ \t]{0,2}")
+}
+
+/// Compile a fixture regex pattern into a proptest strategy, panicking on
+/// invalid patterns since callers pass compile-time constants.
+fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
+    let Ok(strategy) = string_regex(pattern) else {
+        panic!("fixture regex pattern {pattern:?} must compile");
+    };
+    strategy
 }
 
 /// Collect the IR node identifiers that correspond to HTML comments.
