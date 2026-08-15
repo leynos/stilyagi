@@ -314,11 +314,11 @@ Established during planning; use them instead of re-measuring.
   ships `manual`; a list-punctuation rule works. This is a lossy proxy for the
   real hazard (a rule computing an offset in region-text coordinates), so it is
   paired with the cross-check in D-12 rather than relied on alone. Date/Author:
-  2026-08-16, verified against real IR snapshots.
-  **Confirmed by the repository owner on 2026-08-16**, including the
-  consequence that a heading-depth rule ships `manual`. Do not re-litigate this
-  during implementation; if the model proves wrong in practice, escalate under
-  Tolerances rather than widening it unilaterally.
+  2026-08-16, verified against real IR snapshots. **Confirmed by the repository
+  owner on 2026-08-16**, including the consequence that a heading-depth rule
+  ships `manual`. Do not re-litigate this during implementation; if the model
+  proves wrong in practice, escalate under Tolerances rather than widening it
+  unilaterally.
 
 - **D-04: Conflicts abort the whole file rather than skipping the losing fix.**
   Rationale: `docs/stilyagi-design.md` §4 states the failure path as "conflict
