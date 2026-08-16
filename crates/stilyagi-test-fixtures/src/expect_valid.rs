@@ -124,3 +124,51 @@ impl<T> ExpectValid for Option<T> {
         value
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Tests for panic diagnostics emitted by [`super::ExpectValid`].
+
+    use std::panic::{self, AssertUnwindSafe};
+    use std::sync::{Arc, LazyLock, Mutex};
+
+    use super::ExpectValid;
+
+    static PANIC_HOOK_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    #[test]
+    fn option_failure_reports_the_fixture_call_site() {
+        let _panic_hook_lock = PANIC_HOOK_LOCK
+            .lock()
+            .expect("panic hook lock must not be poisoned");
+        let panic_location = Arc::new(Mutex::new(None));
+        let captured_location = Arc::clone(&panic_location);
+        let previous_hook = panic::take_hook();
+
+        panic::set_hook(Box::new(move |panic_info| {
+            let location = panic_info
+                .location()
+                .map(|location| (location.file().to_owned(), location.line()));
+            *captured_location
+                .lock()
+                .expect("panic location lock must not be poisoned") = location;
+        }));
+
+        let expected_line = line!() + 3;
+        let panic_result = panic::catch_unwind(AssertUnwindSafe(|| {
+            let missing: Option<u8> = None;
+            let _fixture_value = missing.expect_valid("caller fixture");
+        }));
+
+        panic::set_hook(previous_hook);
+        assert!(panic_result.is_err(), "missing fixture should panic");
+
+        let actual_location = panic_location
+            .lock()
+            .expect("panic location lock must not be poisoned")
+            .take()
+            .expect("panic hook must record a location");
+        assert_eq!(actual_location.0, file!());
+        assert_eq!(actual_location.1, expected_line);
+    }
+}
