@@ -15,7 +15,9 @@
 //! Use [`ExpectValid`] **only** where an error genuinely cannot be propagated:
 //!
 //! - `proptest` strategy constructors and `prop_map` closures;
-//! - fixture builders called exclusively from `proptest!` bodies.
+//! - fixture builders called exclusively from `proptest!` bodies;
+//! - shared assertion helpers with no `Result`-compatible contract. Mark the
+//!   helper `#[track_caller]` so failures name the calling test.
 //!
 //! Do not use it to avoid threading a `Result` through an ordinary fixture. If
 //! the helper can return `Result`, it must: callers unwrap in the test body,
@@ -49,12 +51,21 @@
 //!
 //! A malformed fixture names itself in the panic message:
 //!
-//! ```should_panic
+//! ```should_panic(expected = "invalid test fixture: segment offset")
 //! use stilyagi_test_fixtures::ExpectValid;
 //!
 //! let missing: Option<u32> = None;
-//! // panics with: invalid test fixture: segment offset
 //! let _ = missing.expect_valid("segment offset");
+//! ```
+//!
+//! The error-bearing branch preserves both the fixture context and the source
+//! error:
+//!
+//! ```should_panic(expected = "invalid test fixture: segment offset: invalid digit found in string")
+//! use stilyagi_test_fixtures::ExpectValid;
+//!
+//! let malformed: Result<u32, _> = "not a number".parse();
+//! let _ = malformed.expect_valid("segment offset");
 //! ```
 
 use core::fmt::Display;
