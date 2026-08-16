@@ -1055,8 +1055,9 @@ fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
 
 **Scope and re-use policy for `ExpectValid`.** Use it only where an error
 cannot be propagated — strategy constructors, `prop_map` closures, fixture
-builders called solely from `proptest!` bodies, and shared assertion helpers
-with no `Result`-compatible contract. Mark the latter `#[track_caller]` so
+builders used by `proptest!` bodies (including helpers also exercised by
+deterministic tests), and shared assertion helpers with no `Result`-compatible
+contract. Mark the latter `#[track_caller]` so
 their failures name the calling test. Do not reach for it to avoid threading a
 `Result` through an ordinary fixture; step 1 governs there. Its methods are
 `#[track_caller]`, so failures report the fixture that is wrong.
