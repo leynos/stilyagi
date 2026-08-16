@@ -15,7 +15,8 @@
 //! Use [`ExpectValid`] **only** where an error genuinely cannot be propagated:
 //!
 //! - `proptest` strategy constructors and `prop_map` closures;
-//! - fixture builders called exclusively from `proptest!` bodies;
+//! - fixture builders used by `proptest!` bodies (including helpers also
+//!   exercised by deterministic tests);
 //! - shared assertion helpers with no `Result`-compatible contract. Mark the
 //!   helper `#[track_caller]` so failures name the calling test.
 //!
