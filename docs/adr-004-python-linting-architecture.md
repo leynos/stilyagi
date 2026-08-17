@@ -195,6 +195,8 @@ Run only the Python tiers manually when diagnosing a failure:
 
 ```bash
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev ruff check
+UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev interrogate \
+  --fail-under 100 python/stilyagi tests
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv tool run --python pypy \
   --from 'git+https://github.com/leynos/pylint-pypy-shim.git@726d09f968b4d729ee4b29c71fc732e744854f3b' \
   pylint-pypy python/stilyagi tests
