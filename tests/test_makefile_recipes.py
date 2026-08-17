@@ -10,7 +10,7 @@ from tests.support.assertions import assert_with_context
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class MakefileTargetCase:
     """Expected recipe contract for one Makefile target."""
 

@@ -22,7 +22,7 @@ dev = [
     "pytest-xdist",
     # Pin the lint tools so the Makefile and CI resolve identical versions
     # from the lockfile.
-    "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@v0.1.0",
+    "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@v0.2.0",
     "interrogate==1.7.0",
     "ruff==0.15.13",
     "ty",
