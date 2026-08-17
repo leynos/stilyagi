@@ -23,7 +23,7 @@ dev = [
     # Pin the lint tools so the Makefile and CI resolve identical versions
     # from the lockfile.
     "interrogate==1.7.0",
-    "ruff==0.15.13",
+    "ruff==0.16.2",
     "ty",
     "pytest-timeout",
     "pytest-bdd",
