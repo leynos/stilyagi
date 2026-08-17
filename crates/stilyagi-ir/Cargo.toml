@@ -15,7 +15,7 @@ sha2.workspace = true
 [dev-dependencies]
 proptest.workspace = true
 rstest.workspace = true
-stilyagi-test-fixtures = { path = "../stilyagi-test-fixtures" }
+stilyagi-test-fixtures = { path = "../stilyagi-test-fixtures", version = "0.1.0" }
 
 [lints]
 workspace = true
