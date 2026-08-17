@@ -245,7 +245,7 @@ def _parse_cache_dir(
         case str():
             return pathlib.Path(value)
         case _:
-            raise InvalidConfigError(path, "cache-dir", "must be a string")
+            raise InvalidConfigError(path, "cache-dir", "must be a path or string")
 
 
 def _build_reserved_table(

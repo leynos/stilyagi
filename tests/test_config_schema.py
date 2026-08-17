@@ -256,6 +256,20 @@ def test_blank_cache_directory_is_rejected() -> None:
         config.StilyagiConfig(cache_dir=pathlib.Path("   "))
 
 
+def test_cache_directory_type_error_names_accepted_values(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Describe the path and string values accepted for ``cache-dir``."""
+    path = tmp_path / "pyproject.toml"
+    path.write_text("[tool.stilyagi]\ncache-dir = 1\n", encoding="utf-8")
+
+    with pytest.raises(
+        config.InvalidConfigError,
+        match=r"cache-dir.*must be a path or string",
+    ):
+        config.load_config_file(path)
+
+
 def test_same_directory_precedence_prefers_the_highest_ranked_file(
     tmp_path: pathlib.Path,
 ) -> None:

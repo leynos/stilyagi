@@ -2,6 +2,7 @@
 
 import dataclasses as dc
 import pathlib
+import tomllib
 
 import pytest
 
@@ -75,6 +76,8 @@ def makefile_text() -> str:
                     "$(UV_RUN) ruff check",
                     "$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)",
                     "$(PYLINT) $(PYLINT_TARGETS)",
+                    "$(DF12_PYLINT) $(PYLINT_TARGETS)",
+                    "$(AMBRLEAKS) tests",
                     (
                         'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" '
                         "$(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)"
@@ -164,3 +167,71 @@ def test_makefile_targets_run_expected_recipes(
         )
     else:
         assert "pytest" not in joined_recipe, "expected 'pytest' not in joined_recipe"
+
+
+def test_lint_recipe_runs_df12_tools_before_rust_checks(makefile_text: str) -> None:
+    """Keep the layered Python lint tools ahead of the Rust lint commands."""
+    _header, recipe = _make_target(makefile_text, "lint")
+    df12_pylint = "$(DF12_PYLINT) $(PYLINT_TARGETS)"
+    ambrleaks = "$(AMBRLEAKS) tests"
+    rustdoc = (
+        'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)'
+    )
+
+    assert_with_context(df12_pylint in recipe, "expected df12 Pylint lint command")
+    assert_with_context(ambrleaks in recipe, "expected ambrleaks lint command")
+    assert_with_context(rustdoc in recipe, "expected Rustdoc lint command")
+    assert_with_context(
+        recipe.index(df12_pylint) < recipe.index(ambrleaks) < recipe.index(rustdoc),
+        "expected df12 Pylint and ambrleaks before Rustdoc",
+    )
+
+
+def test_df12_lint_tool_definitions_use_the_pinned_python_and_rules(
+    makefile_text: str,
+) -> None:
+    """Pin the df12 tools, CPython version, targets, and enabled messages."""
+    expected_messages = (
+        "R9101,C9102,R9103,R9104,C9105,C9106,C9107,R9108,R9109,R9110,R9111,R9112,C9112"
+    )
+    expected_definitions = (
+        "DF12_PYTHON_LINTS_REF ?= v0.2.0",
+        (
+            "DF12_PYTHON_LINTS = "
+            "git+https://github.com/leynos/df12-python-lints.git@"
+            "$(DF12_PYTHON_LINTS_REF)"
+        ),
+        "DF12_PYTHON ?= 3.14",
+        f"DF12_PYLINT_MESSAGES = {expected_messages}",
+        "--disable=all --load-plugins=df12_python_lints ",
+        "--enable=$(DF12_PYLINT_MESSAGES)",
+        "--from '$(DF12_PYTHON_LINTS)' ambrleaks",
+    )
+
+    for expected_definition in expected_definitions:
+        assert_with_context(
+            expected_definition in makefile_text,
+            "expected df12 lint tool definition",
+        )
+
+
+def test_df12_lint_project_configuration_uses_python_314() -> None:
+    """Keep the project dependency and Pylint configuration at Python 3.14."""
+    pyproject_path = REPOSITORY_ROOT / "pyproject.toml"
+    pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+
+    assert_with_context(
+        "df12-python-lints @ "
+        "git+https://github.com/leynos/df12-python-lints.git@v0.2.0"
+        in pyproject["dependency-groups"]["dev"],
+        "expected pinned df12 Python lints development dependency",
+    )
+    assert_with_context(
+        pyproject["tool"]["pylint"]["main"]["py-version"] == "3.14",
+        "expected Pylint Python version 3.14",
+    )
+    assert_with_context(
+        pyproject["tool"]["pylint"]["messages control"]["disable"]
+        == ["all", "syntax-error"],
+        "expected focused Pylint message configuration",
+    )
