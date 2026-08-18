@@ -3,85 +3,52 @@
 use std::path::Path;
 
 use rstest::rstest;
-use stilyagi_ir::{IrDocument, SourceSpan};
+use stilyagi_ir::{IrSegment, SourceSpan};
 
 use super::source_identity;
-use crate::{MarkdownDiagnosticContext, markdown_ir_document, validate_ir_consistency};
+use super::validation_support::{assert_validation_reports, validation_failure_for_first_segment};
+use crate::markdown_ir_document;
 
-const fn diagnostic_context() -> MarkdownDiagnosticContext<'static> {
-    MarkdownDiagnosticContext {
-        phase: "validate",
-        path: "docs/example.md",
-        uri: "file:///repo/docs/example.md",
-    }
+/// Give a source-backed segment a synthetic reason as well, so it claims both
+/// origins at once.
+fn claim_both_origins(segment: &mut IrSegment) {
+    segment.synthetic = Some("decoded_text".to_owned());
 }
 
-fn assert_validation_reports(
-    mutate: impl FnOnce(&mut IrDocument),
-    expected_rule_id: &str,
-    expected_reason_fragments: &[&str],
+/// Strip the source span from a segment that has no synthetic reason, so it
+/// claims no origin at all.
+fn claim_no_origin(segment: &mut IrSegment) {
+    segment.source = None;
+}
+
+#[rstest]
+#[case::both_origins(
+    claim_both_origins as fn(&mut IrSegment),
+    &[
+        "segment origin invalid",
+        "source_present=true",
+        "synthetic_present=true",
+    ]
+)]
+#[case::no_origin(
+    claim_no_origin as fn(&mut IrSegment),
+    &[
+        "segment origin invalid",
+        "source_present=false",
+        "synthetic_present=false",
+    ]
+)]
+fn validate_ir_consistency_reports_invalid_segment_origins(
+    #[case] mutate_segment: fn(&mut IrSegment),
+    #[case] expected_reason_fragments: &[&str],
 ) {
-    let source = "# Heading\n\nBody";
-    let Ok(mut document) =
-        markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
-    else {
-        panic!("expected Markdown IR document");
-    };
-    mutate(&mut document);
-    let context = diagnostic_context();
+    let failure = validation_failure_for_first_segment(mutate_segment)
+        .expect("expected a segment origin validation failure");
 
-    let result = validate_ir_consistency(&document, source, &context);
-
-    let Err(error) = result else {
-        panic!("expected validation failure for rule {expected_rule_id}");
-    };
-    assert_eq!(error.rule_id.as_ref(), expected_rule_id);
-    for fragment in expected_reason_fragments {
-        assert!(
-            error.reason.contains(fragment),
-            "reason {:?} is missing fragment {fragment:?}",
-            error.reason
-        );
-    }
-}
-
-#[rstest]
-fn validate_ir_consistency_reports_segments_with_both_origins() {
-    assert_validation_reports(
-        |document| {
-            let segment = document
-                .regions
-                .first_mut()
-                .and_then(|region| region.segments.first_mut())
-                .expect("expected at least one source-backed segment");
-            segment.synthetic = Some("decoded_text".to_owned());
-        },
+    assert_validation_reports!(
+        failure,
         "ir-segment-origin-invalid",
-        &[
-            "segment origin invalid",
-            "source_present=true",
-            "synthetic_present=true",
-        ],
-    );
-}
-
-#[rstest]
-fn validate_ir_consistency_reports_segments_without_an_origin() {
-    assert_validation_reports(
-        |document| {
-            let segment = document
-                .regions
-                .first_mut()
-                .and_then(|region| region.segments.first_mut())
-                .expect("expected at least one source-backed segment");
-            segment.source = None;
-        },
-        "ir-segment-origin-invalid",
-        &[
-            "segment origin invalid",
-            "source_present=false",
-            "synthetic_present=false",
-        ],
+        expected_reason_fragments
     );
 }
 

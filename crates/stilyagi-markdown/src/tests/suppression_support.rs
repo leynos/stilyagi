@@ -5,13 +5,14 @@ use proptest::prelude::*;
 use proptest::string::string_regex;
 use stilyagi_ir::SuppressionKind;
 
-/// Return the canonical suppression kind for a directive token.
-pub(super) fn expected_kind_from_token(token: &str) -> SuppressionKind {
+/// Return the canonical suppression kind for a directive token, or `None` when
+/// the token is not a known directive verb.
+pub(super) fn expected_kind_from_token(token: &str) -> Option<SuppressionKind> {
     match token {
-        "ignore-next" => SuppressionKind::Inline,
-        "disable" | "enable" => SuppressionKind::Range,
-        "ignore-file" => SuppressionKind::File,
-        other => panic!("unexpected verb token {other:?}"),
+        "ignore-next" => Some(SuppressionKind::Inline),
+        "disable" | "enable" => Some(SuppressionKind::Range),
+        "ignore-file" => Some(SuppressionKind::File),
+        _ => None,
     }
 }
 
@@ -41,8 +42,15 @@ pub(super) fn space_padding_strategy() -> impl Strategy<Value = String> {
     regex_strategy("[ \t]{0,2}")
 }
 
-/// Compile a fixture regex pattern into a proptest strategy, panicking on
-/// invalid patterns since callers pass compile-time constants.
+/// Compile a fixture regex pattern into a proptest strategy.
+///
+/// # Panics
+///
+/// This is a deliberate panic boundary: proptest's strategy pipeline requires
+/// an infallible `impl Strategy` in argument position, so a fallible variant
+/// could not be threaded through the generators below. Every caller passes a
+/// `&'static str` compile-time constant, so an invalid pattern is a defect in
+/// this module rather than a runtime condition.
 fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
     let Ok(strategy) = string_regex(pattern) else {
         panic!("fixture regex pattern {pattern:?} must compile");

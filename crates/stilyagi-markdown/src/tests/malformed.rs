@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use markdown::message::Message;
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, RegionKind};
 use stilyagi_test_support::{read_corpus_fixture, read_corpus_fixture_bytes};
@@ -31,7 +32,7 @@ fn malformed_markdown_recovers_to_reviewed_degraded_regions(
     #[case] snapshot_name: &str,
 ) {
     let source = read_corpus_fixture(relative_path).expect("expected malformed Markdown fixture");
-    let document = document_for(relative_path, &source);
+    let document = document_for(relative_path, &source).expect("expected Markdown IR document");
     let json = document
         .to_canonical_json()
         .expect("expected canonical JSON");
@@ -63,7 +64,7 @@ fn crlf_structural_fixtures_contain_literal_crlf_bytes(#[case] relative_path: &s
 fn deeply_nested_blockquote_keeps_well_formed_parent_chain() {
     let relative_path = "tests/fixtures/corpus/markdown/valid/deep-blockquote.md.fixture";
     let source = read_corpus_fixture(relative_path).expect("expected deep blockquote fixture");
-    let document = document_for(relative_path, &source);
+    let document = document_for(relative_path, &source).expect("expected Markdown IR document");
     let blockquotes = document
         .regions
         .iter()
@@ -85,7 +86,7 @@ fn deeply_nested_blockquote_keeps_well_formed_parent_chain() {
 fn empty_list_item_does_not_emit_empty_garbage_text_region() {
     let relative_path = "tests/fixtures/corpus/markdown/valid/empty-list-item.md.fixture";
     let source = read_corpus_fixture(relative_path).expect("expected empty list item fixture");
-    let document = document_for(relative_path, &source);
+    let document = document_for(relative_path, &source).expect("expected Markdown IR document");
 
     assert!(document.regions.iter().any(|region| {
         region.kind == RegionKind::ListItem.as_str()
@@ -101,12 +102,9 @@ fn empty_list_item_does_not_emit_empty_garbage_text_region() {
     );
 }
 
-fn document_for(relative_path: &str, source: &str) -> IrDocument {
-    let Ok(document) = markdown_ir_document(source, source_identity(Path::new(relative_path)))
-    else {
-        panic!("expected Markdown IR document");
-    };
-    document
+/// Build the Markdown IR document for a fixture, propagating parse failures.
+fn document_for(relative_path: &str, source: &str) -> Result<IrDocument, Message> {
+    markdown_ir_document(source, source_identity(Path::new(relative_path)))
 }
 
 fn degraded_region_text(document: &IrDocument) -> String {

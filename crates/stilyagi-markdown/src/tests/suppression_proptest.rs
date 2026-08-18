@@ -39,8 +39,12 @@ proptest! {
             panic!("expected parsed directive for {body:?}");
         };
 
+        let Some(expected_kind) = expected_kind_from_token(verb) else {
+            panic!("unexpected verb token {verb:?}");
+        };
+
         prop_assert_eq!(parsed.codes, codes);
-        prop_assert_eq!(verb_kind(parsed.verb), expected_kind_from_token(verb));
+        prop_assert_eq!(verb_kind(parsed.verb), expected_kind);
     }
 
     #[test]
