@@ -2,6 +2,8 @@
 
 mod python;
 mod rust;
+#[cfg(test)]
+mod test_support;
 
 pub use python::{PythonExtractError, python_docstring_ir_document};
 pub use rust::{RustExtractError, rust_doc_comment_ir_document};
@@ -16,10 +18,14 @@ mod tests {
 
     use super::TreeSitterBoundary;
     use crate::python::types::NodeKind;
+    use crate::test_support::{
+        assert_first_named_child_kind, descendants_with_kind, direct_named_child_with_kind,
+        first_named_child, named_children_with_kind, parse_python_source, text_for_node,
+    };
     use stilyagi_test_fixtures::{
         MALFORMED_PYTHON_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, read_corpus_fixture,
     };
-    use tree_sitter::{Node, Parser};
+    use tree_sitter::Node;
 
     const SHARED_PYTHON_FIXTURE: &str = SHARED_PYTHON_FIXTURE_PATH;
     const MALFORMED_PYTHON_FIXTURE: &str = MALFORMED_PYTHON_FIXTURE_PATH;
@@ -59,101 +65,26 @@ mod tests {
         assert_eq!(first, original);
     }
 
-    fn python_parser() -> Parser {
-        let mut parser = Parser::new();
-        let language = tree_sitter_python::LANGUAGE.into();
-        if let Err(error) = parser.set_language(&language) {
-            panic!("tree-sitter-python grammar should load: {error}");
-        }
-        parser
-    }
-
-    fn parse_python(source: &str) -> tree_sitter::Tree {
-        let Some(tree) = python_parser().parse(source, None) else {
-            panic!("tree-sitter should return a parse tree");
-        };
-        tree
-    }
-
-    fn first_named_child(node: Node<'_>) -> Node<'_> {
-        let Some(child) = node.named_child(0) else {
-            panic!("node should have a first named child");
-        };
-        child
-    }
-
-    fn first_named_child_with_kind(node: Node<'_>, kind: NodeKind) -> Node<'_> {
-        let child = first_named_child(node);
-
-        assert_eq!(child.kind(), kind.as_str());
-        child
-    }
-
-    fn direct_named_child_with_kind(node: Node<'_>, kind: NodeKind) -> Node<'_> {
-        let mut cursor = node.walk();
-
-        let Some(child) = node
-            .named_children(&mut cursor)
-            .find(|child| child.kind() == kind.as_str())
-        else {
-            panic!("{} child should exist", kind.as_str());
-        };
-        child
-    }
-
-    fn text_for_node<'source>(source: &'source str, node: Node<'_>) -> &'source str {
-        match node.utf8_text(source.as_bytes()) {
-            Ok(text) => text,
-            Err(error) => panic!("node byte range should select valid UTF-8: {error}"),
-        }
-    }
-
-    fn named_children_with_kind(node: Node<'_>, kind: NodeKind) -> Vec<Node<'_>> {
-        let mut cursor = node.walk();
-
-        node.named_children(&mut cursor)
-            .filter(|child| child.kind() == kind.as_str())
-            .collect()
-    }
-
-    fn descendants_with_kind(node: Node<'_>, kind: NodeKind) -> Vec<Node<'_>> {
-        let mut found = Vec::new();
-        collect_descendants_with_kind(node, kind, &mut found);
-        found
-    }
-
-    fn collect_descendants_with_kind<'tree>(
-        node: Node<'tree>,
-        kind: NodeKind,
-        found: &mut Vec<Node<'tree>>,
-    ) {
-        let mut cursor = node.walk();
-
-        for child in node.named_children(&mut cursor) {
-            if child.kind() == kind.as_str() {
-                found.push(child);
-            }
-            collect_descendants_with_kind(child, kind, found);
-        }
-    }
-
     /// Pin the grammar shape used by the owner-aware extractor.
     #[test]
     fn python_fixture_exposes_docstring_content_spans() {
         let source = read_corpus_fixture(SHARED_PYTHON_FIXTURE)
             .expect("shared Python fixture should be readable");
-        let tree = parse_python(&source);
+        let tree = parse_python_source(&source).expect("shared Python fixture should parse");
         let root = tree.root_node();
 
         assert_eq!(root.kind(), "module");
 
         let expression_statement =
-            first_named_child_with_kind(root, NodeKind("expression_statement"));
-        let string = first_named_child_with_kind(expression_statement, NodeKind("string"));
-        let string_content = direct_named_child_with_kind(string, NodeKind("string_content"));
+            assert_first_named_child_kind!(root, NodeKind("expression_statement"));
+        let string = assert_first_named_child_kind!(expression_statement, NodeKind("string"));
+        let string_content = direct_named_child_with_kind(string, NodeKind("string_content"))
+            .expect("string should expose a string_content child");
+        let content_text = text_for_node(&source, string_content)
+            .expect("string content should select valid UTF-8");
 
         assert_eq!(
-            text_for_node(&source, string_content),
+            content_text,
             "Module docstring for the shared Stilyagi corpus."
         );
         assert_eq!(
@@ -169,7 +100,7 @@ mod tests {
     fn python_fixture_reaches_staticmethod_definition_through_decorator() {
         let source = read_corpus_fixture(SHARED_PYTHON_FIXTURE)
             .expect("shared Python fixture should be readable");
-        let tree = parse_python(&source);
+        let tree = parse_python_source(&source).expect("shared Python fixture should parse");
         let decorated_definition =
             descendants_with_kind(tree.root_node(), NodeKind("decorated_definition"))
                 .into_iter()
@@ -181,29 +112,39 @@ mod tests {
         let name = definition
             .child_by_field_name("name")
             .expect("function definition should expose its name");
+        let name_text = text_for_node(&source, name).expect("name should select valid UTF-8");
 
         assert_eq!(definition.kind(), "function_definition");
-        assert_eq!(text_for_node(&source, name), "method");
+        assert_eq!(name_text, "method");
     }
 
     /// Pin grammar signals used to reject v1 non-docstring first statements.
     #[test]
     fn python_grammar_marks_fstrings_and_concatenated_strings() {
         let f_string_source = "def interpolated():\n    f\"\"\"{value}\"\"\"\n";
-        let f_string_tree = parse_python(f_string_source);
+        let f_string_tree = parse_python_source(f_string_source).expect("f-string source parses");
         let f_string = descendants_with_kind(f_string_tree.root_node(), NodeKind("string"))
             .into_iter()
             .next()
             .expect("f-string source should contain a string node");
-        let string_start = first_named_child_with_kind(f_string, NodeKind("string_start"));
+        let string_start = assert_first_named_child_kind!(f_string, NodeKind("string_start"));
+        let string_start_text = text_for_node(f_string_source, string_start)
+            .expect("string start should select valid UTF-8");
+        let interpolation_texts = node_texts(
+            f_string_source,
+            &descendants_with_kind(f_string, NodeKind("interpolation")),
+        )
+        .expect("interpolations should select valid UTF-8");
 
-        assert!(
-            descendants_with_kind(f_string, NodeKind("interpolation")).is_empty()
-                || text_for_node(f_string_source, string_start).contains('f')
-        );
+        // The grammar marks interpolation both by the `f` prefix on the string
+        // start and by dedicated `interpolation` children, so v1 can reject
+        // f-strings on either signal alone.
+        assert_eq!(string_start_text, "f\"\"\"");
+        assert_eq!(interpolation_texts, vec!["{value}"]);
 
         let concatenated_source = "def adjacent():\n    \"a\" \"b\"\n";
-        let concatenated_tree = parse_python(concatenated_source);
+        let concatenated_tree =
+            parse_python_source(concatenated_source).expect("concatenated source parses");
         let first_statement = descendants_with_kind(
             concatenated_tree.root_node(),
             NodeKind("expression_statement"),
@@ -212,12 +153,27 @@ mod tests {
         .next()
         .expect("concatenated source should contain an expression statement");
         let concatenated_string =
-            first_named_child_with_kind(first_statement, NodeKind("concatenated_string"));
+            assert_first_named_child_kind!(first_statement, NodeKind("concatenated_string"));
+        let concatenated_parts = node_texts(
+            concatenated_source,
+            &named_children_with_kind(concatenated_string, NodeKind("string")),
+        )
+        .expect("concatenated string parts should select valid UTF-8");
 
-        assert_eq!(
-            concatenated_string.kind(),
-            NodeKind("concatenated_string").as_str()
-        );
+        // Adjacent literals stay separate `string` children, so the extractor
+        // can see that the statement is not a single docstring literal.
+        assert_eq!(concatenated_parts, vec!["\"a\"", "\"b\""]);
+    }
+
+    /// Return the source text of every node, or the first UTF-8 failure.
+    fn node_texts<'source>(
+        source: &'source str,
+        nodes: &[Node<'_>],
+    ) -> Result<Vec<&'source str>, std::str::Utf8Error> {
+        nodes
+            .iter()
+            .map(|node| text_for_node(source, *node))
+            .collect()
     }
 
     /// Pin malformed recovery so later extraction can safely emit partial IR.
@@ -225,25 +181,31 @@ mod tests {
     fn malformed_python_fixture_recovers_the_module_docstring() {
         let source = read_corpus_fixture(MALFORMED_PYTHON_FIXTURE)
             .expect("malformed Python fixture should be readable");
-        let tree = parse_python(&source);
+        let tree = parse_python_source(&source).expect("malformed Python fixture should parse");
         let root = tree.root_node();
         let expression_statement = descendants_with_kind(root, NodeKind("expression_statement"))
             .into_iter()
             .next()
             .expect("malformed fixture should preserve an expression statement");
-        let string = first_named_child_with_kind(expression_statement, NodeKind("string"));
-        let string_content = direct_named_child_with_kind(string, NodeKind("string_content"));
+        let string = assert_first_named_child_kind!(expression_statement, NodeKind("string"));
+        let string_content = direct_named_child_with_kind(string, NodeKind("string_content"))
+            .expect("string should expose a string_content child");
+        let content_text = text_for_node(&source, string_content)
+            .expect("string content should select valid UTF-8");
         let error_nodes = descendants_with_kind(root, NodeKind("ERROR"));
         let error_spans = error_nodes
             .iter()
             .map(|node| (node.start_byte(), node.end_byte()))
             .collect::<Vec<_>>();
         let function_nodes = named_children_with_kind(root, NodeKind("function_definition"));
+        let first_child_kind = first_named_child(root)
+            .expect("malformed fixture root should have a first named child")
+            .kind();
 
         assert!(root.has_error());
-        assert_eq!(first_named_child(root).kind(), "ERROR");
+        assert_eq!(first_child_kind, "ERROR");
         assert_eq!(
-            text_for_node(&source, string_content),
+            content_text,
             "Module docstring before malformed Python source."
         );
         assert_eq!(error_spans, vec![(0, 168), (57, 77)]);
