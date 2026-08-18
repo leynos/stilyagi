@@ -17,15 +17,6 @@ macro_rules! must_ok {
     };
 }
 
-macro_rules! must_some {
-    ($expression:expr, $($message:tt)+) => {
-        match $expression {
-            Some(value) => value,
-            None => panic!("{}", format_args!($($message)+)),
-        }
-    };
-}
-
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy)]
@@ -56,6 +47,8 @@ mod suppression;
 mod suppression_range_role;
 #[path = "tests/suppression_support.rs"]
 mod suppression_support;
+#[path = "tests/validation_support.rs"]
+mod validation_support;
 
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, SourceIdentity, SourceSpan, SyntheticReason};

@@ -3,26 +3,17 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use markdown::{mdast::Node, message::Message};
+use markdown::mdast::Node;
 use rstest::rstest;
-use stilyagi_ir::{IrDocument, IrRegion, SourceSpan};
-use stilyagi_test_fixtures::ExpectValid;
+use stilyagi_ir::SourceSpan;
 
 use super::source_identity;
-use crate::source_text::decoded_text_maps_to_source;
-use crate::{
-    MarkdownDiagnosticContext, markdown_ir_document, source_span, validate_ir_consistency,
+use super::validation_support::{
+    assert_validation_reports, diagnostic_context, validation_failure_for,
+    validation_failure_for_first_region, validation_failure_for_first_segment,
 };
-
-const VALID_SOURCE: &str = "# Heading\n\nBody";
-
-const fn diagnostic_context() -> MarkdownDiagnosticContext<'static> {
-    MarkdownDiagnosticContext {
-        phase: "validate",
-        path: "docs/example.md",
-        uri: "file:///repo/docs/example.md",
-    }
-}
+use crate::source_text::decoded_text_maps_to_source;
+use crate::{markdown_ir_document, source_span};
 
 #[rstest]
 fn markdown_ir_document_emits_envelope_nodes_and_regions() {
@@ -69,152 +60,101 @@ fn markdown_ir_document_preserves_canonical_source_identity_helpers() {
     assert_eq!(document.line_index, stilyagi_ir::line_index_for(source));
 }
 
-/// Build the valid Markdown IR document used by consistency tests.
-fn valid_document() -> Result<IrDocument, Message> {
-    markdown_ir_document(VALID_SOURCE, source_identity(Path::new("docs/example.md")))
-}
-
-/// Assert that consistency validation reports the expected diagnostic.
-fn assert_validation_reports(
-    document: &IrDocument,
-    expected_rule_id: &str,
-    expected_reason_fragments: &[&str],
-) {
-    let context = diagnostic_context();
-
-    let result = validate_ir_consistency(document, VALID_SOURCE, &context);
-
-    let Err(error) = result else {
-        panic!("expected validation failure for rule {expected_rule_id}");
-    };
-    assert_eq!(error.source.as_ref(), "stilyagi-markdown");
-    assert_eq!(error.rule_id.as_ref(), expected_rule_id);
-    assert!(error.reason.contains("phase=validate"));
-    for fragment in expected_reason_fragments {
-        assert!(
-            error.reason.contains(fragment),
-            "reason {:?} is missing fragment {fragment:?}",
-            error.reason
-        );
-    }
-}
-
-/// Mutate a valid Markdown IR document and assert the expected diagnostic.
-fn assert_invalid_document(
-    expected_rule_id: &str,
-    expected_reason_fragments: &[&str],
-    mutate: impl FnOnce(&mut IrDocument),
-) {
-    let mut document = valid_document().expect_valid("Markdown IR document");
-    mutate(&mut document);
-    assert_validation_reports(&document, expected_rule_id, expected_reason_fragments);
-}
-
-/// Mutate the first region in a valid Markdown IR document and assert the expected diagnostic.
-fn assert_invalid_document_on_first_region(
-    expected_rule_id: &str,
-    expected_reason_fragments: &[&str],
-    mutate: impl FnOnce(&mut IrRegion),
-) {
-    assert_invalid_document(expected_rule_id, expected_reason_fragments, |document| {
-        let region = document
-            .regions
-            .first_mut()
-            .expect_valid("first Markdown IR region");
-        mutate(region);
-    });
-}
-
 #[rstest]
 fn validate_ir_consistency_reports_content_hash_mismatches() {
-    assert_invalid_document(
+    let failure = validation_failure_for(|document| {
+        document.document.content_hash = "sha256:bad".to_owned();
+    })
+    .expect("expected a content hash validation failure");
+
+    assert_validation_reports!(
+        failure,
         "ir-content-hash-mismatch",
-        &["path=", "uri=", "content_hash mismatch"],
-        |document| {
-            document.document.content_hash = "sha256:bad".to_owned();
-        },
+        &["path=", "uri=", "content_hash mismatch"]
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_line_index_mismatches() {
-    assert_invalid_document(
-        "ir-line-index-mismatch",
-        &["line_index mismatch"],
-        |document| {
-            document.line_index.push(usize::MAX);
-        },
-    );
+    let failure = validation_failure_for(|document| document.line_index.push(usize::MAX))
+        .expect("expected a line index validation failure");
+
+    assert_validation_reports!(failure, "ir-line-index-mismatch", &["line_index mismatch"]);
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_duplicate_node_ids() {
-    assert_invalid_document("ir-duplicate-node-id", &["duplicate node id"], |document| {
-        let node = document
-            .nodes
-            .first()
-            .cloned()
-            .expect("expected at least one Markdown IR node");
-        document.nodes.push(node);
-    });
+    let failure = validation_failure_for(|document| {
+        if let Some(node) = document.nodes.first().cloned() {
+            document.nodes.push(node);
+        }
+    })
+    .expect("expected a duplicate node id validation failure");
+
+    assert_validation_reports!(failure, "ir-duplicate-node-id", &["duplicate node id"]);
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_duplicate_region_ids() {
-    assert_invalid_document(
-        "ir-duplicate-region-id",
-        &["duplicate region id"],
-        |document| {
-            let region = document
-                .regions
-                .first()
-                .cloned()
-                .expect("expected at least one Markdown IR region");
+    let failure = validation_failure_for(|document| {
+        if let Some(region) = document.regions.first().cloned() {
             document.regions.push(region);
-        },
-    );
+        }
+    })
+    .expect("expected a duplicate region id validation failure");
+
+    assert_validation_reports!(failure, "ir-duplicate-region-id", &["duplicate region id"]);
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_region_text_mismatches() {
-    assert_invalid_document_on_first_region(
+    let failure = validation_failure_for_first_region(|region| region.text.push_str(" drift"))
+        .expect("expected a region text validation failure");
+
+    assert_validation_reports!(
+        failure,
         "ir-region-text-mismatch",
-        &["region text mismatch"],
-        |region| region.text.push_str(" drift"),
+        &["region text mismatch"]
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_source_span_mismatches() {
-    assert_invalid_document(
+    let failure = validation_failure_for_first_segment(|segment| {
+        segment.source = SourceSpan::new(0, segment.text.len());
+    })
+    .expect("expected a source span validation failure");
+
+    assert_validation_reports!(
+        failure,
         "ir-segment-source-mismatch",
-        &["source segment mismatch", "region id=", "segment text="],
-        |document| {
-            let segment = document
-                .regions
-                .first_mut()
-                .and_then(|region| region.segments.first_mut())
-                .expect("expected at least one source-backed segment");
-            segment.source = SourceSpan::new(0, segment.text.len());
-        },
+        &["source segment mismatch", "region id=", "segment text="]
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_unresolved_parent_regions() {
-    assert_invalid_document_on_first_region(
+    let failure = validation_failure_for_first_region(|region| {
+        region.parent_region = Some("missing-region".to_owned());
+    })
+    .expect("expected an unresolved parent region validation failure");
+
+    assert_validation_reports!(
+        failure,
         "ir-parent-region-unresolved",
-        &["parent_region", "missing-region"],
-        |region| region.parent_region = Some("missing-region".to_owned()),
+        &["parent_region", "missing-region"]
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_invalid_origin_nodes() {
-    assert_invalid_document_on_first_region(
+    let failure = validation_failure_for_first_region(|region| region.origin_nodes.clear())
+        .expect("expected an origin nodes validation failure");
+
+    assert_validation_reports!(
+        failure,
         "ir-origin-nodes-invalid",
-        &["origin_nodes", "empty"],
-        |region| region.origin_nodes.clear(),
+        &["origin_nodes", "empty"]
     );
 }
 
