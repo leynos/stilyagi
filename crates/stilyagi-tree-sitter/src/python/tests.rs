@@ -1,36 +1,20 @@
 //! Tests for Python docstring extraction.
 
 use rstest::rstest;
-use stilyagi_ir::{SourceIdentity, SuppressionKind};
+use stilyagi_ir::SuppressionKind;
 use stilyagi_test_fixtures::{
     EDGE_CASE_PYTHON_FIXTURE_PATH, MALFORMED_PYTHON_FIXTURE_PATH, NESTED_PYTHON_FIXTURE_PATH,
-    SHARED_PYTHON_FIXTURE_PATH, read_corpus_fixture,
+    SHARED_PYTHON_FIXTURE_PATH,
 };
 use tree_sitter::Node;
 
-use super::python_docstring_ir_document;
 use super::support::parse_python;
+use crate::test_support::{extract_python, python_fixture_document, region_owners};
 
 const SHARED_PYTHON_FIXTURE: &str = SHARED_PYTHON_FIXTURE_PATH;
 const NESTED_PYTHON_FIXTURE: &str = NESTED_PYTHON_FIXTURE_PATH;
 const EDGE_CASE_PYTHON_FIXTURE: &str = EDGE_CASE_PYTHON_FIXTURE_PATH;
 const MALFORMED_PYTHON_FIXTURE: &str = MALFORMED_PYTHON_FIXTURE_PATH;
-
-fn extract_python(source: &str) -> stilyagi_ir::IrDocument {
-    match python_docstring_ir_document(source, SourceIdentity::anonymous()) {
-        Ok(document) => document,
-        Err(error) => panic!("expected Python extraction: {error:?}"),
-    }
-}
-
-fn fixture_document(path: &str) -> stilyagi_ir::IrDocument {
-    let source = match read_corpus_fixture(path) {
-        Ok(source) => source,
-        Err(error) => panic!("expected Python fixture {path}: {error}"),
-    };
-
-    extract_python(&source)
-}
 
 fn first_comment(node: Node<'_>) -> Option<Node<'_>> {
     let mut pending = vec![node];
@@ -48,20 +32,9 @@ fn first_comment(node: Node<'_>) -> Option<Node<'_>> {
 
 #[rstest]
 fn shared_fixture_extracts_owner_metadata() {
-    let document = fixture_document(SHARED_PYTHON_FIXTURE);
-    let owners = document
-        .regions
-        .iter()
-        .map(|region| {
-            let owner = region.owner.as_ref().expect("expected docstring owner");
-            (
-                region.text.as_str(),
-                owner.kind.as_str(),
-                owner.name.as_deref(),
-                owner.qualname.as_deref(),
-            )
-        })
-        .collect::<Vec<_>>();
+    let document =
+        python_fixture_document(SHARED_PYTHON_FIXTURE).expect("expected shared fixture IR");
+    let owners = region_owners(&document).expect("expected docstring owner");
 
     assert_eq!(document.document.syntax, "python");
     assert_eq!(document.regions.len(), 4);
@@ -129,7 +102,7 @@ fn directive_comments_emit_source_backed_suppressions(
     #[case] codes: Vec<&str>,
 ) {
     let source = format!("# stilyagi: {verb} {}\n", codes.join(", "));
-    let document = extract_python(&source);
+    let document = extract_python(&source).expect("expected Python extraction");
     let comment = document
         .nodes
         .iter()
@@ -174,8 +147,9 @@ fn directive_comments_use_the_comment_node_kind() {
 
 #[rstest]
 fn ordinary_comments_do_not_change_node_identity() {
-    let baseline = extract_python("def f():\n    pass\n");
-    let with_comment = extract_python("# ordinary note\ndef f():\n    pass\n");
+    let baseline = extract_python("def f():\n    pass\n").expect("expected Python extraction");
+    let with_comment = extract_python("# ordinary note\ndef f():\n    pass\n")
+        .expect("expected Python extraction");
 
     let baseline_ids = baseline
         .nodes
@@ -195,7 +169,7 @@ fn ordinary_comments_do_not_change_node_identity() {
 
 #[rstest]
 fn blanket_directives_are_rejected_without_emitting_suppressions() {
-    let document = extract_python("# stilyagi: disable\n");
+    let document = extract_python("# stilyagi: disable\n").expect("expected Python extraction");
 
     assert!(document.suppressions.is_empty());
     assert_eq!(
@@ -210,7 +184,8 @@ fn blanket_directives_are_rejected_without_emitting_suppressions() {
 
 #[rstest]
 fn nested_fixture_uses_python_qualname_semantics() {
-    let document = fixture_document(NESTED_PYTHON_FIXTURE);
+    let document =
+        python_fixture_document(NESTED_PYTHON_FIXTURE).expect("expected nested fixture IR");
     let qualnames = document
         .regions
         .iter()
@@ -230,7 +205,8 @@ fn nested_fixture_uses_python_qualname_semantics() {
 
 #[rstest]
 fn edge_case_fixture_preserves_verbatim_content_and_rejects_non_docstrings() {
-    let document = fixture_document(EDGE_CASE_PYTHON_FIXTURE);
+    let document =
+        python_fixture_document(EDGE_CASE_PYTHON_FIXTURE).expect("expected edge-case fixture IR");
     let texts = document
         .regions
         .iter()
@@ -251,7 +227,7 @@ fn edge_case_fixture_preserves_verbatim_content_and_rejects_non_docstrings() {
 #[rstest]
 fn crlf_docstring_reconstructs_exactly() {
     let source = "def crlf():\r\n    \"\"\"line one\r\n    line two\"\"\"\r\n";
-    let document = extract_python(source);
+    let document = extract_python(source).expect("expected Python extraction");
     let region = document
         .regions
         .first()
@@ -263,7 +239,8 @@ fn crlf_docstring_reconstructs_exactly() {
 
 #[rstest]
 fn malformed_fixture_yields_partial_ir_and_errors() {
-    let document = fixture_document(MALFORMED_PYTHON_FIXTURE);
+    let document =
+        python_fixture_document(MALFORMED_PYTHON_FIXTURE).expect("expected malformed fixture IR");
 
     assert_eq!(document.regions.len(), 1);
     assert_eq!(
@@ -281,7 +258,7 @@ fn deeply_nested_source_stops_at_the_depth_limit_without_overflowing() {
     // overflowing the stack.
     let depth = 2_000;
     let source = format!("x = {}1{}\n", "(".repeat(depth), ")".repeat(depth));
-    let document = extract_python(&source);
+    let document = extract_python(&source).expect("expected Python extraction");
 
     assert!(
         document

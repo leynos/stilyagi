@@ -1,16 +1,8 @@
 //! Addendum tests for Rust doc-comment attachment and recovery behaviour.
 
 use rstest::rstest;
-use stilyagi_ir::SourceIdentity;
 
-use super::rust_doc_comment_ir_document;
-
-fn extract_rust(source: &str) -> stilyagi_ir::IrDocument {
-    match rust_doc_comment_ir_document(source, SourceIdentity::anonymous()) {
-        Ok(document) => document,
-        Err(error) => panic!("expected Rust extraction: {error:?}"),
-    }
-}
+use crate::test_support::{extract_rust, owner_triple};
 
 #[rstest]
 #[case(
@@ -28,22 +20,14 @@ fn doc_comments_survive_intervening_non_doc_comments(
     #[case] expected_owner: Option<(&str, Option<&str>, Option<&str>)>,
     #[case] expected_text: &str,
 ) {
-    let document = extract_rust(source);
-    let Some(region) = document.regions.first() else {
-        panic!("expected an attached Rust doc-comment region");
-    };
+    let document = extract_rust(source).expect("expected Rust extraction");
+    let region = document
+        .regions
+        .first()
+        .expect("expected an attached Rust doc-comment region");
 
     assert_eq!(document.regions.len(), 1);
-    assert_eq!(
-        region.owner.as_ref().map(|owner| {
-            (
-                owner.kind.as_str(),
-                owner.name.as_deref(),
-                owner.qualname.as_deref(),
-            )
-        }),
-        expected_owner
-    );
+    assert_eq!(owner_triple(region), expected_owner);
     assert_eq!(region.text, expected_text);
 }
 
@@ -55,7 +39,7 @@ pub fn broken_function() {
     /// This doc comment is swallowed by the error subtree.
     let value = "unterminated block";
 "#;
-    let document = extract_rust(source);
+    let document = extract_rust(source).expect("expected Rust extraction");
 
     assert!(
         document

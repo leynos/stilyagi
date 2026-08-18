@@ -1,14 +1,17 @@
 //! Tests for Rust doc-comment extraction.
 
 use rstest::rstest;
-use stilyagi_ir::SourceIdentity;
 use stilyagi_test_fixtures::{
     ATTRIBUTE_RUST_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, MULTILINE_RUST_FIXTURE_PATH,
     NESTED_RUST_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH, read_corpus_fixture,
 };
-use tree_sitter::{Node, Parser};
+use tree_sitter::Node;
 
-use super::rust_doc_comment_ir_document;
+use crate::test_support::{
+    assert_first_named_child_kind, descendants_with_kind, direct_named_child_with_kind,
+    extract_rust, first_named_child, owner_triple, parse_rust_source, region_owners,
+    rust_fixture_document, text_for_node,
+};
 
 const SHARED_RUST_FIXTURE: &str = SHARED_RUST_FIXTURE_PATH;
 const ATTRIBUTE_RUST_FIXTURE: &str = ATTRIBUTE_RUST_FIXTURE_PATH;
@@ -16,165 +19,87 @@ const MALFORMED_RUST_FIXTURE: &str = MALFORMED_RUST_FIXTURE_PATH;
 const NESTED_RUST_FIXTURE: &str = NESTED_RUST_FIXTURE_PATH;
 const MULTILINE_RUST_FIXTURE: &str = MULTILINE_RUST_FIXTURE_PATH;
 
-fn extract_rust(source: &str) -> stilyagi_ir::IrDocument {
-    match rust_doc_comment_ir_document(source, SourceIdentity::anonymous()) {
-        Ok(document) => document,
-        Err(error) => panic!("expected Rust extraction: {error:?}"),
-    }
-}
-
-fn fixture_document(path: &str) -> stilyagi_ir::IrDocument {
-    let source: String = match read_corpus_fixture(path) {
-        Ok(source) => source,
-        Err(error) => panic!("expected Rust fixture {path}: {error}"),
-    };
-
-    extract_rust(&source)
-}
-
-fn rust_parser() -> Parser {
-    let mut parser = Parser::new();
-    let language = tree_sitter_rust::LANGUAGE.into();
-    if let Err(error) = parser.set_language(&language) {
-        panic!("tree-sitter-rust grammar should load: {error}");
-    }
-    parser
-}
-
-fn parse_rust(source: &str) -> tree_sitter::Tree {
-    let Some(tree) = rust_parser().parse(source, None) else {
-        panic!("tree-sitter should return a parse tree");
-    };
-    tree
-}
-
-fn first_named_child(node: Node<'_>) -> Node<'_> {
-    let Some(child) = node.named_child(0) else {
-        panic!("node should have a first named child");
-    };
-    child
-}
-
-fn first_named_child_with_kind<'a>(node: Node<'a>, kind: &str) -> Node<'a> {
-    let child = first_named_child(node);
-    assert_eq!(child.kind(), kind);
-    child
-}
-
-fn direct_named_child_with_kind<'a>(node: Node<'a>, kind: &str) -> Node<'a> {
-    let mut cursor = node.walk();
-    let Some(child) = node
-        .named_children(&mut cursor)
-        .find(|child| child.kind() == kind)
-    else {
-        panic!("expected {kind} child");
-    };
-    child
-}
-
-fn text_for_node<'a>(source: &'a str, node: Node<'a>) -> &'a str {
-    match node.utf8_text(source.as_bytes()) {
-        Ok(text) => text,
-        Err(error) => panic!("node byte range should select valid UTF-8: {error}"),
-    }
-}
-
-fn descendants_with_kind<'a>(node: Node<'a>, kind: &str) -> Vec<Node<'a>> {
-    let mut found = Vec::new();
-    collect_descendants_with_kind(node, kind, &mut found);
-    found
-}
-
-fn collect_descendants_with_kind<'tree>(
+/// Return the first `line_comment` descendant whose text starts with `prefix`.
+fn line_comment_starting_with<'tree>(
+    source: &str,
     node: Node<'tree>,
-    kind: &str,
-    found: &mut Vec<Node<'tree>>,
-) {
-    let mut cursor = node.walk();
-    for child in node.named_children(&mut cursor) {
-        if child.kind() == kind {
-            found.push(child);
-        }
-        collect_descendants_with_kind(child, kind, found);
-    }
+    prefix: &str,
+) -> Option<Node<'tree>> {
+    descendants_with_kind(node, "line_comment")
+        .into_iter()
+        .find(|comment| text_for_node(source, *comment).is_ok_and(|text| text.starts_with(prefix)))
+}
+
+/// Return the item documented by the first line comment matching `prefix`.
+fn documented_item<'tree>(source: &str, node: Node<'tree>, prefix: &str) -> Option<Node<'tree>> {
+    line_comment_starting_with(source, node, prefix)?.next_named_sibling()
+}
+
+/// Return the text of an item's `name` field.
+fn name_text<'source>(source: &'source str, item: Node<'_>) -> Option<&'source str> {
+    let name = item.child_by_field_name("name")?;
+
+    text_for_node(source, name).ok()
 }
 
 #[rstest]
 fn shared_fixture_exposes_doc_comment_nodes_and_siblings() {
     let source =
         read_corpus_fixture(SHARED_RUST_FIXTURE).expect("shared Rust fixture should be readable");
-    let tree = parse_rust(&source);
+    let tree = parse_rust_source(&source).expect("shared Rust fixture should parse");
     let root = tree.root_node();
+    let crate_comment = assert_first_named_child_kind!(root, "line_comment");
+    let crate_comment_text =
+        text_for_node(&source, crate_comment).expect("crate doc comment should be valid UTF-8");
+    let struct_item = documented_item(&source, root, "/// Item-level")
+        .expect("struct doc comment should have a sibling item");
+    let struct_name =
+        name_text(&source, struct_item).expect("struct item should expose its name field");
+    let impl_item =
+        direct_named_child_with_kind(root, "impl_item").expect("fixture should contain an impl");
+    let method_item = documented_item(&source, impl_item, "/// Method")
+        .expect("method doc comment should have a sibling item");
+    let method_name =
+        name_text(&source, method_item).expect("function item should expose its name field");
+    let suppressed_comment = line_comment_starting_with(&source, root, "// stilyagi: ignore-next")
+        .expect("expected suppression marker");
+    let suppressed_text = text_for_node(&source, suppressed_comment)
+        .expect("suppression marker should be valid UTF-8");
 
     assert_eq!(root.kind(), "source_file");
-
-    let crate_comment = first_named_child_with_kind(root, "line_comment");
-    assert!(text_for_node(&source, crate_comment).starts_with("//!"));
+    assert!(crate_comment_text.starts_with("//!"));
     assert_eq!(
-        text_for_node(&source, crate_comment)
+        crate_comment_text
             .strip_prefix("//!")
             .expect("crate doc should use the inner doc marker")
             .trim_end_matches(['\r', '\n']),
         " Crate-level documentation comment for the shared Stilyagi corpus."
     );
-
-    let struct_comment = descendants_with_kind(root, "line_comment")
-        .into_iter()
-        .find(|node| text_for_node(&source, *node).starts_with("/// Item-level"))
-        .expect("expected struct doc comment");
-    let struct_item = struct_comment
-        .next_named_sibling()
-        .expect("struct doc comment should have a sibling item");
     assert_eq!(struct_item.kind(), "struct_item");
-    let struct_name = struct_item
-        .child_by_field_name("name")
-        .expect("struct item should expose its name field");
-    assert_eq!(text_for_node(&source, struct_name), "FixtureExample");
-
-    let impl_item = direct_named_child_with_kind(root, "impl_item");
-    let method_comment = descendants_with_kind(impl_item, "line_comment")
-        .into_iter()
-        .find(|node| text_for_node(&source, *node).starts_with("/// Method"))
-        .expect("expected method doc comment");
-    let method_item = method_comment
-        .next_named_sibling()
-        .expect("method doc comment should have a sibling item");
+    assert_eq!(struct_name, "FixtureExample");
     assert_eq!(method_item.kind(), "function_item");
-    let method_name = method_item
-        .child_by_field_name("name")
-        .expect("function item should expose its name field");
-    assert_eq!(text_for_node(&source, method_name), "documented_value");
-
-    let suppressed_comment = descendants_with_kind(root, "line_comment")
-        .into_iter()
-        .find(|node| text_for_node(&source, *node).starts_with("// stilyagi: ignore-next"))
-        .expect("expected suppression marker");
-    assert!(text_for_node(&source, suppressed_comment).starts_with("//"));
-    assert!(!text_for_node(&source, suppressed_comment).starts_with("///"));
+    assert_eq!(method_name, "documented_value");
+    assert!(suppressed_text.starts_with("//"));
+    assert!(!suppressed_text.starts_with("///"));
 }
 
 #[rstest]
 fn attribute_fixture_carries_doc_comments_across_attributes() {
-    let document = fixture_document(ATTRIBUTE_RUST_FIXTURE);
+    let document =
+        rust_fixture_document(ATTRIBUTE_RUST_FIXTURE).expect("expected attribute fixture IR");
     let kinds = document
         .nodes
         .iter()
         .map(|node| node.kind.as_str())
         .collect::<Vec<_>>();
+    let region = document
+        .regions
+        .first()
+        .expect("expected attribute fixture doc-comment");
 
     assert_eq!(document.regions.len(), 1);
     assert_eq!(
-        document
-            .regions
-            .first()
-            .expect("expected attribute fixture doc-comment")
-            .owner
-            .as_ref()
-            .map(|owner| (
-                owner.kind.as_str(),
-                owner.name.as_deref(),
-                owner.qualname.as_deref()
-            )),
+        owner_triple(region),
         Some((
             "struct",
             Some("AttributeFixture"),
@@ -182,11 +107,7 @@ fn attribute_fixture_carries_doc_comments_across_attributes() {
         ))
     );
     assert_eq!(
-        document
-            .regions
-            .first()
-            .expect("expected attribute fixture doc-comment")
-            .text,
+        region.text,
         " Documentation comment that must attach to the struct, not the derive."
     );
     assert!(!kinds.contains(&"attribute_item"));
@@ -196,28 +117,36 @@ fn attribute_fixture_carries_doc_comments_across_attributes() {
 #[rstest]
 fn block_doc_comment_classification_edge_rules() {
     let struct_source = "/** outer */ struct S;";
-    let struct_tree = parse_rust(struct_source);
+    let struct_tree = parse_rust_source(struct_source).expect("outer block doc source parses");
     let struct_root = struct_tree.root_node();
-    let struct_comment = first_named_child_with_kind(struct_root, "block_comment");
-    assert!(text_for_node(struct_source, struct_comment).starts_with("/**"));
+    let struct_comment = assert_first_named_child_kind!(struct_root, "block_comment");
+    let struct_comment_text =
+        text_for_node(struct_source, struct_comment).expect("block comment should be valid UTF-8");
     let struct_region = extract_rust(struct_source)
+        .expect("expected Rust extraction")
         .regions
         .into_iter()
         .next()
         .expect("expected one extracted region");
+
+    assert!(struct_comment_text.starts_with("/**"));
     assert_eq!(struct_region.kind, "rust_doc_comment");
     assert_eq!(struct_region.text, " outer ");
 
     let inner_source = "/*! inner */";
-    let inner_tree = parse_rust(inner_source);
+    let inner_tree = parse_rust_source(inner_source).expect("inner block doc source parses");
     let inner_root = inner_tree.root_node();
-    let inner_comment = first_named_child_with_kind(inner_root, "block_comment");
-    assert!(text_for_node(inner_source, inner_comment).starts_with("/*!"));
+    let inner_comment = assert_first_named_child_kind!(inner_root, "block_comment");
+    let inner_comment_text =
+        text_for_node(inner_source, inner_comment).expect("block comment should be valid UTF-8");
     let inner_region = extract_rust(inner_source)
+        .expect("expected Rust extraction")
         .regions
         .into_iter()
         .next()
         .expect("expected one extracted region");
+
+    assert!(inner_comment_text.starts_with("/*!"));
     assert_eq!(inner_region.text, " inner ");
 }
 
@@ -226,17 +155,20 @@ fn block_doc_comment_classification_edge_rules() {
 #[case("/**/")]
 #[case("/***/")]
 fn non_doc_comment_edge_cases_emit_no_regions(#[case] source: &str) {
-    let tree = parse_rust(source);
+    let tree = parse_rust_source(source).expect("non-doc comment source should parse");
     let root = tree.root_node();
-    let comment = first_named_child(root);
+    let comment = first_named_child(root).expect("source should have a first named child");
+    let comment_text = text_for_node(source, comment).expect("comment should be valid UTF-8");
+    let document = extract_rust(source).expect("expected Rust extraction");
 
-    assert!(text_for_node(source, comment).starts_with('/'));
-    assert!(extract_rust(source).regions.is_empty());
+    assert!(comment_text.starts_with('/'));
+    assert!(document.regions.is_empty());
 }
 
 #[rstest]
 fn multiline_fixture_merges_three_line_comments_and_block_comment() {
-    let document = fixture_document(MULTILINE_RUST_FIXTURE);
+    let document =
+        rust_fixture_document(MULTILINE_RUST_FIXTURE).expect("expected multiline fixture IR");
     let Some(first_region) = document.regions.first() else {
         panic!("expected first Rust doc-comment region");
     };
@@ -267,20 +199,8 @@ fn multiline_fixture_merges_three_line_comments_and_block_comment() {
 
 #[rstest]
 fn nested_fixture_uses_rust_qualname_semantics() {
-    let document = fixture_document(NESTED_RUST_FIXTURE);
-    let owners = document
-        .regions
-        .iter()
-        .map(|region| {
-            let owner = region.owner.as_ref().expect("expected owner metadata");
-            (
-                region.text.as_str(),
-                owner.kind.as_str(),
-                owner.name.as_deref(),
-                owner.qualname.as_deref(),
-            )
-        })
-        .collect::<Vec<_>>();
+    let document = rust_fixture_document(NESTED_RUST_FIXTURE).expect("expected nested fixture IR");
+    let owners = region_owners(&document).expect("expected owner metadata");
 
     assert!(owners.contains(&(
         " Outer module documentation comment for nested Rust extraction.",
@@ -322,7 +242,8 @@ fn nested_fixture_uses_rust_qualname_semantics() {
 
 #[rstest]
 fn malformed_fixture_yields_partial_ir_and_errors() {
-    let document = fixture_document(MALFORMED_RUST_FIXTURE);
+    let document =
+        rust_fixture_document(MALFORMED_RUST_FIXTURE).expect("expected malformed fixture IR");
     let Some(region) = document.regions.first() else {
         panic!("expected malformed Rust fixture to yield one region");
     };
@@ -352,7 +273,7 @@ pub fn broken_function() {
 /// Later struct docs.
 pub struct Later;
 "#;
-    let document = extract_rust(source);
+    let document = extract_rust(source).expect("expected Rust extraction");
     let texts = document
         .regions
         .iter()
