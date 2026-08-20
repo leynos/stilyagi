@@ -203,8 +203,10 @@ def test_df12_lint_tool_definitions_use_the_pinned_python_and_rules(
         ),
         "DF12_PYTHON ?= 3.14",
         f"DF12_PYLINT_MESSAGES = {expected_messages}",
+        "DF12_PYLINT = $(UV_ENV) $(UV) run --python $(DF12_PYTHON) pylint",
         "--disable=all --load-plugins=df12_python_lints ",
         "--enable=$(DF12_PYLINT_MESSAGES)",
+        "AMBRLEAKS = $(UV_ENV) $(UV) tool run --python $(DF12_PYTHON)",
         "--from '$(DF12_PYTHON_LINTS)' ambrleaks",
     )
 
