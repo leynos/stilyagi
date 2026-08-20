@@ -25,7 +25,7 @@
   examples that only restate the test logic.
 - **Document public APIs comprehensively.** Public functions, classes, and
   methods must have comprehensive NumPy-style docstrings, including clear
-  examples that demonstrate usage and outcome where appropriate.
+  examples that demonstrate usage and outcome.
 - **Keep private helper docstrings concise.** Prefer single-line docstrings for
   private helpers. When a private helper needs an explanatory paragraph,
   inspect whether that need exposes conflated responsibilities, an unclear
@@ -40,8 +40,6 @@
 - **Structure private helper docstrings selectively.** Use structured
   NumPy-style sections for private helpers only when they describe non-obvious
   behaviour.
-- **Keep test documentation meaningful.** Test documentation should omit
-  examples that only restate the test logic.
 - **Keep file size manageable.** No single code file should be longer than 400
   lines. Long switch statements or dispatch tables should be broken up by
   feature and constituents colocated with targets. Large blocks of test data
