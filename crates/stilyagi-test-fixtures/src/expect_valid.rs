@@ -172,4 +172,48 @@ mod tests {
         assert_eq!(actual_location.0, file!());
         assert_eq!(actual_location.1, expected_line);
     }
+
+    /// A shared assertion helper in the shape the scope policy prescribes:
+    /// marked `#[track_caller]` so the diagnostics it funnels through
+    /// [`super::ExpectValid`] name the calling test rather than this body.
+    #[track_caller]
+    fn assert_shared_fixture() {
+        let missing: Option<u8> = None;
+        let _fixture_value = missing.expect_valid("shared assertion helper");
+    }
+
+    #[test]
+    fn shared_helper_attributes_the_panic_to_the_calling_test() {
+        let _panic_hook_lock = PANIC_HOOK_LOCK
+            .lock()
+            .expect("panic hook lock must not be poisoned");
+        let panic_location = Arc::new(Mutex::new(None));
+        let captured_location = Arc::clone(&panic_location);
+        let previous_hook = panic::take_hook();
+
+        panic::set_hook(Box::new(move |panic_info| {
+            let location = panic_info
+                .location()
+                .map(|location| (location.file().to_owned(), location.line()));
+            *captured_location
+                .lock()
+                .expect("panic location lock must not be poisoned") = location;
+        }));
+
+        let expected_line = line!() + 2;
+        let panic_result = panic::catch_unwind(AssertUnwindSafe(|| {
+            assert_shared_fixture();
+        }));
+
+        panic::set_hook(previous_hook);
+        assert!(panic_result.is_err(), "missing fixture should panic");
+
+        let actual_location = panic_location
+            .lock()
+            .expect("panic location lock must not be poisoned")
+            .take()
+            .expect("panic hook must record a location");
+        assert_eq!(actual_location.0, file!());
+        assert_eq!(actual_location.1, expected_line);
+    }
 }
