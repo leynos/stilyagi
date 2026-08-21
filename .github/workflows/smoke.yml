@@ -95,7 +95,7 @@ jobs:
       - name: Typecheck
         run: make typecheck
 
-      - name: Lint
+      - name: Lint and dead-code detection
         run: make lint
 
       - name: Test
