@@ -166,7 +166,7 @@ def test_cli_run_check_maps_file_failures_to_exit_two(
     stderr = _run_failing_check(monkeypatch, capsys, target)
 
     for fragment in expected_fragments:
-        assert fragment in stderr, "expected fragment in stderr"
+        assert fragment in stderr, f"expected {fragment!r} in stderr"
 
 
 def test_cli_main_recovers_from_real_malformed_markdown(
