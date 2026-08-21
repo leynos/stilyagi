@@ -20,6 +20,7 @@ dev = [
     "maturin==1.14.1",
     "pytest",
     "pytest-xdist",
+    "cmd-mox==0.2.0",
     # Pin the lint tools so the Makefile and CI resolve identical versions
     # from the lockfile.
     "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@v0.2.0",

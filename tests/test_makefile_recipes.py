@@ -1,12 +1,22 @@
 """Direct unit tests for Makefile recipe contracts."""
 
 import dataclasses as dc
+import os
 import pathlib
+import shutil
 import tomllib
+import typing as typ
 
 import pytest
+from cmd_mox import Invocation
+from cmd_mox.command_runner import CommandRunner
 
 from tests.support.assertions import assert_with_context
+
+pytest_plugins = ("cmd_mox.pytest_plugin",)
+
+if typ.TYPE_CHECKING:
+    from cmd_mox import CmdMox
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -184,6 +194,73 @@ def test_lint_recipe_runs_df12_tools_before_rust_checks(makefile_text: str) -> N
     assert_with_context(
         recipe.index(df12_pylint) < recipe.index(ambrleaks) < recipe.index(rustdoc),
         "expected df12 Pylint and ambrleaks before Rustdoc",
+    )
+
+
+def test_lint_recipe_executes_df12_tools_before_rust_checks(
+    cmd_mox: CmdMox,
+    tmp_path: pathlib.Path,
+) -> None:
+    """Run `make lint` hermetically and preserve its cross-language stage order."""
+    for command in ("uv", "cargo", "rustfmt", "whitaker"):
+        cmd_mox.spy(command).returns()
+
+    shim_dir = cmd_mox.environment.shim_dir
+    assert shim_dir is not None, "expected cmd-mox command shims"
+    make = shutil.which("make")
+    assert make is not None, "expected make executable"
+
+    response = CommandRunner(cmd_mox.environment).run(
+        Invocation(
+            command=make,
+            args=[
+                "--directory",
+                str(REPOSITORY_ROOT),
+                "--no-print-directory",
+                f"UV={shim_dir / 'uv'}",
+                f"CARGO={shim_dir / 'cargo'}",
+                f"WHITAKER={shim_dir / 'whitaker'}",
+                "lint",
+            ],
+            stdin="",
+            env={},
+        ),
+        dict(os.environ, HOME=str(tmp_path / "home")),
+    )
+    assert response.exit_code == 0, response.stderr
+
+    invocations = tuple(cmd_mox.journal)
+    df12_pylint = next(
+        index
+        for index, invocation in enumerate(invocations)
+        if invocation.command == "uv"
+        and invocation.args[:4] == ["run", "--python", "3.14", "pylint"]
+    )
+    ambrleaks = next(
+        index
+        for index, invocation in enumerate(invocations)
+        if invocation.command == "uv"
+        and invocation.args[:4] == ["tool", "run", "--python", "3.14"]
+        and invocation.args[-2:] == ["ambrleaks", "tests"]
+    )
+    rustdoc = next(
+        index
+        for index, invocation in enumerate(invocations)
+        if invocation.command == "cargo" and invocation.args[0] == "doc"
+    )
+    clippy = next(
+        index
+        for index, invocation in enumerate(invocations)
+        if invocation.command == "cargo" and invocation.args[0] == "clippy"
+    )
+    whitaker = next(
+        index
+        for index, invocation in enumerate(invocations)
+        if invocation.command == "whitaker"
+    )
+
+    assert df12_pylint < ambrleaks < min(rustdoc, clippy, whitaker), (
+        "expected df12 Pylint and ambrleaks before every Rust lint stage"
     )
 
 
