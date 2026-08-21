@@ -2,6 +2,7 @@
 
 import typing as typ
 from bisect import bisect_right
+from itertools import pairwise
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -76,6 +77,12 @@ def _normalised_line_starts(
 
     if starts[0] != 0:
         starts = (0, *starts)
+
+    if any(start < 0 for start in starts):
+        return None
+    if any(current >= following for current, following in pairwise(starts)):
+        return None
+
     return starts
 
 

@@ -2,6 +2,7 @@
 
 import hypothesis as hyp
 import hypothesis.strategies as st
+import pytest
 from stilyagi.diagnostics_location import line_column_from_offset
 
 from tests.support.assertions import assert_with_context
@@ -56,6 +57,21 @@ def test_line_column_from_offset_falls_back_without_line_index() -> None:
     assert_with_context(
         line_column_from_offset((), 7) == (1, 1),
         "expected line_column_from_offset((), 7) == (1, 1)",
+    )
+
+
+@pytest.mark.parametrize(
+    "line_index",
+    [(-1, 6), (6, 3), (0, 6, 6)],
+    ids=("negative-start", "decreasing-starts", "duplicate-starts"),
+)
+def test_line_column_from_offset_falls_back_for_invalid_line_indexes(
+    line_index: tuple[int, ...],
+) -> None:
+    """Treat malformed line metadata as the first source location."""
+    assert_with_context(
+        line_column_from_offset(line_index, 7) == (1, 1),
+        "expected invalid line indexes to fall back to (1, 1)",
     )
 
 
