@@ -167,12 +167,12 @@ def test_makefile_targets_run_expected_recipes(
     for expected_header_fragment in case.expected_header_fragments:
         assert_with_context(
             expected_header_fragment in header,
-            "expected expected_header_fragment in header",
+            f"{case.target}: missing header fragment {expected_header_fragment!r}",
         )
     for expected_recipe_fragment in case.expected_recipe_fragments:
         assert_with_context(
             expected_recipe_fragment in joined_recipe,
-            "expected expected_recipe_fragment in joined_recipe",
+            f"{case.target}: missing recipe fragment {expected_recipe_fragment!r}",
         )
     if case.should_include_pytest:
         assert_with_context(
