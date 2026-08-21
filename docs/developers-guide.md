@@ -923,8 +923,9 @@ Their responsibilities are:
 
 The project-backed Python tools run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
-the host `PATH`. Ruff, Interrogate, Pylint, and `df12-python-lints` are locked
-in the `dev` dependency group. The focused Pylint pass is the exception: it
+the host `PATH`. Ruff, Interrogate, and the CPython `df12-python-lints` Pylint
+pass use the locked `dev` dependency group.
+The focused Pylint pass is the exception: it
 runs through `uv tool run --python pypy` with the pinned
 [`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper.
 Both `df12-python-lints` commands use the locked development environment under
