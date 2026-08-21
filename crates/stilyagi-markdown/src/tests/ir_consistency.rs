@@ -149,15 +149,11 @@ fn validate_ir_consistency_reports_line_index_mismatches() {
 
 #[rstest]
 fn validate_ir_consistency_reports_duplicate_node_ids() {
-    assert_invalid_document(
-        "ir-duplicate-node-id",
-        &["duplicate node id"],
-        |document| {
-            if let Some(node) = document.nodes.first().cloned() {
-                document.nodes.push(node);
-            }
-        },
-    );
+    assert_invalid_document("ir-duplicate-node-id", &["duplicate node id"], |document| {
+        if let Some(node) = document.nodes.first().cloned() {
+            document.nodes.push(node);
+        }
+    });
 }
 
 #[rstest]
