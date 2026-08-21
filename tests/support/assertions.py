@@ -20,5 +20,6 @@ def assert_with_context(condition: object, message: str) -> None:
     --------
     >>> assert_with_context(2 + 2 == 4, "arithmetic should remain stable")
     """
-    if not condition:
-        raise AssertionError(message)
+    if condition:
+        return
+    raise AssertionError(message)
