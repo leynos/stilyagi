@@ -1049,10 +1049,16 @@ configuration.
 
 Treat every Skylos finding as a candidate for removal until its caller is
 verified. Remove genuine dead code. For a verified false positive that cannot
-be removed, record a narrow, named exception with its runtime caller under
-`[tool.skylos.whitelist.documented]` in `pyproject.toml`. Do not add broad or
-unexplained allow-list entries; remove an entry when its dynamic boundary
-disappears.
+be removed, record a narrow, named exception with its runtime caller:
+
+```shell
+make skylos-allow NAME=registered_handler \
+  REASON="Loaded by the plugin registry; verified in the registry contract test"
+```
+
+The target refuses empty `NAME` and `REASON` values and records the explanation
+under `[tool.skylos.whitelist.documented]`. Do not add broad or unexplained
+allow-list entries; remove an entry when its dynamic boundary disappears.
 
 ### 6b. Fallibility in Rust test helpers
 

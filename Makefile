@@ -62,7 +62,7 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
 .PHONY: help all clean build build-release lint fmt check-fmt \
         markdownlint nixie spelling spelling-config spelling-config-write \
         spelling-helper-test spelling-phrase-check test test-ci test-quick \
-        typecheck tools \
+        typecheck tools skylos-allow \
         tools-check tools-docs tools-lint release release-artifact smoke \
         smoke-release
 
@@ -156,6 +156,13 @@ lint: tools-lint ## Run linters, including Whitaker and Skylos dead-code checks
 	$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
 	$(SKYLOS) $(SKYLOS_PRODUCTION_TARGETS) --category dead_code --gate --format concise --no-upload --no-provenance --no-grep-verify
+
+skylos-allow: export SKYLOS_NAME = $(value NAME)
+skylos-allow: export SKYLOS_REASON = $(value REASON)
+skylos-allow: ## Document one named Skylos exception, not an entry point
+	@test -n "$${SKYLOS_NAME}" || { printf "Error: NAME is required for a named whitelist exception\\n" >&2; exit 2; }
+	@test -n "$${SKYLOS_REASON}" || { printf "Error: REASON is required for a named whitelist exception\\n" >&2; exit 2; }
+	$(SKYLOS) whitelist "$${SKYLOS_NAME}" --reason "$${SKYLOS_REASON}"
 
 typecheck: build tools-check ## Run typechecking
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)

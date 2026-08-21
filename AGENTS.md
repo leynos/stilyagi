@@ -92,8 +92,9 @@
   - **Linting:** Passes the complete `make lint` pipeline, including the
     blocking Skylos dead-code scan. The CI lint step runs the same target.
     Investigate every finding and remove genuine dead code. Record verified
-    false positives in `[tool.skylos.whitelist.documented]`, including the
-    verified runtime caller in the reason.
+    false positives with
+    `make skylos-allow NAME=handler REASON="Loaded by plugin registry"`,
+    including the verified runtime caller in the reason.
   - **Docstring coverage:** Interrogate, run as part of `make lint`, requires
     100% docstring coverage over `python/stilyagi` and `tests`. Add
     docstrings with new code rather than suppressing the check.
