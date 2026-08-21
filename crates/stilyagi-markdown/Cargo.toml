@@ -16,6 +16,7 @@ stilyagi-ir = { path = "../stilyagi-ir" }
 insta.workspace = true
 proptest.workspace = true
 rstest.workspace = true
+stilyagi-test-fixtures = { path = "../stilyagi-test-fixtures", version = "0.1.0" }
 stilyagi-test-support = { path = "../stilyagi-test-support" }
 
 [lints]

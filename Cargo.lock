@@ -1407,6 +1407,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "stilyagi-test-fixtures",
 ]
 
 [[package]]
@@ -1419,6 +1420,7 @@ dependencies = [
  "rstest",
  "serde_json",
  "stilyagi-ir",
+ "stilyagi-test-fixtures",
  "stilyagi-test-support",
 ]
 

@@ -7,9 +7,15 @@
 //! that extractor crates (for example `stilyagi-tree-sitter`) can consume it
 //! from their tests without forming a dependency cycle through
 //! `stilyagi-test-support`.
+//!
+//! It also holds [`ExpectValid`], the workspace's single documented panic
+//! boundary for fixture code that has no error channel to propagate through.
 
+mod expect_valid;
 mod fixture_paths;
 mod fixture_reads;
+
+pub use expect_valid::ExpectValid;
 
 pub use fixture_paths::{
     ATTRIBUTE_RUST_FIXTURE_PATH, EDGE_CASE_PYTHON_FIXTURE_PATH, FixturePathError,

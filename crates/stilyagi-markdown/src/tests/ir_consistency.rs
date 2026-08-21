@@ -6,6 +6,7 @@ use std::path::Path;
 use markdown::mdast::Node;
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, IrRegion, SourceSpan};
+use stilyagi_test_fixtures::ExpectValid;
 
 use super::source_identity;
 use crate::source_text::decoded_text_maps_to_source;
@@ -69,17 +70,19 @@ fn markdown_ir_document_preserves_canonical_source_identity_helpers() {
 /// Build a valid Markdown IR document, corrupt it with `mutate`, and assert
 /// that `validate_ir_consistency` reports `expected_rule_id` with every fragment
 /// in `expected_reason_fragments` (plus the shared `phase=validate` context).
+///
+/// `#[track_caller]` attributes any failure to the calling test rather than to
+/// this helper, which is the property that otherwise forces shared assertion
+/// shapes to be macros.
+#[track_caller]
 fn assert_validation_reports(
     mutate: impl FnOnce(&mut IrDocument),
     expected_rule_id: &str,
     expected_reason_fragments: &[&str],
 ) {
     let source = "# Heading\n\nBody";
-    let Ok(mut document) =
-        markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
-    else {
-        panic!("expected Markdown IR document");
-    };
+    let mut document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
+        .expect_valid("Markdown IR document");
     mutate(&mut document);
     let context = diagnostic_context();
 
@@ -100,6 +103,7 @@ fn assert_validation_reports(
     }
 }
 
+#[track_caller]
 fn assert_validation_reports_on_first_region(
     mutate_region: impl FnOnce(&mut IrRegion),
     expected_rule_id: &str,
@@ -107,9 +111,10 @@ fn assert_validation_reports_on_first_region(
 ) {
     assert_validation_reports(
         |document| {
-            let Some(region) = document.regions.first_mut() else {
-                panic!("expected at least one Markdown IR region");
-            };
+            let region = document
+                .regions
+                .first_mut()
+                .expect_valid("first Markdown IR region");
             mutate_region(region);
         },
         expected_rule_id,

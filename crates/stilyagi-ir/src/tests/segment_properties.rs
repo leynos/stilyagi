@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use proptest::prelude::*;
 use rstest::rstest;
+use stilyagi_test_fixtures::ExpectValid;
 
 use crate::{IrRegion, IrSegment, SegmentOrigin, SourceSpan, SyntheticReason};
 
@@ -58,9 +59,8 @@ fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
                 let source_start = source.len();
                 source.push_str(text);
                 region_text.push_str(text);
-                let Some(span) = SourceSpan::new(source_start, source.len()) else {
-                    panic!("expected source span to be valid for region fixture construction");
-                };
+                let span = SourceSpan::new(source_start, source.len())
+                    .expect_valid("generated region source span");
                 segments.push(IrSegment::new(
                     text_start,
                     text.clone(),

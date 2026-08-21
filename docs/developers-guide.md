@@ -1010,7 +1010,72 @@ or the suppression. Ruff suppressions use `# noqa`, while Pylint suppressions
 use `# pylint: disable=...`; do not use one tool's suppression syntax to hide
 the other tool's finding.
 
-### 6b. Spelling gate
+### 6b. Fallibility in Rust test helpers
+
+Whitaker's `no_expect_outside_tests` and `no_unwrap_or_else_panic` encode a
+policy that is easy to misread: **fixture and helper functions are not tests.**
+A fixture arranges state, arrangement can fail, and a failure there is a broken
+test rather than a test verdict. Clippy's `allow-expect-in-tests` covers a
+`#[test]` or `#[rstest]` *body*; it does not cover the helper functions sitting
+beside them, and attribute-driven functions (rstest `#[fixture]`, `#[serial]`
+tests, and macro-generated step functions) are invisible to the lint because
+their attributes are gone by the time it runs.
+
+Resolve a finding in this order.
+
+1. **Propagate.** Change the helper to return `Result` and let the test body
+   unwrap. `crates/stilyagi-markdown/src/tests/malformed.rs` shows the shape:
+   `document_for` returns `Result<IrDocument, Message>` and each test calls
+   `.expect("expected Markdown IR document")` in its own body. Do not convert
+   the *test* to return `Result` — `clippy::panic_in_result_fn` is denied
+   workspace-wide, so `assert!` and `assert_eq!` are unavailable there.
+2. **Attribute the failure to the caller.** Where a helper legitimately
+   asserts, mark it `#[track_caller]` so a failure names the calling test
+   instead of the helper. This is what otherwise forces shared assertion shapes
+   to become macros. `assert_validation_reports` in
+   `crates/stilyagi-markdown/src/tests/ir_consistency.rs` is the reference.
+3. **Funnel through the one documented boundary.** Some contexts genuinely
+   cannot propagate: a `proptest` strategy constructor returns
+   `impl Strategy<Value = T>` with nowhere to put an error, and `prop_map`
+   closures cannot use `?`. Those use
+   [`ExpectValid`](../crates/stilyagi-test-fixtures/src/expect_valid.rs), which
+   lives in `stilyagi-test-fixtures` because that crate depends on nothing from
+   the extraction crates and so can be consumed from any crate's tests without
+   forming a cycle.
+
+```rust,no_run
+use proptest::prelude::Strategy;
+use proptest::string::string_regex;
+use stilyagi_test_fixtures::ExpectValid;
+
+fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
+    string_regex(pattern).expect_valid(pattern)
+}
+```
+
+**Scope and re-use policy for `ExpectValid`.** Use it only where an error
+cannot be propagated — strategy constructors, `prop_map` closures, fixture
+builders used by `proptest!` bodies (including helpers also exercised by
+deterministic tests), and shared assertion helpers with no `Result`-compatible
+contract. Mark the latter `#[track_caller]` so
+their failures name the calling test. Do not reach for it to avoid threading a
+`Result` through an ordinary fixture; step 1 governs there. Its methods are
+`#[track_caller]`, so failures report the fixture that is wrong.
+
+What not to do: do not scatter bespoke `match { Err(error) => panic!(…) }`
+helpers or divergent `let`-`else` blocks through test modules. They satisfy the
+lint while reproducing the problem it exists to surface — an unnamed panic
+boundary per call site. One named, documented boundary is auditable; twenty
+anonymous ones are not.
+
+Two crates additionally define `must_ok!` and `must_some!` macros
+(`crates/stilyagi-markdown/src/tests.rs` and
+`crates/stilyagi-pyext/src/bridge_bdd.rs`). Those remain correct *inside* a test
+body, where a macro expands in place. They are duplicated across the two crates;
+consolidating them onto `ExpectValid` is tracked as follow-up work rather than
+done piecemeal.
+
+### 6c. Spelling gate
 
 `make markdownlint` enforces en-GB-oxendict (Oxford) spelling over the
 repository's Markdown prose with [`typos`](https://github.com/crate-ci/typos),
@@ -1076,7 +1141,7 @@ The phrase helper follows the CodeRabbit-reviewed consumer baseline. Its
 isolated test runner supplies Pathspec 1.1.1 without adding a project runtime
 or locked development dependency.
 
-### 6c. Tool version alignment between the Makefile and CI
+### 6d. Tool version alignment between the Makefile and CI
 
 The Makefile and `.github/workflows/smoke.yml` must resolve identical lint tool
 versions. The repository uses two mechanisms:
@@ -1095,7 +1160,7 @@ When bumping any of these versions, update the single source of truth (the
 dependency-group pin or `TYPOS_VERSION`), refresh `uv.lock` where relevant, and
 rerun the affected gates.
 
-### 6d. Workflow pins and Dependabot
+### 6e. Workflow pins and Dependabot
 
 Dependabot owns the upgrade of GitHub Actions and reusable workflows, including
 calls into `leynos/shared-actions`. Contract tests that assert a caller's exact

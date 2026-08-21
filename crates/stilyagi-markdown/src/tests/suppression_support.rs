@@ -4,6 +4,7 @@ use markdown::mdast::Node;
 use proptest::prelude::*;
 use proptest::string::string_regex;
 use stilyagi_ir::SuppressionKind;
+use stilyagi_test_fixtures::ExpectValid;
 
 /// Return the canonical suppression kind for a directive token.
 pub(super) fn expected_kind_from_token(token: &str) -> SuppressionKind {
@@ -43,11 +44,12 @@ pub(super) fn space_padding_strategy() -> impl Strategy<Value = String> {
 
 /// Compile a fixture regex pattern into a proptest strategy, panicking on
 /// invalid patterns since callers pass compile-time constants.
+/// Build a string strategy from `pattern`.
+///
+/// `string_regex` is fallible but a strategy pipeline has no error channel, so
+/// this funnels through the workspace's documented fixture panic boundary.
 fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
-    let Ok(strategy) = string_regex(pattern) else {
-        panic!("fixture regex pattern {pattern:?} must compile");
-    };
-    strategy
+    string_regex(pattern).expect_valid(pattern)
 }
 
 /// Collect the IR node identifiers that correspond to HTML comments.
