@@ -894,8 +894,9 @@ Their responsibilities are:
   - run focused Pylint checks through the pinned `pylint-pypy-shim` wrapper
     under PyPy
   - run every `df12-python-lints` v0.2.0 Pylint message under CPython 3.14
-  - scan syrupy snapshots under `tests` with the separately pinned v0.2.0
-    `ambrleaks` tool
+    from immutable commit `9c835f35b0f1690597ade799c9c6a30bc5922959`
+  - scan syrupy snapshots under `tests` with `ambrleaks` from the same locked
+    development environment and immutable commit under CPython 3.14
   - run `cargo doc` for all workspace crates and features with Rustdoc warnings
     denied
   - run `cargo clippy` for all workspace crates, targets, and features with
@@ -926,9 +927,11 @@ the host `PATH`. Ruff, Interrogate, Pylint, and `df12-python-lints` are locked
 in the `dev` dependency group. The focused Pylint pass is the exception: it
 runs through `uv tool run --python pypy` with the pinned
 [`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper.
-`ambrleaks` also uses `uv tool run`, with the same df12 Git tag pinned
-separately in the Makefile. These Python tiers run before the Rust lint tiers,
-with Interrogate enforcing a 100% docstring-coverage threshold.
+Both `df12-python-lints` commands use the locked development environment under
+CPython 3.14, resolving the immutable commit
+`9c835f35b0f1690597ade799c9c6a30bc5922959` recorded in `uv.lock`. These Python
+tiers run before the Rust lint tiers, with Interrogate enforcing a 100%
+docstring-coverage threshold.
 
 ### 6a. Python linting architecture
 
@@ -941,9 +944,10 @@ is that Python linting has five tiers:
 3. Pylint runs third through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
 4. The `df12-python-lints` plugin runs fourth through the locked development
-  environment under CPython 3.14, with all v0.2.0 messages enabled.
-5. `ambrleaks` runs fifth from its separately pinned v0.2.0 tool environment
-   and scans `tests` for unredacted snapshot values.
+  environment under CPython 3.14, with all v0.2.0 messages enabled, from
+  immutable commit `9c835f35b0f1690597ade799c9c6a30bc5922959`.
+5. `ambrleaks` runs fifth through that same locked CPython 3.14 environment
+   and immutable commit, scanning `tests` for unredacted snapshot values.
 
 `make lint` then continues into the Rust lint tiers owned by the repository:
 
@@ -985,12 +989,10 @@ Table: Lint runner Makefile variables.
 | `PYLINT_PYPY_SHIM_REF`  | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                                    | Pins the shim commit used by the Pylint tier.                   |
 | `PYLINT_PYPY_SHIM`      | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                  | Expands the pinned shim package source.                         |
 | `PYLINT`                | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=` | Builds the focused PyPy Pylint command used by `make lint`.     |
-| `DF12_PYTHON_LINTS_REF` | `v0.2.0`                                                                                                      | Pins the df12 plugin and scanner source tag.                    |
-| `DF12_PYTHON_LINTS`     | `git+https://github.com/leynos/df12-python-lints.git@$(DF12_PYTHON_LINTS_REF)`                                | Expands the pinned df12 package source.                         |
 | `DF12_PYTHON`           | `3.14`                                                                                                        | Selects CPython for the df12 Pylint and scanner tiers.          |
 | `DF12_PYLINT_MESSAGES`  | all thirteen v0.2.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                            |
 | `DF12_PYLINT`           | project-backed Pylint with `df12_python_lints` loaded                                                         | Builds the CPython df12 Pylint command.                         |
-| `AMBRLEAKS`             | v0.2.0 df12 tool environment                                                                                  | Builds the snapshot leak scanner command.                       |
+| `AMBRLEAKS`             | locked `uv run --group dev --python 3.14` environment                                                         | Builds the snapshot leak scanner command from the locked commit.|
 | `TYPOS_VERSION`         | `1.48.0`                                                                                                      | Pins the `typos` version shared by the Makefile and CI.         |
 | `TYPOS`                 | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                                         | Builds the spelling-check command used by `make markdownlint`.  |
 

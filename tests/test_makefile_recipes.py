@@ -19,6 +19,10 @@ if typ.TYPE_CHECKING:
     from cmd_mox import CmdMox
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
+DF12_PYTHON_LINTS_COMMIT = "9c835f35b0f1690597ade799c9c6a30bc5922959"
+DF12_PYTHON_LINTS_SOURCE = (
+    f"git+https://github.com/leynos/df12-python-lints.git@{DF12_PYTHON_LINTS_COMMIT}"
+)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -234,13 +238,14 @@ def test_lint_recipe_executes_df12_tools_before_rust_checks(
         index
         for index, invocation in enumerate(invocations)
         if invocation.command == "uv"
-        and invocation.args[:4] == ["run", "--python", "3.14", "pylint"]
+        and invocation.args[:5] == ["run", "--group", "dev", "--python", "3.14"]
+        and invocation.args[5] == "pylint"
     )
     ambrleaks = next(
         index
         for index, invocation in enumerate(invocations)
         if invocation.command == "uv"
-        and invocation.args[:4] == ["tool", "run", "--python", "3.14"]
+        and invocation.args[:5] == ["run", "--group", "dev", "--python", "3.14"]
         and invocation.args[-2:] == ["ambrleaks", "tests"]
     )
     rustdoc = next(
@@ -272,19 +277,12 @@ def test_df12_lint_tool_definitions_use_the_pinned_python_and_rules(
         "R9101,C9102,R9103,R9104,C9105,C9106,C9107,R9108,R9109,R9110,R9111,R9112,C9112"
     )
     expected_definitions = (
-        "DF12_PYTHON_LINTS_REF ?= v0.2.0",
-        (
-            "DF12_PYTHON_LINTS = "
-            "git+https://github.com/leynos/df12-python-lints.git@"
-            "$(DF12_PYTHON_LINTS_REF)"
-        ),
         "DF12_PYTHON ?= 3.14",
         f"DF12_PYLINT_MESSAGES = {expected_messages}",
-        "DF12_PYLINT = $(UV_ENV) $(UV) run --python $(DF12_PYTHON) pylint",
+        "DF12_PYLINT = $(UV_RUN) --python $(DF12_PYTHON) pylint",
         "--disable=all --load-plugins=df12_python_lints ",
         "--enable=$(DF12_PYLINT_MESSAGES)",
-        "AMBRLEAKS = $(UV_ENV) $(UV) tool run --python $(DF12_PYTHON)",
-        "--from '$(DF12_PYTHON_LINTS)' ambrleaks",
+        "AMBRLEAKS = $(UV_RUN) --python $(DF12_PYTHON) ambrleaks",
     )
 
     for expected_definition in expected_definitions:
@@ -292,6 +290,10 @@ def test_df12_lint_tool_definitions_use_the_pinned_python_and_rules(
             expected_definition in makefile_text,
             "expected df12 lint tool definition",
         )
+    assert_with_context(
+        "DF12_PYTHON_LINTS" not in makefile_text,
+        "expected df12 source to be owned only by the locked development environment",
+    )
 
 
 def test_df12_lint_project_configuration_uses_python_314() -> None:
@@ -300,10 +302,19 @@ def test_df12_lint_project_configuration_uses_python_314() -> None:
     pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
 
     assert_with_context(
-        "df12-python-lints @ "
-        "git+https://github.com/leynos/df12-python-lints.git@v0.2.0"
+        f"df12-python-lints @ {DF12_PYTHON_LINTS_SOURCE}"
         in pyproject["dependency-groups"]["dev"],
-        "expected pinned df12 Python lints development dependency",
+        "expected immutable df12 Python lints development dependency",
+    )
+    lock = tomllib.loads((REPOSITORY_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    df12_package = next(
+        package for package in lock["package"] if package["name"] == "df12-python-lints"
+    )
+    assert_with_context(
+        df12_package["source"]["git"]
+        == "https://github.com/leynos/df12-python-lints.git"
+        f"?rev={DF12_PYTHON_LINTS_COMMIT}#{DF12_PYTHON_LINTS_COMMIT}",
+        "expected lockfile to record the immutable df12 Python lints commit",
     )
     assert_with_context(
         pyproject["tool"]["pylint"]["main"]["py-version"] == "3.14",

@@ -109,9 +109,10 @@ Adopt Option A.
 3. Focused Pylint through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
 4. All `df12-python-lints` v0.2.0 Pylint messages through the locked
-   development environment under CPython 3.14.[^4]
-5. `ambrleaks` from the separately pinned `df12-python-lints` v0.2.0 tool
-   environment over `tests`.
+   development environment under CPython 3.14 from immutable commit
+   `9c835f35b0f1690597ade799c9c6a30bc5922959`.[^4]
+5. `ambrleaks` from that same locked CPython 3.14 development environment and
+   immutable commit over `tests`.
 6. Rust `cargo doc` and `cargo clippy` with warnings denied.
 7. Whitaker from `crates/stilyagi-pyext/`.
 
@@ -127,8 +128,10 @@ The Python lint policy SHALL live in `pyproject.toml`:
   disables all messages by default and enables only the explicitly selected
   diagnostics. The project baseline is Python 3.14 so baseline-sensitive df12
   messages are active.
-- The development dependency group locks `df12-python-lints` to Git tag
-  `v0.2.0`, giving its Pylint plugin the same environment as the project.
+- The development dependency group declares `df12-python-lints` in
+  `pyproject.toml`; `uv.lock` records immutable commit
+  `9c835f35b0f1690597ade799c9c6a30bc5922959`, giving its Pylint plugin and
+  `ambrleaks` command the same environment as the project.
 
 The Makefile SHALL expose variables for the Pylint runner:
 
@@ -139,12 +142,11 @@ The Makefile SHALL expose variables for the Pylint runner:
 - `PYLINT_PYPY_SHIM_REF` pins the shim commit.
 - `PYLINT_PYPY_SHIM` expands the pinned Git URL.
 - `PYLINT` builds the full `uv tool run` command used by `make lint`.
-- `DF12_PYTHON_LINTS_REF` and `DF12_PYTHON_LINTS` pin and expand the df12 tool
-  source.
 - `DF12_PYTHON` selects CPython 3.14 for both df12 commands.
 - `DF12_PYLINT_MESSAGES` lists all v0.2.0 plugin messages.
 - `DF12_PYLINT` builds the plugin-backed Pylint command.
-- `AMBRLEAKS` builds the separately pinned snapshot scanner command.
+- `AMBRLEAKS` builds the snapshot scanner command from the locked development
+  environment.
 
 ## Consequences
 
@@ -204,15 +206,14 @@ UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --python 3.14 pylint \
   --disable=all --load-plugins=df12_python_lints \
   --enable=R9101,C9102,R9103,R9104,C9105,C9106,C9107,R9108,R9109,R9110,R9111,R9112,C9112 \
   python/stilyagi tests
-UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv tool run --python 3.14 \
-  --from 'git+https://github.com/leynos/df12-python-lints.git@v0.2.0' \
-  ambrleaks tests
+UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev --python 3.14 ambrleaks tests
 ```
 
-Prefer changing `PYLINT_TARGETS`, `PYLINT_PYTHON`, `PYLINT_PYPY_SHIM_REF`,
-`DF12_PYTHON`, or `DF12_PYTHON_LINTS_REF` through Makefile variables for
-one-off local experiments. Commit changes to those defaults only when the
-project-wide policy is intentionally changing.
+Prefer changing `PYLINT_TARGETS`, `PYLINT_PYTHON`, `PYLINT_PYPY_SHIM_REF`, or
+`DF12_PYTHON` through Makefile variables for one-off local experiments. Commit
+changes to those defaults only when the project-wide policy is intentionally
+changing. The immutable df12 source is declared in `pyproject.toml` and
+recorded in `uv.lock`.
 
 ## Follow-on work
 
@@ -228,4 +229,4 @@ project-wide policy is intentionally changing.
 [^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
 [^2]: [leynos/episodic](https://github.com/leynos/episodic)
 [^3]: [leynos/pylint-pypy-shim](https://github.com/leynos/pylint-pypy-shim)
-[^4]: [leynos/df12-python-lints](https://github.com/leynos/df12-python-lints/tree/v0.2.0)
+[^4]: [leynos/df12-python-lints](https://github.com/leynos/df12-python-lints/commit/9c835f35b0f1690597ade799c9c6a30bc5922959)

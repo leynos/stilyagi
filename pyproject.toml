@@ -23,7 +23,7 @@ dev = [
     "cmd-mox==0.2.0",
     # Pin the lint tools so the Makefile and CI resolve identical versions
     # from the lockfile.
-    "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@v0.2.0",
+    "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@9c835f35b0f1690597ade799c9c6a30bc5922959",
     "interrogate==1.7.0",
     "ruff==0.15.13",
     "ty",
