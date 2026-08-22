@@ -57,6 +57,48 @@ def _make_target(makefile: str, target: str) -> tuple[str, tuple[str, ...]]:
     raise AssertionError(msg)
 
 
+def _df12_pylint_invocation_index(invocations: tuple[Invocation, ...]) -> int:
+    """Return the df12 Pylint command's journal index."""
+    return next(
+        index
+        for index, invocation in enumerate(invocations)
+        if invocation.command == "uv"
+        and invocation.args[:5] == ["run", "--group", "dev", "--python", "3.14"]
+        and invocation.args[5] == "pylint"
+    )
+
+
+def _ambrleaks_invocation_index(invocations: tuple[Invocation, ...]) -> int:
+    """Return the ambrleaks command's journal index."""
+    return next(
+        index
+        for index, invocation in enumerate(invocations)
+        if invocation.command == "uv"
+        and invocation.args[:5] == ["run", "--group", "dev", "--python", "3.14"]
+        and invocation.args[-2:] == ["ambrleaks", "tests"]
+    )
+
+
+def _cargo_lint_invocation_index(
+    invocations: tuple[Invocation, ...], subcommand: str
+) -> int:
+    """Return a Cargo lint subcommand's journal index."""
+    return next(
+        index
+        for index, invocation in enumerate(invocations)
+        if invocation.command == "cargo" and invocation.args[0] == subcommand
+    )
+
+
+def _whitaker_invocation_index(invocations: tuple[Invocation, ...]) -> int:
+    """Return the Whitaker command's journal index."""
+    return next(
+        index
+        for index, invocation in enumerate(invocations)
+        if invocation.command == "whitaker"
+    )
+
+
 @pytest.fixture(scope="module")
 def makefile_text() -> str:
     """Return the repository Makefile as text, loaded once per module."""
@@ -234,35 +276,11 @@ def test_lint_recipe_executes_df12_tools_before_rust_checks(
     assert response.exit_code == 0, response.stderr
 
     invocations = tuple(cmd_mox.journal)
-    df12_pylint = next(
-        index
-        for index, invocation in enumerate(invocations)
-        if invocation.command == "uv"
-        and invocation.args[:5] == ["run", "--group", "dev", "--python", "3.14"]
-        and invocation.args[5] == "pylint"
-    )
-    ambrleaks = next(
-        index
-        for index, invocation in enumerate(invocations)
-        if invocation.command == "uv"
-        and invocation.args[:5] == ["run", "--group", "dev", "--python", "3.14"]
-        and invocation.args[-2:] == ["ambrleaks", "tests"]
-    )
-    rustdoc = next(
-        index
-        for index, invocation in enumerate(invocations)
-        if invocation.command == "cargo" and invocation.args[0] == "doc"
-    )
-    clippy = next(
-        index
-        for index, invocation in enumerate(invocations)
-        if invocation.command == "cargo" and invocation.args[0] == "clippy"
-    )
-    whitaker = next(
-        index
-        for index, invocation in enumerate(invocations)
-        if invocation.command == "whitaker"
-    )
+    df12_pylint = _df12_pylint_invocation_index(invocations)
+    ambrleaks = _ambrleaks_invocation_index(invocations)
+    rustdoc = _cargo_lint_invocation_index(invocations, "doc")
+    clippy = _cargo_lint_invocation_index(invocations, "clippy")
+    whitaker = _whitaker_invocation_index(invocations)
 
     assert df12_pylint < ambrleaks < min(rustdoc, clippy, whitaker), (
         "expected df12 Pylint and ambrleaks before every Rust lint stage"

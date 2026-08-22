@@ -78,12 +78,17 @@ def _normalised_line_starts(
     if starts[0] != 0:
         starts = (0, *starts)
 
-    if any(start < 0 for start in starts):
-        return None
-    if any(current >= following for current, following in pairwise(starts)):
+    if not _has_valid_line_starts(starts):
         return None
 
     return starts
+
+
+def _has_valid_line_starts(starts: tuple[int, ...]) -> bool:
+    """Return whether line starts are non-negative and strictly increasing."""
+    return all(start >= 0 for start in starts) and all(
+        current < following for current, following in pairwise(starts)
+    )
 
 
 def _line_number_for_position(starts: tuple[int, ...], position: int) -> int:
