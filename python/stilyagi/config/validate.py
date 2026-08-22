@@ -6,7 +6,7 @@ These helpers check raw TOML values at the config boundary and raise
 Example
 -------
 >>> import pathlib
->>> _ensure_bool(True, path=pathlib.Path("stilyagi.toml"), key="lint.preview")
+>>> ensure_bool(True, path=pathlib.Path("stilyagi.toml"), key="lint.preview")
 True
 """
 
@@ -19,30 +19,33 @@ if typ.TYPE_CHECKING:
     import pathlib
 
 
-def _ensure_mapping(
+def ensure_mapping(
     value: object, *, path: pathlib.Path, key: str
 ) -> cabc.Mapping[str, object]:
     """Validate that a config value is a mapping."""
     if not isinstance(value, cabc.Mapping):
         raise InvalidConfigError(path, key, "must be a mapping")
-    return typ.cast("cabc.Mapping[str, object]", value)
+    mapping = typ.cast("cabc.Mapping[object, object]", value)
+    if any(not isinstance(mapping_key, str) for mapping_key in mapping):
+        raise InvalidConfigError(path, key, "mapping keys must be strings")
+    return typ.cast("cabc.Mapping[str, object]", mapping)
 
 
-def _ensure_bool(value: object, *, path: pathlib.Path, key: str) -> bool:
+def ensure_bool(value: object, *, path: pathlib.Path, key: str) -> bool:
     """Validate that a config value is a boolean."""
     if not isinstance(value, bool):
         raise InvalidConfigError(path, key, "must be a bool")
     return value
 
 
-def _ensure_int(value: object, *, path: pathlib.Path, key: str) -> int:
+def ensure_int(value: object, *, path: pathlib.Path, key: str) -> int:
     """Validate that a config value is an integer."""
     if not isinstance(value, int) or isinstance(value, bool):
         raise InvalidConfigError(path, key, "must be an int")
     return value
 
 
-def _ensure_string(value: object, *, path: pathlib.Path, key: str) -> str:
+def ensure_string(value: object, *, path: pathlib.Path, key: str) -> str:
     """Validate that a config value is a string."""
     if not isinstance(value, str):
         raise InvalidConfigError(path, key, "must be a string")
@@ -61,7 +64,7 @@ def _ensure_all_strings(
     return typ.cast("tuple[str, ...]", items)
 
 
-def _ensure_string_sequence(
+def ensure_string_sequence(
     value: object,
     *,
     path: pathlib.Path,
@@ -70,10 +73,11 @@ def _ensure_string_sequence(
     """Validate that a config value is a sequence of strings."""
     if not isinstance(value, cabc.Iterable) or isinstance(value, str):
         raise InvalidConfigError(path, key, "must be a sequence of strings")
-    return _ensure_all_strings(tuple(value), path=path, key=key)
+    items = tuple(typ.cast("cabc.Iterable[object]", value))
+    return _ensure_all_strings(items, path=path, key=key)
 
 
-def _ensure_extend_value(
+def ensure_extend_value(
     value: object,
     *,
     path: pathlib.Path,
@@ -88,7 +92,8 @@ def _ensure_extend_value(
                 path, key, "must be a string or a sequence of strings"
             )
         case cabc.Sequence():
-            _ensure_all_strings(tuple(value), path=path, key=key)
+            items = tuple(typ.cast("cabc.Iterable[object]", value))
+            _ensure_all_strings(items, path=path, key=key)
             return typ.cast("cabc.Sequence[str]", value)
         case _:
             raise InvalidConfigError(

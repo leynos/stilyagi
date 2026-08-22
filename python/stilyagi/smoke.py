@@ -41,7 +41,7 @@ from stilyagi import engine, model
 #: Canonical Markdown source used to prove the Rust-backed extraction path.
 SMOKE_SOURCE = "# Stilyagi smoke"
 #: Callable contract for smoke-compatible document extraction functions.
-type ExtractDocument = cabc.Callable[[str, model.Syntax], model.Document]
+type ExtractDocument = cabc.Callable[[str, model.Syntax], object]
 
 
 class SmokeCheckError(RuntimeError):
@@ -107,11 +107,12 @@ def smoke_installed_package(
     return document
 
 
-def _assert_syntax_is_model_syntax(document: model.Document) -> None:
+def _assert_syntax_is_model_syntax(document: object) -> None:
     """Raise SmokeCheckError if syntax is not a model.Syntax instance."""
-    if isinstance(document.syntax, model.Syntax):
+    syntax = getattr(document, "syntax", None)
+    if isinstance(syntax, model.Syntax):
         return
-    msg = f"malformed syntax from smoke extraction: {document.syntax!r}"
+    msg = f"malformed syntax from smoke extraction: {syntax!r}"
     raise SmokeCheckError(msg)
 
 

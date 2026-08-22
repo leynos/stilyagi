@@ -1,5 +1,7 @@
 """Tests for converting IR byte offsets into source locations."""
 
+from itertools import pairwise
+
 import hypothesis as hyp
 import hypothesis.strategies as st
 import pytest
@@ -73,6 +75,29 @@ def test_line_column_from_offset_falls_back_for_invalid_line_indexes(
         line_column_from_offset(line_index, 7) == (1, 1),
         "expected invalid line indexes to fall back to (1, 1)",
     )
+
+
+@hyp.given(line_index=st.lists(st.integers()).map(tuple))
+@hyp.example(line_index=())
+@hyp.example(line_index=(-1, 6))
+@hyp.example(line_index=(6, 3))
+@hyp.example(line_index=(0, 6, 6))
+def test_line_column_from_offset_falls_back_for_generated_invalid_line_indexes(
+    line_index: tuple[int, ...],
+) -> None:
+    """Fall back for every generated malformed line index."""
+    starts = (0, *line_index) if line_index and line_index[0] != 0 else line_index
+    is_invalid = (
+        not starts
+        or any(start < 0 for start in starts)
+        or any(current >= following for current, following in pairwise(starts))
+    )
+
+    if is_invalid:
+        assert_with_context(
+            line_column_from_offset(line_index, 7) == (1, 1),
+            "expected generated invalid line indexes to fall back to (1, 1)",
+        )
 
 
 @hyp.given(data=st.data())

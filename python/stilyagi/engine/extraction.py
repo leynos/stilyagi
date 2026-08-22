@@ -13,7 +13,7 @@ Example: `from stilyagi import model`
 Process-wide bridge vocabulary state is loaded lazily. Region-kind caches use
 `functools.cache`, and syntax-vocabulary validation is guarded by a module lock
 so concurrent callers share one validated state. Tests that patch bridge
-functions must call `_reset_extraction_state_for_tests` before observing patched
+functions must call `reset_extraction_state_for_tests` before observing patched
 vocabulary behaviour.
 """
 
@@ -49,7 +49,7 @@ class _BridgeDocument(typ.TypedDict):
 
 
 _PYTHON_SYNTAX_SPELLINGS = frozenset(syntax.value for syntax in model.Syntax)
-_SYNTAX_VOCAB_VALIDATED = False
+_syntax_vocab_validated = False
 _SYNTAX_VOCAB_LOCK = threading.Lock()
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,18 +60,18 @@ if typ.TYPE_CHECKING:
 class UnknownIrRegionKind(typ.NamedTuple):
     """Diagnostic for one canonical IR region kind unknown to Python."""
 
-    index: int
+    region_index: int
     kind: str
 
 
 def _validate_syntax_vocab_once() -> None:
     """Fail fast once if the Python and Rust syntax vocabularies drift apart."""
-    global _SYNTAX_VOCAB_VALIDATED
-    if _SYNTAX_VOCAB_VALIDATED:
+    global _syntax_vocab_validated
+    if _syntax_vocab_validated:
         return
 
     with _SYNTAX_VOCAB_LOCK:
-        if _SYNTAX_VOCAB_VALIDATED:
+        if _syntax_vocab_validated:
             return
 
         rust_syntax_spellings = frozenset(bridge_supported_syntaxes())
@@ -82,14 +82,14 @@ def _validate_syntax_vocab_once() -> None:
                 f"rust={sorted(rust_syntax_spellings)!r}"
             )
             raise RuntimeError(msg)
-        _SYNTAX_VOCAB_VALIDATED = True
+        _syntax_vocab_validated = True
 
 
-def _reset_extraction_state_for_tests() -> None:
+def reset_extraction_state_for_tests() -> None:
     """Reset process-wide extraction caches used by tests that patch the bridge."""
-    global _SYNTAX_VOCAB_VALIDATED
+    global _syntax_vocab_validated
     with _SYNTAX_VOCAB_LOCK:
-        _SYNTAX_VOCAB_VALIDATED = False
+        _syntax_vocab_validated = False
         supported_region_kinds.cache_clear()
         _known_ir_region_kinds.cache_clear()
 
@@ -209,7 +209,7 @@ def _coerce_bridge_region(index: int, region: object) -> _BridgeRegion:
     }
 
 
-def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
+def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, object] | None:
     """Parse the optional canonical IR JSON bridge field."""
     if ir_json is None:
         return None
@@ -217,7 +217,7 @@ def _parse_ir_json(ir_json: str | None) -> cabc.Mapping[str, typ.Any] | None:
     if not isinstance(parsed, dict):
         msg = "expected Rust bridge payload['ir_json'] to decode to dict"
         raise TypeError(msg)
-    return typ.cast("cabc.Mapping[str, typ.Any]", parsed)
+    return typ.cast("cabc.Mapping[str, object]", parsed)
 
 
 def _iter_unknown_region_kinds(
@@ -230,11 +230,11 @@ def _iter_unknown_region_kinds(
             continue
         kind = typ.cast("dict[str, object]", region).get("kind")
         if isinstance(kind, str) and kind not in known_region_kinds:
-            yield UnknownIrRegionKind(index=index, kind=kind)
+            yield UnknownIrRegionKind(region_index=index, kind=kind)
 
 
 def _unknown_ir_region_kinds(
-    ir_payload: cabc.Mapping[str, typ.Any] | None,
+    ir_payload: cabc.Mapping[str, object] | None,
 ) -> tuple[UnknownIrRegionKind, ...]:
     """Return unknown canonical IR region-kind diagnostics."""
     if ir_payload is None:
@@ -246,8 +246,8 @@ def _unknown_ir_region_kinds(
     return tuple(_iter_unknown_region_kinds(regions, _known_ir_region_kinds()))
 
 
-def _warn_unknown_ir_region_kinds(
-    ir_payload: cabc.Mapping[str, typ.Any] | None,
+def warn_unknown_ir_region_kinds(
+    ir_payload: cabc.Mapping[str, object] | None,
     *,
     operation: str,
 ) -> None:
@@ -256,6 +256,6 @@ def _warn_unknown_ir_region_kinds(
         _LOGGER.warning(
             "Unknown IR region kind from Rust bridge during %s: index=%s kind=%r",
             operation,
-            diagnostic.index,
+            diagnostic.region_index,
             diagnostic.kind,
         )

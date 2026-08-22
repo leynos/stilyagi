@@ -37,9 +37,9 @@ scenarios("../features/stilyagi_check_command.feature")
 @pytest.fixture(autouse=True)
 def reset_extraction_state() -> cabc.Iterator[None]:
     """Reset process-wide extraction adapter state around every test."""
-    extraction_module._reset_extraction_state_for_tests()
+    extraction_module.reset_extraction_state_for_tests()
     yield
-    extraction_module._reset_extraction_state_for_tests()
+    extraction_module.reset_extraction_state_for_tests()
 
 
 def test_public_package_re_exports_the_supported_boundaries() -> None:
@@ -302,7 +302,7 @@ def test_extraction_state_reset_refreshes_region_kind_cache(
             "bridge_supported_region_kinds",
             lambda: ("first_kind",),
         )
-        extraction_module._reset_extraction_state_for_tests()
+        extraction_module.reset_extraction_state_for_tests()
         assert_with_context(
             extraction_module.supported_region_kinds() == ("first_kind",),
             "expected extraction_module.supported_region_kinds() ...",
@@ -318,7 +318,7 @@ def test_extraction_state_reset_refreshes_region_kind_cache(
             "expected extraction_module.supported_region_kinds() ...",
         )
 
-        extraction_module._reset_extraction_state_for_tests()
+        extraction_module.reset_extraction_state_for_tests()
         assert_with_context(
             extraction_module.supported_region_kinds() == ("second_kind",),
             "expected extraction_module.supported_region_kinds() ...",
@@ -337,7 +337,7 @@ def test_syntax_vocab_validation_is_resettable_for_bridge_tests(
 
     with monkeypatch.context() as patch:
         patch.setattr(extraction_module, "bridge_supported_syntaxes", lambda: supported)
-        extraction_module._reset_extraction_state_for_tests()
+        extraction_module.reset_extraction_state_for_tests()
         extraction_module._validate_syntax_vocab_once()
 
         patch.setattr(
@@ -345,7 +345,7 @@ def test_syntax_vocab_validation_is_resettable_for_bridge_tests(
         )
         extraction_module._validate_syntax_vocab_once()
 
-        extraction_module._reset_extraction_state_for_tests()
+        extraction_module.reset_extraction_state_for_tests()
         with pytest.raises(
             RuntimeError, match="Python and Rust syntax spellings differ"
         ):

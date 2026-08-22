@@ -115,8 +115,8 @@ def makefile_text() -> str:
                         'RUSTFLAGS="$(RUST_FLAGS)" '
                         "$(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)"
                     ),
-                    "$(UV_RUN) ty --version",
-                    "$(UV_RUN) ty check",
+                    "$(UV_RUN) pyright --version",
+                    "$(UV_RUN) pyright",
                 ),
                 should_include_pytest=False,
             ),
@@ -296,6 +296,25 @@ def test_df12_lint_tool_definitions_use_the_pinned_python_and_rules(
     )
 
 
+def test_pypy_pylint_tool_definition_preserves_the_pinned_plugin_runner(
+    makefile_text: str,
+) -> None:
+    """Keep the PyPy Pylint command pinned and plugin-compatible."""
+    expected_definitions = (
+        "PYLINT_PYTHON ?= pypy",
+        "PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b",
+        "PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)",
+        "PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) ",
+        "--from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=",
+    )
+
+    for expected_definition in expected_definitions:
+        assert_with_context(
+            expected_definition in makefile_text,
+            f"missing PyPy Pylint definition {expected_definition!r}",
+        )
+
+
 def test_df12_lint_project_configuration_uses_python_314() -> None:
     """Keep the project dependency and Pylint configuration at Python 3.14."""
     pyproject_path = REPOSITORY_ROOT / "pyproject.toml"
@@ -324,4 +343,27 @@ def test_df12_lint_project_configuration_uses_python_314() -> None:
         pyproject["tool"]["pylint"]["messages control"]["disable"]
         == ["all", "syntax-error"],
         "expected focused Pylint message configuration",
+    )
+
+
+def test_pyright_typecheck_configuration_is_strict() -> None:
+    """Keep the project-backed type checker strict and Python-3.14 aware."""
+    pyproject_path = REPOSITORY_ROOT / "pyproject.toml"
+    pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+
+    assert_with_context(
+        "pyright" in pyproject["dependency-groups"]["dev"],
+        "expected pyright in the development dependency group",
+    )
+    assert_with_context(
+        "ty" not in pyproject["dependency-groups"]["dev"],
+        "expected Ty to be removed from the development dependency group",
+    )
+    assert_with_context(
+        pyproject["tool"]["pyright"]["typeCheckingMode"] == "strict",
+        "expected strict Pyright type checking",
+    )
+    assert_with_context(
+        pyproject["tool"]["pyright"]["pythonVersion"] == "3.14",
+        "expected Pyright Python version 3.14",
     )

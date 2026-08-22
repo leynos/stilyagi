@@ -150,9 +150,12 @@ fn validate_ir_consistency_reports_line_index_mismatches() {
 #[rstest]
 fn validate_ir_consistency_reports_duplicate_node_ids() {
     assert_invalid_document("ir-duplicate-node-id", &["duplicate node id"], |document| {
-        if let Some(node) = document.nodes.first().cloned() {
-            document.nodes.push(node);
-        }
+        let node = document
+            .nodes
+            .first()
+            .cloned()
+            .expect("expected at least one Markdown IR node");
+        document.nodes.push(node);
     });
 }
 
@@ -162,9 +165,12 @@ fn validate_ir_consistency_reports_duplicate_region_ids() {
         "ir-duplicate-region-id",
         &["duplicate region id"],
         |document| {
-            if let Some(region) = document.regions.first().cloned() {
-                document.regions.push(region);
-            }
+            let region = document
+                .regions
+                .first()
+                .cloned()
+                .expect("expected at least one Markdown IR region");
+            document.regions.push(region);
         },
     );
 }

@@ -13,12 +13,12 @@ from .schema import (
     StilyagiConfig,
 )
 from .validate import (
-    _ensure_bool,
-    _ensure_extend_value,
-    _ensure_int,
-    _ensure_mapping,
-    _ensure_string,
-    _ensure_string_sequence,
+    ensure_bool,
+    ensure_extend_value,
+    ensure_int,
+    ensure_mapping,
+    ensure_string,
+    ensure_string_sequence,
 )
 
 
@@ -44,31 +44,32 @@ def _parse_lint_config(
     if not isinstance(per_file_ignores_raw, cabc.Mapping):
         raise InvalidConfigError(path, "lint.per-file-ignores", "must be a mapping")
 
+    per_file_ignores_mapping = typ.cast(
+        "cabc.Mapping[object, object]", per_file_ignores_raw
+    )
     per_file_ignores = {
-        str(file_name): _ensure_string_sequence(
+        str(file_name): ensure_string_sequence(
             rule_codes,
             path=path,
             key=f"lint.per-file-ignores.{file_name}",
         )
-        for file_name, rule_codes in per_file_ignores_raw.items()
+        for file_name, rule_codes in per_file_ignores_mapping.items()
     }
 
     return LintConfig(
-        select=_ensure_string_sequence(
+        select=ensure_string_sequence(
             table.get("select", ("MD", "DOC", "PUN", "STY", "PYDOC")),
             path=path,
             key="lint.select",
         ),
-        ignore=_ensure_string_sequence(
+        ignore=ensure_string_sequence(
             table.get("ignore", ()), path=path, key="lint.ignore"
         ),
-        preview=_ensure_bool(
-            table.get("preview", False), path=path, key="lint.preview"
-        ),
-        fixable=_ensure_string_sequence(
+        preview=ensure_bool(table.get("preview", False), path=path, key="lint.preview"),
+        fixable=ensure_string_sequence(
             table.get("fixable", ("ALL",)), path=path, key="lint.fixable"
         ),
-        unfixable=_ensure_string_sequence(
+        unfixable=ensure_string_sequence(
             table.get("unfixable", ()), path=path, key="lint.unfixable"
         ),
         per_file_ignores=per_file_ignores,
@@ -95,22 +96,23 @@ def _parse_extract_config(
     if not isinstance(markdown, cabc.Mapping):
         raise InvalidConfigError(path, "extract.markdown", "must be a mapping")
 
-    markdown_unknown = set(markdown) - {"gfm", "frontmatter", "mdx"}
+    markdown_table = typ.cast("cabc.Mapping[str, object]", markdown)
+    markdown_unknown = set(markdown_table) - {"gfm", "frontmatter", "mdx"}
     if markdown_unknown:
         key = f"extract.markdown.{min(markdown_unknown)}"
         raise InvalidConfigError(path, key, "is not supported")
 
     return MarkdownExtractConfig(
-        gfm=_ensure_bool(
-            markdown.get("gfm", True), path=path, key="extract.markdown.gfm"
+        gfm=ensure_bool(
+            markdown_table.get("gfm", True), path=path, key="extract.markdown.gfm"
         ),
-        frontmatter=_ensure_bool(
-            markdown.get("frontmatter", True),
+        frontmatter=ensure_bool(
+            markdown_table.get("frontmatter", True),
             path=path,
             key="extract.markdown.frontmatter",
         ),
-        mdx=_ensure_bool(
-            markdown.get("mdx", False), path=path, key="extract.markdown.mdx"
+        mdx=ensure_bool(
+            markdown_table.get("mdx", False), path=path, key="extract.markdown.mdx"
         ),
     )
 
@@ -127,10 +129,10 @@ def _parse_nlp_config(
         raise InvalidConfigError(path, key, "is not supported")
 
     return NlpConfig(
-        model=_ensure_string(
+        model=ensure_string(
             table.get("model", "en_core_web_sm"), path=path, key="nlp.model"
         ),
-        sentence_provider=_ensure_string(
+        sentence_provider=ensure_string(
             table.get("sentence-provider", "sentencizer"),
             path=path,
             key="nlp.sentence-provider",
@@ -147,15 +149,13 @@ def _parse_rule_tables(
     """Preserve the raw per-rule tables from the config file."""
     rules: dict[str, dict[str, object]] = {}
     for rule_code, rule_table in table.items():
-        if not isinstance(rule_code, str):
-            raise InvalidConfigError(path, "rule", "rule codes must be strings")
         if not isinstance(rule_table, cabc.Mapping):
             raise InvalidConfigError(path, f"rule.{rule_code}", "must be a mapping")
         rules[rule_code] = dict(typ.cast("cabc.Mapping[str, object]", rule_table))
     return rules
 
 
-def _parse_config_table(
+def parse_config_table(
     table: cabc.Mapping[str, object],
     *,
     path: pathlib.Path,
@@ -179,15 +179,15 @@ def _parse_config_table(
 
     return StilyagiConfig(
         cache_dir=_parse_cache_dir(table, path=path),
-        respect_gitignore=_ensure_bool(
+        respect_gitignore=ensure_bool(
             table.get("respect-gitignore", True),
             path=path,
             key="respect-gitignore",
         ),
-        line_length=_ensure_int(
+        line_length=ensure_int(
             table.get("line-length", 88), path=path, key="line-length"
         ),
-        plugins=_ensure_string_sequence(
+        plugins=ensure_string_sequence(
             table.get("plugins", ("builtin",)), path=path, key="plugins"
         ),
         lint=sections.lint,
@@ -216,17 +216,17 @@ def _parse_config_sections(
     """Parse the typed sub-tables of one config namespace."""
     return _ParsedSections(
         lint=_parse_lint_config(
-            _ensure_mapping(table.get("lint", {}), path=path, key="lint"), path=path
+            ensure_mapping(table.get("lint", {}), path=path, key="lint"), path=path
         ),
         extract=_parse_extract_config(
-            _ensure_mapping(table.get("extract", {}), path=path, key="extract"),
+            ensure_mapping(table.get("extract", {}), path=path, key="extract"),
             path=path,
         ),
         nlp=_parse_nlp_config(
-            _ensure_mapping(table.get("nlp", {}), path=path, key="nlp"), path=path
+            ensure_mapping(table.get("nlp", {}), path=path, key="nlp"), path=path
         ),
         rules=_parse_rule_tables(
-            _ensure_mapping(table.get("rule", {}), path=path, key="rule"),
+            ensure_mapping(table.get("rule", {}), path=path, key="rule"),
             path=path,
         ),
     )
@@ -256,7 +256,7 @@ def _build_reserved_table(
 ) -> dict[str, object]:
     """Preserve raw values that later slices will interpret."""
     reserved: dict[str, object] = {
-        "line-length": _ensure_int(
+        "line-length": ensure_int(
             table.get("line-length", 88), path=path, key="line-length"
         ),
         "lint": sections.lint.reserved,
@@ -264,7 +264,7 @@ def _build_reserved_table(
         "rule": sections.rules,
     }
     if "extend" in table:
-        reserved["extend"] = _ensure_extend_value(
+        reserved["extend"] = ensure_extend_value(
             table["extend"], path=path, key="extend"
         )
     return reserved

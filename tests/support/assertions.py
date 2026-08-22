@@ -1,4 +1,8 @@
-"""Shared assertion helpers for test diagnostics evaluated on every test run."""
+"""Shared assertion helpers for test diagnostics evaluated on every test run.
+
+Use ``assert_with_context`` when an assertion needs a contextual failure
+message, for example ``assert_with_context(actual == expected, "values match")``.
+"""
 
 
 def assert_with_context(condition: object, message: str) -> None:

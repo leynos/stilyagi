@@ -178,8 +178,8 @@ skylos-allow: ## Document one named Skylos exception, not an entry point
 
 typecheck: build tools-check ## Run typechecking
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)
-	$(UV_RUN) ty --version
-	$(UV_RUN) ty check
+	$(UV_RUN) pyright --version
+	$(UV_RUN) pyright
 
 markdownlint: tools-docs spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
 	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
