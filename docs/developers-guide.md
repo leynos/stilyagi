@@ -893,7 +893,7 @@ Their responsibilities are:
   - run Interrogate docstring-coverage checks requiring 100% coverage
   - run focused Pylint checks through the pinned `pylint-pypy-shim` wrapper
     under PyPy
-  - run every `df12-python-lints` v0.1.0 Pylint message under CPython 3.14
+  - run every `df12-python-lints` v0.2.0 Pylint message under CPython 3.14
     from immutable commit `9c835f35b0f1690597ade799c9c6a30bc5922959`
   - scan syrupy snapshots under `tests` with `ambrleaks` from the same locked
     development environment and immutable commit under CPython 3.14
@@ -945,7 +945,7 @@ is that Python linting has five tiers:
 3. Pylint runs third through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
 4. The `df12-python-lints` plugin runs fourth through the locked development
-   environment under CPython 3.14, with all v0.1.0 messages enabled, from
+   environment under CPython 3.14, with all v0.2.0 messages enabled, from
   immutable commit `9c835f35b0f1690597ade799c9c6a30bc5922959`.
 5. `ambrleaks` runs fifth through that same locked CPython 3.14 environment
    and immutable commit, scanning `tests` for unredacted snapshot values.
@@ -991,7 +991,7 @@ Table: Lint runner Makefile variables.
 | `PYLINT_PYPY_SHIM`      | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                  | Expands the pinned shim package source.                         |
 | `PYLINT`                | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=` | Builds the focused PyPy Pylint command used by `make lint`.     |
 | `DF12_PYTHON`           | `3.14`                                                                                                        | Selects CPython for the df12 Pylint and scanner tiers.          |
-| `DF12_PYLINT_MESSAGES`  | all thirteen v0.1.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                            |
+| `DF12_PYLINT_MESSAGES`  | all thirteen v0.2.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                            |
 | `DF12_PYLINT`           | project-backed Pylint with `df12_python_lints` loaded                                                         | Builds the CPython df12 Pylint command.                         |
 | `AMBRLEAKS`             | locked `uv run --group dev --python 3.14` environment                                                         | Builds the snapshot leak scanner command from the locked commit.|
 | `TYPOS_VERSION`         | `1.48.0`                                                                                                      | Pins the `typos` version shared by the Makefile and CI.         |

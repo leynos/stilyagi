@@ -108,7 +108,7 @@ Adopt Option A.
    `tests`.
 3. Focused Pylint through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
-4. All `df12-python-lints` v0.1.0 Pylint messages through the locked
+4. All `df12-python-lints` v0.2.0 Pylint messages through the locked
    development environment under CPython 3.14 from immutable commit
    `9c835f35b0f1690597ade799c9c6a30bc5922959`.[^4]
 5. `ambrleaks` from that same locked CPython 3.14 development environment and
@@ -143,7 +143,7 @@ The Makefile SHALL expose variables for the Pylint runner:
 - `PYLINT_PYPY_SHIM` expands the pinned Git URL.
 - `PYLINT` builds the full `uv tool run` command used by `make lint`.
 - `DF12_PYTHON` selects CPython 3.14 for both df12 commands.
-- `DF12_PYLINT_MESSAGES` lists all v0.1.0 plugin messages.
+- `DF12_PYLINT_MESSAGES` lists all v0.2.0 plugin messages.
 - `DF12_PYLINT` builds the plugin-backed Pylint command.
 - `AMBRLEAKS` builds the snapshot scanner command from the locked development
   environment.
