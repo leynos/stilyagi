@@ -276,9 +276,11 @@ Milestone 2 — classification, severity, and observability:
 
 Closing:
 
-- [ ] W7. Documentation: ADR 008, design §7.3, users' guide, developers' guide,
-      contents index.
-- [ ] W8. Tick roadmap item 3.2.1; record outcomes.
+- [x] W7. Documentation: ADR 008, design §7.3, users' guide, developers' guide,
+      contents index (2026-08-24). CodeRabbit reviewed commit `a8456f3` with
+      zero concerns.
+- [x] W8. Tick roadmap item 3.2.1; record outcomes (2026-08-24). Final
+      documentation gates and review remain pending.
 
 ## Surprises & discoveries
 
@@ -713,9 +715,32 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
 
 ## Outcomes & retrospective
 
-To be completed at W8. Compare delivered behaviour against the acceptance items
-in `Purpose`; record the measured per-syntax figures and `cache_stats` from W6;
-note whether the milestone-2 boundary against roadmap item 3.2.3 held.
+Roadmap item 3.2.1 is delivered. `stilyagi check` now discovers `.md`,
+`.markdown`, `.py`, and `.rs` files in deterministic resolved-path order and
+selects the extractor carried by each discovered file. The BDD, subprocess,
+property, unit, snapshot, corpus, and Rust bridge tests cover the acceptance
+behaviours, including final-suffix matching, standard-input syntax selection,
+warning-only extraction anomalies, authored-directive errors, and symlinked
+directory summaries.
+
+The clean acceptance run checked 178 files and exited `0`; the whole-tree run
+checked 237 files and exited `1` only because its two deliberately invalid
+suppression directives were errors. Its two malformed-Rust recovery notices
+were warnings, so the classification boundary is observable rather than merely
+documented. The run summary reports checked, skipped, unreadable, error, and
+warning counts in both text and JSON output.
+
+The five-iteration structural probe measured warm medians of 200,253 ns/file
+for Markdown (1.30 MiB/s), 188,323 ns/file for Python (2.66 MiB/s), and 171,113
+ns/file for Rust (3.23 MiB/s). The clean acceptance resolver reported
+`{'discovery_misses': 4}`. There is no checked-in raw performance value for the
+earlier Markdown probe, so the 20% tolerance remains a review criterion rather
+than a fabricated numeric comparison.
+
+The milestone-2 boundary against roadmap item 3.2.3 held: no IR schema field,
+public extraction signature, fix workflow, or violation discriminator was
+added. The temporary severity-based exit policy and every other deferred
+candidate have one home in ADR 008. No runtime dependency was added.
 
 ## Context and orientation
 
@@ -1249,9 +1274,9 @@ The acceptance demonstration. Lead with the clean run:
 uv run stilyagi check python/ crates/ docs/ ; echo "exit=$?"
 ```
 
-Expected: 176 files checked (34 Python, 87 Rust, 55 Markdown), `exit=0`, and a
-summary line naming the count. This is the roadmap item's success criterion —
-mixed documentation and source trees work.
+Observed on 2026-08-24: 178 files checked, 44 skipped, zero unreadable files,
+zero errors, zero warnings, and `exit=0`. This is the roadmap item's success
+criterion — mixed documentation and source trees work.
 
 Then the corroborating run, which additionally reaches the adversarial corpus:
 
@@ -1259,12 +1284,12 @@ Then the corroborating run, which additionally reaches the adversarial corpus:
 uv run stilyagi check . ; echo "exit=$?"
 ```
 
-Expected per S3 and S13: 233 files checked (76 Python, 92 Rust, 65 Markdown);
+Observed on 2026-08-24: 237 files checked, 189 skipped, zero unreadable files,
 two error-severity `suppression-blanket-forbidden` diagnostics from the two
-corpus fixtures that deliberately carry bare `# stilyagi: disable`; two
-warning-severity extraction-anomaly diagnostics from
-`tests/fixtures/corpus/rust/malformed/unclosed-item.rs`; and `exit=1`, driven
-by the two errors and not by the two warnings. That exit `1` is correct
+corpus fixtures that deliberately carry bare `# stilyagi: disable`, and two
+warning-severity extraction anomalies from
+`tests/fixtures/corpus/rust/malformed/unclosed-item.rs`; `exit=1` is driven by
+the two errors rather than the two warnings. That exit `1` is correct
 behaviour, not a defect — the fixtures really do contain forbidden directives.
 
 After each milestone, and only once all gates are green:
