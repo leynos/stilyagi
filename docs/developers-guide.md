@@ -706,11 +706,11 @@ return `hybrid_array::Array<u8, _>`, which does not implement `LowerHex`. The
 rendering stays lowercase and zero-padded so persisted IR hashes remain
 byte-identical.
 
-A [trybuild](https://github.com/dtolnay/trybuild) compile-fail guard under
-`crates/stilyagi-ir/tests/ui/` pins that formatting break:
-`format!("{:x}", Sha256::digest(..))` must fail to compile against `sha2` 0.11,
-so any future downgrade to 0.10, which would recompile it, fails the test and
-flags the regression.
+A compile-time trait assertion in `crates/stilyagi-ir/tests/ui.rs` pins that
+formatting break without depending on compiler diagnostic wording. It confirms
+that the `sha2` 0.11 SHA-256 digest output does not implement `LowerHex`, so a
+future downgrade to 0.10, which restores that implementation, fails the test
+and flags the regression.
 
 Changes to the FFI boundary should stay narrow. A good boundary exports
 source-fidelity primitives, extraction results, and other stable engine
