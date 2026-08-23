@@ -108,7 +108,7 @@ Adopt Option A.
    `tests`.
 3. Focused Pylint through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
-4. All `df12-python-lints` v0.2.0 Pylint messages through the locked
+4. All `df12-python-lints` v0.1.0 Pylint messages through the locked
    development environment under CPython 3.14 from immutable commit
    `9c835f35b0f1690597ade799c9c6a30bc5922959`.[^4]
 5. `ambrleaks` from that same locked CPython 3.14 development environment and
@@ -144,7 +144,9 @@ The Makefile SHALL expose variables for the Pylint runner:
 - `PYLINT_PYPY_SHIM` expands the pinned Git URL.
 - `PYLINT` builds the full `uv tool run` command used by `make lint`.
 - `DF12_PYTHON` selects CPython 3.14 for both df12 commands.
-- `DF12_PYLINT_MESSAGES` lists all v0.2.0 plugin messages.
+- `DF12_PYLINT_MESSAGES` lists all thirteen v0.1.0 plugin messages:
+  `R9101`, `C9102`, `R9103`, `R9104`, `C9105`, `C9106`, `C9107`, `R9108`,
+  `R9109`, `R9110`, `R9111`, `R9112`, and `C9112`.
 - `DF12_PYLINT` builds the plugin-backed Pylint command.
 - `AMBRLEAKS` builds the snapshot scanner command from the locked development
   environment.
@@ -224,6 +226,15 @@ recorded in `uv.lock`.
   assuming all upstream rule additions suit Stilyagi.
 - Revisit the `syntax-error` Pylint disable when the managed PyPy interpreter
   catches up with the project's CPython syntax target.
+
+## Addendum — 2026-08-23
+
+The layered linting implementation is now documented against the project
+lockfile rather than the package metadata label. The development dependency
+resolves `df12-python-lints` from immutable commit
+`9c835f35b0f1690597ade799c9c6a30bc5922959`, recorded by `uv.lock` as version
+0.1.0. The Makefile enables the thirteen message IDs listed above and runs
+both the CPython 3.14 Pylint pass and `ambrleaks` from that locked environment.
 
 ## References
 

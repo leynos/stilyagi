@@ -62,6 +62,10 @@
     execplans/maturin-pyo3-test-upgrade.md)
     plans the maturin pin update, native wheel snapshot coverage, and PyO3
     compile-time compatibility tests that support future build-tool upgrades.
+  - [PR #102 layered Python linting](
+    execplans/pr-102-layered-python-linting.md)
+    records the completed layered Python linting implementation, its locked
+    toolchain, configuration validation coverage, and extraction contracts.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
