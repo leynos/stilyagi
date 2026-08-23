@@ -28,6 +28,7 @@
       'stilyagi/engine/checker.py',
       'stilyagi/engine/extraction.py',
       'stilyagi/engine/fixes.py',
+      'stilyagi/engine/ir_view.py',
       'stilyagi/engine/planner.py',
       'stilyagi/engine/renderers.py',
       'stilyagi/engine/runner.py',
