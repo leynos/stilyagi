@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
 Roadmap item: 2.2.2. Requires 2.1.1 (Markdown intermediate representation
 envelope) and 2.2.1 (`stilyagi check`), both complete.
@@ -223,7 +223,12 @@ Established during planning; use them instead of re-measuring.
 
 ## Progress
 
-- [ ] Milestone 0 — byte-faithful reads and the collaborator bundle
+- [x] 2026-08-23 — Implementation authorized by the repository owner. PR #109
+  title and its Lody session title now omit the planning prefix.
+- [x] 2026-08-23 — Milestone 0: reads are byte-faithful; `CheckInput` retains
+  decoded text and original bytes; collaborator injection is bundled behind
+  `CheckCollaborators`. All six deterministic gates pass; CodeRabbit review is
+  pending before Milestone 1.
 - [ ] Milestone 1 — typed IR view
 - [ ] Milestone 2 — fix model, splice kernel, stub retirement
 - [ ] Milestone 3 — admissibility, selection, conflict resolution
@@ -232,6 +237,11 @@ Established during planning; use them instead of re-measuring.
 - [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
 
 ## Surprises & discoveries
+
+- Observation (2026-08-23): changing the file read boundary from `read_text`
+  to `read_bytes` required the established operational-error test seam to patch
+  `Path.read_bytes`. The five existing read-failure cases still pass, now at
+  the production boundary rather than the retired newline-translating one.
 
 - Observation: the Python read path destroys line-ending fidelity before the
   Rust extractor ever sees the text. Evidence: `python/stilyagi/cli.py` reads
@@ -453,9 +463,22 @@ Established during planning; use them instead of re-measuring.
   that would cost 6.5 MB per file. Date/Author: 2026-08-16, operations and
   scaling review.
 
+- **D-17: `CheckInput` carries both source bytes and decoded text.** Rationale:
+  Milestone 0 needs extraction to receive explicitly decoded, newline-faithful
+  text, while later planning and writing need the exact bytes on which the IR
+  offsets are based. Keeping them together prevents a later caller from
+  re-reading and accidentally normalizing the source. Standard input enters the
+  same representation by reading `sys.stdin.buffer`. Date/Author: 2026-08-23,
+  implementation.
+
 ## Outcomes & retrospective
 
-To be completed at each milestone and at completion.
+- Milestone 0 (2026-08-23): removed universal-newline translation from the
+  disk and standard-input paths without changing the extractor's text API.
+  The first red regression used the real CRLF corpus fixture and failed because
+  the old path delivered LF text; it passes after the bytes-first change. The
+  bundle keeps `run_check` beneath the local-count threshold while giving later
+  feature tests a stable, private rule-runner injection seam.
 
 ## Context and orientation
 
@@ -1375,6 +1398,19 @@ Record as work proceeds: the red transcript for each new test, the accepted
 snapshot diffs, the `git apply --check` transcript proving the diff output is
 well formed, and the before-and-after byte dumps for the CRLF fixture test.
 
+- Milestone 0 red evidence:
+  `/tmp/red-crlf-stilyagi-2-2-2-safe-fix-planning-conflict-resolution.out`
+  records `test_cli_main_preserves_crlf_source_for_extraction` failing because
+  extraction received LF-normalized text.
+- Milestone 0 focused green evidence:
+  `/tmp/green-m0-focused-stilyagi-2-2-2-safe-fix-planning-conflict-resolution.out`
+  records all eight `tests/test_check_files.py` cases passing after the
+  bytes-first change.
+- Milestone 0 full gate evidence:
+  `/tmp/{check-fmt,typecheck,lint,test,markdownlint,nixie}-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution.out`
+  record the final sequentially green gate chain: 214 Python and 332 Rust
+  tests, with format, type, lint, Markdown, spelling, and Mermaid checks clean.
+
 ## Deferred follow-ups
 
 Raise these as separate roadmap items; they are **out of scope** here.
@@ -1403,6 +1439,14 @@ Raise these as separate roadmap items; they are **out of scope** here.
    treat SARIF as a pure output adapter without this.
 
 ## Revision note
+
+**Revision 3, 2026-08-23.** Implementation began after explicit approval. The
+PR title and matching Lody session title now identify the implementation rather
+than the previously draft-only plan. No technical contract changed.
+
+**Revision 4, 2026-08-23.** Recorded Milestone 0's byte-faithful source path,
+collaborator-bundle boundary, red/green evidence, and green full-gate result.
+Milestone 1 remains gated on the required CodeRabbit review.
 
 **Revision 2, 2026-08-16.** Revised after a six-lens design review. What
 changed and why:
