@@ -9,6 +9,7 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
     from stilyagi import diagnostics
+    from stilyagi.fixes import Fix
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,10 +99,34 @@ def _render_text(
         f"{diagnostic.severity.value} {diagnostic.code} {diagnostic.message}"
         for diagnostic in diagnostics_list
     ]
-    count = len(diagnostics_list)
-    summary = "1 diagnostic found" if count == 1 else f"{count} diagnostics found"
+    summary = _text_summary(diagnostics_list)
     lines.append(summary)
     return "\n".join(lines) + "\n"
+
+
+def _text_summary(diagnostics_list: list[diagnostics.Diagnostic]) -> str:
+    """Return the diagnostic summary with visible automatic-fix counts."""
+    diagnostic_count = len(diagnostics_list)
+    diagnostic_label = "diagnostic" if diagnostic_count == 1 else "diagnostics"
+    safe_count = sum(
+        diagnostic.fix is not None and diagnostic.fix.applicability == "safe"
+        for diagnostic in diagnostics_list
+    )
+    unsafe_count = sum(
+        diagnostic.fix is not None and diagnostic.fix.applicability == "unsafe"
+        for diagnostic in diagnostics_list
+    )
+    return (
+        f"{diagnostic_count} {diagnostic_label} found "
+        f"({_count_label(safe_count, 'safe fix')}, "
+        f"{_count_label(unsafe_count, 'unsafe fix')})"
+    )
+
+
+def _count_label(count: int, noun: str) -> str:
+    """Pluralize a counted text-renderer noun."""
+    suffix = "" if count == 1 else "es"
+    return f"{count} {noun}{suffix}"
 
 
 def _render_json(
@@ -109,19 +134,44 @@ def _render_json(
 ) -> str:
     """Render diagnostics as a stable JSON document."""
     payload = {
+        "schema_version": "1.0.0",
         "diagnostics": [
-            {
-                "path": diagnostic.path,
-                "code": diagnostic.code,
-                "message": diagnostic.message,
-                "severity": diagnostic.severity.value,
-                "location": {
-                    "line": diagnostic.line or 1,
-                    "column": diagnostic.column or 1,
-                },
-                "fix_applicable": diagnostic.fix is not None,
-            }
-            for diagnostic in diagnostics_list
+            _diagnostic_payload(diagnostic) for diagnostic in diagnostics_list
         ],
+        "fix_errors": [],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def _diagnostic_payload(diagnostic: diagnostics.Diagnostic) -> dict[str, object]:
+    """Serialize one diagnostic without coupling rendering to execution flags."""
+    return {
+        "path": diagnostic.path,
+        "code": diagnostic.code,
+        "message": diagnostic.message,
+        "severity": diagnostic.severity.value,
+        "location": {
+            "line": diagnostic.line or 1,
+            "column": diagnostic.column or 1,
+        },
+        "fix_applicable": diagnostic.fix is not None,
+        "fix": _fix_payload(diagnostic.fix),
+    }
+
+
+def _fix_payload(fix: Fix | None) -> dict[str, object] | None:
+    """Serialize a rule-authored fix when the diagnostic carries one."""
+    if fix is None:
+        return None
+    return {
+        "title": fix.title,
+        "applicability": fix.applicability.value,
+        "edits": [
+            {
+                "byte_start": edit.byte_start,
+                "byte_end": edit.byte_end,
+                "replacement": edit.replacement,
+            }
+            for edit in fix.edits
+        ],
+    }

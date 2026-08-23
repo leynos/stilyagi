@@ -2,5 +2,5 @@
   "docs/a.md:1:1: error STY001 First",
   "docs/a.md:1:2: error STY010 Later code",
   "docs/b.md:3:4: warning STY002 Second",
-  "3 diagnostics found"
+  "3 diagnostics found (0 safe fixes, 0 unsafe fixes)"
 ]
