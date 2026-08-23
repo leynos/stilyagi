@@ -467,7 +467,8 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   coordinated edits" cost cited in round 1 also already exists: `model.Syntax`
   is a hand-maintained Python mirror of `ExtractSyntax` guarded by
   `_validate_syntax_vocab_once`, so a four-entry dict whose *values* are
-  `model.Syntax` members is type-checked by `ty` and covered by the parity check
+  `model.Syntax` members is type-checked by `pyright` and covered by the
+  parity check
   that already runs. Constraint 3 is restated accordingly.
   Consequence: round 1's W1 and W3 are deleted entirely — the Rust table, the
   compile-time proof, the `proptest`, the bridge function, the `.pyi` change,
@@ -666,16 +667,19 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   W6 adds Rust unit tests under `crates/stilyagi-ir/src/tests/`, exactly the
   directory this governs, so any helper it introduces follows this order.
 
-  **Dependency:** `ExpectValid` and the developers' guide §6b that records this
-  order land on a separate branch, `whitaker-fallible-test-helpers`. W6 should
-  not start until that branch merges, or it will have to invent the boundary
-  again. If it has not merged when W6 begins, escalate rather than duplicating
-  it.
+  **Dependency: satisfied.** `ExpectValid` and developers' guide §6b landed on
+  `main` in #111, and a second pass over the same helpers landed in #96. Both
+  are present on this branch's base, so W6 uses the boundary rather than
+  inventing one. Verify at W0 that
+  `crates/stilyagi-test-fixtures/src/expect_valid.rs` and developers' guide §6b
+  still exist; if either is gone, stop and escalate rather than reintroducing a
+  per-crate panic helper.
 
   Consequence: this also retires the "whitaker is red on `main`" baseline this
   plan previously carried. See `Validation and acceptance`.
   Date/Author: 2026-08-16, planning agent (post-rebase; revised after applying
-  the `addressing-whitaker-findings` guidance).
+  the `addressing-whitaker-findings` guidance; dependency confirmed satisfied
+  after rebasing onto `configure-df12-lints`).
 
 ## Outcomes & retrospective
 
@@ -1274,9 +1278,10 @@ Quality criteria — what "done" means:
 
 - **Tests:** `make test` passes — Rust workspace suite, Rust doctests, `pytest`.
 - **Formatting:** `make check-fmt` passes.
-- **Typecheck:** `make typecheck` passes, including `ty check`.
+- **Typecheck:** `make typecheck` passes, including the strict `pyright` pass.
 - **Lint:** `make lint` passes — `ruff`, `interrogate` at 100% docstring
-  coverage, `pylint`, `cargo doc`, `clippy` with `-D warnings`, `whitaker`.
+  coverage, `pylint`, the df12 `pylint` plugin pass, `ambrleaks` over `tests`,
+  `cargo doc`, `clippy` with `-D warnings`, and `whitaker`.
 - **Markdown:** `make markdownlint` (including the `typos` gate) and `make nixie`
   pass.
 - **Review:** `coderabbit review --agent` reports no outstanding concerns at each
@@ -1503,3 +1508,24 @@ still needed, because that commit changed facts this plan asserted:
 
 Gate evidence after the rebase: `make check-fmt`, `make typecheck`, `make lint`,
 and `make test` all exit `0`; 198 Python tests pass with 8 snapshots.
+
+**Round 2b (2026-08-16).** Rebased off `main` and onto `configure-df12-lints`,
+and the pull request retargeted to match. No conflicts — this branch touches
+only this document. Three updates were needed because the new base moves the
+gates the plan cites:
+
+- **`make typecheck` now runs `pyright`, not `ty`.** The quality criteria and
+  D1's type-checking rationale are updated. The plan's Python work is unchanged
+  by this, but the gate it must satisfy is stricter.
+- **`make lint` gained two Python tiers**, a df12 `pylint` plugin pass and
+  `ambrleaks` over `tests`. The quality criteria enumerate them so a reviewer
+  is not surprised by a failure from a gate the plan never mentioned.
+- **D12's dependency is satisfied.** `ExpectValid` and developers' guide §6b
+  landed in #111, and #96 subsequently reworked the same helpers on top. Both
+  are present on this base, so W6 consumes the boundary instead of waiting on a
+  branch. W0 now verifies they are still there rather than assuming it.
+
+Checked and found *not* to need changes: developers' guide §6b survives at the
+same heading, `assert_validation_reports` and `malformed.rs::document_for` are
+still the names §6b cites, and ADR 008 is still the next free number. The
+`must_ok!`/`must_some!` consolidation noted as follow-up in §6b remains open.
