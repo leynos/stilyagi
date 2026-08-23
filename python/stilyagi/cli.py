@@ -58,6 +58,9 @@ class CheckInput:
         )
 
 
+type _DiscoveryInputs = tuple[tuple[CheckInput, ...], int]
+
+
 def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Run the Stilyagi command-line interface.
 
@@ -141,9 +144,7 @@ def run_check(
     options:
         The parsed options for one `check` invocation.
     resolver:
-        Configuration resolver to reuse across every checked file. A fresh
-        single-use resolver is created when one is not supplied, so no
-        configuration cache is shared between invocations.
+        Resolver shared between checked files; new when not supplied.
     renderer:
         Renderer used to serialise diagnostics. Defaults to a new
         :class:`~stilyagi.engine.RendererRegistry`.
@@ -151,8 +152,8 @@ def run_check(
     Returns
     -------
     int
-        Zero when the check succeeds without findings, one when diagnostics
-        are found, or two when an operational error occurs.
+        Zero when the check succeeds or produces warnings, one when it
+        produces failing diagnostics, or two when an operational error occurs.
     """
     resolver = resolver if resolver is not None else config.ConfigResolver()
     renderer = renderer if renderer is not None else engine.RendererRegistry()
@@ -161,7 +162,7 @@ def run_check(
 
     _LOGGER.debug("target discovery started for %r", options.targets)
     try:
-        discovered_files = _discover_targets(options, resolver)
+        discovery_inputs = _discover_targets(options, resolver)
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
@@ -170,27 +171,49 @@ def run_check(
         _LOGGER.warning("target discovery failed: %s", error)
         _report_check_error(None, error)
         return 2
-    _LOGGER.debug("target discovery finished: %d input(s)", len(discovered_files))
+    _LOGGER.debug("target discovery finished: %d input(s)", len(discovery_inputs[0]))
 
-    for discovered_file in discovered_files:
-        file_diagnostics, file_error = _check_one_file(
-            discovered_file, options, resolver
-        )
-        diagnostics_list.extend(file_diagnostics)
-        had_error = had_error or file_error
+    diagnostics_list, had_error, unreadable_files = _check_discovered_files(
+        discovery_inputs[0],
+        options,
+        resolver,
+    )
 
     _LOGGER.debug(
         "rendering %d diagnostic(s) as %s",
         len(diagnostics_list),
         options.output_format,
     )
-    rendered = renderer.render(diagnostics_list, options.output_format)
+    summary = engine.RunSummary.from_diagnostics(
+        diagnostics_list,
+        checked_files=len(discovery_inputs[0]),
+        skipped_files=discovery_inputs[1],
+        unreadable_files=unreadable_files,
+    )
+    rendered = renderer.render(diagnostics_list, options.output_format, summary)
     print(rendered, end="")
     exit_code = compute_exit_code(diagnostics_list, had_error=had_error)
+    _LOGGER.info("config resolver cache stats: %s", resolver.cache_stats)
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
 
-
+def _check_discovered_files(
+    check_inputs: cabc.Iterable[CheckInput],
+    options: CheckOptions,
+    resolver: config.ConfigResolver,
+) -> tuple[list[diagnostics.Diagnostic], bool, int]:
+    """Check every input and accumulate diagnostics and operational outcomes."""
+    had_error = False
+    unreadable_files = 0
+    diagnostics_list: list[diagnostics.Diagnostic] = []
+    for check_input in check_inputs:
+        file_diagnostics, file_error, was_unreadable = _check_one_file(
+            check_input, options, resolver
+        )
+        diagnostics_list.extend(file_diagnostics)
+        had_error = had_error or file_error
+        unreadable_files += int(was_unreadable)
+    return diagnostics_list, had_error, unreadable_files
 def compute_exit_code(
     diagnostics_list: cabc.Sequence[diagnostics.Diagnostic],
     *,
@@ -201,8 +224,8 @@ def compute_exit_code(
     Returns
     -------
     int
-        Zero for success, one for diagnostics, or two for an operational
-        error.
+        Zero for success or warning-only diagnostics, one for error-severity
+        diagnostics, or two for an operational error.
 
     Examples
     --------
@@ -212,12 +235,21 @@ def compute_exit_code(
     ...     diagnostics.Diagnostic(path="docs/example.md", code="STY001", message="x")
     ... ])
     1
+    >>> compute_exit_code([
+    ...     diagnostics.Diagnostic(
+    ...         path="docs/example.md",
+    ...         code="IR001",
+    ...         message="x",
+    ...         severity=diagnostics.Severity.WARNING,
+    ...     )
+    ... ])
+    0
     >>> compute_exit_code([], had_error=True)
     2
     """
     if had_error:
         return 2
-    if diagnostics_list:
+    if any(diagnostics.is_failing_severity(item.severity) for item in diagnostics_list):
         return 1
     return 0
 
@@ -225,7 +257,7 @@ def compute_exit_code(
 def _discover_targets(
     options: CheckOptions,
     resolver: config.ConfigResolver,
-) -> list[CheckInput]:
+) -> _DiscoveryInputs:
     """Discover registered files beneath the requested targets."""
     resolved_targets = [pathlib.Path(target).expanduser() for target in options.targets]
     has_stdin_target = any(target.as_posix() == "-" for target in resolved_targets)
@@ -234,15 +266,16 @@ def _discover_targets(
         raise ValueError(message)
     if has_stdin_target:
         check_input = _stdin_check_input(options.stdin_filename)
-        return [] if check_input is None else [check_input]
+        return (() if check_input is None else (check_input,), int(check_input is None))
     discovery_config = _resolve_discovery_config(options, resolver)
-    return [
-        CheckInput.from_discovered(discovered_file)
-        for discovered_file in discovery.discover_files(
-            resolved_targets,
-            discovery_config,
-        )
-    ]
+    result = discovery.discover_files_with_summary(
+        resolved_targets,
+        discovery_config,
+    )
+    return (
+        tuple(CheckInput.from_discovered(file) for file in result.files),
+        result.skipped_files,
+    )
 
 
 def _resolve_discovery_config(
@@ -301,14 +334,9 @@ def _read_source(check_input: CheckInput) -> str | None:
     try:
         source = check_input.source_text
         if source is None:
-            source = check_input.resolved_path.read_text(encoding="utf-8")
-    except (
-        FileNotFoundError,
-        IsADirectoryError,
-        PermissionError,
-        UnicodeDecodeError,
-    ) as exc:
-        _report_file_error(check_input.resolved_path, exc)
+            source = check_input.resolved_path.read_text(encoding="utf-8-sig")
+    except (MemoryError, OSError, UnicodeDecodeError) as exc:
+        _report_file_error(check_input.reported_path, exc)
         return None
     return source
 
@@ -317,18 +345,18 @@ def _check_one_file(
     check_input: CheckInput,
     options: CheckOptions,
     resolver: config.ConfigResolver,
-) -> tuple[list[diagnostics.Diagnostic], bool]:
-    """Check one discovered file or standard-input payload."""
+) -> tuple[list[diagnostics.Diagnostic], bool, bool]:
+    """Check one input and report operational and read-failure outcomes."""
     source = _read_source(check_input)
     if source is None:
-        return [], True
+        return [], True, True
 
     _LOGGER.debug("extracting %s", check_input.reported_path)
     try:
         document = engine.extract_document(source, check_input.syntax)
     except engine.BridgeExtractionError as exc:
         _report_check_error(check_input.resolved_path, exc)
-        return [], True
+        return [], True, False
     except Exception:
         _LOGGER.exception(
             "unexpected extraction failure for %s",
@@ -344,27 +372,25 @@ def _check_one_file(
         config.InvalidConfigError,
     ) as exc:
         _report_check_error(check_input.resolved_path, exc)
-        return [], True
+        return [], True, False
 
     diagnostics_list = [
         *map_ir_errors(document, check_input.reported_path),
         *rules_registry.run_rules(document, resolved_config),
     ]
-    return diagnostics_list, False
+    return diagnostics_list, False, False
 
 
-def _report_file_error(path: pathlib.Path, error: Exception) -> None:
-    """Print and log a human-readable file read failure."""
-    message = f"failed to read {path.as_posix()}: {error}"
+def _report_file_error(path: str, error: Exception) -> None:
+    """Log a human-readable file read failure once."""
+    message = f"{PROGRAM_NAME} check: failed to read {path}: {error}"
     _LOGGER.warning("%s", message)
-    print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)
 
 
 def _report_check_error(path: pathlib.Path | None, error: Exception) -> None:
-    """Print and log a human-readable extraction failure."""
+    """Log a human-readable extraction failure once."""
     if path is None:
-        message = str(error)
+        message = f"{PROGRAM_NAME} check: {error}"
     else:
-        message = f"failed to check {path.as_posix()}: {error}"
+        message = f"{PROGRAM_NAME} check: failed to check {path.as_posix()}: {error}"
     _LOGGER.warning("%s", message)
-    print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)

@@ -11,6 +11,14 @@ class Severity(enum.StrEnum):
     WARNING = "warning"
 
 
+_FAILING_SEVERITIES: frozenset[Severity] = frozenset({Severity.ERROR})
+
+
+def is_failing_severity(severity: Severity) -> bool:
+    """Return whether ``severity`` makes the check command fail."""
+    return severity in _FAILING_SEVERITIES
+
+
 @dc.dataclass(frozen=True, slots=True)
 class Diagnostic:
     """Diagnostic entry shared by the renderers.
@@ -24,7 +32,8 @@ class Diagnostic:
     message:
         Human-readable explanation.
     severity:
-        Diagnostic severity label.
+        Diagnostic severity label. ``WARNING`` is informational for this
+        milestone and does not affect the command exit code.
     line:
         1-based source line, when known.
     column:

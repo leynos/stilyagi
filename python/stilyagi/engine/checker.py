@@ -6,6 +6,7 @@ import typing as typ
 
 from stilyagi import diagnostics, model
 from stilyagi.diagnostics_location import line_column_from_offset
+from stilyagi.engine import extraction
 
 _DEFAULT_IR_CODE = "IR000"
 
@@ -83,11 +84,17 @@ def _map_one_error(
         line_index,
         _byte_start_from_span(typed_error.get("span")),
     )
+    code = _ir_code(typed_error.get("code"))
+    severity = (
+        diagnostics.Severity.ERROR
+        if code in extraction.authored_directive_error_codes()
+        else diagnostics.Severity.WARNING
+    )
     return diagnostics.Diagnostic(
         path=reported_path,
-        code=_ir_code(typed_error.get("code")),
+        code=code,
         message=str(typed_error.get("message", "")),
-        severity=diagnostics.Severity.ERROR,
+        severity=severity,
         line=line,
         column=column,
     )

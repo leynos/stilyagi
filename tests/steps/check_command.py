@@ -2,6 +2,7 @@
 
 import io
 import json
+import logging
 import pathlib
 import sys
 import typing as typ
@@ -78,6 +79,47 @@ def temporary_tree_containing_malformed_markdown(
 
 
 @given(
+    "a temporary tree containing malformed Rust",
+    target_fixture="check_command_state",
+)
+def temporary_tree_containing_malformed_rust(
+    tmp_path: pathlib.Path,
+) -> CheckCommandState:
+    """Create Rust source whose parser recovery yields an anomaly diagnostic."""
+    _write_source(
+        tmp_path / "src" / "broken.rs",
+        "//! Documentation before malformed Rust source.\nfn broken( {\n",
+    )
+    return {"root": tmp_path}
+
+
+@given(
+    "a temporary tree containing a Python file with a blanket suppression",
+    target_fixture="check_command_state",
+)
+def temporary_tree_containing_blanket_python_suppression(
+    tmp_path: pathlib.Path,
+) -> CheckCommandState:
+    """Create an authored Python directive violation that must gate the run."""
+    _write_source(tmp_path / "src" / "app.py", "# stilyagi: disable\n")
+    return {"root": tmp_path}
+
+
+@given(
+    'a temporary tree with files "docs/guide.md", "src/app.py", and "notes.txt"',
+    target_fixture="check_command_state",
+)
+def temporary_tree_with_registered_and_unregistered_files(
+    tmp_path: pathlib.Path,
+) -> CheckCommandState:
+    """Create two registered files and one source candidate to skip."""
+    _write_markdown(tmp_path / "docs" / "guide.md", "Guide")
+    _write_source(tmp_path / "src" / "app.py", '"""Module docs."""\n')
+    _write_source(tmp_path / "notes.txt", "Not a registered source.\n")
+    return {"root": tmp_path}
+
+
+@given(
     "a temporary tree with an invalid stilyagi.toml",
     target_fixture="check_command_state",
 )
@@ -114,6 +156,7 @@ def extractor_emits_one_synthetic_ir_error_per_file(
             "line_index": [0, 8],
             "errors": [
                 {
+                    "code": "suppression-blanket-forbidden",
                     "message": "Synthetic IR error",
                     "span": {"byte_start": 0},
                 },
@@ -149,6 +192,7 @@ def run_stilyagi_command_in_that_tree(
     check_command_state: CheckCommandState,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
     command: str,
 ) -> None:
     """Run one quoted `stilyagi` invocation in-process and capture it."""
@@ -157,10 +201,13 @@ def run_stilyagi_command_in_that_tree(
     if "-" in argv:
         monkeypatch.setattr(sys, "stdin", io.StringIO("# Notes\n"))
     monkeypatch.chdir(check_command_state["root"])
-    check_command_state["exit_code"] = cli.main(argv)
+    with caplog.at_level(logging.WARNING):
+        check_command_state["exit_code"] = cli.main(argv)
     captured = capsys.readouterr()
     check_command_state["stdout"] = captured.out
-    check_command_state["stderr"] = captured.err
+    check_command_state["stderr"] = "\n".join(
+        record.getMessage() for record in caplog.records
+    )
 
 
 @then("the exit code is 0")
@@ -196,8 +243,8 @@ def the_text_output_lists_no_diagnostics(
 ) -> None:
     """Assert the rendered text contract for an empty run."""
     assert_with_context(
-        check_command_state["stdout"] == "0 diagnostics found\n",
-        "expected check_command_state['stdout'] == '0 diagnos...",
+        check_command_state["stdout"].endswith("0 errors, 0 warnings\n"),
+        "expected check_command_state['stdout'] to end with a clean summary",
     )
 
 
@@ -228,8 +275,14 @@ def no_input_was_extracted(check_command_state: CheckCommandState) -> None:
     """Assert that an unregistered stdin filename is skipped."""
     assert check_command_state["extracted_syntaxes"] == []
     assert_with_context(
-        check_command_state["stderr"] == "",
-        "expected check_command_state['stderr'] == ''",
+        "skipping stdin without a registered extractor"
+        in check_command_state["stderr"],
+        "expected an unregistered-stdin warning message",
+    )
+    assert_with_context(
+        check_command_state["stdout"]
+        == "checked 0 files (1 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected the skipped-stdin summary",
     )
 
 
@@ -258,7 +311,11 @@ def the_text_output_attributes_the_synthetic_diagnostic_to_readme(
     assert_with_context(
         (
             check_command_state["stdout"]
-            == "README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"
+            == (
+                "README.md:1:1: error suppression-blanket-forbidden "
+                "Synthetic IR error\n"
+                "checked 1 files (0 skipped, 0 unreadable); 1 errors, 0 warnings\n"
+            )
         ),
         "expected check_command_state['stdout'] == 'README.md...",
     )
@@ -266,6 +323,42 @@ def the_text_output_attributes_the_synthetic_diagnostic_to_readme(
         check_command_state["stderr"] == "",
         "expected check_command_state['stderr'] == ''",
     )
+
+
+@then("the text output reports a warning-severity diagnostic")
+def text_output_reports_a_warning(check_command_state: CheckCommandState) -> None:
+    """Assert that a recoverable extraction anomaly is non-gating output."""
+    assert "warning " in check_command_state["stdout"], (
+        "expected a warning-severity diagnostic"
+    )
+
+
+@then("the text output reports an error-severity diagnostic")
+def text_output_reports_an_error(check_command_state: CheckCommandState) -> None:
+    """Assert that an authored directive violation remains gating output."""
+    assert "error suppression-blanket-forbidden" in check_command_state["stdout"], (
+        "expected the authored-directive error diagnostic"
+    )
+
+
+@then("the summary reports 1 file checked and 0 errors")
+def summary_reports_one_checked_file_and_no_errors(
+    check_command_state: CheckCommandState,
+) -> None:
+    """Assert the warning-only run keeps its coverage denominator visible."""
+    assert (
+        "checked 1 files (0 skipped, 0 unreadable); 0 errors, 1 warnings"
+        in check_command_state["stdout"]
+    ), "expected the warning-only run summary"
+
+
+@then("the summary reports 2 files checked")
+def summary_reports_two_checked_files(check_command_state: CheckCommandState) -> None:
+    """Assert that unregistered candidates are counted as skipped."""
+    assert (
+        "checked 2 files (1 skipped, 0 unreadable); 0 errors, 0 warnings"
+        in check_command_state["stdout"]
+    ), "expected the registered and skipped file totals"
 
 
 @then("the standard error reports an actionable configuration error")

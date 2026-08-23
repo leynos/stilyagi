@@ -1,15 +1,15 @@
 """Unit and behaviour tests for the structural performance probe."""
-
 import json
 import pathlib
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: using subprocess in test to run external benchmark tool; validated input/control
 import sys
 import typing as typ
 
-import pytest
 from pytest_bdd import given, scenario, then, when
 from syrupy.extensions.json import JSONSnapshotExtension
+import pytest
 
+from stilyagi import model
 from tests.performance import structural_probe
 from tests.support.assertions import assert_with_context
 
@@ -25,14 +25,31 @@ class ProbeState(typ.TypedDict):
 
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
-MARKDOWN_FIXTURE = (
-    REPOSITORY_ROOT
-    / "tests"
-    / "fixtures"
-    / "corpus"
-    / "markdown"
-    / "valid"
-    / "heading-table-link-suppression.md"
+MARKDOWN_FIXTURE = REPOSITORY_ROOT / (
+    "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md"
+)
+STRUCTURAL_FIXTURES = (
+    structural_probe.StructuralFixture(MARKDOWN_FIXTURE, model.Syntax.MARKDOWN),
+    structural_probe.StructuralFixture(
+        REPOSITORY_ROOT
+        / "tests"
+        / "fixtures"
+        / "corpus"
+        / "python"
+        / "valid"
+        / "module-class-function-docstrings.py",
+        model.Syntax.PYTHON_DOCSTRING,
+    ),
+    structural_probe.StructuralFixture(
+        REPOSITORY_ROOT
+        / "tests"
+        / "fixtures"
+        / "corpus"
+        / "rust"
+        / "valid"
+        / "item-doc-comments.rs",
+        model.Syntax.RUST_DOC_COMMENT,
+    ),
 )
 
 
@@ -99,12 +116,20 @@ def probe_writes_json_report_with_cold_and_warm_runs(
 
     report = json.loads(output_path.read_text(encoding="utf-8"))
     assert_with_context(
-        report["probe"] == "structural-markdown",
-        "expected report['probe'] == 'structural-markdown'",
+        report["probe"] == "structural-syntax",
+        "expected report['probe'] == 'structural-syntax'",
     )
     assert_with_context(
-        [run["mode"] for run in report["runs"]] == ["cold", "warm"],
-        "expected [run['mode'] for run in report['runs']] == ...",
+        [(run["syntax"], run["mode"]) for run in report["runs"]]
+        == [
+            ("markdown", "cold"),
+            ("markdown", "warm"),
+            ("python_docstring", "cold"),
+            ("python_docstring", "warm"),
+            ("rust_doc_comment", "cold"),
+            ("rust_doc_comment", "warm"),
+        ],
+        "expected one cold and warm run for every syntax",
     )
     assert_with_context(
         all(run["iterations"] == 1 for run in report["runs"]),
@@ -120,7 +145,7 @@ def test_discovers_markdown_structural_fixture() -> None:
     """Discover the single Markdown fixture used for baseline probes."""
     fixtures = structural_probe.discover_structural_fixtures(REPOSITORY_ROOT)
 
-    assert fixtures == (MARKDOWN_FIXTURE,), "expected fixtures == (MARKDOWN_FIXTURE,)"
+    assert fixtures == STRUCTURAL_FIXTURES, "expected fixtures == STRUCTURAL_FIXTURES"
 
 
 @pytest.mark.parametrize(
@@ -182,31 +207,36 @@ def test_builds_structural_report_shape() -> None:
     """Build the stable report shape from measured run data."""
     report = structural_probe.build_report(
         repository_root=REPOSITORY_ROOT,
-        fixture_paths=(MARKDOWN_FIXTURE,),
+        fixtures=STRUCTURAL_FIXTURES,
         runs=[
-            structural_probe.ProbeRun(mode="cold", durations_ns=(5, 9, 1)),
-            structural_probe.ProbeRun(mode="warm", durations_ns=(2, 4, 10)),
+            structural_probe.ProbeRun(
+                mode="cold",
+                syntax=model.Syntax.MARKDOWN,
+                byte_count=10,
+                durations_ns=(5, 9, 1),
+            ),
+            structural_probe.ProbeRun(
+                mode="warm",
+                syntax=model.Syntax.MARKDOWN,
+                byte_count=10,
+                durations_ns=(2, 4, 10),
+            ),
         ],
     )
 
     assert report["schema_version"] == 1, "expected report['schema_version'] == 1"
     assert_with_context(
-        report["probe"] == "structural-markdown",
-        "expected report['probe'] == 'structural-markdown'",
+        report["probe"] == "structural-syntax",
+        "expected report['probe'] == 'structural-syntax'",
     )
     assert_with_context(
         report["entrypoint"] == "stilyagi.engine.extract_document",
         "expected report['entrypoint'] == 'stilyagi.engine.ex...",
     )
     assert_with_context(
-        report["corpus"]
-        == {
-            "fixture_paths": [
-                "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
-            ],
-            "file_count": 1,
-        },
-        "expected report['corpus'] == <'fixture_paths': ['tes...",
+        list(report["corpus"])
+        == ["fixture_paths", "file_count", "total_bytes", "per_syntax"],
+        "expected report['corpus'] to include syntax and byte totals",
     )
     assert_with_context(
         [run["summary_ns"]["median"] for run in report["runs"]] == [5, 4],
@@ -220,10 +250,20 @@ def test_redacted_report_matches_json_snapshot(
     """Pin the stable redacted report schema without timing noise."""
     report = structural_probe.build_report(
         repository_root=REPOSITORY_ROOT,
-        fixture_paths=(MARKDOWN_FIXTURE,),
+        fixtures=STRUCTURAL_FIXTURES,
         runs=[
-            structural_probe.ProbeRun(mode="cold", durations_ns=(5, 9, 1)),
-            structural_probe.ProbeRun(mode="warm", durations_ns=(2, 4, 10)),
+            structural_probe.ProbeRun(
+                mode="cold",
+                syntax=model.Syntax.MARKDOWN,
+                byte_count=10,
+                durations_ns=(5, 9, 1),
+            ),
+            structural_probe.ProbeRun(
+                mode="warm",
+                syntax=model.Syntax.MARKDOWN,
+                byte_count=10,
+                durations_ns=(2, 4, 10),
+            ),
         ],
     )
 
@@ -240,10 +280,20 @@ def test_redacted_report_contains_no_integer_timings() -> None:
     """Confirm that redaction removes all integer timing values."""
     report = structural_probe.build_report(
         repository_root=REPOSITORY_ROOT,
-        fixture_paths=(MARKDOWN_FIXTURE,),
+        fixtures=STRUCTURAL_FIXTURES,
         runs=[
-            structural_probe.ProbeRun(mode="cold", durations_ns=(5, 9, 1)),
-            structural_probe.ProbeRun(mode="warm", durations_ns=(2, 4, 10)),
+            structural_probe.ProbeRun(
+                mode="cold",
+                syntax=model.Syntax.MARKDOWN,
+                byte_count=10,
+                durations_ns=(5, 9, 1),
+            ),
+            structural_probe.ProbeRun(
+                mode="warm",
+                syntax=model.Syntax.MARKDOWN,
+                byte_count=10,
+                durations_ns=(2, 4, 10),
+            ),
         ],
     )
     redacted = structural_probe.redact_report(report)
@@ -291,8 +341,15 @@ def test_write_report_creates_parent_directories(
     output_path = tmp_path / "nested" / "dir" / "report.json"
     report = structural_probe.build_report(
         repository_root=REPOSITORY_ROOT,
-        fixture_paths=(MARKDOWN_FIXTURE,),
-        runs=[structural_probe.ProbeRun(mode="warm", durations_ns=(1, 2, 3))],
+        fixtures=STRUCTURAL_FIXTURES,
+        runs=[
+            structural_probe.ProbeRun(
+                mode="warm",
+                syntax=model.Syntax.MARKDOWN,
+                byte_count=10,
+                durations_ns=(1, 2, 3),
+            ),
+        ],
     )
     structural_probe.write_report(report, output_path)
     assert output_path.is_file(), "expected output_path.is_file()"

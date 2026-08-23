@@ -4,6 +4,21 @@ use std::collections::BTreeSet;
 
 use crate::{IrError, IrSuppression, SourceSpan, SuppressionKind};
 
+/// Codes describing a Stilyagi directive a human wrote incorrectly.
+///
+/// Every other IR error code describes degraded extraction rather than an
+/// authored mistake. Classification therefore defaults to "not authored", so
+/// a newly introduced extractor anomaly remains a warning until explicitly
+/// reviewed.
+pub const AUTHORED_DIRECTIVE_ERROR_CODES: &[&str] =
+    &["suppression-blanket-forbidden", "suppression-unknown-verb"];
+
+/// Return whether an IR error code describes an authored directive violation.
+#[must_use]
+pub fn is_authored_directive_code(code: &str) -> bool {
+    AUTHORED_DIRECTIVE_ERROR_CODES.contains(&code)
+}
+
 /// A candidate directive assembled by a syntax frontend.
 ///
 /// The `body` should contain the comment text with the syntax-specific
@@ -185,6 +200,14 @@ pub fn parse_comment_directive(inner: &str) -> DirectiveOutcome {
 pub fn suppressions_from_candidates(
     candidates: impl IntoIterator<Item = SuppressionCandidate>,
 ) -> (Vec<IrSuppression>, Vec<IrError>) {
+    let blanket_forbidden_code = AUTHORED_DIRECTIVE_ERROR_CODES
+        .first()
+        .copied()
+        .unwrap_or_default();
+    let unknown_verb_code = AUTHORED_DIRECTIVE_ERROR_CODES
+        .get(1)
+        .copied()
+        .unwrap_or_default();
     let mut suppressions = Vec::new();
     let mut errors = Vec::new();
 
@@ -204,7 +227,7 @@ pub fn suppressions_from_candidates(
             }
             DirectiveOutcome::Rejected(DirectiveError::BlanketForbidden) => {
                 errors.push(IrError {
-                    code: "suppression-blanket-forbidden".to_owned(),
+                    code: blanket_forbidden_code.to_owned(),
                     message: "blanket suppression directives must name at least one code"
                         .to_owned(),
                     span: Some(candidate.span),
@@ -212,7 +235,7 @@ pub fn suppressions_from_candidates(
             }
             DirectiveOutcome::Rejected(DirectiveError::UnknownVerb) => {
                 errors.push(IrError {
-                    code: "suppression-unknown-verb".to_owned(),
+                    code: unknown_verb_code.to_owned(),
                     message: "suppression directive verb is not recognised".to_owned(),
                     span: Some(candidate.span),
                 });

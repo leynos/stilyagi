@@ -1,6 +1,6 @@
 # markdownlint-disable MD041
 
-Feature: stilyagi check for Markdown files with nearest-config
+Feature: stilyagi check for discovered source files with nearest-config
 
   Scenario: check reports clean Markdown with exit code zero
     Given a temporary tree with two well-formed Markdown files
@@ -60,3 +60,22 @@ Feature: stilyagi check for Markdown files with nearest-config
     When I run "stilyagi check . --isolated" in that tree
     Then the exit code is 0
     And the text output lists no diagnostics
+
+  Scenario: check reports a Rust parse recovery as a warning and still succeeds
+    Given a temporary tree containing malformed Rust
+    When I run "stilyagi check ." in that tree
+    Then the exit code is 0
+    And the text output reports a warning-severity diagnostic
+    And the summary reports 1 file checked and 0 errors
+
+  Scenario: check reports a forbidden blanket suppression as an error
+    Given a temporary tree containing a Python file with a blanket suppression
+    When I run "stilyagi check ." in that tree
+    Then the exit code is 1
+    And the text output reports an error-severity diagnostic
+
+  Scenario: check reports how many files it checked
+    Given a temporary tree with files "docs/guide.md", "src/app.py", and "notes.txt"
+    When I run "stilyagi check ." in that tree
+    Then the exit code is 0
+    And the summary reports 2 files checked

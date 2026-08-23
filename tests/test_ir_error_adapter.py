@@ -15,7 +15,7 @@ def test_map_ir_errors_maps_a_synthetic_error_to_a_diagnostic() -> None:
             "line_index": [0, 6, 12],
             "errors": [
                 {
-                    "code": "IR123",
+                    "code": "suppression-blanket-forbidden",
                     "message": "Synthetic IR error",
                     "span": {"byte_start": 7, "byte_end": 9},
                 },
@@ -28,7 +28,7 @@ def test_map_ir_errors_maps_a_synthetic_error_to_a_diagnostic() -> None:
         == [
             diagnostics.Diagnostic(
                 path="docs/example.md",
-                code="IR123",
+                code="suppression-blanket-forbidden",
                 message="Synthetic IR error",
                 severity=diagnostics.Severity.ERROR,
                 line=2,
@@ -36,6 +36,24 @@ def test_map_ir_errors_maps_a_synthetic_error_to_a_diagnostic() -> None:
             ),
         ],
         "expected map_ir_errors(document, 'docs/example.md') ...",
+    )
+
+
+def test_map_ir_errors_demotes_unclassified_codes_to_warnings() -> None:
+    """Keep new extraction anomaly codes on the non-gating severity path."""
+    document = model.Document(
+        syntax=model.Syntax.RUST_DOC_COMMENT,
+        ir={
+            "line_index": [0],
+            "errors": [{"code": "future-anomaly", "message": "Recovered"}],
+        },
+    )
+
+    diagnostics_list = map_ir_errors(document, "src/lib.rs")
+
+    assert_with_context(
+        diagnostics_list[0].severity is diagnostics.Severity.WARNING,
+        "expected diagnostics_list[0].severity is diagnostics.Severity.WARNING",
     )
 
 
