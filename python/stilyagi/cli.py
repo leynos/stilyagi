@@ -20,8 +20,11 @@ from stilyagi.rules import registry as rules_registry
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
+    type FileWriter = cabc.Callable[[pathlib.Path, bytes], None]
+
 __all__ = [
     "PACKAGE_VERSION",
+    "CheckCollaborators",
     "CheckInput",
     "CheckOptions",
     "build_parser",
@@ -40,8 +43,30 @@ class CheckInput:
     reported_path: str
     resolved_path: pathlib.Path
     source_text: str | None = None
+    source_bytes: bytes | None = None
 
+@dc.dataclass(frozen=True, slots=True)
+class CheckCollaborators:
+    """Injectable collaborators for one check run.
 
+    The bundle keeps the public check entry point small while allowing tests to
+    substitute one boundary without coupling themselves to pipeline internals.
+    """
+
+    resolver: config.ConfigResolver | None = None
+    renderer: engine.RendererRegistry | None = None
+    rule_runner: rules_registry.RuleRunner | None = None
+    writer: FileWriter | None = None
+    output: typ.TextIO | None = None
+
+@dc.dataclass(frozen=True, slots=True)
+class _ResolvedCheckCollaborators:
+    """Concrete collaborators ready for one command invocation."""
+
+    resolver: config.ConfigResolver
+    renderer: engine.RendererRegistry
+    rule_runner: rules_registry.RuleRunner
+    output: typ.TextIO
 def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Run the Stilyagi command-line interface.
 
@@ -115,8 +140,7 @@ def _resolve_config(
 def run_check(
     options: CheckOptions,
     *,
-    resolver: config.ConfigResolver | None = None,
-    renderer: engine.RendererRegistry | None = None,
+    collaborators: CheckCollaborators | None = None,
 ) -> int:
     """Run the check command and print rendered diagnostics.
 
@@ -124,13 +148,9 @@ def run_check(
     ----------
     options:
         The parsed options for one `check` invocation.
-    resolver:
-        Configuration resolver to reuse across every checked file. A fresh
-        single-use resolver is created when one is not supplied, so no
-        configuration cache is shared between invocations.
-    renderer:
-        Renderer used to serialise diagnostics. Defaults to a new
-        :class:`~stilyagi.engine.RendererRegistry`.
+    collaborators:
+        Optional injected pipeline boundaries. Missing collaborators use the
+        production defaults for this one run.
 
     Returns
     -------
@@ -138,14 +158,13 @@ def run_check(
         Zero when the check succeeds without findings, one when diagnostics
         are found, or two when an operational error occurs.
     """
-    resolver = resolver if resolver is not None else config.ConfigResolver()
-    renderer = renderer if renderer is not None else engine.RendererRegistry()
+    resolved_collaborators = _resolve_collaborators(collaborators)
     had_error = False
     diagnostics_list: list[diagnostics.Diagnostic] = []
 
     _LOGGER.debug("target discovery started for %r", options.targets)
     try:
-        discovered_files = _discover_targets(options, resolver)
+        discovered_files = _discover_targets(options, resolved_collaborators.resolver)
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
@@ -158,7 +177,10 @@ def run_check(
 
     for discovered_file in discovered_files:
         file_diagnostics, file_error = _check_one_file(
-            discovered_file, options, resolver
+            discovered_file,
+            options,
+            resolved_collaborators.resolver,
+            resolved_collaborators.rule_runner,
         )
         diagnostics_list.extend(file_diagnostics)
         had_error = had_error or file_error
@@ -168,13 +190,26 @@ def run_check(
         len(diagnostics_list),
         options.output_format,
     )
-    rendered = renderer.render(diagnostics_list, options.output_format)
-    print(rendered, end="")
+    rendered = resolved_collaborators.renderer.render(
+        diagnostics_list,
+        options.output_format,
+    )
+    print(rendered, end="", file=resolved_collaborators.output)
     exit_code = compute_exit_code(diagnostics_list, had_error=had_error)
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
 
-
+def _resolve_collaborators(
+    collaborators: CheckCollaborators | None,
+) -> _ResolvedCheckCollaborators:
+    """Fill in omitted check collaborators with their production defaults."""
+    configured = collaborators or CheckCollaborators()
+    return _ResolvedCheckCollaborators(
+        resolver=configured.resolver or config.ConfigResolver(),
+        renderer=configured.renderer or engine.RendererRegistry(),
+        rule_runner=configured.rule_runner or rules_registry.run_rules,
+        output=configured.output or sys.stdout,
+    )
 def compute_exit_code(
     diagnostics_list: cabc.Sequence[diagnostics.Diagnostic],
     *,
@@ -266,16 +301,28 @@ def _stdin_check_input(stdin_filename: str | None) -> CheckInput:
     return CheckInput(
         reported_path=reported_path,
         resolved_path=resolved_path,
-        source_text=sys.stdin.read(),
+        source_bytes=_read_stdin_bytes(),
     )
 
-
-def _read_source(check_input: CheckInput) -> str | None:
-    """Return the source text for one input, reporting read failures."""
+def _read_stdin_bytes() -> bytes:
+    """Read standard input as bytes, retaining text-stream test compatibility."""
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is not None:
+        return typ.cast("typ.BinaryIO", buffer).read()
+    return sys.stdin.read().encode("utf-8")
+def _read_source(check_input: CheckInput) -> CheckInput | None:
+    """Return one input with its source bytes and decoded text populated."""
     try:
-        source = check_input.source_text
-        if source is None:
-            source = check_input.resolved_path.read_text(encoding="utf-8")
+        source_bytes = check_input.source_bytes
+        source_text = check_input.source_text
+        if source_bytes is None:
+            source_bytes = (
+                source_text.encode("utf-8")
+                if source_text is not None
+                else check_input.resolved_path.read_bytes()
+            )
+        if source_text is None:
+            source_text = source_bytes.decode("utf-8")
     except (
         FileNotFoundError,
         IsADirectoryError,
@@ -284,22 +331,30 @@ def _read_source(check_input: CheckInput) -> str | None:
     ) as exc:
         _report_file_error(check_input.resolved_path, exc)
         return None
-    return source
+    return dc.replace(
+        check_input,
+        source_bytes=source_bytes,
+        source_text=source_text,
+    )
 
 
 def _check_one_file(
     check_input: CheckInput,
     options: CheckOptions,
     resolver: config.ConfigResolver,
+    rule_runner: rules_registry.RuleRunner,
 ) -> tuple[list[diagnostics.Diagnostic], bool]:
     """Check one discovered Markdown file or stdin payload."""
-    source = _read_source(check_input)
-    if source is None:
+    sourced_input = _read_source(check_input)
+    if sourced_input is None or sourced_input.source_text is None:
         return [], True
 
     _LOGGER.debug("extracting %s", check_input.reported_path)
     try:
-        document = engine.extract_document(source, model.Syntax.MARKDOWN)
+        document = engine.extract_document(
+            sourced_input.source_text,
+            model.Syntax.MARKDOWN,
+        )
     except engine.BridgeExtractionError as exc:
         _report_check_error(check_input.resolved_path, exc)
         return [], True
@@ -322,7 +377,7 @@ def _check_one_file(
 
     diagnostics_list = [
         *map_ir_errors(document, check_input.reported_path),
-        *rules_registry.run_rules(document, resolved_config),
+        *rule_runner(document, resolved_config),
     ]
     return diagnostics_list, False
 
