@@ -19,9 +19,9 @@ carried in `Risks` and in the milestone-2 work items. See the Revision note.
 
 ## Purpose / big picture
 
-Roadmap item 3.2.1 (see [docs/roadmap.md](../roadmap.md) §3.2) is the first step
-of the second vertical slice. It turns `stilyagi check` from a Markdown-only
-command into a mixed-repository command, per
+Roadmap item 3.2.1 (see [docs/roadmap.md](../roadmap.md) §3.2) is the first
+step of the second vertical slice. It turns `stilyagi check` from a
+Markdown-only command into a mixed-repository command, per
 [Stilyagi design](../stilyagi-design.md) §7.3 and
 [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §7.
 
@@ -55,23 +55,23 @@ an end-to-end test invokes the command as a real subprocess; a `hypothesis`
 property pins discovery determinism; and snapshot tests pin the text and
 JavaScript Object Notation (JSON) renderings of a mixed-source run.
 
-Two downstream roadmap items are unblocked by this one: 3.2.3 (`Requires 3.1.3,
-3.2.1, and 2.2.2`) and 3.3.1 (`Requires 3.2.1 and 2.2.3`).
+Two downstream roadmap items are unblocked by this one: 3.2.3
+(`Requires 3.1.3, 3.2.1, and 2.2.2`) and 3.3.1 (`Requires 3.2.1 and 2.2.3`).
 
 ### Milestone structure
 
 The work splits into two sequenced milestones on one branch. Both must land
-before roadmap item 3.2.1 is ticked. The split exists because they are different
-kinds of change with different blast radii, and reviewing them together obscures
-that.
+before roadmap item 3.2.1 is ticked. The split exists because they are
+different kinds of change with different blast radii, and reviewing them
+together obscures that.
 
 - **Milestone 1 — discovery and dispatch.** Purely additive. It changes which
   files are found and which extractor each one gets. Nothing about an existing
   Markdown-only run changes.
 - **Milestone 2 — classification, severity, and observability.** This changes
-  the meaning of the exit code and the shape of the rendered output for
-  *every* run, not just mixed ones. It deserves its own red-green cycle and its
-  own review.
+  the meaning of the exit code and the shape of the rendered output for *every*
+  run, not just mixed ones. It deserves its own red-green cycle and its own
+  review.
 
 ### Scope boundary (what this slice deliberately excludes)
 
@@ -95,16 +95,16 @@ that.
   stands. See D8 for why the deferral's justification expires when discovery
   moves to Rust.
 - **`include` / `exclude` configuration keys.** RFC 0003 §6 defines none, and
-  roadmap item 2.2.1 explicitly removed an invented `[discovery] include` key as
-  out-of-contract. See D2.
+  roadmap item 2.2.1 explicitly removed an invented `[discovery] include` key
+  as out-of-contract. See D2.
 - **`*.mdx`, `*.pyi`, and every post-v1.0 language.** Documented as future
   targets in ADR 008, not implemented.
 - **Any IR schema change.** `SCHEMA_VERSION` is not bumped; `IrError` gains no
   fields. See D5.
 - **New CLI flags.** No `--fail-on`, `--max-warnings`, `--max-file-size`, or
   `--jobs`. RFC 0003 defines none of them, and inventing CLI surface ahead of
-  the contract is the mistake D2 exists to avoid. Each is recorded in ADR 008 as
-  required follow-up.
+  the contract is the mistake D2 exists to avoid. Each is recorded in ADR 008
+  as required follow-up.
 
 ## Constraints
 
@@ -171,85 +171,83 @@ is bounded and predictable while the code work is where surprises live.
 
 - **Risk:** Extraction degradation silently removes prose from scope. A
   tree-sitter grammar bump, or a language edition the pinned grammar predates,
-  makes files parse partially: `crates/stilyagi-tree-sitter/src/rust/builder.rs`
-  clears pending doc comments on encountering a recovery node, and abandons an
-  entire subtree past `MAX_TRAVERSAL_DEPTH`. Under D4 those become warnings and
-  the run exits `0`.
-  Severity: high. Likelihood: medium.
-  Mitigation: this is why W6 exists. The summary line reports files checked and
-  files degraded, giving the warning count a denominator; and a region-count
-  regression test over the fixed corpus makes a coverage-reducing grammar bump
-  fail Stilyagi's own suite before it reaches users. `--fail-on` /
-  `--max-warnings`, the proper remedy, is recorded in ADR 008 as follow-up.
+  makes files parse partially:
+  `crates/stilyagi-tree-sitter/src/rust/builder.rs` clears pending doc comments
+  on encountering a recovery node, and abandons an entire subtree past
+  `MAX_TRAVERSAL_DEPTH`. Under D4 those become warnings and the run exits `0`.
+  Severity: high. Likelihood: medium. Mitigation: this is why W6 exists. The
+  summary line reports files checked and files degraded, giving the warning
+  count a denominator; and a region-count regression test over the fixed corpus
+  makes a coverage-reducing grammar bump fail Stilyagi's own suite before it
+  reaches users. `--fail-on` / `--max-warnings`, the proper remedy, is recorded
+  in ADR 008 as follow-up.
 
 - **Risk:** One unreadable file poisons an entire run. `had_error` is a single
   boolean ORed across every file, and `compute_exit_code` returns `2`
   unconditionally when it is set, discarding every diagnostic found. The JSON
   payload then reports a clean run on stdout while the exit code says internal
-  error.
-  Severity: high. Likelihood: medium, and materially raised by this change —
-  PEP 263 permits non-UTF-8 `.py` source, so a `# -*- coding: latin-1 -*-` file
-  is legal Python that `read_text(encoding="utf-8")` rejects. Non-UTF-8 Markdown
-  is a curiosity; non-UTF-8 legacy Python is ordinary.
-  Mitigation: W6 widens the read to `utf-8-sig`, catches `OSError` and
-  `MemoryError`, and reports the user's path rather than the resolved path. The
-  deeper redesign — per-file read failures becoming per-file diagnostics rather
-  than a run-wide fatal — is **not** attempted here and is recorded in ADR 008
-  as required follow-up, because it changes what exit `2` means.
+  error. Severity: high. Likelihood: medium, and materially raised by this
+  change — PEP 263 permits non-UTF-8 `.py` source, so a
+  `# -*- coding: latin-1 -*-` file is legal Python that
+  `read_text(encoding="utf-8")` rejects. Non-UTF-8 Markdown is a curiosity;
+  non-UTF-8 legacy Python is ordinary. Mitigation: W6 widens the read to
+  `utf-8-sig`, catches `OSError` and `MemoryError`, and reports the user's path
+  rather than the resolved path. The deeper redesign — per-file read failures
+  becoming per-file diagnostics rather than a run-wide fatal — is **not**
+  attempted here and is recorded in ADR 008 as required follow-up, because it
+  changes what exit `2` means.
 
 - **Risk:** The expanded ignored-directory list is name-based, so it prunes a
   directory a user legitimately wants checked, and fails to prune generated
   source that does not match a known name — `CARGO_TARGET_DIR` pointed
   elsewhere, a Cargo `OUT_DIR` full of `bindgen` or `prost` output, `*_pb2.py`,
-  `vendor/`, `third_party/`, `bazel-*`.
-  Severity: medium. Likelihood: high for the second half.
-  Mitigation: generated source is exactly the code the pinned grammar parses
-  worst, so this compounds the first risk. The name list is an acknowledged
-  stopgap; ADR 008 records that the remedy is gitignore support via the `ignore`
-  crate once discovery moves to Rust, not a perpetually growing name list.
+  `vendor/`, `third_party/`, `bazel-*`. Severity: medium. Likelihood: high for
+  the second half. Mitigation: generated source is exactly the code the pinned
+  grammar parses worst, so this compounds the first risk. The name list is an
+  acknowledged stopgap; ADR 008 records that the remedy is gitignore support
+  via the `ignore` crate once discovery moves to Rust, not a perpetually
+  growing name list.
 
 - **Risk:** A symlinked directory target is skipped at INFO level, so a CI gate
   can be silently inert from the day it is merged. `/app -> /src`, Bazel output
-  trees, and Docker volume mounts all hit this.
-  Severity: high. Likelihood: low-to-medium.
-  Mitigation: W6 raises it to WARNING and counts it in the summary as skipped.
+  trees, and Docker volume mounts all hit this. Severity: high. Likelihood:
+  low-to-medium. Mitigation: W6 raises it to WARNING and counts it in the
+  summary as skipped.
 
 - **Risk:** Severity is being used as the exit-code axis, but RFC 0003 §3.2
   requires every rule to document a *default severity* and §3.3 requires
   filtering by it. When roadmap item 3.2.2 ships a rule whose default severity
-  is `warning`, that rule violation will print without gating.
-  Severity: medium. Likelihood: high, at 3.2.2.
-  Mitigation: the distinction actually needed is violation versus
-  non-violation, which is orthogonal to severity. Introducing that discriminator
-  now would mean a new `Diagnostic` field, which the tolerances forbid. Instead
-  W6 names the failing severities in one explicit constant, documents on
-  `Diagnostic` that `WARNING` does not gate, and ADR 008 records this as a
-  constraint roadmap item 3.2.2 must resolve before it ships its first
-  warning-severity rule.
+  is `warning`, that rule violation will print without gating. Severity:
+  medium. Likelihood: high, at 3.2.2. Mitigation: the distinction actually
+  needed is violation versus non-violation, which is orthogonal to severity.
+  Introducing that discriminator now would mean a new `Diagnostic` field, which
+  the tolerances forbid. Instead W6 names the failing severities in one
+  explicit constant, documents on `Diagnostic` that `WARNING` does not gate,
+  and ADR 008 records this as a constraint roadmap item 3.2.2 must resolve
+  before it ships its first warning-severity rule.
 
 - **Risk:** This repository cannot dogfood `stilyagi check .` in continuous
   integration, because `tests/fixtures/corpus/python/valid/` and
-  `tests/fixtures/corpus/rust/valid/` contain deliberate bare `# stilyagi:
-  disable` blanket suppressions to exercise the forbidden path.
-  Severity: low. Likelihood: certain.
-  Mitigation: the exit `1` is *correct* behaviour, so nothing is broken. The
-  acceptance demonstration leads with an explicit target list. ADR 008 records
-  the clean remedy — extending the existing `.md.fixture` / `.py.txt` naming
-  convention to the adversarial Python and Rust corpus files so they fall
-  outside discovery — as follow-up, since it touches
-  `crates/stilyagi-test-fixtures/src/fixture_paths.rs` and `tests/test_corpus.py`.
+  `tests/fixtures/corpus/rust/valid/` contain deliberate bare
+  `# stilyagi: disable` blanket suppressions to exercise the forbidden path.
+  Severity: low. Likelihood: certain. Mitigation: the exit `1` is *correct*
+  behaviour, so nothing is broken. The acceptance demonstration leads with an
+  explicit target list. ADR 008 records the clean remedy — extending the
+  existing `.md.fixture` / `.py.txt` naming convention to the adversarial
+  Python and Rust corpus files so they fall outside discovery — as follow-up,
+  since it touches `crates/stilyagi-test-fixtures/src/fixture_paths.rs` and
+  `tests/test_corpus.py`.
 
 - **Risk:** Discovery walks far more files, exposing fixed per-file cost.
-  Severity: medium. Likelihood: medium.
-  Mitigation: measured against a real baseline rather than guessed. See W6's
-  performance item; note the file count grows 3.6× but total bytes only ~1.5×,
-  because this repository's Markdown is far larger per file than its source.
+  Severity: medium. Likelihood: medium. Mitigation: measured against a real
+  baseline rather than guessed. See W6's performance item; note the file count
+  grows 3.6× but total bytes only ~1.5×, because this repository's Markdown is
+  far larger per file than its source.
 
 - **Risk:** `unclosed-function.py.txt` — the malformed Python fixture named to
   keep tooling from treating it as importable Python — starts being discovered.
-  Severity: low. Likelihood: low.
-  Mitigation: matching uses the *final* suffix, so `.py.txt` resolves to `.txt`.
-  A regression test pins it.
+  Severity: low. Likelihood: low. Mitigation: matching uses the *final* suffix,
+  so `.py.txt` resolves to `.txt`. A regression test pins it.
 
 ## Progress
 
@@ -257,10 +255,12 @@ Milestone 1 — discovery and dispatch:
 
 - [x] W0. Confirm the tree matches this plan's anchors; capture the baseline
       (2026-08-23).
-- [ ] W1. Generalize discovery beyond Markdown, carrying the selected syntax.
-- [ ] W2. Select the extractor per file in the `check` loop, including stdin.
-- [ ] W3. Milestone-1 tests: units, `hypothesis` property, BDD scenarios,
-      end-to-end subprocess.
+- [x] W1. Generalize discovery beyond Markdown, carrying the selected syntax
+      (2026-08-24).
+- [x] W2. Select the extractor per file in the `check` loop, including stdin
+      (2026-08-24).
+- [x] W3. Milestone-1 tests: units, `hypothesis` property, BDD scenarios,
+      end-to-end subprocess (2026-08-24).
 
 Milestone 2 — classification, severity, and observability:
 
@@ -284,20 +284,21 @@ during the round-2 design review. These are the evidence base for the Decision
 Log; they are why this plan is larger than "add three strings to a frozenset".
 
 - **S14 (implementation). The rebased baseline has 236 tracked discovery
-  candidates, not 233.** After the baseline gates materialized `.uv-cache`,
-  the W1 pruning policy yielded 65 Markdown, 78 Python, and 93 Rust tracked
-  files. This is three more source files than the planning-time snapshot (two
-  Python and one Rust), while the Markdown count remains 65. The acceptance
-  commands must use the live counts established after W1 rather than the stale
-  233-file figures in this draft. This is a base-branch evolution, not a
-  design deviation.
+  candidates, not 233.** After the baseline gates materialized `.uv-cache`, the
+  W1 pruning policy yielded 65 Markdown, 78 Python, and 93 Rust tracked files.
+  This is three more source files than the planning-time snapshot (two Python
+  and one Rust), while the Markdown count remains 65. The acceptance commands
+  must use the live counts established after W1 rather than the stale 233-file
+  figures in this draft. This is a base-branch evolution, not a design
+  deviation.
 
 - **S1. The Rust side is already complete; the gap is entirely in Python.**
-  `ExtractSyntax` already has all three variants and dispatches all three;
-  the PyO3 bridge already round-trips all three; `model.Syntax` already has all
-  three members. The load-bearing gap is exactly two things: `_MARKDOWN_SUFFIXES`
-  in `python/stilyagi/discovery.py`, and the hard-coded `model.Syntax.MARKDOWN`
-  in `_check_one_file` in `python/stilyagi/cli.py`. No extractor work is needed.
+  `ExtractSyntax` already has all three variants and dispatches all three; the
+  PyO3 bridge already round-trips all three; `model.Syntax` already has all
+  three members. The load-bearing gap is exactly two things:
+  `_MARKDOWN_SUFFIXES` in `python/stilyagi/discovery.py`, and the hard-coded
+  `model.Syntax.MARKDOWN` in `_check_one_file` in `python/stilyagi/cli.py`. No
+  extractor work is needed.
 
 - **S2. Unlike Markdown, the Python and Rust extractors do populate IR
   `errors[]`, and every entry currently becomes an error-severity diagnostic.**
@@ -329,10 +330,11 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   ```
 
   Two caveats on that transcript, both instructive. The Markdown count is now
-  65, because this ExecPlan is itself a discovered file. And the probe ran before
-  any `make` target had materialized `.uv-cache` in the worktree, so it did not
-  expose the pruning gap S13 later found — the figure was right by luck. With
-  W1's corrected prune list and this file present, the current figure is 233.
+  65, because this ExecPlan is itself a discovered file. And the probe ran
+  before any `make` target had materialized `.uv-cache` in the worktree, so it
+  did not expose the pruning gap S13 later found — the figure was right by
+  luck. With W1's corrected prune list and this file present, the current
+  figure is 233.
 
   Discovery grows 64 → 233 files (3.6×). All valid sources produce zero IR
   errors — a separate probe over 16 production files returned
@@ -359,8 +361,8 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
 
   That is the over-claim. It was trimmed to the current three-extension list by
   `787526e` ("Add RFC harmonization execplan", roadmap item 1.1.3). W7 corrects
-  the §7.3 text rather than layering new content on a contradiction. Settled; no
-  further archaeology needed.
+  the §7.3 text rather than layering new content on a contradiction. Settled;
+  no further archaeology needed.
 
 - **S5. The IR error-code vocabulary is eight codes, and it splits cleanly.**
   `python-parse-recovery`, `python-traversal-depth-limit`,
@@ -379,24 +381,23 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   `stilyagi-ir`, not the reverse. Six anomaly codes are minted in
   `stilyagi-tree-sitter`; only the two suppression codes are minted locally, in
   `crates/stilyagi-ir/src/suppression.rs`. Round 1 proposed enumerating the
-  anomaly codes in `stilyagi-ir` — a second copy of literals owned by a crate it
-  cannot see, guarded by a test that cannot mechanically enumerate mint sites.
-  Impact: this is why D5 was reversed. Enumerating the *two local* codes and
-  defaulting everything else to warning puts the array within fifty lines of
-  both its mint sites and makes the drift behaviour fail-safe.
+  anomaly codes in `stilyagi-ir` — a second copy of literals owned by a crate
+  it cannot see, guarded by a test that cannot mechanically enumerate mint
+  sites. Impact: this is why D5 was reversed. Enumerating the *two local* codes
+  and defaulting everything else to warning puts the array within fifty lines
+  of both its mint sites and makes the drift behaviour fail-safe.
 
 - **S8 (round 2). The design document says Rust owns file discovery.**
   [Stilyagi design](../stilyagi-design.md) §1: "Rust owns file discovery,
-  Markdown parsing, host-language comment and docstring extraction, source maps,
-  and IR construction. Python owns configuration resolution, capability
+  Markdown parsing, host-language comment and docstring extraction, source
+  maps, and IR construction. Python owns configuration resolution, capability
   planning, spaCy-backed enrichment, rule execution, diagnostics, fixes, and
-  plugin loading."
-  Impact: decisive for D1. Today's Python walk is the deviation. Round 1
-  proposed putting the extension table in Rust while leaving the walk in
-  Python — the one arrangement that is neither the current state nor the target
-  state, and one where a bridge round-trip fetches four string pairs and buys no
-  capability. When discovery does move, a Rust-side table would be consumed
-  internally and the bridge function would be dead on arrival.
+  plugin loading." Impact: decisive for D1. Today's Python walk is the
+  deviation. Round 1 proposed putting the extension table in Rust while leaving
+  the walk in Python — the one arrangement that is neither the current state
+  nor the target state, and one where a bridge round-trip fetches four string
+  pairs and buys no capability. When discovery does move, a Rust-side table
+  would be consumed internally and the bridge function would be dead on arrival.
 
 - **S9 (round 2). A run that checks zero files is byte-identical to a run that
   checks everything.** Probed:
@@ -412,18 +413,18 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
 
   Impact: this is the load-bearing operational defect. Demoting anomalies to
   warnings without a denominator converts a loud, wrong failure into a quiet,
-  wrong success. The summary line in W6 is the cheapest, highest-value change in
-  the plan.
+  wrong success. The summary line in W6 is the cheapest, highest-value change
+  in the plan.
 
-- **S10 (round 2). The performance harness already exists and is Markdown-only.**
-  `tests/performance/structural_probe.py`, delivered by roadmap item 1.3.3, has
-  cold and warm vocabulary, nanosecond resolution, a versioned JSON report, and
-  a redacted syrupy snapshot — hard-wired to `model.Syntax.MARKDOWN`. Round 1
-  proposed an unstructured `time` reading instead, which is a rigour regression.
-  Also measured: file count grows 3.6× but total bytes only ~1.5×, because this
-  repository's Markdown averages 25.4 KiB per file against 4.2 KiB for Python
-  and 4.8 KiB for Rust. A wall-clock tolerance of "10×" could therefore never
-  trip, which makes it not a tolerance.
+- **S10 (round 2). The performance harness already exists and is
+  Markdown-only.** `tests/performance/structural_probe.py`, delivered by
+  roadmap item 1.3.3, has cold and warm vocabulary, nanosecond resolution, a
+  versioned JSON report, and a redacted syrupy snapshot — hard-wired to
+  `model.Syntax.MARKDOWN`. Round 1 proposed an unstructured `time` reading
+  instead, which is a rigour regression. Also measured: file count grows 3.6×
+  but total bytes only ~1.5×, because this repository's Markdown averages 25.4
+  KiB per file against 4.2 KiB for Python and 4.8 KiB for Rust. A wall-clock
+  tolerance of "10×" could therefore never trip, which makes it not a tolerance.
 
 - **S11 (round 2). `tracing` and `metrics` are already wired, and this change
   inverts the coverage gap.** The two newly reachable extractors are the
@@ -444,20 +445,20 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   The repository already has an authority on this: `MD_FILES_FIND` in the
   `Makefile` excludes `.venv`, `.venv-release-smoke`, `.uv-cache`, `.uv-tools`,
   `target`, and `crates/stilyagi-pyext/target`. Round 1's list matched only two
-  of those six.
-  Impact: W1's prune list is aligned to `MD_FILES_FIND` and cross-referenced to
-  it in a comment. This also sharpens the review's point that name-based pruning
-  is a stopgap — the first repository tested found three missing names, and the
-  correct figures below were only reachable after fixing them.
+  of those six. Impact: W1's prune list is aligned to `MD_FILES_FIND` and
+  cross-referenced to it in a comment. This also sharpens the review's point
+  that name-based pruning is a stopgap — the first repository tested found
+  three missing names, and the correct figures below were only reachable after
+  fixing them.
 
 - **S12 (round 2). Python doctests never run, and the discovery one is already
   false.** There is no `conftest.py`, and `[tool.pytest.ini_options]` sets no
   `--doctest-modules`, so `make test` never executes them. The example in
-  `python/stilyagi/discovery.py` claims `discover_markdown_files([Path("docs")],
-  ...)` yields `['docs/guide.md']`; `docs/guide.md` does not exist and `docs/`
-  holds 55 Markdown files. Impact: "update the doctests" is an unfalsifiable
-  instruction. W1 fixes the false example; ADR 008 records enabling
-  `--doctest-modules` as follow-up.
+  `python/stilyagi/discovery.py` claims
+  `discover_markdown_files([Path("docs")], ...)` yields `['docs/guide.md']`;
+  `docs/guide.md` does not exist and `docs/` holds 55 Markdown files. Impact:
+  "update the doctests" is an unfalsifiable instruction. W1 fixes the false
+  example; ADR 008 records enabling `--doctest-modules` as follow-up.
 
 ## Decision log
 
@@ -465,191 +466,179 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   ExecPlan approval gate, and the rebased source-count baseline supersedes the
   planning snapshot.** W0 confirmed both code anchors, the `ty` typecheck
   recipe, the full lint recipe, `ExpectValid`, and developers' guide §6b. The
-  four deterministic code gates passed before any production edit:
-  `check-fmt`, `typecheck`, `lint`, and `test` (332 Rust tests and 213 Python
-  tests). The plan's implementation-time acceptance evidence will record the
-  observed W1 count rather than preserving a stale planning-time count.
-  Date/Author: 2026-08-23, implementation agent.
+  four deterministic code gates passed before any production edit: `check-fmt`,
+  `typecheck`, `lint`, and `test` (332 Rust tests and 213 Python tests). The
+  plan's implementation-time acceptance evidence will record the observed W1
+  count rather than preserving a stale planning-time count. Date/Author:
+  2026-08-23, implementation agent.
 
 - **D1 (reversed in round 2). The extension-to-syntax table lives in Python, in
-  `python/stilyagi/discovery.py`. No bridge function is added for it.**
-  Round 1 put it in Rust behind the PyO3 bridge, reasoning that `ExtractSyntax`
-  owns syntax spellings and that `supported_syntaxes()` is the established idiom
-  for advertising them. The review falsified both halves. The existing idiom
-  covers vocabularies that *appear in bridge payloads* — the `syntax` field, the
-  region `kind` field, the argument to `extract_document`. File extensions
-  appear in no payload and are passed to no bridge function, so the precedent
-  does not reach them. And per S8 the design already assigns file discovery to
-  Rust, which means the durable end state moves the walk *and* the table
-  together; putting only the table across the bridge is the one arrangement that
-  is neither the current state nor the target, and it makes the eventual move an
+  `python/stilyagi/discovery.py`. No bridge function is added for it.** Round 1
+  put it in Rust behind the PyO3 bridge, reasoning that `ExtractSyntax` owns
+  syntax spellings and that `supported_syntaxes()` is the established idiom for
+  advertising them. The review falsified both halves. The existing idiom covers
+  vocabularies that *appear in bridge payloads* — the `syntax` field, the region
+  `kind` field, the argument to `extract_document`. File extensions appear in
+  no payload and are passed to no bridge function, so the precedent does not
+  reach them. And per S8 the design already assigns file discovery to Rust,
+  which means the durable end state moves the walk *and* the table together;
+  putting only the table across the bridge is the one arrangement that is
+  neither the current state nor the target, and it makes the eventual move an
   unpicking of a seam rather than a relocation of one module. The "two
   coordinated edits" cost cited in round 1 also already exists: `model.Syntax`
   is a hand-maintained Python mirror of `ExtractSyntax` guarded by
   `_validate_syntax_vocab_once`, so a four-entry dict whose *values* are
   `model.Syntax` members is type-checked by `ty` and covered by the parity
-  check
-  that already runs. Constraint 3 is restated accordingly.
-  Consequence: round 1's W1 and W3 are deleted entirely — the Rust table, the
-  compile-time proof, the `proptest`, the bridge function, the `.pyi` change,
-  the bridge-derived cache with its lock and reset hook, the second parity
-  check, and the Rust BDD feature. Roughly a third of the proposed Rust surface.
+  check that already runs. Constraint 3 is restated accordingly. Consequence:
+  round 1's W1 and W3 are deleted entirely — the Rust table, the compile-time
+  proof, the `proptest`, the bridge function, the `.pyi` change, the
+  bridge-derived cache with its lock and reset hook, the second parity check,
+  and the Rust BDD feature. Roughly a third of the proposed Rust surface.
   Date/Author: 2026-08-16, planning agent (round 2).
 
 - **D2. Discovery scope stays a fixed built-in extension set. No `include` /
-  `exclude` keys, and no new CLI flags.**
-  RFC 0003 §6's baseline schema defines no such keys and §7 states discovery
-  defaults as a fixed list. Roadmap item 2.2.1 explicitly removed an invented
-  `[discovery] include` key as out-of-contract; inventing configuration surface
-  ahead of the contract is the mistake that decision corrected. The same
-  reasoning bars `--fail-on`, `--max-warnings`, and `--max-file-size`, however
-  useful — RFC 0003 §2 defines the flag set. All are recorded in ADR 008 as
-  required follow-up rather than smuggled in here.
-  Date/Author: 2026-08-16, planning agent.
+  `exclude` keys, and no new CLI flags.** RFC 0003 §6's baseline schema defines
+  no such keys and §7 states discovery defaults as a fixed list. Roadmap item
+  2.2.1 explicitly removed an invented `[discovery] include` key as
+  out-of-contract; inventing configuration surface ahead of the contract is the
+  mistake that decision corrected. The same reasoning bars `--fail-on`,
+  `--max-warnings`, and `--max-file-size`, however useful — RFC 0003 §2 defines
+  the flag set. All are recorded in ADR 008 as required follow-up rather than
+  smuggled in here. Date/Author: 2026-08-16, planning agent.
 
 - **D3. `.markdown` is retained; `.pyi` and `.mdx` are not added.**
   `.markdown` is discovered today and dropping it would be a silent regression.
   `.mdx` is explicitly preview-only per RFC 0003 §7. `.pyi` is not named by the
-  RFC and stub files carry a different docstring culture, so admitting them is a
-  product decision that has not been taken. Both appear in ADR 008's candidate
-  table.
-  Date/Author: 2026-08-16, planning agent.
+  RFC and stub files carry a different docstring culture, so admitting them is
+  a product decision that has not been taken. Both appear in ADR 008's
+  candidate table. Date/Author: 2026-08-16, planning agent.
 
 - **D4 (upheld in round 2). Extraction anomalies are reported as warnings and do
   not by themselves produce exit `1`; authored-directive violations remain
-  errors and do.**
-  RFC 0003 §12 defines exit `1` as "when violations remain". A tree-sitter
-  parse-recovery event is not a violation of any prose rule — `IrError`'s own
-  doc comment calls these anomalies. Conversely `suppression-blanket-forbidden`
-  and `suppression-unknown-verb` describe something a human wrote incorrectly.
-  Without the split, S2 and S3 show `stilyagi check .` would fail on any
-  repository containing a file the pinned grammar cannot parse.
-  The review considered and rejected deferring this to roadmap item 3.2.3 on the
-  ground that 3.2.3 `Requires 2.2.2` (safe-fix planning), which is unstarted —
-  so "let 3.2.3 fix it" means shipping a tool that is broken on mixed trees for
-  an indefinite period, and building user CI around a behaviour that would later
-  have to be broken. It also rejected a cheaper variant that maps *every* IR
-  error to warning, because that demotes genuine authored mistakes too.
-  The review's substantive caveat is accepted and addressed: demotion without a
-  coverage signal converts a loud wrong failure into a quiet wrong success, so
-  D4 is only safe when shipped together with the run summary in W6. The two are
-  deliberately in the same milestone.
+  errors and do.** RFC 0003 §12 defines exit `1` as "when violations remain". A
+  tree-sitter parse-recovery event is not a violation of any prose rule —
+  `IrError`'s own doc comment calls these anomalies. Conversely
+  `suppression-blanket-forbidden` and `suppression-unknown-verb` describe
+  something a human wrote incorrectly. Without the split, S2 and S3 show
+  `stilyagi check .` would fail on any repository containing a file the pinned
+  grammar cannot parse. The review considered and rejected deferring this to
+  roadmap item 3.2.3 on the ground that 3.2.3 `Requires 2.2.2` (safe-fix
+  planning), which is unstarted — so "let 3.2.3 fix it" means shipping a tool
+  that is broken on mixed trees for an indefinite period, and building user CI
+  around a behaviour that would later have to be broken. It also rejected a
+  cheaper variant that maps *every* IR error to warning, because that demotes
+  genuine authored mistakes too. The review's substantive caveat is accepted
+  and addressed: demotion without a coverage signal converts a loud wrong
+  failure into a quiet wrong success, so D4 is only safe when shipped together
+  with the run summary in W6. The two are deliberately in the same milestone.
   Date/Author: 2026-08-16, planning agent; upheld round 2.
 
 - **D5 (reversed in round 2). One `const` array of the two authored-directive
   codes, declared beside its mint sites; everything else defaults to warning.**
   Round 1 declared two arrays in `crates/stilyagi-ir/src/diagnostics.rs` and
   proved them disjoint at compile time. S7 shows why that was wrong: six of the
-  eight codes are minted in a downstream crate, so `EXTRACTION_ANOMALY_ERROR_CODES`
-  would have been a second copy of literals `stilyagi-ir` cannot see, and the
-  proposed "union equals the minted set" test would have been a third
-  handwritten copy that no mechanism keeps honest. The disjointness proof
-  verified by machine something checkable by eye across eight strings, while the
-  drift that matters went unguarded.
-  Worse, the polarity was backwards: under "anomaly ⇒ warning, else error", a
-  new code minted in `stilyagi-tree-sitter` and not added to the array defaults
-  to **error**, newly breaking `stilyagi check .` in the field — precisely the
-  failure this plan exists to prevent.
-  So: declare `AUTHORED_DIRECTIVE_ERROR_CODES` in
-  `crates/stilyagi-ir/src/suppression.rs`, within fifty lines of both mint
-  sites, and classify as "authored ⇒ error, else warning". This deletes the
-  second array, the disjointness proof, the union test, and the shared `const
-  fn` byte-comparison helper. An unclassified future code becomes a warning,
-  which is what `IrError`'s doc comment already says it is. Constraint 9 records
-  the polarity as an invariant.
-  The array still crosses the bridge, so Constraint 3 applies and it is
-  Rust-owned. The review's stronger alternative — replacing the `code: String`
-  with a `#[serde(rename_all = "kebab-case")]` enum, which would preserve the
-  wire format byte-for-byte while making exhaustiveness a compile error at every
+  eight codes are minted in a downstream crate, so
+  `EXTRACTION_ANOMALY_ERROR_CODES` would have been a second copy of literals
+  `stilyagi-ir` cannot see, and the proposed "union equals the minted set" test
+  would have been a third handwritten copy that no mechanism keeps honest. The
+  disjointness proof verified by machine something checkable by eye across
+  eight strings, while the drift that matters went unguarded. Worse, the
+  polarity was backwards: under "anomaly ⇒ warning, else error", a new code
+  minted in `stilyagi-tree-sitter` and not added to the array defaults to
+  **error**, newly breaking `stilyagi check .` in the field — precisely the
+  failure this plan exists to prevent. So: declare
+  `AUTHORED_DIRECTIVE_ERROR_CODES` in `crates/stilyagi-ir/src/suppression.rs`,
+  within fifty lines of both mint sites, and classify as "authored ⇒ error,
+  else warning". This deletes the second array, the disjointness proof, the
+  union test, and the shared `const fn` byte-comparison helper. An unclassified
+  future code becomes a warning, which is what `IrError`'s doc comment already
+  says it is. Constraint 9 records the polarity as an invariant. The array
+  still crosses the bridge, so Constraint 3 applies and it is Rust-owned. The
+  review's stronger alternative — replacing the `code: String` with a
+  `#[serde(rename_all = "kebab-case")]` enum, which would preserve the wire
+  format byte-for-byte while making exhaustiveness a compile error at every
   mint site — is genuinely better and is recorded in ADR 008 as the destination
-  for roadmap item 3.2.3, which owns the IR envelope reshape.
-  Date/Author: 2026-08-16, planning agent (round 2).
+  for roadmap item 3.2.3, which owns the IR envelope reshape. Date/Author:
+  2026-08-16, planning agent (round 2).
 
 - **D6 (upheld, and narrowed). Invariants are proven with tests, not with `kani`
-  or `verus`.**
-  Neither is wired into this repository — no Makefile target, no `.config/`
-  entry, no CI step; they appear only as aspirations in `AGENTS.md`.
-  Introducing a verification toolchain would breach the dependency tolerance and
-  dwarf the change it verifies.
-  Round 1 substituted compile-time `const` assertions, arguing that a `const fn`
-  assertion over a fixed array is exhaustive over the entire real domain and so
-  strictly stronger than a bounded model check. That argument is sound and is
-  worth preserving as precedent — but per D1 and D5 both arrays it would have
-  guarded are now gone, so nothing in this plan needs it. The remaining
-  invariant that genuinely spans an unbounded domain is discovery's
-  order-independence, and that is a `hypothesis` property.
-  Date/Author: 2026-08-16, planning agent; narrowed round 2.
+  or `verus`.** Neither is wired into this repository — no Makefile target, no
+  `.config/` entry, no CI step; they appear only as aspirations in `AGENTS.md`.
+  Introducing a verification toolchain would breach the dependency tolerance
+  and dwarf the change it verifies. Round 1 substituted compile-time `const`
+  assertions, arguing that a `const fn` assertion over a fixed array is
+  exhaustive over the entire real domain and so strictly stronger than a
+  bounded model check. That argument is sound and is worth preserving as
+  precedent — but per D1 and D5 both arrays it would have guarded are now gone,
+  so nothing in this plan needs it. The remaining invariant that genuinely
+  spans an unbounded domain is discovery's order-independence, and that is a
+  `hypothesis` property. Date/Author: 2026-08-16, planning agent; narrowed
+  round 2.
 
 - **D7. `discover_markdown_files` is renamed to `discover_files`; the module
-  keeps its path.**
-  The name would otherwise lie. `stilyagi.discovery` is not part of the public
-  import surface (Constraint 6), so no shim is owed. The module docstring
-  currently describes itself as a public surface; W1 corrects that.
-  Date/Author: 2026-08-16, planning agent.
+  keeps its path.** The name would otherwise lie. `stilyagi.discovery` is not
+  part of the public import surface (Constraint 6), so no shim is owed. The
+  module docstring currently describes itself as a public surface; W1 corrects
+  that. Date/Author: 2026-08-16, planning agent.
 
 - **D8 (new in round 2). Rust-side discovery is named as the architectural
-  destination, and gitignore support is bound to it.**
-  Per S8 the design already assigns file discovery to Rust. Roadmap item 2.2.1
-  deferred `.gitignore` because a correct matcher would be a new *Python*
-  runtime dependency, and the project advertises none. That justification does
-  not survive the move: a Cargo dependency such as the `ignore` crate compiles
-  into the wheel and is invisible to users, and `ignore` provides gitignore
-  matching as a side effect of the walk. So the remedy for the growing
-  ignored-directory name list is not more names — it is the relocation. ADR 008
-  records this so the next maintainer inherits a dated stopgap rather than an
-  open-ended one.
+  destination, and gitignore support is bound to it.** Per S8 the design
+  already assigns file discovery to Rust. Roadmap item 2.2.1 deferred
+  `.gitignore` because a correct matcher would be a new *Python* runtime
+  dependency, and the project advertises none. That justification does not
+  survive the move: a Cargo dependency such as the `ignore` crate compiles into
+  the wheel and is invisible to users, and `ignore` provides gitignore matching
+  as a side effect of the walk. So the remedy for the growing ignored-directory
+  name list is not more names — it is the relocation. ADR 008 records this so
+  the next maintainer inherits a dated stopgap rather than an open-ended one.
   Date/Author: 2026-08-16, planning agent (round 2).
 
 - **D9 (new in round 2). The run summary is part of this slice, not an
-  enhancement.**
-  S9 shows a run that checked zero files is byte-identical to one that checked
-  everything. That is tolerable while discovery is one extension and every
-  target is a literal Markdown file; it is not tolerable once discovery walks
-  mixed trees, prunes fifteen directory names, skips unregistered extensions,
-  and demotes a class of failure to non-gating warnings. Every one of those is
-  introduced by this plan, and each makes "nothing was reported" more ambiguous.
-  The summary is therefore the observability this plan owes for the ambiguity it
-  creates, and it is what makes D4 safe. Text renderers gain
+  enhancement.** S9 shows a run that checked zero files is byte-identical to
+  one that checked everything. That is tolerable while discovery is one
+  extension and every target is a literal Markdown file; it is not tolerable
+  once discovery walks mixed trees, prunes fifteen directory names, skips
+  unregistered extensions, and demotes a class of failure to non-gating
+  warnings. Every one of those is introduced by this plan, and each makes
+  "nothing was reported" more ambiguous. The summary is therefore the
+  observability this plan owes for the ambiguity it creates, and it is what
+  makes D4 safe. Text renderers gain
   `checked N files (M skipped, K unreadable); E errors, W warnings`; the JSON
   renderer gains an additive sibling `summary` object so the exit code is
-  derivable from the payload.
-  Date/Author: 2026-08-16, planning agent (round 2).
+  derivable from the payload. Date/Author: 2026-08-16, planning agent (round 2).
 
 - **D10 (new in round 2). Severity is used as the exit-code axis, knowingly and
-  temporarily.**
-  The review correctly observed that violation-versus-non-violation is the
-  distinction actually needed, and that severity is an orthogonal, rule-owned
-  presentation axis: RFC 0003 §3.2 requires each rule to document a default
-  severity and §3.3 requires filtering by it, while RFC 0002 §9 requires
-  severity to support at least `error`, `warning`, `info`, and `hint` — of which
-  `python/stilyagi/diagnostics.py` implements two. So a warning-severity *rule*
-  in roadmap item 3.2.2 would print without gating.
-  Introducing the correct discriminator means a new field on `Diagnostic`, which
-  the tolerances forbid and which belongs with 3.2.3's envelope reshape. Today
-  the conflict is not reachable: the rule registry matches nothing, so anomalies
-  are the only warning producer in existence. The plan therefore takes the
-  severity axis deliberately, names the failing severities in a single explicit
-  constant so widening it is a one-line change, documents on `Diagnostic` that
-  `WARNING` does not gate, requires a `compute_exit_code` doctest covering the
-  warning case, and records in ADR 008 that roadmap item 3.2.2 must resolve the
-  axis before shipping its first warning-severity rule.
-  Date/Author: 2026-08-16, planning agent (round 2).
+  temporarily.** The review correctly observed that
+  violation-versus-non-violation is the distinction actually needed, and that
+  severity is an orthogonal, rule-owned presentation axis: RFC 0003 §3.2
+  requires each rule to document a default severity and §3.3 requires filtering
+  by it, while RFC 0002 §9 requires severity to support at least `error`,
+  `warning`, `info`, and `hint` — of which `python/stilyagi/diagnostics.py`
+  implements two. So a warning-severity *rule* in roadmap item 3.2.2 would
+  print without gating. Introducing the correct discriminator means a new field
+  on `Diagnostic`, which the tolerances forbid and which belongs with 3.2.3's
+  envelope reshape. Today the conflict is not reachable: the rule registry
+  matches nothing, so anomalies are the only warning producer in existence. The
+  plan therefore takes the severity axis deliberately, names the failing
+  severities in a single explicit constant so widening it is a one-line change,
+  documents on `Diagnostic` that `WARNING` does not gate, requires a
+  `compute_exit_code` doctest covering the warning case, and records in ADR 008
+  that roadmap item 3.2.2 must resolve the axis before shipping its first
+  warning-severity rule. Date/Author: 2026-08-16, planning agent (round 2).
 
 - **D11 (new in round 2). File-read hardening is in scope; the run-wide exit-`2`
-  redesign is not.**
-  Adding `*.py` makes `UnicodeDecodeError` reachable in a way it was not for
-  Markdown, because PEP 263 coding cookies make non-UTF-8 Python legal. The
-  narrow fixes — read with `utf-8-sig` so a byte-order mark does not become a
-  parse-recovery warning, catch `OSError` (which subsumes the four currently
-  caught) plus `MemoryError`, and report the user's path rather than the
-  resolved path — are small, local, and directly caused by this change, so they
-  are in.
-  Converting per-file read failures into per-file diagnostics, so that one
-  unreadable file stops discarding every other file's results and stops
-  masquerading as an internal error, is the right fix but changes what exit `2`
-  means. That is a contract change deserving its own item; ADR 008 records it as
-  required follow-up.
-  Date/Author: 2026-08-16, planning agent (round 2).
+  redesign is not.** Adding `*.py` makes `UnicodeDecodeError` reachable in a
+  way it was not for Markdown, because PEP 263 coding cookies make non-UTF-8
+  Python legal. The narrow fixes — read with `utf-8-sig` so a byte-order mark
+  does not become a parse-recovery warning, catch `OSError` (which subsumes the
+  four currently caught) plus `MemoryError`, and report the user's path rather
+  than the resolved path — are small, local, and directly caused by this
+  change, so they are in. Converting per-file read failures into per-file
+  diagnostics, so that one unreadable file stops discarding every other file's
+  results and stops masquerading as an internal error, is the right fix but
+  changes what exit `2` means. That is a contract change deserving its own
+  item; ADR 008 records it as required follow-up. Date/Author: 2026-08-16,
+  planning agent (round 2).
 
 - **D12 (revised). Rust test helpers follow the house remediation order:
   propagate, then `#[track_caller]`, then one documented panic boundary.**
@@ -696,10 +685,10 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   per-crate panic helper.
 
   Consequence: this also retires the "whitaker is red on `main`" baseline this
-  plan previously carried. See `Validation and acceptance`.
-  Date/Author: 2026-08-16, planning agent (post-rebase; revised after applying
-  the `addressing-whitaker-findings` guidance; dependency confirmed satisfied
-  after rebasing onto `configure-df12-lints`).
+  plan previously carried. See `Validation and acceptance`. Date/Author:
+  2026-08-16, planning agent (post-rebase; revised after applying the
+  `addressing-whitaker-findings` guidance; dependency confirmed satisfied after
+  rebasing onto `configure-df12-lints`).
 
 ## Outcomes & retrospective
 
@@ -713,10 +702,10 @@ Assume no prior knowledge of this repository.
 
 Stilyagi is a prose linter for documentation and for documentation comments
 inside source code. It is a mixed Rust and Python project. The Rust crates under
-`crates/` parse source files and produce a canonical intermediate representation
-(IR); the Python package under `python/stilyagi/` owns the CLI, configuration,
-rule execution, and diagnostic rendering. The two halves meet at a narrow PyO3
-bridge module named `_stilyagi_rs`.
+`crates/` parse source files and produce a canonical intermediate
+representation (IR); the Python package under `python/stilyagi/` owns the CLI,
+configuration, rule execution, and diagnostic rendering. The two halves meet at
+a narrow PyO3 bridge module named `_stilyagi_rs`.
 
 Terms used throughout:
 
@@ -727,8 +716,8 @@ Terms used throughout:
 - **Syntax.** Which extractor to run. Spelled `markdown`, `python_docstring`, or
   `rust_doc_comment`. Note this differs from the IR's `metadata.syntax` field,
   which uses bare language names (`markdown`, `python`, `rust`). This plan
-  touches only the former; ADR 008 records the two-vocabulary hazard for roadmap
-  items 3.2.3 and 3.3.1, which will both key off it.
+  touches only the former; ADR 008 records the two-vocabulary hazard for
+  roadmap items 3.2.3 and 3.3.1, which will both key off it.
 - **Discovery.** Walking command-line targets to produce the ordered list of
   files to check.
 - **Extraction anomaly.** A non-fatal notice that the extractor degraded — a
@@ -786,21 +775,21 @@ Tests, fixtures, and harnesses:
   Markdown-only. W6 extends it.
 - `tests/fixtures/corpus/{markdown,python,rust}/{valid,malformed}/` — the shared
   corpus. Note the malformed Python fixture is `unclosed-function.py.txt`, and
-  the Markdown corpus uses a `.md.fixture` suffix; both are existing conventions
-  for "corpus content that must not be treated as live source".
+  the Markdown corpus uses a `.md.fixture` suffix; both are existing
+  conventions for "corpus content that must not be treated as live source".
 
 ### Signposted documentation and skills
 
 Read these before starting the work item that cites them.
 
-| Work item | Read first |
-| --- | --- |
-| All | [AGENTS.md](../../AGENTS.md); [developers' guide](../developers-guide.md) §2b (the `check` pipeline) and §6 (lint, typecheck, test workflow) |
-| W1, W2 | `python-router` skill, then `python-types-and-apis`; `hexagonal-architecture` skill for the boundary argument in D1; [complexity antipatterns and refactoring strategies](../complexity-antipatterns-and-refactoring-strategies.md) |
-| W3, W6 | [rust testing with rstest fixtures](../rust-testing-with-rstest-fixtures.md); [rstest-bdd users' guide](../rstest-bdd-users-guide.md); [reliable testing in Rust via dependency injection](../reliable-testing-in-rust-via-dependency-injection.md); [rust doctest DRY guide](../rust-doctest-dry-guide.md); `python-testing` and `hypothesis` skills |
-| W4 | `rust-router` skill, then `rust-types-and-apis`; [developers' guide](../developers-guide.md) §4 "Rust and PyO3 integration" |
-| W5 | `python-errors-and-logging` skill; RFC 0003 §12; RFC 0002 §9 |
-| W7 | [documentation style guide](../documentation-style-guide.md), especially the ADR template; `arch-decision-records` skill; `en-gb-oxendict` skill |
+| Work item | Read first                                                                                                                                                                                                                                                                                                                                            |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| All       | [AGENTS.md](../../AGENTS.md); [developers' guide](../developers-guide.md) §2b (the `check` pipeline) and §6 (lint, typecheck, test workflow)                                                                                                                                                                                                          |
+| W1, W2    | `python-router` skill, then `python-types-and-apis`; `hexagonal-architecture` skill for the boundary argument in D1; [complexity antipatterns and refactoring strategies](../complexity-antipatterns-and-refactoring-strategies.md)                                                                                                                   |
+| W3, W6    | [rust testing with rstest fixtures](../rust-testing-with-rstest-fixtures.md); [rstest-bdd users' guide](../rstest-bdd-users-guide.md); [reliable testing in Rust via dependency injection](../reliable-testing-in-rust-via-dependency-injection.md); [rust doctest DRY guide](../rust-doctest-dry-guide.md); `python-testing` and `hypothesis` skills |
+| W4        | `rust-router` skill, then `rust-types-and-apis`; [developers' guide](../developers-guide.md) §4 "Rust and PyO3 integration"                                                                                                                                                                                                                           |
+| W5        | `python-errors-and-logging` skill; RFC 0003 §12; RFC 0002 §9                                                                                                                                                                                                                                                                                          |
+| W7        | [documentation style guide](../documentation-style-guide.md), especially the ADR template; `arch-decision-records` skill; `en-gb-oxendict` skill                                                                                                                                                                                                      |
 
 *Table 1: which documents and skills to read before each work item.*
 
@@ -828,7 +817,7 @@ commit.
 
 Go/no-go: gates recorded, both anchors confirmed, gate recipes re-read.
 
----
+______________________________________________________________________
 
 ### Milestone 1 — discovery and dispatch
 
@@ -837,8 +826,8 @@ Go/no-go: gates recorded, both anchors confirmed, gate recipes re-read.
 **W3-red (units).** In `tests/test_discovery.py`, add cases asserting that a
 tree containing `a.md`, `b.py`, `c.rs`, `d.txt`, and `e.py.txt` discovers
 exactly `a.md`, `b.py`, and `c.rs`, each carrying the right `syntax`; that an
-explicit `d.txt` target is skipped with an informative log record; and that each
-newly pruned directory name is pruned. Expect
+explicit `d.txt` target is skipped with an informative log record; and that
+each newly pruned directory name is pruned. Expect
 `AttributeError: module 'stilyagi.discovery' has no attribute 'discover_files'`.
 
 **W3-red (property).** In `tests/test_discovery_properties.py`, extend the
@@ -892,8 +881,8 @@ Go/no-go: every new test fails, each for the reason it was written for.
 
 - Rename `discover_markdown_files` to `discover_files`; update `__all__`, the
   module docstring, and the worked example. Correct the false example recorded
-  in S12 — and, since doctests do not execute, keep it minimal and verifiable by
-  eye rather than elaborate.
+  in S12 — and, since doctests do not execute, keep it minimal and verifiable
+  by eye rather than elaborate.
 - Stop the module docstring describing itself as a public surface (D7).
 - Add `syntax: model.Syntax` to `DiscoveredFile`, required and without a
   default. A default would silently mis-attribute every Python and Rust file at
@@ -935,25 +924,27 @@ Go/no-go: every new test fails, each for the reason it was written for.
 
 - Add `syntax: model.Syntax` to `CheckInput`, and give it a
   `from_discovered(cls, file, *, source_text=None)` constructor beside the
-  dataclass. `_discover_targets` currently copies `DiscoveredFile` fields one by
-  one, and nothing signals when the two shapes diverge; the constructor closes
-  that seam before the next language addition trips over it.
+  dataclass. `_discover_targets` currently copies `DiscoveredFile` fields one
+  by one, and nothing signals when the two shapes diverge; the constructor
+  closes that seam before the next language addition trips over it.
 - Replace the hard-coded `model.Syntax.MARKDOWN` in `_check_one_file` with
   `check_input.syntax`.
 - In `_stdin_check_input`, resolve the syntax from `--stdin-filename` via
   `discovery.syntax_for_path`. When no filename is supplied, default to
-  Markdown, as documented today. When a filename *is* supplied but its suffix is
-  unregistered, **skip** with a warning rather than silently guessing Markdown —
-  otherwise `stilyagi check - --stdin-filename main.go` prose-lints an entire Go
-  file as Markdown, which becomes a flood of nonsense once roadmap item 3.2.2
-  ships real rules. Skipping matches what happens for the same file on disk.
+  Markdown, as documented today. When a filename *is* supplied but its suffix
+  is unregistered, **skip** with a warning rather than silently guessing
+  Markdown — otherwise `stilyagi check - --stdin-filename main.go` prose-lints
+  an entire Go file as Markdown, which becomes a flood of nonsense once roadmap
+  item 3.2.2 ships real rules. Skipping matches what happens for the same file
+  on disk.
 - Update the stale strings: the `check` sub-parser help and the `targets` help
   in `python/stilyagi/cli_args.py`, and the "first implemented extractor
-  supports `model.Syntax.MARKDOWN`" docstring in `python/stilyagi/engine/api.py`.
+  supports `model.Syntax.MARKDOWN`" docstring in
+  `python/stilyagi/engine/api.py`.
 
 Go/no-go: milestone-1 tests pass; four gates green; commit.
 
----
+______________________________________________________________________
 
 ### Milestone 2 — classification, severity, and observability
 
@@ -966,12 +957,13 @@ case pinning Constraint 9's fail-safe polarity. Follow D12's remediation order
 for any helper beside these tests: propagate a `Result` first, reach for
 `#[track_caller]` when the helper asserts, and funnel a genuinely
 non-propagating context through `ExpectValid`. In
-`crates/stilyagi-pyext/src/tests/`, assert the new module function is registered
-and returns the expected shape. In `tests/test_check_files.py`, assert a tree
-containing one malformed `.rs` file exits `0` with a warning-severity
-diagnostic, and a tree containing a bare `# stilyagi: disable` exits `1` with an
-error-severity diagnostic. In `tests/test_renderers.py`, assert the summary line
-and the JSON `summary` object. Add the BDD scenarios below.
+`crates/stilyagi-pyext/src/tests/`, assert the new module function is
+registered and returns the expected shape. In `tests/test_check_files.py`,
+assert a tree containing one malformed `.rs` file exits `0` with a
+warning-severity diagnostic, and a tree containing a bare `# stilyagi: disable`
+exits `1` with an error-severity diagnostic. In `tests/test_renderers.py`,
+assert the summary line and the JSON `summary` object. Add the BDD scenarios
+below.
 
 ```gherkin
   Scenario: check reports a Rust parse recovery as a warning and still succeeds
@@ -1021,14 +1013,14 @@ Use `&'static [_]` rather than a fixed-size array, matching the house idiom in
 that appears in the type. Re-export from `crates/stilyagi-ir/src/lib.rs`.
 
 In `crates/stilyagi-pyext/src/lib.rs`, mirror `supported_syntaxes` exactly: add
-`authored_directive_error_codes() -> tuple[str, ...]`, register it in the module
-list, and declare it in `python/stilyagi/_stilyagi_rs.pyi`. These codes appear
-in bridge payloads, so Constraint 3 applies and Rust owns them.
+`authored_directive_error_codes() -> tuple[str, ...]`, register it in the
+module list, and declare it in `python/stilyagi/_stilyagi_rs.pyi`. These codes
+appear in bridge payloads, so Constraint 3 applies and Rust owns them.
 
 Mirror the *current* `supported_syntaxes` rather than any remembered form: this
 branch is rebased onto `ddf791b`, which moved PyO3 from 0.28.3 to 0.29.2. The
-bump changed `BoundRef` to `&pyo3::Bound` in `#[pymodule]` signature rejections,
-and the `trybuild` compile-fail expectations in
+bump changed `BoundRef` to `&pyo3::Bound` in `#[pymodule]` signature
+rejections, and the `trybuild` compile-fail expectations in
 `crates/stilyagi-pyext/tests/ui/fail/*.stderr` are pinned to the 0.29 wording.
 If W4's addition perturbs those golden files, that is a signal the new function
 does not match the established shape — fix the function, not the snapshot.
@@ -1049,8 +1041,8 @@ when a diagnostic's severity is in that set, leaving the `had_error` exit-`2`
 path unchanged. Add a doctest covering the warning case — the existing doctests
 exercise only the error default, so without one the new branch is unverified.
 
-Harden `_read_source` (D11): read with `utf-8-sig` so a byte-order mark does not
-become a spurious parse-recovery warning on Windows-authored files; catch
+Harden `_read_source` (D11): read with `utf-8-sig` so a byte-order mark does
+not become a spurious parse-recovery warning on Windows-authored files; catch
 `OSError` (which subsumes the four currently caught, and adds `ELOOP`, `EIO`,
 `ESTALE`, and `ENAMETOOLONG`) plus `MemoryError`; and pass
 `check_input.reported_path` to `_report_file_error` so the message names the
@@ -1068,8 +1060,8 @@ process. This is purely additive to the JSON contract, which matters because
 after W5 it is not.
 
 `run_check` must thread the counts through: files discovered, files skipped for
-an unregistered extension or a symlinked directory target, and files that failed
-to read.
+an unregistered extension or a symlinked directory target, and files that
+failed to read.
 
 Then complete the test matrix:
 
@@ -1077,22 +1069,23 @@ Then complete the test matrix:
   mixed-source run, using `JSONSnapshotExtension` in the style of
   `tests/test_renderers.py`. Normalize paths to the tree root first so the
   snapshot is not machine-specific, and pair it with direct semantic assertions
-  rather than relying on the snapshot alone. Do **not** add an `insta` snapshot:
-  W4 adds no rendered form on the Rust side, and a snapshot for its own sake is
-  churn.
+  rather than relying on the snapshot alone. Do **not** add an `insta`
+  snapshot: W4 adds no rendered form on the Rust side, and a snapshot for its
+  own sake is churn.
 - **Region-count regression.** Assert region counts over the fixed corpus, so a
   grammar bump that silently reduces extraction coverage fails Stilyagi's own
   suite rather than shipping. This is the only mechanical guard against the
   first risk.
 - **Performance.** Extend `tests/performance/structural_probe.py` to be
-  per-syntax rather than hard-wired to `model.Syntax.MARKDOWN` (S10). Record the
-  warm median per-file extraction time and throughput in MiB/s for each of the
-  three syntaxes, and record total bytes alongside file counts so the 3.6× file
-  growth is not confused with the ~1.5× byte growth. Markdown's figure is gated
-  against the checked-in roadmap 1.3.3 baseline per the tolerance; the Python
-  and Rust figures are new baselines, recorded not gated. If a whole-run
-  wall-clock figure is also wanted, take it with `hyperfine --warmup 1
-  --runs 10` — a single `time` reading on a shared six-core machine is noise.
+  per-syntax rather than hard-wired to `model.Syntax.MARKDOWN` (S10). Record
+  the warm median per-file extraction time and throughput in MiB/s for each of
+  the three syntaxes, and record total bytes alongside file counts so the 3.6×
+  file growth is not confused with the ~1.5× byte growth. Markdown's figure is
+  gated against the checked-in roadmap 1.3.3 baseline per the tolerance; the
+  Python and Rust figures are new baselines, recorded not gated. If a whole-run
+  wall-clock figure is also wanted, take it with
+  `hyperfine --warmup 1 --runs 10` — a single `time` reading on a shared
+  six-core machine is noise.
 - **Config cache evidence.** Log `ConfigResolver.cache_stats` at the end of the
   acceptance run. It already exposes discovery and resolved-table hit and miss
   counts, so this answers "does expanding discovery expose a config problem?"
@@ -1103,7 +1096,7 @@ Then complete the test matrix:
 
 Go/no-go: milestone-2 tests pass; all six gates green; commit.
 
----
+______________________________________________________________________
 
 ### Stage D — documentation and closing
 
@@ -1111,12 +1104,12 @@ Go/no-go: milestone-2 tests pass; all six gates green; commit.
 
 1. **ADR 008** at `docs/adr-008-v1-discovery-defaults.md`, following the
    sectioned template in the
-   [documentation style guide](../documentation-style-guide.md) —
-   the structure every existing ADR uses, not a one-line Y-Statement. It records
-   D1 through D11, the post-v1.0 candidate table, and the follow-up register
-   below. ADR 008 is the **single home** for the post-v1.0 table: it is dated
-   and permitted to be a research snapshot, whereas a design document is a
-   source of truth that must not silently rot.
+   [documentation style guide](../documentation-style-guide.md) — the structure
+   every existing ADR uses, not a one-line Y-Statement. It records D1 through
+   D11, the post-v1.0 candidate table, and the follow-up register below. ADR
+   008 is the **single home** for the post-v1.0 table: it is dated and
+   permitted to be a research snapshot, whereas a design document is a source
+   of truth that must not silently rot.
 
    The follow-up register ADR 008 must carry, each of which this plan
    deliberately declined:
@@ -1143,17 +1136,17 @@ Go/no-go: milestone-2 tests pass; all six gates green; commit.
      single-threaded end-of-run render makes acute at monorepo scale.
 
 2. **`docs/stilyagi-design.md` §7.3.** Rewrite the "Weaknesses and ambiguities"
-   bullet so it records that the RFC *did* over-claim file types and was trimmed
-   by `787526e`, rather than asserting in the present tense that it still does
-   (S4). Then add one sentence pointing at ADR 008 for post-v1.0 targets. Do not
-   duplicate the table here.
+   bullet so it records that the RFC *did* over-claim file types and was
+   trimmed by `787526e`, rather than asserting in the present tense that it
+   still does (S4). Then add one sentence pointing at ADR 008 for post-v1.0
+   targets. Do not duplicate the table here.
 
 3. **`docs/users-guide.md` §3.** Replace the forward-looking sentence and the
    "currently analyses Markdown files only" claim with delivered behaviour: the
    discovered extension set, the pruned directory names, that unregistered
    extensions are skipped, the warning-versus-error distinction and its effect
-   on exit codes, the new summary line, and the absence of `include` / `exclude`
-   configuration in v1. Update the `#### Exit codes` subsection.
+   on exit codes, the new summary line, and the absence of `include` /
+   `exclude` configuration in v1. Update the `#### Exit codes` subsection.
 
 4. **`docs/developers-guide.md`.** Update §2b "Discovery" for the rename and the
    new syntax field, §3's syntax-scope bullets, and the `### Exit codes`
@@ -1168,12 +1161,12 @@ Go/no-go: milestone-2 tests pass; all six gates green; commit.
    tree under `crates/stilyagi-tree-sitter/src/`; the per-language `metrics`
    counter names in `<lang>/observe.rs`; any new IR error codes and their
    classification; the `model.Syntax` member; corpus fixtures under
-   `tests/fixtures/corpus/<lang>/{valid,malformed}/`; the structural performance
-   probe; the per-language comparison table in §4; the users' guide extension
-   list; RFC 0003 §7; and ADR 008's candidate table. That is sixteen places.
-   Documenting four would actively mislead the first person who trusted it — and
-   naming all sixteen is the honest way to make the shotgun-surgery smell
-   visible enough that someone eventually fixes it.
+   `tests/fixtures/corpus/<lang>/{valid,malformed}/`; the structural
+   performance probe; the per-language comparison table in §4; the users' guide
+   extension list; RFC 0003 §7; and ADR 008's candidate table. That is sixteen
+   places. Documenting four would actively mislead the first person who trusted
+   it — and naming all sixteen is the honest way to make the shotgun-surgery
+   smell visible enough that someone eventually fixes it.
 
 5. **`docs/contents.md`.** Add the ADR 008 entry under
    `## Architecture decision records (ADRs)`, matching the existing pattern.
@@ -1186,9 +1179,9 @@ Go/no-go: all six gates green.
 
 ## Concrete steps
 
-Run everything from the repository root. Per AGENTS.md, tee long output to a log
-and review the log rather than the truncated terminal, and never run gates in
-parallel.
+Run everything from the repository root. Per AGENTS.md, tee long output to a
+log and review the log rather than the truncated terminal, and never run gates
+in parallel.
 
 Baseline (W0):
 
@@ -1236,9 +1229,8 @@ uv run stilyagi check python/ crates/ docs/ ; echo "exit=$?"
 ```
 
 Expected: 176 files checked (34 Python, 87 Rust, 55 Markdown), `exit=0`, and a
-summary line naming the count. This
-is the roadmap item's success criterion — mixed documentation and source trees
-work.
+summary line naming the count. This is the roadmap item's success criterion —
+mixed documentation and source trees work.
 
 Then the corroborating run, which additionally reaches the adversarial corpus:
 
@@ -1247,13 +1239,12 @@ uv run stilyagi check . ; echo "exit=$?"
 ```
 
 Expected per S3 and S13: 233 files checked (76 Python, 92 Rust, 65 Markdown);
-two error-severity
-`suppression-blanket-forbidden` diagnostics from the two corpus fixtures that
-deliberately carry bare `# stilyagi: disable`; two warning-severity
-extraction-anomaly diagnostics from
-`tests/fixtures/corpus/rust/malformed/unclosed-item.rs`; and `exit=1`, driven by
-the two errors and not by the two warnings. That exit `1` is correct behaviour,
-not a defect — the fixtures really do contain forbidden directives.
+two error-severity `suppression-blanket-forbidden` diagnostics from the two
+corpus fixtures that deliberately carry bare `# stilyagi: disable`; two
+warning-severity extraction-anomaly diagnostics from
+`tests/fixtures/corpus/rust/malformed/unclosed-item.rs`; and `exit=1`, driven
+by the two errors and not by the two warnings. That exit `1` is correct
+behaviour, not a defect — the fixtures really do contain forbidden directives.
 
 After each milestone, and only once all gates are green:
 
@@ -1272,8 +1263,8 @@ Acceptance is behavioural. Each item names an observation, not a code change.
    `src/lib.rs`, `stilyagi check .` processes all three in resolved-path order
    and exits `0`. Before the change it processes only `docs/guide.md`.
 2. **Per-file extractor selection.** The same run extracts `src/app.py` with
-   `python_docstring` and `src/lib.rs` with `rust_doc_comment`, asserted against
-   the recorded syntax rather than inferred.
+   `python_docstring` and `src/lib.rs` with `rust_doc_comment`, asserted
+   against the recorded syntax rather than inferred.
 3. **Unregistered extensions are skipped, not errors.** A tree containing
    `notes.txt` and `data.json` alongside `README.md` processes only `README.md`
    and exits `0`, and the summary reports one file checked.
@@ -1310,10 +1301,10 @@ Quality criteria — what "done" means:
 - **Lint:** `make lint` passes — `ruff`, `interrogate` at 100% docstring
   coverage, `pylint`, the df12 `pylint` plugin pass, `ambrleaks` over `tests`,
   `cargo doc`, `clippy` with `-D warnings`, and `whitaker`.
-- **Markdown:** `make markdownlint` (including the `typos` gate) and `make nixie`
-  pass.
-- **Review:** `coderabbit review --agent` reports no outstanding concerns at each
-  milestone.
+- **Markdown:** `make markdownlint` (including the `typos` gate) and
+  `make nixie` pass.
+- **Review:** `coderabbit review --agent` reports no outstanding concerns at
+  each milestone.
 
 All six gates are green on this branch as of the rebase onto `ddf791b`,
 including `whitaker`. That is a change from earlier in this branch's life: the
@@ -1328,8 +1319,9 @@ Every step is re-runnable. `make build`, the gates, and the acceptance commands
 are read-only with respect to source.
 
 - The two milestones commit independently, so `git revert` of milestone 2
-  restores the previous exit-code and rendering semantics while leaving expanded
-  discovery in place. Reverting milestone 1 restores Markdown-only checking.
+  restores the previous exit-code and rendering semantics while leaving
+  expanded discovery in place. Reverting milestone 1 restores Markdown-only
+  checking.
 - Review any `syrupy` snapshot diff before accepting it. A snapshot that churns
   on a harmless change is too broad — narrow the captured output rather than
   re-accepting.
@@ -1356,6 +1348,33 @@ make test       PASS  /tmp/test-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expan
 The test gate reported 332 Rust tests and 213 Python tests. `make` created
 `.uv-cache`; its presence was confirmed before recording S14.
 
+Milestone-1 W3 evidence, 2026-08-24:
+
+```plaintext
+RED   uv run python -m pytest tests/test_discovery.py \
+      tests/test_discovery_properties.py tests/test_cli_e2e.py \
+      tests/test_package_skeleton_units.py -q
+      -> 8 failed: the missing `discover_files` API and Markdown-only
+         extractor selection caused every failure.
+
+GREEN uv run python -m pytest tests/test_discovery.py \
+      tests/test_discovery_properties.py tests/test_check_files.py \
+      tests/test_cli_e2e.py tests/test_package_skeleton_units.py -q
+      -> 53 passed; the property, BDD scenarios, subprocess test, and
+         snapshot all passed.
+
+GATES make check-fmt, make typecheck, make lint, make test,
+      make markdownlint, and make nixie
+      -> PASS; make test reported 332 Rust tests, 218 Python tests, and
+         17 snapshots. Logs end in `-4.out` under `/tmp` using the W0 prefix.
+```
+
+The first full lint run rejected a runtime `collections.abc` import (TC003),
+and the second rejected a large assertion literal (C9102 and R9108). Moving the
+import under `TYPE_CHECKING` and replacing the literal with a normalized,
+semantic assertion plus a focused snapshot resolved both findings without
+changing the intended behaviour.
+
 The planning-time dry run, retained as the W6 baseline:
 
 ```plaintext
@@ -1366,11 +1385,11 @@ files producing IR errors: 3
 Measured corpus sizes, so the W6 comparison can separate file-count growth from
 byte growth:
 
-| Extension | Files | Total | Mean |
-| --- | --- | --- | --- |
-| `.md` | 65 | 1.61 MiB | 25.4 KiB |
-| `.py` | 76 | 0.31 MiB | 4.2 KiB |
-| `.rs` | 92 | 0.43 MiB | 4.8 KiB |
+| Extension | Files | Total    | Mean     |
+| --------- | ----- | -------- | -------- |
+| `.md`     | 65    | 1.61 MiB | 25.4 KiB |
+| `.py`     | 76    | 0.31 MiB | 4.2 KiB  |
+| `.rs`     | 92    | 0.43 MiB | 4.8 KiB  |
 
 *Table 2: file counts and byte totals per extension in this repository, under
 W1's prune list. File count grows 3.6× but total bytes only ~1.5×.*
@@ -1389,8 +1408,8 @@ pub const AUTHORED_DIRECTIVE_ERROR_CODES: &[&str];
 pub fn is_authored_directive_code(code: &str) -> bool;
 ```
 
-In `crates/stilyagi-pyext/src/lib.rs`, registered in `_stilyagi_rs` and declared
-in `python/stilyagi/_stilyagi_rs.pyi`:
+In `crates/stilyagi-pyext/src/lib.rs`, registered in `_stilyagi_rs` and
+declared in `python/stilyagi/_stilyagi_rs.pyi`:
 
 ```python
 def authored_directive_error_codes() -> tuple[str, ...]: ...
@@ -1456,8 +1475,7 @@ are deliberately not used; see D6.
 - [ADR 006](../adr-006-docstring-owner-metadata.md),
   [ADR 007](../adr-007-rust-doc-comment-owner-metadata.md)
 - [Developers' guide](../developers-guide.md),
-  [users' guide](../users-guide.md),
-  [documentation style guide](../documentation-style-guide.md)
+  [users' guide](../users-guide.md), [documentation style guide](../documentation-style-guide.md)
 
 [^1]: Ruff documents `include`, `extend-include`, `exclude`, `extend-exclude`,
     `respect-gitignore`, and `force-exclude`, and the rule that explicitly
@@ -1473,8 +1491,8 @@ decisions changed and the Rust surface shrank by about a third.
 What changed and why:
 
 - **D1 reversed.** The extension table moves from Rust to Python. The review
-  found that the design document already assigns file discovery to Rust (S8), so
-  round 1's arrangement — table in Rust, walk in Python — was the one option
+  found that the design document already assigns file discovery to Rust (S8),
+  so round 1's arrangement — table in Rust, walk in Python — was the one option
   that is neither the current state nor the target state, with a bridge
   round-trip that bought no capability and would be dead on arrival once
   discovery relocates. Constraint 3 is restated on a principle that
@@ -1486,16 +1504,17 @@ What changed and why:
   two *authored* codes, declared beside their mint sites, defaulting everything
   else to warning. Round 1 had it backwards in two ways (S7): it enumerated six
   codes minted in a crate that `stilyagi-ir` cannot see, guarded by a test that
-  could not mechanically enumerate mint sites; and its default sent unclassified
-  future codes to *error*, reintroducing the exact breakage the plan exists to
-  prevent. Constraint 9 now records fail-safe polarity as an invariant.
+  could not mechanically enumerate mint sites; and its default sent
+  unclassified future codes to *error*, reintroducing the exact breakage the
+  plan exists to prevent. Constraint 9 now records fail-safe polarity as an
+  invariant.
 - **D6 narrowed.** The argument against `kani` and `verus` stands and is worth
   preserving as precedent, but both arrays the compile-time proofs would have
   guarded are gone, so nothing needs them.
 - **D9, D10, D11 added.** The review's operational lens found that a run
   checking zero files is byte-identical to one checking everything (S9), which
-  makes D4's demotion of anomalies to warnings unsafe on its own — it converts a
-  loud wrong failure into a quiet wrong success. The run summary is therefore
+  makes D4's demotion of anomalies to warnings unsafe on its own — it converts
+  a loud wrong failure into a quiet wrong success. The run summary is therefore
   promoted from nicety to the observability this plan owes for the ambiguity it
   creates, and is deliberately shipped in the same milestone as D4. D10 records
   that severity is knowingly the wrong axis for the exit code and names what
@@ -1503,9 +1522,10 @@ What changed and why:
   run-wide exit-`2` redesign out.
 - **W6 rebuilt on existing infrastructure.** Round 1 proposed an unstructured
   `time` reading, unaware that roadmap item 1.3.3 already delivered a versioned
-  structural probe (S10) — a rigour regression. The probe is extended per-syntax
-  instead, byte totals are recorded alongside file counts, and the meaningless
-  "10× wall-clock" tolerance is replaced by a Markdown non-regression gate.
+  structural probe (S10) — a rigour regression. The probe is extended
+  per-syntax instead, byte totals are recorded alongside file counts, and the
+  meaningless "10× wall-clock" tolerance is replaced by a Markdown
+  non-regression gate.
 - **Work split into two milestones.** Discovery and dispatch are purely
   additive; classification and severity change the meaning of every run. They
   now have separate red-green cycles and separate reviews.
@@ -1513,8 +1533,8 @@ What changed and why:
   (ADR 008, which is dated and permitted to be a snapshot) rather than being
   duplicated into a source-of-truth design document. The "adding a language"
   checklist is written from the real sixteen-item list rather than a plausible
-  four. Line-number citations are replaced by section headings everywhere except
-  W0's anchors, since this plan's own edits invalidate them.
+  four. Line-number citations are replaced by section headings everywhere
+  except W0's anchors, since this plan's own edits invalidate them.
 - **Tolerances repaired.** Round 1's single 24-file budget would have tripped on
   day one. Code and documentation are now budgeted separately.
 
@@ -1546,8 +1566,9 @@ still needed, because that commit changed facts this plan asserted:
   is recorded and W6-red now cites it. W4 also gained a note that the compile
   -fail golden files are pinned to PyO3 0.29 wording.
 
-Gate evidence after the rebase: `make check-fmt`, `make typecheck`, `make lint`,
-and `make test` all exit `0`; 198 Python tests pass with 8 snapshots.
+Gate evidence after the rebase: `make check-fmt`, `make typecheck`,
+`make lint`, and `make test` all exit `0`; 198 Python tests pass with 8
+snapshots.
 
 **Round 2b (2026-08-16).** Rebased off `main` and onto `configure-df12-lints`,
 and the pull request retargeted to match. Rebased a second time after that
@@ -1571,7 +1592,7 @@ still the names §6b cites, and ADR 008 is still the next free number. The
 The typecheck gate moved twice on that branch and settled where it started. An
 intermediate commit switched `make typecheck` to a strict `pyright` pass, and
 this plan was updated to match; a later commit pinned `ty` and restored it. The
-plan now cites `ty check` again. The lesson is recorded rather than the
-churn: cite gates by their `make` target, and re-read the recipe at W0 rather
-than trusting any statement in this document about which tool sits behind
+plan now cites `ty check` again. The lesson is recorded rather than the churn:
+cite gates by their `make` target, and re-read the recipe at W0 rather than
+trusting any statement in this document about which tool sits behind
 `make typecheck`.

@@ -181,9 +181,7 @@ def test_cli_main_recovers_from_real_malformed_markdown(
 
     # Assert the whole malformed corpus reaches discovery; otherwise a fixture
     # that is skipped would let this regression pass vacuously.
-    discovered = discovery.discover_markdown_files(
-        [target_root], config.StilyagiConfig()
-    )
+    discovered = discovery.discover_files([target_root], config.StilyagiConfig())
     discovered_names = tuple(sorted(item.resolved_path.name for item in discovered))
     assert_with_context(
         discovered_names == expected_names,
@@ -256,6 +254,7 @@ def _stub_discovery(
     discovered_file = cli.CheckInput(
         reported_path=target.name,
         resolved_path=target,
+        syntax=model.Syntax.MARKDOWN,
     )
     monkeypatch.setattr(
         cli,

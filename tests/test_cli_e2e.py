@@ -28,7 +28,22 @@ def test_python_module_entrypoint_exits_zero_for_a_clean_markdown_tree(
     )
     assert not completed.stderr, "expected not completed.stderr"
 
+def test_python_module_entrypoint_checks_a_clean_mixed_source_tree(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A clean mixed tree should succeed through the module boundary."""
+    _write_markdown(tmp_path / "docs" / "guide.md", "Guide")
+    _write_source(tmp_path / "src" / "app.py", '"""Module docs."""\n')
+    _write_source(tmp_path / "src" / "lib.rs", "//! Crate docs.\n")
 
+    completed = _run_check(tmp_path)
+
+    assert completed.returncode == 0, "expected completed.returncode == 0"
+    assert_with_context(
+        completed.stdout == "0 diagnostics found\n",
+        "expected completed.stdout == '0 diagnostics found\\n'",
+    )
+    assert not completed.stderr, "expected not completed.stderr"
 def test_python_module_entrypoint_exits_zero_for_a_malformed_markdown_tree(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -82,3 +97,8 @@ def _write_markdown(path: pathlib.Path, title: str) -> None:
     """Write one tiny Markdown file for the subprocess tree."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"# {title}\n", encoding="utf-8")
+
+def _write_source(path: pathlib.Path, source: str) -> None:
+    """Write source text for a mixed-source subprocess tree."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(source, encoding="utf-8")

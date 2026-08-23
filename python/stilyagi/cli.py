@@ -39,7 +39,23 @@ class CheckInput:
 
     reported_path: str
     resolved_path: pathlib.Path
+    syntax: model.Syntax
     source_text: str | None = None
+
+    @classmethod
+    def from_discovered(
+        cls,
+        file: discovery.DiscoveredFile,
+        *,
+        source_text: str | None = None,
+    ) -> typ.Self:
+        """Convert one discovery result into a file-backed check input."""
+        return cls(
+            reported_path=file.reported_path,
+            resolved_path=file.resolved_path,
+            syntax=file.syntax,
+            source_text=source_text,
+        )
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
@@ -210,21 +226,19 @@ def _discover_targets(
     options: CheckOptions,
     resolver: config.ConfigResolver,
 ) -> list[CheckInput]:
-    """Discover Markdown files beneath the requested targets."""
+    """Discover registered files beneath the requested targets."""
     resolved_targets = [pathlib.Path(target).expanduser() for target in options.targets]
     has_stdin_target = any(target.as_posix() == "-" for target in resolved_targets)
     if has_stdin_target and len(resolved_targets) > 1:
         message = "stdin target cannot be combined with file targets"
         raise ValueError(message)
     if has_stdin_target:
-        return [_stdin_check_input(options.stdin_filename)]
+        check_input = _stdin_check_input(options.stdin_filename)
+        return [] if check_input is None else [check_input]
     discovery_config = _resolve_discovery_config(options, resolver)
     return [
-        CheckInput(
-            reported_path=discovered_file.reported_path,
-            resolved_path=discovered_file.resolved_path,
-        )
-        for discovered_file in discovery.discover_markdown_files(
+        CheckInput.from_discovered(discovered_file)
+        for discovered_file in discovery.discover_files(
             resolved_targets,
             discovery_config,
         )
@@ -235,7 +249,7 @@ def _resolve_discovery_config(
     options: CheckOptions,
     resolver: config.ConfigResolver,
 ) -> config.StilyagiConfig:
-    """Resolve the configuration that governs Markdown discovery.
+    """Resolve the configuration that governs registered-source discovery.
 
     Discovery is a single pass over every target, so it is governed by the
     configuration resolved for the current working directory rather than by any
@@ -245,7 +259,7 @@ def _resolve_discovery_config(
     Returns
     -------
     config.StilyagiConfig
-        The configuration used to discover Markdown inputs.
+        The configuration used to discover registered source inputs.
     """
     return resolver.resolve_config_for_path(
         pathlib.Path(),
@@ -255,8 +269,19 @@ def _resolve_discovery_config(
     )
 
 
-def _stdin_check_input(stdin_filename: str | None) -> CheckInput:
+def _stdin_check_input(stdin_filename: str | None) -> CheckInput | None:
     """Build the check input that consumes standard input."""
+    syntax = (
+        model.Syntax.MARKDOWN
+        if stdin_filename is None
+        else discovery.syntax_for_path(pathlib.Path(stdin_filename))
+    )
+    if syntax is None:
+        _LOGGER.warning(
+            "skipping stdin without a registered extractor: %s",
+            stdin_filename,
+        )
+        return None
     reported_path = (
         pathlib.Path(stdin_filename).as_posix() if stdin_filename else "<stdin>"
     )
@@ -266,6 +291,7 @@ def _stdin_check_input(stdin_filename: str | None) -> CheckInput:
     return CheckInput(
         reported_path=reported_path,
         resolved_path=resolved_path,
+        syntax=syntax,
         source_text=sys.stdin.read(),
     )
 
@@ -292,14 +318,14 @@ def _check_one_file(
     options: CheckOptions,
     resolver: config.ConfigResolver,
 ) -> tuple[list[diagnostics.Diagnostic], bool]:
-    """Check one discovered Markdown file or stdin payload."""
+    """Check one discovered file or standard-input payload."""
     source = _read_source(check_input)
     if source is None:
         return [], True
 
     _LOGGER.debug("extracting %s", check_input.reported_path)
     try:
-        document = engine.extract_document(source, model.Syntax.MARKDOWN)
+        document = engine.extract_document(source, check_input.syntax)
     except engine.BridgeExtractionError as exc:
         _report_check_error(check_input.resolved_path, exc)
         return [], True
