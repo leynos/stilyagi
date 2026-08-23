@@ -916,29 +916,26 @@ the host `PATH`. Ruff and Interrogate are both pinned in the `dev` dependency
 group, so the Makefile and CI resolve identical versions from `uv.lock`. Pylint
 is the exception: it runs through `uv tool run --python pypy` with the pinned
 [`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper.
-Interrogate, Pylint, and Skylos run after Ruff and before the Rust lint tiers,
-with Interrogate enforcing a 100% docstring-coverage threshold.
+Interrogate and Pylint run after Ruff and before the Rust lint tiers, with
+Interrogate enforcing a 100% docstring-coverage threshold. Skylos runs after
+the Rust lint tiers as the final lint step.
 
-### 6a. Python linting architecture
 
-ADR 004 records the accepted Python linting architecture.[^4] The short version
-is that Python linting has four tiers:
+### Python linting architecture
+
+ADR 004 records the accepted linting architecture.[^4] The complete lint order
+is:
 
 1. Ruff runs first through `uv run --group dev ruff check`.
 2. Interrogate runs second with `--fail-under 100` over `python/stilyagi` and
    `tests`.
 3. Pylint runs third through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
-4. Skylos runs fourth through its pinned Python 3.14 tool environment to scan
+4. Rustdoc runs with `RUSTDOCFLAGS=-D warnings`.
+5. Clippy runs with `-D warnings` across all workspace targets and features.
+6. Whitaker runs with `RUSTFLAGS=-D warnings` across the PyO3 extension.
+7. Skylos runs last through its pinned Python 3.14 tool environment, scanning
    production dead code strictly.
-
-`make lint` then continues into the Rust lint tiers owned by the repository:
-
-1. `cargo doc --workspace --all-features --no-deps` with
-   `RUSTDOCFLAGS=-D warnings`
-2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-3. `whitaker --all -- --workspace --all-targets --all-features` with
-   `RUSTFLAGS=-D warnings`
 
 The repository root `clippy.toml` owns the Clippy thresholds used by the
 workspace, including the four-argument maximum and the low complexity and
@@ -1037,7 +1034,169 @@ or the suppression. Ruff suppressions use `# noqa`, while Pylint suppressions
 use `# pylint: disable=...`; do not use one tool's suppression syntax to hide
 the other tool's finding.
 
-### 6b. Skylos dead-code gate
+
+### 6a. Skylos dead-code gate
+
+`make lint` runs a blocking Skylos scan of `python/stilyagi` after the existing
+Python and Rust linters. The scan uses the reviewed `pyproject.toml`
+configuration, analyses dead code only, emits concise non-interactive output,
+and disables uploads, provenance collection, and grep verification. Excluding
+tests from the liveness graph prevents test-only references from obscuring dead
+production symbols.
+
+The CI `Lint and dead-code detection` step calls the same `make lint` target,
+so local and CI dead-code detection use the same pinned version and
+configuration.
+
+Skylos parses source using the Python runtime's own `ast`. `SKYLOS_CLI` pins
+that runtime to Python 3.14, preventing phantom dead-code findings when the
+project uses syntax that an older parser does not understand. `SKYLOS` adds
+`--config-file` only for scans; the `whitelist` subcommand must immediately
+follow the command-only CLI.
+
+Treat every Skylos finding as a candidate for removal until its caller is
+verified. Remove genuine dead code. Prefer a typed `[tool.skylos.dead_code]`
+entry-point rule for an implicit runtime caller. Only when that rule cannot
+model the boundary, record a verified false positive as a narrow, named
+exception with its runtime caller:
+
+```shell
+make skylos-allow SYMBOL=registered_handler \
+  REASON="Loaded by the plugin registry; verified in the registry contract test"
+```
+
+The target refuses empty `SYMBOL` and `REASON` values with exit status 2 and
+records the explanation under `[tool.skylos.whitelist.documented]`. `SYMBOL`
+avoids WSL's injected hostname `NAME` variable. Do not add broad or unexplained
+allow-list entries; remove an entry when its dynamic boundary disappears.
+
+`tests/test_skylos_lint_contract.py` parses the Makefile with the pinned
+`makeutil` executable, so `make test` requires the same local bootstrap that CI
+uses:
+
+```shell
+rustup toolchain install nightly-2026-05-28 --profile minimal
+RUSTFLAGS="-Zpolonius=next" cargo +nightly-2026-05-28 install \
+  --git https://github.com/leynos/makeutil \
+  --rev 29fc5a1634ffbaa18a773eed9dff1b2838a45d9c \
+  --locked --force makeutil
+make test
+```
+
+### Python linting architecture
+
+ADR 004 records the accepted linting architecture.[^4] The complete lint order
+is:
+
+1. Ruff runs first through `uv run --group dev ruff check`.
+2. Interrogate runs second with `--fail-under 100` over `python/stilyagi` and
+   `tests`.
+3. Pylint runs third through `uv tool run --python pypy` and the pinned
+   `pylint-pypy-shim` wrapper.
+4. Rustdoc runs with `RUSTDOCFLAGS=-D warnings`.
+5. Clippy runs with `-D warnings` across all workspace targets and features.
+6. Whitaker runs with `RUSTFLAGS=-D warnings` across the PyO3 extension.
+7. Skylos runs last through its pinned Python 3.14 tool environment, scanning
+   production dead code strictly.
+
+The repository root `clippy.toml` owns the Clippy thresholds used by the
+workspace, including the four-argument maximum and the low complexity and
+function-length ceilings. Those limits apply to production code, unit tests,
+integration tests, and PyO3 bridge code because the Makefile runs all-targets,
+all-features checks through `cargo clippy`.
+
+Run the full lint gate with:
+
+```bash
+make lint
+```
+
+Run lint commands sequentially. The repository uses shared build and tool
+caches, and the canonical command order is the one encoded in the Makefile.
+
+The Makefile exposes the lint runner through these variables:
+
+Table: Lint runner Makefile variables.
+
+| Variable                    | Default                                                                                       | Purpose                                                         |
+| --------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `UV`                        | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                 | Selects the `uv` executable used by Makefile Python commands.   |
+| `UV_ENV`                    | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                | Keeps `uv` cache and tool state inside the repository worktree. |
+| `UV_RUN`                    | `$(UV_ENV) $(UV) run --group dev`                                                             | Runs commands in the locked development dependency group.       |
+| `INTERROGATE`               | `$(UV_RUN) interrogate`                                                                       | Selects the docstring-coverage command used by `make lint`.     |
+| `INTERROGATE_TARGETS`       | `python/stilyagi tests`                                                                       | Selects the directories checked by Interrogate.                 |
+| `INTERROGATE_FLAGS`         | `--fail-under 100`                                                                            | Requires complete Python docstring coverage.                    |
+| `PYLINT_PYTHON`             | `pypy`                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.     |
+| `PYLINT_TARGETS`            | `python/stilyagi tests`                                                                       | Selects the directories checked by the Pylint tier.             |
+| `PYLINT_PYPY_SHIM_REF`      | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                    | Pins the shim commit used by the Pylint tier.                   |
+| `PYLINT_PYPY_SHIM`          | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                  | Expands the pinned shim package source.                         |
+| `PYLINT`                    | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy` | Builds the complete Pylint command used by `make lint`.         |
+| `SKYLOS_VERSION`            | `4.33.2`                                                                                      | Pins the dead-code detector used by `make lint`.                |
+| `SKYLOS_CLI`                | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`            | Builds the command-only Skylos CLI.                             |
+| `SKYLOS`                    | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                  | Adds scan-only configuration to the Skylos CLI.                 |
+| `SKYLOS_PRODUCTION_TARGETS` | `python/stilyagi`                                                                             | Limits dead-code analysis to production Python sources.         |
+| `SKYLOS_EXCLUDE_FOLDERS`    | `tests`                                                                                       | Excludes tests from the production liveness graph.              |
+| `TYPOS_VERSION`             | `1.48.0`                                                                                      | Pins the `typos` version shared by the Makefile and CI.         |
+| `TYPOS`                     | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                         | Builds the spelling-check command used by `make markdownlint`.  |
+
+Override these variables only for local diagnosis unless the project-wide lint
+policy is intentionally changing. For example:
+
+```bash
+make lint PYLINT_TARGETS=python/stilyagi
+make lint PYLINT_PYTHON=pypy3.11
+```
+
+The lint policy imported from
+[`leynos/episodic`](https://github.com/leynos/episodic) is a policy baseline,
+not an automatic upstream subscription. Future Episodic rule changes should be
+reviewed deliberately before they are copied into Stilyagi. This branch imports
+the current Ruff selector set, deprecated `typing.*` banned API table, and
+focused Pylint message allowlist because they match Stilyagi's maintenance
+goals: fast first-pass feedback, explicit import discipline, predictable
+docstring style, low complexity ceilings, lazy logging, safer subprocess and
+file handling, and review pressure on branch-heavy or overgrown functions.
+
+The Python lint configuration lives in `pyproject.toml`:
+
+- `[tool.ruff]`
+  - sets the line length, preview mode, and Python target version
+- `[tool.ruff.lint]`
+  - selects the active Ruff rule families and explicit preview selectors
+  - ignores only the two pydocstyle conflicts that oppose the chosen style
+- `[tool.ruff.lint.per-file-ignores]`
+  - allows test-specific assertions and test helper signatures without
+    weakening application-code linting
+- `[tool.ruff.lint.flake8-import-conventions]`
+  - bans broad `from` imports for modules whose aliases are standardized
+- `[tool.ruff.lint.flake8-import-conventions.aliases]`
+  - records the approved aliases, including `typing as typ`,
+    `collections.abc as cabc`, and `datetime as dt`
+- `[tool.ruff.lint.flake8-tidy-imports.banned-api]`
+  - rejects deprecated `typing.*` generic aliases in favour of modern
+    builtins, `collections.abc`, `contextlib`, `collections`, and `re`
+- `[tool.ruff.lint.pydocstyle]`
+  - keeps NumPy docstring style as the project convention
+- `[tool.ruff.lint.mccabe]`
+  - caps cyclomatic complexity at 8
+- `[tool.ruff.lint.pylint]`
+  - mirrors the strict Ruff-side Pylint compatibility thresholds for
+    arguments, boolean expressions, and locals
+- `[tool.pylint.main]`
+  - enables recursive directory traversal and caps module length
+- `[tool.pylint.design]`
+  - sets the focused Pylint design thresholds that complement Ruff
+- `[tool.pylint."messages control"]`
+  - disables all Pylint messages by default, disables `syntax-error` for the
+    PyPy-backed runner, and enables only the explicitly selected second-tier
+    diagnostics
+
+When adding or suppressing lint rules, keep the reason near the configuration
+or the suppression. Ruff suppressions use `# noqa`, while Pylint suppressions
+use `# pylint: disable=...`; do not use one tool's suppression syntax to hide
+the other tool's finding.
+
+### 6a. Skylos dead-code gate
 
 `make lint` runs a blocking Skylos scan of `python/stilyagi` after the existing
 Python and Rust linters. The scan uses the reviewed `pyproject.toml`
@@ -1132,10 +1291,10 @@ fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
 cannot be propagated — strategy constructors, `prop_map` closures, fixture
 builders used by `proptest!` bodies (including helpers also exercised by
 deterministic tests), and shared assertion helpers with no `Result`-compatible
-contract. Mark the latter `#[track_caller]` so
-their failures name the calling test. Do not reach for it to avoid threading a
-`Result` through an ordinary fixture; step 1 governs there. Its methods are
-`#[track_caller]`, so failures report the fixture that is wrong.
+contract. Mark the latter `#[track_caller]` so their failures name the calling
+test. Do not reach for it to avoid threading a `Result` through an ordinary
+fixture; step 1 governs there. Its methods are `#[track_caller]`, so failures
+report the fixture that is wrong.
 
 What not to do: do not scatter bespoke `match { Err(error) => panic!(…) }`
 helpers or divergent `let`-`else` blocks through test modules. They satisfy the
@@ -1145,10 +1304,10 @@ anonymous ones are not.
 
 Two crates additionally define `must_ok!` and `must_some!` macros
 (`crates/stilyagi-markdown/src/tests.rs` and
-`crates/stilyagi-pyext/src/bridge_bdd.rs`). Those remain correct *inside* a test
-body, where a macro expands in place. They are duplicated across the two crates;
-consolidating them onto `ExpectValid` is tracked as follow-up work rather than
-done piecemeal.
+`crates/stilyagi-pyext/src/bridge_bdd.rs`). Those remain correct *inside* a
+test body, where a macro expands in place. They are duplicated across the two
+crates; consolidating them onto `ExpectValid` is tracked as follow-up work
+rather than done piecemeal.
 
 ### 6c. Spelling gate
 

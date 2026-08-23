@@ -7,23 +7,38 @@ text, so whitespace and neighbouring comments cannot hide a command-shape
 regression.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import pathlib
 import shlex
 import shutil
+import string
 import subprocess  # noqa: S404 -- contract tests invoke a pinned local parser.
 import tomllib
 import typing as typ
 
-import yaml
+import hypothesis as hyp
+import hypothesis.strategies as st
+
+from tests.support.workflows import load_workflow
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 _MAKEUTIL_COMMAND: typ.Final = ("makeutil", "parse", "Makefile")
 _MAKEUTIL_REVISION: typ.Final = "29fc5a1634ffbaa18a773eed9dff1b2838a45d9c"
 _MAKEUTIL_TOOLCHAIN: typ.Final = "nightly-2026-05-28"
+_REQUIRED_SKYLOS_WHITELIST_NAMES: typ.Final = frozenset((
+    "InvalidSpacyModelError",
+    "_coerce_path",
+    "_coerce_string_to_string_tuple_map",
+    "_copy_mapping",
+    "_require_strict_int",
+    "_reset_extraction_state_for_tests",
+    "extract_document",
+))
+_SHELL_ARGUMENT_TEXT: typ.Final = st.text(
+    alphabet=string.ascii_letters + string.digits + " _$;|&'\"()[]{}*?!\\",
+    max_size=48,
+)
 _MAKEUTIL_INSTALL_TOKENS: typ.Final = (
     "rustup",
     "toolchain",
@@ -130,11 +145,8 @@ def _recipe_tokens(target: str) -> tuple[tuple[str, ...], ...]:
 
 def _workflow_document(workflow_path: str) -> dict[str, object]:
     """Return a repository workflow while preserving scalar strings."""
-    workflow = yaml.load(
-        (REPOSITORY_ROOT / workflow_path).read_text(encoding="utf-8"),
-        Loader=yaml.BaseLoader,
-    )
-    return _mapping(workflow, subject=f"{workflow_path} workflow")
+    workflow = (REPOSITORY_ROOT / workflow_path).read_text(encoding="utf-8")
+    return load_workflow(workflow)
 
 
 def _workflow_job(workflow_path: str, job_name: str) -> dict[str, object]:
@@ -276,8 +288,11 @@ def test_skylos_configuration_requires_strict_documented_exceptions() -> None:
     documented = _mapping(
         whitelist.get("documented"), subject="Skylos documented whitelist"
     )
-    assert set(names) == set(documented), (
-        "Skylos documented whitelist must explain every named exception"
+    assert set(names) == _REQUIRED_SKYLOS_WHITELIST_NAMES, (
+        "Skylos must retain the verified non-empty allow list"
+    )
+    assert set(documented) == _REQUIRED_SKYLOS_WHITELIST_NAMES, (
+        "Skylos must document every verified allow-list exception"
     )
     assert all(isinstance(reason, str) and reason for reason in documented.values()), (
         "Skylos documented whitelist reasons must be non-empty strings"
@@ -320,6 +335,38 @@ def test_skylos_allow_dry_run_preserves_whitelist_argument_order() -> None:
         'skylos whitelist "${SKYLOS_SYMBOL}" --reason "${SKYLOS_REASON}"'
         in completed.stdout
     ), "Skylos whitelist dry-run contract must preserve subcommand argument order"
+
+
+@hyp.settings(deadline=None)
+@hyp.example(symbol="$(handler);*", reason='Loaded "$plugin" | registry')
+@hyp.given(symbol=_SHELL_ARGUMENT_TEXT, reason=_SHELL_ARGUMENT_TEXT)
+def test_skylos_allow_validates_argument_boundaries(symbol: str, reason: str) -> None:
+    """Validate missing values and preserve shell-significant argument boundaries."""
+    completed = _run_skylos_allow(
+        f"SYMBOL={symbol}", f"REASON={reason}", dry_run=bool(symbol and reason)
+    )
+
+    if not symbol:
+        assert completed.returncode == 2, "A missing SYMBOL must fail with exit 2"
+        assert "Error: SYMBOL is required" in completed.stderr, (
+            "A missing SYMBOL must report its validation error"
+        )
+    elif not reason:
+        assert completed.returncode == 2, "A missing REASON must fail with exit 2"
+        assert "Error: REASON is required" in completed.stderr, (
+            "A missing REASON must report its validation error"
+        )
+    else:
+        assert completed.returncode == 0, (
+            "A complete whitelist request must support a non-mutating dry run"
+        )
+        assert completed.stdout.count("skylos whitelist") == 1, (
+            "A dry run must emit exactly one Skylos whitelist command"
+        )
+        assert (
+            'skylos whitelist "${SKYLOS_SYMBOL}" --reason "${SKYLOS_REASON}"'
+            in completed.stdout
+        ), "The Skylos subcommand must precede --reason without shell interpolation"
 
 
 def test_full_suite_workflows_provision_the_pinned_makefile_parser() -> None:

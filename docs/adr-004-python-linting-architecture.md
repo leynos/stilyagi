@@ -104,10 +104,13 @@ Adopt Option A.
 `make lint` SHALL run these tiers in order:
 
 1. Ruff through `uv run --group dev`.
-2. Focused Pylint through `uv tool run --python pypy` and the pinned
+2. Interrogate through `uv run --group dev`.
+3. Focused Pylint through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
-3. Rust `cargo clippy` with warnings denied.
-4. Whitaker from `crates/stilyagi-pyext/`.
+4. Rustdoc with warnings denied.
+5. Rust `cargo clippy` with warnings denied.
+6. Whitaker from `crates/stilyagi-pyext/`.
+7. Skylos strict production dead-code detection.
 
 The Python lint policy SHALL live in `pyproject.toml`:
 
@@ -197,15 +200,18 @@ those defaults only when the project-wide policy is intentionally changing.
 ## Addendum — 2026-08-23: Skylos production dead-code tier
 
 The original two-tier decision remains the foundation for Ruff and PyPy-backed
-Pylint. Interrogate subsequently added docstring coverage to the lint workflow.
-The effective Python lint order is now:
+Pylint. Interrogate subsequently added docstring coverage to the lint workflow,
+and the complete lint order is now:
 
 1. Ruff — fast, broad lint rules and docstring style.
 2. Interrogate — 100 per cent docstring presence.
 3. PyPy-backed Pylint — focused selected messages.
-4. Skylos — strict production dead-code detection.
+4. Rustdoc — workspace API documentation with warnings denied.
+5. Clippy — workspace linting with warnings denied.
+6. Whitaker — PyO3 extension linting with warnings denied.
+7. Skylos — strict production dead-code detection.
 
-Skylos is a blocking fourth tier in `make lint`. It scans `python/stilyagi`,
+Skylos is a blocking final tier in `make lint`. It scans `python/stilyagi`,
 excludes `tests`, and uses the strict gate configuration in `pyproject.toml`.
 The standalone tool environment is pinned to Python 3.14: Skylos parses source
 using that runtime's `ast`, so the pin prevents phantom dead-code findings from

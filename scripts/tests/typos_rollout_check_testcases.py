@@ -66,14 +66,20 @@ def test_load_policy_combines_shared_and_local_policy(
 ) -> None:
     """Load the committed local policy with shared phrases and scan settings."""
     files = policy_files()
-    files["typos.local.toml"] = (REPOSITORY_ROOT / "typos.local.toml").read_text(
+    committed_local_policy = (REPOSITORY_ROOT / "typos.local.toml").read_text(
         encoding="utf-8"
+    )
+    files["typos.local.toml"] = (
+        f"{committed_local_policy}\n"
+        "[phrases.corrections]\n"
+        '"fit-for-purpose" = "suitable"\n'
     )
     initialize(tmp_path, files)
 
     policy = checker.load_policy(tmp_path)
 
     assert policy.phrase_corrections == (  # noqa: S101 -- isolated test assertion.
+        ("fit-for-purpose", "suitable"),
         (PROHIBITED, "handwritten"),
     )
     assert policy.ignore_patterns == (  # noqa: S101 -- isolated test assertion.
