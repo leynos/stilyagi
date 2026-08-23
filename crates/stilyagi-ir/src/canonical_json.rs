@@ -86,6 +86,23 @@ mod tests {
         assert_eq!(to_lower_hex(&[]), "");
     }
 
+    #[test]
+    fn every_u8_value_renders_as_two_lowercase_round_tripping_digits() {
+        for byte in u8::MIN..=u8::MAX {
+            let rendered = to_lower_hex(&[byte]);
+            assert_eq!(rendered.len(), 2, "byte {byte:#04x} must render two digits");
+            assert!(
+                rendered
+                    .bytes()
+                    .all(|character| character.is_ascii_digit()
+                        || (b'a'..=b'f').contains(&character)),
+                "byte {byte:#04x} rendered non-lowercase-hex output {rendered:?}",
+            );
+            let parsed = u8::from_str_radix(&rendered, 16).expect("two hex digits parse as a byte");
+            assert_eq!(parsed, byte, "round-trip mismatch for byte {byte:#04x}");
+        }
+    }
+
     proptest! {
         #[test]
         fn every_byte_renders_as_two_lowercase_round_tripping_digits(byte in any::<u8>()) {

@@ -701,7 +701,7 @@ payloads.
 (SHA-256) content hash that IR documents persist as `document.content_hash`.
 The digest suffix is rendered
 by the crate-internal `to_lower_hex` helper in `canonical_json.rs` rather than
-with the `{:x}` format specifier, because `sha2` 0.11 changed `digest()` to
+with the `{:x}` format specifier because `sha2` 0.11 changed `digest()` to
 return `hybrid_array::Array<u8, _>`, which does not implement `LowerHex`. The
 rendering stays lowercase and zero-padded so persisted IR hashes remain
 byte-identical.
