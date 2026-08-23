@@ -1006,8 +1006,8 @@ Strong points in RFC 0003:
 
 Weaknesses and ambiguities:
 
-- The draft includes too many source-language file types for a v1 extractor
-  story that has not yet earned them.
+- The RFC previously over-claimed source-language file types; commit `787526e`
+  trimmed the v1 contract to the supported set.
 - It mirrors Ruff well, but it does not yet separate what is mandatory in v1
   from what is merely nice to have.
 - `version` as a subcommand is acceptable, but global `-V` is the more
@@ -1024,6 +1024,11 @@ Recommended revisions:
 Compatibility risks:
 
 - Over-claiming file-type support in v1 will create a support burden.
+
+Post-v1.0 discovery and operational-policy candidates are recorded in
+[ADR 008](adr-008-v1-discovery-defaults.md), rather than duplicating a
+fast-changing candidate table in this design document.
+
 - Copying Ruff's user-level config fallback would make CI parity worse.
 
 V1 sufficiency:

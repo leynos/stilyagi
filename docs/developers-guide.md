@@ -383,23 +383,25 @@ collaborator.
 `run_check` delegates target collection to `_discover_targets`, which calls:
 
 ```python
-discovery.discover_markdown_files(targets, config) -> list[DiscoveredFile]
+discovery.discover_files(targets, config) -> list[DiscoveredFile]
 ```
 
-`DiscoveredFile` is a frozen dataclass with two fields:
+`DiscoveredFile` is a frozen dataclass with three fields:
 
 - `reported_path` — the command-line-relative POSIX path used for
   user-facing output
 - `resolved_path` — the fully resolved filesystem path used for
   de-duplication and stable ordering
+- `syntax` — the registered `model.Syntax` selected from the final file suffix
 
 Discovery is a single deterministic pass, sorted by resolved path, that skips
-known build-noise directories (`.git`, `build`, `dist`, `node_modules`,
-`target`, `.venv`) and does not follow symlinked directories. The configuration
-that governs discovery is resolved by `cli._resolve_discovery_config` for the
-current working directory rather than for each individual file, so
-`--isolated`, explicit `--config` values, and CLI rule overrides all stay in
-force during the discovery pass.
+known build-noise directories and does not follow symlinked directories. The
+registered suffixes are `.md`, `.markdown`, `.py`, and `.rs`; unregistered
+source candidates are counted as skipped. The configuration that governs
+discovery is resolved by `cli._resolve_discovery_config` for the current
+working directory rather than for each individual file, so `--isolated`,
+explicit `--config` values, and CLI rule overrides all stay in force during the
+discovery pass.
 
 ### Configuration loading and resolution
 
@@ -466,12 +468,14 @@ positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 
 ### Rendering
 
-`engine/renderers.py` `RendererRegistry.render(diagnostics, output_format)`
-sorts diagnostics by path, location, and code, then renders either:
+`engine/renderers.py`
+`RendererRegistry.render(diagnostics, output_format, summary)` sorts
+diagnostics by path, location, and code, then renders either:
 
 - deterministic text: one line per finding formatted as
-  `path:line:column: severity code message`, followed by a summary line; or
-- a stable JSON document.
+  `path:line:column: severity code message`, followed by checked, skipped,
+  unreadable, error, and warning totals; or
+- a stable JSON document with the same additive `summary` object.
 
 Unknown format strings raise `ValueError`.
 
@@ -479,8 +483,8 @@ Unknown format strings raise `ValueError`.
 
 `cli.compute_exit_code` returns:
 
-- `0` — no diagnostics found
-- `1` — one or more diagnostics found
+- `0` — no error diagnostics found; warning-only diagnostics do not gate
+- `1` — one or more error diagnostics found
 - `2` — error (failed file read, invalid config, extractor failure, or usage
   error)
 
@@ -511,6 +515,10 @@ particular.
 - Syntax and locale scope
   - Current implemented extraction support covers Markdown, Python
     docstrings, and Rust documentation comments.
+  - Default command discovery covers `.md`, `.markdown`, `.py`, and `.rs`.
+    Keep the fixed extension set in `stilyagi.discovery` until a deliberate
+    Rust discovery migration replaces it; do not add configuration or flags
+    for inclusion and exclusion opportunistically.
   - MDX remains preview-only until later evidence upgrades it into the stable
     support matrix.
   - English is the only formally supported locale in v1. Architecture may stay
@@ -840,6 +848,37 @@ boundary:
   `supported_region_kinds` result and known-kind lookup data. Tests that patch
   bridge vocabulary functions must call it before and after the patched state;
   production code must not call it.
+
+
+### 4.3 Adding a language extractor
+
+Adding a syntax today is intentionally a coordinated change. Before starting,
+confirm that the supported surface is a product decision and update
+[ADR 008](adr-008-v1-discovery-defaults.md) rather than silently broadening the
+default walker. The current implementation needs all of the following edits:
+
+1. Add the `ExtractSyntax` variant.
+2. Add it to `ExtractSyntax::ALL`.
+3. Add its `ExtractSyntax::as_str` match arm.
+4. Add its `TryFrom<&str>` match arm.
+5. Add its dispatch arm in `extract_document_with_source_identity`.
+6. Add the registered extension to `_EXTENSION_SYNTAXES`.
+7. Add the tree-sitter grammar dependency and its module tree under
+   `crates/stilyagi-tree-sitter/src/`.
+8. Add per-language metrics counter names in `<lang>/observe.rs`.
+9. Classify any new IR error codes.
+10. Add the matching `model.Syntax` member.
+11. Add valid and malformed fixtures under
+    `tests/fixtures/corpus/<lang>/{valid,malformed}/`.
+12. Extend the structural performance probe.
+13. Extend the per-language comparison table in this section.
+14. Update the users' guide extension list.
+15. Update RFC 0003 §7.
+16. Update ADR 008's candidate table.
+
+This is a visible shotgun-surgery boundary. Do not paper over it with an
+unreviewed shortcut: the list makes each ownership boundary explicit until a
+future extractor-registration design can reduce the coordination cost.
 
 ## 5. Build workflow
 

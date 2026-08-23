@@ -250,17 +250,25 @@ MDX remains preview-only. That means the architecture may continue to explore
 it, but users should not yet depend on MDX behaviour as part of Stilyagi's
 stable v1 contract.[^4]
 
-When the command-line interface (CLI) discovery contract lands, the stable
-default recursive file set will cover `*.md`, `*.py`, and `*.rs`. MDX stays
-outside that default set until preview behaviour graduates into the stable
-support matrix.
+The command-line interface (CLI) recursively discovers `.md`, `.markdown`,
+`.py`, and `.rs` files. MDX and Python stubs remain outside the default set
+until their support graduates into the stable matrix. Directory discovery skips
+the known build and cache directories `.eggs`, `.git`, `.mypy_cache`, `.nox`,
+`.pytest_cache`, `.ruff_cache`, `.stilyagi_cache`, `.tox`, `.uv-cache`,
+`.uv-tools`, `.venv`, `.venv-release-smoke`, `__pycache__`, `build`, `dist`,
+`node_modules`, `site-packages`, and `target`; files with other extensions are
+skipped. V1 has no `include` or `exclude` configuration for changing that fixed
+set.
 
-### Checking Markdown with `stilyagi check`
+### Checking mixed repositories with `stilyagi check`
 
-The first command-line surface in v1 is `stilyagi check` for Markdown files. It
-discovers Markdown targets recursively, resolves the nearest supported
-configuration for each file, and renders deterministic diagnostics. The command
-currently analyses Markdown files only (`*.md` and `*.markdown`).
+The first command-line surface in v1 is `stilyagi check`. It discovers
+supported targets recursively, resolves the nearest supported configuration for
+each file, and renders deterministic diagnostics. Recoverable extraction
+anomalies are warnings; authored suppression-directive mistakes are errors. The
+text output ends with
+`checked N files (M skipped, K unreadable); E errors, W warnings`, and JSON
+output contains the same counts in its `summary` object.
 
 #### Output formats
 
@@ -278,17 +286,17 @@ discovery entirely.
 
 #### Standard input
 
-Pass `-` as the target to read Markdown from standard input instead of from
-files on disk. Use `--stdin-filename PATH` to attribute diagnostics to PATH
-rather than the default `<stdin>`. Combining `-` with file targets is a usage
-error (exit code 2).
+Pass `-` as the target to read a supported source from standard input instead
+of from files on disk. Use `--stdin-filename PATH` to attribute diagnostics to
+PATH rather than the default `<stdin>`. Combining `-` with file targets is a
+usage error (exit code 2).
 
 #### Exit codes
 
 The command exits with one of three codes:
 
-- `0` — no diagnostics found.
-- `1` — one or more diagnostics found.
+- `0` — no error diagnostics found; warnings alone do not fail the command.
+- `1` — one or more error diagnostics found.
 - `2` — error: a failed file read, invalid configuration, an extractor
   failure, or a usage error.
 
