@@ -1,5 +1,5 @@
 {
   "exit_code": 0,
   "stderr": "",
-  "stdout": "{\n  \"diagnostics\": []\n}\n"
+  "stdout": "{\n  \"schema_version\": \"1.0.0\",\n  \"diagnostics\": [],\n  \"fix_errors\": []\n}\n"
 }
