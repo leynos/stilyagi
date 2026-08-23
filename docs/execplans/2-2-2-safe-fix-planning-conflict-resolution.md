@@ -166,30 +166,38 @@ Hard invariants. Violating one requires escalation, not a workaround.
 - **Risk:** pre-existing gate failures are mistaken for regressions.
   Severity: low. Likelihood: high. Mitigation: the measured baseline below.
 
-### Baseline gate state (measured 2026-08-16, clean tree, no changes)
+### Baseline gate state
 
-Do not attribute these to your work.
+Measured 2026-08-23 on a clean tree at the tip of `configure-df12-lints` plus
+this plan's document, with no code changes.
+
+**Every gate is green.** There is no pre-existing failure to work around, so
+any gate failure you see is one you introduced.
 
 - `make check-fmt` — **PASS**
-- `make typecheck` — **PASS**
-- `make lint` — **FAIL, pre-existing.** The Whitaker Dylint step reports 4
-  `no_expect_outside_tests` errors, all in `crates/stilyagi-ir/src/tests/`:
-  `segment_properties.rs:65` (`region_from_specs`) and `suppression.rs:286`,
-  `:290`, `:294` (`code_token_strategy`, `whitespace_strategy`,
-  `space_padding_strategy`). Every other step of `lint` — ruff, interrogate,
-  pylint, `cargo doc`, clippy — passes.
-- `make test` — **PASS** (198 pytest tests, 8 snapshots, nextest and doctests
-  green).
-- `make markdownlint` — **PASS**
-- `make nixie` — **PASS**
+- `make typecheck` — **PASS**. Strict Pyright reports
+  `0 errors, 0 warnings, 0 informations`.
+- `make lint` — **PASS**. Every tier is clean: ruff, interrogate, the
+  PyPy-backed Pylint, the `df12-python-lints` Pylint tier, `ambrleaks`,
+  `cargo doc`, clippy, and Whitaker.
+- `make test` — **PASS**. pytest reports `211 passed, 28 warnings in 7.31s`
+  with `16 snapshots passed`; nextest reports
+  `332 tests run: 332 passed, 0 skipped`.
+- `make markdownlint` — **PASS** (66 files).
+- `make nixie` — **PASS**.
 
-`make test-ci` is **broken independently of this work**: it runs
+Note for anyone carrying an older copy of this plan: on `main` the Whitaker
+Dylint step failed on four pre-existing `no_expect_outside_tests` sites in
+`crates/stilyagi-ir/src/tests/`. Those were fixed upstream before this base
+branched, so that carve-out no longer applies and must not be used to excuse a
+Whitaker failure.
+
+`make test-ci` remains **broken independently of this work**: it runs
 `cargo nextest run --profile ci` but no `.config/nextest.toml` exists, so
 nextest exits 96 with ``profile `ci` not found``. Cite `make test`, never
-`make test-ci`. Fixing either pre-existing failure is **out of scope**.
+`make test-ci`. Fixing it is **out of scope**.
 
-Success means the five green gates stay green and `make lint` fails only on
-those same four Whitaker sites.
+Success means all six gates stay green.
 
 ### Measured facts you can rely on
 
@@ -1331,16 +1339,15 @@ unchanged. Two rules proposing different replacements for one span produce
 `fix-error/overlapping-edits` naming both, state that the file was not
 modified, and leave it byte-identical — not partially fixed.
 
-**Tests.** `make test` passes. The suite grows from 198 passing tests by the
-new unit, property, behaviour-driven, and end-to-end cases. Every new test
-failed before its implementation and passed after; record the red transcripts in
-`Artefacts and notes`. The property tests add no more than 10 seconds to a
-warm run.
+**Tests.** `make test` passes. The suite grows from 211 passing pytest tests
+and 16 snapshots by the new unit, property, behaviour-driven, and end-to-end
+cases. Every new test failed before its implementation and passed after; record
+the red transcripts in `Artefacts and notes`. The property tests add no more
+than 10 seconds to a warm run.
 
-**Lint and typecheck.** `make check-fmt`, `make typecheck`,
-`make markdownlint`, and `make nixie` pass. `make lint` fails **only** on the
-four pre-existing Whitaker sites in the baseline; a fifth is a regression you
-introduced.
+**Lint and typecheck.** All six gates pass, with no carve-out. Strict Pyright
+must stay at zero errors over `python/stilyagi`, and `ambrleaks` must stay
+clean over the snapshots this plan adds.
 
 **Review.** After each milestone's gates are green — and only then — run
 `coderabbit review --agent` and clear every concern before the next milestone.
