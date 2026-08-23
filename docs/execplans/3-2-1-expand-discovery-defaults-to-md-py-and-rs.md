@@ -271,6 +271,8 @@ Milestone 2 — classification, severity, and observability:
       file read (2026-08-24).
 - [x] W6. Emit a run summary; milestone-2 tests, snapshots, region-count
       regression, and the performance measurement (2026-08-24).
+      All six deterministic gates passed, then CodeRabbit reviewed commit
+      `764bde2` with zero concerns.
 
 Closing:
 
@@ -1441,7 +1443,10 @@ medians and throughput of 200,253 ns/file and 1.30 MiB/s for Markdown, 188,323
 ns/file and 2.66 MiB/s for Python, and 171,113 ns/file and 3.23 MiB/s for Rust.
 The clean three-file acceptance command reported `{'discovery_misses': 4}` from
 `ConfigResolver.cache_stats` and a zero-error, zero-warning summary. Full
-milestone-2 gates and CodeRabbit review remain pending at this entry.
+milestone-2 gates passed: `check-fmt`, `typecheck`, `lint`, `test` (223 Python
+tests and 17 snapshots), `markdownlint`, and `nixie`. CodeRabbit reviewed commit
+`764bde2` with zero concerns
+(`/tmp/coderabbit-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs-2.out`).
 
 ## Interfaces and dependencies
 
