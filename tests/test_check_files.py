@@ -33,8 +33,8 @@ def _run_failing_check(
     # A hard file error still renders the (empty) accumulated diagnostics before
     # the exit-2 signal, rather than suppressing stdout entirely.
     assert_with_context(
-        captured.out == "0 diagnostics found\n",
-        "expected captured.out == '0 diagnostics found\\n'",
+        captured.out == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected captured.out to include fix counts",
     )
     return captured.err
 
@@ -193,8 +193,8 @@ def test_cli_main_recovers_from_real_malformed_markdown(
     assert exit_code == 0, "expected exit_code == 0"
     assert not captured.err, "expected not captured.err"
     assert_with_context(
-        captured.out == "0 diagnostics found\n",
-        "expected captured.out == '0 diagnostics found\\n'",
+        captured.out == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected captured.out to include fix counts",
     )
 
 def test_cli_main_preserves_crlf_source_for_extraction(
