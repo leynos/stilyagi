@@ -5,6 +5,7 @@ import typing as typ
 
 import pytest
 from stilyagi import diagnostics, engine
+from stilyagi.fixes import Fix, TextEdit
 from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.assertions import assert_with_context
@@ -52,8 +53,9 @@ def test_renderer_registry_retains_its_default_format_and_render_surface() -> No
         "expected registry.default_format == 'text'",
     )
     assert_with_context(
-        registry.render([], "text") == "0 diagnostics found\n",
-        "expected registry.render([], 'text') == '0 diagnosti...",
+        registry.render([], "text")
+        == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected registry.render([], 'text') to include fix counts",
     )
 
 
@@ -69,7 +71,7 @@ def test_text_renderer_orders_and_formats_diagnostics(
             "docs/a.md:1:1: error STY001 First",
             "docs/a.md:1:2: error STY010 Later code",
             "docs/b.md:3:4: warning STY002 Second",
-            "3 diagnostics found",
+            "3 diagnostics found (0 safe fixes, 0 unsafe fixes)",
         ],
         "expected rendered.splitlines() == ['docs/a.md:1:1: e...",
     )
@@ -96,3 +98,56 @@ def test_an_unsupported_output_format_is_refused() -> None:
     """A format the registry does not render is an error, not a fallback."""
     with pytest.raises(ValueError, match="unsupported output format 'yaml'"):
         engine.RendererRegistry().render([], "yaml")
+
+
+def test_renderers_report_fix_payloads_and_fixability_counts() -> None:
+    """Expose the deterministic fix contract in both renderer formats."""
+    diagnostic = diagnostics.Diagnostic(
+        path="docs/notes.md",
+        code="PUN201",
+        message="Insert a serial comma.",
+        severity=diagnostics.Severity.WARNING,
+        line=12,
+        column=30,
+        fix=Fix(
+            title="Insert serial comma",
+            applicability="safe",
+            edits=[TextEdit(341, 341, ",")],
+        ),
+    )
+    registry = engine.RendererRegistry()
+
+    assert_with_context(
+        json.loads(registry.render([diagnostic], "json"))
+        == {
+            "schema_version": "1.0.0",
+            "diagnostics": [
+                {
+                    "path": "docs/notes.md",
+                    "code": "PUN201",
+                    "message": "Insert a serial comma.",
+                    "severity": "warning",
+                    "location": {"line": 12, "column": 30},
+                    "fix_applicable": True,
+                    "fix": {
+                        "title": "Insert serial comma",
+                        "applicability": "safe",
+                        "edits": [
+                            {
+                                "byte_start": 341,
+                                "byte_end": 341,
+                                "replacement": ",",
+                            },
+                        ],
+                    },
+                },
+            ],
+            "fix_errors": [],
+        },
+        "expected JSON output to include the versioned fix payload",
+    )
+    assert_with_context(
+        registry.render([diagnostic], "text").splitlines()[-1]
+        == "1 diagnostic found (1 safe fix, 0 unsafe fixes)",
+        "expected text output to disclose safe and unsafe fix counts",
+    )

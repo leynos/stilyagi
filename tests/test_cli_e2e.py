@@ -23,8 +23,8 @@ def test_python_module_entrypoint_exits_zero_for_a_clean_markdown_tree(
 
     assert completed.returncode == 0, "expected completed.returncode == 0"
     assert_with_context(
-        completed.stdout == "0 diagnostics found\n",
-        "expected completed.stdout == '0 diagnostics found\\n'",
+        completed.stdout == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected completed.stdout to include fix counts",
     )
     assert not completed.stderr, "expected not completed.stderr"
 
@@ -39,8 +39,8 @@ def test_python_module_entrypoint_exits_zero_for_a_malformed_markdown_tree(
 
     assert completed.returncode == 0, "expected completed.returncode == 0"
     assert_with_context(
-        completed.stdout == "0 diagnostics found\n",
-        "expected completed.stdout == '0 diagnostics found\\n'",
+        completed.stdout == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected completed.stdout to include fix counts",
     )
     assert not completed.stderr, "expected not completed.stderr"
 
