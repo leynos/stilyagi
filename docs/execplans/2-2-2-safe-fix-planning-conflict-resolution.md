@@ -229,14 +229,20 @@ Established during planning; use them instead of re-measuring.
   decoded text and original bytes; collaborator injection is bundled behind
   `CheckCollaborators`. All six deterministic gates pass and CodeRabbit found
   zero concerns (`43bd949`); Milestone 1 may begin.
-- [ ] Milestone 1 — typed IR view (in progress)
+- [x] Milestone 1 — typed IR view
   - Blocked 2026-08-23: the `make lint` gate remained red after the third
     focused gate iteration, reaching the `Iterations` tolerance. Awaiting
     explicit direction before changing the assertion structure. The post-turn
     check explicitly instructed this fix on 2026-08-24; one focused exception
     iteration completed with all six deterministic gates green. CodeRabbit
-    review is pending before Milestone 2.
-- [ ] Milestone 2 — fix model, splice kernel, stub retirement
+    found zero concerns (`4a3d3ba`); Milestone 2 may begin.
+- [ ] Milestone 2 — fix model, splice kernel, stub retirement (in progress)
+  - 2026-08-24: committed the pure `fixes.py` value-model slice separately to
+    preserve the required small rollback points. `Fix` accepts the RFC's bare
+    string and list examples while normalizing them to hashable strict values;
+    `Diagnostic.fix` is now typed. The package-layout snapshot was updated for
+    the new module. The splice kernel, renderer contract, and stub retirement
+    remain in this milestone.
 - [ ] Milestone 3 — admissibility, selection, conflict resolution
 - [ ] Milestone 4 — `--diff`
 - [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes
@@ -1457,6 +1463,19 @@ well formed, and the before-and-after byte dumps for the CRLF fixture test.
   `/tmp/{check-fmt,typecheck,lint,test,markdownlint,nixie}-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution.out`
   records the D-19 exception iteration passing all six gates: 219 Python and
   332 Rust tests, and 17 reviewed snapshots.
+- Milestone 1 CodeRabbit evidence:
+  `/tmp/coderabbit-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution.out`
+  records `coderabbit review --agent` completing against `4a3d3ba` with zero
+  findings and no rate limit.
+- Milestone 2 model-slice red evidence:
+  `/tmp/test-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution.out`
+  records the expected wheel-layout snapshot failure after adding
+  `stilyagi/fixes.py`.
+- Milestone 2 model-slice green evidence:
+  `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution-2.out`
+  records the complete sequentially green gate chain: 221 Python and 332 Rust
+  tests, with 17 snapshots reviewed. CodeRabbit is intentionally deferred
+  until the complete Milestone 2 implementation is ready for review.
 
 ## Deferred follow-ups
 
@@ -1509,6 +1528,14 @@ status under the narrow D-19 exception.
 **Revision 8, 2026-08-24.** Recorded Milestone 1's complete gate evidence and
 the typed IR-view outcome. CodeRabbit review remains required before the next
 milestone.
+
+**Revision 9, 2026-08-24.** Recorded Milestone 1's clean CodeRabbit review and
+started Milestone 2.
+
+**Revision 10, 2026-08-24.** Recorded the independently gated, atomic
+Milestone 2 fix-model slice. Its small commit satisfies the repository's
+rollback policy without declaring the milestone complete or running CodeRabbit
+before the kernel and renderer contract are in place.
 
 **Revision 2, 2026-08-16.** Revised after a six-lens design review. What
 changed and why:
