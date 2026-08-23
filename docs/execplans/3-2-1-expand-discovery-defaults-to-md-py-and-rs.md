@@ -467,8 +467,8 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   coordinated edits" cost cited in round 1 also already exists: `model.Syntax`
   is a hand-maintained Python mirror of `ExtractSyntax` guarded by
   `_validate_syntax_vocab_once`, so a four-entry dict whose *values* are
-  `model.Syntax` members is type-checked by `pyright` and covered by the
-  parity check
+  `model.Syntax` members is type-checked by `ty` and covered by the parity
+  check
   that already runs. Constraint 3 is restated accordingly.
   Consequence: round 1's W1 and W3 are deleted entirely — the Rust table, the
   compile-time proof, the `proptest`, the bridge function, the `.pyi` change,
@@ -798,7 +798,15 @@ four gates, record the baseline, and re-run the S3 dry run to confirm the
 target has yet run in this worktree it will be absent, and the figure will look
 correct for the wrong reason.
 
-Go/no-go: gates recorded, both anchors confirmed.
+Then re-read the gate recipes rather than trusting this document about them.
+`make typecheck` and the Python tiers inside `make lint` have both moved during
+this plan's life. Read the `typecheck:` and `lint:` recipes in the `Makefile`,
+and confirm `crates/stilyagi-test-fixtures/src/expect_valid.rs` and developers'
+guide §6b still exist (D12). If a gate has changed tool, update the quality
+criteria in this plan as part of W0 rather than discovering it at the first
+commit.
+
+Go/no-go: gates recorded, both anchors confirmed, gate recipes re-read.
 
 ---
 
@@ -1278,7 +1286,7 @@ Quality criteria — what "done" means:
 
 - **Tests:** `make test` passes — Rust workspace suite, Rust doctests, `pytest`.
 - **Formatting:** `make check-fmt` passes.
-- **Typecheck:** `make typecheck` passes, including the strict `pyright` pass.
+- **Typecheck:** `make typecheck` passes, including the pinned `ty check` pass.
 - **Lint:** `make lint` passes — `ruff`, `interrogate` at 100% docstring
   coverage, `pylint`, the df12 `pylint` plugin pass, `ambrleaks` over `tests`,
   `cargo doc`, `clippy` with `-D warnings`, and `whitaker`.
@@ -1510,13 +1518,11 @@ Gate evidence after the rebase: `make check-fmt`, `make typecheck`, `make lint`,
 and `make test` all exit `0`; 198 Python tests pass with 8 snapshots.
 
 **Round 2b (2026-08-16).** Rebased off `main` and onto `configure-df12-lints`,
-and the pull request retargeted to match. No conflicts — this branch touches
-only this document. Three updates were needed because the new base moves the
-gates the plan cites:
+and the pull request retargeted to match. Rebased a second time after that
+branch was rewritten, using `--onto` so the rewritten base commits were not
+replayed. Neither rebase conflicted — this branch touches only this document.
+Two updates were needed because the new base moves the gates the plan cites:
 
-- **`make typecheck` now runs `pyright`, not `ty`.** The quality criteria and
-  D1's type-checking rationale are updated. The plan's Python work is unchanged
-  by this, but the gate it must satisfy is stricter.
 - **`make lint` gained two Python tiers**, a df12 `pylint` plugin pass and
   `ambrleaks` over `tests`. The quality criteria enumerate them so a reviewer
   is not surprised by a failure from a gate the plan never mentioned.
@@ -1529,3 +1535,11 @@ Checked and found *not* to need changes: developers' guide §6b survives at the
 same heading, `assert_validation_reports` and `malformed.rs::document_for` are
 still the names §6b cites, and ADR 008 is still the next free number. The
 `must_ok!`/`must_some!` consolidation noted as follow-up in §6b remains open.
+
+The typecheck gate moved twice on that branch and settled where it started. An
+intermediate commit switched `make typecheck` to a strict `pyright` pass, and
+this plan was updated to match; a later commit pinned `ty` and restored it. The
+plan now cites `ty check` again. The lesson is recorded rather than the
+churn: cite gates by their `make` target, and re-read the recipe at W0 rather
+than trusting any statement in this document about which tool sits behind
+`make typecheck`.
