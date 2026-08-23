@@ -10,11 +10,10 @@ Roadmap item: 2.2.2. Requires 2.1.1 (Markdown intermediate representation
 envelope) and 2.2.1 (`stilyagi check`), both complete.
 
 Branch base: this work stacks on `configure-df12-lints`, not on `main`. That
-branch replaces `ty` with strict Pyright for `make typecheck` and adds the
-`df12-python-lints` Pylint tier and the `ambrleaks` snapshot scanner to
-`make lint`. Every measured fact below was taken against that base. If the
-stack is ever re-pointed at `main`, re-measure the baseline before trusting the
-gate numbers.
+branch pins the `ty` typechecker and adds the `df12-python-lints` Pylint tier
+and the `ambrleaks` snapshot scanner to `make lint`. Every measured fact below
+was taken against that base. If the stack is ever re-pointed at `main`,
+re-measure the baseline before trusting the gate numbers.
 
 ## Purpose / big picture
 
@@ -506,12 +505,14 @@ configuration.
   `tests/steps/*.py` from `S101`, `S506`, `PLR0913`, `PLR0917`, `PLR2004`, and
   `PLR6301`. It does **not** exempt `tests/support/`, which is held to full
   production strictness including 100% numpy-style docstrings.
-- **`make typecheck` runs Pyright in `strict` mode**, not `ty`. `[tool.pyright]`
-  sets `typeCheckingMode = "strict"`, `include = ["python/stilyagi"]`, and
-  excludes `tests`. Strict mode forbids implicit `Any` and unannotated returns,
-  so every accessor in `ir_view.py` must narrow `object` with explicit
-  `isinstance` checks before use — which the design already requires for
-  safety, and which strict Pyright now also enforces mechanically.
+- **`make typecheck` runs `ty`, pinned** at the version in the Makefile's
+  `TY_VERSION` (currently `0.0.72`) through `uv tool run ty@$(TY_VERSION)`.
+  `[tool.ty.src]` sets `include = ["python/stilyagi"]` and excludes `tests`, so
+  the test suite is not typechecked. Do not bump `TY_VERSION` as part of this
+  work; a typechecker upgrade is its own change with its own blast radius.
+  Because `tests` is unchecked, `ir_view.py` must still narrow `object` with
+  explicit `isinstance` checks for safety rather than relying on the gate to
+  catch a bad assumption.
 - **`make lint` runs two further Python tiers** beyond ruff, interrogate, and
   the PyPy-backed Pylint: every `df12-python-lints` v0.2.0 Pylint message
   (thirteen IDs in `DF12_PYLINT_MESSAGES`) under CPython 3.14, and `ambrleaks`
@@ -828,8 +829,8 @@ Two arguments, permanently. Update `docs/developers-guide.md` §2b's
 
 ### `python/stilyagi/rules/registry.py` (Milestone 0)
 
-Declare the seam's type so the stub cannot drift. Pyright excludes `tests`, so
-an untyped stub would fail at runtime mid-suite instead.
+Declare the seam's type so the stub cannot drift. `ty` excludes `tests`, so an
+untyped stub would fail at runtime mid-suite instead.
 
 ```python
 class RuleRunner(typ.Protocol):
@@ -1345,9 +1346,9 @@ cases. Every new test failed before its implementation and passed after; record
 the red transcripts in `Artefacts and notes`. The property tests add no more
 than 10 seconds to a warm run.
 
-**Lint and typecheck.** All six gates pass, with no carve-out. Strict Pyright
-must stay at zero errors over `python/stilyagi`, and `ambrleaks` must stay
-clean over the snapshots this plan adds.
+**Lint and typecheck.** All six gates pass, with no carve-out. `ty` must stay
+clean over `python/stilyagi`, and `ambrleaks` must stay clean over the
+snapshots this plan adds.
 
 **Review.** After each milestone's gates are green — and only then — run
 `coderabbit review --agent` and clear every concern before the next milestone.
