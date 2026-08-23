@@ -697,8 +697,9 @@ docstring and Rust doc-comment IR production. All three producers emit the same
 `IrDocument` shape, and unsupported syntaxes must not receive placeholder IR
 payloads.
 
-`stilyagi_ir::content_hash_for` computes the stable SHA-256 content hash that
-IR documents persist as `document.content_hash`. The digest suffix is rendered
+`stilyagi_ir::content_hash_for` computes the stable Secure Hash Algorithm
+(SHA-256) content hash that IR documents persist as `document.content_hash`.
+The digest suffix is rendered
 by the crate-internal `to_lower_hex` helper in `canonical_json.rs` rather than
 with the `{:x}` format specifier, because `sha2` 0.11 changed `digest()` to
 return `hybrid_array::Array<u8, _>`, which does not implement `LowerHex`. The
