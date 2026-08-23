@@ -86,7 +86,10 @@ def build_parser() -> argparse.ArgumentParser:
         version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
     )
     subparsers = parser.add_subparsers(dest="command")
-    check_parser = subparsers.add_parser("check", help="Check Markdown files.")
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Check Markdown, Python, and Rust source files.",
+    )
     check_parser.add_argument(
         "-V",
         "--version",
@@ -199,7 +202,7 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         nargs="*",
         default=(".",),
         metavar="FILES",
-        help="Markdown files or directories to check.",
+        help="Files or directories to check for registered prose sources.",
     )
 
 

@@ -8,6 +8,27 @@ Feature: stilyagi check for Markdown files with nearest-config
     Then the exit code is 0
     And the text output lists no diagnostics
 
+  Scenario: check discovers Markdown, Python, and Rust in one pass
+    Given a temporary tree with Markdown, Python, and Rust source files
+    And the extractor records selected syntaxes
+    When I run "stilyagi check ." in that tree
+    Then the exit code is 0
+    And the selected syntaxes are Markdown, Python docstrings, and Rust doc comments
+
+  Scenario: check attributes stdin to the supplied Rust filename
+    Given a temporary tree with two well-formed Markdown files
+    And the extractor records selected syntaxes
+    When I run "stilyagi check - --stdin-filename src/lib.rs" in that tree
+    Then the exit code is 0
+    And the selected syntax is Rust documentation comments
+
+  Scenario: check skips stdin with an unregistered filename
+    Given a temporary tree with two well-formed Markdown files
+    And the extractor records selected syntaxes
+    When I run "stilyagi check - --stdin-filename main.go" in that tree
+    Then the exit code is 0
+    And no input was extracted
+
   Scenario: check emits JSON diagnostics in sorted path order
     Given a temporary tree with Markdown files "b.md", "a.md", and "sub/c.md"
     And the extractor emits one synthetic IR error per file

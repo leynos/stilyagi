@@ -1,0 +1,17 @@
+[
+  {
+    "reported_path": "repository/docs/guide.md",
+    "resolved_path": "repository/docs/guide.md",
+    "syntax": "markdown"
+  },
+  {
+    "reported_path": "repository/src/app.py",
+    "resolved_path": "repository/src/app.py",
+    "syntax": "python_docstring"
+  },
+  {
+    "reported_path": "repository/src/lib.rs",
+    "resolved_path": "repository/src/lib.rs",
+    "syntax": "rust_doc_comment"
+  }
+]

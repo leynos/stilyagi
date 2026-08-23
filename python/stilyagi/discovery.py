@@ -1,9 +1,8 @@
-"""Markdown discovery helpers for the check command.
+"""Deterministic source discovery helpers for the check command.
 
-This module finds Markdown inputs deterministically from command-line targets.
-The public surface keeps both the command-line-relative reported path and the
-resolved filesystem path so later stages can attribute diagnostics without
-losing stable ordering.
+This internal module finds registered source inputs from command-line targets.
+It keeps both the command-line-relative reported path and resolved filesystem
+path so later stages can attribute diagnostics without losing stable ordering.
 
 Example
 -------
@@ -11,11 +10,11 @@ Example
 >>> import tempfile
 >>> from stilyagi import config
 >>> with tempfile.TemporaryDirectory() as directory:
-...     root = pathlib.Path(directory)
-...     _ = (root / "guide.md").write_text("# Guide", encoding="utf-8")
-...     files = discover_markdown_files([root], config.StilyagiConfig())
-...     [pathlib.Path(item.reported_path).name for item in files]
-['guide.md']
+...     note = pathlib.Path(directory) / "notes.md"
+...     _ = note.write_text("# Notes", encoding="utf-8")
+...     files = discover_files([note], config.StilyagiConfig())
+...     files[0].resolved_path.name
+'notes.md'
 """
 
 import dataclasses as dc
@@ -23,18 +22,39 @@ import logging
 import pathlib
 import typing as typ
 
+from stilyagi import model
+
 _LOGGER = logging.getLogger(__name__)
-_MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
+_EXTENSION_SYNTAXES: typ.Final[cabc.Mapping[str, model.Syntax]] = {
+    "md": model.Syntax.MARKDOWN,
+    "markdown": model.Syntax.MARKDOWN,
+    "py": model.Syntax.PYTHON_DOCSTRING,
+    "rs": model.Syntax.RUST_DOC_COMMENT,
+}
+# Keep this aligned with `MD_FILES_FIND` in the Makefile, which defines the
+# repository's established build-noise boundary for source walks.
 _IGNORED_DIRECTORY_NAMES = frozenset({
     ".git",
+    ".eggs",
+    ".mypy_cache",
+    ".nox",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".stilyagi_cache",
+    ".tox",
+    ".uv-cache",
+    ".uv-tools",
+    "__pycache__",
     "build",
     "dist",
     "node_modules",
+    "site-packages",
     "target",
     ".venv",
+    ".venv-release-smoke",
 })
 
-__all__ = ["DiscoveredFile", "discover_markdown_files"]
+__all__ = ["DiscoveredFile", "discover_files", "syntax_for_path"]
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -44,7 +64,7 @@ if typ.TYPE_CHECKING:
 
 @dc.dataclass(frozen=True, slots=True)
 class DiscoveredFile:
-    """One discovered Markdown file.
+    """One discovered source file and its selected extractor syntax.
 
     Parameters
     ----------
@@ -53,20 +73,23 @@ class DiscoveredFile:
     resolved_path:
         The fully resolved filesystem path used for de-duplication and stable
         ordering.
+    syntax:
+        The registered extractor syntax selected from the final file suffix.
     """
 
     reported_path: str
     resolved_path: pathlib.Path
+    syntax: model.Syntax
 
 
-def discover_markdown_files(
+def discover_files(
     targets: cabc.Iterable[pathlib.Path | str],
     config: StilyagiConfig,
 ) -> list[DiscoveredFile]:
-    """Return Markdown files discovered from the supplied targets.
+    """Return registered source files discovered from the supplied targets.
 
-    Explicit Markdown files are always included. Directory targets recurse
-    deterministically, skip known build noise directories, and do not follow
+    Explicit registered files are included. Directory targets recurse
+    deterministically, skip known build-noise directories, and do not follow
     symlinked directories.
 
     Parameters
@@ -81,7 +104,7 @@ def discover_markdown_files(
     Returns
     -------
     list[DiscoveredFile]
-        Markdown files sorted by resolved path, with duplicate resolved paths
+        Registered files sorted by resolved path, with duplicate resolved paths
         collapsed to one entry.
 
     Examples
@@ -92,9 +115,9 @@ def discover_markdown_files(
     >>> with tempfile.TemporaryDirectory() as directory:
     ...     note = pathlib.Path(directory) / "notes.md"
     ...     _ = note.write_text("# Notes", encoding="utf-8")
-    ...     found = discover_markdown_files([note], config.StilyagiConfig())
-    ...     found[0].reported_path == str(note)
-    True
+    ...     files = discover_files([note], config.StilyagiConfig())
+    ...     files[0].resolved_path.name
+    'notes.md'
     """
     if config.respect_gitignore:
         _LOGGER.info("respect-gitignore is accepted but not yet enforced")
@@ -114,9 +137,12 @@ def discover_markdown_files(
 def _candidates_for_target(
     target_path: pathlib.Path,
 ) -> cabc.Iterator[DiscoveredFile | None]:
-    """Yield Markdown candidates for one command-line target."""
+    """Yield registered source candidates for one command-line target."""
     if _is_symlinked_directory(target_path):
-        _LOGGER.info("skipping symlinked directory target: %s", target_path.as_posix())
+        _LOGGER.warning(
+            "skipping symlinked directory target: %s",
+            target_path.as_posix(),
+        )
         return
     if target_path.is_file():
         yield _discover_explicit_file(target_path)
@@ -128,18 +154,23 @@ def _candidates_for_target(
 
 
 def _discover_explicit_file(target_path: pathlib.Path) -> DiscoveredFile | None:
-    """Return one explicit file target if it is Markdown."""
-    if not _is_markdown_file(target_path):
-        _LOGGER.info("ignoring non-Markdown target: %s", target_path.as_posix())
+    """Return one explicitly requested file with a registered syntax."""
+    syntax = syntax_for_path(target_path)
+    if syntax is None:
+        _LOGGER.info(
+            "ignoring target without a registered extractor: %s",
+            target_path.as_posix(),
+        )
         return None
     return DiscoveredFile(
         reported_path=target_path.as_posix(),
         resolved_path=target_path.resolve(),
+        syntax=syntax,
     )
 
 
 def _discover_directory(target_path: pathlib.Path) -> cabc.Iterator[DiscoveredFile]:
-    """Yield Markdown files discovered beneath one directory target."""
+    """Yield registered source files discovered beneath one directory target."""
     reported_base = pathlib.PurePosixPath(target_path.as_posix())
     for root_path, dirnames, filenames in target_path.walk(follow_symlinks=False):
         _prune_ignored_directories(root_path, dirnames)
@@ -149,11 +180,13 @@ def _discover_directory(target_path: pathlib.Path) -> cabc.Iterator[DiscoveredFi
         reported_root = reported_base / relative_root
         for filename in sorted(filenames):
             candidate = root_path / filename
-            if not _is_markdown_file(candidate):
+            syntax = syntax_for_path(candidate)
+            if syntax is None:
                 continue
             yield DiscoveredFile(
                 reported_path=(reported_root / filename).as_posix(),
                 resolved_path=candidate.resolve(),
+                syntax=syntax,
             )
 
 
@@ -179,9 +212,10 @@ def _is_symlinked_directory(target_path: pathlib.Path) -> bool:
     return target_path.is_symlink() and target_path.is_dir()
 
 
-def _is_markdown_file(path: pathlib.Path) -> bool:
-    """Return ``True`` when ``path`` has a Markdown suffix."""
-    return path.suffix.lower() in _MARKDOWN_SUFFIXES
+def syntax_for_path(path: pathlib.Path) -> model.Syntax | None:
+    """Return the registered syntax selected by a path's final suffix."""
+    extension = path.suffix.lower().removeprefix(".")
+    return _EXTENSION_SYNTAXES.get(extension)
 
 
 def _record_candidate(
