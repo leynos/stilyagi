@@ -167,22 +167,22 @@ Hard invariants. Violating one requires escalation, not a workaround.
 
 ### Baseline gate state
 
-Measured 2026-08-23 on a clean tree at the tip of `configure-df12-lints` plus
-this plan's document, with no code changes.
+Measured 2026-08-23 on a clean tree at `configure-df12-lints` commit `33eea7f`
+plus this plan's document, with no code changes. Re-measure if the base moves;
+it has already been force-pushed once during this plan's life.
 
 **Every gate is green.** There is no pre-existing failure to work around, so
 any gate failure you see is one you introduced.
 
 - `make check-fmt` — **PASS**
-- `make typecheck` — **PASS**. Strict Pyright reports
-  `0 errors, 0 warnings, 0 informations`.
+- `make typecheck` — **PASS**. `ty check` reports `All checks passed!`.
 - `make lint` — **PASS**. Every tier is clean: ruff, interrogate, the
   PyPy-backed Pylint, the `df12-python-lints` Pylint tier, `ambrleaks`,
   `cargo doc`, clippy, and Whitaker.
-- `make test` — **PASS**. pytest reports `211 passed, 28 warnings in 7.31s`
+- `make test` — **PASS**. pytest reports `213 passed, 28 warnings in 5.80s`
   with `16 snapshots passed`; nextest reports
   `332 tests run: 332 passed, 0 skipped`.
-- `make markdownlint` — **PASS** (66 files).
+- `make markdownlint` — **PASS** (66 files, 0 errors).
 - `make nixie` — **PASS**.
 
 Note for anyone carrying an older copy of this plan: on `main` the Whitaker
@@ -1340,7 +1340,7 @@ unchanged. Two rules proposing different replacements for one span produce
 `fix-error/overlapping-edits` naming both, state that the file was not
 modified, and leave it byte-identical — not partially fixed.
 
-**Tests.** `make test` passes. The suite grows from 211 passing pytest tests
+**Tests.** `make test` passes. The suite grows from 213 passing pytest tests
 and 16 snapshots by the new unit, property, behaviour-driven, and end-to-end
 cases. Every new test failed before its implementation and passed after; record
 the red transcripts in `Artefacts and notes`. The property tests add no more
