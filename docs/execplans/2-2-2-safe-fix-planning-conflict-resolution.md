@@ -9,6 +9,13 @@ Status: DRAFT
 Roadmap item: 2.2.2. Requires 2.1.1 (Markdown intermediate representation
 envelope) and 2.2.1 (`stilyagi check`), both complete.
 
+Branch base: this work stacks on `configure-df12-lints`, not on `main`. That
+branch replaces `ty` with strict Pyright for `make typecheck` and adds the
+`df12-python-lints` Pylint tier and the `ambrleaks` snapshot scanner to
+`make lint`. Every measured fact below was taken against that base. If the
+stack is ever re-pointed at `main`, re-measure the baseline before trusting the
+gate numbers.
+
 ## Purpose / big picture
 
 Today `stilyagi check` reads Markdown, extracts an intermediate representation
@@ -488,9 +495,24 @@ configuration.
 - `PLR1702` (too many nested blocks) is enabled: return rejection **values**,
   never raise inside per-edit loops.
 - `[tool.ruff.lint.per-file-ignores]` exempts `**/test_*.py` and
-  `tests/steps/*.py` from `PLR0913`/`PLR0917`/`PLR2004`. It does **not** exempt
-  `tests/support/`, which is held to full production strictness including 100%
-  numpy-style docstrings.
+  `tests/steps/*.py` from `S101`, `S506`, `PLR0913`, `PLR0917`, `PLR2004`, and
+  `PLR6301`. It does **not** exempt `tests/support/`, which is held to full
+  production strictness including 100% numpy-style docstrings.
+- **`make typecheck` runs Pyright in `strict` mode**, not `ty`. `[tool.pyright]`
+  sets `typeCheckingMode = "strict"`, `include = ["python/stilyagi"]`, and
+  excludes `tests`. Strict mode forbids implicit `Any` and unannotated returns,
+  so every accessor in `ir_view.py` must narrow `object` with explicit
+  `isinstance` checks before use — which the design already requires for
+  safety, and which strict Pyright now also enforces mechanically.
+- **`make lint` runs two further Python tiers** beyond ruff, interrogate, and
+  the PyPy-backed Pylint: every `df12-python-lints` v0.2.0 Pylint message
+  (thirteen IDs in `DF12_PYLINT_MESSAGES`) under CPython 3.14, and `ambrleaks`
+  over `tests`. `ambrleaks` scans syrupy snapshots, so the new `.ambr` and
+  `.json` snapshots this plan adds are gated by it.
+- **Every lint or type-check suppression must carry an explanation.** The df12
+  plugin enforces this. Use `# noqa: RULE - reason` for ruff and
+  `# pylint: disable=name  # reason` for Pylint, and never use one tool's
+  suppression syntax to hide the other tool's finding.
 - pytest collects no doctests. The `>>>` examples AGENTS.md requires are
   unverified prose; write them carefully.
 - Markdown prose wraps at 80 columns, code blocks at 120; tables and headings
@@ -502,12 +524,12 @@ configuration.
 
 ### The files you will touch
 
-Modified: `python/stilyagi/diagnostics.py`, `python/stilyagi/cli.py` (317 lines
-— mind the 400 cap), `python/stilyagi/cli_args.py`,
-`python/stilyagi/discovery.py`, `python/stilyagi/engine/__init__.py`,
-`python/stilyagi/engine/checker.py`, `python/stilyagi/engine/renderers.py`,
-`python/stilyagi/rules/registry.py`, `tests/support/round_trip.py`,
-`tests/test_package_skeleton_units.py`, and
+Modified: `python/stilyagi/diagnostics.py`, `python/stilyagi/cli.py` (338 lines
+on this base — only 62 lines of headroom under the 400 cap),
+`python/stilyagi/cli_args.py`, `python/stilyagi/discovery.py`,
+`python/stilyagi/engine/__init__.py`, `python/stilyagi/engine/checker.py`,
+`python/stilyagi/engine/renderers.py`, `python/stilyagi/rules/registry.py`,
+`tests/support/round_trip.py`, `tests/test_package_skeleton_units.py`, and
 `crates/stilyagi-test-support/src/round_trip_edits.rs` (**a documentation
 comment only** — see D-11).
 
@@ -798,8 +820,8 @@ Two arguments, permanently. Update `docs/developers-guide.md` §2b's
 
 ### `python/stilyagi/rules/registry.py` (Milestone 0)
 
-Declare the seam's type so the stub cannot drift. `ty` excludes `tests`, so an
-untyped stub would fail at runtime mid-suite instead.
+Declare the seam's type so the stub cannot drift. Pyright excludes `tests`, so
+an untyped stub would fail at runtime mid-suite instead.
 
 ```python
 class RuleRunner(typ.Protocol):
@@ -947,7 +969,7 @@ Retype `Diagnostic.fix`. Extend the JSON renderer per the schema above and add
 fixability counts to the text renderer's summary (D-15). Delete
 `python/stilyagi/engine/fixes.py`, update `engine/__init__.py`'s `__all__`, and
 update the two assertions in `tests/test_package_skeleton_units.py` (around
-lines 48-61 and 126-132) that pin `engine.__all__` and construct
+lines 55-66 and 149-170) that pin `engine.__all__` and construct
 `engine.FixPlan`.
 
 Then rewrite `tests/support/round_trip.py` as a thin adapter delegating its
@@ -1038,7 +1060,11 @@ pytest fixture, so you avoid needing
 4. **UTF-8 totality.** An accepted plan never raises `UnicodeDecodeError`.
 
 Remember `tests/support/` is held to production lint strictness —
-`max-args = 4`, `max-locals = 10`, 100% numpy docstrings.
+`max-args = 4`, `max-locals = 10`, 100% numpy docstrings. Use
+`tests.support.assertions.assert_with_context(condition, message)` for
+assertions needing a contextual failure message; the base branch introduced it
+and converted the existing suites to it, so a bare `assert` with a trailing
+comment is now off-style.
 
 Stage D: gates. Confirm `.hypothesis/` is gitignored.
 
