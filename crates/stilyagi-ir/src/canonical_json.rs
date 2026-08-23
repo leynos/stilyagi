@@ -59,6 +59,8 @@ fn digit_for_nibble(nibble: u8) -> char {
 mod tests {
     //! Tests for canonical byte metadata and JSON helper behaviour.
 
+    use proptest::prelude::*;
+
     use super::{content_hash_for, line_index_for, to_lower_hex};
 
     #[test]
@@ -84,15 +86,12 @@ mod tests {
         assert_eq!(to_lower_hex(&[]), "");
     }
 
-    #[test]
-    fn every_byte_renders_as_two_lowercase_round_tripping_digits() {
-        // Bounded exhaustive check over the whole u8 range: each byte must
-        // render as exactly two lowercase ASCII hex digits that parse back to
-        // the original value.
-        for byte in u8::MIN..=u8::MAX {
+    proptest! {
+        #[test]
+        fn every_byte_renders_as_two_lowercase_round_tripping_digits(byte in any::<u8>()) {
             let rendered = to_lower_hex(&[byte]);
-            assert_eq!(rendered.len(), 2, "byte {byte:#04x} must render two digits");
-            assert!(
+            prop_assert_eq!(rendered.len(), 2, "byte {:#04x} must render two digits", byte);
+            prop_assert!(
                 rendered
                     .bytes()
                     .all(|character| character.is_ascii_digit()
@@ -100,7 +99,7 @@ mod tests {
                 "byte {byte:#04x} rendered non-lowercase-hex output {rendered:?}",
             );
             let parsed = u8::from_str_radix(&rendered, 16).expect("two hex digits parse as a byte");
-            assert_eq!(parsed, byte, "round-trip mismatch for byte {byte:#04x}");
+            prop_assert_eq!(parsed, byte, "round-trip mismatch for byte {:#04x}", byte);
         }
     }
 }
