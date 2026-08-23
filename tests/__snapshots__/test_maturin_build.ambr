@@ -32,6 +32,7 @@
       'stilyagi/engine/planner.py',
       'stilyagi/engine/renderers.py',
       'stilyagi/engine/runner.py',
+      'stilyagi/fixes.py',
       'stilyagi/model/__init__.py',
       'stilyagi/model/document.py',
       'stilyagi/model/region.py',

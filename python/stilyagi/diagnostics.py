@@ -2,6 +2,10 @@
 
 import dataclasses as dc
 import enum
+import typing as typ
+
+if typ.TYPE_CHECKING:
+    from stilyagi.fixes import Fix
 
 
 class Severity(enum.StrEnum):
@@ -30,7 +34,7 @@ class Diagnostic:
     column:
         1-based source column, when known.
     fix:
-        Placeholder fix payload for the future edit model.
+        Optional rule-authored repair for this diagnostic.
     """
 
     path: str
@@ -39,4 +43,4 @@ class Diagnostic:
     severity: Severity = Severity.ERROR
     line: int | None = None
     column: int | None = None
-    fix: object | None = None
+    fix: Fix | None = None
