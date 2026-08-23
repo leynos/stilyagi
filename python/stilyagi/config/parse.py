@@ -41,14 +41,13 @@ def _parse_lint_config(
         raise InvalidConfigError(path, key, "is not supported")
 
     per_file_ignores_raw = table.get("per-file-ignores", {})
-    if not isinstance(per_file_ignores_raw, cabc.Mapping):
-        raise InvalidConfigError(path, "lint.per-file-ignores", "must be a mapping")
-
-    per_file_ignores_mapping = typ.cast(
-        "cabc.Mapping[object, object]", per_file_ignores_raw
+    per_file_ignores_mapping = ensure_mapping(
+        per_file_ignores_raw,
+        path=path,
+        key="lint.per-file-ignores",
     )
     per_file_ignores = {
-        str(file_name): ensure_string_sequence(
+        file_name: ensure_string_sequence(
             rule_codes,
             path=path,
             key=f"lint.per-file-ignores.{file_name}",
@@ -93,10 +92,7 @@ def _parse_extract_config(
         raise InvalidConfigError(path, key, "is not supported")
 
     markdown = table.get("markdown", {})
-    if not isinstance(markdown, cabc.Mapping):
-        raise InvalidConfigError(path, "extract.markdown", "must be a mapping")
-
-    markdown_table = typ.cast("cabc.Mapping[str, object]", markdown)
+    markdown_table = ensure_mapping(markdown, path=path, key="extract.markdown")
     markdown_unknown = set(markdown_table) - {"gfm", "frontmatter", "mdx"}
     if markdown_unknown:
         key = f"extract.markdown.{min(markdown_unknown)}"

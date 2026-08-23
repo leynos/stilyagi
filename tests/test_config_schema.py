@@ -6,6 +6,7 @@ import typing as typ
 
 import pytest
 from stilyagi import config
+from stilyagi.config.parse import parse_config_table
 from stilyagi.config.validate import ensure_mapping
 from syrupy.extensions.json import JSONSnapshotExtension
 
@@ -260,6 +261,27 @@ def test_mapping_with_non_string_key_is_rejected() -> None:
         match=r"stilyagi\.toml: lint: mapping keys must be strings",
     ):
         ensure_mapping({"select": (), 1: ()}, path=path, key="lint")
+
+
+@pytest.mark.parametrize(
+    ("table", "key"),
+    [
+        ({"lint": {"per-file-ignores": {1: ["E"]}}}, "lint.per-file-ignores"),
+        ({"extract": {"markdown": {1: True}}}, "extract.markdown"),
+    ],
+)
+def test_nested_configuration_mappings_reject_non_string_keys(
+    table: dict[str, object],
+    key: str,
+) -> None:
+    """Reject non-string keys in nested configuration mappings."""
+    path = pathlib.Path("stilyagi.toml")
+
+    with pytest.raises(
+        config.InvalidConfigError,
+        match=rf"stilyagi\.toml: {key}: mapping keys must be strings",
+    ):
+        parse_config_table(table, path=path)
 
 
 def test_blank_cache_directory_is_rejected() -> None:

@@ -827,12 +827,12 @@ boundary:
 
 - `supported_region_kinds() -> tuple[str, ...]` returns the canonical
   region-kind names supplied by the Rust bridge. The result is cached and is
-  the source used to identify region kinds recognised by Python.
+  the source used to identify region kinds recognized by Python.
 - `warn_unknown_ir_region_kinds(
   ir_payload: collections.abc.Mapping[str, object] | None, *,
   operation: str,
   ) -> None` emits one warning for each canonical IR region kind returned by
-  the Rust bridge that Python does not recognise. Each warning includes the
+  the Rust bridge that Python does not recognize. Each warning includes the
   operation, region index, and unknown kind. The helper does not alter the IR
   payload or abort extraction.
 - `reset_extraction_state_for_tests() -> None` is test-only. It resets the
