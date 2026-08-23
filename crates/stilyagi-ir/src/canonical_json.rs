@@ -38,9 +38,10 @@ pub fn content_hash_for(source: &str) -> String {
 #[must_use]
 fn to_lower_hex(bytes: &[u8]) -> String {
     let mut hex = String::with_capacity(bytes.len() * 2);
-    for &byte in bytes {
-        hex.push(digit_for_nibble(byte >> 4));
-        hex.push(digit_for_nibble(byte & 0x0f));
+    let byte_iter = bytes.iter();
+    for byte in byte_iter {
+        hex.push(digit_for_nibble(*byte >> 4));
+        hex.push(digit_for_nibble(*byte & 0x0f));
     }
     hex
 }
@@ -48,6 +49,8 @@ fn to_lower_hex(bytes: &[u8]) -> String {
 /// Map a `0..=15` nibble to its lowercase hexadecimal ASCII digit.
 #[must_use]
 fn digit_for_nibble(nibble: u8) -> char {
+    debug_assert!(nibble <= 0x0f);
+
     char::from(if nibble < 10 {
         b'0' + nibble
     } else {
