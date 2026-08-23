@@ -227,9 +227,15 @@ Established during planning; use them instead of re-measuring.
   title and its Lody session title now omit the planning prefix.
 - [x] 2026-08-23 — Milestone 0: reads are byte-faithful; `CheckInput` retains
   decoded text and original bytes; collaborator injection is bundled behind
-  `CheckCollaborators`. All six deterministic gates pass; CodeRabbit review is
-  pending before Milestone 1.
-- [ ] Milestone 1 — typed IR view
+  `CheckCollaborators`. All six deterministic gates pass and CodeRabbit found
+  zero concerns (`43bd949`); Milestone 1 may begin.
+- [ ] Milestone 1 — typed IR view (in progress)
+  - Blocked 2026-08-23: the `make lint` gate remained red after the third
+    focused gate iteration, reaching the `Iterations` tolerance. Awaiting
+    explicit direction before changing the assertion structure. The post-turn
+    check explicitly instructed this fix on 2026-08-24; one focused exception
+    iteration completed with all six deterministic gates green. CodeRabbit
+    review is pending before Milestone 2.
 - [ ] Milestone 2 — fix model, splice kernel, stub retirement
 - [ ] Milestone 3 — admissibility, selection, conflict resolution
 - [ ] Milestone 4 — `--diff`
@@ -237,6 +243,13 @@ Established during planning; use them instead of re-measuring.
 - [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
 
 ## Surprises & discoveries
+
+- Observation (2026-08-23): the df12 Pylint tier rejects bare test assertions
+  and flags a large inline expected tuple as a snapshot candidate. The first
+  two Milestone 1 gate iterations corrected formatter, import-placement, and
+  wheel-layout snapshot issues; the third isolated five assertion findings in
+  `tests/test_ir_view.py`. Impact: the plan's three-iteration tolerance has
+  been reached, so implementation must pause before restructuring the tests.
 
 - Observation (2026-08-23): changing the file read boundary from `read_text`
   to `read_bytes` required the established operational-error test seam to patch
@@ -471,14 +484,35 @@ Established during planning; use them instead of re-measuring.
   same representation by reading `sys.stdin.buffer`. Date/Author: 2026-08-23,
   implementation.
 
+- **D-18: Pause Milestone 1 at the gate-iteration tolerance.** Evidence: the
+  first full gate run found formatting, type-only import, and wheel snapshot
+  defects; the second left the type-only import defect; the third left five
+  df12 Pylint assertion findings. Options are to authorize a fourth focused
+  iteration that adds contextual assertion helpers and a deliberately narrow
+  snapshot, or to revise the tests differently. Trade-off: continuing without
+  approval would violate the plan's explicit `Iterations` tolerance.
+  Date/Author: 2026-08-23, implementation.
+
+- **D-19: Authorize one focused assertion-remediation iteration.** Rationale:
+  the post-turn gate on 2026-08-24 explicitly instructed remediation of the
+  remaining `C9102` and `R9108` findings. The exception is limited to adding
+  assertion messages and one focused line-index snapshot; no production
+  contract changes are permitted. The full deterministic chain still gates
+  onward progress. Date/Author: 2026-08-24, user-directed implementation.
+
 ## Outcomes & retrospective
 
 - Milestone 0 (2026-08-23): removed universal-newline translation from the
-  disk and standard-input paths without changing the extractor's text API.
-  The first red regression used the real CRLF corpus fixture and failed because
-  the old path delivered LF text; it passes after the bytes-first change. The
+  disk and standard-input paths without changing the extractor's text API. The
+  first red regression used the real CRLF corpus fixture and failed because the
+  old path delivered LF text; it passes after the bytes-first change. The
   bundle keeps `run_check` beneath the local-count threshold while giving later
   feature tests a stable, private rule-runner injection seam.
+- Milestone 1 (2026-08-24): added a tolerant, typed read-only IR view over the
+  real extractor payload. The view preserves source-backed versus synthetic
+  provenance, merges touching spans for future containment checks, and keeps
+  malformed IR data non-fatal. `checker.py` now consumes its shared line-index
+  and span helpers, avoiding duplicate interpretation logic.
 
 ## Context and orientation
 
@@ -1410,6 +1444,19 @@ well formed, and the before-and-after byte dumps for the CRLF fixture test.
   `/tmp/{check-fmt,typecheck,lint,test,markdownlint,nixie}-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution.out`
   record the final sequentially green gate chain: 214 Python and 332 Rust
   tests, with format, type, lint, Markdown, spelling, and Mermaid checks clean.
+- Milestone 0 CodeRabbit evidence:
+  `/tmp/coderabbit-stilyagi-2-2-2-safe-fix-planning-conflict-resolution.out`
+  records `coderabbit review --agent` completing against `43bd949` with zero
+  findings and no rate limit.
+- Milestone 1 gate evidence:
+  `/tmp/{check-fmt,typecheck,lint,test,markdownlint,nixie}-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution.out`
+  records the third focused full-chain iteration. Only `make lint` is red:
+  `C9102` at lines 74, 87, 95, 100, and 101 plus `R9108` at line 100 of
+  `tests/test_ir_view.py`.
+- Milestone 1 final gate evidence:
+  `/tmp/{check-fmt,typecheck,lint,test,markdownlint,nixie}-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution.out`
+  records the D-19 exception iteration passing all six gates: 219 Python and
+  332 Rust tests, and 17 reviewed snapshots.
 
 ## Deferred follow-ups
 
@@ -1447,6 +1494,21 @@ than the previously draft-only plan. No technical contract changed.
 **Revision 4, 2026-08-23.** Recorded Milestone 0's byte-faithful source path,
 collaborator-bundle boundary, red/green evidence, and green full-gate result.
 Milestone 1 remains gated on the required CodeRabbit review.
+
+**Revision 5, 2026-08-23.** Recorded Milestone 0's clean CodeRabbit review and
+started Milestone 1.
+
+**Revision 6, 2026-08-23.** Marked the plan blocked after Milestone 1 reached
+its explicit three-iteration lint tolerance. The remaining failures and
+available options are recorded in D-18.
+
+**Revision 7, 2026-08-24.** The post-turn gate explicitly authorized one
+focused assertion-remediation iteration, so the plan returned to in-progress
+status under the narrow D-19 exception.
+
+**Revision 8, 2026-08-24.** Recorded Milestone 1's complete gate evidence and
+the typed IR-view outcome. CodeRabbit review remains required before the next
+milestone.
 
 **Revision 2, 2026-08-16.** Revised after a six-lens design review. What
 changed and why:
