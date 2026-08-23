@@ -406,11 +406,11 @@ force during the discovery pass.
 - `config/load.py` loads and validates individual config files
   (`load_config_file`, `discover_same_directory_config`) through a shared
   `_read_config_document` helper that maps missing, unreadable, or malformed
-  files to a typed `InvalidConfigError`.
-  `load_config_table(path)` reads one supported TOML file and returns the
-  selected Stilyagi mapping; for `pyproject.toml` it selects `[tool.stilyagi]`,
-  while a missing namespace selects an empty mapping. Read and TOML parsing
-  failures are reported as `InvalidConfigError`.
+  files to a typed `InvalidConfigError`. `load_config_table(path)` reads one
+  supported TOML file and returns the selected Stilyagi mapping; for
+  `pyproject.toml` it selects `[tool.stilyagi]`, while a missing namespace
+  selects an empty mapping. Read and TOML parsing failures are reported as
+  `InvalidConfigError`.
 - `config/parse.py` `parse_config_table(table, path=path)` converts the
   selected mapping into a `StilyagiConfig`, preserving the raw reserved values.
   Unsupported keys and invalid field or section values raise
@@ -815,10 +815,9 @@ There are also three concrete cross-boundary rules worth preserving:
   scope. Syntax-vocabulary validation is protected by a module lock so
   concurrent callers share one validated state, and bridge-patching tests must
   reset that state through the dedicated test helper before observing patched
-  vocabularies.
-  Its public `extract_document(source, syntax)` adapter validates the bridge
-  vocabulary, converts the Rust payload into a `model.Document`, and preserves
-  the optional IR JSON mapping on that document.
+  vocabularies. Its public `extract_document(source, syntax)` adapter validates
+  the bridge vocabulary, converts the Rust payload into a `model.Document`, and
+  preserves the optional IR JSON mapping on that document.
 - The Rust workspace should not depend on Python package modules for policy or
   plugin decisions. Python owns orchestration and registration; Rust owns
   extraction and source fidelity.

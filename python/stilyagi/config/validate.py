@@ -22,7 +22,27 @@ if typ.TYPE_CHECKING:
 def ensure_mapping(
     value: object, *, path: pathlib.Path, key: str
 ) -> cabc.Mapping[str, object]:
-    """Validate that a config value is a mapping."""
+    """Validate a mapping value and its string keys.
+
+    Parameters
+    ----------
+    value : object
+        Raw configuration value to validate.
+    path : pathlib.Path
+        Path used to identify invalid configuration values in diagnostics.
+    key : str
+        Configuration field receiving the value.
+
+    Returns
+    -------
+    collections.abc.Mapping[str, object]
+        The validated mapping with string keys.
+
+    Raises
+    ------
+    InvalidConfigError
+        If ``value`` is not a mapping or contains a non-string key.
+    """
     if not isinstance(value, cabc.Mapping):
         raise InvalidConfigError(path, key, "must be a mapping")
     mapping = typ.cast("cabc.Mapping[object, object]", value)

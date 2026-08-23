@@ -81,8 +81,31 @@ def _read_config_document(path: pathlib.Path) -> cabc.Mapping[str, object]:
 
 
 def load_config_table(path: pathlib.Path) -> cabc.Mapping[str, object]:
-    """Load and select the supported config table for one file."""
-    return _select_config_table(_read_config_document(path), path=path)
+    """Load the selected Stilyagi configuration mapping from a file.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path to a supported TOML configuration file. For ``pyproject.toml``,
+        the selected mapping is ``[tool.stilyagi]``.
+
+    Returns
+    -------
+    collections.abc.Mapping[str, object]
+        The selected configuration mapping, or an empty mapping when a
+        ``pyproject.toml`` file has no ``[tool.stilyagi]`` table.
+
+    Raises
+    ------
+    InvalidConfigError
+        If the file is missing, unreadable, or contains malformed TOML.
+    """
+    try:
+        raw_document = _read_config_document(path)
+    except InvalidConfigError as error:
+        _LOGGER.debug("unable to load config table %s: %s", path, error)
+        raise
+    return _select_config_table(raw_document, path=path)
 
 
 def _select_config_table(

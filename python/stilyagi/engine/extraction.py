@@ -83,20 +83,28 @@ def _validate_syntax_vocab_once() -> None:
             )
             raise RuntimeError(msg)
         _syntax_vocab_validated = True
+        return
 
 
 def reset_extraction_state_for_tests() -> None:
-    """Reset process-wide extraction caches used by tests that patch the bridge."""
+    """Reset process-wide extraction state after bridge patching in tests."""
     global _syntax_vocab_validated
     with _SYNTAX_VOCAB_LOCK:
         _syntax_vocab_validated = False
         supported_region_kinds.cache_clear()
         _known_ir_region_kinds.cache_clear()
+        return
 
 
 @cache
 def supported_region_kinds() -> tuple[str, ...]:
-    """Return bridge region kinds, loaded lazily to keep imports side-effect free."""
+    """Return bridge region kinds without importing the bridge eagerly.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Canonical region-kind names supplied by the Rust bridge.
+    """
     return bridge_supported_region_kinds()
 
 

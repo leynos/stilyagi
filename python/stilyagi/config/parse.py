@@ -160,7 +160,25 @@ def parse_config_table(
     *,
     path: pathlib.Path,
 ) -> StilyagiConfig:
-    """Parse one config namespace into a resolved configuration."""
+    """Parse a selected config mapping into a resolved configuration.
+
+    Parameters
+    ----------
+    table : collections.abc.Mapping[str, object]
+        Selected Stilyagi configuration values from a supported TOML file.
+    path : pathlib.Path
+        Path used to identify invalid configuration values in diagnostics.
+
+    Returns
+    -------
+    StilyagiConfig
+        Parsed configuration with typed fields and preserved reserved values.
+
+    Raises
+    ------
+    InvalidConfigError
+        If the table contains unsupported keys or invalid field values.
+    """
     unknown_keys = set(table) - {
         "cache-dir",
         "respect-gitignore",

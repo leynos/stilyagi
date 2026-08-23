@@ -6,6 +6,7 @@ import typing as typ
 
 import pytest
 from stilyagi import config
+from stilyagi.config.validate import ensure_mapping
 from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.assertions import assert_with_context
@@ -248,6 +249,17 @@ def test_unknown_keys_raise_a_typed_config_error(
         config.InvalidConfigError, match=r"stilyagi\.toml.*lint\.made-up-key"
     ):
         config.load_config_file(path)
+
+
+def test_mapping_with_non_string_key_is_rejected() -> None:
+    """Reject configuration mappings whose keys cannot name configuration fields."""
+    path = pathlib.Path("stilyagi.toml")
+
+    with pytest.raises(
+        config.InvalidConfigError,
+        match=r"stilyagi\.toml: lint: mapping keys must be strings",
+    ):
+        ensure_mapping({"select": (), 1: ()}, path=path, key="lint")
 
 
 def test_blank_cache_directory_is_rejected() -> None:
