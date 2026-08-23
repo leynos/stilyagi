@@ -17,7 +17,7 @@
     adr-002-packaging-boundary.md)
   - [ADR 003: Ratify the v1 contract scope](
     adr-003-v1-contract-scope.md)
-  - [ADR 004: Adopt two-tier Python linting](
+  - [ADR 004: Adopt Python linting architecture](
     adr-004-python-linting-architecture.md)
   - [ADR 005: Scope Markdown region vocabulary](
     adr-005-markdown-region-vocabulary-scope.md)

@@ -10,6 +10,8 @@ env:
   CARGO_TERM_COLOR: always
   BUILD_PROFILE: debug
   WHITAKER_INSTALLER_VERSION: '0.2.6'
+  MAKEUTIL_REVISION: '29fc5a1634ffbaa18a773eed9dff1b2838a45d9c'
+  MAKEUTIL_TOOLCHAIN: 'nightly-2026-05-28'
   # The 927edd4 shared-actions pin adds a 600s cargo wall-clock cap;
   # stilyagi's trybuild-heavy suite and the maturin extension build need
   # more headroom under cold coverage instrumentation.
@@ -42,6 +44,16 @@ jobs:
 
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest@0.9.138
+
+      - name: Install Makefile parser
+        run: |
+          rustup toolchain install "${MAKEUTIL_TOOLCHAIN}" --profile minimal
+          RUSTFLAGS="-Zpolonius=next" cargo +"${MAKEUTIL_TOOLCHAIN}" install \
+            --git https://github.com/leynos/makeutil \
+            --rev "${MAKEUTIL_REVISION}" \
+            --locked \
+            --force \
+            makeutil
 
       - name: Install bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6

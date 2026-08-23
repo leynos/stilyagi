@@ -916,19 +916,21 @@ the host `PATH`. Ruff and Interrogate are both pinned in the `dev` dependency
 group, so the Makefile and CI resolve identical versions from `uv.lock`. Pylint
 is the exception: it runs through `uv tool run --python pypy` with the pinned
 [`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper.
-Interrogate and Pylint run after Ruff and before the Rust lint tiers, with
-Interrogate enforcing a 100% docstring-coverage threshold.
+Interrogate, Pylint, and Skylos run after Ruff and before the Rust lint tiers,
+with Interrogate enforcing a 100% docstring-coverage threshold.
 
 ### 6a. Python linting architecture
 
 ADR 004 records the accepted Python linting architecture.[^4] The short version
-is that Python linting has three tiers:
+is that Python linting has four tiers:
 
 1. Ruff runs first through `uv run --group dev ruff check`.
 2. Interrogate runs second with `--fail-under 100` over `python/stilyagi` and
    `tests`.
 3. Pylint runs third through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
+4. Skylos runs fourth through its pinned Python 3.14 tool environment to scan
+   production dead code strictly.
 
 `make lint` then continues into the Rust lint tiers owned by the repository:
 
@@ -971,8 +973,10 @@ Table: Lint runner Makefile variables.
 | `PYLINT_PYPY_SHIM`          | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                  | Expands the pinned shim package source.                         |
 | `PYLINT`                    | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy` | Builds the complete Pylint command used by `make lint`.         |
 | `SKYLOS_VERSION`            | `4.33.2`                                                                                      | Pins the dead-code detector used by `make lint`.                |
-| `SKYLOS`                    | `uv tool run --from skylos==$(SKYLOS_VERSION) skylos --config-file pyproject.toml`            | Builds the configured Skylos command.                           |
+| `SKYLOS_CLI`                | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`            | Builds the command-only Skylos CLI.                             |
+| `SKYLOS`                    | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                  | Adds scan-only configuration to the Skylos CLI.                 |
 | `SKYLOS_PRODUCTION_TARGETS` | `python/stilyagi`                                                                             | Limits dead-code analysis to production Python sources.         |
+| `SKYLOS_EXCLUDE_FOLDERS`    | `tests`                                                                                       | Excludes tests from the production liveness graph.              |
 | `TYPOS_VERSION`             | `1.48.0`                                                                                      | Pins the `typos` version shared by the Makefile and CI.         |
 | `TYPOS`                     | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                         | Builds the spelling-check command used by `make markdownlint`.  |
 
@@ -1033,7 +1037,6 @@ or the suppression. Ruff suppressions use `# noqa`, while Pylint suppressions
 use `# pylint: disable=...`; do not use one tool's suppression syntax to hide
 the other tool's finding.
 
-
 ### 6b. Skylos dead-code gate
 
 `make lint` runs a blocking Skylos scan of `python/stilyagi` after the existing
@@ -1047,18 +1050,40 @@ The CI `Lint and dead-code detection` step calls the same `make lint` target,
 so local and CI dead-code detection use the same pinned version and
 configuration.
 
+Skylos parses source using the Python runtime's own `ast`. `SKYLOS_CLI` pins
+that runtime to Python 3.14, preventing phantom dead-code findings when the
+project uses syntax that an older parser does not understand. `SKYLOS` adds
+`--config-file` only for scans; the `whitelist` subcommand must immediately
+follow the command-only CLI.
+
 Treat every Skylos finding as a candidate for removal until its caller is
-verified. Remove genuine dead code. For a verified false positive that cannot
-be removed, record a narrow, named exception with its runtime caller:
+verified. Remove genuine dead code. Prefer a typed `[tool.skylos.dead_code]`
+entry-point rule for an implicit runtime caller. Only when that rule cannot
+model the boundary, record a verified false positive as a narrow, named
+exception with its runtime caller:
 
 ```shell
-make skylos-allow NAME=registered_handler \
+make skylos-allow SYMBOL=registered_handler \
   REASON="Loaded by the plugin registry; verified in the registry contract test"
 ```
 
-The target refuses empty `NAME` and `REASON` values and records the explanation
-under `[tool.skylos.whitelist.documented]`. Do not add broad or unexplained
+The target refuses empty `SYMBOL` and `REASON` values with exit status 2 and
+records the explanation under `[tool.skylos.whitelist.documented]`. `SYMBOL`
+avoids WSL's injected hostname `NAME` variable. Do not add broad or unexplained
 allow-list entries; remove an entry when its dynamic boundary disappears.
+
+`tests/test_skylos_lint_contract.py` parses the Makefile with the pinned
+`makeutil` executable, so `make test` requires the same local bootstrap that CI
+uses:
+
+```shell
+rustup toolchain install nightly-2026-05-28 --profile minimal
+RUSTFLAGS="-Zpolonius=next" cargo +nightly-2026-05-28 install \
+  --git https://github.com/leynos/makeutil \
+  --rev 29fc5a1634ffbaa18a773eed9dff1b2838a45d9c \
+  --locked --force makeutil
+make test
+```
 
 ### 6b. Fallibility in Rust test helpers
 

@@ -194,6 +194,28 @@ those defaults only when the project-wide policy is intentionally changing.
 - Revisit the `syntax-error` Pylint disable when the managed PyPy interpreter
   catches up with the project's CPython syntax target.
 
+## Addendum — 2026-08-23: Skylos production dead-code tier
+
+The original two-tier decision remains the foundation for Ruff and PyPy-backed
+Pylint. Interrogate subsequently added docstring coverage to the lint workflow.
+The effective Python lint order is now:
+
+1. Ruff — fast, broad lint rules and docstring style.
+2. Interrogate — 100 per cent docstring presence.
+3. PyPy-backed Pylint — focused selected messages.
+4. Skylos — strict production dead-code detection.
+
+Skylos is a blocking fourth tier in `make lint`. It scans `python/stilyagi`,
+excludes `tests`, and uses the strict gate configuration in `pyproject.toml`.
+The standalone tool environment is pinned to Python 3.14: Skylos parses source
+using that runtime's `ast`, so the pin prevents phantom dead-code findings from
+newer Python syntax that an older runtime cannot parse.
+
+Typed `[tool.skylos.dead_code]` entry-point rules model implicit runtime
+callers where possible. Named documented allow-list entries are reserved for a
+verified false positive whose boundary cannot be represented as an entry point.
+This addendum supersedes the historical two-tier count.
+
 ## References
 
 [^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)

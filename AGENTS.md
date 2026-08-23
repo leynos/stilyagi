@@ -93,8 +93,11 @@
     blocking Skylos dead-code scan. The CI lint step runs the same target.
     Investigate every finding and remove genuine dead code. Record verified
     false positives with
-    `make skylos-allow NAME=handler REASON="Loaded by plugin registry"`,
-    including the verified runtime caller in the reason.
+    a typed `[tool.skylos.dead_code]` entry-point rule for implicit runtime
+    callers. Only if that rule cannot model the boundary, use
+    `make skylos-allow SYMBOL=handler REASON="Loaded by plugin registry"`,
+    including the verified runtime caller in the reason. `SYMBOL` is required
+    because WSL may inject `NAME` with the hostname.
   - **Docstring coverage:** Interrogate, run as part of `make lint`, requires
     100% docstring coverage over `python/stilyagi` and `tests`. Add
     docstrings with new code rather than suppressing the check.

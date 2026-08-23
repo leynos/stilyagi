@@ -14,6 +14,7 @@ if typ.TYPE_CHECKING:
 pytest_plugins = ("cmd_mox.pytest_plugin",)
 
 SCRIPTS = pathlib.Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = SCRIPTS.parent
 PROHIBITED = "hand" + "-written"
 TITLE_PROHIBITED = "Hand" + "-written"
 FINDINGS_EXIT_CODE = 2
@@ -63,18 +64,16 @@ def policy_files(*, local_phrase: str = "") -> dict[str, str]:
 def test_load_policy_combines_shared_and_local_policy(
     checker: types.ModuleType, tmp_path: pathlib.Path
 ) -> None:
-    """Load shared phrases and generated scan settings."""
-    initialize(
-        tmp_path,
-        policy_files(
-            local_phrase='[phrases.corrections]\n"fit-for-purpose" = "suitable"\n'
-        ),
+    """Load the committed local policy with shared phrases and scan settings."""
+    files = policy_files()
+    files["typos.local.toml"] = (REPOSITORY_ROOT / "typos.local.toml").read_text(
+        encoding="utf-8"
     )
+    initialize(tmp_path, files)
 
     policy = checker.load_policy(tmp_path)
 
     assert policy.phrase_corrections == (  # noqa: S101 -- isolated test assertion.
-        ("fit-for-purpose", "suitable"),
         (PROHIBITED, "handwritten"),
     )
     assert policy.ignore_patterns == (  # noqa: S101 -- isolated test assertion.
