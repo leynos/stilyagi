@@ -4,10 +4,10 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS
 
-Approval gate: **not yet satisfied**. Do not begin implementation until the plan
-is explicitly approved.
+Approval gate: **satisfied on 2026-08-23**. The implementation request
+explicitly approves this ExecPlan.
 
 This is planning round 2. Round 1 was written from direct inspection of the
 working tree plus executed probes against the built extension. Round 2 rewrites
@@ -255,7 +255,8 @@ is bounded and predictable while the code work is where surprises live.
 
 Milestone 1 — discovery and dispatch:
 
-- [ ] W0. Confirm the tree matches this plan's anchors; capture the baseline.
+- [x] W0. Confirm the tree matches this plan's anchors; capture the baseline
+      (2026-08-23).
 - [ ] W1. Generalize discovery beyond Markdown, carrying the selected syntax.
 - [ ] W2. Select the extractor per file in the `check` loop, including stdin.
 - [ ] W3. Milestone-1 tests: units, `hypothesis` property, BDD scenarios,
@@ -281,6 +282,15 @@ Closing:
 Found during planning by executing probes against the built extension, and
 during the round-2 design review. These are the evidence base for the Decision
 Log; they are why this plan is larger than "add three strings to a frozenset".
+
+- **S14 (implementation). The rebased baseline has 236 tracked discovery
+  candidates, not 233.** After the baseline gates materialized `.uv-cache`,
+  the W1 pruning policy yielded 65 Markdown, 78 Python, and 93 Rust tracked
+  files. This is three more source files than the planning-time snapshot (two
+  Python and one Rust), while the Markdown count remains 65. The acceptance
+  commands must use the live counts established after W1 rather than the stale
+  233-file figures in this draft. This is a base-branch evolution, not a
+  design deviation.
 
 - **S1. The Rust side is already complete; the gap is entirely in Python.**
   `ExtractSyntax` already has all three variants and dispatches all three;
@@ -450,6 +460,16 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   `--doctest-modules` as follow-up.
 
 ## Decision log
+
+- **D13 (implementation). The explicit implementation request satisfies the
+  ExecPlan approval gate, and the rebased source-count baseline supersedes the
+  planning snapshot.** W0 confirmed both code anchors, the `ty` typecheck
+  recipe, the full lint recipe, `ExpectValid`, and developers' guide §6b. The
+  four deterministic code gates passed before any production edit:
+  `check-fmt`, `typecheck`, `lint`, and `test` (332 Rust tests and 213 Python
+  tests). The plan's implementation-time acceptance evidence will record the
+  observed W1 count rather than preserving a stale planning-time count.
+  Date/Author: 2026-08-23, implementation agent.
 
 - **D1 (reversed in round 2). The extension-to-syntax table lives in Python, in
   `python/stilyagi/discovery.py`. No bridge function is added for it.**
@@ -1323,6 +1343,18 @@ are read-only with respect to source.
 To be filled in as work proceeds. Record at minimum: the W0 baseline gate
 transcript; red and green transcripts per work item; the per-syntax figures,
 byte totals, and `cache_stats` from W6; and the final acceptance transcripts.
+
+W0 evidence, 2026-08-23:
+
+```plaintext
+make check-fmt  PASS  /tmp/check-fmt-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
+make typecheck  PASS  /tmp/typecheck-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
+make lint       PASS  /tmp/lint-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
+make test       PASS  /tmp/test-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
+```
+
+The test gate reported 332 Rust tests and 213 Python tests. `make` created
+`.uv-cache`; its presence was confirmed before recording S14.
 
 The planning-time dry run, retained as the W6 baseline:
 
