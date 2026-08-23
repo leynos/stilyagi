@@ -135,6 +135,6 @@
     syntax-aware rule helpers for richer editorial analysis.
   - [RFC 0006: Editorial policy vertical slices](
     rfcs/0006-editorial-policy-vertical-slices.md)
-    proposes policy-oriented spelling, punctuation, pronoun, imperative, and
-    `write-good` gap-probe slices that build on the roadmap's structural,
-    source-tree, grammar, and spelling phases.
+    proposes policy-oriented spelling, punctuation, person,
+    imperative, and `write-good` gap-probe slices that build on the roadmap's
+    structural, source-tree, grammar, and spelling phases.

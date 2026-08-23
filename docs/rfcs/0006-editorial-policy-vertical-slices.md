@@ -22,8 +22,8 @@ fix planning. The core should not hard-code one grammar officiant's taste into
 the extractor, the intermediate representation (IR), or the grammar provider.
 Instead, the roadmap should include `df12-editorial-style`, a first-party lint
 pack whose vertical slices prove Stilyagi can host opinionated spelling,
-punctuation, pronoun, imperative, and phrase-style rules without losing the
-structural fast path.
+punctuation, person, imperative, and phrase-style rules
+without losing the structural fast path.
 
 `df12-editorial-style` serves two purposes:
 
@@ -58,10 +58,6 @@ grammar and spelling provider slices.
 
 ## 2. Problem
 
-The current roadmap correctly builds Stilyagi from source-faithful extraction
-toward richer language-aware rules. That sequence is necessary, but it does not
-yet make one product question explicit:
-
 Can Stilyagi support deliberately opinionated editorial policies without making
 those policies part of the core model?
 
@@ -84,7 +80,15 @@ Without an explicit policy slice, Stilyagi risks three bad outcomes:
 
 This RFC proposes a route that avoids all three.
 
-## 3. Goals
+## 3. Current State
+
+The current roadmap correctly builds Stilyagi from source-faithful extraction
+toward richer language-aware rules. That sequence is necessary, but it does not
+yet make the policy question explicit.
+
+## 4. Goals and Non-goals
+
+### 4.1. Goals
 
 - Define vertical slices that let Stilyagi host opinionated editorial policy
   packs over Markdown, Python docstrings, and Rust documentation comments.
@@ -103,7 +107,7 @@ This RFC proposes a route that avoids all three.
   profiles to select rules explicitly.
 - Make easily identifiable inverse policies and rule variants configurable.
 
-## 4. Non-goals
+### 4.2. Non-goals
 
 - This RFC does not define a universal English grammar checker.
 - This RFC does not enable any `df12-editorial-style` rule by default.
@@ -139,7 +143,9 @@ strong enough to require a preceding comma.
 **Source-backed fix** has the same meaning as in the existing RFC set: the edit
 targets original source bytes, not synthetic flattened text.
 
-## 6. Capability alignment
+## 6. Proposed Design
+
+### 6.1. Capability alignment
 
 | Policy target                                                    | Minimum Stilyagi surface                                                                    | Main missing work                                                                              |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -151,9 +157,11 @@ targets original source bytes, not synthetic flattened text.
 | Imperative prohibition                                           | Sentences, tokens, POS, fine POS, lemmas, dependencies                                      | Imperative root heuristics, context targeting, manual-only fixes                               |
 | `write-good` gap probes                                          | Mixed: lexicon, phrases, sentences, dependencies, morphology                                | Phrase-table primitives, disabled defaults, duplicate diagnostic control                       |
 
-## 7. Proposed vertical slices
+_Table 1: Capability alignment for the proposed editorial policy targets._
 
-### 7.1. Slice A: policy-rule substrate
+### 6.2. Proposed vertical slices
+
+#### 6.2.1. Slice A: policy-rule substrate
 
 This slice should make project-specific editorial policy pleasant to express
 without grammar enrichment. It is the thin courtroom where later rules can
@@ -194,7 +202,7 @@ Roadmap impact:
 - Amend 3.2.2 so docstring and documentation-comment rules reuse the same
   policy targeting model.
 
-### 7.2. Slice B: locale-aware spelling policy
+#### 6.2.2. Slice B: locale-aware spelling policy
 
 This slice proves that Stilyagi can enforce an opinionated prose dictionary
 override without merging spelling and grammar into one provider.
@@ -231,12 +239,12 @@ Roadmap impact:
 - Document that arbitrary non-doc comments remain outside the current spelling
   surface, but may be added by a post-v1 extraction roadmap item.
 
-### 7.3. Slice C: `write-good` gap probes
+#### 6.2.3. Slice C: `write-good` gap probes
 
 This slice uses six `write-good`-style checks to expose missing primitives and
 avoid designing only for the punctuation examples.
 
-#### Passive voice
+##### Passive voice
 
 Passive voice needs morphology and dependency structure. A useful rule should
 look for auxiliary-passive and nominal-subject-passive constructions, not
@@ -250,7 +258,7 @@ Required work:
 - Advisory diagnostics with no automatic active-voice rewrite.
 - Duplicate suppression with E-Prime where both rules see the same auxiliary.
 
-#### E-Prime
+##### E-Prime
 
 E-Prime prohibits forms of `to be`. It should be disabled by default because it
 is a style constraint rather than a general correctness rule.
@@ -264,7 +272,7 @@ Required work:
 - Context filters for code spans, API names, examples, and quoted material.
 - Diagnostic coalescing with passive-voice checks.
 
-#### Lexical illusion
+##### Lexical illusion
 
 Lexical illusion flags repeated adjacent words. It is simple, but it is a
 source-mapping stress test.
@@ -277,7 +285,7 @@ Required work:
 - Tests for repeated words split by inline markup or comment prefixes.
 - Safe delete fixes only when the redundant token maps cleanly to source.
 
-#### Sentence-initial existential `there is` or `there are`
+##### Sentence-initial existential `there is` or `there are`
 
 This rule catches sentence openings such as `There is` or `There are`. A
 regex-only rule is cheap, but a robust Stilyagi rule should benefit from
@@ -291,7 +299,7 @@ Required work:
   deliberately.
 - No automatic rewrite.
 
-#### Weasel words
+##### Weasel words
 
 Weasel-word detection is primarily a lexicon policy rule.
 
@@ -302,7 +310,7 @@ Required work:
 - Allowlists and quoted-material exclusions.
 - A clear distinction between builtin defaults and project-provided policy.
 
-#### Too wordy
+##### Too wordy
 
 Wordy-phrase detection exercises multi-token phrase matching and replacement
 suggestions.
@@ -324,7 +332,7 @@ Roadmap impact:
 - Ensure the rule testing framework has compact fixtures for lexical, phrase,
   sentence, and dependency rules.
 
-### 7.4. Slice D: person and imperative policy
+#### 6.2.4. Slice D: person and imperative policy
 
 This slice proves Stilyagi can express prose-person and mood constraints
 without writing a full grammar checker.
@@ -355,7 +363,7 @@ Roadmap impact:
 - Document that imperative and person policies are style laws, not default
   grammar-correctness checks.
 
-### 7.5. Slice E: clause and coordination punctuation
+#### 6.2.5. Slice E: clause and coordination punctuation
 
 This slice is the grammar-officiant showcase. It proves that clause and
 coordination helpers can support punctuation law while keeping policy decisions
@@ -404,7 +412,7 @@ Roadmap impact:
 - Require `dump-ir --include-grammar`, or an equivalent view, to explain why a
   clause or coordination helper was built.
 
-### 7.6. Slice F: `df12-editorial-style` and rule-author workflow
+#### 6.2.6. Slice F: `df12-editorial-style` and rule-author workflow
 
 This slice delivers `df12-editorial-style` as a first-party pack for df12 house
 style and as a worked example for code shepherds who want to implement their
@@ -429,12 +437,12 @@ Roadmap impact:
   structural rules.
 - Amend 5.3 so CI reporting handles policy diagnostics consistently.
 
-## 8. Proposed roadmap amendments
+### 6.3. Proposed roadmap amendments
 
 The current roadmap order should remain intact. The amendments below make the
 policy path explicit.
 
-### 8.1. Amend existing roadmap items
+#### 6.3.1. Amend existing roadmap items
 
 Amend 2.3.1 to say that the first builtin Markdown rules should include
 lightweight policy-substrate probes, such as repeated words, banned terms, and
@@ -465,62 +473,17 @@ diagnostic-only spelling capability lands.
 Amend 5.2 to include provider-backed rule test helpers for spelling and grammar
 rules.
 
-### 8.2. Add a new roadmap subsection after 4.4
+#### 6.3.2. Add the showcase-pack roadmap item
 
-Add this section after "4.4. Add dictionary-based spelling as a sibling
-provider capability":
+The canonical task plan is [roadmap item 4.5](
+../roadmap.md#45-add-the-df12-editorial-style-showcase-pack). It adds the
+disabled-by-default `df12-editorial-style` pack after the grammar and spelling
+provider slices, covering policy configuration, the dictionary example, gap
+probes, person and imperative rules, punctuation rules, and adoption guidance.
+This RFC records the design intent; the roadmap remains the source of truth for
+task breakdown, dependencies, and acceptance criteria.
 
-```markdown
-### 4.5. Add the `df12-editorial-style` showcase pack
-
-This step adds a disabled-by-default lint pack that enforces df12 house style
-and demonstrates how to build opinionated, logic-driven grammatical rules over
-the `astroid`-like API. It answers whether Stilyagi can host those rules as
-policy over source-backed regions, spelling providers, and grammar helpers
-without hard-coding them into the extractor or provider model.
-
-- [ ] 4.5.1. Add policy-rule configuration and lexicon or phrase-table
-  primitives.
-  - Requires 2.3.1, 2.3.2, and 3.2.2.
-  - Success: builtin and external rules can expose modes, severities,
-    allowlists, ignored contexts, preview status, and identifiable inverse or
-    variant behaviours without bespoke config parsing.
-- [ ] 4.5.2. Add dictionary acquisition and an `en-GB-oxendict` example.
-  - Requires 4.4.2.
-  - Success: users can download a Hunspell dictionary, or a supported
-    equivalent, into the relevant XDG data-share location without Stilyagi
-    distributing it. Markdown, Python docstring, and Rust documentation-comment
-    fixtures prove that the configured `en-GB-oxendict` example accepts the
-    intended Oxford-spelling examples and reports policy-rejected variants
-    where the dictionary makes a clear choice.
-- [ ] 4.5.3. Add preview `write-good` gap-probe rules.
-  - Requires 4.1.2 and 4.2.1 where grammar is needed.
-  - Include passive voice, E-Prime, lexical illusion, sentence-initial
-    existential `there is` or `there are`, weasel words, and wordy phrases.
-  - Success: the rules identify missing primitives, prove the rule-testing
-    workflow, and remain disabled by default regardless of preview status.
-- [ ] 4.5.4. Add person and imperative policy rules.
-  - Requires 4.2.1.
-  - Success: configured Markdown, Python docstring, and Rust documentation-
-    comment regions can prohibit first person, second person, and imperative
-    mood without automatic rewrites.
-- [ ] 4.5.5. Add preview clause and coordination punctuation policy rules.
-  - Requires 4.2.2 and 4.3.2.
-  - Include necessary serial comma, comma before configured postposed
-    subordinate clauses, and comma after fronted dependent clauses.
-  - Success: policy rules use `ClauseNode` and `CoordinationNode` helpers,
-    explain their decisions through grammar debug output, and only mark comma
-    insertions safe when the insertion point is source-backed and unambiguous.
-- [ ] 4.5.6. Document policy-pack limitations and adoption guidance.
-  - Requires 4.5.2, 4.5.3, 4.5.4, and 4.5.5.
-  - Success: users know which rules are stable, preview,
-    spelling-provider-dependent, grammar-provider-dependent, or outside the
-    current comment surface.
-  - Success: the pack and every rule ship disabled by default, in the manner of
-    Clippy's `pedantic` and `restriction` groups.
-```
-
-## 9. Rule-code sketch
+### 6.4. Rule-code sketch
 
 The exact codes can change, but `df12-editorial-style` could use this shape.
 Every rule remains disabled unless a project selects it explicitly:
@@ -540,7 +503,11 @@ Every rule remains disabled unless a project selects it explicitly:
 | `WG105`    | existential `there is` or `there are`                            | disabled       | sentences, tokens, dependency optional              |
 | `WG106`    | passive voice                                                    | disabled       | tokens, POS, morphology, dependency                 |
 
-## 10. Diagnostics and fix policy
+_Table 2: Illustrative rule-code shape for the disabled-by-default policy pack._
+
+## 7. Requirements
+
+### 7.1. Diagnostics and fix policy
 
 Policy diagnostics should not be fatal by default. The rule pack should support
 `info`, `warning`, and `error`, but most grammar-aware policy rules should
@@ -566,7 +533,7 @@ Fixes should follow these rules:
 - Rules must never insert punctuation into synthetic spaces produced by region
   flattening.
 
-## 11. Testing strategy
+### 7.2. Testing strategy
 
 Each slice should add fixtures that run through the real CLI, not only unit
 helpers.
@@ -594,7 +561,7 @@ Minimum acceptance coverage:
 - Performance checks showing structural-only runs do not start grammar or
   spelling providers.
 
-## 12. Compatibility and migration
+### 7.3. Compatibility and migration
 
 This RFC does not change the v1 extraction contract by itself. It relies on the
 accepted v1 surfaces:
@@ -612,34 +579,34 @@ doc-comment machinery exists.
 Existing structural rules remain unaffected. Grammar and spelling providers are
 loaded only when selected rules require them.
 
-## 13. Rejected approaches
+## 8. Alternatives Considered
 
-### 13.1. Put editorial policy into extractor nodes
+### 8.1. Put editorial policy into extractor nodes
 
 Rejected. Extractor nodes should describe source and prose regions. They should
 not know that one policy profile treats `whereas` clauses as strong or that
 another profile allows first person in tutorials.
 
-### 13.2. Expose raw spaCy objects to policy rules
+### 8.2. Expose raw spaCy objects to policy rules
 
 Rejected. RFC 0005 already defines the provider-neutral grammar route. Policy
 packs should consume Stilyagi-owned nodes so backend changes do not become API
 breaks.
 
-### 13.3. Ship a blanket Oxford comma rule as the only serial-comma model
+### 8.3. Ship a blanket Oxford comma rule as the only serial-comma model
 
 Rejected. A blanket serial-comma rule may be useful as a separate policy, but
 the motivating use case is a necessary-comma policy. Stilyagi should support
 both by putting item structure in `CoordinationNode` and style decisions in the
 rule.
 
-### 13.4. Rewrite prose automatically
+### 8.4. Rewrite prose automatically
 
 Rejected for the first wave. Passive voice, imperative mood, E-Prime, and
 wordiness rules often require judgment. Stilyagi should flag them and provide
 examples, not silently mutate authorial intent.
 
-## 14. Open questions
+## 9. Open questions
 
 - Which download metadata, integrity checks, and provenance requirements must
   ADR 001 define for dictionaries installed into the XDG data-share location?
@@ -650,3 +617,11 @@ examples, not silently mutate authorial intent.
   without multiplying rule codes unnecessarily?
 - What evidence should a post-v1 proposal provide before arbitrary non-doc
   comments join the supported syntax surface?
+
+## 10. Recommendation
+
+Adopt the proposed vertical-slice design and add `df12-editorial-style` after
+the grammar and spelling provider slices. Keep policy in explicitly selected
+packs over source-backed, provider-neutral facts; keep every rule disabled by
+default; and use the canonical roadmap item for implementation sequencing and
+acceptance criteria.

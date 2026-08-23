@@ -376,8 +376,9 @@ language-aware features exist. See [Stilyagi design](stilyagi-design.md) §§7.2
 [RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md).
 
 - [ ] 4.2.1. Add `UPos`, `Dep`, `MorphFeatures`, `SentenceNode`, and
-  `TokenNode` to the rule API as the first grammar-capability wave. See
-  Stilyagi design (stilyagi-design.md) §7.2.
+  `TokenNode` to the rule API as the first grammar-capability wave, including
+  the `FINE_POS` and `LEMMA` capabilities. See Stilyagi design
+  (stilyagi-design.md) §7.2.
   - Requires 4.1.2.
   - Keep backend escape hatches explicitly unstable.
   - Success: common rule authors do not need direct spaCy objects to be
@@ -499,7 +500,7 @@ selected and serves as a worked rule-authoring example. See
     fixtures prove that a separately acquired dictionary can enforce an
     opinionated profile over every current prose surface.
 - [ ] 4.5.3. Add the six `write-good` gap-probe rules.
-  - Requires 4.1.2, 4.2.1, and 4.5.1.
+  - Requires 4.2.1 and 4.5.1.
   - Include passive voice, E-Prime, lexical illusion, sentence-initial
     existential `there is` or `there are`, weasel words, and wordy phrases.
   - Success: the rules expose missing primitives and prove the rule-testing
@@ -507,6 +508,8 @@ selected and serves as a worked rule-authoring example. See
 - [ ] 4.5.4. Add person and imperative policy rules.
   - Requires 4.2.1 and 4.5.1.
   - Support configurable first-person, second-person, and imperative variants.
+  - The imperative prohibition rule must declare `SENTENCES`, `TOKENS`, `POS`,
+    `FINE_POS`, `LEMMA`, and `DEPENDENCY` capabilities.
   - Success: configured Markdown, Python docstring, and Rust documentation-
     comment regions enforce the selected person and mood policies without
     automatic rewrites.
@@ -546,8 +549,10 @@ consumers and safe enough for teams to adopt deliberately. See
 - [ ] 5.1.1. Implement entry-point-based discovery for rule packs and
   capability providers. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.2.1 and 2.3.2.
-  - Success: installed but unconfigured packs remain inert by default, and
-    pack selection does not implicitly enable disabled rules.
+  - Success: installed or discovered but unconfigured packs remain inert, while
+    explicit pack selection activates that pack's disabled-by-default rules;
+    individual rule selection or configuration remains an alternative or
+    override.
 - [ ] 5.1.2. Reject duplicate pack names, duplicate rule codes, and invalid
   provider metadata at startup. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 5.1.1.
@@ -603,7 +608,7 @@ publishing. See [Stilyagi design](stilyagi-design.md) §§5, 8, 11, 13 and
   - Success: mixed Rust and Python packaging works on every supported platform.
 - [ ] 5.3.3. Define release-candidate criteria for the first meaningful v1
   release. See Stilyagi design (stilyagi-design.md) §7.3.
-  - Requires 2.3.3, 3.3.3, 4.3.3, 4.5.6, 5.1.3, 5.2.3, and 5.3.2.
+  - Requires 2.3.3, 3.3.3, 4.3.3, 5.1.3, 5.2.3, and 5.3.2.
   - Include required commands, supported syntaxes, rule discoverability, debug
     surfaces, and fix safety guarantees.
   - Success: the project can decide objectively when the core v1 promise has
