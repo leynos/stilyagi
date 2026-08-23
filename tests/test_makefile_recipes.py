@@ -157,8 +157,8 @@ def makefile_text() -> str:
                         'RUSTFLAGS="$(RUST_FLAGS)" '
                         "$(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)"
                     ),
-                    "$(UV_RUN) pyright --version",
-                    "$(UV_RUN) pyright",
+                    "$(TY) --version",
+                    "$(TY) check",
                 ),
                 should_include_pytest=False,
             ),
@@ -364,24 +364,24 @@ def test_df12_lint_project_configuration_uses_python_314() -> None:
     )
 
 
-def test_pyright_typecheck_configuration_is_strict() -> None:
-    """Keep the project-backed type checker strict and Python-3.14 aware."""
+def test_ty_typecheck_configuration_is_pinned(makefile_text: str) -> None:
+    """Keep the type checker versioned and Python-3.14 aware."""
     pyproject_path = REPOSITORY_ROOT / "pyproject.toml"
     pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
 
     assert_with_context(
-        "pyright" in pyproject["dependency-groups"]["dev"],
-        "expected pyright in the development dependency group",
+        "TY_VERSION ?= 0.0.72" in makefile_text,
+        "expected the latest ty release to be pinned in the Makefile",
     )
     assert_with_context(
-        "ty" not in pyproject["dependency-groups"]["dev"],
-        "expected Ty to be removed from the development dependency group",
+        "TY = env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)" in makefile_text,
+        "expected typecheck to use the pinned ty command",
     )
     assert_with_context(
-        pyproject["tool"]["pyright"]["typeCheckingMode"] == "strict",
-        "expected strict Pyright type checking",
+        "pyright" not in pyproject["dependency-groups"]["dev"],
+        "expected Pyright to be absent from the development dependency group",
     )
     assert_with_context(
-        pyproject["tool"]["pyright"]["pythonVersion"] == "3.14",
-        "expected Pyright Python version 3.14",
+        pyproject["tool"]["ty"]["environment"]["python-version"] == "3.14",
+        "expected ty Python version 3.14",
     )

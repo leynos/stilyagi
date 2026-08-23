@@ -39,6 +39,10 @@ SKYLOS_EXCLUDE_FOLDERS ?= tests
 INTERROGATE ?= $(UV_RUN) interrogate
 INTERROGATE_TARGETS ?= python/stilyagi tests
 INTERROGATE_FLAGS ?= --fail-under 100
+# Single source of truth for the ty version; CI consumes it through the
+# typecheck target, so the Makefile and CI cannot drift apart.
+TY_VERSION ?= 0.0.72
+TY = env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)
 # Single source of truth for the typos version; CI consumes it through the
 # markdownlint target, so the Makefile and CI cannot drift apart.
 TYPOS_VERSION ?= 1.48.0
@@ -178,8 +182,8 @@ skylos-allow: ## Document one named Skylos exception, not an entry point
 
 typecheck: build tools-check ## Run typechecking
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)
-	$(UV_RUN) pyright --version
-	$(UV_RUN) pyright
+	$(TY) --version
+	$(TY) check
 
 markdownlint: tools-docs spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
 	$(MD_FILES_FIND) | xargs -0 $(MDLINT)

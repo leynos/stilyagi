@@ -25,7 +25,6 @@ dev = [
     # from the lockfile.
     "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@9c835f35b0f1690597ade799c9c6a30bc5922959",
     "interrogate==1.7.0",
-    "pyright",
     "ruff==0.15.13",
     "pytest-timeout",
     "pytest-bdd",
@@ -349,11 +348,11 @@ markers = [
     "slow: exercises that take longer or require heavyweight tooling",
 ]
 
-[tool.pyright]
-pythonVersion = "3.14"
-typeCheckingMode = "strict"
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
 include = ["python/stilyagi"]
-extraPaths = ["python"]
 exclude = [
     "tests",
     "build",

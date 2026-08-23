@@ -907,7 +907,7 @@ Their responsibilities are:
   - It rebuilds the editable environment when needed.
   - It runs `cargo check` for all workspace crates, targets, and features with
     warnings denied.
-  - It runs `ty check` through `uv`.
+  - It runs the pinned `ty` 0.0.72 release through `uv tool run`.
 - `make test`
   - verify Rust formatting
   - rerun `cargo clippy`
@@ -924,11 +924,10 @@ Their responsibilities are:
 The project-backed Python tools run through `uv run --group dev` so the
 repository uses the locked dev toolchain instead of whatever happens to be on
 the host `PATH`. Ruff, Interrogate, and the CPython `df12-python-lints` Pylint
-pass use the locked `dev` dependency group.
-The focused Pylint pass is the exception: it
-runs through `uv tool run --python pypy` with the pinned
-[`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper.
-Both `df12-python-lints` commands use the locked development environment under
+pass use the locked `dev` dependency group. The focused Pylint pass is the
+exception: it runs through `uv tool run --python pypy` with the pinned
+[`pylint-pypy-shim`](https://github.com/leynos/pylint-pypy-shim) wrapper. Both
+`df12-python-lints` commands use the locked development environment under
 CPython 3.14, resolving the immutable commit
 `9c835f35b0f1690597ade799c9c6a30bc5922959` recorded in `uv.lock`. These Python
 tiers run before the Rust lint tiers, with Interrogate enforcing a 100%
@@ -946,7 +945,7 @@ is that Python linting has five tiers:
    `pylint-pypy-shim` wrapper.
 4. The `df12-python-lints` plugin runs fourth through the locked development
    environment under CPython 3.14, with all v0.2.0 messages enabled, from
-  immutable commit `9c835f35b0f1690597ade799c9c6a30bc5922959`.
+   immutable commit `9c835f35b0f1690597ade799c9c6a30bc5922959`.
 5. `ambrleaks` runs fifth through that same locked CPython 3.14 environment
    and immutable commit, scanning `tests` for unredacted snapshot values.
 
@@ -977,25 +976,27 @@ The Makefile exposes the lint runner through these variables:
 
 Table: Lint runner Makefile variables.
 
-| Variable                | Default                                                                                                       | Purpose                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `UV`                    | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                 | Selects the `uv` executable used by Makefile Python commands.   |
-| `UV_ENV`                | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                | Keeps `uv` cache and tool state inside the repository worktree. |
-| `UV_RUN`                | `$(UV_ENV) $(UV) run --group dev`                                                                             | Runs commands in the locked development dependency group.       |
-| `INTERROGATE`           | `$(UV_RUN) interrogate`                                                                                       | Selects the docstring-coverage command used by `make lint`.     |
-| `INTERROGATE_TARGETS`   | `python/stilyagi tests`                                                                                       | Selects the directories checked by Interrogate.                 |
-| `INTERROGATE_FLAGS`     | `--fail-under 100`                                                                                            | Requires complete Python docstring coverage.                    |
-| `PYLINT_PYTHON`         | `pypy`                                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.     |
-| `PYLINT_TARGETS`        | `python/stilyagi tests`                                                                                       | Selects the directories checked by the Pylint tier.             |
-| `PYLINT_PYPY_SHIM_REF`  | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                                    | Pins the shim commit used by the Pylint tier.                   |
-| `PYLINT_PYPY_SHIM`      | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                  | Expands the pinned shim package source.                         |
-| `PYLINT`                | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=` | Builds the focused PyPy Pylint command used by `make lint`.     |
-| `DF12_PYTHON`           | `3.14`                                                                                                        | Selects CPython for the df12 Pylint and scanner tiers.          |
-| `DF12_PYLINT_MESSAGES`  | all thirteen v0.2.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                            |
-| `DF12_PYLINT`           | project-backed Pylint with `df12_python_lints` loaded                                                         | Builds the CPython df12 Pylint command.                         |
-| `AMBRLEAKS`             | locked `uv run --group dev --python 3.14` environment                                                         | Builds the snapshot leak scanner command from the locked commit.|
-| `TYPOS_VERSION`         | `1.48.0`                                                                                                      | Pins the `typos` version shared by the Makefile and CI.         |
-| `TYPOS`                 | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                                         | Builds the spelling-check command used by `make markdownlint`.  |
+| Variable               | Default                                                                                                       | Purpose                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `UV`                   | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                 | Selects the `uv` executable used by Makefile Python commands.    |
+| `UV_ENV`               | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                | Keeps `uv` cache and tool state inside the repository worktree.  |
+| `UV_RUN`               | `$(UV_ENV) $(UV) run --group dev`                                                                             | Runs commands in the locked development dependency group.        |
+| `INTERROGATE`          | `$(UV_RUN) interrogate`                                                                                       | Selects the docstring-coverage command used by `make lint`.      |
+| `INTERROGATE_TARGETS`  | `python/stilyagi tests`                                                                                       | Selects the directories checked by Interrogate.                  |
+| `INTERROGATE_FLAGS`    | `--fail-under 100`                                                                                            | Requires complete Python docstring coverage.                     |
+| `PYLINT_PYTHON`        | `pypy`                                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.      |
+| `PYLINT_TARGETS`       | `python/stilyagi tests`                                                                                       | Selects the directories checked by the Pylint tier.              |
+| `PYLINT_PYPY_SHIM_REF` | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                                    | Pins the shim commit used by the Pylint tier.                    |
+| `PYLINT_PYPY_SHIM`     | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                  | Expands the pinned shim package source.                          |
+| `PYLINT`               | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=` | Builds the focused PyPy Pylint command used by `make lint`.      |
+| `DF12_PYTHON`          | `3.14`                                                                                                        | Selects CPython for the df12 Pylint and scanner tiers.           |
+| `DF12_PYLINT_MESSAGES` | all thirteen v0.2.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                             |
+| `DF12_PYLINT`          | project-backed Pylint with `df12_python_lints` loaded                                                         | Builds the CPython df12 Pylint command.                          |
+| `AMBRLEAKS`            | locked `uv run --group dev --python 3.14` environment                                                         | Builds the snapshot leak scanner command from the locked commit. |
+| `TY_VERSION`           | `0.0.72`                                                                                                      | Pins the `ty` version shared by the Makefile and CI.             |
+| `TY`                   | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                               | Builds the pinned type-checking command.                         |
+| `TYPOS_VERSION`        | `1.48.0`                                                                                                      | Pins the `typos` version shared by the Makefile and CI.          |
+| `TYPOS`                | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                                         | Builds the spelling-check command used by `make markdownlint`.   |
 
 Override these variables only for local diagnosis unless the project-wide lint
 policy is intentionally changing. For example:
@@ -1107,10 +1108,10 @@ fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
 cannot be propagated — strategy constructors, `prop_map` closures, fixture
 builders used by `proptest!` bodies (including helpers also exercised by
 deterministic tests), and shared assertion helpers with no `Result`-compatible
-contract. Mark the latter `#[track_caller]` so
-their failures name the calling test. Do not reach for it to avoid threading a
-`Result` through an ordinary fixture; step 1 governs there. Its methods are
-`#[track_caller]`, so failures report the fixture that is wrong.
+contract. Mark the latter `#[track_caller]` so their failures name the calling
+test. Do not reach for it to avoid threading a `Result` through an ordinary
+fixture; step 1 governs there. Its methods are `#[track_caller]`, so failures
+report the fixture that is wrong.
 
 What not to do: do not scatter bespoke `match { Err(error) => panic!(…) }`
 helpers or divergent `let`-`else` blocks through test modules. They satisfy the
@@ -1120,10 +1121,10 @@ anonymous ones are not.
 
 Two crates additionally define `must_ok!` and `must_some!` macros
 (`crates/stilyagi-markdown/src/tests.rs` and
-`crates/stilyagi-pyext/src/bridge_bdd.rs`). Those remain correct *inside* a test
-body, where a macro expands in place. They are duplicated across the two crates;
-consolidating them onto `ExpectValid` is tracked as follow-up work rather than
-done piecemeal.
+`crates/stilyagi-pyext/src/bridge_bdd.rs`). Those remain correct *inside* a
+test body, where a macro expands in place. They are duplicated across the two
+crates; consolidating them onto `ExpectValid` is tracked as follow-up work
+rather than done piecemeal.
 
 ### 6c. Spelling gate
 
