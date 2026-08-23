@@ -114,7 +114,8 @@ Adopt Option A.
 5. `ambrleaks` from that same locked CPython 3.14 development environment and
    immutable commit over `tests`.
 6. Rust `cargo doc` and `cargo clippy` with warnings denied.
-7. Whitaker from `crates/stilyagi-pyext/`.
+7. Whitaker with `--all`, forwarding the workspace manifest, workspace target,
+   all-target, and all-feature arguments, with Rust warnings denied.
 
 The Python lint policy SHALL live in `pyproject.toml`:
 

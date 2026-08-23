@@ -407,6 +407,14 @@ force during the discovery pass.
   (`load_config_file`, `discover_same_directory_config`) through a shared
   `_read_config_document` helper that maps missing, unreadable, or malformed
   files to a typed `InvalidConfigError`.
+  `load_config_table(path)` reads one supported TOML file and returns the
+  selected Stilyagi mapping; for `pyproject.toml` it selects `[tool.stilyagi]`,
+  while a missing namespace selects an empty mapping. Read and TOML parsing
+  failures are reported as `InvalidConfigError`.
+- `config/parse.py` `parse_config_table(table, path=path)` converts the
+  selected mapping into a `StilyagiConfig`, preserving the raw reserved values.
+  Unsupported keys and invalid field or section values raise
+  `InvalidConfigError` with the source path and offending key.
 - `config/resolve.py` defines `ConfigResolver`, which owns the per-run
   discovery and resolved-table caches so one `run_check` invocation reuses
   parsed config across many targets while leaking no state between runs. The
@@ -435,7 +443,9 @@ force during the discovery pass.
   `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
   `ConfigError` base class, with `InvalidCacheDirError` and
   `InvalidConfigError` as typed subclasses.
-- `config/validate.py` holds the boundary type validators.
+- `config/validate.py` holds the boundary type validators. In particular,
+  `ensure_mapping` requires string keys as well as a mapping value and raises
+  `InvalidConfigError` for either violation.
 
 ### Diagnostics
 
@@ -806,6 +816,9 @@ There are also three concrete cross-boundary rules worth preserving:
   concurrent callers share one validated state, and bridge-patching tests must
   reset that state through the dedicated test helper before observing patched
   vocabularies.
+  Its public `extract_document(source, syntax)` adapter validates the bridge
+  vocabulary, converts the Rust payload into a `model.Document`, and preserves
+  the optional IR JSON mapping on that document.
 - The Rust workspace should not depend on Python package modules for policy or
   plugin decisions. Python owns orchestration and registration; Rust owns
   extraction and source fidelity.
@@ -1052,7 +1065,7 @@ The Python lint configuration lives in `pyproject.toml`:
   - sets the focused Pylint design thresholds that complement Ruff
 - `[tool.pylint."messages control"]`
   - disables all Pylint messages by default, disables `syntax-error` for the
-    PyPy-backed runner, and enables only the explicitly selected second-tier
+    PyPy-backed runner, and enables only the explicitly selected focused-Pylint
     diagnostics
 
 When adding or suppressing lint rules, keep the reason near the configuration
@@ -1268,7 +1281,7 @@ single-language package.
 [^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
 [^2]: [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
 [^3]: [PyO3 FAQ: linker issues with `cargo test`](https://pyo3.rs/main/faq)
-[^4]: [ADR 004: Adopt two-tier Python linting](
+[^4]: [ADR 004: Adopt layered Python linting](
     adr-004-python-linting-architecture.md)
 [^5]: [ADR 005: Scope Markdown region vocabulary](
     adr-005-markdown-region-vocabulary-scope.md)
