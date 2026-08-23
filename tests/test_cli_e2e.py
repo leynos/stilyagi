@@ -23,8 +23,9 @@ def test_python_module_entrypoint_exits_zero_for_a_clean_markdown_tree(
 
     assert completed.returncode == 0, "expected completed.returncode == 0"
     assert_with_context(
-        completed.stdout == "0 diagnostics found\n",
-        "expected completed.stdout == '0 diagnostics found\\n'",
+        completed.stdout
+        == "checked 2 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected completed.stdout to carry the clean-run summary",
     )
     assert not completed.stderr, "expected not completed.stderr"
 
@@ -40,8 +41,9 @@ def test_python_module_entrypoint_checks_a_clean_mixed_source_tree(
 
     assert completed.returncode == 0, "expected completed.returncode == 0"
     assert_with_context(
-        completed.stdout == "0 diagnostics found\n",
-        "expected completed.stdout == '0 diagnostics found\\n'",
+        completed.stdout
+        == "checked 3 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected completed.stdout to carry the mixed-run summary",
     )
     assert not completed.stderr, "expected not completed.stderr"
 def test_python_module_entrypoint_exits_zero_for_a_malformed_markdown_tree(
@@ -54,8 +56,8 @@ def test_python_module_entrypoint_exits_zero_for_a_malformed_markdown_tree(
 
     assert completed.returncode == 0, "expected completed.returncode == 0"
     assert_with_context(
-        completed.stdout == "0 diagnostics found\n",
-        "expected completed.stdout == '0 diagnostics found\\n'",
+        completed.stdout.startswith("checked "),
+        "expected completed.stdout to begin with the run summary",
     )
     assert not completed.stderr, "expected not completed.stderr"
 

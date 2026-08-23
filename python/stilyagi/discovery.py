@@ -50,7 +50,13 @@ _IGNORED_DIRECTORY_NAMES = frozenset({
     ".venv-release-smoke",
 })
 
-__all__ = ["DiscoveredFile", "discover_files", "syntax_for_path"]
+__all__ = [
+    "DiscoveredFile",
+    "DiscoveryResult",
+    "discover_files",
+    "discover_files_with_summary",
+    "syntax_for_path",
+]
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -76,6 +82,23 @@ class DiscoveredFile:
     reported_path: str
     resolved_path: pathlib.Path
     syntax: model.Syntax
+
+
+@dc.dataclass(frozen=True, slots=True)
+class DiscoveryResult:
+    """The discovered files and source candidates skipped during one walk.
+
+    Parameters
+    ----------
+    files:
+        Registered source files in deterministic resolved-path order.
+    skipped_files:
+        Explicit or directory-contained files without a registered extractor,
+        plus symlinked directory targets that discovery declined to traverse.
+    """
+
+    files: tuple[DiscoveredFile, ...]
+    skipped_files: int
 
 
 def discover_files(
@@ -113,38 +136,50 @@ def discover_files(
     ... )[0].reported_path
     'notes.md'
     """
+    return list(discover_files_with_summary(targets, config).files)
+
+
+def discover_files_with_summary(
+    targets: cabc.Iterable[pathlib.Path | str],
+    config: StilyagiConfig,
+) -> DiscoveryResult:
+    """Discover registered source files and report skipped source candidates."""
     if config.respect_gitignore:
         _LOGGER.info("respect-gitignore is accepted but not yet enforced")
 
     discovered: dict[pathlib.Path, DiscoveredFile] = {}
+    skipped_files = 0
     for target in targets:
         target_path = pathlib.Path(target).expanduser()
-        for candidate in _candidates_for_target(target_path):
+        candidates, skipped = _candidates_for_target(target_path)
+        skipped_files += skipped
+        for candidate in candidates:
             _record_candidate(discovered, candidate)
 
-    return [
+    files = tuple(
         discovered[resolved_path]
         for resolved_path in sorted(discovered, key=lambda path: path.as_posix())
-    ]
+    )
+    return DiscoveryResult(files=files, skipped_files=skipped_files)
 
 
 def _candidates_for_target(
     target_path: pathlib.Path,
-) -> cabc.Iterator[DiscoveredFile | None]:
-    """Yield registered source candidates for one command-line target."""
+) -> tuple[cabc.Iterator[DiscoveredFile | None], int]:
+    """Return registered candidates and skipped count for one target."""
     if _is_symlinked_directory(target_path):
         _LOGGER.warning(
             "skipping symlinked directory target: %s",
             target_path.as_posix(),
         )
-        return
+        return iter(()), 1
     if target_path.is_file():
-        yield _discover_explicit_file(target_path)
-        return
+        discovered_file = _discover_explicit_file(target_path)
+        return iter((discovered_file,)), int(discovered_file is None)
     if target_path.is_dir():
-        yield from _discover_directory(target_path)
-        return
+        return _discover_directory(target_path)
     _LOGGER.info("ignoring missing or unsupported target: %s", target_path.as_posix())
+    return iter(()), 0
 
 
 def _discover_explicit_file(target_path: pathlib.Path) -> DiscoveredFile | None:
@@ -163,9 +198,13 @@ def _discover_explicit_file(target_path: pathlib.Path) -> DiscoveredFile | None:
     )
 
 
-def _discover_directory(target_path: pathlib.Path) -> cabc.Iterator[DiscoveredFile]:
-    """Yield registered source files discovered beneath one directory target."""
+def _discover_directory(
+    target_path: pathlib.Path,
+) -> tuple[cabc.Iterator[DiscoveredFile], int]:
+    """Return directory source candidates and the count without extractors."""
     reported_base = pathlib.PurePosixPath(target_path.as_posix())
+    discovered_files: list[DiscoveredFile] = []
+    skipped_files = 0
     for root_path, dirnames, filenames in target_path.walk(follow_symlinks=False):
         _prune_ignored_directories(root_path, dirnames)
         relative_root = pathlib.PurePosixPath(
@@ -176,12 +215,16 @@ def _discover_directory(target_path: pathlib.Path) -> cabc.Iterator[DiscoveredFi
             candidate = root_path / filename
             syntax = syntax_for_path(candidate)
             if syntax is None:
+                skipped_files += 1
                 continue
-            yield DiscoveredFile(
-                reported_path=(reported_root / filename).as_posix(),
-                resolved_path=candidate.resolve(),
-                syntax=syntax,
+            discovered_files.append(
+                DiscoveredFile(
+                    reported_path=(reported_root / filename).as_posix(),
+                    resolved_path=candidate.resolve(),
+                    syntax=syntax,
+                )
             )
+    return iter(discovered_files), skipped_files
 
 
 def _prune_ignored_directories(

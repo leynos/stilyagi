@@ -28,8 +28,9 @@ def test_main_returns_zero_for_a_clean_tree(
     assert cli.main(["check", "."]) == 0, "expected cli.main(['check', '.']) == 0"
     captured = capsys.readouterr()
     assert_with_context(
-        captured.out == "0 diagnostics found\n",
-        "expected captured.out == '0 diagnostics found\\n'",
+        captured.out
+        == "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected captured.out to carry the clean-run summary",
     )
     assert not captured.err, "expected not captured.err"
 
@@ -62,16 +63,27 @@ def test_main_renders_json_for_synthetic_diagnostics(
         "expected cli.compute_exit_code([], had_error=True) == 2",
     )
     assert_with_context(
-        cli.compute_exit_code([synthetic_diagnostic]) == 1,
+        cli.compute_exit_code([synthetic_diagnostic]) == 0,
         "expected cli.compute_exit_code([synthetic_diagnostic...",
     )
     assert cli.compute_exit_code([]) == 0, "expected cli.compute_exit_code([]) == 0"
     assert_with_context(
-        cli.main(["check", ".", "--output-format", "json"]) == 1,
+        cli.main(["check", ".", "--output-format", "json"]) == 0,
         "expected cli.main(['check', '.', '--output-format', ...",
     )
 
     payload = json.loads(capsys.readouterr().out)
+    assert_with_context(
+        payload["summary"]
+        == {
+            "checked_files": 1,
+            "skipped_files": 0,
+            "unreadable_files": 0,
+            "errors": 0,
+            "warnings": 1,
+        },
+        "expected payload['summary'] to distinguish warning-only runs",
+    )
     assert_with_context(
         payload == snapshot(extension_class=JSONSnapshotExtension),
         "expected the rendered diagnostic payload to match it...",
@@ -81,21 +93,23 @@ def test_main_renders_json_for_synthetic_diagnostics(
 def test_main_returns_two_for_invalid_configuration(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Malformed discovered config should fail with the documented exit code."""
     (tmp_path / "stilyagi.toml").write_text("[lint\n", encoding="utf-8")
     _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
 
-    assert cli.main(["check", "."]) == 2, "expected cli.main(['check', '.']) == 2"
-    captured = capsys.readouterr()
+    with caplog.at_level(logging.WARNING):
+        assert cli.main(["check", "."]) == 2, "expected cli.main(['check', '.']) == 2"
+    messages = tuple(record.getMessage() for record in caplog.records)
     assert_with_context(
-        "stilyagi check:" in captured.err,
-        "expected 'stilyagi check:' in captured.err",
+        any(message.startswith("stilyagi check:") for message in messages),
+        "expected a user-facing check failure log message",
     )
-    assert "toml" in captured.err.lower(), "expected 'toml' in captured.err.lower()"
-    assert not captured.out, "expected not captured.out"
+    assert any("toml" in message.lower() for message in messages), (
+        "expected a TOML failure log message"
+    )
 
 
 def test_check_pipeline_emits_stage_boundary_logs(
@@ -126,10 +140,9 @@ def test_check_pipeline_emits_stage_boundary_logs(
 def test_check_logs_extraction_failure_alongside_stderr(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A failed extraction is logged in addition to the user-facing stderr."""
+    """A failed extraction is emitted once as a user-facing log message."""
     _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(engine, "extract_document", _raise_bridge_error)
@@ -146,10 +159,7 @@ def test_check_logs_extraction_failure_alongside_stderr(
         any("failed to check" in message for message in warnings),
         "expected any(('failed to check' in message for messa...",
     )
-    assert_with_context(
-        "stilyagi check: failed to check" in capsys.readouterr().err,
-        "expected 'stilyagi check: failed to check' in capsys...",
-    )
+    assert len(warnings) == 1, "expected exactly one extraction failure warning"
 
 
 def test_check_reraises_unexpected_extraction_failure(

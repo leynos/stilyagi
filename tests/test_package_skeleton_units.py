@@ -63,6 +63,7 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
                 "ExecutionPlan",
                 "FixPlan",
                 "RendererRegistry",
+                "RunSummary",
                 "extract_document",
                 "supported_region_kinds",
             ],
@@ -162,8 +163,9 @@ def test_engine_skeleton_dataclasses_preserve_their_fields() -> None:
         "expected engine.RendererRegistry().default_format ==...",
     )
     assert_with_context(
-        engine.RendererRegistry().render([], "text") == "0 diagnostics found\n",
-        "expected engine.RendererRegistry().render([], 'text'...",
+        engine.RendererRegistry().render([], "text")
+        == "checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected engine.RendererRegistry().render([], 'text') to render a summary",
     )
     assert_with_context(
         engine.EngineRunner(execution_plan=execution_plan).execution_plan

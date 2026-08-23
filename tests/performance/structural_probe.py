@@ -15,12 +15,18 @@ from stilyagi import engine, model
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
-PROBE_NAME = "structural-markdown"
+PROBE_NAME = "structural-syntax"
 ENTRYPOINT = "stilyagi.engine.extract_document"
 SCHEMA_VERSION = 1
 DEFAULT_ITERATIONS = 5
 MARKDOWN_FIXTURE = pathlib.Path(
     "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
+)
+PYTHON_FIXTURE = pathlib.Path(
+    "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py",
+)
+RUST_FIXTURE = pathlib.Path(
+    "tests/fixtures/corpus/rust/valid/item-doc-comments.rs",
 )
 
 type ProbeMode = typ.Literal["cold", "warm"]
@@ -41,6 +47,10 @@ class RunPayload(typ.TypedDict):
     iterations: int
     durations_ns: list[int] | str
     summary_ns: SummaryNs | dict[str, str]
+    syntax: str
+    byte_count: int
+    median_ns_per_file: int | str
+    throughput_mib_per_s: float | str
 
 
 class EnvironmentPayload(typ.TypedDict):
@@ -55,6 +65,8 @@ class CorpusPayload(typ.TypedDict):
 
     fixture_paths: list[str]
     file_count: int
+    total_bytes: int
+    per_syntax: dict[str, dict[str, int]]
 
 
 class ReportPayload(typ.TypedDict):
@@ -75,21 +87,34 @@ class ProbeRun(typ.NamedTuple):
     """Measured durations for one probe mode."""
 
     mode: ProbeMode
+    syntax: model.Syntax
+    byte_count: int
     durations_ns: tuple[int, ...]
 
+class StructuralFixture(typ.NamedTuple):
+    """One representative source fixture for a supported extractor syntax."""
 
+    path: pathlib.Path
+    syntax: model.Syntax
 def repository_root() -> pathlib.Path:
     """Return the repository root from this maintainer-facing module."""
     return pathlib.Path(__file__).resolve().parents[2]
 
 
-def discover_structural_fixtures(root: pathlib.Path) -> tuple[pathlib.Path, ...]:
-    """Return the stable Markdown fixture set for structural baseline probes."""
-    fixture = root / MARKDOWN_FIXTURE
-    if not fixture.is_file():
-        msg = f"structural fixture is missing: {MARKDOWN_FIXTURE.as_posix()}"
-        raise FileNotFoundError(msg)
-    return (fixture,)
+def discover_structural_fixtures(
+    root: pathlib.Path,
+) -> tuple[StructuralFixture, ...]:
+    """Return representative fixtures for each registered extractor syntax."""
+    fixtures = (
+        StructuralFixture(root / MARKDOWN_FIXTURE, model.Syntax.MARKDOWN),
+        StructuralFixture(root / PYTHON_FIXTURE, model.Syntax.PYTHON_DOCSTRING),
+        StructuralFixture(root / RUST_FIXTURE, model.Syntax.RUST_DOC_COMMENT),
+    )
+    for fixture in fixtures:
+        if not fixture.path.is_file():
+            msg = f"structural fixture is missing: {fixture.path.as_posix()}"
+            raise FileNotFoundError(msg)
+    return fixtures
 
 
 def normalise_repository_path(path: pathlib.Path, root: pathlib.Path) -> str:
@@ -118,13 +143,20 @@ def summarise_durations(durations_ns: cabc.Sequence[int]) -> SummaryNs:
 def build_report(
     *,
     repository_root: pathlib.Path,
-    fixture_paths: cabc.Sequence[pathlib.Path],
+    fixtures: cabc.Sequence[StructuralFixture],
     runs: cabc.Sequence[ProbeRun],
 ) -> ReportPayload:
     """Build the stable JSON-compatible structural probe report."""
     normalised_fixtures = [
-        normalise_repository_path(path, repository_root) for path in fixture_paths
+        normalise_repository_path(fixture.path, repository_root) for fixture in fixtures
     ]
+    per_syntax = {
+        fixture.syntax.value: {
+            "file_count": 1,
+            "total_bytes": fixture.path.stat().st_size,
+        }
+        for fixture in fixtures
+    }
     return ReportPayload(
         schema_version=SCHEMA_VERSION,
         probe=PROBE_NAME,
@@ -136,6 +168,8 @@ def build_report(
         corpus=CorpusPayload(
             fixture_paths=normalised_fixtures,
             file_count=len(normalised_fixtures),
+            total_bytes=sum(fixture.path.stat().st_size for fixture in fixtures),
+            per_syntax=per_syntax,
         ),
         runs=[_run_payload(run) for run in runs],
     )
@@ -168,9 +202,17 @@ def measure_probe(
         raise ValueError(msg)
 
     fixtures = discover_structural_fixtures(root)
-    source = fixtures[0].read_text(encoding="utf-8")
-    runs = [_measure_run(run_mode, iterations, source) for run_mode in _modes(mode)]
-    return build_report(repository_root=root, fixture_paths=fixtures, runs=runs)
+    runs = [
+        _measure_run(
+            run_mode,
+            iterations,
+            fixture.path.read_text(encoding="utf-8"),
+            fixture,
+        )
+        for fixture in fixtures
+        for run_mode in _modes(mode)
+    ]
+    return build_report(repository_root=root, fixtures=fixtures, runs=runs)
 
 
 def write_report(report: ReportPayload, output_path: pathlib.Path) -> None:
@@ -186,7 +228,10 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Run the structural performance probe command."""
     args = _argument_parser().parse_args(argv)
     if args.child_run:
-        duration_ns = _measure_extraction(args.source.read_text(encoding="utf-8"))
+        duration_ns = _measure_extraction(
+            args.source.read_text(encoding="utf-8"),
+            model.Syntax(args.syntax),
+        )
         print(json.dumps({"duration_ns": duration_ns}, sort_keys=True))
         return 0
 
@@ -199,11 +244,20 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
 
 def _run_payload(run: ProbeRun) -> RunPayload:
     """Return one JSON-compatible run payload."""
+    median_ns_per_file = summarise_durations(run.durations_ns)["median"]
+    seconds_per_file = median_ns_per_file / 1_000_000_000
+    throughput_mib_per_s = (
+        0.0 if seconds_per_file == 0 else run.byte_count / (1024**2) / seconds_per_file
+    )
     return RunPayload(
         mode=run.mode,
+        syntax=run.syntax.value,
+        byte_count=run.byte_count,
         iterations=len(run.durations_ns),
         durations_ns=list(run.durations_ns),
         summary_ns=summarise_durations(run.durations_ns),
+        median_ns_per_file=median_ns_per_file,
+        throughput_mib_per_s=throughput_mib_per_s,
     )
 
 
@@ -222,6 +276,10 @@ def _redact_run(run: RunPayload) -> RunPayload:
         iterations=run["iterations"],
         durations_ns="<redacted>",
         summary_ns={"min": "<redacted>", "median": "<redacted>", "max": "<redacted>"},
+        syntax=run["syntax"],
+        byte_count=run["byte_count"],
+        median_ns_per_file="<redacted>",
+        throughput_mib_per_s="<redacted>",
     )
 
 
@@ -253,20 +311,31 @@ def _modes(mode: str) -> tuple[ProbeMode, ...]:
             raise ValueError(msg)
 
 
-def _measure_run(mode: ProbeMode, iterations: int, source: str) -> ProbeRun:
-    """Measure one concrete structural probe mode."""
+def _measure_run(
+    mode: ProbeMode,
+    iterations: int,
+    source: str,
+    fixture: StructuralFixture,
+) -> ProbeRun:
+    """Measure one concrete structural probe mode for one source syntax."""
     if mode == "cold":
-        durations = tuple(_measure_cold_iteration() for _ in range(iterations))
+        durations = tuple(_measure_cold_iteration(fixture) for _ in range(iterations))
     else:
-        engine.extract_document(source, model.Syntax.MARKDOWN)
-        durations = tuple(_measure_extraction(source) for _ in range(iterations))
-    return ProbeRun(mode=mode, durations_ns=durations)
+        engine.extract_document(source, fixture.syntax)
+        durations = tuple(
+            _measure_extraction(source, fixture.syntax) for _ in range(iterations)
+        )
+    return ProbeRun(
+        mode=mode,
+        syntax=fixture.syntax,
+        byte_count=fixture.path.stat().st_size,
+        durations_ns=durations,
+    )
 
 
-def _measure_cold_iteration() -> int:
-    """Measure one extraction in a fresh Python interpreter."""
+def _measure_cold_iteration(fixture: StructuralFixture) -> int:
+    """Measure one syntax extraction in a fresh Python interpreter."""
     root = repository_root()
-    source_path = root / MARKDOWN_FIXTURE
     completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- justified: spawning own module under test with known sys.executable; no user input reaches argv
         [
             sys.executable,
@@ -274,7 +343,9 @@ def _measure_cold_iteration() -> int:
             "tests.performance.structural_probe",
             "--child-run",
             "--source",
-            str(source_path),
+            str(fixture.path),
+            "--syntax",
+            fixture.syntax.value,
         ],
         check=True,
         cwd=root,
@@ -289,10 +360,10 @@ def _measure_cold_iteration() -> int:
     return duration_ns
 
 
-def _measure_extraction(source: str) -> int:
-    """Measure one structural Markdown extraction in nanoseconds."""
+def _measure_extraction(source: str, syntax: model.Syntax) -> int:
+    """Measure one structural extraction in nanoseconds."""
     started_ns = time.perf_counter_ns()
-    engine.extract_document(source, model.Syntax.MARKDOWN)
+    engine.extract_document(source, syntax)
     return time.perf_counter_ns() - started_ns
 
 
@@ -328,6 +399,12 @@ def _argument_parser() -> argparse.ArgumentParser:
         "--source",
         type=pathlib.Path,
         default=repository_root() / MARKDOWN_FIXTURE,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--syntax",
+        choices=tuple(syntax.value for syntax in model.Syntax),
+        default=model.Syntax.MARKDOWN.value,
         help=argparse.SUPPRESS,
     )
     return parser

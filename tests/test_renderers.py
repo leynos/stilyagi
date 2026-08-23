@@ -51,8 +51,9 @@ def test_renderer_registry_retains_its_default_format_and_render_surface() -> No
         "expected registry.default_format == 'text'",
     )
     assert_with_context(
-        registry.render([], "text") == "0 diagnostics found\n",
-        "expected registry.render([], 'text') == '0 diagnosti...",
+        registry.render([], "text")
+        == "checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected registry.render([], 'text') to render an empty summary",
     )
 
 
@@ -60,7 +61,18 @@ def test_text_renderer_orders_and_formats_diagnostics(
     snapshot: SnapshotAssertion,
 ) -> None:
     """Render text diagnostics in path, location, and code order."""
-    rendered = engine.RendererRegistry().render(_build_diagnostics(), "text")
+    summary = engine.RunSummary(
+        checked_files=3,
+        skipped_files=1,
+        unreadable_files=0,
+        errors=2,
+        warnings=1,
+    )
+    rendered = engine.RendererRegistry().render(
+        _build_diagnostics(),
+        "text",
+        summary,
+    )
 
     assert_with_context(
         rendered.splitlines()
@@ -68,7 +80,7 @@ def test_text_renderer_orders_and_formats_diagnostics(
             "docs/a.md:1:1: error STY001 First",
             "docs/a.md:1:2: error STY010 Later code",
             "docs/b.md:3:4: warning STY002 Second",
-            "3 diagnostics found",
+            "checked 3 files (1 skipped, 0 unreadable); 2 errors, 1 warnings",
         ],
         "expected rendered.splitlines() == ['docs/a.md:1:1: e...",
     )
@@ -82,8 +94,27 @@ def test_json_renderer_emits_stable_diagnostic_objects(
     snapshot: SnapshotAssertion,
 ) -> None:
     """Render diagnostics as stable JSON objects."""
-    rendered = engine.RendererRegistry().render(_build_diagnostics(), "json")
+    summary = engine.RunSummary(
+        checked_files=3,
+        skipped_files=1,
+        unreadable_files=0,
+        errors=2,
+        warnings=1,
+    )
+    rendered = engine.RendererRegistry().render(_build_diagnostics(), "json", summary)
     payload = json.loads(rendered)
+
+    assert_with_context(
+        payload["summary"]
+        == {
+            "checked_files": 3,
+            "skipped_files": 1,
+            "unreadable_files": 0,
+            "errors": 2,
+            "warnings": 1,
+        },
+        "expected payload['summary'] to carry the check-run totals",
+    )
 
     assert_with_context(
         payload == snapshot(extension_class=JSONSnapshotExtension),

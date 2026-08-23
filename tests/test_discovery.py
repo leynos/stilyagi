@@ -51,7 +51,7 @@ def test_explicit_unregistered_file_is_logged_and_skipped(
     with caplog.at_level(logging.INFO, logger="stilyagi.discovery"):
         files = discovery.discover_files([target], config.StilyagiConfig())
 
-    assert files == [], "expected files == []"
+    assert not files, "expected not files"
     assert_with_context(
         any(
             "ignoring target without a registered extractor" in record.message

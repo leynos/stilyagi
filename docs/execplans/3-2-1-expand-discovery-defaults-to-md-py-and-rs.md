@@ -261,15 +261,16 @@ Milestone 1 — discovery and dispatch:
       (2026-08-24).
 - [x] W3. Milestone-1 tests: units, `hypothesis` property, BDD scenarios,
       end-to-end subprocess (2026-08-24).
+      CodeRabbit review of commit `21471d5` completed with zero concerns.
 
 Milestone 2 — classification, severity, and observability:
 
-- [ ] W4. Declare the authored-directive error codes in Rust beside their mint
-      sites and advertise them through the bridge.
-- [ ] W5. Classify IR errors, make the exit code severity-aware, and harden the
-      file read.
-- [ ] W6. Emit a run summary; milestone-2 tests, snapshots, region-count
-      regression, and the performance measurement.
+- [x] W4. Declare the authored-directive error codes in Rust beside their mint
+      sites and advertise them through the bridge (2026-08-24).
+- [x] W5. Classify IR errors, make the exit code severity-aware, and harden the
+      file read (2026-08-24).
+- [x] W6. Emit a run summary; milestone-2 tests, snapshots, region-count
+      regression, and the performance measurement (2026-08-24).
 
 Closing:
 
@@ -471,6 +472,24 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   plan's implementation-time acceptance evidence will record the observed W1
   count rather than preserving a stale planning-time count. Date/Author:
   2026-08-23, implementation agent.
+
+- **D14 (implementation). Preserve explicit `UnicodeDecodeError` handling when
+  broadening read failures to `OSError` and `MemoryError`.** The plan's D11
+  wording described `OSError` as subsuming all four prior exceptions, but
+  `UnicodeDecodeError` is a `UnicodeError`, not an `OSError`. Removing it would
+  let invalid UTF-8 escape the documented exit-2 path. The implementation reads
+  with `utf-8-sig`, catches `OSError`, `MemoryError`, and `UnicodeDecodeError`,
+  and attributes the one logged message to the reported rather than resolved
+  path. Date/Author: 2026-08-24, implementation agent.
+
+- **D15 (implementation). Keep the 20% Markdown performance tolerance as a
+  review criterion, but do not fabricate a numeric comparison.** Roadmap item
+  1.3.3 deliberately stores only a redacted, schema-level snapshot; its raw
+  machine-specific measurements are ignored and no checked-in timing baseline
+  exists. W6 extends that established harness with per-syntax, per-file timing,
+  throughput, file-count, and byte-count evidence. The live Markdown median is
+  recorded below, but cannot truthfully be compared with an unavailable raw
+  historical value. Date/Author: 2026-08-24, implementation agent.
 
 - **D1 (reversed in round 2). The extension-to-syntax table lives in Python, in
   `python/stilyagi/discovery.py`. No bridge function is added for it.** Round 1
@@ -1393,6 +1412,36 @@ byte growth:
 
 *Table 2: file counts and byte totals per extension in this repository, under
 W1's prune list. File count grows 3.6× but total bytes only ~1.5×.*
+
+Milestone-2 W4--W6 evidence, 2026-08-24:
+
+```plaintext
+RED   cargo test -p stilyagi-ir is_authored_directive_code
+      -> E0432: unresolved import before the Rust vocabulary existed.
+
+GREEN cargo test -p stilyagi-ir is_authored_directive_code
+      -> 9 passed.
+      cargo test -p stilyagi-pyext authored_directive_error_codes
+      -> PASS.
+      uv run python -m pytest tests/test_discovery.py \
+      tests/test_discovery_properties.py tests/test_ir_error_adapter.py \
+      tests/test_check_command.py tests/test_check_files.py \
+      tests/test_renderers.py tests/test_cli_e2e.py tests/test_corpus.py \
+      tests/test_structural_performance_probe.py \
+      tests/test_package_skeleton_units.py -v
+      -> 92 passed; 9 snapshots passed.
+```
+
+The live discovery walk found 236 registered files and 183 unregistered source
+candidates: 65 Markdown files totalling 1,716,784 bytes, 78 Python files
+totalling 399,684 bytes, and 93 Rust files totalling 469,236 bytes. The
+five-iteration W6 probe
+(`/tmp/w6-performance-7dac0d2e-fd47-4ed3-ae7c-3814893c769e.out`) recorded warm
+medians and throughput of 200,253 ns/file and 1.30 MiB/s for Markdown, 188,323
+ns/file and 2.66 MiB/s for Python, and 171,113 ns/file and 3.23 MiB/s for Rust.
+The clean three-file acceptance command reported `{'discovery_misses': 4}` from
+`ConfigResolver.cache_stats` and a zero-error, zero-warning summary. Full
+milestone-2 gates and CodeRabbit review remain pending at this entry.
 
 ## Interfaces and dependencies
 

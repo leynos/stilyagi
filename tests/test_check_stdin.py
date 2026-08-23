@@ -40,7 +40,10 @@ def test_cli_main_reads_stdin_and_attributes_diagnostic_to_filename(
     captured = capsys.readouterr()
     assert_with_context(
         captured.out
-        == ("README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"),
+        == (
+            "README.md:1:1: error IR000 Synthetic IR error\n"
+            "checked 1 files (0 skipped, 0 unreadable); 1 errors, 0 warnings\n"
+        ),
         "expected captured.out == 'README.md:1:1: error IR000...",
     )
     assert not captured.err, "expected not captured.err"
@@ -70,8 +73,9 @@ def test_python_module_entrypoint_reads_clean_stdin_and_exits_zero(
 
     assert completed.returncode == 0, "expected completed.returncode == 0"
     assert_with_context(
-        completed.stdout == "0 diagnostics found\n",
-        "expected completed.stdout == '0 diagnostics found\\n'",
+        completed.stdout
+        == "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected completed.stdout to carry the stdin summary",
     )
     assert not completed.stderr, "expected not completed.stderr"
 

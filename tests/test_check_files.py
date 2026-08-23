@@ -21,22 +21,30 @@ if typ.TYPE_CHECKING:
 def _run_failing_check(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
     target: pathlib.Path,
+    *,
+    unreadable_files: int,
 ) -> str:
     """Run one failing check against a stubbed target and return stderr."""
     _stub_discovery(monkeypatch, target)
 
-    exit_code = cli.run_check(cli.CheckOptions(targets=(target.name,)))
+    with caplog.at_level("WARNING"):
+        exit_code = cli.run_check(cli.CheckOptions(targets=(target.name,)))
     captured = capsys.readouterr()
 
     assert exit_code == 2, "expected exit_code == 2"
     # A hard file error still renders the (empty) accumulated diagnostics before
     # the exit-2 signal, rather than suppressing stdout entirely.
     assert_with_context(
-        captured.out == "0 diagnostics found\n",
-        "expected captured.out == '0 diagnostics found\\n'",
+        captured.out
+        == (
+            "checked 1 files "
+            f"(0 skipped, {unreadable_files} unreadable); 0 errors, 0 warnings\n"
+        ),
+        "expected captured.out to report the file-read outcome",
     )
-    return captured.err
+    return "\n".join(record.getMessage() for record in caplog.records)
 
 
 def _patch_read_text_failure(
@@ -61,7 +69,7 @@ def _read_failure_fragments(
     detail: str,
 ) -> tuple[str, ...]:
     """Return the stderr fragments expected for one failed file read."""
-    return ("stilyagi check: failed to read ", target.as_posix(), detail)
+    return ("stilyagi check: failed to read ", target.name, detail)
 
 
 def _setup_unreadable_utf8(
@@ -86,7 +94,7 @@ def _setup_permission_error(
         target,
         lambda: PermissionError("permission denied"),
     )
-    expected = f"stilyagi check: failed to read {target.as_posix()}: permission denied"
+    expected = f"stilyagi check: failed to read {target.name}: permission denied"
     return target, (expected,)
 
 
@@ -105,8 +113,7 @@ def _setup_mid_run_disappearance(
 
     _patch_read_text_failure(monkeypatch, target, vanish)
     expected = (
-        f"stilyagi check: failed to read {target.as_posix()}: "
-        "target disappeared during read"
+        f"stilyagi check: failed to read {target.name}: target disappeared during read"
     )
     return target, (expected,)
 
@@ -158,12 +165,19 @@ def test_cli_run_check_maps_file_failures_to_exit_two(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
     setup_failure: _FailureSetup,
 ) -> None:
     """Reject each documented file failure with exit code 2 and stderr."""
     target, expected_fragments = setup_failure(tmp_path, monkeypatch)
 
-    stderr = _run_failing_check(monkeypatch, capsys, target)
+    stderr = _run_failing_check(
+        monkeypatch,
+        capsys,
+        caplog,
+        target,
+        unreadable_files=int(setup_failure is not _setup_extractor_failure),
+    )
 
     for fragment in expected_fragments:
         assert fragment in stderr, f"expected {fragment!r} in stderr"
@@ -194,8 +208,13 @@ def test_cli_main_recovers_from_real_malformed_markdown(
     assert exit_code == 0, "expected exit_code == 0"
     assert not captured.err, "expected not captured.err"
     assert_with_context(
-        captured.out == "0 diagnostics found\n",
-        "expected captured.out == '0 diagnostics found\\n'",
+        captured.out
+        == (
+            "checked "
+            f"{len(expected_names)} files (0 skipped, 0 unreadable); "
+            "0 errors, 0 warnings\n"
+        ),
+        "expected captured.out to report every recovered fixture",
     )
 
 
@@ -216,6 +235,7 @@ def test_cli_main_checks_every_file_and_renders_earlier_diagnostics_on_failure(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A mid-batch failure must not stop earlier diagnostics or later files."""
     root = tmp_path / "docs"
@@ -228,22 +248,25 @@ def test_cli_main_checks_every_file_and_renders_earlier_diagnostics_on_failure(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(engine, "extract_document", _synthetic_ir_extract)
 
-    exit_code = cli.main(["check", "."])
+    with caplog.at_level("WARNING"):
+        exit_code = cli.main(["check", "."])
     captured = capsys.readouterr()
 
     # The unreadable file forces exit 2, yet the earlier file's diagnostic is
     # still rendered and the clean file did not short-circuit the batch.
     assert exit_code == 2, "expected exit_code == 2"
     assert_with_context(
-        "docs/b-warn.md:1:1: error IR900 synthetic" in captured.out,
-        "expected 'docs/b-warn.md:1:1: error IR900 synthetic'...",
+        "docs/b-warn.md:1:1: warning IR900 synthetic" in captured.out,
+        "expected 'docs/b-warn.md:1:1: warning IR900 synthetic'...",
     )
     assert_with_context(
-        "1 diagnostic found" in captured.out,
-        "expected '1 diagnostic found' in captured.out",
+        "checked 3 files (0 skipped, 1 unreadable); 0 errors, 1 warnings"
+        in captured.out,
+        "expected the mixed run summary in captured.out",
     )
-    assert "failed to read" in captured.err, "expected 'failed to read' in captured.err"
-    assert "c-broken.md" in captured.err, "expected 'c-broken.md' in captured.err"
+    log_messages = "\n".join(record.getMessage() for record in caplog.records)
+    assert "failed to read" in log_messages, "expected 'failed to read' in logs"
+    assert "c-broken.md" in log_messages, "expected 'c-broken.md' in logs"
 
 
 def _stub_discovery(
@@ -259,7 +282,7 @@ def _stub_discovery(
     monkeypatch.setattr(
         cli,
         "_discover_targets",
-        lambda _options, _resolver: [discovered_file],
+        lambda _options, _resolver: ((discovered_file,), 0),
     )
 
 
