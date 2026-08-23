@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 Approval gate: **satisfied on 2026-08-23**. The implementation request
 explicitly approves this ExecPlan.
@@ -279,8 +279,9 @@ Closing:
 - [x] W7. Documentation: ADR 008, design §7.3, users' guide, developers' guide,
       contents index (2026-08-24). CodeRabbit reviewed commit `a8456f3` with
       zero concerns.
-- [x] W8. Tick roadmap item 3.2.1; record outcomes (2026-08-24). Final
-      documentation gates and review remain pending.
+- [x] W8. Tick roadmap item 3.2.1; record outcomes (2026-08-24). The closing
+      Markdown gates passed and CodeRabbit reviewed commit `27696d5` with zero
+      concerns.
 
 ## Surprises & discoveries
 
