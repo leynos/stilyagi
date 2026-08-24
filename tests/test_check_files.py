@@ -2,6 +2,7 @@
 
 import pathlib
 import typing as typ
+from dataclasses import dataclass  # noqa: ICN003 - Required direct test-harness import.
 
 import pytest
 from stilyagi import cli, config, discovery, engine, model
@@ -19,19 +20,17 @@ if typ.TYPE_CHECKING:
 
 
 def _run_failing_check(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    caplog: pytest.LogCaptureFixture,
+    harness: _FailingCheckHarness,
     target: pathlib.Path,
     *,
     unreadable_files: int,
 ) -> str:
     """Run one failing check against a stubbed target and return stderr."""
-    _stub_discovery(monkeypatch, target)
+    _stub_discovery(harness.monkeypatch, target)
 
-    with caplog.at_level("WARNING"):
+    with harness.caplog.at_level("WARNING"):
         exit_code = cli.run_check(cli.CheckOptions(targets=(target.name,)))
-    captured = capsys.readouterr()
+    captured = harness.capsys.readouterr()
 
     assert exit_code == 2, "expected exit_code == 2"
     # A hard file error still renders the (empty) accumulated diagnostics before
@@ -44,7 +43,7 @@ def _run_failing_check(
         ),
         "expected captured.out to report the file-read outcome",
     )
-    return "\n".join(record.getMessage() for record in caplog.records)
+    return "\n".join(record.getMessage() for record in harness.caplog.records)
 
 
 def _patch_read_text_failure(
@@ -162,19 +161,14 @@ def _setup_extractor_failure(
     ],
 )
 def test_cli_run_check_maps_file_failures_to_exit_two(
-    tmp_path: pathlib.Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    caplog: pytest.LogCaptureFixture,
+    harness: _FailingCheckHarness,
     setup_failure: _FailureSetup,
 ) -> None:
     """Reject each documented file failure with exit code 2 and stderr."""
-    target, expected_fragments = setup_failure(tmp_path, monkeypatch)
+    target, expected_fragments = setup_failure(harness.tmp_path, harness.monkeypatch)
 
     stderr = _run_failing_check(
-        monkeypatch,
-        capsys,
-        caplog,
+        harness,
         target,
         unreadable_files=int(setup_failure is not _setup_extractor_failure),
     )
@@ -290,3 +284,22 @@ def _raise_bridge_extraction_error() -> typ.NoReturn:
     """Raise the deterministic extractor failure used by the regression test."""
     message = "bridge exploded"
     raise engine.BridgeExtractionError(message)
+
+@dataclass(frozen=True, slots=True)
+class _FailingCheckHarness:
+    """Pytest collaborators required to run one failing check."""
+
+    tmp_path: pathlib.Path
+    monkeypatch: pytest.MonkeyPatch
+    capsys: pytest.CaptureFixture[str]
+    caplog: pytest.LogCaptureFixture
+
+@pytest.fixture(name="harness")
+def _failing_check_harness(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> _FailingCheckHarness:
+    """Provide the collaborators used by the failing-check test harness."""
+    return _FailingCheckHarness(tmp_path, monkeypatch, capsys, caplog)
