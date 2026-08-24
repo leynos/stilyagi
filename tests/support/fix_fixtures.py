@@ -38,10 +38,14 @@ def find_source_span(document: model.Document, needle: str) -> SourceSpan:
 
     Examples
     --------
-    >>> find_source_span(None, "missing")
-    Traceback (most recent call last):
-    ...
-    SourceTextNotFoundError: source-backed text not found: 'missing'
+    >>> from stilyagi import model
+    >>> document = model.Document(
+    ...     model.Syntax.MARKDOWN,
+    ...     ir={"regions": [{"segments": [{"text": "word", "source": {
+    ...         "byte_start": 0, "byte_end": 4}}]}]},
+    ... )
+    >>> find_source_span(document, "word")
+    SourceSpan(byte_start=0, byte_end=4)
     """
     for segment in iter_segments(document):
         if segment.span is None or needle not in segment.text:

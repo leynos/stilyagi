@@ -1,14 +1,17 @@
 """Behavioural contracts for admissible fix planning and conflicts."""
 
 import dataclasses as dc
+import pathlib
 
 import pytest
-from stilyagi import config, diagnostics, model
+from stilyagi import config, diagnostics, engine, model
 from stilyagi.engine.fix_planning.plan import FixPlanRequest, plan_fixes
 from stilyagi.fixes import Applicability, Fix, FixLevel, TextEdit
 
 from tests.support.assertions import assert_with_context
 from tests.support.fix_fixtures import find_source_span
+
+_MARKDOWN_FIXTURES = pathlib.Path("tests/fixtures/corpus/markdown/valid")
 
 
 def _document(source: str, segments: tuple[tuple[str, bool], ...]) -> model.Document:
@@ -235,4 +238,23 @@ def test_planner_aborts_when_ir_segment_text_disagrees_with_source() -> None:
     assert_with_context(
         plan.rejections[0].identifier == "fix-error/source-mismatch",
         "expected a source-mismatch rejection",
+    )
+
+
+def test_planner_accepts_list_paragraph_end_insertions_from_real_corpus() -> None:
+    """Prove that list-item prose remains admissible despite its container shape."""
+    source = (_MARKDOWN_FIXTURES / "lists.md.fixture").read_text(encoding="utf-8")
+    document = engine.extract_document(source, model.Syntax.MARKDOWN)
+    item = find_source_span(document, "Unordered item")
+    candidate = _diagnostic(
+        "PUN201",
+        Fix("Add punctuation", Applicability.SAFE, (TextEdit.insert_after(item, "."),)),
+    )
+
+    plan = plan_fixes(_request(source, document, (candidate,)))
+
+    assert_with_context(
+        plan.fixed_bytes
+        == source.replace("Unordered item", "Unordered item.").encode(),
+        "expected the nested source-backed list paragraph to accept an end insertion",
     )
