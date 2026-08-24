@@ -1,3 +1,5 @@
+//! Compile-fail fixture guarding the `sha2` 0.11 `LowerHex` formatting break.
+
 use sha2::{Digest, Sha256};
 
 fn main() {
