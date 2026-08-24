@@ -4,9 +4,18 @@ import typing as typ
 
 import hypothesis as hyp
 import hypothesis.strategies as st
-from stilyagi.fixes import TextEdit
+from stilyagi import config, diagnostics
+from stilyagi.engine import ir_view
+from stilyagi.engine.fix_planning.plan import FixPlanRequest, plan_fixes
+from stilyagi.fixes import Applicability, Fix, FixLevel, TextEdit
 
 from tests.support.assertions import assert_with_context
+from tests.support.fix_plan_strategies import (
+    CorpusSpanCase,
+    admissible_edit_cases,
+    corpus_span_cases,
+    synthetic_straddling_edit_cases,
+)
 
 _Value = typ.TypeVar("_Value")
 
@@ -129,4 +138,109 @@ def test_splice_coalesces_exact_duplicate_edits(
     assert_with_context(
         apply_edits(source, edits) == apply_edits(source, (*edits, *duplicate)),
         "expected an exact duplicate edit to be coalesced",
+    )
+
+
+def _request(
+    case: CorpusSpanCase, diagnostics_list: tuple[diagnostics.Diagnostic, ...]
+) -> FixPlanRequest:
+    """Build a permissive safe-fix planning request for one corpus case."""
+    return FixPlanRequest(
+        case.source_bytes,
+        case.document,
+        diagnostics_list,
+        FixLevel.SAFE,
+        config.LintConfig(),
+    )
+
+
+def _diagnostic(code: str, edit: TextEdit) -> diagnostics.Diagnostic:
+    """Build one safe corpus edit diagnostic."""
+    return diagnostics.Diagnostic(
+        "tests/fixture.md",
+        code,
+        "example",
+        fix=Fix("Replace prose", Applicability.SAFE, (edit,)),
+    )
+
+
+@hyp.given(case=admissible_edit_cases())
+@hyp.settings(max_examples=64, deadline=None)
+def test_accepted_edits_stay_inside_one_source_backed_span(
+    case: CorpusSpanCase,
+) -> None:
+    """Constructively drawn source edits remain accepted within one merged span."""
+    edit = TextEdit.replace(case.span, "replacement")
+
+    plan = plan_fixes(_request(case, (_diagnostic("PUN201", edit),)))
+
+    assert_with_context(plan.fixed_bytes is not None, "expected a contained edit")
+    assert_with_context(
+        all(
+            any(
+                source_span.byte_start
+                <= planned.byte_start
+                <= planned.byte_end
+                <= source_span.byte_end
+                for source_span in ir_view.source_backed_spans(case.document)
+            )
+            for planned in plan.edits
+        ),
+        "expected every accepted edit to lie in one source-backed span",
+    )
+
+
+@hyp.given(case=synthetic_straddling_edit_cases())
+@hyp.settings(max_examples=64, deadline=None)
+def test_synthetic_straddling_edits_always_abort_mutation(case: CorpusSpanCase) -> None:
+    """Edits constructed across a synthetic segment never produce fixed bytes."""
+    edit = TextEdit.replace(case.span, "replacement")
+
+    plan = plan_fixes(_request(case, (_diagnostic("PUN201", edit),)))
+
+    assert_with_context(
+        plan.fixed_bytes is None,
+        "expected a source-to-synthetic span to abort the entire file plan",
+    )
+    assert_with_context(bool(plan.rejections), "expected a synthetic-span rejection")
+
+
+@hyp.given(case=admissible_edit_cases())
+@hyp.settings(max_examples=64, deadline=None)
+def test_conflicting_edits_never_produce_fixed_bytes(case: CorpusSpanCase) -> None:
+    """Two different replacements for one admissible span preserve the source."""
+    first = _diagnostic("PUN201", TextEdit.replace(case.span, "first"))
+    second = _diagnostic("PUN202", TextEdit.replace(case.span, "second"))
+
+    plan = plan_fixes(_request(case, (first, second)))
+
+    assert_with_context(
+        plan.fixed_bytes is None, "expected a conflict to leave the source untouched"
+    )
+
+
+@hyp.given(case=st.sampled_from(corpus_span_cases()))
+@hyp.settings(max_examples=64, deadline=None)
+def test_empty_plans_preserve_every_corpus_source(case: CorpusSpanCase) -> None:
+    """No eligible fixes is an identity transformation for every corpus file."""
+    plan = plan_fixes(_request(case, ()))
+
+    assert_with_context(
+        plan.fixed_bytes == case.source_bytes,
+        "expected a plan without diagnostics to preserve the original bytes",
+    )
+
+
+@hyp.given(case=admissible_edit_cases())
+@hyp.settings(max_examples=64, deadline=None)
+def test_accepted_plans_remain_valid_utf8(case: CorpusSpanCase) -> None:
+    """UTF-8-aligned accepted edits always leave decodable source bytes."""
+    edit = TextEdit.replace(case.span, "replaced with é")
+
+    plan = plan_fixes(_request(case, (_diagnostic("PUN201", edit),)))
+
+    assert_with_context(plan.fixed_bytes is not None, "expected a contained edit")
+    assert_with_context(
+        plan.fixed_bytes.decode() is not None,
+        "expected accepted UTF-8 edits to yield decodable source bytes",
     )
