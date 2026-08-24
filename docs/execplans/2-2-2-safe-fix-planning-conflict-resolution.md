@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: BLOCKED
 
 Roadmap item: 2.2.2. Requires 2.1.1 (Markdown intermediate representation
 envelope) and 2.2.1 (`stilyagi check`), both complete.
@@ -245,6 +245,20 @@ Established during planning; use them instead of re-measuring.
     completed in this milestone. The full deterministic gate chain is green;
     CodeRabbit found zero concerns; Milestone 3 may begin.
 - [ ] Milestone 3 — admissibility, selection, conflict resolution (in progress)
+  - 2026-08-24: the first planner slice is committed as `d44fc34`. It rejects
+    malformed, non-UTF-8, synthetic, non-contiguous, and provenance-mismatched
+    edits; applies file-atomic candidate selection; coalesces identical edits;
+    and aborts conflicting files before mutation. Its six deterministic gates
+    passed (240 Python tests, 332 Rust tests, and 17 snapshots).
+  - 2026-08-24: Stage C2 now samples 69 real source-backed corpus segments
+    and six source-to-synthetic boundaries constructively. The focused planner
+    and property suite passes 24 tests; full deterministic gates and the
+    required CodeRabbit review remain before Milestone 4.
+  - Blocked 2026-08-24: three sequential full-gate attempts passed formatting,
+    Ruff, and Interrogate, but the mandated PyPy Pylint tool could not resolve
+    existing PyPI dependencies because domain-name lookup failed. No later gate
+    or CodeRabbit review was run; await restored dependency access before
+    retrying the complete chain.
 - [ ] Milestone 4 — `--diff`
 - [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes
 - [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
@@ -316,6 +330,14 @@ Established during planning; use them instead of re-measuring.
   reserved in RFC 0002 §12, so a third-party pack could claim it. Impact:
   planning rejections move to a separate channel with non-rule-shaped
   identifiers. See D-07.
+
+- Observation (2026-08-24): the Milestone 3 full gate chain cannot reach the
+  PyPy Pylint check because its existing dependency fetches cannot resolve
+  `pypi.org`. Three sequential attempts independently failed resolving
+  `pylint` or `astroid`; Ruff and Interrogate passed on each. Evidence is in
+  the three `lint` logs with suffixes `11`, `12`, and `13` under `/tmp`.
+  Impact: the plan is blocked by its three-iteration tolerance, with no
+  deterministic-code failure or CodeRabbit result to act on.
 
 - Observation: `nodes` is roughly a third of the IR payload and no Python code
   reads it. Evidence: for an 87 KB Markdown file the canonical IR JSON is 2.01
@@ -506,6 +528,22 @@ Established during planning; use them instead of re-measuring.
   assertion messages and one focused line-index snapshot; no production
   contract changes are permitted. The full deterministic chain still gates
   onward progress. Date/Author: 2026-08-24, user-directed implementation.
+
+- **D-20: Generate fix-planning properties from extracted corpus provenance.**
+  Rationale: generating arbitrary Markdown makes failures ambiguous between
+  the extractor and planner, while filtering generated edit ranges makes
+  Hypothesis discard most candidates. A module-level cached corpus loader
+  exposes 69 source-backed segments and six source-to-synthetic triples, so
+  every accepted case is valid by construction and every rejection case crosses
+  a real synthetic boundary. Date/Author: 2026-08-24, implementation.
+
+- **D-21: Pause Milestone 3 for unavailable required dependencies.** Evidence:
+  three full-gate attempts passed `make check-fmt`, Ruff, and Interrogate, then
+  failed while the existing PyPy Pylint wrapper resolved `pylint` or `astroid`
+  from PyPI. The problem is external DNS resolution, not a code finding.
+  Rationale: bypassing, suppressing, or substituting this mandated lint tier
+  would contradict the plan and repository gate policy. Retry only after
+  dependency access is restored. Date/Author: 2026-08-24, implementation.
 
 ## Outcomes & retrospective
 
@@ -1558,6 +1596,16 @@ green; the required CodeRabbit review remains the boundary before Milestone 3.
 
 **Revision 12, 2026-08-24.** Recorded Milestone 2's clean CodeRabbit review
 and started Milestone 3.
+
+**Revision 13, 2026-08-24.** Recorded the committed Milestone 3 planner slice
+and the in-progress corpus-backed Stage C2 property coverage. The focused suite
+passes; the full deterministic chain and required CodeRabbit review remain the
+boundary before Milestone 4.
+
+**Revision 14, 2026-08-24.** Marked the plan blocked after all three permitted
+full-gate attempts hit the same PyPI DNS failure in the required PyPy Pylint
+tier. No code-quality result was bypassed, no commit was made, and CodeRabbit
+was not requested.
 
 **Revision 2, 2026-08-16.** Revised after a six-lens design review. What
 changed and why:
