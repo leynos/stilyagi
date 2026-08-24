@@ -6,6 +6,7 @@ import logging
 import pathlib
 import sys
 import typing as typ
+from collections import abc as cabc
 
 import pytest
 from pytest_bdd import given, parsers, then, when
@@ -23,6 +24,31 @@ class CheckCommandState(typ.TypedDict, total=False):
     stdout: str
     stderr: str
     extracted_syntaxes: list[model.Syntax]
+
+
+type CheckCommandRunner = cabc.Callable[[pathlib.Path, list[str]], tuple[int, str, str]]
+
+
+@pytest.fixture
+def check_command_runner(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> CheckCommandRunner:
+    """Provide an in-process check-command runner with captured output."""
+
+    def run(root: pathlib.Path, argv: list[str]) -> tuple[int, str, str]:
+        """Run a check command in one tree and return its captured results."""
+        if "-" in argv:
+            monkeypatch.setattr(sys, "stdin", io.StringIO("# Notes\n"))
+        monkeypatch.chdir(root)
+        with caplog.at_level(logging.WARNING):
+            exit_code = cli.main(argv)
+        captured = capsys.readouterr()
+        stderr = "\n".join(record.getMessage() for record in caplog.records)
+        return exit_code, captured.out, stderr
+
+    return run
 
 
 @given(
@@ -190,24 +216,19 @@ def extractor_records_selected_syntaxes(
 @when(parsers.parse('I run "{command}" in that tree'))
 def run_stilyagi_command_in_that_tree(
     check_command_state: CheckCommandState,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    caplog: pytest.LogCaptureFixture,
+    check_command_runner: CheckCommandRunner,
     command: str,
 ) -> None:
     """Run one quoted `stilyagi` invocation in-process and capture it."""
     program, *argv = command.split()
     assert program == "stilyagi", f"unsupported command: {command}"
-    if "-" in argv:
-        monkeypatch.setattr(sys, "stdin", io.StringIO("# Notes\n"))
-    monkeypatch.chdir(check_command_state["root"])
-    with caplog.at_level(logging.WARNING):
-        check_command_state["exit_code"] = cli.main(argv)
-    captured = capsys.readouterr()
-    check_command_state["stdout"] = captured.out
-    check_command_state["stderr"] = "\n".join(
-        record.getMessage() for record in caplog.records
+    exit_code, stdout, stderr = check_command_runner(
+        check_command_state["root"],
+        argv,
     )
+    check_command_state["exit_code"] = exit_code
+    check_command_state["stdout"] = stdout
+    check_command_state["stderr"] = stderr
 
 
 @then("the exit code is 0")
