@@ -850,7 +850,6 @@ boundary:
   bridge vocabulary functions must call it before and after the patched state;
   production code must not call it.
 
-
 ### 4.3 Adding a language extractor
 
 Adding a syntax today is intentionally a coordinated change. Before starting,
