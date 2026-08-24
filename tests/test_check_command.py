@@ -161,6 +161,33 @@ def test_check_logs_extraction_failure_alongside_stderr(
     )
     assert len(warnings) == 1, "expected exactly one extraction failure warning"
 
+def test_main_skips_a_symlinked_directory_target(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A symlinked directory target must be visible as one skipped input."""
+    source_directory = tmp_path / "source"
+    _write_markdown(source_directory / "notes.md", "Notes")
+    target = tmp_path / "linked-source"
+    target.symlink_to(source_directory, target_is_directory=True)
+    monkeypatch.chdir(tmp_path)
+
+    with caplog.at_level(logging.WARNING):
+        exit_code = cli.main(["check", target.name])
+
+    assert exit_code == 0, "expected a skipped symlink target to exit zero"
+    assert (
+        capsys.readouterr().out
+        == "checked 0 files (1 skipped, 0 unreadable); 0 errors, 0 warnings\n"
+    ), "expected the symlink target summary"
+    assert any(
+        record.levelno == logging.WARNING
+        and "skipping symlinked directory target" in record.getMessage()
+        for record in caplog.records
+    ), "expected a warning for the skipped symlinked directory target"
+
 
 def test_check_reraises_unexpected_extraction_failure(
     tmp_path: pathlib.Path,
