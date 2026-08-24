@@ -42,48 +42,38 @@ fn valid_markdown_corpus_covers_promised_markdown_region_kinds() {
 
 #[rstest]
 fn list_item_regions_are_thin_structural_parents() {
-    let relative_path = Path::new("tests/fixtures/corpus/markdown/valid/lists.md.fixture");
-    let fixture_context = format!(
-        "expected readable Markdown corpus fixture {}",
-        relative_path.display()
+    assert_thin_structural_parent_regions(
+        Path::new("tests/fixtures/corpus/markdown/valid/lists.md.fixture"),
+        RegionKind::ListItem,
+        "list_item",
+        |list_items| {
+            assert!(list_items.iter().any(|region| {
+                region.attrs.get("ordered") == Some(&serde_json::json!(true))
+                    && region.attrs.get("start") == Some(&serde_json::json!(3))
+            }));
+            assert!(
+                list_items.iter().any(|region| {
+                    region.attrs.get("checked") == Some(&serde_json::json!(true))
+                })
+            );
+        },
     );
-    let source = read_corpus_fixture(relative_path).expect(&fixture_context);
-    let document_context = format!("expected Markdown IR document {}", relative_path.display());
-    let document = document_for(relative_path, &source).expect(&document_context);
-    let list_items = regions_of_kind(&document, RegionKind::ListItem);
-
-    assert_thin_structural_regions(&list_items, "list_item");
-    assert!(list_items.iter().any(|region| {
-        region.attrs.get("ordered") == Some(&serde_json::json!(true))
-            && region.attrs.get("start") == Some(&serde_json::json!(3))
-    }));
-    assert!(
-        list_items
-            .iter()
-            .any(|region| { region.attrs.get("checked") == Some(&serde_json::json!(true)) })
-    );
-    assert_paragraph_children_linked_to(&document, &list_items, "list_item");
 }
 
 #[rstest]
 fn blockquote_regions_are_thin_structural_parents() {
-    let relative_path = Path::new("tests/fixtures/corpus/markdown/valid/blockquotes.md.fixture");
-    let fixture_context = format!(
-        "expected readable Markdown corpus fixture {}",
-        relative_path.display()
+    assert_thin_structural_parent_regions(
+        Path::new("tests/fixtures/corpus/markdown/valid/blockquotes.md.fixture"),
+        RegionKind::Blockquote,
+        "blockquote",
+        |blockquotes| {
+            assert!(
+                blockquotes
+                    .iter()
+                    .any(|region| { region.attrs.get("depth") == Some(&serde_json::json!(2)) })
+            );
+        },
     );
-    let source = read_corpus_fixture(relative_path).expect(&fixture_context);
-    let document_context = format!("expected Markdown IR document {}", relative_path.display());
-    let document = document_for(relative_path, &source).expect(&document_context);
-    let blockquotes = regions_of_kind(&document, RegionKind::Blockquote);
-
-    assert_thin_structural_regions(&blockquotes, "blockquote");
-    assert!(
-        blockquotes
-            .iter()
-            .any(|region| { region.attrs.get("depth") == Some(&serde_json::json!(2)) })
-    );
-    assert_paragraph_children_linked_to(&document, &blockquotes, "blockquote");
 }
 
 #[rstest]
@@ -245,6 +235,27 @@ fn is_decoded_synthetic_region(region: &IrRegion) -> bool {
             segment.source.is_none()
                 && segment.synthetic.as_deref() == Some(SyntheticReason::DecodedText.as_str())
         })
+}
+
+#[track_caller]
+fn assert_thin_structural_parent_regions(
+    relative_path: &Path,
+    kind: RegionKind,
+    kind_name: &str,
+    assert_kind_specific_properties: impl FnOnce(&[&IrRegion]),
+) {
+    let fixture_context = format!(
+        "expected readable Markdown corpus fixture {}",
+        relative_path.display()
+    );
+    let source = read_corpus_fixture(relative_path).expect_valid(&fixture_context);
+    let document_context = format!("expected Markdown IR document {}", relative_path.display());
+    let document = document_for(relative_path, &source).expect_valid(&document_context);
+    let regions = regions_of_kind(&document, kind);
+
+    assert_thin_structural_regions(&regions, kind_name);
+    assert_kind_specific_properties(&regions);
+    assert_paragraph_children_linked_to(&document, &regions, kind_name);
 }
 
 fn assert_thin_structural_regions(regions: &[&IrRegion], kind_name: &str) {
