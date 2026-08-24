@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 Approval gate: **satisfied on 2026-08-23**. The implementation request
 explicitly approves this ExecPlan.
@@ -282,7 +282,8 @@ Closing:
 - [x] W8. Tick roadmap item 3.2.1; record outcomes (2026-08-24). The closing
       Markdown gates passed and CodeRabbit reviewed commit `27696d5` with zero
       concerns. Review remediation passed all six gates (342 Rust tests, 224
-      Python tests, 17 snapshots); follow-up CodeRabbit review is pending.
+      Python tests, 17 snapshots); CodeRabbit reviewed commit `dc4c73e` with
+      zero concerns.
 
 ## Surprises & discoveries
 
