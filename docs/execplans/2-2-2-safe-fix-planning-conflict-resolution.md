@@ -254,6 +254,10 @@ Established during planning; use them instead of re-measuring.
     and six source-to-synthetic boundaries constructively. The focused planner
     and property suite passes 24 tests; full deterministic gates and the
     required CodeRabbit review remain before Milestone 4.
+  - 2026-08-24: committed the corpus-backed Stage C2 properties as `76da310`
+    at the owner's explicit request to preserve the completed work. This does
+    not satisfy the pending gate or CodeRabbit boundary; Milestone 4 remains
+    prohibited until both are complete.
   - Blocked 2026-08-24: three sequential full-gate attempts passed formatting,
     Ruff, and Interrogate, but the mandated PyPy Pylint tool could not resolve
     existing PyPI dependencies because domain-name lookup failed. No later gate
@@ -542,8 +546,10 @@ Established during planning; use them instead of re-measuring.
   failed while the existing PyPy Pylint wrapper resolved `pylint` or `astroid`
   from PyPI. The problem is external DNS resolution, not a code finding.
   Rationale: bypassing, suppressing, or substituting this mandated lint tier
-  would contradict the plan and repository gate policy. Retry only after
-  dependency access is restored. Date/Author: 2026-08-24, implementation.
+  would contradict the plan and repository gate policy. The owner subsequently
+  requested a local preservation commit (`76da310`); it records the work but
+  does not authorize Milestone 4. Retry only after dependency access is
+  restored. Date/Author: 2026-08-24, implementation.
 
 ## Outcomes & retrospective
 
@@ -1604,7 +1610,8 @@ boundary before Milestone 4.
 
 **Revision 14, 2026-08-24.** Marked the plan blocked after all three permitted
 full-gate attempts hit the same PyPI DNS failure in the required PyPy Pylint
-tier. No code-quality result was bypassed, no commit was made, and CodeRabbit
+tier. A later explicit owner request preserved the completed Stage C2 work in
+local commit `76da310`; it does not constitute a green gate result. CodeRabbit
 was not requested.
 
 **Revision 2, 2026-08-16.** Revised after a six-lens design review. What
