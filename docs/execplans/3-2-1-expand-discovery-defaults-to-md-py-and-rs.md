@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: COMPLETE
+Status: IN PROGRESS
 
 Approval gate: **satisfied on 2026-08-23**. The implementation request
 explicitly approves this ExecPlan.
@@ -281,13 +281,26 @@ Closing:
       zero concerns.
 - [x] W8. Tick roadmap item 3.2.1; record outcomes (2026-08-24). The closing
       Markdown gates passed and CodeRabbit reviewed commit `27696d5` with zero
-      concerns.
+      concerns. Review remediation passed all six gates (342 Rust tests, 224
+      Python tests, 17 snapshots); follow-up CodeRabbit review is pending.
 
 ## Surprises & discoveries
 
 Found during planning by executing probes against the built extension, and
 during the round-2 design review. These are the evidence base for the Decision
 Log; they are why this plan is larger than "add three strings to a frozenset".
+
+- **S15 (review follow-up). Recursive-walk coverage did not prove the explicit
+  symlinked-directory target contract.**
+  `test_directory_recursion_skips_noise_ and_symlinked_directories` only
+  creates a symlink encountered below an ordinary directory target. It
+  therefore cannot exercise `_candidates_for_target`'s early return for a
+  symlinked directory specified on the command line. Add a CLI regression test
+  that asserts its warning and load-bearing
+  `checked 0 files (1 skipped, 0 unreadable)` summary. The same review found the
+  `.md.fixture` corpus explanation still claimed that only Markdown suffixes
+  were discoverable; correct it to describe final-suffix matching and the
+  delivered four-suffix default. Date/Author: 2026-08-24, implementation agent.
 
 - **S14 (implementation). The rebased baseline has 236 tracked discovery
   candidates, not 233.** After the baseline gates materialized `.uv-cache`, the
@@ -723,6 +736,11 @@ property, unit, snapshot, corpus, and Rust bridge tests cover the acceptance
 behaviours, including final-suffix matching, standard-input syntax selection,
 warning-only extraction anomalies, authored-directive errors, and symlinked
 directory summaries.
+
+Post-completion review remediation corrected the stale `.md.fixture` guidance
+and added the explicit symlinked-directory *target* acceptance test. The test
+asserts exit `0`, a warning log entry, and the load-bearing zero-checked,
+one-skipped summary, rather than relying on recursive-walk symlink coverage.
 
 The clean acceptance run checked 178 files and exited `0`; the whole-tree run
 checked 237 files and exited `1` only because its two deliberately invalid

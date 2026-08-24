@@ -151,10 +151,11 @@ test-only and should not be used for application validation or control flow.
 
 ### The `.md.fixture` corpus convention
 
-Because `stilyagi check` discovers only `.md` and `.markdown` files, any test
-that exercises discovery must strip the trailing `.fixture` suffix when
-materializing fixtures into a temporary tree; otherwise the fixtures are
-invisible to discovery and the test passes vacuously.
+Because discovery matches the final suffix, `.md.fixture` remains undiscovered
+even though `stilyagi check` now discovers `.md`, `.markdown`, `.py`, and `.rs`
+files. Any test that exercises discovery must strip the trailing `.fixture`
+suffix when materializing fixtures into a temporary tree; otherwise the
+fixtures are invisible to discovery and the test passes vacuously.
 
 The shared helper `tests/support/malformed_corpus.py` centralizes this:
 `materialize_malformed_corpus(destination)` copies each fixture from
