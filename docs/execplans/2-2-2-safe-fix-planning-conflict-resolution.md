@@ -258,6 +258,9 @@ Established during planning; use them instead of re-measuring.
     at the owner's explicit request to preserve the completed work. This does
     not satisfy the pending gate or CodeRabbit boundary; Milestone 4 remains
     prohibited until both are complete.
+  - 2026-08-24: rebased onto `origin/configure-df12-lints`. The base branch's
+    locked `ty` type-checking configuration and configuration-map validation
+    supersede the older Pyright replay; the safe-fix commits remain separate.
   - Blocked 2026-08-24: three sequential full-gate attempts passed formatting,
     Ruff, and Interrogate, but the mandated PyPy Pylint tool could not resolve
     existing PyPI dependencies because domain-name lookup failed. No later gate
@@ -550,6 +553,13 @@ Established during planning; use them instead of re-measuring.
   requested a local preservation commit (`76da310`); it records the work but
   does not authorize Milestone 4. Retry only after dependency access is
   restored. Date/Author: 2026-08-24, implementation.
+
+- **D-22: Retain the df12 lint base's `ty` configuration on rebase.**
+  Rationale: replaying the older strict-Pyright commit would reintroduce
+  `pyright` and its lockfile entries after `configure-df12-lints` had replaced
+  them with the pinned `ty` runner. The target branch's configuration-map
+  validation and locked dependency state are newer shared infrastructure and
+  do not overlap the safe-fix feature. Date/Author: 2026-08-24, rebase.
 
 ## Outcomes & retrospective
 
@@ -1613,6 +1623,11 @@ full-gate attempts hit the same PyPI DNS failure in the required PyPy Pylint
 tier. A later explicit owner request preserved the completed Stage C2 work in
 local commit `76da310`; it does not constitute a green gate result. CodeRabbit
 was not requested.
+
+**Revision 15, 2026-08-24.** Rebasing onto `configure-df12-lints` retained its
+locked `ty` type-checking configuration, configuration-map validation, and
+lockfile. The older replayed Pyright configuration was removed rather than
+leaving two incompatible type-checking toolchains.
 
 **Revision 2, 2026-08-16.** Revised after a six-lens design review. What
 changed and why:
