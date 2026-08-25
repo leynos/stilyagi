@@ -356,6 +356,28 @@ manifest-path = "crates/stilyagi-pyext/Cargo.toml"
 module-name = "stilyagi._stilyagi_rs"
 python-source = "python"
 
+[tool.skylos.gate]
+strict = true
+
+[tool.skylos.whitelist]
+names = [
+    "InvalidSpacyModelError",
+    "_coerce_path",
+    "_coerce_string_to_string_tuple_map",
+    "_copy_mapping",
+    "_require_strict_int",
+    "_reset_extraction_state_for_tests",
+    "extract_document",
+]
+
+[tool.skylos.whitelist.documented]
+InvalidSpacyModelError = "Raised by SpacyProviderConfig validation for blank model identifiers."
+_coerce_path = "Called by StilyagiConfig post-initialization to normalize cache directories."
+_coerce_string_to_string_tuple_map = "Called by LintConfig post-initialization to normalize per-file ignore mappings."
+_copy_mapping = "Called by configuration dataclass post-initialization to copy reserved mappings."
+_require_strict_int = "Called by StilyagiConfig post-initialization to validate the line-length setting."
+_reset_extraction_state_for_tests = "Called by extraction tests that reset process-wide bridge caches."
+extract_document = "PyO3 exports this stubbed API; its signature parameters mirror the compiled extension."
 [build-system]
 # Keep in sync with [dependency-groups].dev.
 requires = ["maturin==1.14.1"]

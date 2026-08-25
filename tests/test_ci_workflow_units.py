@@ -9,7 +9,8 @@ import pathlib
 import typing as typ
 
 import pytest
-import yaml
+
+from tests.support.workflows import load_workflow
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 WorkflowStep = typ.TypedDict(
@@ -27,14 +28,6 @@ WorkflowJob = typ.TypedDict(
     total=False,
 )
 type SmokeWorkflow = tuple[dict[str, WorkflowJob], list[WorkflowStep], set[str]]
-
-
-def _workflow_document(workflow: str) -> dict[str, object]:
-    """Parse a GitHub Actions workflow while preserving the `on` key as text."""
-    # BaseLoader is required here; safe_load drops the literal `on` workflow key.
-    loaded = yaml.load(workflow, Loader=yaml.BaseLoader)
-    assert isinstance(loaded, dict)
-    return typ.cast("dict[str, object]", loaded)
 
 
 def _workflow_jobs(parsed_workflow: dict[str, object]) -> dict[str, WorkflowJob]:
@@ -69,7 +62,7 @@ def _workflow_step_named(job: WorkflowJob, name: str) -> WorkflowStep:
 
 def _smoke_workflow_document() -> dict[str, object]:
     """Parse the smoke workflow file into its document mapping."""
-    return _workflow_document(
+    return load_workflow(
         (REPOSITORY_ROOT / ".github" / "workflows" / "smoke.yml").read_text(
             encoding="utf-8"
         )
