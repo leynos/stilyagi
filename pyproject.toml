@@ -20,11 +20,12 @@ dev = [
     "maturin==1.14.1",
     "pytest",
     "pytest-xdist",
+    "cmd-mox==0.2.0",
     # Pin the lint tools so the Makefile and CI resolve identical versions
     # from the lockfile.
+    "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@9c835f35b0f1690597ade799c9c6a30bc5922959",
     "interrogate==1.7.0",
     "ruff==0.15.13",
-    "ty",
     "pytest-timeout",
     "pytest-bdd",
     "hypothesis>=6.165.10,<7.0",
@@ -69,7 +70,9 @@ select = [
     "RSE",
     "PERF",
     "TRY",
+    "ASYNC",
     "D",
+    "DOC",
     "ANN",
     "C90",
     "PLR",
@@ -124,6 +127,14 @@ datetime = "dt"
 "msgspec.json" = "msjson"
 typing = "typ"
 
+[tool.ruff.lint.flake8-type-checking]
+# Hypothesis introspects decorated test signatures at collection time.
+runtime-evaluated-decorators = [
+    "hypothesis.given",
+    "pytest_bdd.given",
+    "pytest_bdd.then",
+    "pytest_bdd.when",
+]
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "typing.AbstractSet".msg = "Use collections.abc.Set instead of deprecated typing generics."
 "typing.AsyncContextManager".msg = "Use contextlib.AbstractAsyncContextManager instead of deprecated typing generics."
@@ -166,6 +177,10 @@ typing = "typ"
 # Enforce NumPy docstring style
 convention = "numpy"
 
+[tool.ruff.lint.pydoclint]
+# Concise one-line summaries are complete documentation for simple helpers;
+# require explicit return, yield, and raise contracts for substantive docstrings.
+ignore-one-line-docstrings = true
 [tool.ruff.lint.mccabe]
 max-complexity = 8
 
@@ -175,6 +190,8 @@ max-bool-expr = 2
 max-locals = 10
 
 [tool.pylint.main]
+# Activate rules whose behaviour depends on the project's Python baseline.
+py-version = "3.14"
 # Expand directory targets like tests even when they are not packages.
 recursive = true
 # Match the project file-size ceiling enforced during review.
@@ -344,7 +361,6 @@ exclude = [
     "target",
     "crates/stilyagi-pyext/target",
 ]
-
 [tool.uv]
 package = true
 
@@ -366,7 +382,7 @@ names = [
     "_coerce_string_to_string_tuple_map",
     "_copy_mapping",
     "_require_strict_int",
-    "_reset_extraction_state_for_tests",
+    "reset_extraction_state_for_tests",
     "extract_document",
 ]
 
@@ -376,7 +392,7 @@ _coerce_path = "Called by StilyagiConfig post-initialization to normalize cache 
 _coerce_string_to_string_tuple_map = "Called by LintConfig post-initialization to normalize per-file ignore mappings."
 _copy_mapping = "Called by configuration dataclass post-initialization to copy reserved mappings."
 _require_strict_int = "Called by StilyagiConfig post-initialization to validate the line-length setting."
-_reset_extraction_state_for_tests = "Called by extraction tests that reset process-wide bridge caches."
+reset_extraction_state_for_tests = "Called by extraction tests that reset process-wide bridge caches."
 extract_document = "PyO3 exports this stubbed API; its signature parameters mirror the compiled extension."
 [build-system]
 # Keep in sync with [dependency-groups].dev.

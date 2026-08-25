@@ -1,14 +1,12 @@
 """Config-file loading helpers for Stilyagi."""
 
-from __future__ import annotations
-
 import collections.abc as cabc
 import dataclasses as dc
 import logging
 import tomllib
 import typing as typ
 
-from .parse import _parse_config_table
+from .parse import parse_config_table
 from .schema import InvalidConfigError, StilyagiConfig
 
 if typ.TYPE_CHECKING:
@@ -23,6 +21,11 @@ _SUPPORTED_DIRECTORY_FILENAMES = (
 )
 
 
+def _empty_raw_table() -> dict[str, object]:
+    """Create an independently mutable, typed raw config table."""
+    return {}
+
+
 @dc.dataclass(frozen=True, slots=True)
 class LoadedConfig:
     """A config path with its parsed config and raw pre-parse table.
@@ -32,7 +35,7 @@ class LoadedConfig:
 
     path: pathlib.Path
     config: StilyagiConfig
-    raw_table: cabc.Mapping[str, object] = dc.field(default_factory=dict)
+    raw_table: cabc.Mapping[str, object] = dc.field(default_factory=_empty_raw_table)
 
 
 def _load_toml(path: pathlib.Path) -> cabc.Mapping[str, object]:
@@ -40,10 +43,23 @@ def _load_toml(path: pathlib.Path) -> cabc.Mapping[str, object]:
 
     A missing file propagates as ``FileNotFoundError``; any other read failure
     (a directory, permission denied) becomes a typed ``InvalidConfigError``.
+
+    Returns
+    -------
+    collections.abc.Mapping[str, object]
+        The parsed TOML document.
+
+    Raises
+    ------
+    FileNotFoundError
+        The requested configuration file does not exist.
+    InvalidConfigError
+        The configuration path cannot be read.
     """
     try:
         with path.open("rb") as handle:
-            return typ.cast("cabc.Mapping[str, object]", tomllib.load(handle))
+            document: dict[str, object] = tomllib.load(handle)
+            return document
     except FileNotFoundError:
         raise
     except OSError as exc:
@@ -64,9 +80,32 @@ def _read_config_document(path: pathlib.Path) -> cabc.Mapping[str, object]:
         raise InvalidConfigError(path, "toml", str(exc)) from exc
 
 
-def _load_config_table(path: pathlib.Path) -> cabc.Mapping[str, object]:
-    """Load and select the supported config table for one file."""
-    return _select_config_table(_read_config_document(path), path=path)
+def load_config_table(path: pathlib.Path) -> cabc.Mapping[str, object]:
+    """Load the selected Stilyagi configuration mapping from a file.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path to a supported TOML configuration file. For ``pyproject.toml``,
+        the selected mapping is ``[tool.stilyagi]``.
+
+    Returns
+    -------
+    collections.abc.Mapping[str, object]
+        The selected configuration mapping, or an empty mapping when a
+        ``pyproject.toml`` file has no ``[tool.stilyagi]`` table.
+
+    Raises
+    ------
+    InvalidConfigError
+        If the file is missing, unreadable, or contains malformed TOML.
+    """
+    try:
+        raw_document = _read_config_document(path)
+    except InvalidConfigError as error:
+        _LOGGER.debug("unable to load config table %s: %s", path, error)
+        raise
+    return _select_config_table(raw_document, path=path)
 
 
 def _select_config_table(
@@ -79,7 +118,8 @@ def _select_config_table(
         tool = raw_document.get("tool")
         if not isinstance(tool, cabc.Mapping):
             return {}
-        stilyagi = tool.get("stilyagi")
+        tool_table = typ.cast("cabc.Mapping[str, object]", tool)
+        stilyagi = tool_table.get("stilyagi")
         if not isinstance(stilyagi, cabc.Mapping):
             return {}
         return typ.cast("cabc.Mapping[str, object]", stilyagi)
@@ -94,9 +134,10 @@ def _has_supported_content(
     """Decide whether a candidate file should count as config."""
     if path.name == "pyproject.toml":
         tool = raw_document.get("tool")
-        return isinstance(tool, cabc.Mapping) and isinstance(
-            tool.get("stilyagi"), cabc.Mapping
-        )
+        if not isinstance(tool, cabc.Mapping):
+            return False
+        tool_table = typ.cast("cabc.Mapping[str, object]", tool)
+        return isinstance(tool_table.get("stilyagi"), cabc.Mapping)
     return True
 
 
@@ -114,8 +155,8 @@ def load_config_file(path: pathlib.Path) -> StilyagiConfig:
     StilyagiConfig
         The parsed, validated configuration.
     """
-    config_table = _load_config_table(path)
-    return _parse_config_table(config_table, path=path)
+    config_table = load_config_table(path)
+    return parse_config_table(config_table, path=path)
 
 
 def discover_same_directory_config(directory: pathlib.Path) -> LoadedConfig | None:
@@ -143,7 +184,7 @@ def discover_same_directory_config(directory: pathlib.Path) -> LoadedConfig | No
         selected = _select_config_table(raw_document, path=candidate)
         return LoadedConfig(
             path=candidate,
-            config=_parse_config_table(selected, path=candidate),
+            config=parse_config_table(selected, path=candidate),
             raw_table=selected,
         )
     return None

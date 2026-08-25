@@ -2,11 +2,13 @@
 
 import json
 import pathlib
-import subprocess  # noqa: S404
+import subprocess  # noqa: S404  # subprocess drives installed-package probes
 import sys
 import typing as typ
 
 from pytest_bdd import given, scenarios, then, when
+
+from tests.support.assertions import assert_with_context
 
 scenarios("../features/stilyagi_package_structure.feature")
 
@@ -66,9 +68,18 @@ def make_build_runs_the_development_smoke_check(
     build_spine_state: BuildSpineState,
 ) -> None:
     """Confirm the development install path invokes the package smoke helper."""
-    assert "$(MAKE) smoke" in build_spine_state["makefile"]
-    assert ".venv" in build_spine_state["makefile"]
-    assert "-m stilyagi.smoke" in build_spine_state["makefile"]
+    assert_with_context(
+        "$(MAKE) smoke" in build_spine_state["makefile"],
+        "expected '$(MAKE) smoke' in build_spine_state['makef...",
+    )
+    assert_with_context(
+        ".venv" in build_spine_state["makefile"],
+        "expected '.venv' in build_spine_state['makefile']",
+    )
+    assert_with_context(
+        "-m stilyagi.smoke" in build_spine_state["makefile"],
+        "expected '-m stilyagi.smoke' in build_spine_state['m...",
+    )
 
 
 @then("make release runs the release artefact smoke check")
@@ -76,8 +87,14 @@ def make_release_runs_the_release_artefact_smoke_check(
     build_spine_state: BuildSpineState,
 ) -> None:
     """Confirm the release path smokes the built wheel."""
-    assert "release: release-artifact smoke-release" in build_spine_state["makefile"]
-    assert ".venv-release-smoke" in build_spine_state["makefile"]
+    assert_with_context(
+        "release: release-artifact smoke-release" in build_spine_state["makefile"],
+        "expected 'release: release-artifact smoke-release' i...",
+    )
+    assert_with_context(
+        ".venv-release-smoke" in build_spine_state["makefile"],
+        "expected '.venv-release-smoke' in build_spine_state[...",
+    )
 
 
 @then("CI uses the canonical Makefile smoke path")
@@ -85,12 +102,24 @@ def ci_uses_the_canonical_makefile_smoke_path(
     build_spine_state: BuildSpineState,
 ) -> None:
     """Confirm CI runs lint/test targets and release wheel smoke coverage."""
-    assert "run: make test" in build_spine_state["workflow"]
-    assert "release-smoke:" in build_spine_state["workflow"]
-    assert "run: make release" in build_spine_state["workflow"]
-    assert (
-        "uv run --group dev maturin build --release"
-        not in build_spine_state["workflow"]
+    assert_with_context(
+        "run: make test" in build_spine_state["workflow"],
+        "expected 'run: make test' in build_spine_state['work...",
+    )
+    assert_with_context(
+        "release-smoke:" in build_spine_state["workflow"],
+        "expected 'release-smoke:' in build_spine_state['work...",
+    )
+    assert_with_context(
+        "run: make release" in build_spine_state["workflow"],
+        "expected 'run: make release' in build_spine_state['w...",
+    )
+    assert_with_context(
+        (
+            "uv run --group dev maturin build --release"
+            not in build_spine_state["workflow"]
+        ),
+        "expected 'uv run --group dev maturin build --release...",
     )
 
 
@@ -130,10 +159,11 @@ def package_reports_a_markdown_document_extracted_by_rust(
     boundary_probe = require_result(package_probe_state["boundary_probe"])
     payload = json.loads(boundary_probe["stdout"])
     regions = payload["regions"]
-    assert payload["syntax"] == "markdown"
-    assert {"kind": "heading", "text": "Heading"} in regions, (
+    assert payload["syntax"] == "markdown", "expected payload['syntax'] == 'markdown'"
+    assert_with_context(
+        {"kind": "heading", "text": "Heading"} in regions,
         "expected extracted Markdown regions to include the heading payload, "
-        f"got {regions!r}"
+        f"got {regions!r}",
     )
 
 
@@ -157,14 +187,23 @@ def import_fails_with_module_not_found_error(
 ) -> None:
     """Confirm that the legacy fallback module is no longer importable."""
     fallback_probe = require_result(package_probe_state["fallback_probe"])
-    assert fallback_probe["returncode"] != 0
-    assert "ModuleNotFoundError" in fallback_probe["stderr"]
-    assert "stilyagi.pure" in fallback_probe["stderr"]
+    assert_with_context(
+        fallback_probe["returncode"] != 0,
+        "expected fallback_probe['returncode'] != 0",
+    )
+    assert_with_context(
+        "ModuleNotFoundError" in fallback_probe["stderr"],
+        "expected 'ModuleNotFoundError' in fallback_probe['st...",
+    )
+    assert_with_context(
+        "stilyagi.pure" in fallback_probe["stderr"],
+        "expected 'stilyagi.pure' in fallback_probe['stderr']",
+    )
 
 
 def run_python_snippet(source: str) -> PythonCommandResult:
     """Run a Python snippet in a subprocess and capture its result."""
-    completed_process = subprocess.run(  # noqa: S603
+    completed_process = subprocess.run(  # noqa: S603  # arguments are fixed test data
         [sys.executable, "-c", source],
         capture_output=True,
         check=False,

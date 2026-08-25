@@ -19,6 +19,11 @@ def run_rules(
 ) -> list[diagnostics.Diagnostic]:
     """Return no diagnostics until the rule engine lands.
 
+    Returns
+    -------
+    list[diagnostics.Diagnostic]
+        An empty list until rule execution is implemented.
+
     Examples
     --------
     >>> from stilyagi import config, model

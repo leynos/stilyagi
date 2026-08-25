@@ -8,15 +8,35 @@ import pathlib
 import tomllib
 import typing as typ
 
-from .load import _load_config_table, discover_same_directory_config
-from .parse import _parse_config_table
+from .load import discover_same_directory_config, load_config_table
+from .parse import parse_config_table
 from .schema import InvalidConfigError, StilyagiConfig
-from .validate import _ensure_extend_value
+from .validate import ensure_extend_value
 
 if typ.TYPE_CHECKING:
     from .load import LoadedConfig
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _empty_discovery_cache() -> dict[pathlib.Path, pathlib.Path | None]:
+    """Create an independently mutable discovery cache."""
+    return {}
+
+
+def _empty_resolved_table_cache() -> dict[pathlib.Path, dict[str, object]]:
+    """Create an independently mutable resolved-table cache."""
+    return {}
+
+
+def _empty_raw_table_cache() -> dict[pathlib.Path, cabc.Mapping[str, object]]:
+    """Create an independently mutable raw-table cache."""
+    return {}
+
+
+def _empty_cache_stats() -> collections.Counter[str]:
+    """Create an independently mutable cache-statistics counter."""
+    return collections.Counter()
 
 
 def _merge_config_tables(
@@ -45,7 +65,7 @@ def _normalise_extend_values(
     """Normalise the raw `extend` value to an ordered tuple of strings."""
     if value is None:
         return ()
-    validated = _ensure_extend_value(value, path=path, key="extend")
+    validated = ensure_extend_value(value, path=path, key="extend")
     if isinstance(validated, str):
         return (validated,)
     return tuple(validated)
@@ -61,9 +81,8 @@ def _load_inline_config(
         parsed = tomllib.loads(fragment)
     except tomllib.TOMLDecodeError as exc:
         raise InvalidConfigError(path, "config", str(exc)) from exc
-    if not isinstance(parsed, cabc.Mapping):
-        raise InvalidConfigError(path, "config", "must be a mapping")
-    return dict(parsed)
+    parsed_table: dict[str, object] = parsed
+    return parsed_table
 
 
 def _resolve_config_reference(
@@ -141,16 +160,16 @@ class ConfigResolver:
     """
 
     _discovery_cache: dict[pathlib.Path, pathlib.Path | None] = dc.field(
-        default_factory=dict, init=False
+        default_factory=_empty_discovery_cache, init=False
     )
     _resolved_table_cache: dict[pathlib.Path, dict[str, object]] = dc.field(
-        default_factory=dict, init=False
+        default_factory=_empty_resolved_table_cache, init=False
     )
     _raw_table_cache: dict[pathlib.Path, cabc.Mapping[str, object]] = dc.field(
-        default_factory=dict, init=False
+        default_factory=_empty_raw_table_cache, init=False
     )
     _cache_stats: collections.Counter[str] = dc.field(
-        default_factory=collections.Counter, init=False
+        default_factory=_empty_cache_stats, init=False
     )
 
     @property
@@ -205,7 +224,7 @@ class ConfigResolver:
         if cli_overrides:
             resolved_table = _merge_config_tables(resolved_table, dict(cli_overrides))
 
-        return _parse_config_table(resolved_table, path=target)
+        return parse_config_table(resolved_table, path=target)
 
     def _resolve_config_table(
         self,
@@ -253,7 +272,7 @@ class ConfigResolver:
         if cached is not None:
             _LOGGER.debug("reusing discovered config table for %s", resolved_path)
             return cached
-        return _load_config_table(resolved_path)
+        return load_config_table(resolved_path)
 
     def _discover_nearest_config(self, directory: pathlib.Path) -> pathlib.Path | None:
         """Return the nearest supported config file for one directory."""

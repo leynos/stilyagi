@@ -1,15 +1,17 @@
 """Unit tests for deterministic Markdown discovery."""
 
-from __future__ import annotations
-
 import logging
 import pathlib
 import typing as typ
 
 from stilyagi import config, discovery
+from syrupy.extensions.json import JSONSnapshotExtension
+
+from tests.support.assertions import assert_with_context
 
 if typ.TYPE_CHECKING:
     import pytest
+    from syrupy.assertion import SnapshotAssertion
 
 
 def _write_markdown(path: pathlib.Path, title: str) -> None:
@@ -25,12 +27,16 @@ def test_explicit_markdown_file_is_reported_verbatim(tmp_path: pathlib.Path) -> 
 
     files = discovery.discover_markdown_files([target], config.StilyagiConfig())
 
-    assert files == [
-        discovery.DiscoveredFile(
-            reported_path=target.as_posix(),
-            resolved_path=target.resolve(),
-        ),
-    ]
+    assert_with_context(
+        files
+        == [
+            discovery.DiscoveredFile(
+                reported_path=target.as_posix(),
+                resolved_path=target.resolve(),
+            ),
+        ],
+        "expected files == [discovery.DiscoveredFile(reported...",
+    )
 
 
 def test_explicit_non_markdown_file_is_logged_and_skipped(
@@ -44,14 +50,19 @@ def test_explicit_non_markdown_file_is_logged_and_skipped(
     with caplog.at_level(logging.INFO, logger="stilyagi.discovery"):
         files = discovery.discover_markdown_files([target], config.StilyagiConfig())
 
-    assert files == []
-    assert any(
-        "ignoring non-Markdown target" in record.message for record in caplog.records
+    assert files == [], "expected files == []"
+    assert_with_context(
+        any(
+            "ignoring non-Markdown target" in record.message
+            for record in caplog.records
+        ),
+        "expected any(('ignoring non-Markdown target' in reco...",
     )
 
 
 def test_directory_recursion_skips_noise_and_symlinked_directories(
     tmp_path: pathlib.Path,
+    snapshot: SnapshotAssertion,
 ) -> None:
     """Recursion should stay deterministic and avoid directory symlink loops."""
     root = tmp_path / "docs"
@@ -63,18 +74,21 @@ def test_directory_recursion_skips_noise_and_symlinked_directories(
 
     files = discovery.discover_markdown_files([root], config.StilyagiConfig())
 
-    assert files == [
-        discovery.DiscoveredFile(
-            reported_path=(
-                pathlib.PurePosixPath(root.as_posix()) / "alpha.md"
-            ).as_posix(),
-            resolved_path=(root / "alpha.md").resolve(),
-        ),
-        discovery.DiscoveredFile(
-            reported_path=(
-                pathlib.PurePosixPath(root.as_posix()) / "nested" / "beta.markdown"
-            ).as_posix(),
-            resolved_path=(root / "nested" / "beta.markdown").resolve(),
-        ),
+    normalised_files = [
+        {
+            "reported_path": pathlib
+            .Path(file.reported_path)
+            .relative_to(tmp_path)
+            .as_posix(),
+            "resolved_path": file.resolved_path.relative_to(tmp_path).as_posix(),
+        }
+        for file in files
     ]
-    assert all(isinstance(file, discovery.DiscoveredFile) for file in files)
+    assert_with_context(
+        normalised_files == snapshot(extension_class=JSONSnapshotExtension),
+        "expected deterministic discovery paths without ignor...",
+    )
+    assert_with_context(
+        all(isinstance(file, discovery.DiscoveredFile) for file in files),
+        "expected all((isinstance(file, discovery.DiscoveredF...",
+    )

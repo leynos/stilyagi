@@ -1,9 +1,8 @@
 """Diagnostic adapters for the check command."""
 
-from __future__ import annotations
-
 import collections.abc as cabc
 import logging
+import typing as typ
 
 from stilyagi import diagnostics, model
 from stilyagi.diagnostics_location import line_column_from_offset
@@ -48,7 +47,7 @@ def map_ir_errors(
         _LOGGER.debug("no IR envelope to map for %s", reported_path)
         return []
 
-    raw_errors = ir.get("errors")
+    raw_errors: object = ir.get("errors")
     if not isinstance(raw_errors, cabc.Sequence) or isinstance(
         raw_errors,
         (str, bytes),
@@ -58,8 +57,9 @@ def map_ir_errors(
 
     line_index = _coerce_line_index(ir.get("line_index"))
 
+    errors = typ.cast("cabc.Sequence[object]", raw_errors)
     mapped_errors = (
-        _map_one_error(error, line_index, reported_path) for error in raw_errors
+        _map_one_error(error, line_index, reported_path) for error in errors
     )
     diagnostics_list = [error for error in mapped_errors if error is not None]
     _LOGGER.debug("mapped %d IR error(s) for %s", len(diagnostics_list), reported_path)
@@ -78,14 +78,15 @@ def _map_one_error(
         )
         return None
 
+    typed_error = typ.cast("cabc.Mapping[str, object]", error)
     line, column = line_column_from_offset(
         line_index,
-        _byte_start_from_span(error.get("span")),
+        _byte_start_from_span(typed_error.get("span")),
     )
     return diagnostics.Diagnostic(
         path=reported_path,
-        code=_ir_code(error.get("code")),
-        message=str(error.get("message", "")),
+        code=_ir_code(typed_error.get("code")),
+        message=str(typed_error.get("message", "")),
         severity=diagnostics.Severity.ERROR,
         line=line,
         column=column,
@@ -103,7 +104,8 @@ def _byte_start_from_span(span: object) -> int | None:
     """Return the span's byte start when the IR provides one."""
     if not isinstance(span, cabc.Mapping):
         return None
-    byte_start = span.get("byte_start")
+    typed_span = typ.cast("cabc.Mapping[str, object]", span)
+    byte_start = typed_span.get("byte_start")
     return byte_start if isinstance(byte_start, int) else None
 
 
@@ -115,8 +117,9 @@ def _coerce_line_index(raw_line_index: object) -> tuple[int, ...] | None:
     ):
         return None
 
+    values = typ.cast("cabc.Sequence[object]", raw_line_index)
     line_starts: list[int] = []
-    for start in raw_line_index:
+    for start in values:
         if not isinstance(start, int):
             return None
         line_starts.append(start)

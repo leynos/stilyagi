@@ -1,7 +1,5 @@
 """Malformed-input coverage for maturin wheel compatibility helpers."""
 
-from __future__ import annotations
-
 import typing as typ
 import zipfile
 

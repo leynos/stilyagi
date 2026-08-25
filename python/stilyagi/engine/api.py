@@ -48,7 +48,7 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
     the supported public command boundary.
     """
     document = _extraction.extract_document(source, syntax)
-    _extraction._warn_unknown_ir_region_kinds(
+    _extraction.warn_unknown_ir_region_kinds(
         document.ir,
         operation="stilyagi.engine.extract_document",
     )

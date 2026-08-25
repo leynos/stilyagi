@@ -1,15 +1,14 @@
 """Property tests for same-directory config discovery."""
 
-from __future__ import annotations
+import pathlib
 
-import typing as typ
-
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from stilyagi import config
+from stilyagi.config.validate import ensure_mapping
 
-if typ.TYPE_CHECKING:
-    import pathlib
+from tests.support.assertions import assert_with_context
 
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
@@ -42,7 +41,35 @@ def test_same_directory_precedence_is_deterministic(
         (name for name, exists in zip(filenames, present, strict=True) if exists), None
     )
     if expected_name is None:
-        assert discovered is None
+        assert discovered is None, "expected discovered is None"
     else:
-        assert discovered is not None
-        assert discovered.path.name == expected_name
+        assert discovered is not None, "expected discovered is not None"
+        assert_with_context(
+            discovered.path.name == expected_name,
+            "expected discovered.path.name == expected_name",
+        )
+
+
+@given(
+    st.dictionaries(
+        keys=st.one_of(st.text(), st.integers(), st.booleans()),
+        values=st.none(),
+    )
+)
+def test_ensure_mapping_accepts_only_string_keys(
+    mapping: dict[str | int | bool, None],
+) -> None:
+    """Accept string-key mappings and reject every other mapping key type."""
+    path = pathlib.Path("stilyagi.toml")
+
+    if all(isinstance(key, str) for key in mapping):
+        assert_with_context(
+            ensure_mapping(mapping, path=path, key="lint") == mapping,
+            "expected string-key mapping to be accepted unchanged",
+        )
+        return
+
+    with pytest.raises(
+        config.InvalidConfigError, match=r"mapping keys must be strings"
+    ):
+        ensure_mapping(mapping, path=path, key="lint")

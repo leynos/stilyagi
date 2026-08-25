@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 004: Adopt two-tier Python linting
+# Architectural decision record (ADR) 004: Adopt layered Python linting
 
 ## Status
 
@@ -104,25 +104,37 @@ Adopt Option A.
 `make lint` SHALL run these tiers in order:
 
 1. Ruff through `uv run --group dev`.
-2. Interrogate through `uv run --group dev`.
+2. Interrogate with 100% docstring coverage over `python/stilyagi` and
+   `tests`.
 3. Focused Pylint through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
-4. Rustdoc with warnings denied.
-5. Rust `cargo clippy` with warnings denied.
-6. Whitaker from `crates/stilyagi-pyext/`.
-7. Skylos strict production dead-code detection.
+4. All `df12-python-lints` v0.1.0 Pylint messages through the locked
+   development environment under CPython 3.14 from immutable commit
+   `9c835f35b0f1690597ade799c9c6a30bc5922959`.[^4]
+5. `ambrleaks` from that same locked CPython 3.14 development environment and
+   immutable commit over `tests`.
+6. Rust `cargo doc` and `cargo clippy` with warnings denied.
+7. Whitaker with `--all`, forwarding the workspace manifest, workspace target,
+   all-target, and all-feature arguments, with Rust warnings denied.
+8. Skylos strict production dead-code detection over `python/stilyagi`, with
+   tests excluded from the liveness graph.
 
 The Python lint policy SHALL live in `pyproject.toml`:
 
 - `[tool.ruff]` and `[tool.ruff.lint]` define the Ruff target version,
-  preview mode, selected rule families, ignored docstring conflicts, per-file
-  test suppressions, import-convention aliases, banned deprecated `typing.*`
-  APIs, pydocstyle convention, McCabe threshold, and Ruff's Pylint
-  compatibility thresholds.
+  preview mode, the `ASYNC`, `D`, and `DOC` rule families, ignored docstring
+  conflicts, per-file test suppressions, import-convention aliases, banned
+  deprecated `typing.*` APIs, NumPy pydocstyle convention, pydoclint semantics,
+  McCabe threshold, and Ruff's Pylint compatibility thresholds.
 - `[tool.pylint.main]`, `[tool.pylint.design]`, and
   `[tool.pylint."messages control"]` define the focused Pylint pass. The pass
   disables all messages by default and enables only the explicitly selected
-  diagnostics.
+  diagnostics. The project baseline is Python 3.14 so baseline-sensitive df12
+  messages are active.
+- The development dependency group declares `df12-python-lints` in
+  `pyproject.toml`; `uv.lock` records immutable commit
+  `9c835f35b0f1690597ade799c9c6a30bc5922959`, giving its Pylint plugin and
+  `ambrleaks` command the same environment as the project.
 
 The Makefile SHALL expose variables for the Pylint runner:
 
@@ -133,6 +145,18 @@ The Makefile SHALL expose variables for the Pylint runner:
 - `PYLINT_PYPY_SHIM_REF` pins the shim commit.
 - `PYLINT_PYPY_SHIM` expands the pinned Git URL.
 - `PYLINT` builds the full `uv tool run` command used by `make lint`.
+- `DF12_PYTHON` selects CPython 3.14 for both df12 commands.
+- `DF12_PYLINT_MESSAGES` lists all thirteen v0.1.0 plugin messages:
+  `R9101`, `C9102`, `R9103`, `R9104`, `C9105`, `C9106`, `C9107`, `R9108`,
+  `R9109`, `R9110`, `R9111`, `R9112`, and `C9112`.
+- `DF12_PYLINT` builds the plugin-backed Pylint command.
+- `AMBRLEAKS` builds the snapshot scanner command from the locked development
+  environment.
+- `SKYLOS_VERSION` pins the dead-code detector release.
+- `SKYLOS_CLI` builds the command-only Skylos CLI under CPython 3.14.
+- `SKYLOS` adds the repository configuration for the scan command.
+- `SKYLOS_PRODUCTION_TARGETS` and `SKYLOS_EXCLUDE_FOLDERS` define the scan
+  boundary.
 
 ## Consequences
 
@@ -144,14 +168,20 @@ The Makefile SHALL expose variables for the Pylint runner:
   before Pylint starts.
 - Pylint contributes higher-level checks without importing its whole default
   opinion set.
+- The df12 plugin enforces explainable assertions and suppressions, structural
+  patterns, modern type aliases, and reviewed snapshot boundaries.
+- `ambrleaks` checks reviewed syrupy snapshots for unredacted identifiers and
+  paths.
 - The imported lint policy has one auditable home in `pyproject.toml`.
 - The pinned PyPy shim makes the second tier reproducible and easy to update
   deliberately.
+- Skylos provides a blocking final dead-code tier over production Python while
+  keeping test-only references out of the liveness graph.
 
 ### Negative consequences
 
 - `make lint` now depends on network or cache availability the first time
-  `uv tool run` resolves the pinned shim.
+  `uv` resolves the pinned shim and df12 tool source.
 - Pylint's PyPy runtime may lag the project's CPython target. The lint policy
   disables `syntax-error` so the PyPy-backed pass can still be useful on files
   it can parse.
@@ -179,14 +209,23 @@ Run only the Python tiers manually when diagnosing a failure:
 
 ```bash
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev ruff check
+UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev interrogate \
+  --fail-under 100 python/stilyagi tests
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv tool run --python pypy \
   --from 'git+https://github.com/leynos/pylint-pypy-shim.git@726d09f968b4d729ee4b29c71fc732e744854f3b' \
   pylint-pypy python/stilyagi tests
+UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --python 3.14 pylint \
+  --disable=all --load-plugins=df12_python_lints \
+  --enable=R9101,C9102,R9103,R9104,C9105,C9106,C9107,R9108,R9109,R9110,R9111,R9112,C9112 \
+  python/stilyagi tests
+UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev --python 3.14 ambrleaks tests
 ```
 
-Prefer changing `PYLINT_TARGETS`, `PYLINT_PYTHON`, or `PYLINT_PYPY_SHIM_REF`
-through Makefile variables for one-off local experiments. Commit changes to
-those defaults only when the project-wide policy is intentionally changing.
+Prefer changing `PYLINT_TARGETS`, `PYLINT_PYTHON`, `PYLINT_PYPY_SHIM_REF`, or
+`DF12_PYTHON` through Makefile variables for one-off local experiments. Commit
+changes to those defaults only when the project-wide policy is intentionally
+changing. The immutable df12 source is declared in `pyproject.toml` and
+recorded in `uv.lock`.
 
 ## Follow-on work
 
@@ -197,33 +236,28 @@ those defaults only when the project-wide policy is intentionally changing.
 - Revisit the `syntax-error` Pylint disable when the managed PyPy interpreter
   catches up with the project's CPython syntax target.
 
+## Addendum — 2026-08-23
+
+The layered linting implementation is now documented against the project
+lockfile rather than the package metadata label. The development dependency
+resolves `df12-python-lints` from immutable commit
+`9c835f35b0f1690597ade799c9c6a30bc5922959`, recorded by `uv.lock` as version
+0.1.0. The Makefile enables the thirteen message IDs listed above and runs
+both the CPython 3.14 Pylint pass and `ambrleaks` from that locked environment.
+
 ## Addendum — 2026-08-23: Skylos production dead-code tier
 
-The original two-tier decision remains the foundation for Ruff and PyPy-backed
-Pylint. Interrogate subsequently added docstring coverage to the lint workflow,
-and the complete lint order is now:
-
-1. Ruff — fast, broad lint rules and docstring style.
-2. Interrogate — 100 per cent docstring presence.
-3. PyPy-backed Pylint — focused selected messages.
-4. Rustdoc — workspace API documentation with warnings denied.
-5. Clippy — workspace linting with warnings denied.
-6. Whitaker — PyO3 extension linting with warnings denied.
-7. Skylos — strict production dead-code detection.
-
-Skylos is a blocking final tier in `make lint`. It scans `python/stilyagi`,
-excludes `tests`, and uses the strict gate configuration in `pyproject.toml`.
-The standalone tool environment is pinned to Python 3.14: Skylos parses source
-using that runtime's `ast`, so the pin prevents phantom dead-code findings from
-newer Python syntax that an older runtime cannot parse.
-
-Typed `[tool.skylos.dead_code]` entry-point rules model implicit runtime
-callers where possible. Named documented allow-list entries are reserved for a
-verified false positive whose boundary cannot be represented as an entry point.
-This addendum supersedes the historical two-tier count.
+Skylos is the final blocking tier in `make lint`, after Whitaker. It runs its
+strict dead-code gate under CPython 3.14 over `python/stilyagi`, excluding
+`tests`, with the configuration in `pyproject.toml`. The `skylos-allow` target
+requires non-empty `SYMBOL` and `REASON` variables and invokes the command-only
+CLI's `whitelist` subcommand. Use a typed `[tool.skylos.dead_code]` entry-point
+rule when possible; reserve named allow-list entries for verified runtime
+callers that cannot be modelled by an entry point.
 
 ## References
 
 [^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
 [^2]: [leynos/episodic](https://github.com/leynos/episodic)
 [^3]: [leynos/pylint-pypy-shim](https://github.com/leynos/pylint-pypy-shim)
+[^4]: [leynos/df12-python-lints](https://github.com/leynos/df12-python-lints/commit/9c835f35b0f1690597ade799c9c6a30bc5922959)

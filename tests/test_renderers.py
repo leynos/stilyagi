@@ -1,12 +1,12 @@
 """Tests for diagnostic renderers."""
 
-from __future__ import annotations
-
 import json
 import typing as typ
 
 from stilyagi import diagnostics, engine
 from syrupy.extensions.json import JSONSnapshotExtension
+
+from tests.support.assertions import assert_with_context
 
 if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
@@ -46,8 +46,14 @@ def test_renderer_registry_retains_its_default_format_and_render_surface() -> No
     """Keep the default renderer and its entrypoint explicit."""
     registry = engine.RendererRegistry()
 
-    assert registry.default_format == "text"
-    assert registry.render([], "text") == "0 diagnostics found\n"
+    assert_with_context(
+        registry.default_format == "text",
+        "expected registry.default_format == 'text'",
+    )
+    assert_with_context(
+        registry.render([], "text") == "0 diagnostics found\n",
+        "expected registry.render([], 'text') == '0 diagnosti...",
+    )
 
 
 def test_text_renderer_orders_and_formats_diagnostics(
@@ -56,13 +62,20 @@ def test_text_renderer_orders_and_formats_diagnostics(
     """Render text diagnostics in path, location, and code order."""
     rendered = engine.RendererRegistry().render(_build_diagnostics(), "text")
 
-    assert rendered.splitlines() == [
-        "docs/a.md:1:1: error STY001 First",
-        "docs/a.md:1:2: error STY010 Later code",
-        "docs/b.md:3:4: warning STY002 Second",
-        "3 diagnostics found",
-    ]
-    assert rendered.splitlines() == snapshot(extension_class=JSONSnapshotExtension)
+    assert_with_context(
+        rendered.splitlines()
+        == [
+            "docs/a.md:1:1: error STY001 First",
+            "docs/a.md:1:2: error STY010 Later code",
+            "docs/b.md:3:4: warning STY002 Second",
+            "3 diagnostics found",
+        ],
+        "expected rendered.splitlines() == ['docs/a.md:1:1: e...",
+    )
+    assert_with_context(
+        rendered.splitlines() == snapshot(extension_class=JSONSnapshotExtension),
+        "expected rendered.splitlines() == snapshot(extension...",
+    )
 
 
 def test_json_renderer_emits_stable_diagnostic_objects(
@@ -72,32 +85,7 @@ def test_json_renderer_emits_stable_diagnostic_objects(
     rendered = engine.RendererRegistry().render(_build_diagnostics(), "json")
     payload = json.loads(rendered)
 
-    assert payload == {
-        "diagnostics": [
-            {
-                "path": "docs/a.md",
-                "code": "STY001",
-                "message": "First",
-                "severity": "error",
-                "location": {"line": 1, "column": 1},
-                "fix_applicable": False,
-            },
-            {
-                "path": "docs/a.md",
-                "code": "STY010",
-                "message": "Later code",
-                "severity": "error",
-                "location": {"line": 1, "column": 2},
-                "fix_applicable": False,
-            },
-            {
-                "path": "docs/b.md",
-                "code": "STY002",
-                "message": "Second",
-                "severity": "warning",
-                "location": {"line": 3, "column": 4},
-                "fix_applicable": False,
-            },
-        ],
-    }
-    assert payload == snapshot(extension_class=JSONSnapshotExtension)
+    assert_with_context(
+        payload == snapshot(extension_class=JSONSnapshotExtension),
+        "expected payload == snapshot(extension_class=JSONSna...",
+    )

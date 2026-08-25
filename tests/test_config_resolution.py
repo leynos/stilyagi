@@ -1,13 +1,13 @@
 """Tests for nearest-config resolution and CLI precedence."""
 
-from __future__ import annotations
-
 import pathlib
 import textwrap
 from concurrent import futures
 
 import pytest
 from stilyagi import config
+
+from tests.support.assertions import assert_with_context
 
 type _ResolverCase = tuple[pathlib.Path, pathlib.Path]
 
@@ -66,8 +66,11 @@ def test_nearest_config_wins_without_ancestor_merging(tmp_path: pathlib.Path) ->
         isolated=False,
     )
 
-    assert resolved.cache_dir == pathlib.Path(".child")
-    assert resolved.lint.preview is False
+    assert_with_context(
+        resolved.cache_dir == pathlib.Path(".child"),
+        "expected resolved.cache_dir == pathlib.Path('.child')",
+    )
+    assert resolved.lint.preview is False, "expected resolved.lint.preview is False"
 
 
 def test_extend_chain_composes_in_order(tmp_path: pathlib.Path) -> None:
@@ -113,8 +116,11 @@ def test_extend_chain_composes_in_order(tmp_path: pathlib.Path) -> None:
         isolated=False,
     )
 
-    assert resolved.cache_dir == pathlib.Path(".base-two")
-    assert resolved.lint.preview is False
+    assert_with_context(
+        resolved.cache_dir == pathlib.Path(".base-two"),
+        "expected resolved.cache_dir == pathlib.Path('.base-t...",
+    )
+    assert resolved.lint.preview is False, "expected resolved.lint.preview is False"
 
 
 def test_extend_cycle_raises_a_typed_error(tmp_path: pathlib.Path) -> None:
@@ -158,8 +164,11 @@ def test_isolated_bypasses_discovery(tmp_path: pathlib.Path) -> None:
         isolated=True,
     )
 
-    assert resolved.cache_dir == pathlib.Path(".cli")
-    assert resolved.lint.preview is False
+    assert_with_context(
+        resolved.cache_dir == pathlib.Path(".cli"),
+        "expected resolved.cache_dir == pathlib.Path('.cli')",
+    )
+    assert resolved.lint.preview is False, "expected resolved.lint.preview is False"
 
 
 def test_explicit_config_path_and_inline_override_precedence(
@@ -185,7 +194,10 @@ def test_explicit_config_path_and_inline_override_precedence(
         isolated=False,
     )
 
-    assert resolved.cache_dir == pathlib.Path(".inline")
+    assert_with_context(
+        resolved.cache_dir == pathlib.Path(".inline"),
+        "expected resolved.cache_dir == pathlib.Path('.inline')",
+    )
 
 
 def test_cli_overrides_win_over_every_config_source(
@@ -211,7 +223,10 @@ def test_cli_overrides_win_over_every_config_source(
         isolated=False,
     )
 
-    assert resolved.cache_dir == pathlib.Path(".cli")
+    assert_with_context(
+        resolved.cache_dir == pathlib.Path(".cli"),
+        "expected resolved.cache_dir == pathlib.Path('.cli')",
+    )
 
 
 @pytest.mark.parametrize(
@@ -271,17 +286,26 @@ def test_config_resolver_caches_within_a_run_and_a_fresh_resolver_sees_edits(
     target = _make_markdown_target(tmp_path)
 
     resolver = config.ConfigResolver()
-    assert _resolve_discovered(resolver, target).cache_dir == pathlib.Path(".first")
+    assert_with_context(
+        _resolve_discovered(resolver, target).cache_dir == pathlib.Path(".first"),
+        "expected _resolve_discovered(resolver, target).cache...",
+    )
 
     # Mutate the discovered config on disk part-way through the run.
     _write_discovered_cache_dir(tmp_path, ".second")
 
     # The same resolver keeps its cached table; the edit is intentionally unseen.
-    assert _resolve_discovered(resolver, target).cache_dir == pathlib.Path(".first")
+    assert_with_context(
+        _resolve_discovered(resolver, target).cache_dir == pathlib.Path(".first"),
+        "expected _resolve_discovered(resolver, target).cache...",
+    )
 
     # A fresh resolver starts with empty caches and reads the updated file.
     refreshed = config.ConfigResolver()
-    assert _resolve_discovered(refreshed, target).cache_dir == pathlib.Path(".second")
+    assert_with_context(
+        _resolve_discovered(refreshed, target).cache_dir == pathlib.Path(".second"),
+        "expected _resolve_discovered(refreshed, target).cach...",
+    )
 
 
 def test_config_resolver_instances_do_not_leak_cache_state(
@@ -299,19 +323,28 @@ def test_config_resolver_instances_do_not_leak_cache_state(
 
     first_resolver = config.ConfigResolver()
     first = _resolve_discovered(first_resolver, target)
-    assert first.cache_dir == pathlib.Path(".first")
+    assert_with_context(
+        first.cache_dir == pathlib.Path(".first"),
+        "expected first.cache_dir == pathlib.Path('.first')",
+    )
 
     _write_discovered_cache_dir(tmp_path, ".second")
 
     # A distinct resolver built after the edit sees the new value.
     second_resolver = config.ConfigResolver()
     second = _resolve_discovered(second_resolver, target)
-    assert second.cache_dir == pathlib.Path(".second")
+    assert_with_context(
+        second.cache_dir == pathlib.Path(".second"),
+        "expected second.cache_dir == pathlib.Path('.second')",
+    )
 
     # The first resolver still holds its own cached ``.first``, proving the two
     # caches are independent rather than shared through process-wide state.
     reused = _resolve_discovered(first_resolver, target)
-    assert reused.cache_dir == pathlib.Path(".first")
+    assert_with_context(
+        reused.cache_dir == pathlib.Path(".first"),
+        "expected reused.cache_dir == pathlib.Path('.first')",
+    )
 
 
 def test_config_resolver_reuses_its_caches_across_targets_in_one_run(
@@ -333,14 +366,20 @@ def test_config_resolver_reuses_its_caches_across_targets_in_one_run(
 
     resolver = config.ConfigResolver()
     first = _resolve_discovered(resolver, first_target)
-    assert first.cache_dir == pathlib.Path(".shared")
+    assert_with_context(
+        first.cache_dir == pathlib.Path(".shared"),
+        "expected first.cache_dir == pathlib.Path('.shared')",
+    )
 
     # Edit the shared config between resolving the two targets.
     _write_discovered_cache_dir(tmp_path, ".changed")
 
     # The second target reuses the table cached during the first resolution.
     second = _resolve_discovered(resolver, second_target)
-    assert second.cache_dir == pathlib.Path(".shared")
+    assert_with_context(
+        second.cache_dir == pathlib.Path(".shared"),
+        "expected second.cache_dir == pathlib.Path('.shared')",
+    )
 
 
 def test_config_resolver_reports_cache_hit_and_miss_counts(
@@ -352,22 +391,46 @@ def test_config_resolver_reports_cache_hit_and_miss_counts(
     resolver = config.ConfigResolver()
 
     # A fresh resolver records no cache activity yet.
-    assert resolver.cache_stats == {}
+    assert resolver.cache_stats == {}, "expected resolver.cache_stats == <>"
 
     _resolve_discovered(resolver, target)
     after_first = resolver.cache_stats
-    assert after_first["discovery_misses"] == 1
-    assert after_first["resolved_table_misses"] == 1
-    assert after_first.get("discovery_hits", 0) == 0
-    assert after_first.get("resolved_table_hits", 0) == 0
+    assert_with_context(
+        after_first["discovery_misses"] == 1,
+        "expected after_first['discovery_misses'] == 1",
+    )
+    assert_with_context(
+        after_first["resolved_table_misses"] == 1,
+        "expected after_first['resolved_table_misses'] == 1",
+    )
+    assert_with_context(
+        after_first.get("discovery_hits", 0) == 0,
+        "expected after_first.get('discovery_hits', 0) == 0",
+    )
+    assert_with_context(
+        after_first.get("resolved_table_hits", 0) == 0,
+        "expected after_first.get('resolved_table_hits', 0) == 0",
+    )
 
     # Resolving the same directory again hits both caches without new misses.
     _resolve_discovered(resolver, target)
     after_second = resolver.cache_stats
-    assert after_second["discovery_hits"] == 1
-    assert after_second["resolved_table_hits"] == 1
-    assert after_second["discovery_misses"] == 1
-    assert after_second["resolved_table_misses"] == 1
+    assert_with_context(
+        after_second["discovery_hits"] == 1,
+        "expected after_second['discovery_hits'] == 1",
+    )
+    assert_with_context(
+        after_second["resolved_table_hits"] == 1,
+        "expected after_second['resolved_table_hits'] == 1",
+    )
+    assert_with_context(
+        after_second["discovery_misses"] == 1,
+        "expected after_second['discovery_misses'] == 1",
+    )
+    assert_with_context(
+        after_second["resolved_table_misses"] == 1,
+        "expected after_second['resolved_table_misses'] == 1",
+    )
 
 
 def test_config_resolver_instances_stay_isolated_under_concurrency(
@@ -398,7 +461,7 @@ def test_config_resolver_instances_stay_isolated_under_concurrency(
         results = list(pool.map(resolve_one, cases))
 
     for actual, expected in results:
-        assert actual == expected
+        assert actual == expected, "expected actual == expected"
 
 
 # ConfigResolver is deliberately not safe to share across threads: its caches

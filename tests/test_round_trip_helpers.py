@@ -10,6 +10,7 @@ from pytest_bdd import given, scenario, then, when
 from stilyagi import cli
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.assertions import assert_with_context
 from tests.support.golden_ir import golden_markdown_ir_fixture
 from tests.support.round_trip import (
     OverlappingEditError,
@@ -57,7 +58,7 @@ def source_document_for_round_trip_testing(
 def replace_the_editable_middle_span(round_trip_state: dict[str, object]) -> None:
     """Apply a single source-backed edit through the private helper."""
     source = round_trip_state["source"]
-    assert isinstance(source, str)
+    assert isinstance(source, str), "expected isinstance(source, str)"
     round_trip_state["result"] = apply_round_trip_edits(
         source,
         (SourceEdit(7, 13, "CENTER"),),
@@ -70,9 +71,13 @@ def round_trip_helper_preserves_surrounding_text(
 ) -> None:
     """Assert the scenario-visible edit result."""
     result = typ.cast("object", round_trip_state["result"])
-    assert result == apply_round_trip_edits(
-        "before middle after",
-        (SourceEdit(7, 13, "CENTER"),),
+    assert_with_context(
+        result
+        == apply_round_trip_edits(
+            "before middle after",
+            (SourceEdit(7, 13, "CENTER"),),
+        ),
+        "expected result == apply_round_trip_edits('before mi...",
     )
 
 
@@ -82,8 +87,12 @@ def test_golden_markdown_ir_matches_json_snapshot(
     """Pin the private Python golden IR shape for the shared Markdown fixture."""
     document = golden_markdown_ir_fixture()
 
-    assert document.as_snapshot_payload() == snapshot(
-        extension_class=JSONSnapshotExtension,
+    assert_with_context(
+        document.as_snapshot_payload()
+        == snapshot(
+            extension_class=JSONSnapshotExtension,
+        ),
+        "expected document.as_snapshot_payload() == snapshot(...",
     )
 
 
@@ -102,11 +111,15 @@ def test_cli_check_json_output_matches_snapshot(
     exit_code = cli.main(["check", ".", "--output-format", "json"])
     captured = capsys.readouterr()
 
-    assert {
-        "exit_code": exit_code,
-        "stdout": captured.out,
-        "stderr": captured.err,
-    } == snapshot(extension_class=JSONSnapshotExtension)
+    assert_with_context(
+        {
+            "exit_code": exit_code,
+            "stdout": captured.out,
+            "stderr": captured.err,
+        }
+        == snapshot(extension_class=JSONSnapshotExtension),
+        "expected <'exit_code': exit_code, 'stdout': captured...",
+    )
 
 
 def test_round_trip_edits_apply_source_backed_replacements() -> None:
@@ -119,7 +132,10 @@ def test_round_trip_edits_apply_source_backed_replacements() -> None:
         ),
     )
 
-    assert result == dc.replace(result, after="ALPHA beta GAMMA")
+    assert_with_context(
+        result == dc.replace(result, after="ALPHA beta GAMMA"),
+        "expected result == dc.replace(result, after='ALPHA b...",
+    )
 
 
 def test_round_trip_edits_accept_adjacent_ranges() -> None:
@@ -132,7 +148,7 @@ def test_round_trip_edits_accept_adjacent_ranges() -> None:
         ),
     )
 
-    assert result.after == "ABCDEF"
+    assert result.after == "ABCDEF", "expected result.after == 'ABCDEF'"
 
 
 def test_round_trip_edits_reject_synthetic_spans() -> None:
@@ -178,9 +194,12 @@ def test_round_trip_edits_apply_unicode_byte_spans() -> None:
     """Valid spans use UTF-8 byte offsets, not Python character indices."""
     result = apply_round_trip_edits("éa", (SourceEdit(2, 3, "b"),))
 
-    assert result.before == "éa"
-    assert result.after == "éb"
-    assert result.applied_edits == (SourceEdit(2, 3, "b"),)
+    assert result.before == "éa", "expected result.before == '\u00e9a'"
+    assert result.after == "éb", "expected result.after == '\u00e9b'"
+    assert_with_context(
+        result.applied_edits == (SourceEdit(2, 3, "b"),),
+        "expected result.applied_edits == (SourceEdit(2, 3, '...",
+    )
 
 
 def test_round_trip_edits_reject_non_utf8_byte_boundaries() -> None:
@@ -196,9 +215,9 @@ def test_round_trip_edits_accept_empty_edit_sets_as_noops() -> None:
     """Empty edit sets return an explicit no-op result."""
     result = apply_round_trip_edits("some text", ())
 
-    assert result.before == "some text"
-    assert result.after == "some text"
-    assert not result.applied_edits
+    assert result.before == "some text", "expected result.before == 'some text'"
+    assert result.after == "some text", "expected result.after == 'some text'"
+    assert not result.applied_edits, "expected not result.applied_edits"
 
 
 def test_round_trip_edits_preserve_untouched_ranges() -> None:
@@ -208,9 +227,18 @@ def test_round_trip_edits_preserve_untouched_ranges() -> None:
         (SourceEdit(7, 13, "CENTER"),),
     )
 
-    assert result.before == "before middle after"
-    assert result.after == "before CENTER after"
-    assert result.applied_edits == (SourceEdit(7, 13, "CENTER"),)
+    assert_with_context(
+        result.before == "before middle after",
+        "expected result.before == 'before middle after'",
+    )
+    assert_with_context(
+        result.after == "before CENTER after",
+        "expected result.after == 'before CENTER after'",
+    )
+    assert_with_context(
+        result.applied_edits == (SourceEdit(7, 13, "CENTER"),),
+        "expected result.applied_edits == (SourceEdit(7, 13, ...",
+    )
 
 
 @hyp.given(
@@ -233,7 +261,10 @@ def test_round_trip_edits_preserve_generated_prefixes_and_suffixes(
 
     result = apply_round_trip_edits(source, (SourceEdit(start, end, replacement),))
 
-    assert result.after == f"{prefix}{replacement}{suffix}"
+    assert_with_context(
+        result.after == f"{prefix}{replacement}{suffix}",
+        "expected result.after == f'<prefix><replacement><suf...",
+    )
 
 
 @hyp.given(

@@ -1,21 +1,36 @@
 """Configuration schema objects for Stilyagi."""
 
-from __future__ import annotations
-
 import collections.abc as cabc
 import dataclasses as dc
 import pathlib
 import typing as typ
 
 
+def _empty_per_file_ignores() -> dict[str, tuple[str, ...]]:
+    """Create an independently mutable per-file-ignore mapping."""
+    return {}
+
+
+def _empty_string_object_mapping() -> dict[str, object]:
+    """Create an independently mutable string-keyed object mapping."""
+    return {}
+
+
+def _empty_rule_mapping() -> dict[str, dict[str, object]]:
+    """Create an independently mutable per-rule mapping."""
+    return {}
+
+
 def _coerce_path(value: object, *, field_name: str) -> pathlib.Path:
     """Normalise a cache-directory value to a path object."""
-    if isinstance(value, pathlib.Path):
-        return value
-    if isinstance(value, str):
-        return pathlib.Path(value)
-    message = f"{field_name} must be a path or string"
-    raise TypeError(message)
+    match value:
+        case pathlib.Path():
+            return value
+        case str():
+            return pathlib.Path(value)
+        case _:
+            message = f"{field_name} must be a path or string"
+            raise TypeError(message)
 
 
 def _coerce_string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
@@ -24,7 +39,7 @@ def _coerce_string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
         message = f"{field_name} must be a sequence of strings"
         raise TypeError(message)
 
-    items = tuple(value)
+    items = tuple(typ.cast("cabc.Iterable[object]", value))
     if any(not isinstance(item, str) for item in items):
         message = f"{field_name} must contain only strings"
         raise TypeError(message)
@@ -42,7 +57,8 @@ def _coerce_string_to_string_tuple_map(
         raise TypeError(message)
 
     coerced: dict[str, tuple[str, ...]] = {}
-    for key, items in value.items():
+    mapping = typ.cast("cabc.Mapping[object, object]", value)
+    for key, items in mapping.items():
         if not isinstance(key, str):
             message = f"{field_name} keys must be strings"
             raise TypeError(message)
@@ -140,8 +156,10 @@ class LintConfig:
     preview: bool = False
     fixable: tuple[str, ...] = ("ALL",)
     unfixable: tuple[str, ...] = ()
-    per_file_ignores: dict[str, tuple[str, ...]] = dc.field(default_factory=dict)
-    reserved: dict[str, object] = dc.field(default_factory=dict)
+    per_file_ignores: dict[str, tuple[str, ...]] = dc.field(
+        default_factory=_empty_per_file_ignores
+    )
+    reserved: dict[str, object] = dc.field(default_factory=_empty_string_object_mapping)
 
     def __post_init__(self) -> None:
         """Normalise the sequence and mapping fields."""
@@ -214,7 +232,7 @@ class NlpConfig:
 
     model: str = "en_core_web_sm"
     sentence_provider: str = "sentencizer"
-    reserved: dict[str, object] = dc.field(default_factory=dict)
+    reserved: dict[str, object] = dc.field(default_factory=_empty_string_object_mapping)
 
     def __post_init__(self) -> None:
         """Validate and normalise the preserved values."""
@@ -258,8 +276,8 @@ class StilyagiConfig:
     lint: LintConfig = dc.field(default_factory=LintConfig)
     extract: MarkdownExtractConfig = dc.field(default_factory=MarkdownExtractConfig)
     nlp: NlpConfig = dc.field(default_factory=NlpConfig)
-    rules: dict[str, dict[str, object]] = dc.field(default_factory=dict)
-    reserved: dict[str, object] = dc.field(default_factory=dict)
+    rules: dict[str, dict[str, object]] = dc.field(default_factory=_empty_rule_mapping)
+    reserved: dict[str, object] = dc.field(default_factory=_empty_string_object_mapping)
 
     def __post_init__(self) -> None:
         """Normalise and validate the config boundary values."""
@@ -283,7 +301,10 @@ class StilyagiConfig:
         object.__setattr__(
             self,
             "rules",
-            {str(code): dict(values) for code, values in self.rules.items()},
+            {
+                str(code): dict(typ.cast("cabc.Mapping[str, object]", values))
+                for code, values in self.rules.items()
+            },
         )
         object.__setattr__(
             self, "reserved", _copy_mapping(self.reserved, field_name="reserved")

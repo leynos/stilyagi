@@ -62,6 +62,10 @@
     execplans/maturin-pyo3-test-upgrade.md)
     plans the maturin pin update, native wheel snapshot coverage, and PyO3
     compile-time compatibility tests that support future build-tool upgrades.
+  - [PR #102 layered Python linting](
+    execplans/pr-102-layered-python-linting.md)
+    records the completed layered Python linting implementation, its locked
+    toolchain, configuration validation coverage, and extraction contracts.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
@@ -95,10 +99,11 @@
   - [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
     records the accepted v1 syntax support matrix, IR transport policy, and
     locale boundary that later roadmap slices may assume.
-  - [ADR 004: Adopt Python linting architecture](
+  - [ADR 004: Adopt layered Python linting](
     adr-004-python-linting-architecture.md)
-    records the accepted four-tier Python linting architecture: Ruff,
-    Interrogate, focused PyPy-backed Pylint, and Skylos.
+    records the accepted layered Python linting architecture using Ruff,
+    Interrogate, PyPy Pylint, df12 Pylint, ambrleaks, and Skylos, plus its
+    Makefile execution model.
   - [ADR 005: Scope Markdown region vocabulary](
     adr-005-markdown-region-vocabulary-scope.md)
     records the accepted thin-container convention and the reserved

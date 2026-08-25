@@ -206,13 +206,18 @@ project:
 
     ```sh
     $(UV_RUN) ruff check
+    $(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
     $(PYLINT) $(PYLINT_TARGETS)
+    $(DF12_PYLINT) $(PYLINT_TARGETS)
+    $(AMBRLEAKS) tests
+    $(CARGO_BUILD_ENV) $(CARGO) doc --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features --no-deps
     $(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
-    cd crates/stilyagi-pyext && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) whitaker --all
+    RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
     ```
 
-    running Python lint checks, Rust Clippy across workspace targets, and
-    Whitaker linting for the PyO3 extension crate.
+    running Ruff, docstring coverage, the focused PyPy Pylint pass, all df12
+    Pylint messages under CPython 3.14, ambrleaks, Rustdoc, Rust Clippy across
+    workspace targets, and Whitaker linting for the PyO3 extension crate.
   - `make test` executes:
 
     ```sh

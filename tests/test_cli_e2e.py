@@ -1,11 +1,10 @@
 """End-to-end subprocess coverage for the `stilyagi check` command."""
 
-from __future__ import annotations
-
 import subprocess  # noqa: S404 - tests invoke a trusted local interpreter.
 import sys
 import typing as typ
 
+from tests.support.assertions import assert_with_context
 from tests.support.malformed_corpus import materialize_malformed_corpus
 from tests.support.subprocess_env import python_module_environment
 
@@ -22,9 +21,12 @@ def test_python_module_entrypoint_exits_zero_for_a_clean_markdown_tree(
 
     completed = _run_check(tmp_path)
 
-    assert completed.returncode == 0
-    assert completed.stdout == "0 diagnostics found\n"
-    assert not completed.stderr
+    assert completed.returncode == 0, "expected completed.returncode == 0"
+    assert_with_context(
+        completed.stdout == "0 diagnostics found\n",
+        "expected completed.stdout == '0 diagnostics found\\n'",
+    )
+    assert not completed.stderr, "expected not completed.stderr"
 
 
 def test_python_module_entrypoint_exits_zero_for_a_malformed_markdown_tree(
@@ -35,9 +37,12 @@ def test_python_module_entrypoint_exits_zero_for_a_malformed_markdown_tree(
 
     completed = _run_check(tmp_path)
 
-    assert completed.returncode == 0
-    assert completed.stdout == "0 diagnostics found\n"
-    assert not completed.stderr
+    assert completed.returncode == 0, "expected completed.returncode == 0"
+    assert_with_context(
+        completed.stdout == "0 diagnostics found\n",
+        "expected completed.stdout == '0 diagnostics found\\n'",
+    )
+    assert not completed.stderr, "expected not completed.stderr"
 
 
 def test_python_module_entrypoint_exits_two_for_invalid_configuration(
@@ -49,10 +54,16 @@ def test_python_module_entrypoint_exits_two_for_invalid_configuration(
 
     completed = _run_check(tmp_path)
 
-    assert completed.returncode == 2
-    assert not completed.stdout
-    assert "stilyagi check:" in completed.stderr
-    assert "toml" in completed.stderr.lower()
+    assert completed.returncode == 2, "expected completed.returncode == 2"
+    assert not completed.stdout, "expected not completed.stdout"
+    assert_with_context(
+        "stilyagi check:" in completed.stderr,
+        "expected 'stilyagi check:' in completed.stderr",
+    )
+    assert_with_context(
+        "toml" in completed.stderr.lower(),
+        "expected 'toml' in completed.stderr.lower()",
+    )
 
 
 def _run_check(cwd: pathlib.Path) -> subprocess.CompletedProcess[str]:

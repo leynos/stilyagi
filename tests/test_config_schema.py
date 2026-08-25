@@ -1,12 +1,19 @@
 """Tests for the config schema and same-directory loading."""
 
-from __future__ import annotations
-
 import pathlib
 import textwrap
+import typing as typ
 
 import pytest
 from stilyagi import config
+from stilyagi.config.parse import parse_config_table
+from stilyagi.config.validate import ensure_mapping
+from syrupy.extensions.json import JSONSnapshotExtension
+
+from tests.support.assertions import assert_with_context
+
+if typ.TYPE_CHECKING:
+    from syrupy.assertion import SnapshotAssertion
 
 RFC_0003_BASELINE = textwrap.dedent(
     """
@@ -80,33 +87,139 @@ def test_config_file_kinds_parse_under_their_expected_prefix(
 
     parsed = config.load_config_file(path)
 
-    assert parsed.cache_dir == pathlib.Path(".stilyagi_cache")
-    assert parsed.plugins == ("builtin",)
+    assert_with_context(
+        parsed.cache_dir == pathlib.Path(".stilyagi_cache"),
+        "expected parsed.cache_dir == pathlib.Path('.stilyagi...",
+    )
+    assert parsed.plugins == ("builtin",), "expected parsed.plugins == ('builtin',)"
 
 
 def test_default_config_exposes_the_documented_defaults() -> None:
     """Pin the public default constructor to its documented field values."""
     defaults = config.StilyagiConfig()
 
-    assert defaults.cache_dir == pathlib.Path(".stilyagi_cache")
-    assert defaults.respect_gitignore is True
-    assert defaults.line_length == 88
-    assert defaults.plugins == ("builtin",)
-    assert defaults.lint.select == ("MD", "DOC", "PUN", "STY", "PYDOC")
-    assert not defaults.lint.ignore
-    assert defaults.lint.preview is False
-    assert defaults.lint.fixable == ("ALL",)
-    assert defaults.extract.gfm is True
-    assert defaults.extract.frontmatter is True
-    assert defaults.extract.mdx is False
-    assert defaults.nlp.model == "en_core_web_sm"
-    assert defaults.nlp.sentence_provider == "sentencizer"
-    assert not defaults.rules
-    assert not defaults.reserved
+    assert_with_context(
+        defaults.cache_dir == pathlib.Path(".stilyagi_cache"),
+        "expected defaults.cache_dir == pathlib.Path('.stilya...",
+    )
+    assert_with_context(
+        defaults.respect_gitignore is True,
+        "expected defaults.respect_gitignore is True",
+    )
+    assert defaults.line_length == 88, "expected defaults.line_length == 88"
+    assert defaults.plugins == ("builtin",), "expected defaults.plugins == ('builtin',)"
+    assert_with_context(
+        defaults.lint.select == ("MD", "DOC", "PUN", "STY", "PYDOC"),
+        "expected defaults.lint.select == ('MD', 'DOC', 'PUN'...",
+    )
+    assert not defaults.lint.ignore, "expected not defaults.lint.ignore"
+    assert defaults.lint.preview is False, "expected defaults.lint.preview is False"
+    assert_with_context(
+        defaults.lint.fixable == ("ALL",),
+        "expected defaults.lint.fixable == ('ALL',)",
+    )
+    assert defaults.extract.gfm is True, "expected defaults.extract.gfm is True"
+    assert_with_context(
+        defaults.extract.frontmatter is True,
+        "expected defaults.extract.frontmatter is True",
+    )
+    assert defaults.extract.mdx is False, "expected defaults.extract.mdx is False"
+    assert_with_context(
+        defaults.nlp.model == "en_core_web_sm",
+        "expected defaults.nlp.model == 'en_core_web_sm'",
+    )
+    assert_with_context(
+        defaults.nlp.sentence_provider == "sentencizer",
+        "expected defaults.nlp.sentence_provider == 'sentenci...",
+    )
+    assert not defaults.rules, "expected not defaults.rules"
+    assert not defaults.reserved, "expected not defaults.reserved"
+
+
+def _assert_baseline_config_fields(parsed: config.StilyagiConfig) -> None:
+    """Assert parsed public fields from the RFC baseline."""
+    assert_with_context(
+        parsed.cache_dir == pathlib.Path(".stilyagi_cache"),
+        "expected parsed.cache_dir == pathlib.Path('.stilyagi...",
+    )
+    assert parsed.respect_gitignore is True, "expected parsed.respect_gitignore is True"
+    assert parsed.line_length == 88, "expected parsed.line_length == 88"
+    assert parsed.plugins == ("builtin",), "expected parsed.plugins == ('builtin',)"
+    assert_with_context(
+        parsed.lint.select == ("MD", "DOC", "PUN", "STY", "PYDOC"),
+        "expected parsed.lint.select == ('MD', 'DOC', 'PUN', ...",
+    )
+    assert not parsed.lint.ignore, "expected not parsed.lint.ignore"
+    assert parsed.lint.fixable == ("ALL",), "expected parsed.lint.fixable == ('ALL',)"
+    assert not parsed.lint.unfixable, "expected not parsed.lint.unfixable"
+    assert parsed.lint.preview is False, "expected parsed.lint.preview is False"
+    assert_with_context(
+        parsed.lint.per_file_ignores
+        == {
+            "CHANGELOG.md": ("PUN201",),
+            "tests/**": ("PYDOC",),
+        },
+        "expected parsed.lint.per_file_ignores == <'CHANGELOG...",
+    )
+    assert_with_context(
+        parsed.extract == config.MarkdownExtractConfig(),
+        "expected parsed.extract == config.MarkdownExtractCon...",
+    )
+    assert_with_context(
+        parsed.nlp.model == "en_core_web_sm",
+        "expected parsed.nlp.model == 'en_core_web_sm'",
+    )
+    assert_with_context(
+        parsed.nlp.sentence_provider == "sentencizer",
+        "expected parsed.nlp.sentence_provider == 'sentencizer'",
+    )
+    assert_with_context(
+        parsed.nlp.reserved
+        == {
+            "model": "en_core_web_sm",
+            "sentence-provider": "sentencizer",
+        },
+        "expected parsed.nlp.reserved == <'model': 'en_core_w...",
+    )
+    assert_with_context(
+        parsed.rules == {"PUN201": {"min_items": 3}},
+        "expected parsed.rules == <'PUN201': <'min_items': 3>>",
+    )
+
+
+def _assert_baseline_reserved_values(
+    parsed: config.StilyagiConfig,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Assert preserved raw fields from the RFC baseline."""
+    assert_with_context(
+        parsed.reserved["line-length"] == 88,
+        "expected parsed.reserved['line-length'] == 88",
+    )
+    assert_with_context(
+        parsed.reserved["lint"]
+        == snapshot(
+            extension_class=JSONSnapshotExtension,
+        ),
+        "expected the reserved lint configuration to match it...",
+    )
+    assert_with_context(
+        parsed.reserved["nlp"]
+        == {
+            "model": "en_core_web_sm",
+            "sentence-provider": "sentencizer",
+        },
+        "expected parsed.reserved['nlp'] == <'model': 'en_cor...",
+    )
+    assert_with_context(
+        parsed.reserved["rule"] == {"PUN201": {"min_items": 3}},
+        "expected parsed.reserved['rule'] == <'PUN201': <'min...",
+    )
 
 
 def test_baseline_config_parses_and_preserves_reserved_values(
     tmp_path: pathlib.Path,
+    snapshot: SnapshotAssertion,
 ) -> None:
     """Accept the whole RFC baseline and preserve the reserved parts."""
     path = tmp_path / "pyproject.toml"
@@ -114,41 +227,8 @@ def test_baseline_config_parses_and_preserves_reserved_values(
 
     parsed = config.load_config_file(path)
 
-    assert parsed.cache_dir == pathlib.Path(".stilyagi_cache")
-    assert parsed.respect_gitignore is True
-    assert parsed.line_length == 88
-    assert parsed.plugins == ("builtin",)
-    assert parsed.lint.select == ("MD", "DOC", "PUN", "STY", "PYDOC")
-    assert not parsed.lint.ignore
-    assert parsed.lint.fixable == ("ALL",)
-    assert not parsed.lint.unfixable
-    assert parsed.lint.preview is False
-    assert parsed.lint.per_file_ignores == {
-        "CHANGELOG.md": ("PUN201",),
-        "tests/**": ("PYDOC",),
-    }
-    assert parsed.extract == config.MarkdownExtractConfig()
-    assert parsed.nlp.model == "en_core_web_sm"
-    assert parsed.nlp.sentence_provider == "sentencizer"
-    assert parsed.nlp.reserved == {
-        "model": "en_core_web_sm",
-        "sentence-provider": "sentencizer",
-    }
-    assert parsed.rules == {"PUN201": {"min_items": 3}}
-    assert parsed.reserved["line-length"] == 88
-    assert parsed.reserved["lint"] == {
-        "fixable": ["ALL"],
-        "unfixable": [],
-        "per-file-ignores": {
-            "CHANGELOG.md": ["PUN201"],
-            "tests/**": ["PYDOC"],
-        },
-    }
-    assert parsed.reserved["nlp"] == {
-        "model": "en_core_web_sm",
-        "sentence-provider": "sentencizer",
-    }
-    assert parsed.reserved["rule"] == {"PUN201": {"min_items": 3}}
+    _assert_baseline_config_fields(parsed)
+    _assert_baseline_reserved_values(parsed, snapshot)
 
 
 def test_unknown_keys_raise_a_typed_config_error(
@@ -172,10 +252,56 @@ def test_unknown_keys_raise_a_typed_config_error(
         config.load_config_file(path)
 
 
+def test_mapping_with_non_string_key_is_rejected() -> None:
+    """Reject configuration mappings whose keys cannot name configuration fields."""
+    path = pathlib.Path("stilyagi.toml")
+
+    with pytest.raises(
+        config.InvalidConfigError,
+        match=r"stilyagi\.toml: lint: mapping keys must be strings",
+    ):
+        ensure_mapping({"select": (), 1: ()}, path=path, key="lint")
+
+
+@pytest.mark.parametrize(
+    ("table", "key"),
+    [
+        ({"lint": {"per-file-ignores": {1: ["E"]}}}, "lint.per-file-ignores"),
+        ({"extract": {"markdown": {1: True}}}, "extract.markdown"),
+    ],
+)
+def test_nested_configuration_mappings_reject_non_string_keys(
+    table: dict[str, object],
+    key: str,
+) -> None:
+    """Reject non-string keys in nested configuration mappings."""
+    path = pathlib.Path("stilyagi.toml")
+
+    with pytest.raises(
+        config.InvalidConfigError,
+        match=rf"stilyagi\.toml: {key}: mapping keys must be strings",
+    ):
+        parse_config_table(table, path=path)
+
+
 def test_blank_cache_directory_is_rejected() -> None:
     """Keep the existing cache-directory guard in place."""
     with pytest.raises(config.InvalidCacheDirError, match=r"non-empty path"):
         config.StilyagiConfig(cache_dir=pathlib.Path("   "))
+
+
+def test_cache_directory_type_error_names_accepted_values(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Describe the path and string values accepted for ``cache-dir``."""
+    path = tmp_path / "pyproject.toml"
+    path.write_text("[tool.stilyagi]\ncache-dir = 1\n", encoding="utf-8")
+
+    with pytest.raises(
+        config.InvalidConfigError,
+        match=r"cache-dir.*must be a path or string",
+    ):
+        config.load_config_file(path)
 
 
 def test_same_directory_precedence_prefers_the_highest_ranked_file(
@@ -197,6 +323,12 @@ def test_same_directory_precedence_prefers_the_highest_ranked_file(
 
     discovered = config.discover_same_directory_config(tmp_path)
 
-    assert discovered is not None
-    assert discovered.path.name == ".stilyagi.toml"
-    assert discovered.config.cache_dir == pathlib.Path(".dotstilyagi")
+    assert discovered is not None, "expected discovered is not None"
+    assert_with_context(
+        discovered.path.name == ".stilyagi.toml",
+        "expected discovered.path.name == '.stilyagi.toml'",
+    )
+    assert_with_context(
+        discovered.config.cache_dir == pathlib.Path(".dotstilyagi"),
+        "expected discovered.config.cache_dir == pathlib.Path...",
+    )

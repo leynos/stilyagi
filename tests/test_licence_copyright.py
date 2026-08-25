@@ -45,10 +45,10 @@ _TRACKED_SUFFIXES = frozenset({
 def _run_git(*args: str) -> str:
     """Return stdout from ``git`` in the repository root.
 
-    Raises
-    ------
-    subprocess.CalledProcessError
-        If git exits non-zero.
+    Returns
+    -------
+    str
+        The command's standard output.
     """
     completed = subprocess.run(  # noqa: S603 - fixed argument list, no shell.
         ["git", *args],  # noqa: S607 - git is resolved from PATH by design.
@@ -66,6 +66,11 @@ def _licence_years() -> tuple[int, int]:
 
     A single year is treated as a range that opens and closes in the same
     year.
+
+    Returns
+    -------
+    tuple[int, int]
+        The opening and closing years, respectively.
     """
     text = LICENCE_PATH.read_text(encoding="utf-8")
     match = _COPYRIGHT_RE.search(text)
@@ -85,6 +90,11 @@ def _is_own_git_worktree() -> bool:
     dropped inside some other checkout has one, but it is not this project's
     — git would happily date that repository's files instead. Comparing the
     reported top level against this tree rules both out.
+
+    Returns
+    -------
+    bool
+        Whether the repository root reported by Git is this tree.
     """
     try:
         top_level = _run_git("rev-parse", "--show-toplevel").strip()

@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use markdown::mdast::Node;
+use markdown::{mdast::Node, message::Message};
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, IrRegion, SourceSpan};
 use stilyagi_test_fixtures::ExpectValid;
@@ -13,6 +13,8 @@ use crate::source_text::decoded_text_maps_to_source;
 use crate::{
     MarkdownDiagnosticContext, markdown_ir_document, source_span, validate_ir_consistency,
 };
+
+const VALID_SOURCE: &str = "# Heading\n\nBody";
 
 const fn diagnostic_context() -> MarkdownDiagnosticContext<'static> {
     MarkdownDiagnosticContext {
@@ -67,26 +69,20 @@ fn markdown_ir_document_preserves_canonical_source_identity_helpers() {
     assert_eq!(document.line_index, stilyagi_ir::line_index_for(source));
 }
 
-/// Build a valid Markdown IR document, corrupt it with `mutate`, and assert
-/// that `validate_ir_consistency` reports `expected_rule_id` with every fragment
-/// in `expected_reason_fragments` (plus the shared `phase=validate` context).
-///
-/// `#[track_caller]` attributes any failure to the calling test rather than to
-/// this helper, which is the property that otherwise forces shared assertion
-/// shapes to be macros.
-#[track_caller]
+/// Build the valid Markdown IR document used by consistency tests.
+fn valid_document() -> Result<IrDocument, Message> {
+    markdown_ir_document(VALID_SOURCE, source_identity(Path::new("docs/example.md")))
+}
+
+/// Assert that consistency validation reports the expected diagnostic.
 fn assert_validation_reports(
-    mutate: impl FnOnce(&mut IrDocument),
+    document: &IrDocument,
     expected_rule_id: &str,
     expected_reason_fragments: &[&str],
 ) {
-    let source = "# Heading\n\nBody";
-    let mut document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
-        .expect_valid("Markdown IR document");
-    mutate(&mut document);
     let context = diagnostic_context();
 
-    let result = validate_ir_consistency(&document, source, &context);
+    let result = validate_ir_consistency(document, VALID_SOURCE, &context);
 
     let Err(error) = result else {
         panic!("expected validation failure for rule {expected_rule_id}");
@@ -103,81 +99,96 @@ fn assert_validation_reports(
     }
 }
 
-#[track_caller]
-fn assert_validation_reports_on_first_region(
-    mutate_region: impl FnOnce(&mut IrRegion),
+/// Mutate a valid Markdown IR document and assert the expected diagnostic.
+fn assert_invalid_document(
     expected_rule_id: &str,
     expected_reason_fragments: &[&str],
+    mutate: impl FnOnce(&mut IrDocument),
 ) {
-    assert_validation_reports(
-        |document| {
-            let region = document
-                .regions
-                .first_mut()
-                .expect_valid("first Markdown IR region");
-            mutate_region(region);
-        },
-        expected_rule_id,
-        expected_reason_fragments,
-    );
+    let mut document = valid_document().expect_valid("Markdown IR document");
+    mutate(&mut document);
+    assert_validation_reports(&document, expected_rule_id, expected_reason_fragments);
+}
+
+/// Mutate the first region in a valid Markdown IR document and assert the expected diagnostic.
+fn assert_invalid_document_on_first_region(
+    expected_rule_id: &str,
+    expected_reason_fragments: &[&str],
+    mutate: impl FnOnce(&mut IrRegion),
+) {
+    assert_invalid_document(expected_rule_id, expected_reason_fragments, |document| {
+        let region = document
+            .regions
+            .first_mut()
+            .expect_valid("first Markdown IR region");
+        mutate(region);
+    });
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_content_hash_mismatches() {
-    assert_validation_reports(
-        |document| document.document.content_hash = "sha256:bad".to_owned(),
+    assert_invalid_document(
         "ir-content-hash-mismatch",
         &["path=", "uri=", "content_hash mismatch"],
+        |document| {
+            document.document.content_hash = "sha256:bad".to_owned();
+        },
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_line_index_mismatches() {
-    assert_validation_reports(
-        |document| document.line_index.push(usize::MAX),
+    assert_invalid_document(
         "ir-line-index-mismatch",
         &["line_index mismatch"],
+        |document| {
+            document.line_index.push(usize::MAX);
+        },
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_duplicate_node_ids() {
-    assert_validation_reports(
-        |document| {
-            if let Some(node) = document.nodes.first().cloned() {
-                document.nodes.push(node);
-            }
-        },
-        "ir-duplicate-node-id",
-        &["duplicate node id"],
-    );
+    assert_invalid_document("ir-duplicate-node-id", &["duplicate node id"], |document| {
+        let node = document
+            .nodes
+            .first()
+            .cloned()
+            .expect("expected at least one Markdown IR node");
+        document.nodes.push(node);
+    });
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_duplicate_region_ids() {
-    assert_validation_reports(
-        |document| {
-            if let Some(region) = document.regions.first().cloned() {
-                document.regions.push(region);
-            }
-        },
+    assert_invalid_document(
         "ir-duplicate-region-id",
         &["duplicate region id"],
+        |document| {
+            let region = document
+                .regions
+                .first()
+                .cloned()
+                .expect("expected at least one Markdown IR region");
+            document.regions.push(region);
+        },
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_region_text_mismatches() {
-    assert_validation_reports_on_first_region(
-        |region| region.text.push_str(" drift"),
+    assert_invalid_document_on_first_region(
         "ir-region-text-mismatch",
         &["region text mismatch"],
+        |region| region.text.push_str(" drift"),
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_source_span_mismatches() {
-    assert_validation_reports(
+    assert_invalid_document(
+        "ir-segment-source-mismatch",
+        &["source segment mismatch", "region id=", "segment text="],
         |document| {
             let segment = document
                 .regions
@@ -186,26 +197,24 @@ fn validate_ir_consistency_reports_source_span_mismatches() {
                 .expect("expected at least one source-backed segment");
             segment.source = SourceSpan::new(0, segment.text.len());
         },
-        "ir-segment-source-mismatch",
-        &["source segment mismatch", "region id=", "segment text="],
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_unresolved_parent_regions() {
-    assert_validation_reports_on_first_region(
-        |region| region.parent_region = Some("missing-region".to_owned()),
+    assert_invalid_document_on_first_region(
         "ir-parent-region-unresolved",
         &["parent_region", "missing-region"],
+        |region| region.parent_region = Some("missing-region".to_owned()),
     );
 }
 
 #[rstest]
 fn validate_ir_consistency_reports_invalid_origin_nodes() {
-    assert_validation_reports_on_first_region(
-        |region| region.origin_nodes.clear(),
+    assert_invalid_document_on_first_region(
         "ir-origin-nodes-invalid",
         &["origin_nodes", "empty"],
+        |region| region.origin_nodes.clear(),
     );
 }
 

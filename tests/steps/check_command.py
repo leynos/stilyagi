@@ -1,21 +1,17 @@
 """Shared BDD steps for the `stilyagi check` command."""
 
-from __future__ import annotations
-
 import io
 import json
+import pathlib
 import sys
 import typing as typ
 
+import pytest
 from pytest_bdd import given, parsers, then, when
 from stilyagi import cli, engine, model
 
+from tests.support.assertions import assert_with_context
 from tests.support.malformed_corpus import materialize_malformed_corpus
-
-if typ.TYPE_CHECKING:
-    import pathlib
-
-    import pytest
 
 
 class CheckCommandState(typ.TypedDict, total=False):
@@ -138,19 +134,28 @@ def run_stilyagi_command_in_that_tree(
 @then("the exit code is 0")
 def the_exit_code_is_zero(check_command_state: CheckCommandState) -> None:
     """Assert that the clean-tree command path succeeded."""
-    assert check_command_state["exit_code"] == 0
+    assert_with_context(
+        check_command_state["exit_code"] == 0,
+        "expected check_command_state['exit_code'] == 0",
+    )
 
 
 @then("the exit code is 1")
 def the_exit_code_is_one(check_command_state: CheckCommandState) -> None:
     """Assert that the synthetic-diagnostic path reports findings."""
-    assert check_command_state["exit_code"] == 1
+    assert_with_context(
+        check_command_state["exit_code"] == 1,
+        "expected check_command_state['exit_code'] == 1",
+    )
 
 
 @then("the exit code is 2")
 def the_exit_code_is_two(check_command_state: CheckCommandState) -> None:
     """Assert that invalid config and usage failures fail fast."""
-    assert check_command_state["exit_code"] == 2
+    assert_with_context(
+        check_command_state["exit_code"] == 2,
+        "expected check_command_state['exit_code'] == 2",
+    )
 
 
 @then("the text output lists no diagnostics")
@@ -158,8 +163,14 @@ def the_text_output_lists_no_diagnostics(
     check_command_state: CheckCommandState,
 ) -> None:
     """Assert the rendered text contract for an empty run."""
-    assert check_command_state["stdout"] == "0 diagnostics found\n"
-    assert check_command_state["stderr"] == ""
+    assert_with_context(
+        check_command_state["stdout"] == "0 diagnostics found\n",
+        "expected check_command_state['stdout'] == '0 diagnos...",
+    )
+    assert_with_context(
+        check_command_state["stderr"] == "",
+        "expected check_command_state['stderr'] == ''",
+    )
 
 
 @then("the diagnostics and processed paths follow sorted normalized order")
@@ -169,8 +180,14 @@ def the_diagnostics_and_processed_paths_follow_sorted_normalized_order(
     """Assert that JSON output preserves the renderer's sorted path order."""
     payload = json.loads(check_command_state["stdout"])
     paths = [item["path"] for item in payload["diagnostics"]]
-    assert paths == ["a.md", "b.md", "sub/c.md"]
-    assert check_command_state["stderr"] == ""
+    assert_with_context(
+        paths == ["a.md", "b.md", "sub/c.md"],
+        "expected paths == ['a.md', 'b.md', 'sub/c.md']",
+    )
+    assert_with_context(
+        check_command_state["stderr"] == "",
+        "expected check_command_state['stderr'] == ''",
+    )
 
 
 @then('the text output attributes the synthetic diagnostic to "README.md"')
@@ -178,11 +195,17 @@ def the_text_output_attributes_the_synthetic_diagnostic_to_readme(
     check_command_state: CheckCommandState,
 ) -> None:
     """Assert the stdin path is reflected in the rendered text output."""
-    assert (
-        check_command_state["stdout"]
-        == "README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"
+    assert_with_context(
+        (
+            check_command_state["stdout"]
+            == "README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"
+        ),
+        "expected check_command_state['stdout'] == 'README.md...",
     )
-    assert check_command_state["stderr"] == ""
+    assert_with_context(
+        check_command_state["stderr"] == "",
+        "expected check_command_state['stderr'] == ''",
+    )
 
 
 @then("the standard error reports an actionable configuration error")
@@ -190,9 +213,18 @@ def the_standard_error_reports_an_actionable_configuration_error(
     check_command_state: CheckCommandState,
 ) -> None:
     """Assert that invalid discovery errors are routed to stderr."""
-    assert "stilyagi check:" in check_command_state["stderr"]
-    assert "toml" in check_command_state["stderr"].lower()
-    assert check_command_state["stdout"] == ""
+    assert_with_context(
+        "stilyagi check:" in check_command_state["stderr"],
+        "expected 'stilyagi check:' in check_command_state['s...",
+    )
+    assert_with_context(
+        "toml" in check_command_state["stderr"].lower(),
+        "expected 'toml' in check_command_state['stderr'].low...",
+    )
+    assert_with_context(
+        check_command_state["stdout"] == "",
+        "expected check_command_state['stdout'] == ''",
+    )
 
 
 def _write_markdown(path: pathlib.Path, title: str) -> None:

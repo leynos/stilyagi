@@ -1,10 +1,8 @@
 """Contract tests for Skylos dead-code detection in Make and CI.
 
-Skylos accepts scan options before a scan path, but its standalone
-``whitelist`` subcommand must appear immediately after ``skylos``. The tests
-parse the Makefile with the pinned Makeutil parser instead of matching source
-text, so whitespace and neighbouring comments cannot hide a command-shape
-regression.
+Skylos requires scan options before a scan path and its standalone
+``whitelist`` subcommand immediately after ``skylos``. The pinned Makeutil parser
+prevents whitespace or neighbouring comments hiding a command-shape regression.
 """
 
 import json
@@ -32,7 +30,7 @@ _REQUIRED_SKYLOS_WHITELIST_NAMES: typ.Final = frozenset((
     "_coerce_string_to_string_tuple_map",
     "_copy_mapping",
     "_require_strict_int",
-    "_reset_extraction_state_for_tests",
+    "reset_extraction_state_for_tests",
     "extract_document",
 ))
 _SHELL_ARGUMENT_TEXT: typ.Final = st.text(
@@ -179,9 +177,10 @@ def _run_skylos_allow(
     environment = {**os.environ, "NAME": "wsl-hostname"}
     environment.pop("REASON", None)
     environment.pop("SYMBOL", None)
+    environment.update(argument.split("=", maxsplit=1) for argument in arguments)
     dry_run_option = ("--dry-run",) if dry_run else ()
     return subprocess.run(  # noqa: S603 -- fixed Make target and arguments.
-        (_make_executable(), *dry_run_option, "skylos-allow", *arguments),
+        (_make_executable(), *dry_run_option, "skylos-allow"),
         capture_output=True,
         check=False,
         cwd=REPOSITORY_ROOT,
@@ -218,30 +217,29 @@ def test_lint_recipe_runs_the_production_dead_code_gate() -> None:
     assert _variable_tokens("SKYLOS_EXCLUDE_FOLDERS") == ("tests",), (
         "Skylos exclusion contract must omit tests"
     )
-    skylos_commands = [
-        command for command in _recipe_tokens("lint") if command[:1] == ("$(SKYLOS)",)
-    ]
-    assert skylos_commands == [
-        (
-            "$(SKYLOS)",
-            "$(SKYLOS_PRODUCTION_TARGETS)",
-            "--exclude",
-            "$(SKYLOS_EXCLUDE_FOLDERS)",
-            "--category",
-            "dead_code",
-            "--gate",
-            "--format",
-            "concise",
-            "--no-upload",
-            "--no-provenance",
-            "--no-grep-verify",
-        )
-    ], "Skylos lint command contract must scan production dead code strictly"
+    expected_skylos_command = (
+        "$(SKYLOS)",
+        "$(SKYLOS_PRODUCTION_TARGETS)",
+        "--exclude",
+        "$(SKYLOS_EXCLUDE_FOLDERS)",
+        "--category",
+        "dead_code",
+        "--gate",
+        "--format",
+        "concise",
+        "--no-upload",
+        "--no-provenance",
+        "--no-grep-verify",
+    )
+    skylos_commands = [c for c in _recipe_tokens("lint") if c[:1] == ("$(SKYLOS)",)]
+    assert skylos_commands == [expected_skylos_command], (
+        "Skylos lint command contract must scan production dead code strictly"
+    )
 
 
 def test_whitelist_target_uses_the_command_only_skylos_cli() -> None:
     """The whitelist command must precede its arguments and scan options."""
-    assert _variable_tokens("SKYLOS_CLI") == (
+    expected_skylos_cli = (
         "$(UV_ENV)",
         "$(UV)",
         "tool",
@@ -251,26 +249,28 @@ def test_whitelist_target_uses_the_command_only_skylos_cli() -> None:
         "--from",
         "skylos==$(SKYLOS_VERSION)",
         "skylos",
-    ), "Skylos CLI contract must pin Python 3.14 and its tool release"
+    )
+    assert _variable_tokens("SKYLOS_CLI") == expected_skylos_cli, (
+        "Skylos CLI contract must pin Python 3.14 and its tool release"
+    )
     assert _variable_tokens("SKYLOS") == (
         "$(SKYLOS_CLI)",
         "--config-file",
         "pyproject.toml",
     ), "Skylos scan command contract must add only the configuration file"
+    expected_whitelist_command = (
+        "$(SKYLOS_CLI)",
+        "whitelist",
+        "$${SKYLOS_SYMBOL}",
+        "--reason",
+        "$${SKYLOS_REASON}",
+    )
     whitelist_commands = [
-        command
-        for command in _recipe_tokens("skylos-allow")
-        if command[:1] == ("$(SKYLOS_CLI)",)
+        c for c in _recipe_tokens("skylos-allow") if c[:1] == ("$(SKYLOS_CLI)",)
     ]
-    assert whitelist_commands == [
-        (
-            "$(SKYLOS_CLI)",
-            "whitelist",
-            "$${SKYLOS_SYMBOL}",
-            "--reason",
-            "$${SKYLOS_REASON}",
-        )
-    ], "Skylos whitelist command contract must dispatch before --reason"
+    assert whitelist_commands == [expected_whitelist_command], (
+        "Skylos whitelist command contract must dispatch before --reason"
+    )
 
 
 def test_skylos_configuration_requires_strict_documented_exceptions() -> None:
