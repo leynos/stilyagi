@@ -179,9 +179,10 @@ def _run_skylos_allow(
     environment = {**os.environ, "NAME": "wsl-hostname"}
     environment.pop("REASON", None)
     environment.pop("SYMBOL", None)
+    environment.update(argument.split("=", maxsplit=1) for argument in arguments)
     dry_run_option = ("--dry-run",) if dry_run else ()
     return subprocess.run(  # noqa: S603 -- fixed Make target and arguments.
-        (_make_executable(), *dry_run_option, "skylos-allow", *arguments),
+        (_make_executable(), *dry_run_option, "skylos-allow"),
         capture_output=True,
         check=False,
         cwd=REPOSITORY_ROOT,

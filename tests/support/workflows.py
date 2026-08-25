@@ -19,6 +19,11 @@ def load_workflow(workflow: str) -> dict[str, object]:
         The workflow's top-level mapping, with every YAML scalar represented as
         a string.
 
+    Raises
+    ------
+    TypeError
+        If the YAML document does not parse to a top-level mapping.
+
     Examples
     --------
     >>> load_workflow("on:\\n  push:\\n")

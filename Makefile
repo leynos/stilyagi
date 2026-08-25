@@ -76,7 +76,7 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
 .PHONY: help all clean build build-release lint fmt check-fmt \
         markdownlint nixie spelling spelling-config spelling-config-write \
         spelling-helper-test spelling-phrase-check test test-ci test-quick \
-        typecheck tools \
+        typecheck tools skylos-allow \
         tools-check tools-docs tools-lint release release-artifact smoke \
         smoke-release
 

@@ -116,6 +116,8 @@ Adopt Option A.
 6. Rust `cargo doc` and `cargo clippy` with warnings denied.
 7. Whitaker with `--all`, forwarding the workspace manifest, workspace target,
    all-target, and all-feature arguments, with Rust warnings denied.
+8. Skylos strict production dead-code detection over `python/stilyagi`, with
+   tests excluded from the liveness graph.
 
 The Python lint policy SHALL live in `pyproject.toml`:
 
@@ -150,6 +152,11 @@ The Makefile SHALL expose variables for the Pylint runner:
 - `DF12_PYLINT` builds the plugin-backed Pylint command.
 - `AMBRLEAKS` builds the snapshot scanner command from the locked development
   environment.
+- `SKYLOS_VERSION` pins the dead-code detector release.
+- `SKYLOS_CLI` builds the command-only Skylos CLI under CPython 3.14.
+- `SKYLOS` adds the repository configuration for the scan command.
+- `SKYLOS_PRODUCTION_TARGETS` and `SKYLOS_EXCLUDE_FOLDERS` define the scan
+  boundary.
 
 ## Consequences
 
@@ -168,6 +175,8 @@ The Makefile SHALL expose variables for the Pylint runner:
 - The imported lint policy has one auditable home in `pyproject.toml`.
 - The pinned PyPy shim makes the second tier reproducible and easy to update
   deliberately.
+- Skylos provides a blocking final dead-code tier over production Python while
+  keeping test-only references out of the liveness graph.
 
 ### Negative consequences
 
@@ -235,6 +244,16 @@ resolves `df12-python-lints` from immutable commit
 `9c835f35b0f1690597ade799c9c6a30bc5922959`, recorded by `uv.lock` as version
 0.1.0. The Makefile enables the thirteen message IDs listed above and runs
 both the CPython 3.14 Pylint pass and `ambrleaks` from that locked environment.
+
+## Addendum — 2026-08-23: Skylos production dead-code tier
+
+Skylos is the final blocking tier in `make lint`, after Whitaker. It runs its
+strict dead-code gate under CPython 3.14 over `python/stilyagi`, excluding
+`tests`, with the configuration in `pyproject.toml`. The `skylos-allow` target
+requires non-empty `SYMBOL` and `REASON` variables and invokes the command-only
+CLI's `whitelist` subcommand. Use a typed `[tool.skylos.dead_code]` entry-point
+rule when possible; reserve named allow-list entries for verified runtime
+callers that cannot be modelled by an entry point.
 
 ## References
 

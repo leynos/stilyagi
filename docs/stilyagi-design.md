@@ -19,6 +19,7 @@
     adr-003-v1-contract-scope.md)
   - [ADR 004: Adopt layered Python linting](
     adr-004-python-linting-architecture.md)
+    records the layered Python linting and production dead-code architecture.
   - [ADR 005: Scope Markdown region vocabulary](
     adr-005-markdown-region-vocabulary-scope.md)
   - [ADR 006: Adopt docstring owner metadata](

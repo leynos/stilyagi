@@ -934,6 +934,8 @@ Their responsibilities are:
     warnings denied
   - run Whitaker for all workspace crates, targets, and features with warnings
     denied
+  - run Skylos as the final strict production dead-code check over
+    `python/stilyagi`, excluding `tests`
 - `make typecheck`
   - It rebuilds the editable environment when needed.
   - It runs `cargo check` for all workspace crates, targets, and features with
@@ -962,7 +964,21 @@ exception: it runs through `uv tool run --python pypy` with the pinned
 CPython 3.14, resolving the immutable commit
 `9c835f35b0f1690597ade799c9c6a30bc5922959` recorded in `uv.lock`. These Python
 tiers run before the Rust lint tiers, with Interrogate enforcing a 100%
-docstring-coverage threshold.
+docstring-coverage threshold. Skylos runs after the Rust lint tiers as the
+final lint step.
+
+### Shared workflow parser
+
+Workflow contract tests use `tests/support/workflows.py::load_workflow` to
+parse GitHub Actions YAML with PyYAML's `BaseLoader`. This preserves scalar
+values as strings, including the `on` key, so tests can inspect workflow
+structure without YAML type coercion. The helper accepts only a top-level
+mapping and raises `TypeError` with the message
+`A workflow must parse to a top-level mapping` for other document shapes.
+
+Both `tests/test_ci_workflow_units.py` and
+`tests/test_skylos_lint_contract.py` reuse this helper instead of maintaining
+separate workflow parsers.
 
 ### 6a. Python linting architecture
 
@@ -987,6 +1003,8 @@ is that Python linting has five tiers:
 2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 3. `whitaker --all -- --workspace --all-targets --all-features` with
    `RUSTFLAGS=-D warnings`
+4. Skylos runs last through its pinned CPython 3.14 tool environment, scanning
+   production dead code strictly.
 
 The repository root `clippy.toml` owns the Clippy thresholds used by the
 workspace, including the four-argument maximum and the low complexity and
@@ -1007,27 +1025,32 @@ The Makefile exposes the lint runner through these variables:
 
 Table: Lint runner Makefile variables.
 
-| Variable               | Default                                                                                                       | Purpose                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `UV`                   | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                 | Selects the `uv` executable used by Makefile Python commands.    |
-| `UV_ENV`               | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                | Keeps `uv` cache and tool state inside the repository worktree.  |
-| `UV_RUN`               | `$(UV_ENV) $(UV) run --group dev`                                                                             | Runs commands in the locked development dependency group.        |
-| `INTERROGATE`          | `$(UV_RUN) interrogate`                                                                                       | Selects the docstring-coverage command used by `make lint`.      |
-| `INTERROGATE_TARGETS`  | `python/stilyagi tests`                                                                                       | Selects the directories checked by Interrogate.                  |
-| `INTERROGATE_FLAGS`    | `--fail-under 100`                                                                                            | Requires complete Python docstring coverage.                     |
-| `PYLINT_PYTHON`        | `pypy`                                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.      |
-| `PYLINT_TARGETS`       | `python/stilyagi tests`                                                                                       | Selects the directories checked by the Pylint tier.              |
-| `PYLINT_PYPY_SHIM_REF` | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                                    | Pins the shim commit used by the Pylint tier.                    |
-| `PYLINT_PYPY_SHIM`     | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                  | Expands the pinned shim package source.                          |
-| `PYLINT`               | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=` | Builds the focused PyPy Pylint command used by `make lint`.      |
-| `DF12_PYTHON`          | `3.14`                                                                                                        | Selects CPython for the df12 Pylint and scanner tiers.           |
-| `DF12_PYLINT_MESSAGES` | all thirteen v0.1.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                             |
-| `DF12_PYLINT`          | project-backed Pylint with `df12_python_lints` loaded                                                         | Builds the CPython df12 Pylint command.                          |
-| `AMBRLEAKS`            | locked `uv run --group dev --python 3.14` environment                                                         | Builds the snapshot leak scanner command from the locked commit. |
-| `TY_VERSION`           | `0.0.72`                                                                                                      | Pins the `ty` version shared by the Makefile and CI.             |
-| `TY`                   | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                               | Builds the pinned type-checking command.                         |
-| `TYPOS_VERSION`        | `1.48.0`                                                                                                      | Pins the `typos` version shared by the Makefile and CI.          |
-| `TYPOS`                | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                                         | Builds the spelling-check command used by `make markdownlint`.   |
+| Variable                    | Default                                                                                                       | Purpose                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `UV`                        | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                 | Selects the `uv` executable used by Makefile Python commands.    |
+| `UV_ENV`                    | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                | Keeps `uv` cache and tool state inside the repository worktree.  |
+| `UV_RUN`                    | `$(UV_ENV) $(UV) run --group dev`                                                                             | Runs commands in the locked development dependency group.        |
+| `INTERROGATE`               | `$(UV_RUN) interrogate`                                                                                       | Selects the docstring-coverage command used by `make lint`.      |
+| `INTERROGATE_TARGETS`       | `python/stilyagi tests`                                                                                       | Selects the directories checked by Interrogate.                  |
+| `INTERROGATE_FLAGS`         | `--fail-under 100`                                                                                            | Requires complete Python docstring coverage.                     |
+| `PYLINT_PYTHON`             | `pypy`                                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.      |
+| `PYLINT_TARGETS`            | `python/stilyagi tests`                                                                                       | Selects the directories checked by the Pylint tier.              |
+| `PYLINT_PYPY_SHIM_REF`      | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                                    | Pins the shim commit used by the Pylint tier.                    |
+| `PYLINT_PYPY_SHIM`          | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                  | Expands the pinned shim package source.                          |
+| `PYLINT`                    | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=` | Builds the focused PyPy Pylint command used by `make lint`.      |
+| `DF12_PYTHON`               | `3.14`                                                                                                        | Selects CPython for the df12 Pylint and scanner tiers.           |
+| `DF12_PYLINT_MESSAGES`      | all thirteen v0.1.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                             |
+| `DF12_PYLINT`               | project-backed Pylint with `df12_python_lints` loaded                                                         | Builds the CPython df12 Pylint command.                          |
+| `AMBRLEAKS`                 | locked `uv run --group dev --python 3.14` environment                                                         | Builds the snapshot leak scanner command from the locked commit. |
+| `SKYLOS_VERSION`            | `4.33.2`                                                                                                      | Pins the dead-code detector used by `make lint`.                 |
+| `SKYLOS_CLI`                | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`                            | Builds the command-only Skylos CLI.                              |
+| `SKYLOS`                    | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                                  | Adds scan-only configuration to the Skylos CLI.                  |
+| `SKYLOS_PRODUCTION_TARGETS` | `python/stilyagi`                                                                                             | Limits dead-code analysis to production Python sources.          |
+| `SKYLOS_EXCLUDE_FOLDERS`    | `tests`                                                                                                       | Excludes tests from the production liveness graph.               |
+| `TY_VERSION`                | `0.0.72`                                                                                                      | Pins the `ty` version shared by the Makefile and CI.             |
+| `TY`                        | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                               | Builds the pinned type-checking command.                         |
+| `TYPOS_VERSION`             | `1.48.0`                                                                                                      | Pins the `typos` version shared by the Makefile and CI.          |
+| `TYPOS`                     | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                                         | Builds the spelling-check command used by `make markdownlint`.   |
 
 Override these variables only for local diagnosis unless the project-wide lint
 policy is intentionally changing. For example:
@@ -1092,7 +1115,31 @@ include an explanation. Ruff suppressions use `# noqa`, while Pylint
 suppressions use `# pylint: disable=...`; do not use one tool's suppression
 syntax to hide the other tool's finding.
 
-### 6b. Fallibility in Rust test helpers
+### 6b. Skylos dead-code gate
+
+`make lint` runs a blocking Skylos scan after the existing Python and Rust
+linters. It analyses dead code only over `python/stilyagi`, excludes `tests`,
+and uses the strict configuration in `pyproject.toml`. `SKYLOS_CLI` pins the
+tool under CPython 3.14; `SKYLOS` adds `--config-file` for scans, while the
+`skylos-allow` target uses the command-only CLI so its `whitelist` subcommand
+is placed before the arguments.
+
+Treat every Skylos finding as a candidate for removal until its caller is
+verified. Prefer a typed `[tool.skylos.dead_code]` entry-point rule for an
+implicit runtime caller. Only when that rule cannot model the boundary, use a
+narrow named exception with its verified runtime caller:
+
+```shell
+make skylos-allow SYMBOL=registered_handler \
+  REASON="Loaded by the plugin registry; verified in the registry contract test"
+```
+
+The target rejects empty `SYMBOL` or `REASON` values with status 2 and records
+the explanation under `[tool.skylos.whitelist.documented]`. `SYMBOL` is
+required explicitly so WSL's injected `NAME` variable cannot satisfy the
+contract.
+
+### 6c. Fallibility in Rust test helpers
 
 Whitaker's `no_expect_outside_tests` and `no_unwrap_or_else_panic` encode a
 policy that is easy to misread: **fixture and helper functions are not tests.**
@@ -1157,7 +1204,7 @@ test body, where a macro expands in place. They are duplicated across the two
 crates; consolidating them onto `ExpectValid` is tracked as follow-up work
 rather than done piecemeal.
 
-### 6c. Spelling gate
+### 6d. Spelling gate
 
 `make markdownlint` enforces en-GB-oxendict (Oxford) spelling over the
 repository's Markdown prose with [`typos`](https://github.com/crate-ci/typos),
@@ -1223,7 +1270,7 @@ The phrase helper follows the CodeRabbit-reviewed consumer baseline. Its
 isolated test runner supplies Pathspec 1.1.1 without adding a project runtime
 or locked development dependency.
 
-### 6d. Tool version alignment between the Makefile and CI
+### 6e. Tool version alignment between the Makefile and CI
 
 The Makefile and `.github/workflows/smoke.yml` must resolve identical lint tool
 versions. The repository uses two mechanisms:
@@ -1242,7 +1289,7 @@ When bumping any of these versions, update the single source of truth (the
 dependency-group pin or `TYPOS_VERSION`), refresh `uv.lock` where relevant, and
 rerun the affected gates.
 
-### 6e. Workflow pins and Dependabot
+### 6f. Workflow pins and Dependabot
 
 Dependabot owns the upgrade of GitHub Actions and reusable workflows, including
 calls into `leynos/shared-actions`. Contract tests that assert a caller's exact
