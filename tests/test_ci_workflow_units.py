@@ -73,17 +73,21 @@ def _smoke_workflow_document() -> dict[str, object]:
         )
     )
 
+
 def _workflow_environment(parsed_workflow: dict[str, object]) -> dict[str, str]:
     """Return the workflow-level environment variables."""
     environment = parsed_workflow["env"]
     assert isinstance(environment, dict), "expected isinstance(environment, dict)"
     return typ.cast("dict[str, str]", environment)
 
+
 def _makefile_tool_version(makefile: str, tool: str) -> str:
     """Return one version pin declared in the Makefile."""
     match = re.search(rf"^{tool}_VERSION \?= (?P<version>\S+)$", makefile, re.MULTILINE)
     assert match is not None, f"expected {tool}_VERSION pin in Makefile"
     return match["version"]
+
+
 @pytest.fixture(name="smoke_workflow", scope="module")
 def smoke_workflow_fixture() -> SmokeWorkflow:
     """Parse the smoke workflow once for the per-concern CI assertions."""
@@ -115,6 +119,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets(
         "expected <'make check-fmt', 'make markdownlint', 'ma...",
     )
 
+
 @pytest.mark.parametrize("tool", ["RUFF", "TY"])
 def test_ci_tool_versions_match_makefile(tool: str) -> None:
     """Keep each CI tool pin aligned with its canonical Makefile pin."""
@@ -126,6 +131,8 @@ def test_ci_tool_versions_match_makefile(tool: str) -> None:
         == _makefile_tool_version(makefile, tool),
         f"expected CI {tool} version to match the Makefile pin",
     )
+
+
 def test_ci_workflow_job_topology(smoke_workflow: SmokeWorkflow) -> None:
     """CI must keep the lint-test job and the release-smoke OS matrix."""
     jobs, _workflow_steps, _run_commands = smoke_workflow
