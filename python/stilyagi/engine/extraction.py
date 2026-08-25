@@ -254,6 +254,8 @@ def _unknown_ir_region_kinds(
     return tuple(_iter_unknown_region_kinds(regions, _known_ir_region_kinds()))
 
 
+# R503 requires the explicit terminal return below.
+# pylint: disable=useless-return
 def warn_unknown_ir_region_kinds(
     ir_payload: cabc.Mapping[str, object] | None,
     *,
@@ -267,3 +269,7 @@ def warn_unknown_ir_region_kinds(
             diagnostic.region_index,
             diagnostic.kind,
         )
+    return  # noqa: PLR1711  # R503 requires this explicit terminal return.
+
+
+# pylint: enable=useless-return
