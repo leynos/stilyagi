@@ -25,7 +25,7 @@ dev = [
     # from the lockfile.
     "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@9c835f35b0f1690597ade799c9c6a30bc5922959",
     "interrogate==1.7.0",
-    "ruff==0.15.13",
+    "ruff==0.16.3",
     "pytest-timeout",
     "pytest-bdd",
     "hypothesis>=6.165.10,<7.0",
