@@ -1,7 +1,7 @@
 """Stdin coverage for the `stilyagi check` command."""
 
 import io
-import subprocess  # noqa: S404 - tests invoke a trusted local interpreter.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests invoke a trusted local interpreter.
 import sys
 import typing as typ
 

@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import pathlib
-import subprocess  # noqa: S404 - tests invoke a trusted local interpreter.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests invoke a trusted local interpreter.
 import sys
 import threading
 import typing as typ
@@ -542,7 +542,7 @@ class DummyProvider:
 
     @property
     def provider_name(self) -> str:
-        """Return the provider identifier."""
+        """The provider identifier."""
         return "dummy"
 
 

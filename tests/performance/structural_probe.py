@@ -5,7 +5,7 @@ import json
 import pathlib
 import platform
 import statistics
-import subprocess  # noqa: S404 -- justified: using subprocess in test to run external benchmark tool; validated input/control
+import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: using subprocess in test to run external benchmark tool; validated input/control
 import sys
 import time
 import typing as typ
@@ -267,7 +267,7 @@ def _measure_cold_iteration() -> int:
     """Measure one extraction in a fresh Python interpreter."""
     root = repository_root()
     source_path = root / MARKDOWN_FIXTURE
-    completed = subprocess.run(  # noqa: S603 -- justified: spawning own module under test with known sys.executable; no user input reaches argv
+    completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- justified: spawning own module under test with known sys.executable; no user input reaches argv
         [
             sys.executable,
             "-m",

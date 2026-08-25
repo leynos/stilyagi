@@ -2,7 +2,7 @@
 
 import json
 import pathlib
-import subprocess  # noqa: S404  # subprocess drives installed-package probes
+import subprocess  # ruff: ignore[suspicious-subprocess-import]  # subprocess drives installed-package probes
 import sys
 import typing as typ
 
@@ -203,7 +203,7 @@ def import_fails_with_module_not_found_error(
 
 def run_python_snippet(source: str) -> PythonCommandResult:
     """Run a Python snippet in a subprocess and capture its result."""
-    completed_process = subprocess.run(  # noqa: S603  # arguments are fixed test data
+    completed_process = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]  # arguments are fixed test data
         [sys.executable, "-c", source],
         capture_output=True,
         check=False,

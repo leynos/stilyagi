@@ -39,9 +39,10 @@ SKYLOS_EXCLUDE_FOLDERS ?= tests
 INTERROGATE ?= $(UV_RUN) interrogate
 INTERROGATE_TARGETS ?= python/stilyagi tests
 INTERROGATE_FLAGS ?= --fail-under 100
-# Single source of truth for the ty version; CI consumes it through the
-# typecheck target, so the Makefile and CI cannot drift apart.
-TY_VERSION ?= 0.0.72
+# CI supplies the same pin and the contract test keeps these declarations aligned.
+RUFF_VERSION ?= 0.16.4
+RUFF = env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)
+TY_VERSION ?= 0.0.74
 TY = env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)
 # Single source of truth for the typos version; CI consumes it through the
 # markdownlint target, so the Makefile and CI cannot drift apart.
@@ -153,17 +154,17 @@ tools-lint: tools-check
 	$(call ensure_tool,$(WHITAKER))
 
 fmt: tools ## Format sources
-	$(UV_RUN) ruff format
-	$(UV_RUN) ruff check --select I --fix
+	$(RUFF) format
+	$(RUFF) check --select I --fix
 	$(MDFORMAT_ALL)
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all
 
 check-fmt: tools-check ## Verify formatting
-	$(UV_RUN) ruff format --check
+	$(RUFF) format --check
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
 
 lint: tools-lint ## Run linters, including the Whitaker Dylint suite
-	$(UV_RUN) ruff check
+	$(RUFF) check
 	$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
 	$(DF12_PYLINT) $(PYLINT_TARGETS)
@@ -203,8 +204,8 @@ spelling-config-write: spelling-helper-test ## Regenerate spelling configuration
 	$(TYPOS_CONFIG_BUILDER) --repository .
 
 spelling-helper-test: ## Validate the standalone spelling phrase helper
-	$(UV_RUN) ruff format --check $(SPELLING_PY_SRCS)
-	$(UV_RUN) ruff check $(SPELLING_PY_SRCS)
+	$(RUFF) format --check $(SPELLING_PY_SRCS)
+	$(RUFF) check $(SPELLING_PY_SRCS)
 	$(SPELLING_HELPER_PYTEST) scripts/tests/typos_rollout_check_testcases.py \
 		-c /dev/null --rootdir=. -p no:cacheprovider
 

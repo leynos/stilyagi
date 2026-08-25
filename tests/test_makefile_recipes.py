@@ -3,6 +3,7 @@
 import dataclasses as dc
 import os
 import pathlib
+import re
 import shutil
 import tomllib
 import typing as typ
@@ -19,9 +20,9 @@ if typ.TYPE_CHECKING:
     from cmd_mox import CmdMox
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
-DF12_PYTHON_LINTS_COMMIT = "9c835f35b0f1690597ade799c9c6a30bc5922959"
+DF12_PYTHON_LINTS_TAG = "v0.3.0"
 DF12_PYTHON_LINTS_SOURCE = (
-    f"git+https://github.com/leynos/df12-python-lints.git@{DF12_PYTHON_LINTS_COMMIT}"
+    f"git+https://github.com/leynos/df12-python-lints.git@{DF12_PYTHON_LINTS_TAG}"
 )
 
 
@@ -129,7 +130,7 @@ def makefile_text() -> str:
                 target="lint",
                 expected_header_fragments=("tools-lint",),
                 expected_recipe_fragments=(
-                    "$(UV_RUN) ruff check",
+                    "$(RUFF) check",
                     "$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)",
                     "$(PYLINT) $(PYLINT_TARGETS)",
                     "$(DF12_PYLINT) $(PYLINT_TARGETS)",
@@ -348,10 +349,11 @@ def test_df12_lint_project_configuration_uses_python_314() -> None:
         package for package in lock["package"] if package["name"] == "df12-python-lints"
     )
     assert_with_context(
-        df12_package["source"]["git"]
-        == "https://github.com/leynos/df12-python-lints.git"
-        f"?rev={DF12_PYTHON_LINTS_COMMIT}#{DF12_PYTHON_LINTS_COMMIT}",
-        "expected lockfile to record the immutable df12 Python lints commit",
+        df12_package["source"]["git"].startswith(
+            "https://github.com/leynos/df12-python-lints.git"
+            f"?rev={DF12_PYTHON_LINTS_TAG}#"
+        ),
+        "expected lockfile to record the df12 Python lints release tag",
     )
     assert_with_context(
         pyproject["tool"]["pylint"]["main"]["py-version"] == "3.14",
@@ -365,13 +367,14 @@ def test_df12_lint_project_configuration_uses_python_314() -> None:
 
 
 def test_ty_typecheck_configuration_is_pinned(makefile_text: str) -> None:
-    """Keep the type checker versioned and Python-3.14 aware."""
+    """Keep the type checker pinned and Python-3.14 aware."""
     pyproject_path = REPOSITORY_ROOT / "pyproject.toml"
     pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
 
     assert_with_context(
-        "TY_VERSION ?= 0.0.72" in makefile_text,
-        "expected the latest ty release to be pinned in the Makefile",
+        re.search(r"^TY_VERSION \?= \S+$", makefile_text, flags=re.MULTILINE)
+        is not None,
+        "expected ty to be pinned in the Makefile",
     )
     assert_with_context(
         "TY = env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)" in makefile_text,

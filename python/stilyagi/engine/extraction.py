@@ -269,7 +269,7 @@ def warn_unknown_ir_region_kinds(
             diagnostic.region_index,
             diagnostic.kind,
         )
-    return  # noqa: PLR1711  # R503 requires this explicit terminal return.
+    return  # ruff: ignore[useless-return]  # R503 requires this explicit terminal return.
 
 
 # pylint: enable=useless-return
