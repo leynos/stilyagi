@@ -43,14 +43,14 @@ Ensure all branches explicitly return a value if any branch does.
 
 ______________________________________________________________________
 
-## R503 — Add an Explicit Return at the End
+## R503 — Add an Explicit Return at the End When a Function May Return a Value
 
 ```python
 # BAD:
 def func(x):
     if x > 0:
         return x
-    # no return (bad)
+    # missing terminal return (bad)
 
 
 # GOOD:
