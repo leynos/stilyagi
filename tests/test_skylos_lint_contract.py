@@ -342,16 +342,16 @@ def test_skylos_allow_dry_run_preserves_whitelist_argument_order() -> None:
 @hyp.given(symbol=_SHELL_ARGUMENT_TEXT, reason=_SHELL_ARGUMENT_TEXT)
 def test_skylos_allow_validates_argument_boundaries(symbol: str, reason: str) -> None:
     """Validate missing values and preserve shell-significant argument boundaries."""
+    has_symbol, has_reason = bool(symbol.strip()), bool(reason.strip())
     completed = _run_skylos_allow(
-        f"SYMBOL={symbol}", f"REASON={reason}", dry_run=bool(symbol and reason)
+        f"SYMBOL={symbol}", f"REASON={reason}", dry_run=has_symbol and has_reason
     )
-
-    if not symbol:
+    if not has_symbol:
         assert completed.returncode == 2, "A missing SYMBOL must fail with exit 2"
         assert "Error: SYMBOL is required" in completed.stderr, (
             "A missing SYMBOL must report its validation error"
         )
-    elif not reason:
+    elif not has_reason:
         assert completed.returncode == 2, "A missing REASON must fail with exit 2"
         assert "Error: REASON is required" in completed.stderr, (
             "A missing REASON must report its validation error"

@@ -25,7 +25,9 @@ def load_workflow(workflow: str) -> dict[str, object]:
     {'on': {'push': ''}}
     """
     parsed = yaml.load(workflow, Loader=yaml.BaseLoader)
-    if not isinstance(parsed, dict):
-        message = "A workflow must parse to a top-level mapping"
-        raise TypeError(message)
-    return typ.cast("dict[str, object]", parsed)
+    match parsed:
+        case dict() as document:
+            return typ.cast("dict[str, object]", document)
+        case _:
+            message = "A workflow must parse to a top-level mapping"
+            raise TypeError(message)
