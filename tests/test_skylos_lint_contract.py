@@ -297,26 +297,25 @@ def test_skylos_configuration_requires_strict_documented_exceptions() -> None:
     )
 
 
-def test_skylos_allow_requires_symbol_without_accepting_wsl_name() -> None:
-    """The whitelist target must reject a missing symbol despite `NAME`."""
-    completed = _run_skylos_allow()
-    assert completed.returncode == 2, (
-        "Skylos whitelist boundary must reject a missing SYMBOL argument"
+@hyp.settings(max_examples=25, deadline=None)
+@hyp.given(value=st.text(alphabet=" \t", min_size=1, max_size=8))
+def test_skylos_allow_rejects_missing_or_whitespace_values(value: str) -> None:
+    """The whitelist target must reject absent and whitespace-only inputs."""
+    requests = (
+        ((), "SYMBOL"),
+        (("SYMBOL=handler",), "REASON"),
+        ((f"SYMBOL={value}", "REASON=reason"), "SYMBOL"),
+        (("SYMBOL=handler", f"REASON={value}"), "REASON"),
     )
-    assert (
-        "Error: SYMBOL is required for a named whitelist exception" in completed.stderr
-    ), "Skylos whitelist boundary must name the missing SYMBOL argument"
-
-
-def test_skylos_allow_requires_reason() -> None:
-    """The whitelist target must reject a missing rationale without scanning."""
-    completed = _run_skylos_allow("SYMBOL=handler")
-    assert completed.returncode == 2, (
-        "Skylos whitelist boundary must reject a missing REASON argument"
-    )
-    assert (
-        "Error: REASON is required for a named whitelist exception" in completed.stderr
-    ), "Skylos whitelist boundary must name the missing REASON argument"
+    for arguments, missing_name in requests:
+        completed = _run_skylos_allow(*arguments)
+        assert completed.returncode == 2, (
+            f"Skylos whitelist boundary must reject {missing_name}"
+        )
+        assert (
+            f"Error: {missing_name} is required for a named whitelist exception"
+            in completed.stderr
+        ), f"Skylos whitelist boundary must name the missing {missing_name}"
 
 
 @hyp.settings(max_examples=25, deadline=None)
