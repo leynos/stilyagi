@@ -38,6 +38,7 @@ def _run_failing_check(
     )
     return captured.err
 
+
 def _patch_read_bytes_failure(
     monkeypatch: pytest.MonkeyPatch,
     target: pathlib.Path,
@@ -53,6 +54,8 @@ def _patch_read_bytes_failure(
         return original_read_bytes(path, *args, **kwargs)
 
     monkeypatch.setattr(pathlib.Path, "read_bytes", read_bytes)
+
+
 def _read_failure_fragments(
     target: pathlib.Path,
     detail: str,
@@ -197,6 +200,7 @@ def test_cli_main_recovers_from_real_malformed_markdown(
         "expected captured.out to include fix counts",
     )
 
+
 def test_cli_main_preserves_crlf_source_for_extraction(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -225,6 +229,8 @@ def test_cli_main_preserves_crlf_source_for_extraction(
         extracted_sources == [source.decode("utf-8")],
         "expected extraction to receive the original CRLF text",
     )
+
+
 def _synthetic_ir_extract(source: str, _syntax: object) -> model.Document:
     """Return a document that carries one IR error for the 'warn' source only."""
     errors = (

@@ -45,6 +45,7 @@ class CheckInput:
     source_text: str | None = None
     source_bytes: bytes | None = None
 
+
 @dc.dataclass(frozen=True, slots=True)
 class CheckCollaborators:
     """Injectable collaborators for one check run.
@@ -59,6 +60,7 @@ class CheckCollaborators:
     writer: FileWriter | None = None
     output: typ.TextIO | None = None
 
+
 @dc.dataclass(frozen=True, slots=True)
 class _ResolvedCheckCollaborators:
     """Concrete collaborators ready for one command invocation."""
@@ -67,6 +69,8 @@ class _ResolvedCheckCollaborators:
     renderer: engine.RendererRegistry
     rule_runner: rules_registry.RuleRunner
     output: typ.TextIO
+
+
 def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Run the Stilyagi command-line interface.
 
@@ -199,6 +203,7 @@ def run_check(
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
 
+
 def _resolve_collaborators(
     collaborators: CheckCollaborators | None,
 ) -> _ResolvedCheckCollaborators:
@@ -210,6 +215,8 @@ def _resolve_collaborators(
         rule_runner=configured.rule_runner or rules_registry.run_rules,
         output=configured.output or sys.stdout,
     )
+
+
 def compute_exit_code(
     diagnostics_list: cabc.Sequence[diagnostics.Diagnostic],
     *,
@@ -304,12 +311,15 @@ def _stdin_check_input(stdin_filename: str | None) -> CheckInput:
         source_bytes=_read_stdin_bytes(),
     )
 
+
 def _read_stdin_bytes() -> bytes:
     """Read standard input as bytes, retaining text-stream test compatibility."""
     buffer = getattr(sys.stdin, "buffer", None)
     if buffer is not None:
         return typ.cast("typ.BinaryIO", buffer).read()
     return sys.stdin.read().encode("utf-8")
+
+
 def _read_source(check_input: CheckInput) -> CheckInput | None:
     """Return one input with its source bytes and decoded text populated."""
     try:
