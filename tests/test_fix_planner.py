@@ -248,7 +248,11 @@ def test_planner_accepts_list_paragraph_end_insertions_from_real_corpus() -> Non
     item = find_source_span(document, "Unordered item")
     candidate = _diagnostic(
         "PUN201",
-        Fix("Add punctuation", Applicability.SAFE, (TextEdit.insert_after(item, "."),)),
+        Fix(
+            "Add punctuation",
+            Applicability.SAFE,
+            (TextEdit(item.byte_end, item.byte_end, "."),),
+        ),
     )
 
     plan = plan_fixes(_request(source, document, (candidate,)))

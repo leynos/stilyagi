@@ -340,11 +340,11 @@ Established during planning; use them instead of re-measuring.
 
 - Observation (2026-08-24): the Milestone 3 full gate chain cannot reach the
   PyPy Pylint check because its existing dependency fetches cannot resolve
-  `pypi.org`. Three sequential attempts independently failed resolving
-  `pylint` or `astroid`; Ruff and Interrogate passed on each. Evidence is in
-  the three `lint` logs with suffixes `11`, `12`, and `13` under `/tmp`.
-  Impact: the plan is blocked by its three-iteration tolerance, with no
-  deterministic-code failure or CodeRabbit result to act on.
+  `pypi.org`. Three sequential attempts independently failed resolving `pylint`
+  or `astroid`; Ruff and Interrogate passed on each. Evidence is in the three
+  `lint` logs with suffixes `11`, `12`, and `13` under `/tmp`. Impact: the plan
+  is blocked by its three-iteration tolerance, with no deterministic-code
+  failure or CodeRabbit result to act on.
 
 - Observation: `nodes` is roughly a third of the IR payload and no Python code
   reads it. Evidence: for an 87 KB Markdown file the canonical IR JSON is 2.01
@@ -537,12 +537,12 @@ Established during planning; use them instead of re-measuring.
   onward progress. Date/Author: 2026-08-24, user-directed implementation.
 
 - **D-20: Generate fix-planning properties from extracted corpus provenance.**
-  Rationale: generating arbitrary Markdown makes failures ambiguous between
-  the extractor and planner, while filtering generated edit ranges makes
-  Hypothesis discard most candidates. A module-level cached corpus loader
-  exposes 69 source-backed segments and six source-to-synthetic triples, so
-  every accepted case is valid by construction and every rejection case crosses
-  a real synthetic boundary. Date/Author: 2026-08-24, implementation.
+  Rationale: generating arbitrary Markdown makes failures ambiguous between the
+  extractor and planner, while filtering generated edit ranges makes Hypothesis
+  discard most candidates. A module-level cached corpus loader exposes 69
+  source-backed segments and six source-to-synthetic triples, so every accepted
+  case is valid by construction and every rejection case crosses a real
+  synthetic boundary. Date/Author: 2026-08-24, implementation.
 
 - **D-21: Pause Milestone 3 for unavailable required dependencies.** Evidence:
   three full-gate attempts passed `make check-fmt`, Ruff, and Interrogate, then
@@ -558,8 +558,8 @@ Established during planning; use them instead of re-measuring.
   Rationale: replaying the older strict-Pyright commit would reintroduce
   `pyright` and its lockfile entries after `configure-df12-lints` had replaced
   them with the pinned `ty` runner. The target branch's configuration-map
-  validation and locked dependency state are newer shared infrastructure and
-  do not overlap the safe-fix feature. Date/Author: 2026-08-24, rebase.
+  validation and locked dependency state are newer shared infrastructure and do
+  not overlap the safe-fix feature. Date/Author: 2026-08-24, rebase.
 
 ## Outcomes & retrospective
 
@@ -1529,20 +1529,20 @@ well formed, and the before-and-after byte dumps for the CRLF fixture test.
 - Milestone 2 model-slice green evidence:
   `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution-2.out`
   records the complete sequentially green gate chain: 221 Python and 332 Rust
-  tests, with 17 snapshots reviewed. CodeRabbit is intentionally deferred
-  until the complete Milestone 2 implementation is ready for review.
+  tests, with 17 snapshots reviewed. CodeRabbit is intentionally deferred until
+  the complete Milestone 2 implementation is ready for review.
 - Milestone 2 final red evidence:
   `/tmp/{check-fmt,test}-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution-4.out`
-  records only formatter deltas and the expected wheel-layout snapshot addition
-  for `engine/fix_planning`; all other gates were green.
+  records only formatter deltas and the expected wheel-layout snapshot
+  addition for `engine/fix_planning`; all other gates were green.
 - Milestone 2 final gate evidence:
   `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution-5.out`
   records the final sequentially green chain: 226 Python and 332 Rust tests,
   with all 17 snapshots passing.
 - Milestone 2 CodeRabbit evidence:
   `/tmp/coderabbit-e4b821de-4fc5-4af5-aaed-598160137666-2-2-2-safe-fix-planning-conflict-resolution-6.out`
-  records `coderabbit review --agent` completing with zero findings and no rate
-  limit after the final documentation gates passed.
+  records `coderabbit review --agent` completing with zero findings and no
+  rate limit after the final documentation gates passed.
 
 ## Deferred follow-ups
 
@@ -1599,10 +1599,10 @@ milestone.
 **Revision 9, 2026-08-24.** Recorded Milestone 1's clean CodeRabbit review and
 started Milestone 2.
 
-**Revision 10, 2026-08-24.** Recorded the independently gated, atomic
-Milestone 2 fix-model slice. Its small commit satisfies the repository's
-rollback policy without declaring the milestone complete or running CodeRabbit
-before the kernel and renderer contract are in place.
+**Revision 10, 2026-08-24.** Recorded the independently gated, atomic Milestone
+2 fix-model slice. Its small commit satisfies the repository's rollback policy
+without declaring the milestone complete or running CodeRabbit before the
+kernel and renderer contract are in place.
 
 **Revision 11, 2026-08-24.** Completed Milestone 2: the production byte-splice
 kernel is now normative, its four independent properties pass, the legacy
@@ -1610,8 +1610,45 @@ round-trip adapter delegates to it, the engine fix stub is retired, and
 versioned renderer fix data is stable. The full deterministic gate chain is
 green; the required CodeRabbit review remains the boundary before Milestone 3.
 
-**Revision 12, 2026-08-24.** Recorded Milestone 2's clean CodeRabbit review
-and started Milestone 3.
+**Revision 12, 2026-08-24.** Recorded Milestone 2's clean CodeRabbit review and
+started Milestone 3.
+
+- **D-23: Adapt to the gates `main` gained while this branch was stacked.**
+  `configure-df12-lints` squash-merged into `main`, which has since added a
+  blocking Skylos dead-code gate over `python/stilyagi` (tests excluded), moved
+  to Ruff 0.16.4, and moved to `ty` 0.0.74. Three consequences for this work.
+
+  First, Ruff 0.16.4's larger default set enforces two blank lines between
+  top-level definitions, which the entity-aware merge driver had dropped while
+  replaying the rebase. Reformatting is mechanical.
+
+  Second, Skylos correctly reports the milestone 3 planner as dead.
+  `plan_fixes`, `FixPlanRequest`, `_validate_candidates`, and
+  `_overlap_rejection` are reachable only from tests, because their production
+  caller is the `--fix` pipeline in milestone 4. **`make lint` therefore fails
+  on this branch, and that failure is accurate rather than incidental.** Every
+  sanctioned way to silence it requires asserting something untrue: a
+  `[tool.skylos.dead_code]` entry-point rule models an *implicit* runtime
+  caller, and there is no caller of any kind; a named allow-list entry is
+  reserved for a *verified* runtime caller, and none exists. Suppression also
+  meets two further guards — the allow list is pinned by a frozenset in
+  `tests/test_skylos_lint_contract.py`, and adding four names pushes that
+  module past the 400-line cap. Three independent guards refusing the same
+  change is a design signal, not an obstacle to route around. The gate goes
+  green when milestone 4 wires the pipeline; until then it is left red and
+  documented.
+
+  Third, `TextEdit.insert_after` and `TextEdit.delete` were removed rather than
+  suppressed, which is a real improvement the gate surfaced. Neither had any
+  caller, and the gate's stated policy is to treat a finding as a candidate for
+  removal until its caller is verified. Skylos also matches bare names, so
+  allowing `delete` would have registered a blanket rule, and roadmap 2.2.3 adds
+  `stilyagi clean` — a subsystem very likely to hold a `delete` of its own
+  that the rule would then silently hide. `insert_before` and `replace` remain,
+  being the forms RFC 0002 §4 shows. Both removed constructors should return in
+  roadmap 2.3.1 alongside the first rule that calls them, which is the point at
+  which a verified caller exists. Update this plan's Interfaces section, which
+  still prescribes all four. Date/Author: 2026-08-25, rebase onto `main`.
 
 **Revision 13, 2026-08-24.** Recorded the committed Milestone 3 planner slice
 and the in-progress corpus-backed Stage C2 property coverage. The focused suite
@@ -1667,3 +1704,13 @@ changed and why:
 Revision 1 was written from reconnaissance of the existing pipeline, the IR
 span model, and the repository's gate conventions, with prior art from Ruff's
 `apply_fixes` and `Applicability` model.
+
+**Revision 16, 2026-08-25.** Rebased onto `main` after `configure-df12-lints`
+squash-merged, dropping the duplicated base commits. Two conflicts were
+resolved in favour of keeping both sides: `main` had narrowed the extraction
+`except` in `_check_one_file` so unexpected failures re-raise instead of
+becoming exit 2, and that narrowing is preserved alongside this branch's
+byte-faithful read and `rule_runner` seam; `engine/__init__.py` keeps `main`'s
+`BridgeExtractionError` export alongside this branch's `FixPlan` stub
+retirement. Stale dependency pins were resolved in favour of `main`. See D-23
+for the gate changes this rebase had to absorb.
