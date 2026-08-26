@@ -1032,8 +1032,8 @@ Table: Lint runner Makefile variables.
 | `UV`                        | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                 | Selects the `uv` executable used by Makefile Python commands.    |
 | `UV_ENV`                    | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                | Keeps `uv` cache and tool state inside the repository worktree.  |
 | `UV_RUN`                    | `$(UV_ENV) $(UV) run --group dev`                                                                             | Runs commands in the locked development dependency group.        |
-| `RUFF_VERSION`              | `0.16.4`                                                                                                      | Pins the Ruff version shared by the Makefile and CI.              |
-| `RUFF`                      | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                           | Builds the pinned Ruff command used by formatting and lint gates. |
+| `RUFF_VERSION`              | `0.16.4`                                                                                                      | Pins the Ruff version shared by the Makefile and CI.             |
+| `RUFF`                      | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                           | Builds the pinned Ruff command used by formatting and lint gates.|
 | `INTERROGATE`               | `$(UV_RUN) interrogate`                                                                                       | Selects the docstring-coverage command used by `make lint`.      |
 | `INTERROGATE_TARGETS`       | `python/stilyagi tests`                                                                                       | Selects the directories checked by Interrogate.                  |
 | `INTERROGATE_FLAGS`         | `--fail-under 100`                                                                                            | Requires complete Python docstring coverage.                     |
