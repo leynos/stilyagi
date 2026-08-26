@@ -14,7 +14,7 @@ import importlib.util
 import pathlib
 import re
 import shutil
-import subprocess  # noqa: S404 - tests invoke pinned, trusted subprocess commands.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests invoke pinned, trusted subprocess commands.
 import sys
 import tomllib
 import typing as typ
@@ -97,7 +97,7 @@ def _build_native_wheel_artifact(
         "--manifest-path",
         str(root / "crates" / "stilyagi-pyext" / "Cargo.toml"),
     ])
-    subprocess.run(  # noqa: S603 - command list uses trusted paths and pinned maturin
+    subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - command list uses trusted paths and pinned maturin
         command,
         check=True,
         cwd=root,
@@ -310,7 +310,7 @@ def test_maturin_wheel_executes_correctly(
     uv_path = _resolve_uv(REPOSITORY_ROOT)
     if uv_path is None:
         pytest.skip("uv is required for wheel installation tests.")
-    subprocess.run(  # noqa: S603 - arguments are trusted paths from this repo
+    subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - arguments are trusted paths from this repo
         [
             uv_path,
             "pip",
@@ -330,7 +330,7 @@ def test_maturin_wheel_executes_correctly(
         "print(stilyagi._stilyagi_rs.hello()); "
         "print(stilyagi._stilyagi_rs.supported_syntaxes())"
     )
-    probe = subprocess.run(  # noqa: S603 - sys.executable and the test-built script are trusted inputs.
+    probe = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - sys.executable and the test-built script are trusted inputs.
         [sys.executable, "-c", import_script],
         capture_output=True,
         check=True,

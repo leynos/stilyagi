@@ -11,7 +11,7 @@ import pathlib
 import shlex
 import shutil
 import string
-import subprocess  # noqa: S404 -- contract tests invoke a pinned local parser.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] -- contract tests invoke a pinned local parser.
 import tomllib
 import typing as typ
 
@@ -60,7 +60,7 @@ _MAKEUTIL_INSTALL_TOKENS: typ.Final = (
 
 def _makefile_report() -> dict[str, object]:
     """Return Makeutil's complete, successfully parsed Makefile report."""
-    completed = subprocess.run(  # noqa: S603 -- fixed parser command.
+    completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed parser command.
         _MAKEUTIL_COMMAND,
         capture_output=True,
         check=True,
@@ -179,7 +179,7 @@ def _run_skylos_allow(
     environment.pop("SYMBOL", None)
     environment.update(argument.split("=", maxsplit=1) for argument in arguments)
     dry_run_option = ("--dry-run",) if dry_run else ()
-    return subprocess.run(  # noqa: S603 -- fixed Make target and arguments.
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed Make target and arguments.
         (_make_executable(), *dry_run_option, "skylos-allow"),
         capture_output=True,
         check=False,

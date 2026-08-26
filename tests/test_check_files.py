@@ -131,7 +131,7 @@ def _setup_extractor_failure(
     monkeypatch.setattr(
         engine,
         "extract_document",
-        lambda _source, _syntax: _raise_runtime_error(),
+        lambda _source, _syntax: _raise_bridge_extraction_error(),
     )
     expected = f"stilyagi check: failed to check {target.as_posix()}: bridge exploded"
     return target, (expected,)
@@ -264,7 +264,7 @@ def _stub_discovery(
     )
 
 
-def _raise_runtime_error() -> typ.NoReturn:
+def _raise_bridge_extraction_error() -> typ.NoReturn:
     """Raise the deterministic extractor failure used by the regression test."""
     message = "bridge exploded"
-    raise RuntimeError(message)
+    raise engine.BridgeExtractionError(message)

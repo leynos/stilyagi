@@ -174,11 +174,16 @@ class ConfigResolver:
 
     @property
     def cache_stats(self) -> dict[str, int]:
-        """Return cache hit/miss counts accumulated over this resolver's run.
+        """Cache hit/miss counts accumulated over this resolver's run.
 
         Keys include ``discovery_hits``/``discovery_misses`` for nearest-config
         discovery and ``resolved_table_hits``/``resolved_table_misses`` for
         parsed-table resolution. Absent keys imply a count of zero.
+
+        Returns
+        -------
+        dict[str, int]
+            Copy of the accumulated cache hit and miss counts.
         """
         return dict(self._cache_stats)
 

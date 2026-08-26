@@ -8,5 +8,11 @@ class NlpProvider(typ.Protocol):
 
     @property
     def provider_name(self) -> str:
-        """Return the provider name."""
+        """The provider name.
+
+        Returns
+        -------
+        str
+            Stable identifier for the configured NLP provider.
+        """
         raise NotImplementedError

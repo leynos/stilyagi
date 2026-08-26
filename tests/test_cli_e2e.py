@@ -1,6 +1,6 @@
 """End-to-end subprocess coverage for the `stilyagi check` command."""
 
-import subprocess  # noqa: S404 - tests invoke a trusted local interpreter.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests invoke a trusted local interpreter.
 import sys
 import typing as typ
 

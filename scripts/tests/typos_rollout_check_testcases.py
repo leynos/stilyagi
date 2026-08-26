@@ -78,14 +78,14 @@ def test_load_policy_combines_shared_and_local_policy(
 
     policy = checker.load_policy(tmp_path)
 
-    assert policy.phrase_corrections == (  # noqa: S101 -- isolated test assertion.
+    assert policy.phrase_corrections == (  # ruff: ignore[assert] -- isolated test assertion.
         ("fit-for-purpose", "suitable"),
         (PROHIBITED, "handwritten"),
     )
-    assert policy.ignore_patterns == (  # noqa: S101 -- isolated test assertion.
+    assert policy.ignore_patterns == (  # ruff: ignore[assert] -- isolated test assertion.
         r"`[^`\n]+`",
     )
-    assert policy.excluded_files == (  # noqa: S101 -- isolated test assertion.
+    assert policy.excluded_files == (  # ruff: ignore[assert] -- isolated test assertion.
         "*.md",
         "!README.md",
     )
@@ -149,7 +149,7 @@ def test_checker_preserves_boundaries_masking_and_exclusions(
 
     findings = checker.check_phrase_corrections(tmp_path, checker.load_policy(tmp_path))
 
-    assert [  # noqa: S101 -- isolated test assertion.
+    assert [  # ruff: ignore[assert] -- isolated test assertion.
         (item.line, item.phrase) for item in findings
     ] == [
         (1, PROHIBITED),
@@ -175,8 +175,8 @@ def test_masking_preserves_offsets(
     """Mask ignored regions without changing source positions."""
     masked = checker._masked(text, patterns)
 
-    assert len(masked) == len(text)  # noqa: S101 -- isolated test assertion.
-    assert [  # noqa: S101 -- isolated test assertion.
+    assert len(masked) == len(text)  # ruff: ignore[assert] -- isolated test assertion.
+    assert [  # ruff: ignore[assert] -- isolated test assertion.
         index for index, value in enumerate(masked) if value == "\n"
     ] == [index for index, value in enumerate(text) if value == "\n"]
 
@@ -205,7 +205,7 @@ def test_checker_skips_indexed_path_absent_during_enumeration(
 
     findings = checker.check_phrase_corrections(tmp_path, checker.load_policy(tmp_path))
 
-    assert not findings  # noqa: S101 -- isolated test assertion.
+    assert not findings  # ruff: ignore[assert] -- isolated test assertion.
 
 
 def test_checker_surfaces_path_removed_after_enumeration(
@@ -242,9 +242,9 @@ def test_main_reports_location_and_exit_two(
     with pytest.raises(SystemExit) as exit_status:
         checker.app(["--repository", str(tmp_path)])
 
-    assert (  # noqa: S101 -- isolated test assertion.
+    assert (  # ruff: ignore[assert] -- isolated test assertion.
         exit_status.value.code == FINDINGS_EXIT_CODE
     )
-    assert capsys.readouterr().out == (  # noqa: S101 -- isolated test assertion.
+    assert capsys.readouterr().out == (  # ruff: ignore[assert] -- isolated test assertion.
         f"README.md:1:8: {PROHIBITED} -> handwritten\n"
     )

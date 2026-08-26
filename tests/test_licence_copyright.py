@@ -11,7 +11,7 @@ fails, the fix is to widen the year in ``LICENSE``, not to relax the test.
 
 import pathlib
 import re
-import subprocess  # noqa: S404 - the test invokes git with a fixed argument list.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - the test invokes git with a fixed argument list.
 
 import pytest
 
@@ -50,8 +50,8 @@ def _run_git(*args: str) -> str:
     str
         The command's standard output.
     """
-    completed = subprocess.run(  # noqa: S603 - fixed argument list, no shell.
-        ["git", *args],  # noqa: S607 - git is resolved from PATH by design.
+    completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argument list, no shell.
+        ["git", *args],  # ruff: ignore[start-process-with-partial-path] - git is resolved from PATH by design.
         capture_output=True,
         check=True,
         cwd=REPOSITORY_ROOT,

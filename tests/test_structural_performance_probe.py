@@ -2,7 +2,7 @@
 
 import json
 import pathlib
-import subprocess  # noqa: S404 -- justified: using subprocess in test to run external benchmark tool; validated input/control
+import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: using subprocess in test to run external benchmark tool; validated input/control
 import sys
 import typing as typ
 
@@ -63,7 +63,7 @@ def shared_markdown_structural_fixture_is_available() -> None:
 def run_structural_performance_probe(probe_state: ProbeState) -> None:
     """Run the maintainer-facing probe module as a subprocess."""
     output_path = probe_state["output_path"]
-    probe_state["completed"] = subprocess.run(  # noqa: S603 -- justified: spawning own module under test with known sys.executable; no user input reaches argv
+    probe_state["completed"] = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- justified: spawning own module under test with known sys.executable; no user input reaches argv
         [
             sys.executable,
             "-m",
