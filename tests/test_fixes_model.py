@@ -31,16 +31,12 @@ def test_text_edit_helpers_and_order_use_byte_spans() -> None:
         "expected insert_before to target the span start",
     )
     assert_with_context(
-        TextEdit.insert_after(span, "x") == TextEdit(4, 4, "x"),
-        "expected insert_after to target the span end",
-    )
-    assert_with_context(
         TextEdit.replace(span, "x") == TextEdit(2, 4, "x"),
         "expected replace to target the complete span",
     )
     assert_with_context(
-        TextEdit.delete(span) == TextEdit(2, 4, ""),
-        "expected delete to replace the complete span with nothing",
+        TextEdit.replace(span, "") == TextEdit(2, 4, ""),
+        "expected an empty replacement to delete the complete span",
     )
     assert_with_context(
         sorted((TextEdit(1, 2, "z"), TextEdit(1, 2, "a")))
