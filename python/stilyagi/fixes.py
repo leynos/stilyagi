@@ -43,19 +43,9 @@ class TextEdit:
         return cls(span.byte_start, span.byte_start, text)
 
     @classmethod
-    def insert_after(cls, span: ir_view.SourceSpan, text: str) -> TextEdit:
-        """Insert text immediately after a source span."""
-        return cls(span.byte_end, span.byte_end, text)
-
-    @classmethod
     def replace(cls, span: ir_view.SourceSpan, text: str) -> TextEdit:
         """Replace the complete source span with text."""
         return cls(span.byte_start, span.byte_end, text)
-
-    @classmethod
-    def delete(cls, span: ir_view.SourceSpan) -> TextEdit:
-        """Delete the complete source span."""
-        return cls.replace(span, "")
 
 
 @dc.dataclass(frozen=True, slots=True)
