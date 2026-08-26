@@ -48,6 +48,24 @@ class _BridgeDocument(typ.TypedDict):
     ir_json: typ.NotRequired[str]
 
 
+class BridgeExtractionError(Exception):
+    """Represent a documented, recoverable Rust extraction bridge failure.
+
+    The Rust bridge reports unsupported or unknown syntaxes as
+    ``NotImplementedError`` or ``ValueError`` and parser or IR failures as
+    ``RuntimeError``. This boundary preserves those documented failures without
+    allowing unrelated adapter, JSON, or vocabulary-invariant failures to be
+    mistaken for recoverable input errors.
+
+    Examples
+    --------
+    >>> raise BridgeExtractionError("unsupported syntax")
+    Traceback (most recent call last):
+    ...
+    stilyagi.engine.extraction.BridgeExtractionError: unsupported syntax
+    """
+
+
 _PYTHON_SYNTAX_SPELLINGS = frozenset(syntax.value for syntax in model.Syntax)
 _syntax_vocab_validated = False
 _SYNTAX_VOCAB_LOCK = threading.Lock()
@@ -128,11 +146,10 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
     -------
     model.Document
         Narrow document payload adapted onto the Python model surface.
+
     """
     _validate_syntax_vocab_once()
-    bridge_document = _coerce_bridge_document(
-        extract_document_bridge(source, syntax.value),
-    )
+    bridge_document = _coerce_bridge_document(_extract_bridge_payload(source, syntax))
     ir_payload = _parse_ir_json(bridge_document.get("ir_json"))
     return model.Document(
         syntax=model.Syntax(bridge_document["syntax"]),
@@ -142,6 +159,14 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
         ),
         ir=ir_payload,
     )
+
+
+def _extract_bridge_payload(source: str, syntax: model.Syntax) -> object:
+    """Return one raw bridge payload, translating documented bridge failures."""
+    try:
+        return extract_document_bridge(source, syntax.value)
+    except (NotImplementedError, ValueError, RuntimeError) as exc:
+        raise BridgeExtractionError(str(exc)) from exc
 
 
 def _extract_syntax_field(payload_dict: dict[str, object]) -> str:

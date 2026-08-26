@@ -58,6 +58,7 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
         (
             engine,
             [
+                "BridgeExtractionError",
                 "EngineRunner",
                 "ExecutionPlan",
                 "FixPlan",
@@ -387,6 +388,33 @@ def test_syntax_vocab_validation_is_shared_by_concurrent_callers(
 
 
 @pytest.mark.parametrize(
+    "bridge_error",
+    [
+        pytest.param(NotImplementedError, id="unsupported-syntax"),
+        pytest.param(ValueError, id="unknown-syntax"),
+        pytest.param(RuntimeError, id="parser-or-ir-failure"),
+    ],
+)
+def test_extract_bridge_payload_translates_documented_bridge_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    bridge_error: type[Exception],
+) -> None:
+    """Translate only the documented Rust bridge error types at its boundary."""
+    message = "bridge exploded"
+
+    def fail_bridge(_source: str, _syntax: str) -> typ.NoReturn:
+        """Raise one documented bridge failure."""
+        raise bridge_error(message)
+
+    monkeypatch.setattr(extraction_module, "extract_document_bridge", fail_bridge)
+
+    with pytest.raises(extraction_module.BridgeExtractionError, match=message) as error:
+        extraction_module._extract_bridge_payload("# Heading", model.Syntax.MARKDOWN)
+
+    assert isinstance(error.value.__cause__, bridge_error), "expected bridge cause"
+
+
+@pytest.mark.parametrize(
     ("extract_document", "expected_warning_args"),
     [
         pytest.param(
@@ -542,7 +570,13 @@ class DummyProvider:
 
     @property
     def provider_name(self) -> str:
-        """The provider identifier."""
+        """The provider identifier.
+
+        Returns
+        -------
+        str
+            The ``dummy`` provider identifier.
+        """
         return "dummy"
 
 

@@ -103,16 +103,18 @@ Adopt Option A.
 
 `make lint` SHALL run these tiers in order:
 
-1. Ruff through `uv run --group dev`.
+1. Ruff 0.16.4 through the pinned `RUFF` Makefile command, which invokes
+   `uv tool run ruff@$(RUFF_VERSION)`.
 2. Interrogate with 100% docstring coverage over `python/stilyagi` and
    `tests`.
 3. Focused Pylint through `uv tool run --python pypy` and the pinned
    `pylint-pypy-shim` wrapper.
-4. All `df12-python-lints` v0.1.0 Pylint messages through the locked
-   development environment under CPython 3.14 from immutable commit
-   `9c835f35b0f1690597ade799c9c6a30bc5922959`.[^4]
+4. All `df12-python-lints` v0.3.0 Pylint messages through the locked
+   development environment under CPython 3.14 from the `v0.3.0` tag, which
+   `uv.lock` resolves to immutable commit
+   `4cf41736cce2f7ba2778882a5c629c044568a0e5`.[^4]
 5. `ambrleaks` from that same locked CPython 3.14 development environment and
-   immutable commit over `tests`.
+   resolved commit over `tests`.
 6. Rust `cargo doc` and `cargo clippy` with warnings denied.
 7. Whitaker with `--all`, forwarding the workspace manifest, workspace target,
    all-target, and all-feature arguments, with Rust warnings denied.
@@ -122,19 +124,21 @@ Adopt Option A.
 The Python lint policy SHALL live in `pyproject.toml`:
 
 - `[tool.ruff]` and `[tool.ruff.lint]` define the Ruff target version,
-  preview mode, the `ASYNC`, `D`, and `DOC` rule families, ignored docstring
-  conflicts, per-file test suppressions, import-convention aliases, banned
-  deprecated `typing.*` APIs, NumPy pydocstyle convention, pydoclint semantics,
-  McCabe threshold, and Ruff's Pylint compatibility thresholds.
+  preview mode, the `ASYNC`, `D`, and `DOC` rule families, Ruff 0.16 named
+  rules, ignored docstring conflicts, per-file test suppressions,
+  import-convention aliases, banned deprecated `typing.*` APIs, NumPy
+  pydocstyle convention, pydoclint semantics, McCabe threshold, and Ruff's
+  Pylint compatibility thresholds. Inline Ruff suppressions use named
+  `# ruff: ignore[...]` directives with an explanation.
 - `[tool.pylint.main]`, `[tool.pylint.design]`, and
   `[tool.pylint."messages control"]` define the focused Pylint pass. The pass
   disables all messages by default and enables only the explicitly selected
   diagnostics. The project baseline is Python 3.14 so baseline-sensitive df12
   messages are active.
-- The development dependency group declares `df12-python-lints` in
-  `pyproject.toml`; `uv.lock` records immutable commit
-  `9c835f35b0f1690597ade799c9c6a30bc5922959`, giving its Pylint plugin and
-  `ambrleaks` command the same environment as the project.
+- The development dependency group declares `df12-python-lints` at the
+  `v0.3.0` tag in `pyproject.toml`; `uv.lock` resolves that tag to immutable
+  commit `4cf41736cce2f7ba2778882a5c629c044568a0e5`, giving its Pylint plugin
+  and `ambrleaks` command the same environment as the project.
 
 The Makefile SHALL expose variables for the Pylint runner:
 
@@ -146,7 +150,7 @@ The Makefile SHALL expose variables for the Pylint runner:
 - `PYLINT_PYPY_SHIM` expands the pinned Git URL.
 - `PYLINT` builds the full `uv tool run` command used by `make lint`.
 - `DF12_PYTHON` selects CPython 3.14 for both df12 commands.
-- `DF12_PYLINT_MESSAGES` lists all thirteen v0.1.0 plugin messages:
+- `DF12_PYLINT_MESSAGES` lists all thirteen v0.3.0 plugin messages:
   `R9101`, `C9102`, `R9103`, `R9104`, `C9105`, `C9106`, `C9107`, `R9108`,
   `R9109`, `R9110`, `R9111`, `R9112`, and `C9112`.
 - `DF12_PYLINT` builds the plugin-backed Pylint command.
@@ -208,7 +212,7 @@ make lint
 Run only the Python tiers manually when diagnosing a failure:
 
 ```bash
-UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev ruff check
+UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv tool run ruff@0.16.4 check
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev interrogate \
   --fail-under 100 python/stilyagi tests
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv tool run --python pypy \
@@ -224,8 +228,9 @@ UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev --python 3.14 am
 Prefer changing `PYLINT_TARGETS`, `PYLINT_PYTHON`, `PYLINT_PYPY_SHIM_REF`, or
 `DF12_PYTHON` through Makefile variables for one-off local experiments. Commit
 changes to those defaults only when the project-wide policy is intentionally
-changing. The immutable df12 source is declared in `pyproject.toml` and
-recorded in `uv.lock`.
+changing. The df12 source is declared at tag `v0.3.0` in `pyproject.toml` and
+recorded as immutable commit `4cf41736cce2f7ba2778882a5c629c044568a0e5` in
+`uv.lock`.
 
 ## Follow-on work
 
@@ -236,14 +241,15 @@ recorded in `uv.lock`.
 - Revisit the `syntax-error` Pylint disable when the managed PyPy interpreter
   catches up with the project's CPython syntax target.
 
-## Addendum — 2026-08-23
+## Addendum — 2026-08-26
 
 The layered linting implementation is now documented against the project
-lockfile rather than the package metadata label. The development dependency
-resolves `df12-python-lints` from immutable commit
-`9c835f35b0f1690597ade799c9c6a30bc5922959`, recorded by `uv.lock` as version
-0.1.0. The Makefile enables the thirteen message IDs listed above and runs
-both the CPython 3.14 Pylint pass and `ambrleaks` from that locked environment.
+lockfile rather than treating the source tag as immutable. The development
+dependency declares `df12-python-lints` at tag `v0.3.0`; `uv.lock` resolves it
+to immutable commit `4cf41736cce2f7ba2778882a5c629c044568a0e5`, recorded as
+version 0.3.0. The Makefile enables the thirteen message IDs listed above and
+runs both the CPython 3.14 Pylint pass and `ambrleaks` from that locked
+environment.
 
 ## Addendum — 2026-08-23: Skylos production dead-code tier
 
@@ -260,4 +266,4 @@ callers that cannot be modelled by an entry point.
 [^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
 [^2]: [leynos/episodic](https://github.com/leynos/episodic)
 [^3]: [leynos/pylint-pypy-shim](https://github.com/leynos/pylint-pypy-shim)
-[^4]: [leynos/df12-python-lints](https://github.com/leynos/df12-python-lints/commit/9c835f35b0f1690597ade799c9c6a30bc5922959)
+[^4]: [leynos/df12-python-lints v0.3.0](https://github.com/leynos/df12-python-lints/tree/v0.3.0)

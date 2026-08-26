@@ -300,9 +300,15 @@ def _check_one_file(
     _LOGGER.debug("extracting %s", check_input.reported_path)
     try:
         document = engine.extract_document(source, model.Syntax.MARKDOWN)
-    except Exception as exc:  # ruff: ignore[blind-except] - the bridge maps internal failures here.
+    except engine.BridgeExtractionError as exc:
         _report_check_error(check_input.resolved_path, exc)
         return [], True
+    except Exception:
+        _LOGGER.exception(
+            "unexpected extraction failure for %s",
+            check_input.reported_path,
+        )
+        raise
 
     _LOGGER.debug("resolving config for %s", check_input.reported_path)
     try:
