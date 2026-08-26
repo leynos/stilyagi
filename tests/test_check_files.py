@@ -1,8 +1,8 @@
 """Failure-mode coverage for the `stilyagi check` command."""
 
+import dataclasses as dc
 import pathlib
 import typing as typ
-from dataclasses import dataclass  # noqa: ICN003 - Required direct test-harness import.
 
 import pytest
 from stilyagi import cli, config, discovery, engine, model
@@ -285,7 +285,8 @@ def _raise_bridge_extraction_error() -> typ.NoReturn:
     message = "bridge exploded"
     raise engine.BridgeExtractionError(message)
 
-@dataclass(frozen=True, slots=True)
+
+@dc.dataclass(frozen=True, slots=True)
 class _FailingCheckHarness:
     """Pytest collaborators required to run one failing check."""
 
@@ -293,6 +294,7 @@ class _FailingCheckHarness:
     monkeypatch: pytest.MonkeyPatch
     capsys: pytest.CaptureFixture[str]
     caplog: pytest.LogCaptureFixture
+
 
 @pytest.fixture(name="harness")
 def _failing_check_harness(

@@ -197,6 +197,7 @@ def run_check(
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
 
+
 def _check_discovered_files(
     check_inputs: cabc.Iterable[CheckInput],
     options: CheckOptions,
@@ -214,6 +215,8 @@ def _check_discovered_files(
         had_error = had_error or file_error
         unreadable_files += int(was_unreadable)
     return diagnostics_list, had_error, unreadable_files
+
+
 def compute_exit_code(
     diagnostics_list: cabc.Sequence[diagnostics.Diagnostic],
     *,

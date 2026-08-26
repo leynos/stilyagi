@@ -39,7 +39,15 @@ def relative_source_path_strings(
     return "/".join([*directories, f"{stem}{suffix}"])
 
 
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=48)
+# `deadline=None` because each example builds a real directory tree and then
+# walks it twice. The elapsed time therefore tracks filesystem and machine load
+# rather than the code under test, and the default 200 ms deadline fails under
+# a loaded shared runner while the property itself still holds.
+@settings(
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+    max_examples=48,
+    deadline=None,
+)
 @given(st.lists(relative_source_path_strings(), min_size=1, max_size=8, unique=True))
 def test_discovery_is_sorted_independent_of_target_order(
     tmp_path: pathlib.Path,

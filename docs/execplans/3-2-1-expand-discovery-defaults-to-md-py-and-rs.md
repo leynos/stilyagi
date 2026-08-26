@@ -1366,7 +1366,8 @@ Quality criteria — what "done" means:
 - **Typecheck:** `make typecheck` passes, including the pinned `ty check` pass.
 - **Lint:** `make lint` passes — `ruff`, `interrogate` at 100% docstring
   coverage, `pylint`, the df12 `pylint` plugin pass, `ambrleaks` over `tests`,
-  `cargo doc`, `clippy` with `-D warnings`, and `whitaker`.
+  `cargo doc`, `clippy` with `-D warnings`, `whitaker`, and the Skylos
+  dead-code gate over the production targets.
 - **Markdown:** `make markdownlint` (including the `typos` gate) and
   `make nixie` pass.
 - **Review:** `coderabbit review --agent` reports no outstanding concerns at
@@ -1695,3 +1696,51 @@ plan now cites `ty check` again. The lesson is recorded rather than the churn:
 cite gates by their `make` target, and re-read the recipe at W0 rather than
 trusting any statement in this document about which tool sits behind
 `make typecheck`.
+
+**Round 3 (2026-08-26).** Rebased onto `main` after `configure-df12-lints`
+squash-merged as #102 and was deleted. Because the base was squashed, only this
+plan's own 19 commits were replayed (`git rebase --onto origin/main <old-base>`);
+replaying the 26 inherited lint commits would have conflicted against their own
+squash. `main` had also moved on with Skylos dead-code detection (#120, #125)
+and a Ruff and `ty` normalization (#124).
+
+Four conflicts and gate failures were resolved by adopting `main`'s improvement
+rather than re-asserting this branch's version:
+
+- **`_check_one_file` extraction errors.** `main` replaced the broad
+  `except Exception` with a typed `engine.BridgeExtractionError` arm plus a
+  re-raise that logs unexpected failures. This branch changed the same function
+  to dispatch on `check_input.syntax` and, later, to return a read-failure flag
+  for the run summary. The resolution keeps all three: typed bridge handling,
+  per-file syntax dispatch, and the three-tuple return.
+- **`_measure_cold_iteration` suppression style.** `main` moved the repository
+  to Ruff 0.16 `# ruff: ignore[rule-name]` comments; this branch parameterized
+  the probe per syntax. Both kept.
+- **Ruff 0.16 `noqa-comments` rule.** Two `# noqa` comments this branch added
+  now fail the gate. Rather than translate them to `ruff: ignore`, both were
+  removed by following the house convention they were suppressing:
+  `tests/test_check_files.py` uses `import dataclasses as dc`, and
+  `tests/test_cli_e2e.py` uses `cabc.Callable`. `pyproject.toml` bans
+  `from dataclasses import …` and `typing.Callable` precisely so the aliased
+  forms are used, so the suppressions were fighting the standard rather than
+  documenting an exception.
+- **`make fmt` reflow.** The Markdown wrapper joined a long inline signature in
+  the developers' guide into a 119-character line that `markdownlint --fix`
+  cannot break. `main`'s split form was restored.
+
+One test change was needed. `test_discovery_is_sorted_independent_of_target_order`
+failed the full-suite run with a hypothesis `DeadlineExceeded` at 309 ms against
+the 200 ms default, while passing three times in isolation. Each example builds
+a real directory tree and walks it twice, so the elapsed time tracks filesystem
+and machine load rather than the code under test. The test now sets
+`deadline=None` with that rationale recorded inline. This is a genuine gate
+defect rather than a tolerable flake: an intermittently failing property test
+teaches reviewers to re-run rather than investigate.
+
+New gate to be aware of: `make lint` now ends with a Skylos dead-code gate over
+the production targets. The quality criteria list it.
+
+Gate evidence after this rebase: `make check-fmt`, `make typecheck` (`ty`
+0.0.74), `make lint` (including Whitaker and Skylos), `make test` (347 Rust
+tests, 242 Python tests, 17 snapshots), `make markdownlint`, and `make nixie`
+all pass.

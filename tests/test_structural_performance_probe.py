@@ -1,15 +1,16 @@
 """Unit and behaviour tests for the structural performance probe."""
+
 import json
 import pathlib
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: using subprocess in test to run external benchmark tool; validated input/control
 import sys
 import typing as typ
 
-from pytest_bdd import given, scenario, then, when
-from syrupy.extensions.json import JSONSnapshotExtension
 import pytest
-
+from pytest_bdd import given, scenario, then, when
 from stilyagi import model
+from syrupy.extensions.json import JSONSnapshotExtension
+
 from tests.performance import structural_probe
 from tests.support.assertions import assert_with_context
 

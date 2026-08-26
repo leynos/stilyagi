@@ -161,6 +161,7 @@ def test_check_logs_extraction_failure_alongside_stderr(
     )
     assert len(warnings) == 1, "expected exactly one extraction failure warning"
 
+
 def test_main_skips_a_symlinked_directory_target(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
