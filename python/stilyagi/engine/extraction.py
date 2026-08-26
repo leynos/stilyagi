@@ -135,6 +135,7 @@ def _known_ir_region_kinds() -> frozenset[str]:
     """Return the cached canonical region-kind lookup set."""
     return frozenset(supported_region_kinds())
 
+
 @cache
 def authored_directive_error_codes() -> frozenset[str]:
     """Return the cached set of Rust-owned authored-directive error codes.
@@ -145,6 +146,8 @@ def authored_directive_error_codes() -> frozenset[str]:
         The error codes that describe incorrect directives a user authored.
     """
     return frozenset(bridge_authored_directive_error_codes())
+
+
 def extract_document(source: str, syntax: model.Syntax) -> model.Document:
     """Extract one minimal document payload through the Rust extension.
 

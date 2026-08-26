@@ -725,16 +725,15 @@ payloads.
 
 `stilyagi_ir::content_hash_for` computes the stable Secure Hash Algorithm
 (SHA-256) content hash that IR documents persist as `document.content_hash`.
-The digest suffix is rendered
-by the crate-internal `to_lower_hex` helper in `canonical_json.rs` rather than
-with the `{:x}` format specifier because `sha2` 0.11 changed `digest()` to
-return `hybrid_array::Array<u8, _>`, which does not implement `LowerHex`. The
-rendering stays lowercase and zero-padded so persisted IR hashes remain
-byte-identical.
+The digest suffix is rendered by the crate-internal `to_lower_hex` helper in
+`canonical_json.rs` rather than with the `{:x}` format specifier because `sha2`
+0.11 changed `digest()` to return `hybrid_array::Array<u8, _>`, which does not
+implement `LowerHex`. The rendering stays lowercase and zero-padded so
+persisted IR hashes remain byte-identical.
 
-The `crates/stilyagi-ir/tests/ui.rs` test runs a `trybuild` compile-fail fixture
-that verifies direct `format!("{digest:x}")` formatting does not compile for
-the `sha2` 0.11 digest output. The
+The `crates/stilyagi-ir/tests/ui.rs` test runs a `trybuild` compile-fail
+fixture that verifies direct `format!("{digest:x}")` formatting does not
+compile for the `sha2` 0.11 digest output. The
 `crates/stilyagi-ir/tests/ui/sha2_digest_lower_hex.stderr` file records the
 expected compiler diagnostic snapshot. If an intentional compiler diagnostic
 change occurs, refresh the snapshot with:
@@ -1016,9 +1015,8 @@ structure without YAML type coercion. The helper accepts only a top-level
 mapping and raises `TypeError` with the message
 `A workflow must parse to a top-level mapping` for other document shapes.
 
-Both `tests/test_ci_workflow_units.py` and
-`tests/test_skylos_lint_contract.py` reuse this helper instead of maintaining
-separate workflow parsers.
+Both `tests/test_ci_workflow_units.py` and `tests/test_skylos_lint_contract.py`
+reuse this helper instead of maintaining separate workflow parsers.
 
 ### 6a. Python linting architecture
 
@@ -1066,34 +1064,34 @@ The Makefile exposes the lint runner through these variables:
 
 Table: Lint runner Makefile variables.
 
-| Variable                    | Default                                                                                                       | Purpose                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `UV`                        | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                 | Selects the `uv` executable used by Makefile Python commands.    |
-| `UV_ENV`                    | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                | Keeps `uv` cache and tool state inside the repository worktree.  |
-| `UV_RUN`                    | `$(UV_ENV) $(UV) run --group dev`                                                                             | Runs commands in the locked development dependency group.        |
-| `RUFF_VERSION`              | `0.16.4`                                                                                                      | Pins the Ruff version shared by the Makefile and CI.             |
-| `RUFF`                      | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                           | Builds the pinned Ruff command used by formatting and lint gates.|
-| `INTERROGATE`               | `$(UV_RUN) interrogate`                                                                                       | Selects the docstring-coverage command used by `make lint`.      |
-| `INTERROGATE_TARGETS`       | `python/stilyagi tests`                                                                                       | Selects the directories checked by Interrogate.                  |
-| `INTERROGATE_FLAGS`         | `--fail-under 100`                                                                                            | Requires complete Python docstring coverage.                     |
-| `PYLINT_PYTHON`             | `pypy`                                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.      |
-| `PYLINT_TARGETS`            | `python/stilyagi tests`                                                                                       | Selects the directories checked by the Pylint tier.              |
-| `PYLINT_PYPY_SHIM_REF`      | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                                    | Pins the shim commit used by the Pylint tier.                    |
-| `PYLINT_PYPY_SHIM`          | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                  | Expands the pinned shim package source.                          |
-| `PYLINT`                    | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=` | Builds the focused PyPy Pylint command used by `make lint`.      |
-| `DF12_PYTHON`               | `3.14`                                                                                                        | Selects CPython for the df12 Pylint and scanner tiers.           |
-| `DF12_PYLINT_MESSAGES`      | all thirteen v0.3.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                             |
-| `DF12_PYLINT`               | project-backed Pylint with `df12_python_lints` loaded                                                         | Builds the CPython df12 Pylint command.                          |
-| `AMBRLEAKS`                 | locked `uv run --group dev --python 3.14` environment                                                         | Builds the snapshot leak scanner command from the locked commit. |
-| `SKYLOS_VERSION`            | `4.33.2`                                                                                                      | Pins the dead-code detector used by `make lint`.                 |
-| `SKYLOS_CLI`                | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`                            | Builds the command-only Skylos CLI.                              |
-| `SKYLOS`                    | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                                  | Adds scan-only configuration to the Skylos CLI.                  |
-| `SKYLOS_PRODUCTION_TARGETS` | `python/stilyagi`                                                                                             | Limits dead-code analysis to production Python sources.          |
-| `SKYLOS_EXCLUDE_FOLDERS`    | `tests`                                                                                                       | Excludes tests from the production liveness graph.               |
-| `TY_VERSION`                | `0.0.74`                                                                                                      | Pins the `ty` version shared by the Makefile and CI.             |
-| `TY`                        | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                               | Builds the pinned type-checking command.                         |
-| `TYPOS_VERSION`             | `1.48.0`                                                                                                      | Pins the `typos` version shared by the Makefile and CI.          |
-| `TYPOS`                     | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                                         | Builds the spelling-check command used by `make markdownlint`.   |
+| Variable                    | Default                                                                                                       | Purpose                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `UV`                        | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                 | Selects the `uv` executable used by Makefile Python commands.     |
+| `UV_ENV`                    | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                | Keeps `uv` cache and tool state inside the repository worktree.   |
+| `UV_RUN`                    | `$(UV_ENV) $(UV) run --group dev`                                                                             | Runs commands in the locked development dependency group.         |
+| `RUFF_VERSION`              | `0.16.4`                                                                                                      | Pins the Ruff version shared by the Makefile and CI.              |
+| `RUFF`                      | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                           | Builds the pinned Ruff command used by formatting and lint gates. |
+| `INTERROGATE`               | `$(UV_RUN) interrogate`                                                                                       | Selects the docstring-coverage command used by `make lint`.       |
+| `INTERROGATE_TARGETS`       | `python/stilyagi tests`                                                                                       | Selects the directories checked by Interrogate.                   |
+| `INTERROGATE_FLAGS`         | `--fail-under 100`                                                                                            | Requires complete Python docstring coverage.                      |
+| `PYLINT_PYTHON`             | `pypy`                                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.       |
+| `PYLINT_TARGETS`            | `python/stilyagi tests`                                                                                       | Selects the directories checked by the Pylint tier.               |
+| `PYLINT_PYPY_SHIM_REF`      | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                                    | Pins the shim commit used by the Pylint tier.                     |
+| `PYLINT_PYPY_SHIM`          | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                  | Expands the pinned shim package source.                           |
+| `PYLINT`                    | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=` | Builds the focused PyPy Pylint command used by `make lint`.       |
+| `DF12_PYTHON`               | `3.14`                                                                                                        | Selects CPython for the df12 Pylint and scanner tiers.            |
+| `DF12_PYLINT_MESSAGES`      | all thirteen v0.3.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                              |
+| `DF12_PYLINT`               | project-backed Pylint with `df12_python_lints` loaded                                                         | Builds the CPython df12 Pylint command.                           |
+| `AMBRLEAKS`                 | locked `uv run --group dev --python 3.14` environment                                                         | Builds the snapshot leak scanner command from the locked commit.  |
+| `SKYLOS_VERSION`            | `4.33.2`                                                                                                      | Pins the dead-code detector used by `make lint`.                  |
+| `SKYLOS_CLI`                | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`                            | Builds the command-only Skylos CLI.                               |
+| `SKYLOS`                    | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                                  | Adds scan-only configuration to the Skylos CLI.                   |
+| `SKYLOS_PRODUCTION_TARGETS` | `python/stilyagi`                                                                                             | Limits dead-code analysis to production Python sources.           |
+| `SKYLOS_EXCLUDE_FOLDERS`    | `tests`                                                                                                       | Excludes tests from the production liveness graph.                |
+| `TY_VERSION`                | `0.0.74`                                                                                                      | Pins the `ty` version shared by the Makefile and CI.              |
+| `TY`                        | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                               | Builds the pinned type-checking command.                          |
+| `TYPOS_VERSION`             | `1.48.0`                                                                                                      | Pins the `typos` version shared by the Makefile and CI.           |
+| `TYPOS`                     | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                                         | Builds the spelling-check command used by `make markdownlint`.    |
 
 Override these variables only for local diagnosis unless the project-wide lint
 policy is intentionally changing. For example:
@@ -1321,8 +1319,8 @@ versions. The repository uses workflow-level pins and Makefile commands:
 
 - Ruff is pinned by the Makefile's `RUFF_VERSION` variable and the workflow's
   `RUFF_VERSION` environment variable. The `RUFF` command invokes
-  `uv tool run ruff@$(RUFF_VERSION)` in both cases. Interrogate is pinned in
-  the `pyproject.toml` `dev` dependency group and runs through
+  `uv tool run ruff@$(RUFF_VERSION)` in both cases. Interrogate is pinned in the
+  `pyproject.toml` `dev` dependency group and runs through
   `uv run --group dev`; CI must not install it separately.
 - `ty` is pinned by the Makefile's `TY_VERSION` variable and the workflow's
   `TY_VERSION` environment variable. The `TY` command invokes

@@ -91,11 +91,14 @@ class ProbeRun(typ.NamedTuple):
     byte_count: int
     durations_ns: tuple[int, ...]
 
+
 class StructuralFixture(typ.NamedTuple):
     """One representative source fixture for a supported extractor syntax."""
 
     path: pathlib.Path
     syntax: model.Syntax
+
+
 def repository_root() -> pathlib.Path:
     """Return the repository root from this maintainer-facing module."""
     return pathlib.Path(__file__).resolve().parents[2]
