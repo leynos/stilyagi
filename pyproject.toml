@@ -384,9 +384,17 @@ names = [
     "_require_strict_int",
     "reset_extraction_state_for_tests",
     "extract_document",
+    "FixPlanRequest",
+    "_overlap_rejection",
+    "_validate_candidates",
+    "plan_fixes",
 ]
 
 [tool.skylos.whitelist.documented]
+"_overlap_rejection" = "Called by plan_fixes; becomes live with the milestone 4 --fix pipeline."
+"_validate_candidates" = "Called by plan_fixes; becomes live with the milestone 4 --fix pipeline."
+"FixPlanRequest" = "Request object for plan_fixes; becomes live with the milestone 4 --fix pipeline."
+"plan_fixes" = "Milestone 3 fix planner; its production caller is the milestone 4 --fix pipeline. Exercised by tests/test_fix_planner.py until that wiring lands."
 InvalidSpacyModelError = "Raised by SpacyProviderConfig validation for blank model identifiers."
 _coerce_path = "Called by StilyagiConfig post-initialization to normalize cache directories."
 _coerce_string_to_string_tuple_map = "Called by LintConfig post-initialization to normalize per-file ignore mappings."
