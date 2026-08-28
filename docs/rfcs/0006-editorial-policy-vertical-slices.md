@@ -555,6 +555,15 @@ Minimum acceptance coverage:
 - First-person, second-person, possessive-determiner, and imperative examples.
 - Paired cases for each easily identifiable inverse or variant, proving that
   configuration selects the enforced behaviour.
+- Property tests should map generated region-layout and source-range
+  invariants, plus Rust provider-planning invariants, to `proptest`.
+- Python-facing rule-pack and configuration activation states should map to
+  Hypothesis properties.
+- These properties should prove that source-backed fixes stay within valid,
+  unambiguous ranges; providers activate only when selected rules require
+  them; and disabled-by-default rules remain inert until explicitly selected.
+- Reserve exhaustive proof for any substantive future lemma; ordinary
+  configuration and provider plumbing should use property coverage instead.
 - The six `write-good` gap probes across at least one Markdown fixture and one
   source-tree fixture.
 - Provider-debug snapshots showing which capabilities were selected.
