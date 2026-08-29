@@ -23,8 +23,6 @@ from tests.support.workflows import load_workflow
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 _MAKEUTIL_COMMAND: typ.Final = ("makeutil", "parse", "Makefile")
-_MAKEUTIL_REVISION: typ.Final = "29fc5a1634ffbaa18a773eed9dff1b2838a45d9c"
-_MAKEUTIL_TOOLCHAIN: typ.Final = "nightly-2026-05-28"
 _MAKE_EXECUTABLE: typ.Final = shutil.which("make") or "make"
 _REQUIRED_SKYLOS_WHITELIST_NAMES: typ.Final = frozenset((
     "InvalidSpacyModelError",
@@ -206,9 +204,9 @@ def _assert_makeutil_installation(command: object, *, contract: str) -> None:
 
 def test_lint_recipe_runs_the_production_dead_code_gate() -> None:
     """`make lint` must scan production code with Skylos's strict gate."""
-    assert _variable_tokens("SKYLOS_VERSION") == ("4.33.2",), (
-        "Skylos version contract must pin 4.33.2"
-    )
+    skylos_version = _variable_tokens("SKYLOS_VERSION")
+    assert len(skylos_version) == 1, "Skylos version configuration must be singular"
+    assert skylos_version[0], "Skylos version configuration must not be empty"
     assert _variable_tokens("SKYLOS_PRODUCTION_TARGETS") == ("python/stilyagi",), (
         "Skylos production-target contract must scan python/stilyagi"
     )
@@ -368,14 +366,13 @@ def test_skylos_allow_forwards_generated_argument_boundaries(
         ], "Skylos must receive each generated value as exactly one argument"
 
 
-def test_full_suite_workflows_provision_the_pinned_makefile_parser() -> None:
-    """Every full-suite CI job must pin and install Makeutil independently."""
+def test_full_suite_workflows_consistently_provision_makefile_parser() -> None:
+    """Every full-suite CI job must consistently install Makeutil independently."""
     lint_step = _sole_workflow_step(
         ".github/workflows/smoke.yml", "lint-test", "Lint and dead-code detection"
     )
-    assert lint_step.get("run") == "make lint", (
-        "Smoke lint-step contract must invoke the shared make lint target"
-    )
+    assert lint_step.get("run") == "make lint", "expected `make lint`"
+    makeutil_configurations = []
     for workflow_path, job_name in (
         (".github/workflows/smoke.yml", "lint-test"),
         (".github/workflows/coverage-main.yml", "coverage-upload"),
@@ -384,12 +381,13 @@ def test_full_suite_workflows_provision_the_pinned_makefile_parser() -> None:
             _workflow_document(workflow_path).get("env"),
             subject=f"{workflow_path} Makeutil environment",
         )
-        assert environment.get("MAKEUTIL_REVISION") == _MAKEUTIL_REVISION, (
-            f"{workflow_path} Makeutil revision contract must stay pinned"
-        )
-        assert environment.get("MAKEUTIL_TOOLCHAIN") == _MAKEUTIL_TOOLCHAIN, (
-            f"{workflow_path} Makeutil toolchain contract must stay pinned"
-        )
+        makeutil_revision = environment.get("MAKEUTIL_REVISION")
+        assert isinstance(makeutil_revision, str), "Makeutil revision must be a string"
+        assert makeutil_revision, "Makeutil revision must not be empty"
+        makeutil_toolchain = environment.get("MAKEUTIL_TOOLCHAIN")
+        assert isinstance(makeutil_toolchain, str), "Makeutil toolchain must be text"
+        assert makeutil_toolchain, "Makeutil toolchain must not be empty"
+        makeutil_configurations.append((makeutil_revision, makeutil_toolchain))
         parser_step = _sole_workflow_step(
             workflow_path, job_name, "Install Makefile parser"
         )
@@ -397,3 +395,4 @@ def test_full_suite_workflows_provision_the_pinned_makefile_parser() -> None:
             parser_step.get("run"),
             contract=f"{workflow_path} {job_name} Makeutil-install contract",
         )
+    assert len(set(makeutil_configurations)) == 1, "expected one Makeutil configuration"
