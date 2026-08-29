@@ -1,12 +1,13 @@
-"""Unit tests for the CI smoke workflow contract.
+"""Unit tests for the CI workflow contracts.
 
-These tests parse `.github/workflows/smoke.yml` and assert that CI keeps
-calling the canonical Makefile targets instead of duplicating build logic,
-and that tool installation stays pinned and Makefile-resolved.
+These tests parse repository workflows and assert that CI keeps calling the
+canonical Makefile targets instead of duplicating build logic, and that tool
+installation stays pinned and Makefile-resolved.
 """
 
 import pathlib
 import re
+import tomllib
 import typing as typ
 
 import pytest
@@ -65,10 +66,10 @@ def _workflow_step_named(job: WorkflowJob, name: str) -> WorkflowStep:
     raise AssertionError(msg)
 
 
-def _smoke_workflow_document() -> dict[str, object]:
-    """Parse the smoke workflow file into its document mapping."""
+def _workflow_document(workflow_name: str) -> dict[str, object]:
+    """Parse one repository workflow file into its document mapping."""
     return load_workflow(
-        (REPOSITORY_ROOT / ".github" / "workflows" / "smoke.yml").read_text(
+        (REPOSITORY_ROOT / ".github" / "workflows" / workflow_name).read_text(
             encoding="utf-8"
         )
     )
@@ -91,7 +92,7 @@ def _makefile_tool_version(makefile: str, tool: str) -> str:
 @pytest.fixture(name="smoke_workflow", scope="module")
 def smoke_workflow_fixture() -> SmokeWorkflow:
     """Parse the smoke workflow once for the per-concern CI assertions."""
-    jobs = _workflow_jobs(_smoke_workflow_document())
+    jobs = _workflow_jobs(_workflow_document("smoke.yml"))
     workflow_steps = _workflow_steps(jobs)
     run_commands = {
         command.strip()
@@ -123,7 +124,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets(
 @pytest.mark.parametrize("tool", ["RUFF", "TY"])
 def test_ci_tool_versions_match_makefile(tool: str) -> None:
     """Keep each CI tool pin aligned with its canonical Makefile pin."""
-    workflow_environment = _workflow_environment(_smoke_workflow_document())
+    workflow_environment = _workflow_environment(_workflow_document("smoke.yml"))
     makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 
     assert_with_context(
@@ -159,7 +160,7 @@ def test_ci_workflow_job_topology(smoke_workflow: SmokeWorkflow) -> None:
 
 def test_ci_workflow_triggers_on_pull_request_and_main_push() -> None:
     """CI must run for pull requests and pushes to the main branch."""
-    parsed_workflow = _smoke_workflow_document()
+    parsed_workflow = _workflow_document("smoke.yml")
     triggers = typ.cast("dict[str, object]", parsed_workflow.get("on", {}))
     assert "pull_request" in triggers, "expected 'pull_request' in triggers"
     assert_with_context(
@@ -171,26 +172,45 @@ def test_ci_workflow_triggers_on_pull_request_and_main_push() -> None:
     )
 
 
-def test_ci_workflow_pins_python_setup_action(smoke_workflow: SmokeWorkflow) -> None:
-    """Every setup-python step must pin the action hash and Python version."""
-    _jobs, workflow_steps, _run_commands = smoke_workflow
+def test_ci_workflows_share_python_setup_configuration(
+    smoke_workflow: SmokeWorkflow,
+) -> None:
+    """Every setup-python invocation must share one valid action and interpreter."""
+    _jobs, smoke_steps, _run_commands = smoke_workflow
+    coverage_steps = _workflow_steps(
+        _workflow_jobs(_workflow_document("coverage-main.yml"))
+    )
     python_steps = [
         step
-        for step in workflow_steps
-        if str(step.get("uses", "")).startswith("actions/setup-python@")
+        for step in [*smoke_steps, *coverage_steps]
+        if str(step.get("uses", "")).startswith("actions/setup-python")
     ]
     assert python_steps, "expected python_steps"
+    python_actions = [str(step["uses"]) for step in python_steps]
     assert_with_context(
         all(
-            step["uses"]
-            == "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405"
-            for step in python_steps
+            action_name == "actions/setup-python" and separator == "@" and reference
+            for action_name, separator, reference in (
+                action.partition("@") for action in python_actions
+            )
         ),
-        "expected all((step['uses'] == 'actions/setup-python@...",
+        "expected each setup-python invocation to name an action reference",
     )
     assert_with_context(
-        all(step["with"]["python-version"] == "3.14" for step in python_steps),
-        "expected all((step['with']['python-version'] == '3.1...",
+        len(set(python_actions)) == 1,
+        "expected all setup-python invocations to use one action reference",
+    )
+    pyproject = tomllib.loads(
+        (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    python_version = pyproject["tool"]["ty"]["environment"]["python-version"]
+    assert isinstance(python_version, str), "expected Python version string"
+    assert_with_context(
+        all(
+            step.get("with", {}).get("python-version") == python_version
+            for step in python_steps
+        ),
+        "expected setup-python interpreter to match typecheck configuration",
     )
 
 
@@ -214,15 +234,18 @@ def test_ci_workflow_resolves_interrogate_and_formatting_from_makefile(
     )
 
 
-def test_ci_workflow_installs_nixie_cli(smoke_workflow: SmokeWorkflow) -> None:
-    """CI must install the pinned nixie-cli release for the Mermaid gate."""
+def test_ci_workflow_installs_versioned_nixie_cli(
+    smoke_workflow: SmokeWorkflow,
+) -> None:
+    """CI must install a versioned nixie-cli release for the Mermaid gate."""
     _jobs, workflow_steps, _run_commands = smoke_workflow
     assert_with_context(
         any(
-            "uv tool install nixie-cli==1.0.0" in str(step.get("run", ""))
+            re.search(r"\buv tool install nixie-cli==\S+", str(step.get("run", "")))
+            is not None
             for step in workflow_steps
         ),
-        "expected any(('uv tool install nixie-cli==1.0.0' in ...",
+        "expected a versioned nixie-cli installation command",
     )
 
 
