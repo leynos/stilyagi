@@ -1744,3 +1744,11 @@ Gate evidence after this rebase: `make check-fmt`, `make typecheck` (`ty`
 0.0.74), `make lint` (including Whitaker and Skylos), `make test` (347 Rust
 tests, 242 Python tests, 17 snapshots), `make markdownlint`, and `make nixie`
 all pass.
+
+**Round 4 (2026-08-29).** A final review-follow-up audit found no unresolved
+review threads and no non-bot requested changes on draft PR #110. The PR now
+targets `main` with a clean merge state, so its earlier conflict warning is
+obsolete. The roadmap's 3.2.1 item remains checked complete. The implementation
+is unchanged; this delivery record and the PR description are refreshed, then
+the required full gate suite is re-run before the documentation-only commit is
+published.
