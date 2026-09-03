@@ -52,6 +52,11 @@ def test_explicit_unregistered_file_is_logged_and_skipped(
         files = discovery.discover_files([target], config.StilyagiConfig())
 
     assert not files, "expected not files"
+    result = discovery.discover_files_with_summary([target], config.StilyagiConfig())
+    assert_with_context(
+        result.skipped_files == 1,
+        "expected result.skipped_files == 1 for the unregistered direct target",
+    )
     assert_with_context(
         any(
             "ignoring target without a registered extractor" in record.message
@@ -72,6 +77,7 @@ def test_directory_recursion_skips_noise_and_symlinked_directories(
     _write_markdown(root / "build" / "ignored.md", "Ignored")
     _write_markdown(root / "nested" / ".venv" / "ignored.md", "Ignored")
     for ignored_name in (
+        ".git",
         ".eggs",
         ".mypy_cache",
         ".nox",
@@ -83,7 +89,10 @@ def test_directory_recursion_skips_noise_and_symlinked_directories(
         ".uv-tools",
         ".venv-release-smoke",
         "__pycache__",
+        "dist",
+        "node_modules",
         "site-packages",
+        "target",
     ):
         _write_markdown(root / ignored_name / "ignored.md", "Ignored")
     (root / "nested" / "loop").symlink_to(root, target_is_directory=True)

@@ -93,21 +93,65 @@ class ProbeRun(typ.NamedTuple):
 
 
 class StructuralFixture(typ.NamedTuple):
-    """One representative source fixture for a supported extractor syntax."""
+    """One representative source fixture for a supported extractor syntax.
+
+    Parameters
+    ----------
+    path:
+        Repository-relative fixture file path.
+    syntax:
+        The registered extractor syntax applied to the fixture.
+
+    Examples
+    --------
+    >>> StructuralFixture(
+    ...     path=MARKDOWN_FIXTURE,
+    ...     syntax=model.Syntax.MARKDOWN,
+    ... ).syntax.value
+    'markdown'
+    """
 
     path: pathlib.Path
     syntax: model.Syntax
 
 
 def repository_root() -> pathlib.Path:
-    """Return the repository root from this maintainer-facing module."""
+    """Return the repository root, derived from this module's location.
+
+    Returns
+    -------
+    pathlib.Path
+        The resolved repository root two parent directories above this file.
+
+    Examples
+    --------
+    >>> repository_root().name
+    'stilyagi'
+    """
     return pathlib.Path(__file__).resolve().parents[2]
 
 
 def discover_structural_fixtures(
     root: pathlib.Path,
 ) -> tuple[StructuralFixture, ...]:
-    """Return representative fixtures for each registered extractor syntax."""
+    """Return representative fixtures for each registered extractor syntax.
+
+    Parameters
+    ----------
+    root:
+        The repository root containing the shared fixture corpus.
+
+    Returns
+    -------
+    tuple[StructuralFixture, ...]
+        One Markdown, Python, and Rust fixture in a fixed, deterministic
+        order.
+
+    Raises
+    ------
+    FileNotFoundError
+        A representative fixture is missing from the corpus.
+    """
     fixtures = (
         StructuralFixture(root / MARKDOWN_FIXTURE, model.Syntax.MARKDOWN),
         StructuralFixture(root / PYTHON_FIXTURE, model.Syntax.PYTHON_DOCSTRING),
@@ -149,7 +193,24 @@ def build_report(
     fixtures: cabc.Sequence[StructuralFixture],
     runs: cabc.Sequence[ProbeRun],
 ) -> ReportPayload:
-    """Build the stable JSON-compatible structural probe report."""
+    """Build the stable JSON-compatible structural probe report.
+
+    Parameters
+    ----------
+    repository_root:
+        The root used to normalise fixture paths to repository-relative POSIX
+        form; every fixture must live beneath it.
+    fixtures:
+        The measured fixtures; their byte sizes populate the corpus totals.
+    runs:
+        One payload per measured run, in measurement order.
+
+    Returns
+    -------
+    ReportPayload
+        The report with schema version, probe identity, environment, corpus
+        totals per syntax, and run payloads.
+    """
     normalised_fixtures = [
         normalise_repository_path(fixture.path, repository_root) for fixture in fixtures
     ]
@@ -199,7 +260,35 @@ def measure_probe(
     iterations: int,
     root: pathlib.Path,
 ) -> ReportPayload:
-    """Measure the requested structural probe mode and return a report."""
+    """Measure the requested structural probe mode and return a report.
+
+    Parameters
+    ----------
+    mode:
+        Either ``"cold"``, ``"warm"``, or ``"both"``; any other value selects
+        no modes and yields no runs.
+    iterations:
+        Measurements per mode. Must be at least 1.
+    root:
+        The repository root containing the shared fixture corpus.
+
+    Returns
+    -------
+    ReportPayload
+        The structural probe report covering every fixture and requested
+        mode.
+
+    Raises
+    ------
+    ValueError
+        ``iterations`` is below 1.
+
+    Examples
+    --------
+    >>> report = measure_probe(mode="warm", iterations=1, root=repository_root())
+    >>> report["probe"]
+    'structural-syntax'
+    """
     if iterations < 1:
         msg = "iterations must be at least 1"
         raise ValueError(msg)

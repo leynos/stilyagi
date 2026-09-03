@@ -1015,8 +1015,8 @@ Weaknesses and ambiguities:
 
 Recommended revisions:
 
-- V1 discovery defaults should cover `*.md`, `*.py`, and `*.rs`, with `*.mdx`
-  as preview-only until proven.
+- V1 discovery defaults should cover `*.md`, `*.markdown`, `*.py`, and `*.rs`,
+  with `*.mdx` as preview-only until proven.
 - Keep `check`, `rule`, `rules`, `config`, `clean`, and `dump-ir`.
 - Add `--no-cache` in v1 because cache debugging is unavoidable.
 - Keep `server`, `doctor`, and `migrate-config` reserved.

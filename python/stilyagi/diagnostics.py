@@ -15,7 +15,26 @@ _FAILING_SEVERITIES: frozenset[Severity] = frozenset({Severity.ERROR})
 
 
 def is_failing_severity(severity: Severity) -> bool:
-    """Return whether ``severity`` makes the check command fail."""
+    """Return whether ``severity`` makes the check command fail.
+
+    Parameters
+    ----------
+    severity:
+        The diagnostic severity to classify.
+
+    Returns
+    -------
+    bool
+        ``True`` for severities that fail the check command (currently only
+        error-severity diagnostics), ``False`` otherwise.
+
+    Examples
+    --------
+    >>> is_failing_severity(Severity.ERROR)
+    True
+    >>> is_failing_severity(Severity.WARNING)
+    False
+    """
     return severity in _FAILING_SEVERITIES
 
 

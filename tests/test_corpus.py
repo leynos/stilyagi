@@ -289,24 +289,36 @@ def test_malformed_python_fixtures_require_text_extension() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "fixture",
+    corpus_fixtures(),
+    ids=lambda item: f"{item.syntax}/{item.category}/{item.name}",
+)
 def test_corpus_region_counts_guard_against_silent_grammar_regressions(
-    all_corpus_fixtures: tuple[CorpusFixture, ...],
+    fixture: CorpusFixture,
 ) -> None:
-    """Pin extractable-region coverage for every shared syntax fixture."""
-    observed_region_counts = {
-        f"{fixture.syntax}/{fixture.category}/{fixture.name}": len(
-            engine.extract_document(
-                fixture.text,
-                _SYNTAX_MODELS[fixture.syntax],
-            ).regions
-        )
-        for fixture in all_corpus_fixtures
-    }
+    """Pin extractable-region coverage for one shared syntax fixture."""
+    key = f"{fixture.syntax}/{fixture.category}/{fixture.name}"
+    expected = _EXPECTED_REGION_COUNTS.get(key)
+    assert expected is not None, (
+        f"record an expected region count for the new fixture {key!r}"
+    )
+
+    observed = len(
+        engine.extract_document(fixture.text, _SYNTAX_MODELS[fixture.syntax]).regions
+    )
 
     assert_with_context(
-        observed_region_counts == _EXPECTED_REGION_COUNTS,
-        "expected observed_region_counts == _EXPECTED_REGION_COUNTS",
+        observed == expected,
+        f"expected {key!r} to have {expected} region(s), extracted {observed}",
     )
+
+
+def test_every_recorded_region_count_matches_a_corpus_fixture() -> None:
+    """Reject stale entries left behind when a fixture is renamed or removed."""
+    known = {f"{item.syntax}/{item.category}/{item.name}" for item in corpus_fixtures()}
+    stale = sorted(set(_EXPECTED_REGION_COUNTS) - known)
+    assert not stale, f"remove stale expected region counts: {stale}"
 
 
 class CorpusState(typ.TypedDict, total=False):

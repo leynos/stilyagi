@@ -323,7 +323,7 @@ expectations in the first releases are defined around English only.
 Stilyagi is still in the roadmap phase where architectural contracts are being
 ratified before feature-complete releases land.[^2][^3] The stable user-facing
 surface is still the Python package API, but `stilyagi check` is now available
-for Markdown repositories.
+for Markdown, Python, and Rust repositories.
 
 Use `engine.extract_document()` to extract Markdown through the public engine
 boundary. Non-blank Markdown input returns typed `document.regions` for

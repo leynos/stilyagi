@@ -30,6 +30,17 @@ class RunSummary:
         Error-severity diagnostics.
     warnings:
         Warning-severity diagnostics.
+
+    Examples
+    --------
+    >>> RunSummary(
+    ...     checked_files=2,
+    ...     skipped_files=1,
+    ...     unreadable_files=0,
+    ...     errors=1,
+    ...     warnings=2,
+    ... ).skipped_files
+    1
     """
 
     checked_files: int
@@ -47,7 +58,46 @@ class RunSummary:
         skipped_files: int,
         unreadable_files: int,
     ) -> typ.Self:
-        """Build summary counts from diagnostics and check-loop totals."""
+        """Build summary counts from diagnostics and check-loop totals.
+
+        Parameters
+        ----------
+        diagnostics_list:
+            The diagnostics produced by the check loop. Their severities are
+            counted; their order is not significant.
+        checked_files:
+            Registered source files the command attempted to check.
+        skipped_files:
+            Distinct source candidates without a registered extractor, plus
+            declined symlinked directory targets.
+        unreadable_files:
+            Checked files whose source could not be read.
+
+        Returns
+        -------
+        RunSummary
+            The run summary with per-severity counts derived from
+            ``diagnostics_list`` and the supplied check-loop totals.
+
+        Examples
+        --------
+        >>> from stilyagi import diagnostics
+        >>> error = diagnostics.Diagnostic(path="a.md", code="IR001", message="x")
+        >>> warning = diagnostics.Diagnostic(
+        ...     path="b.md",
+        ...     code="IR002",
+        ...     message="y",
+        ...     severity=diagnostics.Severity.WARNING,
+        ... )
+        >>> summary = RunSummary.from_diagnostics(
+        ...     [error, warning],
+        ...     checked_files=2,
+        ...     skipped_files=0,
+        ...     unreadable_files=0,
+        ... )
+        >>> (summary.errors, summary.warnings)
+        (1, 1)
+        """
         errors = 0
         warnings = 0
         for diagnostic in diagnostics_list:

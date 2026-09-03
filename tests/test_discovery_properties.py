@@ -92,3 +92,48 @@ def test_discovery_is_sorted_independent_of_target_order(
 
     assert files == expected, "expected files == expected"
     assert reordered_files == expected, "expected reordered_files == expected"
+
+
+# `deadline=None` for the same machine-load reason as the sorted-order property
+# above: every example walks a real directory tree.
+@settings(
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+    max_examples=48,
+    deadline=None,
+)
+@given(st.lists(relative_source_path_strings(), min_size=1, max_size=8, unique=True))
+def test_skipped_count_is_order_independent_and_deduplicated(
+    tmp_path: pathlib.Path,
+    relative_paths: list[str],
+) -> None:
+    """Count each unregistered candidate once, whichever way targets overlap."""
+    root = tmp_path / "workspace"
+    if root.exists():
+        shutil.rmtree(root)
+    root.mkdir()
+
+    for relative_path in relative_paths:
+        path = root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# title\n", encoding="utf-8")
+
+    direct_targets = [root / relative_path for relative_path in relative_paths]
+    forward = discovery.discover_files_with_summary(
+        [root, *direct_targets],
+        config.StilyagiConfig(),
+    )
+    reversed_order = discovery.discover_files_with_summary(
+        [*reversed(direct_targets), root],
+        config.StilyagiConfig(),
+    )
+
+    expected_skips = sum(
+        discovery.syntax_for_path(pathlib.Path(relative_path)) is None
+        for relative_path in relative_paths
+    )
+    assert forward.skipped_files == expected_skips, (
+        "expected forward.skipped_files == expected_skips"
+    )
+    assert reversed_order.skipped_files == forward.skipped_files, (
+        "expected reversed_order.skipped_files == forward.skipped_files"
+    )
