@@ -1,4 +1,4 @@
-# Expand discovery defaults to `*.md`, `*.py`, and `*.rs`
+# Expand discovery defaults to `*.md`, `*.markdown`, `*.py`, and `*.rs`
 
 This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
@@ -41,7 +41,7 @@ repository can run:
   everything.
 
 The primary acceptance demonstration is that, from this repository's root,
-`stilyagi check python/ crates/ docs/` processes 176 Python, Rust, and Markdown
+`stilyagi check python/ crates/ docs/` processes 178 Python, Rust, and Markdown
 files and exits `0`. The corroborating demonstration is that `stilyagi check .`
 additionally reaches the deliberately adversarial fixture corpus and exits `1`,
 driven by exactly two `suppression-blanket-forbidden` **errors** — and not by
@@ -1399,7 +1399,8 @@ are read-only with respect to source.
 
 ## Artefacts and notes
 
-To be filled in as work proceeds. Record at minimum: the W0 baseline gate
+This section records the completed evidence for the plan. The required
+artefacts below are preserved as they were produced: the W0 baseline gate
 transcript; red and green transcripts per work item; the per-syntax figures,
 byte totals, and `cache_stats` from W6; and the final acceptance transcripts.
 

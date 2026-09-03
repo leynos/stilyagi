@@ -120,3 +120,33 @@ def test_json_renderer_emits_stable_diagnostic_objects(
         payload == snapshot(extension_class=JSONSnapshotExtension),
         "expected payload == snapshot(extension_class=JSONSna...",
     )
+
+
+def test_omitted_summary_is_derived_from_mixed_diagnostics() -> None:
+    """Derive error and warning counts when a caller omits the run summary."""
+    rendered = engine.RendererRegistry().render(_build_diagnostics(), "text")
+
+    assert_with_context(
+        rendered.splitlines()[-1]
+        == "checked 0 files (0 skipped, 0 unreadable); 2 errors, 1 warnings",
+        "expected the derived summary to count 2 errors and 1 warning",
+    )
+
+
+def test_omitted_summary_is_derived_in_json_output() -> None:
+    """Keep JSON summary counts consistent when a caller omits the run summary."""
+    payload = json.loads(
+        engine.RendererRegistry().render(_build_diagnostics(), "json"),
+    )
+
+    assert_with_context(
+        payload["summary"]
+        == {
+            "checked_files": 0,
+            "skipped_files": 0,
+            "unreadable_files": 0,
+            "errors": 2,
+            "warnings": 1,
+        },
+        "expected the derived JSON summary to count 2 errors and 1 warning",
+    )

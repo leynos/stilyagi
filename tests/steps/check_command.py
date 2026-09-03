@@ -279,6 +279,9 @@ def selected_syntaxes_cover_the_mixed_tree(
         model.Syntax.PYTHON_DOCSTRING,
         model.Syntax.RUST_DOC_COMMENT,
     ]
+    assert bool(check_command_state["extracted_syntaxes"]), (
+        "expected one extraction per registered suffix in mixed-source order"
+    )
 
 
 @then("the selected syntax is Rust documentation comments")
@@ -289,12 +292,18 @@ def selected_syntax_is_rust_documentation_comments(
     assert check_command_state["extracted_syntaxes"] == [
         model.Syntax.RUST_DOC_COMMENT,
     ]
+    assert len(check_command_state["extracted_syntaxes"]) == 1, (
+        "expected --stdin-filename app.rs to select exactly the Rust extractor"
+    )
 
 
 @then("no input was extracted")
 def no_input_was_extracted(check_command_state: CheckCommandState) -> None:
     """Assert that an unregistered stdin filename is skipped."""
     assert check_command_state["extracted_syntaxes"] == []
+    assert not check_command_state["extracted_syntaxes"], (
+        "expected the unregistered stdin filename to skip extraction"
+    )
     assert_with_context(
         "skipping stdin without a registered extractor"
         in check_command_state["stderr"],

@@ -282,7 +282,8 @@ This step answers how much of the first slice survives unchanged once the
 extractor surface grows. See [Stilyagi design](stilyagi-design.md) §§3-4, 7.2,
 13 and [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
 
-- [x] 3.2.1. Expand discovery defaults to `*.md`, `*.py`, and `*.rs`. See
+- [x] 3.2.1. Expand discovery defaults to `*.md`, `*.markdown`, `*.py`, and
+  `*.rs`. See
   Stilyagi design (stilyagi-design.md) §7.3 and
   [ADR 008](adr-008-v1-discovery-defaults.md).
   - Requires 2.2.1.

@@ -25,7 +25,7 @@ def _run_failing_check(
     *,
     unreadable_files: int,
 ) -> str:
-    """Run one failing check against a stubbed target and return stderr."""
+    """Run one failing check against a stubbed target and return logged warnings."""
     _stub_discovery(harness.monkeypatch, target)
 
     with harness.caplog.at_level("WARNING"):
@@ -67,7 +67,7 @@ def _read_failure_fragments(
     target: pathlib.Path,
     detail: str,
 ) -> tuple[str, ...]:
-    """Return the stderr fragments expected for one failed file read."""
+    """Return the logged-warning fragments expected for one failed file read."""
     return ("stilyagi check: failed to read ", target.name, detail)
 
 
@@ -139,42 +139,49 @@ def _setup_extractor_failure(
         "extract_document",
         lambda _source, _syntax: _raise_bridge_extraction_error(),
     )
-    expected = f"stilyagi check: failed to check {target.as_posix()}: bridge exploded"
+    expected = f"stilyagi check: failed to check {target.name}: bridge exploded"
+    return target, (expected,)
+
+
+def _setup_memory_error(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[pathlib.Path, tuple[str, ...]]:
+    """Arrange a Markdown file whose read raises ``MemoryError``."""
+    target = tmp_path / "huge.md"
+    target.write_text("# Huge\n", encoding="utf-8")
+    _patch_read_text_failure(monkeypatch, target, lambda: MemoryError("read too large"))
+    expected = f"stilyagi check: failed to read {target.name}: read too large"
     return target, (expected,)
 
 
 @pytest.mark.parametrize(
-    "setup_failure",
+    ("setup_failure", "unreadable_files"),
     [
-        _setup_unreadable_utf8,
-        _setup_permission_error,
-        _setup_mid_run_disappearance,
-        _setup_directory_read,
-        _setup_extractor_failure,
-    ],
-    ids=[
-        "unreadable-utf8",
-        "permission-error",
-        "mid-run-disappearance",
-        "directory-read",
-        "extractor-failure",
+        pytest.param(_setup_unreadable_utf8, 1, id="unreadable-utf8"),
+        pytest.param(_setup_permission_error, 1, id="permission-error"),
+        pytest.param(_setup_mid_run_disappearance, 1, id="mid-run-disappearance"),
+        pytest.param(_setup_directory_read, 1, id="directory-read"),
+        pytest.param(_setup_extractor_failure, 0, id="extractor-failure"),
+        pytest.param(_setup_memory_error, 1, id="memory-error"),
     ],
 )
 def test_cli_run_check_maps_file_failures_to_exit_two(
     harness: _FailingCheckHarness,
     setup_failure: _FailureSetup,
+    unreadable_files: int,
 ) -> None:
-    """Reject each documented file failure with exit code 2 and stderr."""
+    """Reject each documented file failure with exit code 2 and a logged warning."""
     target, expected_fragments = setup_failure(harness.tmp_path, harness.monkeypatch)
 
-    stderr = _run_failing_check(
+    log_messages = _run_failing_check(
         harness,
         target,
-        unreadable_files=int(setup_failure is not _setup_extractor_failure),
+        unreadable_files=unreadable_files,
     )
 
     for fragment in expected_fragments:
-        assert fragment in stderr, f"expected {fragment!r} in stderr"
+        assert fragment in log_messages, f"expected {fragment!r} in the logged warnings"
 
 
 def test_cli_main_recovers_from_real_malformed_markdown(
@@ -276,7 +283,10 @@ def _stub_discovery(
     monkeypatch.setattr(
         cli,
         "_discover_targets",
-        lambda _options, _resolver: ((discovered_file,), 0),
+        lambda _options, _resolver: cli.DiscoveryInputs(
+            (discovered_file,),
+            0,
+        ),
     )
 
 
@@ -305,3 +315,26 @@ def _failing_check_harness(
 ) -> _FailingCheckHarness:
     """Provide the collaborators used by the failing-check test harness."""
     return _FailingCheckHarness(tmp_path, monkeypatch, capsys, caplog)
+
+
+def test_cli_main_reads_bom_prefixed_source_and_reports_success(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Strip a UTF-8 byte-order mark instead of reporting a read failure."""
+    root = tmp_path / "docs"
+    root.mkdir()
+    (root / "bom.md").write_bytes(b"\xef\xbb\xbf# Bom\n")
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = cli.main(["check", "."])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0, "expected exit_code == 0"
+    assert not captured.err, "expected not captured.err"
+    assert_with_context(
+        captured.out
+        == "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected captured.out to report the BOM-prefixed file as checked",
+    )

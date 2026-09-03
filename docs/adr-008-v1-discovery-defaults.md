@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted.
+Accepted (2026-08-24): adopt fixed mixed-source discovery defaults for `*.md`,
+`*.markdown`, `*.py`, and `*.rs`, classify authored suppression-directive
+mistakes as errors and extractor recovery notices as warnings, and report
+checked, skipped, unreadable, error, and warning counts per run.
 
 ## Date
 
@@ -129,6 +132,15 @@ Adopt Option A.
 The destination is a Rust-owned, gitignore-aware walker. That move should use
 the `ignore` crate and relocate the walker and extension table together rather
 than creating an interim Python-to-Rust lookup bridge.
+
+## Architectural rationale
+
+Option A preserves the existing Python orchestration and Rust extraction
+boundary: discovery stays a Python-owned query over the filesystem, extraction
+stays Rust-owned behind the bridge, and no new public discovery configuration
+is introduced. The fixed suffix table and deterministic walk keep the command
+contract explainable while the walker migration deferred above remains future
+work.
 
 ## Goals and non-goals
 

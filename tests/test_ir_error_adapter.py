@@ -94,3 +94,21 @@ def test_map_ir_errors_keeps_real_malformed_markdown_clean() -> None:
             not map_ir_errors(document, fixture_path.as_posix()),
             "expected not map_ir_errors(document, fixture_path.as...",
         )
+
+
+def test_map_ir_errors_demotes_unknown_suppression_prefix_codes_to_warnings() -> None:
+    """Classify suppression codes by membership, not by a broad prefix rule."""
+    document = model.Document(
+        syntax=model.Syntax.MARKDOWN,
+        ir={
+            "line_index": [0],
+            "errors": [{"code": "suppression-unknown-variant", "message": "New"}],
+        },
+    )
+
+    diagnostics_list = map_ir_errors(document, "docs/example.md")
+
+    assert_with_context(
+        diagnostics_list[0].severity is diagnostics.Severity.WARNING,
+        "expected an unlisted suppression-* code to fail safe to a warning",
+    )

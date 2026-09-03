@@ -384,8 +384,16 @@ collaborator.
 `run_check` delegates target collection to `_discover_targets`, which calls:
 
 ```python
-discovery.discover_files(targets, config) -> list[DiscoveredFile]
+discovery.discover_files_with_summary(targets, config) -> DiscoveryResult
 ```
+
+`DiscoveryResult` is a frozen dataclass with two fields:
+
+- `files` — the registered source files as a tuple of `DiscoveredFile`, sorted
+  by resolved path with duplicate resolved paths collapsed to one entry
+- `skipped_files` — the count of distinct source candidates without a
+  registered extractor, plus declined symlinked directory targets; a candidate
+  appearing under several overlapping targets is counted once
 
 `DiscoveredFile` is a frozen dataclass with three fields:
 
@@ -403,6 +411,19 @@ discovery is resolved by `cli._resolve_discovery_config` for the current
 working directory rather than for each individual file, so `--isolated`,
 explicit `--config` values, and CLI rule overrides all stay in force during the
 discovery pass.
+
+`discover_files(targets, config)` is the convenience wrapper that returns only
+the `DiscoveryResult.files` list for callers that do not need the skip count.
+
+Each discovered file becomes a `cli.CheckInput` through
+`CheckInput.from_discovered`, which carries the `reported_path`,
+`resolved_path`, and selected `syntax`. Standard-input runs build their
+`CheckInput` directly: `--stdin-filename` selects the syntax by final suffix
+(defaulting to Markdown when omitted), and an unregistered stdin filename is
+logged and counted as skipped rather than checked. Per-file dispatch then goes
+through `cli._check_one_file`, which reads the source with UTF-8 (stripping a
+leading byte-order mark), extracts through the bridge, resolves the per-file
+config, and reports operational failures with exit code `2`.
 
 ### Configuration loading and resolution
 
@@ -460,6 +481,13 @@ sources:
   canonical IR error envelope on `Document.ir` into `diagnostics.Diagnostic`
   objects, propagating each IR-provided error code and falling back to a generic
   `IR000` placeholder only when the IR omits one.
+- Severity classification is deliberate: an IR error whose code is in the
+  Rust-owned authored-directive vocabulary
+  (`AUTHORED_DIRECTIVE_ERROR_CODES`, exposed to Python through the cached
+  `stilyagi.engine.extraction.authored_directive_error_codes()` bridge) is an
+  authored suppression mistake and keeps error severity; every other code,
+  including extractor recovery notices and any future unclassified code,
+  fails safe to warning severity and does not gate the exit code.
 - `rules_registry.run_rules(document, resolved_config)` runs the registered
   rule set against the extracted document.
 
@@ -469,7 +497,12 @@ positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 
 ### Rendering
 
-`engine/renderers.py`
+`engine/renderers.py` defines `RunSummary`, the five-field record (checked,
+skipped, unreadable, errors, warnings) that the CLI fills from the check loop;
+`RunSummary.from_diagnostics` derives the severity counts from the diagnostics
+list and is also the zero-file fallback when a direct renderer caller omits the
+summary.
+
 `RendererRegistry.render(diagnostics, output_format, summary)` sorts
 diagnostics by path, location, and code, then renders either:
 
