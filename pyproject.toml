@@ -25,7 +25,7 @@ dev = [
     # the same toolchain.
     "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@v0.3.0",
     "interrogate==1.7.0",
-    "ruff==0.16.4",
+    "ruff==0.16.5",
     "pytest-timeout",
     "pytest-bdd",
     "hypothesis>=6.165.10,<7.0",
