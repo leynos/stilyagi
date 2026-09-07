@@ -1749,7 +1749,12 @@ cancelled or timeout-terminated run, so no run in the sample was ended by any
 of these four timers, and the measurements are of work that completed.
 
 The widest gap is 541 s, so the contract allows 15 minutes, making the
-requirement 45 minutes against ceilings of 60. On the pull-request lane most of
+requirement 45 minutes, and the ceilings are 60: fifteen above it, which is the
+margin the estate asks for above every requirement. A ceiling equal to the sum
+it contains cancels the job at the moment the watchdog would have reported the
+overrun, and the report is the only thing that makes an overrun actionable, so
+the margin is a term of the requirement rather than slack that happens to be
+there. On the pull-request lane most of
 that gap is the linting and the Python suite, which run outside the coverage
 step and so outside the watchdog.
 
