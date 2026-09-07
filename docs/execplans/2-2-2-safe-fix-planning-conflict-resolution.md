@@ -731,9 +731,6 @@ class TextEdit:
     replacement: str
 
     @classmethod
-    def insert_before(cls, span: ir_view.SourceSpan, text: str) -> "TextEdit": ...
-
-    @classmethod
     def insert_after(cls, span: ir_view.SourceSpan, text: str) -> "TextEdit": ...
 
     @classmethod
@@ -758,18 +755,12 @@ class Fix:
 Two details that are easy to get wrong and expensive to discover late.
 
 `__post_init__` **must** coerce: RFC 0002 §4's ratified worked example
-constructs
-`Fix(title=..., applicability="safe", edits=[TextEdit.insert_before(...)])` — a
+constructs `Fix(title=..., applicability="safe", edits=[TextEdit(...)])` with a
 bare string and a list. Without coercion, `fix.applicability.value` in the JSON
 renderer raises `AttributeError` on a `str`, and `Fix` becomes unhashable. The
 repository already has this pattern: `python/stilyagi/config/schema.py`
 normalizes every sequence field in `__post_init__`. Use `object.__setattr__` as
 that module does, since the dataclass is frozen.
-
-The constructor helpers are ratified surface — `TextEdit.insert_before` appears
-in RFC 0002 §4 and again in RFC 0005. They cost about fifteen lines and they
-pin the `span=` parameter shape now, rather than letting 2.3.1 invent one and
-retrofit.
 
 `order=True` gives the natural sort `(byte_start, byte_end, replacement)`.
 Include `replacement` deliberately: it is what makes the conflict report
@@ -1678,11 +1669,13 @@ started Milestone 3.
   removal until its caller is verified. Skylos also matches bare names, so
   allowing `delete` would have registered a blanket rule, and roadmap 2.2.3 adds
   `stilyagi clean` — a subsystem very likely to hold a `delete` of its own
-  that the rule would then silently hide. `insert_before` and `replace` remain,
-  being the forms RFC 0002 §4 shows. Both removed constructors should return in
-  roadmap 2.3.1 alongside the first rule that calls them, which is the point at
-  which a verified caller exists. Update this plan's Interfaces section, which
-  still prescribes all four. Date/Author: 2026-08-25, rebase onto `main`.
+  that the rule would then silently hide. `replace` remains because planner
+  tests exercise it. `insert_before`, `insert_after`, and `delete` should
+  return in roadmap 2.3.1 only alongside the first rule that calls each form,
+  which is the point at which a verified caller exists. RFC 0002 and RFC 0005
+  now show the equivalent direct `TextEdit` construction. Update this plan's
+  Interfaces section before the next implementation milestone. Date/Author:
+  2026-08-25, rebase onto `main`.
 
 - **D-24: Validate the containing segment before decoding it for D-12's
   provenance cross-check.** Rationale: an edit can sit on valid UTF-8
@@ -1790,3 +1783,13 @@ present, so the tests follow that local convention while retaining a resolved
 Git executable. The wheel-layout snapshot was updated for `diff.py`.
 Milestone 4 remains subject to a green full gate chain before its CLI work or
 CodeRabbit review.
+
+**Revision 21, 2026-09-07.** Rebasing `xxx` onto `origin/main` replayed all
+22 commits without conflicts. The updated Python dependency pins and both lock
+files come from `main` unchanged, as required. RFC 0006 introduces editorial
+policy vertical slices but changes no safe-fix contract, helper or boundary.
+
+**Revision 22, 2026-09-07.** The rebase gate found `TextEdit.insert_before` had
+no production caller. Removed the dead constructor rather than adding a broad
+Skylos exemption, and updated the two RFC examples to use the equivalent
+byte-span construction. `TextEdit.replace` remains a tested helper.
