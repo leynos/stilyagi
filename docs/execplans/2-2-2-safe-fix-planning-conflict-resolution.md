@@ -9,11 +9,11 @@ Status: BLOCKED
 Roadmap item: 2.2.2. Requires 2.1.1 (Markdown intermediate representation
 envelope) and 2.2.1 (`stilyagi check`), both complete.
 
-Branch base: this work stacks on `configure-df12-lints`, not on `main`. That
-branch pins the `ty` typechecker and adds the `df12-python-lints` Pylint tier
-and the `ambrleaks` snapshot scanner to `make lint`. Every measured fact below
-was taken against that base. If the stack is ever re-pointed at `main`,
-re-measure the baseline before trusting the gate numbers.
+Working branch: `xxx`, tracking `origin/xxx`. This work is based on `main`,
+which includes the `configure-df12-lints` changes: the pinned `ty` typechecker,
+the `df12-python-lints` Pylint tier and the `ambrleaks` snapshot scanner in
+`make lint`. Re-measure the baseline before trusting its gate numbers if the
+base changes again.
 
 ## Purpose / big picture
 
@@ -266,6 +266,12 @@ Established during planning; use them instead of re-measuring.
     existing PyPI dependencies because domain-name lookup failed. No later gate
     or CodeRabbit review was run; await restored dependency access before
     retrying the complete chain.
+  - 2026-09-07: a review found that `_segment_matches_source` decoded a
+    containing IR segment without first validating that segment's bounds and
+    UTF-8 boundaries. Added red/green planner regressions for a segment that
+    starts inside a code point and one that extends past the source. Both now
+    reject the file with `fix-error/source-mismatch`; the complete gate chain
+    and CodeRabbit review remain before Milestone 4.
 - [ ] Milestone 4 — `--diff`
 - [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes
 - [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
@@ -345,6 +351,14 @@ Established during planning; use them instead of re-measuring.
   `lint` logs with suffixes `11`, `12`, and `13` under `/tmp`. Impact: the plan
   is blocked by its three-iteration tolerance, with no deterministic-code
   failure or CodeRabbit result to act on.
+
+- Observation (2026-09-07): validating only the proposed edit's byte range
+  does not make the containing segment safe to decode. An IR segment can begin
+  inside a multi-byte UTF-8 code point while still containing a valid edit, and
+  a segment that extends beyond the source is silently truncated by slicing.
+  Impact: validate the containing segment's bounds and UTF-8 alignment before
+  decoding it, then turn any decode failure into the existing non-mutating
+  `fix-error/source-mismatch` outcome.
 
 - Observation: `nodes` is roughly a third of the IR payload and no Python code
   reads it. Evidence: for an 87 KB Markdown file the canonical IR JSON is 2.01
@@ -1656,6 +1670,15 @@ started Milestone 3.
   which a verified caller exists. Update this plan's Interfaces section, which
   still prescribes all four. Date/Author: 2026-08-25, rebase onto `main`.
 
+- **D-24: Validate the containing segment before decoding it for D-12's
+  provenance cross-check.** Rationale: an edit can sit on valid UTF-8
+  boundaries within an IR segment that itself starts inside a code point, so
+  validating the edit alone leaves `.decode()` able to raise. Likewise, Python
+  truncates an out-of-bounds slice, allowing a malformed segment to appear to
+  match its claimed text. Bounds and UTF-8 alignment therefore apply to the
+  segment as well as the edit; a decode error is an ordinary provenance
+  mismatch and aborts mutation. Date/Author: 2026-09-07, implementation.
+
 **Revision 13, 2026-08-24.** Recorded the committed Milestone 3 planner slice
 and the in-progress corpus-backed Stage C2 property coverage. The focused suite
 passes; the full deterministic chain and required CodeRabbit review remain the
@@ -1720,3 +1743,9 @@ byte-faithful read and `rule_runner` seam; `engine/__init__.py` keeps `main`'s
 `BridgeExtractionError` export alongside this branch's `FixPlan` stub
 retirement. Stale dependency pins were resolved in favour of `main`. See D-23
 for the gate changes this rebase had to absorb.
+
+**Revision 17, 2026-09-07.** Renamed the working branch to `xxx`, tracking
+`origin/xxx`, and corrected D-12's implementation so a malformed containing
+segment cannot crash or bypass provenance validation. Two planner regressions
+provide red/green evidence. Milestone 3 remains blocked on the full gate chain
+and CodeRabbit review.
