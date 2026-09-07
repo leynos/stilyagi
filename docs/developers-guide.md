@@ -1690,15 +1690,15 @@ RFCs should be reviewed together so the documented contract remains accurate.
 
 Four independent timers can end a test run, and the canonical statement of how
 they must be ordered lives in the `generate-coverage` README in
-[`leynos/shared-actions`][shared-actions-coverage]. Before this was written
-exactly one of the four was set here.
+`leynos/shared-actions`.[^6] Before this was written exactly one of the four
+was set here.
 
-| Tier | What it bounds | Where it is set | Current value |
-| --- | --- | --- | --- |
-| Per-test `slow-timeout` | one test | `.config/nextest.toml` | **absent, no such file** |
-| nextest `global-timeout` | the whole test run | `.config/nextest.toml` | **absent, no such file** |
-| Cargo watchdog | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level | 1,800 s (30 m) |
-| Job `timeout-minutes` | the whole job | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new |
+| Tier                     | What it bounds                     | Where it is set                                  | Current value            |
+| ------------------------ | ---------------------------------- | ------------------------------------------------ | ------------------------ |
+| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | **absent, no such file** |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | **absent, no such file** |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 1,800 s (30 m)           |
+| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new                |
 
 *Table: the timers that can end a run, innermost first.*
 
@@ -1720,8 +1720,7 @@ repository that has turned nextest off.
 Adding the file would give a hung test a bound that names the test, and give
 the run a budget below the watchdog. The contract binds both the moment they
 appear, so they arrive above and below the right neighbours rather than merely
-somewhere, and it reads them from the configuration rather than assuming
-values.
+somewhere, and it reads them from the configuration rather than assuming values.
 
 [Issue 137](https://github.com/leynos/stilyagi/issues/137) holds the
 measurements a later pass needs to choose both values, and the constraints they
@@ -1729,18 +1728,27 @@ have to satisfy.
 
 ### What the ceilings are sized against
 
-The watchdog plus the work outside its window, measured from the worst of
-several runs rather than one:
+The watchdog plus the work outside its window, measured from the worst of many
+runs rather than one. Runs of every conclusion are read, not only successful
+ones: a run cancelled at its ceiling is the very case the sizing exists to
+prevent, so excluding it would size the ceiling against the runs that never
+needed it.
 
-| Lane | Worst coverage step | Worst whole job | Outside the step | Run |
-| --- | --- | --- | --- | --- |
-| `smoke.yml` `lint-test` | 273 s | 758 s | 526 s | 34069884428 |
-| `coverage-main.yml` `coverage-upload` | 235 s | 314 s | 84 s | 32946918439 |
+| Lane                                  | Worst coverage step | Worst whole job | Widest gap | Run         |
+| ------------------------------------- | ------------------- | --------------- | ---------- | ----------- |
+| `smoke.yml` `lint-test`               | 221 s               | 758 s           | 541 s      | 34069884428 |
+| `coverage-main.yml` `coverage-upload` | 221 s               | 314 s           | 98 s       | 32946918439 |
 
-*Table: measured coverage-step and whole-job durations, read across ten
-successful runs of each workflow.*
+*Table: measured coverage-step and whole-job durations. The gap is the job's
+duration less its `Generate coverage` step, so it is the work the job timer
+bounds and the watchdog does not.*
 
-The widest gap is 526 s, so the contract allows 15 minutes, making the
+The sample is the last 60 runs of `smoke.yml`, 43 successful and 17 failed, and
+all 25 runs of `coverage-main.yml`, all successful. Neither history contains a
+cancelled or timeout-terminated run, so no run in the sample was ended by any
+of these four timers, and the measurements are of work that completed.
+
+The widest gap is 541 s, so the contract allows 15 minutes, making the
 requirement 45 minutes against ceilings of 60. On the pull-request lane most of
 that gap is the linting and the Python suite, which run outside the coverage
 step and so outside the watchdog.
@@ -1751,17 +1759,34 @@ a measurement of the cold case.
 ### The contract
 
 `tests/test_timeout_ordering_contract.py` asserts this by value over every job
-invoking the coverage action, in both the `.yml` and `.yaml` extensions.
+invoking the coverage action, in both the `.yml` and `.yaml` extensions. It
+reads the workflows through `tests/support/coverage_workflows.py` and the
+nextest budgets through `tests/support/timeout_budgets.py`, so the readings can
+be driven with controlled inputs apart from the assertions over the tree.
 
 It resolves the watchdog from the step, then the job, then the workflow, as
 GitHub does. Both workflows here set it at workflow level, so a contract
 reading only the job would have found nothing and reported every lane as
 inheriting the action's default, which is exactly backwards.
 
-Two of its readings are driven with controlled configurations rather than this
-repository's files, because there are none to drive them with: that the
-per-test budget is `period` multiplied by `terminate-after`, and that
-`grace-period` is not read as a per-test budget. Both will matter the moment a
-nextest configuration appears.
+It pins each ceiling to the documented 60 minutes as well as deriving the 45
+minutes required. The derivation alone would accept a ceiling anywhere above
+45, including one that had drifted away from this guide without anything
+failing; the pin makes the table above the source of the value.
 
-[shared-actions-coverage]: https://github.com/leynos/shared-actions/blob/main/.github/actions/generate-coverage/README.md
+The termination allowance it demands between a whole-run budget and the
+watchdog is two terms, not one: the largest `grace-period` the configuration
+sets, or nextest's ten-second default when it sets none, plus a fixed 60-second
+safety margin. A grace period is what nextest promises a test after `SIGTERM`;
+the margin covers the process teardown and report writing that follow it.
+Folding them into a single floor makes a raised grace period look free until
+the run it cancels.
+
+Two of its readings are driven with controlled configurations rather than this
+repository's files because there are none to drive them with. Those readings
+are that the per-test budget is `period` multiplied by `terminate-after`, and
+that `grace-period` is not read as a per-test budget. Both will matter the
+moment a nextest configuration appears.
+
+[^6]: [`generate-coverage`: test timeouts](
+    https://github.com/leynos/shared-actions/blob/main/.github/actions/generate-coverage/README.md)
