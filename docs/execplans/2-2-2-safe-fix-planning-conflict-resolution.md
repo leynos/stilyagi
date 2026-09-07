@@ -1836,3 +1836,9 @@ in isolation. `write_source` resolves file symlinks, skips byte-identical
 writes, creates the temporary beside the target, copies metadata, and replaces
 atomically. Focused red/green tests and the wheel-layout snapshot cover those
 contracts; command execution is deliberately deferred until the writer gates.
+
+**Revision 26, 2026-09-07.** Skylos correctly identified the staged atomic
+writer as unreachable before the Milestone 5 `--fix` pipeline exists. Added
+narrow, documented entry-point exceptions for `write_source` and its private
+temporary-file helper. Remove both as soon as the pipeline calls
+`write_source`; the full gate stays live for every other production symbol.
