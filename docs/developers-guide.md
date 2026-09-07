@@ -1785,6 +1785,16 @@ There is no `act` run behind any of this. `act` does not implement
 the job, and proving a 60-minute ceiling by observation would take a
 60-minute run. What can be checked statically is checked statically.
 
+It pins the condition each lane carries as well as its budgets. A skipped step
+runs no `cargo`, so its watchdog never arms and every assertion about the tiers
+says nothing about it: `if: false` on the step or on its job would leave a lane
+that looks bounded and is not. The conditions are pinned rather than forbidden,
+because both are legitimate. `smoke.yml` runs on pushes too, where the release
+smoke matters and coverage does not, so its coverage step is conditional on the
+pull-request event; `coverage-main.yml` is the trunk lane and runs
+unconditionally. A lane gaining, losing or changing a condition has to change
+this section with it.
+
 It pins each ceiling to the documented 60 minutes as well as deriving the 45
 minutes required. The derivation alone would accept a ceiling anywhere above
 45, including one that had drifted away from this guide without anything
