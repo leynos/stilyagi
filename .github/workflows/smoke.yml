@@ -22,6 +22,13 @@ env:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
+    # Above the 1,800 s cargo watchdog on the coverage step plus the work
+    # either side of it, which reached 526 s on run 34069884428. This job
+    # had no ceiling before and so inherited GitHub's six-hour default; a
+    # ceiling merely above the watchdog would cancel the job before the
+    # watchdog could report an overrun, and a cancellation discards the
+    # log that would have explained it.
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:

@@ -31,6 +31,10 @@ env:
 jobs:
   coverage-upload:
     runs-on: ubuntu-latest
+    # Kept in step with smoke.yml's coverage lane: above the 1,800 s cargo
+    # watchdog plus the work either side. This job's own worst was 84 s
+    # outside the coverage step, on run 32946918439.
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
