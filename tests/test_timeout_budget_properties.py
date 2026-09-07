@@ -18,14 +18,16 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from tests.support.nextest_config import (
+    grace_period,
+    largest_test_allowance,
+    termination_allowance,
+)
 from tests.support.timeout_budgets import (
     NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
     TERMINATION_SAFETY_MARGIN_SECONDS,
     NextestConfigurationError,
-    grace_period,
-    largest_test_allowance,
     seconds,
-    termination_allowance,
 )
 
 #: The units nextest accepts, with their length in seconds.

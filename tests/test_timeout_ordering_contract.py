@@ -35,7 +35,7 @@ from tests.support.coverage_workflows import (
 from tests.support.coverage_workflows import (
     coverage_jobs as read_coverage_jobs,
 )
-from tests.support.timeout_budgets import (
+from tests.support.nextest_config import (
     global_timeout,
     largest_test_allowance,
     termination_allowance,
