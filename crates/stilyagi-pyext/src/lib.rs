@@ -8,7 +8,7 @@ use stilyagi_extract::{
     ExtractDocument, ExtractError, ExtractRegion, ExtractSyntax,
     extract_document as extract_document_from_rust,
 };
-use stilyagi_ir::{IrRegion, RegionKind as IrRegionKind};
+use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, IrRegion, RegionKind as IrRegionKind};
 
 /// Return a simple Rust-side greeting for smoke-testing the extension bridge.
 #[pyfunction]
@@ -41,6 +41,12 @@ fn supported_region_kinds_py(py: Python<'_>) -> PyResult<Py<PyTuple>> {
         .collect::<Vec<_>>();
 
     Ok(PyTuple::new(py, region_kind_items)?.unbind())
+}
+
+/// Return authored-directive error codes exported by the Rust bridge.
+#[pyfunction(name = "authored_directive_error_codes")]
+fn authored_directive_error_codes_py(py: Python<'_>) -> PyResult<Py<PyTuple>> {
+    Ok(PyTuple::new(py, AUTHORED_DIRECTIVE_ERROR_CODES)?.unbind())
 }
 
 /// Return the minimal extraction payload through the `PyO3` extension boundary.
@@ -160,6 +166,7 @@ fn map_extract_error(error: &ExtractError) -> PyErr {
 fn _stilyagi_rs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(extract_document_function(py)?)?;
     m.add_function(wrap_pyfunction!(hello, m)?)?;
+    m.add_function(wrap_pyfunction!(authored_directive_error_codes_py, m)?)?;
     m.add_function(wrap_pyfunction!(supported_region_kinds_py, m)?)?;
     m.add_function(wrap_pyfunction!(supported_syntaxes_py, m)?)?;
     Ok(())

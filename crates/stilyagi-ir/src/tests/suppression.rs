@@ -9,10 +9,27 @@ use stilyagi_test_fixtures::ExpectValid;
 
 use crate::suppression::{
     DirectiveError, DirectiveOutcome, DirectiveVerb, SuppressionCandidate,
-    SuppressionValidationError, parse_comment_directive, suppressions_from_candidates,
-    validate_suppressions, verb_kind,
+    SuppressionValidationError, is_authored_directive_code, parse_comment_directive,
+    suppressions_from_candidates, validate_suppressions, verb_kind,
 };
 use crate::{IrSuppression, RangeRole, SourceSpan, SuppressionKind};
+
+#[rstest]
+#[case("suppression-blanket-forbidden", true)]
+#[case("suppression-unknown-verb", true)]
+#[case("python-parse-recovery", false)]
+#[case("python-traversal-depth-limit", false)]
+#[case("rust-parse-recovery", false)]
+#[case("rust-traversal-depth-limit", false)]
+#[case("rust-doc-comment-error-subtree", false)]
+#[case("rust-doc-comment-span", false)]
+#[case("future-extractor-anomaly", false)]
+fn is_authored_directive_code_fails_safe_for_unknown_codes(
+    #[case] code: &str,
+    #[case] expected: bool,
+) {
+    assert_eq!(is_authored_directive_code(code), expected);
+}
 
 #[rstest]
 fn suppression_serialises_and_deserialises_with_the_rfc_shape() {
