@@ -257,6 +257,8 @@ def test_whitelist_target_uses_the_command_only_skylos_cli() -> None:
     assert whitelist_commands == [expected_whitelist_command], (
         "Skylos whitelist command contract must dispatch before --reason"
     )
+
+
 @hyp.settings(max_examples=25, deadline=None)
 @hyp.given(value=st.text(alphabet=" \t", min_size=1, max_size=8))
 def test_skylos_allow_rejects_missing_or_whitespace_values(value: str) -> None:

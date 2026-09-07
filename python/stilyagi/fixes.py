@@ -38,11 +38,6 @@ class TextEdit:
     replacement: str
 
     @classmethod
-    def insert_before(cls, span: ir_view.SourceSpan, text: str) -> TextEdit:
-        """Insert text immediately before a source span."""
-        return cls(span.byte_start, span.byte_start, text)
-
-    @classmethod
     def replace(cls, span: ir_view.SourceSpan, text: str) -> TextEdit:
         """Replace the complete source span with text."""
         return cls(span.byte_start, span.byte_end, text)
