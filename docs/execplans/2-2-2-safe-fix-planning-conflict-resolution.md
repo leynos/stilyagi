@@ -276,7 +276,7 @@ Established during planning; use them instead of re-measuring.
     correction: 266 Python tests, 337 Rust tests, Markdown spelling and
     Mermaid validation. CodeRabbit reviewed pushed commit `f9cb8ae` on draft
     PR #138 and returned zero findings. Milestone 4 may begin.
-- [ ] Milestone 4 — `--diff` (in progress)
+- [x] Milestone 4 — `--diff`
   - 2026-09-07: the standalone diff-renderer red/green slice passes
     its six focused tests, but three focused full-gate attempts exhausted the
     `Iterations` tolerance. The first required Ruff formatting; the second
@@ -293,6 +293,9 @@ Established during planning; use them instead of re-measuring.
     and sends diagnostics and refusal reports to standard error. Focused
     command, renderer, and wheel-layout tests pass; the emitted diff snapshot
     captures the machine/human stream boundary.
+  - 2026-09-07: all six deterministic gates passed (275 Python tests and 18
+    snapshots), then CodeRabbit reviewed pushed commit `ebbcac7` on draft PR
+    #138 and returned zero actionable findings. Milestone 5 may begin.
 - [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes
 - [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
 
@@ -1817,3 +1820,7 @@ an immutable request. `--diff` reserves standard output for patches and sends
 diagnostics and `fix-error` reports to standard error. The focused tests and
 reviewed snapshots pass. The full milestone gate chain is green (275 Python
 tests and 18 snapshots); CodeRabbit remains pending.
+
+**Revision 24, 2026-09-07.** CodeRabbit reviewed Milestone 4 commit `ebbcac7`
+on draft PR #138 after its full deterministic gate chain and returned zero
+actionable findings. Marked Milestone 4 complete; Milestone 5 may begin.
