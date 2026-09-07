@@ -13,6 +13,7 @@ from tests.support.timeout_budgets import (
     NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
     TERMINATION_SAFETY_MARGIN_SECONDS,
     UnboundedTestError,
+    global_timeout,
     largest_test_allowance,
     termination_allowance,
 )
@@ -22,28 +23,59 @@ from tests.test_timeout_ordering_contract import (
 )
 
 
+def document(*tables: str, profile: str = "default") -> str:
+    """Return a nextest document declaring those slow-timeouts.
+
+    The reading parses the configuration, so one it is driven with has
+    to be shaped the way nextest reads one: the first table is the
+    profile's own and the rest are its overrides. A bare assignment at
+    the root of the document is not configuration to nextest, and is not
+    read as any here either.
+
+    Parameters
+    ----------
+    *tables : str
+        The ``slow-timeout`` assignments, profile's own first.
+    profile : str
+        The profile to declare them under.
+
+    Returns
+    -------
+    str
+        A configuration document.
+    """
+    lines = [f"[profile.{profile}]"]
+    if tables:
+        lines.append(tables[0])
+    for override in tables[1:]:
+        lines += ["", f"[[profile.{profile}.overrides]]", override]
+    return "\n".join(lines) + "\n"
+
+
 @pytest.mark.parametrize(
     ("config_text", "expected"),
     [
         pytest.param(
-            'slow-timeout = { period = "180s", terminate-after = 1 }',
+            document('slow-timeout = { period = "180s", terminate-after = 1 }'),
             180.0,
             id="a-single-period",
         ),
         pytest.param(
-            'slow-timeout = { period = "60s", terminate-after = 5 }',
+            document('slow-timeout = { period = "60s", terminate-after = 5 }'),
             300.0,
             id="five-warning-periods",
         ),
         pytest.param(
-            'slow-timeout = { period = "2m", terminate-after = 3 }',
+            document('slow-timeout = { period = "2m", terminate-after = 3 }'),
             360.0,
             id="minutes-times-three",
         ),
         pytest.param(
-            'slow-timeout = { period = "30s", terminate-after = 2, '
-            'grace-period = "5s" }\n'
-            'slow-timeout = { period = "60s", terminate-after = 1 }',
+            document(
+                'slow-timeout = { period = "30s", terminate-after = 2, '
+                'grace-period = "5s" }',
+                'slow-timeout = { period = "60s", terminate-after = 1 }',
+            ),
             60.0,
             id="the-largest-of-several",
         ),
@@ -73,7 +105,7 @@ def test_a_grace_period_is_not_read_as_a_per_test_budget() -> None:
     for a per-test budget whenever the former were the larger, which
     would silently raise the whole-run budget this contract demands.
     """
-    config_text = (
+    config_text = document(
         'slow-timeout = { period = "30s", terminate-after = 1, grace-period = "30m" }'
     )
     assert largest_test_allowance(config_text) == pytest.approx(30.0), (
@@ -94,15 +126,22 @@ def test_the_termination_allowance_is_the_grace_period_plus_the_margin() -> None
         NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS + TERMINATION_SAFETY_MARGIN_SECONDS
     ), "an unset grace period must fall back to nextest's own default"
     raised = termination_allowance(
-        'slow-timeout = { period = "30s", grace-period = "30s" }'
+        document(
+            'slow-timeout = { period = "30s", terminate-after = 1, '
+            'grace-period = "30s" }'
+        )
     )
     assert raised == pytest.approx(30.0 + TERMINATION_SAFETY_MARGIN_SECONDS), (
         "a grace period below the margin must still raise the allowance; "
         "a maximum over the two terms would have discarded it"
     )
     largest = termination_allowance(
-        'slow-timeout = { grace-period = "5s" }\n'
-        'slow-timeout = { grace-period = "45s" }'
+        document(
+            'slow-timeout = { period = "30s", terminate-after = 1, '
+            'grace-period = "5s" }',
+            'slow-timeout = { period = "30s", terminate-after = 1, '
+            'grace-period = "45s" }',
+        )
     )
     assert largest == pytest.approx(45.0 + TERMINATION_SAFETY_MARGIN_SECONDS), (
         "the largest configured grace period governs the allowance"
@@ -131,12 +170,13 @@ def test_the_required_ceiling_carries_all_three_terms() -> None:
 @pytest.mark.parametrize(
     "config_text",
     [
-        pytest.param('slow-timeout = "2m"', id="the-bare-string-form"),
+        pytest.param(document('slow-timeout = "2m"'), id="the-bare-string-form"),
         pytest.param(
-            'slow-timeout = { period = "2m" }', id="a-table-without-terminate-after"
+            document('slow-timeout = { period = "2m" }'),
+            id="a-table-without-terminate-after",
         ),
         pytest.param(
-            'slow-timeout = { period = "2m", grace-period = "5s" }',
+            document('slow-timeout = { period = "2m", grace-period = "5s" }'),
             id="a-table-with-only-a-grace-period",
         ),
     ],
@@ -153,3 +193,50 @@ def test_a_slow_timeout_that_never_terminates_is_refused(config_text: str) -> No
     """
     with pytest.raises(UnboundedTestError, match=r"terminate-after|warn-only"):
         largest_test_allowance(config_text)
+
+
+def test_a_commented_out_entry_is_not_configuration() -> None:
+    """A comment is not configuration, and TOML is what says so.
+
+    This repository has no `.config/nextest.toml` yet, so these are the
+    only tests standing behind the reading whoever adds one will get. A
+    text match would find every key below and report budgets the runner
+    never applies: the commented-out `global-timeout` would keep the
+    presence assertion passing over a tier somebody had switched off,
+    and the commented-out `grace-period` would raise the requirement
+    this contract puts on the tier above it.
+    """
+    config_text = document(
+        '# global-timeout = "45m"',
+        '# slow-timeout = { period = "30m", terminate-after = 1, '
+        'grace-period = "30m" }',
+        'slow-timeout = { period = "300s", terminate-after = 1, grace-period = "5s" }',
+    )
+    assert global_timeout(config_text) is None, (
+        "a commented-out global-timeout was read as the budget in force"
+    )
+    assert largest_test_allowance(config_text) == pytest.approx(300.0), (
+        "a commented-out slow-timeout was read as a live one"
+    )
+    assert termination_allowance(config_text) == pytest.approx(
+        5.0 + TERMINATION_SAFETY_MARGIN_SECONDS
+    ), "a commented-out grace period was read as the one in force"
+
+
+def test_a_filter_naming_a_timeout_key_is_not_a_budget() -> None:
+    """An override's ``filter`` is a string, not configuration.
+
+    A binary named after one of these keys would be matched by a text
+    search and read as a budget nextest never applies.
+    """
+    config_text = document(
+        'slow-timeout = { period = "300s", terminate-after = 1 }\n'
+        'global-timeout = "45m"',
+        "filter = 'binary(global_timeout_probe) | binary(grace_period_probe)'\n"
+        'slow-timeout = { period = "600s", terminate-after = 1 }',
+    )
+    assert largest_test_allowance(config_text) == pytest.approx(600.0)
+    assert global_timeout(config_text) == pytest.approx(2700.0)
+    assert termination_allowance(config_text) == pytest.approx(
+        NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS + TERMINATION_SAFETY_MARGIN_SECONDS
+    )

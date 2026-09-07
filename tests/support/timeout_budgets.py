@@ -5,9 +5,17 @@ arithmetic can be exercised against controlled configurations without
 the workflow reading around it. This repository has no
 `.config/nextest.toml`, so every reading here is driven by strings the
 tests supply.
+
+The configuration is parsed with ``tomllib`` rather than matched as
+text. A text match finds a key inside a comment, inside a ``filter``
+string, or in a table nextest never consults, and reports a budget the
+runner does not use. That matters here because the file does not exist
+yet: whoever adds it will get the reading the runner would give, not
+the reading a regular expression happens to give.
 """
 
 import re
+import tomllib
 import typing as typ
 
 #: What nextest allows a test between `SIGTERM` and `SIGKILL` when the
@@ -85,24 +93,12 @@ _UNIT_SECONDS: typ.Final[dict[str, float]] = {
     "h": 3600.0,
 }
 
+
 #: One `slow-timeout` inline table, captured whole so the period and the
 #: multiplier that scales it are read together. nextest warns once per
 #: `period` and terminates after `terminate-after` of them, so the budget
 #: is their product; reading the period alone understates it fivefold
 #: here.
-_SLOW_TIMEOUT: typ.Final[re.Pattern[str]] = re.compile(
-    r"slow-timeout\s*=\s*\{(?P<body>[^}]*)\}"
-)
-
-#: A ``slow-timeout`` given as a bare duration rather than a table.
-#: nextest accepts this form and it never terminates a test.
-_BARE_SLOW_TIMEOUT: typ.Final[re.Pattern[str]] = re.compile(
-    r'slow-timeout\s*=\s*"([^"]+)"'
-)
-
-_GRACE_PERIOD: typ.Final[re.Pattern[str]] = re.compile(r'grace-period\s*=\s*"([^"]+)"')
-
-
 def seconds(duration: str) -> float:
     """Convert a nextest duration to seconds.
 
@@ -128,116 +124,271 @@ def seconds(duration: str) -> float:
     return float(match["value"]) * _UNIT_SECONDS[match["unit"]]
 
 
-def largest_test_allowance(config_text: str) -> float:
-    """Return the longest a single test may run, in seconds.
+def _table(value: object) -> dict[str, object]:
+    """Return a parsed value as a table, or an empty one.
+
+    Parameters
+    ----------
+    value : object
+        Any value ``tomllib`` produced.
+
+    Returns
+    -------
+    dict[str, object]
+        The table, or an empty one when the value is not a table.
+    """
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _parsed(config_text: str) -> dict[str, object]:
+    """Return the nextest configuration as TOML.
 
     Parameters
     ----------
     config_text : str
-        The nextest configuration file's text.
+        A nextest configuration's text, empty when there is no file.
 
     Returns
     -------
-    float
-        The longest per-test budget, period multiplied by
-        ``terminate-after``.
+    dict[str, object]
+        The parsed document, empty when the text is.
 
     Raises
     ------
     NextestConfigurationError
-        If a ``slow-timeout`` names no period, or none is set at all.
+        If the text is not valid TOML.
     """
-    budgets = [
-        _table_budget(match["body"]) for match in _SLOW_TIMEOUT.finditer(config_text)
+    try:
+        return tomllib.loads(config_text)
+    except tomllib.TOMLDecodeError as error:
+        message = f"the nextest configuration is not valid TOML: {error}"
+        raise NextestConfigurationError(
+            message, field="config", value=config_text
+        ) from error
+
+
+def _budget_tables(config_text: str) -> list[tuple[str, dict[str, object]]]:
+    """Return every table nextest reads a per-test budget from.
+
+    Each profile's own table and each of its ``[[overrides]]`` entries,
+    with the dotted path that names it so a failure can say which one is
+    at fault.
+
+    Parameters
+    ----------
+    config_text : str
+        A nextest configuration's text.
+
+    Returns
+    -------
+    list of tuple
+        The dotted path and the table, in file order.
+    """
+    tables: list[tuple[str, dict[str, object]]] = []
+    for name, raw in _table(_parsed(config_text).get("profile")).items():
+        profile = _table(raw)
+        tables.append((f"profile.{name}", profile))
+        overrides = profile.get("overrides")
+        entries = overrides if isinstance(overrides, list) else []
+        tables.extend(
+            (f"profile.{name}.overrides[{index}]", _table(entry))
+            for index, entry in enumerate(entries)
+        )
+    return tables
+
+
+def _slow_timeouts(config_text: str) -> list[tuple[str, object]]:
+    """Return every ``slow-timeout`` the configuration declares.
+
+    Parameters
+    ----------
+    config_text : str
+        A nextest configuration's text.
+
+    Returns
+    -------
+    list of tuple
+        The dotted path of the declaring table and the value.
+    """
+    return [
+        (path, table["slow-timeout"])
+        for path, table in _budget_tables(config_text)
+        if "slow-timeout" in table
     ]
-    budgets.extend(
-        _bare_budget(value) for value in _BARE_SLOW_TIMEOUT.findall(config_text)
-    )
+
+
+def largest_test_allowance(config_text: str) -> float:
+    """Return the longest a single test may run, in seconds.
+
+    nextest warns once per ``period`` and terminates after
+    ``terminate-after`` of them, so the budget is their product.
+
+    Parameters
+    ----------
+    config_text : str
+        A nextest configuration's text.
+
+    Returns
+    -------
+    float
+        The longest per-test budget.
+
+    Raises
+    ------
+    NextestConfigurationError
+        If the configuration declares no ``slow-timeout`` at all. A
+        ``slow-timeout`` that terminates nothing raises
+        :class:`UnboundedTestError` from :func:`_budget_of`.
+    """
+    budgets = [_budget_of(path, value) for path, value in _slow_timeouts(config_text)]
     if not budgets:
-        msg = "nextest.toml must set at least one slow-timeout"
-        raise NextestConfigurationError(msg, field="slow-timeout", value=None)
+        message = (
+            "the nextest configuration declares no slow-timeout, so no test "
+            "is bounded and there is no per-test tier to compare against"
+        )
+        raise NextestConfigurationError(
+            message, field="slow-timeout", value=config_text
+        )
     return max(budgets)
 
 
-def _table_budget(body: str) -> float:
+def _budget_of(path: str, value: object) -> float:
+    """Return the per-test budget one ``slow-timeout`` declares.
+
+    Parameters
+    ----------
+    path : str
+        The dotted path of the declaring table, for the message.
+    value : object
+        The parsed value, a table or a bare duration.
+
+    Returns
+    -------
+    float
+        The budget in seconds.
+
+    Raises
+    ------
+    UnboundedTestError
+        If the value names no ``terminate-after``, in either spelling.
+    NextestConfigurationError
+        If the value is a table with no ``period``, or is neither a
+        table nor a duration.
+    """
+    match value:
+        case str():
+            return _bare_budget(path, value)
+        case dict():
+            return _table_budget(path, value)
+        case _:
+            message = f"{path}.slow-timeout is neither a table nor a duration"
+            raise NextestConfigurationError(message, field="slow-timeout", value=value)
+
+
+def _table_budget(path: str, table: dict[str, object]) -> float:
     """Return one inline ``slow-timeout`` table's per-test budget.
 
     Parameters
     ----------
-    body : str
-        The table's contents, without its braces.
+    path : str
+        The dotted path of the declaring table, for the message.
+    table : dict[str, object]
+        The parsed table.
 
     Returns
     -------
     float
-        ``period`` multiplied by ``terminate-after``.
+        The period multiplied by ``terminate-after``, in seconds.
 
     Raises
     ------
     NextestConfigurationError
-        If the table names no period.
+        If the table names no ``period``.
     UnboundedTestError
-        If it names no ``terminate-after``, so nextest never terminates
-        a test that exceeds the period.
+        If the table names no ``terminate-after``, so nextest warns
+        about a slow test forever and never stops it.
     """
-    period = re.search(r'period\s*=\s*"([^"]+)"', body)
-    if period is None:
-        msg = f"slow-timeout without a period: {body!r}"
-        raise NextestConfigurationError(msg, field="slow-timeout", value=body)
-    terminate = re.search(r"terminate-after\s*=\s*(\d+)", body)
-    if terminate is None:
-        msg = (
-            f"slow-timeout {body!r} sets no terminate-after, so nextest marks "
-            f"a test slow and never ends it; the per-test tier is absent"
+    period = table.get("period")
+    if not isinstance(period, str):
+        message = f"{path}.slow-timeout names no period: {table!r}"
+        raise NextestConfigurationError(message, field="period", value=table)
+    multiplier = table.get("terminate-after")
+    if multiplier is None:
+        message = (
+            f"{path}.slow-timeout sets no terminate-after, so nextest marks "
+            f"the test slow and lets it run on; there is no per-test tier to "
+            f"compare against"
         )
-        raise UnboundedTestError(msg, field="terminate-after", value=None)
-    return seconds(period[1]) * int(terminate[1])
+        raise UnboundedTestError(message, field="terminate-after", value=table)
+    return seconds(period) * float(str(multiplier))
 
 
-def _bare_budget(value: str) -> typ.NoReturn:
-    """Return the budget a bare ``slow-timeout = "2m"`` gives.
+def _bare_budget(path: str, period: str) -> typ.NoReturn:
+    """Refuse a ``slow-timeout`` written as a bare duration.
 
     Parameters
     ----------
-    value : str
-        The duration the setting names.
+    path : str
+        The dotted path of the declaring table, for the message.
+    period : str
+        The duration the configuration named.
 
     Raises
     ------
     UnboundedTestError
-        Always. The string form takes no ``terminate-after``, so nextest
-        marks a test slow after the period and lets it run for ever.
+        Always. The bare form sets a warning period with no
+        ``terminate-after``, so no test is ever terminated by it.
     """
-    msg = (
-        f"slow-timeout = {value!r} is the warn-only form: nextest marks a "
-        f"test slow after {value} and never ends it, so the per-test tier is "
-        f"absent. Use a table with terminate-after to bound a test"
+    message = (
+        f'{path}.slow-timeout = "{period}" sets a warning period with no '
+        f"terminate-after, so nextest reports the test as slow and never "
+        f"stops it; there is no per-test tier to compare against"
     )
-    raise UnboundedTestError(msg, field="slow-timeout", value=value)
+    raise UnboundedTestError(message, field="slow-timeout", value=period)
 
 
 def grace_period(config_text: str) -> float:
     """Return the longest grace period the configuration names, in seconds.
 
-    Read from the configuration rather than fixed, so a profile that
-    raised its grace period raises the requirement too. nextest's own
-    ten-second default applies when none is named, as none is here.
-
     Parameters
     ----------
     config_text : str
-        The nextest configuration file's text.
+        A nextest configuration's text.
 
     Returns
     -------
     float
         The largest configured grace period, or nextest's default.
     """
-    periods = _GRACE_PERIOD.findall(config_text)
-    return max(
-        (seconds(period) for period in periods),
-        default=NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
-    )
+    periods = [
+        seconds(grace)
+        for _, value in _slow_timeouts(config_text)
+        if isinstance(value, dict)
+        and isinstance(grace := value.get("grace-period"), str)
+    ]
+    return max(periods, default=NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS)
+
+
+def global_timeout(config_text: str) -> float | None:
+    """Return the whole-run budget, or None when none is set.
+
+    Read from ``[profile.default]`` alone. nextest's other profiles
+    inherit that table unless they override it, and an ``[[overrides]]``
+    entry cannot carry one.
+
+    Parameters
+    ----------
+    config_text : str
+        A nextest configuration's text.
+
+    Returns
+    -------
+    float or None
+        The whole-run budget in seconds, or None.
+    """
+    profile = _table(_table(_parsed(config_text).get("profile")).get("default"))
+    budget = profile.get("global-timeout")
+    return seconds(budget) if isinstance(budget, str) else None
 
 
 def termination_allowance(config_text: str) -> float:
@@ -259,20 +410,3 @@ def termination_allowance(config_text: str) -> float:
         The grace period plus the safety margin.
     """
     return grace_period(config_text) + TERMINATION_SAFETY_MARGIN_SECONDS
-
-
-def global_timeout(config_text: str) -> float | None:
-    """Return the whole-run budget, or None when none is set.
-
-    Parameters
-    ----------
-    config_text : str
-        The nextest configuration file's text.
-
-    Returns
-    -------
-    float or None
-        The whole-run budget in seconds, or None.
-    """
-    match = re.search(r'^global-timeout\s*=\s*"([^"]+)"', config_text, re.MULTILINE)
-    return None if match is None else seconds(match[1])
