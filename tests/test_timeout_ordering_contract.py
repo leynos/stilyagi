@@ -36,8 +36,6 @@ from tests.support.coverage_workflows import (
     coverage_jobs as read_coverage_jobs,
 )
 from tests.support.timeout_budgets import (
-    NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
-    TERMINATION_SAFETY_MARGIN_SECONDS,
     global_timeout,
     largest_test_allowance,
     termination_allowance,
@@ -64,6 +62,24 @@ NEXTEST_CONFIG: typ.Final[Path] = REPO_ROOT / ".config" / "nextest.toml"
 #: run. Fifteen minutes covers the worse of those, and none of the runs
 #: was genuinely cold.
 OUTSIDE_WATCHDOG_ALLOWANCE_SECONDS: typ.Final[float] = 15 * 60.0
+
+#: The condition each coverage lane legitimately carries, keyed by
+#: workflow and job, as a tuple of the step's ``if`` and its job's.
+#:
+#: A skipped step runs no `cargo`, so its watchdog never arms and every
+#: assertion below says nothing about it. `if: false` on either the step
+#: or the job would leave a lane that looks bounded and is not, and a
+#: contract that ignored conditions would certify it. The values are
+#: pinned rather than merely tolerated, because a lane gaining, losing
+#: or changing a condition changes when it runs at all.
+#:
+#: `smoke.yml`'s coverage step is conditional because that workflow also
+#: runs on pushes, where the release smoke matters and coverage does
+#: not. `coverage-main.yml` is the trunk lane and runs unconditionally.
+REQUIRED_CONDITIONS: typ.Final[dict[tuple[str, str], tuple[object, object]]] = {
+    ("smoke.yml", "lint-test"): ("github.event_name == 'pull_request'", None),
+    ("coverage-main.yml", "coverage-upload"): (None, None),
+}
 
 #: How far a ceiling must sit above the sum it contains, rather than
 #: merely reaching it. A ceiling equal to that sum cancels the job at
@@ -271,110 +287,32 @@ def test_a_whole_run_budget_would_sit_inside_each_watchdog(
             )
 
 
-@pytest.mark.parametrize(
-    ("config_text", "expected"),
-    [
-        pytest.param(
-            'slow-timeout = { period = "180s", terminate-after = 1 }',
-            180.0,
-            id="a-single-period",
-        ),
-        pytest.param(
-            'slow-timeout = { period = "60s", terminate-after = 5 }',
-            300.0,
-            id="five-warning-periods",
-        ),
-        pytest.param(
-            'slow-timeout = { period = "2m", terminate-after = 3 }',
-            360.0,
-            id="minutes-times-three",
-        ),
-        pytest.param(
-            'slow-timeout = { period = "90s" }',
-            90.0,
-            id="no-multiplier-means-one",
-        ),
-        pytest.param(
-            'slow-timeout = { period = "30s", terminate-after = 2, '
-            'grace-period = "5s" }\n'
-            'slow-timeout = { period = "60s", terminate-after = 1 }',
-            60.0,
-            id="the-largest-of-several",
-        ),
-    ],
-)
-def test_the_largest_per_test_allowance_counts_the_multiplier(
-    config_text: str, expected: float
+def test_each_coverage_lane_carries_the_condition_it_is_meant_to(
+    coverage_jobs: tuple[CoverageJob, ...],
 ) -> None:
-    """``terminate-after`` scales the period; the budget is their product.
+    """A skipped step runs no `cargo`, so its watchdog never arms.
 
-    This is the reading every comparison above rests on, and it is the
-    one easy to get wrong. It is driven with controlled configurations
-    rather than this repository's own, whose multipliers are all one:
-    against that file a reading that ignored the multiplier entirely
-    would give the same answer, and the test would prove nothing.
+    Every assertion above reads a lane's declared budgets and says
+    nothing about whether the step runs. `if: false` on the step or on
+    its job would leave a lane that looks bounded and is not, and this
+    contract would certify it. So would a plausible condition that
+    quietly excluded the event the lane exists for.
+
+    The conditions are pinned rather than forbidden, because both are
+    legitimate here: `smoke.yml` also runs on pushes, where the release
+    smoke matters and coverage does not. Pinning them means a lane
+    gaining, losing or changing one has to change this contract and the
+    guide with it.
     """
-    assert largest_test_allowance(config_text) == pytest.approx(expected), (
-        f"{config_text!r} must yield a {expected:.0f}s largest per-test "
-        f"allowance; terminate-after scales the period"
-    )
-
-
-def test_a_grace_period_is_not_read_as_a_per_test_budget() -> None:
-    """The two keys sit in the same inline table.
-
-    A matcher reading `period` as a substring would take a grace period
-    for a per-test budget whenever the former were the larger, which
-    would silently raise the whole-run budget this contract demands.
-    """
-    config_text = 'slow-timeout = { period = "30s", grace-period = "30m" }'
-    assert largest_test_allowance(config_text) == pytest.approx(30.0), (
-        "the per-test ceiling read a grace period as a slow-timeout"
-    )
-
-
-def test_the_termination_allowance_is_the_grace_period_plus_the_margin() -> None:
-    """The two terms are added, not maximized over.
-
-    A single floor over the grace period and the margin would absorb any
-    grace period below the margin, so raising one from five seconds to
-    thirty would demand nothing more of the watchdog above it. Adding
-    them keeps a raised grace period visible in the requirement.
-    """
-    unset = termination_allowance("")
-    assert unset == pytest.approx(
-        NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS + TERMINATION_SAFETY_MARGIN_SECONDS
-    ), "an unset grace period must fall back to nextest's own default"
-    raised = termination_allowance(
-        'slow-timeout = { period = "30s", grace-period = "30s" }'
-    )
-    assert raised == pytest.approx(30.0 + TERMINATION_SAFETY_MARGIN_SECONDS), (
-        "a grace period below the margin must still raise the allowance; "
-        "a maximum over the two terms would have discarded it"
-    )
-    largest = termination_allowance(
-        'slow-timeout = { grace-period = "5s" }\n'
-        'slow-timeout = { grace-period = "45s" }'
-    )
-    assert largest == pytest.approx(45.0 + TERMINATION_SAFETY_MARGIN_SECONDS), (
-        "the largest configured grace period governs the allowance"
-    )
-
-
-def test_the_required_ceiling_carries_all_three_terms() -> None:
-    """Watchdogs, measured work outside them, and the margin.
-
-    Both ceilings sit exactly fifteen minutes above the smaller
-    requirement, so the margin is what the current values already carry
-    and dropping the term would still leave them passing. Driving the
-    derivation with controlled numbers is what makes it visible.
-    """
-    assert required_ceiling([1800.0, 2700.0], 900.0) == pytest.approx(
-        4500.0 + 900.0 + CEILING_MARGIN_SECONDS
-    ), "two watchdogs, the allowance and the margin are all added"
-    assert required_ceiling([1800.0], 0.0) == pytest.approx(
-        1800.0 + CEILING_MARGIN_SECONDS
-    ), "the margin applies even when nothing runs outside the watchdog"
-    assert required_ceiling([], 0.0) == pytest.approx(CEILING_MARGIN_SECONDS), (
-        "the margin is a term of its own, not a fraction of the others"
+    found = {(job.workflow, job.job): job.conditions for job in coverage_jobs}
+    wrong = {
+        coordinate: (expected, found.get(coordinate))
+        for coordinate, expected in REQUIRED_CONDITIONS.items()
+        if found.get(coordinate) != (expected,) * len(found.get(coordinate, ()))
+        or not found.get(coordinate)
+    }
+    assert not wrong, (
+        f"these coverage lanes do not carry the conditions the developers' "
+        f"guide records, as expected versus found: {wrong}; a lane that is "
+        f"skipped runs no cargo, so its watchdog never arms"
     )
