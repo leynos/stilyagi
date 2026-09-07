@@ -241,6 +241,72 @@ def test_planner_aborts_when_ir_segment_text_disagrees_with_source() -> None:
     )
 
 
+def test_planner_rejects_segment_starting_inside_utf8_code_point() -> None:
+    """Reject a valid edit when its containing segment starts mid-code-point."""
+    source = "éalpha"
+    document = model.Document(
+        model.Syntax.MARKDOWN,
+        ir={
+            "regions": [
+                {
+                    "segments": [
+                        {
+                            "text": "alpha",
+                            "source": {"byte_start": 1, "byte_end": 7},
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+    candidate = _diagnostic(
+        "PUN201", Fix("Bad IR", Applicability.SAFE, (TextEdit(2, 3, "A"),))
+    )
+
+    plan = plan_fixes(_request(source, document, (candidate,)))
+
+    assert_with_context(
+        plan.fixed_bytes is None, "expected malformed segment to forbid mutation"
+    )
+    assert_with_context(
+        plan.rejections[0].identifier == "fix-error/source-mismatch",
+        "expected a source-mismatch rejection",
+    )
+
+
+def test_planner_rejects_segment_extending_beyond_source() -> None:
+    """Reject a valid edit when its containing segment exceeds source bounds."""
+    source = "Hello"
+    document = model.Document(
+        model.Syntax.MARKDOWN,
+        ir={
+            "regions": [
+                {
+                    "segments": [
+                        {
+                            "text": source,
+                            "source": {"byte_start": 0, "byte_end": 6},
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+    candidate = _diagnostic(
+        "PUN201", Fix("Bad IR", Applicability.SAFE, (TextEdit(0, 1, "h"),))
+    )
+
+    plan = plan_fixes(_request(source, document, (candidate,)))
+
+    assert_with_context(
+        plan.fixed_bytes is None, "expected malformed segment to forbid mutation"
+    )
+    assert_with_context(
+        plan.rejections[0].identifier == "fix-error/source-mismatch",
+        "expected a source-mismatch rejection",
+    )
+
+
 def test_planner_accepts_list_paragraph_end_insertions_from_real_corpus() -> None:
     """Prove that list-item prose remains admissible despite its container shape."""
     source = (_MARKDOWN_FIXTURES / "lists.md.fixture").read_text(encoding="utf-8")
