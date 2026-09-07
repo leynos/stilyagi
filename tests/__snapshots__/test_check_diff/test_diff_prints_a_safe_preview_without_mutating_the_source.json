@@ -1,0 +1,5 @@
+{
+  "exit_code": 1,
+  "stderr": "notes.md:1:1: warning PUN201 Use the preferred paragraph term.\n1 diagnostic found (1 safe fix, 0 unsafe fixes)\n",
+  "stdout": "--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-Paragraph text.\n+Section text.\n"
+}

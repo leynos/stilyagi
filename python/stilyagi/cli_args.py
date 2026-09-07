@@ -58,6 +58,7 @@ class CheckOptions:
     select: tuple[str, ...] = ()
     ignore: tuple[str, ...] = ()
     extend_select: tuple[str, ...] = ()
+    diff: bool = False
     quiet: bool = False
     verbose: bool = False
     silent: bool = False
@@ -122,6 +123,7 @@ def options_from_args(args: argparse.Namespace) -> CheckOptions:
         select=_flatten_rule_codes(args.select),
         ignore=_flatten_rule_codes(args.ignore),
         extend_select=_flatten_rule_codes(args.extend_select),
+        diff=args.diff,
         quiet=args.quiet,
         verbose=args.verbose,
         silent=args.silent,
@@ -174,6 +176,11 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         default=(),
         metavar="VALUE",
         help="Use one explicit config file or inline TOML fragment.",
+    )
+    parser.add_argument(
+        "--diff",
+        action="store_true",
+        help="Print safe fix previews as unified diffs without changing files.",
     )
     parser.add_argument(
         "--stdin-filename",
