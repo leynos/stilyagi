@@ -9,13 +9,15 @@ configuration in front of it.
 
 import pytest
 
+from tests.support.nextest_config import (
+    global_timeout,
+    largest_test_allowance,
+    termination_allowance,
+)
 from tests.support.timeout_budgets import (
     NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
     TERMINATION_SAFETY_MARGIN_SECONDS,
     UnboundedTestError,
-    global_timeout,
-    largest_test_allowance,
-    termination_allowance,
 )
 from tests.test_timeout_ordering_contract import (
     CEILING_MARGIN_SECONDS,
@@ -235,8 +237,12 @@ def test_a_filter_naming_a_timeout_key_is_not_a_budget() -> None:
         "filter = 'binary(global_timeout_probe) | binary(grace_period_probe)'\n"
         'slow-timeout = { period = "600s", terminate-after = 1 }',
     )
-    assert largest_test_allowance(config_text) == pytest.approx(600.0)
-    assert global_timeout(config_text) == pytest.approx(2700.0)
+    assert largest_test_allowance(config_text) == pytest.approx(600.0), (
+        "the override's own slow-timeout is the largest, not its filter's text"
+    )
+    assert global_timeout(config_text) == pytest.approx(2700.0), (
+        "the filter naming global_timeout_probe was read as a whole-run budget"
+    )
     assert termination_allowance(config_text) == pytest.approx(
         NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS + TERMINATION_SAFETY_MARGIN_SECONDS
-    )
+    ), "the filter naming grace_period_probe was read as a grace period"

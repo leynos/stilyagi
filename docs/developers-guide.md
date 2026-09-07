@@ -1766,7 +1766,8 @@ a measurement of the cold case.
 `tests/test_timeout_ordering_contract.py` asserts this by value over every job
 invoking the coverage action, in both the `.yml` and `.yaml` extensions. It
 reads the workflows through `tests/support/coverage_workflows.py` and the
-nextest budgets through `tests/support/timeout_budgets.py`, so the readings can
+nextest budgets through `tests/support/nextest_config.py` and
+`tests/support/timeout_budgets.py`, so the readings can
 be driven with controlled inputs apart from the assertions over the tree.
 
 The nextest reading parses its input with `tomllib` rather than matching text.
