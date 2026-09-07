@@ -367,16 +367,16 @@ level.
 `cli.py` `main()` builds the argument parser via `cli_args.build_parser()`,
 parses the arguments into an immutable `CheckOptions` via
 `cli_args.options_from_args()`, and then calls
-`run_check(options, *, resolver=None, renderer=None)`.
+`run_check(options, *, collaborators=None)`.
 
 ### Collaborator injection
 
-`run_check` constructs its own collaborators when the caller does not supply
-them: a fresh `config.ConfigResolver` and a fresh `engine.RendererRegistry`.
-Because both are created inside the call, no configuration cache is shared
-between separate `run_check` invocations. Passing pre-constructed collaborators
-is the intended seam for tests that need to inspect or stub out either
-collaborator.
+`run_check` constructs production collaborators when the caller does not supply
+a `CheckCollaborators` bundle: a fresh `config.ConfigResolver`, a fresh
+`engine.RendererRegistry`, and the registry's private rule-runner seam. Because
+they are created inside the call, no configuration cache is shared between
+separate `run_check` invocations. Tests can inject an individual collaborator
+through the bundle without coupling to the rest of the command pipeline.
 
 ### Discovery
 

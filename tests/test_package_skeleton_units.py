@@ -61,7 +61,6 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
                 "BridgeExtractionError",
                 "EngineRunner",
                 "ExecutionPlan",
-                "FixPlan",
                 "RendererRegistry",
                 "extract_document",
                 "supported_region_kinds",
@@ -154,16 +153,13 @@ def test_engine_skeleton_dataclasses_preserve_their_fields() -> None:
         "expected execution_plan.syntax == 'markdown'",
     )
     assert_with_context(
-        engine.FixPlan(applicability="safe").applicability == "safe",
-        "expected engine.FixPlan(applicability='safe').applic...",
-    )
-    assert_with_context(
         engine.RendererRegistry().default_format == "text",
         "expected engine.RendererRegistry().default_format ==...",
     )
     assert_with_context(
-        engine.RendererRegistry().render([], "text") == "0 diagnostics found\n",
-        "expected engine.RendererRegistry().render([], 'text'...",
+        engine.RendererRegistry().render([], "text")
+        == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected engine.RendererRegistry().render([], 'text') to include fix counts",
     )
     assert_with_context(
         engine.EngineRunner(execution_plan=execution_plan).execution_plan
