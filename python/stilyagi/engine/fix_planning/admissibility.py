@@ -92,5 +92,12 @@ def _segment_matches_source(
     segment = ir_view.segment_for_span(document, span)
     if segment is None or segment.span is None:
         return False
-    segment_bytes = source_bytes[segment.span.byte_start : segment.span.byte_end]
-    return segment_bytes.decode() == segment.text
+    if not _is_bounded(segment.span, source_bytes):
+        return False
+    if not _is_utf8_aligned(segment.span, source_bytes):
+        return False
+    try:
+        segment_bytes = source_bytes[segment.span.byte_start : segment.span.byte_end]
+        return segment_bytes.decode() == segment.text
+    except UnicodeDecodeError:
+        return False
