@@ -33,6 +33,8 @@ class RendererRegistry:
         self,
         diagnostics_list: cabc.Iterable[diagnostics.Diagnostic],
         output_format: str | None = None,
+        *,
+        fix_errors: cabc.Iterable[diagnostics.FixError] = (),
     ) -> str:
         """Render diagnostics as either text or JSON.
 
@@ -57,19 +59,17 @@ class RendererRegistry:
             The requested output format is not supported.
         """
         effective_format = output_format or self.default_format
-        ordered_diagnostics = sorted(
-            diagnostics_list,
-            key=_diagnostic_sort_key,
-        )
+        ordered_diagnostics = sorted(diagnostics_list, key=_diagnostic_sort_key)
+        ordered_fix_errors = sorted(fix_errors, key=_fix_error_sort_key)
         _LOGGER.debug(
             "rendering %d diagnostic(s) as %s",
             len(ordered_diagnostics),
             effective_format,
         )
         if effective_format == "json":
-            return _render_json(ordered_diagnostics)
+            return _render_json(ordered_diagnostics, ordered_fix_errors)
         if effective_format == "text":
-            return _render_text(ordered_diagnostics)
+            return _render_text(ordered_diagnostics, ordered_fix_errors)
         _LOGGER.error("unsupported output format %r", effective_format)
         message = (
             f"unsupported output format {effective_format!r}; "
@@ -90,8 +90,16 @@ def _diagnostic_sort_key(
     )
 
 
+def _fix_error_sort_key(
+    fix_error: diagnostics.FixError,
+) -> tuple[str, str, tuple[str, ...]]:
+    """Sort independent fix errors without admitting them into rule ordering."""
+    return fix_error.path, fix_error.identifier, fix_error.rule_codes
+
+
 def _render_text(
     diagnostics_list: list[diagnostics.Diagnostic],
+    fix_errors: list[diagnostics.FixError],
 ) -> str:
     """Render diagnostics as one human-readable line per finding."""
     lines = [
@@ -99,9 +107,18 @@ def _render_text(
         f"{diagnostic.severity.value} {diagnostic.code} {diagnostic.message}"
         for diagnostic in diagnostics_list
     ]
+    lines.extend(_render_fix_error(fix_error) for fix_error in fix_errors)
     summary = _text_summary(diagnostics_list)
     lines.append(summary)
     return "\n".join(lines) + "\n"
+
+
+def _render_fix_error(fix_error: diagnostics.FixError) -> str:
+    """Render one engine-level refusal with its distinct non-rule prefix."""
+    rule_codes = ", ".join(fix_error.rule_codes)
+    return (
+        f"{fix_error.identifier}: {fix_error.path}: {rule_codes}: {fix_error.message}"
+    )
 
 
 def _text_summary(diagnostics_list: list[diagnostics.Diagnostic]) -> str:
@@ -131,6 +148,7 @@ def _count_label(count: int, noun: str) -> str:
 
 def _render_json(
     diagnostics_list: list[diagnostics.Diagnostic],
+    fix_errors: list[diagnostics.FixError],
 ) -> str:
     """Render diagnostics as a stable JSON document."""
     payload = {
@@ -138,7 +156,7 @@ def _render_json(
         "diagnostics": [
             _diagnostic_payload(diagnostic) for diagnostic in diagnostics_list
         ],
-        "fix_errors": [],
+        "fix_errors": [_fix_error_payload(fix_error) for fix_error in fix_errors],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
@@ -174,4 +192,14 @@ def _fix_payload(fix: Fix | None) -> dict[str, object] | None:
             }
             for edit in fix.edits
         ],
+    }
+
+
+def _fix_error_payload(fix_error: diagnostics.FixError) -> dict[str, object]:
+    """Serialize one engine refusal outside the selectable rule diagnostics."""
+    return {
+        "identifier": fix_error.identifier,
+        "path": fix_error.path,
+        "rule_codes": list(fix_error.rule_codes),
+        "message": fix_error.message,
     }

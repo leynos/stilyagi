@@ -9,12 +9,13 @@ import typing as typ
 from stilyagi import config, diagnostics, discovery, engine, model
 from stilyagi.cli_args import (
     PACKAGE_VERSION,
-    PROGRAM_NAME,
     CheckOptions,
     build_parser,
     options_from_args,
 )
+from stilyagi.cli_io import CheckInput, read_source, report_check_error
 from stilyagi.engine.checker import map_ir_errors
+from stilyagi.engine.fix_pipeline import DiffPreview, DiffRequest, preview_safe_fixes
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
@@ -34,16 +35,6 @@ __all__ = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
-
-
-@dc.dataclass(frozen=True, slots=True)
-class CheckInput:
-    """One resolved `check` input, from disk or standard input."""
-
-    reported_path: str
-    resolved_path: pathlib.Path
-    source_text: str | None = None
-    source_bytes: bytes | None = None
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -163,9 +154,6 @@ def run_check(
         are found, or two when an operational error occurs.
     """
     resolved_collaborators = _resolve_collaborators(collaborators)
-    had_error = False
-    diagnostics_list: list[diagnostics.Diagnostic] = []
-
     _LOGGER.debug("target discovery started for %r", options.targets)
     try:
         discovered_files = _discover_targets(options, resolved_collaborators.resolver)
@@ -175,19 +163,36 @@ def run_check(
         ValueError,
     ) as error:
         _LOGGER.warning("target discovery failed: %s", error)
-        _report_check_error(None, error)
+        report_check_error(None, error)
         return 2
     _LOGGER.debug("target discovery finished: %d input(s)", len(discovered_files))
 
-    for discovered_file in discovered_files:
-        file_diagnostics, file_error = _check_one_file(
+    checked_files = tuple(
+        _check_one_file(
             discovered_file,
             options,
             resolved_collaborators.resolver,
             resolved_collaborators.rule_runner,
         )
-        diagnostics_list.extend(file_diagnostics)
-        had_error = had_error or file_error
+        for discovered_file in discovered_files
+    )
+    diagnostics_list = [
+        diagnostic
+        for file_diagnostics, _file_error, _preview in checked_files
+        for diagnostic in file_diagnostics
+    ]
+    fix_errors = [
+        fix_error
+        for _file_diagnostics, _file_error, preview in checked_files
+        if preview is not None
+        for fix_error in preview.fix_errors
+    ]
+    patches = [
+        preview.patch
+        for _file_diagnostics, _file_error, preview in checked_files
+        if preview is not None
+    ]
+    had_error = any(file_error for _diagnostics, file_error, _preview in checked_files)
 
     _LOGGER.debug(
         "rendering %d diagnostic(s) as %s",
@@ -197,8 +202,12 @@ def run_check(
     rendered = resolved_collaborators.renderer.render(
         diagnostics_list,
         options.output_format,
+        fix_errors=fix_errors,
     )
-    print(rendered, end="", file=resolved_collaborators.output)
+    diagnostics_output = sys.stderr if options.diff else resolved_collaborators.output
+    print(rendered, end="", file=diagnostics_output)
+    if options.diff:
+        print("".join(patches), end="", file=resolved_collaborators.output)
     exit_code = compute_exit_code(diagnostics_list, had_error=had_error)
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
@@ -320,44 +329,20 @@ def _read_stdin_bytes() -> bytes:
     return sys.stdin.read().encode("utf-8")
 
 
-def _read_source(check_input: CheckInput) -> CheckInput | None:
-    """Return one input with its source bytes and decoded text populated."""
-    try:
-        source_bytes = check_input.source_bytes
-        source_text = check_input.source_text
-        if source_bytes is None:
-            source_bytes = (
-                source_text.encode("utf-8")
-                if source_text is not None
-                else check_input.resolved_path.read_bytes()
-            )
-        if source_text is None:
-            source_text = source_bytes.decode("utf-8")
-    except (
-        FileNotFoundError,
-        IsADirectoryError,
-        PermissionError,
-        UnicodeDecodeError,
-    ) as exc:
-        _report_file_error(check_input.resolved_path, exc)
-        return None
-    return dc.replace(
-        check_input,
-        source_bytes=source_bytes,
-        source_text=source_text,
-    )
-
-
 def _check_one_file(
     check_input: CheckInput,
     options: CheckOptions,
     resolver: config.ConfigResolver,
     rule_runner: rules_registry.RuleRunner,
-) -> tuple[list[diagnostics.Diagnostic], bool]:
+) -> tuple[list[diagnostics.Diagnostic], bool, DiffPreview | None]:
     """Check one discovered Markdown file or stdin payload."""
-    sourced_input = _read_source(check_input)
-    if sourced_input is None or sourced_input.source_text is None:
-        return [], True
+    sourced_input = read_source(check_input)
+    if sourced_input is None:
+        return [], True, None
+    if sourced_input.source_text is None:
+        return [], True, None
+    if sourced_input.source_bytes is None:
+        return [], True, None
 
     _LOGGER.debug("extracting %s", check_input.reported_path)
     try:
@@ -366,8 +351,8 @@ def _check_one_file(
             model.Syntax.MARKDOWN,
         )
     except engine.BridgeExtractionError as exc:
-        _report_check_error(check_input.resolved_path, exc)
-        return [], True
+        report_check_error(check_input.resolved_path, exc)
+        return [], True, None
     except Exception:
         _LOGGER.exception(
             "unexpected extraction failure for %s",
@@ -382,28 +367,25 @@ def _check_one_file(
         config.InvalidCacheDirError,
         config.InvalidConfigError,
     ) as exc:
-        _report_check_error(check_input.resolved_path, exc)
-        return [], True
+        report_check_error(check_input.resolved_path, exc)
+        return [], True, None
 
     diagnostics_list = [
         *map_ir_errors(document, check_input.reported_path),
         *rule_runner(document, resolved_config),
     ]
-    return diagnostics_list, False
-
-
-def _report_file_error(path: pathlib.Path, error: Exception) -> None:
-    """Print and log a human-readable file read failure."""
-    message = f"failed to read {path.as_posix()}: {error}"
-    _LOGGER.warning("%s", message)
-    print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)
-
-
-def _report_check_error(path: pathlib.Path | None, error: Exception) -> None:
-    """Print and log a human-readable extraction failure."""
-    if path is None:
-        message = str(error)
-    else:
-        message = f"failed to check {path.as_posix()}: {error}"
-    _LOGGER.warning("%s", message)
-    print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)
+    preview = (
+        preview_safe_fixes(
+            DiffRequest(
+                sourced_input.source_bytes,
+                sourced_input.source_text,
+                sourced_input.reported_path,
+                document,
+                tuple(diagnostics_list),
+                resolved_config.lint,
+            )
+        )
+        if options.diff
+        else None
+    )
+    return diagnostics_list, False, preview
