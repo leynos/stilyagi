@@ -285,8 +285,14 @@ Established during planning; use them instead of re-measuring.
     gate explicitly instructed a correction. The configured custom rule did
     not recognize those arguments, so the fixed test commands use the
     repository's established, documented exception and a resolved executable.
-    Its wheel-layout snapshot now includes `diff.py`; the complete chain is
-    being retried.
+    Its wheel-layout snapshot now includes `diff.py`. The authorized correction
+    and subsequent rebase gates are green. The completed CLI integration has
+    also passed its complete milestone gate chain; CodeRabbit review remains.
+  - 2026-09-07: the `--diff` pipeline now plans only safe edits against the
+    byte-faithful checked source, writes the unified patch to standard output,
+    and sends diagnostics and refusal reports to standard error. Focused
+    command, renderer, and wheel-layout tests pass; the emitted diff snapshot
+    captures the machine/human stream boundary.
 - [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes
 - [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
 
@@ -1686,14 +1692,24 @@ started Milestone 3.
   segment as well as the edit; a decode error is an ordinary provenance
   mismatch and aborts mutation. Date/Author: 2026-09-07, implementation.
 
-- **D-25: Pause Milestone 4 at the gate-iteration tolerance.** Evidence: the
-  first full-gate attempt failed formatting for `tests/test_fix_diff.py`; after
-  formatting, the second failed its subprocess-command policy; the third
-  isolated two missing explicit `shell=False` arguments. Options are to
-  authorize one focused remediation iteration or to change the test boundary.
-  Trade-off: adding the obvious arguments without direction would exceed the
-  plan's explicit three-attempt tolerance. Date/Author: 2026-09-07,
-  implementation.
+- **D-25: Resolve the Milestone 4 gate-tolerance pause with the post-turn
+  correction.** Evidence: the first full-gate attempt failed formatting for
+  `tests/test_fix_diff.py`; after formatting, the second failed its subprocess
+  command policy; the third isolated two missing explicit `shell=False`
+  arguments. The post-turn gate explicitly directed the correction. The custom
+  rule requires the repository's documented exception for fixed Git commands,
+  even with `shell=False`; the core and rebase gate chains then passed. Date/
+  Author: 2026-09-07, implementation.
+
+- **D-26: Pass one immutable request from CLI checking to the diff planner.**
+  Rationale: the preview requires six values that must stay correlated — the
+  original bytes and decoded text, reported path, extracted document, rule
+  diagnostics, and effective lint configuration. `DiffRequest` keeps that
+  boundary explicit, leaves `run_check` at its two-argument public contract,
+  and prevents a later caller from re-reading or normalizing source. The
+  planner's rejections become `FixError` values so renderers expose them on a
+  channel distinct from selectable rule diagnostics, as D-07 requires. Date/
+  Author: 2026-09-07, implementation.
 
 **Revision 13, 2026-08-24.** Recorded the committed Milestone 3 planner slice
 and the in-progress corpus-backed Stage C2 property coverage. The focused suite
@@ -1793,3 +1809,11 @@ policy vertical slices but changes no safe-fix contract, helper or boundary.
 no production caller. Removed the dead constructor rather than adding a broad
 Skylos exemption, and updated the two RFC examples to use the equivalent
 byte-span construction. `TextEdit.replace` remains a tested helper.
+
+**Revision 23, 2026-09-07.** Completed the Milestone 4 CLI integration slice.
+`cli_io.py` keeps the byte-faithful input boundary out of the already-large CLI
+module; `fix_pipeline.py` turns a checked source into a safe diff preview via
+an immutable request. `--diff` reserves standard output for patches and sends
+diagnostics and `fix-error` reports to standard error. The focused tests and
+reviewed snapshots pass. The full milestone gate chain is green (275 Python
+tests and 18 snapshots); CodeRabbit remains pending.
