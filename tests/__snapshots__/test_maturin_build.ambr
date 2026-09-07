@@ -36,6 +36,7 @@
       'stilyagi/engine/fix_planning/plan.py',
       'stilyagi/engine/fix_planning/selection.py',
       'stilyagi/engine/fix_planning/splice.py',
+      'stilyagi/engine/fix_planning/write.py',
       'stilyagi/engine/ir_view.py',
       'stilyagi/engine/planner.py',
       'stilyagi/engine/renderers.py',
