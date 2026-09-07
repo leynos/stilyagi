@@ -20,8 +20,10 @@ _REQUIRED_SKYLOS_WHITELIST_NAMES: typ.Final = frozenset((
     "extract_document",
     "FixPlanRequest",
     "_overlap_rejection",
+    "_write_temporary_source",
     "_validate_candidates",
     "plan_fixes",
+    "write_source",
 ))
 
 
