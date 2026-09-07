@@ -36,6 +36,35 @@ units = st.sampled_from(sorted(UNITS))
 multipliers = st.integers(min_value=1, max_value=20)
 
 
+def document(*tables: str, profile: str = "default") -> str:
+    """Return a nextest document declaring those slow-timeouts.
+
+    The reading parses the configuration, so one it is driven with has
+    to be shaped the way nextest reads one: the first table is the
+    profile's own and the rest are its overrides. A bare assignment at
+    the root of the document is not configuration to nextest, and is not
+    read as any here either.
+
+    Parameters
+    ----------
+    *tables : str
+        The ``slow-timeout`` assignments, profile's own first.
+    profile : str
+        The profile to declare them under.
+
+    Returns
+    -------
+    str
+        A configuration document.
+    """
+    lines = [f"[profile.{profile}]"]
+    if tables:
+        lines.append(tables[0])
+    for override in tables[1:]:
+        lines += ["", f"[[profile.{profile}.overrides]]", override]
+    return "\n".join(lines) + "\n"
+
+
 @given(value=whole_numbers, unit=units)
 def test_every_unit_scales_the_value(value: int, unit: str) -> None:
     """A duration is its number times the length of its unit.
@@ -64,9 +93,11 @@ def test_the_largest_per_test_budget_is_the_largest_product(
     they happened to coincide. Over generated configurations they stop
     coinciding.
     """
-    config_text = "\n".join(
-        f'slow-timeout = {{ period = "{value}{unit}", terminate-after = {times} }}'
-        for value, unit, times in budgets
+    config_text = document(
+        *(
+            f'slow-timeout = {{ period = "{value}{unit}", terminate-after = {times} }}'
+            for value, unit, times in budgets
+        )
     )
     expected = max(value * UNITS[unit] * times for value, unit, times in budgets)
     assert largest_test_allowance(config_text) == pytest.approx(expected), (
@@ -84,9 +115,12 @@ def test_the_termination_allowance_tracks_the_largest_grace_period(
     raising it must raise the allowance by the same amount, which a
     floor would not do for any value below the margin.
     """
-    config_text = "\n".join(
-        f'slow-timeout = {{ period = "1s", grace-period = "{value}{unit}" }}'
-        for value, unit in periods
+    config_text = document(
+        *(
+            f'slow-timeout = {{ period = "1s", terminate-after = 1, '
+            f'grace-period = "{value}{unit}" }}'
+            for value, unit in periods
+        )
     )
     largest = max(value * UNITS[unit] for value, unit in periods)
     assert grace_period(config_text) == pytest.approx(largest), (
@@ -97,19 +131,29 @@ def test_the_termination_allowance_tracks_the_largest_grace_period(
     ), "the allowance is the grace period plus the margin, not the larger of them"
 
 
-@given(text=st.text(max_size=40).filter(lambda body: "grace-period" not in body))
+@given(
+    periods=st.lists(st.tuples(whole_numbers, units), min_size=1, max_size=6),
+    profile=st.sampled_from(["default", "ci"]),
+)
 def test_an_unconfigured_grace_period_falls_back_to_nextest_s_default(
-    text: str,
+    periods: list[tuple[int, str]], profile: str
 ) -> None:
-    """Text naming no grace period yields nextest's own ten seconds.
+    """A configuration naming no grace period yields nextest's ten seconds.
 
     Assuming zero instead would understate what nextest needs to stop a
     run, and the understatement would be invisible until a watchdog
     fired during the shutdown it had not budgeted for.
     """
-    assert grace_period(text) == pytest.approx(NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS), (
-        "an absent grace period must fall back to nextest's default"
+    config_text = document(
+        *(
+            f'slow-timeout = {{ period = "{value}{unit}", terminate-after = 1 }}'
+            for value, unit in periods
+        ),
+        profile=profile,
     )
+    assert grace_period(config_text) == pytest.approx(
+        NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS
+    ), "an absent grace period must fall back to nextest's default"
 
 
 @pytest.mark.parametrize(
@@ -144,7 +188,7 @@ def test_a_slow_timeout_without_a_period_is_refused() -> None:
     budget has to sit above.
     """
     with pytest.raises(NextestConfigurationError):
-        largest_test_allowance("slow-timeout = { terminate-after = 3 }")
+        largest_test_allowance(document("slow-timeout = { terminate-after = 3 }"))
 
 
 def test_a_configuration_with_no_slow_timeout_is_refused() -> None:

@@ -1769,6 +1769,17 @@ reads the workflows through `tests/support/coverage_workflows.py` and the
 nextest budgets through `tests/support/timeout_budgets.py`, so the readings can
 be driven with controlled inputs apart from the assertions over the tree.
 
+The nextest reading parses its input with `tomllib` rather than matching text.
+This repository has no `.config/nextest.toml`, which is why two tiers are
+missing, so those readings are what whoever adds the file will get. A text match
+would find a key inside a comment, inside a `filter` string, or in a table
+nextest never consults: a commented-out `global-timeout` would keep the presence
+assertion passing over a tier somebody had switched off, and a commented-out
+`grace-period` would raise the requirement this contract puts on the tier above
+it. `terminate-after` is optional, and a `slow-timeout` without it marks a test
+slow and never stops it, so the reading refuses that form rather than reporting
+one period as the budget.
+
 It resolves the watchdog from the step, then the job, then the workflow, as
 GitHub does. Both workflows here set it at workflow level, so a contract
 reading only the job would have found nothing and reported every lane as
