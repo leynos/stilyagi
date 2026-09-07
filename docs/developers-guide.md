@@ -1788,8 +1788,16 @@ the job, and proving a 60-minute ceiling by observation would take a
 It pins the condition each lane carries as well as its budgets. A skipped step
 runs no `cargo`, so its watchdog never arms and every assertion about the tiers
 says nothing about it: `if: false` on the step or on its job would leave a lane
-that looks bounded and is not. The conditions are pinned rather than forbidden,
-because both are legitimate. `smoke.yml` runs on pushes too, where the release
+that looks bounded and is not. The conditions are pinned rather than
+forbidden because both are
+legitimate. The per-test tier is present only when a profile sets `terminate-after`.
+`slow-timeout = "2m"` and `slow-timeout = { period = "2m" }` both mark a test
+slow after two minutes and then let it run for ever, so the contract refuses
+either as a budget rather than reading it as two minutes: reporting the tier as
+present when it is absent would leave the whole-run budget checked against a
+number nextest never applies.
+
+`smoke.yml` runs on pushes too, where the release
 smoke matters and coverage does not, so its coverage step is conditional on the
 pull-request event; `coverage-main.yml` is the trunk lane and runs
 unconditionally. A lane gaining, losing or changing a condition has to change
