@@ -1769,6 +1769,17 @@ GitHub does. Both workflows here set it at workflow level, so a contract
 reading only the job would have found nothing and reported every lane as
 inheriting the action's default, which is exactly backwards.
 
+`tests/test_timeout_budget_properties.py` holds the same readings over
+generated configurations: every unit and value, several `slow-timeout` entries
+with their multipliers, and several grace periods. It also fixes the error
+paths, so a duration nextest would reject raises rather than becoming a
+plausible number the ordering is then checked against.
+
+There is no `act` run behind any of this. `act` does not implement
+`timeout-minutes`, which GitHub enforces in the runner scheduler rather than in
+the job, and proving a 60-minute ceiling by observation would take a
+60-minute run. What can be checked statically is checked statically.
+
 It pins each ceiling to the documented 60 minutes as well as deriving the 45
 minutes required. The derivation alone would accept a ceiling anywhere above
 45, including one that had drifted away from this guide without anything
