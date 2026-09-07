@@ -60,7 +60,7 @@ def test_the_largest_per_test_budget_is_the_largest_product(
     """Every `slow-timeout` counts, and each counts as a product.
 
     A reading that took the first entry, or the largest period without
-    its multiplier, would agree with the hand-written cases whenever
+    its multiplier, would agree with the handwritten cases whenever
     they happened to coincide. Over generated configurations they stop
     coinciding.
     """
