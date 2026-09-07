@@ -165,8 +165,11 @@ def _workflow_documents() -> dict[str, WorkflowDocument]:
     for pattern in ("*.yml", "*.yaml"):
         for path in sorted(WORKFLOWS_DIRECTORY.glob(pattern)):
             parsed: object = yaml.safe_load(path.read_text(encoding="utf-8"))
-            if isinstance(parsed, dict):
-                documents[path.name] = typ.cast("WorkflowDocument", parsed)
+            match parsed:
+                case dict() as document:
+                    documents[path.name] = typ.cast("WorkflowDocument", document)
+                case _:
+                    continue
     return documents
 
 
@@ -183,10 +186,11 @@ def _jobs_of(document: WorkflowDocument) -> dict[str, WorkflowJob]:
     dict[str, WorkflowJob]
         Job identifier to job, empty when the document declares none.
     """
-    jobs: object = document.get("jobs")
-    if not isinstance(jobs, dict):
-        return {}
-    return typ.cast("dict[str, WorkflowJob]", jobs)
+    match document.get("jobs"):
+        case dict() as jobs:
+            return typ.cast("dict[str, WorkflowJob]", jobs)
+        case _:
+            return {}
 
 
 def _coverage_steps(job: WorkflowJob) -> list[WorkflowStep]:
@@ -202,14 +206,25 @@ def _coverage_steps(job: WorkflowJob) -> list[WorkflowStep]:
     list[WorkflowStep]
         The matching steps, in the order the job runs them.
     """
-    steps: object = job.get("steps")
-    if not isinstance(steps, list):
-        return []
-    return [
-        typ.cast("WorkflowStep", step)
-        for step in typ.cast("list[object]", steps)
-        if isinstance(step, dict) and COVERAGE_ACTION in str(step.get("uses", ""))
-    ]
+    match job.get("steps"):
+        case list() as steps:
+            return [step for step in map(_step, steps) if _invokes_coverage(step)]
+        case _:
+            return []
+
+
+def _step(value: object) -> WorkflowStep:
+    """Return one parsed step, or an empty one when it is not a mapping."""
+    match value:
+        case dict() as step:
+            return typ.cast("WorkflowStep", step)
+        case _:
+            return typ.cast("WorkflowStep", {})
+
+
+def _invokes_coverage(step: WorkflowStep) -> bool:
+    """Return whether one step invokes the shared coverage action."""
+    return COVERAGE_ACTION in str(step.get("uses", ""))
 
 
 def _coverage_job(

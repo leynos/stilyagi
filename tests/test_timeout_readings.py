@@ -12,6 +12,7 @@ import pytest
 from tests.support.timeout_budgets import (
     NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
     TERMINATION_SAFETY_MARGIN_SECONDS,
+    UnboundedTestError,
     largest_test_allowance,
     termination_allowance,
 )
@@ -38,11 +39,6 @@ from tests.test_timeout_ordering_contract import (
             'slow-timeout = { period = "2m", terminate-after = 3 }',
             360.0,
             id="minutes-times-three",
-        ),
-        pytest.param(
-            'slow-timeout = { period = "90s" }',
-            90.0,
-            id="no-multiplier-means-one",
         ),
         pytest.param(
             'slow-timeout = { period = "30s", terminate-after = 2, '
@@ -77,7 +73,9 @@ def test_a_grace_period_is_not_read_as_a_per_test_budget() -> None:
     for a per-test budget whenever the former were the larger, which
     would silently raise the whole-run budget this contract demands.
     """
-    config_text = 'slow-timeout = { period = "30s", grace-period = "30m" }'
+    config_text = (
+        'slow-timeout = { period = "30s", terminate-after = 1, grace-period = "30m" }'
+    )
     assert largest_test_allowance(config_text) == pytest.approx(30.0), (
         "the per-test ceiling read a grace period as a slow-timeout"
     )
@@ -128,3 +126,30 @@ def test_the_required_ceiling_carries_all_three_terms() -> None:
     assert required_ceiling([], 0.0) == pytest.approx(CEILING_MARGIN_SECONDS), (
         "the margin is a term of its own, not a fraction of the others"
     )
+
+
+@pytest.mark.parametrize(
+    "config_text",
+    [
+        pytest.param('slow-timeout = "2m"', id="the-bare-string-form"),
+        pytest.param(
+            'slow-timeout = { period = "2m" }', id="a-table-without-terminate-after"
+        ),
+        pytest.param(
+            'slow-timeout = { period = "2m", grace-period = "5s" }',
+            id="a-table-with-only-a-grace-period",
+        ),
+    ],
+)
+def test_a_slow_timeout_that_never_terminates_is_refused(config_text: str) -> None:
+    """`terminate-after` is what makes a slow timeout a bound.
+
+    nextest marks a test slow after the period and, without
+    `terminate-after`, lets it run for ever. Both the bare string form
+    and a table omitting the key do this. Reading either as a
+    two-minute budget would report the per-test tier as present when it
+    is absent, and the whole-run budget above it would be checked
+    against a number nextest never applies.
+    """
+    with pytest.raises(UnboundedTestError, match=r"terminate-after|warn-only"):
+        largest_test_allowance(config_text)

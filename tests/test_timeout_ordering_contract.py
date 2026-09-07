@@ -303,13 +303,30 @@ def test_each_coverage_lane_carries_the_condition_it_is_meant_to(
     smoke matters and coverage does not. Pinning them means a lane
     gaining, losing or changing one has to change this contract and the
     guide with it.
+
+    The coordinate sets are compared both ways before the values are. A
+    lane nobody listed is a lane whose condition nothing checks, so a
+    new coverage job could arrive carrying `if: false` and pass; a
+    listed lane that has stopped invoking the action is the opposite
+    loss. Both are reported by name.
     """
     found = {(job.workflow, job.job): job.conditions for job in coverage_jobs}
+    unlisted = sorted(set(found) - set(REQUIRED_CONDITIONS))
+    assert not unlisted, (
+        f"these coverage lanes are not in REQUIRED_CONDITIONS: {unlisted}; a "
+        f"lane nobody listed is a lane whose condition nothing checks, so it "
+        f"could carry `if: false` and pass"
+    )
+    missing = sorted(set(REQUIRED_CONDITIONS) - set(found))
+    assert not missing, (
+        f"these lanes are listed but no longer invoke the coverage action: "
+        f"{missing}; either coverage moved or this contract stopped "
+        f"recognizing it"
+    )
     wrong = {
-        coordinate: (expected, found.get(coordinate))
+        coordinate: (expected, found[coordinate])
         for coordinate, expected in REQUIRED_CONDITIONS.items()
-        if found.get(coordinate) != (expected,) * len(found.get(coordinate, ()))
-        or not found.get(coordinate)
+        if set(found[coordinate]) != {expected}
     }
     assert not wrong, (
         f"these coverage lanes do not carry the conditions the developers' "
