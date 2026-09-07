@@ -277,6 +277,16 @@ Established during planning; use them instead of re-measuring.
     Mermaid validation. CodeRabbit reviewed pushed commit `f9cb8ae` on draft
     PR #138 and returned zero findings. Milestone 4 may begin.
 - [ ] Milestone 4 — `--diff` (in progress)
+  - 2026-09-07: the standalone diff-renderer red/green slice passes
+    its six focused tests, but three focused full-gate attempts exhausted the
+    `Iterations` tolerance. The first required Ruff formatting; the second
+    found test subprocess policy errors; the third isolated two missing
+    explicit `shell=False` arguments in `tests/test_fix_diff.py`. The post-turn
+    gate explicitly instructed a correction. The configured custom rule did
+    not recognize those arguments, so the fixed test commands use the
+    repository's established, documented exception and a resolved executable.
+    Its wheel-layout snapshot now includes `diff.py`; the complete chain is
+    being retried.
 - [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes
 - [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
 
@@ -1683,6 +1693,15 @@ started Milestone 3.
   segment as well as the edit; a decode error is an ordinary provenance
   mismatch and aborts mutation. Date/Author: 2026-09-07, implementation.
 
+- **D-25: Pause Milestone 4 at the gate-iteration tolerance.** Evidence: the
+  first full-gate attempt failed formatting for `tests/test_fix_diff.py`; after
+  formatting, the second failed its subprocess-command policy; the third
+  isolated two missing explicit `shell=False` arguments. Options are to
+  authorize one focused remediation iteration or to change the test boundary.
+  Trade-off: adding the obvious arguments without direction would exceed the
+  plan's explicit three-attempt tolerance. Date/Author: 2026-09-07,
+  implementation.
+
 **Revision 13, 2026-08-24.** Recorded the committed Milestone 3 planner slice
 and the in-progress corpus-backed Stage C2 property coverage. The focused suite
 passes; the full deterministic chain and required CodeRabbit review remain the
@@ -1757,3 +1776,17 @@ and CodeRabbit review.
 **Revision 18, 2026-09-07.** Recorded the green Milestone 3 gate chain and
 CodeRabbit review for commit `f9cb8ae`; the planner's malformed-containing-
 segment correction is accepted and Milestone 4 may begin.
+
+**Revision 19, 2026-09-07.** Marked Milestone 4 blocked after its standalone
+diff-renderer slice reached the three-attempt gate tolerance. The focused
+tests pass, but the complete gate chain remains red on two explicit
+`shell=False` test-command policy findings; no CLI work or CodeRabbit review
+may proceed without further direction.
+
+**Revision 20, 2026-09-07.** The post-turn gate explicitly directed the two
+subprocess findings to be fixed. The custom rule requires the repository's
+documented exception for fixed Git commands even when `shell=False` is
+present, so the tests follow that local convention while retaining a resolved
+Git executable. The wheel-layout snapshot was updated for `diff.py`.
+Milestone 4 remains subject to a green full gate chain before its CLI work or
+CodeRabbit review.

@@ -30,6 +30,7 @@
       'stilyagi/engine/fix_planning/__init__.py',
       'stilyagi/engine/fix_planning/admissibility.py',
       'stilyagi/engine/fix_planning/conflicts.py',
+      'stilyagi/engine/fix_planning/diff.py',
       'stilyagi/engine/fix_planning/plan.py',
       'stilyagi/engine/fix_planning/selection.py',
       'stilyagi/engine/fix_planning/splice.py',
