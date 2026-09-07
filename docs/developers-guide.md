@@ -1685,3 +1685,79 @@ of the mixed package.
 
 If release packaging changes, this guide, the design document, and the relevant
 RFCs should be reviewed together so the documented contract remains accurate.
+
+## 12. Test timeouts: one tier of four
+
+Four independent timers can end a test run, and the canonical statement of how
+they must be ordered lives in the `generate-coverage` README in
+[`leynos/shared-actions`][shared-actions-coverage]. Before this was written
+exactly one of the four was set here.
+
+| Tier | What it bounds | Where it is set | Current value |
+| --- | --- | --- | --- |
+| Per-test `slow-timeout` | one test | `.config/nextest.toml` | **absent, no such file** |
+| nextest `global-timeout` | the whole test run | `.config/nextest.toml` | **absent, no such file** |
+| Cargo watchdog | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level | 1,800 s (30 m) |
+| Job `timeout-minutes` | the whole job | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new |
+
+*Table: the timers that can end a run, innermost first.*
+
+### What the watchdog does and does not cover
+
+The watchdog is the only inner bound. It kills the `cargo` invocation after
+1,800 s, so a hung test is caught, but by a timer that names `cargo` rather
+than the test. Nothing hung outside `cargo` was bounded at all before the job
+ceilings landed: those jobs declared no `timeout-minutes` and so inherited
+GitHub's six-hour default.
+
+### The two nextest tiers are a gap, not a decision
+
+The coverage step passes `use-cargo-nextest: true`, so nextest does run the
+suite, but there is no `.config/nextest.toml` for anyone to have set a per-test
+or whole-run budget in. That is an absence rather than a choice, unlike a
+repository that has turned nextest off.
+
+Adding the file would give a hung test a bound that names the test, and give
+the run a budget below the watchdog. The contract binds both the moment they
+appear, so they arrive above and below the right neighbours rather than merely
+somewhere, and it reads them from the configuration rather than assuming
+values.
+
+### What the ceilings are sized against
+
+The watchdog plus the work outside its window, measured from the worst of
+several runs rather than one:
+
+| Lane | Worst coverage step | Worst whole job | Outside the step | Run |
+| --- | --- | --- | --- | --- |
+| `smoke.yml` `lint-test` | 273 s | 758 s | 526 s | 34069884428 |
+| `coverage-main.yml` `coverage-upload` | 235 s | 314 s | 84 s | 32946918439 |
+
+*Table: measured coverage-step and whole-job durations, read across ten
+successful runs of each workflow.*
+
+The widest gap is 526 s, so the contract allows 15 minutes, making the
+requirement 45 minutes against ceilings of 60. On the pull-request lane most of
+that gap is the linting and the Python suite, which run outside the coverage
+step and so outside the watchdog.
+
+None of those runs was genuinely cold. One run is the coldest seen so far, not
+a measurement of the cold case.
+
+### The contract
+
+`tests/test_timeout_ordering_contract.py` asserts this by value over every job
+invoking the coverage action, in both the `.yml` and `.yaml` extensions.
+
+It resolves the watchdog from the step, then the job, then the workflow, as
+GitHub does. Both workflows here set it at workflow level, so a contract
+reading only the job would have found nothing and reported every lane as
+inheriting the action's default, which is exactly backwards.
+
+Two of its readings are driven with controlled configurations rather than this
+repository's files, because there are none to drive them with: that the
+per-test budget is `period` multiplied by `terminate-after`, and that
+`grace-period` is not read as a per-test budget. Both will matter the moment a
+nextest configuration appears.
+
+[shared-actions-coverage]: https://github.com/leynos/shared-actions/blob/main/.github/actions/generate-coverage/README.md
