@@ -1723,6 +1723,10 @@ appear, so they arrive above and below the right neighbours rather than merely
 somewhere, and it reads them from the configuration rather than assuming
 values.
 
+[Issue 137](https://github.com/leynos/stilyagi/issues/137) holds the
+measurements a later pass needs to choose both values, and the constraints they
+have to satisfy.
+
 ### What the ceilings are sized against
 
 The watchdog plus the work outside its window, measured from the worst of
