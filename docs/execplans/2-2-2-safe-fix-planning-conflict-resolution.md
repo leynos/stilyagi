@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: BLOCKED
+Status: IN PROGRESS
 
 Roadmap item: 2.2.2. Requires 2.1.1 (Markdown intermediate representation
 envelope) and 2.2.1 (`stilyagi check`), both complete.
@@ -244,7 +244,7 @@ Established during planning; use them instead of re-measuring.
     the new module. The splice kernel, renderer contract, and stub retirement
     completed in this milestone. The full deterministic gate chain is green;
     CodeRabbit found zero concerns; Milestone 3 may begin.
-- [ ] Milestone 3 — admissibility, selection, conflict resolution (in progress)
+- [x] Milestone 3 — admissibility, selection, conflict resolution
   - 2026-08-24: the first planner slice is committed as `d44fc34`. It rejects
     malformed, non-UTF-8, synthetic, non-contiguous, and provenance-mismatched
     edits; applies file-atomic candidate selection; coalesces identical edits;
@@ -272,7 +272,11 @@ Established during planning; use them instead of re-measuring.
     starts inside a code point and one that extends past the source. Both now
     reject the file with `fix-error/source-mismatch`; the complete gate chain
     and CodeRabbit review remain before Milestone 4.
-- [ ] Milestone 4 — `--diff`
+  - 2026-09-07: all six deterministic gates passed after the malformed-segment
+    correction: 266 Python tests, 337 Rust tests, Markdown spelling and
+    Mermaid validation. CodeRabbit reviewed pushed commit `f9cb8ae` on draft
+    PR #138 and returned zero findings. Milestone 4 may begin.
+- [ ] Milestone 4 — `--diff` (in progress)
 - [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes
 - [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
 
@@ -1749,3 +1753,7 @@ for the gate changes this rebase had to absorb.
 segment cannot crash or bypass provenance validation. Two planner regressions
 provide red/green evidence. Milestone 3 remains blocked on the full gate chain
 and CodeRabbit review.
+
+**Revision 18, 2026-09-07.** Recorded the green Milestone 3 gate chain and
+CodeRabbit review for commit `f9cb8ae`; the planner's malformed-containing-
+segment correction is accepted and Milestone 4 may begin.
