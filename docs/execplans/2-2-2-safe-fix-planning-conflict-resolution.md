@@ -296,7 +296,12 @@ Established during planning; use them instead of re-measuring.
   - 2026-09-07: all six deterministic gates passed (275 Python tests and 18
     snapshots), then CodeRabbit reviewed pushed commit `ebbcac7` on draft PR
     #138 and returned zero actionable findings. Milestone 5 may begin.
-- [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes
+- [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes (in progress)
+  - 2026-09-07: the atomic-write sub-slice has red/green coverage for mode
+    preservation, no-op writes, and file symlinks. `write_source` resolves the
+    target, stages bytes in its directory, copies metadata, and swaps with
+    `os.replace`; its wheel-layout snapshot was reviewed. The `--fix` pipeline,
+    two-phase execution, verification re-lint, and feature scenarios remain.
 - [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
 
 ## Surprises & discoveries
@@ -942,7 +947,8 @@ def write_source(path: pathlib.Path, content: bytes) -> None:
 
 Write to a temporary file in the **same directory** as the target — not `/tmp`,
 which risks a cross-device `EXDEV` — copy the original's mode with
-`shutil.copystat`, then `os.replace`. Never truncate in place. Resolve symbolic
+`shutil.copystat`, then `Path.replace()` (which invokes `os.replace`). Never
+truncate in place. Resolve symbolic
 links first and write to the resolved path so a link is not replaced by a
 regular file. Skip the write entirely when the new bytes equal the old, so
 `--fix` does not churn modification times across a documentation tree and wake
@@ -1824,3 +1830,9 @@ tests and 18 snapshots); CodeRabbit remains pending.
 **Revision 24, 2026-09-07.** CodeRabbit reviewed Milestone 4 commit `ebbcac7`
 on draft PR #138 after its full deterministic gate chain and returned zero
 actionable findings. Marked Milestone 4 complete; Milestone 5 may begin.
+
+**Revision 25, 2026-09-07.** Started Milestone 5 with its destructive boundary
+in isolation. `write_source` resolves file symlinks, skips byte-identical
+writes, creates the temporary beside the target, copies metadata, and replaces
+atomically. Focused red/green tests and the wheel-layout snapshot cover those
+contracts; command execution is deliberately deferred until the writer gates.
