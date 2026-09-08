@@ -30,8 +30,50 @@ from tests.support.timeout_budgets import (
     seconds,
 )
 
-#: The units nextest accepts, with their length in seconds.
-UNITS: typ.Final[dict[str, float]] = {"ms": 0.001, "s": 1.0, "m": 60.0, "h": 3600.0}
+#: Every unit spelling nextest accepts, with its length in seconds.
+#: nextest deserializes durations with ``humantime_serde``, so this is
+#: ``humantime``'s table, written out again rather than imported: the
+#: unit table is the one place in the reading where a single wrong entry
+#: would go unnoticed, because every comparison downstream would still
+#: be an inequality between two plausible numbers. Case is significant,
+#: ``m`` being minutes and ``M`` months.
+UNITS: typ.Final[dict[str, float]] = {
+    "nanos": 1e-9,
+    "nsec": 1e-9,
+    "ns": 1e-9,
+    "usec": 1e-6,
+    "us": 1e-6,
+    "millis": 0.001,
+    "msec": 0.001,
+    "ms": 0.001,
+    "seconds": 1.0,
+    "second": 1.0,
+    "secs": 1.0,
+    "sec": 1.0,
+    "s": 1.0,
+    "minutes": 60.0,
+    "minute": 60.0,
+    "mins": 60.0,
+    "min": 60.0,
+    "m": 60.0,
+    "hours": 3600.0,
+    "hour": 3600.0,
+    "hrs": 3600.0,
+    "hr": 3600.0,
+    "h": 3600.0,
+    "days": 86400.0,
+    "day": 86400.0,
+    "d": 86400.0,
+    "weeks": 604800.0,
+    "week": 604800.0,
+    "w": 604800.0,
+    "months": 2630016.0,
+    "month": 2630016.0,
+    "M": 2630016.0,
+    "years": 31557600.0,
+    "year": 31557600.0,
+    "y": 31557600.0,
+}
 
 whole_numbers = st.integers(min_value=1, max_value=10_000)
 units = st.sampled_from(sorted(UNITS))
@@ -160,26 +202,69 @@ def test_an_unconfigured_grace_period_falls_back_to_nextest_s_default(
 
 @pytest.mark.parametrize(
     "duration",
-    ["", "300", "s", "300 sec", "five minutes", "-30s", "30d"],
+    ["", "300", "s", "five minutes", "-30s", "1.5s", "30 fortnights"],
     ids=[
         "empty",
         "no-unit",
         "no-value",
-        "unknown-unit",
         "words",
         "negative",
-        "days-are-not-a-nextest-unit",
+        "fractional",
+        "unknown-unit",
     ],
 )
 def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) -> None:
     """A duration nextest would reject must not become a number here.
 
-    Returning a plausible value for `"30d"` would put a comparison in
-    the contract against a budget nextest never applies, and the
-    contract would pass while the ordering it claims to hold did not.
+    Returning a plausible value for `"30 fortnights"` would put a
+    comparison in the contract against a budget nextest never applies,
+    and the contract would pass while the ordering it claims to hold did
+    not. `humantime` takes whole numbers with units and nothing else, so
+    a fractional value belongs here too.
     """
     with pytest.raises(NextestConfigurationError):
         seconds(duration)
+
+
+@pytest.mark.parametrize(
+    ("duration", "expected"),
+    [
+        pytest.param("1h 30m", 5400.0, id="two-components-spaced"),
+        pytest.param("1h30m", 5400.0, id="two-components-joined"),
+        pytest.param("1d", 86400.0, id="a-day"),
+        pytest.param("1w", 604800.0, id="a-week"),
+        pytest.param("300 sec", 300.0, id="a-long-unit-spelling"),
+    ],
+)
+def test_a_duration_nextest_accepts_is_read_rather_than_refused(
+    duration: str, expected: float
+) -> None:
+    """`humantime` takes several components and long unit spellings.
+
+    A reader taking one component with a short unit refuses `"1h 30m"`,
+    `"1d"` and `"1w"`, which nextest loads without complaint. The
+    contract then fails on a configuration that is correct, and the
+    failure names the file rather than the reader that could not read
+    it. These are the spellings a person is most likely to reach for
+    when the file is finally written.
+    """
+    assert seconds(duration) == pytest.approx(expected), (
+        f"{duration!r} is configuration nextest accepts"
+    )
+
+
+@given(first=whole_numbers, second=whole_numbers)
+def test_the_components_of_a_duration_are_added(first: int, second: int) -> None:
+    """A multi-component duration is the sum of its components.
+
+    Written as a property because a reader that took only the first
+    component, or only the last, would agree with a correct one on every
+    single-component duration, which is every duration anybody has
+    written here so far.
+    """
+    assert seconds(f"{first}h {second}m") == pytest.approx(
+        first * 3600.0 + second * 60.0
+    ), "each component contributes its own number of seconds"
 
 
 def test_a_slow_timeout_without_a_period_is_refused() -> None:

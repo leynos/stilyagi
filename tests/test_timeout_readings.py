@@ -17,6 +17,7 @@ from tests.support.nextest_config import (
 from tests.support.timeout_budgets import (
     NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
     TERMINATION_SAFETY_MARGIN_SECONDS,
+    NextestConfigurationError,
     UnboundedTestError,
 )
 from tests.test_timeout_ordering_contract import (
@@ -246,3 +247,83 @@ def test_a_filter_naming_a_timeout_key_is_not_a_budget() -> None:
     assert termination_allowance(config_text) == pytest.approx(
         NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS + TERMINATION_SAFETY_MARGIN_SECONDS
     ), "the filter naming grace_period_probe was read as a grace period"
+
+
+@pytest.mark.parametrize(
+    "declared",
+    [
+        pytest.param("0", id="zero"),
+        pytest.param("-1", id="negative"),
+        pytest.param("1.5", id="fractional"),
+        pytest.param('"2"', id="a-quoted-number"),
+        pytest.param("true", id="a-boolean"),
+        pytest.param('"soon"', id="words"),
+    ],
+)
+def test_a_terminate_after_nextest_would_refuse_is_refused_here(declared: str) -> None:
+    """Nextest reads the field as a non-zero unsigned integer.
+
+    Coercing the value through `float` instead produced a budget for
+    every one of these that happens to be numeric, so a configuration
+    nextest will not load read as a bounded one, and `terminate-after =
+    0` read as no budget at all rather than as the error it is. The
+    non-numeric ones leaked `ValueError` out of the reading, which is
+    not the error this contract reports faults with, so a caller
+    catching `TimeoutBudgetError` saw a crash instead of a finding.
+    """
+    with pytest.raises(NextestConfigurationError, match=r"terminate-after"):
+        largest_test_allowance(
+            document(
+                f'slow-timeout = {{ period = "300s", terminate-after = {declared} }}'
+            )
+        )
+
+
+def test_a_present_grace_period_that_is_not_a_duration_is_refused() -> None:
+    """`grace-period = 0` is not a grace period of zero.
+
+    Filtering a present non-string out made the setting read as absent,
+    so this selected nextest's ten-second default and the termination
+    allowance came out larger than the configuration asks for. The zero
+    is the shape a person would most plausibly write, and `"0s"` is how
+    nextest wants it written.
+    """
+    with pytest.raises(NextestConfigurationError, match=r"grace-period"):
+        termination_allowance(
+            document(
+                'slow-timeout = { period = "300s", terminate-after = 1, '
+                "grace-period = 0 }"
+            )
+        )
+
+
+def test_a_present_global_timeout_that_is_not_a_duration_is_refused() -> None:
+    """`global-timeout = 0` is not the absence of a whole-run budget.
+
+    Returning None for a present value made a malformed tier read as an
+    unset one, which is the distinction this contract exists to make:
+    the ordering assertion skips a tier that is absent, so a person who
+    wrote the budget wrongly would be told nothing at all.
+    """
+    with pytest.raises(NextestConfigurationError, match=r"global-timeout"):
+        global_timeout(
+            document(
+                'slow-timeout = { period = "300s", terminate-after = 1 }\n'
+                "global-timeout = 0"
+            )
+        )
+
+
+def test_an_absent_global_timeout_still_reads_as_absent() -> None:
+    """Refusing a malformed value must not refuse a missing one.
+
+    This repository has no nextest configuration at all, so the absent
+    reading is the one every assertion currently takes; turning it into
+    an error would fail the contract over a tier nobody has written yet.
+    """
+    assert (
+        global_timeout(
+            document('slow-timeout = { period = "300s", terminate-after = 1 }')
+        )
+        is None
+    ), "a profile naming no global-timeout must read as having none"
