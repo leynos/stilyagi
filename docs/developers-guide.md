@@ -1779,7 +1779,26 @@ assertion passing over a tier somebody had switched off, and a commented-out
 `grace-period` would raise the requirement this contract puts on the tier above
 it. `terminate-after` is optional, and a `slow-timeout` without it marks a test
 slow and never stops it, so the reading refuses that form rather than reporting
-one period as the budget.
+one period as the budget. When it is set, nextest reads it as a non-zero
+unsigned integer, so a zero, a negative, a fraction, a quoted number and a
+boolean are each refused: coercing them numerically produced a budget for a
+configuration nextest will not load, and the rest raised out of the reading
+rather than being reported as a fault.
+
+Durations are read with the grammar `humantime` accepts, which is what nextest
+deserializes them with: one or more whole-number components each carrying a
+unit, written `45m`, `1h 30m` or `1h30m`, with the long unit spellings and with
+no fractional values. A reader taking a single short-unit component would reject
+`1h 30m`, `1d` and `1w`, which nextest loads, and the contract would then fail
+on a correct file and name the file rather than the reader. Case is
+significant, `m` being minutes and `M` months.
+
+A `grace-period` or a `global-timeout` that is present but is not a duration
+string is refused rather than filtered out. Filtered out, `grace-period = 0`
+selected nextest's ten-second default and `global-timeout = 0` read as no
+whole-run budget at all, so a malformed tier read as an unset one. That is the
+distinction the ordering assertion turns on, because it skips a tier that is
+absent; nextest wants `"0s"`.
 
 It resolves the watchdog from the step, then the job, then the workflow, as
 GitHub does. Both workflows here set it at workflow level, so a contract

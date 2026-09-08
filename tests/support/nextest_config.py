@@ -19,6 +19,8 @@ from tests.support.timeout_budgets import (
     TERMINATION_SAFETY_MARGIN_SECONDS,
     NextestConfigurationError,
     UnboundedTestError,
+    _duration,
+    _multiplier,
     seconds,
 )
 
@@ -204,7 +206,8 @@ def _table_budget(path: str, table: dict[str, object]) -> float:
     Raises
     ------
     NextestConfigurationError
-        If the table names no ``period``.
+        If the table names no ``period``, or names a ``terminate-after``
+        that is not a positive integer.
     UnboundedTestError
         If the table names no ``terminate-after``, so nextest warns
         about a slow test forever and never stops it.
@@ -221,7 +224,7 @@ def _table_budget(path: str, table: dict[str, object]) -> float:
             f"compare against"
         )
         raise UnboundedTestError(message, field="terminate-after", value=table)
-    return seconds(period) * float(str(multiplier))
+    return seconds(period) * _multiplier(path, multiplier)
 
 
 def _bare_budget(path: str, period: str) -> typ.NoReturn:
@@ -251,6 +254,11 @@ def _bare_budget(path: str, period: str) -> typ.NoReturn:
 def grace_period(config_text: str) -> float:
     """Return the longest grace period the configuration names, in seconds.
 
+    A ``grace-period`` that is present but is not a duration string is
+    refused by :func:`_duration` rather than read as absent, so
+    ``grace-period = 0`` is an error and not a silent fall back to
+    nextest's ten-second default.
+
     Parameters
     ----------
     config_text : str
@@ -262,10 +270,9 @@ def grace_period(config_text: str) -> float:
         The largest configured grace period, or nextest's default.
     """
     periods = [
-        seconds(grace)
-        for _, value in _slow_timeouts(config_text)
-        if isinstance(value, dict)
-        and isinstance(grace := value.get("grace-period"), str)
+        seconds(_duration(f"{path}.slow-timeout", "grace-period", grace))
+        for path, value in _slow_timeouts(config_text)
+        if isinstance(value, dict) and (grace := value.get("grace-period")) is not None
     ]
     return max(periods, default=NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS)
 
@@ -285,11 +292,16 @@ def global_timeout(config_text: str) -> float | None:
     Returns
     -------
     float or None
-        The whole-run budget in seconds, or None.
+        The whole-run budget in seconds, or None when the profile names
+        none. A value that is present but is not a duration string is
+        refused by :func:`_duration` rather than read as absent.
     """
     profile = _table(_table(_parsed(config_text).get("profile")).get("default"))
-    budget = profile.get("global-timeout")
-    return seconds(budget) if isinstance(budget, str) else None
+    if "global-timeout" not in profile:
+        return None
+    return seconds(
+        _duration("profile.default", "global-timeout", profile["global-timeout"])
+    )
 
 
 def termination_allowance(config_text: str) -> float:
