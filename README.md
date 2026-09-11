@@ -86,8 +86,8 @@ Working today:
   each tied to the definition that owns it.
 - Suppression comments honoured in all three syntaxes, for a line, the next
   line, or a range.
-- `stilyagi check` over Markdown, with configuration discovery, text and JSON
-  output, and standard input.
+- `stilyagi check` over Markdown, Python, and Rust sources, with configuration
+  discovery, text and JSON output, run summaries, and standard input.
 - Wheels that build and smoke-test on Linux, macOS, and Windows.
 
 The [developers' guide](docs/developers-guide.md) covers the intermediate
@@ -99,8 +99,6 @@ Designed, not yet built:
 - Safe-fix planning, `--fix`, and `--diff`.
 - The `dump-ir`, `config`, `clean`, `rules`, and `rule` commands.
 - Grammar and spelling providers behind the capability planner.
-- Discovery covering `*.py` and `*.rs` alongside `*.md`.
-
 The [roadmap](docs/roadmap.md) is the reliable record: an item is ticked only
 once it is done.
 

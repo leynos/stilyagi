@@ -1,36 +1,61 @@
 {
   "corpus": {
-    "file_count": 1,
+    "file_count": 3,
     "fixture_paths": [
-      "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md"
-    ]
+      "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
+      "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py",
+      "tests/fixtures/corpus/rust/valid/item-doc-comments.rs"
+    ],
+    "per_syntax": {
+      "markdown": {
+        "file_count": 1,
+        "total_bytes": 273
+      },
+      "python_docstring": {
+        "file_count": 1,
+        "total_bytes": 525
+      },
+      "rust_doc_comment": {
+        "file_count": 1,
+        "total_bytes": 580
+      }
+    },
+    "total_bytes": 1378
   },
   "entrypoint": "stilyagi.engine.extract_document",
   "environment": {
     "platform": "<redacted>",
     "python": "<redacted>"
   },
-  "probe": "structural-markdown",
+  "probe": "structural-syntax",
   "runs": [
     {
+      "byte_count": 10,
       "durations_ns": "<redacted>",
       "iterations": 3,
+      "median_ns_per_file": "<redacted>",
       "mode": "cold",
       "summary_ns": {
         "max": "<redacted>",
         "median": "<redacted>",
         "min": "<redacted>"
-      }
+      },
+      "syntax": "markdown",
+      "throughput_mib_per_s": "<redacted>"
     },
     {
+      "byte_count": 10,
       "durations_ns": "<redacted>",
       "iterations": 3,
+      "median_ns_per_file": "<redacted>",
       "mode": "warm",
       "summary_ns": {
         "max": "<redacted>",
         "median": "<redacted>",
         "min": "<redacted>"
-      }
+      },
+      "syntax": "markdown",
+      "throughput_mib_per_s": "<redacted>"
     }
   ],
   "schema_version": 1

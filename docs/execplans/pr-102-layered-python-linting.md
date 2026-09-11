@@ -1,7 +1,8 @@
 # PR 102: Configure layered Python linting
 
 This ExecPlan is a completed record of the layered Python linting work in PR
-102. It is retained as a concise implementation history and retrospective.
+
+1. It is retained as a concise implementation history and retrospective.
 
 Status: COMPLETE
 
@@ -20,8 +21,8 @@ Status: COMPLETE
 ## Tolerances
 
 - Documentation must describe the committed Makefile and `uv.lock` contracts;
-  it must not infer a release version from package metadata that disagrees
-  with the lockfile.
+  it must not infer a release version from package metadata that disagrees with
+  the lockfile.
 - The plan records implemented outcomes only where they are visible in the
   current source tree. Validation commands are listed separately until their
   output is available after these documentation changes.
@@ -32,8 +33,8 @@ Status: COMPLETE
   make local and CI lint environments appear different. The immutable commit
   and lockfile are the source of truth.
 - Nested configuration mappings can accept invalid key types unless they pass
-  through the shared mapping validator. Direct parser tests and a property
-  test protect that boundary.
+  through the shared mapping validator. Direct parser tests and a property test
+  protect that boundary.
 - Extraction vocabulary caches can retain patched bridge state across tests.
   The dedicated reset helper keeps test-only invalidation separate from the
   production extraction path.
@@ -76,10 +77,10 @@ the focused `ensure_mapping` regression test, the Hypothesis property proving
 string-key acceptance and non-string-key rejection, and documentation for the
 extraction helper contracts.
 
-The documentation changes in this follow-up add the ADR 004 addendum, align
-the release wording with `uv.lock`, and make this plan discoverable from the
-documentation index. The repository-configured validation commands that must
-be run after these changes are:
+The documentation changes in this follow-up add the ADR 004 addendum, align the
+release wording with `uv.lock`, and make this plan discoverable from the
+documentation index. The repository-configured validation commands that must be
+run after these changes are:
 
 ```text
 make markdownlint

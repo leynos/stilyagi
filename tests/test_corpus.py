@@ -6,6 +6,7 @@ import typing as typ
 
 import pytest
 from pytest_bdd import given, scenario, then, when
+from stilyagi import engine, model
 from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.assertions import assert_with_context
@@ -23,6 +24,41 @@ SYNTAX_EXTENSIONS: dict[str, str | tuple[str, ...]] = {
 MALFORMED_PYTHON_EXTENSION = ".py.txt"
 VALID_CATEGORIES = frozenset({"valid", "malformed"})
 VALID_MARKDOWN_FIXTURE_NAME = "heading-table-link-suppression.md"
+_SYNTAX_MODELS = {
+    "markdown": model.Syntax.MARKDOWN,
+    "python": model.Syntax.PYTHON_DOCSTRING,
+    "rust": model.Syntax.RUST_DOC_COMMENT,
+}
+_EXPECTED_REGION_COUNTS = {
+    "markdown/malformed/broken-reference-link.md.fixture": 2,
+    "markdown/malformed/unbalanced-emphasis.md.fixture": 2,
+    "markdown/malformed/unclosed-table.md.fixture": 7,
+    "markdown/valid/blockquote-crlf.md.fixture": 2,
+    "markdown/valid/blockquotes.md.fixture": 4,
+    "markdown/valid/deep-blockquote.md.fixture": 9,
+    "markdown/valid/empty-list-item.md.fixture": 1,
+    "markdown/valid/frontmatter.md.fixture": 2,
+    "markdown/valid/heading-table-link-suppression.md": 6,
+    "markdown/valid/headings.md.fixture": 2,
+    "markdown/valid/links-and-images.md.fixture": 5,
+    "markdown/valid/list-crlf.md.fixture": 4,
+    "markdown/valid/lists.md.fixture": 10,
+    "markdown/valid/paragraph-inline-markup.md.fixture": 1,
+    "markdown/valid/paragraph-soft-break-crlf.md.fixture": 1,
+    "markdown/valid/paragraph-soft-break.md.fixture": 1,
+    "markdown/valid/suppression-directives.md.fixture": 3,
+    "markdown/valid/table.md.fixture": 4,
+    "markdown/valid/yaml-frontmatter.md.fixture": 2,
+    "python/malformed/unclosed-function.py.txt": 1,
+    "python/valid/docstring-edge-cases.py": 6,
+    "python/valid/module-class-function-docstrings.py": 4,
+    "python/valid/nested-declarations.py": 13,
+    "rust/malformed/unclosed-item.rs": 1,
+    "rust/valid/doc-comment-multiline.rs": 2,
+    "rust/valid/item-doc-comments-with-attributes.rs": 1,
+    "rust/valid/item-doc-comments.rs": 4,
+    "rust/valid/nested-modules-impls.rs": 6,
+}
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -251,6 +287,38 @@ def test_malformed_python_fixtures_require_text_extension() -> None:
         _extensions_for_syntax_category("python", "malformed") == (".py.txt",),
         "expected _extensions_for_syntax_category('python', '...",
     )
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    corpus_fixtures(),
+    ids=lambda item: f"{item.syntax}/{item.category}/{item.name}",
+)
+def test_corpus_region_counts_guard_against_silent_grammar_regressions(
+    fixture: CorpusFixture,
+) -> None:
+    """Pin extractable-region coverage for one shared syntax fixture."""
+    key = f"{fixture.syntax}/{fixture.category}/{fixture.name}"
+    expected = _EXPECTED_REGION_COUNTS.get(key)
+    assert expected is not None, (
+        f"record an expected region count for the new fixture {key!r}"
+    )
+
+    observed = len(
+        engine.extract_document(fixture.text, _SYNTAX_MODELS[fixture.syntax]).regions
+    )
+
+    assert_with_context(
+        observed == expected,
+        f"expected {key!r} to have {expected} region(s), extracted {observed}",
+    )
+
+
+def test_every_recorded_region_count_matches_a_corpus_fixture() -> None:
+    """Reject stale entries left behind when a fixture is renamed or removed."""
+    known = {f"{item.syntax}/{item.category}/{item.name}" for item in corpus_fixtures()}
+    stale = sorted(set(_EXPECTED_REGION_COUNTS) - known)
+    assert not stale, f"remove stale expected region counts: {stale}"
 
 
 class CorpusState(typ.TypedDict, total=False):

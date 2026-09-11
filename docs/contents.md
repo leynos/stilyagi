@@ -117,6 +117,9 @@
     adr-007-rust-doc-comment-owner-metadata.md)
     records the Rust `owner` contract reuse, `::` qualified-name semantics,
     verbatim doc-comment extraction, and bounded Rust node-store policy.
+  - [ADR 008: Adopt v1 discovery defaults](adr-008-v1-discovery-defaults.md)
+    records mixed-source discovery, extraction-anomaly classification, run
+    summaries, and the deliberately deferred discovery-policy work.
 
 ## Requests for comments (RFCs)
 

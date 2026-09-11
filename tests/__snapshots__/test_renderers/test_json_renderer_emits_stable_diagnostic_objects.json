@@ -33,5 +33,12 @@
       "path": "docs/b.md",
       "severity": "warning"
     }
-  ]
+  ],
+  "summary": {
+    "checked_files": 3,
+    "errors": 2,
+    "skipped_files": 1,
+    "unreadable_files": 0,
+    "warnings": 1
+  }
 }
