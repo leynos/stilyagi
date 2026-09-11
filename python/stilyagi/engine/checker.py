@@ -6,6 +6,7 @@ import typing as typ
 
 from stilyagi import diagnostics, model
 from stilyagi.diagnostics_location import line_column_from_offset
+from stilyagi.engine.ir_view import byte_start_from_span, line_index
 
 _DEFAULT_IR_CODE = "IR000"
 
@@ -55,11 +56,11 @@ def map_ir_errors(
         _LOGGER.debug("IR for %s carries no error sequence", reported_path)
         return []
 
-    line_index = _coerce_line_index(ir.get("line_index"))
+    line_starts = line_index(document)
 
     errors = typ.cast("cabc.Sequence[object]", raw_errors)
     mapped_errors = (
-        _map_one_error(error, line_index, reported_path) for error in errors
+        _map_one_error(error, line_starts, reported_path) for error in errors
     )
     diagnostics_list = [error for error in mapped_errors if error is not None]
     _LOGGER.debug("mapped %d IR error(s) for %s", len(diagnostics_list), reported_path)
@@ -81,7 +82,7 @@ def _map_one_error(
     typed_error = typ.cast("cabc.Mapping[str, object]", error)
     line, column = line_column_from_offset(
         line_index,
-        _byte_start_from_span(typed_error.get("span")),
+        byte_start_from_span(typed_error.get("span")),
     )
     return diagnostics.Diagnostic(
         path=reported_path,
@@ -98,29 +99,3 @@ def _ir_code(raw_code: object) -> str:
     if isinstance(raw_code, str) and raw_code:
         return raw_code
     return _DEFAULT_IR_CODE
-
-
-def _byte_start_from_span(span: object) -> int | None:
-    """Return the span's byte start when the IR provides one."""
-    if not isinstance(span, cabc.Mapping):
-        return None
-    typed_span = typ.cast("cabc.Mapping[str, object]", span)
-    byte_start = typed_span.get("byte_start")
-    return byte_start if isinstance(byte_start, int) else None
-
-
-def _coerce_line_index(raw_line_index: object) -> tuple[int, ...] | None:
-    """Return a typed tuple of byte offsets when the IR provides one."""
-    if not isinstance(raw_line_index, cabc.Sequence) or isinstance(
-        raw_line_index,
-        (str, bytes),
-    ):
-        return None
-
-    values = typ.cast("cabc.Sequence[object]", raw_line_index)
-    line_starts: list[int] = []
-    for start in values:
-        if not isinstance(start, int):
-            return None
-        line_starts.append(start)
-    return tuple(line_starts)
