@@ -17,7 +17,7 @@ stilyagi = "stilyagi.cli:main"
 [dependency-groups]
 dev = [
     # Keep in sync with [build-system].requires.
-    "maturin==1.14.1",
+    "maturin==1.15.0",
     "pytest",
     "pytest-xdist",
     "cmd-mox==0.2.0",
@@ -396,5 +396,5 @@ reset_extraction_state_for_tests = "Called by extraction tests that reset proces
 extract_document = "PyO3 exports this stubbed API; its signature parameters mirror the compiled extension."
 [build-system]
 # Keep in sync with [dependency-groups].dev.
-requires = ["maturin==1.14.1"]
+requires = ["maturin==1.15.0"]
 build-backend = "maturin"
