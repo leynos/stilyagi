@@ -12,6 +12,7 @@
       'stilyagi/__main__.py',
       'stilyagi/_stilyagi_rs.cpython-<platform>.<ext>',
       'stilyagi/_stilyagi_rs.pyi',
+      'stilyagi/check_inputs.py',
       'stilyagi/cli.py',
       'stilyagi/cli_args.py',
       'stilyagi/config/__init__.py',

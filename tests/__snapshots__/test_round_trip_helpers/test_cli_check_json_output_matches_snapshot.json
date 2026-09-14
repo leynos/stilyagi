@@ -1,5 +1,5 @@
 {
   "exit_code": 0,
   "stderr": "",
-  "stdout": "{\n  \"diagnostics\": []\n}\n"
+  "stdout": "{\n  \"diagnostics\": [],\n  \"summary\": {\n    \"checked_files\": 1,\n    \"skipped_files\": 0,\n    \"unreadable_files\": 0,\n    \"errors\": 0,\n    \"warnings\": 0\n  }\n}\n"
 }
