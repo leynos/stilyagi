@@ -1776,11 +1776,16 @@ configuration nextest will not load, and the rest raised out of the reading
 rather than being reported as a fault.
 
 Durations are read with the grammar `humantime` accepts, which is what nextest
-deserializes them with: one or more whole-number components each carrying a
-unit, written `45m`, `1h 30m` or `1h30m`, with the long unit spellings and with
-no fractional values. A reader taking a single short-unit component would reject
-`1h 30m`, `1d` and `1w`, which nextest loads, and the contract would then fail
-on a correct file and name the file rather than the reader. Case is
+deserializes them with: a sequence of components each carrying a unit, written
+`45m`, `1h 30m` or `1h30m`, with the long unit spellings. A reader taking a
+single short-unit component would reject `1h 30m`, `1d` and `1w`, which nextest
+loads, and the contract would then fail on a correct file and name the file
+rather than the reader. The grammar was measured against humantime 2.4.0, the
+version nextest resolves, by compiling that parser and running the cases
+through it. A value may carry a fractional part, and whitespace is tolerated
+around the point, so `1.5m` and `1 . 5 m` are both ninety seconds. The short
+spellings `wk`, `wks`, `yr` and `yrs` are units alongside the longer ones, and
+the bare `0` is the one duration humantime reads without a unit. Case is
 significant, `m` being minutes and `M` months.
 
 A `grace-period` or a `global-timeout` that is present but is not a duration

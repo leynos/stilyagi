@@ -36,13 +36,16 @@ from tests.support.timeout_budgets import (
 #: unit table is the one place in the reading where a single wrong entry
 #: would go unnoticed, because every comparison downstream would still
 #: be an inequality between two plausible numbers. Case is significant,
-#: ``m`` being minutes and ``M`` months.
+#: ``m`` being minutes and ``M`` months. Measured against humantime
+#: 2.4.0, the version nextest resolves, by compiling that parser and
+#: running every spelling through it.
 UNITS: typ.Final[dict[str, float]] = {
     "nanos": 1e-9,
     "nsec": 1e-9,
     "ns": 1e-9,
     "usec": 1e-6,
     "us": 1e-6,
+    "\u00b5s": 1e-6,
     "millis": 0.001,
     "msec": 0.001,
     "ms": 0.001,
@@ -66,16 +69,21 @@ UNITS: typ.Final[dict[str, float]] = {
     "d": 86400.0,
     "weeks": 604800.0,
     "week": 604800.0,
+    "wks": 604800.0,
+    "wk": 604800.0,
     "w": 604800.0,
     "months": 2630016.0,
     "month": 2630016.0,
     "M": 2630016.0,
     "years": 31557600.0,
     "year": 31557600.0,
+    "yrs": 31557600.0,
+    "yr": 31557600.0,
     "y": 31557600.0,
 }
 
 whole_numbers = st.integers(min_value=1, max_value=10_000)
+fractional_parts = st.integers(min_value=0, max_value=999)
 units = st.sampled_from(sorted(UNITS))
 multipliers = st.integers(min_value=1, max_value=20)
 
@@ -119,6 +127,24 @@ def test_every_unit_scales_the_value(value: int, unit: str) -> None:
     """
     assert seconds(f"{value}{unit}") == pytest.approx(value * UNITS[unit]), (
         f"{value}{unit} must scale by the length of its unit"
+    )
+
+
+@given(whole=whole_numbers, fraction=fractional_parts, unit=units)
+def test_a_fractional_value_scales_its_unit(
+    whole: int, fraction: int, unit: str
+) -> None:
+    """A fractional value scales by its unit, as humantime reads it.
+
+    An earlier reader took whole numbers only, so `"1.5m"` was refused
+    as malformed. nextest loads it as ninety seconds, and a contract
+    that refuses configuration the runner accepts fails a correct file
+    and blames the file for it. Written as a property because the defect
+    was in the grammar rather than in any one spelling.
+    """
+    written = f"{whole}.{fraction}"
+    assert seconds(f"{written}{unit}") == pytest.approx(float(written) * UNITS[unit]), (
+        f"{written}{unit} must scale its fractional value by the unit"
     )
 
 
@@ -202,14 +228,30 @@ def test_an_unconfigured_grace_period_falls_back_to_nextest_s_default(
 
 @pytest.mark.parametrize(
     "duration",
-    ["", "300", "s", "five minutes", "-30s", "1.5s", "30 fortnights"],
+    [
+        "",
+        "300",
+        "s",
+        "five minutes",
+        "-30s",
+        ".5s",
+        "5.s",
+        "1.5.5s",
+        "1S",
+        "00",
+        "30 fortnights",
+    ],
     ids=[
         "empty",
         "no-unit",
         "no-value",
         "words",
         "negative",
-        "fractional",
+        "only-a-fractional-part",
+        "a-missing-fractional-part",
+        "a-second-point",
+        "a-unit-whose-case-is-wrong",
+        "a-zero-that-is-not-the-bare-one",
         "unknown-unit",
     ],
 )
@@ -219,8 +261,11 @@ def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) ->
     Returning a plausible value for `"30 fortnights"` would put a
     comparison in the contract against a budget nextest never applies,
     and the contract would pass while the ordering it claims to hold did
-    not. `humantime` takes whole numbers with units and nothing else, so
-    a fractional value belongs here too.
+    not. `humantime` admits a fractional part but nothing looser, so a
+    leading point, a missing fractional part, a second point, a sign and
+    a unit in the wrong case belong here. Each spelling was refused by
+    humantime 2.4.0, the version nextest resolves, when the cases were
+    run through that parser.
     """
     with pytest.raises(NextestConfigurationError):
         seconds(duration)
@@ -234,6 +279,15 @@ def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) ->
         pytest.param("1d", 86400.0, id="a-day"),
         pytest.param("1w", 604800.0, id="a-week"),
         pytest.param("300 sec", 300.0, id="a-long-unit-spelling"),
+        pytest.param("1.5m", 90.0, id="a-fractional-value"),
+        pytest.param("1 . 5 m", 90.0, id="a-fractional-value-spaced-around-the-point"),
+        pytest.param("4.2s", 4.2, id="a-fractional-value-in-seconds"),
+        pytest.param("2wk", 1209600.0, id="the-short-week-spelling"),
+        pytest.param("2wks", 1209600.0, id="the-short-plural-week-spelling"),
+        pytest.param("1yr", 31557600.0, id="the-short-year-spelling"),
+        pytest.param("3yrs", 94672800.0, id="the-short-plural-year-spelling"),
+        pytest.param("1\u00b5s", 1e-6, id="the-micro-sign-spelling"),
+        pytest.param("0", 0.0, id="the-bare-zero-humantime-reads-without-a-unit"),
     ],
 )
 def test_a_duration_nextest_accepts_is_read_rather_than_refused(
