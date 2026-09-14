@@ -37,8 +37,9 @@ from tests.support.timeout_budgets import (
 #: would go unnoticed, because every comparison downstream would still
 #: be an inequality between two plausible numbers. Case is significant,
 #: ``m`` being minutes and ``M`` months. Measured against humantime
-#: 2.4.0, the version nextest resolves, by compiling that parser and
-#: running every spelling through it.
+#: 2.3.0, which is what the lockfile of the pinned cargo-nextest release
+#: resolves, by compiling that parser and running every spelling
+#: through it.
 UNITS: typ.Final[dict[str, float]] = {
     "nanos": 1e-9,
     "nsec": 1e-9,
@@ -239,6 +240,8 @@ def test_an_unconfigured_grace_period_falls_back_to_nextest_s_default(
         "1.5.5s",
         "1S",
         "00",
+        " 0 ",
+        "0 ",
         "30 fortnights",
     ],
     ids=[
@@ -252,6 +255,8 @@ def test_an_unconfigured_grace_period_falls_back_to_nextest_s_default(
         "a-second-point",
         "a-unit-whose-case-is-wrong",
         "a-zero-that-is-not-the-bare-one",
+        "a-bare-zero-carrying-whitespace",
+        "a-bare-zero-with-a-trailing-space",
         "unknown-unit",
     ],
 )
@@ -264,8 +269,12 @@ def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) ->
     not. `humantime` admits a fractional part but nothing looser, so a
     leading point, a missing fractional part, a second point, a sign and
     a unit in the wrong case belong here. Each spelling was refused by
-    humantime 2.4.0, the version nextest resolves, when the cases were
-    run through that parser.
+    humantime 2.3.0, which is what the lockfile of the pinned
+    cargo-nextest release resolves, when the cases were run through that
+    parser. The bare zero is the sharpest: humantime special-cases the
+    exact text before reading a character, so a reader that stripped
+    whitespace before comparing would accept `" 0 "`, which nextest
+    rejects.
     """
     with pytest.raises(NextestConfigurationError):
         seconds(duration)
@@ -288,6 +297,8 @@ def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) ->
         pytest.param("3yrs", 94672800.0, id="the-short-plural-year-spelling"),
         pytest.param("1\u00b5s", 1e-6, id="the-micro-sign-spelling"),
         pytest.param("0", 0.0, id="the-bare-zero-humantime-reads-without-a-unit"),
+        pytest.param("1 0s", 10.0, id="whitespace-inside-the-number"),
+        pytest.param("1 2 . 3 4 s", 12.34, id="whitespace-throughout-the-number"),
     ],
 )
 def test_a_duration_nextest_accepts_is_read_rather_than_refused(

@@ -1802,12 +1802,18 @@ deserializes them with: a sequence of components each carrying a unit, written
 `45m`, `1h 30m` or `1h30m`, with the long unit spellings. A reader taking a
 single short-unit component would reject `1h 30m`, `1d` and `1w`, which nextest
 loads, and the contract would then fail on a correct file and name the file
-rather than the reader. The grammar was measured against humantime 2.4.0, the
-version nextest resolves, by compiling that parser and running the cases
-through it. A value may carry a fractional part, and whitespace is tolerated
-around the point, so `1.5m` and `1 . 5 m` are both ninety seconds. The short
-spellings `wk`, `wks`, `yr` and `yrs` are units alongside the longer ones, and
-the bare `0` is the one duration humantime reads without a unit. Case is
+rather than the reader. The grammar was measured against humantime 2.3.0, which
+is what the lockfile of the pinned cargo-nextest release resolves, by compiling
+that parser and running the cases through it. Naming the version matters: an
+earlier note here cited 2.4.0, which is the newest release rather than the one
+`cargo-nextest@0.9.138` pins. A value may carry a fractional part, and
+whitespace is tolerated around the point, so `1.5m` and `1 . 5 m` are both
+ninety seconds. Whitespace inside the number is ignored too, so `1 0s` is ten
+seconds and `1 2 . 3 4 s` is 12.34. The short spellings `wk`, `wks`, `yr` and
+`yrs` are units alongside the longer ones. The bare `0` is the one duration
+humantime reads without a unit, and it is the exact text: its parser
+special-cases `0` before reading a character, so `" 0 "` is refused and a reader
+that stripped whitespace first would accept a duration nextest rejects. Case is
 significant, `m` being minutes and `M` months.
 
 A `grace-period` or a `global-timeout` that is present but is not a duration
