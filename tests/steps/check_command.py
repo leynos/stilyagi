@@ -164,8 +164,9 @@ def the_text_output_lists_no_diagnostics(
 ) -> None:
     """Assert the rendered text contract for an empty run."""
     assert_with_context(
-        check_command_state["stdout"] == "0 diagnostics found\n",
-        "expected check_command_state['stdout'] == '0 diagnos...",
+        check_command_state["stdout"]
+        == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected check_command_state['stdout'] to include fix counts",
     )
     assert_with_context(
         check_command_state["stderr"] == "",
@@ -198,7 +199,8 @@ def the_text_output_attributes_the_synthetic_diagnostic_to_readme(
     assert_with_context(
         (
             check_command_state["stdout"]
-            == "README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"
+            == "README.md:1:1: error IR000 Synthetic IR error\n"
+            "1 diagnostic found (0 safe fixes, 0 unsafe fixes)\n"
         ),
         "expected check_command_state['stdout'] == 'README.md...",
     )

@@ -2,6 +2,7 @@
   "diagnostics": [
     {
       "code": "STY999",
+      "fix": null,
       "fix_applicable": false,
       "location": {
         "column": 1,
@@ -11,5 +12,7 @@
       "path": "docs/notes.md",
       "severity": "warning"
     }
-  ]
+  ],
+  "fix_errors": [],
+  "schema_version": "1.0.0"
 }
