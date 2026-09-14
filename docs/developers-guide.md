@@ -1767,9 +1767,10 @@ a measurement of the cold case.
 invoking the coverage action, in both the `.yml` and `.yaml` extensions. It
 reads the workflows through `tests/support/coverage_workflows.py` and the
 nextest budgets through `tests/support/nextest_config.py` and
-`tests/support/nextest_durations.py`, `tests/support/nextest_errors.py` and
-`tests/support/timeout_budgets.py`, so the readings can
-be driven with controlled inputs apart from the assertions over the tree.
+`tests/support/nextest_durations.py`, `tests/support/nextest_units.py`,
+`tests/support/nextest_errors.py` and `tests/support/timeout_budgets.py`, so
+the readings can be driven with controlled inputs apart from the assertions
+over the tree.
 
 Each reading takes what it reads rather than fetching it. `coverage_jobs_in`
 queries supplied workflow documents and `coverage_jobs` is the acquisition
@@ -1817,17 +1818,35 @@ special-cases `0` before reading a character, so `" 0 "` is refused and a reader
 that stripped whitespace first would accept a duration nextest rejects. Case is
 significant, `m` being minutes and `M` months.
 
-The arithmetic is exact, in whole nanoseconds, because that is what humantime
-counts in. A component that does not land on a nanosecond will not load:
-`0.0000000015s` is a second and a half of nanoseconds and is refused, while
-`1.999999999s` is accepted. Reading the value through a float instead would
-round the first to something plausible and certify a configuration nextest
-cannot load, which is why the unit table holds integer nanoseconds rather than
-fractional seconds. Two ceilings come with it: a numeric literal must fit the
-`u64` humantime reads it into, so `1000000000000000000000ns` is refused even
-though its value in seconds is small, and the accumulated seconds must fit the
-`u64` they are summed into, so `18446744073709551615s` loads and one second more
-does not.
+The arithmetic is exact and in integers, because humantime's is: its parser
+works in checked `u64` throughout and reports every failure as an overflow.
+Reading a value through a float instead rounds what humantime refuses into
+something plausible and certifies a configuration nextest cannot load.
+
+Which integer depends on the unit. A fraction of an hour or anything longer is
+converted into whole *seconds*, so `0.000001h` is refused although 3,600 ns is a
+whole nanosecond, while `0.25h` is fifteen minutes. A fraction of a minute or
+anything shorter is converted into whole nanoseconds, so `1.999999999s` is
+accepted and `0.0000000015s` is not. A fraction of a nanosecond is refused
+outright, whatever it spells, so even `1.0ns` will not load. The unit tables in
+`tests/support/nextest_units.py` are split by which of the two a unit is
+measured in, because one table in nanoseconds cannot express the rule at the
+hour.
+
+Three ceilings come with it, and they are different. A numeric literal must fit
+the `u64` humantime reads it into, so `1000000000000000000000ns` is refused even
+though its value in seconds is small. A fraction's own arithmetic is checked, so
+`0.1000000000000000000s` overflows on the multiplication and
+`1.00000000000000000000s` on the denominator, although both would fit as
+durations. And the accumulated seconds must fit the `u64` they are summed into,
+so `18446744073709551615s` loads and one second more does not.
+
+The reading was checked against the parser rather than against its
+documentation: 4,016 generated durations, spanning every unit spelling,
+fractions of up to twenty-one digits, values around the `u64` boundary and
+humantime's tolerated whitespace, were run through both this reader and
+humantime 2.3.0 compiled from the pinned release, and the two agreed on every
+one.
 
 A `grace-period` or a `global-timeout` that is present but is not a duration
 string is refused rather than filtered out. Filtered out, `grace-period = 0`
