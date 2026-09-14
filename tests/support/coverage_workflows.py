@@ -10,6 +10,9 @@ from pathlib import Path
 
 import yaml
 
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
 WORKFLOWS_DIRECTORY: typ.Final[Path] = (
     Path(__file__).resolve().parents[2] / ".github" / "workflows"
 )
@@ -150,11 +153,25 @@ def _watchdog_of(
     return None
 
 
-def _workflow_documents() -> dict[str, WorkflowDocument]:
-    """Return every workflow document, keyed by file name.
+def workflow_documents(
+    directory: Path = WORKFLOWS_DIRECTORY,
+) -> dict[str, WorkflowDocument]:
+    """Return every workflow document in a directory, keyed by file name.
 
     Both extensions are read. A coverage lane in the other one would
     otherwise escape every assertion below without failing anything.
+
+    The directory is a parameter so this acquisition can be pointed at a
+    temporary tree. A document that is not a mapping is skipped rather
+    than raising: a workflow file holding a list or a bare scalar
+    declares no jobs, so it contributes no lane, and failing here would
+    fail the whole contract on a file that has nothing to do with
+    coverage.
+
+    Parameters
+    ----------
+    directory : Path
+        Directory of workflow files. Defaults to the repository's own.
 
     Returns
     -------
@@ -163,7 +180,7 @@ def _workflow_documents() -> dict[str, WorkflowDocument]:
     """
     documents: dict[str, WorkflowDocument] = {}
     for pattern in ("*.yml", "*.yaml"):
-        for path in sorted(WORKFLOWS_DIRECTORY.glob(pattern)):
+        for path in sorted(directory.glob(pattern)):
             parsed: object = yaml.safe_load(path.read_text(encoding="utf-8"))
             match parsed:
                 case dict() as document:
@@ -181,13 +198,18 @@ def _jobs_of(document: WorkflowDocument) -> dict[str, WorkflowJob]:
     document : WorkflowDocument
         The parsed workflow document.
 
+    A document that is not a mapping declares no jobs. The acquisition
+    skips those files, but the query is reachable with any document a
+    caller supplies, and a reading that raised on one would fail the
+    whole contract on a workflow that has nothing to do with coverage.
+
     Returns
     -------
     dict[str, WorkflowJob]
         Job identifier to job, empty when the document declares none.
     """
-    match document.get("jobs"):
-        case dict() as jobs:
+    match document:
+        case {"jobs": dict() as jobs}:
             return typ.cast("dict[str, WorkflowJob]", jobs)
         case _:
             return {}
@@ -195,6 +217,10 @@ def _jobs_of(document: WorkflowDocument) -> dict[str, WorkflowJob]:
 
 def _coverage_steps(job: WorkflowJob) -> list[WorkflowStep]:
     """Return the steps in one job that invoke the coverage action.
+
+    A job that is not a mapping runs no step, for the same reason that a
+    document which is not a mapping declares no job. The shape cannot be
+    read, so it contributes no lane rather than ending the contract.
 
     Parameters
     ----------
@@ -206,8 +232,8 @@ def _coverage_steps(job: WorkflowJob) -> list[WorkflowStep]:
     list[WorkflowStep]
         The matching steps, in the order the job runs them.
     """
-    match job.get("steps"):
-        case list() as steps:
+    match job:
+        case {"steps": list() as steps}:
             return [step for step in map(_step, steps) if _invokes_coverage(step)]
         case _:
             return []
@@ -265,12 +291,26 @@ def _coverage_job(
     )
 
 
-def coverage_jobs() -> tuple[CoverageJob, ...]:
-    """Return every job invoking the coverage action, with its budgets.
+def coverage_jobs_in(
+    documents: cabc.Mapping[str, WorkflowDocument],
+) -> tuple[CoverageJob, ...]:
+    """Return every job in those documents that invokes the action.
+
+    The query is separate from the acquisition so it can be driven with
+    supplied documents. Reading the repository's own workflow directory
+    inside the query left no way to ask what this reading makes of a
+    lane that does not exist here, and a contract that can only be
+    exercised against the tree it guards is one whose own behaviour goes
+    unasserted.
 
     Jobs are the unit rather than steps, because the ceiling is a job's
     and it has to contain every watchdog inside it. Counting steps is
     what makes the two invocations here visible to the arithmetic.
+
+    Parameters
+    ----------
+    documents : Mapping[str, WorkflowDocument]
+        Workflow file name to parsed document.
 
     Returns
     -------
@@ -279,7 +319,26 @@ def coverage_jobs() -> tuple[CoverageJob, ...]:
     """
     return tuple(
         found
-        for name, document in _workflow_documents().items()
+        for name, document in documents.items()
         for job_name, job in _jobs_of(document).items()
         if (found := _coverage_job(name, document, str(job_name), job)) is not None
     )
+
+
+def coverage_jobs(directory: Path = WORKFLOWS_DIRECTORY) -> tuple[CoverageJob, ...]:
+    """Return every job invoking the coverage action, with its budgets.
+
+    This is the acquisition half: it reads the workflow files and hands
+    the parsed documents to the query.
+
+    Parameters
+    ----------
+    directory : Path
+        Directory of workflow files. Defaults to the repository's own.
+
+    Returns
+    -------
+    tuple[CoverageJob, ...]
+        One entry per coverage-invoking job.
+    """
+    return coverage_jobs_in(workflow_documents(directory))
