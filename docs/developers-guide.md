@@ -1770,6 +1770,18 @@ nextest budgets through `tests/support/nextest_config.py` and
 `tests/support/timeout_budgets.py`, so the readings can
 be driven with controlled inputs apart from the assertions over the tree.
 
+Each reading takes what it reads rather than fetching it. `coverage_jobs_in`
+queries supplied workflow documents and `coverage_jobs` is the acquisition
+around it, taking the directory it scans, which is how a lane that does not
+exist in this repository can be put to the reading at all.
+`tests/test_coverage_workflow_reading.py` does exactly that: both coverage lanes
+here are well formed and both set the watchdog at workflow level, so the real
+files cannot tell a correct reading from one confined to the job, one counting a
+non-coverage step, one raising on a malformed document, or one reporting a
+missing ceiling as zero. A shape that cannot be read contributes no lane rather
+than ending the contract, because a workflow with nothing to do with coverage
+must not be able to fail it.
+
 The nextest reading parses its input with `tomllib` rather than matching text.
 This repository has no `.config/nextest.toml`, which is why two tiers are
 missing, so those readings are what whoever adds the file will get. A text match
