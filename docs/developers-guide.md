@@ -1757,6 +1757,7 @@ a measurement of the cold case.
 invoking the coverage action, in both the `.yml` and `.yaml` extensions. It
 reads the workflows through `tests/support/coverage_workflows.py` and the
 nextest budgets through `tests/support/nextest_config.py` and
+`tests/support/nextest_durations.py`, `tests/support/nextest_errors.py` and
 `tests/support/timeout_budgets.py`, so the readings can
 be driven with controlled inputs apart from the assertions over the tree.
 
@@ -1805,6 +1806,18 @@ humantime reads without a unit, and it is the exact text: its parser
 special-cases `0` before reading a character, so `" 0 "` is refused and a reader
 that stripped whitespace first would accept a duration nextest rejects. Case is
 significant, `m` being minutes and `M` months.
+
+The arithmetic is exact, in whole nanoseconds, because that is what humantime
+counts in. A component that does not land on a nanosecond will not load:
+`0.0000000015s` is a second and a half of nanoseconds and is refused, while
+`1.999999999s` is accepted. Reading the value through a float instead would
+round the first to something plausible and certify a configuration nextest
+cannot load, which is why the unit table holds integer nanoseconds rather than
+fractional seconds. Two ceilings come with it: a numeric literal must fit the
+`u64` humantime reads it into, so `1000000000000000000000ns` is refused even
+though its value in seconds is small, and the accumulated seconds must fit the
+`u64` they are summed into, so `18446744073709551615s` loads and one second more
+does not.
 
 A `grace-period` or a `global-timeout` that is present but is not a duration
 string is refused rather than filtered out. Filtered out, `grace-period = 0`

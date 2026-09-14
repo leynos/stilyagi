@@ -14,8 +14,26 @@ yet: whoever adds it will get the reading the runner would give, not
 the reading a regular expression happens to give.
 """
 
-import re
 import typing as typ
+
+from tests.support.nextest_durations import seconds
+from tests.support.nextest_errors import (
+    NextestConfigurationError,
+    TimeoutBudgetError,
+    UnboundedTestError,
+)
+
+#: Re-exported so every module that reads a budget through this one
+#: keeps a single import site for the faults it reports and for the
+#: duration reading those faults come out of.
+__all__ = [
+    "NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS",
+    "TERMINATION_SAFETY_MARGIN_SECONDS",
+    "NextestConfigurationError",
+    "TimeoutBudgetError",
+    "UnboundedTestError",
+    "seconds",
+]
 
 #: What nextest allows a test between `SIGTERM` and `SIGKILL` when the
 #: configuration names no `grace-period`.
@@ -26,237 +44,6 @@ NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS: typ.Final[float] = 10.0
 #: floor, so raising the grace period raises the requirement instead of
 #: being absorbed silently.
 TERMINATION_SAFETY_MARGIN_SECONDS: typ.Final[float] = 60.0
-
-
-class TimeoutBudgetError(ValueError):
-    """Base for every fault these readings report.
-
-    Callers catch this rather than matching message text, and the two
-    fields carry what a caller would otherwise have to parse out of the
-    message: which setting was at fault and what it held.
-
-    Attributes
-    ----------
-    field : str
-        The configuration key the fault is about.
-    value : object
-        What that key held, as the configuration gave it.
-    """
-
-    def __init__(self, message: str, *, field: str, value: object) -> None:
-        """Record the message and the setting it is about.
-
-        Parameters
-        ----------
-        message : str
-            What went wrong, for a person reading the failure.
-        field : str
-            The configuration key the fault is about.
-        value : object
-            What that key held.
-        """
-        super().__init__(message)
-        self.field = field
-        self.value = value
-
-
-class NextestConfigurationError(TimeoutBudgetError):
-    """Raised when a nextest configuration cannot be read as written.
-
-    A malformed duration or a `slow-timeout` without a period would
-    otherwise be read as some plausible number, and the ordering above
-    it would be checked against a value nextest never uses.
-    """
-
-
-class UnboundedTestError(TimeoutBudgetError):
-    """Raised when a ``slow-timeout`` bounds nothing.
-
-    ``terminate-after`` is optional, and nextest only terminates a test
-    when it is set: `slow-timeout = "2m"` and
-    `slow-timeout = { period = "2m" }` both mark a test slow after two
-    minutes and then let it run for ever. Reading either as a two-minute
-    budget reports tier one as present when it is absent, which is the
-    inversion this contract exists to catch.
-    """
-
-
-#: One value-and-unit pair of a duration as ``humantime`` spells it.
-#: nextest deserializes every duration with ``humantime_serde``, which
-#: reads a sequence of such pairs and sums them, so ``"1h 30m"``,
-#: ``"1d"`` and ``"1w"`` are all configuration it accepts. A reader
-#: taking a single component with a short unit rejects a file nextest
-#: would load, and this contract would then blame the file for its own
-#: limitation.
-#:
-#: Digits with whitespace tolerated between them. humantime's parser
-#: skips whitespace while it accumulates a number, so ``"1 0s"`` is ten
-#: seconds rather than a malformed duration, and the same holds either
-#: side of the point: ``"1 2 . 3 4 s"`` is 12.34 seconds.
-_SPACED_DIGITS: typ.Final[str] = r"\d(?:\s*\d)*"
-
-#: The grammar was measured against humantime 2.3.0, which is what the
-#: lockfile of the pinned cargo-nextest release resolves (this
-#: repository pins ``cargo-nextest@0.9.138``), by compiling that parser
-#: and running the cases through it. The fractional part is optional and
-#: humantime tolerates whitespace around the point, so ``"1.5m"`` and
-#: ``"1 . 5 m"`` are both ninety seconds. A leading point, a missing
-#: fractional part, a second point, a sign and a digit separator are all
-#: refused there, and so are refused here.
-_COMPONENT: typ.Final[re.Pattern[str]] = re.compile(
-    # The micro sign is written as an escape: the literal is visually
-    # indistinguishable from the Greek small letter mu, and the lint
-    # gate refuses an ambiguous character in a string for that reason.
-    rf"(?P<value>{_SPACED_DIGITS}(?:\s*\.\s*{_SPACED_DIGITS})?)"
-    r"\s*(?P<unit>[A-Za-z\u00b5]+)\s*"
-)
-
-#: The one duration humantime reads with no unit. Its parser
-#: special-cases the exact text before reading a single character, so
-#: the comparison is against the raw value rather than a stripped one:
-#: ``" 0 "``, ``"0 "``, ``"00"`` and ``"0.0"`` are each refused, and a
-#: reader that stripped first would accept a duration nextest rejects.
-_BARE_ZERO: typ.Final[str] = "0"
-
-#: Every unit spelling ``humantime`` accepts, with its length in
-#: seconds. Case is not folded: ``m`` is minutes and ``M`` is months, so
-#: folding would read a thirty-minute budget as a two-and-a-half-year
-#: one. A month is a twelfth of a Julian year and a year is 365.25 days,
-#: which is how ``humantime`` defines them.
-_UNIT_SECONDS: typ.Final[dict[str, float]] = {
-    "nanos": 1e-9,
-    "nsec": 1e-9,
-    "ns": 1e-9,
-    "usec": 1e-6,
-    "us": 1e-6,
-    "\u00b5s": 1e-6,
-    "millis": 0.001,
-    "msec": 0.001,
-    "ms": 0.001,
-    "seconds": 1.0,
-    "second": 1.0,
-    "secs": 1.0,
-    "sec": 1.0,
-    "s": 1.0,
-    "minutes": 60.0,
-    "minute": 60.0,
-    "mins": 60.0,
-    "min": 60.0,
-    "m": 60.0,
-    "hours": 3600.0,
-    "hour": 3600.0,
-    "hrs": 3600.0,
-    "hr": 3600.0,
-    "h": 3600.0,
-    "days": 86400.0,
-    "day": 86400.0,
-    "d": 86400.0,
-    "weeks": 604800.0,
-    "week": 604800.0,
-    "wks": 604800.0,
-    "wk": 604800.0,
-    "w": 604800.0,
-    "months": 2630016.0,
-    "month": 2630016.0,
-    "M": 2630016.0,
-    "years": 31557600.0,
-    "year": 31557600.0,
-    "yrs": 31557600.0,
-    "yr": 31557600.0,
-    "y": 31557600.0,
-}
-
-
-def _component_at(duration: str, text: str, position: int) -> tuple[float, int]:
-    """Return one component's length in seconds and where it ends.
-
-    Parameters
-    ----------
-    duration : str
-        The whole duration, carried for the message so a failure names
-        what was configured rather than the tail being read.
-    text : str
-        The duration with its surrounding whitespace removed.
-    position : int
-        Where in ``text`` this component starts.
-
-    Returns
-    -------
-    tuple of (float, int)
-        The component's length in seconds, and the offset at which the
-        next component starts.
-
-    Raises
-    ------
-    NextestConfigurationError
-        If no component starts here, or its unit is not one humantime
-        accepts.
-    """
-    component = _COMPONENT.match(text, position)
-    if component is None:
-        msg = (
-            f"unrecognized nextest duration {duration!r}; nextest reads "
-            f"durations with humantime, which wants a sequence of numbers "
-            f'each carrying a unit, such as "120s", "1h 30m" or "1.5m"'
-        )
-        raise NextestConfigurationError(msg, field="duration", value=duration)
-    unit = component["unit"]
-    length = _UNIT_SECONDS.get(unit)
-    if length is None:
-        msg = (
-            f"nextest duration {duration!r} names the unit {unit!r}, which "
-            f"humantime does not accept; note that 'm' is minutes and 'M' "
-            f"is months"
-        )
-        raise NextestConfigurationError(msg, field="duration", value=duration)
-    # humantime tolerates whitespace around the fractional point, so the
-    # matched value can read "1 . 5", which float cannot.
-    return float("".join(component["value"].split())) * length, component.end()
-
-
-def seconds(duration: str) -> float:
-    """Convert a nextest duration to seconds.
-
-    Parameters
-    ----------
-    duration : str
-        A duration as nextest spells it, such as ``"120s"``, the
-        multi-component ``"1h 30m"`` or the fractional ``"1.5m"``.
-
-    Returns
-    -------
-    float
-        The duration in seconds.
-
-    Raises
-    ------
-    NextestConfigurationError
-        If the duration is not one nextest would accept.
-
-    Examples
-    --------
-    >>> seconds("120s")
-    120.0
-    >>> seconds("1h 30m")
-    5400.0
-    >>> seconds("1.5m")
-    90.0
-    """
-    if duration == _BARE_ZERO:
-        return 0.0
-    text = duration.strip()
-    if not text:
-        msg = (
-            f"unrecognized nextest duration {duration!r}: it is empty, and "
-            f"humantime reads no duration from nothing"
-        )
-        raise NextestConfigurationError(msg, field="duration", value=duration)
-    total = 0.0
-    position = 0
-    while position < len(text):
-        length, position = _component_at(duration, text, position)
-        total += length
-    return total
 
 
 def _multiplier(path: str, declared: object) -> int:
