@@ -89,28 +89,33 @@ class UnboundedTestError(TimeoutBudgetError):
 #: would load, and this contract would then blame the file for its own
 #: limitation.
 #:
-#: The grammar was measured against humantime 2.4.0, the version nextest
-#: resolves, by compiling that parser and running the cases through it.
-#: The fractional part is optional and humantime tolerates whitespace
-#: around the point, so ``"1.5m"`` and ``"1 . 5 m"`` are both ninety
-#: seconds. A leading point, a missing fractional part, a second point,
-#: a sign and a digit separator are all refused there, and so are
-#: refused here.
-#:
-#: One narrowness is deliberate and named rather than left silent:
-#: humantime also skips whitespace inside a number, reading ``"1 5s"``
-#: as fifteen seconds. No configuration spells a number that way, and
-#: admitting it would cost this pattern its legibility.
+#: Digits with whitespace tolerated between them. humantime's parser
+#: skips whitespace while it accumulates a number, so ``"1 0s"`` is ten
+#: seconds rather than a malformed duration, and the same holds either
+#: side of the point: ``"1 2 . 3 4 s"`` is 12.34 seconds.
+_SPACED_DIGITS: typ.Final[str] = r"\d(?:\s*\d)*"
+
+#: The grammar was measured against humantime 2.3.0, which is what the
+#: lockfile of the pinned cargo-nextest release resolves (this
+#: repository pins ``cargo-nextest@0.9.138``), by compiling that parser
+#: and running the cases through it. The fractional part is optional and
+#: humantime tolerates whitespace around the point, so ``"1.5m"`` and
+#: ``"1 . 5 m"`` are both ninety seconds. A leading point, a missing
+#: fractional part, a second point, a sign and a digit separator are all
+#: refused there, and so are refused here.
 _COMPONENT: typ.Final[re.Pattern[str]] = re.compile(
     # The micro sign is written as an escape: the literal is visually
     # indistinguishable from the Greek small letter mu, and the lint
     # gate refuses an ambiguous character in a string for that reason.
-    r"(?P<value>\d+(?:\s*\.\s*\d+)?)\s*(?P<unit>[A-Za-z\u00b5]+)\s*"
+    rf"(?P<value>{_SPACED_DIGITS}(?:\s*\.\s*{_SPACED_DIGITS})?)"
+    r"\s*(?P<unit>[A-Za-z\u00b5]+)\s*"
 )
 
-#: The one duration humantime reads without a unit. ``"00"``, ``"0.0"``
-#: and a trailing space all fail there, so the exception is this literal
-#: and nothing wider.
+#: The one duration humantime reads with no unit. Its parser
+#: special-cases the exact text before reading a single character, so
+#: the comparison is against the raw value rather than a stripped one:
+#: ``" 0 "``, ``"0 "``, ``"00"`` and ``"0.0"`` are each refused, and a
+#: reader that stripped first would accept a duration nextest rejects.
 _BARE_ZERO: typ.Final[str] = "0"
 
 #: Every unit spelling ``humantime`` accepts, with its length in
@@ -237,6 +242,8 @@ def seconds(duration: str) -> float:
     >>> seconds("1.5m")
     90.0
     """
+    if duration == _BARE_ZERO:
+        return 0.0
     text = duration.strip()
     if not text:
         msg = (
@@ -244,8 +251,6 @@ def seconds(duration: str) -> float:
             f"humantime reads no duration from nothing"
         )
         raise NextestConfigurationError(msg, field="duration", value=duration)
-    if text == _BARE_ZERO:
-        return 0.0
     total = 0.0
     position = 0
     while position < len(text):
