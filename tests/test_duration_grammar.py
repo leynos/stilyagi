@@ -80,6 +80,8 @@ def test_a_fractional_value_scales_its_unit(
         "1000000000000000000000ns",
         "18446744073709551615s 1s",
         "18446744073709551615s 500ms 500ms",
+        "\u0663\u0660\u0660s",
+        "3\u0660\u0660s",
         "0.0000000004s 0.0000000006s",
         "1.0ns",
         "2.0ns",
@@ -108,6 +110,8 @@ def test_a_fractional_value_scales_its_unit(
         "a-literal-past-the-u64-humantime-reads-it-into",
         "a-sum-past-the-u64-humantime-accumulates-into",
         "a-carry-that-completes-a-second-past-the-u64",
+        "a-run-of-unicode-digits",
+        "a-unicode-digit-after-an-ascii-one",
         "components-that-are-whole-only-together",
         "a-whole-fraction-of-a-nanosecond",
         "a-larger-whole-fraction-of-a-nanosecond",
@@ -118,7 +122,7 @@ def test_a_fractional_value_scales_its_unit(
     ],
 )
 def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) -> None:
-    """A duration nextest would reject must not become a number here.
+    r"""A duration nextest would reject must not become a number here.
 
     Returning a plausible value for `"30 fortnights"` would put a
     comparison in the contract against a budget nextest never applies,
@@ -139,7 +143,18 @@ def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) ->
     moves regardless, panicking on the overflow. humantime returns no
     error for that text because it never returns at all, so nextest
     cannot load it either way, and a reader carrying only past a
-    complete second would report a duration for it.
+    complete second would report a duration for it. One nanosecond
+    short of that carry is the largest duration humantime does hold,
+    and it sits in the acceptance cases as the other half of the pair.
+
+    The two runs of Unicode digits are the reader's own width rather
+    than the parser's. Python's `\d` matches every Unicode decimal
+    digit and `int` reads them, so both spellings were three hundred
+    seconds here; humantime compares against `'0'..='9'` and refuses
+    them, reporting "expected number at 0" for the run that opens with
+    one and "invalid character at 1" for the run that does not. The
+    mixed spelling is the sharper of the two, because a reader that
+    checked only its first character would still accept it.
     """
     with pytest.raises(NextestConfigurationError):
         seconds(duration)
@@ -181,6 +196,11 @@ def test_a_refusal_names_the_arithmetic_that_produced_it() -> None:
         pytest.param("1 0s", 10.0, id="whitespace-inside-the-number"),
         pytest.param("1 2 . 3 4 s", 12.34, id="whitespace-throughout-the-number"),
         pytest.param("1.999999999s", 1.999999999, id="nanosecond-precision"),
+        pytest.param(
+            "18446744073709551615s 999999999ns",
+            18446744073709551615 + 0.999999999,
+            id="the-largest-duration-humantime-holds",
+        ),
         pytest.param("0.000001ms", 1e-9, id="a-fraction-that-lands-on-a-nanosecond"),
         pytest.param("0.25h", 900.0, id="a-fraction-of-an-hour-in-whole-seconds"),
         pytest.param("0.5m", 30.0, id="a-fraction-of-a-minute"),
