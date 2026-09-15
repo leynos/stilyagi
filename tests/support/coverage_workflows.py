@@ -10,6 +10,13 @@ from pathlib import Path
 
 import yaml
 
+from tests.support.workflow_shapes import (
+    WorkflowDocument,
+    WorkflowJob,
+    WorkflowReadingError,
+    WorkflowStep,
+)
+
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
@@ -25,55 +32,6 @@ WATCHDOG_VARIABLE: typ.Final[str] = "RUN_RUST_CARGO_WAIT_TIMEOUT"
 COVERAGE_ACTION: typ.Final[str] = (
     "leynos/shared-actions/.github/actions/generate-coverage"
 )
-
-
-class WorkflowStep(typ.TypedDict, total=False):
-    """One step of a workflow job, as this contract reads it.
-
-    Only the keys consumed here are modelled, and all are optional: a
-    step that neither uses an action nor sets an environment has
-    neither.
-
-    Attributes
-    ----------
-    uses : str
-        The action the step invokes, when it invokes one.
-    env : dict[str, object]
-        The step-level environment.
-    """
-
-    uses: str
-    env: dict[str, object]
-
-
-#: One job of a workflow. Written in the functional form because
-#: ``timeout-minutes`` is not a Python identifier and so cannot be a
-#: class attribute.
-WorkflowJob = typ.TypedDict(
-    "WorkflowJob",
-    {
-        "timeout-minutes": float,
-        "env": dict[str, object],
-        "steps": list[WorkflowStep],
-    },
-    total=False,
-)
-
-
-class WorkflowDocument(typ.TypedDict, total=False):
-    """One workflow file, as this contract reads it.
-
-    Attributes
-    ----------
-    env : dict[str, object]
-        The workflow-level environment, where both workflows here set
-        the watchdog.
-    jobs : dict[str, WorkflowJob]
-        The workflow's jobs, keyed by identifier.
-    """
-
-    env: dict[str, object]
-    jobs: dict[str, WorkflowJob]
 
 
 class CoverageJob(typ.NamedTuple):
@@ -166,7 +124,9 @@ def workflow_documents(
     than raising: a workflow file holding a list or a bare scalar
     declares no jobs, so it contributes no lane, and failing here would
     fail the whole contract on a file that has nothing to do with
-    coverage.
+    coverage. A file that cannot be read at all is a different matter,
+    and is reported rather than skipped: a workflow the reading never
+    saw could hold the lane the contract exists to bound.
 
     Parameters
     ----------
@@ -181,13 +141,42 @@ def workflow_documents(
     documents: dict[str, WorkflowDocument] = {}
     for pattern in ("*.yml", "*.yaml"):
         for path in sorted(directory.glob(pattern)):
-            parsed: object = yaml.safe_load(path.read_text(encoding="utf-8"))
-            match parsed:
+            match _parsed_workflow(path):
                 case dict() as document:
                     documents[path.name] = typ.cast("WorkflowDocument", document)
                 case _:
                     continue
     return documents
+
+
+def _parsed_workflow(path: Path) -> object:
+    """Return one workflow file's parsed contents.
+
+    Parameters
+    ----------
+    path : Path
+        The workflow file to read.
+
+    Returns
+    -------
+    object
+        Whatever the file holds, which need not be a mapping.
+
+    Raises
+    ------
+    WorkflowReadingError
+        If the file cannot be read, or its text is not YAML.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        message = f"{path} could not be read: {exc}"
+        raise WorkflowReadingError(message, path=path) from exc
+    try:
+        return yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        message = f"{path} is not YAML: {exc}"
+        raise WorkflowReadingError(message, path=path) from exc
 
 
 def _jobs_of(document: WorkflowDocument) -> dict[str, WorkflowJob]:

@@ -26,6 +26,7 @@ from tests.support.coverage_workflows import (
     coverage_jobs_in,
     workflow_documents,
 )
+from tests.support.workflow_shapes import WorkflowReadingError
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -241,4 +242,49 @@ def test_every_coverage_step_in_a_job_is_counted() -> None:
     assert job.steps == 2, "both coverage steps must be counted"
     assert job.watchdogs == (600.0, 600.0), (
         "each counted step must carry the budget in force for it"
+    )
+
+
+def test_a_workflow_that_is_not_yaml_is_reported_against_its_path(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Acquisition fails loudly, and says which file failed.
+
+    Letting the parser's own error escape reports a scanner message
+    naming a line and column with no file, and nothing saying the
+    failure was in acquisition rather than in the budgets below it. A
+    reader of the failure then looks for a timeout that is wrong when
+    the workflow never parsed.
+    """
+    (tmp_path / "broken.yml").write_text("name: [unclosed\n", encoding="utf-8")
+    with pytest.raises(WorkflowReadingError) as reported:
+        workflow_documents(tmp_path)
+    assert reported.value.path == tmp_path / "broken.yml", (
+        "the fault names the workflow it is about"
+    )
+    assert isinstance(reported.value.__cause__, yaml.YAMLError), (
+        "the parser's own error is the cause, not a detail to drop"
+    )
+
+
+def test_a_workflow_that_cannot_be_read_is_reported_rather_than_skipped(
+    tmp_path: pathlib.Path,
+) -> None:
+    """An unreadable workflow is not an absent one.
+
+    Skipping it would leave the contract certifying the lanes it could
+    read while the lane it exists to bound sat in the file it could
+    not.
+    """
+    unreadable = tmp_path / "locked.yml"
+    unreadable.write_text("name: controlled\n", encoding="utf-8")
+    unreadable.chmod(0o000)
+    try:
+        with pytest.raises(WorkflowReadingError) as reported:
+            workflow_documents(tmp_path)
+    finally:
+        unreadable.chmod(0o644)
+    assert reported.value.path == unreadable, "the fault names the workflow it is about"
+    assert isinstance(reported.value.__cause__, OSError), (
+        "the operating system's own error is the cause"
     )
