@@ -1824,9 +1824,9 @@ Reading a value through a float instead rounds what humantime refuses into
 something plausible and certifies a configuration nextest cannot load.
 
 Which integer depends on the unit. A fraction of an hour or anything longer is
-converted into whole *seconds*, so `0.000001h` is refused although 3,600 ns is a
-whole nanosecond, while `0.25h` is fifteen minutes. A fraction of a minute or
-anything shorter is converted into whole nanoseconds, so `1.999999999s` is
+converted into whole *seconds*, so `0.000001h` is refused although its value is
+a whole 3,600,000 ns, while `0.25h` is fifteen minutes. A fraction of a minute
+or anything shorter is converted into whole nanoseconds, so `1.999999999s` is
 accepted and `0.0000000015s` is not. A fraction of a nanosecond is refused
 outright, whatever it spells, so even `1.0ns` will not load. The unit tables in
 `tests/support/nextest_units.py` are split by which of the two a unit is

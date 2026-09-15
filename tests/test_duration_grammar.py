@@ -12,6 +12,7 @@ parser and running the cases through it.
 import pytest
 from hypothesis import given
 
+from tests.support.nextest_units import HumantimeOverflowError
 from tests.support.timeout_budgets import NextestConfigurationError, seconds
 from tests.test_timeout_budget_properties import (
     UNITS,
@@ -78,6 +79,7 @@ def test_a_fractional_value_scales_its_unit(
         "18446744073709551616s",
         "1000000000000000000000ns",
         "18446744073709551615s 1s",
+        "18446744073709551615s 500ms 500ms",
         "0.0000000004s 0.0000000006s",
         "1.0ns",
         "2.0ns",
@@ -105,6 +107,7 @@ def test_a_fractional_value_scales_its_unit(
         "one-second-past-the-u64-humantime-accumulates-into",
         "a-literal-past-the-u64-humantime-reads-it-into",
         "a-sum-past-the-u64-humantime-accumulates-into",
+        "a-carry-that-completes-a-second-past-the-u64",
         "components-that-are-whole-only-together",
         "a-whole-fraction-of-a-nanosecond",
         "a-larger-whole-fraction-of-a-nanosecond",
@@ -129,9 +132,33 @@ def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) ->
     exact text before reading a character, so a reader that stripped
     whitespace before comparing would accept `" 0 "`, which nextest
     rejects.
+
+    One case leaves the parser by a different door. Two half-seconds on
+    top of the largest whole second reach exactly a billion nanoseconds,
+    which humantime's carry declines to move and `Duration::new` then
+    moves regardless, panicking on the overflow. humantime returns no
+    error for that text because it never returns at all, so nextest
+    cannot load it either way, and a reader carrying only past a
+    complete second would report a duration for it.
     """
     with pytest.raises(NextestConfigurationError):
         seconds(duration)
+
+
+def test_a_refusal_names_the_arithmetic_that_produced_it() -> None:
+    """The overflow that refused a component survives the translation.
+
+    `NextestConfigurationError` says which configuration field is at
+    fault; `HumantimeOverflowError` says which of humantime's checked
+    operations declined. Suppressing the second leaves a reader of the
+    traceback with the sentence about fractions and no way to tell a
+    literal past the `u64` from a division with a remainder.
+    """
+    with pytest.raises(NextestConfigurationError) as refusal:
+        seconds("1.0ns")
+    assert isinstance(refusal.value.__cause__, HumantimeOverflowError), (
+        "the parser failure is the cause of the refusal, not a detail to drop"
+    )
 
 
 @pytest.mark.parametrize(

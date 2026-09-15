@@ -108,7 +108,7 @@ def _component_at(duration: str, text: str, position: int) -> tuple[int, int, in
     value = "".join(component["value"].split())
     try:
         seconds_part, nanoseconds_part = component_parts(value, unit)
-    except HumantimeOverflowError:
+    except HumantimeOverflowError as exc:
         message = (
             f"nextest duration {duration!r} carries a component humantime "
             f"cannot represent: its arithmetic is checked u64 throughout, it "
@@ -118,7 +118,7 @@ def _component_at(duration: str, text: str, position: int) -> tuple[int, int, in
         )
         raise NextestConfigurationError(
             message, field="duration", value=duration
-        ) from None
+        ) from exc
     return seconds_part, nanoseconds_part, component.end()
 
 
@@ -159,9 +159,16 @@ def seconds(duration: str) -> float:
         )
         # humantime carries the running total as whole seconds beside a
         # nanosecond remainder, and both are checked, so a sum past that
-        # ceiling will not load even though each component did.
+        # ceiling will not load even though each component did. The carry
+        # happens at a complete second rather than past one: humantime's
+        # own ``add_current`` leaves exactly a billion in the remainder
+        # and hands it to ``Duration::new``, which carries it regardless
+        # and panics when the seconds then leave the ``u64``. Comparing
+        # with ``>`` alone reads ``"18446744073709551615s 500ms 500ms"``
+        # as a duration one second past the ceiling, and nextest cannot
+        # load that text by either route.
         total_nanoseconds += component_nanoseconds
-        if total_nanoseconds > NANOSECONDS_PER_SECOND:
+        if total_nanoseconds >= NANOSECONDS_PER_SECOND:
             component_seconds += total_nanoseconds // NANOSECONDS_PER_SECOND
             total_nanoseconds %= NANOSECONDS_PER_SECOND
         total_seconds += component_seconds
