@@ -1774,6 +1774,17 @@ missing ceiling as zero. A shape that cannot be read contributes no lane rather
 than ending the contract, because a workflow with nothing to do with coverage
 must not be able to fail it.
 
+A file that cannot be read at all is the opposite case, and ends the contract
+rather than being skipped: a workflow the reading never saw could hold the lane
+the contract exists to bound. Acquisition is fallible in two ways the query
+above it is not, since the file may not be readable and its text may not be
+YAML, so both are reported as a `WorkflowReadingError` naming the path with the
+original error as its cause. Letting either escape raw gives a scanner message
+with a line and column but no file, or a bare errno, and a reader of the
+failure then looks for a timeout that is wrong when the workflow never parsed.
+The shapes and that fault live in `tests/support/workflow_shapes.py`, apart
+from the reading that raises it.
+
 The nextest reading parses its input with `tomllib` rather than matching text.
 This repository has no `.config/nextest.toml`, which is why two tiers are
 missing, so those readings are what whoever adds the file will get. A text match
