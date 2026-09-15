@@ -1,0 +1,333 @@
+"""Reads every coverage-invoking job out of the workflow files.
+
+Separated from `tests/test_timeout_ordering_contract.py` so the reading
+and the assertions over it stay legible apart. The shapes are modelled
+only as far as this contract consumes them.
+"""
+
+import typing as typ
+from pathlib import Path
+
+import yaml
+
+from tests.support.workflow_shapes import (
+    WorkflowDocument,
+    WorkflowJob,
+    WorkflowReadingError,
+    WorkflowStep,
+)
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
+WORKFLOWS_DIRECTORY: typ.Final[Path] = (
+    Path(__file__).resolve().parents[2] / ".github" / "workflows"
+)
+
+#: The environment variable the shared coverage action reads for its
+#: wall-clock cap on one `cargo` invocation.
+WATCHDOG_VARIABLE: typ.Final[str] = "RUN_RUST_CARGO_WAIT_TIMEOUT"
+
+#: The action whose steps run under that watchdog.
+COVERAGE_ACTION: typ.Final[str] = (
+    "leynos/shared-actions/.github/actions/generate-coverage"
+)
+
+
+class CoverageJob(typ.NamedTuple):
+    """One job that invokes the coverage action, with its budgets.
+
+    Attributes
+    ----------
+    workflow : str
+        The workflow file's name.
+    job : str
+        The job's identifier.
+    steps : int
+        How many coverage steps the job runs. Each gets its own watchdog,
+        so the job must contain all of their budgets.
+    watchdogs : tuple[float | None, ...]
+        The watchdog budget in force for each of those steps, in order,
+        with None where neither the step nor the job sets one.
+    job_timeout : float or None
+        The job's ``timeout-minutes`` in seconds, or None when it
+        declares none and so inherits GitHub's six-hour default.
+    conditions : tuple[tuple[object, object], ...]
+        The ``if`` on each coverage step and on its job, in step order.
+        A skipped step runs no ``cargo``, so its watchdog never arms and
+        the tiers below say nothing about it; the condition is therefore
+        part of what identifies a lane rather than incidental to it.
+    """
+
+    workflow: str
+    job: str
+    steps: int
+    watchdogs: tuple[float | None, ...]
+    job_timeout: float | None
+    conditions: tuple[tuple[object, object], ...] = ()
+
+    def __str__(self) -> str:
+        """Return a location suitable for a failure message.
+
+        Returns
+        -------
+        str
+            ``workflow:job`` for this job.
+        """
+        return f"{self.workflow}:{self.job}"
+
+
+def _watchdog_of(
+    document: WorkflowDocument,
+    job: WorkflowJob,
+    step: WorkflowStep,
+) -> float | None:
+    """Return the watchdog budget in force for one step.
+
+    All three levels are read, innermost first, as GitHub resolves them.
+    Both workflows here set the value at workflow level, so a contract
+    reading only the job would find nothing and report every lane as
+    inheriting the action's default, which is exactly backwards.
+
+    Parameters
+    ----------
+    document : WorkflowDocument
+        The whole workflow document.
+    job : WorkflowJob
+        The enclosing job.
+    step : WorkflowStep
+        The coverage step.
+
+    Returns
+    -------
+    float or None
+        The budget in seconds, or None when no level sets one.
+    """
+    levels = (step.get("env"), job.get("env"), document.get("env"))
+    for source in levels:
+        raw = (source or {}).get(WATCHDOG_VARIABLE)
+        if raw is not None:
+            return float(str(raw))
+    return None
+
+
+def workflow_documents(
+    directory: Path = WORKFLOWS_DIRECTORY,
+) -> dict[str, WorkflowDocument]:
+    """Return every workflow document in a directory, keyed by file name.
+
+    Both extensions are read. A coverage lane in the other one would
+    otherwise escape every assertion below without failing anything.
+
+    The directory is a parameter so this acquisition can be pointed at a
+    temporary tree. A document that is not a mapping is skipped rather
+    than raising: a workflow file holding a list or a bare scalar
+    declares no jobs, so it contributes no lane, and failing here would
+    fail the whole contract on a file that has nothing to do with
+    coverage. A file that cannot be read at all is a different matter,
+    and is reported rather than skipped: a workflow the reading never
+    saw could hold the lane the contract exists to bound.
+
+    Parameters
+    ----------
+    directory : Path
+        Directory of workflow files. Defaults to the repository's own.
+
+    Returns
+    -------
+    dict[str, WorkflowDocument]
+        File name to parsed document.
+    """
+    documents: dict[str, WorkflowDocument] = {}
+    for pattern in ("*.yml", "*.yaml"):
+        for path in sorted(directory.glob(pattern)):
+            match _parsed_workflow(path):
+                case dict() as document:
+                    documents[path.name] = typ.cast("WorkflowDocument", document)
+                case _:
+                    continue
+    return documents
+
+
+def _parsed_workflow(path: Path) -> object:
+    """Return one workflow file's parsed contents.
+
+    Parameters
+    ----------
+    path : Path
+        The workflow file to read.
+
+    Returns
+    -------
+    object
+        Whatever the file holds, which need not be a mapping.
+
+    Raises
+    ------
+    WorkflowReadingError
+        If the file cannot be read, or its text is not YAML.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        message = f"{path} could not be read: {exc}"
+        raise WorkflowReadingError(message, path=path) from exc
+    try:
+        return yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        message = f"{path} is not YAML: {exc}"
+        raise WorkflowReadingError(message, path=path) from exc
+
+
+def _jobs_of(document: WorkflowDocument) -> dict[str, WorkflowJob]:
+    """Return a document's jobs with a narrow test-local shape.
+
+    Parameters
+    ----------
+    document : WorkflowDocument
+        The parsed workflow document.
+
+    A document that is not a mapping declares no jobs. The acquisition
+    skips those files, but the query is reachable with any document a
+    caller supplies, and a reading that raised on one would fail the
+    whole contract on a workflow that has nothing to do with coverage.
+
+    Returns
+    -------
+    dict[str, WorkflowJob]
+        Job identifier to job, empty when the document declares none.
+    """
+    match document:
+        case {"jobs": dict() as jobs}:
+            return typ.cast("dict[str, WorkflowJob]", jobs)
+        case _:
+            return {}
+
+
+def _coverage_steps(job: WorkflowJob) -> list[WorkflowStep]:
+    """Return the steps in one job that invoke the coverage action.
+
+    A job that is not a mapping runs no step, for the same reason that a
+    document which is not a mapping declares no job. The shape cannot be
+    read, so it contributes no lane rather than ending the contract.
+
+    Parameters
+    ----------
+    job : WorkflowJob
+        The parsed job.
+
+    Returns
+    -------
+    list[WorkflowStep]
+        The matching steps, in the order the job runs them.
+    """
+    match job:
+        case {"steps": list() as steps}:
+            return [step for step in map(_step, steps) if _invokes_coverage(step)]
+        case _:
+            return []
+
+
+def _step(value: object) -> WorkflowStep:
+    """Return one parsed step, or an empty one when it is not a mapping."""
+    match value:
+        case dict() as step:
+            return typ.cast("WorkflowStep", step)
+        case _:
+            return typ.cast("WorkflowStep", {})
+
+
+def _invokes_coverage(step: WorkflowStep) -> bool:
+    """Return whether one step invokes the shared coverage action."""
+    return COVERAGE_ACTION in str(step.get("uses", ""))
+
+
+def _coverage_job(
+    workflow: str,
+    document: WorkflowDocument,
+    job_name: str,
+    job: WorkflowJob,
+) -> CoverageJob | None:
+    """Return one job's budgets, or None when it runs no coverage step.
+
+    Parameters
+    ----------
+    workflow : str
+        The workflow file's name.
+    document : WorkflowDocument
+        The enclosing document, read for a workflow-level watchdog.
+    job_name : str
+        The job's identifier.
+    job : WorkflowJob
+        The parsed job.
+
+    Returns
+    -------
+    CoverageJob or None
+        The job's budgets, or None when it invokes no coverage step.
+    """
+    steps = _coverage_steps(job)
+    if not steps:
+        return None
+    raw_timeout = job.get("timeout-minutes")
+    return CoverageJob(
+        workflow=workflow,
+        job=job_name,
+        steps=len(steps),
+        watchdogs=tuple(_watchdog_of(document, job, step) for step in steps),
+        job_timeout=None if raw_timeout is None else float(raw_timeout) * 60.0,
+        conditions=tuple((step.get("if"), job.get("if")) for step in steps),
+    )
+
+
+def coverage_jobs_in(
+    documents: cabc.Mapping[str, WorkflowDocument],
+) -> tuple[CoverageJob, ...]:
+    """Return every job in those documents that invokes the action.
+
+    The query is separate from the acquisition so it can be driven with
+    supplied documents. Reading the repository's own workflow directory
+    inside the query left no way to ask what this reading makes of a
+    lane that does not exist here, and a contract that can only be
+    exercised against the tree it guards is one whose own behaviour goes
+    unasserted.
+
+    Jobs are the unit rather than steps, because the ceiling is a job's
+    and it has to contain every watchdog inside it. Counting steps is
+    what makes the two invocations here visible to the arithmetic.
+
+    Parameters
+    ----------
+    documents : Mapping[str, WorkflowDocument]
+        Workflow file name to parsed document.
+
+    Returns
+    -------
+    tuple[CoverageJob, ...]
+        One entry per coverage-invoking job.
+    """
+    return tuple(
+        found
+        for name, document in documents.items()
+        for job_name, job in _jobs_of(document).items()
+        if (found := _coverage_job(name, document, str(job_name), job)) is not None
+    )
+
+
+def coverage_jobs(directory: Path = WORKFLOWS_DIRECTORY) -> tuple[CoverageJob, ...]:
+    """Return every job invoking the coverage action, with its budgets.
+
+    This is the acquisition half: it reads the workflow files and hands
+    the parsed documents to the query.
+
+    Parameters
+    ----------
+    directory : Path
+        Directory of workflow files. Defaults to the repository's own.
+
+    Returns
+    -------
+    tuple[CoverageJob, ...]
+        One entry per coverage-invoking job.
+    """
+    return coverage_jobs_in(workflow_documents(directory))
