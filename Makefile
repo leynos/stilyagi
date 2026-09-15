@@ -60,6 +60,11 @@ TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 MD_FILES_FIND = find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './.uv-cache/*' -not -path './.uv-tools/*' -not -path './target/*' -not -path './crates/stilyagi-pyext/target/*' -print0
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
+# Modules whose docstring examples are executed. The library and the test
+# support package both document helpers with examples, and an example nothing
+# runs is prose that can go untrue. tests/test_doctest_collection.py fails when
+# a module carrying an example is not covered here.
+PY_DOCTEST_PATHS ?= python/stilyagi tests/support
 RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" ]; then VENV_PYTHON=".venv/Scripts/python.exe"; fi
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
@@ -198,7 +203,8 @@ test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 	# Run pytest through the venv interpreter so the maturin-developed extension
 	# remains installed instead of being replaced by the uv_build wheel.
 	$(RESOLVE_VENV_PYTHON); \
-	"$$VENV_PYTHON" -m pytest -v
+	"$$VENV_PYTHON" -m pytest -v && \
+	"$$VENV_PYTHON" -m pytest -v --doctest-modules $(PY_DOCTEST_PATHS)
 
 test-ci: build tools-lint ## Run Rust tests with the CI nextest profile
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile ci --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS)

@@ -26,7 +26,7 @@ def load_workflow(workflow: str) -> dict[str, object]:
 
     Examples
     --------
-    >>> load_workflow("on:\\n  push:\\n")
+    >>> load_workflow("on:\n  push:\n")
     {'on': {'push': ''}}
     """
     parsed = yaml.load(workflow, Loader=yaml.BaseLoader)

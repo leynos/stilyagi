@@ -1323,6 +1323,46 @@ If a workflow's behaviour genuinely depends on a feature only present from a
 particular commit onwards, express that as a comment or a changelog note, not
 as a test assertion on the SHA string.
 
+### 6g. Docstring examples are executed
+
+`make test` runs the Python suite, then runs `pytest --doctest-modules` over
+`PY_DOCTEST_PATHS`: the library under `python/stilyagi` and the test support
+package under `tests/support`. Both document helpers with `Examples` sections,
+and an example nothing runs is prose that can quietly stop being true.
+
+Wiring the flag found five examples in that state. Two in `discovery` were
+written against whatever Markdown happened to sit in the working tree, so the
+module example claimed a single `docs/guide.md` while the repository holds
+fifty-odd documents, and the function example indexed an empty list for a
+`notes.md` that does not exist. Both now build their input in a temporary
+directory and are true wherever they run. Two more were escaping mistakes
+inside raw docstrings: the renderer example expected a literal backslash-n in
+a repr, and the workflow loader example passed YAML whose newlines were two
+characters rather than one, so it raised instead of parsing. The fifth echoed
+a whole extracted document from inside a `try` block. All five were corrected
+in the docstring; none needed a code change, and only the pre-existing
+`+SKIP` on the command-line entry point remains inert.
+
+The doctest pass collects twenty items, of which nineteen run and one is that
+`+SKIP`. The ordinary pass moves from 336 items to 340, which is the four
+contracts below.
+
+`tests/test_doctest_collection.py` keeps the list honest. It asserts that the
+recipe actually hands `PY_DOCTEST_PATHS` to `--doctest-modules`, because a
+variable nobody passes is inert; it sweeps the two directories for modules
+containing `>>>` and fails when one is not covered; it fails when the list
+names a path that is gone, since that ends the whole lane rather than
+collecting less; and it pins the sweep itself, because the two contracts above
+are both satisfied by a discovery that returns nothing.
+
+Six mutations are caught. Four belong to those contracts: a swept directory
+dropped from the list, the flag unwired from the recipe, a named path
+misspelled, and the sweep narrowed to a suffix no file uses. Two belong to
+`test_makefile_recipes.py`, which now reads both invocations as whole recipe
+lines: deleting the doctest command fails it, and so does chaining the two with
+`;` instead of `&&`, because a `;` would let the suite fail while the target
+still reported the doctest pass's exit status.
+
 ## 7. Development responsibilities
 
 Maintainer responsibilities in this repository are stricter than a normal

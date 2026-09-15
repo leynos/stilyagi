@@ -59,7 +59,7 @@ class SmokeCheckError(RuntimeError):
     Examples
     --------
     >>> try:
-    ...     smoke_installed_package()
+    ...     _ = smoke_installed_package()
     ... except SmokeCheckError as err:
     ...     str(err) != ""
     ... else:

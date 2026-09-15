@@ -7,11 +7,15 @@ losing stable ordering.
 
 Example
 -------
->>> from pathlib import Path
+>>> import pathlib
+>>> import tempfile
 >>> from stilyagi import config
->>> files = discover_markdown_files([Path("docs")], config.StilyagiConfig())
->>> [item.reported_path for item in files]
-['docs/guide.md']
+>>> with tempfile.TemporaryDirectory() as directory:
+...     root = pathlib.Path(directory)
+...     _ = (root / "guide.md").write_text("# Guide", encoding="utf-8")
+...     files = discover_markdown_files([root], config.StilyagiConfig())
+...     [pathlib.Path(item.reported_path).name for item in files]
+['guide.md']
 """
 
 import dataclasses as dc
@@ -82,13 +86,15 @@ def discover_markdown_files(
 
     Examples
     --------
-    >>> from pathlib import Path
+    >>> import pathlib
+    >>> import tempfile
     >>> from stilyagi import config
-    >>> discover_markdown_files(
-    ...     [Path("notes.md")],
-    ...     config.StilyagiConfig(),
-    ... )[0].reported_path
-    'notes.md'
+    >>> with tempfile.TemporaryDirectory() as directory:
+    ...     note = pathlib.Path(directory) / "notes.md"
+    ...     _ = note.write_text("# Notes", encoding="utf-8")
+    ...     found = discover_markdown_files([note], config.StilyagiConfig())
+    ...     found[0].reported_path == str(note)
+    True
     """
     if config.respect_gitignore:
         _LOGGER.info("respect-gitignore is accepted but not yet enforced")
