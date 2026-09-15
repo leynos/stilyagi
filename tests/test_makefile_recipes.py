@@ -218,9 +218,17 @@ def test_makefile_targets_run_expected_recipes(
             f"{case.target}: missing recipe fragment {expected_recipe_fragment!r}",
         )
     if case.should_include_pytest:
+        # Two invocations, chained with && so a failure in the first still
+        # ends the recipe. A ';' here would let the suite fail silently and
+        # the doctest pass report the target's exit status on its own.
         assert_with_context(
-            '"$$VENV_PYTHON" -m pytest -v' in recipe,
-            "expected '\"$$VENV_PYTHON\" -m pytest -v' in recipe",
+            '"$$VENV_PYTHON" -m pytest -v && \\' in recipe,
+            "expected the pytest suite command, chained with && , in recipe",
+        )
+        assert_with_context(
+            '"$$VENV_PYTHON" -m pytest -v --doctest-modules $(PY_DOCTEST_PATHS)'
+            in recipe,
+            "expected the doctest command in recipe",
         )
     else:
         assert "pytest" not in joined_recipe, "expected 'pytest' not in joined_recipe"

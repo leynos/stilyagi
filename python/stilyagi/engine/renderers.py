@@ -23,7 +23,7 @@ class RendererRegistry:
     >>> registry.default_format
     'text'
     >>> registry.render([], "text")
-    '0 diagnostics found\\n'
+    '0 diagnostics found\n'
     """
 
     default_format: str = "text"
