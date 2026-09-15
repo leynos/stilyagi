@@ -1819,6 +1819,17 @@ special-cases `0` before reading a character, so `" 0 "` is refused and a reader
 that stripped whitespace first would accept a duration nextest rejects. Case is
 significant, `m` being minutes and `M` months.
 
+A digit is `0` to `9` and nothing else. Python's `\d` matches every Unicode
+decimal digit and `int` reads them, so a reader written with it returns three
+hundred seconds for `\u0663\u0660\u0660s` and for the mixed `3\u0660\u0660s`,
+both of which humantime refuses: its parser compares against `'0'..='9'`,
+reporting
+"expected number at 0" for the run that opens with such a digit and "invalid
+character at 1" for the run that does not. The mixed spelling is the sharper
+case, because a reader that checked only its first character would still accept
+it. That is the wrong direction for a contract, which would then certify a
+configuration nextest cannot load.
+
 The arithmetic is exact and in integers, because humantime's is: its parser
 works in checked `u64` throughout and reports every failure as an overflow.
 Reading a value through a float instead rounds what humantime refuses into
