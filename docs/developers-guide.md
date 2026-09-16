@@ -1877,6 +1877,26 @@ simply omitted and the case silently became the absent one. It tests membership
 now. A reading that skips a declared blank fails the two cases that describe
 it, and nothing else.
 
+The `test` target is watched rather than read. `test_makefile_recipes.py`
+asserts the recipe's text, and text is not execution: a phase can be present in
+the file and unreachable in the run, behind a prerequisite that fails or a
+conditional that never takes its branch. `test_make_test_execution.py` runs the
+target with every tool pointed at a cmd-mox shim, including the interpreter,
+which the recipe resolves in shell rather than through a Make variable, so the
+resolution itself is what the test overrides. The journal is then the evidence.
+
+Two things are asserted there and the second is the reason for the first. Both
+pytest phases run, in order, and the doctest phase names both of its paths. And
+a failing unit phase ends the run: only that phase is failed, by argument,
+because the same interpreter runs the smoke check `build` performs first, and a
+spy failing every call would fail that instead and pass for the wrong reason.
+
+Asserting that the recipe contains `&&` would not show the propagation, because
+the `&&` could be there and the failure still swallowed by a preceding `-` or
+by a subshell. Proved by mutation instead: deleting the doctest phase, dropping
+one of its paths, and joining the two phases with `;` each fail exactly one of
+the two.
+
 A value that is neither blank nor a number is a third case, and it is reported
 rather than read as absent. Both numeric fields, the watchdog and
 `timeout-minutes`, come out of YAML as whatever was written, and a `${{ }}`
