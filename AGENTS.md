@@ -126,9 +126,10 @@
   - Do not commit changes that fail any quality gate.
 - **Tool versions:** The Makefile and CI must use identical lint tool
   versions. Ruff and Interrogate are pinned in the `pyproject.toml` `dev`
-  dependency group and resolved from `uv.lock`; `typos` is pinned by the
-  Makefile `TYPOS_VERSION` variable. Bump the pin at its single source of truth
-  rather than installing a different version ad hoc, and never add a separate
+  dependency group and resolved from `uv.lock`; the spelling gate is pinned by
+  the Makefile `TYPOS_CONFIG_BUILDER_VERSION` variable, which also fixes the
+  `typos` version it runs. Bump the pin at its single source of truth rather
+  than installing a different version ad hoc, and never add a separate
   tool-install step to CI for a tool the Makefile already provides.
 
 ## Refactoring heuristics and workflow
@@ -364,14 +365,15 @@ project:
 ## Markdown guidance
 
 - Validate Markdown files using `make markdownlint`. This target also
-  enforces en-GB-oxendict spelling with `typos`, pinned by the Makefile
-  `TYPOS_VERSION` variable, so local runs and CI use the same version.
-- The spelling configuration `typos.toml` is generated; never edit its
-  entries by hand. Generic Oxford policy belongs in the shared authority
-  bundled by `leynos/typos-config-builder`; repository-specific accepted words,
-  patterns, and exclusions belong in `typos.local.toml`. Regenerate with
-  `make spelling-config-write`. See the spelling gate section of
-  `docs/developers-guide.md` for details.
+  enforces en-GB-oxendict spelling by depending on `make spelling`, which runs
+  the gate pinned by the Makefile `TYPOS_CONFIG_BUILDER_VERSION` variable, so
+  local runs and CI use the same version.
+- The spelling configuration `typos.toml` is regenerated from the live shared
+  dictionary and this repository's overlay on every run; never edit its entries
+  by hand. Generic Oxford policy belongs in the shared dictionary published by
+  `leynos/typos-config-builder`; narrow repository-specific accepted words,
+  patterns, and exclusions belong in `typos.local.toml`. See the spelling gate
+  section of `docs/developers-guide.md` for details.
 - Quoted APIs and identifiers keep their upstream spelling; put them in
   backticks or fenced code blocks, which the spelling gate ignores, rather than
   adding word-level exceptions.
