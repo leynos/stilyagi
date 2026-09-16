@@ -25,6 +25,9 @@ from functools import cache
 
 from stilyagi import model
 from stilyagi._stilyagi_rs import (
+    authored_directive_error_codes as bridge_authored_directive_error_codes,
+)
+from stilyagi._stilyagi_rs import (
     extract_document as extract_document_bridge,
 )
 from stilyagi._stilyagi_rs import (
@@ -111,6 +114,7 @@ def reset_extraction_state_for_tests() -> None:
         _syntax_vocab_validated = False
         supported_region_kinds.cache_clear()
         _known_ir_region_kinds.cache_clear()
+        authored_directive_error_codes.cache_clear()
         return
 
 
@@ -130,6 +134,18 @@ def supported_region_kinds() -> tuple[str, ...]:
 def _known_ir_region_kinds() -> frozenset[str]:
     """Return the cached canonical region-kind lookup set."""
     return frozenset(supported_region_kinds())
+
+
+@cache
+def authored_directive_error_codes() -> frozenset[str]:
+    """Return the cached set of Rust-owned authored-directive error codes.
+
+    Returns
+    -------
+    frozenset[str]
+        The error codes that describe incorrect directives a user authored.
+    """
+    return frozenset(bridge_authored_directive_error_codes())
 
 
 def extract_document(source: str, syntax: model.Syntax) -> model.Document:

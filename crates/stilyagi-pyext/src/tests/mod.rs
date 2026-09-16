@@ -3,8 +3,8 @@
 mod rust_doc_comment;
 
 use super::{
-    extract_document_function, extract_document_py, hello, map_extract_error,
-    supported_region_kinds_py, supported_syntaxes_py,
+    authored_directive_error_codes_py, extract_document_function, extract_document_py, hello,
+    map_extract_error, supported_region_kinds_py, supported_syntaxes_py,
 };
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::{Py, PyErr, PyResult, Python};
@@ -13,7 +13,7 @@ use rstest::rstest;
 use stilyagi_extract::{
     ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError, RustExtractError,
 };
-use stilyagi_ir::RegionKind as IrRegionKind;
+use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, RegionKind as IrRegionKind};
 
 fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
     Python::attach(|py| {
@@ -136,6 +136,23 @@ fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
             supported_region_kinds_py(py),
             &expected,
             "supported_region_kinds",
+        );
+    });
+}
+
+#[rstest]
+fn authored_directive_error_codes_follow_the_rust_ir_vocabulary() {
+    Python::attach(|py| {
+        let expected = AUTHORED_DIRECTIVE_ERROR_CODES
+            .iter()
+            .map(|code| (*code).to_owned())
+            .collect::<Vec<_>>();
+
+        assert_supported_tuple_matches(
+            py,
+            authored_directive_error_codes_py(py),
+            &expected,
+            "authored_directive_error_codes",
         );
     });
 }

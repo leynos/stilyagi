@@ -11,5 +11,12 @@
       "path": "docs/notes.md",
       "severity": "warning"
     }
-  ]
+  ],
+  "summary": {
+    "checked_files": 1,
+    "errors": 0,
+    "skipped_files": 0,
+    "unreadable_files": 0,
+    "warnings": 1
+  }
 }
