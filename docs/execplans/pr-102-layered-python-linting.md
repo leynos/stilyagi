@@ -1,8 +1,8 @@
 # PR 102: Configure layered Python linting
 
-This ExecPlan is a completed record of the layered Python linting work in PR
-
-1. It is retained as a concise implementation history and retrospective.
+This ExecPlan is a completed record of the layered Python linting work
+delivered in PR 102, retained as a concise implementation history and
+retrospective.
 
 Status: COMPLETE
 
