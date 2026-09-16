@@ -1877,6 +1877,26 @@ simply omitted and the case silently became the absent one. It tests membership
 now. A reading that skips a declared blank fails the two cases that describe
 it, and nothing else.
 
+A value that is neither blank nor a number is a third case, and it is reported
+rather than read as absent. Both numeric fields, the watchdog and
+`timeout-minutes`, come out of YAML as whatever was written, and a `${{ }}`
+expression is the one that matters: GitHub substitutes it at run time and this
+contract cannot. Calling such a lane unbounded would credit it with the
+action's default watchdog, or with GitHub's six-hour ceiling, and every
+ordering assertion would then pass over a budget nobody has checked.
+
+Converting it raw is the other wrong answer. `float` reports the text alone, so
+a fault in a tree of workflows would name neither the file, nor the job, nor
+which of the two fields it came from. Both are converted at the boundary
+between the parsed document and the budgets, by `numeric_field`, which raises
+`WorkflowConfigurationError` carrying all four. It joins the `WorkflowError`
+family, so a caller catching that family keeps catching this. The shape is
+narrowed before the conversion rather than after it: `float` raises
+`TypeError` for a `timeout-minutes` written as a YAML list and `ValueError`
+for one written as text, so a reading that caught only the second would let
+the first escape naming nothing. Refusing by shape covers both, and leaves no
+type-check suppression behind.
+
 Whitespace is Rust's, not Python's, and the class is written out for the same
 reason the digit class below is. Rust's `char::is_whitespace` is the Unicode
 White_Space property; Python's `\s` is that property plus U+001C to U+001F, the

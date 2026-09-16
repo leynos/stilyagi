@@ -57,6 +57,112 @@ class WorkflowReadingError(WorkflowError):
         self.path = path
 
 
+class WorkflowConfigurationError(WorkflowError):
+    """Raised when a workflow declares a budget that is not a number.
+
+    The query above acquisition reads two numeric fields out of YAML,
+    ``timeout-minutes`` and the watchdog variable, and YAML hands back
+    whatever was written: a list, a mapping, or a ``${{ }}`` expression
+    this contract cannot evaluate. Converting one raw would report a
+    ``ValueError`` naming the text and nothing else, with no workflow,
+    no job and no field, and a reader would have to guess which of the
+    tree's lanes it came from.
+
+    Treating such a value as absent is worse than raising. A lane whose
+    watchdog is an expression is a lane whose budget is unknown, and
+    reporting it as unset credits the job with the action's default and
+    certifies an ordering nobody has checked.
+
+    Attributes
+    ----------
+    workflow : str
+        The workflow file the fault is about.
+    job : str
+        The job within it.
+    field : str
+        Which budget could not be read.
+    value : object
+        The value as the document supplied it.
+    """
+
+    def __init__(self, *, workflow: str, job: str, field: str, value: object) -> None:
+        """Record where the unreadable budget was declared.
+
+        Parameters
+        ----------
+        workflow : str
+            The workflow file's name.
+        job : str
+            The job's identifier.
+        field : str
+            Which budget could not be read.
+        value : object
+            The value as the document supplied it.
+        """
+        super().__init__(
+            f"{workflow}:{job} declares {field} as {value!r}, which is not a "
+            f"number; a budget this contract cannot read is a budget nobody "
+            f"has checked, and reading it as absent would credit the lane "
+            f"with a default instead"
+        )
+        self.workflow = workflow
+        self.job = job
+        self.field = field
+        self.value = value
+
+
+def numeric_field(value: object, *, workflow: str, job: str, field: str) -> float:
+    """Return one workflow field as a number, or say where it was not.
+
+    Conversion happens here, at the boundary between the parsed document
+    and the budgets the contract compares, so that nothing downstream
+    receives a value it has to re-check. A raw ``float()`` would report
+    a ``ValueError`` naming the text alone, with no workflow, no job and
+    no field, and a reader of the failure would have to search the tree
+    for it.
+
+    Parameters
+    ----------
+    value : object
+        The value as the document supplied it.
+    workflow : str
+        The workflow file's name.
+    job : str
+        The job's identifier.
+    field : str
+        Which budget is being read.
+
+    Returns
+    -------
+    float
+        The value as a number.
+
+    Raises
+    ------
+    WorkflowConfigurationError
+        If the value is not one, an expression included.
+    """
+    # The shape is narrowed before the conversion rather than after.
+    # `float` raises `TypeError` for a `timeout-minutes` written as a
+    # YAML list and `ValueError` for one written as text, and catching
+    # only the second would let the first escape naming nothing; a match
+    # refuses both by shape and leaves the conversion with a value it
+    # can take, which is also what keeps the type checker satisfied
+    # without a suppression.
+    match value:
+        case bool() | int() | float() | str():
+            try:
+                return float(value)
+            except ValueError as error:
+                raise WorkflowConfigurationError(
+                    workflow=workflow, job=job, field=field, value=value
+                ) from error
+        case _:
+            raise WorkflowConfigurationError(
+                workflow=workflow, job=job, field=field, value=value
+            )
+
+
 class WorkflowStep(typ.TypedDict, total=False):
     """One step of a workflow job, as this contract reads it.
 

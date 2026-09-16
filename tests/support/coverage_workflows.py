@@ -15,6 +15,7 @@ from tests.support.workflow_shapes import (
     WorkflowJob,
     WorkflowReadingError,
     WorkflowStep,
+    numeric_field,
 )
 
 if typ.TYPE_CHECKING:
@@ -32,6 +33,26 @@ WATCHDOG_VARIABLE: typ.Final[str] = "RUN_RUST_CARGO_WAIT_TIMEOUT"
 COVERAGE_ACTION: typ.Final[str] = (
     "leynos/shared-actions/.github/actions/generate-coverage"
 )
+
+
+class JobLocation(typ.NamedTuple):
+    """Where a budget was declared, for a fault message.
+
+    The two names travel together everywhere a budget is read, and
+    passing them separately pushed the reader past the argument count
+    the repository's lint allows. Bundling them says they are one
+    coordinate rather than two unrelated strings.
+
+    Attributes
+    ----------
+    workflow : str
+        The workflow file's name.
+    job : str
+        The job's identifier within it.
+    """
+
+    workflow: str
+    job: str
 
 
 class CoverageJob(typ.NamedTuple):
@@ -81,6 +102,7 @@ def _watchdog_of(
     document: WorkflowDocument,
     job: WorkflowJob,
     step: WorkflowStep,
+    at: JobLocation,
 ) -> float | None:
     """Return the watchdog budget in force for one step.
 
@@ -97,11 +119,15 @@ def _watchdog_of(
         The enclosing job.
     step : WorkflowStep
         The coverage step.
+    at : JobLocation
+        Where this is, for a fault message.
 
     Returns
     -------
     float or None
         The budget in seconds, or None when no level sets one.
+        ``numeric_field`` raises through this function when a level
+        declares a value that is neither blank nor a number.
     """
     # The innermost scope that declares the variable wins, blank
     # included. GitHub takes the most specific declaration, and an empty
@@ -110,20 +136,23 @@ def _watchdog_of(
     # credit the lane with a budget nothing enforces.
     #
     # A declared blank reads as None, the same as undeclared, because
-    # neither bounds the cargo invocation. `float("")` would raise here
-    # instead, failing the contract with a ValueError naming nothing.
+    # neither bounds the cargo invocation. Anything else that is not a
+    # number is reported rather than read as absent: a lane whose
+    # watchdog is a `${{ }}` expression has a budget this contract
+    # cannot evaluate, and calling it unset would credit the lane with
+    # the action's default and certify an ordering nobody has checked.
     levels = (step.get("env"), job.get("env"), document.get("env"))
     for source in levels:
         environment = source or {}
         if WATCHDOG_VARIABLE not in environment:
             continue
-        text = str(environment[WATCHDOG_VARIABLE]).strip()
+        declared = environment[WATCHDOG_VARIABLE]
+        text = str(declared).strip()
         if not text:
             return None
-        try:
-            return float(text)
-        except ValueError:
-            return None
+        return numeric_field(
+            text, workflow=at.workflow, job=at.job, field=WATCHDOG_VARIABLE
+        )
     return None
 
 
@@ -286,17 +315,30 @@ def _coverage_job(
     -------
     CoverageJob or None
         The job's budgets, or None when it invokes no coverage step.
+        ``numeric_field`` raises through this function when either
+        budget is declared as something other than a number.
     """
     steps = _coverage_steps(job)
     if not steps:
         return None
+    at = JobLocation(workflow=workflow, job=job_name)
     raw_timeout = job.get("timeout-minutes")
     return CoverageJob(
         workflow=workflow,
         job=job_name,
         steps=len(steps),
-        watchdogs=tuple(_watchdog_of(document, job, step) for step in steps),
-        job_timeout=None if raw_timeout is None else float(raw_timeout) * 60.0,
+        watchdogs=tuple(_watchdog_of(document, job, step, at) for step in steps),
+        job_timeout=(
+            None
+            if raw_timeout is None
+            else numeric_field(
+                raw_timeout,
+                workflow=at.workflow,
+                job=at.job,
+                field="timeout-minutes",
+            )
+            * 60.0
+        ),
         conditions=tuple((step.get("if"), job.get("if")) for step in steps),
     )
 
