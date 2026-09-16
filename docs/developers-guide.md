@@ -1988,6 +1988,18 @@ remainder that overflows, and it overflows first. That is exactly why checking
 only the accumulated seconds afterwards reports a duration for text nextest
 will not start under.
 
+That same asymmetry fixes the order components must be summed in, and exactly
+one pair of inputs shows it. `18446744073709551615ns 1ns` is about
+18,446,744,073.7 seconds and `1ns 18446744073709551615ns` is refused, although
+they are the same two components written the other way round. Taken left to
+right the first carries into whole seconds at once, leaving a remainder of
+709,551,615 ns that one more nanosecond fits beside; taken right to left the
+remainder is 1 ns when `u64::MAX` nanoseconds arrive, and that addition
+overflows before anything carries. Every other input in the estate differential
+passes whichever order a reader folds in, so a reader that summed right to left
+would agree with humantime on all of them and still be wrong. Both halves are
+named cases, and reversing the order in `seconds` fails them and nothing else.
+
 The reading was checked against the parser rather than against its
 documentation: 4,016 generated durations, spanning every unit spelling,
 fractions of up to twenty-one digits, values around the `u64` boundary and

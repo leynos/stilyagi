@@ -90,6 +90,7 @@ def test_a_fractional_value_scales_its_unit(
         "45m\u001f",
         "1\u001d0s",
         "18446744073709551615ns 18446744073709551615ns",
+        "1ns 18446744073709551615ns",
         "0.0000000004s 0.0000000006s",
         "1.0ns",
         "2.0ns",
@@ -125,6 +126,7 @@ def test_a_fractional_value_scales_its_unit(
         "a-unit-separator-after-the-unit",
         "a-group-separator-inside-the-number",
         "a-nanosecond-sum-past-the-u64-before-it-carries",
+        "the-same-two-components-in-the-other-order",
         "components-that-are-whole-only-together",
         "a-whole-fraction-of-a-nanosecond",
         "a-larger-whole-fraction-of-a-nanosecond",
@@ -226,6 +228,11 @@ def test_a_refusal_names_the_arithmetic_that_produced_it() -> None:
             id="the-largest-duration-humantime-holds",
         ),
         pytest.param("0.5s 0.5s", 1.0, id="two-half-seconds-that-carry-to-one"),
+        pytest.param(
+            "18446744073709551615ns 1ns",
+            18446744073.709551616,
+            id="a-nanosecond-run-that-carries-before-the-next-arrives",
+        ),
         pytest.param("0.000001ms", 1e-9, id="a-fraction-that-lands-on-a-nanosecond"),
         pytest.param("0.25h", 900.0, id="a-fraction-of-an-hour-in-whole-seconds"),
         pytest.param("0.5m", 30.0, id="a-fraction-of-a-minute"),
@@ -294,3 +301,40 @@ def test_the_digit_join_drops_every_whitespace_the_class_allows(spelling: str) -
     assert seconds(spelling) == pytest.approx(10.0), (
         f"the join must drop {spelling!r}'s whitespace and read ten seconds"
     )
+
+
+def test_components_are_summed_in_the_order_they_are_written() -> None:
+    """The one pair that separates humantime's summation order.
+
+    Every other input in the differential passes whichever order a
+    reader folds its components in, so a reader that summed right to
+    left would agree with humantime on all of them and still be wrong.
+    These two are the same two components written the other way round,
+    and humantime's verdicts differ: `"18446744073709551615ns 1ns"` is
+    about 18,446,744,073.7 seconds and `"1ns 18446744073709551615ns"` is
+    refused.
+
+    The asymmetry is in `add_current`, which opens with
+    `(out.subsec_nanos() as u64).add(nsec)?` before any carry. Taken
+    left to right the first component carries into whole seconds at
+    once, leaving a remainder of 709,551,615 ns that one more nanosecond
+    fits beside. Taken right to left the remainder is 1 ns when
+    `u64::MAX` nanoseconds arrive, and that addition overflows before
+    anything carries.
+
+    Named here rather than left implicit in the two lists above, because
+    a list entry records the verdict and not the reason, and the reason
+    is the only thing that stops someone folding these components with
+    `sum` or `reversed` and finding the suite still green. Proved by
+    mutation: reversing the component order in `seconds` fails this
+    test and the two list entries for the same pair, and nothing else in
+    the file.
+    """
+    assert seconds("18446744073709551615ns 1ns") == pytest.approx(
+        18446744073.709551616
+    ), (
+        "summed in the written order the first component carries into seconds "
+        "before the second arrives, so this is a duration humantime holds"
+    )
+    with pytest.raises(NextestConfigurationError):
+        seconds("1ns 18446744073709551615ns")
