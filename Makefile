@@ -154,7 +154,6 @@ tools-check:
 	$(call ensure_tool,uv)
 
 tools-docs:
-	$(call ensure_tool,$(MDLINT))
 	$(call ensure_tool,$(NIXIE))
 	$(call ensure_tool,uv)
 
@@ -197,6 +196,7 @@ typecheck: build tools-check ## Run typechecking
 	$(TY) check
 
 markdownlint: tools-docs spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
+	$(call ensure_tool,$(MDLINT))
 	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
 
 spelling: spelling-phrase-check ## Enforce en-GB-oxendict spelling
