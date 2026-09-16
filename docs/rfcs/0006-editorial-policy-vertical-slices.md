@@ -476,7 +476,7 @@ rules.
 #### 6.3.2. Add the showcase-pack roadmap item
 
 The canonical task plan is
-[roadmap item 4.5]( ../roadmap.md#45-add-the-df12-editorial-style-showcase-pack).
+[roadmap item 4.5](../roadmap.md#45-add-the-df12-editorial-style-showcase-pack).
 It adds the disabled-by-default `df12-editorial-style` pack after the grammar
 and spelling provider slices, covering policy configuration, the dictionary
 example, gap probes, person and imperative rules, punctuation rules, and
