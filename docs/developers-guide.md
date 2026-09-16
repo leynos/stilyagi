@@ -1909,7 +1909,9 @@ Converting it raw is the other wrong answer. `float` reports the text alone, so
 a fault in a tree of workflows would name neither the file, nor the job, nor
 which of the two fields it came from. Both are converted at the boundary
 between the parsed document and the budgets, by `numeric_field`, which raises
-`WorkflowConfigurationError` carrying all four. It joins the `WorkflowError`
+`WorkflowConfigurationError` carrying all four. The cases for it live in
+`tests/test_workflow_budget_faults.py`, apart from the rest of the reading's
+cases so that neither module passes the 400-line limit. It joins the `WorkflowError`
 family, so a caller catching that family keeps catching this. The shape is
 narrowed before the conversion rather than after it: `float` raises
 `TypeError` for a `timeout-minutes` written as a YAML list and `ValueError`
