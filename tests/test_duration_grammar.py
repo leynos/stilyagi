@@ -9,9 +9,12 @@ lockfile of the pinned cargo-nextest release resolves, by compiling that
 parser and running the cases through it.
 """
 
+import re
+
 import pytest
 from hypothesis import given
 
+from tests.support.nextest_durations import _WHITESPACE_CHARS
 from tests.support.nextest_units import HumantimeOverflowError
 from tests.support.timeout_budgets import NextestConfigurationError, seconds
 from tests.test_timeout_budget_properties import (
@@ -82,6 +85,10 @@ def test_a_fractional_value_scales_its_unit(
         "18446744073709551615s 500ms 500ms",
         "\u0663\u0660\u0660s",
         "3\u0660\u0660s",
+        "1\u001cs",
+        "\u001c45m",
+        "45m\u001f",
+        "1\u001d0s",
         "18446744073709551615ns 18446744073709551615ns",
         "0.0000000004s 0.0000000006s",
         "1.0ns",
@@ -113,6 +120,10 @@ def test_a_fractional_value_scales_its_unit(
         "a-carry-that-completes-a-second-past-the-u64",
         "a-run-of-unicode-digits",
         "a-unicode-digit-after-an-ascii-one",
+        "a-file-separator-between-a-digit-and-its-unit",
+        "a-file-separator-before-the-number",
+        "a-unit-separator-after-the-unit",
+        "a-group-separator-inside-the-number",
         "a-nanosecond-sum-past-the-u64-before-it-carries",
         "components-that-are-whole-only-together",
         "a-whole-fraction-of-a-nanosecond",
@@ -235,4 +246,51 @@ def test_a_duration_nextest_accepts_is_read_rather_than_refused(
     """
     assert seconds(duration) == pytest.approx(expected), (
         f"{duration!r} is configuration nextest accepts"
+    )
+
+
+def test_the_whitespace_class_is_rusts_and_not_pythons() -> None:
+    r"""Pin the class in both directions, over the whole of Unicode.
+
+    Rust's `char::is_whitespace` is the Unicode White_Space property.
+    Python's `\\s` is that property plus U+001C to U+001F, the file,
+    group, record and unit separators, and `str.strip` and `str.split`
+    carry the same excess. A reader spelling its whitespace `\\s` skips
+    a separator wherever it skips a space and reports a budget for a
+    configuration nextest refuses at startup.
+
+    Both directions are asserted. The refusal cases above catch the
+    excess; nothing catches the deficit, and a class that had lost a
+    genuine space would make this reader refuse configurations nextest
+    loads, which is the opposite failure and equally wrong.
+    """
+    ours = set(_WHITESPACE_CHARS)
+    pythons = {chr(cp) for cp in range(0x110000) if re.match(r"\s", chr(cp))}
+    separators = {"\u001c", "\u001d", "\u001e", "\u001f"}
+    assert pythons - ours == separators, (
+        "Python's whitespace exceeds this reader's by something other than "
+        f"the four C0 separators: {sorted(pythons - ours - separators)!r}"
+    )
+    assert not ours - pythons, (
+        "this reader treats as whitespace something Python does not: "
+        f"{sorted(ours - pythons)!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    ["1 0s", "1\u00a00s", "1\u20080s"],
+    ids=["a-space", "a-no-break-space", "a-punctuation-space"],
+)
+def test_the_digit_join_drops_every_whitespace_the_class_allows(spelling: str) -> None:
+    """Exercise the join through the widest whitespace the class allows.
+
+    The digits of a spaced number are joined after the pattern matches,
+    so while the pattern refuses a separator the join never meets one and
+    no input through `seconds` distinguishes it from `str.split`. It is
+    written correctly anyway, because a later widening of the pattern
+    would turn a refusal into a silently different number.
+    """
+    assert seconds(spelling) == pytest.approx(10.0), (
+        f"the join must drop {spelling!r}'s whitespace and read ten seconds"
     )

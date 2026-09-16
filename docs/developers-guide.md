@@ -1863,6 +1863,30 @@ special-cases `0` before reading a character, so `" 0 "` is refused and a reader
 that stripped whitespace first would accept a duration nextest rejects. Case is
 significant, `m` being minutes and `M` months.
 
+Whitespace is Rust's, not Python's, and the class is written out for the same
+reason the digit class below is. Rust's `char::is_whitespace` is the Unicode
+White_Space property; Python's `\s` is that property plus U+001C to U+001F, the
+file, group, record and unit separators, and `str.strip` and `str.split` carry
+the same excess. Measured over the whole of Unicode from a Rust probe, that is
+the only disagreement and it runs one way: Rust matches nothing Python does
+not. A reader spelling its whitespace `\s` therefore skips a separator wherever
+it skips a space, and reads `1\x1cs` as one second from a configuration nextest
+refuses at startup.
+
+Five sites carry the class: the digit run, the fraction, the unit, the outer
+trim, and the join that collapses a spaced number's digits. The join cannot
+change an answer while the pattern refuses a separator, so nothing through
+`seconds` distinguishes it from `str.split`; it is written correctly anyway and
+tested through the widest whitespace the class allows, because a later widening
+of the pattern would otherwise turn a refusal into a silently different number.
+
+Two contracts hold it. Four refusal cases name the separators, including one
+between a digit and its unit, which is the shape nobody would notice in a file.
+The other pins the class in both directions, and the second direction is the one
+the refusal cases cannot see: a class that had lost a genuine space would make
+the reader refuse configurations nextest loads. Three mutations are caught, one
+per site.
+
 A digit is `0` to `9` and nothing else. Python's `\d` matches every Unicode
 decimal digit and `int` reads them, so a reader written with it returns three
 hundred seconds for `\u0663\u0660\u0660s` and for the mixed `3\u0660\u0660s`,
