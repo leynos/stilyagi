@@ -1355,13 +1355,17 @@ names a path that is gone, since that ends the whole lane rather than
 collecting less; and it pins the sweep itself, because the two contracts above
 are both satisfied by a discovery that returns nothing.
 
-Six mutations are caught. Four belong to those contracts: a swept directory
+Seven mutations are caught. Four belong to those contracts: a swept directory
 dropped from the list, the flag unwired from the recipe, a named path
-misspelled, and the sweep narrowed to a suffix no file uses. Two belong to
-`test_makefile_recipes.py`, which now reads both invocations as whole recipe
-lines: deleting the doctest command fails it, and so does chaining the two with
-`;` instead of `&&`, because a `;` would let the suite fail while the target
-still reported the doctest pass's exit status.
+misspelled, and the sweep narrowed to a suffix no file uses. Three belong to
+`test_makefile_recipes.py`, which reads the two invocations and the `&&` that
+joins them as one contiguous fragment rather than as separate lines: deleting
+the doctest command fails it, chaining the two with `;` fails it, and so does
+slipping a line between them. That last one is why adjacency is asserted at
+all. Two membership checks are both satisfied by `true || \` sitting between
+the commands, which makes the effective expression `(pytest && true) ||
+doctest`, so a failing suite is followed by a passing doctest run and the
+failure never reaches the recipe's exit status.
 
 ## 7. Development responsibilities
 
@@ -1898,9 +1902,11 @@ catches a reader summing into an unbounded integer. `add_current` opens with
 `(out.subsec_nanos() as u64).add(nsec)?`, before any carry, so the remainder
 held so far plus the component's nanoseconds must fit a `u64` by themselves.
 Two values of `u64::MAX` nanoseconds carry the first to 18,446,744,073 seconds
-and then overflow on the second, although the duration they name is about
-thirty-six seconds. Checking only the accumulated seconds afterwards reports a
-duration for text nextest will not start under.
+and then overflow on the second. The duration they name, about 36.9 billion
+seconds or some 1,169 years, is nowhere near the seconds ceiling; it is the
+remainder that overflows, and it overflows first. That is exactly why checking
+only the accumulated seconds afterwards reports a duration for text nextest
+will not start under.
 
 The reading was checked against the parser rather than against its
 documentation: 4,016 generated durations, spanning every unit spelling,

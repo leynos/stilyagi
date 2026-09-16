@@ -165,11 +165,16 @@ def _parsed_workflow(path: Path) -> object:
     Raises
     ------
     WorkflowReadingError
-        If the file cannot be read, or its text is not YAML.
+        If the file cannot be read, if its bytes are not UTF-8, or if
+        its text is not YAML.
     """
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
+        # UnicodeDecodeError descends from ValueError, not OSError, so a
+        # workflow holding bytes that are not UTF-8 would otherwise
+        # escape this boundary and surface as a decoding error naming a
+        # byte offset, with nothing saying which workflow it came from.
         message = f"{path} could not be read: {exc}"
         raise WorkflowReadingError(message, path=path) from exc
     try:

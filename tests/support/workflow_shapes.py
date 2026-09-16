@@ -12,7 +12,20 @@ if typ.TYPE_CHECKING:
     from pathlib import Path
 
 
-class WorkflowReadingError(OSError):
+class WorkflowError(OSError):
+    """Base for every fault this package raises about a workflow file.
+
+    The repository's exception rule asks for a domain base so a caller
+    can catch the family without naming each member, and the two other
+    error families in ``tests/support`` are shaped that way:
+    ``TimeoutBudgetError`` and ``RoundTripEditError`` each sit above
+    their concrete errors. This one keeps ``OSError`` as its own base,
+    because acquisition failures here are operating-system failures and
+    a caller already catching ``OSError`` should keep catching them.
+    """
+
+
+class WorkflowReadingError(WorkflowError):
     """Raised when a workflow file cannot be read or parsed.
 
     Acquisition is fallible in two ways the query above it is not: the

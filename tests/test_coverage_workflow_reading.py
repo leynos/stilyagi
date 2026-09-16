@@ -26,7 +26,7 @@ from tests.support.coverage_workflows import (
     coverage_jobs_in,
     workflow_documents,
 )
-from tests.support.workflow_shapes import WorkflowReadingError
+from tests.support.workflow_shapes import WorkflowError, WorkflowReadingError
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -276,15 +276,55 @@ def test_a_workflow_that_cannot_be_read_is_reported_rather_than_skipped(
     read while the lane it exists to bound sat in the file it could
     not.
     """
+    # A directory, not a mode. `chmod(0o000)` does not stop a process
+    # running as root, and Windows does not enforce POSIX modes at all,
+    # so on either the read would succeed and this test would pass over
+    # nothing. `glob` yields directories, and reading one raises
+    # `IsADirectoryError` on POSIX and `PermissionError` on Windows;
+    # both are `OSError`, which is the boundary under test.
     unreadable = tmp_path / "locked.yml"
-    unreadable.write_text("name: controlled\n", encoding="utf-8")
-    unreadable.chmod(0o000)
-    try:
-        with pytest.raises(WorkflowReadingError) as reported:
-            workflow_documents(tmp_path)
-    finally:
-        unreadable.chmod(0o644)
+    unreadable.mkdir()
+    with pytest.raises(WorkflowReadingError) as reported:
+        workflow_documents(tmp_path)
     assert reported.value.path == unreadable, "the fault names the workflow it is about"
     assert isinstance(reported.value.__cause__, OSError), (
         "the operating system's own error is the cause"
     )
+
+
+def test_a_workflow_that_is_not_utf8_is_reported_rather_than_escaping(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Bytes that are not UTF-8 are an acquisition fault like any other.
+
+    `UnicodeDecodeError` descends from `ValueError`, not `OSError`, so
+    it is the one read failure that would slip past a boundary catching
+    `OSError` alone. It would then surface as a decoding error naming a
+    byte offset, with nothing saying which workflow it came from, which
+    is the reporting this boundary exists to prevent.
+    """
+    invalid = tmp_path / "latin1.yml"
+    invalid.write_bytes(b"name: caf\xe9\n")
+    with pytest.raises(WorkflowReadingError) as reported:
+        workflow_documents(tmp_path)
+    assert reported.value.path == invalid, "the fault names the workflow it is about"
+    assert isinstance(reported.value.__cause__, UnicodeDecodeError), (
+        "the decoding failure itself is the cause"
+    )
+
+
+def test_every_workflow_fault_is_catchable_as_the_domain_base(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The domain base is what a caller catches to catch them all.
+
+    `WorkflowReadingError` is the only concrete member today, so the
+    base earns its place by being the thing callers name rather than by
+    grouping siblings. Asserting it here means a later member that
+    forgot to inherit it would fail rather than quietly escape a caller
+    that catches the family.
+    """
+    invalid = tmp_path / "broken.yml"
+    invalid.write_text("name: [unclosed\n", encoding="utf-8")
+    with pytest.raises(WorkflowError):
+        workflow_documents(tmp_path)
