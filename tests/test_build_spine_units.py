@@ -373,10 +373,21 @@ def test_makefile_nixie_target_uses_shared_markdown_file_list(
 def test_makefile_tools_docs_target_checks_documentation_tools(
     makefile_text: str,
 ) -> None:
-    """tools-docs must verify markdownlint, nixie, and uv are installed."""
+    """tools-docs must verify nixie and uv; markdownlint guards its own target.
+
+    Markdown linting in CI runs through the pinned markdownlint-cli2 action,
+    as the estate's markdown-formatting-baseline rule requires, so the
+    linter is a prerequisite of `markdownlint` alone rather than of every
+    documentation target.
+    """
     _header, recipe = _make_target(makefile_text, "tools-docs")
-    for tool in ("$(MDLINT)", "$(NIXIE)", "uv"):
+    for tool in ("$(NIXIE)", "uv"):
         check(
             any(f"ensure_tool,{tool}" in line for line in recipe),
             f"tools-docs no longer checks {tool}",
         )
+    _header, lint_recipe = _make_target(makefile_text, "markdownlint")
+    check(
+        any("ensure_tool,$(MDLINT)" in line for line in lint_recipe),
+        "markdownlint no longer checks $(MDLINT)",
+    )
