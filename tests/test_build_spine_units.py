@@ -302,38 +302,25 @@ def test_makefile_markdownlint_target_enforces_spelling(
 ) -> None:
     """Markdownlint must depend on the complete spelling gate.
 
-    The spelling gate must go through the pinned ``$(TYPOS)`` command with the
-    repository configuration and ``--force-exclude`` so the ``typos.toml``
-    excludes hold even for explicitly passed paths.
+    The gate is a single ``typos-config-builder gate`` invocation that
+    regenerates ``typos.toml``, runs the pinned ``typos`` binary, and enforces
+    the shared phrase corrections, so the contract asserts the pinned command
+    rather than individual spelling steps.
     """
     markdown_header, _markdown_recipe = _make_target(makefile_text, "markdownlint")
     assert "spelling" in markdown_header, "expected 'spelling' in markdown_header"
     _spelling_header, spelling_recipe = _make_target(makefile_text, "spelling")
-    typos_lines = [line for line in spelling_recipe if "$(TYPOS)" in line]
-    assert len(typos_lines) == 1, "expected len(typos_lines) == 1"
-    check("$(MD_FILES_FIND)" in typos_lines[0], "Markdown list missing")
-    check("--config typos.toml" in typos_lines[0], "typos config missing")
-    check("--force-exclude" in typos_lines[0], "force exclusion missing")
-    assert typos_lines[0].endswith(" --"), "expected typos_lines[0].endswith(' --')"
-    config_header, config_recipe = _make_target(makefile_text, "spelling-config")
-    check("spelling-helper-test" in config_header, "helper gate missing")
     check(
-        config_recipe == ("$(TYPOS_CONFIG_BUILDER) --repository . --check",),
-        "expected config_recipe == ('$(TYPOS_CONFIG_BUILDER) ...",
+        spelling_recipe == ("$(TYPOS_CONFIG_BUILDER) gate --repository .",),
+        "expected spelling_recipe == ('$(TYPOS_CONFIG_BUILDER) ...",
     )
     check(
         re.search(
-            r"^TYPOS_CONFIG_BUILDER_COMMIT\s*:=\s*[0-9a-f]{40}\s*$",
+            r"^TYPOS_CONFIG_BUILDER_VERSION\s*\?=\s*v\d+\.\d+\.\d+\s*$",
             makefile_text,
             re.MULTILINE,
         ),
-        "expected re.search('^TYPOS_CONFIG_BUILDER_COMMIT\\\\s*...",
-    )
-    check(
-        re.search(
-            r"^TYPOS_VERSION\s*\?=\s*\d+\.\d+\.\d+\s*$", makefile_text, re.MULTILINE
-        ),
-        "expected re.search('^TYPOS_VERSION\\\\s*\\\\?=\\\\s*\\\\d+\\\\...",
+        "expected re.search('^TYPOS_CONFIG_BUILDER_VERSION\\\\s*...",
     )
 
 
@@ -349,12 +336,12 @@ def test_makefile_lint_tools_resolve_through_uv(makefile_text: str) -> None:
     )
     check(
         re.search(
-            r"^TYPOS\s*=\s*env\s+\$\(UV_ENV\)\s+\$\(UV\)\s+tool\s+run\s+"
-            r"typos@\$\(TYPOS_VERSION\)\s*$",
+            r"^TYPOS_CONFIG_BUILDER\s*=\s*\$\(UV_ENV\)\s+\$\(UV\)\s+tool\s+run\s+"
+            r"--python\s+3\.14\s+--from\s*\\$",
             makefile_text,
             re.MULTILINE,
         ),
-        "TYPOS no longer resolves through the pinned uv tool command",
+        "TYPOS_CONFIG_BUILDER no longer resolves through the pinned uv tool command",
     )
 
 

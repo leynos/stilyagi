@@ -19,7 +19,8 @@ ignore = [
   'rust-analyzer',
   'release-artifact',
   '## Artifacts and notes',
-  'Center \| Microsoft Learn',
+  # Inline code spans are masked; the shared dictionary does not mask them yet.
+  '`[^`\n]+`',
 ]
 
 [files]

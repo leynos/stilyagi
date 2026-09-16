@@ -914,9 +914,9 @@ Their responsibilities are:
   - verify Rust formatting with `cargo fmt --check`
 - `make markdownlint`
   - lint all Markdown files in the repository
-  - enforce en-GB-oxendict (Oxford) spelling over the same files with
-    `typos`, run at the version pinned by the Makefile `TYPOS_VERSION`
-    variable through `uv tool run`
+  - enforce en-GB-oxendict (Oxford) spelling over the same files by depending
+    on `make spelling`, which runs the gate pinned by the Makefile
+    `TYPOS_CONFIG_BUILDER_VERSION` variable through `uv tool run`
 - `make nixie`
   - validate Mermaid diagrams in Markdown files
 - `make lint`
@@ -1027,34 +1027,34 @@ The Makefile exposes the lint runner through these variables:
 
 Table: Lint runner Makefile variables.
 
-| Variable                    | Default                                                                                                       | Purpose                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `UV`                        | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                 | Selects the `uv` executable used by Makefile Python commands.    |
-| `UV_ENV`                    | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                | Keeps `uv` cache and tool state inside the repository worktree.  |
-| `UV_RUN`                    | `$(UV_ENV) $(UV) run --group dev`                                                                             | Runs commands in the locked development dependency group.        |
-| `RUFF_VERSION`              | `0.16.4`                                                                                                      | Pins the Ruff version shared by the Makefile and CI.             |
-| `RUFF`                      | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                           | Builds the pinned Ruff command used by formatting and lint gates.|
-| `INTERROGATE`               | `$(UV_RUN) interrogate`                                                                                       | Selects the docstring-coverage command used by `make lint`.      |
-| `INTERROGATE_TARGETS`       | `python/stilyagi tests`                                                                                       | Selects the directories checked by Interrogate.                  |
-| `INTERROGATE_FLAGS`         | `--fail-under 100`                                                                                            | Requires complete Python docstring coverage.                     |
-| `PYLINT_PYTHON`             | `pypy`                                                                                                        | Selects the interpreter passed to `uv tool run` for Pylint.      |
-| `PYLINT_TARGETS`            | `python/stilyagi tests`                                                                                       | Selects the directories checked by the Pylint tier.              |
-| `PYLINT_PYPY_SHIM_REF`      | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                                    | Pins the shim commit used by the Pylint tier.                    |
-| `PYLINT_PYPY_SHIM`          | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                  | Expands the pinned shim package source.                          |
-| `PYLINT`                    | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=` | Builds the focused PyPy Pylint command used by `make lint`.      |
-| `DF12_PYTHON`               | `3.14`                                                                                                        | Selects CPython for the df12 Pylint and scanner tiers.           |
-| `DF12_PYLINT_MESSAGES`      | all thirteen v0.3.0 message IDs                                                                               | Selects the df12 Pylint diagnostics.                             |
-| `DF12_PYLINT`               | project-backed Pylint with `df12_python_lints` loaded                                                         | Builds the CPython df12 Pylint command.                          |
-| `AMBRLEAKS`                 | locked `uv run --group dev --python 3.14` environment                                                         | Builds the snapshot leak scanner command from the locked commit. |
-| `SKYLOS_VERSION`            | `4.33.2`                                                                                                      | Pins the dead-code detector used by `make lint`.                 |
-| `SKYLOS_CLI`                | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`                            | Builds the command-only Skylos CLI.                              |
-| `SKYLOS`                    | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                                  | Adds scan-only configuration to the Skylos CLI.                  |
-| `SKYLOS_PRODUCTION_TARGETS` | `python/stilyagi`                                                                                             | Limits dead-code analysis to production Python sources.          |
-| `SKYLOS_EXCLUDE_FOLDERS`    | `tests`                                                                                                       | Excludes tests from the production liveness graph.               |
-| `TY_VERSION`                | `0.0.74`                                                                                                      | Pins the `ty` version shared by the Makefile and CI.             |
-| `TY`                        | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                               | Builds the pinned type-checking command.                         |
-| `TYPOS_VERSION`             | `1.48.0`                                                                                                      | Pins the `typos` version shared by the Makefile and CI.          |
-| `TYPOS`                     | `env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)`                                                         | Builds the spelling-check command used by `make markdownlint`.   |
+| Variable                       | Default                                                                                                        | Purpose                                                           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `UV`                           | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                  | Selects the `uv` executable used by Makefile Python commands.     |
+| `UV_ENV`                       | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                 | Keeps `uv` cache and tool state inside the repository worktree.   |
+| `UV_RUN`                       | `$(UV_ENV) $(UV) run --group dev`                                                                              | Runs commands in the locked development dependency group.         |
+| `RUFF_VERSION`                 | `0.16.4`                                                                                                       | Pins the Ruff version shared by the Makefile and CI.              |
+| `RUFF`                         | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                            | Builds the pinned Ruff command used by formatting and lint gates. |
+| `INTERROGATE`                  | `$(UV_RUN) interrogate`                                                                                        | Selects the docstring-coverage command used by `make lint`.       |
+| `INTERROGATE_TARGETS`          | `python/stilyagi tests`                                                                                        | Selects the directories checked by Interrogate.                   |
+| `INTERROGATE_FLAGS`            | `--fail-under 100`                                                                                             | Requires complete Python docstring coverage.                      |
+| `PYLINT_PYTHON`                | `pypy`                                                                                                         | Selects the interpreter passed to `uv tool run` for Pylint.       |
+| `PYLINT_TARGETS`               | `python/stilyagi tests`                                                                                        | Selects the directories checked by the Pylint tier.               |
+| `PYLINT_PYPY_SHIM_REF`         | `726d09f968b4d729ee4b29c71fc732e744854f3b`                                                                     | Pins the shim commit used by the Pylint tier.                     |
+| `PYLINT_PYPY_SHIM`             | `git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)`                                   | Expands the pinned shim package source.                           |
+| `PYLINT`                       | `$(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) --from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=`  | Builds the focused PyPy Pylint command used by `make lint`.       |
+| `DF12_PYTHON`                  | `3.14`                                                                                                         | Selects CPython for the df12 Pylint and scanner tiers.            |
+| `DF12_PYLINT_MESSAGES`         | all thirteen v0.3.0 message IDs                                                                                | Selects the df12 Pylint diagnostics.                              |
+| `DF12_PYLINT`                  | project-backed Pylint with `df12_python_lints` loaded                                                          | Builds the CPython df12 Pylint command.                           |
+| `AMBRLEAKS`                    | locked `uv run --group dev --python 3.14` environment                                                          | Builds the snapshot leak scanner command from the locked commit.  |
+| `SKYLOS_VERSION`               | `4.33.2`                                                                                                       | Pins the dead-code detector used by `make lint`.                  |
+| `SKYLOS_CLI`                   | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`                             | Builds the command-only Skylos CLI.                               |
+| `SKYLOS`                       | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                                   | Adds scan-only configuration to the Skylos CLI.                   |
+| `SKYLOS_PRODUCTION_TARGETS`    | `python/stilyagi`                                                                                              | Limits dead-code analysis to production Python sources.           |
+| `SKYLOS_EXCLUDE_FOLDERS`       | `tests`                                                                                                        | Excludes tests from the production liveness graph.                |
+| `TY_VERSION`                   | `0.0.74`                                                                                                       | Pins the `ty` version shared by the Makefile and CI.              |
+| `TY`                           | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                                | Builds the pinned type-checking command.                          |
+| `TYPOS_CONFIG_BUILDER_VERSION` | `v0.1.1`                                                                                                       | Pins the spelling gate, and the `typos` binary it runs.           |
+| `TYPOS_CONFIG_BUILDER`         | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'git+...@$(TYPOS_CONFIG_BUILDER_VERSION)' typos-config-builder` | Builds the spelling gate command used by `make markdownlint`.     |
 
 Override these variables only for local diagnosis unless the project-wide lint
 policy is intentionally changing. For example:
@@ -1211,69 +1211,55 @@ rather than done piecemeal.
 
 ### 6d. Spelling gate
 
-`make markdownlint` enforces en-GB-oxendict (Oxford) spelling over the
-repository's Markdown prose with [`typos`](https://github.com/crate-ci/typos),
-as required by the [documentation style guide](documentation-style-guide.md).
+Run `make spelling` to enforce en-GB-oxendict (Oxford) spelling over the
+repository's Markdown prose, as required by the
+[documentation style guide](documentation-style-guide.md). `make markdownlint`
+depends on it, so the Markdown gate covers spelling as well. The single gate
+command regenerates `typos.toml`, runs the pinned
+[`typos`](https://github.com/crate-ci/typos) binary, and enforces the shared
+phrase corrections that `typos` cannot express.
+
 The generated configuration lives in the repository-root `typos.toml` and works
 in three layers:
 
 1. The `en-gb` locale corrects American spellings (`color` to `colour`,
    `behavior` to `behaviour`, `analyzed` to `analysed`).
-2. The estate-wide base dictionary bundled by `leynos/typos-config-builder`
-   restores Oxford spelling, which the locale alone would not enforce. Identity
-   entries accept `-ize` inflections that the locale would otherwise "correct"
-   to `-ise`, while `-ise` entries are corrected to `-ize`. Stems taking `-yse`
-   (`analyse`, `paralyse`) remain with the locale, which already enforces them.
+2. The estate-wide shared dictionary published by
+   `leynos/typos-config-builder` restores Oxford spelling, which the locale
+   alone would not enforce. Identity entries accept `-ize` inflections that the
+   locale would otherwise "correct" to `-ise`, while `-ise` entries are
+   corrected to `-ize`. Stems taking `-yse` (`analyse`, `paralyse`) remain with
+   the locale, which already enforces them.
 3. `typos.local.toml` adds only Stilyagi-specific accepted words, quoted
    upstream names, and excluded fixtures.
 
-`typos.toml` is a generated file. Never edit its entries by hand. The focused
-builder is pinned to immutable commit
-`b604f198797fdd36a567dd0f8f07b13f9539b241`. Regenerate from its bundled shared
-base and the local overlay with:
-
-```bash
-make spelling-config-write
-```
-
-The builder conditionally refreshes `.typos-oxendict-base.toml` from its
-bundled authority before rendering. The cached base and its
+Because `typos.toml` is rewritten from the live shared dictionary and the local
+overlay on every run, never edit its entries by hand and never check it for
+drift in continuous integration. The gate conditionally refreshes
+`.typos-oxendict-base.toml` before rendering. The cached dictionary and its
 `.typos-oxendict-base.json` freshness metadata are untracked. A newer valid
 local cache is not overwritten by an older source, and a populated cache
-supports offline generation. `make spelling-config` checks generated drift
-without rewriting the tracked output.
+supports offline runs.
 
 Spelling policy has two maintainer-facing homes:
 
 - Generic Oxford stems, accepted terms, and phrase corrections belong in the
-  bundled authority in `leynos/typos-config-builder`. Do not add genuinely
+  shared dictionary in `leynos/typos-config-builder`. Do not add genuinely
   `-ise`-only words (`advise`, `revise`, `exercise`, `supervise`).
 - Stilyagi-only accepted words, ignore patterns, and file exclusions belong in
   `typos.local.toml`. Keep exceptions narrow: quoted APIs retain upstream
   spelling and should normally be put in backticks rather than added as
   word-level exceptions.
 
-The spelling gate first checks generated configuration, then applies shared
-exact-phrase corrections to eligible tracked UTF-8 text. This enforces
-`hand-written` to `handwritten`, which Typos cannot represent after tokenizing
-a hyphenated phrase. Typos then runs over the `MD_FILES_FIND` list shared with
-markdownlint and nixie. It uses `--force-exclude` so the `typos.toml` excludes
-also apply to explicitly passed paths. To fix Typos findings mechanically,
-rerun the gate's command with `--write-changes` appended, using the same pinned
-version the Makefile prints when `make markdownlint` runs:
-
-```bash
-env UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools \
-  uv tool run typos@<TYPOS_VERSION> --config typos.toml --force-exclude \
-  --write-changes <files>
-```
-
-Review automated rewrites before committing; spelling corrections must not
+The phrase pass enforces corrections such as `hand-written` to `handwritten`,
+which `typos` cannot represent after tokenizing a hyphenated phrase. Fix its
+findings by hand; the gate reports the file, line, and replacement. Review any
+automated rewrite before committing, because spelling corrections must not
 touch code samples, API names, or quoted material.
 
-The phrase helper follows the CodeRabbit-reviewed consumer baseline. Its
-isolated test runner supplies Pathspec 1.1.1 without adding a project runtime
-or locked development dependency.
+The gate ships as the `typos-config-builder` command, pinned by the Makefile's
+`TYPOS_CONFIG_BUILDER_VERSION` variable and run in an isolated Python 3.14
+environment. Bump that variable to adopt a newer release.
 
 ### 6e. Tool version alignment between the Makefile and CI
 
@@ -1288,10 +1274,10 @@ versions. The repository uses workflow-level pins and Makefile commands:
 - `ty` is pinned by the Makefile's `TY_VERSION` variable and the workflow's
   `TY_VERSION` environment variable. The `TY` command invokes
   `uv tool run ty@$(TY_VERSION)`.
-- `typos` is a Rust binary rather than a locked Python dependency, so its
-  version is pinned once in the Makefile `TYPOS_VERSION` variable and run
-  through `uv tool run typos@$(TYPOS_VERSION)`. CI inherits the pin by calling
-  `make markdownlint`.
+- The spelling gate is pinned once in the Makefile
+  `TYPOS_CONFIG_BUILDER_VERSION` variable and run through `uv tool run`. That
+  release also fixes the `typos` binary version it invokes, so `typos` needs no
+  separate pin. CI inherits both by calling `make markdownlint`.
 
 When bumping any of these versions, update the corresponding Makefile and
 workflow-level pin (or the dependency-group pin for Interrogate), refresh

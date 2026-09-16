@@ -24,7 +24,6 @@ SENTINEL_RUFF_VERSION = "sentinel"
         pytest.param("fmt", 2, id="fmt"),
         pytest.param("check-fmt", 1, id="check-fmt"),
         pytest.param("lint", 1, id="lint"),
-        pytest.param("spelling-helper-test", 2, id="spelling-helper-test"),
     ],
 )
 def test_makefile_targets_build_ruff_commands_from_the_version_pin(
