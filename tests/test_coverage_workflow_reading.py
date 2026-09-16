@@ -71,18 +71,26 @@ def workflow(
     WorkflowDocument
         The parsed document.
     """
+    # Membership, not truthiness. An empty string is a declaration GitHub
+    # honours, and a builder testing `if given.get(...)` cannot express
+    # it: the scope is simply omitted and the case silently becomes the
+    # absent one. The contract could not have caught a blank-skipping
+    # reader while its own fixture could not construct a blank.
     given = scopes or {}
     lines = ["name: controlled", "on: push"]
-    if workflow_env := given.get("workflow_env"):
-        lines += ["env:", f"  {WATCHDOG_VARIABLE}: {workflow_env}"]
+    if "workflow_env" in given:
+        lines += ["env:", f'  {WATCHDOG_VARIABLE}: "{given["workflow_env"]}"']
     lines += ["jobs:", "  coverage:", "    runs-on: ubuntu-latest"]
     if ceiling := given.get("ceiling"):
         lines.append(f"    timeout-minutes: {ceiling}")
-    if job_env := given.get("job_env"):
-        lines += ["    env:", f"      {WATCHDOG_VARIABLE}: {job_env}"]
+    if "job_env" in given:
+        lines += ["    env:", f'      {WATCHDOG_VARIABLE}: "{given["job_env"]}"']
     lines += ["    steps:", f"      - uses: {step_uses}"]
-    if step_env := given.get("step_env"):
-        lines += ["        env:", f"          {WATCHDOG_VARIABLE}: {step_env}"]
+    if "step_env" in given:
+        lines += [
+            "        env:",
+            f'          {WATCHDOG_VARIABLE}: "{given["step_env"]}"',
+        ]
     return document("\n".join(lines) + "\n")
 
 
@@ -119,6 +127,16 @@ def only_job(documents: dict[str, WorkflowDocument]) -> CoverageJob:
         ),
         pytest.param({"workflow_env": "900"}, 900.0, id="the-workflow-alone"),
         pytest.param({}, None, id="no-scope-sets-one"),
+        pytest.param(
+            {"workflow_env": "900", "job_env": "600", "step_env": ""},
+            None,
+            id="a-step-declaring-it-empty-beats-both",
+        ),
+        pytest.param(
+            {"workflow_env": "900", "job_env": ""},
+            None,
+            id="a-job-declaring-it-empty-beats-the-workflow",
+        ),
     ],
 )
 def test_the_watchdog_is_read_innermost_first(
@@ -130,6 +148,13 @@ def test_the_watchdog_is_read_innermost_first(
     confined to the job would report every lane as inheriting the
     action's undocumented default while a budget is in force, which is
     exactly the inversion the ordering contract exists to catch.
+
+    A blank is a declaration, not an absence. GitHub takes the most
+    specific declaration, so a step setting the variable to "" hands
+    that step's process an empty value rather than the job's number. It
+    reads as None here, the same as undeclared, because neither bounds
+    the cargo invocation; what must not happen is the reading passing a
+    blank and crediting the lane with an outer scope's budget.
     """
     job = only_job({"controlled.yml": workflow(scopes)})
     assert job.watchdogs == (expected,), job

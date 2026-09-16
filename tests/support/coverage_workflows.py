@@ -103,11 +103,27 @@ def _watchdog_of(
     float or None
         The budget in seconds, or None when no level sets one.
     """
+    # The innermost scope that declares the variable wins, blank
+    # included. GitHub takes the most specific declaration, and an empty
+    # string is one: a step setting the variable to "" hands that step's
+    # process an empty value, not the job's. Reading past a blank would
+    # credit the lane with a budget nothing enforces.
+    #
+    # A declared blank reads as None, the same as undeclared, because
+    # neither bounds the cargo invocation. `float("")` would raise here
+    # instead, failing the contract with a ValueError naming nothing.
     levels = (step.get("env"), job.get("env"), document.get("env"))
     for source in levels:
-        raw = (source or {}).get(WATCHDOG_VARIABLE)
-        if raw is not None:
-            return float(str(raw))
+        environment = source or {}
+        if WATCHDOG_VARIABLE not in environment:
+            continue
+        text = str(environment[WATCHDOG_VARIABLE]).strip()
+        if not text:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
     return None
 
 

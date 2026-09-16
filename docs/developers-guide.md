@@ -1863,6 +1863,20 @@ special-cases `0` before reading a character, so `" 0 "` is refused and a reader
 that stripped whitespace first would accept a duration nextest rejects. Case is
 significant, `m` being minutes and `M` months.
 
+The watchdog is resolved at the innermost scope that declares it, blank
+included. GitHub takes the most specific declaration of an environment
+variable, and an empty string is a declaration: a step setting
+`RUN_RUST_CARGO_WAIT_TIMEOUT` to `""` hands that step's process an empty value,
+not the job's number. It reads as absent here, because neither bounds the
+`cargo` invocation; what must not happen is the reading passing a blank and
+crediting the lane with an outer scope's budget.
+
+The test fixture had the same defect, which is why nothing caught this. It
+populated each scope behind a truthiness check, so a scope declared empty was
+simply omitted and the case silently became the absent one. It tests membership
+now. A reading that skips a declared blank fails the two cases that describe
+it, and nothing else.
+
 Whitespace is Rust's, not Python's, and the class is written out for the same
 reason the digit class below is. Rust's `char::is_whitespace` is the Unicode
 White_Space property; Python's `\s` is that property plus U+001C to U+001F, the
