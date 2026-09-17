@@ -288,8 +288,21 @@ def _step(value: object) -> WorkflowStep:
 
 
 def _invokes_coverage(step: WorkflowStep) -> bool:
-    """Return whether one step invokes the shared coverage action."""
-    return COVERAGE_ACTION in str(step.get("uses", ""))
+    """Return whether one step invokes the shared coverage action.
+
+    The identifier is compared with the whole path before the ``@``
+    rather than looked for inside it. A substring test accepts a
+    sibling whose path merely begins with this one, such as a
+    ``generate-coverage-v2``, so the contract would report the coverage
+    action as present in a lane that no longer invokes it, and every
+    assertion resting on that lane would pass over the wrong step.
+    """
+    uses = step.get("uses")
+    match uses:
+        case str():
+            return uses.partition("@")[0] == COVERAGE_ACTION
+        case _:
+            return False
 
 
 def _coverage_job(

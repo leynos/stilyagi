@@ -17,7 +17,11 @@ outgrows the 400-line limit ``AGENTS.md`` sets.
 
 import pytest
 
-from tests.support.coverage_workflows import WATCHDOG_VARIABLE, coverage_jobs_in
+from tests.support.coverage_workflows import (
+    COVERAGE_ACTION,
+    WATCHDOG_VARIABLE,
+    coverage_jobs_in,
+)
 from tests.support.workflow_shapes import WorkflowConfigurationError, WorkflowError
 from tests.test_coverage_workflow_reading import workflow
 
@@ -118,3 +122,31 @@ def test_a_boolean_ceiling_is_refused_rather_than_converted(value: str) -> None:
         f"the fault must carry the Boolean it refused, not its text: "
         f"{raised.value.value!r}"
     )
+
+
+def test_a_sibling_action_is_not_read_as_the_coverage_action() -> None:
+    """The identifier is a whole path, not a prefix of one.
+
+    A substring test accepts any action whose path begins with this
+    one, so a repository that moved to a `generate-coverage-v2` would
+    still be reported as invoking the action this contract is about.
+    Every assertion resting on the job would then read the wrong step's
+    watchdog, and the loss would look exactly like coverage still being
+    wired.
+    """
+    sibling = f"{COVERAGE_ACTION}-v2@abc123"
+    assert not coverage_jobs_in(
+        {"controlled.yml": workflow(step_uses=sibling)}
+    ), f"{sibling} is a different action and must not be read as the coverage one"
+
+
+def test_the_coverage_action_itself_is_still_read() -> None:
+    """Assert the narrowing above is narrow, not merely strict.
+
+    A comparison that rejected everything would satisfy the test above
+    and quietly empty the contract, so the action this repository does
+    invoke is pinned beside the sibling it must not match.
+    """
+    assert coverage_jobs_in(
+        {"controlled.yml": workflow(step_uses=f"{COVERAGE_ACTION}@abc123")}
+    ), "the coverage action at its own path must still be recognized"
