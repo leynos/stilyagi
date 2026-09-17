@@ -95,3 +95,26 @@ def test_a_ceiling_that_is_not_a_scalar_is_reported_too() -> None:
         coverage_jobs_in({"controlled.yml": document_with_list})
     assert raised.value.field == "timeout-minutes", raised.value
     assert raised.value.value == [90], raised.value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [pytest.param("true", id="true"), pytest.param("false", id="false")],
+)
+def test_a_boolean_ceiling_is_refused_rather_than_converted(value: str) -> None:
+    """YAML's bare `true` and `false` are Booleans, and `float` takes them.
+
+    `bool` subclasses `int` in Python and does not in YAML, so a match
+    arm written as `int()` catches them and `float()` turns them into a
+    one-minute and a zero-minute ceiling. Either reads as a ceiling that
+    is present and correctly ordered below everything above it, and
+    either would cancel the lane before it had begun. A Boolean is not a
+    budget, so it is refused where it is declared.
+    """
+    with pytest.raises(WorkflowConfigurationError) as raised:
+        coverage_jobs_in({"controlled.yml": workflow({"ceiling": value})})
+    assert raised.value.field == "timeout-minutes", raised.value
+    assert raised.value.value is (value == "true"), (
+        f"the fault must carry the Boolean it refused, not its text: "
+        f"{raised.value.value!r}"
+    )

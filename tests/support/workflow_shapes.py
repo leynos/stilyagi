@@ -99,12 +99,13 @@ class WorkflowConfigurationError(WorkflowError):
         value : object
             The value as the document supplied it.
         """
-        super().__init__(
+        message = (
             f"{workflow}:{job} declares {field} as {value!r}, which is not a "
             f"number; a budget this contract cannot read is a budget nobody "
             f"has checked, and reading it as absent would credit the lane "
             f"with a default instead"
         )
+        super().__init__(message)
         self.workflow = workflow
         self.job = job
         self.field = field
@@ -150,7 +151,16 @@ def numeric_field(value: object, *, workflow: str, job: str, field: str) -> floa
     # can take, which is also what keeps the type checker satisfied
     # without a suppression.
     match value:
-        case bool() | int() | float() | str():
+        case bool():
+            # Answered before `int`, which `bool` subclasses in Python
+            # and does not in YAML. A bare `true` or `false` is a
+            # Boolean, and `float()` turns them into a 1 s and a 0 s
+            # budget: a ceiling of one second reads as present and
+            # ordered, and would cancel the lane almost immediately.
+            raise WorkflowConfigurationError(
+                workflow=workflow, job=job, field=field, value=value
+            )
+        case int() | float() | str():
             try:
                 return float(value)
             except ValueError as error:
