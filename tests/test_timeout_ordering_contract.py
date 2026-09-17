@@ -63,6 +63,17 @@ NEXTEST_CONFIG: typ.Final[Path] = REPO_ROOT / ".config" / "nextest.toml"
 #: was genuinely cold.
 OUTSIDE_WATCHDOG_ALLOWANCE_SECONDS: typ.Final[float] = 15 * 60.0
 
+#: The watchdog every coverage step must declare, in seconds.
+#:
+#: Pinned by value rather than merely required to be present. A watchdog
+#: of one second is present, is ordered below every ceiling above it, and
+#: passes an assertion that only rejects absence, while terminating
+#: `cargo` before the coverage step has begun. The sizing is the
+#: repository's: stilyagi's trybuild-heavy suite and its maturin
+#: extension build need this much headroom under cold instrumentation,
+#: and both workflows say so where they set it.
+REQUIRED_WATCHDOG_SECONDS: typ.Final[float] = 1800.0
+
 #: The condition each coverage lane legitimately carries, keyed by
 #: workflow and job, as a tuple of the step's ``if`` and its job's.
 #:
@@ -192,6 +203,31 @@ def test_every_coverage_step_runs_under_an_explicit_watchdog(
     assert not missing, (
         f"these coverage steps do not set {WATCHDOG_VARIABLE} and so inherit "
         f"the shared action's undocumented default: {missing}"
+    )
+
+
+def test_every_watchdog_is_the_value_this_repository_sized(
+    coverage_jobs: tuple[CoverageJob, ...],
+) -> None:
+    """Presence is not enough: a short watchdog passes every other test.
+
+    The ordering assertions only ask that each tier sits below the one
+    above it, so a watchdog of one second satisfies all of them and
+    terminates `cargo` almost immediately. A value is the only thing
+    that distinguishes a sized watchdog from an arbitrary one, and the
+    sizing is written down in both workflows.
+    """
+    wrong = [
+        f"{job}: step {index + 1} of {job.steps} sets {watchdog:g} s"
+        for job in coverage_jobs
+        for index, watchdog in enumerate(job.watchdogs)
+        if watchdog is not None and watchdog != REQUIRED_WATCHDOG_SECONDS
+    ]
+    assert not wrong, (
+        f"every coverage step must set {WATCHDOG_VARIABLE} to "
+        f"{REQUIRED_WATCHDOG_SECONDS:g} s, the value this repository sized "
+        f"for a cold instrumented run of the trybuild suite and the maturin "
+        f"build; these do not: {wrong}"
     )
 
 
