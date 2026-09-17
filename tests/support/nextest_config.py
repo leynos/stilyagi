@@ -158,9 +158,7 @@ def _budget_tables(config_text: str) -> list[tuple[str, dict[str, object]]]:
     for name, raw in declared.items():
         profile = _table(f"profile.{name}", raw)
         tables.append((f"profile.{name}", profile))
-        entries = _entries(
-            f"profile.{name}.overrides", profile.get("overrides")
-        )
+        entries = _entries(f"profile.{name}.overrides", profile.get("overrides"))
         tables.extend(
             (
                 f"profile.{name}.overrides[{index}]",

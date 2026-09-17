@@ -196,9 +196,7 @@ def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) ->
     ("duration", "operation"),
     [
         pytest.param("1.0ns", NANOSECOND_FRACTION, id="a-fraction-of-a-nanosecond"),
-        pytest.param(
-            "0.0000000001s", EXACT_DIVISION, id="a-division-with-a-remainder"
-        ),
+        pytest.param("0.0000000001s", EXACT_DIVISION, id="a-division-with-a-remainder"),
         pytest.param(f"{U64_MAX + 1}s", CHECKED_U64, id="a-literal-past-the-u64"),
     ],
 )

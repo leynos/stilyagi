@@ -135,9 +135,9 @@ def test_a_sibling_action_is_not_read_as_the_coverage_action() -> None:
     wired.
     """
     sibling = f"{COVERAGE_ACTION}-v2@abc123"
-    assert not coverage_jobs_in(
-        {"controlled.yml": workflow(step_uses=sibling)}
-    ), f"{sibling} is a different action and must not be read as the coverage one"
+    assert not coverage_jobs_in({"controlled.yml": workflow(step_uses=sibling)}), (
+        f"{sibling} is a different action and must not be read as the coverage one"
+    )
 
 
 def test_the_coverage_action_itself_is_still_read() -> None:
@@ -147,6 +147,6 @@ def test_the_coverage_action_itself_is_still_read() -> None:
     and quietly empty the contract, so the action this repository does
     invoke is pinned beside the sibling it must not match.
     """
-    assert coverage_jobs_in(
-        {"controlled.yml": workflow(step_uses=f"{COVERAGE_ACTION}@abc123")}
-    ), "the coverage action at its own path must still be recognized"
+    assert coverage_jobs_in({
+        "controlled.yml": workflow(step_uses=f"{COVERAGE_ACTION}@abc123")
+    }), "the coverage action at its own path must still be recognized"
