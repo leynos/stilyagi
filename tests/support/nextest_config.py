@@ -25,20 +25,88 @@ from tests.support.timeout_budgets import (
 )
 
 
-def _table(value: object) -> dict[str, object]:
-    """Return a parsed value as a table, or an empty one.
+def _table(path: str, value: object) -> dict[str, object]:
+    """Return a parsed value as a table, refusing one of another shape.
+
+    Absent and malformed are different answers and were the same one.
+    Reading ``overrides = "invalid"`` as an empty list, or a profile
+    written as a string as an empty table, drops the tables a budget
+    lives in and leaves the reading to report whatever remains: a
+    profile keeping a valid ``slow-timeout`` beside a malformed
+    ``overrides`` reported the profile's own budget as the largest, and
+    nothing said the overrides had not been read. nextest refuses such a
+    file outright, so a contract deriving a budget from it certifies a
+    configuration that cannot run.
+
+    Missing stays missing; the callers below decide what that means.
 
     Parameters
     ----------
+    path : str
+        The dotted path of the value, for the message.
     value : object
         Any value ``tomllib`` produced.
 
     Returns
     -------
     dict[str, object]
-        The table, or an empty one when the value is not a table.
+        The table.
+
+    Raises
+    ------
+    NextestConfigurationError
+        If the value is present and is not a table.
     """
-    return dict(value) if isinstance(value, dict) else {}
+    match value:
+        case None:
+            return {}
+        case dict():
+            return dict(value)
+        case _:
+            message = (
+                f"{path} is {value!r}, which is not a table; nextest refuses "
+                f"the file, so no budget can be read from it"
+            )
+            raise NextestConfigurationError(message, field=path, value=value)
+
+
+def _entries(path: str, value: object) -> list[object]:
+    """Return an ``overrides`` value as a list, refusing another shape.
+
+    nextest defines ``overrides`` as an array of tables. Anything else
+    was silently read as no overrides at all, which is the dangerous
+    direction: the per-test allowances those entries carry vanish from
+    the reading and the whole-run ceiling is approved against the
+    profile's base timeout alone.
+
+    Parameters
+    ----------
+    path : str
+        The dotted path of the value, for the message.
+    value : object
+        Any value ``tomllib`` produced.
+
+    Returns
+    -------
+    list of object
+        The entries.
+
+    Raises
+    ------
+    NextestConfigurationError
+        If the value is present and is not a list.
+    """
+    match value:
+        case None:
+            return []
+        case list():
+            return list(value)
+        case _:
+            message = (
+                f"{path} is {value!r}, which is not an array of tables; "
+                f"nextest refuses the file, so no budget can be read from it"
+            )
+            raise NextestConfigurationError(message, field=path, value=value)
 
 
 def _parsed(config_text: str) -> dict[str, object]:
@@ -86,13 +154,18 @@ def _budget_tables(config_text: str) -> list[tuple[str, dict[str, object]]]:
         The dotted path and the table, in file order.
     """
     tables: list[tuple[str, dict[str, object]]] = []
-    for name, raw in _table(_parsed(config_text).get("profile")).items():
-        profile = _table(raw)
+    declared = _table("profile", _parsed(config_text).get("profile"))
+    for name, raw in declared.items():
+        profile = _table(f"profile.{name}", raw)
         tables.append((f"profile.{name}", profile))
-        overrides = profile.get("overrides")
-        entries = overrides if isinstance(overrides, list) else []
+        entries = _entries(
+            f"profile.{name}.overrides", profile.get("overrides")
+        )
         tables.extend(
-            (f"profile.{name}.overrides[{index}]", _table(entry))
+            (
+                f"profile.{name}.overrides[{index}]",
+                _table(f"profile.{name}.overrides[{index}]", entry),
+            )
             for index, entry in enumerate(entries)
         )
     return tables
@@ -296,7 +369,10 @@ def global_timeout(config_text: str) -> float | None:
         none. A value that is present but is not a duration string is
         refused by :func:`_duration` rather than read as absent.
     """
-    profile = _table(_table(_parsed(config_text).get("profile")).get("default"))
+    profile = _table(
+        "profile.default",
+        _table("profile", _parsed(config_text).get("profile")).get("default"),
+    )
     if "global-timeout" not in profile:
         return None
     return seconds(
