@@ -33,7 +33,14 @@ def test_makefile_targets_build_ruff_commands_from_the_version_pin(
     expected_ruff_invocations: int,
 ) -> None:
     """Override the Ruff pin and verify every Ruff-using target honours it."""
-    for command in ("uv", "cargo", "rustfmt", "whitaker", "mdformat-all"):
+    for command in (
+        "uv",
+        "cargo",
+        "rustfmt",
+        "whitaker",
+        "mdtablefix",
+        "markdownlint-cli2",
+    ):
         cmd_mox.spy(command).returns()
 
     shim_dir = cmd_mox.environment.shim_dir
@@ -51,7 +58,8 @@ def test_makefile_targets_build_ruff_commands_from_the_version_pin(
                 f"UV={shim_dir / 'uv'}",
                 f"CARGO={shim_dir / 'cargo'}",
                 f"WHITAKER={shim_dir / 'whitaker'}",
-                f"MDFORMAT_ALL={shim_dir / 'mdformat-all'}",
+                f"MDTABLEFIX={shim_dir / 'mdtablefix'}",
+                f"MDLINT={shim_dir / 'markdownlint-cli2'}",
                 f"RUFF_VERSION={SENTINEL_RUFF_VERSION}",
                 target,
             ],

@@ -1,6 +1,13 @@
 MDLINT ?= markdownlint-cli2
+# `make fmt` and `make check-fmt` call mdtablefix directly. `--git` selects the
+# Markdown files Git tracks and `--include-untracked` adds the untracked files
+# Git does not ignore, so a new document is formatted before it is staged.
+# Both modes need mdtablefix 0.6.0 or later; CI pins the version at the
+# install-mdtablefix step.
+MDTABLEFIX ?= mdtablefix
+MDTABLEFIX_SELECT = --git --include-untracked
+MDTABLEFIX_RULES = --wrap --renumber --breaks --ellipsis --fences
 NIXIE ?= nixie
-MDFORMAT_ALL ?= mdformat-all
 CARGO ?= cargo
 WHITAKER ?= whitaker
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.local/bin:$(HOME)/.bun/bin:$(PATH)
@@ -117,7 +124,8 @@ $(error $(1) is required but not installed))
 endef
 
 tools:
-	$(call ensure_tool,$(MDFORMAT_ALL))
+	$(call ensure_tool,$(MDTABLEFIX))
+	$(call ensure_tool,$(MDLINT))
 	$(MAKE) tools-check
 
 tools-check:
@@ -126,7 +134,6 @@ tools-check:
 	$(call ensure_tool,uv)
 
 tools-docs:
-	$(call ensure_tool,$(MDLINT))
 	$(call ensure_tool,$(NIXIE))
 	$(call ensure_tool,uv)
 
@@ -136,12 +143,14 @@ tools-lint: tools-check
 fmt: tools ## Format sources
 	$(RUFF) format
 	$(RUFF) check --select I --fix
-	$(MDFORMAT_ALL)
+	$(MDTABLEFIX) --in-place $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
+	$(MDLINT) --fix "**/*.md"
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all
 
 check-fmt: tools-check ## Verify formatting
 	$(RUFF) format --check
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
+	$(MDTABLEFIX) --check $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
 
 lint: tools-lint ## Run linters, including the Whitaker Dylint suite
 	$(RUFF) check
@@ -167,6 +176,7 @@ typecheck: build tools-check ## Run typechecking
 	$(TY) check
 
 markdownlint: tools-docs spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
+	$(call ensure_tool,$(MDLINT))
 	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
 
 spelling: ## Enforce en-GB-oxendict spelling

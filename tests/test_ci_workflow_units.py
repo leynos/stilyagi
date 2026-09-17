@@ -111,13 +111,13 @@ def test_ci_workflow_calls_the_canonical_makefile_targets(
     assert_with_context(
         {
             "make check-fmt",
-            "make markdownlint",
+            "make spelling",
             "make nixie",
             "make typecheck",
             "make lint",
             "make test",
         }.issubset(run_commands),
-        "expected <'make check-fmt', 'make markdownlint', 'ma...",
+        "expected <'make check-fmt', 'make spelling', 'make n...",
     )
 
 
@@ -217,20 +217,21 @@ def test_ci_workflows_share_python_setup_configuration(
 def test_ci_workflow_resolves_interrogate_and_formatting_from_makefile(
     smoke_workflow: SmokeWorkflow,
 ) -> None:
-    """Resolve Interrogate and mdformat-all through the Makefile only.
+    """Resolve Interrogate and Markdown formatting through the Makefile only.
 
     Interrogate resolves from the locked dev dependency group through the
-    Makefile, so CI must not install it separately, and CI must not invoke
-    `mdformat-all` outside the Makefile either.
+    Makefile, so CI must not install it separately. CI installs mdtablefix
+    with the pinned action, but the formatter itself must only ever run
+    through `make check-fmt`.
     """
-    _jobs, workflow_steps, run_commands = smoke_workflow
+    _jobs, _workflow_steps, run_commands = smoke_workflow
     assert_with_context(
         all("interrogate" not in command for command in run_commands),
         "expected all(('interrogate' not in command for comma...",
     )
     assert_with_context(
-        all("mdformat-all" not in str(step) for step in workflow_steps),
-        "expected all(('mdformat-all' not in str(step) for st...",
+        all("mdtablefix" not in command for command in run_commands),
+        "expected all(('mdtablefix' not in command for comma...",
     )
 
 

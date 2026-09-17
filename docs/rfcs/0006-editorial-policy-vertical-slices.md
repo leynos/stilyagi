@@ -22,8 +22,8 @@ fix planning. The core should not hard-code one grammar officiant's taste into
 the extractor, the intermediate representation (IR), or the grammar provider.
 Instead, the roadmap should include `df12-editorial-style`, a first-party lint
 pack whose vertical slices prove Stilyagi can host opinionated spelling,
-punctuation, person, imperative, and phrase-style rules
-without losing the structural fast path.
+punctuation, person, imperative, and phrase-style rules without losing the
+structural fast path.
 
 `df12-editorial-style` serves two purposes:
 
@@ -475,13 +475,13 @@ rules.
 
 #### 6.3.2. Add the showcase-pack roadmap item
 
-The canonical task plan is [roadmap item 4.5](
-../roadmap.md#45-add-the-df12-editorial-style-showcase-pack). It adds the
-disabled-by-default `df12-editorial-style` pack after the grammar and spelling
-provider slices, covering policy configuration, the dictionary example, gap
-probes, person and imperative rules, punctuation rules, and adoption guidance.
-This RFC records the design intent; the roadmap remains the source of truth for
-task breakdown, dependencies, and acceptance criteria.
+The canonical task plan is
+[roadmap item 4.5](../roadmap.md#45-add-the-df12-editorial-style-showcase-pack).
+It adds the disabled-by-default `df12-editorial-style` pack after the grammar
+and spelling provider slices, covering policy configuration, the dictionary
+example, gap probes, person and imperative rules, punctuation rules, and
+adoption guidance. This RFC records the design intent; the roadmap remains the
+source of truth for task breakdown, dependencies, and acceptance criteria.
 
 ### 6.4. Rule-code sketch
 
@@ -560,8 +560,8 @@ Minimum acceptance coverage:
 - Python-facing rule-pack and configuration activation states should map to
   Hypothesis properties.
 - These properties should prove that source-backed fixes stay within valid,
-  unambiguous ranges; providers activate only when selected rules require
-  them; and disabled-by-default rules remain inert until explicitly selected.
+  unambiguous ranges; providers activate only when selected rules require them;
+  and disabled-by-default rules remain inert until explicitly selected.
 - Reserve exhaustive proof for any substantive future lemma; ordinary
   configuration and provider plumbing should use property coverage instead.
 - The six `write-good` gap probes across at least one Markdown fixture and one

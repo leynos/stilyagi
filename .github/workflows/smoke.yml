@@ -62,10 +62,6 @@ jobs:
         with:
           bun-version: "1.2.21"
 
-      - name: Install Markdownlint CLI
-        run: |
-          bun install --no-progress --global markdownlint-cli2
-
       - name: Install Mermaid CLI
         run: |
           set -euxo pipefail
@@ -77,11 +73,30 @@ jobs:
         run: |
           uv tool install nixie-cli==1.0.0
 
+      - name: Install mdtablefix
+        # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
+        # first release with `--check` and `--git`.
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@c5a54701c8603a0fa756a6b34c49bc2af75a6c11
+        with:
+          version: "0.6.0"
+
       - name: Check formatting
         run: make check-fmt
 
-      - name: Markdown lint
-        run: make markdownlint
+      - name: Lint Markdown
+        # The upstream action rather than an installation of our own: its
+        # release carries the linter's whole dependency graph, so nothing is
+        # resolved from the registry at run time, and Dependabot manages the
+        # pin alongside the other actions. It reads .markdownlint-cli2.jsonc
+        # from the workspace, so the rules and ignores match `make markdownlint`.
+        uses: DavidAnson/markdownlint-cli2-action@4580e1612f6407034edd6c0e4e316d725920867b  # v24.2.0
+        with:
+          globs: '**/*.md'
+
+      - name: Spelling
+        # The action above covers the lint half of `make markdownlint`; this
+        # step keeps its en-GB-oxendict spelling half in CI.
+        run: make spelling
 
       - name: Mermaid lint
         run: make nixie

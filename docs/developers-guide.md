@@ -716,16 +716,15 @@ payloads.
 
 `stilyagi_ir::content_hash_for` computes the stable Secure Hash Algorithm
 (SHA-256) content hash that IR documents persist as `document.content_hash`.
-The digest suffix is rendered
-by the crate-internal `to_lower_hex` helper in `canonical_json.rs` rather than
-with the `{:x}` format specifier because `sha2` 0.11 changed `digest()` to
-return `hybrid_array::Array<u8, _>`, which does not implement `LowerHex`. The
-rendering stays lowercase and zero-padded so persisted IR hashes remain
-byte-identical.
+The digest suffix is rendered by the crate-internal `to_lower_hex` helper in
+`canonical_json.rs` rather than with the `{:x}` format specifier because `sha2`
+0.11 changed `digest()` to return `hybrid_array::Array<u8, _>`, which does not
+implement `LowerHex`. The rendering stays lowercase and zero-padded so
+persisted IR hashes remain byte-identical.
 
-The `crates/stilyagi-ir/tests/ui.rs` test runs a `trybuild` compile-fail fixture
-that verifies direct `format!("{digest:x}")` formatting does not compile for
-the `sha2` 0.11 digest output. The
+The `crates/stilyagi-ir/tests/ui.rs` test runs a `trybuild` compile-fail
+fixture that verifies direct `format!("{digest:x}")` formatting does not
+compile for the `sha2` 0.11 digest output. The
 `crates/stilyagi-ir/tests/ui/sha2_digest_lower_hex.stderr` file records the
 expected compiler diagnostic snapshot. If an intentional compiler diagnostic
 change occurs, refresh the snapshot with:
@@ -828,13 +827,19 @@ boundary:
 - `supported_region_kinds() -> tuple[str, ...]` returns the canonical
   region-kind names supplied by the Rust bridge. The result is cached and is
   the source used to identify region kinds recognized by Python.
-- `warn_unknown_ir_region_kinds(
-  ir_payload: collections.abc.Mapping[str, object] | None, *,
-  operation: str,
-  ) -> None` emits one warning for each canonical IR region kind returned by
-  the Rust bridge that Python does not recognize. Each warning includes the
-  operation, region index, and unknown kind. The helper does not alter the IR
-  payload or abort extraction.
+- `warn_unknown_ir_region_kinds` emits one warning for each canonical IR
+  region kind returned by the Rust bridge that Python does not recognize. Each
+  warning includes the operation, region index, and unknown kind. The helper
+  does not alter the IR payload or abort extraction. Signature:
+
+  ```python
+  warn_unknown_ir_region_kinds(
+      ir_payload: collections.abc.Mapping[str, object] | None,
+      *,
+      operation: str,
+  ) -> None
+  ```
+
 - `reset_extraction_state_for_tests() -> None` is test-only. It resets the
   process-wide syntax-vocabulary validation state and clears the cached
   `supported_region_kinds` result and known-kind lookup data. Tests that patch
@@ -977,9 +982,8 @@ structure without YAML type coercion. The helper accepts only a top-level
 mapping and raises `TypeError` with the message
 `A workflow must parse to a top-level mapping` for other document shapes.
 
-Both `tests/test_ci_workflow_units.py` and
-`tests/test_skylos_lint_contract.py` reuse this helper instead of maintaining
-separate workflow parsers.
+Both `tests/test_ci_workflow_units.py` and `tests/test_skylos_lint_contract.py`
+reuse this helper instead of maintaining separate workflow parsers.
 
 ### 6a. Python linting architecture
 
@@ -1268,8 +1272,8 @@ versions. The repository uses workflow-level pins and Makefile commands:
 
 - Ruff is pinned by the Makefile's `RUFF_VERSION` variable and the workflow's
   `RUFF_VERSION` environment variable. The `RUFF` command invokes
-  `uv tool run ruff@$(RUFF_VERSION)` in both cases. Interrogate is pinned in
-  the `pyproject.toml` `dev` dependency group and runs through
+  `uv tool run ruff@$(RUFF_VERSION)` in both cases. Interrogate is pinned in the
+  `pyproject.toml` `dev` dependency group and runs through
   `uv run --group dev`; CI must not install it separately.
 - `ty` is pinned by the Makefile's `TY_VERSION` variable and the workflow's
   `TY_VERSION` environment variable. The `TY` command invokes

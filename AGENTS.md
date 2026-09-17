@@ -200,9 +200,10 @@ project:
     ```sh
     $(UV_RUN) ruff format --check
     $(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
+    $(MDTABLEFIX) --check $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
     ```
 
-    validating Python and Rust formatting without modifying files.
+    validating Python, Rust, and Markdown formatting without modifying files.
   - `make lint` executes:
 
     ```sh
