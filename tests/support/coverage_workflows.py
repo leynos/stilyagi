@@ -3,27 +3,28 @@
 Separated from `tests/test_timeout_ordering_contract.py` so the reading
 and the assertions over it stay legible apart. The shapes are modelled
 only as far as this contract consumes them.
+
+The acquisition lives in `workflow_documents`, and `WORKFLOWS_DIRECTORY`
+and `workflow_documents` are re-exported here so a reader of a coverage
+lane keeps one import.
 """
 
 import typing as typ
-from pathlib import Path
 
-import yaml
-
+from tests.support.workflow_documents import (
+    WORKFLOWS_DIRECTORY,
+    workflow_documents,
+)
 from tests.support.workflow_shapes import (
     WorkflowDocument,
     WorkflowJob,
-    WorkflowReadingError,
     WorkflowStep,
     numeric_field,
 )
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
-
-WORKFLOWS_DIRECTORY: typ.Final[Path] = (
-    Path(__file__).resolve().parents[2] / ".github" / "workflows"
-)
+    from pathlib import Path
 
 #: The environment variable the shared coverage action reads for its
 #: wall-clock cap on one `cargo` invocation.
@@ -156,79 +157,6 @@ def _watchdog_of(
     return None
 
 
-def workflow_documents(
-    directory: Path = WORKFLOWS_DIRECTORY,
-) -> dict[str, WorkflowDocument]:
-    """Return every workflow document in a directory, keyed by file name.
-
-    Both extensions are read. A coverage lane in the other one would
-    otherwise escape every assertion below without failing anything.
-
-    The directory is a parameter so this acquisition can be pointed at a
-    temporary tree. A document that is not a mapping is skipped rather
-    than raising: a workflow file holding a list or a bare scalar
-    declares no jobs, so it contributes no lane, and failing here would
-    fail the whole contract on a file that has nothing to do with
-    coverage. A file that cannot be read at all is a different matter,
-    and is reported rather than skipped: a workflow the reading never
-    saw could hold the lane the contract exists to bound.
-
-    Parameters
-    ----------
-    directory : Path
-        Directory of workflow files. Defaults to the repository's own.
-
-    Returns
-    -------
-    dict[str, WorkflowDocument]
-        File name to parsed document.
-    """
-    documents: dict[str, WorkflowDocument] = {}
-    for pattern in ("*.yml", "*.yaml"):
-        for path in sorted(directory.glob(pattern)):
-            match _parsed_workflow(path):
-                case dict() as document:
-                    documents[path.name] = typ.cast("WorkflowDocument", document)
-                case _:
-                    continue
-    return documents
-
-
-def _parsed_workflow(path: Path) -> object:
-    """Return one workflow file's parsed contents.
-
-    Parameters
-    ----------
-    path : Path
-        The workflow file to read.
-
-    Returns
-    -------
-    object
-        Whatever the file holds, which need not be a mapping.
-
-    Raises
-    ------
-    WorkflowReadingError
-        If the file cannot be read, if its bytes are not UTF-8, or if
-        its text is not YAML.
-    """
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        # UnicodeDecodeError descends from ValueError, not OSError, so a
-        # workflow holding bytes that are not UTF-8 would otherwise
-        # escape this boundary and surface as a decoding error naming a
-        # byte offset, with nothing saying which workflow it came from.
-        message = f"{path} could not be read: {exc}"
-        raise WorkflowReadingError(message, path=path) from exc
-    try:
-        return yaml.safe_load(text)
-    except yaml.YAMLError as exc:
-        message = f"{path} is not YAML: {exc}"
-        raise WorkflowReadingError(message, path=path) from exc
-
-
 def _jobs_of(document: WorkflowDocument) -> dict[str, WorkflowJob]:
     """Return a document's jobs with a narrow test-local shape.
 
@@ -296,6 +224,11 @@ def _invokes_coverage(step: WorkflowStep) -> bool:
     ``generate-coverage-v2``, so the contract would report the coverage
     action as present in a lane that no longer invokes it, and every
     assertion resting on that lane would pass over the wrong step.
+
+    Returns
+    -------
+    bool
+        True when the step invokes the shared coverage action itself.
     """
     uses = step.get("uses")
     match uses:
