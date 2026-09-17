@@ -1336,12 +1336,12 @@ module example claimed a single `docs/guide.md` while the repository holds
 fifty-odd documents, and the function example indexed an empty list for a
 `notes.md` that does not exist. Both now build their input in a temporary
 directory and are true wherever they run. Two more were escaping mistakes
-inside raw docstrings: the renderer example expected a literal backslash-n in
-a repr, and the workflow loader example passed YAML whose newlines were two
-characters rather than one, so it raised instead of parsing. The fifth echoed
-a whole extracted document from inside a `try` block. All five were corrected
-in the docstring; none needed a code change, and only the pre-existing
-`+SKIP` on the command-line entry point remains inert.
+inside raw docstrings: the renderer example expected a literal backslash-n in a
+repr, and the workflow loader example passed YAML whose newlines were two
+characters rather than one, so it raised instead of parsing. The fifth echoed a
+whole extracted document from inside a `try` block. All five were corrected in
+the docstring; none needed a code change, and only the pre-existing `+SKIP` on
+the command-line entry point remains inert.
 
 The doctest pass collects twenty items, of which nineteen run and one is that
 `+SKIP`. The ordinary pass moves from 336 items to 340, which is the four
@@ -1363,9 +1363,9 @@ joins them as one contiguous fragment rather than as separate lines: deleting
 the doctest command fails it, chaining the two with `;` fails it, and so does
 slipping a line between them. That last one is why adjacency is asserted at
 all. Two membership checks are both satisfied by `true || \` sitting between
-the commands, which makes the effective expression `(pytest && true) ||
-doctest`, so a failing suite is followed by a passing doctest run and the
-failure never reaches the recipe's exit status.
+the commands, which makes the effective expression
+`(pytest && true) || doctest`, so a failing suite is followed by a passing
+doctest run and the failure never reaches the recipe's exit status.
 
 ## 7. Development responsibilities
 
@@ -1788,9 +1788,8 @@ margin the estate asks for above every requirement. A ceiling equal to the sum
 it contains cancels the job at the moment the watchdog would have reported the
 overrun, and the report is the only thing that makes an overrun actionable, so
 the margin is a term of the requirement rather than slack that happens to be
-there. On the pull-request lane most of
-that gap is the linting and the Python suite, which run outside the coverage
-step and so outside the watchdog.
+there. On the pull-request lane most of that gap is the linting and the Python
+suite, which run outside the coverage step and so outside the watchdog.
 
 None of those runs was genuinely cold. One run is the coldest seen so far, not
 a measurement of the cold case.
@@ -1810,13 +1809,13 @@ Each reading takes what it reads rather than fetching it. `coverage_jobs_in`
 queries supplied workflow documents and `coverage_jobs` is the acquisition
 around it, taking the directory it scans, which is how a lane that does not
 exist in this repository can be put to the reading at all.
-`tests/test_coverage_workflow_reading.py` does exactly that: both coverage lanes
-here are well formed and both set the watchdog at workflow level, so the real
-files cannot tell a correct reading from one confined to the job, one counting a
-non-coverage step, one raising on a malformed document, or one reporting a
-missing ceiling as zero. A shape that cannot be read contributes no lane rather
-than ending the contract, because a workflow with nothing to do with coverage
-must not be able to fail it.
+`tests/test_coverage_workflow_reading.py` does exactly that: both coverage
+lanes here are well formed and both set the watchdog at workflow level, so the
+real files cannot tell a correct reading from one confined to the job, one
+counting a non-coverage step, one raising on a malformed document, or one
+reporting a missing ceiling as zero. A shape that cannot be read contributes no
+lane rather than ending the contract, because a workflow with nothing to do
+with coverage must not be able to fail it.
 
 A file that cannot be read at all is the opposite case, and ends the contract
 rather than being skipped: a workflow the reading never saw could hold the lane
@@ -1831,18 +1830,18 @@ from the reading that raises it.
 
 The nextest reading parses its input with `tomllib` rather than matching text.
 This repository has no `.config/nextest.toml`, which is why two tiers are
-missing, so those readings are what whoever adds the file will get. A text match
-would find a key inside a comment, inside a `filter` string, or in a table
-nextest never consults: a commented-out `global-timeout` would keep the presence
-assertion passing over a tier somebody had switched off, and a commented-out
-`grace-period` would raise the requirement this contract puts on the tier above
-it. `terminate-after` is optional, and a `slow-timeout` without it marks a test
-slow and never stops it, so the reading refuses that form rather than reporting
-one period as the budget. When it is set, nextest reads it as a non-zero
-unsigned integer, so a zero, a negative, a fraction, a quoted number and a
-boolean are each refused: coercing them numerically produced a budget for a
-configuration nextest will not load, and the rest raised out of the reading
-rather than being reported as a fault.
+missing, so those readings are what whoever adds the file will get. A text
+match would find a key inside a comment, inside a `filter` string, or in a
+table nextest never consults: a commented-out `global-timeout` would keep the
+presence assertion passing over a tier somebody had switched off, and a
+commented-out `grace-period` would raise the requirement this contract puts on
+the tier above it. `terminate-after` is optional, and a `slow-timeout` without
+it marks a test slow and never stops it, so the reading refuses that form
+rather than reporting one period as the budget. When it is set, nextest reads
+it as a non-zero unsigned integer, so a zero, a negative, a fraction, a quoted
+number and a boolean are each refused: coercing them numerically produced a
+budget for a configuration nextest will not load, and the rest raised out of
+the reading rather than being reported as a fault.
 
 Durations are read with the grammar `humantime` accepts, which is what nextest
 deserializes them with: a sequence of components each carrying a unit, written
@@ -1859,9 +1858,9 @@ ninety seconds. Whitespace inside the number is ignored too, so `1 0s` is ten
 seconds and `1 2 . 3 4 s` is 12.34. The short spellings `wk`, `wks`, `yr` and
 `yrs` are units alongside the longer ones. The bare `0` is the one duration
 humantime reads without a unit, and it is the exact text: its parser
-special-cases `0` before reading a character, so `" 0 "` is refused and a reader
-that stripped whitespace first would accept a duration nextest rejects. Case is
-significant, `m` being minutes and `M` months.
+special-cases `0` before reading a character, so `" 0 "` is refused and a
+reader that stripped whitespace first would accept a duration nextest rejects.
+Case is significant, `m` being minutes and `M` months.
 
 The watchdog is resolved at the innermost scope that declares it, blank
 included. GitHub takes the most specific declaration of an environment
@@ -1911,12 +1910,12 @@ which of the two fields it came from. Both are converted at the boundary
 between the parsed document and the budgets, by `numeric_field`, which raises
 `WorkflowConfigurationError` carrying all four. The cases for it live in
 `tests/test_workflow_budget_faults.py`, apart from the rest of the reading's
-cases so that neither module passes the 400-line limit. It joins the `WorkflowError`
-family, so a caller catching that family keeps catching this. The shape is
-narrowed before the conversion rather than after it: `float` raises
+cases so that neither module passes the 400-line limit. It joins the
+`WorkflowError` family, so a caller catching that family keeps catching this.
+The shape is narrowed before the conversion rather than after it: `float` raises
 `TypeError` for a `timeout-minutes` written as a YAML list and `ValueError`
-for one written as text, so a reading that caught only the second would let
-the first escape naming nothing. Refusing by shape covers both, and leaves no
+for one written as text, so a reading that caught only the second would let the
+first escape naming nothing. Refusing by shape covers both, and leaves no
 type-check suppression behind.
 
 Whitespace is Rust's, not Python's, and the class is written out for the same
@@ -1938,21 +1937,20 @@ of the pattern would otherwise turn a refusal into a silently different number.
 
 Two contracts hold it. Four refusal cases name the separators, including one
 between a digit and its unit, which is the shape nobody would notice in a file.
-The other pins the class in both directions, and the second direction is the one
-the refusal cases cannot see: a class that had lost a genuine space would make
-the reader refuse configurations nextest loads. Three mutations are caught, one
-per site.
+The other pins the class in both directions, and the second direction is the
+one the refusal cases cannot see: a class that had lost a genuine space would
+make the reader refuse configurations nextest loads. Three mutations are
+caught, one per site.
 
 A digit is `0` to `9` and nothing else. Python's `\d` matches every Unicode
 decimal digit and `int` reads them, so a reader written with it returns three
 hundred seconds for `\u0663\u0660\u0660s` and for the mixed `3\u0660\u0660s`,
 both of which humantime refuses: its parser compares against `'0'..='9'`,
-reporting
-"expected number at 0" for the run that opens with such a digit and "invalid
-character at 1" for the run that does not. The mixed spelling is the sharper
-case, because a reader that checked only its first character would still accept
-it. That is the wrong direction for a contract, which would then certify a
-configuration nextest cannot load.
+reporting "expected number at 0" for the run that opens with such a digit and
+"invalid character at 1" for the run that does not. The mixed spelling is the
+sharper case, because a reader that checked only its first character would
+still accept it. That is the wrong direction for a contract, which would then
+certify a configuration nextest cannot load.
 
 The arithmetic is exact and in integers, because humantime's is: its parser
 works in checked `u64` throughout and reports every failure as an overflow.
@@ -1970,12 +1968,12 @@ measured in, because one table in nanoseconds cannot express the rule at the
 hour.
 
 Four ceilings come with it, and they are different. A numeric literal must fit
-the `u64` humantime reads it into, so `1000000000000000000000ns` is refused even
-though its value in seconds is small. A fraction's own arithmetic is checked, so
-`0.1000000000000000000s` overflows on the multiplication and
+the `u64` humantime reads it into, so `1000000000000000000000ns` is refused
+even though its value in seconds is small. A fraction's own arithmetic is
+checked, so `0.1000000000000000000s` overflows on the multiplication and
 `1.00000000000000000000s` on the denominator, although both would fit as
-durations. The accumulated seconds must fit the `u64` they are summed into,
-so `18446744073709551615s` loads and one second more does not.
+durations. The accumulated seconds must fit the `u64` they are summed into, so
+`18446744073709551615s` loads and one second more does not.
 
 And the nanosecond remainder has a ceiling of its own, which is the one that
 catches a reader summing into an unbounded integer. `add_current` opens with
@@ -2027,26 +2025,24 @@ plausible number the ordering is then checked against.
 
 There is no `act` run behind any of this. `act` does not implement
 `timeout-minutes`, which GitHub enforces in the runner scheduler rather than in
-the job, and proving a 60-minute ceiling by observation would take a
-60-minute run. What can be checked statically is checked statically.
+the job, and proving a 60-minute ceiling by observation would take a 60-minute
+run. What can be checked statically is checked statically.
 
 It pins the condition each lane carries as well as its budgets. A skipped step
 runs no `cargo`, so its watchdog never arms and every assertion about the tiers
 says nothing about it: `if: false` on the step or on its job would leave a lane
-that looks bounded and is not. The conditions are pinned rather than
-forbidden because both are
-legitimate. The per-test tier is present only when a profile sets `terminate-after`.
-`slow-timeout = "2m"` and `slow-timeout = { period = "2m" }` both mark a test
-slow after two minutes and then let it run for ever, so the contract refuses
-either as a budget rather than reading it as two minutes: reporting the tier as
-present when it is absent would leave the whole-run budget checked against a
-number nextest never applies.
+that looks bounded and is not. The conditions are pinned rather than forbidden
+because both are legitimate. The per-test tier is present only when a profile
+sets `terminate-after`. `slow-timeout = "2m"` and
+`slow-timeout = { period = "2m" }` both mark a test slow after two minutes and
+then let it run for ever, so the contract refuses either as a budget rather
+than reading it as two minutes: reporting the tier as present when it is absent
+would leave the whole-run budget checked against a number nextest never applies.
 
-`smoke.yml` runs on pushes too, where the release
-smoke matters and coverage does not, so its coverage step is conditional on the
-pull-request event; `coverage-main.yml` is the trunk lane and runs
-unconditionally. A lane gaining, losing or changing a condition has to change
-this section with it.
+`smoke.yml` runs on pushes too, where the release smoke matters and coverage
+does not, so its coverage step is conditional on the pull-request event;
+`coverage-main.yml` is the trunk lane and runs unconditionally. A lane gaining,
+losing or changing a condition has to change this section with it.
 
 It pins each ceiling to the documented 60 minutes as well as deriving the 45
 minutes required. The derivation alone would accept a ceiling anywhere above
