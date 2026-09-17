@@ -87,6 +87,15 @@ NANOSECOND_UNITS: typ.Final[frozenset[str]] = frozenset(
 )
 
 
+#: The checked operation that declined, for each of the three places
+#: humantime's arithmetic can. Named rather than spelled at the raise
+#: sites, so the three stay distinct and a reader of a traceback can
+#: match one against the parser's source.
+CHECKED_U64: typ.Final[str] = "checked u64 arithmetic"
+EXACT_DIVISION: typ.Final[str] = "div with a remainder"
+NANOSECOND_FRACTION: typ.Final[str] = "a fraction of a nanosecond"
+
+
 class HumantimeOverflowError(Exception):
     """Raised where humantime's checked ``u64`` arithmetic would fail.
 
@@ -94,7 +103,31 @@ class HumantimeOverflowError(Exception):
     the cause: a literal past ``u64``, a multiplication that leaves it,
     or a division with a remainder. Catching one exception and reporting
     one fault keeps this reading's refusals aligned with the parser's.
+
+    Which one declined is carried rather than discarded. Reporting one
+    fault is right for the caller, which must refuse the same durations
+    the parser refuses; it is wrong for a reader of the traceback, who
+    is left with the exception type alone and no way to tell a literal
+    past the ``u64`` from a division with a remainder.
+
+    Attributes
+    ----------
+    operation : str
+        The checked operation that declined.
     """
+
+    def __init__(self, operation: str) -> None:
+        """Record which checked operation declined.
+
+        Parameters
+        ----------
+        operation : str
+            One of :data:`CHECKED_U64`, :data:`EXACT_DIVISION` or
+            :data:`NANOSECOND_FRACTION`.
+        """
+        message = f"humantime refuses this: {operation}"
+        super().__init__(message)
+        self.operation = operation
 
 
 def checked(value: int) -> int:
@@ -117,7 +150,7 @@ def checked(value: int) -> int:
         If it would not fit a ``u64``.
     """
     if value > U64_MAX:
-        raise HumantimeOverflowError
+        raise HumantimeOverflowError(CHECKED_U64)
     return value
 
 
@@ -145,7 +178,7 @@ def exact_division(numerator: int, denominator: int) -> int:
         If the division leaves a remainder.
     """
     if numerator % denominator:
-        raise HumantimeOverflowError
+        raise HumantimeOverflowError(EXACT_DIVISION)
     return numerator // denominator
 
 
@@ -237,7 +270,7 @@ def fractional_parts(numerator: int, denominator: int, unit: str) -> tuple[int, 
         fraction of a nanosecond included.
     """
     if unit in NANOSECOND_UNITS:
-        raise HumantimeOverflowError
+        raise HumantimeOverflowError(NANOSECOND_FRACTION)
     nanos_per = SUBSECOND_NANOSECONDS.get(unit)
     if nanos_per is not None:
         return 0, exact_division(checked(numerator * nanos_per), denominator)

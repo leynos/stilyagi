@@ -15,7 +15,13 @@ import pytest
 from hypothesis import given
 
 from tests.support.nextest_durations import _WHITESPACE_CHARS
-from tests.support.nextest_units import HumantimeOverflowError
+from tests.support.nextest_units import (
+    CHECKED_U64,
+    EXACT_DIVISION,
+    NANOSECOND_FRACTION,
+    U64_MAX,
+    HumantimeOverflowError,
+)
 from tests.support.timeout_budgets import NextestConfigurationError, seconds
 from tests.test_timeout_budget_properties import (
     UNITS,
@@ -186,7 +192,19 @@ def test_an_unreadable_duration_is_refused_rather_than_guessed(duration: str) ->
         seconds(duration)
 
 
-def test_a_refusal_names_the_arithmetic_that_produced_it() -> None:
+@pytest.mark.parametrize(
+    ("duration", "operation"),
+    [
+        pytest.param("1.0ns", NANOSECOND_FRACTION, id="a-fraction-of-a-nanosecond"),
+        pytest.param(
+            "0.0000000001s", EXACT_DIVISION, id="a-division-with-a-remainder"
+        ),
+        pytest.param(f"{U64_MAX + 1}s", CHECKED_U64, id="a-literal-past-the-u64"),
+    ],
+)
+def test_a_refusal_names_the_arithmetic_that_produced_it(
+    duration: str, operation: str
+) -> None:
     """The overflow that refused a component survives the translation.
 
     `NextestConfigurationError` says which configuration field is at
@@ -194,11 +212,22 @@ def test_a_refusal_names_the_arithmetic_that_produced_it() -> None:
     operations declined. Suppressing the second leaves a reader of the
     traceback with the sentence about fractions and no way to tell a
     literal past the `u64` from a division with a remainder.
+
+    Naming the operation is what makes that distinction available, so
+    all three are driven here rather than one: an `operation` set at a
+    single raise site would satisfy an assertion that only checked the
+    type, and the other two would carry nothing.
     """
     with pytest.raises(NextestConfigurationError) as refusal:
-        seconds("1.0ns")
-    assert isinstance(refusal.value.__cause__, HumantimeOverflowError), (
+        seconds(duration)
+    cause = refusal.value.__cause__
+    assert isinstance(cause, HumantimeOverflowError), (
         "the parser failure is the cause of the refusal, not a detail to drop"
+    )
+    assert cause.operation == operation, (
+        f"{duration!r} is refused by {operation}, and the cause says "
+        f"{cause.operation!r}; a reader of the traceback needs the one that "
+        f"actually declined"
     )
 
 
