@@ -33,27 +33,27 @@ def _run_failing_check(
     # A hard file error still renders the (empty) accumulated diagnostics before
     # the exit-2 signal, rather than suppressing stdout entirely.
     assert_with_context(
-        captured.out == "0 diagnostics found\n",
-        "expected captured.out == '0 diagnostics found\\n'",
+        captured.out == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected captured.out to include fix counts",
     )
     return captured.err
 
 
-def _patch_read_text_failure(
+def _patch_read_bytes_failure(
     monkeypatch: pytest.MonkeyPatch,
     target: pathlib.Path,
     error_factory: cabc.Callable[[], Exception],
 ) -> None:
-    """Make reads of the target file raise the supplied error."""
-    original_read_text = pathlib.Path.read_text
+    """Make byte reads of the target file raise the supplied error."""
+    original_read_bytes = pathlib.Path.read_bytes
 
-    def read_text(path: pathlib.Path, *args: object, **kwargs: object) -> str:
+    def read_bytes(path: pathlib.Path, *args: object, **kwargs: object) -> bytes:
         """Raise the injected failure for the target file only."""
         if path == target:
             raise error_factory()
-        return original_read_text(path, *args, **kwargs)
+        return original_read_bytes(path, *args, **kwargs)
 
-    monkeypatch.setattr(pathlib.Path, "read_text", read_text)
+    monkeypatch.setattr(pathlib.Path, "read_bytes", read_bytes)
 
 
 def _read_failure_fragments(
@@ -81,7 +81,7 @@ def _setup_permission_error(
     """Arrange a Markdown file whose read raises a permission failure."""
     target = tmp_path / "restricted.md"
     target.write_text("# Restricted\n", encoding="utf-8")
-    _patch_read_text_failure(
+    _patch_read_bytes_failure(
         monkeypatch,
         target,
         lambda: PermissionError("permission denied"),
@@ -103,7 +103,7 @@ def _setup_mid_run_disappearance(
         target.unlink()
         return FileNotFoundError("target disappeared during read")
 
-    _patch_read_text_failure(monkeypatch, target, vanish)
+    _patch_read_bytes_failure(monkeypatch, target, vanish)
     expected = (
         f"stilyagi check: failed to read {target.as_posix()}: "
         "target disappeared during read"
@@ -196,8 +196,38 @@ def test_cli_main_recovers_from_real_malformed_markdown(
     assert exit_code == 0, "expected exit_code == 0"
     assert not captured.err, "expected not captured.err"
     assert_with_context(
-        captured.out == "0 diagnostics found\n",
-        "expected captured.out == '0 diagnostics found\\n'",
+        captured.out == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected captured.out to include fix counts",
+    )
+
+
+def test_cli_main_preserves_crlf_source_for_extraction(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Pass CRLF source to the extractor without newline translation."""
+    source = (
+        pathlib.Path("tests/fixtures/corpus/markdown/valid/")
+        / "paragraph-soft-break-crlf.md.fixture"
+    ).read_bytes()
+    target = tmp_path / "notes.md"
+    target.write_bytes(source)
+    extracted_sources: list[str] = []
+
+    def capture_source(text: str, _syntax: object) -> model.Document:
+        """Record the source passed through the command-line pipeline."""
+        extracted_sources.append(text)
+        return model.Document(syntax=model.Syntax.MARKDOWN)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(engine, "extract_document", capture_source)
+
+    assert cli.main(["check", target.name]) == 0, "expected a clean check"
+    assert not capsys.readouterr().err, "expected no read error"
+    assert_with_context(
+        extracted_sources == [source.decode("utf-8")],
+        "expected extraction to receive the original CRLF text",
     )
 
 

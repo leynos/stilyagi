@@ -9,6 +9,7 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
     from stilyagi import diagnostics
+    from stilyagi.fixes import Fix
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +33,8 @@ class RendererRegistry:
         self,
         diagnostics_list: cabc.Iterable[diagnostics.Diagnostic],
         output_format: str | None = None,
+        *,
+        fix_errors: cabc.Iterable[diagnostics.FixError] = (),
     ) -> str:
         """Render diagnostics as either text or JSON.
 
@@ -56,19 +59,17 @@ class RendererRegistry:
             The requested output format is not supported.
         """
         effective_format = output_format or self.default_format
-        ordered_diagnostics = sorted(
-            diagnostics_list,
-            key=_diagnostic_sort_key,
-        )
+        ordered_diagnostics = sorted(diagnostics_list, key=_diagnostic_sort_key)
+        ordered_fix_errors = sorted(fix_errors, key=_fix_error_sort_key)
         _LOGGER.debug(
             "rendering %d diagnostic(s) as %s",
             len(ordered_diagnostics),
             effective_format,
         )
         if effective_format == "json":
-            return _render_json(ordered_diagnostics)
+            return _render_json(ordered_diagnostics, ordered_fix_errors)
         if effective_format == "text":
-            return _render_text(ordered_diagnostics)
+            return _render_text(ordered_diagnostics, ordered_fix_errors)
         _LOGGER.error("unsupported output format %r", effective_format)
         message = (
             f"unsupported output format {effective_format!r}; "
@@ -89,8 +90,16 @@ def _diagnostic_sort_key(
     )
 
 
+def _fix_error_sort_key(
+    fix_error: diagnostics.FixError,
+) -> tuple[str, str, tuple[str, ...]]:
+    """Sort independent fix errors without admitting them into rule ordering."""
+    return fix_error.path, fix_error.identifier, fix_error.rule_codes
+
+
 def _render_text(
     diagnostics_list: list[diagnostics.Diagnostic],
+    fix_errors: list[diagnostics.FixError],
 ) -> str:
     """Render diagnostics as one human-readable line per finding."""
     lines = [
@@ -98,30 +107,99 @@ def _render_text(
         f"{diagnostic.severity.value} {diagnostic.code} {diagnostic.message}"
         for diagnostic in diagnostics_list
     ]
-    count = len(diagnostics_list)
-    summary = "1 diagnostic found" if count == 1 else f"{count} diagnostics found"
+    lines.extend(_render_fix_error(fix_error) for fix_error in fix_errors)
+    summary = _text_summary(diagnostics_list)
     lines.append(summary)
     return "\n".join(lines) + "\n"
 
 
+def _render_fix_error(fix_error: diagnostics.FixError) -> str:
+    """Render one engine-level refusal with its distinct non-rule prefix."""
+    rule_codes = ", ".join(fix_error.rule_codes)
+    return (
+        f"{fix_error.identifier}: {fix_error.path}: {rule_codes}: {fix_error.message}"
+    )
+
+
+def _text_summary(diagnostics_list: list[diagnostics.Diagnostic]) -> str:
+    """Return the diagnostic summary with visible automatic-fix counts."""
+    diagnostic_count = len(diagnostics_list)
+    diagnostic_label = "diagnostic" if diagnostic_count == 1 else "diagnostics"
+    safe_count = sum(
+        diagnostic.fix is not None and diagnostic.fix.applicability == "safe"
+        for diagnostic in diagnostics_list
+    )
+    unsafe_count = sum(
+        diagnostic.fix is not None and diagnostic.fix.applicability == "unsafe"
+        for diagnostic in diagnostics_list
+    )
+    return (
+        f"{diagnostic_count} {diagnostic_label} found "
+        f"({_count_label(safe_count, 'safe fix')}, "
+        f"{_count_label(unsafe_count, 'unsafe fix')})"
+    )
+
+
+def _count_label(count: int, noun: str) -> str:
+    """Pluralize a counted text-renderer noun."""
+    suffix = "" if count == 1 else "es"
+    return f"{count} {noun}{suffix}"
+
+
 def _render_json(
     diagnostics_list: list[diagnostics.Diagnostic],
+    fix_errors: list[diagnostics.FixError],
 ) -> str:
     """Render diagnostics as a stable JSON document."""
     payload = {
+        "schema_version": "1.0.0",
         "diagnostics": [
-            {
-                "path": diagnostic.path,
-                "code": diagnostic.code,
-                "message": diagnostic.message,
-                "severity": diagnostic.severity.value,
-                "location": {
-                    "line": diagnostic.line or 1,
-                    "column": diagnostic.column or 1,
-                },
-                "fix_applicable": diagnostic.fix is not None,
-            }
-            for diagnostic in diagnostics_list
+            _diagnostic_payload(diagnostic) for diagnostic in diagnostics_list
         ],
+        "fix_errors": [_fix_error_payload(fix_error) for fix_error in fix_errors],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def _diagnostic_payload(diagnostic: diagnostics.Diagnostic) -> dict[str, object]:
+    """Serialize one diagnostic without coupling rendering to execution flags."""
+    return {
+        "path": diagnostic.path,
+        "code": diagnostic.code,
+        "message": diagnostic.message,
+        "severity": diagnostic.severity.value,
+        "location": {
+            "line": diagnostic.line or 1,
+            "column": diagnostic.column or 1,
+        },
+        "fix_applicable": diagnostic.fix is not None,
+        "fix": _fix_payload(diagnostic.fix),
+    }
+
+
+def _fix_payload(fix: Fix | None) -> dict[str, object] | None:
+    """Serialize a rule-authored fix when the diagnostic carries one."""
+    if fix is None:
+        return None
+    return {
+        "title": fix.title,
+        "applicability": fix.applicability.value,
+        "edits": [
+            {
+                "byte_start": edit.byte_start,
+                "byte_end": edit.byte_end,
+                "replacement": edit.replacement,
+            }
+            for edit in fix.edits
+        ],
+    }
+
+
+def _fix_error_payload(fix_error: diagnostics.FixError) -> dict[str, object]:
+    """Serialize one engine refusal outside the selectable rule diagnostics."""
+    return {
+        "identifier": fix_error.identifier,
+        "path": fix_error.path,
+        "rule_codes": list(fix_error.rule_codes),
+        "message": fix_error.message,
+    }

@@ -13,6 +13,22 @@ if typ.TYPE_CHECKING:
     from stilyagi.config import StilyagiConfig
 
 
+class RuleRunner(typ.Protocol):
+    """Private, unstable callable shape used by the check pipeline.
+
+    Plugin authors must not depend on this seam; it exists only while the
+    in-process rule engine is assembled in later roadmap work.
+    """
+
+    def __call__(
+        self,
+        document: model.Document,
+        config: StilyagiConfig,
+        /,
+    ) -> list[diagnostics.Diagnostic]:
+        """Return diagnostics produced for one extracted document."""
+
+
 def run_rules(
     _document: model.Document,
     _config: StilyagiConfig,

@@ -152,9 +152,10 @@ class OxfordCommaRule(Rule[OxfordCommaConfig]):
                         title="Insert serial comma",
                         applicability="safe",
                         edits=[
-                            TextEdit.insert_before(
-                                span=lst.final_conjunction_span(),
-                                text=",",
+                            TextEdit(
+                                byte_start=lst.final_conjunction_span().byte_start,
+                                byte_end=lst.final_conjunction_span().byte_start,
+                                replacement=",",
                             )
                         ],
                     ),
