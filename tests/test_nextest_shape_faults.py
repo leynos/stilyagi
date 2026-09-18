@@ -12,8 +12,16 @@ absent is the silent way to get that wrong.
 
 import pytest
 
-from tests.support.nextest_config import largest_test_allowance
-from tests.support.timeout_budgets import NextestConfigurationError
+from tests.support.nextest_config import (
+    grace_period,
+    largest_test_allowance,
+    termination_allowance,
+)
+from tests.support.timeout_budgets import (
+    NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
+    TERMINATION_SAFETY_MARGIN_SECONDS,
+    NextestConfigurationError,
+)
 
 
 @pytest.mark.parametrize(
@@ -88,3 +96,100 @@ def test_an_absent_overrides_key_still_reads_as_no_overrides() -> None:
     assert largest_test_allowance(config_text) == pytest.approx(600.0), (
         "a profile declaring no overrides reads as its own budget"
     )
+
+
+@pytest.mark.parametrize(
+    ("config_text", "field", "value"),
+    [
+        pytest.param(
+            "[profile.default]\nslow-timeout = 0\n",
+            "slow-timeout",
+            0,
+            id="a-slow-timeout-that-is-neither-a-table-nor-a-duration",
+        ),
+        pytest.param(
+            "[profile.default]\nslow-timeout = { period = 0, terminate-after = 1 }\n",
+            "period",
+            0,
+            id="a-period-that-is-present-and-not-a-duration",
+        ),
+    ],
+)
+def test_the_grace_period_reading_refuses_what_the_budget_reading_refuses(
+    config_text: str, field: str, value: object
+) -> None:
+    """Two readings of one field must not disagree about what it says.
+
+    `grace_period` filtered its input instead of validating it: it kept
+    tables and dropped everything else, then kept tables carrying a
+    `grace-period` and dropped the rest. So a `slow-timeout = 0`, and a
+    table whose `period` nextest will not read, both contributed nothing
+    and `termination_allowance` returned the ten-second default. The
+    budget derivation refused those same two forms.
+
+    That is the dangerous direction rather than the safe one. The
+    reading that refuses is the one nobody acts on; the reading that
+    returns a default puts a number on the termination tier for a file
+    the runner will not load, and the ordering contract then approves a
+    watchdog against it.
+
+    The declaring field and the offending value are both asserted. With
+    the shapes filtered out there is no `slow-timeout` left in the
+    document, so a reading can raise the same exception type for a
+    different reason entirely, and a test that only caught the type
+    would pass on the mutation that defeats it.
+    """
+    with pytest.raises(NextestConfigurationError) as raised:
+        grace_period(config_text)
+    assert (raised.value.field, raised.value.value) == (field, value), (
+        f"the refusal must name {field!r} and the value {value!r}; it named "
+        f"{raised.value.field!r} and {raised.value.value!r}"
+    )
+
+
+def test_a_missing_period_is_reported_apart_from_a_malformed_one() -> None:
+    """Absent and present-but-wrong are different faults.
+
+    Both were reported as "names no period" with the whole table as the
+    value, so a reader of the failure could not tell whether a key was
+    missing or written as something nextest will not read, and the
+    structured `value` pointed at the table rather than at the thing to
+    change.
+    """
+    with pytest.raises(NextestConfigurationError) as raised:
+        largest_test_allowance(
+            "[profile.default]\nslow-timeout = { terminate-after = 1 }\n"
+        )
+    assert raised.value.field == "period", "the absent key is still a period fault"
+    assert raised.value.value == {"terminate-after": 1}, (
+        "an absent key has no value of its own, so the table is what the "
+        "failure can point at"
+    )
+
+
+def test_a_well_formed_slow_timeout_without_a_grace_period_keeps_the_default() -> None:
+    """Assert the refusals above are narrow as well as sufficient.
+
+    A `grace_period` that refused every form it could not collect a
+    period from would satisfy both cases above and reject the
+    configuration this repository writes, where no `grace-period` is
+    named at all. Validating a form is not the same as requiring a key
+    inside it.
+
+    The bare duration form is here for the same reason. It is malformed
+    only as a budget, because it bounds no test, and that is the budget
+    reading's judgement to make rather than this one's; it carries no
+    grace period either way.
+    """
+    bounded = (
+        '[profile.default]\nslow-timeout = { period = "300s", terminate-after = 1 }\n'
+    )
+    bare = '[profile.default]\nslow-timeout = "300s"\n'
+    for config_text in (bounded, bare):
+        assert grace_period(config_text) == NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS, (
+            f"a well-formed slow-timeout naming no grace-period keeps "
+            f"nextest's default: {config_text!r}"
+        )
+        assert termination_allowance(config_text) == (
+            NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS + TERMINATION_SAFETY_MARGIN_SECONDS
+        ), f"and the allowance built on it: {config_text!r}"

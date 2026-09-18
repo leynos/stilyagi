@@ -81,8 +81,14 @@ def workflow(
     if "workflow_env" in given:
         lines += ["env:", f'  {WATCHDOG_VARIABLE}: "{given["workflow_env"]}"']
     lines += ["jobs:", "  coverage:", "    runs-on: ubuntu-latest"]
-    if ceiling := given.get("ceiling"):
-        lines.append(f"    timeout-minutes: {ceiling}")
+    if "ceiling" in given:
+        # Membership here too, and for the same reason the comment above
+        # gives. Written as `if ceiling := given.get(...)` this arm
+        # dropped a blank ceiling, so `timeout-minutes:` with nothing
+        # after it could not be built at all and the case it represents
+        # could not be tested. That is the shape a reader keyed on
+        # `get(...) is None` confuses with an absent key.
+        lines.append(f"    timeout-minutes: {given['ceiling']}")
     if "job_env" in given:
         lines += ["    env:", f'      {WATCHDOG_VARIABLE}: "{given["job_env"]}"']
     lines += ["    steps:", f"      - uses: {step_uses}"]

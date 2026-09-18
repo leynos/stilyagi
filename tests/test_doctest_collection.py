@@ -56,59 +56,66 @@ def _modules_with_examples() -> frozenset[pathlib.Path]:
     return frozenset(found)
 
 
-def test_the_doctest_lane_runs_the_examples() -> None:
-    """Assert the `test` recipe collects doctests from the named paths.
+class TestDoctestCollection:
+    """The doctest lane: that it runs, and that it covers what it should.
 
-    Naming the variable is not enough: a recipe that never passes
-    ``--doctest-modules`` leaves the list inert, which is the state this
-    repository was in.
+    Grouped because the four assertions are one subject read from four
+    angles. Two of them are satisfied by a sweep that finds nothing and
+    a list that names nothing, so they only mean anything alongside the
+    two that pin the sweep and the recipe. Reading them apart is how a
+    vacuous pair gets left in place.
     """
-    makefile = MAKEFILE.read_text(encoding="utf-8")
-    assert "--doctest-modules $(PY_DOCTEST_PATHS)" in makefile, (
-        "the test recipe does not hand PY_DOCTEST_PATHS to --doctest-modules"
-    )
 
+    def test_the_doctest_lane_runs_the_examples(self) -> None:
+        """Assert the `test` recipe collects doctests from the named paths.
 
-def test_every_module_with_an_example_is_collected() -> None:
-    """Assert the list in the Makefile covers every module with examples.
+        Naming the variable is not enough: a recipe that never passes
+        ``--doctest-modules`` leaves the list inert, which is the state this
+        repository was in.
+        """
+        makefile = MAKEFILE.read_text(encoding="utf-8")
+        assert "--doctest-modules $(PY_DOCTEST_PATHS)" in makefile, (
+            "the test recipe does not hand PY_DOCTEST_PATHS to --doctest-modules"
+        )
 
-    A module is covered by its own name or by an ancestor directory the
-    list names. The failure guarded against is a module gaining an
-    example that nothing then executes.
-    """
-    collected = _doctest_paths()
-    uncollected = sorted(
-        str(module)
-        for module in _modules_with_examples()
-        if str(module) not in collected
-        and not any(str(parent) in collected for parent in module.parents)
-    )
-    assert not uncollected, (
-        "these modules carry docstring examples that PY_DOCTEST_PATHS does "
-        f"not collect: {', '.join(uncollected)}"
-    )
+    def test_every_module_with_an_example_is_collected(self) -> None:
+        """Assert the list in the Makefile covers every module with examples.
 
+        A module is covered by its own name or by an ancestor directory the
+        list names. The failure guarded against is a module gaining an
+        example that nothing then executes.
+        """
+        collected = _doctest_paths()
+        uncollected = sorted(
+            str(module)
+            for module in _modules_with_examples()
+            if str(module) not in collected
+            and not any(str(parent) in collected for parent in module.parents)
+        )
+        assert not uncollected, (
+            "these modules carry docstring examples that PY_DOCTEST_PATHS does "
+            f"not collect: {', '.join(uncollected)}"
+        )
 
-def test_the_list_names_no_path_that_is_gone() -> None:
-    """Assert every named path still exists.
+    def test_the_list_names_no_path_that_is_gone(self) -> None:
+        """Assert every named path still exists.
 
-    A renamed or deleted path ends the whole lane rather than silently
-    collecting less, which is the cheaper end of the same drift.
-    """
-    missing = sorted(
-        path for path in _doctest_paths() if not (REPOSITORY_ROOT / path).exists()
-    )
-    assert not missing, f"PY_DOCTEST_PATHS names paths that do not exist: {missing}"
+        A renamed or deleted path ends the whole lane rather than silently
+        collecting less, which is the cheaper end of the same drift.
+        """
+        missing = sorted(
+            path for path in _doctest_paths() if not (REPOSITORY_ROOT / path).exists()
+        )
+        assert not missing, f"PY_DOCTEST_PATHS names paths that do not exist: {missing}"
 
+    def test_the_sweep_finds_the_modules_that_carry_examples(self) -> None:
+        """Assert the discovery is not empty, and names a module it must find.
 
-def test_the_sweep_finds_the_modules_that_carry_examples() -> None:
-    """Assert the discovery is not empty, and names a module it must find.
-
-    The two contracts above are both satisfied by a sweep returning
-    nothing, so the sweep itself is pinned.
-    """
-    modules = _modules_with_examples()
-    assert modules, "the sweep found no module carrying a docstring example"
-    assert pathlib.Path("python/stilyagi/cli.py") in modules, (
-        "the sweep missed a module known to carry examples"
-    )
+        The two contracts above are both satisfied by a sweep returning
+        nothing, so the sweep itself is pinned.
+        """
+        modules = _modules_with_examples()
+        assert modules, "the sweep found no module carrying a docstring example"
+        assert pathlib.Path("python/stilyagi/cli.py") in modules, (
+            "the sweep missed a module known to carry examples"
+        )

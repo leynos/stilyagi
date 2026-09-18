@@ -22,7 +22,11 @@ from tests.support.nextest_units import (
     U64_MAX,
     HumantimeOverflowError,
 )
-from tests.support.timeout_budgets import NextestConfigurationError, seconds
+from tests.support.timeout_budgets import (
+    NextestConfigurationError,
+    exact_seconds,
+    seconds,
+)
 from tests.test_timeout_budget_properties import (
     UNITS,
     fractional_parts,
@@ -365,3 +369,31 @@ def test_components_are_summed_in_the_order_they_are_written() -> None:
     )
     with pytest.raises(NextestConfigurationError):
         seconds("1ns 18446744073709551615ns")
+
+
+def test_the_exact_reading_separates_what_the_float_reading_merges() -> None:
+    """The reader keeps a nanosecond the float conversion cannot.
+
+    The narrow half of the near-limit ordering case in
+    `test_timeout_readings`. That one drives the budget readers and so
+    only fails when both of its terms round; a reading that collapsed
+    one of them could round upward and leave the ordering accidentally
+    intact. This drives the duration reader itself, where a collapse
+    fails whichever side of the comparison it happens on.
+
+    Around 2**64 a `float` carries about 2048 seconds between
+    representable values, so two durations a nanosecond apart become
+    one number. The reader accumulates whole seconds and a nanosecond
+    remainder as integers, and `exact_seconds` hands both back without
+    dividing.
+    """
+    lower = "18446744073709551615s"
+    upper = "18446744073709551615s 999999999ns"
+    assert exact_seconds(upper) > exact_seconds(lower), (
+        "the exact reading must keep the nanosecond that separates them"
+    )
+    assert seconds(upper) == seconds(lower), (
+        "the case only discriminates while the float reading merges the "
+        "two; if this fails, the pair has drifted off the limit and is no "
+        "longer exercising the rounding it was written for"
+    )

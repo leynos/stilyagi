@@ -124,6 +124,57 @@ def test_a_boolean_ceiling_is_refused_rather_than_converted(value: str) -> None:
     )
 
 
+def test_a_blank_ceiling_is_refused_rather_than_read_as_absent() -> None:
+    """YAML reaches `None` two ways, and they mean opposite things.
+
+    A job with no `timeout-minutes:` key declares no ceiling, which this
+    contract reports on rather than refuses: GitHub then applies its own
+    six-hour default and the guide records the lane. A job that writes
+    `timeout-minutes:` and leaves the scalar blank has declared one and
+    declared it as nothing, which is a budget the reading cannot use.
+
+    Read through `job.get("timeout-minutes")` the two are one value, so
+    the blank form took the no-ceiling path and was reported as an
+    absent ceiling. Membership is what separates them.
+
+    Driven through parsed YAML rather than a dict built in the test,
+    because a blank scalar is a property of the document and a dict
+    literal would be the test asserting its own `None`.
+    """
+    document = workflow({"ceiling": ""})
+    job = document["jobs"]["coverage"]
+    assert "timeout-minutes" in job, (
+        "the fixture must build a job that declares a ceiling; if it cannot, "
+        "this test asserts nothing"
+    )
+    assert job["timeout-minutes"] is None, (
+        "and the declared ceiling's value must be a YAML null, which is the "
+        "shape this test is about"
+    )
+    with pytest.raises(WorkflowConfigurationError) as raised:
+        coverage_jobs_in({"controlled.yml": document})
+    assert raised.value.field == "timeout-minutes", raised.value
+    assert raised.value.value is None, (
+        f"the fault must carry the null it refused: {raised.value.value!r}"
+    )
+
+
+def test_an_undeclared_ceiling_still_reads_as_no_ceiling() -> None:
+    """Assert the refusal above is narrow as well as sufficient.
+
+    A reading that refused every `None` would satisfy the case above and
+    refuse every job in this repository, none of which sets a
+    `timeout-minutes` at all. The absent form must stay a reported
+    absence rather than become a fault.
+    """
+    found = coverage_jobs_in({"controlled.yml": workflow()})
+    assert len(found) == 1, "the fixture declares one coverage job"
+    assert found[0].job_timeout is None, (
+        "a job with no timeout-minutes key declares no ceiling, and that is "
+        "an answer rather than a fault"
+    )
+
+
 def test_a_sibling_action_is_not_read_as_the_coverage_action() -> None:
     """The identifier is a whole path, not a prefix of one.
 

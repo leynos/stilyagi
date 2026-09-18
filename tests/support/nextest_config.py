@@ -11,17 +11,16 @@ runner does not use.
 """
 
 import tomllib
-import typing as typ
+from fractions import Fraction
 from itertools import starmap
 
+from tests.support.nextest_slow_timeouts import _budget_of, _slow_timeout_table
 from tests.support.timeout_budgets import (
     NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
     TERMINATION_SAFETY_MARGIN_SECONDS,
     NextestConfigurationError,
-    UnboundedTestError,
     _duration,
-    _multiplier,
-    seconds,
+    exact_seconds,
 )
 
 
@@ -189,7 +188,7 @@ def _slow_timeouts(config_text: str) -> list[tuple[str, object]]:
     ]
 
 
-def largest_test_allowance(config_text: str) -> float:
+def largest_test_allowance(config_text: str) -> Fraction:
     """Return the longest a single test may run, in seconds.
 
     nextest warns once per ``period`` and terminates after
@@ -202,8 +201,10 @@ def largest_test_allowance(config_text: str) -> float:
 
     Returns
     -------
-    float
-        The longest per-test budget.
+    Fraction
+        The longest per-test budget, in seconds and exactly. See
+        :func:`exact_seconds` for why this reading does not collapse to
+        a ``float``.
 
     A ``slow-timeout`` that terminates nothing raises
     :class:`UnboundedTestError` from :func:`_budget_of`, because such a
@@ -226,109 +227,22 @@ def largest_test_allowance(config_text: str) -> float:
     return max(budgets)
 
 
-def _budget_of(path: str, value: object) -> float:
-    """Return the per-test budget one ``slow-timeout`` declares.
-
-    Parameters
-    ----------
-    path : str
-        The dotted path of the declaring table, for the message.
-    value : object
-        The parsed value, a table or a bare duration.
-
-    Returns
-    -------
-    float
-        The budget in seconds.
-
-    A value that names no ``terminate-after``, in either spelling,
-    raises :class:`UnboundedTestError` from the helper that reads it.
-
-    Raises
-    ------
-    NextestConfigurationError
-        If the value is neither a table nor a duration.
-    """
-    match value:
-        case str():
-            return _bare_budget(path, value)
-        case dict():
-            return _table_budget(path, value)
-        case _:
-            message = f"{path}.slow-timeout is neither a table nor a duration"
-            raise NextestConfigurationError(message, field="slow-timeout", value=value)
-
-
-def _table_budget(path: str, table: dict[str, object]) -> float:
-    """Return one inline ``slow-timeout`` table's per-test budget.
-
-    Parameters
-    ----------
-    path : str
-        The dotted path of the declaring table, for the message.
-    table : dict[str, object]
-        The parsed table.
-
-    Returns
-    -------
-    float
-        The period multiplied by ``terminate-after``, in seconds.
-
-    Raises
-    ------
-    NextestConfigurationError
-        If the table names no ``period``, or names a ``terminate-after``
-        that is not a positive integer.
-    UnboundedTestError
-        If the table names no ``terminate-after``, so nextest warns
-        about a slow test forever and never stops it.
-    """
-    period = table.get("period")
-    if not isinstance(period, str):
-        message = f"{path}.slow-timeout names no period: {table!r}"
-        raise NextestConfigurationError(message, field="period", value=table)
-    multiplier = table.get("terminate-after")
-    if multiplier is None:
-        message = (
-            f"{path}.slow-timeout sets no terminate-after, so nextest marks "
-            f"the test slow and lets it run on; there is no per-test tier to "
-            f"compare against"
-        )
-        raise UnboundedTestError(message, field="terminate-after", value=table)
-    return seconds(period) * _multiplier(path, multiplier)
-
-
-def _bare_budget(path: str, period: str) -> typ.NoReturn:
-    """Refuse a ``slow-timeout`` written as a bare duration.
-
-    Parameters
-    ----------
-    path : str
-        The dotted path of the declaring table, for the message.
-    period : str
-        The duration the configuration named.
-
-    Raises
-    ------
-    UnboundedTestError
-        Always. The bare form sets a warning period with no
-        ``terminate-after``, so no test is ever terminated by it.
-    """
-    message = (
-        f'{path}.slow-timeout = "{period}" sets a warning period with no '
-        f"terminate-after, so nextest reports the test as slow and never "
-        f"stops it; there is no per-test tier to compare against"
-    )
-    raise UnboundedTestError(message, field="slow-timeout", value=period)
-
-
-def grace_period(config_text: str) -> float:
+def grace_period(config_text: str) -> Fraction:
     """Return the longest grace period the configuration names, in seconds.
 
     A ``grace-period`` that is present but is not a duration string is
     refused by :func:`_duration` rather than read as absent, so
     ``grace-period = 0`` is an error and not a silent fall back to
     nextest's ten-second default.
+
+    The ``slow-timeout`` carrying it is validated first, through the
+    same :func:`_slow_timeout_table` the budget derivation uses.
+    Filtering non-tables out instead let a whole malformed declaration
+    read as absent: ``slow-timeout = 0``, or a table whose ``period``
+    nextest will not read, contributed nothing and left
+    :func:`termination_allowance` returning the default. The budget
+    derivation refused those same forms, so the two readings of one
+    field disagreed, and in the dangerous direction.
 
     Parameters
     ----------
@@ -337,18 +251,20 @@ def grace_period(config_text: str) -> float:
 
     Returns
     -------
-    float
-        The largest configured grace period, or nextest's default.
+    Fraction
+        The largest configured grace period, or nextest's default, in
+        seconds and exactly.
     """
     periods = [
-        seconds(_duration(f"{path}.slow-timeout", "grace-period", grace))
+        exact_seconds(_duration(f"{path}.slow-timeout", "grace-period", grace))
         for path, value in _slow_timeouts(config_text)
-        if isinstance(value, dict) and (grace := value.get("grace-period")) is not None
+        if (table := _slow_timeout_table(path, value)) is not None
+        and (grace := table.get("grace-period")) is not None
     ]
-    return max(periods, default=NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS)
+    return max(periods, default=Fraction(NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS))
 
 
-def global_timeout(config_text: str) -> float | None:
+def global_timeout(config_text: str) -> Fraction | None:
     """Return the whole-run budget, or None when none is set.
 
     Read from ``[profile.default]`` alone. nextest's other profiles
@@ -362,9 +278,9 @@ def global_timeout(config_text: str) -> float | None:
 
     Returns
     -------
-    float or None
-        The whole-run budget in seconds, or None when the profile names
-        none. A value that is present but is not a duration string is
+    Fraction or None
+        The whole-run budget in seconds and exactly, or None when the
+        profile names none. A value that is present but is not a duration string is
         refused by :func:`_duration` rather than read as absent.
     """
     profile = _table(
@@ -373,12 +289,12 @@ def global_timeout(config_text: str) -> float | None:
     )
     if "global-timeout" not in profile:
         return None
-    return seconds(
+    return exact_seconds(
         _duration("profile.default", "global-timeout", profile["global-timeout"])
     )
 
 
-def termination_allowance(config_text: str) -> float:
+def termination_allowance(config_text: str) -> Fraction:
     """Return the time nextest may take to stop the run, in seconds.
 
     Two terms, not one: what nextest promises a test after ``SIGTERM``,
@@ -393,7 +309,10 @@ def termination_allowance(config_text: str) -> float:
 
     Returns
     -------
-    float
-        The grace period plus the safety margin.
+    Fraction
+        The grace period plus the safety margin, in seconds and
+        exactly. The margin is a ``float`` constant and is converted
+        rather than added, because mixing the two would round the sum
+        and undo the exactness the grace period was read with.
     """
-    return grace_period(config_text) + TERMINATION_SAFETY_MARGIN_SECONDS
+    return grace_period(config_text) + Fraction(TERMINATION_SAFETY_MARGIN_SECONDS)

@@ -268,22 +268,29 @@ def _coverage_job(
     if not steps:
         return None
     at = JobLocation(workflow=workflow, job=job_name)
-    raw_timeout = job.get("timeout-minutes")
+    # Membership rather than `get(...) is None`, because YAML has two
+    # ways to reach `None` and they mean opposite things. A job with no
+    # `timeout-minutes:` key declares no ceiling, which is a lane this
+    # contract reports on. A job with `timeout-minutes:` and a blank
+    # scalar declares one and declares it as nothing, which is a
+    # malformed ceiling. Read through `get` the two are the same value,
+    # so the malformed form took the no-ceiling path and was reported as
+    # an absent ceiling rather than refused.
     return CoverageJob(
         workflow=workflow,
         job=job_name,
         steps=len(steps),
         watchdogs=tuple(_watchdog_of(document, job, step, at) for step in steps),
         job_timeout=(
-            None
-            if raw_timeout is None
-            else numeric_field(
-                raw_timeout,
+            numeric_field(
+                job["timeout-minutes"],
                 workflow=at.workflow,
                 job=at.job,
                 field="timeout-minutes",
             )
             * 60.0
+            if "timeout-minutes" in job
+            else None
         ),
         conditions=tuple((step.get("if"), job.get("if")) for step in steps),
     )

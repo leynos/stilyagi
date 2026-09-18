@@ -73,91 +73,105 @@ def _make_test_invocation(
     )
 
 
-def test_the_test_recipe_runs_both_pytest_phases(
-    cmd_mox: CmdMox,
-    tmp_path: pathlib.Path,
-) -> None:
-    """Run `make test` hermetically and watch both phases execute.
+class TestMakeTestExecution:
+    """What `make test` actually invokes, as opposed to what it says.
 
-    The recipe's text is asserted above, and text is not execution: a
-    phase can be present in the file and unreachable in the run, behind
-    a prerequisite that fails or a conditional that never takes its
-    branch. Nothing here reads the Makefile; the journal is the
-    evidence, and it records what the shell actually invoked.
-
-    The doctest phase is the one this matters for. It was added to this
-    recipe rather than to a lane of its own, so the only thing making it
-    run is its position after `&&` in a recipe whose earlier half is a
-    full test suite.
-    """
-    for command in ("uv", "cargo", "rustfmt", "whitaker", "python"):
-        cmd_mox.spy(command).returns()
-
-    response = CommandRunner(cmd_mox.environment).run(
-        _make_test_invocation(cmd_mox),
-        dict(os.environ, HOME=str(tmp_path / "home")),
-    )
-    assert_with_context(response.exit_code == 0, response.stderr)
-
-    unit, doctest = _pytest_phase_indices(tuple(cmd_mox.journal))
-    assert_with_context(unit is not None, "expected the unit pytest phase to run")
-    assert_with_context(doctest is not None, "expected the doctest pytest phase to run")
-    assert_with_context(
-        typ.cast("int", unit) < typ.cast("int", doctest),
-        "expected the unit phase before the doctest phase",
-    )
-    doctest_invocation = tuple(cmd_mox.journal)[typ.cast("int", doctest)]
-    assert_with_context(
-        doctest_invocation.args[-2:] == ["python/stilyagi", "tests/support"],
-        f"expected the doctest phase to name both paths, got {doctest_invocation.args}",
-    )
-
-
-def test_a_failing_unit_phase_stops_the_recipe(
-    cmd_mox: CmdMox,
-    tmp_path: pathlib.Path,
-) -> None:
-    """A failing first phase must end the run, not be run past.
-
-    The two phases are joined by `&&`, and that is the whole of the
-    propagation: written as two recipe lines, or joined by `;`, a failed
-    unit suite would be followed by a doctest run and the target's
-    verdict would come from whichever finished last. Asserting that the
-    recipe contains `&&` would not show it, because the `&&` could be
-    there and the failure still swallowed by a preceding `-` or by a
-    subshell.
-
-    Only the unit phase is failed, by argument, because the same
-    interpreter runs the smoke check that `build` performs first. A spy
-    that failed every call would fail that instead and this test would
-    pass for the wrong reason.
+    Grouped because the two are one subject: that both pytest phases
+    run, and that a failure in the first ends the target. Neither is
+    readable from the Makefile's text, and neither means much without
+    the other, since a recipe that runs both phases and swallows the
+    first's failure passes the one and fails the repository.
     """
 
-    def fails_the_unit_phase(invocation: Invocation) -> tuple[str, str, int]:
-        """Fail only the unit phase, leaving every other call alone."""
-        is_unit_phase = (
-            invocation.args[:2] == ["-m", "pytest"]
-            and "--doctest-modules" not in invocation.args
+    def test_the_test_recipe_runs_both_pytest_phases(
+        self,
+        cmd_mox: CmdMox,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Run `make test` hermetically and watch both phases execute.
+
+        The recipe's text is asserted above, and text is not execution: a
+        phase can be present in the file and unreachable in the run, behind
+        a prerequisite that fails or a conditional that never takes its
+        branch. Nothing here reads the Makefile; the journal is the
+        evidence, and it records what the shell actually invoked.
+
+        The doctest phase is the one this matters for. It was added to this
+        recipe rather than to a lane of its own, so the only thing making it
+        run is its position after `&&` in a recipe whose earlier half is a
+        full test suite.
+        """
+        for command in ("uv", "cargo", "rustfmt", "whitaker", "python"):
+            cmd_mox.spy(command).returns()
+
+        response = CommandRunner(cmd_mox.environment).run(
+            _make_test_invocation(cmd_mox),
+            dict(os.environ, HOME=str(tmp_path / "home")),
         )
-        return ("", "the unit suite failed", 1) if is_unit_phase else ("", "", 0)
+        assert_with_context(response.exit_code == 0, response.stderr)
 
-    for command in ("uv", "cargo", "rustfmt", "whitaker"):
-        cmd_mox.spy(command).returns()
-    cmd_mox.spy("python").runs(fails_the_unit_phase)
+        unit, doctest = _pytest_phase_indices(tuple(cmd_mox.journal))
+        assert_with_context(unit is not None, "expected the unit pytest phase to run")
+        assert_with_context(
+            doctest is not None, "expected the doctest pytest phase to run"
+        )
+        assert_with_context(
+            typ.cast("int", unit) < typ.cast("int", doctest),
+            "expected the unit phase before the doctest phase",
+        )
+        doctest_invocation = tuple(cmd_mox.journal)[typ.cast("int", doctest)]
+        assert_with_context(
+            doctest_invocation.args[-2:] == ["python/stilyagi", "tests/support"],
+            "expected the doctest phase to name both paths, got "
+            f"{doctest_invocation.args}",
+        )
 
-    response = CommandRunner(cmd_mox.environment).run(
-        _make_test_invocation(cmd_mox),
-        dict(os.environ, HOME=str(tmp_path / "home")),
-    )
-    assert_with_context(
-        response.exit_code != 0,
-        "expected `make test` to fail when the unit suite fails",
-    )
+    def test_a_failing_unit_phase_stops_the_recipe(
+        self,
+        cmd_mox: CmdMox,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """A failing first phase must end the run, not be run past.
 
-    unit, doctest = _pytest_phase_indices(tuple(cmd_mox.journal))
-    assert_with_context(unit is not None, "expected the unit phase to have run")
-    assert_with_context(
-        doctest is None,
-        "expected no doctest phase after a failing unit suite; the failure was "
-        "run past rather than propagated",
-    )
+        The two phases are joined by `&&`, and that is the whole of the
+        propagation: written as two recipe lines, or joined by `;`, a failed
+        unit suite would be followed by a doctest run and the target's
+        verdict would come from whichever finished last. Asserting that the
+        recipe contains `&&` would not show it, because the `&&` could be
+        there and the failure still swallowed by a preceding `-` or by a
+        subshell.
+
+        Only the unit phase is failed, by argument, because the same
+        interpreter runs the smoke check that `build` performs first. A spy
+        that failed every call would fail that instead and this test would
+        pass for the wrong reason.
+        """
+
+        def fails_the_unit_phase(invocation: Invocation) -> tuple[str, str, int]:
+            """Fail only the unit phase, leaving every other call alone."""
+            is_unit_phase = (
+                invocation.args[:2] == ["-m", "pytest"]
+                and "--doctest-modules" not in invocation.args
+            )
+            return ("", "the unit suite failed", 1) if is_unit_phase else ("", "", 0)
+
+        for command in ("uv", "cargo", "rustfmt", "whitaker"):
+            cmd_mox.spy(command).returns()
+        cmd_mox.spy("python").runs(fails_the_unit_phase)
+
+        response = CommandRunner(cmd_mox.environment).run(
+            _make_test_invocation(cmd_mox),
+            dict(os.environ, HOME=str(tmp_path / "home")),
+        )
+        assert_with_context(
+            response.exit_code != 0,
+            "expected `make test` to fail when the unit suite fails",
+        )
+
+        unit, doctest = _pytest_phase_indices(tuple(cmd_mox.journal))
+        assert_with_context(unit is not None, "expected the unit phase to have run")
+        assert_with_context(
+            doctest is None,
+            "expected no doctest phase after a failing unit suite; the failure was "
+            "run past rather than propagated",
+        )

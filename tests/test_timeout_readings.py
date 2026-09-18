@@ -327,3 +327,43 @@ def test_an_absent_global_timeout_still_reads_as_absent() -> None:
         )
         is None
     ), "a profile naming no global-timeout must read as having none"
+
+
+def test_two_near_limit_budgets_order_by_their_exact_values() -> None:
+    """The whole-run comparison is strict, so its terms must not round.
+
+    Near the u64 ceiling a `float` has nothing like a nanosecond of
+    resolution. It carries 53 bits of mantissa, so around 2**64 the
+    representable values are about 2048 seconds apart, and every
+    duration inside one of those gaps becomes the same number:
+
+        seconds("18446744073709551615s")               1.8446744073709552e+19
+        seconds("18446744073709551615s 999999999ns")   1.8446744073709552e+19
+
+    The two configurations below are correctly ordered by a nanosecond.
+    Read as `float` they are equal, the strict `>` in
+    `test_a_whole_run_budget_would_sit_inside_each_watchdog` reads them
+    as a violation, and the contract fails a configuration nextest would
+    run. Both readings work in exact arithmetic for this reason.
+
+    The acceptance cases elsewhere in this module cannot catch it: they
+    compare through `pytest.approx`, which is the right tool for a
+    figure a person wrote down and the wrong one for an ordering.
+    """
+    config_text = document(
+        'slow-timeout = { period = "18446744073709551615s", terminate-after = 1 }\n'
+        'global-timeout = "18446744073709551615s 999999999ns"'
+    )
+    whole_run = global_timeout(config_text)
+    largest = largest_test_allowance(config_text)
+    assert whole_run is not None, "the profile names a global-timeout"
+    assert whole_run > largest, (
+        "the whole-run budget is a nanosecond above the largest per-test "
+        "allowance and must read as above it; as floats the two are the "
+        "same number and this comparison is false"
+    )
+    assert len({float(whole_run), float(largest)}) == 1, (
+        "the case only discriminates while the two collapse to one float; "
+        "if this fails the fixture has drifted off the limit and is no "
+        "longer exercising the rounding it was written for"
+    )

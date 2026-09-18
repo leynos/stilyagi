@@ -12,6 +12,7 @@ contract fail on a correct file and blame the file for it.
 
 import re
 import typing as typ
+from fractions import Fraction
 
 from tests.support.nextest_errors import NextestConfigurationError
 from tests.support.nextest_units import (
@@ -220,8 +221,23 @@ def _add_component(
     return total_seconds, total_nanoseconds
 
 
-def seconds(duration: str) -> float:
-    """Convert a nextest duration to seconds.
+def exact_seconds(duration: str) -> Fraction:
+    """Convert a nextest duration to seconds, losing nothing.
+
+    The reader accumulates a duration the way ``Duration`` holds one,
+    as whole seconds and a sub-second nanosecond remainder, and both
+    are integers. Collapsing them to a ``float`` is the only lossy step
+    in the whole reading, and near the u64 ceiling it is very lossy:
+    a ``float`` has 53 bits of mantissa, so around 2**64 the
+    representable values are about 2048 seconds apart and every
+    duration inside one of those gaps becomes the same number.
+
+    That matters because the whole-run budget is compared with the
+    largest per-test allowance by a strict ``>``. Two durations a
+    nanosecond apart at that end of the range collapse to one ``float``,
+    the comparison reads them as equal, and a valid ordering is reported
+    as a violation. The budget readers and the ordering contract
+    therefore work in exact arithmetic and only convert for display.
 
     Parameters
     ----------
@@ -231,8 +247,8 @@ def seconds(duration: str) -> float:
 
     Returns
     -------
-    float
-        The duration in seconds.
+    Fraction
+        The duration in seconds, exactly.
 
     Raises
     ------
@@ -240,7 +256,7 @@ def seconds(duration: str) -> float:
         If the text is not a duration nextest would accept.
     """
     if duration == _BARE_ZERO:
-        return 0.0
+        return Fraction(0)
     text = duration.strip(_WHITESPACE_CHARS)
     if not text:
         message = (
@@ -258,4 +274,28 @@ def seconds(duration: str) -> float:
             duration, total, (component_seconds, component_nanoseconds)
         )
     total_seconds, total_nanoseconds = total
-    return total_seconds + total_nanoseconds / NANOSECONDS_PER_SECOND
+    return Fraction(total_seconds) + Fraction(total_nanoseconds, NANOSECONDS_PER_SECOND)
+
+
+def seconds(duration: str) -> float:
+    """Convert a nextest duration to seconds, approximately.
+
+    For a caller that wants a number to print or to compare loosely.
+    Anything deriving a budget or ordering two of them wants
+    :func:`exact_seconds`, whose docstring says why.
+
+    Parameters
+    ----------
+    duration : str
+        A duration as nextest spells it.
+
+    Returns
+    -------
+    float
+        The duration in seconds, rounded to the nearest ``float``.
+
+    A text that is not a duration nextest would accept raises
+    :class:`NextestConfigurationError` from :func:`exact_seconds`, which
+    does the reading.
+    """
+    return float(exact_seconds(duration))

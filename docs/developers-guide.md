@@ -1876,6 +1876,48 @@ simply omitted and the case silently became the absent one. It tests membership
 now. A reading that skips a declared blank fails the two cases that describe
 it, and nothing else.
 
+The ceiling is the same distinction one field over, and the fixture had the
+same defect there too. `timeout-minutes:` with a blank scalar parses to `None`,
+and so does a job with no such key, but the two mean opposite things: the
+second declares no ceiling, which the contract reports on and GitHub answers
+with its own six-hour default, while the first declares one and declares it as
+nothing. Read through `job.get("timeout-minutes")` they are one value, so the
+blank form took the no-ceiling path and was reported as an absent ceiling. The
+reading tests membership now, and so does the builder, which could not construct
+`timeout-minutes:` with nothing after it while its ceiling arm was written as
+a truthiness check. A fixture that cannot build a case is a contract that could
+never have caught it.
+
+Two readings of one field must not disagree, and `grace_period` disagreed with
+the budget derivation. It filtered its input rather than validating it: it kept
+tables and dropped everything else, then kept tables carrying a `grace-period`.
+So a `slow-timeout = 0`, and a table whose `period` nextest will not read, both
+contributed nothing, and `termination_allowance` returned nextest's ten-second
+default for a configuration the runner refuses. The budget derivation refused
+those same two forms. That is the dangerous direction: the reading that refuses
+is the one nobody acts on, while the reading that returns a default puts a
+number on the termination tier and the ordering contract then approves a
+watchdog against it. Both now go through one `_slow_timeout_table`, in
+`tests/support/nextest_slow_timeouts.py`, which is the single place deciding
+what a well-formed `slow-timeout` is. A missing `period` and a malformed one
+are also reported apart, so the fault names the key to change rather than
+handing back the whole table.
+
+The budget readings work in exact arithmetic, and only convert to `float` for
+display. A `float` carries 53 bits of mantissa, so near the u64 ceiling
+`humantime` accumulates seconds in, representable values are about 2048 seconds
+apart and every duration inside one of those gaps becomes the same number:
+`18446744073709551615s` and `18446744073709551615s 999999999ns` are one
+`float`. The whole-run budget is compared with the largest per-test allowance
+by a strict `>`, so two correctly ordered durations at that end of the range
+would read as equal and the contract would fail a configuration nextest runs.
+The reader already accumulated whole seconds and a nanosecond remainder as
+integers, so `exact_seconds` simply hands both back as a `Fraction` and the
+collapse never happens; `seconds` remains for callers wanting a number to
+print. The safety margin and the cold-build allowance are `float` constants and
+are converted rather than added, because one `float` in a sum rounds the whole
+of it.
+
 The `test` target is watched rather than read. `test_makefile_recipes.py`
 asserts the recipe's text, and text is not execution: a phase can be present in
 the file and unreachable in the run, behind a prerequisite that fails or a

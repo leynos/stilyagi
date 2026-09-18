@@ -16,7 +16,7 @@ the reading a regular expression happens to give.
 
 import typing as typ
 
-from tests.support.nextest_durations import seconds
+from tests.support.nextest_durations import exact_seconds, seconds
 from tests.support.nextest_errors import (
     NextestConfigurationError,
     TimeoutBudgetError,
@@ -32,6 +32,7 @@ __all__ = [
     "NextestConfigurationError",
     "TimeoutBudgetError",
     "UnboundedTestError",
+    "exact_seconds",
     "seconds",
 ]
 

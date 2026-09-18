@@ -23,6 +23,7 @@ README.
 """
 
 import typing as typ
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
@@ -309,8 +310,14 @@ def test_a_whole_run_budget_would_sit_inside_each_watchdog(
         f"largest per-test allowance; the run would end before that test "
         f"could use its budget"
     )
+    # Every term is exact, and the cold-build constant is converted
+    # rather than added as a `float`: one `float` in the sum rounds the
+    # whole of it, which would put the comparison back where the strict
+    # `>` above started.
     required = (
-        whole_run + termination_allowance(nextest_config) + COLD_BUILD_ALLOWANCE_SECONDS
+        whole_run
+        + termination_allowance(nextest_config)
+        + Fraction(COLD_BUILD_ALLOWANCE_SECONDS)
     )
     for job in coverage_jobs:
         for index, watchdog in enumerate(job.watchdogs):
