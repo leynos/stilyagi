@@ -1,12 +1,22 @@
 name: Coverage (main)
 
-# CodeScene accepts `cs-coverage upload` only for analysed branches, so
-# main-branch coverage is uploaded here on push; pull requests generate
-# coverage in smoke.yml but do not yet run the CodeScene changed-line
-# gate (project 74422 lacks a gates configuration — see smoke.yml for
-# details). This workflow also advances the coverage ratchet baseline:
-# caches saved on main are readable by every pull-request run, so the
-# baseline written here is the one PR ratchet checks compare against.
+# The single publisher. CodeScene accepts `cs-coverage upload` only for
+# analysed branches, and this workflow is the one place in the
+# repository that runs a CodeScene action at all: no workflow serving
+# pull requests names one, receives `CS_ACCESS_TOKEN`, or invokes
+# `cs-coverage`.
+#
+# That is a policy rather than a gap. A pull request from a fork cannot
+# read the token, so the check there was a silent skip for exactly the
+# contributions least likely to have been measured; and on a branch it
+# put a second tool on the critical path for a gate the ratchet already
+# applies. `tests/test_codescene_coverage_contract.py` holds the shape.
+#
+# This workflow also advances the coverage ratchet baseline: caches
+# saved on main are readable by every pull-request run, so the baseline
+# written here is the one every pull request's ratchet compares
+# against. smoke.yml's generate-coverage selection therefore has to
+# match the one below field for field.
 #
 # workflow_dispatch lets the upload be re-run on demand: merges performed
 # by the automerge workflow's GITHUB_TOKEN do not fire push-event
@@ -59,7 +69,10 @@ jobs:
             makeutil
 
       - name: Generate coverage
-        uses: leynos/shared-actions/.github/actions/generate-coverage@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
+        # The selection here is the baseline every pull request's ratchet
+        # is measured against, so smoke.yml's must match it field for
+        # field.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           output-path: coverage.xml
           format: cobertura
@@ -71,8 +84,18 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           format: cobertura
+          # Named rather than left to the default, because this is the
+          # one workflow allowed to upload and the reader of these lines
+          # should not have to look the default up to know that.
+          mode: upload
           access-token: ${{ env.CS_ACCESS_TOKEN }}
-          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
+          # No checksum input. `installer-checksum` is rejected outright
+          # when non-empty from this pin, and `archive-checksum` digests
+          # the manifest archive rather than the installer script that
+          # the old `CODESCENE_CLI_SHA256` variable holds, so carrying
+          # the value across under the new name would fail every run.
+          # The action pins cs-coverage through its own manifest now,
+          # which is what that variable was standing in for.

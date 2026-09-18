@@ -1323,6 +1323,68 @@ If a workflow's behaviour genuinely depends on a feature only present from a
 particular commit onwards, express that as a comment or a changelog note, not
 as a test assertion on the SHA string.
 
+### 6g. CodeScene coverage belongs to main
+
+`coverage-main.yml` is the only workflow in this repository that runs a
+CodeScene action. It runs on pushes to main and on manual dispatch, it
+generates ratcheted coverage, and it uploads with `mode: upload`. No workflow
+serving pull requests names a CodeScene action, invokes `cs-coverage`, or puts
+`CS_ACCESS_TOKEN` in reach of any process.
+
+This is the estate rule `main-owned-codescene-coverage`, and it is a policy
+rather than a gap. A pull request from a fork cannot read the repository's
+secrets, so a changed-line check on that lane was a silent skip for exactly the
+contributions least likely to have been measured already. On a branch it put a
+second tool on the critical path, and when that tool's CLI stopped parsing
+cobertura it failed every pull request in six repositories for two days over a
+defect in none of them.
+
+What a pull-request lane keeps is the ratchet. `smoke.yml` runs
+`generate-coverage` with `with-ratchet: 'true'`, comparing against the baseline
+`coverage-main.yml` writes, and that applies the same "do not go backwards"
+gate from the repository's own history with no token and no second tool.
+
+**The two selections have to match.** The ratchet compares this commit's report
+against that baseline, so the inputs deciding *what* is measured, the output
+path, the format, the runner and the feature set, must agree between the two
+lanes. A difference there makes the comparison report the difference between
+two builds rather than between two commits, and it does so silently.
+`publish-artefact` is the deliberate exception: the pull-request lane sets it to
+`'false'` because the publisher owns the artefact, and two uploads of one name
+from two lanes race.
+
+**No checksum input.** `installer-checksum` is rejected outright when non-empty
+from the pinned action onwards, and `archive-checksum` is not a rename of it:
+it digests the action's CLI manifest archive, while the `CODESCENE_CLI_SHA256`
+repository variable holds the installer script's digest. Carrying the old value
+across under the new name fails every run. The action pins the CLI through its
+own manifest now, which is what that variable was standing in for; the variable
+is unreferenced and can be removed from the repository's settings.
+
+`tests/test_codescene_coverage_contract.py` holds the shape, reading the
+workflows through `tests/support/codescene_coverage.py`. Two things about that
+reading are worth knowing before changing it.
+
+The publisher is "pushes to main **and serves no pull request**". Both halves
+are load-bearing: `smoke.yml` declares `pull_request` and
+`push: branches: [main]` together, so a predicate reading only the push makes
+that one file simultaneously required to upload and forbidden from uploading,
+and the contract contradicts itself rather than failing.
+
+And the trigger reader looks under both `"on"` and the boolean `True`. YAML 1.1
+resolves an unquoted `on:` to a boolean, so a loader that resolves scalars keys
+every workflow in this estate under `True` and none under `on`. Every rule in
+that contract derives its subject from the triggers, so a reader finding
+nothing makes all of them pass over an empty set: not an error, and not a
+report of zero, but a report of compliance. `load_workflow` uses
+`yaml.BaseLoader` and keeps the string, and the reader covers both, so neither
+choice can empty the contract quietly.
+
+Per section 6f, none of those tests names a pin's SHA. They assert the shape,
+that both coverage lanes name the *same* commit, and that the Markdown linter
+is not pinned to the one annotated tag object this repository is known to have
+used. A Dependabot bump that moves both lanes together stays green.
+
 ## 7. Development responsibilities
 
 Maintainer responsibilities in this repository are stricter than a normal
