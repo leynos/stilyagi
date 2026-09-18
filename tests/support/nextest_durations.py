@@ -1,0 +1,301 @@
+"""Reading a nextest duration as the runner reads one.
+
+Separated from ``timeout_budgets`` so the grammar and the budget
+arithmetic stay legible apart, and so neither module outgrows the
+400-line limit ``AGENTS.md`` sets.
+
+nextest deserializes every duration with ``humantime_serde``. That
+grammar is wider than one number and a short unit, and a reader
+narrower than it refuses configuration nextest loads, which makes the
+contract fail on a correct file and blame the file for it.
+"""
+
+import re
+import typing as typ
+from fractions import Fraction
+
+from tests.support.nextest_errors import NextestConfigurationError
+from tests.support.nextest_units import (
+    NANOSECONDS_PER_SECOND,
+    SUBSECOND_NANOSECONDS,
+    U64_MAX,
+    UNIT_SECONDS,
+    HumantimeOverflowError,
+    component_parts,
+)
+
+#: One value-and-unit pair of a duration as ``humantime`` spells it.
+#: nextest deserializes every duration with ``humantime_serde``, which
+#: reads a sequence of such pairs and sums them, so ``"1h 30m"``,
+#: ``"1d"`` and ``"1w"`` are all configuration it accepts. A reader
+#: taking a single component with a short unit rejects a file nextest
+#: would load, and this contract would then blame the file for its own
+#: limitation.
+#:
+#: Rust's ``char::is_whitespace`` as a character-class body, written out
+#: because Python's ``\s`` is not the same set. Measured over the whole of
+#: Unicode: ``\s`` matches these twenty-five code points and also U+001C to
+#: U+001F, the file, group, record and unit separators, which Rust rejects;
+#: Rust matches nothing ``\s`` does not. A reader spelling its whitespace
+#: ``\s`` therefore skips a separator wherever it skips a space, and reads
+#: ``"1\x1cs"`` as one second from a configuration nextest refuses at
+#: startup.
+#:
+#: This is the digit lesson at a second class. ``[0-9]`` is spelled out
+#: below for the mirror-image reason: ``\d`` accepts Unicode digits Rust
+#: refuses.
+_WHITESPACE: typ.Final[str] = (
+    "\\x09\\x0a\\x0b\\x0c\\x0d\\x20\\x85\\xa0"
+    "\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000"
+)
+
+#: The same set as characters to trim and to drop. ``str.strip()`` and
+#: ``str.split()`` with no argument both use Python's set, separators
+#: included, which is the same defect away from the pattern.
+_WHITESPACE_CHARS: typ.Final[str] = (
+    "\x09\x0a\x0b\x0c\x0d\x20\x85\xa0\u1680"
+    + "".join(chr(cp) for cp in range(0x2000, 0x200B))
+    + "\u2028\u2029\u202f\u205f\u3000"
+)
+
+#: Digits with whitespace tolerated between them. humantime's parser
+#: skips whitespace while it accumulates a number, so ``"1 0s"`` is ten
+#: seconds rather than a malformed duration, and the same holds either
+#: side of the point: ``"1 2 . 3 4 s"`` is 12.34 seconds.
+#:
+#: The class is ``[0-9]`` and not ``\d``, which is the whole of the
+#: difference between the two parsers here. Python's ``\d`` matches
+#: every Unicode decimal digit and ``int`` reads them, so ``"\u0663\u0660\u0660s"``
+#: became three hundred seconds; humantime's parser compares against
+#: ``'0'..='9'`` and refuses the text, at offset 0 when the run opens
+#: with one and at the first such character otherwise. A reader wider
+#: than the parser certifies a configuration nextest cannot load.
+_SPACED_DIGITS: typ.Final[str] = rf"[0-9](?:[{_WHITESPACE}]*[0-9])*"
+
+#: The grammar was measured against humantime 2.3.0, which is what the
+#: lockfile of the pinned cargo-nextest release resolves (this
+#: repository pins ``cargo-nextest@0.9.138``), by compiling that parser
+#: and running the cases through it. The fractional part is optional and
+#: humantime tolerates whitespace around the point, so ``"1.5m"`` and
+#: ``"1 . 5 m"`` are both ninety seconds. A leading point, a missing
+#: fractional part, a second point, a sign and a digit separator are all
+#: refused there, and so are refused here.
+_COMPONENT: typ.Final[re.Pattern[str]] = re.compile(
+    # The micro sign is written as an escape: the literal is visually
+    # indistinguishable from the Greek small letter mu, and the lint
+    # gate refuses an ambiguous character in a string for that reason.
+    rf"(?P<value>{_SPACED_DIGITS}"
+    rf"(?:[{_WHITESPACE}]*\.[{_WHITESPACE}]*{_SPACED_DIGITS})?)"
+    rf"[{_WHITESPACE}]*(?P<unit>[A-Za-z\u00b5]+)[{_WHITESPACE}]*"
+)
+
+#: The one duration humantime reads with no unit. Its parser
+#: special-cases the exact text before reading a single character, so
+#: the comparison is against the raw value rather than a stripped one:
+#: ``" 0 "``, ``"0 "``, ``"00"`` and ``"0.0"`` are each refused, and a
+#: reader that stripped first would accept a duration nextest rejects.
+_BARE_ZERO: typ.Final[str] = "0"
+
+
+def _joined_digits(value: str) -> str:
+    """Join a spaced number's digits, dropping only Rust's whitespace."""
+    # humantime tolerates whitespace inside the number, so the matched
+    # value can read "1 . 5". `str.split` would also drop the four C0
+    # separators, which the pattern refuses. Nothing reaching here
+    # through `seconds` can tell the two apart, because the pattern
+    # refuses a separator before the join sees one; it is written this
+    # way so that a later widening of the pattern cannot turn a refusal
+    # into a silently different number.
+    return "".join(
+        character for character in value if character not in _WHITESPACE_CHARS
+    )
+
+
+def _component_at(duration: str, text: str, position: int) -> tuple[int, int, int]:
+    """Return one component's seconds and nanoseconds, and where it ends.
+
+    Parameters
+    ----------
+    duration : str
+        The whole duration, carried for the message so a failure names
+        what was configured rather than the tail being read.
+    text : str
+        The duration with its surrounding whitespace removed.
+    position : int
+        Where in ``text`` this component starts.
+
+    Returns
+    -------
+    tuple of (int, int, int)
+        The component's whole seconds, its nanoseconds, and the offset
+        at which the next component starts.
+
+    Raises
+    ------
+    NextestConfigurationError
+        If no component starts here, if its unit is not one humantime
+        accepts, or if its value is one humantime cannot represent.
+    """
+    component = _COMPONENT.match(text, position)
+    if component is None:
+        message = (
+            f"unrecognized nextest duration {duration!r}; nextest reads "
+            f"durations with humantime, which wants a sequence of numbers "
+            f'each carrying a unit, such as "60s", "2h 37m" or "1.5m"'
+        )
+        raise NextestConfigurationError(message, field="duration", value=duration)
+    unit = component["unit"]
+    if unit not in SUBSECOND_NANOSECONDS and unit not in UNIT_SECONDS:
+        message = (
+            f"nextest duration {duration!r} names the unit {unit!r}, which "
+            f"humantime does not accept; note that 'm' is minutes and 'M' "
+            f"is months"
+        )
+        raise NextestConfigurationError(message, field="duration", value=duration)
+    # humantime tolerates whitespace inside and around the number, so
+    # the matched value can read "1 . 5"; the digits are joined before
+    # the arithmetic reads them.
+    value = _joined_digits(component["value"])
+    try:
+        seconds_part, nanoseconds_part = component_parts(value, unit)
+    except HumantimeOverflowError as exc:
+        message = (
+            f"nextest duration {duration!r} carries a component humantime "
+            f"cannot represent: its arithmetic is checked u64 throughout, it "
+            f"converts a fraction of an hour or longer into whole seconds and "
+            f"a shorter one into whole nanoseconds, and it refuses any "
+            f"fraction of a nanosecond"
+        )
+        raise NextestConfigurationError(
+            message, field="duration", value=duration
+        ) from exc
+    return seconds_part, nanoseconds_part, component.end()
+
+
+def _add_component(
+    duration: str,
+    total: tuple[int, int],
+    component: tuple[int, int],
+) -> tuple[int, int]:
+    """Add one component to the running total, as ``add_current`` does."""
+    total_seconds, total_nanoseconds = total
+    component_seconds, component_nanoseconds = component
+    # humantime carries the total as whole seconds beside a nanosecond
+    # remainder, every sum between them a checked u64, and enforces both
+    # ceilings in this order.
+    #
+    # The remainder is bounded first, before any carry: `add_current`
+    # opens with `(out.subsec_nanos() as u64).add(nsec)?`. Two values of
+    # u64::MAX nanoseconds carry the first to 18,446,744,073 seconds and
+    # overflow on the second. The duration they name, about 36.9 billion
+    # seconds, sits nowhere near the seconds ceiling, which is the point:
+    # a reader summing into Python's unbounded integer and checking only
+    # the seconds afterwards finds them comfortably in range and reports
+    # a duration for text nextest will not start under.
+    total_nanoseconds += component_nanoseconds
+    if total_nanoseconds > U64_MAX:
+        message = (
+            f"nextest duration {duration!r} sums more nanoseconds than "
+            f"the u64 humantime holds them in before it carries them "
+            f"into seconds"
+        )
+        raise NextestConfigurationError(message, field="duration", value=duration)
+    # The carry happens at a complete second rather than past one.
+    # humantime leaves exactly a billion in the remainder and hands it to
+    # `Duration::new`, which carries it regardless and panics when the
+    # seconds then leave the u64, so `>` alone would read
+    # "18446744073709551615s 1000ms" as a duration one second past the
+    # ceiling that nextest cannot load by either route. Carrying at a
+    # complete second also keeps "0.5s 0.5s" at one second, as humantime
+    # reads it.
+    if total_nanoseconds >= NANOSECONDS_PER_SECOND:
+        component_seconds += total_nanoseconds // NANOSECONDS_PER_SECOND
+        total_nanoseconds %= NANOSECONDS_PER_SECOND
+    total_seconds += component_seconds
+    if total_seconds > U64_MAX:
+        message = (
+            f"nextest duration {duration!r} totals more seconds than the "
+            f"u64 humantime accumulates them in"
+        )
+        raise NextestConfigurationError(message, field="duration", value=duration)
+    return total_seconds, total_nanoseconds
+
+
+def exact_seconds(duration: str) -> Fraction:
+    """Convert a nextest duration to seconds, losing nothing.
+
+    The reader accumulates a duration the way ``Duration`` holds one,
+    as whole seconds and a sub-second nanosecond remainder, and both
+    are integers. Collapsing them to a ``float`` is the only lossy step
+    in the whole reading, and near the u64 ceiling it is very lossy:
+    a ``float`` has 53 bits of mantissa, so around 2**64 the
+    representable values are about 2048 seconds apart and every
+    duration inside one of those gaps becomes the same number.
+
+    That matters because the whole-run budget is compared with the
+    largest per-test allowance by a strict ``>``. Two durations a
+    nanosecond apart at that end of the range collapse to one ``float``,
+    the comparison reads them as equal, and a valid ordering is reported
+    as a violation. The budget readers and the ordering contract
+    therefore work in exact arithmetic and only convert for display.
+
+    Parameters
+    ----------
+    duration : str
+        A duration as nextest spells it, such as ``"60s"``, the
+        multi-component ``"2h 37m"`` or the fractional ``"1.5m"``.
+
+    Returns
+    -------
+    Fraction
+        The duration in seconds, exactly.
+
+    Raises
+    ------
+    NextestConfigurationError
+        If the text is not a duration nextest would accept.
+    """
+    if duration == _BARE_ZERO:
+        return Fraction(0)
+    text = duration.strip(_WHITESPACE_CHARS)
+    if not text:
+        message = (
+            f"unrecognized nextest duration {duration!r}: it is empty, and "
+            f"humantime reads no duration from nothing"
+        )
+        raise NextestConfigurationError(message, field="duration", value=duration)
+    total = (0, 0)
+    position = 0
+    while position < len(text):
+        component_seconds, component_nanoseconds, position = _component_at(
+            duration, text, position
+        )
+        total = _add_component(
+            duration, total, (component_seconds, component_nanoseconds)
+        )
+    total_seconds, total_nanoseconds = total
+    return Fraction(total_seconds) + Fraction(total_nanoseconds, NANOSECONDS_PER_SECOND)
+
+
+def seconds(duration: str) -> float:
+    """Convert a nextest duration to seconds, approximately.
+
+    For a caller that wants a number to print or to compare loosely.
+    Anything deriving a budget or ordering two of them wants
+    :func:`exact_seconds`, whose docstring says why.
+
+    Parameters
+    ----------
+    duration : str
+        A duration as nextest spells it.
+
+    Returns
+    -------
+    float
+        The duration in seconds, rounded to the nearest ``float``.
+
+    A text that is not a duration nextest would accept raises
+    :class:`NextestConfigurationError` from :func:`exact_seconds`, which
+    does the reading.
+    """
+    return float(exact_seconds(duration))

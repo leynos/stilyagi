@@ -31,6 +31,17 @@ env:
 jobs:
   coverage-upload:
     runs-on: ubuntu-latest
+    # Kept in step with smoke.yml's coverage lane: above the 1,800 s cargo
+    # watchdog plus the work either side. This job's own worst was 98 s
+    # outside the watchdog, on run 32946918439.
+    #
+    # "Outside the watchdog" means every second the cargo watchdog does
+    # not bound, which is the whole job less the Generate coverage step
+    # that runs cargo. The CodeScene upload and the post steps are
+    # outside it, and counting them as inside gives 84 s for this run
+    # and understates what the ceiling has to cover. The contract in
+    # tests/test_timeout_ordering_contract.py reads it the same way.
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
