@@ -33,14 +33,13 @@ from tests.support.codescene_coverage import (
     CLI_COMMAND,
     CODESCENE_ACTION,
     COVERAGE_ACTION,
-    FORBIDDEN_VARIABLE,
     PINNED_COMMIT,
     coverage_steps,
     documents,
     publishers,
     pull_request_workflows,
-    token_sites,
 )
+from tests.support.workflow_secrets import FORBIDDEN_VARIABLE, token_sites
 from tests.support.workflows import load_workflow, triggers, workflow_steps
 
 
