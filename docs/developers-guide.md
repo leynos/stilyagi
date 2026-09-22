@@ -1323,6 +1323,145 @@ If a workflow's behaviour genuinely depends on a feature only present from a
 particular commit onwards, express that as a comment or a changelog note, not
 as a test assertion on the SHA string.
 
+### 6g. CodeScene coverage belongs to main
+
+`coverage-main.yml` is the only workflow in this repository that runs a
+CodeScene action. It runs on pushes to main and on manual dispatch, it
+generates ratcheted coverage, and it uploads with `mode: upload`. No workflow
+serving pull requests names a CodeScene action, invokes `cs-coverage`, or puts
+`CS_ACCESS_TOKEN` in reach of any process.
+
+This is the estate rule `main-owned-codescene-coverage`, and it is a policy
+rather than a gap. A pull request from a fork cannot read the repository's
+secrets, so a changed-line check on that lane was a silent skip for exactly the
+contributions least likely to have been measured already. On a branch it put a
+second tool on the critical path, and when that tool's CLI stopped parsing
+cobertura it failed every pull request in six repositories for two days over a
+defect in none of them.
+
+What a pull-request lane keeps is the ratchet. `smoke.yml` runs
+`generate-coverage` with `with-ratchet: 'true'`, comparing against the baseline
+`coverage-main.yml` writes, and that applies the same "do not go backwards"
+gate from the repository's own history with no token and no second tool.
+
+**The two selections have to match.** The ratchet compares this commit's report
+against that baseline, so the inputs deciding *what* is measured, the output
+path, the format, the runner and the feature set, must agree between the two
+lanes. A difference there makes the comparison report the difference between
+two builds rather than between two commits, and it does so silently.
+`publish-artefact` is the deliberate exception: the pull-request lane sets it to
+`'false'` because the publisher owns the artefact, and two uploads of one name
+from two lanes race.
+
+**No checksum input.** `installer-checksum` is rejected outright when non-empty
+from the pinned action onwards, and `archive-checksum` is not a rename of it:
+it digests the action's CLI manifest archive, while the `CODESCENE_CLI_SHA256`
+repository variable holds the installer script's digest. Carrying the old value
+across under the new name fails every run. The action pins the CLI through its
+own manifest now, which is what that variable was standing in for. The variable
+is unreferenced and no workflow refreshes it, so it can be removed from the
+repository's settings. There is no `get-codescene-sha.yml` here to delete;
+repositories that have one retire it with the same change.
+
+**The publisher is guarded on the ref, not only on the token.**
+`workflow_dispatch` is on that workflow deliberately, because an automerged
+change to main fires no push event and can only be measured on demand. A
+dispatch can be aimed at any branch, and the upload carries no ref, so
+CodeScene cannot tell that what arrived was not the trunk. Without
+`github.ref == 'refs/heads/main'` beside the token check, one dispatch from a
+feature branch replaces the baseline every pull request ratchets against, and
+nothing reports it.
+
+The contract holds that guard as one `&&` term and refuses any `||`, because a
+substring match passes `... && ref == main || dispatch`, which makes every
+conjunct optional so a dispatch from any branch uploads.
+
+**And it runs one at a time.** The baseline is a single value with a single
+writer, so two publisher runs racing would decide it by which finished last.
+The concurrency group queues a superseded run rather than cancelling it: a
+cancelled run abandons both its upload and its baseline write, while a queued
+one publishes later and the later push still wins because it runs last.
+
+`tests/test_codescene_coverage_contract.py` holds the shape, reading the
+workflows through `tests/support/codescene_coverage.py`. Two things about that
+reading are worth knowing before changing it.
+
+The publisher is "pushes to main **and serves no pull request**". Both halves
+are load-bearing: `smoke.yml` declares `pull_request` and
+`push: branches: [main]` together, so a predicate reading only the push makes
+that one file simultaneously required to upload and forbidden from uploading,
+and the contract contradicts itself rather than failing.
+
+And the trigger reader looks under both `"on"` and the boolean `True`. YAML 1.1
+resolves an unquoted `on:` to a boolean, so a loader that resolves scalars keys
+every workflow in this estate under `True` and none under `on`. Every rule in
+that contract derives its subject from the triggers, so a reader finding
+nothing makes all of them pass over an empty set: not an error, and not a
+report of zero, but a report of compliance. `load_workflow` uses
+`yaml.BaseLoader` and keeps the string, and the reader covers both, so neither
+choice can empty the contract quietly.
+
+#### The workflow readers
+
+The contracts read through `tests/support`, split so that one module owns the
+filesystem and everything else is pure over supplied text or documents:
+
+- `workflows.py` parses and reads one document. `load_workflow` uses a
+  `yaml.BaseLoader` subclass that keeps every scalar a string and refuses a
+  mapping declaring one key twice: PyYAML otherwise keeps the last value
+  silently, so a job declaring `runs-on` twice would read as the half GitHub
+  may not run. `WorkflowDocument` is keyed `str | bool` because a resolving
+  loader keys `on:` under `True`; `triggers` reads both and accepts the
+  mapping, list and bare-string forms. `pushes_to_main` answers every filter
+  form and fails closed on one it does not recognize. `workflow_jobs` and
+  `workflow_steps` drop a fragment that is not a mapping rather than refuse the
+  document.
+- `workflow_files.py` is the only filesystem access. `read_workflows`,
+  `read_workflow_texts` and `read_text` take the path to read rather than
+  finding one, so a test can point them at a fixture tree.
+- `markdownlint_config.py` reads `.markdownlint-cli2.jsonc`: the JSONC comment
+  stripper and `configured_ignores` are pure over text, and
+  `read_configured_ignores` reaches the file through `read_text`.
+- `codescene_coverage.py` selects the subjects of CV-005: the pull-request
+  lane (`pull_request_workflows`), the publishers, the coverage steps, and
+  every value naming the `codescene.io` host.
+- `workflow_secrets.py` finds every place a workflow puts `CS_ACCESS_TOKEN` in
+  reach: workflow, job and step `env` (as the key or in a value), action inputs,
+  `run` bodies, and reusable-workflow `secrets:` forwarding, named or
+  `inherit`.
+
+Failures are structured. Every helper raises a `SupportError` carrying
+`reader`, the reading that failed. `ReadingError` adds `path` and is raised for
+a file that cannot be read or parsed; `WorkflowReadingError` is its workflow
+form, also raised when a reading finds nothing it must have found, because
+every rule built on these readings is a refusal and a refusal over an empty set
+is satisfied by any repository at all. A test catching `ReadingError` covers
+both.
+
+**The pull-request lane is a closure, not a trigger list.** A workflow
+declaring only `workflow_call` runs on a pull request when a pull-request
+workflow calls it, and `secrets: inherit` hands it the token, so every
+pull-request clause (the action, the command, the secret and the host) runs
+over the pull-request workflows and everything they call, transitively. A call
+is recognized by shape rather than by a list of prefixes: a leading `./` is
+stripped, and the remainder must be a file directly under `.github/workflows/`.
+`tests/test_pull_request_closure.py` holds a `workflow_call` probe that curls
+the CodeScene API with an inherited token, and asserts that the secret clause
+and the host clause both catch it. The host clause reads every value in each
+parsed workflow rather than a list of expected places, because a URL reaches a
+step through the workflow's, the job's or the step's `env`, a step's inputs, or
+a reusable-workflow call's `with`; comments are not read, because the parser
+discards them.
+
+The step and secret readings are also driven by Hypothesis in
+`tests/test_workflow_reader_properties.py`, over generated workflows of any
+number of jobs and steps with malformed fragments and decoys among them.
+
+Per section 6f, none of those tests names a pin's SHA. They assert the shape,
+that both coverage lanes name the *same* commit, and that the Markdown linter
+is not pinned to the one annotated tag object this repository is known to have
+used. A Dependabot bump that moves both lanes together stays green.
+
 ## 7. Development responsibilities
 
 Maintainer responsibilities in this repository are stricter than a normal

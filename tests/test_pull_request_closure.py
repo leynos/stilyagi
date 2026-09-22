@@ -1,0 +1,294 @@
+"""The pull-request lane as a closure, not a trigger list.
+
+Separated from ``test_workflow_reader_units`` so neither module
+outgrows the 400-line limit the lint gate enforces, and because the
+subject is its own: which workflows a pull request can actually reach.
+
+A workflow declaring only ``workflow_call`` still runs on a pull
+request when a pull-request workflow calls it, and ``secrets: inherit``
+hands it the token. A reading that enumerated triggers alone could not
+see it, so every refusal built on that enumeration passed over it while
+it did the forbidden thing. Measured on episodic, where a probe of the
+shape below passed every clause of the equivalent contract.
+
+Run via `make test`.
+"""
+
+import typing as typ
+
+import pytest
+
+from tests.support.codescene_coverage import (
+    called_workflows,
+    codescene_contacts,
+    pull_request_workflows,
+)
+from tests.support.workflow_secrets import secret_sites
+from tests.support.workflows import load_workflow, serves_pull_requests
+
+#: A minimal workflow body, so each case below varies one thing.
+JOBS: typ.Final[str] = "jobs:\n  a:\n    steps: []\n"
+
+
+#: A workflow that declares only `workflow_call` and reaches CodeScene
+#: with whatever secret it was handed. It names no CodeScene action and
+#: runs no `cs-coverage`, so those two clauses are blind to it even once
+#: it is enumerated; the secret clause and the host clause catch it, and
+#: only if this workflow is in the pull-request closure at all.
+PROBE: typ.Final[str] = (
+    "on:\n  workflow_call:\n"
+    "jobs:\n  probe:\n    steps:\n"
+    "      - run: |\n"
+    '          curl -H "Authorization: ${{ secrets.CS_ACCESS_TOKEN }}" \\\n'
+    "            https://api.codescene.io/v2/projects/1\n"
+)
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [pytest.param("./", id="dot-slash"), pytest.param("", id="root-relative")],
+)
+def test_the_pull_request_lane_reaches_a_called_workflow(prefix: str) -> None:
+    """The lane is a closure, not a trigger list.
+
+    A workflow declaring only `workflow_call` runs on a pull request
+    when a pull-request workflow calls it, and `secrets: inherit` hands
+    it the token. Enumerating triggers alone cannot see it, so every
+    refusal built on that enumeration passes over it while it does the
+    forbidden thing. Measured on episodic: a probe of exactly this shape
+    passed every clause of the equivalent contract there.
+
+    A call is recognized by where it points, not by how it is spelt: a
+    reader enumerating accepted prefixes drops every spelling nobody
+    thought to list, while one that strips `./` and asks whether the
+    rest is a file under the workflow directory reaches both of these.
+    Parametrised rather than combined, so each spelling fails on its own
+    and neither can be carried by the other.
+    """
+    caller = load_workflow(
+        "on:\n  pull_request:\n"
+        "jobs:\n  call:\n"
+        f"    uses: {prefix}.github/workflows/probe.yml\n"
+        "    secrets: inherit\n"
+    )
+    documents = {"ci.yml": caller, "probe.yml": load_workflow(PROBE)}
+    assert called_workflows(caller, documents) == frozenset({"probe.yml"}), (
+        f"the {prefix!r} spelling must resolve to the called workflow"
+    )
+    assert sorted(pull_request_workflows(documents)) == ["ci.yml", "probe.yml"], (
+        "the called workflow runs on a pull request and must be enumerated "
+        "as part of that lane"
+    )
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        pytest.param("./scripts/probe.yml", id="outside-the-workflow-directory"),
+        pytest.param("./.github/workflows/nested/probe.yml", id="nested-directory"),
+        pytest.param("./.github/workflows/absent.yml", id="no-such-workflow"),
+    ],
+)
+def test_a_reference_of_the_wrong_shape_is_not_a_local_call(reference: str) -> None:
+    """Assert the shape match is narrow as well as broad.
+
+    Matching on the file name alone would read any path ending in
+    `probe.yml` as a call to the workflow of that name, and GitHub calls
+    nothing outside the workflow directory.
+    """
+    caller = load_workflow(
+        f"on:\n  pull_request:\njobs:\n  call:\n    uses: {reference}\n"
+    )
+    documents = {"ci.yml": caller, "probe.yml": load_workflow(PROBE)}
+    assert called_workflows(caller, documents) == frozenset(), (
+        f"{reference!r} does not name a workflow in this directory"
+    )
+
+
+def test_a_workflow_nothing_calls_is_not_in_the_lane() -> None:
+    """Assert the closure is narrow as well as transitive.
+
+    A traversal that swept in every `workflow_call` document, rather
+    than the ones a pull-request workflow actually calls, would hold
+    workflows the lane never runs to the lane's rules, and the refusals
+    would then fail a repository that complies.
+    """
+    documents = {
+        "ci.yml": load_workflow(f"on:\n  pull_request:\n{JOBS}"),
+        "probe.yml": load_workflow(PROBE),
+    }
+    assert sorted(pull_request_workflows(documents)) == ["ci.yml"], (
+        "a reusable workflow no pull-request lane calls is not in the lane"
+    )
+
+
+def test_a_call_to_another_repository_is_not_followed() -> None:
+    """What is not in this tree cannot be read, and is not claimed to be.
+
+    Following a reference to another repository would mean asserting
+    over content this reading does not have. Saying plainly that it is
+    out of scope is better than a silent pass that looks like coverage.
+    """
+    caller = load_workflow(
+        "on:\n  pull_request:\n"
+        "jobs:\n  call:\n"
+        "    uses: other/repo/.github/workflows/probe.yml@main\n"
+    )
+    documents = {"ci.yml": caller, "probe.yml": load_workflow(PROBE)}
+    assert called_workflows(caller, documents) == frozenset(), (
+        "a cross-repository call names a document this reading does not hold"
+    )
+
+
+def test_the_probe_is_caught_once_the_lane_includes_it() -> None:
+    """The closure is only worth having if a clause then fails on it.
+
+    This is the measurement the whole change rests on. The probe names
+    no CodeScene action and runs no `cs-coverage`, so those two clauses
+    are blind to it either way; what catches it is the secret sweep and
+    the host clause, and only because the closure puts it in the lane at
+    all. The two travel together: run over a trigger list they would
+    share one blind spot while each looked like it covered the other.
+
+    Asserted in both directions in one place: the probe is a site when
+    enumerated, and the trigger-only reading never reaches it.
+    """
+    caller = load_workflow(
+        "on:\n  pull_request:\n"
+        "jobs:\n  call:\n"
+        "    uses: ./.github/workflows/probe.yml\n"
+        "    secrets: inherit\n"
+    )
+    documents = {"ci.yml": caller, "probe.yml": load_workflow(PROBE)}
+
+    trigger_only = [
+        name for name, document in documents.items() if serves_pull_requests(document)
+    ]
+    assert trigger_only == ["ci.yml"], (
+        "the premise: enumerating triggers alone does not reach the probe"
+    )
+
+    lane = pull_request_workflows(documents)
+    offenders = sorted(
+        site for name, document in lane.items() for site in secret_sites(name, document)
+    )
+    assert offenders == [
+        "ci.yml: job call secrets: inherit",
+        "probe.yml: job probe step 1 run",
+    ], (
+        f"the closure must put the probe in reach of the secret clause, and "
+        f"the caller's `secrets: inherit` with it; it found {offenders}"
+    )
+    contacts = sorted(
+        site
+        for name, document in lane.items()
+        for site in codescene_contacts(name, document)
+    )
+    assert contacts == ["probe.yml: jobs.probe.steps[0].run"], (
+        f"the host clause runs over the same closure, so the probe's curl "
+        f"is caught there too; it found {contacts}"
+    )
+
+
+#: A reusable workflow that takes the host as an input and uses it. It
+#: names no host itself, so only the caller's `with` carries it.
+CONSUMER: typ.Final[str] = (
+    "on:\n  workflow_call:\n    inputs:\n      url:\n        type: string\n"
+    "jobs:\n  use:\n    steps:\n"
+    '      - run: curl "${{ inputs.url }}"\n'
+)
+
+
+def test_a_host_passed_to_a_called_workflow_is_caught_at_the_call() -> None:
+    """The host can reach a step through a reusable workflow's input.
+
+    The called workflow names no host, so a reading of steps alone finds
+    nothing in either file; the URL sits in the caller's job-level
+    `with`, which is where the clause has to look.
+    """
+    caller = load_workflow(
+        "on:\n  pull_request:\n"
+        "jobs:\n  call:\n"
+        "    uses: ./.github/workflows/consumer.yml\n"
+        "    with:\n      url: https://api.codescene.io/v2/projects/1\n"
+    )
+    documents = {"ci.yml": caller, "consumer.yml": load_workflow(CONSUMER)}
+    contacts = sorted(
+        site
+        for name, document in pull_request_workflows(documents).items()
+        for site in codescene_contacts(name, document)
+    )
+    assert contacts == ["ci.yml: jobs.call.with.url"], (
+        f"the caller's `with` carries the host into the lane; found {contacts}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "where"),
+    [
+        pytest.param(
+            "env:\n  URL: https://codescene.io\njobs:\n  a:\n    steps:\n"
+            '      - run: curl "$URL"\n',
+            "env.URL",
+            id="workflow-env",
+        ),
+        pytest.param(
+            "jobs:\n  a:\n    env:\n      URL: https://codescene.io\n"
+            '    steps:\n      - run: curl "$URL"\n',
+            "jobs.a.env.URL",
+            id="job-env",
+        ),
+        pytest.param(
+            "jobs:\n  a:\n    steps:\n      - env:\n          URL: https://codescene.io\n"
+            '        run: curl "$URL"\n',
+            "jobs.a.steps[0].env.URL",
+            id="step-env",
+        ),
+        pytest.param(
+            "jobs:\n  a:\n    steps:\n      - uses: some/action@v1\n"
+            "        with:\n          url: https://codescene.io\n",
+            "jobs.a.steps[0].with.url",
+            id="step-input",
+        ),
+        pytest.param(
+            "jobs:\n  a:\n    services:\n      s:\n        image: x\n"
+            "        env:\n          URL: https://codescene.io\n",
+            "jobs.a.services.s.env.URL",
+            id="service-env",
+        ),
+        pytest.param(
+            "jobs:\n  a:\n    steps:\n      - run: curl https://API.CodeScene.IO/v2\n",
+            "jobs.a.steps[0].run",
+            id="host-in-another-case",
+        ),
+    ],
+)
+def test_the_host_clause_reads_every_scope(body: str, where: str) -> None:
+    """Every scope a URL can reach a process from is read, in any case.
+
+    Enumerating the step's script, inputs and environment left the
+    workflow's and the job's `env` as a way round the rule: a step
+    inherits both. Reading every value closes the class rather than the
+    instances found so far. DNS names are case-insensitive, so the host
+    is matched that way too.
+    """
+    document = load_workflow(f"on:\n  pull_request:\n{body}")
+    contacts = codescene_contacts("ci.yml", document)
+    assert contacts == [f"ci.yml: {where}"], (
+        f"expected the host at {where}; found {contacts}"
+    )
+
+
+def test_the_host_clause_ignores_a_comment() -> None:
+    """Assert the clause is narrow: prose in a comment is not a contact.
+
+    The workflows explain in comments why CodeScene is off this lane,
+    and those comments name the service.
+    """
+    body = (
+        "on:\n  pull_request:\n# the check moved off codescene.io\n"
+        "jobs:\n  a:\n    steps: []\n"
+    )
+    assert codescene_contacts("ci.yml", load_workflow(body)) == [], (
+        "a comment is discarded by the parser and is not a contact"
+    )
