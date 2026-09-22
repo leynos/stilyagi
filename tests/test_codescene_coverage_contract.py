@@ -135,9 +135,9 @@ def test_no_pull_request_workflow_contacts_codescene(
 
     A `curl` to the API, or a third-party action handed the URL, escapes
     both clauses above, and escapes the secret clause too when the
-    credential travels under another name. Read over what each step
-    executes or passes on, so the prose explaining the policy is not
-    read as a breach of it.
+    credential travels under another name. Read over every value in the
+    parsed workflow, so the comments explaining the policy, which the
+    parser discards, are not read as a breach of it.
     """
     offenders = sorted(
         site

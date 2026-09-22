@@ -184,7 +184,105 @@ def test_the_probe_is_caught_once_the_lane_includes_it() -> None:
         for name, document in lane.items()
         for site in codescene_contacts(name, document)
     )
-    assert contacts == ["probe.yml: step 1"], (
+    assert contacts == ["probe.yml: jobs.probe.steps[0].run"], (
         f"the host clause runs over the same closure, so the probe's curl "
         f"is caught there too; it found {contacts}"
+    )
+
+
+#: A reusable workflow that takes the host as an input and uses it. It
+#: names no host itself, so only the caller's `with` carries it.
+CONSUMER: typ.Final[str] = (
+    "on:\n  workflow_call:\n    inputs:\n      url:\n        type: string\n"
+    "jobs:\n  use:\n    steps:\n"
+    '      - run: curl "${{ inputs.url }}"\n'
+)
+
+
+def test_a_host_passed_to_a_called_workflow_is_caught_at_the_call() -> None:
+    """The host can reach a step through a reusable workflow's input.
+
+    The called workflow names no host, so a reading of steps alone finds
+    nothing in either file; the URL sits in the caller's job-level
+    `with`, which is where the clause has to look.
+    """
+    caller = load_workflow(
+        "on:\n  pull_request:\n"
+        "jobs:\n  call:\n"
+        "    uses: ./.github/workflows/consumer.yml\n"
+        "    with:\n      url: https://api.codescene.io/v2/projects/1\n"
+    )
+    documents = {"ci.yml": caller, "consumer.yml": load_workflow(CONSUMER)}
+    contacts = sorted(
+        site
+        for name, document in pull_request_workflows(documents).items()
+        for site in codescene_contacts(name, document)
+    )
+    assert contacts == ["ci.yml: jobs.call.with.url"], (
+        f"the caller's `with` carries the host into the lane; found {contacts}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "where"),
+    [
+        pytest.param(
+            "env:\n  URL: https://codescene.io\njobs:\n  a:\n    steps:\n"
+            '      - run: curl "$URL"\n',
+            "env.URL",
+            id="workflow-env",
+        ),
+        pytest.param(
+            "jobs:\n  a:\n    env:\n      URL: https://codescene.io\n"
+            '    steps:\n      - run: curl "$URL"\n',
+            "jobs.a.env.URL",
+            id="job-env",
+        ),
+        pytest.param(
+            "jobs:\n  a:\n    steps:\n      - env:\n          URL: https://codescene.io\n"
+            '        run: curl "$URL"\n',
+            "jobs.a.steps[0].env.URL",
+            id="step-env",
+        ),
+        pytest.param(
+            "jobs:\n  a:\n    steps:\n      - uses: some/action@v1\n"
+            "        with:\n          url: https://codescene.io\n",
+            "jobs.a.steps[0].with.url",
+            id="step-input",
+        ),
+        pytest.param(
+            "jobs:\n  a:\n    services:\n      s:\n        image: x\n"
+            "        env:\n          URL: https://codescene.io\n",
+            "jobs.a.services.s.env.URL",
+            id="service-env",
+        ),
+    ],
+)
+def test_the_host_clause_reads_every_scope(body: str, where: str) -> None:
+    """Every scope a URL can reach a process from is read.
+
+    Enumerating the step's script, inputs and environment left the
+    workflow's and the job's `env` as a way round the rule: a step
+    inherits both. Reading every value closes the class rather than the
+    instances found so far.
+    """
+    document = load_workflow(f"on:\n  pull_request:\n{body}")
+    contacts = codescene_contacts("ci.yml", document)
+    assert contacts == [f"ci.yml: {where}"], (
+        f"expected the host at {where}; found {contacts}"
+    )
+
+
+def test_the_host_clause_ignores_a_comment() -> None:
+    """Assert the clause is narrow: prose in a comment is not a contact.
+
+    The workflows explain in comments why CodeScene is off this lane,
+    and those comments name the service.
+    """
+    body = (
+        "on:\n  pull_request:\n# the check moved off codescene.io\n"
+        "jobs:\n  a:\n    steps: []\n"
+    )
+    assert codescene_contacts("ci.yml", load_workflow(body)) == [], (
+        "a comment is discarded by the parser and is not a contact"
     )

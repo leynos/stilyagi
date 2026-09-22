@@ -28,6 +28,8 @@ from tests.support.workflows import (
 )
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
     from tests.support.workflows import WorkflowDocument
 
 #: The action that talks to CodeScene, matched on its path rather than
@@ -267,18 +269,36 @@ def coverage_steps(
 
 #: The service itself. A pull-request lane that reaches it by any other
 #: road than the action (`curl` in a script, a third-party action's
+#: input, a URL in an environment variable or a reusable workflow's
 #: input) escapes the action and command clauses alike, and escapes the
 #: secret clause too when the credential travels under another name.
 CODESCENE_HOST: typ.Final[str] = "codescene.io"
 
 
-def codescene_contacts(name: str, document: WorkflowDocument) -> list[str]:
-    """Return every step in one workflow that names the CodeScene host.
+def _scalars(value: object, where: str) -> cabc.Iterator[tuple[str, str]]:
+    """Yield every scalar in a parsed document with the path that reaches it."""
+    match value:
+        case dict():
+            for key, child in value.items():
+                yield from _scalars(child, f"{where}.{key}" if where else str(key))
+        case list():
+            for index, child in enumerate(value):
+                yield from _scalars(child, f"{where}[{index}]")
+        case _:
+            yield where, str(value)
 
-    Read over what a step executes or hands to an action (its script,
-    its inputs, its environment), not over the file's text, so a comment
-    explaining why a lane no longer talks to CodeScene is not read as
-    the lane talking to it.
+
+def codescene_contacts(name: str, document: WorkflowDocument) -> list[str]:
+    r"""Return every place in one workflow that names the CodeScene host.
+
+    Every value in the parsed document is read, at every scope, rather
+    than a list of the places a contact is expected. A URL can reach a
+    step through the workflow's `env`, a job's `env`, a step's script,
+    inputs or `env`, or a reusable-workflow call's `with`, and a reading
+    that enumerated some of those scopes left the rest as a way round
+    the rule. A comment explaining why a lane no longer talks to
+    CodeScene is not read as the lane talking to it, because the parser
+    discards comments.
 
     Parameters
     ----------
@@ -290,13 +310,17 @@ def codescene_contacts(name: str, document: WorkflowDocument) -> list[str]:
     Returns
     -------
     list of str
-        One entry per step, naming it by position.
+        One entry per value naming the host, with its path.
+
+    Examples
+    --------
+    >>> from tests.support.workflows import load_workflow
+    >>> body = "jobs:\n  a:\n    steps:\n      - run: curl https://api.codescene.io\n"
+    >>> codescene_contacts("ci.yml", load_workflow(body))
+    ['ci.yml: jobs.a.steps[0].run']
     """
     return [
-        f"{name}: step {index + 1}"
-        for index, step in enumerate(workflow_steps(document))
-        if any(
-            CODESCENE_HOST in str(value)
-            for value in (step.get("run", ""), step.get("with"), step.get("env"))
-        )
+        f"{name}: {where}"
+        for where, text in _scalars(document, "")
+        if CODESCENE_HOST in text
     ]

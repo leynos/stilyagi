@@ -1424,7 +1424,7 @@ filesystem and everything else is pure over supplied text or documents:
   `read_configured_ignores` reaches the file through `read_text`.
 - `codescene_coverage.py` selects the subjects of CV-005: the pull-request
   lane (`pull_request_workflows`), the publishers, the coverage steps, and
-  steps naming the `codescene.io` host.
+  every value naming the `codescene.io` host.
 - `workflow_secrets.py` finds every place a workflow puts `CS_ACCESS_TOKEN` in
   reach: workflow, job and step `env` (as the key or in a value), action inputs,
   `run` bodies, and reusable-workflow `secrets:` forwarding, named or
@@ -1447,7 +1447,11 @@ is recognized by shape rather than by a list of prefixes: a leading `./` is
 stripped, and the remainder must be a file directly under `.github/workflows/`.
 `tests/test_pull_request_closure.py` holds a `workflow_call` probe that curls
 the CodeScene API with an inherited token, and asserts that the secret clause
-and the host clause both catch it.
+and the host clause both catch it. The host clause reads every value in each
+parsed workflow rather than a list of expected places, because a URL reaches a
+step through the workflow's, the job's or the step's `env`, a step's inputs, or
+a reusable-workflow call's `with`; comments are not read, because the parser
+discards them.
 
 The step and secret readings are also driven by Hypothesis in
 `tests/test_workflow_reader_properties.py`, over generated workflows of any
