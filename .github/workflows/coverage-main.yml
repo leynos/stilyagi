@@ -63,10 +63,10 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
+        uses: leynos/shared-actions/.github/actions/setup-rust@dbe2e22ceaf498d85512679ccded38be9dbe7777
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
 
       - name: Install Makefile parser
         run: |
@@ -82,7 +82,7 @@ jobs:
         # The selection here is the baseline every pull request's ratchet
         # is measured against, so smoke.yml's must match it field for
         # field.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@dbe2e22ceaf498d85512679ccded38be9dbe7777
         with:
           output-path: coverage.xml
           format: cobertura
@@ -101,7 +101,7 @@ jobs:
         # ratchets against it. CodeScene has no way to tell it was not
         # main, because the upload does not carry the ref.
         if: env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main'
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@dbe2e22ceaf498d85512679ccded38be9dbe7777
         with:
           format: cobertura
           # Named rather than left to the default, because this is the
