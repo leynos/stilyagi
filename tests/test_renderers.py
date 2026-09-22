@@ -3,6 +3,7 @@
 import json
 import typing as typ
 
+import pytest
 from stilyagi import diagnostics, engine
 from syrupy.extensions.json import JSONSnapshotExtension
 
@@ -89,3 +90,9 @@ def test_json_renderer_emits_stable_diagnostic_objects(
         payload == snapshot(extension_class=JSONSnapshotExtension),
         "expected payload == snapshot(extension_class=JSONSna...",
     )
+
+
+def test_an_unsupported_output_format_is_refused() -> None:
+    """A format the registry does not render is an error, not a fallback."""
+    with pytest.raises(ValueError, match="unsupported output format 'yaml'"):
+        engine.RendererRegistry().render([], "yaml")
