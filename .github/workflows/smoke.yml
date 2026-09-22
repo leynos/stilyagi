@@ -38,9 +38,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          # Coverage generation on pull requests needs the merge base
-          # reachable for a future `cs-coverage check` gate (see the
-          # deferred-gate note on the coverage step below).
+          # The coverage ratchet compares this commit against the
+          # baseline main published, so the merge base has to be
+          # reachable. A shallow checkout leaves the comparison with
+          # nothing to compare against.
           fetch-depth: 0
 
       - name: Install Python
@@ -99,7 +100,7 @@ jobs:
         # resolved from the registry at run time, and Dependabot manages the
         # pin alongside the other actions. It reads .markdownlint-cli2.jsonc
         # from the workspace, so the rules and ignores match `make markdownlint`.
-        uses: DavidAnson/markdownlint-cli2-action@4580e1612f6407034edd6c0e4e316d725920867b  # v24.2.0
+        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff  # v24.2.0
         with:
           globs: '**/*.md'
 
@@ -145,26 +146,33 @@ jobs:
         # regenerates and uploads it on every push to main, and running
         # both here would duplicate the work (and, once ratcheted, the
         # baseline write).
+        #
+        # The ratchet is the whole of the coverage gate on this lane.
+        # It compares against the baseline coverage-main.yml writes, so
+        # the selection here has to match that publisher's exactly:
+        # a different format, runner or feature set produces a report
+        # that is not comparable with the baseline, and the comparison
+        # then measures the difference between the two runs rather than
+        # the difference between the two commits.
+        #
+        # No CodeScene step follows. This workflow serves pull requests,
+        # and CV-005 puts the upload and the changed-line check on the
+        # main publisher alone: a pull request from a fork has no
+        # `CS_ACCESS_TOKEN` and the step degraded to a silent skip, while
+        # for a branch it added a whole second tool to the critical path
+        # for a gate the ratchet already applies.
         if: github.event_name == 'pull_request'
-        uses: leynos/shared-actions/.github/actions/generate-coverage@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           output-path: coverage.xml
           format: cobertura
           use-cargo-nextest: 'true'
           with-ratchet: 'true'
+          # This job publishes nothing. coverage-main.yml owns the
+          # artefact, and two uploads of the same name from two lanes is
+          # a race whose winner depends on which finished last.
+          publish-artefact: 'false'
           pytest-workers: ''
-
-      - name: Check coverage against CodeScene gates
-        env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        if: env.CS_ACCESS_TOKEN != '' && github.event_name == 'pull_request'
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
-        with:
-          format: cobertura
-          mode: check
-          project-url: https://api.codescene.io/v2/projects/74422
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
-          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
 
   release-smoke:
     strategy:
