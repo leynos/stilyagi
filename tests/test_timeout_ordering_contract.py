@@ -23,23 +23,24 @@ README.
 """
 
 import typing as typ
-from fractions import Fraction
 from pathlib import Path
 
 import pytest
 
 from tests.support.coverage_workflows import (
     COVERAGE_ACTION,
-    WATCHDOG_VARIABLE,
     CoverageJob,
 )
 from tests.support.coverage_workflows import (
     coverage_jobs as read_coverage_jobs,
 )
-from tests.support.nextest_config import (
-    global_timeout,
-    largest_test_allowance,
-    termination_allowance,
+from tests.support.nextest_config import global_timeout
+from tests.support.timeout_ordering import (
+    ceiling_shortfalls,
+    condition_violations,
+    unset_watchdogs,
+    unsized_watchdogs,
+    whole_run_violations,
 )
 
 if typ.TYPE_CHECKING:
@@ -170,6 +171,11 @@ def required_ceiling(budgets: cabc.Sequence[float], allowance: float) -> float:
     return sum(budgets) + allowance + CEILING_MARGIN_SECONDS
 
 
+def _ceiling_for(budgets: cabc.Sequence[float]) -> float:
+    """Return one job's required ceiling with this repository's allowance."""
+    return required_ceiling(budgets, OUTSIDE_WATCHDOG_ALLOWANCE_SECONDS)
+
+
 def test_the_coverage_action_is_invoked_somewhere(
     coverage_jobs: tuple[CoverageJob, ...],
 ) -> None:
@@ -195,16 +201,8 @@ def test_every_coverage_step_runs_under_an_explicit_watchdog(
     important rather than less: an accidental deletion would change
     nothing observable until the run it killed.
     """
-    missing = [
-        f"{job}: step {index + 1} of {job.steps}"
-        for job in coverage_jobs
-        for index, watchdog in enumerate(job.watchdogs)
-        if watchdog is None
-    ]
-    assert not missing, (
-        f"these coverage steps do not set {WATCHDOG_VARIABLE} and so inherit "
-        f"the shared action's undocumented default: {missing}"
-    )
+    missing = unset_watchdogs(coverage_jobs)
+    assert not missing, f"these inherit the action's default: {missing}"
 
 
 def test_every_watchdog_is_the_value_this_repository_sized(
@@ -218,18 +216,8 @@ def test_every_watchdog_is_the_value_this_repository_sized(
     that distinguishes a sized watchdog from an arbitrary one, and the
     sizing is written down in both workflows.
     """
-    wrong = [
-        f"{job}: step {index + 1} of {job.steps} sets {watchdog:g} s"
-        for job in coverage_jobs
-        for index, watchdog in enumerate(job.watchdogs)
-        if watchdog is not None and watchdog != REQUIRED_WATCHDOG_SECONDS
-    ]
-    assert not wrong, (
-        f"every coverage step must set {WATCHDOG_VARIABLE} to "
-        f"{REQUIRED_WATCHDOG_SECONDS:g} s, the value this repository sized "
-        f"for a cold instrumented run of the trybuild suite and the maturin "
-        f"build; these do not: {wrong}"
-    )
+    wrong = unsized_watchdogs(coverage_jobs, REQUIRED_WATCHDOG_SECONDS)
+    assert not wrong, f"these are not {REQUIRED_WATCHDOG_SECONDS:g} s: {wrong}"
 
 
 def test_the_job_ceiling_contains_every_watchdog_and_the_work_around_them(
@@ -248,24 +236,8 @@ def test_the_job_ceiling_contains_every_watchdog_and_the_work_around_them(
     the second invocation, and a cancellation discards the log that would
     have explained it.
     """
-    for job in coverage_jobs:
-        budgets = [watchdog for watchdog in job.watchdogs if watchdog is not None]
-        assert len(budgets) == job.steps, str(job)
-        allowance = OUTSIDE_WATCHDOG_ALLOWANCE_SECONDS
-        required = required_ceiling(budgets, allowance)
-        assert job.job_timeout is not None, (
-            f"{job} runs {job.steps} watchdog-bounded cargo invocation(s) in a "
-            f"job with no timeout-minutes; the outermost tier is missing and "
-            f"GitHub's six-hour default applies"
-        )
-        assert job.job_timeout >= required, (
-            f"{job} has a ceiling of {job.job_timeout:.0f}s, below the "
-            f"{required:.0f}s needed to contain {job.steps} watchdog(s) "
-            f"totalling {sum(budgets):.0f}s, {allowance:.0f}s of measured "
-            f"work outside them, and a {CEILING_MARGIN_SECONDS:.0f}s margin "
-            f"above that sum; an overrun would be cancelled rather than "
-            f"reported"
-        )
+    short = ceiling_shortfalls(coverage_jobs, _ceiling_for)
+    assert not short, f"an overrun would be cancelled, not reported: {short}"
 
 
 def test_each_coverage_job_carries_the_documented_ceiling(
@@ -301,33 +273,12 @@ def test_a_whole_run_budget_would_sit_inside_each_watchdog(
     added, so it arrives above the largest per-test allowance and inside
     the watchdog rather than merely somewhere.
     """
-    whole_run = global_timeout(nextest_config)
-    if whole_run is None:
+    if global_timeout(nextest_config) is None:
         pytest.skip("no global-timeout is set; the guide records this as a gap")
-    largest = largest_test_allowance(nextest_config)
-    assert whole_run > largest, (
-        f"the {whole_run:.0f}s global-timeout is not above the {largest:.0f}s "
-        f"largest per-test allowance; the run would end before that test "
-        f"could use its budget"
+    wrong = whole_run_violations(
+        coverage_jobs, nextest_config, COLD_BUILD_ALLOWANCE_SECONDS
     )
-    # Every term is exact, and the cold-build constant is converted
-    # rather than added as a `float`: one `float` in the sum rounds the
-    # whole of it, which would put the comparison back where the strict
-    # `>` above started.
-    required = (
-        whole_run
-        + termination_allowance(nextest_config)
-        + Fraction(COLD_BUILD_ALLOWANCE_SECONDS)
-    )
-    for job in coverage_jobs:
-        for index, watchdog in enumerate(job.watchdogs):
-            assert watchdog is not None, str(job)
-            assert watchdog >= required, (
-                f"{job} step {index + 1} sets a {watchdog:.0f}s watchdog, "
-                f"below the {required:.0f}s needed to cover the "
-                f"{whole_run:.0f}s whole-run budget, nextest's termination "
-                f"procedure, and a cold build"
-            )
+    assert not wrong, f"the whole-run budget would pre-empt a tier: {wrong}"
 
 
 def test_each_coverage_lane_carries_the_condition_it_is_meant_to(
@@ -353,26 +304,5 @@ def test_each_coverage_lane_carries_the_condition_it_is_meant_to(
     listed lane that has stopped invoking the action is the opposite
     loss. Both are reported by name.
     """
-    found = {(job.workflow, job.job): job.conditions for job in coverage_jobs}
-    unlisted = sorted(set(found) - set(REQUIRED_CONDITIONS))
-    assert not unlisted, (
-        f"these coverage lanes are not in REQUIRED_CONDITIONS: {unlisted}; a "
-        f"lane nobody listed is a lane whose condition nothing checks, so it "
-        f"could carry `if: false` and pass"
-    )
-    missing = sorted(set(REQUIRED_CONDITIONS) - set(found))
-    assert not missing, (
-        f"these lanes are listed but no longer invoke the coverage action: "
-        f"{missing}; either coverage moved or this contract stopped "
-        f"recognizing it"
-    )
-    wrong = {
-        coordinate: (expected, found[coordinate])
-        for coordinate, expected in REQUIRED_CONDITIONS.items()
-        if set(found[coordinate]) != {expected}
-    }
-    assert not wrong, (
-        f"these coverage lanes do not carry the conditions the developers' "
-        f"guide records, as expected versus found: {wrong}; a lane that is "
-        f"skipped runs no cargo, so its watchdog never arms"
-    )
+    wrong = condition_violations(coverage_jobs, REQUIRED_CONDITIONS)
+    assert not wrong, f"these lanes differ from the guide's conditions: {wrong}"
