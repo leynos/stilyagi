@@ -10,6 +10,8 @@ from one describes a configuration that cannot run, and reading it as
 absent is the silent way to get that wrong.
 """
 
+import typing as typ
+
 import pytest
 
 from tests.support.nextest_config import (
@@ -193,3 +195,29 @@ def test_a_well_formed_slow_timeout_without_a_grace_period_keeps_the_default() -
         assert termination_allowance(config_text) == (
             NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS + TERMINATION_SAFETY_MARGIN_SECONDS
         ), f"and the allowance built on it: {config_text!r}"
+
+
+@pytest.mark.parametrize(
+    "reading",
+    [
+        pytest.param(grace_period, id="grace-period"),
+        pytest.param(largest_test_allowance, id="budget"),
+    ],
+)
+def test_a_malformed_bare_duration_is_a_configuration_fault(
+    reading: typ.Callable[[str], object],
+) -> None:
+    """A bare `slow-timeout` nextest cannot parse is malformed, not unbounded.
+
+    The bare form was answered before its text was read, so the budget
+    reading called `"not-a-duration"` an unbounded test and the grace
+    period reading skipped it and returned nextest's default. Both
+    describe a configuration the runner will not load as one it will.
+    """
+    config_text = '[profile.default]\nslow-timeout = "not-a-duration"\n'
+    with pytest.raises(NextestConfigurationError) as raised:
+        reading(config_text)
+    assert raised.value.value == "not-a-duration", (
+        f"the refusal must name the malformed duration; it named "
+        f"{raised.value.value!r}"
+    )
