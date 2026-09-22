@@ -99,6 +99,43 @@ class WorkflowReadingError(SupportError):
         self.path = path
 
 
+def _read_one(path: pathlib.Path) -> WorkflowDocument:
+    """Return one workflow's parsed document, naming the file on failure.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        The workflow to read.
+
+    Returns
+    -------
+    WorkflowDocument
+        The parsed document.
+
+    Raises
+    ------
+    WorkflowReadingError
+        If the file cannot be read or is not a workflow document.
+        Reported with the file's name rather than surfacing as a bare
+        `OSError` naming an errno, or a `TypeError` from inside a
+        helper whose return type promises a mapping.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        message = f"{path} could not be read: {error}"
+        raise WorkflowReadingError(
+            message, reader="read_workflows", path=str(path)
+        ) from error
+    try:
+        return load_workflow(text)
+    except (TypeError, ValueError) as error:
+        message = f"{path} is not a workflow document: {error}"
+        raise WorkflowReadingError(
+            message, reader="read_workflows", path=str(path)
+        ) from error
+
+
 def read_workflows(directory: pathlib.Path) -> dict[str, WorkflowDocument]:
     """Return every workflow document under one directory.
 
@@ -126,23 +163,11 @@ def read_workflows(directory: pathlib.Path) -> dict[str, WorkflowDocument]:
         cannot be read or parsed. A missing file is reported with its
         name rather than surfacing as a bare `OSError` naming an errno.
     """
-    found: dict[str, WorkflowDocument] = {}
-    for pattern in ("*.yml", "*.yaml"):
-        for path in sorted(directory.glob(pattern)):
-            try:
-                text = path.read_text(encoding="utf-8")
-            except OSError as error:
-                message = f"{path} could not be read: {error}"
-                raise WorkflowReadingError(
-                    message, reader="read_workflows", path=str(path)
-                ) from error
-            try:
-                found[path.name] = load_workflow(text)
-            except (TypeError, ValueError) as error:
-                message = f"{path} is not a workflow document: {error}"
-                raise WorkflowReadingError(
-                    message, reader="read_workflows", path=str(path)
-                ) from error
+    found = {
+        path.name: _read_one(path)
+        for pattern in ("*.yml", "*.yaml")
+        for path in sorted(directory.glob(pattern))
+    }
     if not found:
         message = (
             f"no workflow documents were read from {directory}; every "

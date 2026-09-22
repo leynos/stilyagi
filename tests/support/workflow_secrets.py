@@ -101,21 +101,23 @@ def _step_sites(name: str, job_name: str, steps: object) -> list[str]:
     """Return every site one job's steps put the secret in reach."""
     if not isinstance(steps, list):
         return []
-    sites: list[str] = []
-    for index, step in enumerate(steps):
-        if not isinstance(step, dict):
-            continue
-        where = f"job {job_name} step {index + 1}"
-        sites += _mapping_sites(name, where, step.get("env"))
-        inputs = step.get("with")
-        if isinstance(inputs, dict) and any(
-            _reaches(value) for value in inputs.values()
-        ):
-            sites.append(f"{name}: {where} inputs")
-        if _reaches(step.get("run", "")) or FORBIDDEN_VARIABLE in str(
-            step.get("run", "")
-        ):
-            sites.append(f"{name}: {where} run")
+    return [
+        site
+        for index, step in enumerate(steps)
+        if isinstance(step, dict)
+        for site in _one_step_sites(name, f"job {job_name} step {index + 1}", step)
+    ]
+
+
+def _one_step_sites(name: str, where: str, step: dict[str, object]) -> list[str]:
+    """Return every site one step puts the secret in reach."""
+    sites = _mapping_sites(name, where, step.get("env"))
+    inputs = step.get("with")
+    if isinstance(inputs, dict) and any(_reaches(value) for value in inputs.values()):
+        sites.append(f"{name}: {where} inputs")
+    body = str(step.get("run", ""))
+    if _reaches(body) or FORBIDDEN_VARIABLE in body:
+        sites.append(f"{name}: {where} run")
     return sites
 
 
