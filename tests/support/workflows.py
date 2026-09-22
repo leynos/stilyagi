@@ -101,7 +101,7 @@ def load_workflow(workflow: str) -> WorkflowDocument:
 
     Examples
     --------
-    >>> load_workflow("on:\\n  push:\\n")
+    >>> load_workflow("on:\n  push:\n")
     {'on': {'push': ''}}
     """
     # A `BaseLoader` subclass constructs only strings, lists and mappings,
