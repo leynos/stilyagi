@@ -28,6 +28,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# One publisher run at a time, and a superseded one is cancelled. The
+# baseline this workflow writes is the one every pull request ratchets
+# against, so two runs racing decide it by which finished last, and the
+# loser's figures become the trunk's for every comparison afterwards.
+concurrency:
+  group: coverage-main
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   BUILD_PROFILE: debug
@@ -83,7 +91,14 @@ jobs:
       - name: Upload coverage data to CodeScene
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        if: env.CS_ACCESS_TOKEN != ''
+        # The ref as well as the token. `workflow_dispatch` is offered
+        # above so an automerged change to main can be measured on
+        # demand, and a dispatch can be aimed at any branch: without
+        # this guard, dispatching from a feature branch uploads that
+        # branch's coverage as the trunk's, and every pull request then
+        # ratchets against it. CodeScene has no way to tell it was not
+        # main, because the upload does not carry the ref.
+        if: env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main'
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           format: cobertura

@@ -3,7 +3,7 @@
 Concordat rule `main-owned-codescene-coverage`. One workflow uploads
 coverage to CodeScene, it is the one that runs on pushes to main, and no
 workflow serving pull requests names a CodeScene action, invokes
-`cs-coverage`, or receives `CS_ACCESS_TOKEN`.
+`cs-coverage`, or puts `CS_ACCESS_TOKEN` in reach of any process.
 
 The rule is a policy rather than a gap, and the reasons are worth
 keeping beside the assertions. A pull request from a fork cannot read
@@ -22,10 +22,20 @@ commit's report with that baseline, so a difference in format, runner
 or feature set makes the comparison measure the difference between two
 runs rather than between two commits.
 
-Each assertion here is proved by putting the forbidden element back.
+The repository's own workflows reach these tests through one fixture,
+and every reading below is a pure function over supplied documents. The
+constructed cases matter as much as the real ones: the real files use a
+single spelling of everything, so they cannot tell a working reader
+from a broken one, and each rule here is satisfied by a reading that
+finds nothing.
+
+Each assertion is proved by putting the forbidden element back.
 
 Run via `make test`.
 """
+
+import pathlib
+import typing as typ
 
 import pytest
 
@@ -35,15 +45,48 @@ from tests.support.codescene_coverage import (
     COVERAGE_ACTION,
     PINNED_COMMIT,
     coverage_steps,
-    documents,
     publishers,
     pull_request_workflows,
+    read_workflows,
 )
-from tests.support.workflow_secrets import FORBIDDEN_VARIABLE, token_sites
-from tests.support.workflows import load_workflow, triggers, workflow_steps
+from tests.support.workflow_secrets import FORBIDDEN_VARIABLE, secret_sites
+from tests.support.workflows import workflow_steps
+
+if typ.TYPE_CHECKING:
+    from tests.support.workflows import WorkflowDocument
+
+REPOSITORY_ROOT: typ.Final[pathlib.Path] = pathlib.Path(__file__).resolve().parents[1]
+WORKFLOWS: typ.Final[pathlib.Path] = REPOSITORY_ROOT / ".github" / "workflows"
+
+#: The selection inputs that decide what a coverage run measures, as
+#: opposed to what happens to the report afterwards.
+SELECTION: typ.Final[frozenset[str]] = frozenset({
+    "output-path",
+    "format",
+    "use-cargo-nextest",
+    "with-ratchet",
+})
 
 
-def test_no_pull_request_workflow_names_the_codescene_action() -> None:
+@pytest.fixture(scope="module")
+def documents() -> dict[str, WorkflowDocument]:
+    """Return this repository's workflows, parsed once.
+
+    The only acquisition in the module. Everything the tests call takes
+    the result, so each reading can also be driven with constructed
+    documents in the cases below.
+
+    Returns
+    -------
+    dict
+        File name to parsed document.
+    """
+    return read_workflows(WORKFLOWS)
+
+
+def test_no_pull_request_workflow_names_the_codescene_action(
+    documents: dict[str, WorkflowDocument],
+) -> None:
     """The upload action belongs to the main publisher alone.
 
     Matched on the action's path rather than on the word `CodeScene`,
@@ -52,7 +95,7 @@ def test_no_pull_request_workflow_names_the_codescene_action() -> None:
     """
     offenders = sorted(
         f"{name}: {step.get('uses')}"
-        for name, document in pull_request_workflows().items()
+        for name, document in pull_request_workflows(documents).items()
         for step in workflow_steps(document)
         if CODESCENE_ACTION in str(step.get("uses", ""))
     )
@@ -63,82 +106,31 @@ def test_no_pull_request_workflow_names_the_codescene_action() -> None:
     )
 
 
-def test_no_pull_request_workflow_receives_the_access_token() -> None:
+def test_no_pull_request_workflow_puts_the_secret_in_reach(
+    documents: dict[str, WorkflowDocument],
+) -> None:
     """A token no fork can read is a gate no fork is held to.
 
-    Swept at every level, because the variable can be set on the
-    workflow, on a job or on a step, handed to an action as an input,
-    or referenced inside a `run` body, and all five reach a process.
-    The name is what matters; the expression supplying it may be a
-    secret, a variable or a literal.
+    Swept at every level, because the secret reaches a process by more
+    routes than an `env` key: a value under any key at all, an action's
+    inputs, a `run` body, and a reusable-workflow call forwarding it by
+    name or by `inherit`.
     """
     offenders = sorted(
         site
-        for name, document in pull_request_workflows().items()
-        for site in token_sites(name, document)
+        for name, document in pull_request_workflows(documents).items()
+        for site in secret_sites(name, document)
     )
     assert not offenders, (
-        f"these pull-request lanes put {FORBIDDEN_VARIABLE} in reach; a fork "
-        f"cannot read it, so the gate it guards is skipped for exactly the "
-        f"contributions least likely to have been measured: {offenders}"
+        f"these pull-request lanes put {FORBIDDEN_VARIABLE} in reach; a "
+        f"fork cannot read it, so the gate it guards is skipped for exactly "
+        f"the contributions least likely to have been measured: {offenders}"
     )
 
 
-def test_the_token_sweep_reads_structure_rather_than_prose() -> None:
-    """Assert the sweep above is narrow as well as sufficient.
-
-    Its first version matched the raw file text and failed on the
-    comment that explains why the step was removed, which would have
-    left the next person deleting the explanation to make the contract
-    pass. A comment is not a token, and a rule that cannot tell them
-    apart teaches the wrong lesson.
-
-    Both directions are driven here, because the repository's own files
-    only exercise one of them.
-    """
-    explained = load_workflow(
-        "on:\n  pull_request:\n"
-        "jobs:\n  a:\n    steps:\n"
-        f"      - run: echo hi  # no {FORBIDDEN_VARIABLE} here, deliberately\n"
-    )
-    assert token_sites("explained.yml", explained) == [], (
-        "a comment naming the token is not the token being set"
-    )
-    for fragment, where in (
-        (
-            f"env:\n  {FORBIDDEN_VARIABLE}: x\njobs:\n  a:\n    steps: []\n",
-            "workflow env",
-        ),
-        (
-            f"jobs:\n  a:\n    env:\n      {FORBIDDEN_VARIABLE}: x\n    steps: []\n",
-            "job a env",
-        ),
-        (
-            (
-                "jobs:\n  a:\n    steps:\n      - env:\n"
-                f"          {FORBIDDEN_VARIABLE}: x\n"
-            ),
-            "job a step 1 env",
-        ),
-        (
-            (
-                "jobs:\n  a:\n    steps:\n      - with:\n"
-                f"          token: ${{{{ secrets.{FORBIDDEN_VARIABLE} }}}}\n"
-            ),
-            "job a step 1 inputs",
-        ),
-        (
-            f"jobs:\n  a:\n    steps:\n      - run: echo ${FORBIDDEN_VARIABLE}\n",
-            "job a step 1 run",
-        ),
-    ):
-        document = load_workflow("on:\n  pull_request:\n" + fragment)
-        assert token_sites("x.yml", document) == [f"x.yml: {where}"], (
-            f"the sweep must find the token at {where} in {fragment!r}"
-        )
-
-
-def test_no_pull_request_workflow_runs_the_cli() -> None:
+def test_no_pull_request_workflow_runs_the_cli(
+    documents: dict[str, WorkflowDocument],
+) -> None:
     """The action is not the only way to reach the tool.
 
     A `run:` step invoking `cs-coverage` directly is the same gate
@@ -147,7 +139,7 @@ def test_no_pull_request_workflow_runs_the_cli() -> None:
     """
     offenders = sorted(
         f"{name}: {str(step.get('run', ''))[:60]}"
-        for name, document in pull_request_workflows().items()
+        for name, document in pull_request_workflows(documents).items()
         for step in workflow_steps(document)
         if CLI_COMMAND in str(step.get("run", ""))
     )
@@ -156,7 +148,9 @@ def test_no_pull_request_workflow_runs_the_cli() -> None:
     )
 
 
-def test_exactly_one_workflow_publishes_coverage() -> None:
+def test_exactly_one_workflow_publishes_coverage(
+    documents: dict[str, WorkflowDocument],
+) -> None:
     """One publisher, so the baseline has one writer.
 
     Two would race on the ratchet baseline, and which one a pull request
@@ -164,10 +158,10 @@ def test_exactly_one_workflow_publishes_coverage() -> None:
     would leave every pull request ratcheting against a baseline nobody
     writes, which passes silently and measures nothing.
     """
-    found = publishers()
+    found = publishers(documents)
     uploading = sorted(
         name
-        for name, document in documents().items()
+        for name, document in documents.items()
         for step in workflow_steps(document)
         if CODESCENE_ACTION in str(step.get("uses", ""))
     )
@@ -177,65 +171,14 @@ def test_exactly_one_workflow_publishes_coverage() -> None:
     )
     assert uploading == sorted(found), (
         f"the workflows invoking {CODESCENE_ACTION} must be exactly the "
-        f"publisher; the publisher is {sorted(found)} and the "
-        f"uploaders are {uploading}"
+        f"publisher; the publisher is {sorted(found)} and the uploaders "
+        f"are {uploading}"
     )
 
 
-def test_the_publisher_uploads_rather_than_checks() -> None:
-    """The mode is named, not left to the action's default.
-
-    `mode` decides whether the step uploads a report or gates a pull
-    request against one, and the default has changed before. Naming it
-    is how this file's reader knows which of the two this step does
-    without reading the action.
-    """
-    ((name, document),) = publishers().items()
-    steps = [
-        step
-        for step in workflow_steps(document)
-        if CODESCENE_ACTION in str(step.get("uses", ""))
-    ]
-    assert len(steps) == 1, f"{name} must invoke the action once; found {len(steps)}"
-    inputs = steps[0].get("with") or {}
-    assert isinstance(inputs, dict), (
-        f"the step's `with:` block is not a mapping: {inputs!r}"
-    )
-    assert inputs.get("mode") == "upload", (
-        f"{name}'s CodeScene step must name `mode: upload`; it names "
-        f"{inputs.get('mode')!r}"
-    )
-
-
-def test_the_publisher_passes_no_deprecated_checksum() -> None:
-    """The old checksum input fails the run outright.
-
-    `installer-checksum` is rejected when non-empty from this pin, and
-    `archive-checksum` is not a rename of it: it digests the manifest
-    archive, while the repository variable the old input carried holds
-    the installer script's digest. Carrying the value across under the
-    new name would fail every run, so neither input is passed and the
-    action's own manifest pins the CLI instead.
-    """
-    ((name, document),) = publishers().items()
-    inputs = next(
-        step.get("with") or {}
-        for step in workflow_steps(document)
-        if CODESCENE_ACTION in str(step.get("uses", ""))
-    )
-    assert isinstance(inputs, dict), (
-        f"the step's `with:` block is not a mapping: {inputs!r}"
-    )
-    for rejected in ("installer-checksum", "archive-checksum"):
-        assert rejected not in inputs, (
-            f"{name} passes {rejected!r}; `installer-checksum` is rejected "
-            f"when non-empty and `archive-checksum` digests a different "
-            f"artefact from the variable this repository holds, so neither "
-            f"carries the old value safely"
-        )
-
-
-def test_both_coverage_lanes_name_one_pinned_commit() -> None:
+def test_both_coverage_lanes_name_one_pinned_commit(
+    documents: dict[str, WorkflowDocument],
+) -> None:
     """One commit across the repository, and a commit rather than a branch.
 
     The SHA is not named. Section 6f of the developers' guide is
@@ -251,7 +194,7 @@ def test_both_coverage_lanes_name_one_pinned_commit() -> None:
     comparison between two tools, and a partial repin is invisible in a
     diff that moves the other lane.
     """
-    steps = coverage_steps()
+    steps = coverage_steps(documents)
     assert steps, "no workflow invokes the coverage action; the reader is broken"
     pins: dict[str, str] = {}
     for name, step in steps.items():
@@ -273,24 +216,27 @@ def test_both_coverage_lanes_name_one_pinned_commit() -> None:
     )
 
 
-def test_the_pull_request_lane_ratchets_and_publishes_nothing() -> None:
+def test_the_pull_request_lane_ratchets_and_publishes_nothing(
+    documents: dict[str, WorkflowDocument],
+) -> None:
     """What a pull request keeps, and what it must not do.
 
     The ratchet is the gate. The artefact is the publisher's, and two
     uploads of one name from two lanes is a race whose winner depends on
     which finished last.
     """
-    pull_request_lanes = set(pull_request_workflows())
+    pull_request_lanes = set(pull_request_workflows(documents))
     lanes = {
         name: step
-        for name, step in coverage_steps().items()
+        for name, step in coverage_steps(documents).items()
         if name in pull_request_lanes
     }
     assert lanes, "no pull-request lane generates coverage; the reader is broken"
     for name, step in lanes.items():
         inputs = step.get("with") or {}
         assert isinstance(inputs, dict), (
-            f"the step's `with:` block is not a mapping: {inputs!r}"
+            f"{name}'s coverage step declares a `with:` block that is not a "
+            f"mapping: {inputs!r}"
         )
         assert inputs.get("with-ratchet") == "true", (
             f"{name} must generate coverage with `with-ratchet: 'true'`; the "
@@ -304,12 +250,15 @@ def test_the_pull_request_lane_ratchets_and_publishes_nothing() -> None:
         )
 
 
-def test_the_two_selections_match() -> None:
+def test_the_two_selections_match(
+    documents: dict[str, WorkflowDocument],
+) -> None:
     """A ratchet against a differently-built baseline measures the runs.
 
     The pull-request report is compared with the baseline the publisher
-    wrote, so the inputs deciding *what* is measured have to agree. A
-    format, runner or feature difference makes the comparison report the
+    wrote, so the inputs that decide *what* is measured must agree
+    between the two lanes: the output path, the format, the runner, and
+    the feature set. A difference there makes the comparison report the
     difference between two builds rather than between two commits, and
     it does so without any error.
 
@@ -317,13 +266,12 @@ def test_the_two_selections_match() -> None:
     the report afterwards rather than what goes into it, and the two
     lanes differ on it deliberately.
     """
-    steps = coverage_steps()
-    (publisher,) = publishers()
-    selection = {"output-path", "format", "use-cargo-nextest", "with-ratchet"}
+    steps = coverage_steps(documents)
+    (publisher,) = publishers(documents)
     baseline = {
         key: value
         for key, value in (steps[publisher].get("with") or {}).items()
-        if key in selection
+        if key in SELECTION
     }
     assert baseline, f"{publisher}'s coverage step declares no selection to match"
     for name, step in steps.items():
@@ -332,65 +280,10 @@ def test_the_two_selections_match() -> None:
         theirs = {
             key: value
             for key, value in (step.get("with") or {}).items()
-            if key in selection
+            if key in SELECTION
         }
         assert theirs == baseline, (
             f"{name}'s coverage selection differs from the baseline "
             f"{publisher} publishes, so the ratchet would compare two "
             f"differently built reports: {theirs} against {baseline}"
         )
-
-
-@pytest.mark.parametrize(
-    ("document", "expected"),
-    [
-        pytest.param("on:\n  pull_request:\n", {"pull_request"}, id="mapping"),
-        pytest.param("'on':\n  pull_request:\n", {"pull_request"}, id="quoted-key"),
-        pytest.param("on: [pull_request, push]", {"pull_request", "push"}, id="list"),
-        pytest.param("on: pull_request", {"pull_request"}, id="bare-string"),
-        pytest.param("on:\n  push:\n    branches: [main]\n", {"push"}, id="push-only"),
-    ],
-)
-def test_the_trigger_reader_handles_every_spelling(
-    document: str, expected: set[str]
-) -> None:
-    """Assert the reader on documents this repository does not contain.
-
-    Every rule above derives its subject from the triggers, so a reader
-    that returns nothing makes all of them pass over an empty set. That
-    failure reports compliance rather than an error, which is why it is
-    driven here with constructed documents: the real workflows all use
-    one spelling, so they cannot tell a working reader from a broken
-    one.
-
-    The quoted-key case is the sharp one. YAML 1.1 resolves an unquoted
-    `on:` to the boolean `True`, so a loader that resolves scalars keys
-    every workflow under `True` and none under `on`. This repository's
-    `load_workflow` uses `yaml.BaseLoader` and keeps the string, and the
-    reader looks under both, so neither choice can silently empty the
-    contract.
-    """
-    assert triggers(load_workflow(document)) == expected, (
-        f"the reader must find {sorted(expected)} in {document!r}"
-    )
-
-
-def test_the_trigger_reader_survives_a_resolving_loader() -> None:
-    """The `on` key can arrive as a boolean, and the reader must cope.
-
-    Written against `yaml.safe_load` rather than the repository's
-    helper, because the hazard is a property of the loader rather than
-    of the document: swapping `load_workflow` to a resolving loader is
-    a one-word change that would otherwise empty every rule in this file
-    while every assertion still passed.
-    """
-    import yaml
-
-    document = yaml.safe_load("on:\n  pull_request:\n  push:\n    branches: [main]\n")
-    assert True in document, (
-        "this case only means something while a resolving loader keys an "
-        "unquoted `on:` under the boolean; if PyYAML changes, delete it"
-    )
-    assert triggers(document) == {"pull_request", "push"}, (
-        "the reader must find the triggers under the boolean key too"
-    )

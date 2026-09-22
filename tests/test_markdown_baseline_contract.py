@@ -15,6 +15,7 @@ actually used.
 Run via `make test`.
 """
 
+import json
 import pathlib
 import re
 import typing as typ
@@ -56,8 +57,112 @@ PINNED_COMMIT: typ.Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{40}$")
 #: paths.
 REQUIRED_GLOBS: typ.Final[str] = "**/*.md"
 
-#: The linter's command name, for the run-step sweep.
-LINTER_COMMAND: typ.Final[str] = "markdownlint-cli2"
+#: Every way a `run:` step can reach the linter. The bare command is
+#: one; `make markdownlint` is the other, and it is the one a rule
+#: naming only the command misses, because the Makefile target invokes
+#: `$(MDLINT)`, which defaults to `markdownlint-cli2` and is resolved
+#: from the environment rather than pinned.
+LINTER_COMMANDS: typ.Final[frozenset[str]] = frozenset({
+    "markdownlint-cli2",
+    "make markdownlint",
+})
+
+
+def _without_comments(text: str) -> str:
+    """Return JSONC text with its comments removed.
+
+    Written out rather than imported, because no JSONC parser is in the
+    development dependencies and the configuration is small. Handing
+    the file to `json.loads` unchanged works only while nobody adds a
+    comment, which is a strange thing to rely on for a file whose
+    extension invites them.
+
+    A regular expression would be the obvious shortcut and would be
+    wrong: `//` inside a string literal is a path separator, not a
+    comment, and stripping from it truncates the entry. So the scan
+    tracks whether it is inside a string, and honours the escape.
+
+    Parameters
+    ----------
+    text : str
+        The JSONC document.
+
+    Returns
+    -------
+    str
+        The same document with `//` line comments and `/* */` block
+        comments removed and everything else, including whitespace,
+        left alone.
+    """
+    out: list[str] = []
+    index = 0
+    while index < len(text):
+        if text[index] == '"':
+            index = _copy_string(text, index, out)
+            continue
+        skipped = _skip_comment(text, index)
+        if skipped is not None:
+            index = skipped
+            continue
+        out.append(text[index])
+        index += 1
+    return "".join(out)
+
+
+def _copy_string(text: str, start: int, out: list[str]) -> int:
+    """Copy one string literal verbatim and return the index after it."""
+    out.append(text[start])
+    index = start + 1
+    escaped = False
+    while index < len(text):
+        char = text[index]
+        out.append(char)
+        index += 1
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == '"':
+            break
+    return index
+
+
+def _skip_comment(text: str, index: int) -> int | None:
+    """Return the index after a comment at this position, or None."""
+    if text.startswith("//", index):
+        end = text.find("\n", index)
+        return len(text) if end == -1 else end
+    if text.startswith("/*", index):
+        end = text.find("*/", index + 2)
+        return len(text) if end == -1 else end + 2
+    return None
+
+
+def _configured_ignores() -> list[str]:
+    """Return the `ignores` array the linter configuration declares.
+
+    Returns
+    -------
+    list of str
+        Its entries, in the order the file lists them.
+
+    A document that does not parse, or that declares no `ignores`
+    array, fails an assertion here rather than returning an empty list.
+    Every assertion over the result is satisfied by an empty one, so an
+    unreadable configuration must not look like a compliant one.
+    """
+    text = (REPOSITORY_ROOT / ".markdownlint-cli2.jsonc").read_text(encoding="utf-8")
+    document = json.loads(_without_comments(text))
+    assert isinstance(document, dict), (
+        ".markdownlint-cli2.jsonc must parse to an object; it parsed to "
+        f"{type(document).__name__}"
+    )
+    ignores = document.get("ignores")
+    assert isinstance(ignores, list), (
+        f".markdownlint-cli2.jsonc must declare an `ignores` array; it "
+        f"declares {ignores!r}"
+    )
+    return [str(entry) for entry in ignores]
 
 
 def _documents() -> dict[str, dict[str, object]]:
@@ -162,16 +267,22 @@ def test_no_workflow_runs_the_linter_directly() -> None:
     `run:` step invoking `markdownlint-cli2` gets whichever version the
     registry serves that day, so the pin stays green while saying
     nothing about the linter that actually ran.
+
+    `make markdownlint` is the same thing wearing a Makefile. That
+    target invokes `$(MDLINT)`, which defaults to `markdownlint-cli2`
+    and is resolved from the environment, so a rule naming only the
+    bare command reads the indirection as compliance.
     """
     offenders = sorted(
-        f"{name}: {str(step.get('run', '')).strip()[:60]}"
+        f"{name}: {command!r} in {str(step.get('run', '')).strip()[:50]}"
         for name, document in _documents().items()
         for step in workflow_steps(document)
-        if LINTER_COMMAND in str(step.get("run", ""))
+        for command in sorted(LINTER_COMMANDS)
+        if command in str(step.get("run", ""))
     )
     assert not offenders, (
-        f"these steps invoke {LINTER_COMMAND} from a run body rather than "
-        f"through the pinned action: {offenders}"
+        f"these steps reach the linter from a run body rather than through "
+        f"the pinned action: {offenders}"
     )
 
 
@@ -195,12 +306,54 @@ def test_the_config_carries_every_canonical_ignore(entry: str) -> None:
     verbatim and permits further rules and ignores to sit beside the
     baseline entries. Asserted as presence rather than as equality for
     that reason: this repository adds `.node_modules/**` and
-    `**/.act-cache/**`, which the rule allows, and an equality check
-    would refuse them while an absent baseline entry is the thing that
-    actually matters.
+    `**/.act-cache/**`, which the rule allows, and an absent baseline
+    entry is the thing that actually matters.
+
+    Membership of the parsed `ignores` array, not a search of the file's
+    text. A text search matches the entry inside a comment, or inside
+    some unrelated field, so the contract could pass while the active
+    array omits it, which is precisely the state it exists to catch.
     """
-    config = (REPOSITORY_ROOT / ".markdownlint-cli2.jsonc").read_text(encoding="utf-8")
-    assert f'"{entry}"' in config, (
-        f".markdownlint-cli2.jsonc drops the canonical ignore {entry!r}; the "
-        f"baseline entries are the part that must be copied verbatim"
+    assert entry in _configured_ignores(), (
+        f".markdownlint-cli2.jsonc drops the canonical ignore {entry!r} from "
+        f"its `ignores` array; the baseline entries are the part that must "
+        f"be copied verbatim"
     )
+
+
+@pytest.mark.parametrize(
+    ("text", "expected", "why"),
+    [
+        pytest.param('{ // gone\n  "a": 1 }', {"a": 1}, "a line comment", id="line"),
+        pytest.param('{ /* gone */ "a": 1 }', {"a": 1}, "a block comment", id="block"),
+        pytest.param(
+            '{ "a": "x//y" }',
+            {"a": "x//y"},
+            "a path separator inside a string is not a comment",
+            id="slashes-in-string",
+        ),
+        pytest.param(
+            '{ "a": "said \\"hi\\" // not a comment" }',
+            {"a": 'said "hi" // not a comment'},
+            "an escaped quote does not end the string",
+            id="escaped-quote",
+        ),
+        pytest.param('{ "a": 1 }', {"a": 1}, "no comments at all", id="plain-json"),
+    ],
+)
+def test_the_configuration_reader_strips_only_comments(
+    text: str, expected: dict[str, object], why: str
+) -> None:
+    """The reading must not truncate an entry at a path separator.
+
+    A regular expression stripping from the first `//` is the obvious
+    shortcut and is wrong: this file's entries are globs, and a glob may
+    contain one. Losing the tail of an ignore silently narrows what the
+    linter skips, and the contract above would then assert membership
+    against a mangled list.
+
+    Driven on constructed text because the repository's own
+    configuration happens to carry no comments today, so it exercises
+    one path through the reader and cannot tell it from a broken one.
+    """
+    assert json.loads(_without_comments(text)) == expected, f"{text!r} holds {why}"

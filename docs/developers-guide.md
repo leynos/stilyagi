@@ -1358,8 +1358,24 @@ from the pinned action onwards, and `archive-checksum` is not a rename of it:
 it digests the action's CLI manifest archive, while the `CODESCENE_CLI_SHA256`
 repository variable holds the installer script's digest. Carrying the old value
 across under the new name fails every run. The action pins the CLI through its
-own manifest now, which is what that variable was standing in for; the variable
-is unreferenced and can be removed from the repository's settings.
+own manifest now, which is what that variable was standing in for. The variable
+is unreferenced and no workflow refreshes it, so it can be removed from the
+repository's settings. There is no `get-codescene-sha.yml` here to delete;
+repositories that have one retire it with the same change.
+
+**The publisher is guarded on the ref, not only on the token.**
+`workflow_dispatch` is on that workflow deliberately, because an automerged
+change to main fires no push event and can only be measured on demand. A
+dispatch can be aimed at any branch, and the upload carries no ref, so
+CodeScene cannot tell that what arrived was not the trunk. Without
+`github.ref == 'refs/heads/main'` beside the token check, one dispatch from a
+feature branch replaces the baseline every pull request ratchets against, and
+nothing reports it.
+
+**And it runs one at a time.** The baseline is a single value with a single
+writer, so two publisher runs racing decide it by which finished last. The
+concurrency group cancels a superseded run rather than letting it finish and
+overwrite.
 
 `tests/test_codescene_coverage_contract.py` holds the shape, reading the
 workflows through `tests/support/codescene_coverage.py`. Two things about that
