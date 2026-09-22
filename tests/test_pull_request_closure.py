@@ -256,15 +256,21 @@ def test_a_host_passed_to_a_called_workflow_is_caught_at_the_call() -> None:
             "jobs.a.services.s.env.URL",
             id="service-env",
         ),
+        pytest.param(
+            "jobs:\n  a:\n    steps:\n      - run: curl https://API.CodeScene.IO/v2\n",
+            "jobs.a.steps[0].run",
+            id="host-in-another-case",
+        ),
     ],
 )
 def test_the_host_clause_reads_every_scope(body: str, where: str) -> None:
-    """Every scope a URL can reach a process from is read.
+    """Every scope a URL can reach a process from is read, in any case.
 
     Enumerating the step's script, inputs and environment left the
     workflow's and the job's `env` as a way round the rule: a step
     inherits both. Reading every value closes the class rather than the
-    instances found so far.
+    instances found so far. DNS names are case-insensitive, so the host
+    is matched that way too.
     """
     document = load_workflow(f"on:\n  pull_request:\n{body}")
     contacts = codescene_contacts("ci.yml", document)

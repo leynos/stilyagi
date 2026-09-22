@@ -299,6 +299,8 @@ def codescene_contacts(name: str, document: WorkflowDocument) -> list[str]:
     the rule. A comment explaining why a lane no longer talks to
     CodeScene is not read as the lane talking to it, because the parser
     discards comments.
+    The host is matched without regard to case, because DNS names are
+    case-insensitive and `API.CODESCENE.IO` reaches the same service.
 
     Parameters
     ----------
@@ -322,5 +324,5 @@ def codescene_contacts(name: str, document: WorkflowDocument) -> list[str]:
     return [
         f"{name}: {where}"
         for where, text in _scalars(document, "")
-        if CODESCENE_HOST in text
+        if CODESCENE_HOST in text.casefold()
     ]
