@@ -28,13 +28,15 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# One publisher run at a time, and a superseded one is cancelled. The
-# baseline this workflow writes is the one every pull request ratchets
-# against, so two runs racing decide it by which finished last, and the
-# loser's figures become the trunk's for every comparison afterwards.
+# One publisher run at a time, and a superseded one queues rather than
+# being cancelled. The baseline this workflow writes is the one every
+# pull request ratchets against, so two runs racing would decide it by
+# which finished last. A cancelled run abandons both its upload and its
+# baseline write; a queued one publishes later, and the later push's
+# baseline still wins because it runs last.
 concurrency:
   group: coverage-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always

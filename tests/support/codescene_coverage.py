@@ -4,13 +4,12 @@ Separated from `test_codescene_coverage_contract` so the reading and
 the assertions over it stay legible apart, and so neither module
 outgrows the 400-line limit the lint gate enforces.
 
-The acquisition is one function and everything above it is pure. Only
-`read_workflows` touches the filesystem, and it takes the directory to
-read rather than finding one, so every policy reading below can be
-driven with supplied documents. That is what lets a contract ask what
-these rules make of a workflow this repository does not contain: the
-real files use one spelling of everything and cannot tell a working
-reader from a broken one.
+Everything here is pure. The acquisition is in `workflow_files`, and
+it takes the directory to read rather than finding one, so every policy
+reading below can be driven with supplied documents. That is what lets
+a contract ask what these rules make of a workflow this repository does
+not contain: the real files use one spelling of everything and cannot
+tell a working reader from a broken one.
 
 Each policy reading treats finding nothing as a fault rather than an
 answer. The rules built on them are refusals, and a refusal over an
@@ -20,19 +19,15 @@ empty subject set is satisfied by any repository at all.
 import re
 import typing as typ
 
-import yaml
-
-from tests.support import SupportError
+from tests.support.workflow_files import WorkflowReadingError
 from tests.support.workflows import (
-    load_workflow,
     pushes_to_main,
     serves_pull_requests,
+    workflow_jobs,
     workflow_steps,
 )
 
 if typ.TYPE_CHECKING:
-    import pathlib
-
     from tests.support.workflows import WorkflowDocument
 
 #: The action that talks to CodeScene, matched on its path rather than
@@ -65,142 +60,44 @@ PINNED_COMMIT: typ.Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{40}$")
 CLI_COMMAND: typ.Final[str] = "cs-coverage"
 
 
-class WorkflowReadingError(SupportError):
-    """Raised when a reading here finds nothing it must have found.
-
-    Every rule built on these readings is a refusal, and a refusal over
-    an empty subject set is satisfied by any repository at all. So an
-    empty reading is reported as a fault of the reader rather than
-    returned, and it is a distinct type so that "this reader is broken"
-    and "this repository complies" cannot be confused by a caller or by
-    whoever reads the failure.
-
-    Attributes
-    ----------
-    path : str or None
-        What the reading was over, when it was over something nameable:
-        a directory for the acquisition, a workflow's file name for a
-        reading of one document. None when the fault is about the whole
-        set rather than one member.
-    """
-
-    def __init__(self, message: str, *, reader: str, path: str | None = None) -> None:
-        """Record the message, the reading, and what it was over.
-
-        Parameters
-        ----------
-        message : str
-            What went wrong, for a person reading the failure.
-        reader : str
-            The reading that failed.
-        path : str or None
-            The directory or file name the fault is about, when it has
-            one.
-        """
-        super().__init__(message, reader=reader)
-        self.path = path
+#: Where a same-repository reusable workflow lives, relative to the
+#: repository root. GitHub resolves `./.github/workflows/x.yml` from
+#: there, and a workflow outside this directory cannot be called at all.
+WORKFLOW_DIRECTORY: typ.Final[str] = ".github/workflows/"
 
 
-def _read_one(path: pathlib.Path) -> WorkflowDocument:
-    """Return one workflow's parsed document, naming the file on failure.
+def _local_workflow(
+    reference: object, documents: dict[str, WorkflowDocument]
+) -> str | None:
+    """Return the file a `uses:` value names in this tree, if any.
 
-    Parameters
-    ----------
-    path : pathlib.Path
-        The workflow to read.
+    Matched by shape rather than by an enumerated prefix list: strip a
+    leading `./` and ask whether what remains is a file directly under
+    the workflow directory. A list of accepted spellings drops every
+    spelling nobody thought to list, silently, while a pull request
+    still runs the workflow it names; a cross-repository reference
+    (`owner/repo/.github/workflows/x.yml@ref`) fails the shape because
+    it does not start at the workflow directory.
 
     Returns
     -------
-    WorkflowDocument
-        The parsed document.
-
-    Raises
-    ------
-    WorkflowReadingError
-        If the file cannot be read or is not a workflow document.
-        Reported with the file's name rather than surfacing as a bare
-        `OSError` naming an errno, or a `TypeError` from inside a
-        helper whose return type promises a mapping.
+    str or None
+        The called file's name, or None when the value is not a call to
+        a workflow held here.
     """
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as error:
-        message = f"{path} could not be read: {error}"
-        raise WorkflowReadingError(
-            message, reader="read_workflows", path=str(path)
-        ) from error
-    try:
-        return load_workflow(text)
-    except (TypeError, ValueError, yaml.YAMLError) as error:
-        # `yaml.YAMLError` as well as the shape errors. Syntactically
-        # invalid YAML raises from the parser before `load_workflow`
-        # reaches its mapping check, so without it the parser's message
-        # escapes with a line and column but no file name, from inside a
-        # helper whose return type promises a mapping.
-        message = f"{path} is not a workflow document: {error}"
-        raise WorkflowReadingError(
-            message, reader="read_workflows", path=str(path)
-        ) from error
-
-
-def read_workflows(directory: pathlib.Path) -> dict[str, WorkflowDocument]:
-    """Return every workflow document under one directory.
-
-    The only filesystem access in this module. It takes the directory
-    rather than finding one, so a caller can point it at a fixture tree
-    and every reading below can be driven without it at all.
-
-    Parameters
-    ----------
-    directory : pathlib.Path
-        The directory to read.
-
-    Returns
-    -------
-    dict
-        File name to parsed document. Both suffixes are read: GitHub
-        runs a workflow named either way, so a sweep over one of them
-        reports repository-wide coverage while ignoring half the places
-        a lane can be declared.
-
-    Raises
-    ------
-    WorkflowReadingError
-        If the directory holds no workflow at all, or one of them
-        cannot be read, is not valid YAML, or is not a mapping. Each
-        is reported with the file's name rather than surfacing as a
-        bare `OSError` naming an errno, or a parser error naming a line
-        and column but no file.
-    """
-    found = {
-        path.name: _read_one(path)
-        for pattern in ("*.yml", "*.yaml")
-        for path in sorted(directory.glob(pattern))
-    }
-    if not found:
-        message = (
-            f"no workflow documents were read from {directory}; every "
-            f"assertion built on this reading is satisfied by finding "
-            f"nothing, so this is the reader failing rather than the "
-            f"repository complying"
-        )
-        raise WorkflowReadingError(
-            message, reader="read_workflows", path=str(directory)
-        )
-    return found
+    if not isinstance(reference, str):
+        return None
+    path = reference.removeprefix("./")
+    if not path.startswith(WORKFLOW_DIRECTORY):
+        return None
+    name = path.removeprefix(WORKFLOW_DIRECTORY)
+    return name if name in documents else None
 
 
 def called_workflows(
     document: WorkflowDocument, documents: dict[str, WorkflowDocument]
 ) -> frozenset[str]:
     """Return the same-repository reusable workflows one document calls.
-
-    GitHub accepts two spellings for a local reusable workflow,
-    `./.github/workflows/x.yml` and `$/.github/workflows/x.yml`, the
-    second being the documented recommendation. A reader that knows
-    only the first silently drops callers written the other way, which
-    is the failure this helper exists to avoid rather than a
-    hypothetical: both spellings reach the same file.
 
     A reference to another repository is not followed. Its content is
     not in this tree, so nothing here could read it, and claiming to
@@ -220,22 +117,25 @@ def called_workflows(
     frozenset of str
         The file names it calls, limited to documents present here.
     """
-    jobs = document.get("jobs")
-    if not isinstance(jobs, dict):
-        return frozenset()
-    called: set[str] = set()
-    for job in jobs.values():
-        if not isinstance(job, dict):
-            continue
-        reference = job.get("uses")
-        if not isinstance(reference, str):
-            continue
-        for prefix in ("./", "$/"):
-            if reference.startswith(prefix):
-                name = reference.removeprefix(prefix).rsplit("/", 1)[-1]
-                if name in documents:
-                    called.add(name)
-    return frozenset(called)
+    names = (
+        _local_workflow(job.get("uses"), documents)
+        for job in workflow_jobs(document).values()
+    )
+    return frozenset(name for name in names if name is not None)
+
+
+def _reachable(
+    seeds: list[str], documents: dict[str, WorkflowDocument]
+) -> dict[str, WorkflowDocument]:
+    """Return the seeds and every workflow they call, transitively."""
+    found: dict[str, WorkflowDocument] = {}
+    pending = list(seeds)
+    while pending:
+        name = pending.pop()
+        if name not in found:
+            found[name] = documents[name]
+            pending.extend(called_workflows(documents[name], documents) - found.keys())
+    return found
 
 
 def pull_request_workflows(
@@ -276,17 +176,14 @@ def pull_request_workflows(
         workflows, so "the reader is broken" and "the repository
         complies" stay distinguishable.
     """
-    entries = [
-        name for name, document in documents.items() if serves_pull_requests(document)
-    ]
-    found: dict[str, WorkflowDocument] = {}
-    pending = list(entries)
-    while pending:
-        name = pending.pop()
-        if name in found:
-            continue
-        found[name] = documents[name]
-        pending.extend(called_workflows(documents[name], documents) - found.keys())
+    found = _reachable(
+        [
+            name
+            for name, document in documents.items()
+            if serves_pull_requests(document)
+        ],
+        documents,
+    )
     if not found:
         message = (
             "this reading found no workflow serving a pull request; the "
@@ -366,3 +263,40 @@ def coverage_steps(
                 raise WorkflowReadingError(message, reader="coverage_steps", path=name)
             found[name] = step
     return found
+
+
+#: The service itself. A pull-request lane that reaches it by any other
+#: road than the action (`curl` in a script, a third-party action's
+#: input) escapes the action and command clauses alike, and escapes the
+#: secret clause too when the credential travels under another name.
+CODESCENE_HOST: typ.Final[str] = "codescene.io"
+
+
+def codescene_contacts(name: str, document: WorkflowDocument) -> list[str]:
+    """Return every step in one workflow that names the CodeScene host.
+
+    Read over what a step executes or hands to an action (its script,
+    its inputs, its environment), not over the file's text, so a comment
+    explaining why a lane no longer talks to CodeScene is not read as
+    the lane talking to it.
+
+    Parameters
+    ----------
+    name : str
+        The workflow's file name, for the message.
+    document : WorkflowDocument
+        The parsed workflow.
+
+    Returns
+    -------
+    list of str
+        One entry per step, naming it by position.
+    """
+    return [
+        f"{name}: step {index + 1}"
+        for index, step in enumerate(workflow_steps(document))
+        if any(
+            CODESCENE_HOST in str(value)
+            for value in (step.get("run", ""), step.get("with"), step.get("env"))
+        )
+    ]

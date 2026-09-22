@@ -1,4 +1,4 @@
-"""The exception base every test-support helper raises through."""
+"""The exception types every test-support helper raises through."""
 
 
 class SupportError(Exception):
@@ -28,3 +28,36 @@ class SupportError(Exception):
         """
         super().__init__(message)
         self.reader = reader
+
+
+class ReadingError(SupportError):
+    """Raised when a reading of a repository file cannot produce its subject.
+
+    The file could not be read, did not parse, or parsed to something
+    the reading cannot use. Each is reported with the file rather than
+    surfacing as an `OSError` naming an errno or a parser error naming a
+    line and column and no file.
+
+    Attributes
+    ----------
+    path : str or None
+        What the reading was over, when it was over something nameable:
+        a directory for an acquisition, a file for a reading of one
+        document. None when the fault is about a whole set rather than
+        one member.
+    """
+
+    def __init__(self, message: str, *, reader: str, path: str | None = None) -> None:
+        """Record the message, the reading, and what it was over.
+
+        Parameters
+        ----------
+        message : str
+            What went wrong, for a person reading the failure.
+        reader : str
+            The reading that failed.
+        path : str or None
+            The directory or file the fault is about, when it has one.
+        """
+        super().__init__(message, reader=reader)
+        self.path = path

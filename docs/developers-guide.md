@@ -1372,10 +1372,15 @@ CodeScene cannot tell that what arrived was not the trunk. Without
 feature branch replaces the baseline every pull request ratchets against, and
 nothing reports it.
 
+The contract holds that guard as one `&&` term and refuses any `||`, because a
+substring match passes `... && ref == main || dispatch`, which makes every
+conjunct optional so a dispatch from any branch uploads.
+
 **And it runs one at a time.** The baseline is a single value with a single
-writer, so two publisher runs racing decide it by which finished last. The
-concurrency group cancels a superseded run rather than letting it finish and
-overwrite.
+writer, so two publisher runs racing would decide it by which finished last.
+The concurrency group queues a superseded run rather than cancelling it: a
+cancelled run abandons both its upload and its baseline write, while a queued
+one publishes later and the later push still wins because it runs last.
 
 `tests/test_codescene_coverage_contract.py` holds the shape, reading the
 workflows through `tests/support/codescene_coverage.py`. Two things about that
@@ -1395,6 +1400,58 @@ nothing makes all of them pass over an empty set: not an error, and not a
 report of zero, but a report of compliance. `load_workflow` uses
 `yaml.BaseLoader` and keeps the string, and the reader covers both, so neither
 choice can empty the contract quietly.
+
+#### The workflow readers
+
+The contracts read through `tests/support`, split so that one module owns the
+filesystem and everything else is pure over supplied text or documents:
+
+- `workflows.py` parses and reads one document. `load_workflow` uses a
+  `yaml.BaseLoader` subclass that keeps every scalar a string and refuses a
+  mapping declaring one key twice: PyYAML otherwise keeps the last value
+  silently, so a job declaring `runs-on` twice would read as the half GitHub
+  may not run. `WorkflowDocument` is keyed `str | bool` because a resolving
+  loader keys `on:` under `True`; `triggers` reads both and accepts the
+  mapping, list and bare-string forms. `pushes_to_main` answers every filter
+  form and fails closed on one it does not recognize. `workflow_jobs` and
+  `workflow_steps` drop a fragment that is not a mapping rather than refuse the
+  document.
+- `workflow_files.py` is the only filesystem access. `read_workflows`,
+  `read_workflow_texts` and `read_text` take the path to read rather than
+  finding one, so a test can point them at a fixture tree.
+- `markdownlint_config.py` reads `.markdownlint-cli2.jsonc`: the JSONC comment
+  stripper and `configured_ignores` are pure over text, and
+  `read_configured_ignores` reaches the file through `read_text`.
+- `codescene_coverage.py` selects the subjects of CV-005: the pull-request
+  lane (`pull_request_workflows`), the publishers, the coverage steps, and
+  steps naming the `codescene.io` host.
+- `workflow_secrets.py` finds every place a workflow puts `CS_ACCESS_TOKEN` in
+  reach: workflow, job and step `env` (as the key or in a value), action inputs,
+  `run` bodies, and reusable-workflow `secrets:` forwarding, named or
+  `inherit`.
+
+Failures are structured. Every helper raises a `SupportError` carrying
+`reader`, the reading that failed. `ReadingError` adds `path` and is raised for
+a file that cannot be read or parsed; `WorkflowReadingError` is its workflow
+form, also raised when a reading finds nothing it must have found, because
+every rule built on these readings is a refusal and a refusal over an empty set
+is satisfied by any repository at all. A test catching `ReadingError` covers
+both.
+
+**The pull-request lane is a closure, not a trigger list.** A workflow
+declaring only `workflow_call` runs on a pull request when a pull-request
+workflow calls it, and `secrets: inherit` hands it the token, so every
+pull-request clause (the action, the command, the secret and the host) runs
+over the pull-request workflows and everything they call, transitively. A call
+is recognized by shape rather than by a list of prefixes: a leading `./` is
+stripped, and the remainder must be a file directly under `.github/workflows/`.
+`tests/test_pull_request_closure.py` holds a `workflow_call` probe that curls
+the CodeScene API with an inherited token, and asserts that the secret clause
+and the host clause both catch it.
+
+The step and secret readings are also driven by Hypothesis in
+`tests/test_workflow_reader_properties.py`, over generated workflows of any
+number of jobs and steps with malformed fragments and decoys among them.
 
 Per section 6f, none of those tests names a pin's SHA. They assert the shape,
 that both coverage lanes name the *same* commit, and that the Markdown linter

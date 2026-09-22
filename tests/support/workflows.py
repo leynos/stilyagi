@@ -37,8 +37,51 @@ PULL_REQUEST_TRIGGERS: typ.Final[frozenset[str]] = frozenset({
 })
 
 
+class _UniqueKeyLoader(yaml.BaseLoader):
+    """`yaml.BaseLoader` refusing a mapping that declares a key twice.
+
+    PyYAML keeps the last of two equal keys and says nothing. A job
+    declaring `runs-on` twice then parses into a document holding only
+    the second value, so a lane can carry a label in the discarded half
+    and every contract reads the half GitHub may not. Refusing the
+    document is the only reading that cannot be wrong about which half
+    runs.
+    """
+
+    @typ.override
+    def construct_mapping(
+        self, node: yaml.MappingNode, deep: bool = False
+    ) -> dict[object, object]:
+        """Construct one mapping, refusing a key already seen in it.
+
+        Returns
+        -------
+        dict
+            The mapping, as `yaml.BaseLoader` would construct it.
+
+        Raises
+        ------
+        yaml.constructor.ConstructorError
+            If a key appears twice, naming it and where it appears.
+        """
+        seen: set[object] = set()
+        for key_node, _ in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in seen:
+                context = "while constructing a mapping"
+                problem = f"found duplicate key {key!r}"
+                raise yaml.constructor.ConstructorError(
+                    context, node.start_mark, problem, key_node.start_mark
+                )
+            seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
 def load_workflow(workflow: str) -> WorkflowDocument:
     r"""Parse a GitHub Actions workflow while retaining scalar strings.
+
+    A document that is not YAML, or in which a mapping declares one key
+    twice, raises `yaml.YAMLError` from the parser.
 
     Parameters
     ----------
@@ -61,7 +104,9 @@ def load_workflow(workflow: str) -> WorkflowDocument:
     >>> load_workflow("on:\\n  push:\\n")
     {'on': {'push': ''}}
     """
-    parsed = yaml.load(workflow, Loader=yaml.BaseLoader)
+    # A `BaseLoader` subclass constructs only strings, lists and mappings,
+    # so it cannot instantiate an object; the rule knows only the stock names.
+    parsed = yaml.load(workflow, Loader=_UniqueKeyLoader)  # ruff: ignore[unsafe-yaml-load]
     match parsed:
         case dict() as document:
             return typ.cast("WorkflowDocument", document)
@@ -197,6 +242,33 @@ def pushes_to_main(document: WorkflowDocument) -> bool:
     return not {"tags", "tags-ignore"} & set(filters)
 
 
+def workflow_jobs(document: WorkflowDocument) -> dict[str, dict[str, object]]:
+    r"""Return a workflow's jobs that are mappings, by job name.
+
+    A job that is not a mapping is dropped rather than raising, for the
+    reason `workflow_steps` gives.
+
+    Parameters
+    ----------
+    document : WorkflowDocument
+        A parsed workflow.
+
+    Returns
+    -------
+    dict
+        Job name to job, in declaration order.
+
+    Examples
+    --------
+    >>> sorted(workflow_jobs(load_workflow("jobs:\n  a:\n    steps: []\n  b: x\n")))
+    ['a']
+    """
+    jobs = document.get("jobs")
+    if not isinstance(jobs, dict):
+        return {}
+    return {str(name): job for name, job in jobs.items() if isinstance(job, dict)}
+
+
 def workflow_steps(document: WorkflowDocument) -> list[dict[str, object]]:
     """Return every step of every job in one workflow.
 
@@ -216,13 +288,9 @@ def workflow_steps(document: WorkflowDocument) -> list[dict[str, object]]:
         Every step, in the order the document declares them, flattened
         across jobs.
     """
-    jobs = document.get("jobs")
-    if not isinstance(jobs, dict):
-        return []
     return [
         step
-        for job in jobs.values()
-        if isinstance(job, dict)
+        for job in workflow_jobs(document).values()
         for step in (job.get("steps") or [])
         if isinstance(step, dict)
     ]

@@ -19,6 +19,7 @@ from tests.support.codescene_coverage import (
     CODESCENE_ACTION,
     publishers,
 )
+from tests.support.workflow_files import read_workflow_texts
 from tests.support.workflows import workflow_steps
 
 if typ.TYPE_CHECKING:
@@ -142,12 +143,14 @@ def test_the_publisher_uploads_only_from_main(
 def test_the_publisher_runs_one_at_a_time(
     documents: dict[str, WorkflowDocument],
 ) -> None:
-    """Two publisher runs racing decide the baseline by finishing order.
+    """Publisher runs queue; a superseded one is never cancelled.
 
-    The baseline this workflow writes is what every pull request
-    ratchets against, so a superseded run finishing last makes its
-    figures the trunk's. A concurrency group with cancellation makes the
-    newest run the only one that can write.
+    Two runs racing would decide the baseline by finishing order, so the
+    workflow names a concurrency group. Cancelling within it is the
+    wrong remedy: a cancelled run abandons both its upload and its
+    ratchet baseline write, while a queued one publishes later and the
+    later push's baseline still wins, because it runs last. The
+    pull-request lanes cancel superseded runs; the publisher must not.
     """
     ((name, document),) = publishers(documents).items()
     concurrency = document.get("concurrency")
@@ -159,16 +162,15 @@ def test_the_publisher_runs_one_at_a_time(
     assert concurrency.get("group"), (
         f"{name}'s concurrency block must name a group: {concurrency!r}"
     )
-    assert concurrency.get("cancel-in-progress") == "true", (
-        f"{name} must cancel a superseded publisher run; without it the "
-        f"older run can still write the baseline after the newer one. It "
-        f"sets {concurrency.get('cancel-in-progress')!r}"
+    cancels = str(concurrency.get("cancel-in-progress", "false")).strip()
+    assert cancels == "false", (
+        f"{name} must queue superseded publisher runs rather than cancel "
+        f"them; a cancelled run abandons its upload and its baseline "
+        f"write. It declares cancel-in-progress {cancels!r}"
     )
 
 
-def test_no_workflow_reads_the_retired_variable(
-    documents: dict[str, WorkflowDocument],
-) -> None:
+def test_no_workflow_reads_the_retired_variable() -> None:
     """The variable this adoption retires must have no readers left.
 
     Asserted on expressions rather than on the word. Both workflows
@@ -187,8 +189,8 @@ def test_no_workflow_reads_the_retired_variable(
     )
     offenders = sorted(
         f"{name}: {match.group(0)}"
-        for name in documents
-        for match in reference.finditer((WORKFLOWS / name).read_text(encoding="utf-8"))
+        for name, text in read_workflow_texts(WORKFLOWS).items()
+        for match in reference.finditer(text)
     )
     assert not offenders, (
         f"these workflows still read {RETIRED_VARIABLE}; the uploader "

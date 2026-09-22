@@ -12,7 +12,7 @@ import typing as typ
 
 import pytest
 
-from tests.support.codescene_coverage import read_workflows
+from tests.support.workflow_files import read_workflows
 
 if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from tests.support.workflows import WorkflowDocument

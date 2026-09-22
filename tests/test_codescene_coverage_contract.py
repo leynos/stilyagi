@@ -39,8 +39,10 @@ import typing as typ
 from tests.support.codescene_coverage import (
     CLI_COMMAND,
     CODESCENE_ACTION,
+    CODESCENE_HOST,
     COVERAGE_ACTION,
     PINNED_COMMIT,
+    codescene_contacts,
     coverage_steps,
     publishers,
     pull_request_workflows,
@@ -123,6 +125,28 @@ def test_no_pull_request_workflow_runs_the_cli(
     )
     assert not offenders, (
         f"these pull-request lanes run {CLI_COMMAND} directly: {offenders}"
+    )
+
+
+def test_no_pull_request_workflow_contacts_codescene(
+    documents: dict[str, WorkflowDocument],
+) -> None:
+    """The action and the command are not the only roads to the service.
+
+    A `curl` to the API, or a third-party action handed the URL, escapes
+    both clauses above, and escapes the secret clause too when the
+    credential travels under another name. Read over what each step
+    executes or passes on, so the prose explaining the policy is not
+    read as a breach of it.
+    """
+    offenders = sorted(
+        site
+        for name, document in pull_request_workflows(documents).items()
+        for site in codescene_contacts(name, document)
+    )
+    assert not offenders, (
+        f"these pull-request lanes name {CODESCENE_HOST}; CV-005 keeps "
+        f"CodeScene off the pull-request lane by any road: {offenders}"
     )
 
 

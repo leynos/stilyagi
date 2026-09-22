@@ -22,14 +22,15 @@ if typ.TYPE_CHECKING:
     import pathlib
 
 import pytest
+import yaml
 
 from tests.support.codescene_coverage import (
-    WorkflowReadingError,
     coverage_steps,
     publishers,
     pull_request_workflows,
-    read_workflows,
 )
+from tests.support.errors import ReadingError
+from tests.support.workflow_files import WorkflowReadingError, read_workflows
 from tests.support.workflows import (
     load_workflow,
     pushes_to_main,
@@ -79,8 +80,6 @@ def test_the_trigger_reader_survives_a_resolving_loader() -> None:
     a one-word change that would otherwise empty every rule built on
     these readings while every assertion still passed.
     """
-    import yaml
-
     document = yaml.safe_load("on:\n  pull_request:\n  push:\n    branches: [main]\n")
     assert True in document, (
         "this case only means something while a resolving loader keys an "
@@ -224,6 +223,64 @@ def test_an_unreadable_workflow_names_its_file(
         read_workflows(tmp_path)
     assert raised.value.reader == "read_workflows", f"{why}: {raised.value}"
     assert "broken.yml" in (raised.value.path or ""), f"{why}: {raised.value}"
+
+
+def test_a_workflow_that_cannot_be_read_names_its_file(tmp_path: pathlib.Path) -> None:
+    """The file access is the boundary, and an `OSError` stops there.
+
+    A directory named like a workflow is the portable way to make one
+    unreadable: the glob finds it and the read raises.
+    """
+    (tmp_path / "broken.yml").mkdir()
+    with pytest.raises(ReadingError) as raised:
+        read_workflows(tmp_path)
+    assert raised.value.reader == "read_workflows", raised.value
+    assert "broken.yml" in (raised.value.path or ""), raised.value
+
+
+@pytest.mark.parametrize(
+    ("body", "key"),
+    [
+        pytest.param(
+            "jobs:\n  a:\n    runs-on: ubuntu-latest\n    runs-on: windows-latest\n",
+            "runs-on",
+            id="job-key",
+        ),
+        pytest.param("on:\n  push:\non:\n  pull_request:\n", "on", id="top-level"),
+    ],
+)
+def test_a_duplicated_key_is_refused_rather_than_resolved(body: str, key: str) -> None:
+    """PyYAML keeps the last of two equal keys and says nothing.
+
+    A job declaring `runs-on` twice would parse into a document holding
+    only the second label, so a lane could carry a paid label in the
+    discarded half and read as hosted. Refusing is the one reading that
+    cannot be wrong about which half GitHub runs.
+    """
+    with pytest.raises(yaml.YAMLError, match=f"duplicate key '{key}'"):
+        load_workflow(body)
+
+
+def test_a_duplicated_key_in_a_file_names_the_file(tmp_path: pathlib.Path) -> None:
+    """The refusal reaches the boundary as a reading fault with the file."""
+    (tmp_path / "twice.yml").write_text(
+        "jobs:\n  a:\n    runs-on: x\n    runs-on: y\n", encoding="utf-8"
+    )
+    with pytest.raises(WorkflowReadingError) as raised:
+        read_workflows(tmp_path)
+    assert "twice.yml" in (raised.value.path or ""), raised.value
+
+
+def test_distinct_keys_at_different_levels_are_not_duplicates() -> None:
+    """Assert the refusal is narrow: one key per mapping, not per file.
+
+    Every workflow repeats `runs-on` and `steps` across jobs; a loader
+    tracking keys across the document instead of within one mapping
+    would refuse them all.
+    """
+    jobs = load_workflow("jobs:\n  a:\n    runs-on: x\n  b:\n    runs-on: y\n")["jobs"]
+    assert isinstance(jobs, dict), jobs
+    assert sorted(jobs) == ["a", "b"], "each job keeps its own runs-on"
 
 
 def test_no_pull_request_workflow_is_a_reader_fault() -> None:
