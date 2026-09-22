@@ -6,6 +6,14 @@ on:
     branches:
       - main
 
+# A second push to a pull request supersedes the run already in flight, which
+# otherwise charges a full set of minutes for a result nobody reads. Pushes to
+# main, dispatches and schedules share the group and are never cancelled: they
+# are the cache writers and the published record.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   BUILD_PROFILE: debug
@@ -50,10 +58,10 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
+        uses: leynos/shared-actions/.github/actions/setup-rust@dbe2e22ceaf498d85512679ccded38be9dbe7777
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
 
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest@0.9.138
@@ -87,7 +95,7 @@ jobs:
       - name: Install mdtablefix
         # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.
-        uses: leynos/shared-actions/.github/actions/install-mdtablefix@c5a54701c8603a0fa756a6b34c49bc2af75a6c11
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@dbe2e22ceaf498d85512679ccded38be9dbe7777
         with:
           version: "0.6.0"
 
@@ -162,7 +170,7 @@ jobs:
         # for a branch it added a whole second tool to the critical path
         # for a gate the ratchet already applies.
         if: github.event_name == 'pull_request'
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@dbe2e22ceaf498d85512679ccded38be9dbe7777
         with:
           output-path: coverage.xml
           format: cobertura
@@ -195,10 +203,10 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
+        uses: leynos/shared-actions/.github/actions/setup-rust@dbe2e22ceaf498d85512679ccded38be9dbe7777
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
 
       - name: Release smoke
         run: make release
