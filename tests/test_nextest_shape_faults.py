@@ -12,6 +12,9 @@ absent is the silent way to get that wrong.
 
 import typing as typ
 
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
 import pytest
 
 from tests.support.nextest_config import (
@@ -205,7 +208,7 @@ def test_a_well_formed_slow_timeout_without_a_grace_period_keeps_the_default() -
     ],
 )
 def test_a_malformed_bare_duration_is_a_configuration_fault(
-    reading: typ.Callable[[str], object],
+    reading: cabc.Callable[[str], object],
 ) -> None:
     """A bare `slow-timeout` nextest cannot parse is malformed, not unbounded.
 
@@ -218,6 +221,5 @@ def test_a_malformed_bare_duration_is_a_configuration_fault(
     with pytest.raises(NextestConfigurationError) as raised:
         reading(config_text)
     assert raised.value.value == "not-a-duration", (
-        f"the refusal must name the malformed duration; it named "
-        f"{raised.value.value!r}"
+        f"the refusal must name the malformed duration; it named {raised.value.value!r}"
     )
