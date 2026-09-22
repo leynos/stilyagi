@@ -62,10 +62,14 @@ REQUIRED_GLOBS: typ.Final[str] = "**/*.md"
 #: naming only the command misses, because the Makefile target invokes
 #: `$(MDLINT)`, which defaults to `markdownlint-cli2` and is resolved
 #: from the environment rather than pinned.
-LINTER_COMMANDS: typ.Final[frozenset[str]] = frozenset({
-    "markdownlint-cli2",
-    "make markdownlint",
-})
+#: Matched as patterns rather than as literals. `make  markdownlint`
+#: with two spaces reaches the same unpinned target and contains
+#: neither literal, so a fixed substring check passes during exactly
+#: the regression it exists to reject.
+LINTER_COMMANDS: typ.Final[tuple[tuple[str, re.Pattern[str]], ...]] = (
+    ("markdownlint-cli2", re.compile(r"\bmarkdownlint-cli2\b")),
+    ("make markdownlint", re.compile(r"\bmake\s+markdownlint\b")),
+)
 
 
 def _without_comments(text: str) -> str:
@@ -272,13 +276,18 @@ def test_no_workflow_runs_the_linter_directly() -> None:
     target invokes `$(MDLINT)`, which defaults to `markdownlint-cli2`
     and is resolved from the environment, so a rule naming only the
     bare command reads the indirection as compliance.
+
+    Both are matched as patterns rather than as literals, because
+    `make  markdownlint` with two spaces reaches the same target and
+    contains neither literal. A fixed substring check would pass during
+    exactly the regression this exists to reject.
     """
     offenders = sorted(
         f"{name}: {command!r} in {str(step.get('run', '')).strip()[:50]}"
         for name, document in _documents().items()
         for step in workflow_steps(document)
-        for command in sorted(LINTER_COMMANDS)
-        if command in str(step.get("run", ""))
+        for command, pattern in LINTER_COMMANDS
+        if pattern.search(str(step.get("run", "")))
     )
     assert not offenders, (
         f"these steps reach the linter from a run body rather than through "

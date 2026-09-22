@@ -115,8 +115,11 @@ def _one_step_sites(name: str, where: str, step: dict[str, object]) -> list[str]
     inputs = step.get("with")
     if isinstance(inputs, dict) and any(_reaches(value) for value in inputs.values()):
         sites.append(f"{name}: {where} inputs")
-    body = str(step.get("run", ""))
-    if _reaches(body) or FORBIDDEN_VARIABLE in body:
+    # `_reaches` only, not the bare name. A `run` body is the one place
+    # that reliably carries prose: a comment explaining why the secret
+    # is absent names it, and a bare-text check reads the explanation as
+    # the violation. What puts the secret in reach is a reference.
+    if _reaches(step.get("run", "")):
         sites.append(f"{name}: {where} run")
     return sites
 

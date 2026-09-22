@@ -11,24 +11,19 @@ Each assertion is proved by putting the forbidden element back.
 Run via `make test`.
 """
 
-import pathlib
 import re
 import typing as typ
 
-import pytest
-
+from tests.conftest import WORKFLOWS
 from tests.support.codescene_coverage import (
     CODESCENE_ACTION,
     publishers,
-    read_workflows,
 )
 from tests.support.workflows import workflow_steps
 
 if typ.TYPE_CHECKING:
     from tests.support.workflows import WorkflowDocument
 
-REPOSITORY_ROOT: typ.Final[pathlib.Path] = pathlib.Path(__file__).resolve().parents[1]
-WORKFLOWS: typ.Final[pathlib.Path] = REPOSITORY_ROOT / ".github" / "workflows"
 
 #: The ref the publisher's upload step must be guarded on. A
 #: `workflow_dispatch` can be aimed at any branch, so the token alone
@@ -43,18 +38,6 @@ MAIN_REF: typ.Final[str] = "github.ref == 'refs/heads/main'"
 #: `archive-checksum` either. The action pins the CLI through its own
 #: manifest now.
 RETIRED_VARIABLE: typ.Final[str] = "CODESCENE_CLI_SHA256"
-
-
-@pytest.fixture(scope="module")
-def documents() -> dict[str, WorkflowDocument]:
-    """Return this repository's workflows, parsed once.
-
-    Returns
-    -------
-    dict
-        File name to parsed document.
-    """
-    return read_workflows(WORKFLOWS)
 
 
 def _publisher_inputs(documents: dict[str, WorkflowDocument]) -> dict[str, object]:
@@ -126,20 +109,33 @@ def test_the_publisher_uploads_only_from_main(
     feature branch replaces the baseline every pull request ratchets
     against, and nothing reports that it happened.
 
-    The condition is asserted as a conjunct of the step's own `if`
-    rather than by equality, so adding a further guard beside it does
-    not fail this test while removing this one does.
+    Asserted as a whole conjunct rather than as a substring, and with
+    `||` refused. A substring check passes for
+    `env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' ||
+    github.event_name == 'workflow_dispatch'`, which reads as a
+    tightening and is the exact opposite: an alternative makes every
+    conjunct optional, so a dispatch from any branch uploads again.
+
+    Splitting on `&&` keeps a further guard possible beside this one
+    while stopping this one becoming optional.
     """
     ((name, document),) = publishers(documents).items()
     ((condition,),) = (
-        (str(step.get("if", "")),)
+        (" ".join(str(step.get("if", "")).split()),)
         for step in workflow_steps(document)
         if CODESCENE_ACTION in str(step.get("uses", ""))
     )
-    assert MAIN_REF in condition, (
-        f"{name}'s upload step must be guarded on {MAIN_REF}; a dispatch "
-        f"from a feature branch would otherwise publish that branch's "
-        f"coverage as the trunk's. It is guarded on {condition!r}"
+    assert "||" not in condition, (
+        f"{name}'s upload guard offers an alternative: {condition!r}. An "
+        f"`||` makes every conjunct optional, so the ref check can be "
+        f"satisfied by the other side and the upload runs from any branch"
+    )
+    conjuncts = [part.strip() for part in condition.split("&&")]
+    assert MAIN_REF in conjuncts, (
+        f"{name}'s upload step must be guarded on {MAIN_REF} as a conjunct "
+        f"of its own; a dispatch from a feature branch would otherwise "
+        f"publish that branch's coverage as the trunk's. It is guarded on "
+        f"{condition!r}, whose conjuncts are {conjuncts}"
     )
 
 

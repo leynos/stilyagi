@@ -20,6 +20,8 @@ empty subject set is satisfied by any repository at all.
 import re
 import typing as typ
 
+import yaml
+
 from tests.support import SupportError
 from tests.support.workflows import (
     load_workflow,
@@ -129,7 +131,12 @@ def _read_one(path: pathlib.Path) -> WorkflowDocument:
         ) from error
     try:
         return load_workflow(text)
-    except (TypeError, ValueError) as error:
+    except (TypeError, ValueError, yaml.YAMLError) as error:
+        # `yaml.YAMLError` as well as the shape errors. Syntactically
+        # invalid YAML raises from the parser before `load_workflow`
+        # reaches its mapping check, so without it the parser's message
+        # escapes with a line and column but no file name, from inside a
+        # helper whose return type promises a mapping.
         message = f"{path} is not a workflow document: {error}"
         raise WorkflowReadingError(
             message, reader="read_workflows", path=str(path)
@@ -160,8 +167,10 @@ def read_workflows(directory: pathlib.Path) -> dict[str, WorkflowDocument]:
     ------
     WorkflowReadingError
         If the directory holds no workflow at all, or one of them
-        cannot be read or parsed. A missing file is reported with its
-        name rather than surfacing as a bare `OSError` naming an errno.
+        cannot be read, is not valid YAML, or is not a mapping. Each
+        is reported with the file's name rather than surfacing as a
+        bare `OSError` naming an errno, or a parser error naming a line
+        and column but no file.
     """
     found = {
         path.name: _read_one(path)

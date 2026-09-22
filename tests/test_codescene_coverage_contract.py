@@ -34,10 +34,7 @@ Each assertion is proved by putting the forbidden element back.
 Run via `make test`.
 """
 
-import pathlib
 import typing as typ
-
-import pytest
 
 from tests.support.codescene_coverage import (
     CLI_COMMAND,
@@ -47,7 +44,6 @@ from tests.support.codescene_coverage import (
     coverage_steps,
     publishers,
     pull_request_workflows,
-    read_workflows,
 )
 from tests.support.workflow_secrets import FORBIDDEN_VARIABLE, secret_sites
 from tests.support.workflows import workflow_steps
@@ -55,8 +51,6 @@ from tests.support.workflows import workflow_steps
 if typ.TYPE_CHECKING:
     from tests.support.workflows import WorkflowDocument
 
-REPOSITORY_ROOT: typ.Final[pathlib.Path] = pathlib.Path(__file__).resolve().parents[1]
-WORKFLOWS: typ.Final[pathlib.Path] = REPOSITORY_ROOT / ".github" / "workflows"
 
 #: The selection inputs that decide what a coverage run measures, as
 #: opposed to what happens to the report afterwards.
@@ -66,22 +60,6 @@ SELECTION: typ.Final[frozenset[str]] = frozenset({
     "use-cargo-nextest",
     "with-ratchet",
 })
-
-
-@pytest.fixture(scope="module")
-def documents() -> dict[str, WorkflowDocument]:
-    """Return this repository's workflows, parsed once.
-
-    The only acquisition in the module. Everything the tests call takes
-    the result, so each reading can also be driven with constructed
-    documents in the cases below.
-
-    Returns
-    -------
-    dict
-        File name to parsed document.
-    """
-    return read_workflows(WORKFLOWS)
 
 
 def test_no_pull_request_workflow_names_the_codescene_action(
