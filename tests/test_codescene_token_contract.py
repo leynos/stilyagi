@@ -49,6 +49,22 @@ def _publisher(documents: dict[str, WorkflowDocument]) -> WorkflowDocument:
     return document
 
 
+def _is_upload(step: dict[str, object]) -> bool:
+    """Report whether a step calls the CodeScene uploader."""
+    return CODESCENE_ACTION in str(step.get("uses", ""))
+
+
+def _upload_job_steps(document: WorkflowDocument) -> list[dict[str, object]]:
+    """Return the steps of the one publisher job that uploads."""
+    jobs = [
+        [step for step in job.get("steps") or [] if isinstance(step, dict)]
+        for job in workflow_jobs(document).values()
+    ]
+    uploading = [steps for steps in jobs if any(map(_is_upload, steps))]
+    assert len(uploading) == 1, f"one job must upload, found {len(uploading)}"
+    return uploading[0]
+
+
 def _strings(value: object) -> cabc.Iterator[str]:
     """Yield every string in a parsed YAML value, mapping keys included.
 
@@ -92,16 +108,18 @@ def test_the_check_step_publishes_availability_and_nothing_else(
     A condition on the check would leave its output unset whenever the
     condition was false, so the upload would skip forever, and an `env`
     on it would put the token back into an environment. The check must
-    also precede the upload that reads it.
+    also precede the upload that reads it, in the same job: a step's
+    outputs are visible only to later steps of its own job, so a check
+    in another job leaves the upload skipping forever.
     """
-    steps = workflow_steps(_publisher(documents))
+    steps = _upload_job_steps(_publisher(documents))
     checks = [step for step in steps if step.get("id") == CHECK_STEP_ID]
-    assert len(checks) == 1, f"one step must carry id {CHECK_STEP_ID!r}"
+    assert len(checks) == 1, f"the upload's job must carry one {CHECK_STEP_ID!r} step"
     (check,) = checks
     assert str(check.get("run", "")).strip() == CHECK_COMMAND, check.get("run")
     assert "if" not in check, "the check must run unconditionally"
     assert "env" not in check, "the check must declare no env"
-    uploads = [s for s in steps if CODESCENE_ACTION in str(s.get("uses", ""))]
+    uploads = [step for step in steps if _is_upload(step)]
     assert len(uploads) == 1, f"one upload step expected, found {len(uploads)}"
     assert steps.index(check) < steps.index(uploads[0]), (
         "the check must run before the upload that reads its output"
