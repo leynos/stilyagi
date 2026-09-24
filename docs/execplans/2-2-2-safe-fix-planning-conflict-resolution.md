@@ -296,6 +296,23 @@ Established during planning; use them instead of re-measuring.
   - 2026-09-07: all six deterministic gates passed (275 Python tests and 18
     snapshots), then CodeRabbit reviewed pushed commit `ebbcac7` on draft PR
     #138 and returned zero actionable findings. Milestone 5 may begin.
+  - 2026-09-24: rebased onto `origin/main` (`11e6026`). PR #109 was closed
+    unmerged rather than squashed, so the whole 27-commit series replayed
+    intact against merge-base `c997b28`; the exclusive boundary was the
+    graph's ordinary merge-base, with all 27 commits branch-owned. One
+    conflict arose, in `tests/test_renderers.py`: both sides appended a test
+    at end of file, and both were kept along with main's `import pytest` and
+    the branch's `Fix, TextEdit` import. Two failures then surfaced that the
+    pre-rebase base could not have caught, because `main` added a doctest lane
+    to `make test` after this branch forked: `splice.py` imported `TextEdit`
+    only under `typing.TYPE_CHECKING`, so its `apply_edits` example raised
+    `NameError` once `pytest --doctest-modules` ran over `python/stilyagi`;
+    and `renderers.py`'s `RendererRegistry` doctest still expected
+    `'0 diagnostics found\n'` where the branch renders
+    `'0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n'`. Both were
+    repaired, the second by keeping main's corrected escaping and updating
+    only the value. The execplan itself had never passed `mdtablefix --wrap`
+    and was reflowed with the gate's own rules.
 - [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes (in
       progress)
   - 2026-09-07: the atomic-write sub-slice has red/green coverage for mode
