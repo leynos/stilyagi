@@ -1952,30 +1952,28 @@ runs in write mode", the `markdownlint` log prints `refreshed: typos.toml`
 unconditionally, and `bf8b783` records the design decision behind that: the
 configuration is regenerated from the live shared dictionary on every run, so
 "the drift check and the separate write target are no longer meaningful". The
-committed copy is therefore a rendered artefact, not an input. `typos.local.toml`
-is the repository's actual overlay, and `docs/developers-guide.md` is explicit
-that `typos.toml` is never hand-edited and never checked for drift in
-continuous integration. Nothing reads the committed blob: there is no `--check`
-invocation anywhere in the Makefile, workflows, or scripts, and no test asserts
-on it. The file was restored so this slice stays scoped to the review, and the
-fourteen extra lines are upstream dictionary growth that will reappear on the
-next spelling run; that is expected and should not be committed as part of
-unrelated work.
+committed copy is therefore a rendered artefact, not an input.
+`typos.local.toml` is the repository's actual overlay, and
+`docs/developers-guide.md` is explicit that `typos.toml` is never hand-edited
+and never checked for drift in continuous integration. Nothing reads the
+committed blob: there is no `--check` invocation anywhere in the Makefile,
+workflows, or scripts, and no test asserts on it. The file was restored so this
+slice stays scoped to the review, and the fourteen extra lines are upstream
+dictionary growth that will reappear on the next spelling run; that is expected
+and should not be committed as part of unrelated work.
 
-The second is gate coverage. The full-chain run that validated the code changes
-started at 00:11:25, after the last code edit, and covered check-fmt, lint,
-typecheck, test, markdownlint, and nixie. Two gaps remained against the final
-commit. Its lint log is truncated at the skylos invocation, so the ninth stage's
-verdict is unproven on the committed content even though the eight preceding
-stages are green in that log (ruff clean, interrogate `PASSED 100.0%`, both
-pylint passes `10.00/10`, ambrleaks, cargo doc, clippy, and whitaker all
-completing). And the execplan revision notes were written at 00:20:03, after
-that run finished, so the Markdown gates had not seen them either; an attempt to
-close both gaps had to be abandoned because these very notes were still being
-edited while it ran, which would have invalidated its result. The rule this
-slice keeps relearning is that the tree must be frozen — committed, not merely
-saved — before a gate run is worth anything, and the notes recording a gate run
-cannot themselves be inside the change set that run is meant to validate.
+The second is gate coverage, and it is a process lesson rather than a code one.
+A gate run is only evidence about the tree it actually read. Two things make
+that easy to get wrong here. First, `mdtablefix` is the last step of
+`check-fmt`, and it reflows Markdown, so prose written *after* a gate run
+leaves that run stale — and prose that describes the run is written after it by
+construction. Second, an edit made while a gate is executing invalidates its
+result, and the logs give no warning: the run simply reports a verdict about
+content that no longer exists. The working rule is to finish and commit every
+line of prose first, confirm `make check-fmt` is clean, and only then start the
+full sequential chain — with the tree left untouched until it ends. Notes
+recording a gate run cannot usefully sit inside the change set that run is
+meant to validate.
 
 For reference, the nine `make lint` stages are ruff, interrogate, pylint-pypy,
 df12-pylint, ambrleaks, cargo doc, clippy, whitaker, and skylos. Spelling is
