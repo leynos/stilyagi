@@ -211,99 +211,55 @@ def test_planner_coalesces_identical_edits_and_accepts_merged_boundaries() -> No
     )
 
 
-def test_planner_aborts_when_ir_segment_text_disagrees_with_source() -> None:
-    """Treat a provenance mismatch as a file-level non-mutation condition."""
-    source = "Hello world"
+@pytest.mark.parametrize(
+    ("source", "segment", "edit", "message"),
+    [
+        pytest.param(
+            "Hello world",
+            {"text": "HELLO", "source": {"byte_start": 0, "byte_end": 5}},
+            TextEdit(0, 1, "h"),
+            "expected segment text that disagrees with its source to forbid mutation",
+            id="segment-text-disagrees-with-source",
+        ),
+        pytest.param(
+            "éalpha",
+            {"text": "alpha", "source": {"byte_start": 1, "byte_end": 7}},
+            TextEdit(2, 3, "A"),
+            "expected a span starting inside a UTF-8 code point to forbid mutation",
+            id="segment-starts-inside-utf8-code-point",
+        ),
+        pytest.param(
+            "Hello",
+            {"text": "Hello", "source": {"byte_start": 0, "byte_end": 6}},
+            TextEdit(0, 1, "h"),
+            "expected a span running past the end of the source to forbid mutation",
+            id="segment-extends-beyond-source",
+        ),
+    ],
+)
+def test_planner_rejects_untrustworthy_segment_provenance(
+    source: str,
+    segment: dict[str, object],
+    edit: TextEdit,
+    message: str,
+) -> None:
+    """Treat a segment whose provenance cannot be trusted as file-level non-mutation.
+
+    Each case is a distinct way the IR can describe bytes that do not exist in
+    the source: text that disagrees, a span that starts inside a UTF-8 code
+    point, and a span that runs past the end of the file.
+    """
     document = model.Document(
-        model.Syntax.MARKDOWN,
-        ir={
-            "regions": [
-                {
-                    "segments": [
-                        {"text": "HELLO", "source": {"byte_start": 0, "byte_end": 5}}
-                    ]
-                }
-            ]
-        },
+        model.Syntax.MARKDOWN, ir={"regions": [{"segments": [segment]}]}
     )
-    candidate = _diagnostic(
-        "PUN201", Fix("Bad IR", Applicability.SAFE, (TextEdit(0, 1, "h"),))
-    )
+    candidate = _diagnostic("PUN201", Fix("Bad IR", Applicability.SAFE, (edit,)))
 
     plan = plan_fixes(_request(source, document, (candidate,)))
 
-    assert_with_context(
-        plan.fixed_bytes is None, "expected source disagreement to forbid mutation"
-    )
+    assert_with_context(plan.fixed_bytes is None, message)
     assert_with_context(
         plan.rejections[0].identifier == "fix-error/source-mismatch",
-        "expected a source-mismatch rejection",
-    )
-
-
-def test_planner_rejects_segment_starting_inside_utf8_code_point() -> None:
-    """Reject a valid edit when its containing segment starts mid-code-point."""
-    source = "éalpha"
-    document = model.Document(
-        model.Syntax.MARKDOWN,
-        ir={
-            "regions": [
-                {
-                    "segments": [
-                        {
-                            "text": "alpha",
-                            "source": {"byte_start": 1, "byte_end": 7},
-                        }
-                    ]
-                }
-            ]
-        },
-    )
-    candidate = _diagnostic(
-        "PUN201", Fix("Bad IR", Applicability.SAFE, (TextEdit(2, 3, "A"),))
-    )
-
-    plan = plan_fixes(_request(source, document, (candidate,)))
-
-    assert_with_context(
-        plan.fixed_bytes is None, "expected malformed segment to forbid mutation"
-    )
-    assert_with_context(
-        plan.rejections[0].identifier == "fix-error/source-mismatch",
-        "expected a source-mismatch rejection",
-    )
-
-
-def test_planner_rejects_segment_extending_beyond_source() -> None:
-    """Reject a valid edit when its containing segment exceeds source bounds."""
-    source = "Hello"
-    document = model.Document(
-        model.Syntax.MARKDOWN,
-        ir={
-            "regions": [
-                {
-                    "segments": [
-                        {
-                            "text": source,
-                            "source": {"byte_start": 0, "byte_end": 6},
-                        }
-                    ]
-                }
-            ]
-        },
-    )
-    candidate = _diagnostic(
-        "PUN201", Fix("Bad IR", Applicability.SAFE, (TextEdit(0, 1, "h"),))
-    )
-
-    plan = plan_fixes(_request(source, document, (candidate,)))
-
-    assert_with_context(
-        plan.fixed_bytes is None, "expected malformed segment to forbid mutation"
-    )
-    assert_with_context(
-        plan.rejections[0].identifier == "fix-error/source-mismatch",
-        "expected a source-mismatch rejection",
+        f"expected a source-mismatch rejection for {edit!r}",
     )
 
 

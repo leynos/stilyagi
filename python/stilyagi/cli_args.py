@@ -197,10 +197,20 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Accept cache disabling requests without changing behaviour yet.",
     )
+    _add_verbosity_arguments(parser)
+    _add_target_arguments(parser)
+
+
+def _add_verbosity_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the mutually exclusive chatter-level flags to one parser."""
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument("--quiet", action="store_true", help="Reduce chatter.")
     verbosity.add_argument("--verbose", action="store_true", help="Increase chatter.")
     verbosity.add_argument("--silent", action="store_true", help="Suppress chatter.")
+
+
+def _add_target_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the trailing target operands to one parser."""
     parser.add_argument(
         "targets",
         nargs="*",

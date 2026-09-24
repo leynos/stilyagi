@@ -176,41 +176,62 @@ def run_check(
         )
         for discovered_file in discovered_files
     )
-    diagnostics_list = [
-        diagnostic
-        for file_diagnostics, _file_error, _preview in checked_files
-        for diagnostic in file_diagnostics
-    ]
-    fix_errors = [
-        fix_error
-        for _file_diagnostics, _file_error, preview in checked_files
-        if preview is not None
-        for fix_error in preview.fix_errors
-    ]
-    patches = [
-        preview.patch
-        for _file_diagnostics, _file_error, preview in checked_files
-        if preview is not None
-    ]
-    had_error = any(file_error for _diagnostics, file_error, _preview in checked_files)
+    aggregate = _aggregate_checked_files(checked_files)
 
     _LOGGER.debug(
         "rendering %d diagnostic(s) as %s",
-        len(diagnostics_list),
+        len(aggregate.diagnostics_list),
         options.output_format,
     )
     rendered = resolved_collaborators.renderer.render(
-        diagnostics_list,
+        aggregate.diagnostics_list,
         options.output_format,
-        fix_errors=fix_errors,
+        fix_errors=aggregate.fix_errors,
     )
     diagnostics_output = sys.stderr if options.diff else resolved_collaborators.output
     print(rendered, end="", file=diagnostics_output)
     if options.diff:
-        print("".join(patches), end="", file=resolved_collaborators.output)
-    exit_code = compute_exit_code(diagnostics_list, had_error=had_error)
+        print("".join(aggregate.patches), end="", file=resolved_collaborators.output)
+    exit_code = compute_exit_code(aggregate.diagnostics_list, had_error=aggregate.error)
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
+
+
+@dc.dataclass(frozen=True, slots=True)
+class _CheckedFileTotals:
+    """Diagnostics, previews, and failure state collected across checked files."""
+
+    diagnostics_list: list[diagnostics.Diagnostic]
+    fix_errors: list[diagnostics.FixError]
+    patches: list[str]
+    error: bool
+
+
+def _aggregate_checked_files(
+    checked_files: cabc.Sequence[
+        tuple[list[diagnostics.Diagnostic], bool, DiffPreview | None]
+    ],
+) -> _CheckedFileTotals:
+    """Flatten per-file check results into one render-ready bundle."""
+    return _CheckedFileTotals(
+        diagnostics_list=[
+            diagnostic
+            for file_diagnostics, _file_error, _preview in checked_files
+            for diagnostic in file_diagnostics
+        ],
+        fix_errors=[
+            fix_error
+            for _file_diagnostics, _file_error, preview in checked_files
+            if preview is not None
+            for fix_error in preview.fix_errors
+        ],
+        patches=[
+            preview.patch
+            for _file_diagnostics, _file_error, preview in checked_files
+            if preview is not None
+        ],
+        error=any(file_error for _diagnostics, file_error, _preview in checked_files),
+    )
 
 
 def _resolve_collaborators(
