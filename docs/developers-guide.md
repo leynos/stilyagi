@@ -896,7 +896,12 @@ same job, run the format check and Clippy. No crate declares features, so
 `--doctest-modules` pass. `tests/test_suite_runs_once.py` holds these premises,
 including the absence of features, whether declared in a `[features]` table or
 implied by an optional dependency. A crate that gains a feature fails it,
-because `--all-features` would then select tests that coverage does not run.
+because `--all-features` would then select tests that coverage does not run. It
+also requires `build` to be `test-doc`'s only prerequisite, since any other
+would run before the recipe. `tests/test_make_test_doc_execution.py` runs the
+target against command shims and checks the journal. Both doctest passes run,
+neither unit suite does, and a failing Rust doctest ends the target before the
+Python pass.
 
 ## 6. Lint, typecheck, and test workflow
 

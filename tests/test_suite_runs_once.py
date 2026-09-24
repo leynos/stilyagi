@@ -10,9 +10,10 @@ doctest runs were unique, so CI now runs `make test-doc` instead.
 
 These tests hold the premises of that split:
 
-- the smoke workflow runs `make test-doc`, unconditionally, and no command
-  that repeats a suite coverage already runs;
-- `test-doc` runs the two doctest commands and nothing else;
+- the smoke workflow runs `make test-doc`, unconditionally, in `lint-test`,
+  and no command that repeats a suite coverage already runs;
+- `test-doc` runs the two doctest commands and nothing else, and depends on
+  `build` alone, since any other prerequisite would run first;
 - both coverage steps run nextest with the doctests left off, so `test-doc`
   is not itself a repeat;
 - no crate declares a feature, explicitly or through an optional
@@ -29,7 +30,7 @@ import typing as typ
 import pytest
 
 from tests.support.assertions import assert_with_context
-from tests.support.workflows import load_workflow, workflow_steps
+from tests.support.workflows import load_workflow, workflow_jobs, workflow_steps
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOWS = REPOSITORY_ROOT / ".github" / "workflows"
@@ -70,6 +71,23 @@ def _recipe(target: str) -> list[str]:
     return recipe
 
 
+def _job_steps(workflow: str, job: str) -> list[dict[str, object]]:
+    """Return the steps of one job in one repository workflow."""
+    text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
+    jobs = workflow_jobs(load_workflow(text))
+    steps = jobs[job].get("steps")
+    assert_with_context(isinstance(steps, list), f"expected steps in {job}")
+    return [step for step in typ.cast("list[object]", steps) if isinstance(step, dict)]
+
+
+def _prerequisites(target: str) -> list[str]:
+    """Return one Makefile target's prerequisites, in order."""
+    lines = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8").splitlines()
+    headers = [line for line in lines if line.startswith(f"{target}:")]
+    assert_with_context(len(headers) == 1, f"expected one {target} target")
+    return headers[0].removeprefix(f"{target}:").split("##")[0].split()
+
+
 def test_smoke_runs_the_doctests_and_no_repeated_suite() -> None:
     """Require `make test-doc`, unguarded, and refuse every repeated suite."""
     steps = _steps("smoke.yml")
@@ -80,9 +98,13 @@ def test_smoke_runs_the_doctests_and_no_repeated_suite() -> None:
     ]
     assert_with_context(not repeated, f"smoke.yml repeats a suite: {repeated!r}")
 
-    doctest_steps = [step for step in steps if step.get("run") == DOCTEST_COMMAND]
+    doctest_steps = [
+        step
+        for step in _job_steps("smoke.yml", "lint-test")
+        if step.get("run") == DOCTEST_COMMAND
+    ]
     assert_with_context(
-        len(doctest_steps) == 1, "expected exactly one `make test-doc` step"
+        len(doctest_steps) == 1, "expected one `make test-doc` step in lint-test"
     )
     assert_with_context(
         "if" not in doctest_steps[0], "the doctest step must run on every event"
@@ -90,10 +112,18 @@ def test_smoke_runs_the_doctests_and_no_repeated_suite() -> None:
 
 
 def test_test_doc_runs_only_the_doctests() -> None:
-    """Hold the recipe to the two doctest commands."""
+    """Hold the recipe to the two doctest commands, and `build` as its one prerequisite.
+
+    A prerequisite runs before the recipe, so `test` or `test-ci` there would
+    bring the whole suite back without changing a recipe line.
+    """
     assert_with_context(
         _recipe("test-doc") == TEST_DOC_RECIPE,
         "test-doc must run the Rust and Python doctests and nothing else",
+    )
+    assert_with_context(
+        _prerequisites("test-doc") == ["build"],
+        f"test-doc may depend only on build, got {_prerequisites('test-doc')}",
     )
 
 
