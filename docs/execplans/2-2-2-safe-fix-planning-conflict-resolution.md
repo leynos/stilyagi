@@ -736,8 +736,9 @@ configuration.
   are unwrapped. Run `make fmt` before `make markdownlint`.
 - Spelling is en-GB-oxendict: "-ize", "-yse", "-our". Write "normalize" and
   "serialize" but "behaviour" and "analyse". Backtick every identifier — the
-  spelling gate skips code spans. Never hand-edit `typos.toml`; use
-  `make spelling-config-write`.
+  spelling gate skips code spans. Never hand-edit `typos.toml`; run
+  `make spelling`, which renders it from the shared dictionary and then checks.
+  Repository-specific exceptions belong in `typos.local.toml`.
 
 ### Files touched
 
@@ -1938,3 +1939,45 @@ does not fire: `tests/test_package_skeleton_units.py` and
 `tests/test_config_resolution.py` already exceed 400 at HEAD on green `main`
 and sit inside the same pylint target, so the ceiling is unenforced over
 `python/stilyagi tests`.
+
+**Revision 28, 2026-09-25.** Committed the review feedback as `bd308f5` and
+pushed it to the PR branch. Two loose ends surfaced while reconciling the gate
+evidence, and both are recorded here because they will recur.
+
+The first is `typos.toml`. It appeared modified with fourteen ignore patterns
+belonging to unrelated projects (`HashiCorp`, `AppFactory<Ser`, `var.iamge_id`,
+`currentColor`), which looked at first like another session's work leaking into
+this worktree. It is not. The gate's own subcommand help states that it "always
+runs in write mode", the `markdownlint` log prints `refreshed: typos.toml`
+unconditionally, and `bf8b783` records the design decision behind that: the
+configuration is regenerated from the live shared dictionary on every run, so
+"the drift check and the separate write target are no longer meaningful". The
+committed copy is therefore a rendered artefact, not an input. `typos.local.toml`
+is the repository's actual overlay, and `docs/developers-guide.md` is explicit
+that `typos.toml` is never hand-edited and never checked for drift in
+continuous integration. Nothing reads the committed blob: there is no `--check`
+invocation anywhere in the Makefile, workflows, or scripts, and no test asserts
+on it. The file was restored so this slice stays scoped to the review, and the
+fourteen extra lines are upstream dictionary growth that will reappear on the
+next spelling run; that is expected and should not be committed as part of
+unrelated work.
+
+The second is gate coverage. The full-chain run that validated the code changes
+started at 00:11:25, after the last code edit, and covered check-fmt, lint,
+typecheck, test, markdownlint, and nixie. Two gaps remained against the final
+commit. Its lint log is truncated at the skylos invocation, so the ninth stage's
+verdict is unproven on the committed content even though the eight preceding
+stages are green in that log (ruff clean, interrogate `PASSED 100.0%`, both
+pylint passes `10.00/10`, ambrleaks, cargo doc, clippy, and whitaker all
+completing). And the execplan revision notes were written at 00:20:03, after
+that run finished, so the Markdown gates had not seen them either; an attempt to
+close both gaps had to be abandoned because these very notes were still being
+edited while it ran, which would have invalidated its result. The rule this
+slice keeps relearning is that the tree must be frozen — committed, not merely
+saved — before a gate run is worth anything, and the notes recording a gate run
+cannot themselves be inside the change set that run is meant to validate.
+
+For reference, the nine `make lint` stages are ruff, interrogate, pylint-pypy,
+df12-pylint, ambrleaks, cargo doc, clippy, whitaker, and skylos. Spelling is
+not among them: it is a prerequisite of `markdownlint`
+(`markdownlint: tools-docs spelling`), as `AGENTS.md` records.
