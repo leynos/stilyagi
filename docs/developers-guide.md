@@ -894,7 +894,8 @@ same job, run the format check and Clippy. No crate declares features, so
 `make test`'s `--all-features` selects the same tests as coverage's default.
 `make test-doc` runs what is left: the Rust doctests and the Python
 `--doctest-modules` pass. `tests/test_suite_runs_once.py` holds these premises,
-including the absence of feature tables. A crate that gains features fails it,
+including the absence of features, whether declared in a `[features]` table or
+implied by an optional dependency. A crate that gains a feature fails it,
 because `--all-features` would then select tests that coverage does not run.
 
 ## 6. Lint, typecheck, and test workflow

@@ -15,15 +15,18 @@ These tests hold the premises of that split:
 - `test-doc` runs the two doctest commands and nothing else;
 - both coverage steps run nextest with the doctests left off, so `test-doc`
   is not itself a repeat;
-- no crate declares a feature table, which is what makes `make test`'s
-  ``--all-features`` the same selection as the coverage run's default. A
-  crate that gains features reopens that question, so this fails first.
+- no crate declares a feature, explicitly or through an optional
+  dependency, which is what makes `make test`'s ``--all-features`` the same
+  selection as the coverage run's default. A crate that gains features
+  reopens that question, so this fails first.
 """
 
 import pathlib
 import re
 import tomllib
 import typing as typ
+
+import pytest
 
 from tests.support.assertions import assert_with_context
 from tests.support.workflows import load_workflow, workflow_steps
@@ -33,8 +36,9 @@ WORKFLOWS = REPOSITORY_ROOT / ".github" / "workflows"
 COVERAGE_ACTION = "leynos/shared-actions/.github/actions/generate-coverage@"
 DOCTEST_COMMAND = "make test-doc"
 #: A command that runs a suite the coverage step already runs.
+#: Variable assignments and options may precede the target (`make -j2 test`).
 REPEATED_SUITE = re.compile(
-    r"\bmake\s+(\S+=\S+\s+)*test(-ci|-quick)?(?![-\w])"
+    r"\bmake\s+((?:\S+=\S+|-\S+)\s+)*test(-ci|-quick)?(?![-\w])"
     r"|\bnextest\s+run\b|\bcargo\s+test\b|\bpytest\b"
 )
 TEST_DOC_RECIPE = [
@@ -118,8 +122,45 @@ def test_coverage_runs_nextest_without_the_doctests() -> None:
         )
 
 
+DEPENDENCY_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
+
+
+def _optional_dependencies(manifest: dict[str, object]) -> list[str]:
+    """Return the optional dependencies a manifest declares, target tables included.
+
+    Cargo turns each optional dependency into an implicit feature, so a
+    crate with one has features even without a `[features]` table.
+
+    Returns
+    -------
+    list[str]
+        The names of the optional dependencies, in table order.
+    """
+    tables = [manifest.get(name) for name in DEPENDENCY_TABLES]
+    targets = manifest.get("target")
+    if isinstance(targets, dict):
+        tables.extend(
+            platform.get(name)
+            for platform in targets.values()
+            if isinstance(platform, dict)
+            for name in DEPENDENCY_TABLES
+        )
+    return [
+        name
+        for table in tables
+        if isinstance(table, dict)
+        for name, spec in table.items()
+        if isinstance(spec, dict) and spec.get("optional") is True
+    ]
+
+
+def _declares_features(manifest: dict[str, object]) -> bool:
+    """Report whether a manifest has explicit or implicit features."""
+    return bool(manifest.get("features")) or bool(_optional_dependencies(manifest))
+
+
 def test_no_crate_declares_features() -> None:
-    """Refuse a feature table, which would split all-features from default."""
+    """Refuse any feature, which would split all-features from default."""
     root = REPOSITORY_ROOT / "Cargo.toml"
     members = tomllib.loads(root.read_text(encoding="utf-8"))["workspace"]["members"]
     manifests = [root] + [
@@ -131,9 +172,47 @@ def test_no_crate_declares_features() -> None:
     with_features = [
         str(path.relative_to(REPOSITORY_ROOT))
         for path in manifests
-        if tomllib.loads(path.read_text(encoding="utf-8")).get("features")
+        if _declares_features(tomllib.loads(path.read_text(encoding="utf-8")))
     ]
     assert_with_context(
         not with_features,
         f"{with_features} declare features; recheck make test against coverage",
+    )
+
+
+def test_an_optional_dependency_counts_as_a_feature() -> None:
+    """Treat optional dependencies, in any dependency table, as features."""
+    optional = {"optional": True, "version": "1"}
+    manifests = [
+        {"dependencies": {"serde": optional}},
+        {"dev-dependencies": {"serde": optional}},
+        {"target": {"cfg(unix)": {"dependencies": {"libc": optional}}}},
+        {"features": {"extra": []}},
+    ]
+    assert_with_context(
+        all(_declares_features(manifest) for manifest in manifests),
+        "expected every optional dependency and feature table to count",
+    )
+    assert_with_context(
+        not _declares_features({"dependencies": {"serde": {"version": "1"}}}),
+        "a required dependency is not a feature",
+    )
+
+
+@pytest.mark.parametrize(
+    ("command", "repeats"),
+    [
+        ("make test", True),
+        ("make -j2 test", True),
+        ("make test-ci", True),
+        ("make TEST_FLAGS=--lib test-quick", True),
+        ("uv run pytest -q", True),
+        ("make test-doc", False),
+        ("make test-workflow-contracts", False),
+    ],
+)
+def test_the_repeated_suite_pattern(command: str, *, repeats: bool) -> None:
+    """Recognize every spelling of a repeated suite, and nothing longer."""
+    assert_with_context(
+        bool(REPEATED_SUITE.search(command)) is repeats, f"misread {command!r}"
     )
