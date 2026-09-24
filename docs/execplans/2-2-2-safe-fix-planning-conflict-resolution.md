@@ -2024,3 +2024,45 @@ For reference, the nine `make lint` stages are ruff, interrogate, pylint-pypy,
 df12-pylint, ambrleaks, cargo doc, clippy, whitaker, and skylos. Spelling is
 not among them: it is a prerequisite of `markdownlint`
 (`markdownlint: tools-docs spelling`), as `AGENTS.md` records.
+
+**Revision 29, 2026-09-25.** Closed the gate-coverage question left open by
+Revision 27. The 400-line ceiling was not unenforced; this slice had blinded
+the check that enforces it, and the correction is in D-27. `cli.py` reached 412
+lines because `bd308f5` added a PEP 695 `type` alias, and PyPy 3.11 — the
+interpreter behind the `pylint-pypy` stage — cannot parse that syntax. Because
+`syntax-error` is disabled in the pass, the module was skipped silently at
+10.00/10 and exit 0, so the very check that should have caught the growth went
+quiet. On `origin/main`, which has no PEP 695 syntax, the same probe reports
+`C0302: Too many lines in module (344/10)`.
+
+The resolution is to inline the type at its single use site rather than to
+choose an alias spelling, because no spelling passes both Pylint stages:
+`df12-pylint` under CPython 3.14 enables `R9112` and requires the PEP 695
+statement, while `pylint-pypy` cannot read it. Inlining removes the construct
+instead of suppressing a rule, which is what the owner's instruction asks for.
+The two stdin helpers move to `cli_io.py`, whose docstring already owns
+byte-faithful check inputs, returning `cli.py` to 392 lines. That move also
+promoted `import pathlib` from `TYPE_CHECKING` to a runtime import in
+`cli_io.py`; under `TYPE_CHECKING` it raised `NameError` at call time, which
+Ruff's `runtime-import-in-type-checking-block` caught before any test did.
+
+Verified on the frozen commit `c9f0506`, which is the extraction commit after a
+`mdtablefix` reflow was folded into it by amend: `check-fmt`, `lint`,
+`typecheck`, `test` (591 passed, 1 skipped), `markdownlint`, and `nixie` all
+pass, a reduced-ceiling probe confirms `C0302` fires on `cli.py` again, and
+both Pylint stages rate it 10.00/10. CI run `36070936581` is green on all four
+legs. A follow-up commit `8813e28` qualifies the `cli_args.py` location of the
+`_add_check_arguments` refactor, whose 71-to-62 figure was misread during
+review as belonging to `cli.py`; AST measurement confirmed the figure itself
+was right, against 66 lines on `origin/main`. CI run `36071672467` is green on
+all four legs for that head.
+
+Two further findings are recorded rather than fixed, because both pre-date this
+branch. `tests/test_package_skeleton_units.py` (642 lines) and
+`tests/test_config_resolution.py` (471 lines) exceed the 400-line ceiling on
+`origin/main` and carry PEP 695 aliases there, so they are invisible to the
+same Pylint stage for the same reason. They are not this slice's regression and
+correcting them means splitting two large test modules, which belongs in its
+own change. The mechanism is worth stating plainly for whoever picks that up:
+any `type` alias in a module under `python/stilyagi tests` exempts that module
+from every Pylint check, not only `too-many-lines`.
