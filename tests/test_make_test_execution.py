@@ -45,9 +45,9 @@ def _pytest_phase_indices(
 
 
 def _make_test_invocation(
-    cmd_mox: CmdMox, *, extra: tuple[str, ...] = ()
+    cmd_mox: CmdMox, *, extra: tuple[str, ...] = (), target: str = "test"
 ) -> Invocation:
-    """Return the `make test` invocation with every tool pointed at a shim."""
+    """Return a `make` invocation of *target* with every tool pointed at a shim."""
     shim_dir = cmd_mox.environment.shim_dir
     assert_with_context(shim_dir is not None, "expected cmd-mox command shims")
     make = shutil.which("make")
@@ -66,7 +66,7 @@ def _make_test_invocation(
             # has to be overridden to reach a shim.
             f"RESOLVE_VENV_PYTHON=VENV_PYTHON={shim_dir / 'python'}",
             *extra,
-            "test",
+            target,
         ],
         stdin="",
         env={},

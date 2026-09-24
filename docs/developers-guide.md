@@ -881,10 +881,27 @@ The `.github/workflows/smoke.yml` workflow is the bounded CI smoke path for
 this repository. Its Ubuntu `lint-test` job installs Python, Rust, `uv`, and
 the support tools required by the checked targets, then runs `make check-fmt`,
 `make markdownlint`, `make nixie`, `make typecheck`, `make lint`, and
-`make test`. Its `release-smoke` matrix builds and smoke-tests release wheels
-on Ubuntu, macOS, and Windows. The workflow is not release publishing
+`make test-doc`. Its `release-smoke` matrix builds and smoke-tests release
+wheels on Ubuntu, macOS, and Windows. The workflow is not release publishing
 automation; it proves that local development installs and release wheels
 exercise the same PyO3 boundary.
+
+CI runs `make test-doc` rather than `make test` because every other part of
+`make test` already runs once per event. The coverage step in `smoke.yml` on a
+pull request, and `coverage-main.yml` on a push, run nextest over the workspace
+and the whole pytest suite. `make check-fmt` and `make lint`, earlier in the
+same job, run the format check and Clippy. No crate declares features, so
+`make test`'s `--all-features` selects the same tests as coverage's default.
+`make test-doc` runs what is left: the Rust doctests and the Python
+`--doctest-modules` pass. `tests/test_suite_runs_once.py` holds these premises,
+including the absence of features, whether declared in a `[features]` table or
+implied by an optional dependency. A crate that gains a feature fails it,
+because `--all-features` would then select tests that coverage does not run. It
+also requires `build` to be `test-doc`'s only prerequisite, since any other
+would run before the recipe. `tests/test_make_test_doc_execution.py` runs the
+target against command shims and checks the journal. Both doctest passes run,
+neither unit suite does, and a failing Rust doctest ends the target before the
+Python pass.
 
 ## 6. Lint, typecheck, and test workflow
 
@@ -899,6 +916,7 @@ commit gates in sequence and is the default target. The current checks are:
 - `make lint`
 - `make typecheck`
 - `make test`
+- `make test-doc`
 
 Their responsibilities are:
 
@@ -952,6 +970,9 @@ Their responsibilities are:
   - run Rust tests with `cargo-nextest` when available, otherwise `cargo test`
   - run Rust doc tests explicitly with Rustdoc warnings denied
   - run Python tests through `.venv/bin/python -m pytest -v`
+- `make test-doc`
+  - run Rust doc tests with Rustdoc warnings denied
+  - run the Python docstring examples through `pytest --doctest-modules`
 - `make smoke`
   - run `python -m stilyagi.smoke` against the development install
 - `make smoke-release`
