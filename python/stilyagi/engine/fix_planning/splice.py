@@ -29,6 +29,7 @@ def apply_edits(source_bytes: bytes, edits: cabc.Iterable[TextEdit]) -> bytes:
 
     Examples
     --------
+    >>> from stilyagi.fixes import TextEdit
     >>> apply_edits(b"one two", (TextEdit(4, 7, "three"),))
     b'one three'
     """

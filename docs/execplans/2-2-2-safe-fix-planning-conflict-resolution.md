@@ -296,7 +296,8 @@ Established during planning; use them instead of re-measuring.
   - 2026-09-07: all six deterministic gates passed (275 Python tests and 18
     snapshots), then CodeRabbit reviewed pushed commit `ebbcac7` on draft PR
     #138 and returned zero actionable findings. Milestone 5 may begin.
-- [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes (in progress)
+- [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes (in
+      progress)
   - 2026-09-07: the atomic-write sub-slice has red/green coverage for mode
     preservation, no-op writes, and file symlinks. `write_source` resolves the
     target, stages bytes in its directory, copies metadata, and swaps with
@@ -948,11 +949,10 @@ def write_source(path: pathlib.Path, content: bytes) -> None:
 Write to a temporary file in the **same directory** as the target — not `/tmp`,
 which risks a cross-device `EXDEV` — copy the original's mode with
 `shutil.copystat`, then `Path.replace()` (which invokes `os.replace`). Never
-truncate in place. Resolve symbolic
-links first and write to the resolved path so a link is not replaced by a
-regular file. Skip the write entirely when the new bytes equal the old, so
-`--fix` does not churn modification times across a documentation tree and wake
-every file watcher.
+truncate in place. Resolve symbolic links first and write to the resolved path
+so a link is not replaced by a regular file. Skip the write entirely when the
+new bytes equal the old, so `--fix` does not churn modification times across a
+documentation tree and wake every file watcher.
 
 ### `python/stilyagi/cli.py` (Milestone 0)
 
@@ -1796,21 +1796,21 @@ CodeRabbit review for commit `f9cb8ae`; the planner's malformed-containing-
 segment correction is accepted and Milestone 4 may begin.
 
 **Revision 19, 2026-09-07.** Marked Milestone 4 blocked after its standalone
-diff-renderer slice reached the three-attempt gate tolerance. The focused
-tests pass, but the complete gate chain remains red on two explicit
-`shell=False` test-command policy findings; no CLI work or CodeRabbit review
-may proceed without further direction.
+diff-renderer slice reached the three-attempt gate tolerance. The focused tests
+pass, but the complete gate chain remains red on two explicit `shell=False`
+test-command policy findings; no CLI work or CodeRabbit review may proceed
+without further direction.
 
 **Revision 20, 2026-09-07.** The post-turn gate explicitly directed the two
 subprocess findings to be fixed. The custom rule requires the repository's
-documented exception for fixed Git commands even when `shell=False` is
-present, so the tests follow that local convention while retaining a resolved
-Git executable. The wheel-layout snapshot was updated for `diff.py`.
-Milestone 4 remains subject to a green full gate chain before its CLI work or
-CodeRabbit review.
+documented exception for fixed Git commands even when `shell=False` is present,
+so the tests follow that local convention while retaining a resolved Git
+executable. The wheel-layout snapshot was updated for `diff.py`. Milestone 4
+remains subject to a green full gate chain before its CLI work or CodeRabbit
+review.
 
-**Revision 21, 2026-09-07.** Rebasing `xxx` onto `origin/main` replayed all
-22 commits without conflicts. The updated Python dependency pins and both lock
+**Revision 21, 2026-09-07.** Rebasing `xxx` onto `origin/main` replayed all 22
+commits without conflicts. The updated Python dependency pins and both lock
 files come from `main` unchanged, as required. RFC 0006 introduces editorial
 policy vertical slices but changes no safe-fix contract, helper or boundary.
 
