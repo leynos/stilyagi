@@ -1397,6 +1397,21 @@ The contract holds that guard as one `&&` term and refuses any `||`, because a
 substring match passes `... && ref == main || dispatch`, which makes every
 conjunct optional so a dispatch from any branch uploads.
 
+**The token stays out of every `env`.** A `Check CodeScene token availability`
+step (id `codescene_token`) runs exactly
+`echo "available=${{ secrets.CS_ACCESS_TOKEN != '' }}" >> "$GITHUB_OUTPUT"`,
+with no `if:` and no `env`. GitHub evaluates the expression before the shell
+starts, so the command writes a literal `true` or `false` and the token enters
+no process. The upload's condition reads
+`steps.codescene_token.outputs.available == 'true'` beside the ref guard, and
+the upload takes `access-token: ${{ secrets.CS_ACCESS_TOKEN }}` directly. The
+upload is a composite action, and a composite action's nested steps inherit the
+calling step's environment, so a token bound in the step's `env` reached every
+one of them. `tests/test_codescene_token_contract.py` holds the shape. Its
+positive half requires the token to be named exactly in the check's command and
+the upload's input, because deleting the token would otherwise pass for keeping
+it out of an `env` while the upload skipped forever.
+
 **And it runs one at a time.** The baseline is a single value with a single
 writer, so two publisher runs racing would decide it by which finished last.
 The concurrency group queues a superseded run rather than cancelling it: a
