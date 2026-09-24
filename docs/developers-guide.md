@@ -367,16 +367,22 @@ level.
 `cli.py` `main()` builds the argument parser via `cli_args.build_parser()`,
 parses the arguments into an immutable `CheckOptions` via
 `cli_args.options_from_args()`, and then calls
-`run_check(options, *, resolver=None, renderer=None)`.
+`run_check(options, *, collaborators=None)`.
 
 ### Collaborator injection
 
-`run_check` constructs its own collaborators when the caller does not supply
-them: a fresh `config.ConfigResolver` and a fresh `engine.RendererRegistry`.
-Because both are created inside the call, no configuration cache is shared
-between separate `run_check` invocations. Passing pre-constructed collaborators
-is the intended seam for tests that need to inspect or stub out either
-collaborator.
+`CheckCollaborators` is the frozen bundle of the injectable pipeline boundaries:
+`resolver`, `renderer`, `rule_runner`, and `output`. Each field defaults to
+`None`.
+
+`run_check` hands that bundle to `_resolve_collaborators`, which fills in every
+omitted field with its production default. The run gets a fresh
+`config.ConfigResolver` and a fresh `engine.RendererRegistry`,
+`rules_registry.run_rules` for `rule_runner`, and `sys.stdout` for `output`.
+Because the defaults are created inside the call, no configuration cache is
+shared between separate `run_check` invocations. `_check_one_file` receives the
+resolved `rule_runner` as an argument, so tests can inject a runner and replace
+the rule stage without coupling to the rest of the command pipeline.
 
 ### Discovery
 
@@ -457,8 +463,11 @@ sources:
   canonical IR error envelope on `Document.ir` into `diagnostics.Diagnostic`
   objects, propagating each IR-provided error code and falling back to a generic
   `IR000` placeholder only when the IR omits one.
-- `rules_registry.run_rules(document, resolved_config)` runs the registered
-  rule set against the extracted document.
+- the injected `rule_runner` — `rules_registry.run_rules` unless a
+  `CheckCollaborators.rule_runner` was supplied — is called as
+  `rule_runner(document, resolved_config)` to run the registered rule set
+  against the extracted document. The current default returns an empty list,
+  because the rule engine has not landed yet.
 
 `diagnostics_location.py` converts IR byte offsets into 1-based line and column
 positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
@@ -466,14 +475,92 @@ positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 
 ### Rendering
 
-`engine/renderers.py` `RendererRegistry.render(diagnostics, output_format)`
-sorts diagnostics by path, location, and code, then renders either:
+`engine/renderers.py` `RendererRegistry.render` accepts the diagnostics to
+render, an optional output format, and a keyword-only
+`fix_errors: cabc.Iterable[diagnostics.FixError]` that defaults to an empty
+tuple. Diagnostics are sorted by path, location, and code, and fix errors are
+sorted separately by path, identifier, and rule codes, so the input order is
+not significant for either. The renderer then produces one of:
 
-- deterministic text: one line per finding formatted as
-  `path:line:column: severity code message`, followed by a summary line; or
-- a stable JSON document.
+- deterministic text: one line per diagnostic formatted as
+  `path:line:column: severity code message`, then one line per fix error in the
+  distinct non-rule shape `identifier: path: rule_codes: message`, joining
+  several rule codes with commas. A summary line follows, counting the
+  diagnostics and separating their safe from their unsafe fixes, so a clean run
+  ends with `0 diagnostics found (0 safe fixes, 0 unsafe fixes)`
+- a stable JSON document, an object carrying a `schema_version` field
+  (currently `"1.0.0"`), a `diagnostics` array, and a separate `fix_errors`
+  array
 
 Unknown format strings raise `ValueError`.
+
+### Fix planning and the `--diff` preview
+
+`stilyagi check --diff` is the preview-only path for safe-fix planning. It
+plans the safe edits for each discovered file and prints a patch that
+`git apply` accepts, leaving every source byte unchanged.
+
+The preview is assembled from four pieces.
+
+- `engine/ir_view.py` provides a read-only, typed view over the extractor's
+  IR mapping, so fix planning reads provenance through one interpreter rather
+  than re-deriving it from raw payloads. `SourceSpan` is a frozen, ordered
+  dataclass holding a half-open UTF-8 byte range (`byte_start`, `byte_end`) in
+  the original source. `iter_segments(document)` yields one `SegmentView` per
+  well-formed IR segment in document order; a `SegmentView` carries `text`, a
+  `span` when the segment is source-backed, and a `synthetic_reason` when it is
+  not. `source_backed_spans(document)` returns sorted, merged, disjoint spans,
+  and `segment_for_span(document, span)` returns the source-backed segment that
+  wholly contains a span, or `None`.
+- `engine/fix_planning/diff.py` `unified_diff(before, after, reported_path)`
+  renders a Git-applicable unified patch, with `a/<path>` and `b/<path>`
+  headers and three lines of context. It splits on LF alone, as Git does, so a
+  Markdown line holding another separator character cannot corrupt a hunk, and
+  it appends Git's missing-final-newline marker where a line lacks a
+  terminator. Identical input texts produce an empty string.
+- `engine/fix_pipeline.py` `DiffRequest` is the frozen bundle of inputs needed
+  to preview one file: `source_bytes`, `source_text`, `reported_path`, the
+  extracted `document`, the file's `diagnostics`, and its `lint_config`.
+  `preview_safe_fixes(request)` plans those diagnostics at `FixLevel.SAFE` and
+  returns a `DiffPreview` carrying the rendered `patch` and any `fix_errors`.
+  Planning is all-or-nothing per file, so one rejected edit leaves the file
+  with no accepted edits at all: the plan yields no fixed bytes, the patch is
+  empty, and each rejection is translated into a `diagnostics.FixError` whose
+  message records that the file was not modified.
+- `cli_io.py` owns the byte-faithful input boundary and the command-line error
+  channel. `CheckInput` is a frozen description of one resolved input —
+  `reported_path`, `resolved_path`, and optional pre-supplied `source_text` and
+  `source_bytes` — which keeps standard input and on-disk files on one path.
+  `read_source(check_input)` returns that input with both `source_bytes` and
+  `source_text` populated, reporting a missing, unreadable, or undecodable file
+  and returning `None` instead of raising. `report_check_error(path, error)` is
+  the extraction and configuration failure channel used by the rest of the
+  pipeline; it logs the message and prints a `stilyagi check:` line to standard
+  error, accepting `None` for a failure that has no single path.
+
+`_check_one_file` builds a `DiffRequest` for a file from its already-read bytes
+and text, the extracted document, the diagnostics collected for it, and the
+resolved `lint_config`, then calls `preview_safe_fixes`. It does so only when
+`options.diff` is set, so the ordinary check path plans nothing, and it returns
+`None` as the preview for any file that could not be read, extracted, or
+configured.
+
+**Under `--diff`, the machine artefact owns the output stream alone.** The
+rendered diagnostics and the summary line go to standard error, while the
+concatenated patches go to the resolved `output` stream — standard output
+unless a collaborator substitutes another stream. Because that stream then
+carries patch text and nothing else, `stilyagi check --diff | git apply`
+receives a usable patch, and a clean repository is not turned into a spurious
+failure. Without `--diff`, the rendered diagnostics go to the output stream as
+usual.
+
+The split is non-mutating: `--diff` is the preview-only path, and
+`_resolve_collaborators` does not resolve the `CheckCollaborators` bundle's
+`writer` field, so no check-pipeline code path writes a source file.
+
+Exit codes are unchanged by `--diff`. `compute_exit_code` still returns `1`
+whenever diagnostics are present, whatever the preview would apply, and `2` for
+an operational error.
 
 ### Exit codes
 

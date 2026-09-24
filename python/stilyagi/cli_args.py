@@ -58,6 +58,7 @@ class CheckOptions:
     select: tuple[str, ...] = ()
     ignore: tuple[str, ...] = ()
     extend_select: tuple[str, ...] = ()
+    diff: bool = False
     quiet: bool = False
     verbose: bool = False
     silent: bool = False
@@ -122,6 +123,7 @@ def options_from_args(args: argparse.Namespace) -> CheckOptions:
         select=_flatten_rule_codes(args.select),
         ignore=_flatten_rule_codes(args.ignore),
         extend_select=_flatten_rule_codes(args.extend_select),
+        diff=args.diff,
         quiet=args.quiet,
         verbose=args.verbose,
         silent=args.silent,
@@ -176,6 +178,11 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         help="Use one explicit config file or inline TOML fragment.",
     )
     parser.add_argument(
+        "--diff",
+        action="store_true",
+        help="Print safe fix previews as unified diffs without changing files.",
+    )
+    parser.add_argument(
         "--stdin-filename",
         metavar="VALUE",
         help="Report stdin diagnostics with this path instead of <stdin>.",
@@ -190,10 +197,20 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Accept cache disabling requests without changing behaviour yet.",
     )
+    _add_verbosity_arguments(parser)
+    _add_target_arguments(parser)
+
+
+def _add_verbosity_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the mutually exclusive chatter-level flags to one parser."""
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument("--quiet", action="store_true", help="Reduce chatter.")
     verbosity.add_argument("--verbose", action="store_true", help="Increase chatter.")
     verbosity.add_argument("--silent", action="store_true", help="Suppress chatter.")
+
+
+def _add_target_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the trailing target operands to one parser."""
     parser.add_argument(
         "targets",
         nargs="*",
