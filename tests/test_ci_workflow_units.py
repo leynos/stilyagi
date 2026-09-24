@@ -115,7 +115,7 @@ def test_ci_workflow_calls_the_canonical_makefile_targets(
             "make nixie",
             "make typecheck",
             "make lint",
-            "make test",
+            "make test-doc",
         }.issubset(run_commands),
         "expected <'make check-fmt', 'make spelling', 'make n...",
     )

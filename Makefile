@@ -68,7 +68,7 @@ PY_DOCTEST_PATHS ?= python/stilyagi tests/support
 RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" ]; then VENV_PYTHON=".venv/Scripts/python.exe"; fi
 
 .PHONY: help all clean build build-release lint fmt check-fmt \
-        markdownlint nixie spelling test test-ci test-quick \
+        markdownlint nixie spelling test test-ci test-doc test-quick \
         typecheck tools skylos-allow \
         tools-check tools-docs tools-lint release release-artifact smoke \
         smoke-release
@@ -204,6 +204,16 @@ test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 	# remains installed instead of being replaced by the uv_build wheel.
 	$(RESOLVE_VENV_PYTHON); \
 	"$$VENV_PYTHON" -m pytest -v && \
+	"$$VENV_PYTHON" -m pytest -v --doctest-modules $(PY_DOCTEST_PATHS)
+
+# The docstring examples alone, Rust and Python. CI runs this instead of
+# `test`: the coverage run already executes both suites under the same
+# selection, and `check-fmt` and `lint` already run the format check and
+# Clippy, so the doctests are the only part of `test` nothing else runs. See
+# tests/test_suite_runs_once.py.
+test-doc: build ## Run the Rust and Python docstring examples
+	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)
+	$(RESOLVE_VENV_PYTHON); \
 	"$$VENV_PYTHON" -m pytest -v --doctest-modules $(PY_DOCTEST_PATHS)
 
 test-ci: build tools-lint ## Run Rust tests with the CI nextest profile

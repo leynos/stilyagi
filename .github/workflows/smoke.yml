@@ -146,8 +146,12 @@ jobs:
       - name: Lint and dead-code detection
         run: make lint
 
-      - name: Test
-        run: make test
+      # The docstring examples only. The coverage step below, and
+      # coverage-main.yml on a push, run the Rust and Python suites, and the
+      # steps above run the format check and Clippy, so `make test` here ran
+      # all of that a second time. tests/test_suite_runs_once.py holds it.
+      - name: Docstring examples
+        run: make test-doc
 
       - name: Generate coverage
         # Coverage is generated on pull requests only: coverage-main.yml
