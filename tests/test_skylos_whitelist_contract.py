@@ -18,12 +18,9 @@ _REQUIRED_SKYLOS_WHITELIST_NAMES: typ.Final = frozenset((
     "_require_strict_int",
     "reset_extraction_state_for_tests",
     "extract_document",
-    "FixPlanRequest",
-    "_overlap_rejection",
     "_write_temporary_source",
-    "_validate_candidates",
-    "plan_fixes",
     "write_source",
+    "SourceChangedOnDiskError",
 ))
 
 

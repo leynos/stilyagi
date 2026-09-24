@@ -31,24 +31,57 @@ def test_unified_diff_is_accepted_by_git_apply(
 ) -> None:
     """Produce a patch that Git accepts against the original file."""
     source_path = tmp_path / "notes.md"
-    before = "Before\\n"
-    after = "After\\n"
+    before = "Before\n"
+    after = "After\n"
     source_path.write_text(before, encoding="utf-8", newline="")
     _run_git(tmp_path, "init")
 
     patch = unified_diff(before, after, "notes.md")
-    completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed Git subcommand and test-controlled patch.
-        (_git_executable(), "apply", "--check"),
-        cwd=tmp_path,
-        input=patch,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    completed = _git_apply_check(tmp_path, patch)
 
     assert_with_context(
         completed.returncode == 0,
         f"expected git apply --check to accept patch: {completed.stderr}",
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "separator"),
+    [
+        pytest.param("form-feed", "\x0c", id="form-feed"),
+        pytest.param("line-separator", "\u2028", id="line-separator"),
+        pytest.param("paragraph-separator", "\u2029", id="paragraph-separator"),
+        pytest.param("vertical-tab", "\x0b", id="vertical-tab"),
+        pytest.param("carriage-return", "\r", id="carriage-return"),
+    ],
+)
+def test_unified_diff_keeps_non_lf_separators_inside_their_line(
+    tmp_path: pathlib.Path,
+    label: str,
+    separator: str,
+) -> None:
+    """Keep characters Git does not treat as line endings within one diff line.
+
+    ``str.splitlines`` breaks on these separators, but Git recognises only LF.
+    Splitting there produces a diff line without a terminator, so the
+    missing-newline marker lands inside the hunk and Git rejects the patch.
+    """
+    source_path = tmp_path / "notes.md"
+    before = f"alpha{separator}beta\ngamma\n"
+    after = f"ALPHA{separator}beta\ngamma\n"
+    source_path.write_text(before, encoding="utf-8", newline="")
+    _run_git(tmp_path, "init")
+
+    patch = unified_diff(before, after, "notes.md")
+
+    assert_with_context(
+        patch.count("\\ No newline at end of file") == 0,
+        f"expected no missing-newline marker for a terminated {label} line",
+    )
+    completed = _git_apply_check(tmp_path, patch)
+    assert_with_context(
+        completed.returncode == 0,
+        f"expected git apply --check to accept a {label} patch: {completed.stderr}",
     )
 
 
@@ -72,6 +105,18 @@ def test_unified_diff_marks_a_missing_final_newline() -> None:
     assert_with_context(
         "\\ No newline at end of file" in patch,
         "expected the patch to mark both missing final newlines",
+    )
+
+
+def _git_apply_check(cwd: pathlib.Path, patch: str) -> subprocess.CompletedProcess[str]:
+    """Ask Git whether it accepts one patch against the working tree."""
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed Git subcommand and test-controlled patch.
+        (_git_executable(), "apply", "--check"),
+        cwd=cwd,
+        input=patch,
+        text=True,
+        capture_output=True,
+        check=False,
     )
 
 

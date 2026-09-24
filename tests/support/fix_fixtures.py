@@ -34,7 +34,8 @@ def find_source_span(document: model.Document, needle: str) -> SourceSpan:
     Raises
     ------
     SourceTextNotFoundError
-        If no source-backed segment contains the requested text.
+        If the source-backed segments do not contain the requested text
+        exactly once.
 
     Examples
     --------
@@ -47,10 +48,16 @@ def find_source_span(document: model.Document, needle: str) -> SourceSpan:
     >>> find_source_span(document, "word")
     SourceSpan(byte_start=0, byte_end=4)
     """
+    matches: list[SourceSpan] = []
+    needle_width = len(needle.encode())
     for segment in iter_segments(document):
-        if segment.span is None or needle not in segment.text:
+        if segment.span is None:
             continue
-        prefix = segment.text.partition(needle)[0]
-        start = segment.span.byte_start + len(prefix.encode())
-        return SourceSpan(start, start + len(needle.encode()))
-    raise SourceTextNotFoundError(needle)
+        offset = segment.text.find(needle)
+        while offset != -1:
+            start = segment.span.byte_start + len(segment.text[:offset].encode())
+            matches.append(SourceSpan(start, start + needle_width))
+            offset = segment.text.find(needle, offset + len(needle))
+    if len(matches) != 1:
+        raise SourceTextNotFoundError(needle)
+    return matches[0]
