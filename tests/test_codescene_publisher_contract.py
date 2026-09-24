@@ -112,7 +112,8 @@ def test_the_publisher_uploads_only_from_main(
 
     Asserted as a whole conjunct rather than as a substring, and with
     `||` refused. A substring check passes for
-    `env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' ||
+    `steps.codescene_token.outputs.available == 'true' &&
+    github.ref == 'refs/heads/main' ||
     github.event_name == 'workflow_dispatch'`, which reads as a
     tightening and is the exact opposite: an alternative makes every
     conjunct optional, so a dispatch from any branch uploads again.
