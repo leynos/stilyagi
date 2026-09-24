@@ -1775,6 +1775,17 @@ started Milestone 3.
   planner's rejections become `FixError` values so renderers expose them on a
   channel distinct from selectable rule diagnostics, as D-07 requires. Date/
   Author: 2026-09-07, implementation.
+- **D-27: Inline the writer callable rather than name it with an alias.**
+  Rationale: no alias spelling passes both Pylint stages. `df12-pylint` under
+  CPython 3.14 enables R9112 and demands the PEP 695 `type` statement for a
+  module-level alias; `pylint-pypy` under PyPy 3.11 cannot parse that statement
+  and, because `syntax-error` is disabled, silently skips the whole module
+  instead of failing. A plain assignment satisfies the PyPy stage but trips
+  R9112, so the two cannot both be satisfied. The annotation had one use site,
+  so inlining the `cabc.Callable[[pathlib.Path, bytes], None]` type at the
+  field removes the construct rather than suppressing either rule, and `cli.py`
+  stays visible to the Pylint coverage that catches `too-many-lines`.
+  Date/Author: 2026-09-25, implementation.
 
 **Revision 13, 2026-08-24.** Recorded the committed Milestone 3 planner slice
 and the in-progress corpus-backed Stage C2 property coverage. The focused suite
@@ -1933,12 +1944,46 @@ table, and `_REQUIRED_SKYLOS_WHITELIST_NAMES`). Remove it with the other two
 when Milestone 5 wires the writer.
 
 All nine `make lint` stages now run to completion and pass, alongside
-`check-fmt`, `typecheck`, `test`, `markdownlint`, and `nixie`. `cli.py` reached
-412 lines, past the configured `max-module-lines = 400`, but `too-many-lines`
-does not fire: `tests/test_package_skeleton_units.py` and
-`tests/test_config_resolution.py` already exceed 400 at HEAD on green `main`
-and sit inside the same pylint target, so the ceiling is unenforced over
-`python/stilyagi tests`.
+`check-fmt`, `typecheck`, `test`, `markdownlint`, and `nixie`. `cli.py` then
+reached 412 lines, past the configured `max-module-lines = 400`. The ceiling is
+not unenforced — this slice had blunted the check that enforces it.
+
+The gate runs Pylint under PyPy 3.11 via `pylint-pypy`
+(`PYLINT_PYTHON ?= pypy`), and PyPy 3.11 cannot parse PEP 695 type aliases.
+`pyproject.toml` explicitly disables `syntax-error` in the `pylint` pass, with
+the comment that this keeps "PyPy-backed Pylint useful on files it can parse".
+An unparsable module is therefore skipped silently, and the stage still exits
+0. Before this slice, `cli.py` contained no PEP 695 syntax and Pylint saw it; on
+`origin/main` the same probe reports
+`C0302: Too many lines in module (344/10)`. The slice added
+`type FileWriter = cabc.Callable[[pathlib.Path, bytes], None]`, after which
+`C0302` could no longer fire at any length. The line growth and the loss of
+coverage had the same cause.
+
+Rewriting the alias as a plain assignment does not settle it. The two Pylint
+stages demand opposite forms of the same construct: `df12-pylint`, running
+under CPython 3.14, enables `R9112` (`prefer-type-statement`), which flags a
+plain alias and requires the PEP 695 statement; `pylint-pypy`, running under
+PyPy 3.11, cannot parse that statement. Either spelling fails one stage, so the
+alias was removed and its one use site annotated inline. `FileWriter` had a
+single reference, so nothing was lost, and `cli.py` is now visible to the gate
+again while both Pylint stages rate it 10.00/10. This is a standing constraint
+worth remembering: on a Python 3.12+ baseline, an alias in a PyPy-covered
+target must satisfy a rule that the PyPy parser cannot even read.
+
+`tests/test_package_skeleton_units.py` and `tests/test_config_resolution.py`
+are genuinely invisible for the same reason, but they are pre-existing: both
+exceed 400 lines on `origin/main` (642 and 471) and both already carried PEP
+695 aliases there. `tests/test_makefile_recipes.py` sits exactly at the ceiling
+(Pylint counts 400, not 401) and does parse, so it is not a further exception.
+Two caveats belong with this finding: the ceiling holds only for modules Pylint
+can parse, and a `type` alias introduced anywhere in `python/stilyagi tests`
+silently exempts its whole module from every Pylint check, not just
+`too-many-lines`. Ruff does not constrain the choice: `UP` is selected, but
+`UP040` (`non-pep695-type-alias`) fires only on the explicit
+`X: TypeAlias = ...` annotation, so it flags neither spelling. Verified by
+running `ruff check` on the module with `UP` selected and again with `UP040`
+requested directly, both clean.
 
 **Revision 28, 2026-09-25.** Committed the review feedback as `bd308f5` and
 pushed it to the PR branch. Two loose ends surfaced while reconciling the gate
