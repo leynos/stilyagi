@@ -1920,11 +1920,11 @@ that made `git apply` reject the patch. `write_source` gained the
 replacement through `tempfile.mkstemp` so a failed write leaves no partial file
 beside the target. Three refactors brought CodeScene measurements back in line:
 `run_check` aggregates per-file results through `_aggregate_checked_files` (79
-to 63 lines, complexity 13 to 5), `_add_check_arguments` splits its verbosity
-and target groups into helpers (71 to 62 lines), and three duplicated
-provenance tests became one parametrized test. Four symbols left the Skylos
-whitelist after the live `--diff` path proved to reach them. On the review's
-own gate: interrogate needs 100% docstring coverage over
+to 63 lines, complexity 13 to 5), `_add_check_arguments` in `cli_args.py`
+splits its verbosity and target groups into helpers (71 to 62 lines), and three
+duplicated provenance tests became one parametrized test. Four symbols left the
+Skylos whitelist after the live `--diff` path proved to reach them. On the
+review's own gate: interrogate needs 100% docstring coverage over
 `python/stilyagi tests`, so the two nested dunder methods on the test's
 `_FailingStream` helper now carry docstrings, and `mdtablefix` reflowed the new
 developer-guide prose. Follow-ups 7 and 8 record the two decisions deliberately
