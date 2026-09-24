@@ -13,15 +13,18 @@ from stilyagi.cli_args import (
     build_parser,
     options_from_args,
 )
-from stilyagi.cli_io import CheckInput, read_source, report_check_error
+from stilyagi.cli_io import (
+    CheckInput,
+    read_source,
+    report_check_error,
+    stdin_check_input,
+)
 from stilyagi.engine.checker import map_ir_errors
 from stilyagi.engine.fix_pipeline import DiffPreview, DiffRequest, preview_safe_fixes
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
-
-    type FileWriter = cabc.Callable[[pathlib.Path, bytes], None]
 
 __all__ = [
     "PACKAGE_VERSION",
@@ -48,7 +51,7 @@ class CheckCollaborators:
     resolver: config.ConfigResolver | None = None
     renderer: engine.RendererRegistry | None = None
     rule_runner: rules_registry.RuleRunner | None = None
-    writer: FileWriter | None = None
+    writer: cabc.Callable[[pathlib.Path, bytes], None] | None = None
     output: typ.TextIO | None = None
 
 
@@ -289,7 +292,7 @@ def _discover_targets(
         message = "stdin target cannot be combined with file targets"
         raise ValueError(message)
     if has_stdin_target:
-        return [_stdin_check_input(options.stdin_filename)]
+        return [stdin_check_input(options.stdin_filename)]
     discovery_config = _resolve_discovery_config(options, resolver)
     return [
         CheckInput(
@@ -325,29 +328,6 @@ def _resolve_discovery_config(
         explicit_config=options.explicit_config or None,
         isolated=options.isolated,
     )
-
-
-def _stdin_check_input(stdin_filename: str | None) -> CheckInput:
-    """Build the check input that consumes standard input."""
-    reported_path = (
-        pathlib.Path(stdin_filename).as_posix() if stdin_filename else "<stdin>"
-    )
-    resolved_path = (
-        pathlib.Path(stdin_filename) if stdin_filename else pathlib.Path("<stdin>")
-    )
-    return CheckInput(
-        reported_path=reported_path,
-        resolved_path=resolved_path,
-        source_bytes=_read_stdin_bytes(),
-    )
-
-
-def _read_stdin_bytes() -> bytes:
-    """Read standard input as bytes, retaining text-stream test compatibility."""
-    buffer = getattr(sys.stdin, "buffer", None)
-    if buffer is not None:
-        return typ.cast("typ.BinaryIO", buffer).read()
-    return sys.stdin.read().encode("utf-8")
 
 
 def _check_one_file(

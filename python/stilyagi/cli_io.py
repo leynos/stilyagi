@@ -2,13 +2,11 @@
 
 import dataclasses as dc
 import logging
+import pathlib
 import sys
 import typing as typ
 
 from stilyagi.cli_args import PROGRAM_NAME
-
-if typ.TYPE_CHECKING:
-    import pathlib
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,6 +47,29 @@ def read_source(check_input: CheckInput) -> CheckInput | None:
         source_bytes=source_bytes,
         source_text=source_text,
     )
+
+
+def stdin_check_input(stdin_filename: str | None) -> CheckInput:
+    """Build the check input that consumes standard input."""
+    reported_path = (
+        pathlib.Path(stdin_filename).as_posix() if stdin_filename else "<stdin>"
+    )
+    resolved_path = (
+        pathlib.Path(stdin_filename) if stdin_filename else pathlib.Path("<stdin>")
+    )
+    return CheckInput(
+        reported_path=reported_path,
+        resolved_path=resolved_path,
+        source_bytes=read_stdin_bytes(),
+    )
+
+
+def read_stdin_bytes() -> bytes:
+    """Read standard input as bytes, retaining text-stream test compatibility."""
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is not None:
+        return typ.cast("typ.BinaryIO", buffer).read()
+    return sys.stdin.read().encode("utf-8")
 
 
 def report_file_error(path: pathlib.Path, error: Exception) -> None:
