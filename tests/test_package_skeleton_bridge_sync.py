@@ -1,4 +1,15 @@
-"""Unit tests for the Rust bridge vocabulary sync and error translation."""
+"""Unit tests for the Rust bridge vocabulary sync and error translation.
+
+These tests hold the Python and Rust spellings of syntaxes and region kinds in
+step, the one-time vocabulary validation and its reset, and the translation of
+bridge errors. Run them with:
+
+    make test
+
+or, for this module alone:
+
+    .venv/bin/python -m pytest tests/test_package_skeleton_bridge_sync.py
+"""
 
 import concurrent.futures
 import json

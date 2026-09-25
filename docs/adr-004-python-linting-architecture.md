@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted.
+Accepted. The focused Pylint pass was changed on 2026-09-25; see the addendum
+of that date.
 
 ## Date
 
@@ -107,9 +108,8 @@ Adopt Option A.
    `uv tool run ruff@$(RUFF_VERSION)`.
 2. Interrogate with 100% docstring coverage over `python/stilyagi` and
    `tests`.
-3. Focused Pylint through `uv tool run --managed-python --python 3.14` and a
-   pinned Pylint release (see the 2026-09-25 addendum; originally PyPy and the
-   pinned `pylint-pypy-shim` wrapper).
+3. Focused Pylint through `uv tool run --python pypy` and the pinned
+   `pylint-pypy-shim` wrapper.
 4. All `df12-python-lints` v0.3.0 Pylint messages through the locked
    development environment under CPython 3.14 from the `v0.3.0` tag, which
    `uv.lock` resolves to immutable commit
@@ -144,10 +144,11 @@ The Python lint policy SHALL live in `pyproject.toml`:
 The Makefile SHALL expose variables for the Pylint runner:
 
 - `PYLINT_PYTHON` selects the interpreter used by `uv tool run`; it defaults
-  to `3.14`.
+  to `pypy`.
 - `PYLINT_TARGETS` selects the Python paths checked by Pylint; it defaults to
   `python/stilyagi tests`.
-- `PYLINT_VERSION` pins the Pylint release.
+- `PYLINT_PYPY_SHIM_REF` pins the shim commit.
+- `PYLINT_PYPY_SHIM` expands the pinned Git URL.
 - `PYLINT` builds the full `uv tool run` command used by `make lint`.
 - `DF12_PYTHON` selects CPython 3.14 for both df12 commands.
 - `DF12_PYLINT_MESSAGES` lists all thirteen v0.3.0 plugin messages:
@@ -177,19 +178,18 @@ The Makefile SHALL expose variables for the Pylint runner:
 - `ambrleaks` checks reviewed syrupy snapshots for unredacted identifiers and
   paths.
 - The imported lint policy has one auditable home in `pyproject.toml`.
-- The pinned Pylint release (originally the pinned PyPy shim) makes the second
-  tier reproducible and easy to update deliberately.
+- The pinned PyPy shim makes the second tier reproducible and easy to update
+  deliberately.
 - Skylos provides a blocking final dead-code tier over production Python while
   keeping test-only references out of the liveness graph.
 
 ### Negative consequences
 
 - `make lint` now depends on network or cache availability the first time
-  `uv` resolves the pinned Pylint and df12 tool source.
+  `uv` resolves the pinned shim and df12 tool source.
 - Pylint's PyPy runtime may lag the project's CPython target. The lint policy
-  originally disabled `syntax-error` so the PyPy-backed pass could still be
-  useful on files it could parse; the 2026-09-25 addendum records why that was
-  reversed.
+  disables `syntax-error` so the PyPy-backed pass can still be useful on files
+  it can parse.
 - Contributors must understand that Ruff and Pylint suppressions use
   different inline mechanisms.
 
@@ -216,8 +216,9 @@ Run only the Python tiers manually when diagnosing a failure:
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv tool run ruff@0.16.4 check
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev interrogate \
   --fail-under 100 python/stilyagi tests
-UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv tool run --managed-python \
-  --python 3.14 --from 'pylint==4.0.9' pylint --load-plugins= python/stilyagi tests
+UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv tool run --python pypy \
+  --from 'git+https://github.com/leynos/pylint-pypy-shim.git@726d09f968b4d729ee4b29c71fc732e744854f3b' \
+  pylint-pypy python/stilyagi tests
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --python 3.14 pylint \
   --disable=all --load-plugins=df12_python_lints \
   --enable=R9101,C9102,R9103,R9104,C9105,C9106,C9107,R9108,R9109,R9110,R9111,R9112,C9112 \
@@ -225,7 +226,7 @@ UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --python 3.14 pylint \
 UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools uv run --group dev --python 3.14 ambrleaks tests
 ```
 
-Prefer changing `PYLINT_TARGETS`, `PYLINT_PYTHON`, `PYLINT_VERSION`, or
+Prefer changing `PYLINT_TARGETS`, `PYLINT_PYTHON`, `PYLINT_PYPY_SHIM_REF`, or
 `DF12_PYTHON` through Makefile variables for one-off local experiments. Commit
 changes to those defaults only when the project-wide policy is intentionally
 changing. The df12 source is declared at tag `v0.3.0` in `pyproject.toml` and
@@ -238,8 +239,8 @@ recorded as immutable commit `4cf41736cce2f7ba2778882a5c629c044568a0e5` in
   variables, rule groups, or execution order change.
 - Review future `leynos/episodic` lint-policy updates explicitly rather than
   assuming all upstream rule additions suit Stilyagi.
-- The `syntax-error` Pylint disable was removed on 2026-09-25; see the
-  addendum of that date.
+- Revisit the `syntax-error` Pylint disable when the managed PyPy interpreter
+  catches up with the project's CPython syntax target.
 
 ## Addendum — 2026-08-26
 
@@ -275,6 +276,18 @@ managed PyPy parses. The pass therefore runs a pinned
 `pylint==$(PYLINT_VERSION)` on CPython 3.14, the project baseline, where every
 module parses and a parse failure fails the lint. The findings the newly linted
 modules reported were fixed in the same change.
+
+The Makefile variables change accordingly: `PYLINT_PYPY_SHIM_REF` and
+`PYLINT_PYPY_SHIM` are removed, `PYLINT_PYTHON` defaults to `3.14`,
+`PYLINT_VERSION` pins the Pylint release, and `PYLINT` expands to:
+
+```sh
+$(UV_ENV) $(UV) tool run --managed-python --python $(PYLINT_PYTHON) \
+  --from 'pylint==$(PYLINT_VERSION)' pylint --load-plugins=
+```
+
+The decision and operational notes above record the original PyPy runner; the
+developers' guide describes the current one.
 
 ## References
 

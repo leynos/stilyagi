@@ -1,4 +1,14 @@
-"""Unit tests for the model dataclasses and the NLP provider protocol."""
+"""Unit tests for the model dataclasses and the NLP provider protocol.
+
+These tests keep the placeholder model dataclasses' defaults predictable and
+check the NLP provider protocol. Run them with:
+
+    make test
+
+or, for this module alone:
+
+    .venv/bin/python -m pytest tests/test_package_skeleton_model_nlp.py
+"""
 
 import typing as typ
 

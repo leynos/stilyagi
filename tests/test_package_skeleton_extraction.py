@@ -1,4 +1,15 @@
-"""Unit tests for the engine's typed document extraction adapter."""
+"""Unit tests for the engine's typed document extraction adapter.
+
+These tests drive `stilyagi.engine.extract_document` over Markdown, Python
+docstrings and Rust doc comments, and hold the Python IR adaptation to the
+reviewed Rust snapshot. Run them with:
+
+    make test
+
+or, for this module alone:
+
+    .venv/bin/python -m pytest tests/test_package_skeleton_extraction.py
+"""
 
 import json
 import pathlib

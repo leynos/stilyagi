@@ -1,4 +1,14 @@
-"""Tests for ConfigResolver's per-instance discovery and table caches."""
+"""Tests for ConfigResolver's per-instance discovery and table caches.
+
+These tests check cache hits and misses, invalidation, and behaviour under
+concurrent resolution. Run them with:
+
+    make test
+
+or, for this module alone:
+
+    .venv/bin/python -m pytest tests/test_config_resolution_caching.py
+"""
 
 import pathlib
 from concurrent import futures
