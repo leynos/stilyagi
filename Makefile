@@ -24,13 +24,14 @@ DOC_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features --
 UV ?= $(shell command -v uv 2>/dev/null || printf '%s/.local/bin/uv' "$$HOME")
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 UV_RUN = $(UV_ENV) $(UV) run --group dev
-PYLINT_PYTHON ?= pypy
+# Pylint runs on CPython at the project's 3.14 baseline: the source uses 3.14
+# syntax (PEP 758 unparenthesised `except` lists) that no managed PyPy parses.
+PYLINT_PYTHON ?= 3.14
+PYLINT_VERSION ?= 4.0.9
 PYLINT_TARGETS ?= python/stilyagi tests
-PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b
-PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)
 DF12_PYTHON ?= 3.14
-PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) \
-	--from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=
+PYLINT = $(UV_ENV) $(UV) tool run --managed-python --python $(PYLINT_PYTHON) \
+	--from 'pylint==$(PYLINT_VERSION)' pylint --load-plugins=
 DF12_PYLINT_MESSAGES = R9101,C9102,R9103,R9104,C9105,C9106,C9107,R9108,R9109,R9110,R9111,R9112,C9112
 DF12_PYLINT = $(UV_RUN) --python $(DF12_PYTHON) pylint \
 	--disable=all --load-plugins=df12_python_lints \

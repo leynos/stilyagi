@@ -85,7 +85,7 @@ def test_engine_extract_document_drops_blank_markdown_region() -> None:
         document.syntax is model.Syntax.MARKDOWN,
         "expected document.syntax is model.Syntax.MARKDOWN",
     )
-    assert document.regions == (), "expected document.regions == ()"
+    assert not document.regions, "expected no document regions"
     assert document.ir is not None, "expected document.ir is not None"
     assert document.ir["regions"] == [], "expected document.ir['regions'] == []"
 

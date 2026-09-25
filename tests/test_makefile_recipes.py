@@ -325,22 +325,21 @@ def test_df12_lint_tool_definitions_use_the_pinned_python_and_rules(
     )
 
 
-def test_pypy_pylint_tool_definition_preserves_the_pinned_plugin_runner(
+def test_focused_pylint_tool_definition_pins_the_runner(
     makefile_text: str,
 ) -> None:
-    """Keep the PyPy Pylint command pinned and plugin-compatible."""
+    """Pin focused Pylint to one release on the CPython 3.14 source baseline."""
     expected_definitions = (
-        "PYLINT_PYTHON ?= pypy",
-        "PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b",
-        "PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)",
-        "PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) ",
-        "--from '$(PYLINT_PYPY_SHIM)' pylint-pypy --load-plugins=",
+        "PYLINT_PYTHON ?= 3.14",
+        "PYLINT_VERSION ?= 4.0.9",
+        "PYLINT = $(UV_ENV) $(UV) tool run --managed-python --python $(PYLINT_PYTHON) ",
+        "--from 'pylint==$(PYLINT_VERSION)' pylint --load-plugins=",
     )
 
     for expected_definition in expected_definitions:
         assert_with_context(
             expected_definition in makefile_text,
-            f"missing PyPy Pylint definition {expected_definition!r}",
+            f"missing focused Pylint definition {expected_definition!r}",
         )
 
 
@@ -370,9 +369,9 @@ def test_df12_lint_project_configuration_uses_python_314() -> None:
         "expected Pylint Python version 3.14",
     )
     assert_with_context(
-        pyproject["tool"]["pylint"]["messages control"]["disable"]
-        == ["all", "syntax-error"],
-        "expected focused Pylint message configuration",
+        pyproject["tool"]["pylint"]["messages control"]["disable"] == ["all"],
+        "expected focused Pylint message configuration that still reports "
+        "modules the interpreter cannot parse",
     )
 
 

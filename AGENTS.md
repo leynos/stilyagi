@@ -217,7 +217,7 @@ project:
     RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
     ```
 
-    running Ruff, docstring coverage, the focused PyPy Pylint pass, all df12
+    running Ruff, docstring coverage, the focused Pylint pass, all df12
     Pylint messages under CPython 3.14, ambrleaks, Rustdoc, Rust Clippy across
     workspace targets, and Whitaker linting for the PyO3 extension crate.
   - `make test` executes:

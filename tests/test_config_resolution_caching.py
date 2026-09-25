@@ -147,7 +147,7 @@ def test_config_resolver_reports_cache_hit_and_miss_counts(
     resolver = config.ConfigResolver()
 
     # A fresh resolver records no cache activity yet.
-    assert resolver.cache_stats == {}, "expected resolver.cache_stats == <>"
+    assert not resolver.cache_stats, "expected empty resolver.cache_stats"
 
     _resolve_discovered(resolver, target)
     after_first = resolver.cache_stats
