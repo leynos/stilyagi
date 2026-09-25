@@ -51,6 +51,10 @@ env:
 jobs:
   coverage-upload:
     runs-on: ubuntu-latest
+    # The CodeScene token lives in this environment, whose deployment policy
+    # admits `main` alone; the codescene environment contract holds it to
+    # this job.
+    environment: codescene
     # Kept in step with smoke.yml's coverage lane: above the 1,800 s cargo
     # watchdog plus the work either side. This job's own worst was 98 s
     # outside the watchdog, on run 32946918439.
