@@ -344,7 +344,75 @@ markers = [
     "act: integration tests that drive GitHub Actions via act",
     "slow: exercises that take longer or require heavyweight tooling",
 ]
+# Scope the bare run to the application suite. `make test` and the coverage
+# step both invoke `pytest` with no path, which would otherwise also discover
+# `scripts/tests/`: the duplication-gate helper tests import the gate's
+# PEP 723 dependencies (`cyclopts`, `tomlkit`) rather than the application's
+# dev group, so collecting them fails every application run at import. They
+# are a lane of their own, provisioned and run by `make duplication-test`,
+# which names its files explicitly; a path argument overrides `testpaths`, so
+# that lane is unaffected. Stated as the one place the suite lives rather than
+# as an exclusion, since `norecursedirs` would replace pytest's own defaults
+# rather than extend them.
+testpaths = ["tests"]
 
+# Settings for the pinned `nose` code-duplication detector, run by the
+# `make duplication` gate that `make lint` invokes. Keep `version` in sync with
+# NOSE_VERSION in the Makefile and CI; tests/test_toolchain_contract.py enforces
+# the match.
+#
+# `roots` deliberately names only the maintained production Python package.
+# `tests/` is excluded because a scan of it returns 83 families, almost all
+# assertion-shape and fixture-setup repetition, which would dominate the ranked
+# budget with test scaffolding; `scripts/` is excluded so the gate's own helper
+# modules are not self-referential; and the Rust workspace under `crates/` is
+# covered by Clippy and Whitaker rather than by a Python clone detector.
+#
+# `min-size` counts nose intermediate-language (IL) tokens, not Python lines or
+# AST nodes. `surface = "all"` is required: nose's curated default dashboard
+# reports nothing here at all, while `all` reports 4 families. `top = 30` sits
+# above the saturation point — the complete ranking is 4 families, so every one
+# of them is adjudicated rather than truncated, and the gate's coverage of this
+# package is total rather than merely the top 30.
+[tool.nose]
+version = "0.20.0"
+roots = ["python/stilyagi"]
+mode = "syntax,semantic,near"
+min-size = 24
+surface = "all"
+top = 30
+
+# Reasoned exceptions for the duplication gate. Entries key on locations, not
+# line spans: `path` (glob) matches any location in matching files, and
+# `path::name` additionally requires nose's unit name. A `unit` entry names one
+# key; a `members` entry names several. Either silences a family only when every
+# location in it matches one of the entry's keys, so a new copy in an unlisted
+# file still blocks. Record entries with
+# `make duplication-allow FIRST=... [SECOND=...] REASON=...` and remove them
+# when the gate reports them as stale.
+#
+# Every family below was reported at fragment level, with no unit name, and
+# `path::name` keys never match an unnamed location. The narrowest key nose's
+# schema allows for such a family is therefore the whole file, so these entries
+# also silence any later fragment-level family in the same file. Prefer a
+# `path::name` key whenever the detector does supply a name.
+[tool.duplication_gate]
+
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/config/resolve.py", "python/stilyagi/engine/extraction.py"]
+reason = "Coincidental two-line guard shape in unrelated modules: one returns an empty tuple because the 'extend' key is unset, the other because no IR payload was supplied. Nothing is shared but the shape of the guard."
+
+[[tool.duplication_gate.allow]]
+unit = "python/stilyagi/cli_args.py"
+reason = "Two adjacent argparse boolean-flag declarations differing only in flag name and help text. The repetition is argparse's declaration surface, not shared logic: writing them through a helper would leave the same declaration spelled two ways, and three sibling flags in the same block are already one-liners."
+
+[[tool.duplication_gate.allow]]
+unit = "python/stilyagi/config/validate.py"
+reason = "Parallel element validators: one rejects a mapping's non-string keys, the other a tuple's non-string items, and each raises its own diagnostic. Sharing them would require a predicate-taking helper with a boolean mode, which the config layer deliberately avoids."
+
+[[tool.duplication_gate.allow]]
+unit = "python/stilyagi/engine/extraction.py"
+reason = "Double-checked locking around one process-wide vocabulary validation. The unlocked pre-check and the locked re-check are the idiom itself; collapsing them into a helper would defeat the purpose, since the second read must happen under the lock."
 [tool.ty.environment]
 python-version = "3.14"
 
