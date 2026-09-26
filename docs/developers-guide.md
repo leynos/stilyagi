@@ -1625,7 +1625,7 @@ Two units need stating plainly, because both are easy to misread:
 `[tool.nose]` in `pyproject.toml` names one root, `python/stilyagi`. The
 exclusions are deliberate:
 
-- **`tests/` is out of scope.** A scan of it reports 83 families, overwhelmingly
+- **`tests/` is out of scope.** A scan of it reports 85 families, overwhelmingly
   assertion-shape and fixture-setup repetition. Adjudicating those would
   dominate the ranked budget with test scaffolding and would need mass
   exception entries. `tests/support/` remains the documented home for reusable

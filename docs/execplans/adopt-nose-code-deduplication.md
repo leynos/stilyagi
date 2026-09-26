@@ -301,6 +301,17 @@ returns the tree to its adjudicated state.
   A gate failure on untouched files is a signal to check blob identity and the
   upstream tip before treating it as branch-induced &#8212; re-running the same
   gate on the stale base would only reproduce it.
+- **A quoted scan count is a measurement of one tree, and it drifts.** The
+  exclusion rationale cited `tests/` as reporting 83 families; the rebased tree
+  reports 85, deterministically over five runs. `82` was the pre-rebase
+  `origin/main` figure (three documents carried the stale `83` from this
+  branch's own earlier tip, and the ExecPlan carried the older `82`). None of
+  the three matched the tree that ships. The number moved because PR #163 split
+  two over-limit test modules into five, and smaller modules yield more
+  cross-file families than the oversized originals. Any family count quoted in
+  prose needs re-measuring after a rebase, and the claim should be written so
+  the decision does not hinge on the digit.
+
 - **A rebase conflict can hide semantic, not just textual, drift.** The one
   conflict here was a Markdown table: upstream replaced the two PyPy Pylint
   rows, and this branch added five `nose` rows. Taking either whole side would
@@ -350,12 +361,17 @@ and floor: `mode = "syntax,semantic,near"`, `min-size = 24`, `surface = "all"`,
 
 Scope decisions:
 
-- **`tests/` is out of scope.** A configured `tests` root reports 82 families,
+- **`tests/` is out of scope.** A configured `tests` root reports 85 families,
   overwhelmingly assertion-shape and fixture-setup repetition. The reference
   gates production sources; gating the suite here would dominate the ranked
   budget with test scaffolding and would require mass exception entries, which
   the task prohibits. `tests/support/` is nonetheless the documented home for
-  reusable helpers and is already reused.
+  reusable helpers and is already reused. The count is a measurement of the
+  present tree, not a constant: it read 82 before the rebase onto `4c0c0a7`, 83
+  on this branch's pre-rebase tip, and 85 afterwards. PR #163 split two
+  over-limit test modules into five and added one contract test, and the
+  smaller modules expose more cross-file families than the oversized originals
+  did. The exclusion decision does not depend on the exact figure.
 - **`scripts/` is out of scope.** The gate's own modules would otherwise be
   self-referential; the reference excludes its gate for the same reason.
 - **Rust crates are out of scope.** This adoption covers the Python surface
