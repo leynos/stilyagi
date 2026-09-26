@@ -108,22 +108,32 @@ def load_config_table(path: pathlib.Path) -> cabc.Mapping[str, object]:
     return _select_config_table(raw_document, path=path)
 
 
+def _pyproject_stilyagi_table(
+    raw_document: cabc.Mapping[str, object],
+) -> cabc.Mapping[str, object] | None:
+    """Return the ``[tool.stilyagi]`` mapping, or ``None`` when absent.
+
+    Discovery has to answer "is this a Stilyagi config?" before paying for a
+    parse, and the parse then needs the same table, so both share this one
+    walk of ``tool`` -> ``stilyagi``.
+    """
+    tool = raw_document.get("tool")
+    stilyagi = tool.get("stilyagi") if isinstance(tool, cabc.Mapping) else None
+    if not isinstance(stilyagi, cabc.Mapping):
+        return None
+    return typ.cast("cabc.Mapping[str, object]", stilyagi)
+
+
 def _select_config_table(
     raw_document: cabc.Mapping[str, object],
     *,
     path: pathlib.Path,
 ) -> cabc.Mapping[str, object]:
     """Select the Stilyagi namespace for the given file kind."""
-    if path.name == "pyproject.toml":
-        tool = raw_document.get("tool")
-        if not isinstance(tool, cabc.Mapping):
-            return {}
-        tool_table = typ.cast("cabc.Mapping[str, object]", tool)
-        stilyagi = tool_table.get("stilyagi")
-        if not isinstance(stilyagi, cabc.Mapping):
-            return {}
-        return typ.cast("cabc.Mapping[str, object]", stilyagi)
-    return raw_document
+    if path.name != "pyproject.toml":
+        return raw_document
+    selected = _pyproject_stilyagi_table(raw_document)
+    return {} if selected is None else selected
 
 
 def _has_supported_content(
@@ -132,13 +142,9 @@ def _has_supported_content(
     path: pathlib.Path,
 ) -> bool:
     """Decide whether a candidate file should count as config."""
-    if path.name == "pyproject.toml":
-        tool = raw_document.get("tool")
-        if not isinstance(tool, cabc.Mapping):
-            return False
-        tool_table = typ.cast("cabc.Mapping[str, object]", tool)
-        return isinstance(tool_table.get("stilyagi"), cabc.Mapping)
-    return True
+    if path.name != "pyproject.toml":
+        return True
+    return _pyproject_stilyagi_table(raw_document) is not None
 
 
 def load_config_file(path: pathlib.Path) -> StilyagiConfig:
