@@ -166,7 +166,7 @@ surface bounds what the gate adjudicates.
   build or falling back to an unapproved third-party build service. This is a
   deliberate deviation from the reference, which omits the flag.
 - The scan covers `python/stilyagi` only. `tests/` is excluded because it
-  reports 83 families, overwhelmingly assertion-shape and fixture-setup
+  reports 85 families, overwhelmingly assertion-shape and fixture-setup
   repetition; `scripts/` is excluded so the gate's own modules are not
   self-referential; and `crates/` is covered by Clippy and Whitaker rather than
   by a Python clone detector.
@@ -182,7 +182,7 @@ surface bounds what the gate adjudicates.
 - Re-key exception entries on `path::name` wherever a future detector version
   starts supplying unit names, since that is strictly narrower than the whole
   file.
-- Extending the scan to `tests/` would require adjudicating 83 families and is
+- Extending the scan to `tests/` would require adjudicating 85 families and is
   deliberately out of scope for this adoption.
 
 ## References
