@@ -80,6 +80,13 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
 - [x] Disposable-workspace end-to-end demonstration.
 - [x] Documentation and ADR 008.
 - [ ] Full validation and draft pull request.
+      - [x] Final-diff review for benchmark leakage, unrelated migrations,
+            copied reference paths, broad suppressions, and runtime-dependency
+            or Python-floor changes.
+      - [x] Full gate suite run and defects fixed (`make lint` docstring,
+            `make test` Skylos contract tests, copied pathname).
+      - [ ] Final clean gate run over the unchanged tree.
+      - [ ] Branch pushed with upstream and draft pull request opened.
 
 ## Context and orientation
 
@@ -165,6 +172,22 @@ The change is acceptable when:
 - Deterministic normalized output across repeated runs.
 - No planted clone, temporary exception, or benchmark artefact remains.
 
+The first full pass ran every gate and produced two real failures, both now
+fixed and both recorded under Surprises & Discoveries:
+
+| Gate                    | First pass                          | Cause                                                  |
+| ----------------------- | ----------------------------------- | ------------------------------------------------------ |
+| `make lint`             | failed, `docstring-missing-returns` | multi-line docstring without a NumPy `Returns` section |
+| `make test`             | 2 failed, 549 passed                | `skylos-allow` narrowed to command-line origins        |
+| `make duplication`      | exit 0, 4 allowed                   | —                                                      |
+| `make duplication-test` | 125 passed                          | —                                                      |
+| `make check-fmt`        | exit 0                              | —                                                      |
+| `make typecheck`        | exit 0, `All checks passed!`        | —                                                      |
+| `make markdownlint`     | exit 0, 0 errors over 69 files      | —                                                      |
+| `make nixie`            | exit 0, all diagrams validated      | —                                                      |
+
+_Table 2: First full gate pass, before the two fixes._
+
 ## Idempotence and recovery
 
 `make install-nose` is a no-op when the pinned version is already installed, so
@@ -180,11 +203,11 @@ returns the tree to its adjudicated state.
   `docs/adr/adr-021-adopt-nose-duplication-gate.md`.
 - Detector: `corca-ai/nose` `v0.20.0`, the Rust `nose-cli` binary.
 - Deliberate downstream deviations from the reference: the
-  `--disable-strategies compile,quick-install` prohibition; the root scope
-  (`python/stilyagi` rather than `episodic` + `openai_test_types.py`); the
-  module home (`scripts/` here, reintroduced); the `testpaths` isolation
-  described below; and Stilyagi's own exception entries, which replace
-  episodic's 23.
+  `--disable-strategies compile,quick-install` prohibition; the root scope (here
+  `python/stilyagi` alone, where the reference also scans a loose module at
+  its repository root); the module home (`scripts/` here, reintroduced); the
+  `testpaths` isolation described below; and Stilyagi's own exception entries,
+  which replace episodic's 23.
 
 ## Surprises & Discoveries
 
@@ -206,7 +229,7 @@ returns the tree to its adjudicated state.
   both of which invoke `pytest` with no path -- died at import with
   `ModuleNotFoundError: No module named 'cyclopts'`. Fixed by setting
   `testpaths = ["tests"]`. `norecursedirs` was rejected because pytest's
-  `addini(..., type="args")` *replaces* the default tuple rather than extending
+  `addini(..., type="args")` _replaces_ the default tuple rather than extending
   it, which would have made `.venv` collectible. A path argument overrides
   `testpaths`, so `make duplication-test` -- which names its files explicitly
   -- is unaffected. Verified in both directions: bare collection yields 541
@@ -227,6 +250,24 @@ returns the tree to its adjudicated state.
   a pinned version plus command trio in the Makefile, one recipe line at the
   end of `lint`, a `[tool.<gate>]` block in `pyproject.toml`, a
   `tests/test_<gate>_lint_contract.py`, and an ADR addendum.
+- **A pre-existing gate's contract is easy to break while adding a new one.**
+  The `duplication-allow` target restricts `FIRST`/`SECOND`/`REASON` to
+  `origin == command line`, because WSL injects an ambient `NAME`. Applying the
+  same helper to the pre-existing `skylos-allow` target silently narrowed it:
+  its contract deliberately accepts environment values, and two tests in
+  `tests/test_skylos_lint_contract.py` pinned that, so `make test` failed. The
+  helper must stay private to the new interface; a shared "improvement" to an
+  existing target is a behaviour change and needs its own justification.
+- **`ignore-one-line-docstrings = true` decides which docstrings need
+  `Returns`.** Ruff's `DOC` rules are selected and the pydocstyle convention is
+  `numpy`, so a _multi-line_ docstring on a value-returning function needs a
+  NumPy-style `Returns` section while a single-line one does not. The extracted
+  `_pyproject_stilyagi_table` was the only new function long enough to trip it;
+  its one-line siblings were exempt and passed.
+- **A copied pathname can survive a mechanical port.** The command-building
+  test carried `openai_test_types.py`, a reference-repository filename that
+  does not exist here, as the second configured root. Grep for the reference's
+  own paths after a port rather than trusting that adaptation was complete.
 - **`test_toolchain_contract.py` does not exist here.** The equivalent
   behaviour is distributed across `tests/test_ci_workflow_units.py`,
   `tests/test_skylos_lint_contract.py`, `tests/test_makefile_recipes.py`, and
@@ -271,6 +312,11 @@ returns the tree to its adjudicated state.
   tool gate and this is the second, so the shape follows it; the ADR should
   note the precedent and say why the detector is a separate tool rather than an
   extension of Skylos.
+- **Leave the existing Skylos target alone.** The command-line-origin
+  restriction is scoped to `duplication-allow` under its own helper name. An
+  earlier revision shared it with `skylos-allow`, which changed that target's
+  documented environment-reading behaviour and failed two pre-existing tests;
+  the change was reverted.
 
 ## Adjudication record
 
@@ -386,7 +432,7 @@ repository, and exactly the four adjudicated entries are present.
 | Eight concurrent `allow` writers                                 | all 8 recorded, no lost updates                    |
 | Hostile reason (`$5`, `$(whoami)`, backticks, quotes, backslash) | round-tripped exactly                              |
 
-*Table 1: End-to-end demonstration results.*
+_Table 1: End-to-end demonstration results._
 
 Lessons worth carrying forward:
 
