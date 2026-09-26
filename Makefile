@@ -219,14 +219,15 @@ duplication-test: ## Run the duplication-gate helper tests
 		scripts/tests/test_make_install_nose.py \
 		scripts/tests/test_nose_detector.py
 
-# Accept FIRST/SECOND/REASON (and skylos SYMBOL) only from the make command
-# line. `NAME` is ambient under WSL, which injects the hostname there, so both
-# interfaces avoid it.
-cli_value = $(if $(filter command line,$(origin $(1))),$(value $(1)))
+# Accept FIRST/SECOND/REASON only from the make command line. `NAME` is
+# ambient under WSL, which injects the hostname there, so this interface avoids
+# it. `SECOND` may repeat, so it stays ambient-readable below rather than being
+# restricted here.
+duplication_allow_value = $(if $(filter command line,$(origin $(1))),$(value $(1)))
 
-duplication-allow: export DUPLICATION_FIRST = $(call cli_value,FIRST)
-duplication-allow: export DUPLICATION_SECOND = $(call cli_value,SECOND)
-duplication-allow: export DUPLICATION_REASON = $(call cli_value,REASON)
+duplication-allow: export DUPLICATION_FIRST = $(call duplication_allow_value,FIRST)
+duplication-allow: export DUPLICATION_SECOND = $(call duplication_allow_value,SECOND)
+duplication-allow: export DUPLICATION_REASON = $(call duplication_allow_value,REASON)
 duplication-allow: ## Record one reasoned duplication exception
 	@case "$${DUPLICATION_FIRST}" in *[![:space:]]*) ;; *) printf "Error: FIRST is required (path[::name])\\n" >&2; exit 2;; esac
 	@case "$${DUPLICATION_REASON}" in *[![:space:]]*) ;; *) printf "Error: REASON is required for a duplication exception\\n" >&2; exit 2;; esac
@@ -237,8 +238,8 @@ duplication-allow: ## Record one reasoned duplication exception
 	done; \
 	$(DUPLICATION_GATE) allow "$$@"
 
-skylos-allow: export SKYLOS_SYMBOL = $(call cli_value,SYMBOL)
-skylos-allow: export SKYLOS_REASON = $(call cli_value,REASON)
+skylos-allow: export SKYLOS_SYMBOL = $(value SYMBOL)
+skylos-allow: export SKYLOS_REASON = $(value REASON)
 skylos-allow: ## Document one named Skylos exception, not an entry point
 	@case "$${SKYLOS_SYMBOL}" in *[![:space:]]*) ;; *) printf "Error: SYMBOL is required for a named whitelist exception\\n" >&2; exit 2;; esac
 	@case "$${SKYLOS_REASON}" in *[![:space:]]*) ;; *) printf "Error: REASON is required for a named whitelist exception\\n" >&2; exit 2;; esac
