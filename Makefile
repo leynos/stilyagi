@@ -67,6 +67,14 @@ TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.3
 TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 	"git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
 	typos-config-builder
+# Keep this pin in sync with the CI detector install step and with
+# [tool.nose] version in pyproject.toml; tests/test_toolchain_contract.py
+# enforces the match.
+NOSE_VERSION ?= 0.20.0
+NOSE_TOOLS_DIR ?= .tools/nose
+NOSE_BIN ?= $(NOSE_TOOLS_DIR)/nose
+CARGO_BINSTALL ?= cargo-binstall
+DUPLICATION_GATE = $(UV_ENV) NOSE_BIN=$(NOSE_BIN) $(UV) run scripts/duplication_gate.py
 MD_FILES_FIND = find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './.uv-cache/*' -not -path './.uv-tools/*' -not -path './target/*' -not -path './crates/stilyagi-pyext/target/*' -print0
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
@@ -80,6 +88,7 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
 .PHONY: help all clean build build-release lint fmt check-fmt \
         markdownlint nixie spelling test test-ci test-doc test-quick \
         typecheck tools skylos-allow \
+        install-nose duplication duplication-test duplication-allow \
         tools-check tools-docs tools-lint release release-artifact smoke \
         smoke-release test-workflow-contracts
 
@@ -170,7 +179,7 @@ check-fmt: tools-check ## Verify formatting
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
 	$(MDTABLEFIX) --check $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
 
-lint: tools-lint ## Run linters, including the Whitaker Dylint suite
+lint: tools-lint install-nose ## Run linters, including the Whitaker Dylint suite
 	$(RUFF) check
 	$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
@@ -180,9 +189,56 @@ lint: tools-lint ## Run linters, including the Whitaker Dylint suite
 	$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
 	$(SKYLOS) $(SKYLOS_PRODUCTION_TARGETS) --exclude $(SKYLOS_EXCLUDE_FOLDERS) --category dead_code --gate --format concise --no-upload --no-provenance --no-grep-verify
+	$(DUPLICATION_GATE) check
 
-skylos-allow: export SKYLOS_SYMBOL = $(value SYMBOL)
-skylos-allow: export SKYLOS_REASON = $(value REASON)
+install-nose: ## Install the pinned nose duplication detector
+	@if [ "$$($(NOSE_BIN) --version 2>/dev/null)" = "nose $(NOSE_VERSION)" ]; then \
+	  printf "nose %s already installed at %s\n" "$(NOSE_VERSION)" "$(NOSE_BIN)"; \
+	else \
+	  printf "Installing nose %s into %s\n" "$(NOSE_VERSION)" "$(NOSE_TOOLS_DIR)"; \
+	  mkdir -p "$(NOSE_TOOLS_DIR)"; \
+	  $(CARGO_BINSTALL) --no-confirm --install-path "$(NOSE_TOOLS_DIR)" \
+	    --disable-strategies compile,quick-install \
+	    --git https://github.com/corca-ai/nose 'nose-cli@$(NOSE_VERSION)'; \
+	fi
+
+duplication: install-nose ## Run the blocking code-duplication gate
+	$(DUPLICATION_GATE) check
+
+duplication-test: ## Run the duplication-gate helper tests
+	@$(UV_ENV) NOSE_BIN=$(NOSE_BIN) $(UV) run --no-project \
+		--with pytest==9.0.2 --with cyclopts==4.25.2 \
+		--with tomlkit==0.15.1 --with 'hypothesis==6.168.0' \
+		python -m pytest -c /dev/null --rootdir=. -p no:cacheprovider \
+		scripts/tests/test_atomic_write.py \
+		scripts/tests/test_duplication_gate.py \
+		scripts/tests/test_duplication_gate_commands.py \
+		scripts/tests/test_duplication_gate_make.py \
+		scripts/tests/test_duplication_gate_persistence.py \
+		scripts/tests/test_duplication_gate_properties.py \
+		scripts/tests/test_make_install_nose.py \
+		scripts/tests/test_nose_detector.py
+
+# Accept FIRST/SECOND/REASON (and skylos SYMBOL) only from the make command
+# line. `NAME` is ambient under WSL, which injects the hostname there, so both
+# interfaces avoid it.
+cli_value = $(if $(filter command line,$(origin $(1))),$(value $(1)))
+
+duplication-allow: export DUPLICATION_FIRST = $(call cli_value,FIRST)
+duplication-allow: export DUPLICATION_SECOND = $(call cli_value,SECOND)
+duplication-allow: export DUPLICATION_REASON = $(call cli_value,REASON)
+duplication-allow: ## Record one reasoned duplication exception
+	@case "$${DUPLICATION_FIRST}" in *[![:space:]]*) ;; *) printf "Error: FIRST is required (path[::name])\\n" >&2; exit 2;; esac
+	@case "$${DUPLICATION_REASON}" in *[![:space:]]*) ;; *) printf "Error: REASON is required for a duplication exception\\n" >&2; exit 2;; esac
+	@set -f; \
+	set -- --first "$${DUPLICATION_FIRST}" --reason "$${DUPLICATION_REASON}"; \
+	for key in $${DUPLICATION_SECOND}; do \
+	  set -- "$$@" --second "$${key}"; \
+	done; \
+	$(DUPLICATION_GATE) allow "$$@"
+
+skylos-allow: export SKYLOS_SYMBOL = $(call cli_value,SYMBOL)
+skylos-allow: export SKYLOS_REASON = $(call cli_value,REASON)
 skylos-allow: ## Document one named Skylos exception, not an entry point
 	@case "$${SKYLOS_SYMBOL}" in *[![:space:]]*) ;; *) printf "Error: SYMBOL is required for a named whitelist exception\\n" >&2; exit 2;; esac
 	@case "$${SKYLOS_REASON}" in *[![:space:]]*) ;; *) printf "Error: REASON is required for a named whitelist exception\\n" >&2; exit 2;; esac
