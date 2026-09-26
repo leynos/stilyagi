@@ -116,6 +116,12 @@ def _pyproject_stilyagi_table(
     Discovery has to answer "is this a Stilyagi config?" before paying for a
     parse, and the parse then needs the same table, so both share this one
     walk of ``tool`` -> ``stilyagi``.
+
+    Returns
+    -------
+    cabc.Mapping[str, object] | None
+        The ``[tool.stilyagi]`` table, or ``None`` when the document has no
+        such mapping.
     """
     tool = raw_document.get("tool")
     stilyagi = tool.get("stilyagi") if isinstance(tool, cabc.Mapping) else None
