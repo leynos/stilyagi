@@ -157,7 +157,7 @@ class TestBuildCommand:
         """The whole argument vector is pinned, in order, from the settings."""
         settings = dc.replace(
             stub_settings(),
-            roots=("python/stilyagi", "openai_test_types.py"),
+            roots=("python/stilyagi", "tests/support"),
             mode="semantic",
             min_size=40,
             surface="all",
@@ -173,7 +173,7 @@ class TestBuildCommand:
             "--root",
             "python/stilyagi",
             "--root",
-            "openai_test_types.py",
+            "tests/support",
             "all",
             "top=30",
             "--mode",
