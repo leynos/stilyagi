@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted.
+Accepted. The focused Pylint pass was changed on 2026-09-25; see the addendum
+of that date.
 
 ## Date
 
@@ -260,6 +261,33 @@ requires non-empty `SYMBOL` and `REASON` variables and invokes the command-only
 CLI's `whitelist` subcommand. Use a typed `[tool.skylos.dead_code]` entry-point
 rule when possible; reserve named allow-list entries for verified runtime
 callers that cannot be modelled by an entry point.
+
+## Addendum — 2026-09-25: focused Pylint on CPython 3.14
+
+The focused Pylint pass no longer runs through the `pylint-pypy-shim` wrapper
+[^3] on PyPy, and `pyproject.toml` no longer disables `syntax-error`.
+
+The disable had a cost the original decision understated: a module the PyPy
+runtime could not parse produced no messages at all, so it was never linted,
+and the pass still reported success. On the PyPy 3.11 runtime thirteen modules
+were skipped. PyPy 8 (Python 3.12) closes most of that gap, but the test suite
+uses Python 3.14 syntax, PEP 758 unparenthesised `except` lists, that no
+managed PyPy parses. The pass therefore runs a pinned
+`pylint==$(PYLINT_VERSION)` on CPython 3.14, the project baseline, where every
+module parses and a parse failure fails the lint. The findings the newly linted
+modules reported were fixed in the same change.
+
+The Makefile variables change accordingly: `PYLINT_PYPY_SHIM_REF` and
+`PYLINT_PYPY_SHIM` are removed, `PYLINT_PYTHON` defaults to `3.14`,
+`PYLINT_VERSION` pins the Pylint release, and `PYLINT` expands to:
+
+```sh
+$(UV_ENV) $(UV) tool run --managed-python --python $(PYLINT_PYTHON) \
+  --from 'pylint==$(PYLINT_VERSION)' pylint --load-plugins=
+```
+
+The decision and operational notes above record the original PyPy runner; the
+developers' guide describes the current one.
 
 ## References
 

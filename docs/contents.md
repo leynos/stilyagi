@@ -102,7 +102,7 @@
   - [ADR 004: Adopt layered Python linting](
     adr-004-python-linting-architecture.md)
     records the accepted layered Python linting architecture using Ruff,
-    Interrogate, PyPy Pylint, df12 Pylint, ambrleaks, and Skylos, plus its
+    Interrogate, focused Pylint, df12 Pylint, ambrleaks, and Skylos, plus its
     Makefile execution model.
   - [ADR 005: Scope Markdown region vocabulary](
     adr-005-markdown-region-vocabulary-scope.md)
