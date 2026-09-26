@@ -85,6 +85,13 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             or Python-floor changes.
       - [x] Full gate suite run and defects fixed (`make lint` docstring,
             `make test` Skylos contract tests, copied pathname).
+      - [x] Rebased onto the updated `origin/main` (`4c0c0a7`), which carried
+            PR #163's CPython Pylint tier. One conflict in
+            `docs/developers-guide.md`: a lint-variable table where upstream
+            replaced the PyPy Pylint rows and this branch added the `nose` rows.
+            Resolved by keeping upstream's table, dropping the two now-obsolete
+            `PYLINT_PYPY_SHIM` rows, and inserting the five `nose` rows in
+            Makefile order, re-rendering the column padding.
       - [ ] Final clean gate run over the unchanged tree.
       - [ ] Branch pushed with upstream and draft pull request opened.
 
@@ -284,6 +291,23 @@ returns the tree to its adjudicated state.
   cannot masquerade as a clean result.
 - **`cargo-binstall --version` fails**; it reads `--version` as the
   crate-version flag. Use `cargo-binstall -V`.
+- **A stale base can fail a gate that upstream has already fixed.** The first
+  full gate pass died in the PyPy Pylint tier, on four messages in two files
+  whose blobs were byte-identical to `origin/main`. `make lint` on a pristine
+  `origin/main` worktree at the same commit reproduced it exactly, and
+  `origin/main` had meanwhile moved to `4c0c0a7` (PR #163), which states in its
+  own message that PyPy 8 cannot parse this repository's 3.14 syntax and had
+  turned every lint lane red. Rebasing onto `4c0c0a7` resolves the whole tier.
+  A gate failure on untouched files is a signal to check blob identity and the
+  upstream tip before treating it as branch-induced &#8212; re-running the same
+  gate on the stale base would only reproduce it.
+- **A rebase conflict can hide semantic, not just textual, drift.** The one
+  conflict here was a Markdown table: upstream replaced the two PyPy Pylint
+  rows, and this branch added five `nose` rows. Taking either whole side would
+  have silently reverted the other, and the PyPy shim rows would have been
+  re-admitted as valid-looking documentation for a tier that no longer exists.
+  Resolving a table conflict means resolving the row set, then re-rendering the
+  column widths rather than hand-patching cells.
 
 ## Decision Log
 
