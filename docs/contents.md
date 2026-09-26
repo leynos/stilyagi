@@ -117,6 +117,10 @@
     adr-007-rust-doc-comment-owner-metadata.md)
     records the Rust `owner` contract reuse, `::` qualified-name semantics,
     verbatim doc-comment extraction, and bounded Rust node-store policy.
+  - [ADR 008: Adopt the `nose` code-duplication gate](
+    adr-008-nose-duplication-gate.md)
+    records the blocking duplication gate, its reasoned exception entries,
+    scan scope, and detector provisioning policy.
 
 ## Requests for comments (RFCs)
 

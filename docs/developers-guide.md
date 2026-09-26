@@ -958,6 +958,8 @@ Their responsibilities are:
     denied
   - run Skylos as the final strict production dead-code check over
     `python/stilyagi`, excluding `tests`
+  - install the pinned `nose` duplication detector if needed, then run the
+    blocking code-duplication gate over `python/stilyagi`
 - `make typecheck`
   - It rebuilds the editable environment when needed.
   - It runs `cargo check` for all workspace crates, targets, and features with
@@ -972,6 +974,15 @@ Their responsibilities are:
 - `make test-doc`
   - run Rust doc tests with Rustdoc warnings denied
   - run the Python docstring examples through `pytest --doctest-modules`
+- `make duplication`
+  - install the pinned `nose` detector if needed
+  - run the blocking duplication gate over `python/stilyagi`
+- `make duplication-test`
+  - run the duplication-gate helper tests, which use injected runners and stub
+    executables rather than downloading the detector
+- `make duplication-allow`
+  - record one reasoned duplication exception in `pyproject.toml`; requires
+    `FIRST` and `REASON`, and accepts repeated `SECOND` keys
 - `make smoke`
   - run `python -m stilyagi.smoke` against the development install
 - `make smoke-release`
@@ -1053,33 +1064,38 @@ The Makefile exposes the lint runner through these variables:
 
 Table: Lint runner Makefile variables.
 
-| Variable                       | Default                                                                                                                         | Purpose                                                           |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `UV`                           | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                                   | Selects the `uv` executable used by Makefile Python commands.     |
-| `UV_ENV`                       | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                                  | Keeps `uv` cache and tool state inside the repository worktree.   |
-| `UV_RUN`                       | `$(UV_ENV) $(UV) run --group dev`                                                                                               | Runs commands in the locked development dependency group.         |
-| `RUFF_VERSION`                 | `0.16.4`                                                                                                                        | Pins the Ruff version shared by the Makefile and CI.              |
-| `RUFF`                         | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                                             | Builds the pinned Ruff command used by formatting and lint gates. |
-| `INTERROGATE`                  | `$(UV_RUN) interrogate`                                                                                                         | Selects the docstring-coverage command used by `make lint`.       |
-| `INTERROGATE_TARGETS`          | `python/stilyagi tests`                                                                                                         | Selects the directories checked by Interrogate.                   |
-| `INTERROGATE_FLAGS`            | `--fail-under 100`                                                                                                              | Requires complete Python docstring coverage.                      |
-| `PYLINT_PYTHON`                | `3.14`                                                                                                                          | Selects the interpreter passed to `uv tool run` for Pylint.       |
-| `PYLINT_TARGETS`               | `python/stilyagi tests`                                                                                                         | Selects the directories checked by the Pylint tier.               |
-| `PYLINT_VERSION`               | `4.0.9`                                                                                                                         | Pins the Pylint release used by the focused Pylint tier.          |
-| `PYLINT`                       | `$(UV_ENV) $(UV) tool run --managed-python --python $(PYLINT_PYTHON) --from 'pylint==$(PYLINT_VERSION)' pylint --load-plugins=` | Builds the focused Pylint command used by `make lint`.            |
-| `DF12_PYTHON`                  | `3.14`                                                                                                                          | Selects CPython for the df12 Pylint and scanner tiers.            |
-| `DF12_PYLINT_MESSAGES`         | all thirteen v0.3.0 message IDs                                                                                                 | Selects the df12 Pylint diagnostics.                              |
-| `DF12_PYLINT`                  | project-backed Pylint with `df12_python_lints` loaded                                                                           | Builds the CPython df12 Pylint command.                           |
-| `AMBRLEAKS`                    | locked `uv run --group dev --python 3.14` environment                                                                           | Builds the snapshot leak scanner command from the locked commit.  |
-| `SKYLOS_VERSION`               | `4.33.2`                                                                                                                        | Pins the dead-code detector used by `make lint`.                  |
-| `SKYLOS_CLI`                   | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`                                              | Builds the command-only Skylos CLI.                               |
-| `SKYLOS`                       | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                                                    | Adds scan-only configuration to the Skylos CLI.                   |
-| `SKYLOS_PRODUCTION_TARGETS`    | `python/stilyagi`                                                                                                               | Limits dead-code analysis to production Python sources.           |
-| `SKYLOS_EXCLUDE_FOLDERS`       | `tests`                                                                                                                         | Excludes tests from the production liveness graph.                |
-| `TY_VERSION`                   | `0.0.74`                                                                                                                        | Pins the `ty` version shared by the Makefile and CI.              |
-| `TY`                           | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                                                 | Builds the pinned type-checking command.                          |
-| `TYPOS_CONFIG_BUILDER_VERSION` | `v0.1.1`                                                                                                                        | Pins the spelling gate, and the `typos` binary it runs.           |
-| `TYPOS_CONFIG_BUILDER`         | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'git+...@$(TYPOS_CONFIG_BUILDER_VERSION)' typos-config-builder`                  | Builds the spelling gate command used by `make markdownlint`.     |
+| Variable                       | Default                                                                                                                         | Purpose                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `UV`                           | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                                   | Selects the `uv` executable used by Makefile Python commands.                |
+| `UV_ENV`                       | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                                  | Keeps `uv` cache and tool state inside the repository worktree.              |
+| `UV_RUN`                       | `$(UV_ENV) $(UV) run --group dev`                                                                                               | Runs commands in the locked development dependency group.                    |
+| `RUFF_VERSION`                 | `0.16.4`                                                                                                                        | Pins the Ruff version shared by the Makefile and CI.                         |
+| `RUFF`                         | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                                             | Builds the pinned Ruff command used by formatting and lint gates.            |
+| `INTERROGATE`                  | `$(UV_RUN) interrogate`                                                                                                         | Selects the docstring-coverage command used by `make lint`.                  |
+| `INTERROGATE_TARGETS`          | `python/stilyagi tests`                                                                                                         | Selects the directories checked by Interrogate.                              |
+| `INTERROGATE_FLAGS`            | `--fail-under 100`                                                                                                              | Requires complete Python docstring coverage.                                 |
+| `PYLINT_PYTHON`                | `3.14`                                                                                                                          | Selects the interpreter passed to `uv tool run` for Pylint.                  |
+| `PYLINT_TARGETS`               | `python/stilyagi tests`                                                                                                         | Selects the directories checked by the Pylint tier.                          |
+| `PYLINT_VERSION`               | `4.0.9`                                                                                                                         | Pins the Pylint release used by the focused Pylint tier.                     |
+| `PYLINT`                       | `$(UV_ENV) $(UV) tool run --managed-python --python $(PYLINT_PYTHON) --from 'pylint==$(PYLINT_VERSION)' pylint --load-plugins=` | Builds the focused Pylint command used by `make lint`.                       |
+| `DF12_PYTHON`                  | `3.14`                                                                                                                          | Selects CPython for the df12 Pylint and scanner tiers.                       |
+| `DF12_PYLINT_MESSAGES`         | all thirteen v0.3.0 message IDs                                                                                                 | Selects the df12 Pylint diagnostics.                                         |
+| `DF12_PYLINT`                  | project-backed Pylint with `df12_python_lints` loaded                                                                           | Builds the CPython df12 Pylint command.                                      |
+| `AMBRLEAKS`                    | locked `uv run --group dev --python 3.14` environment                                                                           | Builds the snapshot leak scanner command from the locked commit.             |
+| `SKYLOS_VERSION`               | `4.33.2`                                                                                                                        | Pins the dead-code detector used by `make lint`.                             |
+| `SKYLOS_CLI`                   | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`                                              | Builds the command-only Skylos CLI.                                          |
+| `SKYLOS`                       | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                                                    | Adds scan-only configuration to the Skylos CLI.                              |
+| `SKYLOS_PRODUCTION_TARGETS`    | `python/stilyagi`                                                                                                               | Limits dead-code analysis to production Python sources.                      |
+| `SKYLOS_EXCLUDE_FOLDERS`       | `tests`                                                                                                                         | Excludes tests from the production liveness graph.                           |
+| `CARGO_BINSTALL`               | `cargo-binstall`                                                                                                                | Selects the installer used to provision the pinned detector.                 |
+| `NOSE_VERSION`                 | `0.20.0`                                                                                                                        | Pins the duplication detector shared by the Makefile, CI, and `[tool.nose]`. |
+| `NOSE_TOOLS_DIR`               | `.tools/nose`                                                                                                                   | Selects the detector install directory, cached in CI and ignored by Git.     |
+| `NOSE_BIN`                     | `$(NOSE_TOOLS_DIR)/nose`                                                                                                        | Selects the detector binary the gate runs, and the version check reads.      |
+| `DUPLICATION_GATE`             | `$(UV_ENV) NOSE_BIN=$(NOSE_BIN) $(UV) run scripts/duplication_gate.py`                                                          | Builds the gate command run by `make lint` and `make duplication`.           |
+| `TY_VERSION`                   | `0.0.74`                                                                                                                        | Pins the `ty` version shared by the Makefile and CI.                         |
+| `TY`                           | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                                                 | Builds the pinned type-checking command.                                     |
+| `TYPOS_CONFIG_BUILDER_VERSION` | `v0.1.1`                                                                                                                        | Pins the spelling gate, and the `typos` binary it runs.                      |
+| `TYPOS_CONFIG_BUILDER`         | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'git+...@$(TYPOS_CONFIG_BUILDER_VERSION)' typos-config-builder`                  | Builds the spelling gate command used by `make markdownlint`.                |
 
 Override these variables only for local diagnosis unless the project-wide lint
 policy is intentionally changing. For example:
@@ -1579,6 +1595,133 @@ condition, inventories and refuses a runner named through the matrix, and
 asserts an exact inventory of the jobs that can land on Ubicloud with their
 runner class and ceiling. A change that adds, removes or re-times such a job
 fails it until the inventory is updated in the same commit.
+
+### 6j. Code-duplication gate
+
+`make lint` ends by running a blocking code-duplication gate. It is the second
+tool gate in this repository, after the Skylos dead-code scan in section 6b,
+and it is covered by [ADR 008](adr-008-nose-duplication-gate.md). Run it alone
+with `make duplication`, and its own helper tests with `make duplication-test`.
+
+The detector is `nose` (`corca-ai/nose`), the Rust-built `nose-cli` binary, not
+the PyPI test framework of the same name. It lowers every supported language
+into one intermediate representation (IL) and reports ranked clone families
+across three channels: `syntax` for exact token runs, `semantic` for
+value-fingerprint shared cores, and `near` for fuzzy matches.
+
+Two units need stating plainly, because both are easy to misread:
+
+- **`min-size` counts IL tokens, not Python lines and not AST nodes.** The
+  configured floor of 24 is neither a line count nor a node count.
+- **Ranking is bounded.** The gate adjudicates the ranked surface, not every
+  family the detector can find. Stilyagi's ranking currently saturates at four
+  families, which is well below the configured `top = 30`, so nothing is hidden
+  today. That is a measurement of the present tree, not a guarantee: if the
+  ranked surface ever fills, families below the cutoff stop blocking, and the
+  bound has to be revisited rather than assumed safe.
+
+#### Scan scope
+
+`[tool.nose]` in `pyproject.toml` names one root, `python/stilyagi`. The
+exclusions are deliberate:
+
+- **`tests/` is out of scope.** A scan of it reports 83 families, overwhelmingly
+  assertion-shape and fixture-setup repetition. Adjudicating those would
+  dominate the ranked budget with test scaffolding and would need mass
+  exception entries. `tests/support/` remains the documented home for reusable
+  test helpers and is already reused.
+- **`scripts/` is out of scope**, so the gate's own modules are not
+  self-referential.
+- **`crates/` is out of scope.** It is a Rust workspace with its own Clippy and
+  Whitaker gates, and this adoption covers the Python surface only.
+- **Docs and fixtures are not production sources.**
+
+`surface = "all"` is required rather than cosmetic: the detector's curated
+default dashboard reports nothing at all for this package, while `all` reports
+the four families the gate adjudicates.
+
+#### Exceptions
+
+An exception is a reasoned entry under `[tool.duplication_gate]`, not an opaque
+ignore file or a generated baseline. A baseline records *what* was duplicated;
+an entry records *why* it may stay, stays visible in a diff, and is reported as
+stale once it silences nothing.
+
+Keys are locations, not line spans, because spans churn whenever code above
+them moves. A key is a path glob matched with `PurePosixPath.full_match`,
+optionally suffixed `::name` to require the detector's unit name. An entry
+names either one key (`unit`) or several (`members`), and it silences a family
+only when **every** location in that family matches one of the entry's keys. A
+single exception must therefore cover every location; a new copy in an unlisted
+file still blocks.
+
+Record one with:
+
+```shell
+make duplication-allow FIRST=python/stilyagi/a.py \
+  SECOND=python/stilyagi/b.py::helper \
+  REASON="Independent contracts: the two guards differ in what they reject"
+```
+
+`FIRST` and a non-blank `REASON` are required, and the target exits 2 without
+either, so a mistyped invocation cannot record an empty or unexplained entry.
+Repeat `SECOND` for a family with more than two members; do not join several
+keys into one value. The writer is atomic and holds a sidecar advisory lock
+(`.*.duplication-gate.lock`) so concurrent `allow` runs do not lose updates.
+That lock coordinates processes that participate in the protocol; it does not
+constrain an editor writing `pyproject.toml` directly.
+
+Prefer the narrowest key that covers the family. In this repository every
+reported family is fragment-level — the detector supplies no unit name at all —
+and a `::name` key never matches an unnamed location, so the narrowest key the
+schema allows for those families is the whole file. That means each such entry
+also silences any later fragment-level family in the same file. Use a
+`path::name` key whenever the detector does supply a name.
+
+When the gate reports an entry as stale, confirm the duplication is actually
+gone before removing it. A family can drop out of the ranking because it fell
+below `top` or shrank under `min-size`, not because it was fixed. Confirm
+removals by inspecting the source or by re-running with an adequately widened
+relevant scan.
+
+#### Reading a failure
+
+Exit status is 0 for a clean or fully allowed scan, 1 for unsuppressed
+families, and 2 for a configuration or tool-execution error. Status 2 covers a
+missing binary, a version mismatch, a timeout, and a malformed report — and it
+also covers a root that does not exist. A mistyped or empty scope therefore
+fails loudly rather than passing vacuously.
+
+Findings print as `path:start-end ~ path:start-end` families, with the unit
+name appended wherever the detector supplied one, alongside the witness kind
+and the refactoring value that ordered the family. A family whose locations
+carry no name is reported as an unnamed fragment rather than an invented
+qualified name.
+
+#### Provisioning
+
+`make install-nose` installs the pinned detector into `.tools/nose` with
+`cargo-binstall`, and is a no-op when the installed binary already reports the
+pinned version. It passes `--disable-strategies compile,quick-install`, so a
+missing prebuilt artefact fails provisioning rather than starting a costly Rust
+build or falling back to an unapproved third-party build service. When the
+strategies are exhausted, the correct response is to fix provisioning, not to
+widen them.
+
+The pin is declared in the Makefile `NOSE_VERSION`, the workflow-level
+`NOSE_VERSION` in `smoke.yml`, and `[tool.nose] version` in `pyproject.toml`.
+`tests/test_toolchain_contract.py` asserts all three agree without asserting
+any particular version, so a routine bump stays green. CI caches `.tools/nose`
+on a key carrying the runner OS, architecture, and pinned version, and installs
+through `make install-nose` rather than assembling its own `cargo-binstall`
+invocation, so the provisioning contract lives in one place.
+
+A bare `pytest` run would otherwise collect `scripts/tests/`, whose modules
+import the gate's own PEP 723 dependencies (`cyclopts`, `tomlkit`) rather than
+the application's `dev` group, and would fail at import.
+`testpaths = ["tests"]` in `[tool.pytest.ini_options]` scopes the bare run to
+the application suite. `make duplication-test` names its files explicitly, and
+a path argument overrides `testpaths`, so that lane still collects them.
 
 ## 7. Development responsibilities
 
