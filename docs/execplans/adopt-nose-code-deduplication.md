@@ -1,6 +1,6 @@
 # Adopt the `nose` code-duplication gate
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 This ExecPlan adopts a blocking, deterministic code-duplication gate in
 Stilyagi, following the final `nose` approach recorded in `leynos/episodic`
@@ -79,7 +79,7 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
 - [x] Adjudicate this repository's findings.
 - [x] Disposable-workspace end-to-end demonstration.
 - [x] Documentation and ADR 008.
-- [ ] Full validation and draft pull request.
+- [x] Full validation and draft pull request.
       - [x] Final-diff review for benchmark leakage, unrelated migrations,
             copied reference paths, broad suppressions, and runtime-dependency
             or Python-floor changes.
@@ -138,7 +138,15 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             re-run rather than inherited because two docs-only commits landed
             after the earlier run, and on this repository a comment-only diff is
             still read by contract tests.
-      - [ ] Branch pushed with upstream and draft pull request opened.
+      - [x] Branch pushed with upstream and draft pull request opened:
+            [PR #164](https://github.com/leynos/stilyagi/pull/164), draft,
+            against `main`, 30 files changed. The gate suite was re-run once
+            more on `f925d1b`, the exact commit pushed, and all eight gates
+            exited 0 with every count reproduced; the run is logged under
+            `/tmp/verify5-<gate>-stilyagi-adopt-nose-code-deduplication.out`.
+            This checklist entry is itself the last edit, so the tree the
+            gates verified is `f925d1b` and the push is `f925d1b` plus this
+            comment-only line.
 
 ## Context and orientation
 
