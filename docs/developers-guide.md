@@ -1675,11 +1675,14 @@ Two units need stating plainly, because both are easy to misread:
 `[tool.nose]` in `pyproject.toml` names one root, `python/stilyagi`. The
 exclusions are deliberate:
 
-- **`tests/` is out of scope.** A scan of it reports 85 families, overwhelmingly
-  assertion-shape and fixture-setup repetition. Adjudicating those would
-  dominate the ranked budget with test scaffolding and would need mass
-  exception entries. `tests/support/` remains the documented home for reusable
-  test helpers and is already reused.
+- **`tests/` is out of scope.** A scan of it reports an order of magnitude more
+  families than the package (87 against 4 when this was written),
+  overwhelmingly assertion-shape and fixture-setup repetition. Adjudicating
+  those would dominate the ranked budget with test scaffolding and would need
+  mass exception entries. The figure is a measurement of one tree and has moved
+  with each rebase, so the exclusion rests on the gap and the character of the
+  duplication rather than on the digit. `tests/support/` remains the documented
+  home for reusable test helpers and is already reused.
 - **`scripts/` is out of scope**, so the gate's own modules are not
   self-referential.
 - **`crates/` is out of scope.** It is a Rust workspace with its own Clippy and

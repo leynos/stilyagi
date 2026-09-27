@@ -166,10 +166,11 @@ surface bounds what the gate adjudicates.
   build or falling back to an unapproved third-party build service. This is a
   deliberate deviation from the reference, which omits the flag.
 - The scan covers `python/stilyagi` only. `tests/` is excluded because it
-  reports 85 families, overwhelmingly assertion-shape and fixture-setup
-  repetition; `scripts/` is excluded so the gate's own modules are not
-  self-referential; and `crates/` is covered by Clippy and Whitaker rather than
-  by a Python clone detector.
+  reports an order of magnitude more families (87 against 4 when this was
+  written), overwhelmingly assertion-shape and fixture-setup repetition;
+  `scripts/` is excluded so the gate's own modules are not self-referential; and
+  `crates/` is covered by Clippy and Whitaker rather than by a Python clone
+  detector.
 - `[tool.pytest.ini_options] testpaths = ["tests"]` keeps the gate's helper
   tests, which import the gate's own PEP 723 dependencies, out of a bare
   `pytest` run. `make duplication-test` names its files explicitly, and a path
@@ -182,8 +183,10 @@ surface bounds what the gate adjudicates.
 - Re-key exception entries on `path::name` wherever a future detector version
   starts supplying unit names, since that is strictly narrower than the whole
   file.
-- Extending the scan to `tests/` would require adjudicating 85 families and is
-  deliberately out of scope for this adoption.
+- Extending the scan to `tests/` would require adjudicating the order of
+  magnitude more families it reports and is deliberately out of scope for this
+  adoption. Re-measure rather than trusting any figure quoted in this ADR: the
+  count moved four times during this adoption alone.
 
 ## References
 
