@@ -92,7 +92,21 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             Resolved by keeping upstream's table, dropping the two now-obsolete
             `PYLINT_PYPY_SHIM` rows, and inserting the five `nose` rows in
             Makefile order, re-rendering the column padding.
-      - [ ] Final clean gate run over the unchanged tree.
+      - [x] Full gate suite green over the frozen tree: all eight gates exit 0
+            (`check-fmt`, `typecheck`, `lint`, `test`, `markdownlint`, `nixie`,
+            `duplication`, `duplication-test`). `test` reported 555 passed /
+            1 skipped plus 21 passed / 1 skipped doctests; `lint` ran both
+            Pylint tiers on managed CPython 3.14 and completed the duplication
+            gate at "4 allowed by reasoned exceptions".
+      - [x] Rebased a second time, onto `7fdcff3` (PR #162), after the gate run
+            exposed that `origin/main` had advanced again. That commit adds
+            `tests/test_codescene_environment_contract.py`, which parses
+            `smoke.yml` -- a file this branch edits -- so the rebase was
+            followed by a targeted re-verification rather than an assumption:
+            the workflow-parsing contract tests pass (40 passed), the suite
+            passes (564 passed / 1 skipped, up from 555 by the 8 new tests plus
+            1), and the duplication gate still exits 0. CI evaluates the merge,
+            so a green run on a stale base is not evidence about the PR.
       - [ ] Branch pushed with upstream and draft pull request opened.
 
 ## Context and orientation
