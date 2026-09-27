@@ -2197,3 +2197,55 @@ neither would have surfaced from a textual conflict — correction 1 because the
 merge succeeds and only the *test* fails, correction 2 because the merge
 succeeds and only the *lint* fails. A rebase here cannot be accepted on
 `merge-tree` exit status, on a clean replay, or on `git range-diff` alone.
+
+**Revision 30 (continued), 2026-09-27. Rebase executed; outcome and the one
+prediction that failed.** The replay ran to completion: 37 commits replayed onto
+`7fdcff3`, `NEW_HEAD` `8ee6911`, plus one follow-up repair commit `52b8c26`.
+Recovery refs for `old-head`, `new-head`, `merge-base`, and `target` are under
+`refs/recovery/2-2-2-.../`; the `20260924T201350Z` set is preserved.
+
+Resolution as executed. The replay stopped exactly where predicted, at
+`9759afd` on `tests/test_package_skeleton_units.py`, and nowhere else. The
+three stages were base 642 lines, ours 157 (main's split, byte-identical to
+`7fdcff3`), theirs 638. Resolution took stage two and applied the single edit
+whose target function survived the split — dropping `"FixPlan"` from the
+re-export list — and deferred the other two edits to `52b8c26`, which applies
+them to `test_package_skeleton_extraction.py` where main moved the function.
+`range-diff` reports 36 of 37 commits with identical patches and flags
+`9759afd` alone, which is precisely this split of one commit's edits across the
+replay and the repair. That is the expected signature of the resolution, not a
+defect.
+
+Audit results. All three semantic checks pass. Every one of the 19 target-only
+paths is byte-identical at `NEW_HEAD`. The only deletion against the target is
+`python/stilyagi/engine/fixes.py`, which the branch deletes at `9759afd` and
+which main never touched. The repeated-block scan's six hits were all false
+positives of the detector: each is a single three-line function whose five-line
+sliding window overlaps itself, confirmed by counting definitions.
+`pyproject.toml` resolved as planned — main's `syntax-error` removal taken, the
+branch's skylos entries kept — and `docs/developers-guide.md` auto-merged
+without residue. All six gates pass: `check-fmt`, `typecheck`, `lint` (both
+Pylint stages 10.00/10), `test` (608 passed, 1 skipped), `markdownlint`,
+`nixie`.
+
+**Correction 2's prediction failed, and that is the finding worth recording.**
+Revision 30 predicted that removing the `pylint-pypy` tier would expose the
+branch's PEP 695 aliases to genuine linting and that `make lint` would
+therefore fail on module length. It did not. The prediction assumed the alias
+trap was still latent in *this* tree; in fact the branch's own
+`test_package_skeleton_units.py` was already under the ceiling at 638 lines
+only on the pre-split file, and the rebased result inherits main's 156-line
+split. The alias count was right (12 modules, 15 aliases now parsed) and the
+consequence was wrong.
+
+Because "a gate passed" is exactly the evidence that proved unsound in Revision
+29 — where the check silently skipped the module — the green result was not
+accepted on its own. A positive control was run against the project's exact
+Pylint invocation: a synthetic 1266-line module carrying a `type` alias reports
+`C0302: Too many lines in module (1266/400)`, identical to the same module
+without the alias, and no `invalid-syntax`. The ceiling is genuinely armed
+under the new tier, so the passing lint is real evidence rather than the
+earlier silent skip. The lesson generalizes: after a change to a *gate's
+configuration or interpreter*, a green result from that gate is not
+self-validating, and the cheap way to make it trustworthy is to run the gate
+against a fixture that must fail.
