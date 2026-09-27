@@ -362,18 +362,26 @@ testpaths = ["tests"]
 # the match.
 #
 # `roots` deliberately names only the maintained production Python package.
-# `tests/` is excluded because a scan of it returns 83 families, almost all
-# assertion-shape and fixture-setup repetition, which would dominate the ranked
-# budget with test scaffolding; `scripts/` is excluded so the gate's own helper
-# modules are not self-referential; and the Rust workspace under `crates/` is
-# covered by Clippy and Whitaker rather than by a Python clone detector.
+# `tests/` is excluded because a scan of it returns an order of magnitude more
+# families (87 when this was written, against 4 for the package itself), almost
+# all assertion-shape and fixture-setup repetition, which would dominate the
+# ranked budget with test scaffolding. The figure is a measurement of one tree,
+# not a constant: it read 82, 83, 85 and then 87 as this branch and its base
+# moved, so the exclusion rests on the order-of-magnitude gap and the character
+# of the duplication, not on the digit. `scripts/` is excluded so the gate's own
+# helper modules are not self-referential; and the Rust workspace under
+# `crates/` is covered by Clippy and Whitaker rather than by a Python clone
+# detector.
 #
 # `min-size` counts nose intermediate-language (IL) tokens, not Python lines or
 # AST nodes. `surface = "all"` is required: nose's curated default dashboard
 # reports nothing here at all, while `all` reports 4 families. `top = 30` sits
 # above the saturation point — the complete ranking is 4 families, so every one
 # of them is adjudicated rather than truncated, and the gate's coverage of this
-# package is total rather than merely the top 30.
+# package is total rather than merely the top 30. That saturation is a
+# measurement of the present tree rather than a guarantee: if the package grows
+# past 30 families the bound starts hiding some, and the surface should be
+# re-measured before the "nothing is hidden" claim is repeated.
 [tool.nose]
 version = "0.20.0"
 roots = ["python/stilyagi"]
