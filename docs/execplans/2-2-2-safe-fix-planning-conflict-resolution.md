@@ -2066,3 +2066,134 @@ correcting them means splitting two large test modules, which belongs in its
 own change. The mechanism is worth stating plainly for whoever picks that up:
 any `type` alias in a module under `python/stilyagi tests` exempts that module
 from every Pylint check, not only `too-many-lines`.
+
+**Revision 30, 2026-09-27. Rebase onto `origin/main` (`7fdcff3`):
+reconnaissance and plan.** The owner asked for this branch to be rebased onto
+the remote target of PR #160 and for a plan to be formulated before any
+conflict is acted on. This revision records the reconnaissance, because it
+corrected three assumptions that an earlier reading of the same evidence had
+produced, and each correction changes what the replay must do.
+
+Frozen identities: `OLD_HEAD` `c56efe8`, `MERGE_BASE` `11e6026`, `TARGET`
+`7fdcff3`. The replay range is `11e6026..c56efe8`, 36 commits, linear
+(`git rev-list --merges` is empty), and every commit in it compiles, which is
+what makes a per-replay `compileall` guard safe to attach. The remote branch
+head was `c56efe8` at reconnaissance time, so the eventual force-with-lease is
+bound to a known-good value rather than a blind one. Recovery refs are created
+under `refs/recovery/2-2-2-.../` for all three identities; the pre-existing
+`20260924T201350Z` refs are left in place.
+
+Three corrections, in the order they matter:
+
+*Correction 1 — the split relocated the edited function, it did not delete it.*
+The earlier reading held that main's #163 split moved branch-relevant
+assertions into files the branch never touches, and that
+`test_package_skeleton_extraction.py` therefore breaks the rebased branch. Half
+right. `engine/fixes.py` was a **main-only** file at the merge base, and the
+**branch deletes it** (`D python/stilyagi/engine/fixes.py`) while adding
+`engine/fix_planning/` and `engine/fix_pipeline.py`. Main itself never touches
+`python/stilyagi/engine/` in `11e6026..7fdcff3`, so it still exports `FixPlan`
+from a module the branch removes. The real defect is narrower and sharper than
+"new files assert removed APIs": main's split **relocated**
+`test_engine_skeleton_dataclasses_preserve_their_fields` from
+`test_package_skeleton_units.py:148` to
+`test_package_skeleton_extraction.py:32`, and the branch's only edits to that
+function — dropping the `engine.FixPlan(applicability=...)` assertion and
+updating the renderer string — were made in the *old* file at the *old* line. A
+textual three-way merge of `test_package_skeleton_units.py` therefore cannot
+carry them: the branch's hunk has no counterpart in the file main kept, and the
+file main created arrives fresh from main with the pre-branch assertions intact.
+
+*Correction 2 — there are 13 alias-bearing modules, and the lint tier change is
+what exposes them.* `4c0c0a7` (#163) removed the `pylint-pypy` stage. Under it,
+`syntax-error` was disabled and any module containing a PEP 695 `type`
+statement was **skipped silently at 10.00/10, exit 0** — the trap Revision 29
+documents. With the tier gone, `make lint` runs Pylint on managed CPython 3.14
+and parses those modules for the first time. Thirteen modules carry a
+module-level alias, and two of them exceed the 400-line ceiling at `c56efe8`:
+`tests/test_package_skeleton_units.py` (638) and
+`tests/test_config_resolution.py` (471). Both are exactly the modules Revision
+29 recorded as "not this slice's regression", recorded on the assumption that
+correcting them belonged in its own change. That assumption survives the tier
+removal only if the rebased branch does not have to pass the new gate over them
+— and it does. The branch owns one of the two: it modifies
+`test_package_skeleton_units.py` (638 lines, alias at line 23) and never touches
+`test_config_resolution.py`, which main already split to 236. So the branch
+must not reintroduce main's 471-line version, and must bring its own 638-line
+file under the ceiling. This is new work the rebase creates, not a merge
+conflict, and it is the reason a clean replay would still fail `make lint`.
+
+*Correction 3 — `tests/test_renderers.py` needs nothing.* The earlier reading
+listed it as a second landmine. The branch already updated it: the diff at
+`11e6026..c56efe8` rewrites both the `render([], "text")` assertion and the
+`"3 diagnostics found"` case to the fix-count spelling, and imports
+`Fix, TextEdit` from `stilyagi.fixes`. Main never touches the file. It replays
+clean.
+
+The textual conflict surface is exactly three paths, confirmed twice — once by
+the pairwise diff, once by `git merge-tree` — and `pyproject.toml` is not
+really one of them:
+
+| Path                                   | Branch change                                                               | Main change                                      | Shape                                       |
+| -------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------- |
+| `pyproject.toml`                       | skylos whitelist entries (+3 names, +3 `.documented` reasons) near line 384 | removes the `syntax-error` disable near line 214 | disjoint regions; `merge-tree` auto-merges  |
+| `docs/developers-guide.md`             | §2b rewrite (102+/15−)                                                      | 55+/41− revision                                 | overlapping prose; `merge-tree` auto-merges |
+| `tests/test_package_skeleton_units.py` | re-export list, renderer string, drops `FixPlan` assertion                  | split 642→157, rest relocated                    | **genuine conflict**; only real one         |
+
+`git merge-tree --write-tree HEAD 7fdcff3` reports a conflict in exactly one
+file, `tests/test_package_skeleton_units.py`, and auto-merges the other two.
+That is the aggregate shape; a replay can still stop per-commit on the same
+paths, so the resolution below is written to apply at whichever commit stops.
+
+Resolution plan, in the order it will be executed:
+
+1. Replay with `--merge --no-fork-point --no-update-refs --no-autostash
+   --reapply-cherry-picks --keep-empty --empty=stop --onto 7fdcff3 11e6026`
+   under `-c merge.conflictStyle=zdiff3`, with a per-replay
+   `--exec 'python -m compileall -q -f python/stilyagi'` guard. Weave is
+   registered globally (`WEAVE_EVENT=1 weave-driver %O %A %B %L %P`, 0.5.1) but
+   is **not selected** for any of the three paths — `git check-attr merge`
+   reports `unspecified` for all three and there is no tracked
+   `.gitattributes` — so Git's built-in merge applies and no driver override is
+   needed. The guard is justified because all 36 commits compile at `OLD_HEAD`;
+   `__pycache__` is gitignored, so it cannot dirty the tree. Under the Weave
+   policy this is the ambient-selection case handled by *not opting in*, and
+   the decision is recorded here rather than left implicit.
+2. `tests/test_package_skeleton_units.py`: take main's split file as the base
+   (157 lines) and port the branch's three edits into it — drop `FixPlan` from
+   the re-export list, update the renderer string to
+   `"0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n"`, and reduce the
+   module to main's structure otherwise. Delete the `engine.FixPlan` assertion,
+   which asserts an API the branch removes.
+3. `tests/test_package_skeleton_extraction.py` (arrives from main, untouched by
+   the branch, therefore **not** a merge conflict — a post-replay repair):
+   apply the same two edits to the relocated
+   `test_engine_skeleton_dataclasses_preserve_their_fields` at line 32, and
+   give the file an equivalent alias strategy, since it carries `type JSONType`.
+4. `pyproject.toml`: take main's `syntax-error` removal (the tier it existed for
+   is gone) and keep the branch's skylos whitelist entries. The two regions are
+   disjoint, so this is a review of the auto-merge, not a hand resolution.
+5. `docs/developers-guide.md`: reconcile the branch's §2b against main's
+   revision; review rather than assume, since `merge-tree` auto-merges it.
+6. Post-replay, bring `tests/test_package_skeleton_units.py` under 400 lines —
+   requirement (2) above lands it at main's 157 plus the branch's edits, so
+   this may already be satisfied; verify rather than assume. Confirm
+   `tests/test_config_resolution.py` is main's 236-line version.
+7. Re-examine `cli.py` under the single-tier lint. Revision 29 inlined the
+   writer type at its one use site because no alias spelling passed both tiers.
+   With `R9112` and the CPython pass now the only tiers, that constraint is
+   gone, and `df12-pylint` may require the `type` statement instead. Re-run and
+   follow the gate.
+8. Gate: `make check-fmt`, `make test`, `make typecheck`, `make lint`, plus
+   `markdownlint` and `nixie` for the Markdown-touching commits. Then
+   `range-diff 11e6026..c56efe8 7fdcff3..NEW_HEAD`, the semantic audit for
+   unintended deletions and repeated blocks, commit, and force-with-lease bound
+   to `c56efe8`.
+
+The three corrections are the substance of this revision. Corrections 1 and 2
+share a structure worth naming: both are cases where a main-side change made an
+existing branch assumption false without touching the branch at all, and
+neither would have surfaced from a textual conflict — correction 1 because the
+merge succeeds and only the *test* fails, correction 2 because the merge
+succeeds and only the *lint* fails. A rebase here cannot be accepted on
+`merge-tree` exit status, on a clean replay, or on `git range-diff` alone.
