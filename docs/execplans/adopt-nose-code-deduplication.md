@@ -125,6 +125,19 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             "4 allowed by reasoned exceptions". The changed merge base is
             therefore genuinely re-verified end to end, not inferred from the
             targeted checks.
+      - [x] Pre-push review found the `tests/` scan figure had drifted a fourth
+            time, to 87, and that the earlier 83 -> 85 correction had missed
+            `pyproject.toml`. The exclusions were re-phrased on the durable
+            order-of-magnitude gap (87 against 4) with the drift stated, so the
+            rationale no longer depends on a digit the next rebase will move.
+      - [x] Full gate suite re-run on the exact tip being pushed (`13cfe90`),
+            all eight gates exit 0, every count identical to the previous run
+            (nextest 337; pytest 564 passed / 1 skipped; doctests 22 passed /
+            1 skipped; markdownlint 69 files, 0 errors; duplication "4 allowed
+            by reasoned exceptions"; duplication-test 125 passed). The suite was
+            re-run rather than inherited because two docs-only commits landed
+            after the earlier run, and on this repository a comment-only diff is
+            still read by contract tests.
       - [ ] Branch pushed with upstream and draft pull request opened.
 
 ## Context and orientation
