@@ -98,15 +98,33 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             1 skipped plus 21 passed / 1 skipped doctests; `lint` ran both
             Pylint tiers on managed CPython 3.14 and completed the duplication
             gate at "4 allowed by reasoned exceptions".
+            **Historical.** This run was on the `4c0c0a7` base. It is recorded
+            because it found real defects, not because its counts still
+            describe the branch -- the second rebase superseded every figure
+            in it.
       - [x] Rebased a second time, onto `7fdcff3` (PR #162), after the gate run
             exposed that `origin/main` had advanced again. That commit adds
-            `tests/test_codescene_environment_contract.py`, which parses
-            `smoke.yml` -- a file this branch edits -- so the rebase was
-            followed by a targeted re-verification rather than an assumption:
-            the workflow-parsing contract tests pass (40 passed), the suite
-            passes (564 passed / 1 skipped, up from 555 by the 8 new tests plus
-            1), and the duplication gate still exits 0. CI evaluates the merge,
-            so a green run on a stale base is not evidence about the PR.
+            `tests/test_codescene_environment_contract.py` and
+            `tests/support/codescene_environment_rules.py`, and the contract
+            test parses `smoke.yml` -- a file this branch edits. A targeted
+            re-verification followed rather than an assumption: the
+            workflow-parsing contract tests pass (40 passed), the suite passes
+            (564 passed / 1 skipped), and the duplication gate still exits 0.
+            CI evaluates the merge, so a green run on a stale base is not
+            evidence about the PR.
+      - [x] Full gate suite re-run over the frozen `7fdcff3`-rebased tree, all
+            eight gates exit 0. `test` reported 564 passed / 1 skipped (up from
+            555 by the 9 contract tests the new base adds -- 564 - 555 = 9
+            closes exactly against the 9 test functions in
+            `tests/test_codescene_environment_contract.py`) plus **22** passed /
+            1 skipped doctests, up from 21 by
+            `tests/support/codescene_environment_rules.py`, which the
+            `--doctest-modules python/stilyagi tests/support` lane collects.
+            `lint` ran both Pylint tiers on managed CPython 3.14, `markdownlint`
+            linted 69 files with 0 errors, and the duplication gate exited 0 at
+            "4 allowed by reasoned exceptions". The changed merge base is
+            therefore genuinely re-verified end to end, not inferred from the
+            targeted checks.
       - [ ] Branch pushed with upstream and draft pull request opened.
 
 ## Context and orientation
@@ -333,6 +351,24 @@ returns the tree to its adjudicated state.
   re-admitted as valid-looking documentation for a tier that no longer exists.
   Resolving a table conflict means resolving the row set, then re-rendering the
   column widths rather than hand-patching cells.
+- **A rebase moves more counters than the obvious one.** The second rebase was
+  expected to change the pytest total, and it did: 555 to 564. The doctest
+  total moved too, 21 to 22, which was not anticipated and was caught only
+  because the re-run was full rather than targeted. The new support module
+  `tests/support/codescene_environment_rules.py` sits inside the
+  `--doctest-modules python/stilyagi tests/support` lane's scope, so a file
+  added for an unrelated contract test silently enrolled its examples in the
+  doctest gate. A targeted re-verification named only the risk that was
+  predicted; the unpredicted count surfaced solely because the whole suite was
+  re-run. Re-run the full suite after a rebase even when a focused subset
+  already passes, and read every count in the summary rather than the one being
+  watched.
+- **A benign-looking instruction to expect a stale file was itself stale.**
+  `typos.toml` was expected to be rewritten in place by `make spelling` and to
+  need committing; its SHA-256 was unchanged before and after. The rule held in
+  an earlier session on an earlier tree and did not hold here. Carrying a
+  remembered state forward as an expectation, rather than re-measuring, would
+  have produced a commit of an unmodified file or a spurious `git checkout`.
 
 ## Decision Log
 
