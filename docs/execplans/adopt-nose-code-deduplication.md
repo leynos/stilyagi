@@ -343,6 +343,20 @@ returns the tree to its adjudicated state.
   cross-file families than the oversized originals. Any family count quoted in
   prose needs re-measuring after a rebase, and the claim should be written so
   the decision does not hinge on the digit.
+- **And a correction made once does not stay made.** Fixing the four `83`
+  sites was not the end of it. A pre-push review against the _second_ rebase
+  measured **87**, because `7fdcff3` added two more `tests/` modules, and the
+  figure had by then been 82, 83, 85 and 87 without a single line of this
+  branch's gate work changing. Worse, the correcting commit had missed
+  `pyproject.toml` entirely — the one file a maintainer actually reads when
+  deciding whether to widen the scope — so the shipped config still said `83`
+  while three prose documents said `85` and the tree said `87`. The lesson is
+  not "correct the number more carefully"; it is that a rationale phrased
+  around an exact figure needs re-deriving on every rebase and will not survive
+  contact with an active upstream. The exclusions are now phrased on the
+  order-of-magnitude gap (87 against 4) with the drift stated alongside, so the
+  decision no longer depends on a digit that moves. Re-measure, then write the
+  rationale so the next rebase cannot falsify it.
 
 - **A rebase conflict can hide semantic, not just textual, drift.** The one
   conflict here was a Markdown table: upstream replaced the two PyPy Pylint
@@ -411,17 +425,16 @@ and floor: `mode = "syntax,semantic,near"`, `min-size = 24`, `surface = "all"`,
 
 Scope decisions:
 
-- **`tests/` is out of scope.** A configured `tests` root reports 85 families,
-  overwhelmingly assertion-shape and fixture-setup repetition. The reference
-  gates production sources; gating the suite here would dominate the ranked
-  budget with test scaffolding and would require mass exception entries, which
-  the task prohibits. `tests/support/` is nonetheless the documented home for
-  reusable helpers and is already reused. The count is a measurement of the
-  present tree, not a constant: it read 82 before the rebase onto `4c0c0a7`, 83
-  on this branch's pre-rebase tip, and 85 afterwards. PR #163 split two
-  over-limit test modules into five and added one contract test, and the
-  smaller modules expose more cross-file families than the oversized originals
-  did. The exclusion decision does not depend on the exact figure.
+- **`tests/` is out of scope.** A configured `tests` root reports an order of
+  magnitude more families than the package (87 against 4, measured at the tip
+  of this branch; it read 82, 83 and 85 earlier as the branch and its base
+  moved), overwhelmingly assertion-shape and fixture-setup repetition. The
+  reference gates production sources; gating the suite here would dominate the
+  ranked budget with test scaffolding and would require mass exception entries,
+  which the task prohibits. `tests/support/` is nonetheless the documented home
+  for reusable helpers and is already reused. The exclusion decision does not
+  depend on the exact figure, and the Surprises section records why that
+  phrasing is deliberate rather than vague.
 - **`scripts/` is out of scope.** The gate's own modules would otherwise be
   self-referential; the reference excludes its gate for the same reason.
 - **Rust crates are out of scope.** This adoption covers the Python surface
