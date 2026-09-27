@@ -144,9 +144,19 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             more on `f925d1b`, the exact commit pushed, and all eight gates
             exited 0 with every count reproduced; the run is logged under
             `/tmp/verify5-<gate>-stilyagi-adopt-nose-code-deduplication.out`.
-            This checklist entry is itself the last edit, so the tree the
-            gates verified is `f925d1b` and the push is `f925d1b` plus this
-            comment-only line.
+            This checklist entry proved to be the last edit, so the pushed
+            head is `f925d1b` plus one comment-only commit. Because ticking a
+            checklist box still changes a tracked file, the delta was not
+            assumed harmless: the three gates that read Markdown were re-run
+            on it (`check-fmt`, `markdownlint`, `nixie`, all exit 0, logged
+            under `/tmp/verify6-<gate>...out`), and the commit was confirmed to
+            carry the very blob those gates read (`37a5de3b`). The scoped run
+            skipped `lint`, `typecheck`, `test`, `duplication` and
+            `duplication-test` on the evidence that no Python, Rust, TOML,
+            Makefile, workflow or script file changed and that no test reads
+            anything under `docs/`; that reasoning is recorded here rather
+            than left implicit, since "docs-only" is a claim about who reads
+            the file, not about the file's extension.
 
 ## Context and orientation
 
