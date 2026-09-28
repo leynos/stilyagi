@@ -4,6 +4,8 @@ import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests invoke a
 import sys
 import typing as typ
 
+from stilyagi import cli_fix
+
 from tests.support.assertions import assert_with_context
 from tests.support.malformed_corpus import materialize_malformed_corpus
 from tests.support.subprocess_env import python_module_environment
@@ -66,10 +68,131 @@ def test_python_module_entrypoint_exits_two_for_invalid_configuration(
     )
 
 
-def _run_check(cwd: pathlib.Path) -> subprocess.CompletedProcess[str]:
-    """Run `python -m stilyagi check .` with the local package importable."""
-    return subprocess.run(
-        [sys.executable, "-m", "stilyagi", "check", "."],
+def test_python_module_entrypoint_rejects_fix_with_diff(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A mutating flag combined with a preview flag fails before doing work.
+
+    D-06: silent precedence is the surprise the CLI contract exists to prevent,
+    so the pair is rejected rather than given an implicit winner. This is
+    asserted across a real process boundary because the in-process tests inject
+    a reporter, and the default reporter is what decides where a user sees the
+    message.
+
+    The message appears twice on purpose, and that is the reporter's documented
+    contract rather than a defect: `report_check_error` logs every expected
+    failure at warning level and echoes it to standard error, so one line
+    survives a logging configuration that swallows the other. The assertion
+    counts occurrences rather than testing for presence, because a third
+    printing would mean a duplicate call site crept back in -- the shape this
+    test was written to catch.
+    """
+    _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
+
+    completed = _run_check(tmp_path, "--fix", "--diff")
+
+    assert completed.returncode == 2, "expected a rejected flag pair to exit two"
+    assert not completed.stdout, "expected the usage error on standard error"
+    assert_with_context(
+        completed.stderr.count("--fix and --diff cannot be combined") == 2,
+        "expected the reporter's log line and echo, and nothing further",
+    )
+
+
+def test_python_module_entrypoint_leaves_a_clean_tree_untouched_under_fix(
+    tmp_path: pathlib.Path,
+) -> None:
+    """`--fix` over a tree with nothing to fix must not claim a mutation.
+
+    This is the defect Revision 36 repaired, pinned where it actually appeared.
+    The planner used to offer the source as its own replacement when no edit
+    survived, so the run counted a written file and printed the re-run note
+    while `write_source` skipped the write -- a run that left the tree
+    untouched reported that it had changed it.
+
+    The tree is deliberately malformed: this slice's rule engine reports
+    nothing, so a malformed file is the honest way to be sure the run has no
+    fixable diagnostic and still has real Markdown to read and extract. The
+    byte comparison is the load-bearing assertion -- the absence of the note is
+    what the defect violated, but a run that rewrote the file identically would
+    also print nothing, so the file's own bytes are checked as well.
+    """
+    materialize_malformed_corpus(tmp_path / "docs")
+    before = _tree_bytes(tmp_path)
+
+    completed = _run_check(tmp_path, "--fix")
+
+    assert completed.returncode == 0, "expected a clean tree to exit zero"
+    assert_with_context(
+        cli_fix.RERUN_HINT not in completed.stderr,
+        "expected no re-run note for a run that wrote nothing",
+    )
+    assert_with_context(
+        before == _tree_bytes(tmp_path),
+        "expected --fix to leave a tree with no fixable diagnostic untouched",
+    )
+
+
+def test_python_module_entrypoint_treats_unsafe_fixes_without_fix_as_a_no_op(
+    tmp_path: pathlib.Path,
+) -> None:
+    """`--unsafe-fixes` alone is accepted and changes nothing.
+
+    Reported as a no-op rather than a usage error because that is what the
+    shipped flag help promises ("Requires --fix to take effect"), and the
+    assertion is on the observable outcome: the exit status matches a plain
+    check, the report is the ordinary one, and the tree is byte-identical.
+    """
+    _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
+    before = _tree_bytes(tmp_path)
+
+    completed = _run_check(tmp_path, "--unsafe-fixes")
+
+    assert completed.returncode == 0, "expected --unsafe-fixes alone to exit zero"
+    assert_with_context(
+        completed.stdout == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected the ordinary report when --unsafe-fixes has no --fix to modify",
+    )
+    assert_with_context(
+        before == _tree_bytes(tmp_path),
+        "expected --unsafe-fixes alone to leave the tree untouched",
+    )
+
+
+def _tree_bytes(root: pathlib.Path) -> dict[str, bytes]:
+    """Return every file under ``root`` mapped to its bytes.
+
+    Returns
+    -------
+    dict[str, bytes]
+        Relative POSIX path to contents, for comparing a tree before and after
+        a run without assuming which files the run might have touched.
+    """
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def _run_check(cwd: pathlib.Path, *flags: str) -> subprocess.CompletedProcess[str]:
+    """Run `python -m stilyagi check .` with the local package importable.
+
+    Parameters
+    ----------
+    cwd:
+        The directory to run in, which is also the discovered target.
+    *flags:
+        Extra command-line flags, inserted after the subcommand so a caller can
+        exercise a mutating or preview mode without a second helper.
+
+    Returns
+    -------
+    subprocess.CompletedProcess
+        The finished process, with its streams captured as text.
+    """
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted interpreter, fixed flags, no shell.
+        [sys.executable, "-m", "stilyagi", "check", *flags, "."],
         cwd=cwd,
         env=python_module_environment(),
         capture_output=True,
