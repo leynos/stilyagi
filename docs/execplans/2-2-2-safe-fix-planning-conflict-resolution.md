@@ -313,14 +313,23 @@ Established during planning; use them instead of re-measuring.
     repaired, the second by keeping main's corrected escaping and updating
     only the value. The execplan itself had never passed `mdtablefix --wrap`
     and was reflowed with the gate's own rules.
-- [ ] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes (in
-      progress)
+- [x] Milestone 5 — `--fix`, `--unsafe-fixes`, and honest exit codes
   - 2026-09-07: the atomic-write sub-slice has red/green coverage for mode
     preservation, no-op writes, and file symlinks. `write_source` resolves the
     target, stages bytes in its directory, copies metadata, and swaps with
-    `os.replace`; its wheel-layout snapshot was reviewed. The `--fix` pipeline,
-    two-phase execution, verification re-lint, and feature scenarios remain.
-- [ ] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
+    `os.replace`; its wheel-layout snapshot was reviewed.
+  - 2026-09-28: complete and committed at `cc2fb81`. Dispatch, two-phase
+    execution, the verification re-lint, the mutating flags across a real
+    process boundary, and the fixed-document emitter's three silent reasons are
+    all covered; see Revision 38.
+  - 2026-09-28: the CodeRabbit review returned five genuine defects, all
+    repaired and each pinned by a test confirmed to fail without its fix; see
+    Revision 39.
+- [x] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
+  - 2026-09-28: all eight Stage D deliverables are in the working tree and were
+    verified individually, not assumed; see Revision 39 for the table and for
+    the two substantively required statements (ADR 008's heading-depth
+    constraint and the 2.3.1 warning).
 
 - [x] 2026-09-24 — PR #160 review feedback actioned. CodeRabbit raised nine
   findings and CodeScene four; each was verified against the working tree
@@ -997,6 +1006,15 @@ new bytes equal the old, so `--fix` does not churn modification times across a
 documentation tree and wake every file watcher.
 
 ### `python/stilyagi/cli.py` (Milestone 0)
+
+> **Superseded sketch.** This is the Milestone 0 proposal, kept as the record of
+> what was originally intended. Do not read the `writer` field below as current
+> design. Revision 32 dropped it -- `grep -rn '\.writer\|writer='` over
+> `python/` and `tests/` found no reader, and `fix_execution` owns the write
+> and takes its target from the plan rather than from an injected collaborator.
+> The as-built bundle carries `resolver`, `renderer`, `rule_runner`, `output`,
+> and a `reporter`, and its fields default through factories rather than being
+> `None` sentinels. See the Revision 32 entry below for the delivered form.
 
 ```python
 @dc.dataclass(frozen=True, slots=True)
@@ -3083,6 +3101,136 @@ deadlock Revision 37 documented, and are **not** claimed as passing.
 
 ### What remains
 
-Milestone 6 only: ADR 008, the users'/developers' guide updates, the RFC 0003
-§10 amendment for the `--fix --diff` exit-2 path, the roadmap tick, and the
-`docs/contents.md` index entry.
+At the time of writing: Milestone 6 only -- ADR 008, the users'/developers'
+guide updates, the RFC 0003 §10 amendment for the `--fix --diff` exit-2 path,
+the roadmap tick, and the `docs/contents.md` index entry. **All of these
+landed; see Revision 39.**
+
+## Revision 39 (2026-09-28): Milestone 6 documentation, and five review defects repaired
+
+### The Milestone 5 CodeRabbit review returned five genuine defects
+
+The review reported thirteen findings. Each was verified against the working
+tree before any edit; five were real defects and are now fixed, and the
+remaining were either already repaired or calls this work did not act on.
+
+1. **The exit status described half the run.** `relint_written_files` re-checks
+   exactly the files a mutating run *wrote*, and the status was read from that
+   re-lint alone. A run that fixed one file while leaving a sibling's
+   diagnostic standing therefore exited `0` with the diagnostic still there.
+   `reconcile_written_files` now overlays the re-lint onto the planning pass,
+   one `CheckedFile` per input, keyed on `resolved_path` -- the identity
+   `discovery` already deduplicates on, so the overlay cannot land on the wrong
+   file when two targets name one file.
+
+   The first regression test for this **did not discriminate**: it passed
+   against the unfixed code. The runner told the files apart by their content
+   ("Paragraph"), but the written file's re-lint reads "Section text." and so
+   fell through to the heading branch, emitting a diagnostic of its own that
+   supplied the exit `1`. Exit `1` came from the written file, which is exactly
+   what the old code got right. The runner now has a third branch returning
+   nothing for the rewritten text, and the test was confirmed to **fail**
+   against the reverted `cli.py` before being accepted.
+
+2. **`OSError` escaped the write path.** `write_source` documents `OSError` in
+   its own `Raises` section -- `_write_temporary_source` re-raises a staging
+   failure, and the `copystat`/`replace` swap can fail on a full or read-only
+   filesystem. Catching only `SourceChangedOnDiskError` let those escape as a
+   traceback and abandon every file after them. `_write_one` now returns a
+   `WriteAttempt` recording either an applied fix, a refusal, or an operational
+   error, and a new `fix-error/write-failed` refusal names the cause.
+
+   The two failure kinds are kept apart deliberately: a conflict refusal is a
+   *planning decision*, so the diagnostic still stands and the run exits `1`; a
+   write failure is an *environment fault*, so the run exits `2`, mirroring how
+   the command already treats an unreadable source. That is why
+   `WriteAttempt.operational_error` is a separate flag rather than another
+   refusal. Verified by reverting the handler: the test then fails with the
+   `PermissionError` escaping as a traceback.
+
+3. **The unsafe-fixes hint asked for something that could not happen.**
+   `warn_if_unsafe_withheld` scanned the raw diagnostics for any carrying an
+   unsafe fix, but `selection._classify` tests `UNFIXABLE_CODE` *before* the
+   level, so a code in `lint.unfixable` is excluded at every level and is never
+   `withheld_unsafe`. Advising `--unsafe-fixes` for such a diagnostic would be
+   advice that changes nothing. The evidence is now
+   `plan.selected.withheld_unsafe`, the planner's own record of what it left
+   out for that one reason.
+
+4. **A refusal with no rule codes rendered a dangling separator.** Two of the
+   identifiers (`changed-on-disk`, `standard-input`) are raised by the executor
+   and the phase-one wrapper rather than by a rule's proposed edit, so they
+   carry no codes by construction. `", ".join(())` is `""`, so the line read
+   `...: path: : message`. `_render_fix_error` now omits the segment entirely.
+
+5. **Phase-two refusals never reached the renderer at all.** Found while fixing
+   the above rather than reported by the review. `FileCheck.fix_errors` returns
+   `planned.fix_errors` -- the *phase one* set -- so `changed-on-disk`, and the
+   new `write-failed`, were invisible. The run would have exited `2` while
+   printing nothing that explained why. `print_mutation_report` now reads
+   `outcome.fix_errors`, the only channel holding all three refusal sources.
+   Reporting *both* `checked.fix_errors` and `outcome.fix_errors` was
+   considered and rejected: `outcome.fix_errors` is already the complete
+   collapsed set from both phases, so using both would print every phase-one
+   refusal twice.
+
+`tests/test_check_boundaries.py` gained three classes covering mixed outcomes,
+write failures, and refusal rendering. All 648 tests pass (up from 644), and
+each new test was confirmed to fail against the code it guards, by reverting
+the relevant fix in isolation and re-running.
+
+### The duplicate-helper finding, resolved rather than deferred
+
+`_rewrite_paragraph` and `_rewrite_heading_marker` were byte-identical in
+`tests/test_check_boundaries.py` and `tests/test_check_diff.py`.
+`tests/support/check_pipeline_fixtures.py` already existed for exactly this,
+and its docstring already stated the rule -- shared fixtures live there "rather
+than being duplicated or imported across test modules" -- so both copies moved
+there as `rewrite_paragraph` and `rewrite_heading_marker`. Ruff then caught six
+imports that only the deleted copies had needed.
+
+### Two RFC examples had the comma in the wrong place
+
+Both published an insertion at the conjunction's own `byte_start`, which places
+the comma *before* the separating space -- `docstrings , and comments` rather
+than `docstrings, and comments`. The offset that yields a serial comma is the
+preceding item's end, and that item is `items[-2]`, not `items[-1]`: the
+coordination items include the item following the conjunction, so `items[-1]`
+is "comments" and inserting there would produce `docstrings and comments,`.
+
+The reviewer's wording said "the preceding item's end offset", which is right;
+the index is the part worth recording, because `items[-1]` reads like "the last
+item before the conjunction" and is not. Both examples now use
+`items[-2].span.byte_end`, with a comment stating the arithmetic so the next
+editor does not undo it. This is consistent with `has_serial_comma()`, which
+tests precisely the comma after `items[-2]`.
+
+### Milestone 6 documentation delivered
+
+All eight Stage D deliverables are in place and were verified in the working
+tree rather than assumed:
+
+| Deliverable                | State                                                        |
+| -------------------------- | ------------------------------------------------------------ |
+| `docs/adr-008-*.md`        | 362 lines, all required style-guide sections present         |
+| `docs/rfcs/0003-*.md` §10  | +30 lines: the `--fix --diff` usage error and stream rules   |
+| `docs/users-guide.md` §3   | +144 lines: `--fix`, `--diff`, refusals, exit codes          |
+| `docs/developers-guide.md` | +182: fix planning, the `--fix` path, no-writer collaborator |
+| `docs/stilyagi-design.md`  | +43: fix-error identifiers and the admissibility rule        |
+| `round_trip_edits.rs`      | +3: the one-sentence oracle disclaimer                       |
+| `docs/contents.md`         | +9: ADR 008 and this ExecPlan indexed                        |
+| `docs/roadmap.md`          | 2.2.2 ticked with evidence, plus the 2.3.1 note              |
+
+The two substance requirements the plan singled out are both present: ADR 008
+states at line 180 that a heading-depth rule cannot be auto-fixed under this
+admissibility model, and carries the warning forward to roadmap 2.3.1 at line
+306; `roadmap.md:188` repeats the note where 2.3.1 is actually scoped.
+
+### A stale sketch is annotated, not rewritten
+
+`docs/execplans/…:999` sketched `CheckCollaborators` with a `writer` field that
+Revision 32 dropped. The sketch is a Milestone 0 *proposal*, so it was left
+intact with a superseded note above it rather than edited to match the
+delivered code -- rewriting a planning-time record to look like the outcome
+destroys the evidence that the design changed. The note names what the as-built
+bundle carries and points at Revision 32.
