@@ -66,6 +66,10 @@
     execplans/pr-102-layered-python-linting.md)
     records the completed layered Python linting implementation, its locked
     toolchain, configuration validation coverage, and extraction contracts.
+  - [2.2.2 safe fix planning and conflict resolution](
+    execplans/2-2-2-safe-fix-planning-conflict-resolution.md)
+    plans and records the safe-fix planner, `--diff` preview, `--fix`
+    execution, and the conflict rules that keep automatic edits auditable.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
@@ -117,6 +121,11 @@
     adr-007-rust-doc-comment-owner-metadata.md)
     records the Rust `owner` contract reuse, `::` qualified-name semantics,
     verbatim doc-comment extraction, and bounded Rust node-store policy.
+  - [ADR 008: Safe-fix planning and conflict resolution](
+    adr-008-safe-fix-planning-and-conflict-resolution.md)
+    records the admissibility bound, file-atomic conflict abort, machine
+    artefact stream ownership, the refusal channel, byte fidelity, and the
+    verification re-lint that decides a `--fix` exit status.
 
 ## Requests for comments (RFCs)
 

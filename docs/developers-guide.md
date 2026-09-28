@@ -382,6 +382,14 @@ per-file loops that used to inflate it.
 `CheckCollaborators` is the frozen bundle of the injectable pipeline boundaries:
 `resolver`, `renderer`, `rule_runner`, `output`, and `reporter`.
 
+There is deliberately no `writer` field. One was considered while the check
+pipeline was being split, and dropped: `--diff` is the preview-only path, and
+`fix_execution.apply_planned_fixes` owns writing outright rather than through
+an injected boundary. Retaining an ineffective collaborator in anticipation of
+`--fix` would have advertised an injection point that did nothing, and a test
+injecting it would have proven only that an unused collaborator is unused.
+Mutation is tested instead by running the real executor over a temporary tree.
+
 Each field carries its production default directly, declared with
 `dataclasses.field(default_factory=...)`: a fresh `config.ConfigResolver`, a
 fresh `engine.RendererRegistry`, `rules_registry.run_rules`, `sys.stdout`, and
@@ -494,6 +502,161 @@ from two sources:
 positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 `Severity` enum.
 
+### Fix planning
+
+Fix planning turns diagnostics into byte edits, and then either previews them
+or applies them. `python/stilyagi/engine/fix_planning/` holds the planner as a
+small package, one module per concern:
+
+- `ir_view.py` provides a read-only, typed view over the extractor's IR mapping,
+  so fix planning reads provenance through one interpreter rather than
+  re-deriving it from raw payloads. `SourceSpan` is a frozen, ordered dataclass
+  holding a half-open UTF-8 byte range (`byte_start`, `byte_end`) in the
+  original source. `iter_segments(document)` yields one `SegmentView` per
+  well-formed IR segment in document order; a `SegmentView` carries `text`, a
+  `span` when the segment is source-backed, and a `synthetic_reason` when it is
+  not. `source_backed_spans(document)` returns sorted, merged, disjoint spans,
+  and `segment_for_span(document, span)` returns the source-backed segment that
+  wholly contains a span, or `None`.
+- `admissibility.py` `classify_edit(edit, source_bytes, document, rule_code)`
+  returns an `EditRejection` or `None`. A span is admissible when it is bounded
+  by the source, aligned to UTF-8 boundaries, wholly inside one source-backed
+  segment, and when that segment's text equals the bytes the span covers. The
+  last check cross-examines the extractor against the planner: a rule computing
+  an offset in region-text coordinates produces a span whose containing segment
+  does not match, which turns a silent corruption into a named refusal.
+- `selection.py` `partition_candidates(diagnostics_list, level, lint_config)`
+  splits one file's diagnostics into a `CandidatePartition` of `eligible`,
+  `unfixable`, `manual`, and `withheld_unsafe`. One classification pass
+  produces every count the fix summary logs, so the counters cannot drift from
+  the decision they describe. `unfixable` and `withheld_unsafe` are kept apart
+  because they call for opposite advice: one says the configuration refuses to
+  fix this code, the other says `--unsafe-fixes` would allow it.
+- `plan.py` merges touching source-backed spans, orders candidate edits by
+  byte position, refuses overlaps that are not exact duplicates, and produces a
+  `PlannedFile`. A plan that loses any edit carries no replacement bytes at
+  all, so a conflict leaves the file with nothing to write rather than a
+  partial result.
+- `splice.py` `apply_edits(source_bytes, edits)` is the normative kernel for
+  splice semantics. It is deliberately narrow: it assumes its input is already
+  validated and does nothing but give admitted edits deterministic byte
+  semantics. Every other module in the package decides *whether* an edit may be
+  applied; this one decides only what applying it means.
+- `diff.py` `unified_diff(before, after, reported_path)` renders a
+  Git-applicable unified patch, with `a/<path>` and `b/<path>` headers and
+  three lines of context. It splits on LF alone, as Git does, so a Markdown
+  line holding another separator character cannot corrupt a hunk, and it
+  appends Git's missing-final-newline marker where a line lacks a terminator.
+  Identical input texts produce an empty string.
+- `write.py` `write_source(path, content, *, original_bytes=None)` replaces a
+  file atomically: it resolves the target, stages the bytes in the same
+  directory on the same filesystem, copies the target's metadata, and swaps with
+  `os.replace`. Passing `original_bytes` makes the write conditional — a
+  target that no longer holds the bytes the plan was derived from raises
+  `SourceChangedOnDiskError` instead of being overwritten.
+
+`engine/fix_pipeline.py` sits above the package and exposes one request type
+and one result type for both modes. `FixRequest` is the frozen bundle of inputs
+one checked file hands to the planner: `source_bytes`, `source_text`,
+`reported_path`, `resolved_path`, the extracted `document`, the file's
+`diagnostics`, its `lint_config`, and the `level` ceiling the run may apply,
+plus `from_stdin`. Because `source_bytes` is the exact sequence the IR offsets
+were derived from, a plan made from a request is applicable to the file on disk
+and to nothing else — which is what makes the conditional write in phase two
+meaningful.
+
+`plan_file_fixes(request)` is the general entry point, and
+`preview_safe_fixes(request)` is the `--diff` entry point, which plans at
+`FixLevel.SAFE` regardless of `--unsafe-fixes` — a preview of an edit nobody
+has agreed to apply would be a patch that cannot be used. Both return a
+`PlannedFile`: the same shape a mutation produces, carrying `fixed_bytes` and
+`fix_errors`. `patch_for(plan)` renders it as a unified diff, and returns the
+empty string when there is no replacement, because a header with no hunks is
+not a patch.
+
+Planning is all-or-nothing per file, so one rejected edit leaves the file with
+no accepted edits at all: the plan yields no fixed bytes, the patch is empty,
+and each rejection is translated by `as_fix_errors` into a
+`diagnostics.FixError` whose message records that the file was not modified.
+
+`cli_io.py` owns the byte-faithful input boundary and the command-line error
+channel. `CheckInput` is a frozen description of one resolved input —
+`reported_path`, `resolved_path`, and optional pre-supplied `source_text` and
+`source_bytes` — which keeps standard input and on-disk files on one path.
+`read_source(check_input)` returns a `SourcedInput` — the same input with
+`source_bytes` and `source_text` both non-optional, so a value that passed the
+read cannot still be missing the text later stages need. It neither logs nor
+prints: a missing, unreadable, or undecodable file raises `SourceReadError`,
+which carries the offending `path` and the underlying OS or decoding `error` so
+a caller can attribute the failure by type rather than by message text.
+`report_check_error(path, error)` is the command boundary's default channel for
+expected failures; it logs the message and prints a `stilyagi check:` line to
+standard error, distinguishing a `SourceReadError` from an extraction or
+configuration failure, and accepting `None` for a failure that has no single
+path.
+
+`cli_pipeline.check_one_file` builds a `FixRequest` for a file from its
+already-read bytes and text, the extracted document, the diagnostics collected
+for it, and the resolved `lint_config`. It does so only when a mutating or
+preview mode is set, so the ordinary check path plans nothing. It returns a
+`FileCheck` — a named result carrying the file's diagnostics, whether the file
+failed, and its plan when one was made — rather than an anonymous tuple, so a
+file that could not be read, extracted, or configured reports `failed=True`
+with no plan.
+
+**Under `--diff`, the machine artefact owns the output stream alone.** The
+rendered diagnostics and the summary line go to standard error, while the
+concatenated patches go to the resolved `output` stream — standard output
+unless a collaborator substitutes another stream. Because that stream then
+carries patch text and nothing else, `stilyagi check --diff | git apply`
+receives a usable patch, and a clean repository is not turned into a spurious
+failure. Without `--diff`, the rendered diagnostics go to the output stream as
+usual.
+
+The split is non-mutating: `--diff` is the preview-only path, and this section
+describes rendering alone. The `CheckCollaborators` bundle carries no writer, so
+`cli_pipeline` and the `--diff` render path never write a source file — the
+only mutation in the whole command reaches the filesystem through
+`fix_execution`, as the next section describes. A writer collaborator was
+considered and dropped: it was unused by every caller, and retaining an
+ineffective boundary would have advertised an injection point that did nothing.
+Dropping it cost nothing when `--fix` landed, because `fix_execution` owns the
+write and takes its target from the plan rather than from an injected
+collaborator.
+
+#### The `--fix` execution path
+
+`fix_execution.py` owns the mutating half, and it is deliberately separate from
+`cli_pipeline`: the pipeline never writes, and the executor never re-derives a
+plan it was handed. `apply_planned_fixes(plans)` runs two phases.
+
+Phase one wraps every plan with `deferred_plans`, so no write can be attempted
+before every file has been planned and so a plan that must not be written is
+carried as an explicit refusal rather than dropped. Two plans become refusals
+here, each with its own identifier: one with no replacement bytes, because
+nothing survived planning, and one whose input came from a stream, because
+writing it back would replace a file the command never read. Phase two writes
+what remains, each write conditional on the target still holding the bytes its
+plan was derived from, and reports every refusal it produced.
+
+`FixOutcome` carries what the run did and declined to do, and its
+`files_aborted_on_conflict` counter is the one that matters most: without it, a
+run that refused every edit looks identical to one that found nothing to do.
+`summarise_fix_errors` collapses refusals to one report per file per
+identifier, unioning the codes and recording a count in the message. One line
+saying "3 refused edits, file left unmodified" is auditable where one line per
+paragraph is not.
+
+`cli_fix.py` owns the reporting half and computes no exit status and touches no
+file: a reporter that could write would be a second mutation path beside the
+executor, and an exit code decided there would be a second answer to a question
+the command boundary already answers. `print_mutation_report` sends the re-run
+note and the re-lint's diagnostics to standard error, taking the refusals from
+the planning pass instead, because the re-lint plans nothing and would
+otherwise report an empty refusal channel for a run that refused edits.
+`emit_fixed_document` prints a stream input's replacement and nothing else, with
+`end=""` so no byte the user did not pipe in is added.
+
 ### Rendering
 
 `engine/renderers.py` `RendererRegistry.render` accepts the diagnostics to
@@ -515,84 +678,6 @@ not significant for either. The renderer then produces one of:
 
 Unknown format strings raise `ValueError`.
 
-### Fix planning and the `--diff` preview
-
-`stilyagi check --diff` is the preview-only path for safe-fix planning. It
-plans the safe edits for each discovered file and prints a patch that
-`git apply` accepts, leaving every source byte unchanged.
-
-The preview is assembled from four pieces.
-
-- `engine/ir_view.py` provides a read-only, typed view over the extractor's
-  IR mapping, so fix planning reads provenance through one interpreter rather
-  than re-deriving it from raw payloads. `SourceSpan` is a frozen, ordered
-  dataclass holding a half-open UTF-8 byte range (`byte_start`, `byte_end`) in
-  the original source. `iter_segments(document)` yields one `SegmentView` per
-  well-formed IR segment in document order; a `SegmentView` carries `text`, a
-  `span` when the segment is source-backed, and a `synthetic_reason` when it is
-  not. `source_backed_spans(document)` returns sorted, merged, disjoint spans,
-  and `segment_for_span(document, span)` returns the source-backed segment that
-  wholly contains a span, or `None`.
-- `engine/fix_planning/diff.py` `unified_diff(before, after, reported_path)`
-  renders a Git-applicable unified patch, with `a/<path>` and `b/<path>`
-  headers and three lines of context. It splits on LF alone, as Git does, so a
-  Markdown line holding another separator character cannot corrupt a hunk, and
-  it appends Git's missing-final-newline marker where a line lacks a
-  terminator. Identical input texts produce an empty string.
-- `engine/fix_pipeline.py` `DiffRequest` is the frozen bundle of inputs needed
-  to preview one file: `source_bytes`, `source_text`, `reported_path`, the
-  extracted `document`, the file's `diagnostics`, and its `lint_config`.
-  `preview_safe_fixes(request)` plans those diagnostics at `FixLevel.SAFE` and
-  returns a `DiffPreview` carrying the rendered `patch` and any `fix_errors`.
-  Planning is all-or-nothing per file, so one rejected edit leaves the file
-  with no accepted edits at all: the plan yields no fixed bytes, the patch is
-  empty, and each rejection is translated into a `diagnostics.FixError` whose
-  message records that the file was not modified.
-- `cli_io.py` owns the byte-faithful input boundary and the command-line error
-  channel. `CheckInput` is a frozen description of one resolved input —
-  `reported_path`, `resolved_path`, and optional pre-supplied `source_text` and
-  `source_bytes` — which keeps standard input and on-disk files on one path.
-  `read_source(check_input)` returns a `SourcedInput` — the same input with
-  `source_bytes` and `source_text` both non-optional, so a value that passed
-  the read cannot still be missing the text later stages need. It neither logs
-  nor prints: a missing, unreadable, or undecodable file raises
-  `SourceReadError`, which carries the offending `path` and the underlying OS
-  or decoding `error` so a caller can attribute the failure by type rather than
-  by message text. `report_check_error(path, error)` is the command boundary's
-  default channel for expected failures; it logs the message and prints a
-  `stilyagi check:` line to standard error, distinguishing a `SourceReadError`
-  from an extraction or configuration failure, and accepting `None` for a
-  failure that has no single path.
-
-`cli_pipeline.check_one_file` builds a `DiffRequest` for a file from its
-already-read bytes and text, the extracted document, the diagnostics collected
-for it, and the resolved `lint_config`, then calls `preview_safe_fixes`. It
-does so only when `options.diff` is set, so the ordinary check path plans
-nothing. It returns a `FileCheck` — a named result carrying the file's
-diagnostics, whether the file failed, and its preview when one was planned —
-rather than an anonymous tuple, so a file that could not be read, extracted, or
-configured reports `failed=True` with no preview.
-
-**Under `--diff`, the machine artefact owns the output stream alone.** The
-rendered diagnostics and the summary line go to standard error, while the
-concatenated patches go to the resolved `output` stream — standard output
-unless a collaborator substitutes another stream. Because that stream then
-carries patch text and nothing else, `stilyagi check --diff | git apply`
-receives a usable patch, and a clean repository is not turned into a spurious
-failure. Without `--diff`, the rendered diagnostics go to the output stream as
-usual.
-
-The split is non-mutating: `--diff` is the preview-only path, and the
-`CheckCollaborators` bundle carries no writer at all, so no check-pipeline code
-path writes a source file. A writer collaborator was considered and dropped —
-it was unused by every caller, and retaining an ineffective boundary solely in
-anticipation of a future `--fix` command would have advertised an injection
-point that did nothing.
-
-Exit codes are unchanged by `--diff`. `compute_exit_code` still returns `1`
-whenever diagnostics are present, whatever the preview would apply, and `2` for
-an operational error.
-
 ### Exit codes
 
 `cli.compute_exit_code` returns:
@@ -601,6 +686,32 @@ an operational error.
 - `1` — one or more diagnostics found
 - `2` — error (failed file read, invalid config, extractor failure, or usage
   error)
+
+`run_check` adds one usage error of its own before any work begins: `--fix`
+combined with `--diff` is reported through the injected `reporter` with no path
+and returns `2`. Silent precedence between a mutating and a non-mutating flag
+is the surprise the CLI contract exists to prevent, and rejection is the
+relaxable direction — a rejected pair can be given meaning later, where an
+accepted one with an implicit winner cannot be withdrawn. There is no explicit
+log at that site, because the reporter already logs every expected failure at
+warning level and echoes it to standard error; logging first would show the
+user the same sentence twice.
+
+Under `--fix`, the status is derived rather than assumed (D-13). `run_check`
+dispatches to `_apply_and_exit`, which plans every file, writes the planned
+ones, and then re-lints only the files it actually mutated. The re-lint's
+diagnostics and errors decide the code, and `had_error` is the union of the
+planning pass's error state and the re-lint's, so a file that failed to read or
+extract still exits `2` whether or not other files were written. A run that
+wrote nothing skips the re-lint entirely and reports the planning pass's own
+diagnostics, which is what keeps `--fix` on a clean tree byte-identical and
+exit-identical to a plain check.
+
+This is not a fixpoint loop. RFC 0003 §12's "0 when all found violations were
+fixed" is not computable in a single pass without *assuming* that applying a
+fix removes its diagnostic — an assumption nothing tests and which a partial
+fix falsifies. If the re-lint surfaces new fixable diagnostics they are
+reported, not applied, and the mutation report says so.
 
 ## 3. Roadmap-aligned implementation boundaries
 
