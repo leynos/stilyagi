@@ -330,6 +330,19 @@ Established during planning; use them instead of re-measuring.
     verified individually, not assumed; see Revision 39 for the table and for
     the two substantively required statements (ADR 008's heading-depth
     constraint and the 2.3.1 warning).
+  - 2026-09-28: three gate failures found by `scrutineer` at the Revision 40
+    tip, all repaired and recorded in Revision 41. `make check-fmt` (Revision
+    40's own tables were unformatted, fixed with `make fmt`); `make markdownlint`
+    (two `synthesised` spellings in `docs/users-guide.md`, which `typos.toml`
+    maps to `-ize`); `make lint` (four DOC201 errors, **introduced by this
+    branch's own `e6a2e73`**, which expanded four single-line docstrings into
+    multi-line bodies and thereby switched off the `ignore-one-line-docstrings`
+    exemption). Fixed at `1d3b660` and `4cf61ef`; the full chain is re-running
+    at `4cf61ef`.
+
+- [ ] Milestone 6 review — CodeRabbit pass at `4cf61ef`, not yet requested.
+  Waits on a green deterministic chain, because CodeRabbit must not be used for
+  what a deterministic gate already catches.
 
 - [x] 2026-09-24 — PR #160 review feedback actioned. CodeRabbit raised nine
   findings and CodeScene four; each was verified against the working tree
@@ -450,6 +463,18 @@ Established during planning; use them instead of re-measuring.
   it is a check-path win with no bearing on fix planning, and it would churn
   every golden IR snapshot. Recorded here so the measurement is not lost; raise
   it as a separate roadmap item.
+
+- Observation (2026-09-28): **a docstring edit in this repository is not an
+  inert change.** `pydoclint.ignore-one-line-docstrings = true` means DOC201
+  exempts a docstring by its *shape*, so expanding a one-line docstring into a
+  substantive body switches the rule on for that function. Commit `e6a2e73`
+  expanded four such docstrings to explain the code, and `make lint` then
+  reported four `docstring-missing-returns` errors that had not existed before
+  it. Evidence: all three files pass ruff at `e6a2e73^` and fail at the tip.
+  Impact: a documentation-shaped commit still needs the affected gate run
+  before it is pushed, which is the same lesson as the spelling gate's `-ise`
+  map and the Markdown contract tests -- prose here is load-bearing for at
+  least three gates. See Revision 41.
 
 ## Decision log
 
@@ -3360,3 +3385,98 @@ The instruction not to claim resolution "from an AST branch count or passing
 tests alone" is why the two instruments are reported together and why the
 threshold probe is recorded: the AST counter is corroboration, and the
 CodeScene verdict plus the pinned threshold are the evidence.
+
+## Revision 41 (2026-09-28): three gate failures, and one of them was branch-introduced
+
+The full commit gate chain was delegated to `scrutineer` at the tip that
+carried Revision 40. It came back with three failures. All three were real, all
+three were in files this branch edits, and one was a defect this branch had
+introduced rather than exposed.
+
+### 41.1 `make check-fmt`: Revision 40's own tables
+
+```text
+mdtablefix --check --git --include-untracked --wrap --renumber --breaks --ellipsis --fences
+docs/execplans/2-2-2-safe-fix-planning-conflict-resolution.md +31 -30
+1 file would be reformatted, 67 files left unchanged.
+make: *** [Makefile:159: check-fmt] Error 1
+```
+
+Revision 40 was written in one pass and never formatted. `mdtablefix`
+re-widened the commit-trace and per-function tables and reflowed three prose
+paragraphs. Fixed with `make fmt`; the content is unchanged, so this is a
+rendering and not a new claim.
+
+### 41.2 `make markdownlint`: two `-ise` spellings
+
+```text
+error: `synthesised` should be `synthesized`
+    docs/users-guide.md:340:11
+error: `synthesised` should be `synthesized`
+    docs/users-guide.md:371:72
+make: *** [Makefile:189: spelling] Error 2
+```
+
+`typos.toml` carries an explicit map from the `-ise` to the `-ize` form for
+this stem, so `synthesized` is a hard requirement even though the project
+otherwise writes en-GB-oxendict. The permitted `-ise` stems -- `analyse`,
+`behaviour`, `normalisation` -- are unaffected, which is why a plain grep for
+`-ise` in `docs/` returns many survivors and is not a usable check. Fixed both
+occurrences; re-confirmed with `make markdownlint`.
+
+### 41.3 `make lint`: four `docstring-missing-returns` errors, introduced by this branch
+
+This is the one worth recording. Four DOC201 errors in code this branch wrote:
+`_render_fix_error` in `python/stilyagi/engine/renderers.py`, and
+`rewrite_paragraph` / `rewrite_heading_marker` /
+`_fix_one_and_leave_the_other_standing` in the two test modules.
+
+The mechanism is the whole finding:
+
+- `pyproject.toml` sets `lint.pydoclint.ignore-one-line-docstrings = true`, so
+  DOC201 **exempts a one-line docstring and applies as soon as it grows a
+  second paragraph**. The exemption is not a property of the function; it is a
+  property of the docstring's *shape*.
+- The repair commit `e6a2e73` expanded all four of these docstrings from one
+  line into a substantive body, in order to explain why the code is shaped as
+  it is. That is exactly the transition that switches the rule on.
+- Each file therefore passes ruff at `e6a2e73^` and fails at the tip.
+
+That last point was verified rather than reasoned. Running ruff over the
+pre-repair blobs:
+
+```text
+git show e6a2e73^:<path> | ruff check --stdin-filename <path> -
+```
+
+returns `All checks passed!` for all three files, where the tip fails all
+three. So the cause is this branch's own change and not a stale base.
+
+The rule itself was confirmed to be firing correctly with an isolated probe,
+because a rule that fires for the wrong reason would be fixed for the wrong
+reason too. A synthetic module holding one multi-line and one one-line
+docstring of the same signature, checked with
+`--isolated --preview --select DOC201`, flags only the multi-line one:
+
+```text
+docstring-missing-returns: `return` is not documented in docstring
+ --> probe.py:2:5
+```
+
+The probe also showed that DOC201 has no effect without `preview`, which
+`pyproject.toml` enables at line 39 -- so the rule is genuinely live here and
+the four errors were genuine.
+
+The fix adds the missing `Returns` sections. The diff is 21 insertions across
+three files, all inside docstrings, so no code path changed and the behaviour
+is untouched. `ruff check` is clean across all 225 files.
+
+### Lesson
+
+The docstring expansion and the rule that scrutinizes it were in the same
+commit, and the gate that would have caught it was not run between that commit
+and the review request. A docstring edit is not inert: in this repository the
+docstring is what DOC201 reads, so explaining the code changed the code's
+compliance status. That is the second time in this milestone that a
+documentation-shaped change had a gate consequence, and it argues for running
+the affected gate immediately after any commit that touches a docstring.
