@@ -2954,3 +2954,135 @@ Gate coverage is therefore partial by circumstance rather than by choice. When
 the lock frees, the outstanding gates are `make build`, `make typecheck`, and
 the `cargo clippy`/`cargo doc`/`cargo test`/`whitaker` sections of `make lint`
 and `make test`.
+
+## Revision 38 (2026-09-28): Milestone 5 complete, and the subprocess boundary pinned
+
+Stage C2 is done, and with it every item Milestone 5 was carrying. Three new
+tests in `tests/test_cli_e2e.py` and one new class in
+`tests/test_check_boundaries.py`, in four commits.
+
+### What the subprocess tests can and cannot reach
+
+Revision 35 recorded Stage C2 as blocked because no builtin rule emits fixes.
+That still holds: `rules/registry.py`'s `run_rules` returns `[]` over a tree
+whose only rule-bearing module is `registry.py` itself, and `plugins.py`
+defines the entry-point group names as constants that nothing imports. So the
+rule-dependent halves of `--fix`/`--diff` remain covered by the BDD scenarios,
+which inject through `CheckCollaborators.rule_runner`.
+
+What is coverable with no rule at all is every decision that lives in the
+command rather than in a rule, and that is what the four new cases pin:
+
+| Case                             | What it pins                                               |
+| -------------------------------- | ---------------------------------------------------------- |
+| `--fix --diff`                   | exit 2, empty stdout, the conflict on stderr exactly twice |
+| `--fix` on a clean tree          | exit 0, no re-run note, every file byte-identical          |
+| `--unsafe-fixes` without `--fix` | accepted as a no-op, ordinary report, tree byte-identical  |
+| `--diff` on a clean tree         | exit 0, empty stdout, summary moved to stderr              |
+
+The last one is the stream contract the in-process tests could only assert
+through an injected object: under `--diff` the machine artefact owns standard
+output so `stilyagi check --diff | git apply` stays usable, and the summary has
+to move to standard error. Reading two real streams of a real process is the
+only place the default wiring is exercised at all.
+
+The `--fix --diff` case counts occurrences rather than testing for presence.
+`report_check_error` logs every expected failure at warning level *and* echoes
+it to standard error, so two lines are the documented contract; the count is
+what catches a third printing, which is the shape of the duplicate call site
+Revision 36 removed.
+
+### Three reasons to print nothing, each isolated
+
+`emit_fixed_document` makes one decision that folds two conditions together:
+the plan must carry a replacement, and its bytes must have come from a pipe.
+The command-level test drove a `#`-headed document, whose fixed text ends in a
+newline -- so it could not distinguish an emitted document from one that
+`print` appended a newline to, and it reached neither reason to stay silent.
+
+The three direct tests each isolate one branch, and each was checked by
+mutation rather than assumed:
+
+| Mutation                                 | Test that fails                                       |
+| ---------------------------------------- | ----------------------------------------------------- |
+| drop the `from_stdin` guard              | `test_a_file_input_prints_nothing`                    |
+| drop `end=""`                            | `test_a_stream_input_prints_its_replacement_verbatim` |
+| drop the `fixed_bytes is not None` guard | `test_a_conflicted_stream_input_prints_nothing`       |
+
+Each mutation failed exactly one test and no other, which is the evidence that
+the three assertions are load-bearing rather than decoration.
+
+The piped plans are built with `dc.replace` on the shared fixture rather than
+by adding a keyword there: `planned_file` already sits at the project's
+four-argument ceiling, and `tests/support/` is not covered by the `test_*.py`
+per-file exemption.
+
+### The S603 finding, and why HEAD escaped it
+
+`ruff check` failed on the new `_run_check` with
+`subprocess-without-shell-equals-true`. The rule had never fired on this
+function before, and the reason is worth recording: S603's heuristic looks at
+whether the argv is dynamic. HEAD's helper passed a static list literal, so the
+rule stayed quiet; adding `*flags` unpacking into that list is what makes it
+fire. It was not a pre-existing finding that a whole-repo run had somehow been
+missing.
+
+Fixed the way every other `subprocess.run` call site in this repository is: a
+call-site `# ruff: ignore[subprocess-without-shell-equals-true]` with a
+justification. There are now eight such sites across six test modules, and this
+one was the only outlier.
+
+A false lead worth recording: running ruff against a copy of the file in `/tmp`
+reported seven errors on HEAD's version. That comparison was invalid -- a
+standalone copy in `/tmp` loses the repo-root configuration and the `tests/`
+path that the per-file ignores and the file-level import comment depend on. The
+authoritative signal is a whole-repo run, and the corrected comparison used
+`--stdin-filename tests/test_cli_e2e.py` so the config still applied.
+
+### Milestone 5 items verified as already present
+
+Two Stage C requirements were checked rather than assumed, because a mechanism
+that exists but is never reached is indistinguishable from one that does not:
+
+- **Fix-error collapsing** is implemented in
+  `fix_execution.summarise_fix_errors` and is wired -- `FixOutcome.fix_errors`
+  is built from it at `fix_execution.py:191`, so the renderer only ever sees
+  one entry per `(path, identifier)` with a count in the message.
+- **The symlink policy** is on both sides. `discovery.py` refuses to follow a
+  symlinked directory target and prunes symlinked directories during recursion;
+  `write_source` resolves the file path and replaces the *target*, so a
+  user-facing symlink survives. Both have tests (`test_discovery.py:114`,
+  `test_fix_write.py:53`).
+
+### Gate status after Stage C2
+
+All gates reachable without the cargo package-cache lock, run sequentially on
+the committed tip:
+
+| Gate                           | Result                              |
+| ------------------------------ | ----------------------------------- |
+| `ruff check`                   | All checks passed                   |
+| `ruff format --check`          | 224 files already formatted         |
+| `mdtablefix --check`           | 67 files left unchanged             |
+| interrogate `--fail-under 100` | PASSED (100.0%)                     |
+| pylint                         | 10.00/10                            |
+| df12 pylint tier               | 10.00/10                            |
+| skylos dead-code `--gate`      | exit 0                              |
+| `pytest` (full suite)          | 640 passed, 1 skipped               |
+| `pytest --doctest-modules`     | 35 passed, 2 skipped                |
+| spelling                       | exit 0, `typos.toml` unchanged      |
+| markdownlint (68 files)        | 0 errors                            |
+| nixie (Mermaid)                | All diagrams validated successfully |
+
+`tests/test_maturin_build.py` is excluded from the full-suite count: its two
+tests shell out to maturin and want the lock the cycle holds. It is a file this
+branch does not touch. The cargo-dependent gates (`make build`,
+`make typecheck`, and the `cargo clippy`/`cargo doc`/`cargo test`/`whitaker`
+sections of `make lint` and `make test`) remain blocked by the environmental
+deadlock Revision 37 documented, and are **not** claimed as passing.
+
+### What remains
+
+Milestone 6 only: ADR 008, the users'/developers' guide updates, the RFC 0003
+§10 amendment for the `--fix --diff` exit-2 path, the roadmap tick, and the
+`docs/contents.md` index entry.
