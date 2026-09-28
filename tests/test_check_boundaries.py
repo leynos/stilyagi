@@ -460,6 +460,12 @@ def _fix_one_and_leave_the_other_standing(
     left *unwritten* for the re-lint to be unable to speak for it, and a finding
     with no fix keeps the test about the exit status rather than about refusal
     handling, which the class below covers separately.
+
+    Returns
+    -------
+    list[diagnostics.Diagnostic]
+        A fixable edit for `a.md`, no fix for `b.md`, and nothing once the
+        re-lint reads the rewritten text.
     """
     from tests.support.fix_fixtures import find_source_span
 

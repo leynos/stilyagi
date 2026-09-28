@@ -100,6 +100,11 @@ def rewrite_paragraph(
     The target document must contain "Paragraph"; the edit rewrites it to
     "Section". Callers use this where the *written* file matters, since the
     replacement is what a re-lint then reads back.
+
+    Returns
+    -------
+    list[diagnostics.Diagnostic]
+        The single fixable diagnostic, whose edit names the paragraph span.
     """
     from tests.support.fix_fixtures import find_source_span
 
@@ -129,6 +134,11 @@ def rewrite_heading_marker(
     representation does not back. The planner therefore refuses the edit and the
     file is never written, which is what makes this useful for pinning the
     refusal and unwritten-file paths.
+
+    Returns
+    -------
+    list[diagnostics.Diagnostic]
+        The single fixable diagnostic, whose edit the planner will refuse.
     """
     return [
         diagnostics.Diagnostic(

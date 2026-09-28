@@ -122,6 +122,11 @@ def _render_fix_error(fix_error: diagnostics.FixError) -> str:
     not by a rule's proposed edit, so they carry no codes by construction.
     Joining an empty tuple yields the empty string, which rendered as a
     dangling `: ` after the path.
+
+    Returns
+    -------
+    str
+        One line naming the refusal's origin, path, and message.
     """
     rule_codes = ", ".join(fix_error.rule_codes)
     origin = f"{rule_codes}: " if rule_codes else ""
