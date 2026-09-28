@@ -172,13 +172,17 @@ def report_check_error(path: pathlib.Path | None, error: Exception) -> None:
     path:
         The offending path, or ``None`` when the failure has no single file to
         blame, as when discovery or configuration fails before any file is
-        known.
+        known. A `SourceReadError` is attributed to the path on the exception
+        itself, so this argument is not consulted in that case.
     error:
         The failure to report. A `SourceReadError` carries the underlying OS or
         decoding error, which is what the user needs to see.
     """
     if isinstance(error, SourceReadError):
-        message = f"failed to read {path.as_posix()}: {error.error}"
+        # The typed error already names its own path, and that one is not
+        # None-able, so it is both the more accurate source and the one the
+        # type checker can follow.
+        message = f"failed to read {error.path.as_posix()}: {error.error}"
     elif path is None:
         message = str(error)
     else:

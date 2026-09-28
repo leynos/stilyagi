@@ -2502,20 +2502,20 @@ pytest runs to completion.
 closed: pylint `C0302 too-many-lines` on `tests/test_check_pipeline_units.py`,
 at 545 lines against the project's 400-line ceiling.
 
-`too-many-lines` is not an accident of the config. It sits in pylint's
-**`enable`** list in `pyproject.toml` under a comment reading *"Match the
-project file-size ceiling enforced during review"*, so the ceiling is deliberate
-policy. Suppressing it locally, or widening the limit, would have been a
-policy change hidden inside a refactor. The module was split along the seam the
-tests already had.
+`too-many-lines` is not an accident of the config. It sits in pylint's **
+`enable`** list in `pyproject.toml` under a comment reading *"Match the project
+file-size ceiling enforced during review"*, so the ceiling is deliberate
+policy. Suppressing it locally, or widening the limit, would have been a policy
+change hidden inside a refactor. The module was split along the seam the tests
+already had.
 
 ### The split
 
-| Module                              | Lines | Contents                                                        |
-| ----------------------------------- | ----- | --------------------------------------------------------------- |
-| `tests/test_check_pipeline_units.py` | 261   | `TestCheckOneFile`, `TestAggregateCheckedFiles`                  |
-| `tests/test_check_boundaries.py`     | 214   | `TestInjectedStreamsAndReporters`, `TestDiffPreviews`            |
-| `tests/support/check_pipeline_fixtures.py` | 128 | shared reporters, runners, preview builders, the read-failure patch |
+| Module                                     | Lines | Contents                                                            |
+| ------------------------------------------ | ----- | ------------------------------------------------------------------- |
+| `tests/test_check_pipeline_units.py`       | 261   | `TestCheckOneFile`, `TestAggregateCheckedFiles`                     |
+| `tests/test_check_boundaries.py`           | 214   | `TestInjectedStreamsAndReporters`, `TestDiffPreviews`               |
+| `tests/support/check_pipeline_fixtures.py` | 128   | shared reporters, runners, preview builders, the read-failure patch |
 
 The seam is behavioural rather than arbitrary: the units module drives
 `cli_pipeline` directly, and the boundaries module drives the same code through
@@ -2532,37 +2532,36 @@ annotation" reasoning at the reader's level; they follow the actual use.**
 `cli_io` and `pathlib` had to move *out* of the `if typ.TYPE_CHECKING:` block
 in the fixtures module because both are used at runtime there --
 `cli_io.CheckInput(...)` in `input_for`, and `pathlib.Path.read_bytes` in
-`patch_read_bytes_failure`. `pytest`, `DiffPreview`, and `rules_registry` stayed
-inside it, because in that module they really are annotation-only. In
-`tests/test_check_pipeline_units.py` the opposite held for `pytest`, which moved
-back out to a runtime import because `pytest.raises` is called at line 163.
-The rule to apply is per-module: check how the name is used in *this* file, not
-how it is used in the file it was copied from.
+`patch_read_bytes_failure`. `pytest`, `DiffPreview`, and `rules_registry`
+stayed inside it, because in that module they really are annotation-only. In
+`tests/test_check_pipeline_units.py` the opposite held for `pytest`, which
+moved back out to a runtime import because the module calls `pytest.raises`
+for real. The rule to apply is per-module: check how the name is used in
+*this* file, not how it is used in the file it was copied from.
 
 **`ruff check --fix` reordered the block after the move.** The import block is
 sorted as one unit, so moving a name across the `TYPE_CHECKING` boundary
 re-sorts it; the fix is to run the fixer rather than hand-tune the blank lines.
 
-### Gate status at this revision
+### Gate status after the split
 
-| Gate                | Result                                                        |
-| ------------------- | ------------------------------------------------------------- |
-| `ruff check`        | PASS -- all three modules                                        |
-| `ruff format --check` | PASS -- 3 files already formatted                              |
-| `pytest` (two modules) | PASS -- 15 passed in 0.19s                                  |
-| `make lint`         | **PASS** -- ruff clean, interrogate 100.0%, pylint 10.00/10, df12 lints 10.00/10 |
-| `make check-fmt`    | PASS                                                             |
-| `make markdownlint` | PASS -- 0 errors                                                 |
-| `make nixie`        | PASS                                                             |
-| `make typecheck`    | NO VERDICT -- blocked on the shared Cargo package-cache lock     |
-| `make test`         | NO VERDICT -- same lock                                          |
+| Gate                   | Result                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `ruff check`           | PASS -- all three modules                                                        |
+| `ruff format --check`  | PASS -- 3 files already formatted                                                |
+| `pytest` (two modules) | PASS -- 15 passed in 0.19s                                                       |
+| `make lint`            | **PASS** -- ruff clean, interrogate 100.0%, pylint 10.00/10, df12 lints 10.00/10 |
+| `make check-fmt`       | PASS                                                                             |
+| `make markdownlint`    | PASS -- 0 errors                                                                 |
+| `make nixie`           | PASS                                                                             |
+| `make typecheck`       | NO VERDICT -- blocked on the shared Cargo package-cache lock                     |
+| `make test`            | NO VERDICT -- same lock                                                          |
 
 `make lint` reaches `cargo doc` for the workspace and blocks there on the same
 lock, but every Python gate in it has already reported. The blocking condition
 is external: `flock -w 5 ~/.cargo/.package-cache-mutate true` returns 1, with
-roughly eighteen `cargo` processes from other agents' worktrees
-(`ortho-config`, `mdtablefix`, `rstest-bdd`) holding it. No process was killed
-and no isolated cache was created, per the standing instruction to let the
-shared cache serialize naturally. `make typecheck` and `make test` must be
-re-run on this tip once the lock clears; a timeout there is not a failure of
-this branch.
+roughly eighteen `cargo` processes from other agents' worktrees (`ortho-config`,
+`mdtablefix`, `rstest-bdd`) holding it. No process was killed and no isolated
+cache was created, per the standing instruction to let the shared cache
+serialize naturally. `make typecheck` and `make test` must be re-run on this
+tip once the lock clears; a timeout there is not a failure of this branch.
