@@ -40,6 +40,10 @@ __all__ = [
 
 _LOGGER = logging.getLogger(__name__)
 
+#: The usage error reported when a mutating and a non-mutating flag are
+#: combined. Named so the message and the RFC 0003 §10 amendment cannot drift.
+_FIX_DIFF_CONFLICT = "--fix and --diff cannot be combined"
+
 
 @dc.dataclass(frozen=True, slots=True)
 class CheckCollaborators:
@@ -136,6 +140,17 @@ def run_check(
     2
     """
     resolved_collaborators = collaborators or CheckCollaborators()
+    if options.fix and options.diff:
+        # D-06: silent precedence between a mutating and a non-mutating flag is
+        # the surprise the CLI contract exists to prevent. Rejection is the
+        # relaxable direction -- a rejected pair can be given meaning later,
+        # where an accepted one with silent precedence cannot be withdrawn.
+        _LOGGER.warning("--fix and --diff cannot be combined")
+        resolved_collaborators.reporter(
+            None,
+            ValueError(_FIX_DIFF_CONFLICT),
+        )
+        return 2
     _LOGGER.debug("target discovery started for %r", options.targets)
     try:
         discovered_files = _discover_targets(options, resolved_collaborators.resolver)

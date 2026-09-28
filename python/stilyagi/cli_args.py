@@ -59,6 +59,8 @@ class CheckOptions:
     ignore: tuple[str, ...] = ()
     extend_select: tuple[str, ...] = ()
     diff: bool = False
+    fix: bool = False
+    unsafe_fixes: bool = False
     quiet: bool = False
     verbose: bool = False
     silent: bool = False
@@ -124,6 +126,8 @@ def options_from_args(args: argparse.Namespace) -> CheckOptions:
         ignore=_flatten_rule_codes(args.ignore),
         extend_select=_flatten_rule_codes(args.extend_select),
         diff=args.diff,
+        fix=args.fix,
+        unsafe_fixes=args.unsafe_fixes,
         quiet=args.quiet,
         verbose=args.verbose,
         silent=args.silent,
@@ -181,6 +185,16 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         "--diff",
         action="store_true",
         help="Print safe fix previews as unified diffs without changing files.",
+    )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Apply safe fixes to the files on disk.",
+    )
+    parser.add_argument(
+        "--unsafe-fixes",
+        action="store_true",
+        help="Include fixes a rule marked unsafe. Requires --fix to take effect.",
     )
     parser.add_argument(
         "--stdin-filename",

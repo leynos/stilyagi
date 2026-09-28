@@ -98,6 +98,36 @@ def test_main_returns_two_for_invalid_configuration(
     assert not captured.out, "expected not captured.out"
 
 
+def test_main_rejects_fix_combined_with_diff(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A mutating flag combined with a non-mutating one is a usage error.
+
+    D-06 rejects the pair outright rather than letting one silently win,
+    because silent precedence cannot be withdrawn once scripts depend on it.
+    """
+    target = tmp_path / "notes.md"
+    original = "# Notes\n"
+    target.write_text(original, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = cli.main(["check", ".", "--fix", "--diff"])
+
+    assert exit_code == 2, "expected the conflicting pair to exit two"
+    captured = capsys.readouterr()
+    assert_with_context(
+        "cannot be combined" in captured.err,
+        "expected the usage error on standard error",
+    )
+    assert not captured.out, "expected no report on standard output"
+    assert_with_context(
+        target.read_text(encoding="utf-8") == original,
+        "expected the rejected pair to leave the source untouched",
+    )
+
+
 def test_check_pipeline_emits_stage_boundary_logs(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
