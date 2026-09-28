@@ -159,6 +159,36 @@ def test_python_module_entrypoint_treats_unsafe_fixes_without_fix_as_a_no_op(
     )
 
 
+def test_python_module_entrypoint_keeps_standard_output_clean_for_a_diff(
+    tmp_path: pathlib.Path,
+) -> None:
+    """`--diff` reserves standard output for the patch alone.
+
+    The machine artefact owns that stream so `stilyagi check --diff | git apply`
+    stays usable, which means the ordinary summary has to move to standard
+    error. A clean tree produces no patch at all, so the contract here is an
+    empty standard output alongside the summary -- not an empty stream in both.
+
+    The exit status is zero because nothing would be produced and no diagnostic
+    remains. That is asserted rather than inferred: a preview that exits one on
+    an empty patch would make the flag unusable in a pipeline that checks for
+    the success status.
+    """
+    _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
+
+    completed = _run_check(tmp_path, "--diff")
+
+    assert completed.returncode == 0, "expected an empty preview to exit zero"
+    assert_with_context(
+        not completed.stdout,
+        "expected standard output to hold only the patch, which is empty here",
+    )
+    assert_with_context(
+        completed.stderr == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected the summary to move to standard error under --diff",
+    )
+
+
 def _tree_bytes(root: pathlib.Path) -> dict[str, bytes]:
     """Return every file under ``root`` mapped to its bytes.
 
