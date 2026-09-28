@@ -337,7 +337,7 @@ Stilyagi only edits text it can trace back to the original file byte-for-byte.
 Each proposed edit has to name a byte range that lies wholly inside one
 source-backed region of the file as it was read. An edit that names a range
 outside the file, that cuts a UTF-8 character in half, that targets text the
-extractor synthesised rather than read, or whose region text disagrees with the
+extractor synthesized rather than read, or whose region text disagrees with the
 source, is refused.
 
 Two edits that overlap and are not identical are a conflict. **A conflict
@@ -368,7 +368,7 @@ were applied to this file
 | ----------------------------- | ----------------------------------------------------- |
 | `fix-error/invalid-span`      | The byte range is outside the file.                   |
 | `fix-error/non-utf8-boundary` | The byte range cuts a UTF-8 character in half.        |
-| `fix-error/synthetic-span`    | The range targets text the extractor synthesised.     |
+| `fix-error/synthetic-span`    | The range targets text the extractor synthesized.     |
 | `fix-error/source-mismatch`   | The region's text disagrees with the source bytes.    |
 | `fix-error/overlapping-edits` | Two non-identical edits overlap.                      |
 | `fix-error/standard-input`    | The input came from a stream, which is never written. |

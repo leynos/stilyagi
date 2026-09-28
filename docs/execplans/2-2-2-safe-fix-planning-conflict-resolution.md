@@ -3244,17 +3244,18 @@ again rather than carried forward.
 
 **It had regressed.** `cs review python/stilyagi/cli.py` returns
 `{"score": 9.38, "review": [{"category": "Overall Code Complexity",
-"indication": 2}]}` -- flagged, not clean.
+"indication": 2}]}`
+-- flagged, not clean.
 
-Tracing the flag across the Milestone 5 commits, with `cs review
-<ref>:./python/stilyagi/cli.py` run at each:
+Tracing the flag across the Milestone 5 commits, with
+`cs review <ref>:./python/stilyagi/cli.py` run at each:
 
-| Commit    | Subject                                        | Reading         |
-| --------- | ---------------------------------------------- | --------------- |
-| `3c6cdaa` | Split the check pipeline out of the CLI        | 10.0, clean     |
-| `a201103` | Attribute read failures to the typed error     | 10.0, clean     |
-| `661e7e6` | Add `--fix` and `--unsafe-fixes`               | 10.0, clean     |
-| `9adec5e` | Cover the `--fix` pipeline with BDD scenarios  | 9.38, **flagged** |
+| Commit    | Subject                                       | Reading           |
+| --------- | --------------------------------------------- | ----------------- |
+| `3c6cdaa` | Split the check pipeline out of the CLI       | 10.0, clean       |
+| `a201103` | Attribute read failures to the typed error    | 10.0, clean       |
+| `661e7e6` | Add `--fix` and `--unsafe-fixes`              | 10.0, clean       |
+| `9adec5e` | Cover the `--fix` pipeline with BDD scenarios | 9.38, **flagged** |
 
 The regression enters at `9adec5e`, which grew `cli.py` by adding
 `_apply_and_exit`. It is this branch's own change, not a pre-existing
@@ -3262,16 +3263,16 @@ condition: every commit before it reads clean.
 
 Measured per-function at the flagged tip, with the validated AST counter:
 
-| Function             | cc | Note                    |
-| -------------------- | -- | ----------------------- |
-| `_apply_and_exit`    | 8  | **new in `9adec5e`**    |
-| `run_check`          | 6  |                         |
-| `_parse_targets`     | 5  |                         |
-| `main`               | 4  |                         |
-| `_configure_logging` | 4  |                         |
-| `_render_and_exit`   | 3  |                         |
-| `compute_exit_code`  | 3  |                         |
-| `_discover_targets`  | 3  |                         |
+| Function             | cc  | Note                 |
+| -------------------- | --- | -------------------- |
+| `_apply_and_exit`    | 8   | **new in `9adec5e`** |
+| `run_check`          | 6   |                      |
+| `_parse_targets`     | 5   |                      |
+| `main`               | 4   |                      |
+| `_configure_logging` | 4   |                      |
+| `_render_and_exit`   | 3   |                      |
+| `compute_exit_code`  | 3   |                      |
+| `_discover_targets`  | 3   |                      |
 
 8 functions, sum 36, **mean 4.5** against a threshold of 4. The same table
 after the repair is below; the figures here describe the state this revision
@@ -3304,10 +3305,10 @@ return compute_exit_code(
 
 and the same for `relinted`. The duplication is not cosmetic. `write_failed` is
 an obligation invented after the first tail was written (Revision 39, defect
-2), and every further tail would have had to remember to thread it independently.
-The copy that forgot would have reported a refused write as exit `1` rather
-than `2` -- exactly the defect the flag exists to prevent, reintroduced by
-copy-paste rather than by a wrong decision.
+2), and every further tail would have had to remember to thread it
+independently. The copy that forgot would have reported a refused write as exit
+`1` rather than `2` -- exactly the defect the flag exists to prevent,
+reintroduced by copy-paste rather than by a wrong decision.
 
 `_fix_exit_code(checked, outcome)` now states that policy once and both tails
 call it. It is `cc 2`: it is a one-line delegation, which is the point -- there
@@ -3321,13 +3322,13 @@ version is not hiding a lost branch.
 
 ### Measured outcome after the repair
 
-| Reading                   | Flagged tip | After repair |
-| ------------------------- | ----------- | ------------ |
-| Functions in `cli.py`     | 8           | **9**        |
-| Complexity sum            | 36          | 36           |
-| **Mean complexity**       | **4.5000**  | **4.0000**   |
-| Threshold                 | 4           | 4            |
-| `cs review` verdict       | flagged     | **clean**    |
+| Reading               | Flagged tip | After repair |
+| --------------------- | ----------- | ------------ |
+| Functions in `cli.py` | 8           | **9**        |
+| Complexity sum        | 36          | 36           |
+| **Mean complexity**   | **4.5000**  | **4.0000**   |
+| Threshold             | 4           | 4            |
+| `cs review` verdict   | flagged     | **clean**    |
 
 The extraction raises the function count from 8 to 9 without changing the sum,
 so the mean necessarily falls to exactly 4.0. That is worth stating plainly
