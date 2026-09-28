@@ -93,15 +93,6 @@ def partition_candidates(
     )
 
 
-def select_candidates(
-    diagnostics_list: cabc.Iterable[diagnostics.Diagnostic],
-    level: FixLevel,
-    lint_config: LintConfig,
-) -> tuple[diagnostics.Diagnostic, ...]:
-    """Return only the diagnostics eligible to contribute edits."""
-    return partition_candidates(diagnostics_list, level, lint_config).eligible
-
-
 def is_fixable(code: str, lint_config: LintConfig) -> bool:
     """Return whether a code matches fixable prefixes but no unfixable prefix."""
     return _matches_any(code, lint_config.fixable) and not _matches_any(

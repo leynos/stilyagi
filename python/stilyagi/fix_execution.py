@@ -78,7 +78,9 @@ class FixOutcome:
         Every refusal from both phases, collapsed to one entry per file per
         identifier.
     files_written:
-        How many files were rewritten.
+        How many files this run changed. A plan whose replacement equals its
+        source is not counted: nothing on disk differs, so reporting a write
+        would make an untouched tree look mutated.
     files_aborted_on_conflict:
         How many files were left completely untouched because their edits
         conflicted, or because a write was refused. This is the counter that
@@ -146,7 +148,7 @@ def deferred_plans(planned: PlannedFile) -> PlannedFile:
 def apply_planned_fixes(
     plans: cabc.Sequence[PlannedFile],
 ) -> FixOutcome:
-    """Write every plan that produced replacement bytes, in planning order.
+    """Write every plan whose replacement differs from its source, in order.
 
     Phase two of D-16. Each write is conditional on the target still holding
     the bytes the plan was derived from, so a file edited during phase one is
@@ -155,10 +157,16 @@ def apply_planned_fixes(
     atomicity -- but every refusal is reported, so a partially applied run can
     say exactly what it left behind.
 
+    A plan whose replacement equals its source is skipped rather than counted
+    as written. `plan_fixes` already reports such a plan as having no
+    replacement, so this is belt and braces against a plan built another way;
+    what matters is that ``files_written`` counts files this run actually
+    changed, because the caller prints the re-run note on the strength of it.
+
     Returns
     -------
     FixOutcome
-        The files written and the refusals, with abandoned files counted
+        The files changed and the refusals, with abandoned files counted
         separately.
     """
     applied: list[AppliedFix] = []
@@ -166,7 +174,7 @@ def apply_planned_fixes(
     aborted = 0
     for plan in plans:
         fix_errors.extend(plan.fix_errors)
-        if plan.fixed_bytes is None:
+        if plan.fixed_bytes is None or not _would_change(plan):
             if plan.fix_errors:
                 # A file with nothing fixable at all is quiet; a file whose
                 # plan was refused is not, and is counted.
@@ -185,6 +193,24 @@ def apply_planned_fixes(
         files_aborted_on_conflict=aborted,
         refused_edits=len(fix_errors),
     )
+
+
+def _would_change(plan: PlannedFile) -> bool:
+    """Return whether writing this plan's bytes would change the file.
+
+    A replacement equal to the source is a no-op reached through a plan rather
+    than through the absence of one. `write_source` skips it -- writing those
+    bytes would be pointless -- but a caller counting that skip as a write
+    would report a fix that never happened, and would emit the re-run note for
+    a run that left the tree untouched.
+
+    Returns
+    -------
+    bool
+        Whether the plan's replacement differs from the bytes it was derived
+        from.
+    """
+    return plan.fixed_bytes != plan.source_bytes
 
 
 def _write_one(plan: PlannedFile) -> AppliedFix | None:

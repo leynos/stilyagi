@@ -3,9 +3,10 @@
 These tests drive the same pipeline through `cli.run_check`, so they pin the
 behaviour that only exists at the command boundary: an injected `output` stream
 receiving the rendered report, an injected `reporter` taking expected failures
-off the real standard error, and both outcomes of a `--diff` preview. The
-per-file workflow and the aggregation pass, which are covered by driving
-`cli_pipeline` directly, live in `tests/test_check_pipeline_units.py`.
+off the real standard error, both outcomes of a `--diff` preview, and the
+stream a mutating run reports on. The per-file workflow and the aggregation
+pass, which are covered by driving `cli_pipeline` directly, live in
+`tests/test_check_pipeline_units.py`.
 
 Run them with:
 
@@ -17,9 +18,10 @@ or, for this module alone:
 """
 
 import io
+import sys
 import typing as typ
 
-from stilyagi import cli, cli_io, config, diagnostics, model
+from stilyagi import cli, cli_fix, cli_io, config, diagnostics, model
 from stilyagi.fixes import Applicability, Fix, TextEdit
 
 from tests.support.assertions import assert_with_context
@@ -212,3 +214,74 @@ def _rewrite_heading_marker(
             ),
         )
     ]
+
+
+class TestMutationStreams:
+    """A mutating run reports on the stream its input leaves free."""
+
+    def test_a_clean_tree_is_never_reported_as_having_been_fixed(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A run with nothing to fix reports like a plain check and writes nothing.
+
+        Nothing was fixable, so no file was written and the re-run note would
+        be a false report of a mutation. The diagnostics stream is the normal
+        one, because standard output is free for a file input.
+        """
+        target = tmp_path / "notes.md"
+        original = "# Notes\n"
+        target.write_text(original, encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        stream = io.StringIO()
+
+        exit_code = cli.run_check(
+            cli.CheckOptions(targets=(target.name,), fix=True),
+            collaborators=cli.CheckCollaborators(
+                output=stream, rule_runner=silent_runner
+            ),
+        )
+
+        assert exit_code == 0, "expected a clean tree to exit zero"
+        assert_with_context(
+            cli_fix.RERUN_HINT not in stream.getvalue(),
+            "expected no re-run note for a run that wrote nothing",
+        )
+        assert_with_context(
+            target.read_text(encoding="utf-8") == original,
+            "expected the tree to be left exactly as it was found",
+        )
+
+    def test_a_fixed_document_owns_standard_output_for_a_stream_input(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A stream input's report goes elsewhere, so the fixed text stays clean.
+
+        D-05: the bytes a user piped in are theirs to capture, so appending a
+        rendered report to them would corrupt the one thing the command
+        produces. Only the report's destination is asserted here -- that a
+        stream input is never written to disk is covered end to end.
+
+        The exit status is one, not zero, and that follows from D-13 rather
+        than contradicting the repair: the status comes from re-linting the
+        files this run *wrote*, and a stream input is never written. Its
+        planning diagnostic therefore still stands, and nothing claims a
+        mutation happened. Only the report's destination is this test's
+        subject.
+        """
+        (tmp_path / "notes.md").write_text("Paragraph text.\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(sys, "stdin", io.StringIO("Paragraph text.\n"))
+        stream = io.StringIO()
+
+        exit_code = cli.run_check(
+            cli.CheckOptions(targets=("-",), stdin_filename="notes.md", fix=True),
+            collaborators=cli.CheckCollaborators(
+                output=stream, rule_runner=_rewrite_paragraph
+            ),
+        )
+
+        assert exit_code == 1, "expected an unwritten stream input to still exit one"
+        assert_with_context(
+            stream.getvalue() == "Section text.\n",
+            "expected the fixed document alone on the injected stream",
+        )

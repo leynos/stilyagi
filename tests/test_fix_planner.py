@@ -121,7 +121,8 @@ def test_planner_respects_unfixable_prefixes() -> None:
 
     assert_with_context(not plan.edits, "expected an unfixable prefix to drop the fix")
     assert_with_context(
-        plan.fixed_bytes == source.encode(), "expected an empty plan to be an identity"
+        plan.fixed_bytes is None,
+        "expected a dropped fix to leave nothing to write",
     )
 
 

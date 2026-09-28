@@ -35,6 +35,7 @@ def build_cli_overrides(options: CheckOptions) -> dict[str, object]:
 
     Examples
     --------
+    >>> from stilyagi.cli_args import CheckOptions
     >>> build_cli_overrides(CheckOptions(targets=("docs",), select=("STY",)))
     {'lint': {'select': ('STY',)}}
     >>> build_cli_overrides(CheckOptions(targets=("docs",)))

@@ -151,7 +151,10 @@ def run_check(
         # the surprise the CLI contract exists to prevent. Rejection is the
         # relaxable direction -- a rejected pair can be given meaning later,
         # where an accepted one with silent precedence cannot be withdrawn.
-        _LOGGER.warning("%s", _FIX_DIFF_CONFLICT)
+        #
+        # No explicit log here: the reporter already logs every expected
+        # failure at warning level and echoes it to standard error, so logging
+        # first would show the user the same sentence twice.
         resolved_collaborators.reporter(
             None,
             ValueError(_FIX_DIFF_CONFLICT),

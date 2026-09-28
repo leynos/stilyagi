@@ -33,11 +33,15 @@ class FixPlanRequest:
 class FixPlan:
     """The accepted edits and refused edits for one source byte sequence.
 
-    ``fixed_bytes`` is ``None`` when no edit survived planning, which makes
-    ``rejections`` the reason the file was left alone. ``source_backed_spans``
-    and ``coalesced`` exist for the fix summary: they are counts no later stage
-    can recover, because the source-backed span list is consumed by
-    admissibility and the pre-coalesce edit list by conflict resolution.
+    ``fixed_bytes`` is ``None`` whenever applying ``edits`` would leave the
+    source byte-identical: no edit survived planning -- in which case
+    ``rejections`` carries the reason the file was left alone -- or the edits
+    that did survive rewrite spans with the bytes already there. A caller that
+    treats a non-``None`` replacement as "there is something to write" can
+    therefore rely on that field alone. ``source_backed_spans`` and
+    ``coalesced`` exist for the fix summary: they are counts no later stage can
+    recover, because the source-backed span list is consumed by admissibility
+    and the pre-coalesce edit list by conflict resolution.
     """
 
     edits: tuple[TextEdit, ...]
@@ -50,7 +54,21 @@ class FixPlan:
 
 
 def plan_fixes(request: FixPlanRequest) -> FixPlan:
-    """Plan an all-or-nothing, source-backed mutation for one file."""
+    """Plan an all-or-nothing, source-backed mutation for one file.
+
+    ``fixed_bytes`` is ``None`` whenever the planned edits would leave the
+    source byte-identical -- no eligible diagnostic, every fix refused, or an
+    edit that rewrites a span with the bytes it already holds. Callers use that
+    one field to decide whether there is anything to write, so "no change" has
+    to be reported as the absence of a replacement rather than as a replacement
+    equal to the source.
+
+    Returns
+    -------
+    FixPlan
+        The accepted and refused edits, the replacement bytes when the plan
+        changes the source, and the selection counters the fix summary reports.
+    """
     selected = partition_candidates(
         request.diagnostics, request.level, request.lint_config
     )
@@ -73,11 +91,41 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
         edits,
         fixed_codes,
         (),
-        apply_edits(request.source_bytes, edits),
+        _replacement(request.source_bytes, edits),
         selected,
         _span_count(request),
         coalesced=len(accepted) - len(edits),
     )
+
+
+def _replacement(source_bytes: bytes, edits: tuple[TextEdit, ...]) -> bytes | None:
+    """Splice the accepted edits, or ``None`` when they would change nothing.
+
+    ``fixed_bytes`` has to mean "bytes to write", not "bytes that came out of
+    the splicing kernel". An empty edit list is an identity transformation, so
+    a file with nothing fixable would otherwise carry a replacement equal to
+    the source it was read from, and phase two would report a write of a file
+    `write_source` correctly skips. An edit that replaces a span with the bytes
+    already there is the same no-op reached through a non-empty list -- nothing
+    forbids a rule from offering one -- so both are measured against the source
+    rather than filtered by edit count.
+
+    Returns
+    -------
+    bytes | None
+        The changed bytes, or ``None`` when the result is byte-identical to the
+        source and there is therefore nothing to write.
+
+    Examples
+    --------
+    >>> from stilyagi.fixes import TextEdit
+    >>> _replacement(b"one two", ())
+    >>> _replacement(b"one two", (TextEdit(4, 7, "two"),))
+    >>> _replacement(b"one two", (TextEdit(4, 7, "three"),))
+    b'one three'
+    """
+    fixed_bytes = apply_edits(source_bytes, edits)
+    return None if fixed_bytes == source_bytes else fixed_bytes
 
 
 def _span_count(request: FixPlanRequest) -> int:

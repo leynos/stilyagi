@@ -190,6 +190,29 @@ def test_accepted_edits_stay_inside_one_source_backed_span(
     )
 
 
+@hyp.given(case=admissible_edit_cases())
+@hyp.settings(max_examples=64, deadline=None)
+def test_edits_replacing_a_span_with_its_own_bytes_offer_nothing_to_write(
+    case: CorpusSpanCase,
+) -> None:
+    """An accepted edit that rewrites a span in place is still a no-op.
+
+    Nothing in the model forbids a rule from offering such an edit, and it
+    passes every admissibility check because the span it names is genuinely
+    source-backed. The result is byte-identical to the source, so it must
+    report no replacement rather than a mutation of the bytes it read.
+    """
+    current = case.source_bytes[case.span.byte_start : case.span.byte_end].decode()
+    edit = TextEdit.replace(case.span, current)
+
+    plan = plan_fixes(_request(case, (_diagnostic("PUN201", edit),)))
+
+    assert_with_context(
+        plan.fixed_bytes is None,
+        "expected an in-place edit to offer no replacement bytes",
+    )
+
+
 @hyp.given(case=synthetic_straddling_edit_cases())
 @hyp.settings(max_examples=64, deadline=None)
 def test_synthetic_straddling_edits_always_abort_mutation(case: CorpusSpanCase) -> None:
@@ -221,13 +244,18 @@ def test_conflicting_edits_never_produce_fixed_bytes(case: CorpusSpanCase) -> No
 
 @hyp.given(case=st.sampled_from(corpus_span_cases()))
 @hyp.settings(max_examples=64, deadline=None)
-def test_empty_plans_preserve_every_corpus_source(case: CorpusSpanCase) -> None:
-    """No eligible fixes is an identity transformation for every corpus file."""
+def test_empty_plans_offer_nothing_to_write(case: CorpusSpanCase) -> None:
+    """No eligible fixes leaves every corpus file with no replacement to write.
+
+    Reporting the source as its own replacement would be an identity a caller
+    could not tell from a real mutation: a run that found nothing to fix would
+    count a written file and print the re-run note over an untouched tree.
+    """
     plan = plan_fixes(_request(case, ()))
 
     assert_with_context(
-        plan.fixed_bytes == case.source_bytes,
-        "expected a plan without diagnostics to preserve the original bytes",
+        plan.fixed_bytes is None,
+        "expected a plan without diagnostics to offer no replacement bytes",
     )
 
 

@@ -892,15 +892,15 @@ gates: counted as one function it has ten decision points against a budget of
 seven, and more than a dozen locals against a budget of ten. This decomposition
 is **mandatory**.
 
-| Module             | Contents                                                                                                    | Branch budget |
-| ------------------ | ----------------------------------------------------------------------------------------------------------- | ------------- |
-| `splice.py`        | `apply_edits(source_bytes, edits) -> bytes`                                                                 | 1             |
-| `admissibility.py` | `containing_span(edit, spans)` via `bisect`; `classify_edit(...) -> EditRejection \| None`                  | ≤4            |
-| `selection.py`     | `is_candidate(diagnostic, level, lint_config) -> bool`; `select_candidates(...)` as a comprehension over it | ≤3            |
-| `conflicts.py`     | `coalesce_identical(edits)`; `first_overlap(edits)`                                                         | ≤1            |
-| `plan.py`          | `plan_fixes(request) -> FixPlan` — straight-line composition                                                | ≤3            |
-| `diff.py`          | `unified_diff(before, after, reported_path) -> str`                                                         | ≤3            |
-| `write.py`         | `write_source(path, content)`                                                                               | ≤3            |
+| Module             | Contents                                                                                   | Branch budget |
+| ------------------ | ------------------------------------------------------------------------------------------ | ------------- |
+| `splice.py`        | `apply_edits(source_bytes, edits) -> bytes`                                                | 1             |
+| `admissibility.py` | `containing_span(edit, spans)` via `bisect`; `classify_edit(...) -> EditRejection \| None` | ≤4            |
+| `selection.py`     | `partition_candidates(...) -> CandidatePartition`; `is_fixable(code, lint_config) -> bool` | ≤3            |
+| `conflicts.py`     | `coalesce_identical(edits)`; `first_overlap(edits)`                                        | ≤1            |
+| `plan.py`          | `plan_fixes(request) -> FixPlan` — straight-line composition                               | ≤3            |
+| `diff.py`          | `unified_diff(before, after, reported_path) -> str`                                        | ≤3            |
+| `write.py`         | `write_source(path, content)`                                                              | ≤3            |
 
 Three rules that make this hold and which are easy to violate:
 
@@ -2535,9 +2535,9 @@ in the fixtures module because both are used at runtime there --
 `patch_read_bytes_failure`. `pytest`, `DiffPreview`, and `rules_registry`
 stayed inside it, because in that module they really are annotation-only. In
 `tests/test_check_pipeline_units.py` the opposite held for `pytest`, which
-moved back out to a runtime import because the module calls `pytest.raises`
-for real. The rule to apply is per-module: check how the name is used in
-*this* file, not how it is used in the file it was copied from.
+moved back out to a runtime import because the module calls `pytest.raises` for
+real. The rule to apply is per-module: check how the name is used in *this*
+file, not how it is used in the file it was copied from.
 
 **`ruff check --fix` reordered the block after the move.** The import block is
 sorted as one unit, so moving a name across the `TYPE_CHECKING` boundary
@@ -2600,22 +2600,23 @@ Two options were considered and one rejected:
   Given was renamed to `a tree holding two Markdown files and an injected rule`
   so it does not shadow the check command's two-file tree Given either.
 
-The lesson generalises: a new BDD steps module must be checked against every
+The lesson generalizes: a new BDD steps module must be checked against every
 other steps module for step-text collisions, because the registry is not
 namespaced.
 
 ### Finding 2: a `--fix` run re-lints through the same injected runner
 
-Three scenarios failed with `SourceTextNotFoundError: source-backed text not
-found: 'Paragraph'`, traced through a full-traceback run: at rule time the
-document was `Region(kind='paragraph', text='Section text.')` -- the **already
-rewritten** text.
+Three scenarios failed with
+`SourceTextNotFoundError: source-backed text not found: 'Paragraph'`, traced
+through a full-traceback run: at rule time the document was
+`Region(kind='paragraph', text='Section text.')` -- the **already rewritten**
+text.
 
-`relint_written_files` builds a `CheckRun` with
-`dc.replace(run, options=...)`, which keeps `rule_runner`. So every injected
-stub runs twice per `--fix` scenario: once against the bytes on disk and once
-against the bytes it just wrote. A stub that raises when its needle is missing
-therefore breaks the re-lint it is supposed to support.
+`relint_written_files` builds a `CheckRun` with `dc.replace(run, options=...)`,
+which keeps `rule_runner`. So every injected stub runs twice per `--fix`
+scenario: once against the bytes on disk and once against the bytes it just
+wrote. A stub that raises when its needle is missing therefore breaks the
+re-lint it is supposed to support.
 
 Every stub in `tests/steps/fix_command.py` is now idempotent by construction.
 `_rule_offering` wraps an edit maker that returns `None` when its needle is
@@ -2627,18 +2628,18 @@ stubs *more* faithful, not more permissive.
 
 The synthetic-span scenario was passing for the wrong reason. It used a
 hard-coded `TextEdit(1, 2, "")`, and a probe showed the edit being **accepted**:
-`DISK: b'Pragraph text.\n'`, no fix-error line. For `"Paragraph text.\n"` the IR
-exposes one span, `SourceSpan(byte_start=0, byte_end=15)`, so byte 1 is
+`DISK: b'Pragraph text.\n'`, no fix-error line. For `"Paragraph text.\n"` the
+IR exposes one span, `SourceSpan(byte_start=0, byte_end=15)`, so byte 1 is
 source-backed and the edit merely deleted the `a`.
 
 A second probe showed where genuine gaps are: for
 `"First line\nsecond line.\n"` the spans are `(0,10)` and `(11,23)`, leaving
-byte 10 -- the normalised-away soft line break -- unclaimed. The scenario's
+byte 10 -- the normalized-away soft line break -- unclaimed. The scenario's
 source text is now that two-line paragraph, and the edit range comes from the
 new `find_unclaimed_span(document)`, which walks the document for the first
 byte no merged source-backed span contains, bounded by the furthest byte the IR
-claims. The refusal is now verified by the log: `spans=2 considered=1 rejected=1
-planned=0`.
+claims. The refusal is now verified by the log:
+`spans=2 considered=1 rejected=1 planned=0`.
 
 This closes the gap the plan warned about at line 44: *"A synthetic span cannot
 be invented: it has to be a real offset the IR genuinely does not cover."*
@@ -2686,15 +2687,15 @@ docstring line so a future reader does not have to reconstruct it.
 
 ### Gate status after Stage B
 
-| Gate                  | Result                                                    |
-| --------------------- | --------------------------------------------------------- |
-| `ruff check`          | PASS -- 0 errors, `tests/` and `python/`                  |
-| `ruff format --check` | PASS -- 158 files already formatted                       |
-| `interrogate`         | PASS -- 100.0%                                            |
-| `ty check`            | PASS -- all checks passed                                 |
-| `pylint`              | PASS -- 10.00/10 over `python/stilyagi tests`             |
-| `pytest` (affected)   | PASS -- 57 passed across 7 modules, incl. cross-module    |
-| `pytest` (full)       | RUNNING -- background shell `bzsrlwobx`                   |
+| Gate                  | Result                                                 |
+| --------------------- | ------------------------------------------------------ |
+| `ruff check`          | PASS -- 0 errors, `tests/` and `python/`               |
+| `ruff format --check` | PASS -- 158 files already formatted                    |
+| `interrogate`         | PASS -- 100.0%                                         |
+| `ty check`            | PASS -- all checks passed                              |
+| `pylint`              | PASS -- 10.00/10 over `python/stilyagi tests`          |
+| `pytest` (affected)   | PASS -- 57 passed across 7 modules, incl. cross-module |
+| `pytest` (full)       | RUNNING -- background shell `bzsrlwobx`                |
 
 The affected-module run is the one that matters for regressions here: it
 includes `test_package_skeleton_units.py`, which is the module that exposed
@@ -2707,3 +2708,249 @@ Finding 1, so the collision cannot silently return.
 - A dedicated regression test for the stream-input destination decided above;
   the BDD scenario covers it end to end, but the `cli_fix` unit boundary is
   only covered through the command.
+
+## Revision 36 (2026-09-28): a clean tree was reported as fixed
+
+### What was found, and how
+
+While probing real subprocess behaviour before writing the Stage C2 tests, a
+`--fix` run over a tree with **zero diagnostics** printed
+
+```console
+fixes were applied; re-running may apply further fixes
+
+0 diagnostics found (0 safe fixes, 0 unsafe fixes)
+```
+
+to standard error and exited 0, while the file's md5 was identical before and
+after. The run claimed a mutation that had not happened. The probe separated
+the streams and compared hashes, so the claim was not inferred from the text --
+the text was contradicted by the bytes on disk.
+
+### Why it happened
+
+`plan_fixes` ended with
+
+```python
+apply_edits(request.source_bytes, edits)
+```
+
+With no eligible diagnostic, `edits` is empty and `apply_edits` is an identity,
+so `fixed_bytes == source_bytes`. `_apply_and_exit` asks only
+`outcome.changed_anything`, which counts `files_written`; `_write_one` counted
+a write; and `write.py`'s `if current_bytes == content: return` then skipped
+the actual write. The no-op was real in exactly one layer and invisible in the
+two that decided what to report.
+
+This is a **contract violation, not a design change**. `PlannedFile`'s
+docstring already promised ``fixed_bytes`` is ``None`` for "a file with no
+fixable diagnostics at all", and `patch_for` already returns `""` for a `None`
+replacement, so `--diff` was never wrong. Only the mutation path read the field
+as "bytes came out of the kernel" rather than "bytes to write".
+
+### The fix, and the second route to a no-op
+
+The repair is in the planner, where "no edits" means "no replacement". A new
+`_replacement(source_bytes, edits)` splices and then measures the result
+against the source, returning `None` when they are byte-identical.
+
+Measuring rather than testing `if not edits` matters, because an empty edit
+list is not the only way to reach an identity. **An edit that replaces a span
+with the bytes already there is admissible at every check**: the span it names
+is genuinely source-backed, so `classify_edit` accepts it, and nothing in the
+model forbids a rule from offering one. The new Hypothesis property
+`test_edits_replacing_a_span_with_its_own_bytes_offer_nothing_to_write`
+constructs exactly that case from the corpus and passes. The field's meaning is
+now stated in `FixPlan`'s and `plan_fixes`' docstrings so the next reader does
+not have to rediscover it.
+
+Phase two gained `_would_change` as belt and braces against a plan built some
+other way: `files_written` counts files whose bytes this run actually changed,
+because the caller prints the re-run note on the strength of it.
+
+### Two tests pinned the old behaviour
+
+- `tests/test_fix_planner.py:124` asserted
+  `plan.fixed_bytes == source.encode()` with the message "expected an empty
+  plan to be an identity". The identity was the defect.
+- `tests/test_fix_planner_properties.py:229` asserted the same over every corpus
+  case.
+
+Both now assert `is None`, and the property was renamed
+`test_empty_plans_offer_nothing_to_write` so its name states the contract
+rather than the old implementation.
+
+### Regression coverage added
+
+- `tests/test_check_boundaries.py::TestMutationStreams` -- a clean tree must not
+  be reported as fixed, and a stream input's fixed document must own the output
+  stream. This is the `cli_fix` unit-boundary test Revision 35 listed as
+  outstanding; it belongs in the existing command-boundary module rather than a
+  new one.
+- `tests/test_fix_planner_properties.py` -- the in-place-edit property above.
+
+The stream-input test asserts exit **1**, not 0. That is D-13 working as
+documented, not a contradiction of the repair: the status comes from re-linting
+the files the run *wrote*, and a stream input is never written, so its planning
+diagnostic still stands. The docstring says so, because a reader who expects 0
+would otherwise read the assertion as a bug.
+
+### Verified against the real command
+
+Re-running the original probe after the fix:
+
+```console
+EXIT=0
+--- STDOUT ---
+0 diagnostics found (0 safe fixes, 0 unsafe fixes)
+--- STDERR ---
+--- before=a0930c8996560212608e858c3a17491c after=a0930c8996560212608e858c3a17491c ---
+OK: no re-run note
+```
+
+Standard error is empty, the report is on the normal diagnostics stream, and
+the file is byte-identical. A two-file tree behaves the same way.
+
+### Stage C2: the blocker, restated with evidence
+
+Revision 35 recorded Stage C2 as blocked because "no builtin rule emits fixes".
+That is confirmed and the mechanism is now pinned:
+
+- `grep -rn "Fix(\|fix=\|TextEdit" python/stilyagi/rules/` returns **nothing**,
+  over a `rules/` tree whose only rule-bearing module is `registry.py`, and
+  whose `run_rules` is documented as "Return no diagnostics until the rule
+  engine lands" (roadmap 2.3.1).
+- `python/stilyagi/plugins.py` defines `RULE_ENTRY_POINT_GROUP` and
+  `CAPABILITY_ENTRY_POINT_GROUP` as *constants only*. Nothing imports the
+  module outside `tests/test_package_skeleton_units.py`, and no
+  `importlib.metadata` entry-point scan exists anywhere in `python/`. The
+  documented `[project.entry-points."stilyagi.rules"]` route is therefore a
+  stated intention, not a working seam: a test package cannot register a rule
+  that the runtime would load.
+
+So there is **no honest subprocess route** to a fix-producing rule today. The
+`--diff`/`--fix` halves that need one cannot be covered end to end without
+either wiring plugin loading (a roadmap item in its own right, and a change to
+runtime behaviour that this slice should not smuggle in) or installing a fake
+distribution, which would test the installer rather than the command.
+
+What *is* coverable at the subprocess boundary, with no rule at all, is every
+decision that lives in the command rather than in a rule: the `--fix --diff`
+usage error and its exit 2, `--unsafe-fixes` without `--fix`, and the
+clean-tree no-op that Revision 36 repaired. Those are the shapes that regressed
+in practice, and they are worth pinning across a real process boundary because
+the in-process tests inject collaborators that the real entry point does not
+have. The rule-dependent halves stay covered by the BDD scenarios, which inject
+through `CheckCollaborators.rule_runner` -- the seam that exists today.
+
+## Revision 37 (2026-09-28): two latent defects the gates found, and a wedged cargo lock
+
+### The dead-code gate caught my own leftover
+
+`make lint` ends with `skylos --category dead_code --gate`, and it failed on
+`python/stilyagi/engine/fix_planning/selection.py:96`:
+
+```console
+python/stilyagi/engine/fix_planning/selection.py:96  SKY-U001  unused function: select_candidates
+```
+
+`select_candidates` was a one-line wrapper over
+`partition_candidates(...).eligible`, added in `0ad1d4c` and left behind when
+`plan.py` came to call `partition_candidates` directly. Nothing referenced it:
+not the runtime, not a test, not the Rust bindings. This is exactly the class
+of defect the gate exists for, and it is mine rather than pre-existing --
+`selection.py` was created on this branch.
+
+The removal is not a coverage loss. `partition_candidates` keeps the doctest
+that pins the empty-input contract, and the partition it returns carries all
+four groups, so the `.eligible` projection is exercised through `plan.py`.
+`select_candidates` only re-exposed one field of a value the caller already
+held.
+
+The execplan's own design table had drifted: it still described the module as
+`is_candidate(...)` plus a `select_candidates` comprehension. That row now
+names the shipped shape, so the plan does not point a later reader at a deleted
+function.
+
+### The doctest gate caught a `TYPE_CHECKING`-only name in an example
+
+`make test-doc` runs `pytest --doctest-modules` over `python/stilyagi` and
+`tests/support`. It failed on `cli_config.py`:
+
+```console
+>>> build_cli_overrides(CheckOptions(targets=("docs",), select=("STY",)))
+UNEXPECTED EXCEPTION: NameError("name 'CheckOptions' is not defined")
+```
+
+`CheckOptions` is imported under `if typ.TYPE_CHECKING:` in that module, so the
+example could never work as written -- a doctest executes in the module's real
+namespace, where a typing-only import does not exist. Also mine:
+`cli_config.py` was created by `3c6cdaa` on this branch.
+
+The fix follows the convention the rest of the package already uses: import
+inside the example. `rules/registry.py`, `engine/checker.py`,
+`engine/runner.py` and `discovery.py` all open their doctests that way. A
+`--doctest-modules` pass is a real execution, and an example that needs a name
+must bring it.
+
+Both defects were invisible to `make test`, which does not collect doctests and
+does not run the dead-code gate. That is the argument for running the whole
+gateway rather than the suite one believes is relevant.
+
+### The cargo package-cache lock is wedged, and it is not mine
+
+`make build`, `make typecheck` and the Rust half of `make test` could not
+complete. The cause is a cycle across two other worktrees, not in this one:
+
+```console
+1832225  cargo test --all-targets     <- holds ~/.cargo/.package-cache-mutate EXCLUSIVE
+  └─ 1855438  compile_contract test binary
+       └─ 1855450  cargo build --bin podbot-tests   <- waits for the SAME lock
+```
+
+`cargo test` (the podbot worktree) takes the package-cache lock for the whole
+run, and one of the tests it runs shells out to `cargo`, which needs that same
+lock. The cycle cannot resolve itself. At the time of writing the holder had
+accumulated 4 seconds of CPU across 6.9 hours of wall clock, and 78-82 cargo
+and rustc processes from several unrelated repository worktrees were parked in
+`locks_lock_inode_wait` behind it.
+
+Per the standing instruction not to kill other agents' processes, nothing was
+terminated. The orphaned `cargo rustc` processes that *were* cleared belonged
+to this worktree and to gates I had already stopped; clearing those is what
+released the uv editable-distribution lock their parent was still holding.
+
+Everything that does not need cargo was therefore run, and the cargo-free route
+turned out to be complete for the Python side.
+`uv sync --group dev --no-install-project` installs the dev group without
+building the extension, and the prebuilt
+`python/stilyagi/_stilyagi_rs.cpython-314-x86_64-linux-gnu.so` is newer than
+every Python source change, so `PYTHONPATH=python .venv/bin/python` imports the
+package and loads the extension. Measured this run:
+
+| Gate                               | Result                                 |
+| ---------------------------------- | -------------------------------------- |
+| `ruff check`                       | All checks passed                      |
+| `ruff format --check`              | 224 files already formatted            |
+| `cargo fmt --all -- --check`       | clean (rustfmt does not need the lock) |
+| `mdtablefix --check`               | 67 files left unchanged                |
+| interrogate `--fail-under 100`     | PASSED (minimum 100.0%, actual 100.0%) |
+| pylint                             | 10.00/10                               |
+| df12 pylint tier                   | 10.00/10                               |
+| skylos dead-code `--gate`          | exit 0 (after the removal above)       |
+| `pytest` (full suite)              | 635 passed, 1 skipped, 2 errors        |
+| `pytest --doctest-modules`         | 35 passed, 2 skipped                   |
+| spelling + markdownlint (68 files) | 0 errors                               |
+| nixie (Mermaid)                    | All diagrams validated successfully    |
+
+The two errors are both `tests/test_maturin_build.py`
+(`test_maturin_wheel_build_snapshot`, `test_maturin_wheel_executes_correctly`)
+raising `subprocess.TimeoutExpired`, because that module shells out to
+`maturin` and wants the very lock the cycle holds. It is a file this branch
+does not touch. `make typecheck` and the Rust half of `make test` remain unrun
+for the same environmental reason and are **not** claimed as passing.
+
+Gate coverage is therefore partial by circumstance rather than by choice. When
+the lock frees, the outstanding gates are `make build`, `make typecheck`, and
+the `cargo clippy`/`cargo doc`/`cargo test`/`whitaker` sections of `make lint`
+and `make test`.
