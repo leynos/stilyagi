@@ -180,6 +180,11 @@ support normal repository linting and debugging for Markdown-only users. See
   - Requires 2.1.1 and 2.2.1.
   - Reject edits against synthetic spans and overlapping non-identical edits.
   - Success: safe fixes are conservative and auditable.
+  - Progress: safe-fix planning, conflict resolution, and `--diff` have landed
+    under `python/stilyagi/engine/fix_planning/`. `--fix` and
+    `--unsafe-fixes` are not implemented, so the item stays open; the
+    verification re-lint, the two-phase execution, and the revised exit codes
+    that `--fix` needs are the remaining work.
 - [ ] 2.2.3. Implement `stilyagi config`, `clean`, `dump-ir`, and `--no-cache`
   for the Markdown slice. See Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 2.1.1 and 2.2.1.

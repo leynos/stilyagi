@@ -2249,3 +2249,320 @@ earlier silent skip. The lesson generalizes: after a change to a *gate's
 configuration or interpreter*, a green result from that gate is not
 self-validating, and the cheap way to make it trustworthy is to run the gate
 against a fixture that must fail.
+
+**Revision 31, 2026-09-28.** Began the `python/stilyagi/cli.py` "Overall Code
+Complexity" remediation requested for PR #160. Head verified before editing:
+local, `origin`, and the PR head all matched at `0e17ee3`, working tree clean.
+
+**Baseline, measured rather than asserted.**
+`cs review python/stilyagi/cli.py --output-format json --pretty` reports
+`score: 9.38` with `indication: 2` on the category "Overall Code Complexity";
+`cs check` repeats it as `warn: .../cli.py:1: Overall Code Complexity`. Across
+the whole package only `cli.py` carries this finding — every other module
+reviews clean at 10.00. The rule set names the threshold directly:
+`cs rules-config list-thresholds --language Python` gives
+`file_mean_cyclomatic_complexity_warning = 4`.
+
+**CodeScene's metric was recovered by experiment, because the free CLI exposes
+no per-function breakdown.** A first attempt counted branches with a local AST
+walk; it disagreed with CodeScene on two of 45 modules and was discarded rather
+than tuned. The replacement is model-free. A module with `n` functions summing
+to `S`, padded with `K` helpers of true complexity `c`, has
+`mean(K) = (S + cK) / (n + K)`, so the flag boundary is an equation in `S` and
+`n`: padding with `c = 3` from a flagged module makes the smallest *clean* `K`
+exactly `S - 4n`, and padding with `c = 5` from a clean module makes the
+smallest *flagged* `K` exactly `4n - S + 1`. Both recoveries are exact.
+
+Three findings came out of building and validating that instrument, and all
+three are invisible in the rule-set JSON:
+
+1. **The flag has a second condition.** A module with six or fewer functions is
+   never flagged, whatever its mean: `N = 6` at mean 9 is clean, `N = 7` at
+   mean 5 is flagged. The boundary is pinned by bisection over the function
+   count at two different means, and confirmed not to be a line-count effect
+   (adding 80 inert lines to the six-function module leaves it clean).
+2. **The counting rules are not a naive AST walk.** `if`, `for`, `while`,
+   `except`, comprehensions, and `and`/`or` *in any position* count;
+   conditional expressions, `assert`, `with`, `match`, and comprehension
+   filters do not. Two earlier probes were invalid and were rewritten rather
+   than believed: one emitted `if` statements with no bodies (a syntax error
+   whose "not counted" result was an artefact), and another sat exactly on the
+   `> 4` boundary, where four occurrences give a mean of exactly 4 and so
+   cannot distinguish "counts" from "does not count".
+3. **The instrument validates before use.** Seven synthetic modules with sums
+   known by construction are recovered exactly. One of the original seven
+   failed — `truth_7_6`, mean 7.0 reported clean — and that failure is what
+   exposed finding 1; the case was moved to `n >= 7` and the precondition is
+   now enforced in code rather than assumed.
+
+**Baseline for `cli.py`, recovered with the validated instrument:** 11
+functions, complexity sum **54**, mean **4.9091** against a threshold of 4. Per
+function:
+
+| line | function                    | cc  |
+| ---- | --------------------------- | --- |
+| 68   | `main`                      | 3   |
+| 96   | `_configure_logging`        | 4   |
+| 104  | `_build_cli_overrides`      | 5   |
+| 124  | `_resolve_config`           | 3   |
+| 138  | `run_check`                 | 4   |
+| 213  | `_aggregate_checked_files`  | 7   |
+| 240  | `_resolve_collaborators`    | 6   |
+| 253  | `compute_exit_code`         | 3   |
+| 284  | `_discover_targets`         | 8   |
+| 309  | `_resolve_discovery_config` | 3   |
+| 333  | `_check_one_file`           | 8   |
+
+**`CheckCollaborators.writer` is confirmed dead.**
+`grep -rn '\.writer\|writer='` over `python/` and `tests/` returns no
+reference: the field is declared at `cli.py:54` and never read, and
+`_ResolvedCheckCollaborators` has no writer field at all. It is the
+"ineffective seam" the review named, and Deferred follow-up 7 already
+anticipated the decision: the alias cannot enforce the stale-plan check that
+Milestone 5 needs, so the field goes rather than waiting for a caller that
+would silently skip the guard.
+
+**Planned work.** Replace the anonymous per-file tuple with a named, typed
+result; make aggregation a single readable pass; move the cohesive per-file
+workflow out of `run_check` into a `cli_pipeline` module that depends only
+inward (`config`, `engine`, `rules`, `diagnostics`, `model`) and is imported by
+`cli`, never the reverse; give `cli_io.read_source` a typed error instead of a
+logging, printing, `None`-returning API that swallowed `OSError`; and route the
+expected failures at the command boundary through an injectable reporter.
+
+**Revision 32, 2026-09-28. The `cli.py` complexity refactor is implemented, and
+its first gate run found work.** The module split is now:
+
+| module            | lines | owns                                           |
+| ----------------- | ----- | ---------------------------------------------- |
+| `cli.py`          | 263   | discovery, rendering, streams, exit status     |
+| `cli_pipeline.py` | 276   | the per-file workflow and the aggregation pass |
+| `cli_config.py`   | 98    | option-to-config translation, shared by both   |
+| `cli_io.py`       | 176   | byte-faithful reads and the default reporter   |
+
+`cli_config` exists so `cli_pipeline` never imports `cli`: the dependency
+direction runs inward, and both modules depend on the translation rather than
+on each other. All four are far below the 400-line module ceiling.
+
+**Requirement-by-requirement outcome.**
+
+1. The anonymous `tuple[list[Diagnostic], bool, DiffPreview | None]` is gone.
+   `check_one_file` now returns a named `FileCheck`, wrapped by `CheckedFile`
+   so the reported path travels with its result.
+2. `aggregate_checked_files` is one pass that extends diagnostics, ors the
+   failure flag, and appends each preview's patch and refusals. File,
+   diagnostic, fix-error, and patch order all follow discovery order, and any
+   failed file raises the run's `error` flag.
+3. The per-file workflow moved wholesale into `cli_pipeline`. `run_check` now
+   does discovery, then `collect_checked_files`, then renders — with rendering
+   split out into `_render_and_exit` so the exit-status decision is visible in
+   one screen.
+4. `read_source` raises `SourceReadError` carrying the path and the original
+   `OSError` or `UnicodeDecodeError`; it neither logs nor prints nor returns
+   `None`. Its return type is `SourcedInput`, whose bytes and text are both
+   non-optional, so the "read succeeded but text is missing" branch the old
+   signature needed is now unrepresentable rather than merely unreachable.
+   `report_file_error` is gone; `report_check_error` dispatches on the error
+   type. Unexpected extraction failures still log with their traceback and
+   propagate.
+5. Byte-faithful input, non-mutating `--diff`, patches on stdout, diagnostics
+   on stderr, collaborator injection, and every exit status are unchanged — the
+   five CLI test modules pass with byte-identical messages.
+   `CheckCollaborators` gained an injectable `reporter` and dropped the dead
+   `writer` field.
+6. `tests/test_check_pipeline_units.py` adds 15 tests over the new boundary:
+   readable/missing/directory/undecodable reads, bridge refusal, unexpected
+   adapter failure, invalid configuration, the aggregation pass's ordering and
+   error rule, both injected streams, and both diff outcomes.
+7. Re-measurement is still outstanding — see below.
+
+**A design correction worth recording.** The first cut of `check_one_file`
+passed `source_bytes`, `source_text`, `reported_path`, and `resolved_path` to
+its helpers as four separate primitives. Ruff's `PLR0913` rejected it at five
+arguments, and the fix was not a suppression: `SourcedInput` carries exactly
+those four values, so the helpers take the value the pipeline actually has. The
+same shaped the `CheckRun` bundle, which holds the four collaborators one
+invocation fixes across every file.
+
+**Gate evidence, first run.** `make check-fmt` and `make markdownlint` failed
+on formatting alone; `make lint` raised 17 errors, whose rules and sites are
+recorded above. All have since been fixed and `ruff format --check` and
+`ruff check` are clean on the five changed files, with the CLI test modules
+green. `make typecheck` and `make test` **could not be evaluated**: the shared
+Cargo package cache was held in a circular wait by another agent's session —
+the lock holder's own descendant was queued behind it on the same inode — so
+both gates blocked before reaching `cargo check`, `ty check`, or pytest. That
+is an environment condition, not a branch fault; the two gates are still
+unverified and the hand-edited `test_maturin_build.ambr` snapshot has not been
+exercised.
+
+**Two test expectations I wrote were wrong, and the code was right.**
+
+1. The read-failure test targeted a file that never existed. Discovery ignores
+   a missing target (`discovery.py` logs "ignoring missing or unsupported
+   target" and yields nothing), so no file was checked and the run exited 0.
+   The realistic shape of a read failure is a file that disappears between
+   discovery and its read, which is what the test now arranges.
+2. The accepted-preview test expected exit 0. An accepted preview still exits
+   1: the diagnostic was found and the source is deliberately left untouched
+   for the user to apply, which the existing snapshot pins as
+   `{"exit_code": 1}`. The test now asserts 1.
+
+Both were caught by running the tests rather than by reasoning about them.
+
+## Revision 33 (2026-09-28): Requirement 7 met, and the floor that could have faked it
+
+The refactor of Revision 32 left `cli.py` at 7 functions and mean 4.1429, still
+flagged (`indication: 2`). Two functions carried it: `_resolve_collaborators`
+(cc 7) and `_discover_targets` (cc 8). Both were resolved by removing a real
+design defect rather than by moving code to move a metric.
+
+**`_resolve_collaborators` and `_ResolvedCheckCollaborators` are gone.** They
+existed only to undo the five `None` sentinels on `CheckCollaborators`. Each
+field now declares its production default with `dataclasses.field(...)`, so a
+constructed bundle is already complete and no second pass resolves it. This
+deletes 22 lines and one type, and it removes a state that was genuinely
+representable-but-invalid: a bundle with four fields populated and one `None`.
+
+**`_discover_targets` split along its real seam.** The `-` sentinel contract --
+expanding targets, matching the stdin sentinel, and rejecting `-` combined with
+a file target -- became `_parse_targets`, which returns the paths and whether
+stdin was requested. `_discover_targets` now reads as three steps: parse, take
+the stdin path, or walk the filesystem. The function stayed in `cli.py`: it *is*
+`run_check`'s discovery responsibility, and moving it out to lower an average
+would have been exactly the padding the task prohibited.
+
+`_discover_targets` also stayed in name and location deliberately:
+`tests/test_check_files.py` monkeypatches `cli._discover_targets` by attribute
+path, so relocating or renaming it would have silently disabled that
+substitution rather than failing loudly.
+
+### Measured outcome (requirement 7)
+
+| Reading               | Before Revision 32 | After Revision 32         | After Revision 33 |
+| --------------------- | ------------------ | ------------------------- | ----------------- |
+| Functions in `cli.py` | 11                 | 7                         | 7                 |
+| Complexity sum        | 54                 | 29                        | 24                |
+| Mean complexity       | 4.9091             | 4.1429                    | **3.4286**        |
+| Threshold             | 4                  | 4                         | 4                 |
+| `cs review` verdict   | flagged            | flagged (`indication: 2`) | **clean**         |
+
+The final reading is from CodeScene itself, not from the AST probe:
+`cs review python/stilyagi/cli.py --output-format json --pretty` returns
+`{"score": 10.0, "review": []}` -- no findings at all. The validated flip-point
+instrument independently agrees: 7 functions, sum 24, mean 3.4286, MEETS. Both
+agree, and the two were built from different evidence, which is the point of
+insisting on both.
+
+**The function-count floor, and why the result is not an artefact of it.**
+CodeScene does not flag a file with fewer than 7 functions, whatever its mean.
+This was probed directly: a synthetic file of 6 functions at mean complexity
+7.0 is not flagged, while the same body at 7 functions is. A module that
+reaches "clean" only by dropping to 6 functions would therefore have satisfied
+the threshold without being simpler. `cli.py` ends this revision with **7**
+functions, so it clears the precondition and the clean verdict is a real
+measurement. Had the split overshot into 6, the honest report would have been
+"unmeasurable", not "resolved". This is recorded because a future change that
+consolidates two functions would silently re-enter the floor and any later
+"clean" reading could not be trusted without re-checking the count.
+
+### One real regression caught, and the memory it earned
+
+Converting the `None` sentinels to `default_factory` initially broke two tests:
+
+```text
+FAILED tests/test_check_stdin.py::test_cli_main_reads_stdin_and_attributes_diagnostic_to_filename
+FAILED tests/test_check_command.py::test_main_renders_json_for_synthetic_diagnostics
+```
+
+Both monkeypatch `stilyagi.rules.registry.run_rules` by string. The first cut
+wrote `rule_runner: rules_registry.RuleRunner = rules_registry.run_rules`,
+which **captures the function object at import time**; rebinding the module
+attribute afterwards has no effect on the captured reference. The previous code
+evaluated `configured.rule_runner or rules_registry.run_rules` at call time and
+was therefore patchable. Every field now resolves through a lambda that
+performs the lookup at call time, restoring the old contract exactly. The check
+is that a module-level default stays substitutable; it is recorded in the
+developers' guide beside the field list, because it is not obvious from reading
+the dataclass and it fails silently -- the suite stays green wherever no test
+patches the name.
+
+### Gate status at this revision
+
+`make check-fmt`, `make markdownlint`, and `make nixie` are to be re-run with
+`make typecheck` and `make test` on this exact tip; the earlier two failures on
+formatting alone were fixed before Revision 32. `make typecheck` and
+`make test` remain unverified if the shared Cargo package-cache deadlock
+persists. The `test_maturin_build.ambr` snapshot is still unexercised until
+pytest runs to completion.
+
+## Revision 34 (2026-09-28): the test split, and lint green again
+
+`make lint` failed on a second, unrelated reason after the interrogate gap was
+closed: pylint `C0302 too-many-lines` on `tests/test_check_pipeline_units.py`,
+at 545 lines against the project's 400-line ceiling.
+
+`too-many-lines` is not an accident of the config. It sits in pylint's
+**`enable`** list in `pyproject.toml` under a comment reading *"Match the
+project file-size ceiling enforced during review"*, so the ceiling is deliberate
+policy. Suppressing it locally, or widening the limit, would have been a
+policy change hidden inside a refactor. The module was split along the seam the
+tests already had.
+
+### The split
+
+| Module                              | Lines | Contents                                                        |
+| ----------------------------------- | ----- | --------------------------------------------------------------- |
+| `tests/test_check_pipeline_units.py` | 261   | `TestCheckOneFile`, `TestAggregateCheckedFiles`                  |
+| `tests/test_check_boundaries.py`     | 214   | `TestInjectedStreamsAndReporters`, `TestDiffPreviews`            |
+| `tests/support/check_pipeline_fixtures.py` | 128 | shared reporters, runners, preview builders, the read-failure patch |
+
+The seam is behavioural rather than arbitrary: the units module drives
+`cli_pipeline` directly, and the boundaries module drives the same code through
+`cli.run_check` to pin what only exists at the command boundary -- an injected
+`output` stream, an injected `reporter`, and both `--diff` outcomes. The shared
+helpers live in `tests/support/` rather than being imported from one test
+module into another, so neither module depends on the other's import side
+effects.
+
+### Two lint details worth recording
+
+**Ruff's typing-only-import rules are not satisfied by "it is only an
+annotation" reasoning at the reader's level; they follow the actual use.**
+`cli_io` and `pathlib` had to move *out* of the `if typ.TYPE_CHECKING:` block
+in the fixtures module because both are used at runtime there --
+`cli_io.CheckInput(...)` in `input_for`, and `pathlib.Path.read_bytes` in
+`patch_read_bytes_failure`. `pytest`, `DiffPreview`, and `rules_registry` stayed
+inside it, because in that module they really are annotation-only. In
+`tests/test_check_pipeline_units.py` the opposite held for `pytest`, which moved
+back out to a runtime import because `pytest.raises` is called at line 163.
+The rule to apply is per-module: check how the name is used in *this* file, not
+how it is used in the file it was copied from.
+
+**`ruff check --fix` reordered the block after the move.** The import block is
+sorted as one unit, so moving a name across the `TYPE_CHECKING` boundary
+re-sorts it; the fix is to run the fixer rather than hand-tune the blank lines.
+
+### Gate status at this revision
+
+| Gate                | Result                                                        |
+| ------------------- | ------------------------------------------------------------- |
+| `ruff check`        | PASS -- all three modules                                        |
+| `ruff format --check` | PASS -- 3 files already formatted                              |
+| `pytest` (two modules) | PASS -- 15 passed in 0.19s                                  |
+| `make lint`         | **PASS** -- ruff clean, interrogate 100.0%, pylint 10.00/10, df12 lints 10.00/10 |
+| `make check-fmt`    | PASS                                                             |
+| `make markdownlint` | PASS -- 0 errors                                                 |
+| `make nixie`        | PASS                                                             |
+| `make typecheck`    | NO VERDICT -- blocked on the shared Cargo package-cache lock     |
+| `make test`         | NO VERDICT -- same lock                                          |
+
+`make lint` reaches `cargo doc` for the workspace and blocks there on the same
+lock, but every Python gate in it has already reported. The blocking condition
+is external: `flock -w 5 ~/.cargo/.package-cache-mutate true` returns 1, with
+roughly eighteen `cargo` processes from other agents' worktrees
+(`ortho-config`, `mdtablefix`, `rstest-bdd`) holding it. No process was killed
+and no isolated cache was created, per the standing instruction to let the
+shared cache serialize naturally. `make typecheck` and `make test` must be
+re-run on this tip once the lock clears; a timeout there is not a failure of
+this branch.

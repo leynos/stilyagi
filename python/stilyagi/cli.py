@@ -6,21 +6,22 @@ import pathlib
 import sys
 import typing as typ
 
-from stilyagi import config, diagnostics, discovery, engine, model
+from stilyagi import config, diagnostics, discovery, engine
 from stilyagi.cli_args import (
     PACKAGE_VERSION,
     CheckOptions,
     build_parser,
     options_from_args,
 )
-from stilyagi.cli_io import (
-    CheckInput,
-    read_source,
-    report_check_error,
-    stdin_check_input,
+from stilyagi.cli_config import resolve_discovery_config
+from stilyagi.cli_io import CheckInput, report_check_error, stdin_check_input
+from stilyagi.cli_pipeline import (
+    CheckedFile,
+    CheckReporter,
+    CheckRun,
+    aggregate_checked_files,
+    collect_checked_files,
 )
-from stilyagi.engine.checker import map_ir_errors
-from stilyagi.engine.fix_pipeline import DiffPreview, DiffRequest, preview_safe_fixes
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
@@ -46,23 +47,30 @@ class CheckCollaborators:
 
     The bundle keeps the public check entry point small while allowing tests to
     substitute one boundary without coupling themselves to pipeline internals.
+    Omitting a field uses its production default for this run.
+
+    The defaults are factories rather than ``None`` sentinels, and the factories
+    run once per instance, so two `run_check` invocations never share a
+    configuration cache or an output stream. A constructed bundle is therefore
+    already usable: there is no half-populated state left for a second pass to
+    resolve.
+
+    Each factory resolves its target through the module at call time rather
+    than capturing it at import time, so a test that substitutes a module-level
+    default -- as the rule-runner contract tests do -- still takes effect. The
+    two class defaults are passed as the callable itself, because constructing
+    them is already the fresh-instance-per-run behaviour the fields need.
     """
 
-    resolver: config.ConfigResolver | None = None
-    renderer: engine.RendererRegistry | None = None
-    rule_runner: rules_registry.RuleRunner | None = None
-    writer: cabc.Callable[[pathlib.Path, bytes], None] | None = None
-    output: typ.TextIO | None = None
-
-
-@dc.dataclass(frozen=True, slots=True)
-class _ResolvedCheckCollaborators:
-    """Concrete collaborators ready for one command invocation."""
-
-    resolver: config.ConfigResolver
-    renderer: engine.RendererRegistry
-    rule_runner: rules_registry.RuleRunner
-    output: typ.TextIO
+    resolver: config.ConfigResolver = dc.field(default_factory=config.ConfigResolver)
+    renderer: engine.RendererRegistry = dc.field(
+        default_factory=engine.RendererRegistry
+    )
+    rule_runner: rules_registry.RuleRunner = dc.field(
+        default_factory=lambda: rules_registry.run_rules
+    )
+    output: typ.TextIO = dc.field(default_factory=lambda: sys.stdout)
+    reporter: CheckReporter = dc.field(default_factory=lambda: report_check_error)
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
@@ -101,40 +109,6 @@ def _configure_logging(options: CheckOptions) -> None:
         logging.basicConfig(level=logging.INFO)
 
 
-def _build_cli_overrides(options: CheckOptions) -> dict[str, object]:
-    """Return config overrides extracted from command-line options."""
-    lint_overrides: dict[str, object] = {}
-    if options.select:
-        lint_overrides["select"] = options.select
-    if options.ignore:
-        lint_overrides["ignore"] = options.ignore
-    if options.extend_select:
-        lint_select = typ.cast(
-            "tuple[str, ...]",
-            lint_overrides.get("select", ()),
-        )
-        lint_overrides["select"] = (*lint_select, *options.extend_select)
-
-    overrides: dict[str, object] = {}
-    if lint_overrides:
-        overrides["lint"] = lint_overrides
-    return overrides
-
-
-def _resolve_config(
-    target: pathlib.Path,
-    options: CheckOptions,
-    resolver: config.ConfigResolver,
-) -> config.StilyagiConfig:
-    """Resolve the effective config for one target path."""
-    return resolver.resolve_config_for_path(
-        target,
-        cli_overrides=_build_cli_overrides(options) or None,
-        explicit_config=options.explicit_config or None,
-        isolated=options.isolated,
-    )
-
-
 def run_check(
     options: CheckOptions,
     *,
@@ -155,8 +129,13 @@ def run_check(
     int
         Zero when the check succeeds without findings, one when diagnostics
         are found, or two when an operational error occurs.
+
+    Examples
+    --------
+    >>> run_check(CheckOptions(targets=("--nope",)))  # doctest: +SKIP
+    2
     """
-    resolved_collaborators = _resolve_collaborators(collaborators)
+    resolved_collaborators = collaborators or CheckCollaborators()
     _LOGGER.debug("target discovery started for %r", options.targets)
     try:
         discovered_files = _discover_targets(options, resolved_collaborators.resolver)
@@ -166,20 +145,27 @@ def run_check(
         ValueError,
     ) as error:
         _LOGGER.warning("target discovery failed: %s", error)
-        report_check_error(None, error)
+        resolved_collaborators.reporter(None, error)
         return 2
     _LOGGER.debug("target discovery finished: %d input(s)", len(discovered_files))
 
-    checked_files = tuple(
-        _check_one_file(
-            discovered_file,
-            options,
-            resolved_collaborators.resolver,
-            resolved_collaborators.rule_runner,
-        )
-        for discovered_file in discovered_files
+    run = CheckRun(
+        options=options,
+        resolver=resolved_collaborators.resolver,
+        rule_runner=resolved_collaborators.rule_runner,
+        report=resolved_collaborators.reporter,
     )
-    aggregate = _aggregate_checked_files(checked_files)
+    checked_files = collect_checked_files(discovered_files, run)
+    return _render_and_exit(checked_files, options, resolved_collaborators)
+
+
+def _render_and_exit(
+    checked_files: cabc.Sequence[CheckedFile],
+    options: CheckOptions,
+    resolved_collaborators: CheckCollaborators,
+) -> int:
+    """Render one run's results to the right streams and return its exit code."""
+    aggregate = aggregate_checked_files(checked_files)
 
     _LOGGER.debug(
         "rendering %d diagnostic(s) as %s",
@@ -191,6 +177,8 @@ def run_check(
         options.output_format,
         fix_errors=aggregate.fix_errors,
     )
+    # Under --diff the machine artefact owns stdout alone: diagnostics and the
+    # summary go to stderr so `stilyagi check --diff | git apply` stays usable.
     diagnostics_output = sys.stderr if options.diff else resolved_collaborators.output
     print(rendered, end="", file=diagnostics_output)
     if options.diff:
@@ -198,56 +186,6 @@ def run_check(
     exit_code = compute_exit_code(aggregate.diagnostics_list, had_error=aggregate.error)
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
-
-
-@dc.dataclass(frozen=True, slots=True)
-class _CheckedFileTotals:
-    """Diagnostics, previews, and failure state collected across checked files."""
-
-    diagnostics_list: list[diagnostics.Diagnostic]
-    fix_errors: list[diagnostics.FixError]
-    patches: list[str]
-    error: bool
-
-
-def _aggregate_checked_files(
-    checked_files: cabc.Sequence[
-        tuple[list[diagnostics.Diagnostic], bool, DiffPreview | None]
-    ],
-) -> _CheckedFileTotals:
-    """Flatten per-file check results into one render-ready bundle."""
-    return _CheckedFileTotals(
-        diagnostics_list=[
-            diagnostic
-            for file_diagnostics, _file_error, _preview in checked_files
-            for diagnostic in file_diagnostics
-        ],
-        fix_errors=[
-            fix_error
-            for _file_diagnostics, _file_error, preview in checked_files
-            if preview is not None
-            for fix_error in preview.fix_errors
-        ],
-        patches=[
-            preview.patch
-            for _file_diagnostics, _file_error, preview in checked_files
-            if preview is not None
-        ],
-        error=any(file_error for _diagnostics, file_error, _preview in checked_files),
-    )
-
-
-def _resolve_collaborators(
-    collaborators: CheckCollaborators | None,
-) -> _ResolvedCheckCollaborators:
-    """Fill in omitted check collaborators with their production defaults."""
-    configured = collaborators or CheckCollaborators()
-    return _ResolvedCheckCollaborators(
-        resolver=configured.resolver or config.ConfigResolver(),
-        renderer=configured.renderer or engine.RendererRegistry(),
-        rule_runner=configured.rule_runner or rules_registry.run_rules,
-        output=configured.output or sys.stdout,
-    )
 
 
 def compute_exit_code(
@@ -281,19 +219,43 @@ def compute_exit_code(
     return 0
 
 
-def _discover_targets(
+def _parse_targets(
     options: CheckOptions,
-    resolver: config.ConfigResolver,
-) -> list[CheckInput]:
-    """Discover Markdown files beneath the requested targets."""
+) -> tuple[list[pathlib.Path], bool]:
+    """Split the requested targets into paths, and whether stdin was asked for.
+
+    The ``-`` sentinel is matched against the expanded path, so ``./-`` names
+    standard input just as ``-`` does.
+
+    Returns
+    -------
+    tuple[list[pathlib.Path], bool]
+        The expanded target paths, and whether one of them requested stdin.
+
+    Raises
+    ------
+    ValueError
+        Stdin was requested alongside at least one file target. Reading a
+        single stream cannot also walk the filesystem, so the two are
+        mutually exclusive.
+    """
     resolved_targets = [pathlib.Path(target).expanduser() for target in options.targets]
     has_stdin_target = any(target.as_posix() == "-" for target in resolved_targets)
     if has_stdin_target and len(resolved_targets) > 1:
         message = "stdin target cannot be combined with file targets"
         raise ValueError(message)
+    return resolved_targets, has_stdin_target
+
+
+def _discover_targets(
+    options: CheckOptions,
+    resolver: config.ConfigResolver,
+) -> list[CheckInput]:
+    """Discover Markdown files beneath the requested targets."""
+    resolved_targets, has_stdin_target = _parse_targets(options)
     if has_stdin_target:
         return [stdin_check_input(options.stdin_filename)]
-    discovery_config = _resolve_discovery_config(options, resolver)
+    discovery_config = resolve_discovery_config(options, resolver)
     return [
         CheckInput(
             reported_path=discovered_file.reported_path,
@@ -304,89 +266,3 @@ def _discover_targets(
             discovery_config,
         )
     ]
-
-
-def _resolve_discovery_config(
-    options: CheckOptions,
-    resolver: config.ConfigResolver,
-) -> config.StilyagiConfig:
-    """Resolve the configuration that governs Markdown discovery.
-
-    Discovery is a single pass over every target, so it is governed by the
-    configuration resolved for the current working directory rather than by any
-    individual file's nearest config. Resolving it here keeps ``--isolated``,
-    explicit ``--config`` values, and CLI overrides in force during discovery.
-
-    Returns
-    -------
-    config.StilyagiConfig
-        The configuration used to discover Markdown inputs.
-    """
-    return resolver.resolve_config_for_path(
-        pathlib.Path(),
-        cli_overrides=_build_cli_overrides(options) or None,
-        explicit_config=options.explicit_config or None,
-        isolated=options.isolated,
-    )
-
-
-def _check_one_file(
-    check_input: CheckInput,
-    options: CheckOptions,
-    resolver: config.ConfigResolver,
-    rule_runner: rules_registry.RuleRunner,
-) -> tuple[list[diagnostics.Diagnostic], bool, DiffPreview | None]:
-    """Check one discovered Markdown file or stdin payload."""
-    sourced_input = read_source(check_input)
-    if sourced_input is None:
-        return [], True, None
-    if sourced_input.source_text is None:
-        return [], True, None
-    if sourced_input.source_bytes is None:
-        return [], True, None
-
-    _LOGGER.debug("extracting %s", check_input.reported_path)
-    try:
-        document = engine.extract_document(
-            sourced_input.source_text,
-            model.Syntax.MARKDOWN,
-        )
-    except engine.BridgeExtractionError as exc:
-        report_check_error(check_input.resolved_path, exc)
-        return [], True, None
-    except Exception:
-        _LOGGER.exception(
-            "unexpected extraction failure for %s",
-            check_input.reported_path,
-        )
-        raise
-
-    _LOGGER.debug("resolving config for %s", check_input.reported_path)
-    try:
-        resolved_config = _resolve_config(check_input.resolved_path, options, resolver)
-    except (
-        config.InvalidCacheDirError,
-        config.InvalidConfigError,
-    ) as exc:
-        report_check_error(check_input.resolved_path, exc)
-        return [], True, None
-
-    diagnostics_list = [
-        *map_ir_errors(document, check_input.reported_path),
-        *rule_runner(document, resolved_config),
-    ]
-    preview = (
-        preview_safe_fixes(
-            DiffRequest(
-                sourced_input.source_bytes,
-                sourced_input.source_text,
-                sourced_input.reported_path,
-                document,
-                tuple(diagnostics_list),
-                resolved_config.lint,
-            )
-        )
-        if options.diff
-        else None
-    )
-    return diagnostics_list, False, preview

@@ -368,24 +368,46 @@ parses the arguments into an immutable `CheckOptions` via
 `cli_args.options_from_args()`, and then calls
 `run_check(options, *, collaborators=None)`.
 
+The command module keeps four responsibilities: target discovery, rendering,
+handling and printing to the correct streams, and computing the exit status.
+The per-file workflow lives in `cli_pipeline.py`, and the option-to-config
+translation lives in `cli_config.py`. Both are imported by `cli.py`, and
+neither imports it back, so the dependency direction stays inward. This split
+is what lets the per-file pipeline be tested without constructing a command
+line, and it is why the command module no longer carries the aggregation and
+per-file loops that used to inflate it.
+
 ### Collaborator injection
 
 `CheckCollaborators` is the frozen bundle of the injectable pipeline boundaries:
-`resolver`, `renderer`, `rule_runner`, and `output`. Each field defaults to
-`None`.
+`resolver`, `renderer`, `rule_runner`, `output`, and `reporter`.
 
-`run_check` hands that bundle to `_resolve_collaborators`, which fills in every
-omitted field with its production default. The run gets a fresh
-`config.ConfigResolver` and a fresh `engine.RendererRegistry`,
-`rules_registry.run_rules` for `rule_runner`, and `sys.stdout` for `output`.
-Because the defaults are created inside the call, no configuration cache is
-shared between separate `run_check` invocations. `_check_one_file` receives the
-resolved `rule_runner` as an argument, so tests can inject a runner and replace
-the rule stage without coupling to the rest of the command pipeline.
+Each field carries its production default directly, declared with
+`dataclasses.field(default_factory=...)`: a fresh `config.ConfigResolver`, a
+fresh `engine.RendererRegistry`, `rules_registry.run_rules`, `sys.stdout`, and
+`report_check_error`. Because the factories run once per instance, no
+configuration cache or output stream is shared between separate `run_check`
+invocations. `run_check` uses the supplied bundle as-is, so a constructed
+`CheckCollaborators` is already fully populated and no separate resolution pass
+exists. `check_one_file` receives the resolved `rule_runner` as an argument, so
+tests can inject a runner and replace the rule stage without coupling to the
+rest of the command pipeline.
+
+Each factory resolves its target through the module at call time rather than
+capturing the object at import time. That keeps a module-level default
+substitutable: a test that monkeypatches `rules_registry.run_rules` still
+influences the default, exactly as the previous call-time lookup did.
 
 ### Discovery
 
-`run_check` delegates target collection to `_discover_targets`, which calls:
+`run_check` delegates target collection to `_discover_targets`. That function
+first calls `_parse_targets`, which expands the requested targets and reports
+whether one of them is the `-` stdin sentinel; the sentinel is matched against
+the expanded path, so `./-` names standard input just as `-` does. Combining
+`-` with any file target is rejected with a `ValueError`, because one stream
+cannot also be walked. When stdin was requested, `_discover_targets` returns
+the single `stdin_check_input` and never touches the filesystem. Otherwise it
+resolves the discovery configuration and calls:
 
 ```python
 discovery.discover_markdown_files(targets, config) -> list[DiscoveredFile]
@@ -454,9 +476,9 @@ force during the discovery pass.
 
 ### Diagnostics
 
-For each discovered file, `_check_one_file` extracts the document through the
-Rust bridge, resolves the per-file config, and collects diagnostics from two
-sources:
+For each discovered file, `cli_pipeline.check_one_file` extracts the document
+through the Rust bridge, resolves the per-file config, and collects diagnostics
+from two sources:
 
 - `engine/checker.py` `map_ir_errors(document, reported_path)` maps the
   canonical IR error envelope on `Document.ir` into `diagnostics.Diagnostic`
@@ -530,19 +552,26 @@ The preview is assembled from four pieces.
   channel. `CheckInput` is a frozen description of one resolved input —
   `reported_path`, `resolved_path`, and optional pre-supplied `source_text` and
   `source_bytes` — which keeps standard input and on-disk files on one path.
-  `read_source(check_input)` returns that input with both `source_bytes` and
-  `source_text` populated, reporting a missing, unreadable, or undecodable file
-  and returning `None` instead of raising. `report_check_error(path, error)` is
-  the extraction and configuration failure channel used by the rest of the
-  pipeline; it logs the message and prints a `stilyagi check:` line to standard
-  error, accepting `None` for a failure that has no single path.
+  `read_source(check_input)` returns a `SourcedInput` — the same input with
+  `source_bytes` and `source_text` both non-optional, so a value that passed
+  the read cannot still be missing the text later stages need. It neither logs
+  nor prints: a missing, unreadable, or undecodable file raises
+  `SourceReadError`, which carries the offending `path` and the underlying OS
+  or decoding `error` so a caller can attribute the failure by type rather than
+  by message text. `report_check_error(path, error)` is the command boundary's
+  default channel for expected failures; it logs the message and prints a
+  `stilyagi check:` line to standard error, distinguishing a `SourceReadError`
+  from an extraction or configuration failure, and accepting `None` for a
+  failure that has no single path.
 
-`_check_one_file` builds a `DiffRequest` for a file from its already-read bytes
-and text, the extracted document, the diagnostics collected for it, and the
-resolved `lint_config`, then calls `preview_safe_fixes`. It does so only when
-`options.diff` is set, so the ordinary check path plans nothing, and it returns
-`None` as the preview for any file that could not be read, extracted, or
-configured.
+`cli_pipeline.check_one_file` builds a `DiffRequest` for a file from its
+already-read bytes and text, the extracted document, the diagnostics collected
+for it, and the resolved `lint_config`, then calls `preview_safe_fixes`. It
+does so only when `options.diff` is set, so the ordinary check path plans
+nothing. It returns a `FileCheck` — a named result carrying the file's
+diagnostics, whether the file failed, and its preview when one was planned —
+rather than an anonymous tuple, so a file that could not be read, extracted, or
+configured reports `failed=True` with no preview.
 
 **Under `--diff`, the machine artefact owns the output stream alone.** The
 rendered diagnostics and the summary line go to standard error, while the
@@ -553,9 +582,12 @@ receives a usable patch, and a clean repository is not turned into a spurious
 failure. Without `--diff`, the rendered diagnostics go to the output stream as
 usual.
 
-The split is non-mutating: `--diff` is the preview-only path, and
-`_resolve_collaborators` does not resolve the `CheckCollaborators` bundle's
-`writer` field, so no check-pipeline code path writes a source file.
+The split is non-mutating: `--diff` is the preview-only path, and the
+`CheckCollaborators` bundle carries no writer at all, so no check-pipeline code
+path writes a source file. A writer collaborator was considered and dropped —
+it was unused by every caller, and retaining an ineffective boundary solely in
+anticipation of a future `--fix` command would have advertised an injection
+point that did nothing.
 
 Exit codes are unchanged by `--diff`. `compute_exit_code` still returns `1`
 whenever diagnostics are present, whatever the preview would apply, and `2` for
