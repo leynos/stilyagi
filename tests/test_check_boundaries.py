@@ -19,6 +19,7 @@ or, for this module alone:
 
 import dataclasses as dc
 import io
+import pathlib
 import sys
 import typing as typ
 
@@ -30,12 +31,12 @@ from tests.support.check_pipeline_fixtures import (
     patch_read_bytes_failure,
     planned_file,
     recording_reporter,
+    rewrite_heading_marker,
+    rewrite_paragraph,
     silent_runner,
 )
 
 if typ.TYPE_CHECKING:
-    import pathlib
-
     import pytest
     from stilyagi.engine.fix_pipeline import PlannedFile
 
@@ -132,7 +133,7 @@ class TestDiffPreviews:
         exit_code = cli.run_check(
             cli.CheckOptions(targets=(target.name,), diff=True),
             collaborators=cli.CheckCollaborators(
-                output=stream, rule_runner=_rewrite_paragraph
+                output=stream, rule_runner=rewrite_paragraph
             ),
         )
 
@@ -164,7 +165,7 @@ class TestDiffPreviews:
         exit_code = cli.run_check(
             cli.CheckOptions(targets=(target.name,), diff=True),
             collaborators=cli.CheckCollaborators(
-                output=stream, rule_runner=_rewrite_heading_marker
+                output=stream, rule_runner=rewrite_heading_marker
             ),
         )
 
@@ -174,49 +175,6 @@ class TestDiffPreviews:
             target.read_text(encoding="utf-8") == "# Notes\n",
             "expected a refused edit to leave the source unchanged",
         )
-
-
-def _rewrite_paragraph(
-    document: model.Document,
-    _config: config.StilyagiConfig,
-) -> list[diagnostics.Diagnostic]:
-    """Offer one safe replacement against a source-backed paragraph span."""
-    from tests.support.fix_fixtures import find_source_span
-
-    span = find_source_span(document, "Paragraph")
-    return [
-        diagnostics.Diagnostic(
-            path="notes.md",
-            code="PUN201",
-            message="Use the preferred paragraph term.",
-            severity=diagnostics.Severity.WARNING,
-            fix=Fix(
-                "Rewrite paragraph",
-                Applicability.SAFE,
-                (TextEdit.replace(span, "Section"),),
-            ),
-        )
-    ]
-
-
-def _rewrite_heading_marker(
-    _document: model.Document,
-    _config: config.StilyagiConfig,
-) -> list[diagnostics.Diagnostic]:
-    """Offer a deliberately unsafe synthetic-span edit for stream testing."""
-    return [
-        diagnostics.Diagnostic(
-            path="notes.md",
-            code="PUN201",
-            message="Do not change the heading marker automatically.",
-            severity=diagnostics.Severity.WARNING,
-            fix=Fix(
-                "Remove heading marker",
-                Applicability.SAFE,
-                (TextEdit(0, 1, ""),),
-            ),
-        )
-    ]
 
 
 class TestMutationStreams:
@@ -279,7 +237,7 @@ class TestMutationStreams:
         exit_code = cli.run_check(
             cli.CheckOptions(targets=("-",), stdin_filename="notes.md", fix=True),
             collaborators=cli.CheckCollaborators(
-                output=stream, rule_runner=_rewrite_paragraph
+                output=stream, rule_runner=rewrite_paragraph
             ),
         )
 
@@ -371,3 +329,237 @@ def _piped_plan(source_text: str, fixed_text: str) -> PlannedFile:
         planned_file("notes.md", fixed_text, source_text=source_text),
         from_stdin=True,
     )
+
+
+class TestExitStatusAcrossMixedOutcomes:
+    """A mutating run exits on every diagnostic still standing when it ends.
+
+    The exit status is the one claim `--fix` makes that a user acts on, and it
+    is the claim a partially-applied run can most easily get wrong: some files
+    are re-read after being written and some are not, so a status derived from
+    only one of those groups is a status about half the run.
+    """
+
+    def test_an_unwritten_siblings_diagnostic_still_forces_a_nonzero_exit(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One fixed file must not mask another file's surviving diagnostic.
+
+        This is the defect the re-lint-only status had. `relint_written_files`
+        re-checks exactly the files that were written, so a run that fixed
+        `a.md` and left `b.md`'s unfixable diagnostic standing produced a
+        re-lint holding only `a.md`. The status was read from that alone, so the
+        run exited `0` while `b.md`'s diagnostic was still there.
+
+        `a.md` is the file that gets written, so it is the one the re-lint can
+        speak for -- and its re-lint is deliberately silent, so it cannot be the
+        source of the exit status under test. `b.md` is left unwritten, which is
+        the only condition under which the re-lint is blind to a file's
+        diagnostics. The status can therefore only come from the overlay.
+        """
+        (tmp_path / "a.md").write_text("Paragraph text.\n", encoding="utf-8")
+        (tmp_path / "b.md").write_text("# Notes\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        stream = io.StringIO()
+
+        exit_code = cli.run_check(
+            cli.CheckOptions(targets=("a.md", "b.md"), fix=True),
+            collaborators=cli.CheckCollaborators(
+                output=stream, rule_runner=_fix_one_and_leave_the_other_standing
+            ),
+        )
+
+        assert_with_context(
+            (tmp_path / "a.md").read_text(encoding="utf-8") == "Section text.\n",
+            "expected the fixable file to have been rewritten",
+        )
+        assert_with_context(
+            (tmp_path / "b.md").read_text(encoding="utf-8") == "# Notes\n",
+            "expected the file with nothing to fix to be left untouched",
+        )
+        assert_with_context(
+            exit_code == 1,
+            "expected a surviving diagnostic in an unwritten file to exit one",
+        )
+
+
+class TestWriteFailuresAreReported:
+    """A filesystem that refuses a write is reported, not raised.
+
+    `write_source` documents `OSError` in its own `Raises` section, so the
+    executor has always had a failure mode it did not handle: catching only
+    `SourceChangedOnDiskError` let a full or read-only filesystem escape as a
+    traceback, abandoning every file after it and reporting nothing about the
+    files already written or why the run stopped.
+    """
+
+    def test_a_permission_failure_is_reported_and_exits_two(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A rejected write becomes a refusal and an operational-error status.
+
+        `Path.replace` is what actually moves the staged bytes onto the target,
+        so making it raise is the narrowest way to stand in for a read-only
+        filesystem: the plan is well-formed, the target has not moved, and only
+        the filesystem says no.
+        """
+        target = tmp_path / "notes.md"
+        target.write_text("Paragraph text.\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        stream = io.StringIO()
+
+        def refuse_replace(
+            _self: object, _target: object, *_args: object, **_kwargs: object
+        ) -> None:
+            """Refuse the swap the way a read-only filesystem would."""
+            message = "Read-only file system"
+            raise PermissionError(message)
+
+        monkeypatch.setattr(pathlib.Path, "replace", refuse_replace)
+
+        exit_code = cli.run_check(
+            cli.CheckOptions(targets=(target.name,), fix=True),
+            collaborators=cli.CheckCollaborators(
+                output=stream, rule_runner=rewrite_paragraph
+            ),
+        )
+
+        assert_with_context(
+            exit_code == 2,
+            "expected a filesystem refusal to exit two",
+        )
+        assert_with_context(
+            target.read_text(encoding="utf-8") == "Paragraph text.\n",
+            "expected a refused write to leave the source unchanged",
+        )
+
+
+def _fix_one_and_leave_the_other_standing(
+    document: model.Document,
+    _config: config.StilyagiConfig,
+) -> list[diagnostics.Diagnostic]:
+    """Report a fixable edit for one file and an unfixable finding for the other.
+
+    One runner produces both halves of a mixed run, which is what makes the exit
+    status the only variable under test. The files are told apart by their own
+    stable content, because a runner sees a document and not a path:
+
+    * `a.md` contains "Paragraph", so the planning pass is offered a source-backed
+      edit rewriting it to "Section", and the file is written;
+    * `b.md` contains "Notes" and gets a plain diagnostic carrying no fix at all,
+      so there is nothing to plan for it and it is never written;
+    * the re-lint of `a.md` now reads "Section text." and matches neither, so it
+      reports nothing -- which is the point.
+
+    The third branch is what makes this test discriminate. Without it the
+    rewritten file would keep matching the first branch and report a diagnostic
+    of its own, so a run that read its status from the re-lint alone would still
+    exit `1` and the defect would go unnoticed.
+
+    `b.md`'s diagnostic deliberately carries no fix. The file only has to be
+    left *unwritten* for the re-lint to be unable to speak for it, and a finding
+    with no fix keeps the test about the exit status rather than about refusal
+    handling, which the class below covers separately.
+    """
+    from tests.support.fix_fixtures import find_source_span
+
+    prose = "".join(region.text for region in document.regions)
+    if "Notes" in prose:
+        return [
+            diagnostics.Diagnostic(
+                path="notes.md",
+                code="STY900",
+                message="This finding is never fixable.",
+                severity=diagnostics.Severity.WARNING,
+            )
+        ]
+    if "Paragraph" in prose:
+        return [
+            diagnostics.Diagnostic(
+                path="notes.md",
+                code="PUN201",
+                message="Use the preferred paragraph term.",
+                severity=diagnostics.Severity.WARNING,
+                fix=Fix(
+                    "Rewrite paragraph",
+                    Applicability.SAFE,
+                    (
+                        TextEdit.replace(
+                            find_source_span(document, "Paragraph"), "Section"
+                        ),
+                    ),
+                ),
+            )
+        ]
+    return []
+
+
+def _planned_refusal(identifier: str, rule_codes: tuple[str, ...]) -> PlannedFile:
+    """Return a plan carrying one refusal with the given codes.
+
+    Returns
+    -------
+    PlannedFile
+        `planned_file`'s plan with its refusal channel replaced, so a test can
+        state the exact refusal a renderer will see.
+    """
+    return dc.replace(
+        planned_file("notes.md", "# Notes\n"),
+        fix_errors=(
+            diagnostics.FixError(
+                path="notes.md",
+                identifier=identifier,
+                rule_codes=rule_codes,
+                message="the file was left alone",
+            ),
+        ),
+    )
+
+
+def _render_refusals(*plans: PlannedFile) -> str:
+    """Render the refusals those plans carry through the text renderer."""
+    return cli.engine.RendererRegistry().render(
+        [],
+        "text",
+        fix_errors=[fix_error for plan in plans for fix_error in plan.fix_errors],
+    )
+
+
+class TestRefusalRendering:
+    """A refusal names its origin, and omits what it does not have."""
+
+    def test_a_refusal_with_no_rule_codes_omits_the_empty_segment(self) -> None:
+        """No code is rendered as nothing, not as a dangling separator.
+
+        `changed-on-disk` and `standard-input` are raised by the executor and
+        the phase-one wrapper rather than by a rule's proposed edit, so they
+        carry no rule codes by construction. Joining an empty tuple yields the
+        empty string, which used to render as `path: : message`.
+        """
+        rendered = _render_refusals(_planned_refusal("fix-error/changed-on-disk", ()))
+
+        assert_with_context(
+            "fix-error/changed-on-disk: notes.md: the file was left alone" in rendered,
+            "expected the refusal line to name the path then the message",
+        )
+        assert_with_context(
+            ": :" not in rendered,
+            "expected no empty rule-code segment in the rendered refusal",
+        )
+
+    def test_a_refusal_with_rule_codes_still_names_them(self) -> None:
+        """The codes are what tells a user which rule could not be applied.
+
+        Paired with the case above, this pins that the fix narrowed one
+        rendering rather than removing the segment outright: a conflict still
+        has to name every rule that contributed to it.
+        """
+        rendered = _render_refusals(
+            _planned_refusal("fix-error/overlapping-edits", ("PUN201", "PUN202"))
+        )
+
+        assert_with_context(
+            "fix-error/overlapping-edits: notes.md: PUN201, PUN202: "
+            "the file was left alone" in rendered,
+            "expected the refusal to name both contributing rules",
+        )

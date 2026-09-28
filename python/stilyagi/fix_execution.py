@@ -35,6 +35,7 @@ if typ.TYPE_CHECKING:
 __all__ = [
     "AppliedFix",
     "FixOutcome",
+    "WriteAttempt",
     "apply_planned_fixes",
     "deferred_plans",
     "summarise_fix_errors",
@@ -86,6 +87,12 @@ class FixOutcome:
         conflicted, or because a write was refused. This is the counter that
         matters most: without it, `--fix` appears to do nothing and the user
         cannot tell why.
+    write_failed:
+        Whether any file could not be written for an environmental reason --
+        a full or read-only filesystem, a permission error. This is an
+        operational fault rather than a planning decision, so the command
+        boundary turns it into exit `2` the same way it treats an unreadable
+        source, and it is kept separate from the refusals for that reason.
     """
 
     applied: tuple[AppliedFix, ...]
@@ -93,6 +100,7 @@ class FixOutcome:
     files_written: int
     files_aborted_on_conflict: int
     refused_edits: int
+    write_failed: bool = False
 
     @property
     def changed_anything(self) -> bool:
@@ -172,6 +180,7 @@ def apply_planned_fixes(
     applied: list[AppliedFix] = []
     fix_errors: list[diagnostics.FixError] = []
     aborted = 0
+    write_failed = False
     for plan in plans:
         fix_errors.extend(plan.fix_errors)
         if plan.fixed_bytes is None or not _would_change(plan):
@@ -180,18 +189,24 @@ def apply_planned_fixes(
                 # plan was refused is not, and is counted.
                 aborted += 1
             continue
-        written = _write_one(plan)
-        if written is None:
-            fix_errors.append(_changed_on_disk_error(plan))
-            aborted += 1
+        attempt = _write_one(plan)
+        if attempt.applied is not None:
+            applied.append(attempt.applied)
             continue
-        applied.append(written)
+        if attempt.refusal is not None:
+            fix_errors.append(attempt.refusal)
+        # Both a moved target and an unwritable one leave the file untouched,
+        # so both count here: the counter answers "how many planned files did
+        # this run fail to change", whatever the reason.
+        aborted += 1
+        write_failed = write_failed or attempt.operational_error
     return FixOutcome(
         applied=tuple(applied),
         fix_errors=summarise_fix_errors(fix_errors),
         files_written=len(applied),
         files_aborted_on_conflict=aborted,
         refused_edits=len(fix_errors),
+        write_failed=write_failed,
     )
 
 
@@ -213,14 +228,43 @@ def _would_change(plan: PlannedFile) -> bool:
     return plan.fixed_bytes != plan.source_bytes
 
 
-def _write_one(plan: PlannedFile) -> AppliedFix | None:
-    """Write one planned file, returning ``None`` if the target changed.
+@dc.dataclass(frozen=True, slots=True)
+class WriteAttempt:
+    """The outcome of trying to write one planned file.
+
+    Three outcomes are possible and the caller must tell them apart: the write
+    landed, the write was refused because the target moved under the plan, or
+    the filesystem itself failed. The first two are settled by the plan and the
+    hash; the third is an operational failure the run has to report as such
+    rather than as a successful fix.
+    """
+
+    applied: AppliedFix | None = None
+    refusal: diagnostics.FixError | None = None
+    operational_error: bool = False
+
+
+def _write_one(plan: PlannedFile) -> WriteAttempt:
+    """Write one planned file, reporting rather than raising a failure.
+
+    ``write_source`` documents ``OSError`` in its own ``Raises`` section --
+    ``_write_temporary_source`` re-raises a staging failure, and both the
+    temporary file and the swap can fail on a full or read-only filesystem.
+    ``SourceChangedOnDiskError`` is one of those, so catching only it would let
+    a disk-full or permission error escape `apply_planned_fixes` as a traceback
+    and abandon every file after it, with no report of which files had already
+    been written.
+
+    The two failures are kept apart because they mean different things. A
+    refusal is a decision the plan reached, and the diagnostic that prompted it
+    still stands to force exit `1`. A write failure is an environment fault:
+    the file is untouched for a reason nothing about the source explains, so it
+    is marked as an operational error and the run exits `2`.
 
     Returns
     -------
-    AppliedFix | None
-        The applied fix, or ``None`` when the target no longer holds the bytes
-        the plan was derived from and the write was refused.
+    WriteAttempt
+        The applied fix, a refusal, or an operational-error marker.
     """
     fixed_bytes = typ.cast("bytes", plan.fixed_bytes)
     try:
@@ -231,19 +275,45 @@ def _write_one(plan: PlannedFile) -> AppliedFix | None:
         )
     except SourceChangedOnDiskError as exc:
         _LOGGER.warning("%s", exc)
-        return None
+        return WriteAttempt(refusal=_changed_on_disk_error(plan))
+    except OSError as exc:
+        # Expected environmental failure, so it is reported through the refusal
+        # channel rather than allowed to abort the run as a traceback.
+        _LOGGER.warning("%s", exc)
+        return WriteAttempt(
+            refusal=_write_failed_error(plan, exc),
+            operational_error=True,
+        )
     _LOGGER.info(
         "wrote %s (%d -> %d bytes)",
         plan.reported_path,
         len(plan.source_bytes),
         len(fixed_bytes),
     )
-    return AppliedFix(
-        reported_path=plan.reported_path,
-        resolved_path=plan.resolved_path,
-        bytes_before=len(plan.source_bytes),
-        bytes_after=len(fixed_bytes),
-        edits=plan.planned_edits,
+    return WriteAttempt(
+        applied=AppliedFix(
+            reported_path=plan.reported_path,
+            resolved_path=plan.resolved_path,
+            bytes_before=len(plan.source_bytes),
+            bytes_after=len(fixed_bytes),
+            edits=plan.planned_edits,
+        )
+    )
+
+
+def _write_failed_error(
+    plan: PlannedFile,
+    error: OSError,
+) -> diagnostics.FixError:
+    """Build the refusal for a plan the filesystem would not let us write."""
+    return diagnostics.FixError(
+        path=plan.reported_path,
+        identifier="fix-error/write-failed",
+        rule_codes=(),
+        message=(
+            f"the planned edits could not be written: {error}"
+            f"{_UNMODIFIED_SUFFIX}{_DEFERRED_SUFFIX}"
+        ),
     )
 
 

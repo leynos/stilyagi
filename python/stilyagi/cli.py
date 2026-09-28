@@ -21,6 +21,7 @@ from stilyagi.cli_pipeline import (
     CheckRun,
     aggregate_checked_files,
     collect_checked_files,
+    reconcile_written_files,
     relint_written_files,
 )
 from stilyagi.fix_execution import apply_planned_fixes, deferred_plans
@@ -237,7 +238,7 @@ def _apply_and_exit(
         for checked in checked_files
         if checked.result.planned is not None
     )
-    cli_fix.warn_if_unsafe_withheld(checked_files, options)
+    cli_fix.warn_if_unsafe_withheld(plans, options)
     outcome = apply_planned_fixes(tuple(deferred_plans(plan) for plan in plans))
     cli_fix.log_fix_summary(plans, outcome)
     cli_fix.emit_fixed_document(plans, resolved_collaborators.output)
@@ -253,18 +254,30 @@ def _apply_and_exit(
             resolved_collaborators.renderer,
             sys.stderr if stream_input else resolved_collaborators.output,
         )
-        return compute_exit_code(checked.diagnostics_list, had_error=checked.error)
+        return compute_exit_code(
+            checked.diagnostics_list,
+            had_error=checked.error or outcome.write_failed,
+        )
 
-    relinted = aggregate_checked_files(relint_written_files(outcome.applied, run))
+    # The re-lint is authoritative only for the files this run wrote; every
+    # other file still holds the bytes the planning pass read, so its planning
+    # diagnostics stand. Overlaying keeps both, and keeps file order.
+    relinted = aggregate_checked_files(
+        reconcile_written_files(
+            checked_files,
+            relint_written_files(outcome.applied, run),
+            outcome.applied,
+        )
+    )
     cli_fix.print_mutation_report(
         relinted,
-        checked,
         options,
         resolved_collaborators.renderer,
+        outcome,
     )
     return compute_exit_code(
         relinted.diagnostics_list,
-        had_error=relinted.error or checked.error,
+        had_error=relinted.error or outcome.write_failed,
     )
 
 

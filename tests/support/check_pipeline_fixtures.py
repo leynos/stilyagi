@@ -14,6 +14,7 @@ from stilyagi import cli_io, cli_pipeline, config, diagnostics, model
 from stilyagi.cli_args import CheckOptions
 from stilyagi.engine.fix_pipeline import PlannedFile
 from stilyagi.engine.fix_planning.selection import CandidatePartition
+from stilyagi.fixes import Applicability, Fix, TextEdit
 
 if typ.TYPE_CHECKING:
     import pytest
@@ -88,6 +89,60 @@ def patch_read_bytes_failure(
         return original_read_bytes(path, *args, **kwargs)
 
     monkeypatch.setattr(pathlib.Path, "read_bytes", read_bytes)
+
+
+def rewrite_paragraph(
+    document: model.Document,
+    _config: config.StilyagiConfig,
+) -> list[diagnostics.Diagnostic]:
+    """Offer one safe replacement against a source-backed paragraph span.
+
+    The target document must contain "Paragraph"; the edit rewrites it to
+    "Section". Callers use this where the *written* file matters, since the
+    replacement is what a re-lint then reads back.
+    """
+    from tests.support.fix_fixtures import find_source_span
+
+    span = find_source_span(document, "Paragraph")
+    return [
+        diagnostics.Diagnostic(
+            path="notes.md",
+            code="PUN201",
+            message="Use the preferred paragraph term.",
+            severity=diagnostics.Severity.WARNING,
+            fix=Fix(
+                "Rewrite paragraph",
+                Applicability.SAFE,
+                (TextEdit.replace(span, "Section"),),
+            ),
+        )
+    ]
+
+
+def rewrite_heading_marker(
+    _document: model.Document,
+    _config: config.StilyagiConfig,
+) -> list[diagnostics.Diagnostic]:
+    """Offer a deliberately unsafe synthetic-span edit against a heading.
+
+    The span targets the `##` marker itself, which the intermediate
+    representation does not back. The planner therefore refuses the edit and the
+    file is never written, which is what makes this useful for pinning the
+    refusal and unwritten-file paths.
+    """
+    return [
+        diagnostics.Diagnostic(
+            path="notes.md",
+            code="PUN201",
+            message="Do not change the heading marker automatically.",
+            severity=diagnostics.Severity.WARNING,
+            fix=Fix(
+                "Remove heading marker",
+                Applicability.SAFE,
+                (TextEdit(0, 1, ""),),
+            ),
+        )
+    ]
 
 
 def checked_file(

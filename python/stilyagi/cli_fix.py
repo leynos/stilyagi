@@ -23,7 +23,7 @@ if typ.TYPE_CHECKING:
 
     from stilyagi import engine
     from stilyagi.cli_args import CheckOptions
-    from stilyagi.cli_pipeline import CheckedFile, CheckedFiles
+    from stilyagi.cli_pipeline import CheckedFiles
     from stilyagi.engine.fix_pipeline import PlannedFile
     from stilyagi.fix_execution import FixOutcome
 
@@ -95,16 +95,23 @@ def print_unmodified_report(
 
 def print_mutation_report(
     relinted: CheckedFiles,
-    checked: CheckedFiles,
     options: CheckOptions,
     renderer: engine.RendererRegistry,
+    outcome: FixOutcome,
 ) -> None:
     """Report what a mutating run left standing, on standard error.
 
     A run that wrote files describes the source on disk now, not the source it
-    read, so its diagnostics are the re-lint's. Its refusals are the planning
-    pass's instead: the re-lint plans nothing, so taking them from `relinted`
-    would report an empty refusal channel for a run that refused edits.
+    read, so its diagnostics are the re-lint's.
+
+    Refusals come from three places, and `outcome.fix_errors` is the only
+    channel holding all of them. Phase one's planning refusals ride along in
+    the plan and so also reach `checked`; phase two's do not, because a target
+    that moved under its plan and a write the filesystem rejected are both
+    discovered after every plan was read. Reporting `checked.fix_errors` here
+    would therefore describe a refused write as a silent no-op -- and for a
+    write failure the run would exit `2` while printing nothing that explains
+    why -- while reporting both would duplicate every phase-one refusal.
 
     Standard error is the stream because standard output may already be
     carrying a fixed document.
@@ -113,13 +120,13 @@ def print_mutation_report(
     rendered = renderer.render(
         relinted.diagnostics_list,
         options.output_format,
-        fix_errors=checked.fix_errors,
+        fix_errors=outcome.fix_errors,
     )
     print(rendered, end="", file=sys.stderr)
 
 
 def warn_if_unsafe_withheld(
-    checked_files: cabc.Sequence[CheckedFile],
+    plans: cabc.Sequence[PlannedFile],
     options: CheckOptions,
 ) -> None:
     """Name the flag that would apply the unsafe fixes a run withheld (D-15).
@@ -127,15 +134,19 @@ def warn_if_unsafe_withheld(
     The text renderer's summary counts unsafe fixes, but a count is not advice.
     This speaks only for a mutating run that has not already opted in, so it
     never repeats what the user just typed.
+
+    The evidence is `CandidatePartition.withheld_unsafe`, which is the planner's
+    own record of the diagnostics it left out for this one reason. Scanning the
+    raw diagnostics instead -- asking whether any carried an unsafe fix --
+    answers a different question: an unsafe fix can exist and still be withheld
+    for a reason that has nothing to do with `--unsafe-fixes`, because
+    `lint.unfixable` excludes a code before the level is ever consulted. A
+    diagnostic filtered that way is not eligible at either level, so advising
+    the user to widen the selection would be advice that changes nothing.
     """
     if options.unsafe_fixes:
         return
-    withheld = any(
-        diagnostic.fix is not None and diagnostic.fix.applicability == "unsafe"
-        for checked_file in checked_files
-        for diagnostic in checked_file.result.diagnostics_list
-    )
-    if withheld:
+    if any(plan.selected.withheld_unsafe for plan in plans):
         print(f"stilyagi check: {UNSAFE_HINT}", file=sys.stderr)
 
 

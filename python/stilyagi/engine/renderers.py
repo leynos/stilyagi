@@ -114,11 +114,18 @@ def _render_text(
 
 
 def _render_fix_error(fix_error: diagnostics.FixError) -> str:
-    """Render one engine-level refusal with its distinct non-rule prefix."""
+    """Render one engine-level refusal with its distinct non-rule prefix.
+
+    The rule-code segment is omitted rather than printed empty when a refusal
+    names no rule. Two of the seven identifiers -- `changed-on-disk` and
+    `standard-input` -- are raised by the executor and the phase-one wrapper,
+    not by a rule's proposed edit, so they carry no codes by construction.
+    Joining an empty tuple yields the empty string, which rendered as a
+    dangling `: ` after the path.
+    """
     rule_codes = ", ".join(fix_error.rule_codes)
-    return (
-        f"{fix_error.identifier}: {fix_error.path}: {rule_codes}: {fix_error.message}"
-    )
+    origin = f"{rule_codes}: " if rule_codes else ""
+    return f"{fix_error.identifier}: {fix_error.path}: {origin}{fix_error.message}"
 
 
 def _text_summary(diagnostics_list: list[diagnostics.Diagnostic]) -> str:

@@ -47,6 +47,7 @@ __all__ = [
     "aggregate_checked_files",
     "check_one_file",
     "collect_checked_files",
+    "reconcile_written_files",
     "relint_written_files",
 ]
 
@@ -378,3 +379,58 @@ def relint_written_files(
         ),
         rerun,
     )
+
+
+def reconcile_written_files(
+    checked_files: cabc.Sequence[CheckedFile],
+    relinted: cabc.Sequence[CheckedFile],
+    applied: cabc.Sequence[AppliedFix],
+) -> list[CheckedFile]:
+    """Overlay the re-lint onto the planning pass, one result per checked file.
+
+    A mutating run must exit on the diagnostics that are still standing when it
+    finishes, and those come from two different reads. A written file describes
+    itself on disk now, so its re-lint is authoritative. A file that was *not*
+    written still holds the bytes the planning pass read, so its planning
+    diagnostics are the accurate description and the re-lint has nothing to say
+    about it -- `relint_written_files` never read it.
+
+    Taking the re-lint alone therefore drops the second group entirely, and a
+    run that fixed one file while leaving a sibling's unfixable diagnostic
+    standing would exit `0`. Overlaying restores the whole picture while
+    keeping file order, diagnostic order, and the failure flag of each read
+    exactly where the planning pass put them: this is the same sequence,
+    `CheckedFile`-for-`CheckedFile`, not a second discovery.
+
+    Parameters
+    ----------
+    checked_files:
+        The planning pass's results, in discovery order.
+    relinted:
+        One re-check per written file, in the order of ``applied``.
+    applied:
+        The files this run actually wrote, in planning order.
+
+    Returns
+    -------
+    list[CheckedFile]
+        One result per input in ``checked_files``, each written file's result
+        replaced by its re-lint.
+
+    Examples
+    --------
+    >>> reconcile_written_files([], [], [])
+    []
+    """
+    # Keyed by resolved path, the identity discovery deduplicates on, so the
+    # overlay cannot land on the wrong file when two targets name one file.
+    rewritten = {
+        fixed.resolved_path: relinted_file
+        for fixed, relinted_file in zip(applied, relinted, strict=True)
+    }
+    reconciled: list[CheckedFile] = []
+    for checked_file in checked_files:
+        planned = checked_file.result.planned
+        replacement = None if planned is None else rewritten.get(planned.resolved_path)
+        reconciled.append(checked_file if replacement is None else replacement)
+    return reconciled

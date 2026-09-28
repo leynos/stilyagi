@@ -2,18 +2,19 @@
 
 import typing as typ
 
-from stilyagi import cli, diagnostics
-from stilyagi.fixes import Applicability, Fix, TextEdit
+from stilyagi import cli
 from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.assertions import assert_with_context
-from tests.support.fix_fixtures import find_source_span
+from tests.support.check_pipeline_fixtures import (
+    rewrite_heading_marker,
+    rewrite_paragraph,
+)
 
 if typ.TYPE_CHECKING:
     import pathlib
 
     import pytest
-    from stilyagi import config, model
     from syrupy.assertion import SnapshotAssertion
 
 
@@ -31,7 +32,7 @@ def test_diff_prints_a_safe_preview_without_mutating_the_source(
 
     exit_code = cli.run_check(
         cli.CheckOptions(targets=(target.name,), diff=True),
-        collaborators=cli.CheckCollaborators(rule_runner=_rewrite_paragraph),
+        collaborators=cli.CheckCollaborators(rule_runner=rewrite_paragraph),
     )
     captured = capsys.readouterr()
 
@@ -62,7 +63,7 @@ def test_diff_reports_refused_edits_on_the_diagnostic_stream(
 
     exit_code = cli.run_check(
         cli.CheckOptions(targets=(target.name,), diff=True),
-        collaborators=cli.CheckCollaborators(rule_runner=_rewrite_heading_marker),
+        collaborators=cli.CheckCollaborators(rule_runner=rewrite_heading_marker),
     )
     captured = capsys.readouterr()
 
@@ -85,44 +86,3 @@ def test_check_parser_sets_the_diff_option() -> None:
     assert cli.CheckOptions(targets=("notes.md",), diff=True) == cli.options_from_args(
         parsed
     ), "expected --diff to populate the immutable check options"
-
-
-def _rewrite_paragraph(
-    document: model.Document,
-    _config: config.StilyagiConfig,
-) -> list[diagnostics.Diagnostic]:
-    """Offer one safe replacement against a source-backed paragraph span."""
-    span = find_source_span(document, "Paragraph")
-    return [
-        diagnostics.Diagnostic(
-            path="notes.md",
-            code="PUN201",
-            message="Use the preferred paragraph term.",
-            severity=diagnostics.Severity.WARNING,
-            fix=Fix(
-                "Rewrite paragraph",
-                Applicability.SAFE,
-                (TextEdit.replace(span, "Section"),),
-            ),
-        )
-    ]
-
-
-def _rewrite_heading_marker(
-    _document: model.Document,
-    _config: config.StilyagiConfig,
-) -> list[diagnostics.Diagnostic]:
-    """Offer a deliberately unsafe synthetic-span edit for stream testing."""
-    return [
-        diagnostics.Diagnostic(
-            path="notes.md",
-            code="PUN201",
-            message="Do not change the heading marker automatically.",
-            severity=diagnostics.Severity.WARNING,
-            fix=Fix(
-                "Remove heading marker",
-                Applicability.SAFE,
-                (TextEdit(0, 1, ""),),
-            ),
-        )
-    ]
