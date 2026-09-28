@@ -25,15 +25,21 @@ _LOGGER = logging.getLogger(__name__)
 class CheckInput:
     """One resolved `check` input, from disk or standard input.
 
-    Either field may still be absent: discovery produces paths, while the stdin
-    path supplies bytes. `read_source` turns one of these into a `SourcedInput`,
-    which is the shape the pipeline works with.
+    Either payload field may still be absent: discovery produces paths, while
+    the stdin path supplies bytes. `read_source` turns one of these into a
+    `SourcedInput`, which is the shape the pipeline works with.
+
+    `from_stdin` records where the bytes came from, because `--stdin-filename`
+    makes a stream input name a real file on disk. Without this flag the fix
+    writer would resolve that name and overwrite the very file the user
+    redirected into the command.
     """
 
     reported_path: str
     resolved_path: pathlib.Path
     source_text: str | None = None
     source_bytes: bytes | None = None
+    from_stdin: bool = False
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -49,6 +55,7 @@ class SourcedInput:
     resolved_path: pathlib.Path
     source_bytes: bytes
     source_text: str
+    from_stdin: bool = False
 
 
 class SourceReadError(Exception):
@@ -130,11 +137,23 @@ def read_source(check_input: CheckInput) -> SourcedInput:
         resolved_path=check_input.resolved_path,
         source_bytes=source_bytes,
         source_text=source_text,
+        from_stdin=check_input.from_stdin,
     )
 
 
 def stdin_check_input(stdin_filename: str | None) -> CheckInput:
-    """Build the check input that consumes standard input."""
+    """Build the check input that consumes standard input.
+
+    The input is flagged as coming from the stream even when
+    ``stdin_filename`` names a real file, because `--stdin-filename` is only a
+    reporting identity: the bytes under that name were never read from it.
+
+    Returns
+    -------
+    CheckInput
+        The input carrying the piped bytes, flagged ``from_stdin`` so no later
+        stage can mistake it for a file it is allowed to overwrite.
+    """
     reported_path = (
         pathlib.Path(stdin_filename).as_posix() if stdin_filename else "<stdin>"
     )
@@ -145,11 +164,19 @@ def stdin_check_input(stdin_filename: str | None) -> CheckInput:
         reported_path=reported_path,
         resolved_path=resolved_path,
         source_bytes=read_stdin_bytes(),
+        from_stdin=True,
     )
 
 
 def read_stdin_bytes() -> bytes:
-    """Read standard input as bytes, retaining text-stream test compatibility."""
+    """Read standard input as bytes, retaining text-stream test compatibility.
+
+    Returns
+    -------
+    bytes
+        The bytes standard input supplied, read from the binary buffer when the
+        stream has one and encoded from text otherwise.
+    """
     buffer = getattr(sys.stdin, "buffer", None)
     if buffer is not None:
         return typ.cast("typ.BinaryIO", buffer).read()

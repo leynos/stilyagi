@@ -2,7 +2,7 @@
 
 The pipeline tests are split across two modules: one drives `cli_pipeline`
 directly, and one drives the same code through `cli.run_check` to pin the
-injectable boundaries. Both need the same reporters, runners, and preview
+injectable boundaries. Both need the same reporters, runners, and plan
 builders, so those live here rather than being duplicated or imported across
 test modules.
 """
@@ -12,10 +12,11 @@ import typing as typ
 
 from stilyagi import cli_io, cli_pipeline, config, diagnostics, model
 from stilyagi.cli_args import CheckOptions
+from stilyagi.engine.fix_pipeline import PlannedFile
+from stilyagi.engine.fix_planning.selection import CandidatePartition
 
 if typ.TYPE_CHECKING:
     import pytest
-    from stilyagi.engine.fix_pipeline import DiffPreview
     from stilyagi.rules import registry as rules_registry
 
 
@@ -92,7 +93,7 @@ def patch_read_bytes_failure(
 def checked_file(
     reported_path: str,
     messages: list[str],
-    preview: DiffPreview | None = None,
+    planned: PlannedFile | None = None,
 ) -> cli_pipeline.CheckedFile:
     """Build one checked file carrying diagnostics in the given order."""
     return cli_pipeline.CheckedFile(
@@ -105,24 +106,50 @@ def checked_file(
                 for message in messages
             ],
             failed=False,
-            preview=preview,
+            planned=planned,
         ),
     )
 
 
-def preview(patch: str, identifiers: list[str]) -> DiffPreview:
-    """Build one diff preview carrying the supplied patch and refusals."""
-    from stilyagi.engine.fix_pipeline import DiffPreview
+def planned_file(
+    reported_path: str,
+    fixed_text: str,
+    *,
+    source_text: str = "# Notes\n",
+    identifiers: list[str] | None = None,
+) -> PlannedFile:
+    """Build one file's plan from replacement text and its refusal identifiers.
 
-    return DiffPreview(
-        patch,
-        tuple(
+    All but two of a `PlannedFile`'s fields are carried through from planning
+    untouched by anything the aggregation pass does, so they are given neutral
+    zeros here; the ones that matter are the bytes a patch is rendered from and
+    the refusals the run reports.
+
+    Returns
+    -------
+    PlannedFile
+        The plan carrying the supplied replacement bytes and refusals.
+    """
+    source_bytes = source_text.encode("utf-8")
+    fixed_bytes = fixed_text.encode("utf-8")
+    return PlannedFile(
+        reported_path=reported_path,
+        resolved_path=pathlib.Path(reported_path),
+        source_bytes=source_bytes,
+        source_text=source_text,
+        fixed_bytes=fixed_bytes if fixed_bytes != source_bytes else None,
+        fix_errors=tuple(
             diagnostics.FixError(
-                path="notes.md",
+                path=reported_path,
                 identifier=identifier,
                 rule_codes=("PUN201",),
                 message=f"{identifier}; file was not modified",
             )
-            for identifier in identifiers
+            for identifier in identifiers or []
         ),
+        selected=CandidatePartition((), (), (), ()),
+        source_backed_spans=0,
+        coalesced=0,
+        planned_edits=0,
+        from_stdin=False,
     )

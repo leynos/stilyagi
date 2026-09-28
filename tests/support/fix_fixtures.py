@@ -2,6 +2,7 @@
 
 import typing as typ
 
+from stilyagi.engine import ir_view
 from stilyagi.engine.ir_view import SourceSpan, iter_segments
 
 if typ.TYPE_CHECKING:
@@ -14,6 +15,19 @@ class SourceTextNotFoundError(ValueError):
     def __init__(self, needle: str) -> None:
         """Build an error that identifies the text missing from source segments."""
         super().__init__(f"source-backed text not found: {needle!r}")
+
+
+class NoUnclaimedByteError(ValueError):
+    """Raised when a document offers no byte range for a synthetic span."""
+
+    def __init__(self, *, claims_nothing: bool) -> None:
+        """Build an error naming which property of the document failed."""
+        detail = (
+            "the document has no source-backed spans"
+            if claims_nothing
+            else "every byte of the source is source-backed"
+        )
+        super().__init__(f"no unclaimed byte available: {detail}")
 
 
 def find_source_span(document: model.Document, needle: str) -> SourceSpan:
@@ -61,3 +75,44 @@ def find_source_span(document: model.Document, needle: str) -> SourceSpan:
     if len(matches) != 1:
         raise SourceTextNotFoundError(needle)
     return matches[0]
+
+
+def find_unclaimed_span(document: model.Document) -> SourceSpan:
+    """Return a one-byte range that no source-backed span claims.
+
+    A synthetic span cannot be invented: it has to be a real offset the IR
+    genuinely does not cover, or the admissibility check accepts it and the
+    scenario passes for the wrong reason. The gap between two source-backed
+    spans -- the soft line break the extractor normalised away -- is exactly
+    such a range, so it is found by measuring rather than by guessing an offset.
+
+    The search is bounded by the furthest byte the IR does claim, so the result
+    is always a byte the extractor *looked past* rather than one beyond the end
+    of everything it produced.
+
+    Parameters
+    ----------
+    document:
+        Extracted document containing source-backed segment provenance.
+
+    Returns
+    -------
+    stilyagi.engine.ir_view.SourceSpan
+        A one-byte range that no merged source-backed span contains.
+
+    Raises
+    ------
+    NoUnclaimedByteError
+        If the document claims no source bytes at all, or claims every byte up
+        to its own extent, in which case the scenario's premise does not hold.
+    """
+    claimed = tuple(ir_view.source_backed_spans(document))
+    if not claimed:
+        raise NoUnclaimedByteError(claims_nothing=True)
+    for offset in range(max(span.byte_end for span in claimed)):
+        if not any(
+            span.byte_start <= offset and offset + 1 <= span.byte_end
+            for span in claimed
+        ):
+            return SourceSpan(offset, offset + 1)
+    raise NoUnclaimedByteError(claims_nothing=False)

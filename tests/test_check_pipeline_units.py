@@ -25,7 +25,7 @@ from tests.support.check_pipeline_fixtures import (
     checked_file,
     input_for,
     one_diagnostic_runner,
-    preview,
+    planned_file,
     recording_reporter,
     run_for,
     silent_runner,
@@ -59,7 +59,7 @@ class TestCheckOneFile:
             "expected the injected rule runner's diagnostic to be collected",
         )
         assert not result.failed, "expected a readable file not to fail"
-        assert result.preview is None, "expected no preview without --diff"
+        assert result.planned is None, "expected no plan without --fix or --diff"
         assert not failures, "expected no reported failure for a readable file"
 
     def test_a_missing_file_reports_a_typed_read_error_and_flags_the_result(
@@ -195,9 +195,9 @@ class TestAggregateCheckedFiles:
             checked_file(
                 "b.md",
                 ["b1", "b2"],
-                preview=preview("b-patch\n", ["b-refusal"]),
+                planned=planned_file("b.md", "# Notes B\n", identifiers=["b-refusal"]),
             ),
-            checked_file("a.md", ["a1"], preview=preview("a-patch\n", [])),
+            checked_file("a.md", ["a1"], planned=planned_file("a.md", "# Notes A\n")),
             checked_file("c.md", []),
         ]
 
@@ -208,12 +208,13 @@ class TestAggregateCheckedFiles:
             "expected diagnostics in file then diagnostic order",
         )
         assert_with_context(
-            totals.patches == ["b-patch\n", "a-patch\n"],
-            "expected one patch per file that produced a preview, in file order",
+            [patch.splitlines()[0] for patch in totals.patches]
+            == ["--- a/b.md", "--- a/a.md"],
+            "expected one patch per file that produced a plan, in file order",
         )
         assert_with_context(
             [item.identifier for item in totals.fix_errors] == ["b-refusal"],
-            "expected fix errors only from files that produced a preview",
+            "expected fix errors only from files whose plan refused an edit",
         )
         assert not totals.error, "expected a run with no failures to be error-free"
 

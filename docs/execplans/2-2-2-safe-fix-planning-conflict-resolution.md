@@ -2565,3 +2565,145 @@ roughly eighteen `cargo` processes from other agents' worktrees (`ortho-config`,
 cache was created, per the standing instruction to let the shared cache
 serialize naturally. `make typecheck` and `make test` must be re-run on this
 tip once the lock clears; a timeout there is not a failure of this branch.
+
+## Revision 35 (2026-09-28): BDD scenarios green, and three findings that were not test bugs
+
+Milestone 5 Stage B is complete: `features/stilyagi_fix_command.feature` and
+`tests/test_fix_command_bdd.py` bind all ten planned scenarios and all ten
+pass. Getting there surfaced three findings that were **not** test-harness
+mistakes, and two of them changed production behaviour.
+
+### Finding 1: pytest-bdd's step registry is session-global
+
+The ten scenarios pass in isolation but failed en masse when the module ran
+alongside `tests/test_package_skeleton_units.py`, with
+`fixture 'check_command_state' not found` on every scenario.
+
+The cause is that `pytest_bdd` step definitions are registered globally for the
+session, not per module: `tests.steps.check_command` defines
+`I run "{command}" in that tree` and `the exit code is 0/1/2`, and this
+module's steps were reusing those exact texts. Whichever definition is
+registered last wins for the whole session, so the check module's `@when`
+captured this module's scenarios and demanded *its* `check_command_state`
+fixture.
+
+Two options were considered and one rejected:
+
+- **Rejected: add `"tests.steps.check_command"` to `pytest_plugins`.** This is
+  what the earlier plan note suggested, and it is wrong. It does not resolve
+  the collision, it makes it deterministic -- the two modules would then always
+  contest the same four step texts.
+- **Adopted: give every step in this module a text no other module uses.**
+  Scenario steps now read `the fix command "..." runs in that tree` and
+  `the fix command exits with code 0/1/2`. A cross-module scan of
+  `tests/steps/*.py` now reports no duplicate step texts, and the tree-building
+  Given was renamed to `a tree holding two Markdown files and an injected rule`
+  so it does not shadow the check command's two-file tree Given either.
+
+The lesson generalises: a new BDD steps module must be checked against every
+other steps module for step-text collisions, because the registry is not
+namespaced.
+
+### Finding 2: a `--fix` run re-lints through the same injected runner
+
+Three scenarios failed with `SourceTextNotFoundError: source-backed text not
+found: 'Paragraph'`, traced through a full-traceback run: at rule time the
+document was `Region(kind='paragraph', text='Section text.')` -- the **already
+rewritten** text.
+
+`relint_written_files` builds a `CheckRun` with
+`dc.replace(run, options=...)`, which keeps `rule_runner`. So every injected
+stub runs twice per `--fix` scenario: once against the bytes on disk and once
+against the bytes it just wrote. A stub that raises when its needle is missing
+therefore breaks the re-lint it is supposed to support.
+
+Every stub in `tests/steps/fix_command.py` is now idempotent by construction.
+`_rule_offering` wraps an edit maker that returns `None` when its needle is
+gone, and `_two_rules` composes those same runners rather than raw specs. This
+is what a real rule does with text it no longer matches, so the fix makes the
+stubs *more* faithful, not more permissive.
+
+### Finding 3: a synthetic span cannot be invented; it has to be measured
+
+The synthetic-span scenario was passing for the wrong reason. It used a
+hard-coded `TextEdit(1, 2, "")`, and a probe showed the edit being **accepted**:
+`DISK: b'Pragraph text.\n'`, no fix-error line. For `"Paragraph text.\n"` the IR
+exposes one span, `SourceSpan(byte_start=0, byte_end=15)`, so byte 1 is
+source-backed and the edit merely deleted the `a`.
+
+A second probe showed where genuine gaps are: for
+`"First line\nsecond line.\n"` the spans are `(0,10)` and `(11,23)`, leaving
+byte 10 -- the normalised-away soft line break -- unclaimed. The scenario's
+source text is now that two-line paragraph, and the edit range comes from the
+new `find_unclaimed_span(document)`, which walks the document for the first
+byte no merged source-backed span contains, bounded by the furthest byte the IR
+claims. The refusal is now verified by the log: `spans=2 considered=1 rejected=1
+planned=0`.
+
+This closes the gap the plan warned about at line 44: *"A synthetic span cannot
+be invented: it has to be a real offset the IR genuinely does not cover."*
+Hard-coding an offset would have left the scenario green and vacuous.
+
+### A production change: a stream input's report moved off standard output
+
+`print_unmodified_report` printed to the `output` collaborator unconditionally.
+For a stream input that is **wrong**: `emit_fixed_document` has already written
+the fixed document to that same stream, so the report was concatenated onto the
+text the user is piping out, making it unextractable.
+
+The comment on `print_unmodified_report` claiming a zero-fix run stays
+byte-identical to a plain check is true only for file inputs, and the docstring
+now says so. The stream decision moved to the command boundary, which is the
+only place that knows whether a fixed document already owns standard output:
+`_apply_and_exit` passes `sys.stderr` when any plan came from stdin. The
+destination is now a positional parameter rather than a fifth keyword argument,
+which also keeps the signature inside the project's `max-args = 4`.
+
+The stdin scenario asserts `stdout == _REPAIRED_TEXT` exactly, so it fails if
+the report ever lands there again.
+
+### Refusals are read from both streams
+
+The three refusal assertions (synthetic span, overlapping edits, "file was not
+modified") now concatenate stdout and stderr. When nothing is written the run
+is deliberately byte-identical to a plain check, so the report goes to the
+normal diagnostics stream -- and which stream that is for a given run is a
+boundary decision, not something the assertion should pre-empt. Reading both
+also means the assertion tests *what was said*, not *where*, which is the part
+this scenario owns.
+
+### The skylos allow list shrank, and the contract test was updated with it
+
+`tests/test_skylos_whitelist_contract.py` pinned the three milestone-5
+temporary exemptions (`write_source`, `_write_temporary_source`,
+`SourceChangedOnDiskError`) that Revision 26 said to remove once the pipeline
+called `write_source`. The pipeline now does, and the previous commit removed
+them from `pyproject.toml`; the pin went stale and failed the full suite.
+
+The pin is now the seven-name list re-listed with its provenance. Revision 26's
+instruction is discharged, and its reason for existing is now a module
+docstring line so a future reader does not have to reconstruct it.
+
+### Gate status after Stage B
+
+| Gate                  | Result                                                    |
+| --------------------- | --------------------------------------------------------- |
+| `ruff check`          | PASS -- 0 errors, `tests/` and `python/`                  |
+| `ruff format --check` | PASS -- 158 files already formatted                       |
+| `interrogate`         | PASS -- 100.0%                                            |
+| `ty check`            | PASS -- all checks passed                                 |
+| `pylint`              | PASS -- 10.00/10 over `python/stilyagi tests`             |
+| `pytest` (affected)   | PASS -- 57 passed across 7 modules, incl. cross-module    |
+| `pytest` (full)       | RUNNING -- background shell `bzsrlwobx`                   |
+
+The affected-module run is the one that matters for regressions here: it
+includes `test_package_skeleton_units.py`, which is the module that exposed
+Finding 1, so the collision cannot silently return.
+
+### Still outstanding for Milestone 5
+
+- **Stage C2**: subprocess coverage in `tests/test_cli_e2e.py` for `--diff` and
+  `--fix`, including piping `--diff` output to `git apply --check`.
+- A dedicated regression test for the stream-input destination decided above;
+  the BDD scenario covers it end to end, but the `cli_fix` unit boundary is
+  only covered through the command.

@@ -1,4 +1,4 @@
-"""Per-file check workflow: read, extract, resolve, run rules, preview fixes.
+"""Per-file check workflow: read, extract, resolve, run rules, plan a fix.
 
 This module owns the cohesive work one discovered file undergoes. It depends on
 `config`, `engine`, `rules`, and `diagnostics`, and it is imported by `cli`
@@ -20,15 +20,22 @@ import typing as typ
 
 from stilyagi import config, diagnostics, engine, model
 from stilyagi.cli_config import resolve_target_config
-from stilyagi.cli_io import CheckInput, SourceReadError, read_source
+from stilyagi.cli_io import CheckInput, SourcedInput, SourceReadError, read_source
 from stilyagi.engine.checker import map_ir_errors
-from stilyagi.engine.fix_pipeline import DiffPreview, DiffRequest, preview_safe_fixes
+from stilyagi.engine.fix_pipeline import (
+    FixRequest,
+    PlannedFile,
+    patch_for,
+    plan_file_fixes,
+    preview_safe_fixes,
+)
+from stilyagi.fixes import FixLevel
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
     from stilyagi.cli_args import CheckOptions
-    from stilyagi.cli_io import SourcedInput
+    from stilyagi.fix_execution import AppliedFix
     from stilyagi.rules import registry as rules_registry
 
 __all__ = [
@@ -40,6 +47,7 @@ __all__ = [
     "aggregate_checked_files",
     "check_one_file",
     "collect_checked_files",
+    "relint_written_files",
 ]
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,11 +67,22 @@ class FileCheck:
     Naming the three values the pipeline used to return as an anonymous tuple
     keeps the aggregation pass readable and shows, at the point of
     construction, which field carries the failure flag.
+
+    `planned` is the unrendered plan: the replacement bytes for `--fix`, and
+    the patch rendered from them for `--diff`. Carrying it here is what spares
+    the mutating command a second read, extraction, configuration resolution,
+    and rule run for every file it rewrites, and it is also why `--fix` and
+    `--diff` cannot disagree about what a plan is.
     """
 
     diagnostics_list: list[diagnostics.Diagnostic]
     failed: bool
-    preview: DiffPreview | None = None
+    planned: PlannedFile | None = None
+
+    @property
+    def fix_errors(self) -> tuple[diagnostics.FixError, ...]:
+        """The refused edits for this file, empty when nothing was planned."""
+        return () if self.planned is None else self.planned.fix_errors
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -76,7 +95,7 @@ class CheckedFile:
 
 @dc.dataclass(frozen=True, slots=True)
 class CheckedFiles:
-    """Diagnostics, previews, and failure state collected across checked files.
+    """Diagnostics, patches, and failure state collected across checked files.
 
     File order, diagnostic order, fix-error order, and patch order all follow
     the order the files were checked in, so the rendered output is a pure
@@ -87,6 +106,37 @@ class CheckedFiles:
     fix_errors: list[diagnostics.FixError]
     patches: list[str]
     error: bool
+
+
+@dc.dataclass(frozen=True, slots=True)
+class PreparedFile:
+    """One file after extraction and config resolution, before rule running.
+
+    This is exactly the input a fix plan needs, which is why it exists as a
+    named value rather than as another five-argument call: the check path uses
+    it once and discards it, while the fix path hands it the applicability
+    level as well, and a second read of the same file would risk planning
+    against bytes the first read never saw.
+    """
+
+    sourced_input: SourcedInput
+    document: model.Document
+    diagnostics_list: list[diagnostics.Diagnostic]
+    resolved_config: config.StilyagiConfig
+
+    def request(self, level: FixLevel) -> FixRequest:
+        """Build the planner request for this file at one applicability level."""
+        return FixRequest(
+            source_bytes=self.sourced_input.source_bytes,
+            source_text=self.sourced_input.source_text,
+            reported_path=self.sourced_input.reported_path,
+            resolved_path=self.sourced_input.resolved_path,
+            document=self.document,
+            diagnostics=tuple(self.diagnostics_list),
+            lint_config=self.resolved_config.lint,
+            level=level,
+            from_stdin=self.sourced_input.from_stdin,
+        )
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -113,13 +163,13 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheck:
         The resolved input to check, carrying either its bytes or its text.
     run:
         The collaborators fixed for this invocation, which decide whether a
-        safe-fix preview is planned and where expected failures are reported.
+        fix is planned and where expected failures are reported.
 
     Returns
     -------
     FileCheck
-        The file's diagnostics, whether it failed, and its diff preview when
-        one was requested and planned.
+        The file's diagnostics, whether it failed, and its planned fix when one
+        was requested and planned.
     """
     try:
         sourced_input = read_source(check_input)
@@ -142,18 +192,56 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheck:
         run.report(sourced_input.resolved_path, exc)
         return FileCheck([], failed=True)
 
-    diagnostics_list = [
-        *map_ir_errors(document, sourced_input.reported_path),
-        *run.rule_runner(document, resolved_config),
-    ]
-    # Planning is skipped entirely unless --diff is set, so the ordinary check
-    # path never pays for it.
-    preview = (
-        _plan_preview(sourced_input, document, diagnostics_list, resolved_config)
-        if run.options.diff
-        else None
+    prepared = PreparedFile(
+        sourced_input,
+        document,
+        [
+            *map_ir_errors(document, sourced_input.reported_path),
+            *run.rule_runner(document, resolved_config),
+        ],
+        resolved_config,
     )
-    return FileCheck(diagnostics_list, failed=False, preview=preview)
+    if not _wants_a_plan(run):
+        # Planning is skipped entirely unless a fix was asked for, so the
+        # ordinary check path never pays for it.
+        return FileCheck(prepared.diagnostics_list, failed=False)
+    return FileCheck(
+        prepared.diagnostics_list,
+        failed=False,
+        planned=_plan_fix(prepared, run),
+    )
+
+
+def _wants_a_plan(run: CheckRun) -> bool:
+    """Return whether this invocation asked for a fix preview or a mutation."""
+    return run.options.diff or run.options.fix
+
+
+def _plan_fix(prepared: PreparedFile, run: CheckRun) -> PlannedFile:
+    """Plan one file's edits at the level this run asked for.
+
+    A preview and a mutation share every planning step and differ only in the
+    applicability ceiling, so `--diff` always plans at `FixLevel.SAFE` -- a
+    preview of an edit nobody has agreed to apply would be a patch that cannot
+    be used.
+
+    Returns
+    -------
+    PlannedFile
+        The file's replacement bytes, or the refusal channel explaining why it
+        has none.
+    """
+    request = prepared.request(_requested_level(run))
+    if run.options.fix:
+        return plan_file_fixes(request)
+    return preview_safe_fixes(request)
+
+
+def _requested_level(run: CheckRun) -> FixLevel:
+    """Return the applicability ceiling this invocation's flags request (D-15)."""
+    if run.options.fix and run.options.unsafe_fixes:
+        return FixLevel.UNSAFE
+    return FixLevel.SAFE
 
 
 def _extract_document(
@@ -186,35 +274,6 @@ def _extract_document(
         raise
 
 
-def _plan_preview(
-    sourced_input: SourcedInput,
-    document: model.Document,
-    diagnostics_list: list[diagnostics.Diagnostic],
-    resolved_config: config.StilyagiConfig,
-) -> DiffPreview:
-    """Plan a safe-fix preview for one file the run asked to preview.
-
-    The preview is derived from the same bytes the document was extracted
-    from, which is what keeps the patch applicable to the file on disk.
-
-    Returns
-    -------
-    DiffPreview
-        The planned patch, with any refused edits on the separate error
-        channel.
-    """
-    return preview_safe_fixes(
-        DiffRequest(
-            sourced_input.source_bytes,
-            sourced_input.source_text,
-            sourced_input.reported_path,
-            document,
-            tuple(diagnostics_list),
-            resolved_config.lint,
-        )
-    )
-
-
 def collect_checked_files(
     discovered_files: cabc.Iterable[CheckInput],
     run: CheckRun,
@@ -241,7 +300,7 @@ def aggregate_checked_files(
     """Flatten per-file results into one render-ready bundle.
 
     One pass over the results preserves file order for diagnostics and patches
-    alike: each file contributes its diagnostics in order, then its fix errors
+    alike: each file contributes its diagnostics in order, then its refusals
     and its patch in the same relative order. Any file that failed makes the
     whole run an operational error.
 
@@ -265,12 +324,57 @@ def aggregate_checked_files(
         result = checked_file.result
         diagnostics_list.extend(result.diagnostics_list)
         error = result.failed or error
-        if result.preview is not None:
-            fix_errors.extend(result.preview.fix_errors)
-            patches.append(result.preview.patch)
+        fix_errors.extend(result.fix_errors)
+        if result.planned is not None:
+            patches.append(patch_for(result.planned))
     return CheckedFiles(
         diagnostics_list=diagnostics_list,
         fix_errors=fix_errors,
         patches=patches,
         error=error,
+    )
+
+
+def relint_written_files(
+    applied: cabc.Sequence[AppliedFix],
+    run: CheckRun,
+) -> list[CheckedFile]:
+    """Re-lint only the files a fix run actually mutated (D-13).
+
+    This is deliberately not a fixpoint loop. RFC 0003 §12's "0 when all found
+    violations were fixed" is not computable in one pass without *assuming*
+    that applying a fix removes its diagnostic -- an assumption nothing tests
+    and which a partial fix falsifies. If the re-lint surfaces further fixable
+    diagnostics they are reported, not applied, and the caller says so.
+
+    Re-reading the written file is also the honest check: it verifies what is
+    on disk now, not what the plan expected to put there.
+
+    Parameters
+    ----------
+    applied:
+        The files that were written, each carrying the reported path to
+        re-attribute diagnostics to and the resolved path to read.
+    run:
+        The collaborators for this invocation, reused so the re-lint resolves
+        the same configuration and rule selection as the planning pass.
+
+    Returns
+    -------
+    list[CheckedFile]
+        One re-check per written file, in planning order. The container is
+        reused so a failed re-read is reported exactly as the planning pass
+        would have reported it, rather than being flattened into diagnostics
+        that cannot express it.
+    """
+    rerun = dc.replace(run, options=dc.replace(run.options, diff=False, fix=False))
+    return collect_checked_files(
+        (
+            CheckInput(
+                reported_path=fixed.reported_path,
+                resolved_path=fixed.resolved_path,
+            )
+            for fixed in applied
+        ),
+        rerun,
     )

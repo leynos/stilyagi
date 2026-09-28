@@ -3,6 +3,11 @@
 The allow list is pinned here so a suppression cannot be added silently. Every
 entry needs a name, a non-empty explanation, and a reviewer willing to agree
 the symbol really is reachable at runtime.
+
+The list shrinks as well as grows: the milestone 5 `--fix` pipeline calls
+`write_source`, so the temporary-entry exemptions that covered it and its
+companions until that wiring landed were removed from both the allow list and
+this pin in the same change.
 """
 
 import pathlib
@@ -18,9 +23,6 @@ _REQUIRED_SKYLOS_WHITELIST_NAMES: typ.Final = frozenset((
     "_require_strict_int",
     "reset_extraction_state_for_tests",
     "extract_document",
-    "_write_temporary_source",
-    "write_source",
-    "SourceChangedOnDiskError",
 ))
 
 

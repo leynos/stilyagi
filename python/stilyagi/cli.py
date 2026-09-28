@@ -6,7 +6,7 @@ import pathlib
 import sys
 import typing as typ
 
-from stilyagi import config, diagnostics, discovery, engine
+from stilyagi import cli_fix, config, diagnostics, discovery, engine
 from stilyagi.cli_args import (
     PACKAGE_VERSION,
     CheckOptions,
@@ -21,7 +21,9 @@ from stilyagi.cli_pipeline import (
     CheckRun,
     aggregate_checked_files,
     collect_checked_files,
+    relint_written_files,
 )
+from stilyagi.fix_execution import apply_planned_fixes, deferred_plans
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
@@ -64,6 +66,10 @@ class CheckCollaborators:
     default -- as the rule-runner contract tests do -- still takes effect. The
     two class defaults are passed as the callable itself, because constructing
     them is already the fresh-instance-per-run behaviour the fields need.
+
+    There is no writer here. A mutating run reaches the filesystem through
+    `fix_execution`, and a collaborator that no code path consulted would be a
+    seam that only looks like one.
     """
 
     resolver: config.ConfigResolver = dc.field(default_factory=config.ConfigResolver)
@@ -145,7 +151,7 @@ def run_check(
         # the surprise the CLI contract exists to prevent. Rejection is the
         # relaxable direction -- a rejected pair can be given meaning later,
         # where an accepted one with silent precedence cannot be withdrawn.
-        _LOGGER.warning("--fix and --diff cannot be combined")
+        _LOGGER.warning("%s", _FIX_DIFF_CONFLICT)
         resolved_collaborators.reporter(
             None,
             ValueError(_FIX_DIFF_CONFLICT),
@@ -171,6 +177,8 @@ def run_check(
         report=resolved_collaborators.reporter,
     )
     checked_files = collect_checked_files(discovered_files, run)
+    if options.fix:
+        return _apply_and_exit(checked_files, run, options, resolved_collaborators)
     return _render_and_exit(checked_files, options, resolved_collaborators)
 
 
@@ -201,6 +209,60 @@ def _render_and_exit(
     exit_code = compute_exit_code(aggregate.diagnostics_list, had_error=aggregate.error)
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
+
+
+def _apply_and_exit(
+    checked_files: cabc.Sequence[CheckedFile],
+    run: CheckRun,
+    options: CheckOptions,
+    resolved_collaborators: CheckCollaborators,
+) -> int:
+    """Write every planned fix, re-lint what changed, and report the outcome.
+
+    The exit status comes from the re-lint rather than from the plan, so a fix
+    that did not remove its diagnostic still exits one (D-13). A file that
+    failed to read or extract still exits two, whether or not other files were
+    written.
+
+    Returns
+    -------
+    int
+        Zero when no diagnostics remain, one when any do, two on an error.
+    """
+    plans = tuple(
+        checked.result.planned
+        for checked in checked_files
+        if checked.result.planned is not None
+    )
+    cli_fix.warn_if_unsafe_withheld(checked_files, options)
+    outcome = apply_planned_fixes(tuple(deferred_plans(plan) for plan in plans))
+    cli_fix.log_fix_summary(plans, outcome)
+    cli_fix.emit_fixed_document(plans, resolved_collaborators.output)
+
+    checked = aggregate_checked_files(checked_files)
+    if not outcome.changed_anything:
+        # A stream input already owns standard output with its fixed document,
+        # so its report has to go to standard error instead.
+        stream_input = any(plan.from_stdin for plan in plans)
+        cli_fix.print_unmodified_report(
+            checked,
+            options,
+            resolved_collaborators.renderer,
+            sys.stderr if stream_input else resolved_collaborators.output,
+        )
+        return compute_exit_code(checked.diagnostics_list, had_error=checked.error)
+
+    relinted = aggregate_checked_files(relint_written_files(outcome.applied, run))
+    cli_fix.print_mutation_report(
+        relinted,
+        checked,
+        options,
+        resolved_collaborators.renderer,
+    )
+    return compute_exit_code(
+        relinted.diagnostics_list,
+        had_error=relinted.error or checked.error,
+    )
 
 
 def compute_exit_code(

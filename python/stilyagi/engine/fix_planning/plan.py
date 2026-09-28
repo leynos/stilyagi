@@ -3,9 +3,11 @@
 import dataclasses as dc
 import typing as typ
 
+from stilyagi.engine import ir_view
+
 from .admissibility import EditRejection, classify_edit
 from .conflicts import coalesce_identical, first_overlap
-from .selection import select_candidates
+from .selection import CandidatePartition, partition_candidates
 from .splice import apply_edits
 
 if typ.TYPE_CHECKING:
@@ -29,28 +31,68 @@ class FixPlanRequest:
 
 @dc.dataclass(frozen=True, slots=True)
 class FixPlan:
-    """The accepted edits and refused edits for one source byte sequence."""
+    """The accepted edits and refused edits for one source byte sequence.
+
+    ``fixed_bytes`` is ``None`` when no edit survived planning, which makes
+    ``rejections`` the reason the file was left alone. ``source_backed_spans``
+    and ``coalesced`` exist for the fix summary: they are counts no later stage
+    can recover, because the source-backed span list is consumed by
+    admissibility and the pre-coalesce edit list by conflict resolution.
+    """
 
     edits: tuple[TextEdit, ...]
     fixed_codes: tuple[str, ...]
     rejections: tuple[EditRejection, ...]
     fixed_bytes: bytes | None
+    selected: CandidatePartition
+    source_backed_spans: int = 0
+    coalesced: int = 0
 
 
 def plan_fixes(request: FixPlanRequest) -> FixPlan:
     """Plan an all-or-nothing, source-backed mutation for one file."""
-    candidates = select_candidates(
+    selected = partition_candidates(
         request.diagnostics, request.level, request.lint_config
     )
-    accepted, rejections = _validate_candidates(candidates, request)
+    accepted, rejections = _validate_candidates(selected.eligible, request)
     if rejections:
-        return FixPlan((), (), rejections, None)
+        return FixPlan((), (), rejections, None, selected, _span_count(request))
     edits = coalesce_identical(edit for _code, edit in accepted)
     overlap = first_overlap(edits)
     if overlap is not None:
-        return FixPlan((), (), (_overlap_rejection(overlap, accepted),), None)
+        return FixPlan(
+            (),
+            (),
+            (_overlap_rejection(overlap, accepted),),
+            None,
+            selected,
+            _span_count(request),
+        )
     fixed_codes = tuple(dict.fromkeys(code for code, _edit in accepted))
-    return FixPlan(edits, fixed_codes, (), apply_edits(request.source_bytes, edits))
+    return FixPlan(
+        edits,
+        fixed_codes,
+        (),
+        apply_edits(request.source_bytes, edits),
+        selected,
+        _span_count(request),
+        coalesced=len(accepted) - len(edits),
+    )
+
+
+def _span_count(request: FixPlanRequest) -> int:
+    """Return how many source-backed spans the file's IR claims.
+
+    This is the denominator for the "considered / filtered" counters: a file
+    with one fixable diagnostic out of forty source-backed spans is quiet,
+    while the same diagnostic in a file with two spans is suspicious.
+
+    Returns
+    -------
+    int
+        How many merged source-backed spans the document carries.
+    """
+    return len(ir_view.source_backed_spans(request.document))
 
 
 def _validate_candidates(

@@ -142,9 +142,9 @@ class LintConfig:
     preview:
         Whether preview rules are enabled.
     fixable:
-        Reserved for later fix-planning slices.
+        Code prefixes that may contribute source edits to a fix plan.
     unfixable:
-        Reserved for later fix-planning slices.
+        Code prefixes excluded from fix planning, checked after ``fixable``.
     per_file_ignores:
         Per-path rule exclusions.
     reserved:
