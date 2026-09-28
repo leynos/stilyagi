@@ -3234,3 +3234,128 @@ intact with a superseded note above it rather than edited to match the
 delivered code -- rewriting a planning-time record to look like the outcome
 destroys the evidence that the design changed. The note names what the as-built
 bundle carries and points at Revision 32.
+
+## Revision 40 (2026-09-28): requirement 7 re-measured, and it had regressed
+
+Requirement 7 said to run CodeScene against the **final** code and report the
+measured mean complexity for `python/stilyagi/cli.py`. Revision 33 recorded a
+clean reading, but the code changed after it, so the reading had to be taken
+again rather than carried forward.
+
+**It had regressed.** `cs review python/stilyagi/cli.py` returns
+`{"score": 9.38, "review": [{"category": "Overall Code Complexity",
+"indication": 2}]}` -- flagged, not clean.
+
+Tracing the flag across the Milestone 5 commits, with `cs review
+<ref>:./python/stilyagi/cli.py` run at each:
+
+| Commit    | Subject                                        | Reading         |
+| --------- | ---------------------------------------------- | --------------- |
+| `3c6cdaa` | Split the check pipeline out of the CLI        | 10.0, clean     |
+| `a201103` | Attribute read failures to the typed error     | 10.0, clean     |
+| `661e7e6` | Add `--fix` and `--unsafe-fixes`               | 10.0, clean     |
+| `9adec5e` | Cover the `--fix` pipeline with BDD scenarios  | 9.38, **flagged** |
+
+The regression enters at `9adec5e`, which grew `cli.py` by adding
+`_apply_and_exit`. It is this branch's own change, not a pre-existing
+condition: every commit before it reads clean.
+
+Measured per-function at the flagged tip, with the validated AST counter:
+
+| Function             | cc | Note                    |
+| -------------------- | -- | ----------------------- |
+| `_apply_and_exit`    | 8  | **new in `9adec5e`**    |
+| `run_check`          | 6  |                         |
+| `_parse_targets`     | 5  |                         |
+| `main`               | 4  |                         |
+| `_configure_logging` | 4  |                         |
+| `_render_and_exit`   | 3  |                         |
+| `compute_exit_code`  | 3  |                         |
+| `_discover_targets`  | 3  |                         |
+
+8 functions, sum 36, **mean 4.5** against a threshold of 4. The same table
+after the repair is below; the figures here describe the state this revision
+found, not the state it left.
+
+The counter is the same instrument Revision 33 used and agrees with CodeScene
+on both sides of the boundary: it reads `3c6cdaa` as clean and `cc2fb81` and
+this tip as flagged, so it is measuring the same quantity CodeScene measures
+rather than merely correlating with it.
+
+Also re-confirmed: the function-count floor noted in Revision 33 still applies,
+and `cli.py` sits at 8 functions, so the file is eligible to be flagged at all.
+A reading here is meaningful in a way a 6-function reading would not be.
+
+The obligation this creates is recorded separately below, together with how it
+was met; it is written here first so the failure is on the record independently
+of the repair.
+
+### The repair: the exit policy was stated twice
+
+`_apply_and_exit` ended in two `return compute_exit_code(...)` tails that were
+byte-identical apart from which aggregate they read:
+
+```python
+return compute_exit_code(
+    checked.diagnostics_list,
+    had_error=checked.error or outcome.write_failed,
+)
+```
+
+and the same for `relinted`. The duplication is not cosmetic. `write_failed` is
+an obligation invented after the first tail was written (Revision 39, defect
+2), and every further tail would have had to remember to thread it independently.
+The copy that forgot would have reported a refused write as exit `1` rather
+than `2` -- exactly the defect the flag exists to prevent, reintroduced by
+copy-paste rather than by a wrong decision.
+
+`_fix_exit_code(checked, outcome)` now states that policy once and both tails
+call it. It is `cc 2`: it is a one-line delegation, which is the point -- there
+is nothing left in it to get wrong.
+
+This was verified as a genuine deduplication rather than metric-chasing by
+deleting `outcome.write_failed` from the new helper and re-running:
+`test_a_permission_failure_is_reported_and_exits_two` fails with "expected a
+filesystem refusal to exit two". The thread is still pinned, so the collapsed
+version is not hiding a lost branch.
+
+### Measured outcome after the repair
+
+| Reading                   | Flagged tip | After repair |
+| ------------------------- | ----------- | ------------ |
+| Functions in `cli.py`     | 8           | **9**        |
+| Complexity sum            | 36          | 36           |
+| **Mean complexity**       | **4.5000**  | **4.0000**   |
+| Threshold                 | 4           | 4            |
+| `cs review` verdict       | flagged     | **clean**    |
+
+The extraction raises the function count from 8 to 9 without changing the sum,
+so the mean necessarily falls to exactly 4.0. That is worth stating plainly
+because it is also the axis the function-count floor sits on: the mean only
+moved because the denominator did, and the honest reading is the CodeScene
+verdict, which is clean.
+
+Both instruments were re-run against the repaired file and agree:
+`cs review python/stilyagi/cli.py --output-format json` returns
+`{"score": 10.0, "review": []}`, and the AST counter reads 9 functions, sum 36,
+mean 4.0000. The two were built from different evidence, which is why both are
+quoted.
+
+**The threshold was pinned empirically rather than assumed.** A file at exactly
+mean 4.0 with 8 functions, eight functions at `cc 4` each, was submitted to
+CodeScene and returns `{"score": 10.0, "review": []}`. So 4.0 is inside the
+threshold, not on the wrong side of it by rounding. The counter used for the
+per-function figures was validated in the same pass: asked for the complexity
+of a deliberately branch-heavy method, CodeScene reports `cc = 26` and the
+counter reports 26.
+
+### Requirement 7 status
+
+Requirement 7 asked for CodeScene to be run against the **final** code, the
+measured mean reported, and the threshold of 4 confirmed or refuted. It is now
+met at the final tip: mean **4.0**, `cs review` clean, 9 functions, sum 36.
+
+The instruction not to claim resolution "from an AST branch count or passing
+tests alone" is why the two instruments are reported together and why the
+threshold probe is recorded: the AST counter is corroboration, and the
+CodeScene verdict plus the pinned threshold are the evidence.
