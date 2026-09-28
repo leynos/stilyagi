@@ -30,6 +30,9 @@ from stilyagi.rules import registry as rules_registry
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
+    from stilyagi.cli_pipeline import CheckedFiles
+    from stilyagi.fix_execution import FixOutcome
+
 __all__ = [
     "PACKAGE_VERSION",
     "CheckCollaborators",
@@ -215,6 +218,24 @@ def _render_and_exit(
     return exit_code
 
 
+def _fix_exit_code(checked: CheckedFiles, outcome: FixOutcome) -> int:
+    """Return the exit status a mutating run's current state implies.
+
+    Both tails of `_apply_and_exit` state this same policy, and a third would
+    have had to remember to thread `write_failed` as well. Naming it once keeps
+    that obligation in one place.
+
+    Returns
+    -------
+    int
+        Zero when no diagnostics remain, one when any do, two on an error.
+    """
+    return compute_exit_code(
+        checked.diagnostics_list,
+        had_error=checked.error or outcome.write_failed,
+    )
+
+
 def _apply_and_exit(
     checked_files: cabc.Sequence[CheckedFile],
     run: CheckRun,
@@ -254,10 +275,7 @@ def _apply_and_exit(
             resolved_collaborators.renderer,
             sys.stderr if stream_input else resolved_collaborators.output,
         )
-        return compute_exit_code(
-            checked.diagnostics_list,
-            had_error=checked.error or outcome.write_failed,
-        )
+        return _fix_exit_code(checked, outcome)
 
     # The re-lint is authoritative only for the files this run wrote; every
     # other file still holds the bytes the planning pass read, so its planning
@@ -275,10 +293,7 @@ def _apply_and_exit(
         resolved_collaborators.renderer,
         outcome,
     )
-    return compute_exit_code(
-        relinted.diagnostics_list,
-        had_error=relinted.error or outcome.write_failed,
-    )
+    return _fix_exit_code(relinted, outcome)
 
 
 def compute_exit_code(
