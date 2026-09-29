@@ -97,7 +97,7 @@ jobs:
         # The selection here is the baseline every pull request's ratchet
         # is measured against, so smoke.yml's must match it field for
         # field.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@dbe2e22ceaf498d85512679ccded38be9dbe7777
+        uses: leynos/shared-actions/.github/actions/generate-coverage@14c325b60788814cd50298eb8060228daee3b842
         with:
           output-path: coverage.xml
           format: cobertura
