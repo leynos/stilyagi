@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       id-token: write # OIDC workflow-source resolution
-    uses: leynos/shared-actions/.github/workflows/mutation-cargo.yml@dbe2e22ceaf498d85512679ccded38be9dbe7777
+    uses: leynos/shared-actions/.github/workflows/mutation-cargo.yml@14c325b60788814cd50298eb8060228daee3b842
     with:
       paths: "crates/"
       exclude-globs: "crates/stilyagi-test-fixtures/**,crates/stilyagi-test-support/**"
