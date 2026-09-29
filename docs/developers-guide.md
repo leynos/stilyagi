@@ -1393,9 +1393,9 @@ CodeScene cannot tell that what arrived was not the trunk. Without
 feature branch replaces the baseline every pull request ratchets against, and
 nothing reports it.
 
-The contract holds that guard as one `&&` term and refuses any `||`, because a
-substring match passes `... && ref == main || dispatch`, which makes every
-conjunct optional so a dispatch from any branch uploads.
+The shared contract library holds that guard as one `&&` term and refuses any
+`||`, because a substring match passes `... && ref == main || dispatch`, which
+makes every conjunct optional so a dispatch from any branch uploads.
 
 **The token stays out of every `env`.** A `Check CodeScene token availability`
 step (id `codescene_token`) runs exactly
@@ -1407,10 +1407,10 @@ no process. The upload's condition reads
 the upload takes `access-token: ${{ secrets.CS_ACCESS_TOKEN }}` directly. The
 upload is a composite action, and a composite action's nested steps inherit the
 calling step's environment, so a token bound in the step's `env` reached every
-one of them. `tests/test_codescene_token_contract.py` holds the shape. Its
-positive half requires the token to be named exactly in the check's command and
-the upload's input, because deleting the token would otherwise pass for keeping
-it out of an `env` while the upload skipped forever.
+one of them. The library holds the shape. Its positive half requires the token
+to be named exactly in the check's command and the upload's input, because
+deleting the token would otherwise pass for keeping it out of an `env` while
+the upload skipped forever.
 
 **And it runs one at a time.** The baseline is a single value with a single
 writer, so two publisher runs racing would decide it by which finished last.
@@ -1418,9 +1418,16 @@ The concurrency group queues a superseded run rather than cancelling it: a
 cancelled run abandons both its upload and its baseline write, while a queued
 one publishes later and the later push still wins because it runs last.
 
-`tests/test_codescene_coverage_contract.py` holds the shape, reading the
-workflows through `tests/support/codescene_coverage.py`. Two things about that
-reading are worth knowing before changing it.
+`make test-workflow-contracts` holds all of this by running
+`cv005-contracts check`, the shared contract library in `leynos/shared-actions`
+(`packages/cv005-contracts`), from a full commit named by `CV005_CONTRACTS_REF`
+in the Makefile; the smoke workflow runs it as its own step. A fix to the rules
+is therefore a pin bump. The target needs `uv`, which fetches the Python 3.13
+the library runs under. The repository's only parameter is `repository` in
+`.github/cv005.toml`. The library's own suite proves each rule refuses the
+shape it exists to refuse, so this repository keeps no copy of the readers or
+the refusal cases. Two things about its reading are worth knowing before
+changing the workflows.
 
 The publisher is "pushes to main **and serves no pull request**". Both halves
 are load-bearing: `smoke.yml` declares `pull_request` and
@@ -1431,11 +1438,11 @@ and the contract contradicts itself rather than failing.
 And the trigger reader looks under both `"on"` and the boolean `True`. YAML 1.1
 resolves an unquoted `on:` to a boolean, so a loader that resolves scalars keys
 every workflow in this estate under `True` and none under `on`. Every rule in
-that contract derives its subject from the triggers, so a reader finding
-nothing makes all of them pass over an empty set: not an error, and not a
-report of zero, but a report of compliance. `load_workflow` uses
-`yaml.BaseLoader` and keeps the string, and the reader covers both, so neither
-choice can empty the contract quietly.
+the library derives its subject from the triggers, so a reader finding nothing
+makes all of them pass over an empty set: not an error, and not a report of
+zero, but a report of compliance. `load_workflow` uses `yaml.BaseLoader` and
+keeps the string, and the reader covers both, so neither choice can empty the
+contract quietly.
 
 #### The workflow readers
 
@@ -1458,13 +1465,6 @@ filesystem and everything else is pure over supplied text or documents:
 - `markdownlint_config.py` reads `.markdownlint-cli2.jsonc`: the JSONC comment
   stripper and `configured_ignores` are pure over text, and
   `read_configured_ignores` reaches the file through `read_text`.
-- `codescene_coverage.py` selects the subjects of CV-005: the pull-request
-  lane (`pull_request_workflows`), the publishers, the coverage steps, and
-  every value naming the `codescene.io` host.
-- `workflow_secrets.py` finds every place a workflow puts `CS_ACCESS_TOKEN` in
-  reach: workflow, job and step `env` (as the key or in a value), action inputs,
-  `run` bodies, and reusable-workflow `secrets:` forwarding, named or
-  `inherit`.
 
 Failures are structured. Every helper raises a `SupportError` carrying
 `reader`, the reading that failed. `ReadingError` adds `path` and is raised for
@@ -1481,17 +1481,17 @@ pull-request clause (the action, the command, the secret and the host) runs
 over the pull-request workflows and everything they call, transitively. A call
 is recognized by shape rather than by a list of prefixes: a leading `./` is
 stripped, and the remainder must be a file directly under `.github/workflows/`.
-`tests/test_pull_request_closure.py` holds a `workflow_call` probe that curls
-the CodeScene API with an inherited token, and asserts that the secret clause
-and the host clause both catch it. The host clause reads every value in each
-parsed workflow rather than a list of expected places, because a URL reaches a
-step through the workflow's, the job's or the step's `env`, a step's inputs, or
-a reusable-workflow call's `with`; comments are not read, because the parser
+The library's suite holds a `workflow_call` probe that curls the CodeScene API
+with an inherited token, and asserts that the secret clause and the host clause
+both catch it. The host clause reads every value in each parsed workflow rather
+than a list of expected places, because a URL reaches a step through the
+workflow's, the job's or the step's `env`, a step's inputs, or a
+reusable-workflow call's `with`; comments are not read, because the parser
 discards them.
 
-The step and secret readings are also driven by Hypothesis in
+The step reading is also driven by Hypothesis in
 `tests/test_workflow_reader_properties.py`, over generated workflows of any
-number of jobs and steps with malformed fragments and decoys among them.
+number of jobs and steps with malformed fragments among them.
 
 Per section 6f, none of those tests names a pin's SHA. They assert the shape,
 that both coverage lanes name the *same* commit, and that the Markdown linter

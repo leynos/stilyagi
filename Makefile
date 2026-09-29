@@ -23,6 +23,15 @@ CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
 DOC_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features --no-deps
 UV ?= $(shell command -v uv 2>/dev/null || printf '%s/.local/bin/uv' "$$HOME")
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+
+# The CV-005 CodeScene contracts live in shared-actions and run from a full
+# commit, so a fix is a pin bump. `.github/cv005.toml` holds this repository's
+# only parameters.
+CV005_CONTRACTS_REF ?= a38feb9be25755c30eca5bda96bd3786a5b89c6b
+CV005_CONTRACTS = $(UV_ENV) $(UV) tool run --python 3.13 \
+	--from 'git+https://github.com/leynos/shared-actions@$(CV005_CONTRACTS_REF)\#subdirectory=packages/cv005-contracts' \
+	cv005-contracts
+
 UV_RUN = $(UV_ENV) $(UV) run --group dev
 # Pylint runs on CPython at the project's 3.14 baseline: the source uses 3.14
 # syntax (PEP 758 unparenthesised `except` lists) that no managed PyPy parses.
@@ -72,11 +81,14 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
         markdownlint nixie spelling test test-ci test-doc test-quick \
         typecheck tools skylos-allow \
         tools-check tools-docs tools-lint release release-artifact smoke \
-        smoke-release
+        smoke-release test-workflow-contracts
 
 .DEFAULT_GOAL := all
 
-all: ## Run commit gates
+test-workflow-contracts: ## Check the CV-005 CodeScene workflow contracts
+	$(CV005_CONTRACTS) check --repository .
+
+all: test-workflow-contracts ## Run commit gates
 	$(MAKE) check-fmt
 	$(MAKE) typecheck
 	$(MAKE) lint

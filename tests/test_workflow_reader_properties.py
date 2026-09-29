@@ -1,17 +1,15 @@
-"""Properties of the step, secret and configuration readings.
+"""Properties of the step and trigger readings and the comment stripper.
 
-The tables in `test_workflow_reader_units` and
-`test_workflow_secret_sweep` fix the finite spellings GitHub accepts.
-These readings are different in kind: their subject is an arbitrary
-number of jobs and steps in arbitrary order, with malformed fragments
-among them and the secret at any of several scopes, and no table of
-handwritten documents covers that space.
+The tables in `test_workflow_reader_units` fix the finite spellings GitHub
+accepts. These readings are different in kind: their subject is an arbitrary
+number of jobs and steps in arbitrary order, with malformed fragments among
+them, and no table of handwritten documents covers that space.
 
-The documents are workflow-shaped rather than free-form. A free-form
-nested mapping almost never puts a value where these readers look, so a
-property over one stays green with the readers' shape guards deleted;
-here every generated value lands at a level the reader visits: the jobs
-block, a job, its steps list, one step, and a step's `env` and `with`.
+The documents are workflow-shaped rather than free-form. A free-form nested
+mapping almost never puts a value where these readers look, so a property over
+one stays green with the readers' shape guards deleted; here every generated
+value lands at a level the reader visits: the jobs block, a job and its steps
+list.
 """
 
 import json
@@ -21,19 +19,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from tests.support.markdownlint_config import without_comments
-from tests.support.workflow_secrets import FORBIDDEN_VARIABLE, secret_sites
 from tests.support.workflows import triggers, workflow_steps
-
-#: How a step, job or workflow reads the secret by reference.
-READ: typ.Final[str] = f"${{{{ secrets.{FORBIDDEN_VARIABLE} }}}}"
-
-#: Values that mention the secret without reading it. Each must be
-#: ignored, so a reading that matched the bare name would report them.
-DECOYS: typ.Final[tuple[str, ...]] = (
-    f"echo {FORBIDDEN_VARIABLE} is only set on main",
-    "${{ secrets.OTHER_TOKEN }}",
-    "",
-)
 
 #: Short text for the places whose content is not the subject. A small
 #: alphabet, because a full-Unicode `st.text` builds Hypothesis's
@@ -46,83 +32,39 @@ MALFORMED: typ.Final[st.SearchStrategy[object]] = st.one_of(
     st.none(), SHORT_TEXT, st.integers(), st.lists(SHORT_TEXT, max_size=2)
 )
 
-#: An `env` mapping and the site suffix it produces: the variable as
-#: the key, a reference under another key, or neither.
-ENV_FORMS: typ.Final[tuple[tuple[dict[str, str], str | None], ...]] = (
-    ({FORBIDDEN_VARIABLE: "x"}, "env"),
-    ({"TOKEN": READ}, "env value TOKEN"),
-    ({"OTHER": DECOYS[0]}, None),
-)
-
-#: A drawn step entry: the step and its site suffixes, or `None` where a
-#: malformed entry stands in the steps list.
-type Entry = tuple[dict[str, object], list[str]] | None
-
-#: A drawn workflow: the document, its secret sites, and its mapping
-#: steps in declaration order.
-type Drawn = tuple[dict[str | bool, object], list[str], list[dict[str, object]]]
+#: A drawn workflow: the document and its mapping steps in declaration order.
+type Drawn = tuple[dict[str | bool, object], list[dict[str, object]]]
 
 
 @st.composite
-def _step(draw: st.DrawFn) -> tuple[dict[str, object], list[str]]:
-    """Draw one mapping step and the site suffixes it holds, in reading order."""
-    env, env_site = draw(st.sampled_from(ENV_FORMS))
-    reads_inputs, reads_run = draw(st.booleans()), draw(st.booleans())
-    decoy = draw(st.sampled_from(DECOYS))
-    step: dict[str, object] = {
-        "env": env,
-        "with": {"access-token": READ} if reads_inputs else {"note": decoy},
-        "run": f"curl -H {READ}" if reads_run else decoy,
+def _step(draw: st.DrawFn) -> dict[str, object]:
+    """Draw one mapping step."""
+    return {
+        "name": draw(SHORT_TEXT),
+        "run": draw(SHORT_TEXT),
+        "with": draw(st.dictionaries(SHORT_TEXT, SHORT_TEXT, max_size=2)),
     }
-    found = [env_site] if env_site else []
-    found += [
-        scope
-        for scope, reads in (("inputs", reads_inputs), ("run", reads_run))
-        if reads
-    ]
-    return step, found
 
 
 @st.composite
-def _job(draw: st.DrawFn) -> tuple[object, list[str], list[Entry]]:
-    """Draw one job, the job-level site suffixes it holds, and its step entries."""
+def _job(draw: st.DrawFn) -> tuple[object, list[dict[str, object]]]:
+    """Draw one job (or a malformed stand-in) and its mapping steps in order."""
     if draw(st.integers(min_value=0, max_value=5)) == 0:
-        return draw(MALFORMED), [], []
-    entries: list[Entry] = draw(st.lists(st.one_of(_step(), st.none()), max_size=4))
-    env, env_site = draw(st.sampled_from(ENV_FORMS))
-    inherits = draw(st.booleans())
-    job: dict[str, object] = {
-        "env": env,
-        "steps": [entry[0] if entry else draw(MALFORMED) for entry in entries],
-    }
-    if inherits:
-        job["secrets"] = "inherit"
-    job_sites = [
-        site for site in (env_site, "secrets: inherit" if inherits else None) if site
-    ]
-    return job, job_sites, entries
+        return draw(MALFORMED), []
+    entries = draw(st.lists(st.one_of(_step(), MALFORMED), max_size=4))
+    mapping_steps = [entry for entry in entries if isinstance(entry, dict)]
+    return {"steps": entries}, mapping_steps
 
 
 @st.composite
 def _workflow(draw: st.DrawFn) -> Drawn:
-    """Draw a workflow, the secret sites it holds and its mapping steps in order."""
+    """Draw a workflow and its mapping steps in order."""
     jobs = draw(st.lists(_job(), max_size=4))
-    env, env_site = draw(st.sampled_from(ENV_FORMS))
     document: dict[str | bool, object] = {
         "on": {"pull_request": ""},
-        "env": env,
-        "jobs": {f"job{index}": job for index, (job, _, _) in enumerate(jobs)},
+        "jobs": {f"job{index}": job for index, (job, _) in enumerate(jobs)},
     }
-    sites = [f"ci.yml: workflow {env_site}"] if env_site else []
-    steps: list[dict[str, object]] = []
-    for index, (_, job_sites, entries) in enumerate(jobs):
-        sites += [f"ci.yml: job job{index} {site}" for site in job_sites]
-        for position, entry in enumerate(entries):
-            if entry is not None:
-                steps.append(entry[0])
-                where = f"ci.yml: job job{index} step {position + 1}"
-                sites += [f"{where} {site}" for site in entry[1]]
-    return document, sites, steps
+    return document, [step for _, steps in jobs for step in steps]
 
 
 @settings(max_examples=200)
@@ -133,25 +75,10 @@ def test_the_step_reading_keeps_every_mapping_step_in_order(drawn: Drawn) -> Non
     A malformed job or step contributes nothing and raises nothing,
     wherever it sits among well-formed ones.
     """
-    document, _, steps = drawn
+    document, steps = drawn
     assert workflow_steps(document) == steps, (
         "the mapping steps, in order, and no other"
     )
-
-
-@settings(max_examples=200)
-@given(_workflow())
-def test_the_secret_reading_reports_every_and_only_the_reads(drawn: Drawn) -> None:
-    """Every scope that reads the secret is reported, in order, and no decoy.
-
-    The expected sites are recorded as the document is drawn: workflow,
-    job and step `env` in both the key and the value form, `secrets:
-    inherit`, step inputs and step scripts, across any number of jobs and
-    steps in any order, with prose naming the variable and other
-    secrets' references alongside.
-    """
-    document, sites, _ = drawn
-    assert secret_sites("ci.yml", document) == sites, "every read, in order, no decoy"
 
 
 @given(
