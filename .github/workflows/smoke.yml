@@ -29,7 +29,13 @@ env:
 
 jobs:
   lint-test:
-    runs-on: ubuntu-latest
+    # Ubicloud, to avoid the hosted queue. A pull request from a fork cannot
+    # obtain an Ubicloud runner, so it falls back to the hosted pool. A push
+    # to main runs here too, so main writes the Ubicloud cache scope this
+    # reads; coverage-main.yml's coverage-upload is on the same class.
+    # standard-4, not standard-2: standard-2 runs took 12.4 and 13.5 min against
+    # a hosted median of 6.3 (runs 36599858297 and 36601811696, the same lane on standard-2).
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
     # Above the 1,800 s cargo watchdog on the coverage step plus the work
     # either side of it, which reached 541 s on run 34069884428, counting
     # every second the watchdog does not bound rather than the coverage
