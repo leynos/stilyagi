@@ -877,8 +877,9 @@ The `build-release` target exists as a compatibility alias and should remain
 behaviourally identical to `release`.
 
 The `.github/workflows/smoke.yml` workflow is the bounded CI smoke path for
-this repository. Its Ubuntu `lint-test` job installs Python, Rust, `uv`, and
-the support tools required by the checked targets, then runs `make check-fmt`,
+this repository. Its `lint-test` job (on an Ubicloud runner, with a hosted
+fallback for a fork's pull request) installs Python, Rust, `uv`, and the
+support tools required by the checked targets, then runs `make check-fmt`,
 `make markdownlint`, `make nixie`, `make typecheck`, `make lint`, and
 `make test-doc`. Its `release-smoke` matrix builds and smoke-tests release
 wheels on Ubuntu, macOS, and Windows. The workflow is not release publishing
@@ -1574,9 +1575,10 @@ cargo watchdog, so neither can be set to twice a warm run.
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
 evaluates the expression for a push or dispatch, a same-repository pull request
 and a fork, rejects a literal label, inverted arms, another label and another
-condition, and asserts an exact inventory of the jobs that can land on Ubicloud
-with their runner class and ceiling. A change that adds, removes or re-times
-such a job fails it until the inventory is updated in the same commit.
+condition, inventories and refuses a runner named through the matrix, and
+asserts an exact inventory of the jobs that can land on Ubicloud with their
+runner class and ceiling. A change that adds, removes or re-times such a job
+fails it until the inventory is updated in the same commit.
 
 ## 7. Development responsibilities
 

@@ -126,6 +126,28 @@ def _job_mappings(document: WorkflowDocument) -> list[tuple[str, dict[object, ob
     return [(str(job_id), job) for job_id, job in jobs.items() if isinstance(job, dict)]
 
 
+def names_ubicloud(job: dict[object, object]) -> bool:
+    """Return whether a job can run on an Ubicloud runner, however it says so.
+
+    Parameters
+    ----------
+    job
+        A parsed job mapping.
+
+    Returns
+    -------
+    bool
+        True when its `runs-on` names Ubicloud, or reads a matrix value
+        (`${{ matrix.runner }}`) while its `strategy` names Ubicloud, so an
+        indirect placement is inventoried and then rejected by the judgement
+        rather than skipped.
+    """
+    runs_on = str(job.get("runs-on", ""))
+    return "ubicloud" in runs_on or (
+        "matrix." in runs_on and "ubicloud" in str(job.get("strategy", ""))
+    )
+
+
 def placed_jobs(
     documents: dict[str, WorkflowDocument],
 ) -> list[tuple[str, str, object, object]]:
@@ -146,7 +168,7 @@ def placed_jobs(
         (name, job_id, job.get("runs-on"), job.get("timeout-minutes"))
         for name, document in sorted(documents.items())
         for job_id, job in _job_mappings(document)
-        if "ubicloud" in str(job.get("runs-on", ""))
+        if names_ubicloud(job)
     ]
 
 
@@ -281,3 +303,19 @@ def test_every_ubicloud_lane_is_placed_by_the_expression_and_states_a_ceiling(
         placed, PLACEMENTS, strict=True
     ):
         assert not placement_faults(runs_on, label), f"{name}: {job} is misplaced"
+
+
+def test_an_indirect_ubicloud_runner_is_inventoried_and_rejected() -> None:
+    """Inventory a runner named through the matrix, and refuse it.
+
+    An indirect `runs-on: ${{ matrix.runner }}` whose matrix names Ubicloud
+    would otherwise escape the inventory, and with it the fork fallback and
+    the ceiling. Only the runner-selection expression places a lane.
+    """
+    text = (
+        "jobs:\n  lane:\n    runs-on: ${{ matrix.runner }}\n"
+        "    strategy:\n      matrix:\n        runner: [ubicloud-standard-2]\n"
+    )
+    placed = placed_jobs({"x.yml": load_workflow(text)})
+    assert len(placed) == 1, f"the matrix runner was not inventoried: {placed}"
+    assert placement_faults(placed[0][2], "ubicloud-standard-2"), "not rejected"
