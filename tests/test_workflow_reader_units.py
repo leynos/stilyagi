@@ -1,7 +1,7 @@
 """The workflow readers, driven on documents this repository does not have.
 
-Every rule in `test_codescene_coverage_contract` derives its subject
-from these readings, and each of those rules is a refusal. A refusal
+Every workflow contract derives its subject from these readings, and each
+of those contracts is a refusal. A refusal
 over an empty subject set is satisfied by any repository at all, so a
 reader that quietly finds nothing does not report an error and does not
 report zero: it reports compliance.
@@ -24,11 +24,6 @@ if typ.TYPE_CHECKING:
 import pytest
 import yaml
 
-from tests.support.codescene_coverage import (
-    coverage_steps,
-    publishers,
-    pull_request_workflows,
-)
 from tests.support.errors import ReadingError
 from tests.support.workflow_files import WorkflowReadingError, read_workflows
 from tests.support.workflows import (
@@ -68,6 +63,29 @@ def test_the_trigger_reader_handles_every_spelling(
     """
     assert triggers(load_workflow(document)) == expected, (
         f"the reader must find {sorted(expected)} in {document!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("document", "expected"),
+    [
+        pytest.param("on:\n  pull_request:\n", True, id="mapping"),
+        pytest.param("on: pull_request_target", True, id="target"),
+        pytest.param("on: [push, pull_request]", True, id="list"),
+        pytest.param("on:\n  push:\n    branches: [main]\n", False, id="push-only"),
+        pytest.param("name: x\n", False, id="no-triggers"),
+    ],
+)
+def test_a_pull_request_workflow_is_recognised_in_every_spelling(
+    document: str, *, expected: bool
+) -> None:
+    """A workflow serves pull requests when any spelling of its triggers says so.
+
+    `pull_request_target` counts, since it runs with the base repository's
+    secrets, and a push-only workflow does not.
+    """
+    assert serves_pull_requests(load_workflow(document)) is expected, (
+        f"{document!r} must read as serving pull requests: {expected}"
     )
 
 
@@ -137,10 +155,9 @@ def test_the_push_reader_answers_every_filter_form(
 ) -> None:
     """Which workflow may publish turns on this reading.
 
-    `publishers` grants the CodeScene upload to a workflow that pushes
-    to main, so a reader answering True for a shape that never runs on
-    a main push hands that permission to the wrong file, and the whole
-    contract passes while the wrong workflow uploads.
+    A reader answering True for a shape that never runs on a main push
+    hands that permission to the wrong file, and a contract built on it
+    passes while the wrong workflow uploads.
 
     The tag forms are the ones a naive reading gets wrong. A `push`
     filtered to tags alone fires for tag pushes and never for a branch,
@@ -283,40 +300,6 @@ def test_distinct_keys_at_different_levels_are_not_duplicates() -> None:
     assert sorted(jobs) == ["a", "b"], "each job keeps its own runs-on"
 
 
-def test_no_pull_request_workflow_is_a_reader_fault() -> None:
-    """The same argument one layer up.
-
-    A repository with a pull-request lane that reads as having none is a
-    broken reading, and the rules refusing things on that lane would all
-    pass over the empty set.
-    """
-    documents = {"main-only.yml": load_workflow(f"on:\n  push:\n{JOBS}")}
-    with pytest.raises(WorkflowReadingError) as raised:
-        pull_request_workflows(documents)
-    assert raised.value.reader == "pull_request_workflows", raised.value
-
-
-def test_a_duplicate_coverage_step_is_refused() -> None:
-    """One step per workflow, or the second hides the first.
-
-    Every assertion over a coverage step inspects one per workflow. Were
-    the reading to keep the last, a compliant second invocation would
-    hide a non-compliant first from all of them, and the contract would
-    certify a lane it had not read.
-    """
-    from tests.support.codescene_coverage import COVERAGE_ACTION
-
-    document = load_workflow(
-        f"on:\n  push:\njobs:\n  a:\n    steps:\n"
-        f"      - uses: {COVERAGE_ACTION}@{'a' * 40}\n"
-        f"      - uses: {COVERAGE_ACTION}@{'b' * 40}\n"
-    )
-    with pytest.raises(WorkflowReadingError) as raised:
-        coverage_steps({"twice.yml": document})
-    assert raised.value.reader == "coverage_steps", raised.value
-    assert raised.value.path == "twice.yml", raised.value
-
-
 @pytest.mark.parametrize(
     "body",
     [
@@ -337,20 +320,3 @@ def test_a_malformed_job_shape_yields_no_steps(body: str) -> None:
     assert workflow_steps(load_workflow(f"on:\n  push:\n{body}")) == [], (
         f"a malformed job shape yields no steps: {body!r}"
     )
-
-
-def test_a_publisher_serving_pull_requests_is_not_a_publisher() -> None:
-    """Both halves of the predicate, and the second is the one that is dropped.
-
-    A repository's main workflow usually declares `pull_request` and
-    `push: branches: [main]` together. A predicate reading only the push
-    makes that one file simultaneously required to upload and forbidden
-    from uploading, so the contract contradicts itself rather than
-    failing.
-    """
-    both = load_workflow(f"on:\n  pull_request:\n  push:\n    branches: [main]\n{JOBS}")
-    assert publishers({"smoke.yml": both}) == {}, (
-        "a workflow serving pull requests is not a publisher, whatever else "
-        "it is triggered by"
-    )
-    assert serves_pull_requests(both), "the fixture must serve pull requests"

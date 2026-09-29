@@ -10,7 +10,7 @@ name: Coverage (main)
 # read the token, so the check there was a silent skip for exactly the
 # contributions least likely to have been measured; and on a branch it
 # put a second tool on the critical path for a gate the ratchet already
-# applies. `tests/test_codescene_coverage_contract.py` holds the shape.
+# applies. `make test-workflow-contracts` holds the shape.
 #
 # This workflow also advances the coverage ratchet baseline: caches
 # saved on main are readable by every pull-request run, so the baseline
@@ -35,7 +35,7 @@ on:
 # baseline write; a queued one publishes later, and the later push's
 # baseline still wins because it runs last.
 concurrency:
-  group: coverage-main
+  group: coverage-main-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -75,6 +75,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Install Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -128,7 +130,7 @@ jobs:
         # ratchets against it. CodeScene has no way to tell it was not
         # main, because the upload does not carry the ref.
         if: steps.codescene_token.outputs.available == 'true' && github.ref == 'refs/heads/main'
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@dbe2e22ceaf498d85512679ccded38be9dbe7777
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@14c325b60788814cd50298eb8060228daee3b842
         with:
           format: cobertura
           # Named rather than left to the default, because this is the
