@@ -1544,12 +1544,16 @@ doctest run and the failure never reaches the recipe's exit status.
 ### 6i. Runner placement
 
 `smoke.yml`'s `lint-test` and `coverage-main.yml`'s `coverage-upload` run on
-`ubicloud-standard-2`. `runs-on` selects it with the runner-selection
+`ubicloud-standard-4`. `runs-on` selects it with the runner-selection
 expression:
 
 ```yaml
-runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-2' }}
+runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
 ```
+
+It is `standard-4` rather than the estate's `standard-2` on a measured
+shortfall: `lint-test` took 12.4 and 13.5 minutes on two vCPUs (runs
+36599858297 and 36601811696) against a hosted median of 6.3.
 
 A pull request from a fork cannot obtain an Ubicloud runner, so it falls back to
 `ubuntu-latest`; a push and a dispatch have no pull request, so the fork value
