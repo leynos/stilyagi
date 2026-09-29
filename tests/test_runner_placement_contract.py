@@ -106,6 +106,26 @@ def placement_faults(runs_on: object, label: str) -> list[str]:
     ]
 
 
+def _job_mappings(document: WorkflowDocument) -> list[tuple[str, dict[object, object]]]:
+    """Return a workflow's jobs that are mappings, with their identifiers.
+
+    Parameters
+    ----------
+    document
+        A parsed workflow.
+
+    Returns
+    -------
+    list[tuple[str, dict[object, object]]]
+        Job identifier and job mapping, in file order; empty when the
+        workflow has no `jobs` mapping.
+    """
+    jobs = document.get("jobs")
+    if not isinstance(jobs, dict):
+        return []
+    return [(str(job_id), job) for job_id, job in jobs.items() if isinstance(job, dict)]
+
+
 def placed_jobs(
     documents: dict[str, WorkflowDocument],
 ) -> list[tuple[str, str, object, object]]:
@@ -122,20 +142,12 @@ def placed_jobs(
         Workflow, job, `runs-on` value and the `timeout-minutes` it states
         (None when it states none), in file and job order.
     """
-    found: list[tuple[str, str, object, object]] = []
-    for name, document in sorted(documents.items()):
-        jobs = document.get("jobs")
-        if not isinstance(jobs, dict):
-            continue
-        for job_id, job in jobs.items():
-            if isinstance(job, dict) and "ubicloud" in str(job.get("runs-on", "")):
-                found.append((
-                    name,
-                    str(job_id),
-                    job.get("runs-on"),
-                    job.get("timeout-minutes"),
-                ))
-    return found
+    return [
+        (name, job_id, job.get("runs-on"), job.get("timeout-minutes"))
+        for name, document in sorted(documents.items())
+        for job_id, job in _job_mappings(document)
+        if "ubicloud" in str(job.get("runs-on", ""))
+    ]
 
 
 @pytest.mark.parametrize(
