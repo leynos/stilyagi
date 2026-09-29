@@ -139,8 +139,10 @@ def test_ci_workflow_job_topology(smoke_workflow: SmokeWorkflow) -> None:
     jobs, _workflow_steps, _run_commands = smoke_workflow
     assert "lint-test" in jobs, "expected 'lint-test' in jobs"
     assert_with_context(
-        jobs["lint-test"]["runs-on"] == "ubuntu-latest",
-        "expected jobs['lint-test']['runs-on'] == 'ubuntu-lat...",
+        jobs["lint-test"]["runs-on"]
+        == "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' "
+        "|| 'ubicloud-standard-2' }}",
+        "expected jobs['lint-test']['runs-on'] to be the runner-selection expression",
     )
     assert "release-smoke" in jobs, "expected 'release-smoke' in jobs"
     assert_with_context(
