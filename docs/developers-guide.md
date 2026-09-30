@@ -2050,19 +2050,21 @@ The shapes and that fault live in `tests/support/workflow_shapes.py`, apart
 from the reading that raises it.
 
 The nextest reading parses its input with `tomllib` rather than matching text.
-This repository has no `.config/nextest.toml`, which is why two tiers are
-missing, so those readings are what whoever adds the file will get. A text
-match would find a key inside a comment, inside a `filter` string, or in a
-table nextest never consults: a commented-out `global-timeout` would keep the
-presence assertion passing over a tier somebody had switched off, and a
-commented-out `grace-period` would raise the requirement this contract puts on
-the tier above it. `terminate-after` is optional, and a `slow-timeout` without
-it marks a test slow and never stops it, so the reading refuses that form
-rather than reporting one period as the budget. When it is set, nextest reads
-it as a non-zero unsigned integer, so a zero, a negative, a fraction, a quoted
-number and a boolean are each refused: coercing them numerically produced a
-budget for a configuration nextest will not load, and the rest raised out of
-the reading rather than being reported as a fault.
+This repository's `.config/nextest.toml` now sets both nextest tiers, and these
+readings are what hold it: `tests/support/nextest_config.py` parses it for the
+ordering contract, and `tests/test_trybuild_timeout_contract.py` reads the same
+file through an explicit reader that reports a missing or malformed file as
+such. A text match would find a key inside a comment, inside a `filter` string,
+or in a table nextest never consults: a commented-out `global-timeout` would
+keep the presence assertion passing over a tier somebody had switched off, and
+a commented-out `grace-period` would raise the requirement this contract puts
+on the tier above it. `terminate-after` is optional, and a `slow-timeout`
+without it marks a test slow and never stops it, so the reading refuses that
+form rather than reporting one period as the budget. When it is set, nextest
+reads it as a non-zero unsigned integer, so a zero, a negative, a fraction, a
+quoted number and a boolean are each refused: coercing them numerically
+produced a budget for a configuration nextest will not load, and the rest
+raised out of the reading rather than being reported as a fault.
 
 Durations are read with the grammar `humantime` accepts, which is what nextest
 deserializes them with: a sequence of components each carrying a unit, written

@@ -15,6 +15,8 @@ import tomllib
 import typing as typ
 from pathlib import Path
 
+from tests.support.nextest_config import largest_test_allowance
+
 REPOSITORY_ROOT: typ.Final = Path(__file__).resolve().parents[1]
 CONFIG_PATH: typ.Final = REPOSITORY_ROOT / ".config" / "nextest.toml"
 DEFAULT_PER_TEST_SECONDS: typ.Final = 180
@@ -31,10 +33,79 @@ def _seconds(duration: str) -> int:
     return int(duration[:-1]) * units[duration[-1]]
 
 
+def read_config_text(path: Path) -> str:
+    """Return the nextest configuration's text, failing clearly if unreadable.
+
+    This is the one place the contract touches the filesystem, so a missing or
+    unreadable file is reported as that rather than as a bare `OSError` from
+    deep inside an assertion.
+
+    Parameters
+    ----------
+    path
+        The configuration file to read.
+
+    Returns
+    -------
+    str
+        The file's text.
+
+    Raises
+    ------
+    AssertionError
+        If the file cannot be read.
+
+    Examples
+    --------
+    >>> read_config_text(Path("/nonexistent/nextest.toml"))
+    Traceback (most recent call last):
+    ...
+    AssertionError: cannot read the nextest configuration /nonexistent/nextest.toml
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as error:
+        message = f"cannot read the nextest configuration {path}"
+        raise AssertionError(message) from error
+
+
+def default_profile(config_text: str) -> dict[str, typ.Any]:
+    r"""Return the `default` profile table parsed from `config_text`.
+
+    Parameters
+    ----------
+    config_text
+        The configuration's TOML text.
+
+    Returns
+    -------
+    dict[str, typing.Any]
+        The `[profile.default]` table.
+
+    Raises
+    ------
+    AssertionError
+        If the text is not valid TOML or has no default profile.
+
+    Examples
+    --------
+    >>> text = '[profile.default]\nglobal-timeout = "1m"'
+    >>> default_profile(text)["global-timeout"]
+    '1m'
+    """
+    try:
+        document = tomllib.loads(config_text)
+    except tomllib.TOMLDecodeError as error:
+        message = f"the nextest configuration is not valid TOML: {error}"
+        raise AssertionError(message) from error
+    profile = document.get("profile", {}).get("default")
+    assert isinstance(profile, dict), "the configuration has no [profile.default]"
+    return profile
+
+
 def _profile() -> dict[str, typ.Any]:
-    """Return the parsed default profile."""
-    with CONFIG_PATH.open("rb") as handle:
-        return tomllib.load(handle)["profile"]["default"]
+    """Return the repository's default profile."""
+    return default_profile(read_config_text(CONFIG_PATH))
 
 
 def _trybuild_override() -> dict[str, typ.Any]:
@@ -51,9 +122,16 @@ def _trybuild_override() -> dict[str, typ.Any]:
 
 
 def test_the_trybuild_binaries_outlast_the_default_budget() -> None:
-    """Their per-test budget is at least the cold-compile allowance."""
+    """Their per-test budget is at least the cold-compile allowance.
+
+    The override's own budget is checked here, and the repository's shared
+    reading, which takes the largest allowance the file grants, must agree.
+    """
     slow = _trybuild_override()["slow-timeout"]
     budget = _seconds(slow["period"]) * slow["terminate-after"]
+    assert largest_test_allowance(read_config_text(CONFIG_PATH)) == budget, (
+        "the shared nextest reading must see the override as the largest allowance"
+    )
 
     assert budget >= MINIMUM_TRYBUILD_SECONDS, (
         f"trybuild budget is {budget} s; a cold instrumented compile needs at "
