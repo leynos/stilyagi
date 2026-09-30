@@ -1580,6 +1580,29 @@ asserts an exact inventory of the jobs that can land on Ubicloud with their
 runner class and ceiling. A change that adds, removes or re-times such a job
 fails it until the inventory is updated in the same commit.
 
+### The Makefile parser in CI
+
+The Makefile contract tests parse the `Makefile` with `makeutil`, so every
+workflow that runs the full suite (`smoke.yml`'s `lint-test` job and
+`coverage-main.yml`'s `coverage-upload` job) installs it. They use the shared
+`install-makeutil` action, pinned by commit, and take its default version: the
+action downloads a prebuilt release and checks it against a pinned digest and
+the release's own `.sha256` file, so nothing is built from source and the
+release is never named in this repository.
+
+A `Verify makeutil` step directly follows the install. It requires the binary's
+`makeutil --version` to equal the version the action reports
+(`steps.makeutil.outputs.version`) and `makeutil parse Makefile` to report a
+complete parse. It compares versions and never names one, so a default bump in
+the action needs no edit here.
+
+`tests/support/makeutil_contract.py` owns the assertions, and
+`tests/test_skylos_lint_contract.py` calls them for each workflow: the exact
+action reference, no `run` or `with` on the install step, the from-source
+variables gone, the smoke step directly after the install, and no literal
+version in it. Bump the pinned action reference in that module and the two
+workflows together.
+
 ## 7. Development responsibilities
 
 Maintainer responsibilities in this repository are stricter than a normal

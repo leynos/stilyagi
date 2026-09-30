@@ -18,6 +18,7 @@ INSTALL_ACTION: typ.Final = (
 _VERSION_CHECK: typ.Final = (
     'test "$(makeutil --version)" = "makeutil ${INSTALLED_VERSION}"'
 )
+_VERSION_LITERAL: typ.Final = re.compile(r"\d+\.\d+\.\d+")
 
 
 def assert_installation(step: dict[str, object], *, contract: str) -> None:
@@ -25,6 +26,29 @@ def assert_installation(step: dict[str, object], *, contract: str) -> None:
 
     A `run` key would mean a from-source install had crept back, and a `with`
     key would move the version off the action's own default and digest table.
+
+    Parameters
+    ----------
+    step
+        The parsed workflow step that installs makeutil.
+    contract
+        Names the workflow and job, so a failure says where it happened.
+
+    Notes
+    -----
+    Fails with `AssertionError` if `step` does not use the pinned action,
+    carries a `run` command, or carries a `with` block.
+
+    Examples
+    --------
+    >>> assert_installation({"uses": INSTALL_ACTION}, contract="smoke.yml")
+    >>> assert_installation(
+    ...     {"uses": INSTALL_ACTION, "with": {"version": "0.1.0"}},
+    ...     contract="smoke.yml",
+    ... )
+    Traceback (most recent call last):
+    ...
+    AssertionError: smoke.yml must take the action's default version
     """
     assert_with_context(
         step.get("uses") == INSTALL_ACTION,
@@ -50,27 +74,66 @@ def assert_verification(
 
     The install step needs an id so the verify step can read the version the
     action reports; the verify step must compare the binary's own version with
-    it and require a complete parse of the repository Makefile.
+    it, require a complete parse of the repository Makefile, and name no
+    literal version.
+
+    Parameters
+    ----------
+    install_step
+        The parsed step that installs makeutil; it must carry `id: makeutil`.
+    verify_step
+        The parsed step that verifies it, with an `env` mapping and a `run`
+        script.
+    contract
+        Names the workflow and job, so a failure says where it happened.
+
+    Notes
+    -----
+    Fails with `AssertionError` if the install step has no id, the verify
+    step's `env` or `run` is missing or the wrong shape, it does not read the
+    action's reported version, it omits the version comparison or the
+    complete-parse check, or its script contains a literal version.
+
+    Examples
+    --------
+    >>> assert_verification({"id": "other"}, {}, contract="smoke.yml")
+    Traceback (most recent call last):
+    ...
+    AssertionError: smoke.yml install step needs id
     """
     assert_with_context(
         install_step.get("id") == "makeutil",
         f"{contract} install step needs id",
     )
-    environment = verify_step.get("env")
-    assert_with_context(
-        isinstance(environment, dict),
-        f"{contract} verify step needs an env",
+    environment = _require_mapping(
+        verify_step.get("env"), f"{contract} verify step needs an env"
     )
     assert_with_context(
-        environment.get("INSTALLED_VERSION")
-        == ("${{ steps.makeutil.outputs.version }}"),
+        environment.get("INSTALLED_VERSION") == "${{ steps.makeutil.outputs.version }}",
         f"{contract} must read the version the install action reports",
     )
-    script = verify_step.get("run")
-    assert_with_context(
-        isinstance(script, str),
-        f"{contract} must run a verification script",
+    _assert_script(
+        _require_text(
+            verify_step.get("run"), f"{contract} must run a verification script"
+        ),
+        contract=contract,
     )
+
+
+def _require_mapping(value: object, message: str) -> dict[str, object]:
+    """Return `value` as a mapping, failing with `message` if it is not one."""
+    assert_with_context(isinstance(value, dict), message)
+    return typ.cast("dict[str, object]", value)
+
+
+def _require_text(value: object, message: str) -> str:
+    """Return `value` as text, failing with `message` if it is not a string."""
+    assert_with_context(isinstance(value, str), message)
+    return typ.cast("str", value)
+
+
+def _assert_script(script: str, *, contract: str) -> None:
+    """Assert the verification script's three checks and its lack of a literal."""
     assert_with_context(
         _VERSION_CHECK in script,
         f"{contract} must compare the binary's version with the installed one",
@@ -84,7 +147,7 @@ def assert_verification(
         f"{contract} must require a complete parse",
     )
     assert_with_context(
-        not re.search(r"\d+\.\d+\.\d+", script),
+        not _VERSION_LITERAL.search(script),
         f"{contract} must compare versions, never name one",
     )
 
@@ -92,10 +155,30 @@ def assert_verification(
 def assert_verification_follows_install(
     steps: list[dict[str, object]], *, contract: str
 ) -> None:
-    """Assert the verify step directly follows the install step."""
+    """Assert the verify step directly follows the install step.
+
+    Parameters
+    ----------
+    steps
+        The job's parsed steps, in order.
+    contract
+        Names the workflow and job, so a failure says where it happened.
+
+    Notes
+    -----
+    Fails with `AssertionError` if the step after "Install makeutil" is not
+    "Verify makeutil".
+
+    Examples
+    --------
+    >>> assert_verification_follows_install(
+    ...     [{"name": "Install makeutil"}, {"name": "Verify makeutil"}],
+    ...     contract="smoke.yml",
+    ... )
+    """
     names = [step.get("name") for step in steps]
     position = names.index("Install makeutil")
     assert_with_context(
-        names[position + 1] == "Verify makeutil",
+        names[position + 1 :][:1] == ["Verify makeutil"],
         f"{contract} must verify makeutil right after installing it",
     )
