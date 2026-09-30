@@ -5,6 +5,7 @@ smoke-tests it straight away. These assertions hold both halves in one place so
 the workflow contract that calls them stays under the module size limit.
 """
 
+import re
 import typing as typ
 
 from tests.support.assertions import assert_with_context
@@ -81,6 +82,10 @@ def assert_verification(
     assert_with_context(
         '["parse"]["status"] == "complete"' in script,
         f"{contract} must require a complete parse",
+    )
+    assert_with_context(
+        not re.search(r"\d+\.\d+\.\d+", script),
+        f"{contract} must compare versions, never name one",
     )
 
 
