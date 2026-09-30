@@ -18,6 +18,45 @@ INSTALL_ACTION: typ.Final = (
 _VERSION_CHECK: typ.Final = (
     'test "$(makeutil --version)" = "makeutil ${INSTALLED_VERSION}"'
 )
+
+
+_EXPECTED_SCRIPT: typ.Final = (
+    "set -euo pipefail",
+    'test "$(makeutil --version)" = "makeutil ${INSTALLED_VERSION}"',
+    (
+        "makeutil parse Makefile | python3 -c "
+        "'import json, sys; "
+        'assert json.load(sys.stdin)["parse"]["status"] == "complete"\''
+    ),
+)
+
+
+def _executable_lines(script: str) -> tuple[str, ...]:
+    r"""Return the script's commands, joining continuations, dropping comments.
+
+    A check that is commented out, or sits inside a conditional, must not count
+    as a check, so the script is reduced to the lines the shell would run.
+
+    Parameters
+    ----------
+    script
+        The step's `run` text.
+
+    Returns
+    -------
+    tuple[str, ...]
+        One whitespace-normalised string per command line.
+
+    Examples
+    --------
+    >>> _executable_lines("# note\nset -e\n\nfoo \\\n  bar")
+    ('set -e', 'foo bar')
+    """
+    joined = script.replace("\\\n", " ")
+    lines = (" ".join(line.split()) for line in joined.splitlines())
+    return tuple(line for line in lines if line and not line.startswith("#"))
+
+
 _VERSION_LITERAL: typ.Final = re.compile(r"\d+\.\d+\.\d+")
 
 
@@ -134,6 +173,13 @@ def _require_text(value: object, message: str) -> str:
 
 def _assert_script(script: str, *, contract: str) -> None:
     """Assert the verification script's three checks and its lack of a literal."""
+    assert_with_context(
+        _executable_lines(script) == _EXPECTED_SCRIPT,
+        (
+            f"{contract} must run exactly the checks it names, "
+            "uncommented and unconditional"
+        ),
+    )
     assert_with_context(
         _VERSION_CHECK in script,
         f"{contract} must compare the binary's version with the installed one",
