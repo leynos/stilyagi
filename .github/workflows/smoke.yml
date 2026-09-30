@@ -73,8 +73,21 @@ jobs:
         run: cargo binstall --no-confirm cargo-nextest@0.9.138
 
       - name: Install makeutil
+        id: makeutil
         # A digest-verified prebuilt release rather than a from-source build.
         uses: leynos/shared-actions/.github/actions/install-makeutil@d57cb19b82281236088108f2ffb7e13bc00fc2f8
+
+      - name: Verify makeutil
+        # Prove the installed binary runs, matches the release the action
+        # reports, and reads this repository's Makefile completely.
+        shell: bash
+        env:
+          INSTALLED_VERSION: ${{ steps.makeutil.outputs.version }}
+        run: |
+          set -euo pipefail
+          test "$(makeutil --version)" = "makeutil ${INSTALLED_VERSION}"
+          makeutil parse Makefile | python3 -c \
+            'import json, sys; assert json.load(sys.stdin)["parse"]["status"] == "complete"'
 
       - name: Install bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
