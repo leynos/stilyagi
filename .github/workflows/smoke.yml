@@ -20,8 +20,6 @@ env:
   RUFF_VERSION: '0.16.4'
   TY_VERSION: '0.0.74'
   WHITAKER_INSTALLER_VERSION: '0.2.6'
-  MAKEUTIL_REVISION: '29fc5a1634ffbaa18a773eed9dff1b2838a45d9c'
-  MAKEUTIL_TOOLCHAIN: 'nightly-2026-05-28'
   # The 927edd4 shared-actions pin adds a 600s cargo wall-clock cap;
   # stilyagi's trybuild-heavy suite and the maturin extension build need
   # more headroom under cold coverage instrumentation.
@@ -74,15 +72,9 @@ jobs:
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest@0.9.138
 
-      - name: Install Makefile parser
-        run: |
-          rustup toolchain install "${MAKEUTIL_TOOLCHAIN}" --profile minimal
-          RUSTFLAGS="-Zpolonius=next" cargo +"${MAKEUTIL_TOOLCHAIN}" install \
-            --git https://github.com/leynos/makeutil \
-            --rev "${MAKEUTIL_REVISION}" \
-            --locked \
-            --force \
-            makeutil
+      - name: Install makeutil
+        # A digest-verified prebuilt release rather than a from-source build.
+        uses: leynos/shared-actions/.github/actions/install-makeutil@d57cb19b82281236088108f2ffb7e13bc00fc2f8
 
       - name: Install bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
