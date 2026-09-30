@@ -1,0 +1,18 @@
+# The generate-coverage action writes its own default here when the file is
+# absent: a 180 s per-test budget under a 10 min run budget. This file replaces
+# that default so the two trybuild UI binaries, which compile whole crates and
+# outlast 180 s on a cold, instrumented runner, get a budget that fits them.
+#
+# The ordering the contract in tests/test_timeout_ordering_contract.py holds:
+# largest per-test budget < global-timeout < the 1,800 s cargo watchdog less
+# termination and a cold build.
+[profile.default]
+slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
+global-timeout = "18m"
+
+# stilyagi-ir's `ui` binary and stilyagi-pyext's `compile_tests` binary drive
+# trybuild, which builds a scratch crate per case. They are the only tests whose
+# duration is a compile rather than a computation.
+[[profile.default.overrides]]
+filter = "(package(stilyagi-ir) & binary(ui)) | (package(stilyagi-pyext) & binary(compile_tests))"
+slow-timeout = { period = "600s", terminate-after = 1, grace-period = "5s" }
