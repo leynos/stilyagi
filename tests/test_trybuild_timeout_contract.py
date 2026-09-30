@@ -10,6 +10,7 @@ naming both binaries with a budget well beyond the default, and that budget
 must stay under the whole-run budget.
 """
 
+import re
 import tomllib
 import typing as typ
 from pathlib import Path
@@ -78,3 +79,21 @@ def test_every_other_test_keeps_the_default_budget() -> None:
     assert (
         _seconds(slow["period"]) * slow["terminate-after"] == DEFAULT_PER_TEST_SECONDS
     ), "widening every test would hide a hang as a slow test"
+
+
+def test_the_widened_budget_is_scoped_to_the_two_binaries_only() -> None:
+    """The override filter names only package-and-binary terms, never a wildcard.
+
+    A filter such as `all()` or `test(/./)` would widen the 600 s budget to
+    every test and hide a hang as a slow test.
+    """
+    override = _trybuild_override()
+    terms = [term.strip() for term in re.split(r"\|", override["filter"])]
+
+    assert len(terms) == len(TRYBUILD_BINARIES), (
+        f"expected one term per trybuild binary, got {terms}"
+    )
+    for term in terms:
+        assert re.fullmatch(r"\(?package\([\w-]+\) & binary\(\w+\)\)?", term), (
+            f"override term {term!r} is not a package-and-binary pair"
+        )
