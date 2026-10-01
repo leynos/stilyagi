@@ -65,7 +65,7 @@ fn empty_markdown_extraction_yields_no_regions(
         .first()
         .expect("expected empty Markdown fixture");
 
-    assert!(document.regions().is_empty());
+    assert_eq!(document.regions(), []);
     assert!(document.ir().is_some());
 }
 
@@ -77,7 +77,7 @@ fn whitespace_markdown_extraction_yields_no_regions(
         .get(1)
         .expect("expected whitespace Markdown fixture");
 
-    assert!(document.regions().is_empty());
+    assert_eq!(document.regions(), []);
     assert!(document.ir().is_some());
 }
 
@@ -198,7 +198,7 @@ fn malformed_corpus_fixtures_are_readable_utf8_sources(#[case] relative_path: &s
     let source = read_corpus_fixture(relative_path)
         .expect("malformed corpus fixture should be readable UTF-8");
 
-    assert!(!source.is_empty());
+    assert_ne!(source, "");
 }
 
 #[rstest]

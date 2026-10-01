@@ -190,14 +190,14 @@ fn ordinary_comments_do_not_change_node_identity() {
 
     assert_eq!(baseline.nodes.len(), with_comment.nodes.len());
     assert_eq!(baseline_ids, comment_ids);
-    assert!(with_comment.suppressions.is_empty());
+    assert_eq!(with_comment.suppressions, []);
 }
 
 #[rstest]
 fn blanket_directives_are_rejected_without_emitting_suppressions() {
     let document = extract_python("# stilyagi: disable\n");
 
-    assert!(document.suppressions.is_empty());
+    assert_eq!(document.suppressions, []);
     assert_eq!(
         document
             .errors
@@ -270,7 +270,7 @@ fn malformed_fixture_yields_partial_ir_and_errors() {
         document.regions.first().map(|region| region.text.as_str()),
         Some("Module docstring before malformed Python source.")
     );
-    assert!(!document.errors.is_empty());
+    assert_ne!(document.errors, []);
 }
 
 #[rstest]

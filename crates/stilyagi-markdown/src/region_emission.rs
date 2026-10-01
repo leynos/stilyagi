@@ -358,6 +358,6 @@ mod tests {
 
         builder.push_postorder_region_for_node(&node, "n0");
 
-        assert!(builder.regions.is_empty());
+        assert_eq!(builder.regions, []);
     }
 }

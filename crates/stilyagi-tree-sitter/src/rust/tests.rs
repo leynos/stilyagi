@@ -231,7 +231,7 @@ fn non_doc_comment_edge_cases_emit_no_regions(#[case] source: &str) {
     let comment = first_named_child(root);
 
     assert!(text_for_node(source, comment).starts_with('/'));
-    assert!(extract_rust(source).regions.is_empty());
+    assert_eq!(extract_rust(source).regions, []);
 }
 
 #[rstest]
@@ -327,7 +327,7 @@ fn malformed_fixture_yields_partial_ir_and_errors() {
         panic!("expected malformed Rust fixture to yield one region");
     };
 
-    assert!(!document.errors.is_empty());
+    assert_ne!(document.errors, []);
     assert!(
         document
             .errors

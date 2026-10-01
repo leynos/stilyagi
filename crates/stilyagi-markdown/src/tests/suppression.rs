@@ -65,7 +65,7 @@ fn markdown_ir_document_collects_inline_paragraph_suppressions(
         .first()
         .expect("expected a suppression entry");
 
-    assert!(document.errors.is_empty());
+    assert_eq!(document.errors, []);
     assert_eq!(document.suppressions.len(), 1);
     assert_eq!(html_node_ids.len(), 1);
     assert_eq!(suppression.kind, expected_kind);
@@ -183,12 +183,12 @@ fn codeless_file_directives_produce_one_file_suppression() {
 
     assert_eq!(document.suppressions.len(), 1);
     assert_eq!(suppression.kind, SuppressionKind::File);
-    assert!(suppression.codes.is_empty());
+    assert_eq!(suppression.codes, Vec::<String>::new());
     assert_eq!(
         source.get(suppression.span.byte_start..suppression.span.byte_end),
         Some("<!-- stilyagi: ignore-file -->")
     );
-    assert!(document.errors.is_empty());
+    assert_eq!(document.errors, []);
 }
 
 #[rstest]
@@ -211,7 +211,7 @@ fn blanket_inline_and_range_directives_emit_errors_only(
         .expect("expected a blanket suppression error");
     let span = error.span.expect("expected suppression error span");
 
-    assert!(document.suppressions.is_empty());
+    assert_eq!(document.suppressions, []);
     assert_eq!(document.errors.len(), 1);
     assert_eq!(error.code, "suppression-blanket-forbidden");
     assert_eq!(
@@ -226,8 +226,8 @@ fn placeholder_non_canonical_marker_is_ignored() {
     let document = markdown_ir_document(source, source_identity(Path::new("docs/example.md")))
         .expect("expected Markdown IR document");
 
-    assert!(document.suppressions.is_empty());
-    assert!(document.errors.is_empty());
+    assert_eq!(document.suppressions, []);
+    assert_eq!(document.errors, []);
 }
 
 #[rstest]

@@ -77,7 +77,7 @@ fn malformed_python_fixture_has_a_golden_ir_snapshot() {
         region.text,
         "Module docstring before malformed Python source."
     );
-    assert!(!document.errors.is_empty());
+    assert_ne!(document.errors, []);
 
     insta::assert_snapshot!(
         "extraction_tests__malformed_python_fixture_has_a_golden_ir_snapshot",
@@ -148,7 +148,7 @@ fn malformed_rust_fixture_has_a_golden_ir_snapshot() {
         region.text,
         " Crate-level documentation before malformed Rust source."
     );
-    assert!(!document.errors.is_empty());
+    assert_ne!(document.errors, []);
 
     insta::assert_snapshot!(
         "extraction_tests__malformed_rust_fixture_has_a_golden_ir_snapshot",
@@ -211,7 +211,7 @@ fn python_extraction_attaches_owner_aware_ir(shared_python_source: String) {
     let ir = document.ir().expect("expected Python IR payload");
 
     assert_eq!(ir.document.syntax, "python");
-    assert!(!ir.regions.is_empty());
+    assert_ne!(ir.regions, []);
     assert!(ir.regions.iter().all(|region| region.owner.is_some()));
     assert!(
         ir.regions
