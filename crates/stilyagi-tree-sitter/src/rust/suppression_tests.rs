@@ -84,7 +84,7 @@ fn blanket_directives_emit_errors_without_suppressions() {
         "}\n",
     ));
 
-    assert!(document.suppressions.is_empty());
+    assert_eq!(document.suppressions, []);
     assert!(
         document
             .errors
@@ -113,7 +113,7 @@ fn non_marker_comments_do_not_allocate_nodes_or_suppressions() {
         "pub fn documented() {}\n",
     ));
 
-    assert!(with_comment.suppressions.is_empty());
+    assert_eq!(with_comment.suppressions, []);
     assert_eq!(node_ids(&with_comment), node_ids(&without_comment));
 }
 

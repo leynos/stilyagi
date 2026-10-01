@@ -27,5 +27,5 @@ note: function defined here
    |     -----------
 help: provide the arguments
    |
-10 | fn bad_module(#[pymodule], /* &pyo3::Bound<'_, PyModule> */, /* i32 */)(
-   |              ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+10 | fn bad_module(#[pymodule], /* &Bound<'_, PyModule> */, /* i32 */)(
+   |              ++++++++++++++++++++++++++++++++++++++++++++++++++++

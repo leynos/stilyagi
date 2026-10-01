@@ -46,7 +46,7 @@ fn extracted_ir_regions_use_only_the_shared_vocabulary(
         .expect("expected shared syntax extraction");
     let ir = document.ir().expect("expected IR payload");
 
-    assert!(!ir.regions.is_empty());
+    assert_ne!(ir.regions, []);
     assert_eq!(expected_kind.as_str(), expected_spelling);
     assert!(
         ir.regions
