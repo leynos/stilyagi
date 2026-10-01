@@ -144,6 +144,8 @@ def assert_verification(
         install_step.get("id") == "makeutil",
         f"{contract} install step needs id",
     )
+    _assert_unconditional(install_step, label=f"{contract} install")
+    _assert_unconditional(verify_step, label=f"{contract} verify")
     environment = _require_mapping(
         verify_step.get("env"), f"{contract} verify step needs an env"
     )
@@ -195,6 +197,22 @@ def _assert_script(script: str, *, contract: str) -> None:
     assert_with_context(
         not _VERSION_LITERAL.search(script),
         f"{contract} must compare versions, never name one",
+    )
+
+
+def _assert_unconditional(step: dict[str, object], *, label: str) -> None:
+    """Assert `step` always runs and its failure fails the job.
+
+    An `if` condition could skip the step and `continue-on-error` could swallow
+    its failure, so either would leave a green job over an unverified binary.
+
+    Examples
+    --------
+    >>> _assert_unconditional({"name": "x"}, label="ci.yml verify")
+    """
+    assert_with_context(
+        not {"if", "continue-on-error"} & step.keys(),
+        f"{label} step must run unconditionally and fail the job",
     )
 
 
