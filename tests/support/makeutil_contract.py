@@ -241,8 +241,11 @@ def assert_verification_follows_install(
     ... )
     """
     names = [step.get("name") for step in steps]
-    position = names.index("Install makeutil")
     assert_with_context(
-        names[position + 1 :][:1] == ["Verify makeutil"],
+        "Install makeutil" in names, f"{contract} must have an install step"
+    )
+    following = names[names.index("Install makeutil") + 1 :][:1]
+    assert_with_context(
+        following == ["Verify makeutil"],
         f"{contract} must verify makeutil right after installing it",
     )
