@@ -15,9 +15,6 @@ import pytest
 from tests.support.assertions import assert_with_context
 from tests.support.workflows import load_workflow
 
-if typ.TYPE_CHECKING:
-    from syrupy.assertion import SnapshotAssertion
-
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 WorkflowStep = typ.TypedDict(
     "WorkflowStep",
@@ -254,9 +251,8 @@ def test_ci_workflow_installs_versioned_nixie_cli(
 
 def test_ci_workflow_installs_test_runner_and_whitaker(
     smoke_workflow: SmokeWorkflow,
-    snapshot: SnapshotAssertion,
 ) -> None:
-    """CI must install cargo-nextest and the pinned Whitaker toolchain."""
+    """CI must install cargo-nextest and Whitaker through the shared action."""
     jobs, _workflow_steps, _run_commands = smoke_workflow
     test_runner_step = _workflow_step_named(jobs["lint-test"], "Install test runner")
     assert_with_context(
@@ -264,14 +260,24 @@ def test_ci_workflow_installs_test_runner_and_whitaker(
         "expected 'cargo binstall --no-confirm cargo-nextest'...",
     )
     whitaker_step = _workflow_step_named(jobs["lint-test"], "Install Whitaker")
-    whitaker_run = str(whitaker_step["run"]).rstrip()
-    # The installer is pinned via the workflow-level env var and expanded by
-    # the shell (never inlined with ``${{ env … }}``, which zizmor flags as
-    # template injection), fetched with ``--locked``, and falls back to a
-    # crates.io build when cargo-binstall is unavailable.
+    # Whitaker is installed only through the shared action, pinned to a full
+    # commit SHA; the action owns the installer version, cache and checks, so
+    # the step carries no script of its own.
     assert_with_context(
-        whitaker_run == snapshot,
-        "expected the Whitaker installation recipe to match i...",
+        re.fullmatch(
+            r"leynos/shared-actions/\.github/actions/install-whitaker@[0-9a-f]{40}",
+            str(whitaker_step.get("uses", "")),
+        )
+        is not None,
+        "expected Install Whitaker to use the shared action at a full SHA",
+    )
+    assert_with_context(
+        "run" not in whitaker_step,
+        "expected Install Whitaker to carry no script of its own",
+    )
+    assert_with_context(
+        whitaker_step.get("with") == {"cranelift": "true"},
+        "expected Install Whitaker to enable only the cranelift component",
     )
 
 
