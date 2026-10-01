@@ -184,12 +184,20 @@ def test_the_trybuild_override_is_the_only_override() -> None:
 
     A second entry such as `filter = "all()"` at the same 600 s would leave the
     matching override unique and the shared reading unchanged, yet widen the
-    budget to every test. Requiring exactly one override closes that.
+    budget to every test. The same holds under another profile, such as the
+    `ci` profile `make test-ci` selects, which inherits the default. Requiring
+    exactly one override across all profiles closes both.
     """
-    overrides = _profile().get("overrides", [])
+    profiles = tomllib.loads(read_config_text(CONFIG_PATH)).get("profile", {})
+    found = {
+        name: len(profile.get("overrides", []))
+        for name, profile in profiles.items()
+        if profile.get("overrides")
+    }
 
-    assert len(overrides) == 1, (
-        f"expected exactly the trybuild override, found {len(overrides)} overrides"
+    assert found == {"default": 1}, (
+        "expected exactly the trybuild override, in the default profile only; "
+        f"found overrides per profile: {found}"
     )
 
 
