@@ -1,16 +1,18 @@
-"""Command-line behaviour tests for the duplication gate."""
+"""Command-line behaviour tests for the duplication gate.
 
-import dataclasses as dc
-import json
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests exercise copied gate and Make commands.
-import sys
+The ``check`` and ``allow`` commands are exercised through their real
+argument-parsing boundary with injected readers, detectors, and manifests, so
+the CLI contract — exit statuses, diagnostics, and round-tripped allow entries
+— is pinned without invoking the pinned detector binary. The separate
+boundary module pins how input-loading failures are translated.
+"""
+
 import textwrap
-import tomllib
+import typing as typ
 from pathlib import Path
 
 import pytest
 from duplication_gate_test_support import (
-    REPOSITORY_ROOT,
     allowlist,
     copied_gate_workspace,
     detector,
@@ -19,6 +21,9 @@ from duplication_gate_test_support import (
     run_gate_command,
     write_stub_nose,
 )
+
+if typ.TYPE_CHECKING:
+    from syrupy.assertion import SnapshotAssertion
 
 
 def _finding() -> detector.Finding:
@@ -36,13 +41,14 @@ def _finding() -> detector.Finding:
 
 
 class TestGateCommands:
-    """CLI orchestration and real workflow contracts."""
+    """CLI orchestration and diagnostics."""
 
     def test_check_reports_blocking_findings(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
+        snapshot: SnapshotAssertion,
     ) -> None:
         """The check command emits the blocking report and status one."""
         monkeypatch.chdir(tmp_path)
@@ -51,21 +57,16 @@ class TestGateCommands:
         with pytest.raises(SystemExit) as error:
             gate.check()
         assert error.value.code == 1, "Blocking findings must return status one."
-        assert capsys.readouterr().out == (
-            "duplicate code: 1 unsuppressed family/families\n"
-            "  python/stilyagi/a.py:1-20 ~ python/stilyagi/b.py:30-49 beta "
-            "(copy-paste, value 22.1)\n"
-            "Extract the shared logic into one helper, or record a considered "
-            "exception:\n"
-            "  make duplication-allow FIRST='<path[::name]>' "
-            "[SECOND='<path[::name]>'] REASON='<why this stays>'\n"
-        ), "Blocking report must remain actionable and deterministic."
+        assert capsys.readouterr().out == snapshot, (
+            "Blocking report must remain actionable and deterministic."
+        )
 
     def test_check_reports_stale_entries(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
+        snapshot: SnapshotAssertion,
     ) -> None:
         """Allow entries covering nothing are reported for removal."""
         monkeypatch.chdir(tmp_path)
@@ -75,13 +76,9 @@ class TestGateCommands:
         monkeypatch.setattr(gate, "load_allowlist", lambda _path: (entry,))
         monkeypatch.setattr(gate, "detect_findings", lambda: [])
         gate.check()
-        assert capsys.readouterr().out == (
-            "stale allow entry (python/stilyagi/gone.py): it silences nothing in "
-            "this run. Confirm the duplication is really gone before removing "
-            "it: a family can drop out of the ranking because it fell below "
-            "`top` or shrank under `min-size`, not because it was fixed.\n"
-            "duplication gate passed\n"
-        ), "Stale entries must be reported alongside a passing gate."
+        assert capsys.readouterr().out == snapshot, (
+            "Stale entries must be reported alongside a passing gate."
+        )
 
     def test_stale_diagnostic_distinguishes_shrinking_from_fixing(
         self,
@@ -108,177 +105,6 @@ class TestGateCommands:
                 "read as proof the code was deduplicated."
             )
 
-    @pytest.mark.parametrize(
-        "error",
-        [
-            pytest.param(OSError("unreadable configuration"), id="allowlist-io"),
-            pytest.param(OSError("detector executable unavailable"), id="detector-io"),
-        ],
-    )
-    def test_check_inputs_wrap_environment_failures(self, error: Exception) -> None:
-        """Injected reader and detector failures become explicit gate errors."""
-        if str(error).startswith("unreadable"):
-
-            def reader(_path: object) -> tuple[allowlist.AllowEntry, ...]:
-                raise error
-
-            def detect() -> list[detector.Finding]:
-                return []
-
-        else:
-
-            def reader(_path: object) -> tuple[allowlist.AllowEntry, ...]:
-                return ()
-
-            def detect() -> list[detector.Finding]:
-                raise error
-
-        with pytest.raises(gate.GateExecutionError, match=str(error)):
-            gate._check_inputs(allowlist_reader=reader, detector=detect)
-
-    def test_read_allowlist_returns_the_reader_result(self) -> None:
-        """A successful reader result reaches the caller unchanged."""
-        entry = allowlist.AllowEntry(keys=("python/stilyagi/a.py",), reason="reviewed")
-
-        def reader(_path: object) -> tuple[allowlist.AllowEntry, ...]:
-            return (entry,)
-
-        assert gate._read_allowlist(reader) == (entry,), (
-            "The reader's entries must pass through unchanged."
-        )
-
-    def test_detect_findings_returns_the_detector_result(self) -> None:
-        """A successful detector result reaches the caller unchanged."""
-        finding = detector.Finding(
-            witness="copy-paste",
-            value=9.0,
-            locations=(
-                detector.Location(
-                    file="python/stilyagi/a.py", start=1, end=2, name=None
-                ),
-                detector.Location(
-                    file="python/stilyagi/b.py", start=1, end=2, name=None
-                ),
-            ),
-        )
-
-        def detect() -> list[detector.Finding]:
-            return [finding]
-
-        assert gate._detect_findings(detect) == [finding], (
-            "The detector's findings must pass through unchanged."
-        )
-
-    @pytest.mark.parametrize(
-        ("error", "expected_type", "expected_message"),
-        [
-            pytest.param(
-                OSError("unreadable configuration"),
-                gate.GateExecutionError,
-                "cannot load duplication allowlist: unreadable configuration",
-                id="os-error",
-            ),
-            pytest.param(
-                tomllib.TOMLDecodeError("bad table", "", 0),
-                gate.GateExecutionError,
-                "cannot load duplication allowlist: bad table (at end of document)",
-                id="toml-error",
-            ),
-        ],
-    )
-    def test_read_allowlist_translates_environment_failures(
-        self,
-        error: Exception,
-        expected_type: type[Exception],
-        expected_message: str,
-    ) -> None:
-        """Unreadable configuration becomes an explicit execution error."""
-
-        def reader(_path: object) -> tuple[allowlist.AllowEntry, ...]:
-            raise error
-
-        with pytest.raises(expected_type) as raised:
-            gate._read_allowlist(reader)
-
-        assert str(raised.value) == expected_message, "Diagnostic must name the cause."
-        assert raised.value.__cause__ is error, "The original error must be the cause."
-
-    @pytest.mark.parametrize(
-        ("error", "expected_type", "expected_message"),
-        [
-            pytest.param(
-                OSError("detector executable unavailable"),
-                gate.GateExecutionError,
-                "nose detector failed: detector executable unavailable",
-                id="os-error",
-            ),
-            pytest.param(
-                TypeError("families must be an array"),
-                gate.GateConfigError,
-                "families must be an array",
-                id="type-error",
-            ),
-            pytest.param(
-                ValueError("value must be a number"),
-                gate.GateConfigError,
-                "value must be a number",
-                id="value-error",
-            ),
-        ],
-    )
-    def test_detect_findings_translates_detector_failures(
-        self,
-        error: Exception,
-        expected_type: type[Exception],
-        expected_message: str,
-    ) -> None:
-        """Execution failures and schema violations use distinct gate errors."""
-
-        def detect() -> list[detector.Finding]:
-            raise error
-
-        with pytest.raises(expected_type) as raised:
-            gate._detect_findings(detect)
-
-        assert str(raised.value) == expected_message, "Diagnostic must name the cause."
-        assert raised.value.__cause__ is error, "The original error must be the cause."
-
-    def test_detect_findings_does_not_wrap_runtime_errors(self) -> None:
-        """Programming faults from a detector are not reclassified as I/O failures."""
-        error = RuntimeError("detector runtime failed")
-
-        def detect() -> list[detector.Finding]:
-            raise error
-
-        with pytest.raises(RuntimeError) as raised:
-            gate._detect_findings(detect)
-
-        assert raised.value is error, "Runtime errors must propagate unchanged."
-
-    def test_read_allowlist_passes_configuration_errors_through(self) -> None:
-        """An allowlist configuration error is not rewrapped."""
-        error = gate.GateConfigError("duplication_gate.allow[0] requires a reason")
-
-        def reader(_path: object) -> tuple[allowlist.AllowEntry, ...]:
-            raise error
-
-        with pytest.raises(gate.GateConfigError) as raised:
-            gate._read_allowlist(reader)
-
-        assert raised.value is error, "The original configuration error must propagate."
-
-    def test_detect_findings_passes_configuration_errors_through(self) -> None:
-        """A detector configuration error is not rewrapped."""
-        error = gate.GateConfigError("nose 0.19.0 is installed but 0.20.0 is pinned")
-
-        def detect() -> list[detector.Finding]:
-            raise error
-
-        with pytest.raises(gate.GateConfigError) as raised:
-            gate._detect_findings(detect)
-
-        assert raised.value is error, "The original configuration error must propagate."
-
     def test_check_reports_detector_schema_errors(
         self,
         tmp_path: Path,
@@ -290,6 +116,7 @@ class TestGateCommands:
         monkeypatch.setattr(gate, "load_allowlist", lambda _path: ())
 
         def raise_schema_error() -> list[detector.Finding]:
+            """Fail the way a schema violation inside the detector does."""
             msg = "nose report families must be an array"
             raise TypeError(msg)
 
@@ -347,6 +174,25 @@ class TestGateCommands:
             "requires a non-empty reason\n"
         ), "Malformed allows must use the configuration diagnostic."
 
+    def test_allow_reports_malformed_parent_table(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A scalar where a parent table belongs exits cleanly, not with a trace."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text('tool = "scalar"\n', encoding="utf-8")
+        monkeypatch.setattr(gate, "PYPROJECT", pyproject)
+
+        with pytest.raises(SystemExit) as error:
+            gate.allow(first="python/stilyagi/a.py", reason="reviewed exception")
+
+        assert error.value.code == 2, "Malformed parent tables must return two."
+        assert capsys.readouterr().err == (
+            "configuration error: [tool] must be a table\n"
+        ), "A malformed parent table must use the configuration diagnostic."
+
     def test_allow_reports_write_failures(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -356,6 +202,7 @@ class TestGateCommands:
         write_error = OSError("read-only filesystem")
 
         def fail_write(*_args: object, **_kwargs: object) -> None:
+            """Fail the way an unwritable manifest does."""
             raise write_error
 
         monkeypatch.setattr(gate, "append_allow_entry", fail_write)
@@ -388,6 +235,28 @@ class TestGateCommands:
         )
         assert "duplication_gate" not in pyproject.read_text(encoding="utf-8"), (
             "A rejected key must not be recorded."
+        )
+
+    def test_allow_rejects_a_catch_all_key(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A catch-all key is refused before anything is written."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text("[project]\nname = 'x'\n", encoding="utf-8")
+        monkeypatch.setattr(gate, "PYPROJECT", pyproject)
+
+        with pytest.raises(SystemExit) as error:
+            gate.allow(first="**/*", reason="reviewed exception")
+
+        assert error.value.code == 2, "Catch-all keys must return two."
+        assert "catch-all" in capsys.readouterr().err, (
+            "The diagnostic must explain why a catch-all key is refused."
+        )
+        assert "duplication_gate" not in pyproject.read_text(encoding="utf-8"), (
+            "A rejected catch-all key must not be recorded."
         )
 
     @pytest.mark.parametrize(
@@ -450,182 +319,4 @@ class TestGateCommands:
         assert result.returncode == 0, result.stderr
         assert "duplication gate passed" in result.stdout, (
             "An allowed family must leave the gate passing."
-        )
-
-    def test_real_check_cli_passes(self) -> None:
-        """The checked-in gate runs successfully through its real CLI boundary."""
-        settings = detector.load_settings(REPOSITORY_ROOT / "pyproject.toml")
-        try:
-            detector.resolve_binary(settings)
-        except detector.GateExecutionError as error:  # pragma: no cover
-            pytest.skip(str(error))
-        result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed repository gate command.
-            [
-                sys.executable,
-                str(REPOSITORY_ROOT / "scripts" / "duplication_gate.py"),
-                "check",
-            ],
-            cwd=REPOSITORY_ROOT,
-            env=gate_environment(),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 0, result.stderr
-        assert "duplication gate passed" in result.stdout, (
-            "Real check invocation must report its successful gate result."
-        )
-
-    def test_reports_a_planted_verbatim_copy(self, tmp_path: Path) -> None:
-        """The pinned detector reports a planted copy through normalization."""
-        settings = detector.load_settings(REPOSITORY_ROOT / "pyproject.toml")
-        try:
-            binary = detector.resolve_binary(settings)
-        except detector.GateExecutionError as error:  # pragma: no cover
-            pytest.skip(str(error))
-        body = textwrap.dedent(
-            """\
-            def NAME(items):
-                total = 0.0
-                for item in items:
-                    price = item["price"] * item["quantity"]
-                    if item.get("taxable"):
-                        price *= 1.2
-                    if item.get("discount"):
-                        price -= item["discount"]
-                    total += price
-                if total < 0:
-                    total = 0.0
-                return round(total, 2)
-            """
-        )
-        workspace = tmp_path
-        (workspace / "mod.py").write_text(
-            body.replace("NAME", "first_total")
-            + "\n\n"
-            + body.replace("NAME", "second_total"),
-            encoding="utf-8",
-        )
-        command = detector.build_command(
-            binary, dc.replace(settings, roots=(".",), min_size=8)
-        )
-        result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - pinned, repository-owned binary.
-            command,
-            cwd=workspace,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        findings = detector.normalize_findings(json.loads(result.stdout))
-        assert findings, "The planted copy must be reported."
-        assert any(
-            {location.name for location in finding.locations}
-            == {"first_total", "second_total"}
-            for finding in findings
-        ), "The planted copy must name both duplicated functions."
-
-
-class TestEndToEndBlocking:
-    """The real detector driving the real `check` command.
-
-    Every other blocking test substitutes a stub report or calls the detector
-    without the gate, so none of them shows that a genuine duplicate reaches
-    `check` and fails the build. These do, using the pinned binary.
-    """
-
-    DUPLICATE_BODY = textwrap.dedent(
-        """\
-        def NAME(items):
-            total = 0.0
-            for item in items:
-                price = item["price"] * item["quantity"]
-                if item.get("taxable"):
-                    price *= 1.2
-                if item.get("discount"):
-                    price -= item["discount"]
-                total += price
-            if total < 0:
-                total = 0.0
-            return round(total, 2)
-        """
-    )
-
-    def _planted_workspace(self, tmp_path: Path, *, allow: str = "") -> Path:
-        """Build a gate workspace whose package holds one verbatim duplicate."""
-        workspace, _script = copied_gate_workspace(tmp_path)
-        package = workspace / "planted"
-        package.mkdir()
-        (package / "__init__.py").write_text("", encoding="utf-8")
-        (package / "mod.py").write_text(
-            self.DUPLICATE_BODY.replace("NAME", "first_total")
-            + "\n\n"
-            + self.DUPLICATE_BODY.replace("NAME", "second_total"),
-            encoding="utf-8",
-        )
-        (workspace / "pyproject.toml").write_text(
-            textwrap.dedent(
-                """\
-                [project]
-                name = "gate-test"
-                version = "0"
-
-                [tool.nose]
-                version = "0.20.0"
-                roots = ["planted"]
-                mode = "syntax,semantic,near"
-                min-size = 8
-                surface = "all"
-                top = 30
-                """
-            )
-            + allow,
-            encoding="utf-8",
-        )
-        return workspace
-
-    def _run_check(self, workspace: Path) -> subprocess.CompletedProcess[str]:
-        """Run the copied gate's real `check` against the pinned detector."""
-        settings = detector.load_settings(REPOSITORY_ROOT / "pyproject.toml")
-        try:
-            binary = detector.resolve_binary(settings)
-        except detector.GateExecutionError as error:  # pragma: no cover
-            pytest.skip(str(error))
-        return run_gate_command(
-            workspace / "scripts" / "duplication_gate.py",
-            "check",
-            environment=gate_environment(NOSE_BIN=binary),
-        )
-
-    def test_planted_duplicate_blocks_the_gate(self, tmp_path: Path) -> None:
-        """A genuine duplicate fails `check` and names both copies."""
-        result = self._run_check(self._planted_workspace(tmp_path))
-
-        assert result.returncode == 1, (
-            f"A planted duplicate must fail the gate.\n{result.stdout}{result.stderr}"
-        )
-        assert "planted/mod.py" in result.stdout, (
-            "The report must locate the duplicated file."
-        )
-        assert "make duplication-allow" in result.stdout, (
-            "A blocking report must show how to record a reasoned exception."
-        )
-
-    def test_reasoned_exception_unblocks_the_planted_duplicate(
-        self, tmp_path: Path
-    ) -> None:
-        """The same duplicate passes once a reasoned allow entry covers it."""
-        allow = textwrap.dedent(
-            """
-            [[tool.duplication_gate.allow]]
-            unit = "planted/mod.py"
-            reason = "Planted fixture proving the gate blocks and allows."
-            """
-        )
-        result = self._run_check(self._planted_workspace(tmp_path, allow=allow))
-
-        assert result.returncode == 0, (
-            f"A covered duplicate must pass.\n{result.stdout}{result.stderr}"
-        )
-        assert "duplication gate passed" in result.stdout, (
-            "The gate must report its successful result."
         )

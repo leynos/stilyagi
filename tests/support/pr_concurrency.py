@@ -20,7 +20,7 @@ so a literal ``cancel-in-progress: true`` reaches the reader as
 import typing as typ
 from pathlib import Path
 
-from tests.support.workflows import load_workflow
+from tests.support.workflows import WorkflowDocument, load_workflow
 
 ROOT: typ.Final = Path(__file__).resolve().parents[2]
 
@@ -83,7 +83,7 @@ class NotAMappingError(WorkflowShapeError):
         super().__init__(f"{name} must parse to a mapping")
 
 
-def trigger_names(document: dict[str, object]) -> frozenset[str]:
+def trigger_names(document: WorkflowDocument) -> frozenset[str]:
     """Return the event names a workflow document declares.
 
     YAML 1.1 reads an unquoted ``on:`` key as the boolean ``True``, so a
@@ -95,7 +95,7 @@ def trigger_names(document: dict[str, object]) -> frozenset[str]:
 
     Parameters
     ----------
-    document : dict[str, object]
+    document : WorkflowDocument
         A parsed workflow document.
 
     Returns
@@ -141,12 +141,12 @@ def _event_names(triggers: object) -> frozenset[str]:
             raise UnreadableTriggersError
 
 
-def is_pull_request_startable(document: dict[str, object]) -> bool:
+def is_pull_request_startable(document: WorkflowDocument) -> bool:
     """Report whether a pull request can start this workflow.
 
     Parameters
     ----------
-    document : dict[str, object]
+    document : WorkflowDocument
         A parsed workflow document.
 
     Returns
@@ -157,12 +157,12 @@ def is_pull_request_startable(document: dict[str, object]) -> bool:
     return PULL_REQUEST_TRIGGER in trigger_names(document)
 
 
-def concurrency_violations(document: dict[str, object]) -> list[str]:
+def concurrency_violations(document: WorkflowDocument) -> list[str]:
     """Return every way a document fails the concurrency contract.
 
     Parameters
     ----------
-    document : dict[str, object]
+    document : WorkflowDocument
         A parsed workflow document.
 
     Returns
@@ -220,7 +220,7 @@ def _cancel_violations(cancel: object) -> list[str]:
     return []
 
 
-def workflow_documents() -> dict[str, dict[str, object]]:
+def workflow_documents() -> dict[str, WorkflowDocument]:
     """Parse every workflow in the repository.
 
     An unparsable or non-mapping workflow raises a
@@ -228,17 +228,18 @@ def workflow_documents() -> dict[str, dict[str, object]]:
 
     Returns
     -------
-    dict[str, dict[str, object]]
+    dict[str, WorkflowDocument]
         Each workflow document, keyed by file name.
     """
     directory = ROOT / ".github" / "workflows"
     paths = sorted(
         path for suffix in WORKFLOW_SUFFIXES for path in directory.glob(f"*{suffix}")
     )
-    return {path.name: _parse(path) for path in paths}
+    parsed: dict[str, WorkflowDocument] = {path.name: _parse(path) for path in paths}
+    return parsed
 
 
-def _parse(path: Path) -> dict[str, object]:
+def _parse(path: Path) -> WorkflowDocument:
     """Parse one workflow file.
 
     Parameters
@@ -248,8 +249,9 @@ def _parse(path: Path) -> dict[str, object]:
 
     Returns
     -------
-    dict[str, object]
-        The parsed document.
+    WorkflowDocument
+        The parsed document, whose keys are `str | bool` because an
+        unquoted `on:` resolves through YAML's own key type.
 
     Raises
     ------
@@ -262,12 +264,12 @@ def _parse(path: Path) -> dict[str, object]:
         raise NotAMappingError(path.name) from error
 
 
-def pull_request_workflows() -> dict[str, dict[str, object]]:
+def pull_request_workflows() -> dict[str, WorkflowDocument]:
     """Load the workflows a pull request can start.
 
     Returns
     -------
-    dict[str, dict[str, object]]
+    dict[str, WorkflowDocument]
         Each pull-request-startable workflow, keyed by file name.
     """
     return {

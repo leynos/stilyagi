@@ -6,8 +6,6 @@ types, and the validation of the ``nose query --format json`` report.
 ``scripts/duplication_gate.py`` owns the reasoned allowlist and CLI.
 """
 
-from __future__ import annotations
-
 import dataclasses as dc
 import pathlib
 import typing as typ
@@ -259,8 +257,15 @@ def _location(raw: object, *, context: str) -> Location:
     """Validate one nose location payload."""
     location = require_table(raw, context=context)
     start = require_positive_int(location.get("start"), context=f"{context}.start")
+    # A missing or non-integer `end` is a type error, distinct from an `end`
+    # that is an integer but precedes `start`; only the second is an ordering
+    # violation, and a non-positive `end` necessarily violates the ordering
+    # because `start` is already known to be positive.
     end = location.get("end")
-    if not _is_integer(end) or end < start:
+    if not _is_integer(end):
+        msg = f"{context}.end must be an integer"
+        raise GateConfigError(msg)
+    if end < start:
         msg = f"{context}.end must not precede start"
         raise GateConfigError(msg)
     raw_name = location.get("name")

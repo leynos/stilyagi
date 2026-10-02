@@ -20,8 +20,6 @@ widens the checked surface; neither is a substitute for adjudicating what the
 current settings report.
 """
 
-from __future__ import annotations
-
 import pathlib
 import sys
 import tomllib

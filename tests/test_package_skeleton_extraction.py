@@ -189,11 +189,11 @@ def _load_insta_json_snapshot(path: pathlib.Path) -> dict[str, JSONType]:
     return typ.cast("dict[str, JSONType]", parsed)
 
 
-def _normalize_ir_identity(ir: cabc.Mapping[str, JSONType]) -> dict[str, JSONType]:
+def _normalize_ir_identity(ir: cabc.Mapping[str, object]) -> dict[str, JSONType]:
     """Remove adapter-specific source identity before parity comparison."""
     normalized = dict(ir)
     document = dict(typ.cast("dict[str, JSONType]", normalized["document"]))
     document["path"] = "<normalized>"
     document["uri"] = "<normalized>"
     normalized["document"] = document
-    return normalized
+    return typ.cast("dict[str, JSONType]", normalized)

@@ -425,9 +425,13 @@ reason = "Double-checked locking around one process-wide vocabulary validation. 
 python-version = "3.14"
 
 [tool.ty.src]
-include = ["python/stilyagi"]
+# The gateway covers tests and scripts as well as the package, so the checker
+# must see them. Excluded paths are build output and vendor trees only; the
+# deliberate corpus fixtures under tests/fixtures are added below, because
+# they are malformed on purpose and would otherwise report phantom errors.
+include = ["python/stilyagi", "tests", "scripts", ".github"]
 exclude = [
-    "tests",
+    "tests/fixtures",
     "build",
     "dist",
     ".venv",
