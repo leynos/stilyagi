@@ -223,6 +223,67 @@ class TestToolchainPins:
         )
 
 
+class TestDuplicationLaneInterpreter:
+    """The interpreter the ``--no-project`` helper-test lane is run on."""
+
+    def test_lane_pins_an_interpreter_at_or_above_the_project_floor(self) -> None:
+        """The lane must pin itself to the project's declared Python floor.
+
+        ``--no-project`` makes uv ignore ``requires-python``, so without an
+        explicit ``--python`` the lane runs on whatever interpreter uv discovers
+        first. The gate's modules annotate with names imported only under
+        ``typing.TYPE_CHECKING`` -- the placement ruff's TC003 requires on the
+        declared baseline -- and an interpreter below that floor evaluates those
+        annotations eagerly, failing collection with ``NameError`` before any
+        test runs. Asserting the pin clears the floor keeps the lane on the
+        baseline the repository's Python gateways all share.
+        """
+        text = _makefile_text()
+        match = re.search(
+            r"^DUPLICATION_TEST_PYTHON\s*\??=\s*(\S+)\s*$", text, flags=re.MULTILINE
+        )
+        assert match is not None, (
+            "the Makefile declares no DUPLICATION_TEST_PYTHON; a `--no-project` "
+            "lane that does not pin its interpreter follows whatever uv finds"
+        )
+        declared = match.group(1)
+        assert_with_context(
+            "--python $(DUPLICATION_TEST_PYTHON)" in text,
+            "the duplication-test recipe must pass "
+            "`--python $(DUPLICATION_TEST_PYTHON)` so the pinned interpreter is "
+            "the one the lane actually runs on",
+        )
+        floor = self._project_floor()
+        assert_with_context(
+            self._version_at_least(declared, floor),
+            f"the duplication-test lane pins Python {declared}, below the "
+            f"project floor {floor}; such an interpreter evaluates the gate's "
+            "deferred annotations eagerly and the lane fails at collection",
+        )
+
+    @staticmethod
+    def _project_floor() -> str:
+        """Return the ``requires-python`` floor declared in ``pyproject.toml``."""
+        text = read_text(PYPROJECT, reader="TestDuplicationLaneInterpreter")
+        match = re.search(
+            r'^requires-python\s*=\s*"[>=~^]*([0-9.]+)"',
+            text,
+            flags=re.MULTILINE,
+        )
+        assert match is not None, "pyproject.toml declares no requires-python floor"
+        return match.group(1)
+
+    @staticmethod
+    def _version_at_least(candidate: str, floor: str) -> bool:
+        """Report whether one dotted version is at or above another."""
+        candidate_parts = tuple(int(part) for part in candidate.split("."))
+        floor_parts = tuple(int(part) for part in floor.split("."))
+        width = max(len(candidate_parts), len(floor_parts))
+        return candidate_parts + (0,) * (
+            width - len(candidate_parts)
+        ) >= floor_parts + (0,) * (width - len(floor_parts))
+
+
 class TestCiDetectorProvisioning:
     """What CI's detector installation is allowed to depend on."""
 

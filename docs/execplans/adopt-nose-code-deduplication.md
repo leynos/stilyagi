@@ -295,6 +295,153 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             were verified against the remediated tree and needed no further
             code changes.
 
+### CI repair: the `--no-project` lane ran below the project floor
+
+- [x] Diagnosed the `lint-test` failure on `d94357a` (smoke run
+      `37037513224`, job `110939372675`, step 21 `make duplication-test`) as
+      **not** a defect in the gate's logic. The check-run annotation gave only
+      `Process completed with exit code 2`; `gh run view --log` gave the real
+      traceback, terminating at `scripts/atomic_write.py:36: in <module>` →
+      `NameError: name 'cabc' is not defined`, with 13 collection errors and
+      only 4 tests collected.
+- [x] Root cause, established by reproduction rather than inference. The
+      workflow installs Python 3.14 at the workflow level, but the lane runs
+      `uv run --no-project`, which makes uv ignore
+      `requires-python = ">=3.14"` and resolve whatever interpreter it finds
+      first — on the runner, 3.13.16 (the log line reads
+      `platform linux -- Python 3.13.16, pytest-9.0.2`). `scripts/atomic_write.py`
+      imports `collections.abc as cabc` only under `typing.TYPE_CHECKING` and
+      annotates `_open_directory` with `cabc.Iterator[int]`. Python 3.13
+      evaluates that annotation eagerly at `def` time; 3.14 defers it under
+      PEP 649.
+- [x] Confirmed the fix must be the interpreter, not the annotation. A probe
+      showed PEP 649 is a **deferral, not a resolution**: on 3.14.4,
+      `annotationlib.get_annotations(f, format=VALUE)` and
+      `inspect.signature(f)` still raise `NameError` for the same function;
+      only `Format.FORWARDREF` and `Format.STRING` succeed. So moving the
+      import to runtime would "fix" one interpreter while leaving the
+      annotation genuinely unresolvable on every one, and it would fight
+      Ruff's `TC003` (`flake8-type-checking`, enabled in `pyproject.toml`),
+      which _requires_ annotation-only imports to live in a `TYPE_CHECKING`
+      block. A probe confirmed `TC003: Move standard library import
+      'pathlib' into a type-checking block` fires on the runtime-import
+      shape. Ruff is configured `target-version = "py314"`, so the
+      TC003-mandated placement is correct under the project's declared floor;
+      the lane was simply running below it.
+- [x] Applied the minimal repair: `Makefile` gains
+      `DUPLICATION_TEST_PYTHON ?= 3.14` and the recipe passes
+      `--python $(DUPLICATION_TEST_PYTHON)` to its `uv run --no-project`
+      invocation, with a comment recording why the pin is load-bearing.
+      `tests/test_toolchain_contract.py` gains
+      `TestDuplicationLaneInterpreter`, which asserts the variable exists,
+      that the recipe references it, and that its version clears the floor
+      parsed from `pyproject.toml`. Verified as a true regression test: the
+      new test fails with the `--python` line removed and passes with it
+      restored. This repairs CI by honouring the project's own declared
+      baseline, not by lowering a threshold or silencing a lint.
+- [x] Re-ran the commit gates on the repaired tree. The first `make lint` run
+      failed at Interrogate (99.9% against the required 100%) because the new
+      regression guard carried a nested `parts` helper with no docstring, and
+      because Interrogate is only the second step of the recipe, every later
+      step — Pylint, df12-pylint, ambrleaks, rustdoc, Clippy, Whitaker,
+      Skylos, and the nose duplication gate — was skipped and therefore
+      unverified. Inlining the nested helper (which also removed needless
+      structure) restored 100% coverage, and the re-run executed the entire
+      pipeline green with exit 0. **Lesson:** a failure early in the `lint`
+      recipe does not merely fail one linter, it leaves the rest of the gate
+      unrun, so a second complete run is required before the gate can be
+      called green.
+- [x] Re-confirmed the markdownlint fix. MD049 in its default "consistent"
+      mode reads the document's _first_ single-marker emphasis as canonical;
+      the added block used `*requires*` above the existing `_Table 2:..._`,
+      which flipped the expected style to asterisk and flagged five
+      pre-existing underscore emphases below it. `**bold**` is MD050, not
+      MD049, which is what made the interaction hard to see. Changing the one
+      marker to `_requires_` restored consistency. All ten reported issues
+      cleared.
+- [ ] Push the repaired tip and re-read the PR's check rollup. The pushed head
+      invalidates the queued review's coverage, so the queued review request
+      needs re-checking against it.
+
+### Thread disposition round
+
+- [x] Established the reply route before writing anything. `comenq` has no
+      thread-reply subcommand (`put list bump bust del hist`), so it cannot
+      answer inline threads. The project's already authorized route is an
+      in-thread reply posted under the `leynos` identity through `gh`, which
+      is what stilyagi #179, #188, and #190 all use. PR #164 is the outlier:
+      twelve inline comments and **zero** inline replies, which is the gap
+      this round closes. The three existing `leynos` comments on #164 are
+      top-level `@coderabbitai` prompts, not thread replies.
+- [x] Re-fetched every review surface on `d94357a` rather than trusting the
+      earlier snapshot. GraphQL `reviewThreads` paginates to exactly 12
+      threads, all `isResolved: false`, one comment each. Reviews now stand
+      at: `chatgpt-codex-connector` and `coderabbitai` both anchored to
+      `cfc6a67` (stale), while `codescene-access` posted four reviews walking
+      `2c7d61f` → `c47154f` → `32866f4` → `d94357a` within about two hours.
+      The CodeScene reviews against the two newest heads added no new
+      threads, so the twelve are complete.
+- [x] Read the live walkthrough (`5851408713`, edited in place, last update
+      16:58:11Z) and found a banner the earlier reconnaissance missed:
+      **"Reviews paused"**. CodeRabbit auto-paused on commit volume. Its
+      `change_assessment_commit` and `final_review_risk` coverage both still
+      name `cfc6a67`. The pre-merge table is unchanged at **one error and one
+      warning**: Unit Architecture (allowlist boundary handling) and
+      Developer Documentation (`normalise_path_value` /
+      `_pyproject_stilyagi_table`). Both remain in scope regardless of the
+      pause, because `pre_merge_checks.ignore_useless_reviews` is on and the
+      pause gates only re-review, not whether the rows need a disposition.
+- [x] Verified the Developer Documentation warning's subject matter directly,
+      since no verifier was assigned to it. `docs/developers-guide.md:413-418`
+      documents `_pyproject_stilyagi_table` as the shared `tool` → `stilyagi`
+      walk, and `:451-457` documents `normalise_path_value(value)` with its
+      accepted types, return value, `TypeError` contract, and both callers'
+      added context (`schema._coerce_path` field prefix,
+      `parse._parse_cache_dir` file-and-key reporting). That is every element
+      the resolution column asked for. The row is stale on this head.
+- [ ] Verify each of the twelve findings against the current tree with three
+      wyvern teams (CodeScene ×4, Codex ×3, CodeRabbit ×5), then reply in
+      every thread under the `leynos` identity with the candidate head, the
+      disposition, and file/line or command evidence.
+- [x] CodeRabbit ×5 and Codex ×3 verified **FIXED** on the current tree. The
+      Codex checks confirmed the test split reached its target
+      (`test_duplication_gate_commands.py` 631 → 323 lines; the 506-line
+      `test_nose_detector.py` removed and replaced by four modules of 81–264
+      lines) and that a scalar parent table now raises `GateConfigError`
+      through `_require_table` (`duplication_manifest.py:30-35`, `:69-72`).
+      The verification left two coverage gaps as findings in their own right:
+      no dedicated test for a scalar `tool.duplication_gate`, and none for a
+      boolean `end`. Both are untreated; they are new work, not regressions,
+      and are candidates for a follow-up change rather than this PR.
+- [x] CodeScene ×4 verified **DELIBERATE-PARALLEL**, and this is the first
+      time any of the four has a recorded disposition. The verifier confirmed
+      the shared text is the module's error-vocabulary idiom or the fixture
+      skeleton of a CLI-contract test, while the contracts differ
+      (`nose_schema.py`'s `require_string`/`require_positive_int` enforce
+      different types, domains, and diagnostics; the four
+      `test_duplication_gate_commands.py` cases pin four distinct production
+      call sites across two modules; the two
+      `test_duplication_gate_boundaries.py` translators map different error
+      taxonomies). Extracting any pair needs the predicate-taking,
+      boolean-mode helper that `pyproject.toml:417-419` already refuses.
+      **Caveat carried forward:** CodeScene's mean of 4.27 over
+      `duplication_allowlist.py` is not reproducible locally (an independent
+      instrument gives 3.667 over the same 15 functions, and the gate that
+      actually runs, Ruff `C90` at `max-complexity = 8`, passes the file), so
+      the numeric claim must not be quoted as if it were verified.
+- [x] Recorded why the four CodeScene markers had no disposition until now:
+      `[tool.nose] roots = ["python/stilyagi"]`, so the repository's own
+      duplication gate cannot see `scripts/` at all. That exclusion is
+      deliberate and documented (`docs/developers-guide.md:1683-1684`,
+      `docs/execplans/adopt-nose-code-deduplication.md:647-648`), which means
+      CodeScene is currently the only duplication or complexity signal over
+      the gate's own modules. Adding a mechanical disposition store for
+      `scripts/` is a real gap, but inventing one in this PR would widen its
+      scope; note it rather than build it here.
+- [ ] Reply in all twelve threads with these dispositions, citing `d94357a`
+      plus the two uncommitted repairs, and include the two Codex coverage
+      gaps as acknowledged follow-up work rather than as unresolved defects.
+
 ## Context and orientation
 
 Stilyagi is a prose linter for Markdown and doc comments, written as a mixed
