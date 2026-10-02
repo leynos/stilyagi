@@ -280,6 +280,20 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             inline findings and the seven gateway findings fixed at source.
             Requesting the new review with `/comenq-coderabbit` is the next
             action.
+      - [x] Queued the new review through the managed queue: `comenq put`
+            returned queue ID `92157e25` for `leynos/stilyagi#164` with an
+            ETA of roughly 32 hours, behind a queue of 89 pending requests.
+            The request names candidate head `32866f4` and the remediation
+            scope. The previous CodeRabbit full review inspected `cfc6a67`,
+            and its walkthrough's `change_assessment_commit` still names that
+            commit, so the two pre-merge rows (Unit Architecture error,
+            Developer Documentation warning) describe an old head. Both
+            subjects were already addressed in earlier rounds and are
+            re-verified on this head; the queued review will recompute the
+            rows. Twelve of twelve inline threads remain unresolved on the
+            PR and require `@coderabbitai` replies; the findings themselves
+            were verified against the remediated tree and needed no further
+            code changes.
 
 ## Context and orientation
 
