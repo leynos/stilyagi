@@ -359,7 +359,22 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
       MD049, which is what made the interaction hard to see. Changing the one
       marker to `_requires_` restored consistency. All ten reported issues
       cleared.
-- [ ] Push the repaired tip and re-read the PR's check rollup. The pushed head
+- [x] Proved the fix against the precise CI failure condition rather than
+      only observing green locally. With `UV_PYTHON=3.13` forcing 3.13 as uv's
+      discovered default, the **unfixed** invocation reproduces CI exactly —
+      exit 2, `NameError: name 'cabc' is not defined`, interrupted during
+      collection — while the **fixed** invocation still runs 3.14.4 and
+      passes. The explicit `--python` overrides the discovered default, which
+      is the mechanism the repair relies on.
+- [x] Commit `ac77fe0` carries the repair. All four commit gates are green on
+      that exact tip, each re-run after the last edit: `make check-fmt`
+      (exit 0), `make lint` (exit 0, full pipeline through Skylos and the
+      blind-detection gate — 4 reasoned exceptions), `make typecheck`
+      (exit 0), and `make test` (exit 0; nextest over the workspace, rustdoc,
+      534 pytest passed, 20 doctests passed with 1 skipped, and the
+      duplication lane's 135 passed inside it). `make markdownlint` (exit 0;
+      69 files, 0 issues) and `make nixie` (exit 0) also pass.
+- [ ] Push `ac77fe0` and re-read the PR's check rollup. The pushed head
       invalidates the queued review's coverage, so the queued review request
       needs re-checking against it.
 
