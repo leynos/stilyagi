@@ -1108,3 +1108,9 @@ Read back on the pushed tip:
   as their last comment and are their authors' to resolve.
 
 Not merged, per the standing instruction.
+
+The final commit, `a417caf`, is that terminal record itself, so the branch's
+tip is the document describing it. Smoke run 37056650967 for `a417caf` repeated
+the same result: `lint-test` 35/35 steps success with the
+`Duplication-gate helper tests` step executing (140 collected, 140 passed, 4
+snapshots, Python 3.14.7) and all three `release-smoke` legs success.
