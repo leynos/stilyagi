@@ -2,6 +2,7 @@
   "diagnostics": [
     {
       "code": "STY001",
+      "fix": null,
       "fix_applicable": false,
       "location": {
         "column": 1,
@@ -13,6 +14,7 @@
     },
     {
       "code": "STY010",
+      "fix": null,
       "fix_applicable": false,
       "location": {
         "column": 2,
@@ -24,6 +26,7 @@
     },
     {
       "code": "STY002",
+      "fix": null,
       "fix_applicable": false,
       "location": {
         "column": 4,
@@ -33,5 +36,7 @@
       "path": "docs/b.md",
       "severity": "warning"
     }
-  ]
+  ],
+  "fix_errors": [],
+  "schema_version": "1.0.0"
 }

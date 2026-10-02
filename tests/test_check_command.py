@@ -28,8 +28,8 @@ def test_main_returns_zero_for_a_clean_tree(
     assert cli.main(["check", "."]) == 0, "expected cli.main(['check', '.']) == 0"
     captured = capsys.readouterr()
     assert_with_context(
-        captured.out == "0 diagnostics found\n",
-        "expected captured.out == '0 diagnostics found\\n'",
+        captured.out == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        "expected captured.out to include fix counts",
     )
     assert not captured.err, "expected not captured.err"
 

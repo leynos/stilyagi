@@ -1,13 +1,15 @@
 """Private helpers for source edit round-trip tests.
 
-This module applies source-backed replacements with UTF-8 byte offsets, keeps
-untouched source text intact, and rejects synthetic, overlapping, malformed, or
-non-boundary spans. The Python helper mirrors the Rust `stilyagi-test-support`
-round-trip contract used by golden fixture tests.
+This module validates source-backed replacements with UTF-8 byte offsets and
+delegates their actual splice to the normative production kernel. It preserves
+the private compatibility surface used by the golden fixture tests.
 """
 
 import dataclasses as dc
 import itertools
+
+from stilyagi.engine.fix_planning.splice import apply_edits
+from stilyagi.fixes import TextEdit
 
 UTF8_CONTINUATION_MASK = 0b1100_0000
 UTF8_CONTINUATION_PREFIX = 0b1000_0000
@@ -78,20 +80,16 @@ def apply_round_trip_edits(
     ordered_edits = tuple(sorted(source_edits, key=lambda edit: (edit.start, edit.end)))
     _reject_overlaps(ordered_edits)
 
-    cursor = 0
-    after_parts: list[bytes] = []
-    for edit in ordered_edits:
-        after_parts.extend((
-            source_bytes[cursor : edit.start],
-            edit.replacement.encode(),
-        ))
-        cursor = edit.end
-    after_parts.append(source_bytes[cursor:])
     return RoundTripResult(
         before=source,
-        after=b"".join(after_parts).decode(),
+        after=apply_edits(source_bytes, _as_text_edits(ordered_edits)).decode(),
         applied_edits=ordered_edits,
     )
+
+
+def _as_text_edits(edits: tuple[SourceEdit, ...]) -> tuple[TextEdit, ...]:
+    """Adapt legacy source edits for the production splice kernel."""
+    return tuple(TextEdit(edit.start, edit.end, edit.replacement) for edit in edits)
 
 
 def _validate_source_edit(source_bytes: bytes, edit: SourceEdit) -> None:
