@@ -614,6 +614,47 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             required checks have not yet reported, and `reviewDecision` is
             still `CHANGES_REQUESTED` from the `cfc6a67`-anchored review —
             both are read-back facts, not inferences from green gates.
+      - [x] Committed the read-back record as `5832ee5` (one file, +19) after
+            re-running all five gates on that exact tree — the docs-only
+            narrowing does not apply here, because this repository's contract
+            tests parse the Markdown. Pushed over SSH, fast-forwarding
+            `e33ad72` → `5832ee5`.
+      - [x] CI on `5832ee5` (smoke run 37053117156) is green on every required
+            check: `lint-test` succeeded with all 35 steps successful and none
+            skipped, and the `Duplication-gate helper tests` step proved to
+            have *executed* rather than short-circuited — it collected 140
+            items and passed 140 with 4 snapshots, on Python 3.14.7. All three
+            `release-smoke` legs passed. `Gecko Security Review` passed.
+      - [x] Re-read the CodeScene failure rather than waving it through, and
+            confirmed it is **pre-existing, advisory, and outside this
+            change's footprint**. It fails identically on `8381c48`,
+            `e33ad72`, and `5832ee5` — the same four files
+            (`duplication_allowlist.py`, `nose_schema.py`,
+            `test_duplication_gate_commands.py`,
+            `test_duplication_gate_boundaries.py`) at the same 9.39 impact
+            with 2 active suppressions. `scripts/tests/test_duplication_gate.py`,
+            the only file `e33ad72` changed, is not named by it. CodeScene is
+            not a required check for this repository: the required contexts
+            are `lint-test` and the three `release-smoke` legs (ruleset
+            18427824), and `GET /branches/main/protection` returns 404
+            "Branch not protected", so there is no protection rule to satisfy.
+            No suppression was added.
+      - [x] Left the queued review request in place. `comenq list` shows
+            `92157e25` for `leynos/stilyagi#164` still pending at roughly 29
+            hours behind an 87-deep queue. It is deliberately **not**
+            duplicated: the skill states the comment body does not pin a
+            review to a commit, so the pending request still serves the newer
+            head, and adding a second request would only deepen the queue.
+      - [x] Terminal read-back at hand-off: head `5832ee5`, required checks
+            green, `reviewDecision` still `CHANGES_REQUESTED`. That decision
+            comes from the `cfc6a67`-anchored CodeRabbit review of
+            2026-09-29; CodeRabbit's later activity on `8381c48` was
+            `COMMENTED`, and it self-resolved all five of its own threads
+            there. The eight remaining unresolved threads (Codex ×3,
+            CodeScene ×4, plus the CodeRabbit thread carrying this round's
+            adjudication) each have a reply as their last comment and are
+            their authors' to resolve. **Not merged**, per the standing
+            instruction — the owner retains that decision.
 
 ## Context and orientation
 
