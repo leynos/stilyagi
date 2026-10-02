@@ -790,7 +790,7 @@ Inspect the updated `.stderr` files before committing to confirm that the fail
 test still represents a genuine PyO3 contract violation.
 
 The `.stderr` files record rustc's exact wording, so they are tied to the
-compiler release that produced them. CI installs unpinned stable and the
+compiler release that produced them. CI installs unpinned stable, and the
 repository does not pin a toolchain, so the snapshots track current stable.
 `pymodule_three_args.stderr` currently matches rustc 1.99, which prints the
 suggested argument type as `&Bound<..>` rather than the `&pyo3::Bound<..>` that
