@@ -622,7 +622,7 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
       - [x] CI on `5832ee5` (smoke run 37053117156) is green on every required
             check: `lint-test` succeeded with all 35 steps successful and none
             skipped, and the `Duplication-gate helper tests` step proved to
-            have *executed* rather than short-circuited — it collected 140
+            have _executed_ rather than short-circuited — it collected 140
             items and passed 140 with 4 snapshots, on Python 3.14.7. All three
             `release-smoke` legs passed. `Gecko Security Review` passed.
       - [x] Re-read the CodeScene failure rather than waving it through, and
