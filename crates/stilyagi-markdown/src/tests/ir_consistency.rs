@@ -43,7 +43,7 @@ fn markdown_ir_document_emits_envelope_nodes_and_regions() {
         );
         assert!(value.document.content_hash.starts_with("sha256:"));
         assert_eq!(value.line_index.first().copied(), Some(0));
-        assert!(!value.nodes.is_empty());
+        assert_ne!(value.nodes, []);
         assert!(
             value
                 .regions

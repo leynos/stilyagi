@@ -93,12 +93,12 @@ fn suppressions_from_candidates_assembles_directives_and_ignores_non_directives(
             .origin,
         "n2"
     );
-    assert!(
+    assert_eq!(
         suppressions
             .get(1)
             .expect("expected second assembled suppression")
-            .codes
-            .is_empty()
+            .codes,
+        Vec::<String>::new(),
     );
     assert_eq!(errors.len(), 1);
     assert_eq!(
@@ -251,7 +251,7 @@ fn parse_comment_directive_accepts_file_blankets_or_ignores_non_directives(#[cas
     match parse_comment_directive(inner) {
         DirectiveOutcome::Parsed(parsed) => {
             assert_eq!(parsed.verb, DirectiveVerb::IgnoreFile);
-            assert!(parsed.codes.is_empty());
+            assert_eq!(parsed.codes, Vec::<String>::new());
         }
         DirectiveOutcome::NotADirective => {}
         DirectiveOutcome::Rejected(error) => {

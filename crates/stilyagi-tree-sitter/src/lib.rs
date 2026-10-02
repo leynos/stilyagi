@@ -247,6 +247,6 @@ mod tests {
             "Module docstring before malformed Python source."
         );
         assert_eq!(error_spans, vec![(0, 168), (57, 77)]);
-        assert!(function_nodes.is_empty());
+        assert_eq!(function_nodes, []);
     }
 }

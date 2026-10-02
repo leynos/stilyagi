@@ -151,7 +151,7 @@ fn round_trip_edits_accept_empty_edit_sets_as_noops() {
 
     assert_eq!(result.before, "some text");
     assert_eq!(result.after, "some text");
-    assert!(result.applied_edits.is_empty());
+    assert_eq!(result.applied_edits, []);
 }
 
 #[rstest]

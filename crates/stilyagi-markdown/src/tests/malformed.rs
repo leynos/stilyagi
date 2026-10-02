@@ -47,7 +47,7 @@ fn malformed_markdown_recovers_to_reviewed_degraded_regions(
     assert!(parent_regions_reference_earlier_regions(&document));
     // Suppression parsing and non-fatal error emission belong to roadmap item
     // 2.1.3, so parser recovery must not fabricate IR errors in this slice.
-    assert!(document.errors.is_empty());
+    assert_eq!(document.errors, []);
     insta::assert_snapshot!(snapshot_name, degraded_region_text(&document));
 }
 

@@ -1960,15 +1960,15 @@ RFCs should be reviewed together so the documented contract remains accurate.
 
 Four independent timers can end a test run, and the canonical statement of how
 they must be ordered lives in the `generate-coverage` README in
-`leynos/shared-actions`.[^6] Before this was written exactly one of the four
-was set here.
+`leynos/shared-actions`.[^6] Before the nextest file was added exactly one of
+the four was set here.
 
-| Tier                     | What it bounds                     | Where it is set                                  | Current value            |
-| ------------------------ | ---------------------------------- | ------------------------------------------------ | ------------------------ |
-| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | **absent, no such file** |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | **absent, no such file** |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 1,800 s (30 m)           |
-| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new                |
+| Tier                     | What it bounds                     | Where it is set                                  | Current value             |
+| ------------------------ | ---------------------------------- | ------------------------------------------------ | ------------------------- |
+| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | 180 s; 600 s for trybuild |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 18 m                      |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 1,800 s (30 m)            |
+| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new                 |
 
 *Table: the timers that can end a run, innermost first.*
 
@@ -1980,21 +1980,29 @@ than the test. Nothing hung outside `cargo` was bounded at all before the job
 ceilings landed: those jobs declared no `timeout-minutes` and so inherited
 GitHub's six-hour default.
 
-### The two nextest tiers are a gap, not a decision
+### The two nextest tiers
 
-The coverage step passes `use-cargo-nextest: true`, so nextest does run the
-suite, but there is no `.config/nextest.toml` for anyone to have set a per-test
-or whole-run budget in. That is an absence rather than a choice, unlike a
-repository that has turned nextest off.
+`.config/nextest.toml` sets both. The default profile keeps the 180 s per-test
+budget that `generate-coverage` writes when the file is absent, with a 5 s
+grace period and `terminate-after = 1`, and adds an 18 minute `global-timeout`,
+which sits above the largest per-test budget and below the 1,800 s watchdog.
 
-Adding the file would give a hung test a bound that names the test, and give
-the run a budget below the watchdog. The contract binds both the moment they
-appear, so they arrive above and below the right neighbours rather than merely
-somewhere, and it reads them from the configuration rather than assuming values.
+One override widens the budget for the two trybuild binaries, `stilyagi-ir`'s
+`ui` and `stilyagi-pyext`'s `compile_tests`, to 600 s. They build a scratch
+crate per case, so their duration is a compile, not a computation. On a pull
+request whose workflow change left the Cargo cache cold, both were terminated
+at 180 s in the `Generate coverage` step (exit code 100), although the same
+tests pass in well under that with a warm cache. Every other test keeps 180 s,
+so a hung test is still reported as one rather than absorbed by a generous
+default.
 
-[Issue 137](https://github.com/leynos/stilyagi/issues/137) holds the
-measurements a later pass needs to choose both values, and the constraints they
-have to satisfy.
+`tests/test_trybuild_timeout_contract.py` asserts the override names both
+binaries with a budget of at least 600 s, below the whole-run budget, and that
+the profile default is unchanged; `tests/test_timeout_ordering_contract.py`
+holds the ordering against the watchdog and the job ceiling.
+
+[Issue 137](https://github.com/leynos/stilyagi/issues/137) recorded the
+measurements that a later pass needed to choose these values.
 
 ### What the ceilings are sized against
 
@@ -2065,19 +2073,21 @@ The shapes and that fault live in `tests/support/workflow_shapes.py`, apart
 from the reading that raises it.
 
 The nextest reading parses its input with `tomllib` rather than matching text.
-This repository has no `.config/nextest.toml`, which is why two tiers are
-missing, so those readings are what whoever adds the file will get. A text
-match would find a key inside a comment, inside a `filter` string, or in a
-table nextest never consults: a commented-out `global-timeout` would keep the
-presence assertion passing over a tier somebody had switched off, and a
-commented-out `grace-period` would raise the requirement this contract puts on
-the tier above it. `terminate-after` is optional, and a `slow-timeout` without
-it marks a test slow and never stops it, so the reading refuses that form
-rather than reporting one period as the budget. When it is set, nextest reads
-it as a non-zero unsigned integer, so a zero, a negative, a fraction, a quoted
-number and a boolean are each refused: coercing them numerically produced a
-budget for a configuration nextest will not load, and the rest raised out of
-the reading rather than being reported as a fault.
+This repository's `.config/nextest.toml` now sets both nextest tiers, and these
+readings are what hold it: `tests/support/nextest_config.py` parses it for the
+ordering contract, and `tests/test_trybuild_timeout_contract.py` reads the same
+file through an explicit reader that reports a missing or malformed file as
+such. A text match would find a key inside a comment, inside a `filter` string,
+or in a table nextest never consults: a commented-out `global-timeout` would
+keep the presence assertion passing over a tier somebody had switched off, and
+a commented-out `grace-period` would raise the requirement this contract puts
+on the tier above it. `terminate-after` is optional, and a `slow-timeout`
+without it marks a test slow and never stops it, so the reading refuses that
+form rather than reporting one period as the budget. When it is set, nextest
+reads it as a non-zero unsigned integer, so a zero, a negative, a fraction, a
+quoted number and a boolean are each refused: coercing them numerically
+produced a budget for a configuration nextest will not load, and the rest
+raised out of the reading rather than being reported as a fault.
 
 Durations are read with the grammar `humantime` accepts, which is what nextest
 deserializes them with: a sequence of components each carrying a unit, written
