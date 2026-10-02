@@ -157,6 +157,55 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             anything under `docs/`; that reasoning is recorded here rather
             than left implicit, since "docs-only" is a claim about who reads
             the file, not about the file's extension.
+      - [x] Rebased a third time, onto `c65a29e` (PR #196), because the pull
+            request was left `CONFLICTING` against `main`. Main had gained
+            twenty commits, three of which this branch collides with: PR #189
+            moved Whitaker provisioning into the shared `install-whitaker`
+            action and deleted the local `WHITAKER_INSTALLER_VERSION` pin,
+            PR #172 added the "Runner placement" subsection as `### 6i.`, and
+            PR #173 replaced five local CodeScene contract modules with the
+            shared CV-005 `test-workflow-contracts` target. Two conflicts, both
+            resolved by keeping the intent of each side rather than picking
+            one: in `smoke.yml` the branch's `NOSE_VERSION` pin stays while the
+            Whitaker pin goes with the installer that consumed it; in
+            `docs/developers-guide.md` both sides had independently added a
+            `### 6i.`, so main's section keeps 6i and this branch's takes the
+            next free ordinal, `6j`. A repository-wide search confirmed
+            nothing cross-references either heading, so the renumbering breaks
+            no link. `git range-diff` reproduces fourteen of the sixteen
+            replayed commits byte-for-byte; the two that differ are exactly
+            those two conflict resolutions.
+      - [x] Post-rebase semantic audit. Of the 35 paths main changed and this
+            branch never touched, all 35 are byte-identical at the rebased
+            head, so no merge reconstruction leaked into a file the branch had
+            no business editing. Every deletion against `main` in a
+            branch-touched file maps to a deletion the original branch made;
+            none is unexplained. No file that exists at both revisions carries
+            a newly repeated block. The final-diff review found no benchmark
+            leakage, no copied reference paths, no broad suppressions, no new
+            runtime dependency, and no change to the `requires-python` floor.
+      - [x] Full gate suite re-run on the rebased tree (`2b0431a`).
+            `check-fmt`, `typecheck` and `lint` exit 0, and `test` completes
+            every suite green. Two counts are lower than the previous run and
+            both are attributed to main rather than to this branch. Main's
+            PR #173 deleted six local CodeScene contract modules and three
+            support modules, which accounts for the pytest total falling from
+            564 to 533. Two of those support modules -- `codescene_coverage.py`
+            and `codescene_environment_rules.py` -- are also the whole of the
+            doctest total falling from 22 to 20: both sit inside the
+            `--doctest-modules python/stilyagi tests/support` lane and each
+            carries exactly one docstring example, so the lane holds 21 items
+            (20 passed, 1 skipped) where it held 23. The nextest total is
+            unchanged at 337. `lint` again completed the duplication gate at
+            "4 allowed by reasoned exceptions", which is the gate this work
+            adds, passing on the rebased tree. `typecheck` needed a local
+            transport workaround rather than a code change: the Lody
+            credential broker was down, and this session's `PATH` routes
+            GitHub fetches through a Lody git shim, so the fetch of the
+            `df12-python-lints` dev dependency aborted. Re-running with the
+            shim removed from `PATH` and the injected git config disabled
+            resolved the same pinned commit (`4cf41736`) anonymously. The
+            fault is local to this machine; CI fetches with its own token.
 
 ## Context and orientation
 
