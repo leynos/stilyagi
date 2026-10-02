@@ -113,6 +113,12 @@ class TestValidateKey:
             # of one segment.
             "**/*/*",
             "python/stilyagi/**",
+            # These look like recursive catch-alls but are not: every one
+            # demands at least one named segment below the recursion, so none
+            # of them covers a single-segment path such as `Makefile`. See
+            # ``test_recursive_prefix_patterns_are_scoped_not_catch_all``.
+            "*/**",
+            "**/*/**",
         ],
     )
     def test_accepts_well_formed_keys(self, key: str) -> None:
@@ -134,6 +140,35 @@ class TestValidateKey:
         """A glob covering every repository path is refused at validation."""
         with pytest.raises(gate.GateConfigError, match=re.escape("catch-all")):
             allowlist.validate_key(key, context="key")
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            pytest.param("*/**", id="leading-any-then-recursive"),
+            pytest.param("**/*/**", id="recursive-any-recursive"),
+            pytest.param("**/*/*", id="recursive-then-two-any"),
+        ],
+    )
+    def test_recursive_prefix_patterns_are_scoped_not_catch_all(self, key: str) -> None:
+        """Recursive patterns are refused only when they truly cover all paths.
+
+        ``*/**`` and ``**/*/**`` read like catch-alls, but both behave
+        identically to ``**/*/*`` under ``PurePosixPath.full_match``: each
+        requires at least one named segment below the recursion, so none of
+        them matches a single-segment repository path such as ``Makefile``.
+        The guard must accept them, because refusing them would reject keys
+        that legitimately scope a family to a subtree.
+        """
+        assert allowlist.validate_key(key, context="key") == key, (
+            "A recursive pattern that still requires a named segment must pass."
+        )
+        for single_segment in ("Makefile", "pyproject.toml", "README.md"):
+            assert not allowlist.key_matches(key, _location(file=single_segment)), (
+                f"{key} must not cover the single-segment path {single_segment}."
+            )
+        assert allowlist.key_matches(key, _location(file="a/b/c.py")), (
+            f"{key} must still cover a path below the recursion."
+        )
 
     @pytest.mark.parametrize(
         ("key", "diagnostic"),

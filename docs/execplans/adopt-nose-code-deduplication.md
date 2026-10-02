@@ -374,9 +374,55 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
       534 pytest passed, 20 doctests passed with 1 skipped, and the
       duplication lane's 135 passed inside it). `make markdownlint` (exit 0;
       69 files, 0 issues) and `make nixie` (exit 0) also pass.
-- [ ] Push `ac77fe0` and re-read the PR's check rollup. The pushed head
-      invalidates the queued review's coverage, so the queued review request
-      needs re-checking against it.
+- [x] Pushed `ac77fe0` and `8381c48`. Both commits are published on
+      `origin/adopt-nose-code-deduplication`: the live remote head is
+      `8381c48`, a fast-forward from the previous `d94357a` (ancestry
+      verified with `git merge-base --is-ancestor` before pushing, so no
+      force was needed and no remote work could be lost). The push initially
+      failed for a reason unrelated to the change: every GitHub path --
+      `git push`, `git ls-remote`, and `gh` -- was routed through the Lody
+      GitHub client, whose local credential broker (127.0.0.1:33833) was
+      wedged: the socket accepted TCP but never answered any endpoint, so
+      the helper's 10 s timeout surfaced only its generic "Cannot verify
+      GitHub identity preferences with Lody" message. `lody machine list`
+      initially reported this host `machine_offline` and the daemon logs
+      showed it had stopped at 17:28 with no crash trace. The resolution was
+      to stop using Lody for GitHub and push over SSH as `leynos` (verified
+      with `ssh -T git@github.com` before pushing), which does not depend on
+      the broker at all. **Lesson:** a Lody identity-verification failure is
+      an infrastructure failure on the credential path, not a repository or
+      credential problem; the standard client plus SSH is the supported
+      route, and retrying the Lody route cannot succeed while the broker is
+      unresponsive. The pushed head invalidates the queued review's
+      coverage, so the queued review request needs re-checking against it.
+- [x] Re-read the PR's check rollup for the new head and confirmed the
+      `lint-test` job's duplication lane now passes in CI. Run 37047890370,
+      job 110973723346, step 21 "Duplication-gate helper tests":
+      `completed/success`. This is the step that failed on the previous head
+      with the collection-time `NameError`, so the repair is confirmed under
+      the exact condition it was written for, not merely locally. The
+      surrounding steps also pass on the same run — step 14 "Check
+      formatting", 15 "Lint Markdown", 16 "Spelling", 17 "Mermaid lint", 22
+      "Typecheck", 23 "Lint and dead-code detection", and 24 "Docstring
+      examples" — and all three required `release-smoke` legs
+      (ubuntu/macos/windows) are green. The worktree cannot reach GitHub
+      over the Lody route, so these reads use the standard client
+      (`/usr/bin/gh`) with the Lody variables scrubbed.
+- [x] Established that the CodeScene failure on this head is **not** a
+      required status check and therefore does not block. The active `main`
+      ruleset (id 18427824) requires exactly four contexts: `lint-test`,
+      `release-smoke (ubuntu-latest)`, `release-smoke (macos-latest)`, and
+      `release-smoke (windows-latest)`. CodeScene is absent from that list.
+      It reports "New code is healthy" failing on the same four gate files
+      (`scripts/duplication_allowlist.py`, `scripts/nose_schema.py`,
+      `scripts/tests/test_duplication_gate_commands.py`,
+      `scripts/tests/test_duplication_gate_boundaries.py`) that the
+      adjudication record already dispositioned as deliberate parallels, at
+      a Code Health score of 9.39 against a 10.00 gate. Note for the record
+      that this check is green on every other recent PR head (198, 197, 196)
+      and has been failing across this branch's recent commits, so it is
+      specific to this PR's added files rather than an inherited outage; the
+      prior adjudication stands, and the failure is advisory.
 
 ### Thread disposition round
 
@@ -414,8 +460,8 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
       added context (`schema._coerce_path` field prefix,
       `parse._parse_cache_dir` file-and-key reporting). That is every element
       the resolution column asked for. The row is stale on this head.
-- [ ] Verify each of the twelve findings against the current tree with three
-      wyvern teams (CodeScene ×4, Codex ×3, CodeRabbit ×5), then reply in
+- [x] Verified each of the twelve findings against the current tree with three
+      wyvern teams (CodeScene ×4, Codex ×3, CodeRabbit ×5), then replied in
       every thread under the `leynos` identity with the candidate head, the
       disposition, and file/line or command evidence.
 - [x] CodeRabbit ×5 and Codex ×3 verified **FIXED** on the current tree. The
@@ -453,9 +499,102 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
       the gate's own modules. Adding a mechanical disposition store for
       `scripts/` is a real gap, but inventing one in this PR would widen its
       scope; note it rather than build it here.
-- [ ] Reply in all twelve threads with these dispositions, citing `d94357a`
-      plus the two uncommitted repairs, and include the two Codex coverage
-      gaps as acknowledged follow-up work rather than as unresolved defects.
+- [x] Replied in all twelve threads, each citing the pushed head `8381c48`
+      and its evidence. Every reply was posted successfully (12 posted, 0
+      failed) via the GraphQL `addPullRequestReviewThreadReply` mutation
+      under the `leynos` identity with the Lody variables scrubbed.
+      CodeRabbit then independently re-verified all five of its own threads
+      against `8381c48` — running `git rev-parse HEAD` and inspecting the
+      files at the pushed head — and **resolved all five itself**. Its
+      replies confirm the dispositions quote correctly: the ADR "now states
+      'the choice is for running'", `from __future__ import annotations` is
+      "absent from `scripts/`", and `_location` "now separates the type
+      failure from the ordering failure". The remaining seven threads
+      (Codex ×3, CodeScene ×4) carry the reply as their last comment and stay
+      open for their authors to resolve; the two Codex coverage gaps are
+      recorded in the Codex reply as acknowledged follow-up work, not as
+      unresolved defects.
+- [x] Re-verified every disposition against the **pushed** tree rather than
+      the pre-push one, and one claim needed correcting before it was
+      published. The planned Codex reply would have cited `_require_table`
+      at `duplication_allowlist.py`; on the real tree that helper lives in
+      `scripts/duplication_manifest.py:30` and is called from `sub_table`
+      (`:71`), while `duplication_allowlist.py` holds the allowlist logic.
+      The reply cites the correct file. Similarly, CodeRabbit's `end`-split
+      finding was confirmed with the real source at
+      `scripts/nose_schema.py:264-270`, not from the plan's recollection.
+- [x] Posted the pre-merge checks reconciliation as top-level comment
+      `5959094062` on the pull request, using the skill's template with the
+      live failed-checks heading and both rows copied verbatim. It requests an
+      AI agent prompt for any remaining work and states that both rows were
+      re-verified at head `8381c48` rather than inferred from their anchors.
+      The comment records the anchor drift explicitly — the Unit Architecture
+      row points at `duplication_allowlist.py:150-151`, but `load_allowlist`
+      now begins at `:172`, so the row's own citation no longer resolves —
+      and gives the evidence for each: the `require_table` chain plus the two
+      translated read/parse boundaries for Unit Architecture, and
+      `docs/developers-guide.md:413-418` / `:451-456` for Developer
+      Documentation. It closes by asking that any still-unmet element be named
+      specifically rather than re-asserted as a whole row. No full review was
+      queued for this: the skill is explicit that a stale table alone does not
+      warrant one.
+- [x] Adjudicated the follow-up finding CodeRabbit returned on that comment,
+      and **rejected the proposed remedy as unsound while treating the
+      underlying question as legitimate**. CodeRabbit asked that
+      `_is_catch_all_glob` reject `*/**` and `**/*/**` alongside `**`, `**/*`,
+      and `**/**`, on the stated grounds that both "are recursive catch-all
+      forms under `PurePosixPath.full_match` semantics". That premise is
+      false. Enumerated over every path shape of depth 1–6, `*/**`,
+      `**/*/**`, and `**/*/*` produce **identical** match sets, and all three
+      require at least one named segment below the recursion, so none matches
+      a single-segment path. This repository tracks 14 such paths at its root
+      (`Makefile`, `pyproject.toml`, `Cargo.toml`, `AGENTS.md`, `README.md`,
+      `uv.lock`, …), so `*/**` demonstrably does not silence "every finding in
+      the repository". Implementing the request would have introduced six
+      false positives across the 1–4-part wildcard space, rejecting keys that
+      legitimately scope a family — the opposite of the guard's contract.
+      - [x] Verified the guard rather than assuming it: an exhaustive
+            comparison over `{literal, *, **}` × 1–4 parts (120 patterns)
+            against ground-truth `full_match` semantics found **zero false
+            negatives and zero false positives**. The structural check was
+            already exact; only its test coverage was thin.
+      - [x] Converted the gap into pins rather than a code change. Added
+            `*/**` and `**/*/**` to the accepted-keys parametrization and a
+            new `test_recursive_prefix_patterns_are_scoped_not_catch_all`
+            asserting, for each of the three equivalent patterns, that it is
+            accepted, does **not** match `Makefile`/`pyproject.toml`/
+            `README.md`, and **does** match a nested path. The reviewer's
+            requested regression cases now exist, asserting the correct
+            contract.
+      - [x] Confirmed the reviewer's runtime objection is obsolete: it
+            reported `full_match` unavailable on a Python 3.9 sandbox and
+            asked for a 3.14 retry. All measurements above were taken under
+            the project's pinned 3.14.4 interpreter, and the doctest for
+            `key_matches` already depends on `full_match`.
+      - [x] Named the disputed patterns in `docs/developers-guide.md` beside
+            the existing scope argument, so the contract is stated rather than
+            left for a reader to infer from the code shape. This is the edit
+            that matters for the finding: the earlier prose listed only `**`,
+            `**/**`, and `**/*` as refused and `**/*/*` as accepted, which is
+            correct but silent on the two forms that prompted the request.
+      - [x] Gate run on the tests-and-docs delta: `make check-fmt`,
+            `make lint`, `make typecheck`, and `make test` all green.
+            `lint` reports the duplication gate passing at "4 allowed by
+            reasoned exceptions"; `test` reports nextest 337 passed, pytest
+            534 passed, doctests 20 passed / 1 skipped, and the
+            `duplication-test` lane 140 passed with 4 snapshots — the lane
+            that runs `scripts/tests/test_duplication_gate.py`, so the new
+            cases are exercised under the gate. The focused selection passed
+            10/10 under 3.14.4.
+      - [x] `make markdownlint` then failed in its `spelling` prerequisite on
+            two of this round's own additions: `catch-alls` in the developer's
+            guide and `parametrisation` in this plan. Both were genuine
+            vocabulary errors rather than dictionary gaps — the guide already
+            used the singular `catch-all`, and the repository's own convention
+            is the `-z-` spelling (`parametrized` ×5, `parametrization` is the
+            `typos` default). Reworded to `a catch-all` and `parametrization`;
+            no word was added to `typos.local.toml`, per the project rule that
+            the dictionary carries established vocabulary, not slips.
 
 ## Context and orientation
 
