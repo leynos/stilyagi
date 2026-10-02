@@ -47,11 +47,15 @@ def _patch_read_text_failure(
     """Make reads of the target file raise the supplied error."""
     original_read_text = pathlib.Path.read_text
 
-    def read_text(path: pathlib.Path, *args: object, **kwargs: object) -> str:
+    def read_text(
+        path: pathlib.Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
         """Raise the injected failure for the target file only."""
         if path == target:
             raise error_factory()
-        return original_read_text(path, *args, **kwargs)
+        return original_read_text(path, encoding=encoding, errors=errors)
 
     monkeypatch.setattr(pathlib.Path, "read_text", read_text)
 

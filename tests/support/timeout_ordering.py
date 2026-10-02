@@ -159,7 +159,7 @@ def whole_run_violations(
 
 def condition_violations(
     jobs: cabc.Iterable[CoverageJob],
-    required: dict[tuple[str, str], tuple[object, object]],
+    required: cabc.Mapping[tuple[str, str], tuple[object, object]],
 ) -> list[str]:
     """Return every lane whose conditions differ from the pinned ones.
 
@@ -171,7 +171,7 @@ def condition_violations(
     ----------
     jobs : Iterable[CoverageJob]
         The coverage jobs to read.
-    required : dict
+    required : Mapping
         The ``(step if, job if)`` each ``(workflow, job)`` must carry.
 
     Returns

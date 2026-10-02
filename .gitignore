@@ -104,6 +104,12 @@ ipython_config.py
 .uv-tools/
 .memdb/
 .memtrace/
+# Pinned binaries installed by the Makefile, such as the nose duplication
+# detector. Cached in CI by version and platform, never committed.
+.tools/
+# Advisory sidecar lock held while `make duplication-allow` rewrites
+# pyproject.toml. It is empty and transient, so it must not be committed.
+.*.duplication-gate.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
