@@ -17,7 +17,7 @@ stilyagi = "stilyagi.cli:main"
 [dependency-groups]
 dev = [
     # Keep in sync with [build-system].requires.
-    "maturin==1.14.1",
+    "maturin==1.15.0",
     "pytest",
     "pytest-xdist",
     "cmd-mox==0.2.0",
@@ -25,10 +25,10 @@ dev = [
     # the same toolchain.
     "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@v0.3.0",
     "interrogate==1.7.0",
-    "ruff==0.16.8",
+    "ruff==0.16.9",
     "pytest-timeout",
     "pytest-bdd",
-    "hypothesis>=6.168.0,<7.0",
+    "hypothesis>=6.168.1,<7.0",
     "parse_type",
     "syrupy>=6.1.1,<7.0",
     "pyyaml>=6.0.3,<7.0",
@@ -393,5 +393,5 @@ reset_extraction_state_for_tests = "Called by extraction tests that reset proces
 extract_document = "PyO3 exports this stubbed API; its signature parameters mirror the compiled extension."
 [build-system]
 # Keep in sync with [dependency-groups].dev.
-requires = ["maturin==1.14.1"]
+requires = ["maturin==1.15.0"]
 build-backend = "maturin"
