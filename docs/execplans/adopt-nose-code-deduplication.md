@@ -1083,3 +1083,28 @@ Lessons worth carrying forward:
 - **A mistyped root is a provisioning error, not a clean scan.** The detector
   exits 1 for a nonexistent path, and the gate maps that to exit 2, so a scope
   typo cannot masquerade as success. That was verified rather than assumed.
+
+### Terminal state on the pushed tip
+
+The plan's last commit is `2eb0397` (a one-character MD049 emphasis fix to this
+document, because `4607d6b` had introduced `*executed*` and failed
+`make markdownlint`). The remote head `2eb0397` therefore differs from the
+`5832ee5` recorded above only by prose inside this plan.
+
+Read back on the pushed tip:
+
+- All five local gates pass on the exact tip pushed (logs
+  `/tmp/push4-*-adopt-nose-code-deduplication.out`; `typos.toml` unchanged).
+- Smoke run 37055252277 for `2eb0397` is green: `lint-test` 35/35 steps
+  success, the `Duplication-gate helper tests` step executed rather than
+  short-circuited (140 collected, 140 passed, 4 snapshots, Python 3.14.7), all
+  three `release-smoke` legs success, `Gecko Security Review` success.
+- `CodeScene Code Health Review (main)` still fails on the same four new files
+  with code health below 10.00, naming no file this change touched. It is not
+  among the ruleset's required contexts, which are exactly `lint-test` and the
+  three `release-smoke` legs, and it was neither suppressed nor dismissed.
+- `reviewDecision` remains `CHANGES_REQUESTED`, anchored to a commit predating
+  the remediation; the eight still-unresolved review threads each carry a reply
+  as their last comment and are their authors' to resolve.
+
+Not merged, per the standing instruction.
