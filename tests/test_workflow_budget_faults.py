@@ -15,6 +15,8 @@ Separate from `test_coverage_workflow_reading` so neither module
 outgrows the 400-line limit ``AGENTS.md`` sets.
 """
 
+import typing as typ
+
 import pytest
 
 from tests.support.coverage_workflows import (
@@ -94,7 +96,8 @@ def test_a_ceiling_that_is_not_a_scalar_is_reported_too() -> None:
     nothing. Both are caught, and this is the case that says so.
     """
     document_with_list = workflow()
-    document_with_list["jobs"]["coverage"]["timeout-minutes"] = [90]
+    jobs = typ.cast("dict[str, dict[str, object]]", document_with_list["jobs"])
+    jobs["coverage"]["timeout-minutes"] = [90]
     with pytest.raises(WorkflowConfigurationError) as raised:
         coverage_jobs_in({"controlled.yml": document_with_list})
     assert raised.value.field == "timeout-minutes", raised.value

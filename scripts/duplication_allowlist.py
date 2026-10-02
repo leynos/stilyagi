@@ -11,8 +11,6 @@ of its keys, so a new copy in an unlisted file still blocks the gate. Every
 entry records a reason so exceptions stay reviewable in version control.
 """
 
-from __future__ import annotations
-
 import dataclasses as dc
 import fcntl
 import pathlib
@@ -24,9 +22,13 @@ from pathlib import PurePosixPath
 
 import tomlkit
 import tomlkit.exceptions
-import tomlkit.items
-from atomic_write import AtomicWriteOptions, atomic_write
-from nose_schema import Finding, GateConfigError, Location
+from duplication_manifest import (
+    append_entry,
+    raw_allow_entries,
+    sub_table,
+    write_document,
+)
+from nose_schema import Finding, GateConfigError, Location, require_table
 
 _MINIMUM_MEMBER_COUNT = 2
 
@@ -96,10 +98,48 @@ def _validate_key_shape(
         raise GateConfigError(msg)
 
 
+def _is_catch_all_glob(path_glob: str) -> bool:
+    """Report whether ``path_glob`` covers every non-empty repository path.
+
+    ``**``, ``**/*``, and ``**/**`` all reduce to "any path", because ``**``
+    matches zero or more directories and a lone ``*`` matches any one segment.
+    Such a key would silence every finding in the repository, so the allowlist
+    cannot express it. The check is structural rather than a probe of sample
+    paths: either every part is a recursive wildcard, or a recursive prefix is
+    followed by a single ``*`` part.
+
+    Returns
+    -------
+    bool
+        True when the glob reduces to "any path".
+
+    Examples
+    --------
+    >>> _is_catch_all_glob("**/*")
+    True
+    >>> _is_catch_all_glob("python/stilyagi/**/models.py")
+    False
+    """
+    parts = PurePosixPath(path_glob).parts
+    if not parts:
+        return False
+    if all(part == "**" for part in parts):
+        return True
+    return (
+        len(parts) > 1 and parts[-1] == "*" and all(part == "**" for part in parts[:-1])
+    )
+
+
 def _validate_repository_relative_path(path_glob: str, *, context: str) -> None:
-    """Reject a path glob that is absolute or escapes the repository root."""
+    """Reject a path glob that is absolute, escapes the root, or covers all."""
     if path_glob.startswith("/") or ".." in PurePosixPath(path_glob).parts:
         msg = f"{context} must be a repository-relative path key"
+        raise GateConfigError(msg)
+    if _is_catch_all_glob(path_glob):
+        msg = (
+            f"{context} must not be a catch-all glob: an entry matching every "
+            "repository path would silence every finding"
+        )
         raise GateConfigError(msg)
 
 
@@ -147,11 +187,15 @@ def load_allowlist(pyproject_path: pathlib.Path) -> tuple[AllowEntry, ...]:
     GateConfigError
         If an entry is missing a reason or names neither a unit nor members.
     """
-    with pyproject_path.open("rb") as handle:
-        data = tomllib.load(handle)
-    root = _config_mapping(data, context="pyproject")
-    tool = _config_mapping(root.get("tool", {}), context="pyproject.tool")
-    table = _config_mapping(
+    try:
+        with pyproject_path.open("rb") as handle:
+            data = tomllib.load(handle)
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        msg = f"cannot read {pyproject_path}: {error}"
+        raise GateConfigError(msg) from error
+    root = require_table(data, context="pyproject")
+    tool = require_table(root.get("tool", {}), context="pyproject.tool")
+    table = require_table(
         tool.get("duplication_gate", {}),
         context="pyproject.tool.duplication_gate",
     )
@@ -166,19 +210,9 @@ def load_allowlist(pyproject_path: pathlib.Path) -> tuple[AllowEntry, ...]:
     )
 
 
-def _config_mapping(value: object, *, context: str) -> cabc.Mapping[str, object]:
-    """Validate one TOML table before configuration logic consumes it."""
-    if not isinstance(value, cabc.Mapping) or not all(
-        isinstance(key, str) for key in value
-    ):
-        msg = f"{context} must be a table with string keys"
-        raise GateConfigError(msg)
-    return typ.cast("cabc.Mapping[str, object]", value)
-
-
 def _allow_entry(raw: object, *, index: int) -> AllowEntry:
     """Validate and normalize one reasoned TOML allow entry."""
-    table = _config_mapping(raw, context=f"duplication_gate.allow[{index}]")
+    table = require_table(raw, context=f"duplication_gate.allow[{index}]")
     reason = table.get("reason", "")
     if not isinstance(reason, str) or not reason.strip():
         msg = f"duplication_gate.allow[{index}] requires a non-empty reason"
@@ -258,7 +292,12 @@ def append_allow_entry(
     target = tuple(keys)
     with _locked_file(pyproject_path):
         try:
-            document = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
+            text = pyproject_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
+            msg = f"cannot read {pyproject_path}: {error}"
+            raise GateConfigError(msg) from error
+        try:
+            document = tomlkit.parse(text)
         except tomlkit.exceptions.ParseError as error:
             # tomlkit raises a ValueError subclass, which the gate's own
             # vocabulary does not catch, so an unparseable manifest would
@@ -266,43 +305,17 @@ def append_allow_entry(
             # configuration error.
             msg = f"cannot parse {pyproject_path}: {error}"
             raise GateConfigError(msg) from error
-        tool = document.setdefault("tool", tomlkit.table(is_super_table=True))
-        gate = tool.setdefault("duplication_gate", tomlkit.table())
-        entries = gate.setdefault("allow", tomlkit.aot())
+        tool = sub_table(document, "tool", context="[tool]", is_super=True)
+        gate = sub_table(tool, "duplication_gate", context="[tool.duplication_gate]")
+        entries = raw_allow_entries(gate)
         for index, raw_entry in enumerate(entries):
             existing = _allow_entry(raw_entry, index=index)
             if _same_allow_target(existing.keys, target):
                 raw_entry["reason"] = reason
-                _write_document(pyproject_path, document)
+                write_document(pyproject_path, document)
                 return
-        entries.append(_new_entry(target, reason))
-        _write_document(pyproject_path, document)
-
-
-def _new_entry(keys: tuple[str, ...], reason: str) -> tomlkit.items.Table:
-    """Build the TOML table recording one reasoned allow entry."""
-    entry = tomlkit.table()
-    if len(keys) == 1:
-        entry["unit"] = keys[0]
-    else:
-        entry["members"] = list(keys)
-    entry["reason"] = reason
-    return entry
-
-
-def _write_document(
-    pyproject_path: pathlib.Path, document: tomlkit.TOMLDocument
-) -> None:
-    """Replace ``pyproject.toml`` atomically with the edited document."""
-    atomic_write(
-        pyproject_path,
-        tomlkit.dumps(document).encode("utf-8"),
-        options=AtomicWriteOptions(
-            create_parents=False,
-            preserve_mode=True,
-            sync_file=True,
-        ),
-    )
+        append_entry(gate, keys=target, reason=reason)
+        write_document(pyproject_path, document)
 
 
 def _same_allow_target(left: tuple[str, ...], right: tuple[str, ...]) -> bool:

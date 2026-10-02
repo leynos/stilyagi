@@ -310,5 +310,6 @@ def malformed_fixtures_can_be_read_without_executing_them(
 
 def _state_fixtures(corpus_state: CorpusState) -> tuple[CorpusFixture, ...]:
     """Return loaded fixtures from scenario state."""
-    assert "fixtures" in corpus_state, "expected 'fixtures' in corpus_state"
-    return typ.cast("tuple[CorpusFixture, ...]", corpus_state["fixtures"])
+    fixtures = corpus_state["fixtures"]
+    assert isinstance(fixtures, tuple), "expected fixtures to be a tuple"
+    return fixtures

@@ -109,7 +109,9 @@ def _run_install_nose(
         The Make result and the installer's recorded arguments.
     """
     make = shutil.which("make")
-    assert make is not None  # Guarded by the module-level skip.
+    # Reachable only when the module-level skip was applied, which requires
+    # `make` to be on `PATH`.
+    assert make is not None, "make must be on PATH past the module-level skip."
 
     tools = tmp_path / "tools"
     tools.mkdir()

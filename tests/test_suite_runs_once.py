@@ -32,6 +32,9 @@ import pytest
 from tests.support.assertions import assert_with_context
 from tests.support.workflows import load_workflow, workflow_jobs, workflow_steps
 
+if typ.TYPE_CHECKING:
+    from collections import abc as cabc
+
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOWS = REPOSITORY_ROOT / ".github" / "workflows"
 COVERAGE_ACTION = "leynos/shared-actions/.github/actions/generate-coverage@"
@@ -155,7 +158,7 @@ def test_coverage_runs_nextest_without_the_doctests() -> None:
 DEPENDENCY_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
 
 
-def _optional_dependencies(manifest: dict[str, object]) -> list[str]:
+def _optional_dependencies(manifest: cabc.Mapping[str, object]) -> list[str]:
     """Return the optional dependencies a manifest declares, target tables included.
 
     Cargo turns each optional dependency into an implicit feature, so a
@@ -184,7 +187,7 @@ def _optional_dependencies(manifest: dict[str, object]) -> list[str]:
     ]
 
 
-def _declares_features(manifest: dict[str, object]) -> bool:
+def _declares_features(manifest: cabc.Mapping[str, object]) -> bool:
     """Report whether a manifest has explicit or implicit features."""
     return bool(manifest.get("features")) or bool(_optional_dependencies(manifest))
 

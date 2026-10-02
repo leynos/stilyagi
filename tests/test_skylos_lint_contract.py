@@ -129,7 +129,7 @@ def _recipe_tokens(target: str) -> tuple[tuple[str, ...], ...]:
     )
 
 
-def _workflow_document(workflow_path: str) -> dict[str, object]:
+def _workflow_document(workflow_path: str) -> dict[str | bool, object]:
     """Return a repository workflow while preserving scalar strings."""
     workflow = (REPOSITORY_ROOT / workflow_path).read_text(encoding="utf-8")
     return load_workflow(workflow)
@@ -160,10 +160,12 @@ def _sole_workflow_step(
 
 def _run_skylos_allow(*arguments: str) -> subprocess.CompletedProcess[str]:
     """Run the whitelist boundary for an invalid input."""
-    environment = {**os.environ, "NAME": "wsl-hostname"}
+    environment: dict[str, str] = {**os.environ, "NAME": "wsl-hostname"}
     environment.pop("REASON", None)
     environment.pop("SYMBOL", None)
-    environment.update(argument.split("=", maxsplit=1) for argument in arguments)
+    for argument in arguments:
+        name, _, value = argument.partition("=")
+        environment[name] = value
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed Make target and arguments.
         (_MAKE_EXECUTABLE, "skylos-allow"),
         capture_output=True,
