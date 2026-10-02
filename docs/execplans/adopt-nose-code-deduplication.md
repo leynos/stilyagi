@@ -274,8 +274,12 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             wrapped to the repository's 80-column style; `make fmt` re-flowed
             three Markdown files, and the re-run is green on all six gates
             with the tree unmutated (`typos.toml` sha256 unchanged).
-      - [ ] Commit the remediated tree and push, then re-request review with
-            `/comenq-coderabbit`.
+      - [x] Committed the remediated tree as `c47154f` and pushed it; the
+            remote branch and the PR head both point at that commit. The
+            commit message records the verification-first pass over the eight
+            inline findings and the seven gateway findings fixed at source.
+            Requesting the new review with `/comenq-coderabbit` is the next
+            action.
 
 ## Context and orientation
 
