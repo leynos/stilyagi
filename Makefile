@@ -102,6 +102,17 @@ DUPLICATION_GATE = $(UV_ENV) NOSE_BIN=$(NOSE_BIN) $(UV) run scripts/duplication_
 # Pass DUPLICATION_TEST_ARGS=--snapshot-update to regenerate the syrupy
 # snapshots that pin the gate's report wording and argument vectors.
 DUPLICATION_TEST_ARGS ?=
+# The interpreter the helper-test lane runs on. The lane passes `--no-project`
+# so it can carry its own pinned pytest plugins rather than the whole `dev`
+# group, but that also makes uv ignore `requires-python = ">=3.14"` and resolve
+# whatever interpreter it discovers first. The gate's modules annotate with
+# names imported only under `typing.TYPE_CHECKING`; ruff's TC003 requires that
+# placement on the declared 3.14 baseline, whose PEP 649 annotations stay lazy.
+# An interpreter below the floor evaluates those annotations eagerly at def
+# time, so collection dies with `NameError` before a single test runs -- on a
+# machine with only 3.13 this lane would disagree with every other Python
+# gateway in the repository. Pin the floor the lane is written against.
+DUPLICATION_TEST_PYTHON ?= 3.14
 MD_FILES_FIND = find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './.uv-cache/*' -not -path './.uv-tools/*' -not -path './target/*' -not -path './crates/stilyagi-pyext/target/*' -print0
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
@@ -234,6 +245,7 @@ duplication: install-nose ## Run the blocking code-duplication gate
 
 duplication-test: ## Run the duplication-gate helper tests
 	@$(UV_ENV) NOSE_BIN=$(NOSE_BIN) $(UV) run --no-project \
+		--python $(DUPLICATION_TEST_PYTHON) \
 		--with pytest==9.0.2 --with cyclopts==4.25.2 \
 		--with tomlkit==0.15.1 --with 'hypothesis==6.168.0' \
 		--with 'syrupy==6.1.1' \
