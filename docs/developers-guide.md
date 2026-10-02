@@ -1785,7 +1785,11 @@ the scan. This is a scope argument rather than a style one: a plain `**`
 carries no information about which family is intended, so accepting it would
 defeat the gate for the whole repository. A recursive prefix that still names a
 real segment, such as `python/stilyagi/**/models.py` or `**/*/*`, stays
-narrowed to paths of that shape and is accepted.
+narrowed to paths of that shape and is accepted. Patterns such as `*/**` and
+`**/*/**` look like a catch-all but behave identically to `**/*/*`: each
+requires at least one named segment below the recursion, so none of them covers
+a single-segment path such as `Makefile`, and all are accepted. Refusing them
+would reject keys that legitimately scope a family to a subtree.
 
 When the gate reports an entry as stale, confirm the duplication is actually
 gone before removing it. A family can drop out of the ranking because it fell
