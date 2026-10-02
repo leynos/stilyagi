@@ -595,6 +595,25 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             `typos` default). Reworded to `a catch-all` and `parametrization`;
             no word was added to `typos.local.toml`, per the project rule that
             the dictionary carries established vocabulary, not slips.
+      - [x] Re-ran the full suite on the frozen tip before committing, rather
+            than trusting the earlier run: two prose edits landed after gates
+            1–4 had last passed, and this repository has contract tests that
+            parse Markdown. All five gates green, tree byte-identical before
+            and after. Committed as `e33ad72` (3 files, +187/−9) and pushed
+            over SSH to `origin/adopt-nose-code-deduplication`.
+      - [x] Posted a second reply correcting the first for reviewability. The
+            opening reply cited the new test only by name; the follow-up gives
+            its exact location, `scripts/tests/test_duplication_gate.py:152`
+            in `TestValidateKey` at blob `62b557f5`, and notes that the file
+            is in the `make duplication-test` lane's explicit list
+            (Makefile:255), so the cases run under `make lint`. All three
+            claims were re-read at the pushed tip before being posted.
+      - [x] CI monitoring delegated on `e33ad72`: `lint-test` and the three
+            `release-smoke` legs entered `IN_PROGRESS`. `mergeStateStatus` is
+            `BLOCKED`, which is the expected shape for an open PR whose
+            required checks have not yet reported, and `reviewDecision` is
+            still `CHANGES_REQUESTED` from the `cfc6a67`-anchored review —
+            both are read-back facts, not inferences from green gates.
 
 ## Context and orientation
 
