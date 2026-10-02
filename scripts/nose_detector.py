@@ -10,8 +10,6 @@ https://github.com/corca-ai/nose, pinned by ``[tool.nose] version``. It is not
 the unrelated PyPI ``nose`` test runner.
 """
 
-from __future__ import annotations
-
 import dataclasses as dc
 import json
 import os

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import duplication_allowlist as allowlist
 import duplication_gate as gate
+import duplication_manifest as manifest
 import nose_detector as detector
 import nose_schema as schema
 
@@ -46,6 +47,7 @@ def copied_gate_workspace(tmp_path: Path) -> tuple[Path, Path]:
         "atomic_write.py",
         "duplication_allowlist.py",
         "duplication_gate.py",
+        "duplication_manifest.py",
         "nose_detector.py",
         "nose_schema.py",
     ):
@@ -98,6 +100,30 @@ def gate_environment(**overrides: str) -> dict[str, str]:
     return {**os.environ, **overrides}
 
 
+def start_gate_command(script: Path, *arguments: str) -> subprocess.Popen[str]:
+    """Start a copied gate command without waiting for it to finish.
+
+    Contention tests need both streams captured, because a writer left
+    blocked when the test ends would otherwise hold the pipes enclosing the
+    lock. The caller owns the returned process and must reap it; a process
+    still blocked at the end of the test must be killed first, since it
+    cannot exit until the lock it waits on is released.
+
+    Returns
+    -------
+    subprocess.Popen
+        The started command with piped stdout and stderr.
+    """
+    return subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed test interpreter and copied script.
+        gate_command(script, *arguments),
+        cwd=script.parent.parent,
+        env=gate_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
 def run_gate_command(
     script: Path,
     *arguments: str,
@@ -144,6 +170,7 @@ def stub_runner(
     payload = STUB_REPORT if report is None else report
 
     def run(command: cabc.Sequence[str]) -> str:
+        """Answer the version probe and every query with canned output."""
         if "--version" in command:
             return f"{version}\n"
         return json.dumps(payload)
@@ -160,8 +187,10 @@ __all__ = [
     "gate",
     "gate_command",
     "gate_environment",
+    "manifest",
     "run_gate_command",
     "schema",
+    "start_gate_command",
     "stub_runner",
     "stub_settings",
     "write_stub_nose",

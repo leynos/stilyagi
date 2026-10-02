@@ -1,7 +1,7 @@
 """Persistence and contention tests for duplication-gate allow entries."""
 
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests exercise copied gate commands.
 import tomllib
+import typing as typ
 from pathlib import Path
 
 import pytest
@@ -9,9 +9,17 @@ import tomlkit.exceptions
 from duplication_gate_test_support import (
     allowlist,
     copied_gate_workspace,
-    gate_command,
-    gate_environment,
+    manifest,
+    start_gate_command,
 )
+
+if typ.TYPE_CHECKING:
+    import subprocess
+
+
+def _allow_command(script: Path, unit: str, *, reason: str) -> subprocess.Popen[str]:
+    """Start one allow command that must wait for the gate lock."""
+    return start_gate_command(script, "allow", "--first", unit, "--reason", reason)
 
 
 class TestLoadAllowEntry:
@@ -31,10 +39,11 @@ class TestLoadAllowEntry:
         before = pyproject.stat()
 
         def refuse(*_args: object, **_kwargs: object) -> None:
+            """Fail if the loader reaches any write-side helper."""
             msg = "the read-only loader must not write"
             raise AssertionError(msg)
 
-        monkeypatch.setattr(allowlist, "atomic_write", refuse)
+        monkeypatch.setattr(manifest, "atomic_write", refuse)
         monkeypatch.setattr(allowlist, "_locked_file", refuse)
 
         entries = allowlist.load_allowlist(pyproject)
@@ -47,7 +56,7 @@ class TestLoadAllowEntry:
             before.st_mtime_ns,
             before.st_size,
         ), "Loading must leave the file untouched."
-        assert list(tmp_path.glob(".pyproject.toml.*")) == [], (
+        assert not list(tmp_path.glob(".pyproject.toml.*")), (
             "Loading must not leave a lock or temporary sibling behind."
         )
 
@@ -58,7 +67,7 @@ class TestLoadAllowEntry:
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text('[project]\nname = "x"\n', encoding="utf-8")
 
-        assert allowlist.load_allowlist(pyproject) == (), (
+        assert not allowlist.load_allowlist(pyproject), (
             "A document without an allow table must load no entries."
         )
         assert list(tmp_path.iterdir()) == [pyproject], (
@@ -138,6 +147,7 @@ class TestAppendAllowEntry:
         original_replace = Path.replace
 
         def fail_replace(_source: Path, _destination: Path) -> None:
+            """Fail the final replacement step of the atomic write."""
             msg = "replacement failed"
             raise OSError(msg)
 
@@ -175,51 +185,28 @@ class TestAppendAllowEntry:
     ) -> None:
         """Two blocked writers retain both exceptions after the lock releases."""
         _, script = copied_gate_workspace(tmp_path)
-        with allowlist._locked_file(script.parent.parent / "pyproject.toml"):
-            first = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed copied gate command.
-                gate_command(
-                    script,
-                    "allow",
-                    "--first",
-                    "python/stilyagi/a.py",
-                    "--reason",
-                    "first writer",
-                ),
-                cwd=script.parent.parent,
-                env=gate_environment(),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            second = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed copied gate command.
-                gate_command(
-                    script,
-                    "allow",
-                    "--first",
-                    "python/stilyagi/b.py",
-                    "--reason",
-                    "second writer",
-                ),
-                cwd=script.parent.parent,
-                env=gate_environment(),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            assert first.poll() is None, "First writer must wait for the lock."
-            assert second.poll() is None, "Second writer must wait for the lock."
-
+        first = second = None
         try:
+            with allowlist._locked_file(script.parent.parent / "pyproject.toml"):
+                first = _allow_command(
+                    script, "python/stilyagi/a.py", reason="first writer"
+                )
+                second = _allow_command(
+                    script, "python/stilyagi/b.py", reason="second writer"
+                )
+                assert first.poll() is None, "First writer must wait for the lock."
+                assert second.poll() is None, "Second writer must wait for the lock."
+
             assert first.wait(timeout=10) == 0, "First writer must exit successfully."
             assert second.wait(timeout=10) == 0, "Second writer must exit successfully."
         finally:
-            # A timed-out writer blocks on the lock holding its stdout and
-            # stderr pipes open. Reap both on the way out so a failure here
-            # cannot leak processes or descriptors into the rest of the run.
+            # Both writers are reaped above on the happy path. A writer still
+            # blocked at this point cannot exit while the lock is held, so kill
+            # it rather than leaking a process and its pipes into the run.
             for writer in (first, second):
-                if writer.poll() is None:
+                if writer is not None and writer.poll() is None:
                     writer.kill()
-                writer.wait(timeout=10)
+                    writer.wait(timeout=10)
 
         entries = tomllib.loads(
             (script.parent.parent / "pyproject.toml").read_text(encoding="utf-8")

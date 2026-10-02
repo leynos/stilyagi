@@ -296,7 +296,7 @@ def _load_insta_json_snapshot(path: pathlib.Path) -> dict[str, JSONType]:
     return typ.cast("dict[str, JSONType]", parsed)
 
 
-def _normalize_python_ir(ir: cabc.Mapping[str, JSONType]) -> dict[str, JSONType]:
+def _normalize_python_ir(ir: cabc.Mapping[str, object]) -> dict[str, JSONType]:
     """Normalize volatile producer and source-identity fields for snapshots."""
     normalized = json.loads(json.dumps(ir))
     assert isinstance(normalized, dict), "expected isinstance(normalized, dict)"

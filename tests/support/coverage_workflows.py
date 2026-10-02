@@ -177,7 +177,7 @@ def _jobs_of(document: WorkflowDocument) -> dict[str, WorkflowJob]:
     """
     match document:
         case {"jobs": dict() as jobs}:
-            return typ.cast("dict[str, WorkflowJob]", jobs)
+            return {name: job for name, job in jobs.items() if isinstance(name, str)}
         case _:
             return {}
 

@@ -206,6 +206,76 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             shim removed from `PATH` and the injected git config disabled
             resolved the same pinned commit (`4cf41736`) anonymously. The
             fault is local to this machine; CI fetches with its own token.
+- [ ] Review remediation round two. The pull request drew a review with eight
+      inline findings plus a failing "Unit Architecture" check and a warning on
+      developer documentation. Each finding is verified against the current
+      code before any edit, and only still-valid findings are fixed.
+      - [x] Rebased a third time, onto `c65a29e` (PR #196); full gate suite
+            re-run green and pushed as `2c7d61f`. Recorded separately in the
+            checklist above; the review arrived against that head.
+      - [x] Verified the eight inline findings against the staged tree. All
+            eight are already addressed: ADR-008 carries no first-person
+            pronoun; no `from __future__ import annotations` remains under
+            `scripts/`, `python/`, `tests/`, or `.github/`; `nose_schema.py`
+            separates the integer check from the `end < start` check;
+            `duplication_allowlist.py` refuses a catch-all glob at validation;
+            `duplication_manifest.py` names a malformed parent table; the
+            gate's two configuration-error paths both print a diagnostic and
+            exit 2; the 506-line and 631-line test modules are split; and
+            `normalise_path_value` plus `_pyproject_stilyagi_table` are
+            documented in the developer's guide. No further edit needed.
+      - [x] Adopt the episodic Python gateway: Pylint and df12-python-lints
+            run on CPython 3.14 over `python/stilyagi tests scripts`, and
+            `ty` type-checks those roots plus `.github`. This is the
+            `PYLINT_TARGETS` widening recorded at Makefile:43; the widened
+            target set is what exposed the seven findings below.
+      - [x] `make lint` abort 1: Pylint C1803 in
+            `tests/test_workflow_reader_units.py`, on an assertion
+            byte-identical to `origin/main`. The staged rewrite of
+            `tests/support/workflows.py::workflow_steps` from a comprehension
+            to an annotated accumulator lets Pylint prove the return is
+            strictly a list, which switches the rule on at an unchanged call
+            site. Fixed by rewriting the assertion to `assert not
+            workflow_steps(…)`, keeping its failure message.
+      - [x] `make lint` abort 2: DF12 Pylint exit 24 with seven findings in
+            `scripts/tests/`, newly reachable only because the widened
+            `PYLINT_TARGETS` now includes `scripts`. Fixed at the source
+            rather than suppressed: C9102 in `test_make_install_nose.py`
+            gained the missing failure message; R9111 in `test_atomic_write.py`
+            gained `slots=True` on both spy dataclasses; R9108 in
+            `test_nose_command.py` and `test_duplication_gate_commands.py` were
+            converted to syrupy snapshots, the repository's and episodic's
+            established answer for snapshot-worthy literals.
+      - [x] The `duplication-test` lane runs `--no-project`, so the snapshots
+            needed `syrupy==6.1.1` added to that recipe's explicit `--with`
+            list, and `DUPLICATION_TEST_ARGS` was declared so
+            `--snapshot-update` can be passed at the command line. The four
+            snapshots were generated, then the lane re-run without the flag:
+            135 passed, 4 snapshots passed. Developer's guide and scripting
+            standards record the lane's dependency pinning and the
+            snapshot-update workflow.
+      - [x] Both Pylint tiers verified green by hand over the widened target
+            set: focused Pylint and DF12 Pylint each 10.00/10, exit 0. An
+            earlier manual run that forced `--enable=E,F` was invalid and its
+            E0401 import errors were an artefact of overriding the curated
+            message list; running the pass exactly as `make lint` invokes it
+            is clean.
+      - [x] Full gate suite re-run on the remediated tree, with a verdict for
+            every `make lint` step and not just the Pylint tiers. `lint` now
+            completes every step the previous abort never reached: Ruff,
+            Interrogate at 100.0%, focused Pylint and DF12 Pylint each
+            10.00/10, ambrleaks clean, `cargo doc`, clippy with `-D warnings`,
+            Whitaker, Skylos clean, and the Makefile:219 duplication gate
+            passing at "4 allowed by reasoned exceptions". `typecheck` passes
+            with `ty` reporting "All checks passed!", and `test` runs 337/337
+            nextest, 533 pytest with 15 snapshots, 20 doctests, and 135
+            duplication-test with 4 snapshots. The first pass of this run had
+            `check-fmt` red because the prose added during remediation was not
+            wrapped to the repository's 80-column style; `make fmt` re-flowed
+            three Markdown files, and the re-run is green on all six gates
+            with the tree unmutated (`typos.toml` sha256 unchanged).
+      - [ ] Commit the remediated tree and push, then re-request review with
+            `/comenq-coderabbit`.
 
 ## Context and orientation
 

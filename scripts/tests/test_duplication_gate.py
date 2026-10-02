@@ -5,8 +5,6 @@ allowlist, matching, and partitioning logic without invoking it. The
 ``make duplication-test`` target runs them on the repository interpreter.
 """
 
-from __future__ import annotations
-
 import re
 import textwrap
 import typing as typ
@@ -110,6 +108,11 @@ class TestValidateKey:
             "python/stilyagi/a.py",
             "python/stilyagi/*.py::run",
             "python/stilyagi/**/models.py",
+            # A recursive prefix that still names a real segment is scoped:
+            # only the trailing `*` widens it, so this one cannot match a path
+            # of one segment.
+            "**/*/*",
+            "python/stilyagi/**",
         ],
     )
     def test_accepts_well_formed_keys(self, key: str) -> None:
@@ -117,6 +120,20 @@ class TestValidateKey:
         assert allowlist.validate_key(key, context="key") == key, (
             "Validation must return the key unchanged."
         )
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            pytest.param("**", id="recursive-only"),
+            pytest.param("**/**", id="recursive-pair"),
+            pytest.param("**/*", id="recursive-then-any"),
+            pytest.param("**::run", id="recursive-with-name"),
+        ],
+    )
+    def test_rejects_catch_all_keys(self, key: str) -> None:
+        """A glob covering every repository path is refused at validation."""
+        with pytest.raises(gate.GateConfigError, match=re.escape("catch-all")):
+            allowlist.validate_key(key, context="key")
 
     @pytest.mark.parametrize(
         ("key", "diagnostic"),
@@ -189,7 +206,7 @@ class TestLoadAllowlist:
     def test_missing_gate_table_yields_empty_allowlist(self, tmp_path: Path) -> None:
         """A pyproject without the gate table produces no entries."""
         pyproject = self._write(tmp_path, "[project]\nname = 'x'\nversion = '0'\n")
-        assert allowlist.load_allowlist(pyproject) == (), (
+        assert not allowlist.load_allowlist(pyproject), (
             "Missing gate table must mean no allow entries."
         )
 

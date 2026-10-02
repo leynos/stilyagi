@@ -91,18 +91,18 @@ the assumption that duplication accumulates fastest against.
 In the context of keeping copy-paste duplication out of Stilyagi's Python
 surface, facing a repository where no existing lint tier observes duplication
 and where a detector choice has already been benchmarked and recorded upstream,
-we decided **for** running `nose` 0.20.0 behind `scripts/duplication_gate.py`
-inside `make lint`, installed by `make install-nose` through `cargo-binstall`
-at a version pinned identically in the Makefile, the CI workflow, and
-`[tool.nose]` and asserted by `tests/test_toolchain_contract.py`, with reasoned
-location-keyed exceptions in `[tool.duplication_gate]`, and **against**
-re-running the detector comparison for Stilyagi, adopting PyChase or pyscn, and
-retaining no automated gate at all, to achieve deterministic duplication
-enforcement whose exceptions stay reviewable in version control, accepting that
-the gate depends on a pre-1.0, platform-specific binary published through
-GitHub releases, that the detector reports spans without qualified unit names
-so the narrowest available allow key is a path glob, and that the ranked
-surface bounds what the gate adjudicates.
+the choice is **for** running `nose` 0.20.0 behind
+`scripts/duplication_gate.py` inside `make lint`, installed by
+`make install-nose` through `cargo-binstall` at a version pinned identically in
+the Makefile, the CI workflow, and `[tool.nose]` and asserted by
+`tests/test_toolchain_contract.py`, with reasoned location-keyed exceptions in
+`[tool.duplication_gate]`, and **against** re-running the detector comparison
+for Stilyagi, adopting PyChase or pyscn, and retaining no automated gate at
+all, to achieve deterministic duplication enforcement whose exceptions stay
+reviewable in version control, accepting that the gate depends on a pre-1.0,
+platform-specific binary published through GitHub releases, that the detector
+reports spans without qualified unit names so the narrowest available allow key
+is a path glob, and that the ranked surface bounds what the gate adjudicates.
 
 ## Consequences
 
