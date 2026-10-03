@@ -15,6 +15,8 @@ import tomllib
 import typing as typ
 from pathlib import Path
 
+import pytest
+
 from tests.support.nextest_config import largest_test_allowance
 
 REPOSITORY_ROOT: typ.Final = Path(__file__).resolve().parents[1]
@@ -175,3 +177,47 @@ def test_the_widened_budget_is_scoped_to_the_two_binaries_only() -> None:
         assert re.fullmatch(r"\(?package\([\w-]+\) & binary\(\w+\)\)?", term), (
             f"override term {term!r} is not a package-and-binary pair"
         )
+
+
+def test_the_trybuild_override_is_the_only_override() -> None:
+    """No second override may exist, whatever its filter or budget.
+
+    A second entry such as `filter = "all()"` at the same 600 s would leave the
+    matching override unique and the shared reading unchanged, yet widen the
+    budget to every test. The same holds under another profile, such as the
+    `ci` profile `make test-ci` selects, which inherits the default. Requiring
+    exactly one override across all profiles closes both.
+    """
+    profiles = tomllib.loads(read_config_text(CONFIG_PATH)).get("profile", {})
+    found = {
+        name: len(profile.get("overrides", []))
+        for name, profile in profiles.items()
+        if profile.get("overrides")
+    }
+
+    assert found == {"default": 1}, (
+        "expected exactly the trybuild override, in the default profile only; "
+        f"found overrides per profile: {found}"
+    )
+
+
+def test_a_missing_configuration_file_is_reported_as_unreadable(
+    tmp_path: Path,
+) -> None:
+    """`read_config_text` names the path instead of leaking a bare `OSError`."""
+    missing = tmp_path / "nextest.toml"
+
+    with pytest.raises(AssertionError, match="cannot read the nextest configuration"):
+        read_config_text(missing)
+
+
+def test_invalid_toml_is_reported_as_such() -> None:
+    """`default_profile` refuses text that is not TOML."""
+    with pytest.raises(AssertionError, match="not valid TOML"):
+        default_profile("[profile.default\nglobal-timeout = ")
+
+
+def test_a_configuration_without_a_default_profile_is_refused() -> None:
+    """`default_profile` refuses a document with no `[profile.default]`."""
+    with pytest.raises(AssertionError, match=re.escape("no [profile.default]")):
+        default_profile('[profile.ci]\nglobal-timeout = "1m"')
