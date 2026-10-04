@@ -1355,6 +1355,21 @@ If a workflow's behaviour genuinely depends on a feature only present from a
 particular commit onwards, express that as a comment or a changelog note, not
 as a test assertion on the SHA string.
 
+### 6f-bis. Whitaker in continuous integration
+
+`.github/workflows/smoke.yml` provisions Whitaker through the shared
+`leynos/shared-actions/.github/actions/install-whitaker` action, pinned to a
+full commit hash and passing only `cranelift: true`. The action owns the
+installer version (0.2.9 or later), the digest-verified download, the cache and
+the `--no-source-fallback` rule, so the workflow carries no install script and
+no `WHITAKER_INSTALLER_VERSION` variable. The local requirement is unchanged:
+`make lint` still expects `whitaker` on `PATH` and runs it as before.
+
+`tests/test_ci_workflow_units.py` asserts the step uses the action at a full
+commit hash with no script and only the `cranelift` input. The concordat QG-002
+rule accepts the pin because the action directory is content-identical to the
+reviewed revision.
+
 ### 6g. CodeScene coverage belongs to main
 
 `coverage-main.yml` is the only workflow in this repository that runs a
