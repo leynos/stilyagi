@@ -19,6 +19,7 @@ from tempfile import TemporaryDirectory
 import hypothesis as hyp
 import hypothesis.strategies as st
 
+from tests.support import makeutil_contract
 from tests.support.workflows import load_workflow
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -42,25 +43,6 @@ _SHELL_ARGUMENT_TEXT: typ.Final = st.builds(
         max_size=40,
     ),
     st.text(alphabet=" \t", max_size=4),
-)
-_MAKEUTIL_INSTALL_TOKENS: typ.Final = (
-    "rustup",
-    "toolchain",
-    "install",
-    "${MAKEUTIL_TOOLCHAIN}",
-    "--profile",
-    "minimal",
-    "RUSTFLAGS=-Zpolonius=next",
-    "cargo",
-    "+${MAKEUTIL_TOOLCHAIN}",
-    "install",
-    "--git",
-    "https://github.com/leynos/makeutil",
-    "--rev",
-    "${MAKEUTIL_REVISION}",
-    "--locked",
-    "--force",
-    "makeutil",
 )
 
 
@@ -190,16 +172,6 @@ def _run_skylos_allow(*arguments: str) -> subprocess.CompletedProcess[str]:
         env=environment,
         text=True,
     )
-
-
-def _assert_makeutil_installation(command: object, *, contract: str) -> None:
-    """Assert that `command` installs the pinned Makeutil parser."""
-    assert isinstance(command, str), (
-        f"{contract} must provide a Makeutil installation shell command"
-    )
-    assert (
-        tuple(shlex.split(command.replace("\\\n", ""))) == _MAKEUTIL_INSTALL_TOKENS
-    ), f"{contract} must pin the Makeutil installation command"
 
 
 def test_lint_recipe_runs_the_production_dead_code_gate() -> None:
@@ -372,27 +344,32 @@ def test_full_suite_workflows_consistently_provision_makefile_parser() -> None:
         ".github/workflows/smoke.yml", "lint-test", "Lint and dead-code detection"
     )
     assert lint_step.get("run") == "make lint", "expected `make lint`"
-    makeutil_configurations = []
     for workflow_path, job_name in (
         (".github/workflows/smoke.yml", "lint-test"),
         (".github/workflows/coverage-main.yml", "coverage-upload"),
     ):
         environment = _mapping(
             _workflow_document(workflow_path).get("env"),
-            subject=f"{workflow_path} Makeutil environment",
+            subject=f"{workflow_path} environment",
         )
-        makeutil_revision = environment.get("MAKEUTIL_REVISION")
-        assert isinstance(makeutil_revision, str), "Makeutil revision must be a string"
-        assert makeutil_revision, "Makeutil revision must not be empty"
-        makeutil_toolchain = environment.get("MAKEUTIL_TOOLCHAIN")
-        assert isinstance(makeutil_toolchain, str), "Makeutil toolchain must be text"
-        assert makeutil_toolchain, "Makeutil toolchain must not be empty"
-        makeutil_configurations.append((makeutil_revision, makeutil_toolchain))
-        parser_step = _sole_workflow_step(
-            workflow_path, job_name, "Install Makefile parser"
+        assert "MAKEUTIL_REVISION" not in environment, (
+            f"{workflow_path} must not carry a from-source Makeutil pin"
         )
-        _assert_makeutil_installation(
-            parser_step.get("run"),
-            contract=f"{workflow_path} {job_name} Makeutil-install contract",
+        assert "MAKEUTIL_TOOLCHAIN" not in environment, (
+            f"{workflow_path} must not carry a Makeutil nightly toolchain"
         )
-    assert len(set(makeutil_configurations)) == 1, "expected one Makeutil configuration"
+        install_step = _sole_workflow_step(workflow_path, job_name, "Install makeutil")
+        contract = f"{workflow_path} {job_name} Makeutil"
+        makeutil_contract.assert_installation(install_step, contract=contract)
+        makeutil_contract.assert_verification(
+            install_step,
+            _sole_workflow_step(workflow_path, job_name, "Verify makeutil"),
+            contract=contract,
+        )
+        makeutil_contract.assert_verification_follows_install(
+            _objects(
+                _workflow_job(workflow_path, job_name).get("steps"),
+                subject=f"{contract} steps",
+            ),
+            contract=contract,
+        )
