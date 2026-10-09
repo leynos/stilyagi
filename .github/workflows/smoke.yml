@@ -174,7 +174,7 @@ jobs:
         # for a branch it added a whole second tool to the critical path
         # for a gate the ratchet already applies.
         if: github.event_name == 'pull_request'
-        uses: leynos/shared-actions/.github/actions/generate-coverage@6cec89bac47a21cf756d68d638a9a510998e57f8
+        uses: leynos/shared-actions/.github/actions/generate-coverage@2f47859bcf82ae8b5bc10b457683fbd589ca2e41
         with:
           output-path: coverage.xml
           format: cobertura
