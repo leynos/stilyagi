@@ -1289,8 +1289,8 @@ to HTTPS and rejected for missing `workflow` scope. Stripping `GIT_CONFIG_*`
 and the token variables and pinning `GIT_SSH_COMMAND=/usr/bin/ssh` pushed
 cleanly over SSH as `leynos`.
 
-Before pushing, all seven gates were re-run on the exact tree at `13d2e6e`
-with the working tree and `typos.toml` hash unchanged. After pushing, run
+Before pushing, all seven gates were re-run on the exact tree at `13d2e6e` with
+the working tree and `typos.toml` hash unchanged. After pushing, run
 38064812303 on `13d2e6e` is green on all four required checks (`lint-test`
 26/26 steps, the `Duplication-gate helper tests` step executing rather than
 short-circuiting at 145 collected and 145 passed with 4 snapshots on Python
