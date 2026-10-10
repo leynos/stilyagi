@@ -28,9 +28,12 @@ as a default.
 
 ## Language and runtime
 
-- Target Python 3.13 for all new scripts. Older versions may only be used when
+- Target Python 3.14 for all new scripts. Older versions may only be used when
   integration constraints require them, and any exception must be documented
   inline.
+- Annotation evaluation is deferred by default under Python 3.14 (PEP 649), so
+  the postponed-annotations future import is redundant and is not added to new
+  scripts.
 - Each script starts with an `uv` script block so runtime and dependency
   expectations travel with the file. Prefer the shebang
   `#!/usr/bin/env -S uv run python` followed by the metadata block shown in the
@@ -46,11 +49,9 @@ as a default.
 ```python
 #!/usr/bin/env -S uv run python
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.14"
 # dependencies = ["plumbum", "cmd-mox"]
 # ///
-
-from __future__ import annotations
 
 from pathlib import Path
 from plumbum import local
@@ -76,11 +77,9 @@ Employ Cyclopts when a script requires parameters, particularly under CI with
 ```python
 #!/usr/bin/env -S uv run python
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.14"
 # dependencies = ["cyclopts>=2.9", "plumbum", "cmd-mox"]
 # ///
-
-from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional, Annotated
@@ -167,7 +166,6 @@ Guidance:
 ### Basics: command calls, capturing output, handling failures
 
 ```python
-from __future__ annotations
 from plumbum import local
 from plumbum.cmd import git, grep
 
@@ -233,7 +231,6 @@ count = (git["--no-pager", "log", "--oneline"] | grep["chore"] | wc["-l"])().str
 ### Project roots, joins, and ensuring directories
 
 ```python
-from __future__ import annotations
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -289,11 +286,10 @@ except FileNotFoundError:
 ```python
 #!/usr/bin/env -S uv run python
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.14"
 # dependencies = ["cyclopts>=2.9", "plumbum", "cmd-mox"]
 # ///
 
-from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Annotated
 
@@ -342,11 +338,66 @@ if __name__ == "__main__":
 - Behavioural flows that map cleanly to scenarios should adopt Behaviour‑Driven
   Development (BDD) via `pytest-bdd` so that intent is captured in
   human‑readable Given/When/Then narratives.
-- Tests reside in `scripts/tests/`, mirroring script names. For example,
-  `scripts/bootstrap_doks.py` pairs with `scripts/tests/test_bootstrap_doks.py`.
+- Tests reside in `scripts/tests/`. Modules normally mirror the module under
+  test, so `scripts/bootstrap_doks.py` pairs with
+  `scripts/tests/test_bootstrap_doks.py`. An oversized or multi-concern module
+  may be split into focused modules named for the behaviour they pin rather
+  than for the module under test, such as
+  `scripts/tests/test_duplication_gate_boundaries.py`. Splitting carries a
+  trap: the `duplication-test` Makefile target names its test files explicitly
+  rather than globbing, so a new module must be added to that list or it is
+  silently uncollected.
 - Where scripts rely on environment variables, both happy paths and failure
   modes must be asserted; tests should demonstrate graceful error handling
   rather than opaque stack traces.
+- The `duplication-test` lane runs under `--no-project`, so it does not inherit
+  the project's `dev` group. Its pytest plugins are pinned in the recipe's
+  `--with` list; a test that needs a plugin outside that list fails at import
+  in that lane even though the application suite resolves it. Snapshot
+  assertions over a script's stable output are preferred to long inline
+  literals, and the committed `.ambr` files live in
+  `scripts/tests/__snapshots__/`.
+- Regenerate snapshots deliberately, never by accepting whatever is written.
+  Pass `DUPLICATION_TEST_ARGS=--snapshot-update` to `make duplication-test`,
+  read the resulting `.ambr` diff to confirm it shows only the intended change,
+  then re-run the lane without the flag so the green result comes from the
+  committed snapshot rather than from the update mode.
+
+### Linting and type checking
+
+Scripts are not exempt from the repository's Python gateways. `make lint` covers
+`python/stilyagi tests scripts` and `make typecheck` checks the same roots plus
+`.github`, so a new script is linted and type-checked without any per-file
+registration. Both run on CPython 3.14, matching the runtime scripts target,
+and the following apply:
+
+- Gateways cover environment differences, not just syntax. A script invoked
+  only by a workflow still has to satisfy the same Ruff, Interrogate, Pylint,
+  df12 Pylint, ambrleaks, and `ty` checks as the package. Interrogate requires
+  100% docstring coverage over `scripts/`, so a new public function needs a
+  docstring as part of the change rather than a follow-up.
+- The PEP 723 `# /// script` block declares a script's runtime dependencies,
+  not its development ones. When a script's modules import a third-party
+  package that only the script block declares, the checker cannot resolve it
+  from the project environment, so the repository stages those packages for the
+  checker (`TY_GATE_STAGE_DIR`) and adds them to `TY_EXTRA_PATHS`. The staging
+  pins the versions the script declares, keeping one interpreter importable
+  under the pin the script actually runs with. Prefer this over broadening the
+  project environment with a dependency only a script uses.
+- Do not silence a finding to get a script through the gate. Fix the underlying
+  shape: narrow a type with a real `isinstance` check (both Ruff and `ty`
+  understand the builtin), widen a callee parameter to the abstract type its
+  callers actually pass, or move an annotation-only import under
+  `if typing.TYPE_CHECKING:`. A suppression needs a reason and a scope no wider
+  than the finding.
+- The dead-code and duplication gates stop short of `scripts/`. Skylos scans
+  `SKYLOS_PRODUCTION_TARGETS` (`python/stilyagi`) only, and the duplication
+  gate's `[tool.nose] roots` names `python/stilyagi` alone, with `scripts/`
+  excluded so the gate's own modules are not self-referential
+  ([ADR 008](adr-008-nose-duplication-gate.md)). Those two gates will not
+  catch a single-caller helper or a copy of an existing helper in `scripts/`,
+  so the reuse rule here is a convention the reviewer enforces rather than one
+  the tooling checks: reuse the repository helper instead of re-declaring it.
 
 ### Mocking Python dependencies (pytest-mock) and environment (monkeypatch)
 
@@ -453,6 +504,13 @@ def test_spy_and_record(cmd_mox, monkeypatch, tmp_path):
   Human-friendly error messages should highlight remediation steps.
 - Dependencies must remain minimal. Any new package should be added to the `uv`
   block and the rationale documented within the script or companion tests.
+- Configuration errors are part of the command-line contract, not a traceback.
+  A malformed input file, a scalar where a table belongs, or a missing key must
+  reach the caller as a typed diagnostic and a non-zero exit status (the
+  repository's gate commands use `2`), so a CI log names the offending key
+  instead of printing a stack. Raise the domain error at the boundary where the
+  input is read, and reserve bare exceptions for faults that genuinely are
+  programming errors.
 
 ## Migration guidance (Typer → Cyclopts)
 

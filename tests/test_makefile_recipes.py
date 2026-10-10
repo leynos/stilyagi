@@ -76,7 +76,7 @@ def _ambrleaks_invocation_index(invocations: tuple[Invocation, ...]) -> int:
         for index, invocation in enumerate(invocations)
         if invocation.command == "uv"
         and invocation.args[:5] == ["run", "--group", "dev", "--python", "3.14"]
-        and invocation.args[-2:] == ["ambrleaks", "tests"]
+        and invocation.args[-3:] == ["ambrleaks", "tests", "scripts"]
     )
 
 
@@ -134,7 +134,7 @@ def makefile_text() -> str:
                     "$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)",
                     "$(PYLINT) $(PYLINT_TARGETS)",
                     "$(DF12_PYLINT) $(PYLINT_TARGETS)",
-                    "$(AMBRLEAKS) tests",
+                    "$(AMBRLEAKS) $(AMBRLEAKS_TARGETS)",
                     (
                         'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" '
                         "$(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)"
@@ -240,7 +240,7 @@ def test_lint_recipe_runs_df12_tools_before_rust_checks(makefile_text: str) -> N
     """Keep the layered Python lint tools ahead of the Rust lint commands."""
     _header, recipe = _make_target(makefile_text, "lint")
     df12_pylint = "$(DF12_PYLINT) $(PYLINT_TARGETS)"
-    ambrleaks = "$(AMBRLEAKS) tests"
+    ambrleaks = "$(AMBRLEAKS) $(AMBRLEAKS_TARGETS)"
     rustdoc = (
         'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)'
     )
@@ -259,7 +259,7 @@ def test_lint_recipe_executes_df12_tools_before_rust_checks(
     tmp_path: pathlib.Path,
 ) -> None:
     """Run `make lint` hermetically and preserve its cross-language stage order."""
-    for command in ("uv", "cargo", "rustfmt", "whitaker"):
+    for command in ("uv", "cargo", "rustfmt", "whitaker", "cargo-binstall"):
         cmd_mox.spy(command).returns()
 
     shim_dir = cmd_mox.environment.shim_dir
@@ -312,6 +312,7 @@ def test_df12_lint_tool_definitions_use_the_pinned_python_and_rules(
         "--disable=all --load-plugins=df12_python_lints ",
         "--enable=$(DF12_PYLINT_MESSAGES)",
         "AMBRLEAKS = $(UV_RUN) --python $(DF12_PYTHON) ambrleaks",
+        "AMBRLEAKS_TARGETS ?= tests scripts",
     )
 
     for expected_definition in expected_definitions:

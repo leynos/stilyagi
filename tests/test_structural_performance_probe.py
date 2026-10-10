@@ -88,9 +88,8 @@ def probe_writes_json_report_with_cold_and_warm_runs(
 ) -> None:
     """Assert the scenario-visible probe result."""
     completed = probe_state["completed"]
-    assert_with_context(
-        isinstance(completed, subprocess.CompletedProcess),
-        "expected CompletedProcess after probe run",
+    assert isinstance(completed, subprocess.CompletedProcess), (
+        "expected CompletedProcess after probe run"
     )
     output_path = probe_state["output_path"]
 

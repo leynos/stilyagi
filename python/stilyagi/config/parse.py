@@ -11,6 +11,7 @@ from .schema import (
     MarkdownExtractConfig,
     NlpConfig,
     StilyagiConfig,
+    normalise_path_value,
 )
 from .validate import (
     ensure_bool,
@@ -253,13 +254,12 @@ def _parse_cache_dir(
 ) -> pathlib.Path:
     """Parse the `cache-dir` value into a path object."""
     value = table.get("cache-dir", pathlib.Path(".stilyagi_cache"))
-    match value:
-        case pathlib.Path():
-            return value
-        case str():
-            return pathlib.Path(value)
-        case _:
-            raise InvalidConfigError(path, "cache-dir", "must be a path or string")
+    try:
+        return normalise_path_value(value)
+    except TypeError as error:
+        # Report the offending file and key rather than the bare field-less
+        # rejection the shared normaliser raises.
+        raise InvalidConfigError(path, "cache-dir", str(error)) from error
 
 
 def _build_reserved_table(
