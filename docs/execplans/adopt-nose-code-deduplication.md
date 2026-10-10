@@ -1381,3 +1381,43 @@ The external reference was confirmed publicly readable while diagnosing this:
 `d9e5ac0d254f375e2986f52d91a3b88c117c833b` each answer HTTP 200 to an anonymous
 client, and CodeRabbit is installed on that repository. `invalid_reference` is
 therefore not an access failure.
+
+### Final state at hand-off
+
+Published head `d805aa0`, base `ffb0fef`, PR ready and `MERGEABLE`. All four
+required checks are green on the head (`lint-test` and the three
+`release-smoke` legs), with `Gecko Security Review` success and CodeScene
+failing on the adjudicated markers only. Hosted run 38066071000 covers the
+preceding tip; the head's own run repeats the same four checks.
+
+All 19 review threads now carry a disposition. The eight left unresolved by
+their authors were each re-verified against the live source rather than trusted
+from their reply text:
+
+- The two oversized-module findings are genuinely fixed. The largest module
+  under `scripts/` is `test_duplication_gate.py` at 378 lines;
+  `test_duplication_gate_commands.py` is 322 (from 631) and
+  `test_nose_detector.py` no longer exists, its cases split into four modules.
+  Nothing under `scripts/` exceeds the 400-line limit.
+- The parent-table finding is fixed: `_require_table` is defined at
+  `scripts/duplication_manifest.py:30` and applied at line 71 before any
+  descent.
+- The parse-before-mutate repair for the seventh finding is present at
+  `scripts/duplication_allowlist.py:311`.
+- The three CodeScene markers and the re-posted complexity marker carry their
+  reasoned dispositions with no Suppress link.
+
+Two gates cannot be brought to green, and both are recorded above with their
+causes rather than worked around: CodeScene's advisory
+`Code Health Review (main)`, which is not a required check, and the assessment
+conversation, which the service refuses for any request on this PR because its
+description carries external provenance links. The review decision still reads
+`CHANGES_REQUESTED` from a submission anchored to `de80e652`, four heads
+behind; it is stale rather than contradicting the dispositions, and no new
+review has been dispatched.
+
+Merging requires one of the two service-side states to clear: a fresh
+CodeRabbit review that returns a current decision on this head, or a change in
+the assessment request path. Until then the PR is held at
+convergence-minus-two, with every requirement this branch controls satisfied
+and evidenced.
