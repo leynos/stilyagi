@@ -1318,3 +1318,66 @@ reply saying CodeRabbit could not verify the requested revision for
 design source, and no acceptance claim depends on fetching it, so the re-post
 states that scope explicitly and asks for any episodic-dependent claim to be
 reported as unverified rather than blocking the whole assessment.
+
+### The `Check formatting` failure on the published tip
+
+Hosted CI failed at step 15 of `lint-test` on `eca12f3`: `mdtablefix --check`
+reported `docs/execplans/adopt-nose-code-deduplication.md +2 -2`. The paragraph
+added by `eca12f3` wrapped after `13d2e6e`, where mdtablefix wants the line to
+run one word further. The local `check-fmt` evidence predated that edit, so the
+gate had been validated against a stale tree — the failure was real and the fix
+is `make fmt`, which rewrote exactly those two lines. `typos.toml` came back
+byte-identical (`75d951c8`) and `markdownlint-cli2` in the same target reported
+0 issues in 69 files. Committed as `2c7ecd7` and pushed with a lease bound to
+`eca12f3`.
+
+The seven gates were re-run on the new tip and all seven pass (scrutineer logs
+`/tmp/<gate>-stilyagi-adopt-nose-code-deduplication-scrutineer-2.out`), with
+the worktree clean before and after and `typos.toml` unchanged: `check-fmt`
+(212 files formatted, mdtablefix 68 unchanged), `lint` (Interrogate 100.0%,
+Pylint 10.00/10 both tiers, duplication gate "4 allowed by reasoned
+exceptions"), `typecheck` (`ty 0.0.74` clean), `test` (cargo 13 passed, pytest
+538 passed / 15 snapshots, doctests 25 passed / 1 skipped, duplication lane 145
+passed / 4 snapshots), `markdownlint` (0 issues in 69 files), `nixie` (all
+diagrams validated), `duplication-test` (145 passed). Hosted CI on `2c7ecd7`,
+run 38066071000: `lint-test` and all three `release-smoke` legs success — the
+four required checks — with `Gecko Security Review` success and
+`CodeScene Code Health Review (main)` failing on the same four `scripts/`
+files, at 9.39 against 9.38 previously, carrying the same Overall Code
+Complexity and Code Duplication markers already adjudicated above.
+
+### The assessment blocker, diagnosed
+
+The assessment was attempted three times and refused three times inside about
+two and a half minutes, each with the same text: "I couldn't verify the
+requested revision for `leynos/episodic`". The third attempt
+(`Assessment-ID: pr164-2c7ecd7-completeness-3`) named no other repository at
+all and stated that nothing outside this PR needed to be fetched; it was
+refused identically. A diagnostic question then drew a substantive answer that
+locates the trigger: the PR description itself carries the external references,
+in its Summary and References sections, so the request path tries to verify
+that target on every assessment whether or not the question mentions it. The
+supplied metadata reports `source: current_reply` and
+`unavailableReason: invalid_reference` for `leynos/episodic`, without naming
+the selected reference, the failed validation step, or a dependent claim.
+CodeRabbit's own reading is that the local acceptance criteria do not need that
+evidence — its "Validation and acceptance" section specifies local gate
+results, clone demonstrations, error exits, deterministic output, and cleanup —
+and that only two claims genuinely need upstream material: whether the port
+preserves upstream behaviour, and whether the stated downstream deviations
+describe upstream code.
+
+Its smallest-change advice is explicit: do not change the PR implementation and
+do not delete valid provenance citations; the defect is in request handling,
+where an unavailable provenance target blocks an independent local assessment.
+It supplied a maintainer prompt asking for the trace, the cause, and a
+correction that preserves unverified status for claims that need unavailable
+upstream evidence. No such correction is in the branch's control, so the
+assessment gate stands blocked on the service rather than on this
+implementation.
+
+The external reference was confirmed publicly readable while diagnosing this:
+`leynos/episodic`, PR #276, and the frozen ADR at
+`d9e5ac0d254f375e2986f52d91a3b88c117c833b` each answer HTTP 200 to an anonymous
+client, and CodeRabbit is installed on that repository. `invalid_reference` is
+therefore not an access failure.
