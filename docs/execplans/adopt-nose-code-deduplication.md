@@ -1189,3 +1189,90 @@ Audit of the result, against the pre-rebase head
   edited it; the auto-merge kept `main`'s `makeutil_contract` assertions and
   the branch's return-type and `str.partition` edits, with no leftover
   reconstruction artefacts.
+
+### Second CodeRabbit round, five fixes and one decline
+
+The review on `de80e652e8` opened six inline findings. All six were verified
+against the rebased tree before any edit; five were valid and one was declined
+on measured evidence. The repair commit is `35829f9`, "Resolve the second
+CodeRabbit review round".
+
+- **`4175478777` (data integrity).** `append_allow_entry` validated entries
+  one at a time, so a matching entry 0 returned before a malformed entry 1 was
+  ever parsed: the write succeeded and the next `make duplication` then failed
+  on the malformed entry. The loop now parses every entry before any mutation
+  (`parsed` comprehension, then `zip(entries, parsed, strict=True)`), so a
+  malformed entry anywhere raises `GateConfigError` with the file
+  byte-unchanged. Regression test: matching entry 0 plus malformed entry 1
+  asserts `allow[1]` in the message and byte-identical content. The new test
+  fails on the previous code.
+- **`4175478780` (correctness).** A bare `NOSE_BIN=nose` was always probed
+  at `<repo>/nose`; if absent there the version probe failed even though
+  `make install-nose` can find `nose` on `PATH`. `resolve_binary` now delegates
+  to `_resolve_override`: a slash-free name with no file at the repository root
+  resolves through `shutil.which`, everything else keeps repository-relative
+  resolution, and the `candidate is None` check still raises with
+  `INSTALL_HINT`. Four `TestResolveBinary` instances were added across three
+  cases (one parametrized); two fail on the previous code (the parametrized
+  case's `[path]` instance and the missing-everywhere case), and the three
+  pre-existing cases pass on both.
+- **`4175478774` (stability).** The lint-order test spied `uv`, `cargo`,
+  `rustfmt` and `whitaker` but not `cargo-binstall`, so on a fresh checkout
+  without `.tools/nose/nose` the `install-nose` else-branch could reach a real
+  installer. `cargo-binstall` is now spied alongside the others. This is latent
+  on this machine (the installed `.tools/nose/nose` short-circuits the guard)
+  but live in CI and on fresh clones.
+- **`4175478768` (docs).** The lint-scope paragraph claimed every listed
+  tool covers the package, and the "same three roots are what `ty` checks"
+  sentence was imprecise. It now separates `AMBRLEAKS_TARGETS`
+  (`tests scripts`) from `PYLINT_TARGETS` (`python/stilyagi tests scripts`) and
+  states that `ty` reads those three trees plus `.github`, which holds no
+  Python files today.
+- **`4175478772` (docs).** The scripting-standards bullet implied the
+  dead-code and duplication gates check `scripts/`. It now states the Skylos
+  scope (`SKYLOS_PRODUCTION_TARGETS`, `python/stilyagi` only) and the
+  duplication roots (`[tool.nose] roots`, `python/stilyagi`, with `scripts/`
+  excluded so the gate's modules are not self-referential), cites ADR 008, and
+  keeps the reuse rule as a review-enforced convention.
+- **`4175478782` (declined).** The finding asked for `timeout=29` on the
+  gate test support's `subprocess.run` calls, on the premise that pytest's
+  30-second timeout would fire before a subprocess timeout. Measured against
+  the lane that actually runs those tests: `make duplication-test` passes
+  `-c /dev/null`, so `[tool.pytest.ini_options] timeout = 30` never applies;
+  pytest-timeout is loaded from the worktree `.venv` (the lane header lists
+  `timeout-2.4.0`) but its `timeout` option has no default, so no timer is
+  armed and the header prints no `timeout:` line, in contrast with the main
+  `make test` header, which shows `timeout: 30.0s`. The files are outside
+  `testpaths`, so `make test` never collects them. A 29-second cap would guard
+  a limit that is not in force while undercutting the gate's own 120-second
+  detector budget; the finding's premise does not hold for this lane.
+
+A first draft of the `nose_detector` fix was heavier than the final shape and
+pulled two new CodeScene markers with it: a `Code Duplication` family between
+the two parallel bare-name test functions, and an `Overall Code Complexity`
+drop from 10.00 to 9.38 on `scripts/nose_detector.py`. Both were caught by
+re-running the CodeScene delta against the repair commit before pushing, not by
+the delta of the round as a whole. The two bare-name cases were folded into one
+parametrized case, and the helper was reduced to a named-condition ternary
+after variant testing showed the chained-`if` form measures 9.38 while the
+equivalent ternary measures 10.00 — the module is back to 10.00 and the test
+module is 10.00. The `duplication_allowlist.py` complexity marker is unchanged
+by the repair (9.38 before and after); it is the recorded ACKNOWLEDGED numeric
+dispute, not a new regression.
+
+The MD012 failure on the fourth-rebase tip (`docs/developers-guide.md`, double
+blank line after the TYPOS row) was fixed in the same commit. A first gate pass
+on the repair commit also caught `check-fmt` red: both reworded paragraphs were
+wrapped a word or two past mdtablefix's canonical fill, which `make fmt`
+re-flowed before the commit was finalized, and the amended commit is green on
+`check-fmt`.
+
+A pre-publication re-measurement against the final parametrized shape corrected
+three figures in this record. Reverting only `nose_detector.py` to its
+pre-repair content fails two added instances (`[path]` and missing-everywhere),
+not three, and the pre-existing case count is three, not two; the same
+re-measurement shows the declined 29-second cap sits 91 seconds below the
+120-second detector budget, not 93. The repair commit's message carried the
+same two counts and the same figure, so it was amended rather than published
+inconsistent with this record; the file trees are byte-identical and the
+rewritten commit is `35829f9`.
