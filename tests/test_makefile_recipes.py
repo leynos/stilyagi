@@ -259,7 +259,7 @@ def test_lint_recipe_executes_df12_tools_before_rust_checks(
     tmp_path: pathlib.Path,
 ) -> None:
     """Run `make lint` hermetically and preserve its cross-language stage order."""
-    for command in ("uv", "cargo", "rustfmt", "whitaker"):
+    for command in ("uv", "cargo", "rustfmt", "whitaker", "cargo-binstall"):
         cmd_mox.spy(command).returns()
 
     shim_dir = cmd_mox.environment.shim_dir

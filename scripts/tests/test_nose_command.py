@@ -56,6 +56,50 @@ class TestResolveBinary:
         with pytest.raises(detector.GateExecutionError, match="make install-nose"):
             detector.resolve_binary(stub_settings(), runner=stub_runner())
 
+    @pytest.mark.parametrize("at_repo_root", [True, False], ids=["rooted", "path"])
+    def test_a_bare_name_prefers_the_root_then_falls_back_to_path(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        at_repo_root: bool,
+    ) -> None:
+        """A bare NOSE_BIN keeps root priority, else resolves through PATH."""
+        (tmp_path / "repo").mkdir()
+        (tmp_path / "bin").mkdir()
+        (tmp_path / "empty").mkdir()
+        rooted_stub = write_stub_nose(tmp_path / "repo") if at_repo_root else None
+        path_stub = write_stub_nose(tmp_path / "bin")
+        monkeypatch.setattr(detector, "REPO_ROOT", tmp_path / "repo")
+        monkeypatch.setenv("NOSE_BIN", "nose")
+        monkeypatch.setenv("PATH", str(tmp_path / "bin"))
+        expected = rooted_stub if at_repo_root else path_stub
+        assert detector.resolve_binary(stub_settings(), runner=stub_runner()) == str(
+            expected
+        ), "The repository root must win when present, and PATH must apply when not."
+
+    def test_a_bare_name_missing_everywhere_reports_the_install_hint(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A bare name found neither at the root nor on PATH fails closed."""
+        monkeypatch.setattr(detector, "REPO_ROOT", tmp_path / "repo")
+        monkeypatch.setenv("NOSE_BIN", "nose")
+        monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+        with pytest.raises(detector.GateExecutionError, match="make install-nose"):
+            detector.resolve_binary(stub_settings(), runner=stub_runner())
+
+    def test_relative_path_override_stays_repository_rooted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A path-shaped relative NOSE_BIN resolves under the repository root."""
+        (tmp_path / "tools").mkdir()
+        stub = write_stub_nose(tmp_path / "tools")
+        monkeypatch.setattr(detector, "REPO_ROOT", tmp_path)
+        monkeypatch.setenv("NOSE_BIN", "tools/nose")
+        assert detector.resolve_binary(stub_settings(), runner=stub_runner()) == str(
+            stub
+        ), "A relative path must not be re-interpreted as a PATH name."
+
 
 class TestBuildCommand:
     """Translation of gate settings into a nose query command."""

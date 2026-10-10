@@ -390,10 +390,14 @@ and the following apply:
   callers actually pass, or move an annotation-only import under
   `if typing.TYPE_CHECKING:`. A suppression needs a reason and a scope no wider
   than the finding.
-- Scripts in a shared tree are subject to the dead-code and duplication gates
-  too: a helper that only one caller uses is still linted for dead code, and a
-  copy of an existing helper is a duplication finding, so reuse the repository
-  helper instead of re-declaring it.
+- The dead-code and duplication gates stop short of `scripts/`. Skylos scans
+  `SKYLOS_PRODUCTION_TARGETS` (`python/stilyagi`) only, and the duplication
+  gate's `[tool.nose] roots` names `python/stilyagi` alone, with `scripts/`
+  excluded so the gate's own modules are not self-referential
+  ([ADR 008](adr-008-nose-duplication-gate.md)). Those two gates will not
+  catch a single-caller helper or a copy of an existing helper in `scripts/`,
+  so the reuse rule here is a convention the reviewer enforces rather than one
+  the tooling checks: reuse the repository helper instead of re-declaring it.
 
 ### Mocking Python dependencies (pytest-mock) and environment (monkeypatch)
 

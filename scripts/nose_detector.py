@@ -160,9 +160,7 @@ def resolve_binary(
     # Resolve against the repository root so a relative NOSE_BIN keeps
     # working for callers that run the detector from another directory.
     override = os.environ.get("NOSE_BIN")
-    candidate = (
-        str((REPO_ROOT / override).resolve()) if override else _discover_binary()
-    )
+    candidate = _resolve_override(override) if override else _discover_binary()
     if candidate is None:
         msg = (
             f"nose {settings.version} was not found at {DEFAULT_NOSE_BIN} "
@@ -178,6 +176,25 @@ def resolve_binary(
         )
         raise GateExecutionError(msg)
     return candidate
+
+
+def _resolve_override(override: str) -> str | None:
+    """Resolve a NOSE_BIN override: repository-relative, then PATH.
+
+    A NOSE_BIN that names an existing file under the repository root keeps
+    its repository-relative meaning, matching the Makefile's ``NOSE_BIN``.
+    Only a slash-free name with no such file is treated the way a shell
+    would treat it: as a command to find on ``PATH``.
+
+    Returns
+    -------
+    str | None
+        The repository-rooted path, or the PATH lookup result for a bare
+        name the root does not carry.
+    """
+    rooted = (REPO_ROOT / override).resolve()
+    is_rooted = os.sep in override or rooted.exists()
+    return str(rooted) if is_rooted else shutil.which(override)
 
 
 def _discover_binary() -> str | None:

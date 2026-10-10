@@ -308,8 +308,14 @@ def append_allow_entry(
         tool = sub_table(document, "tool", context="[tool]", is_super=True)
         gate = sub_table(tool, "duplication_gate", context="[tool.duplication_gate]")
         entries = raw_allow_entries(gate)
-        for index, raw_entry in enumerate(entries):
-            existing = _allow_entry(raw_entry, index=index)
+        # Validate every entry before mutating or writing, so a malformed
+        # entry anywhere in the table fails the run as a configuration error
+        # rather than being preserved by an earlier match.
+        parsed = [
+            _allow_entry(raw_entry, index=index)
+            for index, raw_entry in enumerate(entries)
+        ]
+        for raw_entry, existing in zip(entries, parsed, strict=True):
             if _same_allow_target(existing.keys, target):
                 raw_entry["reason"] = reason
                 write_document(pyproject_path, document)

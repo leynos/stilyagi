@@ -136,6 +136,36 @@ class TestAppendAllowEntry:
             "this is not = = valid toml\n"
         ), "A rejected document must be left untouched."
 
+    def test_a_malformed_later_entry_fails_before_any_write(
+        self, tmp_path: Path
+    ) -> None:
+        """A malformed entry after a match still fails the run untouched."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            "[[tool.duplication_gate.allow]]\n"
+            'unit = "python/stilyagi/a.py"\n'
+            'reason = "reviewed"\n'
+            "\n"
+            "[[tool.duplication_gate.allow]]\n"
+            'unit = "python/stilyagi/b.py"\n',
+            encoding="utf-8",
+        )
+        before = pyproject.read_text(encoding="utf-8")
+
+        with pytest.raises(allowlist.GateConfigError) as raised:
+            allowlist.append_allow_entry(
+                pyproject,
+                keys=("python/stilyagi/a.py",),
+                reason="updated reason",
+            )
+
+        assert "allow[1]" in str(raised.value), (
+            "The malformed later entry must be the reported failure."
+        )
+        assert pyproject.read_text(encoding="utf-8") == before, (
+            "A rejected document must be left byte-unchanged."
+        )
+
     def test_atomic_write_preserves_mode_and_original_on_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
