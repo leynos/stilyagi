@@ -1073,12 +1073,15 @@ is that Python linting has five tiers:
    and resolved commit, scanning `AMBRLEAKS_TARGETS` (`tests scripts`) for
    unredacted snapshot values.
 
-Interrogate, Pylint, df12 Pylint, and ambrleaks share `PYLINT_TARGETS` or a
-target list of the same shape, and all of them cover `scripts/` as well as the
-package and its tests. A lint tier that skipped `scripts/` would leave the
-gate's own modules unchecked, so the gateway deliberately covers every Python
-tree the repository runs rather than only the shipped package. The same three
-roots are what `ty` checks, so lint and type checking read one scope.
+Interrogate, Pylint, and df12 Pylint run over `PYLINT_TARGETS`
+(`python/stilyagi tests scripts`), so they cover the package and its tests as
+well as `scripts/`. AmbRleaks reads `AMBRLEAKS_TARGETS` (`tests scripts`) and
+therefore covers only the test and script trees, not the shipped package. A
+lint tier that skipped `scripts/` would leave the gate's own modules unchecked,
+so the gateway covers every Python tree the repository runs rather than only
+the shipped package. `ty` reads the same three trees plus `.github` (which
+holds no Python files today); the overlap with lint is deliberate, so lint and
+type checking read one scope.
 
 One consequence is worth stating for the gate scripts specifically: a
 third-party package a script declares only in its PEP 723 `# /// script` block
@@ -1154,7 +1157,6 @@ Table: Lint runner Makefile variables.
 | `TY_GATE_DEPS`                 | `$(TY_GATE_STAGE_DIR)/stamp`                                                                                                    | Stamp target that rebuilds the staging directory when the gate changes.      |
 | `TYPOS_CONFIG_BUILDER_VERSION` | `v0.1.3`                                                                                                                        | Pins the spelling gate, and the `typos` binary it runs.                      |
 | `TYPOS_CONFIG_BUILDER`         | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'git+...@$(TYPOS_CONFIG_BUILDER_VERSION)' typos-config-builder`                  | Builds the spelling gate command used by `make markdownlint`.                |
-
 
 Override these variables only for local diagnosis unless the project-wide lint
 policy is intentionally changing. For example:
