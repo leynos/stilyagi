@@ -1089,7 +1089,7 @@ Table: Lint runner Makefile variables.
 | `SKYLOS_EXCLUDE_FOLDERS`       | `tests`                                                                                                                         | Excludes tests from the production liveness graph.                |
 | `TY_VERSION`                   | `0.0.74`                                                                                                                        | Pins the `ty` version shared by the Makefile and CI.              |
 | `TY`                           | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                                                 | Builds the pinned type-checking command.                          |
-| `TYPOS_CONFIG_BUILDER_VERSION` | `v0.1.1`                                                                                                                        | Pins the spelling gate, and the `typos` binary it runs.           |
+| `TYPOS_CONFIG_BUILDER_VERSION` | `v0.1.3`                                                                                                                        | Pins the spelling gate, and the `typos` binary it runs.           |
 | `TYPOS_CONFIG_BUILDER`         | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'git+...@$(TYPOS_CONFIG_BUILDER_VERSION)' typos-config-builder`                  | Builds the spelling gate command used by `make markdownlint`.     |
 
 Override these variables only for local diagnosis unless the project-wide lint
