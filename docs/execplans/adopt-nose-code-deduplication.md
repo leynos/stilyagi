@@ -1114,3 +1114,78 @@ tip is the document describing it. Smoke run 37056650967 for `a417caf` repeated
 the same result: `lint-test` 35/35 steps success with the
 `Duplication-gate helper tests` step executing (140 collected, 140 passed, 4
 snapshots, Python 3.14.7) and all three `release-smoke` legs success.
+
+### Fourth rebase onto `ffb0fef`, with the merge authorized
+
+The PR is now assigned to pr-babysitting with an explicit instruction to merge
+it once it reaches equilibrium, which lifts the earlier "not merged" boundary.
+The branch was therefore rebased a fourth time, from
+`c65a29e2bcc99dbd8776af656e97629b119aa3eb` onto
+`ffb0fef255cb5c58dfe51904c2b1bf558f6cc89b`, the tip of `main` at the time of
+the replay. The rebase ran with the Weave merge driver bypassed
+(`-c core.attributesFile=/dev/null -c merge.conflictStyle=zdiff3`), because
+Weave is selected for this host by an ambient global attributes rule rather
+than by anything this repository tracks; the `-c` overrides were repeated on
+every `rebase --continue`.
+
+Twenty-eight commits were replayed onto eight of the new base commits. Sixteen
+replayed cleanly. Three needed adjudication:
+
+- **`62df864` "Document the nose code-duplication gate"** conflicted in
+  `docs/developers-guide.md` and `typos.toml`. In the guide, `main` had grown a
+  `### The Makefile parser in CI` section describing the shared
+  `install-makeutil` action, while the branch added
+  `### 6j. Code-duplication gate`; both were kept, `main`'s first, separated by
+  the blank line MD022 requires. In the same file's lint-variable table the
+  branch's five NOSE rows were reconnected after `SKYLOS_EXCLUDE_FOLDERS`,
+  keeping `main`'s newer `TYPOS_CONFIG_BUILDER_VERSION v0.1.3`. `typos.toml` is
+  generated, so it was resolved to the new base's render: `:2:typos.toml` was
+  verified byte-identical to `ffb0fef:typos.toml`, and the only two lines on
+  which the branch's hand-kept copy differed were reverts of entries `main` had
+  already narrowed.
+- **`2b0431a` "Commit the spelling dictionary's regenerated rendering"** became
+  genuinely empty, because its single change — narrowing `\bvar\.iamge_id\b` to
+  a documented-phrase entry — is already carried by `main`'s render at
+  `typos.toml:52`, which the previous resolution took. It was skipped rather
+  than re-applied; the replay was started with `--keep-empty --empty=stop`
+  precisely so this would stop for adjudication instead of passing silently.
+- **`c47154f` "Resolve review findings and adopt the 3.14 Python gateways"**
+  conflicted in `docs/developers-guide.md`. The branch adds three `TY_*` rows
+  describing the PEP 723 dependency-staging directory; `main` had moved the
+  spelling-gate pin from `v0.1.1` to `v0.1.3`. Both sides were kept: the three
+  rows went in after `TY`, and `TYPOS_CONFIG_BUILDER_VERSION v0.1.3` was
+  retained from `main`. The merged Makefile confirms all four variables exist
+  (`TY_EXTRA_PATHS`, `TY_GATE_STAGE_DIR`, `TY_GATE_DEPS`,
+  `TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.3`).
+
+The replay therefore ends at 27 commits, one fewer than the 28 replayed: the
+skipped empty commit is the only difference in the series.
+
+Audit of the result, against the pre-rebase head
+`de80e652e8c77cb668558c7809104d6b4e1abcfb`:
+
+- Per-path SHA comparison shows 55 of the 61 touched paths byte-identical. The
+  six that differ are exactly the conflict-affected set (`smoke.yml`,
+  `AGENTS.md`, `Makefile`, `docs/developers-guide.md`,
+  `tests/test_skylos_lint_contract.py`, `typos.toml`).
+- `git range-diff` reports 25 commits `=` and two `!`; the two `!` are the
+  commits whose replayed context changed, and their content changes are the
+  conflict resolutions above.
+- The whole net delta against the new base differs from the net delta against
+  the old base in exactly two ways: `typos.toml` is absent (its 14 lines are
+  already on `main`), and the guide carries `v0.1.3` where it carried `v0.1.1`.
+  Every added and removed non-blank line in the guide was compared as a
+  multiset: the only difference is that one string.
+- One added blank line appears in the guide that does not appear in the old
+  delta. It is the separator between `### The Makefile parser in CI` and
+  `### 6j. Code-duplication gate`; without it `make markdownlint` fails MD022.
+- All seven paths that `main` changed and the branch did not are byte-identical
+  at the new head, so no branch file silently reverted a `main` change.
+- Deletions against the new base in branch-touched files are 144 lines, all
+  accounted for as the `-` halves of in-place modifications (lint-scope
+  widening, the `config.load` extraction, the `_workflow_document` signature).
+  No deletion is unexplained.
+- `tests/test_skylos_lint_contract.py` differs from both sides because both
+  edited it; the auto-merge kept `main`'s `makeutil_contract` assertions and
+  the branch's return-type and `str.partition` edits, with no leftover
+  reconstruction artefacts.
