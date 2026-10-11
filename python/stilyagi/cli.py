@@ -19,6 +19,8 @@ from stilyagi.cli_pipeline import (
     CheckedFile,
     CheckReporter,
     CheckRun,
+)
+from stilyagi.cli_run import (
     aggregate_checked_files,
     collect_checked_files,
     reconcile_written_files,
@@ -30,7 +32,7 @@ from stilyagi.rules import registry as rules_registry
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
-    from stilyagi.cli_pipeline import CheckedFiles
+    from stilyagi.cli_run import CheckedFiles
     from stilyagi.fix_execution import FixOutcome
 
 __all__ = [

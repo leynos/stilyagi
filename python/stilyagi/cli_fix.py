@@ -3,9 +3,9 @@
 This module owns the *reporting* half of `--fix`: which stream a mutating run
 speaks on, the note that re-running may apply further fixes, the warning that
 names the flag which would apply the withheld unsafe fixes, and the per-file
-planning counters. It depends on `cli_pipeline`, `engine`, and `fix_execution`,
-and it is imported by `cli` rather than importing it, so the dependency
-direction runs inward.
+planning counters. It depends on `cli_pipeline`, `cli_run`, `engine`, and
+`fix_execution`, and it is imported by `cli` rather than importing it, so the
+dependency direction runs inward.
 
 `cli` keeps the decision of *when* to write and what exit status the result
 implies. Nothing here computes an exit status or touches a file: a reporter
@@ -23,7 +23,7 @@ if typ.TYPE_CHECKING:
 
     from stilyagi import engine
     from stilyagi.cli_args import CheckOptions
-    from stilyagi.cli_pipeline import CheckedFiles
+    from stilyagi.cli_run import CheckedFiles
     from stilyagi.engine.fix_pipeline import PlannedFile
     from stilyagi.fix_execution import FixOutcome
 

@@ -151,3 +151,66 @@ def test_renderers_report_fix_payloads_and_fixability_counts() -> None:
         == "1 diagnostic found (1 safe fix, 0 unsafe fixes)",
         "expected text output to disclose safe and unsafe fix counts",
     )
+
+
+def _refusal(identifier: str, rule_codes: tuple[str, ...]) -> diagnostics.FixError:
+    """Return one refusal with the given identifier and contributing codes.
+
+    Returns
+    -------
+    diagnostics.FixError
+        A refusal naming `notes.md`. The renderer consumes `FixError` directly,
+        so the test states the exact refusal a renderer will see rather than
+        routing it through a `PlannedFile` that exists for other reasons.
+    """
+    return diagnostics.FixError(
+        path="notes.md",
+        identifier=identifier,
+        rule_codes=rule_codes,
+        message="the file was left alone",
+    )
+
+
+def _render_refusals(*refusals: diagnostics.FixError) -> str:
+    """Render those refusals through the text renderer."""
+    return engine.RendererRegistry().render([], "text", fix_errors=list(refusals))
+
+
+class TestRefusalRendering:
+    """A refusal names its origin, and omits what it does not have."""
+
+    def test_a_refusal_with_no_rule_codes_omits_the_empty_segment(self) -> None:
+        """No code is rendered as nothing, not as a dangling separator.
+
+        `changed-on-disk` and `standard-input` are raised by the executor and
+        the phase-one wrapper rather than by a rule's proposed edit, so they
+        carry no rule codes by construction. Joining an empty tuple yields the
+        empty string, which used to render as `path: : message`.
+        """
+        rendered = _render_refusals(_refusal("fix-error/changed-on-disk", ()))
+
+        assert_with_context(
+            "fix-error/changed-on-disk: notes.md: the file was left alone" in rendered,
+            "expected the refusal line to name the path then the message",
+        )
+        assert_with_context(
+            ": :" not in rendered,
+            "expected no empty rule-code segment in the rendered refusal",
+        )
+
+    def test_a_refusal_with_rule_codes_still_names_them(self) -> None:
+        """The codes are what tells a user which rule could not be applied.
+
+        Paired with the case above, this pins that the fix narrowed one
+        rendering rather than removing the segment outright: a conflict still
+        has to name every rule that contributed to it.
+        """
+        rendered = _render_refusals(
+            _refusal("fix-error/overlapping-edits", ("PUN201", "PUN202"))
+        )
+
+        assert_with_context(
+            "fix-error/overlapping-edits: notes.md: PUN201, PUN202: "
+            "the file was left alone" in rendered,
+            "expected the refusal to name both contributing rules",
+        )

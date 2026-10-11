@@ -370,12 +370,13 @@ parses the arguments into an immutable `CheckOptions` via
 
 The command module keeps four responsibilities: target discovery, rendering,
 handling and printing to the correct streams, and computing the exit status.
-The per-file workflow lives in `cli_pipeline.py`, and the option-to-config
-translation lives in `cli_config.py`. Both are imported by `cli.py`, and
-neither imports it back, so the dependency direction stays inward. This split
-is what lets the per-file pipeline be tested without constructing a command
-line, and it is why the command module no longer carries the aggregation and
-per-file loops that used to inflate it.
+The per-file workflow lives in `cli_pipeline.py`, the run-level sweep and
+aggregation in `cli_run.py`, and the option-to-config translation in
+`cli_config.py`. All three are imported by `cli.py`, and none imports it back,
+so the dependency direction stays inward. This split is what lets either half
+of the check pipeline be tested without constructing a command line, and it is
+why the command module no longer carries the aggregation and per-file loops
+that used to inflate it.
 
 ### Collaborator injection
 
@@ -614,11 +615,11 @@ failure. Without `--diff`, the rendered diagnostics go to the output stream as
 usual.
 
 The split is non-mutating: `--diff` is the preview-only path, and this section
-describes rendering alone. The `CheckCollaborators` bundle carries no writer, so
-`cli_pipeline` and the `--diff` render path never write a source file — the
-only mutation in the whole command reaches the filesystem through
-`fix_execution`, as the next section describes. A writer collaborator was
-considered and dropped: it was unused by every caller, and retaining an
+describes rendering alone. The `CheckCollaborators` bundle carries no writer,
+so neither `cli_pipeline` nor `cli_run` writes, and the `--diff` render path
+does not either — the only mutation in the whole command reaches the filesystem
+through `fix_execution`, as the next section describes. A writer collaborator
+was considered and dropped: it was unused by every caller, and retaining an
 ineffective boundary would have advertised an injection point that did nothing.
 Dropping it cost nothing when `--fix` landed, because `fix_execution` owns the
 write and takes its target from the plan rather than from an injected
@@ -627,8 +628,9 @@ collaborator.
 #### The `--fix` execution path
 
 `fix_execution.py` owns the mutating half, and it is deliberately separate from
-`cli_pipeline`: the pipeline never writes, and the executor never re-derives a
-plan it was handed. `apply_planned_fixes(plans)` runs two phases.
+`cli_pipeline` and `cli_run`: neither half of the check pipeline writes, and
+the executor never re-derives a plan it was handed.
+`apply_planned_fixes(plans)` runs two phases.
 
 Phase one wraps every plan with `deferred_plans`, so no write can be attempted
 before every file has been planned and so a plan that must not be written is

@@ -1,10 +1,11 @@
 """Unit coverage for the per-file check workflow and its aggregation.
 
-These tests drive `cli_pipeline` directly, so they pin the boundary the
-refactor introduced: the named per-file result, the single aggregation pass,
-and the typed read error. The command-boundary behaviour that exercises the
-same code through `cli.run_check` -- injected streams, injected reporters, and
-the two diff outcomes -- lives in `tests/test_check_boundaries.py`.
+These tests drive `cli_pipeline` and `cli_run` directly, so they pin the
+boundaries the refactor introduced: the named per-file result and the typed
+read error in `cli_pipeline`, and the single aggregation pass in `cli_run`. The
+command-boundary behaviour that exercises the same code through
+`cli.run_check` -- injected streams, injected reporters, and the two diff
+outcomes -- lives in `tests/test_check_boundaries.py`.
 
 Run them with:
 
@@ -18,7 +19,7 @@ or, for this module alone:
 import typing as typ
 
 import pytest
-from stilyagi import cli_io, cli_pipeline, config, engine
+from stilyagi import cli_io, cli_pipeline, cli_run, config, engine
 
 from tests.support.assertions import assert_with_context
 from tests.support.check_pipeline_fixtures import (
@@ -201,7 +202,7 @@ class TestAggregateCheckedFiles:
             checked_file("c.md", []),
         ]
 
-        totals = cli_pipeline.aggregate_checked_files(results)
+        totals = cli_run.aggregate_checked_files(results)
 
         assert_with_context(
             [item.message for item in totals.diagnostics_list] == ["b1", "b2", "a1"],
@@ -226,7 +227,7 @@ class TestAggregateCheckedFiles:
             checked_file("c.md", ["c1"]),
         ]
 
-        totals = cli_pipeline.aggregate_checked_files(results)
+        totals = cli_run.aggregate_checked_files(results)
 
         assert totals.error, "expected a failed file to raise the run's error flag"
         assert_with_context(
@@ -236,7 +237,7 @@ class TestAggregateCheckedFiles:
 
     def test_an_empty_run_aggregates_to_an_empty_success(self) -> None:
         """The empty case is the identity: no diagnostics, no patches, no error."""
-        totals = cli_pipeline.aggregate_checked_files([])
+        totals = cli_run.aggregate_checked_files([])
 
         assert_with_context(
             (

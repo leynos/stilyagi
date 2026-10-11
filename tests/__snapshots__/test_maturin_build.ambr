@@ -18,6 +18,7 @@
       'stilyagi/cli_fix.py',
       'stilyagi/cli_io.py',
       'stilyagi/cli_pipeline.py',
+      'stilyagi/cli_run.py',
       'stilyagi/config/__init__.py',
       'stilyagi/config/load.py',
       'stilyagi/config/parse.py',
