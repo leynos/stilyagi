@@ -790,15 +790,15 @@ Inspect the updated `.stderr` files before committing to confirm that the fail
 test still represents a genuine PyO3 contract violation.
 
 The `.stderr` files record rustc's exact wording, so they are tied to the
-compiler release that produced them. CI installs unpinned stable, and the
-repository does not pin a toolchain, so the snapshots track current stable.
-`pymodule_three_args.stderr` currently matches rustc 1.99, which prints the
-suggested argument type as `&Bound<..>` rather than the `&pyo3::Bound<..>` that
-earlier releases printed. A local compiler older than 1.99, including the
-declared minimum supported Rust version, therefore fails `compile_time_ui`
-although the code compiles; run `rustup update stable` before diagnosing the
-failure. Whether to pin a toolchain or make the snapshot compiler-independent
-is a project policy decision that this guide does not settle.
+compiler release that produced them. `rust-toolchain.toml` pins Rust `1.99.0`,
+so local builds and CI use the compiler the snapshots were recorded with, and
+`pymodule_three_args.stderr` matches rustc 1.99, which prints the suggested
+argument type as `&Bound<..>` rather than the `&pyo3::Bound<..>` that earlier
+releases printed. A compiler older than 1.99 (including the declared minimum
+supported Rust version, if run by hand with `cargo +<version>`) therefore fails
+`compile_time_ui` although the code compiles. Dependabot's `rust-toolchain`
+entry proposes each new release as a pull request; re-record the snapshots in
+that pull request when the wording changes.
 
 ### 4.2 Current mixed-package skeleton
 
