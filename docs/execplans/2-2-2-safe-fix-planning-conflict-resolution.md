@@ -3480,3 +3480,128 @@ docstring is what DOC201 reads, so explaining the code changed the code's
 compliance status. That is the second time in this milestone that a
 documentation-shaped change had a gate consequence, and it argues for running
 the affected gate immediately after any commit that touches a docstring.
+
+## Revision 42 (2026-10-12): the split clears pylint, and two stale-base failures it exposed
+
+The commit gate chain was run again at `30f6d7a` after the two module splits,
+and this time it got past `pylint` for the first time in three revisions.
+
+### 42.1 The `C0302` failures are gone
+
+Revision 41's tip failed `lint` at `Makefile:164` with two `C0302` errors:
+
+```text
+python/stilyagi/cli_pipeline.py:1:0: C0302: Too many lines in module (436/400)
+tests/test_check_boundaries.py:1:0: C0302: Too many lines in module (571/400)
+```
+
+Both files were new on this branch and both crossed the ceiling in `e6a2e73`.
+They had been masked: `lint` runs `ruff` at `Makefile:162` before `pylint`, and
+`make` aborts on the first failure, so the six steps after `pylint` had never
+run at this tip.
+
+After the split, `pylint` is clean -- both invocations report
+`Your code has been rated at 10.00/10` and a `grep -c C0302` over the log
+returns zero. The split is a split, not a widened limit: `max-module-lines =
+400` is unchanged and is pinned by `tests/test_pylint_tier_contract.py`,
+`tests/test_skylos_lint_contract.py` and
+`tests/test_skylos_whitelist_contract.py`.
+
+### 42.2 The two halves of the split
+
+| Module | Before | After | New module |
+| --- | --- | --- | --- |
+| `python/stilyagi/cli_pipeline.py` | 436 | 258 | `python/stilyagi/cli_run.py` 214 |
+| `tests/test_check_boundaries.py` | 571 | 174 | `tests/test_check_mutation.py` 276, `tests/test_cli_fix.py` 116 |
+
+`cli_pipeline.py`'s own docstring drew the first seam: it claimed to own "the
+cohesive work one discovered file undergoes" while carrying four functions that
+sweep a *collection*. `CheckedFiles`, `collect_checked_files`,
+`aggregate_checked_files`, `relint_written_files` and
+`reconcile_written_files` moved to `cli_run.py`; the per-file workflow stayed.
+
+The second split followed the test module's docstring the same way. The
+mutating tail became `test_check_mutation.py`; `TestFixedDocumentEmission`
+became `test_cli_fix.py` because it calls `cli_fix.emit_fixed_document`
+directly, which is a different boundary from the mutating command flow -- and
+it closes a gap this plan records twice: *"the `cli_fix` unit boundary is only
+covered through the command."* `TestRefusalRendering` moved into
+`tests/test_renderers.py`, which exercises
+`engine.RendererRegistry().render(..., fix_errors=[...])` and had no fix-error
+rendering coverage at all.
+
+The two halves are one commit, not two: after the production move alone
+`test_check_boundaries.py` was still over the ceiling, so no intermediate
+commit could pass `lint`.
+
+The 649-test collection baseline is preserved. The split contributed twelve new
+node IDs (`test_check_mutation.py` 4, `test_cli_fix.py` 3,
+`test_check_boundaries.py` 5) and moved seven into `test_renderers.py`, and a
+`--collect-only` run returns 649 both before and after.
+
+### 42.3 The chain advanced, and exposed two failures that are not this branch's
+
+With `pylint` cleared, `lint` ran steps 4--6 for the first time and stopped at
+**step 7**, `Makefile:168` (`cargo clippy`):
+
+```text
+error: used `assert!` to check that a value is empty
+   --> crates/stilyagi-markdown/src/tests/suppression.rs:230:5
+make: *** [Makefile:168: lint] Error 101
+```
+
+`make test` stops at its own clippy step (`Makefile:196`) for the identical
+reason, so both pytest lanes never ran.
+
+Neither failure is caused by this branch. Ten locations across
+`crates/stilyagi-markdown` and `crates/stilyagi-test-support` are byte-identical
+at the merge-base `7fdcff34` and at HEAD:
+
+```text
+round_trip_helpers.rs   merge-base d912b4a7 = HEAD d912b4a7, main f6373d67
+```
+
+and `git merge-base --is-ancestor c3beea9 HEAD` is false while
+`--is-ancestor c3beea9 origin/main` is true. `c3beea9` is
+**"Fix clippy 1.99 assert_is_empty findings (#190)"**, and it is exactly this
+remedy. `origin/main` is 40 commits ahead. The branch's only `crates/` change is
+a three-line doc comment in a different file, `round_trip_edits.rs`, which
+clippy does not flag.
+
+So this is the stale-base pattern this plan already names, not a new defect.
+The route to a green `lint` is the already-planned rebase onto `origin/main`,
+and steps 8 (`whitaker`, `Makefile:169`) and 9 (`skylos`, `Makefile:170`)
+remain unproven until it happens.
+
+### 42.4 `typos.toml` now regenerates identically to `main`
+
+The spelling gate rewrote the working-tree copy during this run. The rendered
+result is byte-identical to `origin/main`'s:
+
+```text
+git hash-object typos.toml           75d951c831b38d80af706145934020b6d21d494f
+git rev-parse origin/main:typos.toml 75d951c831b38d80af706145934020b6d21d494f
+```
+
+The file is generated from the shared dictionary, so this is not hand-editing;
+it is the pin moving. `main` adopted `typos-config-builder v0.1.3` (the branch
+still pins `v0.1.1`) and renders the `--color` pattern differently as a result.
+Because the working-tree content already equals `main`'s, the planned rebase
+conflict on this file resolves to `main`'s side with no judgement call.
+
+### 42.5 The halted gates that still need evidence
+
+`check-fmt`, `typecheck`, `markdownlint` and `nixie` all pass at this tip. The
+unproven set is now exactly: `lint` steps 8--9 (`whitaker`, `skylos`), and every
+test lane, because `make test` aborts before reaching `pytest`.
+
+### Lesson: clearing a failure promotes the next one
+
+A green step is not the same as a step that ran, and the corollary is that
+clearing one failure **promotes** the next one from hidden to blocking. Three
+revisions recorded "`make lint` fails on X" while six steps after X were
+unknown; this revision is the first that could read step 7 honestly, and what
+it found there was a second, unrelated failure that had been sitting in the
+blind spot the whole time. The habit is to state where the chain stopped, by
+`Makefile:NNN`, and to treat every step after that as unverified rather than
+merely unmentioned.
