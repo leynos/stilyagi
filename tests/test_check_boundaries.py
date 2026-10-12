@@ -7,7 +7,8 @@ off the real standard error, and both outcomes of a `--diff` preview. The
 per-file workflow and the aggregation pass, which are covered by driving
 `cli_pipeline` and `cli_run` directly, live in
 `tests/test_check_pipeline_units.py`. A mutating run's own streams and exit
-statuses live in `tests/test_check_mutation.py`.
+statuses live in `tests/test_check_mutation.py`, and the exit status of a write
+the run refused to make lives in `tests/test_check_refusals.py`.
 
 Run them with:
 
