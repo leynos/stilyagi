@@ -4308,3 +4308,92 @@ to move -- metric gaming by accident rather than intent. Brute-forcing the rule
 took one script and turned the target into arithmetic that can be checked
 before an edit is made, which is what let a *single* extraction be chosen with
 confidence instead of iterating against CI.
+
+## Revision 48 (2026-10-12): the JSON report was two documents, and the docs described code that is not there
+
+Revision 47 cleared the last hosted gate. The assessment reply at `0f7be63`
+came back with three findings, all confirmed against the live tree before any
+of them was acted on. Two were documentation that contradicted the code beside
+it; one was a real reporting regression.
+
+### 48.1 The JSON report did not parse
+
+`print_unmodified_report` and `print_mutation_report` both appended
+`fix_summary_line(...)` unconditionally after the renderer's output. With
+`--output-format json` the stream was therefore a document followed by a
+sentence:
+
+```text
+{
+  "schema_version": "1.0.0",
+  "diagnostics": [],
+  "fix_errors": []
+}
+0 files fixed, 0 fixes applied, 0 files skipped (conflict), 0 fixes rejected
+```
+
+`json.loads` on the complete stream fails with `Extra data: line 6 column 1`.
+Reproduced before it was fixed, in both the no-op and the refused-write case.
+The users' guide promises `--output-format json` yields "a stable JSON
+document", and a consumer parses the stream it is handed, not a substring of
+it. This is the same defect class as the rest of this execplan's gate history
+-- a claim about output that was only ever checked by substring assertion.
+
+The repair is one predicate, `summarises_on_the_report`, called from both
+reporters. The summary is text-format output; the JSON document is not
+augmented with it. Nothing is lost, because `apply_fixes` already calls
+`log_fix_summary`, which logs the identical sentence at INFO -- the level
+`--verbose` selects.
+
+**The stream arrangement differs between the two reporters, and assuming
+otherwise was a mistake made here.** For a run that changed nothing, the report
+goes to the injected output stream and *that stream parses whole*. For a
+mutating run the report goes to standard error beside the rerun hint and the
+console log records, so "the stream parses whole" is false there by design and
+the document must be extracted. A test asserting the whole-stream property for
+the mutating reporter failed for that reason and was replaced by one that pins
+the narrower, true contract: the document is intact, and the summary sentence
+is absent from the report.
+
+Discrimination: reverting only the two guards makes all three new tests fail --
+two with the original `Extra data` error, one on the summary's presence -- and
+restoring them makes all three pass. No threshold, suppression, or rule change
+was involved.
+
+### 48.2 Two docstrings described the opposite of their code
+
+`emit_fixed_document` claimed a refused plan emits the *original bytes*. The
+implementation returns `None` from `_document_bytes` for that plan and emits
+nothing, and its own test asserts no document. The bullet stated the intended
+contract for the wrong case: emitting the source for a refusal would present a
+run that fixed nothing as though it had returned a fixed document. The
+docstring now says nothing is emitted and why, and that the return value is how
+the caller learns it.
+
+`write_source` claimed two operations remained between the second staleness
+comparison and the swap, naming `shutil.copystat` and `Path.replace`.
+`copystat` runs *before* the comparison, so it is covered by that check rather
+than sitting beside it, and one operation remains in the window. The residual
+race is real and unchanged; only its description was wrong.
+
+Both are the failure mode this execplan has now recorded more than once: prose
+written against the design that survived a change to the code. Neither was
+caught by a gate, because both are docstrings that a passing test suite reads
+as consistent.
+
+### 48.3 What was retained
+
+The subprocess-coverage limitation and the per-file atomicity limit both stand,
+as the assessment agreed. Neither is hidden by passing hosted checks.
+
+### Lesson: a documented contract needs an assertion at its own boundary
+
+The JSON defect existed in plain sight because every test asserted a
+*substring* of the output.
+`'"identifier": "fix-error/write-failed"' in stream.getvalue()` is true whether
+or not a sentence follows the closing brace, so the document could stop being a
+document without any test noticing. The repair's tests assert at the boundary
+the contract is written about -- the whole stream a consumer actually receives
+-- and the mutating case taught the second half of the lesson: establish
+*which* stream a contract applies to before asserting it, because one of the
+two reporters shares its stream with human prose on purpose.
