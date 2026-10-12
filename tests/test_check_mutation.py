@@ -6,10 +6,11 @@ mutating run reports on, and the exit status when some files were written and
 some were not.
 
 A write the run *refused* to make, and the exit status that refusal implies,
-live in `tests/test_check_refusals.py`. The non-mutating command boundaries --
-injected streams and reporters, and both `--diff` outcomes -- live in
-`tests/test_check_boundaries.py`. The emitter's own unit boundary lives in
-`tests/test_cli_fix.py`.
+live in `tests/test_check_refusals.py`; a run that wrote some files and refused
+others, and has to report both, lives in `tests/test_check_partial_runs.py`.
+The non-mutating command boundaries -- injected streams and reporters, and both
+`--diff` outcomes -- live in `tests/test_check_boundaries.py`. The emitter's
+own unit boundary lives in `tests/test_cli_fix.py`.
 
 Run them with:
 

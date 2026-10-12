@@ -9,9 +9,13 @@ only meaningful because each refusal is reported rather than raised. Both
 directions are pinned in text and in JSON, because a machine consumer reads the
 JSON document and never the prose.
 
-The rest of the mutating path -- which stream a run reports on, and the exit
-status when some files were written and some were not -- lives in
-`tests/test_check_mutation.py`. The non-mutating command boundaries live in
+Every test here describes a run that changed nothing, because a refusal always
+leaves its target alone. That is what routes each of them through
+`print_unmodified_report`. The other reporter -- the one a run reaches only by
+writing *some* file and refusing another -- is covered in
+`tests/test_check_partial_runs.py`. The rest of the mutating path, and the exit
+status when files were written and diagnostics remain, live in
+`tests/test_check_mutation.py`; the non-mutating command boundaries live in
 `tests/test_check_boundaries.py`.
 
 Run them with:
