@@ -145,8 +145,9 @@ host-owned and independent of Stilyagi's snapshot.
 
 The counters cover check-run outcomes, checked files by syntax, skipped
 candidates by fixed reason, unreadable files, operational failures by fixed
-stage, and Python/Rust extraction counters recorded at the PyO3 boundary. The
-fixed-bucket `stilyagi_check_phase_duration_seconds` histogram has six phase
+stage, diagnostic totals by the fixed `error`/`warning` severities, and
+Python/Rust extraction counters recorded at the PyO3 boundary. The fixed-bucket
+`stilyagi_check_phase_duration_seconds` histogram has six phase
 labels—discovery, read, extract, config, rules, and render—plus the bounded
 `total` label. `total` measures one whole `run_check` invocation with a
 monotonic clock and is recorded before the verbose snapshot on normal returns,

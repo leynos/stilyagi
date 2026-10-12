@@ -506,11 +506,12 @@ also has the bounded `total` label. `total` measures one complete `run_check`
 invocation with the monotonic `time.perf_counter_ns()` clock. It is recorded
 once before the verbose snapshot on normal returns, handled operational
 returns, and propagated exceptions. Counters use only bounded run-outcome,
-syntax, skip-reason, and failure-kind labels. Python and Rust extraction
-counters are recorded at the PyO3 boundary. No paths or raw error strings
-become labels, keeping metric cardinality independent of repository contents
-and failure text. Metrics-facade observations continue to reach a
-host-installed recorder; Stilyagi does not install or replace it.
+syntax, skip-reason, failure-kind, and diagnostic-severity (`error`/`warning`)
+labels. Python and Rust extraction counters are recorded at the PyO3 boundary.
+No paths or raw error strings become labels, keeping metric cardinality
+independent of repository contents and failure text. Metrics-facade
+observations continue to reach a host-installed recorder; Stilyagi does not
+install or replace it.
 
 ### Configuration loading and resolution
 

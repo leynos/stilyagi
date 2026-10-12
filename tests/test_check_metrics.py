@@ -25,13 +25,12 @@ class _DiagnosticMetricCase(typ.NamedTuple):
     warnings: int
 
 
-def test_verbose_emits_bounded_metrics_to_stderr(
+def _run_verbose_mixed_source_check(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    snapshot: SnapshotAssertion,
-) -> None:
-    """Expose stable, low-cardinality command metrics outside normal output."""
+) -> tuple[int, str, str]:
+    """Run a fixed mixed-source check with one skipped symlink target."""
     _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
     python_source = tmp_path / "src" / "app.py"
     python_source.parent.mkdir(parents=True)
@@ -44,16 +43,47 @@ def test_verbose_emits_bounded_metrics_to_stderr(
 
     exit_code = cli.main(["check", ".", linked_source.name, "--verbose"])
     captured = capsys.readouterr()
+    return exit_code, captured.out, captured.err
+
+
+def _metric_lines(stderr: str) -> tuple[str, ...]:
+    """Return verbose metrics records from captured stderr."""
+    return tuple(
+        line
+        for line in stderr.splitlines()
+        if line.startswith("stilyagi check metrics: ")
+    )
+
+
+def test_verbose_mixed_source_check_keeps_summary_on_stdout(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Keep the summary on stdout and emit one path-free metrics record."""
+    result = _run_verbose_mixed_source_check(tmp_path, monkeypatch, capsys)
+    exit_code, stdout, stderr = result
 
     assert exit_code == 0, "expected a warning-free mixed-source run"
-    assert captured.out == (
+    assert stdout == (
         "checked 3 files (2 skipped, 0 unreadable); 0 errors, 0 warnings\n"
     ), "normal command output remains the run summary on stdout"
-    metric_lines = [
-        line
-        for line in captured.err.splitlines()
-        if line.startswith("stilyagi check metrics: ")
-    ]
+    metric_lines = _metric_lines(stderr)
+    assert len(metric_lines) == 1, "verbose mode emits one metrics snapshot"
+    assert str(tmp_path) not in metric_lines[0], "metrics do not expose source paths"
+
+
+def test_verbose_emits_bounded_metrics_to_stderr(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    snapshot: SnapshotAssertion,
+) -> None:
+    """Expose stable, low-cardinality command metrics outside normal output."""
+    result = _run_verbose_mixed_source_check(tmp_path, monkeypatch, capsys)
+    _exit_code, _stdout, stderr = result
+
+    metric_lines = _metric_lines(stderr)
     assert len(metric_lines) == 1, "verbose mode emits one metrics snapshot"
     metrics_payload = json.loads(
         metric_lines[0].removeprefix("stilyagi check metrics: ")
@@ -96,7 +126,6 @@ def test_verbose_emits_bounded_metrics_to_stderr(
     assert observed_contract["phase_counts"]["total"] == 1, (
         "expected one whole-run duration observation"
     )
-    assert str(tmp_path) not in metric_lines[0], "metrics do not expose source paths"
 
 
 @pytest.mark.parametrize(
