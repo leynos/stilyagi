@@ -4046,3 +4046,145 @@ Revision 43 recorded for the `--config` probe ("probe it, do not read it") and
 Revision 44 for the planner's event ("assert the failure mode is the right
 one"), arriving a third time from a third direction. A test's green light is a
 claim about the test, not about the code.
+
+## Revision 46 (2026-10-12): the split left a gate failure behind it, and the mutating reporter had no test
+
+Revision 45 closed with the assessment defects and three claims re-proved by
+mutation. Two things happened since, and both are the same shape: a claim that
+looked covered was not.
+
+### 46.1 The split commit failed `ruff` after it landed
+
+`f1042e3` split two test modules and rewrote their import blocks to do it. The
+rewrite left two `TC` violations behind:
+
+```text
+tests/test_check_diff.py:12      typing-only-third-party-import       (pytest)
+tests/test_check_mutation.py:24  typing-only-standard-library-import (pathlib)
+```
+
+Confirmed by piping each committed blob back through
+`ruff check --stdin-filename`, so the finding is about the tree as committed
+rather than about the working copy. `make lint` runs `ruff` as its first step
+(`make lint`, the `$(RUFF) check` line) and `make` aborts on the first failure,
+so the branch tip could not have completed step one -- the same masked-failure
+mechanism Revision 42 identified, arriving from the opposite direction.
+Revision 42 was pylint failing behind a ruff failure; this was ruff failing
+behind nothing, in a commit that had itself just been written to clear a lint
+failure.
+
+The Makefile line is cited by target rather than by number on purpose. Revision
+42 recorded `Makefile:164` for pylint; by this revision the same step is at
+`Makefile:176`, because the file gained and lost lines in between. A line
+number is a fact about the Makefile at one moment, so a claim that outlives it
+should name the step.
+
+Both names are annotation-only, so each moved into the existing
+`if typ.TYPE_CHECKING:` block and no runtime import changed. Repaired in
+`b16a6b9`.
+
+**Lesson.** A commit that fixes a lint failure is not thereby a commit that
+passes lint. The split was written against a *reason* (the two `C0302` errors)
+and verified against targeted `pylint` runs, which is a claim about pylint
+alone. `ruff` had been run earlier in the same session and had passed -- on the
+pre-split files. Rerunning the whole gate, or at least rerunning `ruff` against
+the post-split blobs, is what would have caught it. The specific instrument
+worth keeping: `git show HEAD:<path> | ruff check --stdin-filename <path> -`
+tests a *committed* blob, which is the only thing a gate will ever see.
+
+### 46.2 `print_mutation_report`'s refusals were entirely uncovered
+
+The assessment named the mutating reporter. Nothing held it to rendering
+`outcome.fix_errors`. Mutating that argument to `()` and running the **full**
+Python suite gave:
+
+```text
+652 passed
+```
+
+Zero tests noticed a mutating run silently dropping every refusal it had to
+report. This is the same defect class the assessment raised, in the one branch
+its tests structurally could not reach. (652 was the count at that moment; the
+suite reached 653 once the coverage below landed, and the discrimination was
+re-run against the final tree.)
+
+The branch is unreachable from `tests/test_check_refusals.py` for a reason
+worth stating: **a refused write leaves its target alone.** So a run whose
+writes are all refused changes nothing, `outcome.changed_anything` is false
+(`cli_apply.py`), and it reports through `print_unmodified_report`. The
+mutating reporter is reached only when *some* write succeeded -- which means a
+refusal can only ever be observed there next to a file that was written.
+
+`tests/test_check_partial_runs.py` drives that shape: `a.md` is written, `b.md`
+is refused by a selective `Path.replace` stand-in keyed on the target's name,
+and the report is read from standard error, because that is where a mutating
+run puts it. A blanket stand-in cannot reach the branch at all -- if every
+write raises, nothing was written, and the run takes the unmodified path, which
+is precisely why the refusals module never needed one.
+
+Two construction details that cost probes to find:
+
+- **Both edits must be source-backed.** An edit the planner rejects outright is
+  a *phase-one* refusal that rides along in `checked`. The refusal under test
+  is discovered at write time (phase two), so both plans have to be admissible
+  enough to reach the writing phase. `rewrite_heading_marker` was tried first
+  and produces the wrong kind -- it exits `1` with the refusal in `checked`.
+- **The re-lint must be silent for both files.** `a.md` reads back as "Section
+  text." and `b.md` as "# Memo", matching neither branch, so the refusal is the
+  run's only finding and the exit status cannot stand in for its presence in
+  the report.
+
+The module is new rather than an addition to `test_check_mutation.py` because
+228 + ~173 lands *above* the 400-line ceiling pylint enforces, not under it --
+measured before choosing, per Revision 42's own precedent. 177 / 351 / 229 /
+291 / 202 are the five resulting counts.
+
+**Discrimination.** With `fix_errors=()` in `print_mutation_report`, the new
+test fails; restored, it passes. That is the only evidence that makes it worth
+keeping, and it is Revision 45's lesson applied on the first try rather than
+after three bad tests.
+
+### 46.3 The full gate chain runs green for the first time
+
+Handed to `scrutineer` sequentially and all five targets pass at `d951c4c`:
+
+| Target         | Result                                                         |
+| -------------- | -------------------------------------------------------------- |
+| `check-fmt`    | `ruff` 229 files, `cargo fmt` clean, `mdtablefix` 68 unchanged |
+| `lint`         | all nine steps to completion -- the first time on this branch  |
+| `typecheck`    | `ty 0.0.74`, all checks passed                                 |
+| `markdownlint` | 0 errors across 69 files, `typos` clean                        |
+| `nixie`        | all diagrams validated                                         |
+| `test`         | 337 nextest + doc-tests + Python suite, 0 failures             |
+
+`lint` reaching its last step is the point: interrogate, pylint 10.00/10,
+df12-pylint 10.00/10, ambrleaks, `cargo doc`, clippy, whitaker and skylos had
+all been unverified on this branch since Revision 42, because every earlier run
+stopped at a step before them.
+
+### 46.4 The environment stopped the work, not the code
+
+Mid-session the single 1.8 TB filesystem holding `/`, `/home` and `/tmp`
+reached 100% and then 0 bytes free. Every gate failed with `ENOSPC` rather than
+a code defect:
+
+- `check-fmt`: `uv` could not write `.uv-cache/simple-v21/pypi/...`
+  (`os error 28`);
+- `nixie`: `mkdtemp` raised `FileNotFoundError: No usable temporary directory`
+  listing `/tmp`, `/var/tmp`, `/usr/tmp` -- and note the fourth entry, the
+  worktree itself, because Python's `tempfile` falls back to the current
+  directory and that is on the same full filesystem.
+
+The stop hook then reported both as failures to fix. They were not: nothing in
+the diff could have addressed `ENOSPC`, and `markdownlint`'s own line in the
+same log already read `Summary: 0 error(s)`. The condition cleared when another
+agent's build released space, and both targets then passed unmodified.
+
+**Lesson.** An `ENOSPC` failure is a claim about the machine, not about the
+branch, and it arrives through the same channel as a real gate failure. The
+discriminator is in the message: a path and `no space left on device`, or a
+temp-directory traceback, identifies the environment; a rule identifier and a
+line number identifies the code. The corresponding instruction -- stop and tell
+the user when the disk fills, do not route around it -- exists because a
+plausible-looking repair for `ENOSPC` is to start deleting things that belong
+to other agents.
