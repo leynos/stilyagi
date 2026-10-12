@@ -421,13 +421,13 @@ the requested targets.
 Discovery is a single deterministic pass, sorted by resolved path, that skips
 known build-noise directories and does not follow symlinked directories. The
 registered suffixes are `.md`, `.markdown`, `.py`, and `.rs`; unregistered
-source candidates are counted as skipped. The configuration that governs
-discovery is resolved by `cli._resolve_discovery_config` for the current
-working directory rather than for each individual file, so `--isolated`,
-explicit `--config` values, and CLI rule overrides all stay in force during the
-discovery pass. Discovery reads the filesystem but has no logging or
-command-output side effects: it returns notices and structured discovery
-failures as data for its caller to handle.
+source candidates are counted as skipped. `check_execution` defines
+`_resolve_discovery_config`, which resolves configuration for the current
+working directory rather than per individual file. `cli._discover_targets` may
+call this helper during command orchestration. This keeps `--isolated`, explicit
+`--config` values, and CLI rule overrides in force during discovery. Discovery
+reads the filesystem without logging or command-output side effects: it returns
+notices and structured discovery failures for its caller to handle.
 
 `DiscoveryResult.files` is a tuple. The convenience wrapper
 `discover_files(targets, config)` returns only that collection for callers that
@@ -632,9 +632,10 @@ particular.
   - Current implemented extraction support covers Markdown, Python
     docstrings, and Rust documentation comments.
   - Default command discovery covers `.md`, `.markdown`, `.py`, and `.rs`.
-    Keep the fixed extension set in `stilyagi.discovery` until a deliberate
-    Rust discovery migration replaces it; do not add configuration or flags
-    for inclusion and exclusion opportunistically.
+    Keep the fixed extension-to-syntax table in `stilyagi.discovery_targets`;
+    `stilyagi.discovery` remains the facade/query until a deliberate Rust
+    discovery migration replaces it. Do not add configuration or flags for
+    inclusion and exclusion opportunistically.
   - MDX remains preview-only until later evidence upgrades it into the stable
     support matrix.
   - English is the only formally supported locale in v1. Architecture may stay
