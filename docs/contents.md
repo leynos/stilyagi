@@ -14,6 +14,9 @@
 - [User's guide](users-guide.md) records the current user-facing promises for
   Stilyagi, including the accepted packaging boundary, supported syntax
   surfaces, and current locale policy for v1.
+- [Migration guide: 0.1.0 to 0.2.0](v0-2-0-migration-guide.md) summarizes the
+  expanded discovery defaults, mixed-source checking, output summary, and
+  diagnostic behaviour for users upgrading from the published 0.1.0 release.
 - [ExecPlans](execplans/) records approved and in-progress execution plans for
   substantial repository work:
   - [1.1.1 packaging boundary decision ADR](

@@ -7,9 +7,9 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 Status: COMPLETE
 
 The original implementation remains complete. Review remediation dated
-2026-10-12 is recorded below. Candidate r31 passed all six gates before this
-documentation edit and is historical for the final candidate. PR closeout will
-record the final exact-candidate gate result and hash.
+2026-10-12 is recorded below. The r6 local candidate passed all six gates
+before this documentation edit; its exact patch fingerprint and validation are
+recorded below. This candidate is not yet claimed as published or merged.
 
 Approval gate: **satisfied on 2026-08-23**. The implementation request
 explicitly approves this ExecPlan.
@@ -294,9 +294,10 @@ Closing:
       reporting helpers in `python/stilyagi/check_inputs.py`; `cli.py` consumes
       those records in the command flow. The developer guide now documents the
       tuple API and record ownership; the README shows the current run summary.
-      The versioned migration-guide suggestion was not adopted because the
-      package is not published yet, and the existing user's guide documents
-      discovery, summaries, exit codes, and standard-input syntax selection.
+      Package version 0.1.0 is published, so the review follow-up added
+      `docs/v0-2-0-migration-guide.md` to document expanded discovery,
+      mixed-source checks, summaries, warning/error exits, and stdin syntax
+      selection.
 - [x] Architecture review follow-up (2026-09-28). Discovery now returns
       structured notices and directory traversal failures without logging.
       `DiscoveryInputs` carries them to command-layer reporting; a traversal
@@ -313,10 +314,8 @@ Closing:
       at the PyO3 boundary. Structured discovery notices and failures remain
       command-side reporting; discovery queries do not log. `Path.walk`
       symlink-directory entries retain the symlink skip reason, and resolved
-      path sets prevent double-counting across overlapping targets. The
-      migration-guide warning is skipped: the package is unpublished and the
-      users' guide already documents this behaviour. Three CodeRabbit testing
-      gaps were addressed by staged regression tests:
+      path sets prevent double-counting across overlapping targets. Three
+      CodeRabbit testing gaps were addressed by staged regression tests:
       `.vtcode` exclusion (`tests/test_build_spine_units.py`), exact empty-
       directory zero-summary CLI coverage (`tests/test_check_command.py`), and
       an unknown-verb authored-directive diagnostic assertion in
@@ -346,8 +345,8 @@ Closing:
       development constraint and lockfile have since been updated to
       pytest-bdd 9.0.0; its upstream changelog says pytest 9.1+ `target_fixture`
       injection no longer emits this warning. R31 is historical for the final
-      candidate; PR closeout will record the final exact-candidate gates and
-      hash. The original 3.2.1 implementation status above remains COMPLETE.
+      candidate. The original 3.2.1 implementation status above remains
+      COMPLETE.
 
 - [x] CodeScene review follow-up (published head `a86c8b8`). The `run_check`
   length finding was addressed by extracting command-side discovery outcome
@@ -359,9 +358,10 @@ Closing:
   was removed because discovery failure state is already represented by
   `DiscoveryInputs.failures`. The string-heavy `suppression.rs` finding was
   skipped because its literals pin wire, directive, and error-code contracts.
-  The `report_discovery_outcomes` complexity finding was also skipped: it is
-  bounded notice dispatch with simple aggregation, and CodeGraph measured
-  complexity 8 against threshold 9. The next candidate exposed Pylint's
+  At this review point, `report_discovery_outcomes` was assessed as bounded
+  notice dispatch with simple aggregation (CodeGraph measured complexity 8
+  against threshold 9). The r6 follow-up later fixed the finding by extracting
+  dispatch into `_report_discovery_notice`. The next candidate exposed Pylint's
   400-line cap (`discovery.py` reached 417 lines); `_build_discovery_result`
   was moved beside the `DiscoveryResult` record in `discovery_results.py`, and
   a subsequent lint attempt found `SkippedCandidateCount` still listed in
@@ -373,7 +373,24 @@ Closing:
   `make markdownlint`, and `make nixie`. Tests reported 350 Rust and 581 Python
   tests passed, 36 doctests passed and 4 skipped, with no pytest warning
   summary; Markdownlint checked 69 files with 0 errors, and Nixie validated all
-  diagrams.
+  diagrams. This result is historical and superseded by r6.
+
+- [x] PR review closeout candidate r6 (2026-10-12). Against published head
+  `bf9bf2671f7f598ea7e6374fecac301602fae9e7` (base
+  `b5b0fe10f040a2462ac9815a6c2aa56a1c91f573`), the pre-ExecPlan-edit local
+  candidate patch fingerprint is
+  `db0c4befeaf12cbd52f88bc1ce2083845cc26fbc52d88acd285b6f4ac3ba2ecf`. The
+  candidate adds serializer and `DurationHistogram` constructor-invariant
+  tests; shared metric resets use the existing test mutex. It also extracts
+  discovery notice dispatch into `_report_discovery_notice`, fixing the
+  CodeScene complexity finding while leaving aggregation in
+  `report_discovery_outcomes`. Sequential validation passed `make check-fmt`,
+  `make lint`, `make typecheck`, `make test`, `make markdownlint`, and
+  `make nixie`. Tests reported 357 Rust, 581 Python, and 36 doctest-module
+  tests passed, with 4 doctest-module skips; Rust doc tests passed.
+  `cargo llvm-cov nextest` passed 357/357 tests and measured 4027/4443 lines
+  (90.64%), above the 90.48% floor. This is local evidence only; the candidate
+  still requires publication and exact-head hosted/review reconciliation.
 
 ## Surprises & discoveries
 
@@ -1426,8 +1443,9 @@ make check-fmt && make typecheck && make lint && make test
 ```
 
 Per AGENTS.md, do not create an isolated Cargo cache or bypass managed compiler
-admission. Let the Cargo package-cache lock and compiler-slot queue serialize
-builds; do not clear `RUSTC_WRAPPER` or force job counts to work around them. If
+admission. Start each gate once and let the Cargo package-cache lock and
+compiler-slot queue serialize its work; do not wait outside that queue for
+unrelated repositories, clear `RUSTC_WRAPPER`, or force job counts. If
 `build-limits-status` reports an unhealthy supervisor or admission returns a
 `build-limits:` error, report the failure instead of bypassing it.
 

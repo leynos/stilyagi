@@ -8,6 +8,12 @@ pub(super) use recording_bindings::{
 };
 pub(super) use snapshot::check_metrics_snapshot;
 
+#[cfg(test)]
+static CHECK_METRICS_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+mod snapshot_tests;
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -204,9 +210,10 @@ mod tests {
     use rstest::rstest;
 
     use super::{
-        CHECK_RUNS, CHECKED_FILES, OPERATIONAL_FAILURES, PHASE_DURATIONS, SKIPPED_CANDIDATES,
-        UNREADABLE_FILES, record_check_run, record_checked_file, record_operational_failure,
-        record_phase_duration, record_skipped_candidates, record_unreadable_file, reset_metrics,
+        CHECK_METRICS_TEST_LOCK, CHECK_RUNS, CHECKED_FILES, OPERATIONAL_FAILURES, PHASE_DURATIONS,
+        SKIPPED_CANDIDATES, UNREADABLE_FILES, record_check_run, record_checked_file,
+        record_operational_failure, record_phase_duration, record_skipped_candidates,
+        record_unreadable_file, reset_metrics,
     };
 
     static HOST_METRIC: AtomicU64 = AtomicU64::new(0);
@@ -286,6 +293,9 @@ mod tests {
 
     #[rstest]
     fn records_bounded_check_metrics_and_rejects_unbounded_labels() {
+        let _guard = CHECK_METRICS_TEST_LOCK
+            .lock()
+            .expect("check metrics test lock should be available");
         reset_metrics();
 
         record_check_run("success").expect("success is a bounded outcome");
@@ -331,6 +341,9 @@ mod tests {
 
     #[rstest]
     fn leaves_global_recorder_ownership_to_the_host() {
+        let _guard = CHECK_METRICS_TEST_LOCK
+            .lock()
+            .expect("check metrics test lock should be available");
         reset_metrics();
 
         assert!(

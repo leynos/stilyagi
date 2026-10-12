@@ -62,7 +62,7 @@ Then point it at some Markdown:
 
 ```shell
 $ uv run stilyagi check docs/
-checked 57 files (2 skipped, 0 unreadable); 0 errors, 0 warnings
+checked 59 files (2 skipped, 0 unreadable); 0 errors, 0 warnings
 ```
 
 Zero is the honest answer today: extraction runs over every file, and there are

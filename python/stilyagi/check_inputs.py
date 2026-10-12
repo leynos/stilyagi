@@ -240,18 +240,7 @@ def report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> bool:
     False
     """
     for notice in discovery_inputs.notices:
-        path = None if notice.path is None else notice.path.as_posix()
-        if notice.reason == "respect_gitignore_unenforced":
-            _LOGGER.info("respect-gitignore is accepted but not yet enforced")
-        elif notice.reason == "symlinked_directory_target" and path is not None:
-            _COMMAND_LOGGER.warning("skipping symlinked directory target: %s", path)
-        elif notice.reason == "unregistered_explicit_file" and path is not None:
-            _LOGGER.info(
-                "ignoring target without a registered extractor: %s",
-                path,
-            )
-        elif notice.reason == "missing_or_unsupported_target" and path is not None:
-            _LOGGER.info("ignoring missing or unsupported target: %s", path)
+        _report_discovery_notice(notice)
 
     for failure in discovery_inputs.failures:
         _COMMAND_LOGGER.warning(
@@ -261,6 +250,22 @@ def report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> bool:
             failure.error,
         )
     return bool(discovery_inputs.failures)
+
+
+def _report_discovery_notice(notice: discovery.DiscoveryNotice) -> None:
+    """Log one notice according to the command's fixed reporting policy."""
+    path = None if notice.path is None else notice.path.as_posix()
+    if notice.reason == "respect_gitignore_unenforced":
+        _LOGGER.info("respect-gitignore is accepted but not yet enforced")
+    elif notice.reason == "symlinked_directory_target" and path is not None:
+        _COMMAND_LOGGER.warning("skipping symlinked directory target: %s", path)
+    elif notice.reason == "unregistered_explicit_file" and path is not None:
+        _LOGGER.info(
+            "ignoring target without a registered extractor: %s",
+            path,
+        )
+    elif notice.reason == "missing_or_unsupported_target" and path is not None:
+        _LOGGER.info("ignoring missing or unsupported target: %s", path)
 
 
 def report_file_error(path: str, error: Exception) -> None:
