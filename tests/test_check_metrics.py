@@ -4,7 +4,7 @@ import json
 import typing as typ
 
 import pytest
-from stilyagi import cli
+from stilyagi import cli, diagnostics
 from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.assertions import assert_with_context
@@ -13,6 +13,16 @@ if typ.TYPE_CHECKING:
     import pathlib
 
     from syrupy.assertion import SnapshotAssertion
+
+
+class _DiagnosticMetricCase(typ.NamedTuple):
+    """Expected command outcomes for one diagnostic-severity mix."""
+
+    severities: tuple[diagnostics.Severity, ...]
+    exit_code: int
+    run_outcome: str
+    errors: int
+    warnings: int
 
 
 def test_verbose_emits_bounded_metrics_to_stderr(
@@ -57,6 +67,7 @@ def test_verbose_emits_bounded_metrics_to_stderr(
     observed_contract = {
         "check_runs": metrics_payload["stilyagi_check_runs_total"],
         "checked_files": metrics_payload["stilyagi_check_files_total"],
+        "diagnostics": metrics_payload["stilyagi_check_diagnostics_total"],
         "phase_counts": phase_counts,
         "python_documents": metrics_payload[
             "stilyagi_python_extraction_documents_total"
@@ -83,6 +94,79 @@ def test_verbose_emits_bounded_metrics_to_stderr(
         "expected one discovery phase"
     )
     assert str(tmp_path) not in metric_lines[0], "metrics do not expose source paths"
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        pytest.param(
+            _DiagnosticMetricCase((diagnostics.Severity.WARNING,), 0, "success", 0, 1),
+            id="warning-only-run",
+        ),
+        pytest.param(
+            _DiagnosticMetricCase(
+                (
+                    diagnostics.Severity.ERROR,
+                    diagnostics.Severity.WARNING,
+                ),
+                1,
+                "diagnostic_error",
+                1,
+                1,
+            ),
+            id="mixed-severity-failing-run",
+        ),
+    ],
+)
+def test_verbose_metrics_record_diagnostic_counts_by_severity(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    case: _DiagnosticMetricCase,
+) -> None:
+    """Count warning and error diagnostics with bounded severity labels."""
+    _write_markdown(tmp_path / "notes.md", "Notes")
+    monkeypatch.chdir(tmp_path)
+    diagnostics_list = [
+        diagnostics.Diagnostic(
+            path="notes.md",
+            code=f"STY{index:03}",
+            message=f"Synthetic {severity.value}",
+            severity=severity,
+        )
+        for index, severity in enumerate(case.severities, start=1)
+    ]
+    monkeypatch.setattr(
+        "stilyagi.rules.registry.run_rules",
+        lambda _document, _config: diagnostics_list,
+    )
+
+    actual_exit_code = cli.main(["check", ".", "--verbose", "--output-format", "json"])
+    captured = capsys.readouterr()
+    metric_line = next(
+        line
+        for line in captured.err.splitlines()
+        if line.startswith("stilyagi check metrics: ")
+    )
+    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+    output_payload = json.loads(captured.out)
+
+    assert actual_exit_code == case.exit_code, (
+        "diagnostic severity preserves the exit outcome"
+    )
+    assert output_payload["summary"]["errors"] == case.errors, (
+        "the renderer retains its error summary"
+    )
+    assert output_payload["summary"]["warnings"] == case.warnings, (
+        "the renderer retains its warning summary"
+    )
+    assert metrics_payload["stilyagi_check_diagnostics_total"] == {
+        "error": case.errors,
+        "warning": case.warnings,
+    }, "metrics expose diagnostic totals by fixed severity"
+    assert metrics_payload["stilyagi_check_runs_total"][case.run_outcome] == 1, (
+        "the check outcome agrees with the diagnostic severities"
+    )
 
 
 def test_verbose_metrics_record_unreadable_inputs_as_operational_failures(

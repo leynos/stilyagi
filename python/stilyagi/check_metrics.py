@@ -11,6 +11,7 @@ from stilyagi._stilyagi_rs import (
     check_metrics_snapshot,
     record_check_run,
     record_checked_file,
+    record_diagnostic_severity,
     record_operational_failure,
     record_phase_duration,
     record_skipped_candidates,
@@ -60,6 +61,12 @@ def _measure_phase(phase: str) -> cabc.Iterator[None]:
 def _record_file(syntax: model.Syntax) -> None:
     """Record one input against its bounded registered syntax label."""
     record_checked_file(_METRIC_SYNTAX[syntax])
+
+
+def _record_diagnostic_counts(error_count: int, warning_count: int) -> None:
+    """Record diagnostic totals with the two fixed severity labels."""
+    record_diagnostic_severity("error", error_count)
+    record_diagnostic_severity("warning", warning_count)
 
 
 def _record_skips(

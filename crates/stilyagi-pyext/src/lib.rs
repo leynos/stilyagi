@@ -181,6 +181,10 @@ fn _stilyagi_rs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(check_metrics::record_check_run, m)?)?;
     m.add_function(wrap_pyfunction!(check_metrics::record_checked_file, m)?)?;
     m.add_function(wrap_pyfunction!(
+        check_metrics::record_diagnostic_severity,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
         check_metrics::record_skipped_candidates,
         m
     )?)?;

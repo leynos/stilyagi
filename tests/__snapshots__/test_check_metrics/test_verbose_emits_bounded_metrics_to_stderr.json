@@ -9,6 +9,10 @@
     "python": 1,
     "rust": 1
   },
+  "diagnostics": {
+    "error": 0,
+    "warning": 0
+  },
   "phase_counts": {
     "config": 3,
     "discovery": 1,

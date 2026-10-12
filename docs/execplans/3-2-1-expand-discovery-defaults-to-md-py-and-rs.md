@@ -515,6 +515,24 @@ Closing:
   `FileCheckResult`, and `DiscoveryOutcome`) and reporting helpers remain owned
   by `python/stilyagi/check_inputs.py`, consumed by `cli.py`.
 
+- [ ] Current assessment follow-up (2026-10-12; pending). Assessment
+      `stilyagi-3-2-1-794e34b2-20261012-a1` assessed base
+      `b5b0fe10f040a2462ac9815a6c2aa56a1c91f573` and head
+      `794e34b2ba9ac07d4ec09fe83145aa0dfc957d68`. The two missing encoding
+      regressions and four documentation corrections are now applied. Bounded
+      diagnostic-severity counters have been implemented. The earlier Testing
+      Overall and Unit Architecture rows were independently verified as fixed.
+      The SlipCover warning reproduces on
+      this candidate and on `main` coverage runs from 2026-10-10 and 2026-10-11;
+      it originates in the pinned shared-actions coverage startup, so no
+      Stilyagi code change is indicated. The stable worktree based on published
+      HEAD `794e34b2ba9ac07d4ec09fe83145aa0dfc957d68` passed all six sequential
+      gates: `make check-fmt`, `make lint`, `make typecheck`, `make test`,
+      `make markdownlint`, and `make nixie`. Tests reported 357 Rust, 592
+      Python, and 38 doctests passed, with 2 skipped; Markdownlint checked 70
+      files with 0 errors. This is local working-tree evidence; commit/push and
+      exact-head assessment/review remain pending.
+
 ## Surprises & discoveries
 
 Found during planning by executing probes against the built extension, and
@@ -694,14 +712,17 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   three missing names, and the correct figures below were only reachable after
   fixing them.
 
-- **S12 (round 2). Python doctests never run, and the discovery one is already
-  false.** There is no `conftest.py`, and `[tool.pytest.ini_options]` sets no
-  `--doctest-modules`, so `make test` never executes them. The example in
-  `python/stilyagi/discovery.py` claims
+- **S12 (round 2). At planning time, Python doctests did not run, and the
+  discovery example was already false.** At that time there was no
+  `conftest.py`, and `[tool.pytest.ini_options]` set no `--doctest-modules`, so
+  `make test` did not execute them. The example in
+  `python/stilyagi/discovery.py` claimed
   `discover_markdown_files([Path("docs")], ...)` yields `['docs/guide.md']`;
-  `docs/guide.md` does not exist and `docs/` holds 55 Markdown files. Impact:
-  "update the doctests" is an unfalsifiable instruction. W1 fixes the false
-  example; ADR 008 records enabling `--doctest-modules` as follow-up.
+  `docs/guide.md` did not exist and `docs/` held 55 Markdown files. Impact:
+  "update the doctests" was an unfalsifiable instruction. W1 fixed the false
+  example; ADR 008 recorded enabling `--doctest-modules` as follow-up. That
+  follow-up is now implemented: `make test` and `make test-doc` run configured
+  Python doctests in `python/stilyagi` and `tests/support`.
 
 ## Decision log
 
@@ -736,21 +757,21 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   historical value. Date/Author: 2026-08-24, implementation agent.
 
 - **D1 (reversed in round 2). The extension-to-syntax table lives in Python, in
-  `python/stilyagi/discovery.py`. No bridge function is added for it.** Round 1
-  put it in Rust behind the PyO3 bridge, reasoning that `ExtractSyntax` owns
-  syntax spellings and that `supported_syntaxes()` is the established idiom for
-  advertising them. The review falsified both halves. The existing idiom covers
-  vocabularies that *appear in bridge payloads* — the `syntax` field, the region
-  `kind` field, the argument to `extract_document`. File extensions appear in
-  no payload and are passed to no bridge function, so the precedent does not
-  reach them. And per S8 the design already assigns file discovery to Rust,
-  which means the durable end state moves the walk *and* the table together;
-  putting only the table across the bridge is the one arrangement that is
-  neither the current state nor the target, and it makes the eventual move an
-  unpicking of a seam rather than a relocation of one module. The "two
-  coordinated edits" cost cited in round 1 also already exists: `model.Syntax`
-  is a hand-maintained Python mirror of `ExtractSyntax` guarded by
-  `_validate_syntax_vocab_once`, so a four-entry dict whose *values* are
+  `python/stilyagi/discovery_targets.py`. No bridge function is added for it.**
+  Round 1 put it in Rust behind the PyO3 bridge, reasoning that `ExtractSyntax`
+  owns syntax spellings and that `supported_syntaxes()` is the established
+  idiom for advertising them. The review falsified both halves. The existing
+  idiom covers vocabularies that *appear in bridge payloads* — the `syntax`
+  field, the region `kind` field, the argument to `extract_document`. File
+  extensions appear in no payload and are passed to no bridge function, so the
+  precedent does not reach them. And per S8 the design already assigns file
+  discovery to Rust, which means the durable end state moves the walk *and* the
+  table together; putting only the table across the bridge is the one
+  arrangement that is neither the current state nor the target, and it makes
+  the eventual move an unpicking of a seam rather than a relocation of one
+  module. The "two coordinated edits" cost cited in round 1 also already exists:
+  `model.Syntax` is a hand-maintained Python mirror of `ExtractSyntax` guarded
+  by `_validate_syntax_vocab_once`, so a four-entry dict whose *values* are
   `model.Syntax` members is type-checked by `ty` and covered by the parity
   check that already runs. Constraint 3 is restated accordingly. Consequence:
   round 1's W1 and W3 are deleted entirely — the Rust table, the compile-time
@@ -1225,8 +1246,8 @@ Go/no-go: every new test fails, each for the reason it was written for.
 
 - Rename `discover_markdown_files` to `discover_files`; update `__all__`, the
   module docstring, and the worked example. Correct the false example recorded
-  in S12 — and, since doctests do not execute, keep it minimal and verifiable
-  by eye rather than elaborate.
+  in S12; keep the replacement minimal and verifiable by the configured doctest
+  pass.
 - Stop the module docstring describing itself as a public surface (D7).
 - Add `syntax: model.Syntax` to `DiscoveredFile`, required and without a
   default. A default would silently mis-attribute every Python and Rust file at
@@ -1467,8 +1488,9 @@ ______________________________________________________________________
      classification exhaustive at every mint site — for roadmap item 3.2.3 (D5).
    - Moving discovery to Rust per design §1, delivering `respect-gitignore` via
      the `ignore` crate rather than a growing name list (D8).
-   - Enabling `--doctest-modules`, since Python doctests never execute today and
-     at least one is already false (S12).
+   - Enabling `--doctest-modules` was proposed because Python doctests did not
+     run at planning time and one example was already false (S12). This
+     follow-up is now implemented for `python/stilyagi` and `tests/support`.
    - Renaming the adversarial Python and Rust corpus fixtures to fall outside
      discovery, so this repository can dogfood `stilyagi check .` in CI.
    - `--max-file-size`, parallelism, and incremental output, all of which the
@@ -1808,10 +1830,12 @@ In `python/stilyagi/check_inputs.py`:
             source_text: str | None = None,
         ) -> CheckInput: ...
 
-Libraries: no new runtime dependency (Constraint 2). Test-only use of `rstest`,
-`insta`, and `proptest` on the Rust side and `pytest`, `pytest-bdd`, `syrupy`,
-and `hypothesis` on the Python side — all already present. `kani` and `verus`
-are deliberately not used; see D6.
+Libraries: no new external runtime package (Constraint 2). The PyO3 extension
+adds a direct dependency on the already-declared workspace `metrics` crate
+(`metrics.workspace = true`) for bounded check telemetry. Test-only use of
+`rstest`, `insta`, and `proptest` on the Rust side and `pytest`, `pytest-bdd`,
+`syrupy`, and `hypothesis` on the Python side — all already present. `kani` and
+`verus` are deliberately not used; see D6.
 
 ## References
 

@@ -386,6 +386,11 @@ collaborator.
 discovery.discover_files_with_summary(targets, config) -> DiscoveryResult
 ```
 
+`stilyagi.discovery_targets` owns filesystem classification, directory walking,
+and the fixed extension-to-syntax table. `stilyagi.discovery` is the facade and
+query: it delegates target inspection and aggregates structured results across
+the requested targets.
+
 `DiscoveryResult` is a frozen dataclass with five fields:
 
 - `files` — the registered source files as a tuple of `DiscoveredFile`, sorted
@@ -424,12 +429,12 @@ discovery pass. Discovery reads the filesystem but has no logging or
 command-output side effects: it returns notices and structured discovery
 failures as data for its caller to handle.
 
-`discover_files(targets, config)` is the convenience wrapper that returns only
-the discovered files as a list for callers that do not need the skip count; the
-`DiscoveryResult.files` field itself is a tuple. Because the wrapper cannot
-represent a partial result together with a filesystem failure, it raises the
-first retained path-expansion, metadata-lookup, path-resolution, or traversal
-error (`OSError | RuntimeError`) when `DiscoveryResult.failures` is non-empty.
+`DiscoveryResult.files` is a tuple. The convenience wrapper
+`discover_files(targets, config)` returns only that collection for callers that
+do not need the skip count. Because the wrapper cannot represent a partial
+result together with a filesystem failure, it raises the first retained
+path-expansion, metadata-lookup, path-resolution, or traversal error
+(`OSError | RuntimeError`) when `DiscoveryResult.failures` is non-empty.
 
 Each discovered file becomes a `check_inputs.CheckInput` through
 `CheckInput.from_discovered`, which carries the `reported_path`,

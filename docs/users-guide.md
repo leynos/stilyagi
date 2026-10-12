@@ -255,10 +255,10 @@ The command-line interface (CLI) recursively discovers `.md`, `.markdown`,
 until their support graduates into the stable matrix. Directory discovery skips
 the known build and cache directories `.eggs`, `.git`, `.mypy_cache`, `.nox`,
 `.pytest_cache`, `.ruff_cache`, `.stilyagi_cache`, `.tox`, `.uv-cache`,
-`.uv-tools`, `.venv`, `.venv-release-smoke`, `__pycache__`, `build`, `dist`,
-`node_modules`, `site-packages`, and `target`; files with other extensions are
-skipped. V1 has no `include` or `exclude` configuration for changing that fixed
-set.
+`.uv-tools`, `.venv`, `.venv-release-smoke`, `.vtcode`, `__pycache__`, `build`,
+`dist`, `node_modules`, `site-packages`, and `target`; files with other
+extensions are skipped. V1 has no `include` or `exclude` configuration for
+changing that fixed set.
 
 ### Checking mixed repositories with `stilyagi check`
 

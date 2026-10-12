@@ -10,8 +10,9 @@ use std::time::Duration;
 use pyo3::prelude::*;
 
 use super::{
-    CHECK_RUNS, CHECKED_FILES, FAILURE_KINDS, OPERATIONAL_FAILURES, PHASE_DURATIONS, PHASES,
-    RUN_OUTCOMES, SKIP_REASONS, SKIPPED_CANDIDATES, SYNTAXES, checked_label, increment_counter,
+    CHECK_RUNS, CHECKED_FILES, DIAGNOSTIC_COUNTS, DIAGNOSTIC_SEVERITIES, FAILURE_KINDS,
+    OPERATIONAL_FAILURES, PHASE_DURATIONS, PHASES, RUN_OUTCOMES, SKIP_REASONS, SKIPPED_CANDIDATES,
+    SYNTAXES, checked_label, increment_counter,
 };
 
 #[pyfunction]
@@ -27,6 +28,20 @@ pub(crate) fn record_checked_file(syntax: &str) -> PyResult<()> {
     let checked_syntax = checked_label(syntax, &SYNTAXES, "syntax")?;
     increment_counter(&CHECKED_FILES, &SYNTAXES, checked_syntax, 1);
     metrics::counter!("stilyagi_check_files_total", "syntax" => checked_syntax).increment(1);
+    Ok(())
+}
+
+#[pyfunction]
+pub(crate) fn record_diagnostic_severity(severity: &str, count: u64) -> PyResult<()> {
+    let checked_severity = checked_label(severity, &DIAGNOSTIC_SEVERITIES, "diagnostic severity")?;
+    increment_counter(
+        &DIAGNOSTIC_COUNTS,
+        &DIAGNOSTIC_SEVERITIES,
+        checked_severity,
+        count,
+    );
+    metrics::counter!("stilyagi_check_diagnostics_total", "severity" => checked_severity)
+        .increment(count);
     Ok(())
 }
 

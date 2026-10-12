@@ -3,8 +3,8 @@
 mod recording_bindings;
 mod snapshot;
 pub(super) use recording_bindings::{
-    record_check_run, record_checked_file, record_operational_failure, record_phase_duration,
-    record_skipped_candidates,
+    record_check_run, record_checked_file, record_diagnostic_severity, record_operational_failure,
+    record_phase_duration, record_skipped_candidates,
 };
 pub(super) use snapshot::check_metrics_snapshot;
 
@@ -24,6 +24,7 @@ use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, IrError};
 
 static CHECK_RUNS: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
 static CHECKED_FILES: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
+static DIAGNOSTIC_COUNTS: [AtomicU64; 2] = [AtomicU64::new(0), AtomicU64::new(0)];
 static SKIPPED_CANDIDATES: [AtomicU64; 3] =
     [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
 static UNREADABLE_FILES: AtomicU64 = AtomicU64::new(0);
@@ -54,6 +55,7 @@ static PHASE_DURATIONS: [DurationHistogram; 6] = [
 
 const RUN_OUTCOMES: [&str; 3] = ["success", "diagnostic_error", "operational_error"];
 const SYNTAXES: [&str; 3] = ["markdown", "python", "rust"];
+const DIAGNOSTIC_SEVERITIES: [&str; 2] = ["error", "warning"];
 const SKIP_REASONS: [&str; 3] = [
     "unregistered_candidate",
     "symlinked_directory_target",
@@ -186,6 +188,7 @@ fn reset_metrics() {
     for counter in CHECK_RUNS
         .iter()
         .chain(CHECKED_FILES.iter())
+        .chain(DIAGNOSTIC_COUNTS.iter())
         .chain(SKIPPED_CANDIDATES.iter())
         .chain(OPERATIONAL_FAILURES.iter())
         .chain(EXTRACTION_DOCUMENTS.iter())
@@ -223,14 +226,16 @@ mod tests {
     use rstest::rstest;
 
     use super::{
-        CHECK_METRICS_TEST_LOCK, CHECK_RUNS, CHECKED_FILES, OPERATIONAL_FAILURES, PHASE_DURATIONS,
-        SKIPPED_CANDIDATES, UNREADABLE_FILES, record_check_run, record_checked_file,
+        CHECK_METRICS_TEST_LOCK, CHECK_RUNS, CHECKED_FILES, DIAGNOSTIC_COUNTS,
+        OPERATIONAL_FAILURES, PHASE_DURATIONS, SKIPPED_CANDIDATES, UNREADABLE_FILES,
+        record_check_run, record_checked_file, record_diagnostic_severity,
         record_operational_failure, record_phase_duration, record_skipped_candidates,
         record_unreadable_file, reset_metrics,
     };
 
     static HOST_METRIC: AtomicU64 = AtomicU64::new(0);
     static HOST_CHECK_METRIC: AtomicU64 = AtomicU64::new(0);
+    static HOST_DIAGNOSTIC_METRIC: AtomicU64 = AtomicU64::new(0);
 
     struct HostRecorder;
 
@@ -283,6 +288,9 @@ mod tests {
                 "stilyagi_check_runs_total" => {
                     metrics::Counter::from_arc(Arc::new(HostCounter(&HOST_CHECK_METRIC)))
                 }
+                "stilyagi_check_diagnostics_total" => {
+                    metrics::Counter::from_arc(Arc::new(HostCounter(&HOST_DIAGNOSTIC_METRIC)))
+                }
                 _ => metrics::Counter::noop(),
             }
         }
@@ -313,6 +321,7 @@ mod tests {
 
         record_check_run("success").expect("success is a bounded outcome");
         record_checked_file("python").expect("Python is a registered syntax");
+        record_diagnostic_severity("warning", 2).expect("warning is a bounded severity");
         record_skipped_candidates("unregistered_candidate", 2).expect("skip reason is fixed");
         record_unreadable_file();
         record_operational_failure("read").expect("read is a fixed failure kind");
@@ -329,6 +338,12 @@ mod tests {
                 .get(1)
                 .map(|counter| counter.load(Ordering::Relaxed)),
             Some(1)
+        );
+        assert_eq!(
+            DIAGNOSTIC_COUNTS
+                .get(1)
+                .map(|counter| counter.load(Ordering::Relaxed)),
+            Some(2)
         );
         assert_eq!(
             SKIPPED_CANDIDATES
@@ -350,6 +365,7 @@ mod tests {
             Some(1)
         );
         assert!(record_check_run("/tmp/private-source.py").is_err());
+        assert!(record_diagnostic_severity("/tmp/private-source.py", 1).is_err());
     }
 
     #[rstest]
@@ -364,9 +380,11 @@ mod tests {
             "check metrics leave the global recorder available to the host"
         );
         record_check_run("success").expect("success is a bounded outcome");
+        record_diagnostic_severity("warning", 1).expect("warning is a bounded diagnostic severity");
         metrics::counter!("test_host_unrelated_metric").increment(1);
 
         assert_eq!(HOST_CHECK_METRIC.load(Ordering::Relaxed), 1);
+        assert_eq!(HOST_DIAGNOSTIC_METRIC.load(Ordering::Relaxed), 1);
         assert_eq!(HOST_METRIC.load(Ordering::Relaxed), 1);
     }
 }

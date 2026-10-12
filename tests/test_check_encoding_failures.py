@@ -3,25 +3,40 @@
 import json
 import typing as typ
 
+import pytest
 from stilyagi import cli, engine, model
 
 if typ.TYPE_CHECKING:
     import pathlib
 
-    import pytest
 
-
-def test_cli_continues_after_invalid_python_encoding_cookie(
+@pytest.mark.parametrize(
+    "invalid_source",
+    [
+        pytest.param(
+            b'# coding: x-stilyagi-invalid-codec\n"""Broken encoding."""\n',
+            id="unknown-codec",
+        ),
+        pytest.param(
+            b'\xef\xbb\xbf# coding: latin-1\n"""Broken encoding."""\n',
+            id="utf8-bom-cookie-conflict",
+        ),
+        pytest.param(
+            b'# coding: utf-8\xff\n"""Broken encoding."""\n',
+            id="invalid-header-bytes",
+        ),
+    ],
+)
+def test_cli_continues_after_python_encoding_detection_failure(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    invalid_source: bytes,
 ) -> None:
-    """Treat encoding-cookie SyntaxError as a read failure and continue."""
+    """Treat encoding-detection SyntaxError as a read failure and continue."""
     root = tmp_path / "src"
     root.mkdir()
-    (root / "a-broken.py").write_bytes(
-        b'# coding: x-stilyagi-invalid-codec\n"""Broken encoding."""\n'
-    )
+    (root / "a-broken.py").write_bytes(invalid_source)
     (root / "z-valid.rs").write_text("//! Rust docs.\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     extracted_syntaxes: list[model.Syntax] = []

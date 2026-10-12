@@ -7,10 +7,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use super::{
-    BUCKET_LABELS, CHECK_RUNS, CHECKED_FILES, DurationHistogram, EXTRACTION_DOCUMENTS,
-    EXTRACTION_FATAL_ERRORS, EXTRACTION_RECOVERY_ERRORS, FAILURE_KINDS, OPERATIONAL_FAILURES,
-    PHASE_DURATIONS, PHASES, RUN_OUTCOMES, SKIP_REASONS, SKIPPED_CANDIDATES, SYNTAXES,
-    UNREADABLE_FILES,
+    BUCKET_LABELS, CHECK_RUNS, CHECKED_FILES, DIAGNOSTIC_COUNTS, DIAGNOSTIC_SEVERITIES,
+    DurationHistogram, EXTRACTION_DOCUMENTS, EXTRACTION_FATAL_ERRORS, EXTRACTION_RECOVERY_ERRORS,
+    FAILURE_KINDS, OPERATIONAL_FAILURES, PHASE_DURATIONS, PHASES, RUN_OUTCOMES, SKIP_REASONS,
+    SKIPPED_CANDIDATES, SYNTAXES, UNREADABLE_FILES,
 };
 
 fn category_snapshot<'py>(
@@ -76,6 +76,13 @@ fn set_check_counters<'py>(py: Python<'py>, snapshot: &Bound<'py, PyDict>) -> Py
     snapshot.set_item(
         "stilyagi_check_files_total",
         category_snapshot(py, &counter_categories(&SYNTAXES, &CHECKED_FILES, 0))?,
+    )?;
+    snapshot.set_item(
+        "stilyagi_check_diagnostics_total",
+        category_snapshot(
+            py,
+            &counter_categories(&DIAGNOSTIC_SEVERITIES, &DIAGNOSTIC_COUNTS, 0),
+        )?,
     )?;
     snapshot.set_item(
         "stilyagi_check_skipped_candidates_total",

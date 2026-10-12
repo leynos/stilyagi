@@ -187,6 +187,7 @@ def _check_and_render(
         skipped_files=discovery_inputs.skipped_files,
         unreadable_files=check_outcome.unreadable_files,
     )
+    check_metrics._record_diagnostic_counts(summary.errors, summary.warnings)
     try:
         with check_metrics._measure_phase("render"):
             print(

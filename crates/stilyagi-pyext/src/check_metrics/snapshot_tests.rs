@@ -15,9 +15,9 @@ use stilyagi_extract::{
 
 use super::{
     CHECK_METRICS_TEST_LOCK, DurationHistogram, EXTRACTION_RECOVERY_ERRORS, check_metrics_snapshot,
-    record_check_run, record_checked_file, record_extraction_attempt, record_extraction_failure,
-    record_extraction_outcome, record_operational_failure, record_phase_duration,
-    record_skipped_candidates, record_unreadable_file, reset_metrics,
+    record_check_run, record_checked_file, record_diagnostic_severity, record_extraction_attempt,
+    record_extraction_failure, record_extraction_outcome, record_operational_failure,
+    record_phase_duration, record_skipped_candidates, record_unreadable_file, reset_metrics,
 };
 
 fn populated_snapshot() -> PyResult<Py<PyDict>> {
@@ -32,6 +32,8 @@ fn populated_snapshot() -> PyResult<Py<PyDict>> {
     for syntax in ["markdown", "python", "rust"] {
         record_checked_file(syntax)?;
     }
+    record_diagnostic_severity("error", 2)?;
+    record_diagnostic_severity("warning", 3)?;
     for reason in [
         "unregistered_candidate",
         "symlinked_directory_target",
@@ -224,7 +226,7 @@ fn serializes_run_file_skip_and_operational_totals() {
 }
 
 #[rstest]
-fn serializes_syntax_and_skip_reason_categories() {
+fn serializes_syntax_skip_and_diagnostic_categories() {
     let snapshot = populated_snapshot().expect("bounded metrics serialize");
     Python::attach(|py| {
         let bound_snapshot = snapshot.bind(py);
@@ -257,6 +259,12 @@ fn serializes_syntax_and_skip_reason_categories() {
                 .expect("unsupported candidate count is an integer"),
             2
         );
+        assert_metric_categories(
+            bound_snapshot,
+            "stilyagi_check_diagnostics_total",
+            &[("error", 2), ("warning", 3)],
+        )
+        .expect("diagnostic counts contain only fixed severity categories");
     });
 }
 
