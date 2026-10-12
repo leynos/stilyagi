@@ -119,6 +119,44 @@ def test_write_source_leaves_no_temporary_file_when_staging_fails(
     )
 
 
+def test_write_source_leaves_no_temporary_file_when_the_swap_fails(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Remove the staged file when the atomic swap itself fails.
+
+    Staging and swapping are separate failure domains. The staging test above
+    would still pass if the cleanup only covered ``_write_temporary_source``,
+    yet a swap that raises before the rename -- a read-only parent directory,
+    an exhausted inode table -- would then strand the temporary file beside the
+    user's source. The assertion is on the directory listing rather than on the
+    temporary name, because the failure is only observable through what is left
+    behind.
+    """
+    import pathlib
+
+    from stilyagi.engine.fix_planning import write as write_module
+
+    target = tmp_path / "notes.md"
+    target.write_bytes(b"before\n")
+    before_entries = sorted(entry.name for entry in tmp_path.iterdir())
+    monkeypatch.setattr(pathlib.Path, "replace", _failing_replace)
+
+    with pytest.raises(OSError, match="read-only file system"):
+        write_module.write_source(target, b"after\n")
+
+    assert sorted(entry.name for entry in tmp_path.iterdir()) == before_entries, (
+        "expected the failed swap to leave no temporary file behind"
+    )
+    assert target.read_bytes() == b"before\n", "expected the source to be intact"
+
+
+def _failing_replace(self: pathlib.Path, _target: pathlib.Path) -> typ.NoReturn:
+    """Fail the atomic swap the way a read-only parent directory would."""
+    message = "read-only file system"
+    raise OSError(errno.EROFS, message)
+
+
 def _failing_fdopen(
     descriptor: int,
     _mode: str = "wb",

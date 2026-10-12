@@ -214,3 +214,50 @@ class TestRefusalRendering:
             "the file was left alone" in rendered,
             "expected the refusal to name both contributing rules",
         )
+
+    def test_the_json_payload_carries_each_refusal_as_its_own_object(self) -> None:
+        """Serialize refusals outside the diagnostics array, in a stable order.
+
+        Text rendering is the human channel; this is the machine one, and a
+        consumer reconstructing a run from JSON needs the refusal's own
+        identifier and contributing codes. The input is deliberately unsorted so
+        the assertion also pins the ordering: a refusal is not a rule
+        diagnostic, so it must not be admitted into diagnostic ordering, and two
+        identical runs must not disagree about which refusal comes first.
+        """
+        rendered = engine.RendererRegistry().render(
+            [],
+            "json",
+            fix_errors=[
+                _refusal("fix-error/overlapping-edits", ("PUN202", "PUN201")),
+                _refusal("fix-error/changed-on-disk", ()),
+            ],
+        )
+
+        payload = json.loads(rendered)
+        assert_with_context(
+            payload["diagnostics"] == [],
+            "expected refusals to stay out of the diagnostics array",
+        )
+        assert_with_context(
+            payload["fix_errors"]
+            == [
+                {
+                    "identifier": "fix-error/changed-on-disk",
+                    "path": "notes.md",
+                    "rule_codes": [],
+                    "message": "the file was left alone",
+                },
+                {
+                    "identifier": "fix-error/overlapping-edits",
+                    "path": "notes.md",
+                    "rule_codes": ["PUN202", "PUN201"],
+                    "message": "the file was left alone",
+                },
+            ],
+            "expected each refusal as its own JSON object, sorted by identifier",
+        )
+        assert_with_context(
+            payload["schema_version"] == "1.0.0",
+            "expected the versioned fix payload to carry a schema version",
+        )
