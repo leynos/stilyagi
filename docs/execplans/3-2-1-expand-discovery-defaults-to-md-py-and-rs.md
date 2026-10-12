@@ -349,6 +349,32 @@ Closing:
       candidate; PR closeout will record the final exact-candidate gates and
       hash. The original 3.2.1 implementation status above remains COMPLETE.
 
+- [x] CodeScene review follow-up (published head `a86c8b8`). The `run_check`
+  length finding was addressed by extracting command-side discovery outcome
+  reporting and check/render finalization helpers;
+  `discover_files_with_summary` now delegates deterministic result
+  construction; and `_candidates_for_target` delegates to named file- and
+  directory-target helpers. The first refactor candidate passed check-fmt but
+  lint rejected its five-argument helper and positional boolean; that parameter
+  was removed because discovery failure state is already represented by
+  `DiscoveryInputs.failures`. The string-heavy `suppression.rs` finding was
+  skipped because its literals pin wire, directive, and error-code contracts.
+  The `report_discovery_outcomes` complexity finding was also skipped: it is
+  bounded notice dispatch with simple aggregation, and CodeGraph measured
+  complexity 8 against threshold 9. The next candidate exposed Pylint's
+  400-line cap (`discovery.py` reached 417 lines); `_build_discovery_result`
+  was moved beside the `DiscoveryResult` record in `discovery_results.py`, and
+  a subsequent lint attempt found `SkippedCandidateCount` still listed in
+  `discovery.py`'s public `__all__`; its import was restored. R36 passed all
+  six gates on HEAD `a86c8b8647691a81cd54ccbaf32eff759fb99f6b`, with working-
+  tree diff SHA-256
+  `f040163a7c1a78d9350c17d54abce0df8072ec916deb27e9f26a6f2cfc465bcb`:
+  `make check-fmt`, `make lint`, `make typecheck`, `make test`,
+  `make markdownlint`, and `make nixie`. Tests reported 350 Rust and 581 Python
+  tests passed, 36 doctests passed and 4 skipped, with no pytest warning
+  summary; Markdownlint checked 69 files with 0 errors, and Nixie validated all
+  diagrams.
+
 ## Surprises & discoveries
 
 Found during planning by executing probes against the built extension, and

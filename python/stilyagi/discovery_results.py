@@ -117,3 +117,31 @@ class DiscoveryResult:
     notices: tuple[DiscoveryNotice, ...] = ()
     failures: tuple[DiscoveryFailure, ...] = ()
     skipped_by_reason: tuple[SkippedCandidateCount, ...] = ()
+
+
+def _build_discovery_result(
+    discovered: dict[pathlib.Path, DiscoveredFile],
+    skipped_candidates: dict[SkippedCandidateReason, set[pathlib.Path]],
+    notices: list[DiscoveryNotice],
+    failures: list[DiscoveryFailure],
+) -> DiscoveryResult:
+    """Freeze accumulated discovery state into its deterministic result."""
+    files = tuple(
+        discovered[resolved_path]
+        for resolved_path in sorted(discovered, key=lambda path: path.as_posix())
+    )
+    all_skipped_paths = {
+        candidate_path
+        for candidate_paths in skipped_candidates.values()
+        for candidate_path in candidate_paths
+    }
+    return DiscoveryResult(
+        files=files,
+        skipped_files=len(all_skipped_paths),
+        skipped_by_reason=tuple(
+            SkippedCandidateCount(reason, len(skipped_candidates[reason]))
+            for reason in sorted(skipped_candidates)
+        ),
+        notices=tuple(notices),
+        failures=tuple(failures),
+    )

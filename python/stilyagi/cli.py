@@ -114,8 +114,6 @@ def run_check(
     check_metrics.reset_check_metrics()
     resolver = resolver if resolver is not None else config.ConfigResolver()
     renderer = renderer if renderer is not None else engine.RendererRegistry()
-    had_error = False
-
     _LOGGER.debug("target discovery started for %r", options.targets)
     try:
         with check_metrics._measure_phase("discovery"):
@@ -144,15 +142,35 @@ def run_check(
             verbose=options.verbose,
         )
         raise
-    check_metrics._record_skips(discovery_inputs.skipped_by_reason)
-    for _failure in discovery_inputs.failures:
-        check_metrics.record_operational_failure("discovery")
-    had_error = report_discovery_outcomes(discovery_inputs)
+    _report_discovery_outcomes(discovery_inputs)
     _LOGGER.debug(
         "target discovery finished: %d input(s)",
         len(discovery_inputs.inputs),
     )
 
+    return _check_and_render(
+        discovery_inputs,
+        options,
+        resolver,
+        renderer,
+    )
+
+
+def _report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> None:
+    """Report discovery events and record their bounded operational metrics."""
+    check_metrics._record_skips(discovery_inputs.skipped_by_reason)
+    for _failure in discovery_inputs.failures:
+        check_metrics.record_operational_failure("discovery")
+    report_discovery_outcomes(discovery_inputs)
+
+
+def _check_and_render(
+    discovery_inputs: DiscoveryInputs,
+    options: CheckOptions,
+    resolver: config.ConfigResolver,
+    renderer: engine.RendererRegistry,
+) -> int:
+    """Check discovered inputs, render the summary and finalize metrics."""
     check_outcome = _check_discovered_files(
         discovery_inputs.inputs,
         options,
@@ -188,7 +206,7 @@ def run_check(
         raise
     exit_code = compute_exit_code(
         check_outcome.diagnostics,
-        had_error=had_error or check_outcome.had_error,
+        had_error=bool(discovery_inputs.failures) or check_outcome.had_error,
     )
     _LOGGER.info("config resolver cache stats: %s", resolver.cache_stats)
     _LOGGER.debug("check complete: exit code %d", exit_code)
