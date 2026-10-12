@@ -39,6 +39,7 @@ __all__ = [
     "log_fix_summary",
     "print_mutation_report",
     "print_unmodified_report",
+    "summarises_on_the_report",
     "warn_if_unsafe_withheld",
 ]
 
@@ -68,6 +69,34 @@ class MutationReport:
     destination: typ.TextIO
 
 
+def summarises_on_the_report(output_format: str) -> bool:
+    """Say whether a run's summary sentence belongs on the report stream.
+
+    It does for text. It must not for JSON, because that stream is a document
+    a consumer parses *whole*: the users' guide pairs the summary line with
+    `--output-format text` and promises `--output-format json` yields a stable
+    JSON document. Appending the sentence leaves trailing data after the
+    closing brace, so `json.loads` on the complete report raises instead of
+    returning the run's diagnostics and refusals.
+
+    Suppressing the copy costs nothing, because the same sentence is not lost:
+    `log_fix_summary` logs it at INFO, which is the level `--verbose` selects.
+
+    Returns
+    -------
+    bool
+        True when the summary may share a stream with the rendered report.
+
+    Examples
+    --------
+    >>> summarises_on_the_report("text")
+    True
+    >>> summarises_on_the_report("json")
+    False
+    """
+    return output_format != "json"
+
+
 #: Printed whenever a run wrote at least one file. Applying a fix can expose
 #: further fixable text -- an insertion shifts the spans after it -- so a clean
 #: exit is not a promise that the source is now quiescent.
@@ -92,10 +121,11 @@ def emit_fixed_document(
     `fixed_bytes` for two of them and they are not the same event:
 
     * a replacement is emitted when planning changed the source;
-    * the *original* bytes are emitted when the plan is refused -- no surviving
-      edits and at least one recorded refusal. Nothing was fixed, but the input
-      was still clean text that the user is capturing, so the sink must not
-      lose it;
+    * *nothing* is emitted when the plan is refused -- no surviving edits and
+      at least one recorded refusal. The refusal already travels on its own
+      channel, and emitting the source here would present a run that fixed
+      nothing as though it had returned a fixed document. The caller reports
+      instead, which is why the return value distinguishes this case;
     * the original bytes are emitted when the plan is unchanged -- a clean
       input, or a set of fixes that would rewrite spans with the bytes already
       there. The planner reports both as a null replacement, and for a stream
@@ -209,7 +239,8 @@ def print_unmodified_report(report: MutationReport) -> None:
         fix_errors=report.outcome.fix_errors,
     )
     print(rendered, end="", file=report.destination)
-    print(fix_summary_line(report.outcome), file=report.destination)
+    if summarises_on_the_report(report.options.output_format):
+        print(fix_summary_line(report.outcome), file=report.destination)
 
 
 def print_mutation_report(report: MutationReport) -> None:
@@ -227,10 +258,11 @@ def print_mutation_report(report: MutationReport) -> None:
     write failure the run would exit `2` while printing nothing that explains
     why -- while reporting both would duplicate every phase-one refusal.
 
-    The summary line goes on the report as well as the log, because the log's
-    copy is reached only through `--verbose`. The stream is fixed rather than
-    taken from `report.destination`: a run that wrote files already owns that
-    stream with the diagnostics this one supersedes.
+    The summary line goes on the report as well as the log for text output,
+    because the log's copy is reached only through `--verbose`. JSON is the
+    exception, for the reason `summarises_on_the_report` gives. The stream is
+    fixed rather than taken from `report.destination`: a run that wrote files
+    already owns that stream with the diagnostics this one supersedes.
     """
     print(f"{RERUN_HINT}\n", file=sys.stderr)
     rendered = report.renderer.render(
@@ -239,7 +271,8 @@ def print_mutation_report(report: MutationReport) -> None:
         fix_errors=report.outcome.fix_errors,
     )
     print(rendered, end="", file=sys.stderr)
-    print(fix_summary_line(report.outcome), file=sys.stderr)
+    if summarises_on_the_report(report.options.output_format):
+        print(fix_summary_line(report.outcome), file=sys.stderr)
 
 
 def warn_if_unsafe_withheld(

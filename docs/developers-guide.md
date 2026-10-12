@@ -659,6 +659,15 @@ otherwise report an empty refusal channel for a run that refused edits.
 `emit_fixed_document` prints a stream input's replacement and nothing else, with
 `end=""` so no byte the user did not pipe in is added.
 
+Both reporters append the run-level summary through `summarises_on_the_report`,
+which is where the format rule lives: the sentence belongs on the stream for
+text and must not be for JSON, because the JSON stream is a document a consumer
+parses whole and a trailing sentence makes `json.loads` raise on it. The
+reference to the rule sits at both call sites rather than being duplicated as a
+condition, so a third reporter cannot reintroduce the trailing sentence by
+copying one of them. Nothing is lost by suppressing the copy: `log_fix_summary`
+emits the same sentence at INFO.
+
 ### Rendering
 
 `engine/renderers.py` `RendererRegistry.render` accepts the diagnostics to

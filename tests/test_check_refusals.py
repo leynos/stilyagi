@@ -28,6 +28,7 @@ or, for this module alone:
 """
 
 import io
+import json
 import pathlib
 import typing as typ
 
@@ -289,3 +290,94 @@ class TestWriteFailuresInJsonOutput:
             "expected the serialized refusal to carry the filesystem's reason",
         )
         assert exit_code == 2, "expected a refused write to exit two in JSON too"
+
+
+class TestTheJsonReportParsesWhole:
+    """The complete JSON stream is one document, not a document plus a tail.
+
+    The users' guide promises `--output-format json` yields a stable JSON
+    document, and a consumer reads the stream it is handed rather than a
+    substring of it. Asserting that a refusal *appears* in the output cannot
+    catch a trailing summary sentence, because the substring is still there;
+    only parsing the whole stream does. The assertion is therefore
+    `json.loads(stream.getvalue())` with no trimming and no extraction, and the
+    parsed fields are read back so the test fails on an empty document too.
+    """
+
+    def test_a_run_with_nothing_to_fix_parses_whole(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A no-op run emits a document, not a document with a summary after it.
+
+        This is the case the trailing sentence was appended to unconditionally:
+        a run that fixes nothing still reports, and its report is the one a
+        script is most likely to parse because it is the common case.
+        """
+        target = tmp_path / "notes.md"
+        target.write_text("Clean text.\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        stream = io.StringIO()
+
+        exit_code = cli.run_check(
+            cli.CheckOptions(targets=(target.name,), fix=True, output_format="json"),
+            collaborators=cli.CheckCollaborators(output=stream),
+        )
+
+        document = json.loads(stream.getvalue())
+        assert_with_context(
+            document["diagnostics"] == [],
+            f"expected no diagnostics in {document!r}",
+        )
+        assert_with_context(
+            document["fix_errors"] == [],
+            "expected no refusals from a run with nothing to fix",
+        )
+        assert exit_code == 0, "expected a run that changed nothing to exit zero"
+
+    def test_a_refused_write_parses_whole(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A refusal reaches a parser as a field, not as prose beside the JSON.
+
+        The refusal has to survive the whole-stream parse, because a consumer
+        that cannot parse the report never sees the refusal at all -- the exit
+        status alone tells it the run failed but not why.
+
+        This run changes nothing, so the report goes to the injected stream
+        and the parse is of that stream entire. The mutating case is different
+        and is pinned in `tests/test_check_partial_runs.py`: there the
+        diagnostics move to standard error beside the rerun hint and the
+        progress log, so the document is extracted rather than the stream
+        parsed. Both are recorded because assuming otherwise is a mistake this
+        change actually made.
+        """
+        target = tmp_path / "notes.md"
+        target.write_text("Paragraph text.\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        stream = io.StringIO()
+
+        monkeypatch.setattr(pathlib.Path, "replace", refuse_replace)
+
+        exit_code = cli.run_check(
+            cli.CheckOptions(targets=(target.name,), fix=True, output_format="json"),
+            collaborators=cli.CheckCollaborators(
+                output=stream, rule_runner=rewrite_paragraph
+            ),
+        )
+
+        document = json.loads(stream.getvalue())
+        refusals = document["fix_errors"]
+        assert_with_context(
+            [refusal["identifier"] for refusal in refusals]
+            == ["fix-error/write-failed"],
+            f"expected one refused write in {document!r}",
+        )
+        assert_with_context(
+            refusals[0]["path"] == target.name,
+            "expected the refusal to name the path it left alone",
+        )
+        assert_with_context(
+            "Read-only file system" in refusals[0]["message"],
+            "expected the refusal to carry the filesystem's reason",
+        )
+        assert exit_code == 2, "expected a refused write to exit two"

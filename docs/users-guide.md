@@ -296,9 +296,12 @@ currently analyses Markdown files only (`*.md` and `*.markdown`).
 
 Use `--output-format text` (the default) for human-readable output: one line
 per diagnostic followed by a summary line. Use `--output-format json` for
-machine-readable output: a stable JSON document. `--output-format sarif` is
-planned for a later slice and is not yet available; requesting it fails with a
-message stating it is planned but not yet available.
+machine-readable output: a stable JSON document, and nothing else on the stream
+that carries it. The summary line is part of the text format only, so a program
+can parse the whole stream a run hands it without trimming a human-readable
+sentence off the end; the same sentence is still logged at `--verbose`.
+`--output-format sarif` is planned for a later slice and is not yet available;
+requesting it fails with a message stating it is planned but not yet available.
 
 #### Verbosity and progress logs
 

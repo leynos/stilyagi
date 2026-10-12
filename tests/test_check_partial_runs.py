@@ -17,6 +17,7 @@ or, for this module alone:
 """
 
 import io
+import json
 import pathlib
 import sys
 import typing as typ
@@ -200,3 +201,78 @@ class TestRefusalsInAPartialRun:
             "expected the summary to separate the write from the refusal",
         )
         assert exit_code == 2, "expected a refused write to make the run exit two"
+
+
+def _json_document_in(stream: str) -> str:
+    """Return the JSON document a mutating reporter embedded in its stream.
+
+    The document starts at the first ``{`` and runs to the last ``}``. Those
+    bounds are used rather than a line offset because the reporter's human
+    prose is a prefix, not a suffix: the rerun hint and the console log records
+    precede the document, so the tail of the stream is the document's own
+    closing brace. Slicing to the last brace is what makes the return value
+    fail to parse if a sentence were appended after it -- which is the
+    regression under test.
+
+    Returns
+    -------
+    str
+        The document's own text, without the human prose that precedes it.
+    """
+    return stream[stream.index("{") : stream.rindex("}") + 1]
+
+
+class TestThePartialRunJsonReportKeepsItsDocumentIntact:
+    """A partial run's JSON document is not contaminated by human prose.
+
+    The mutating reporter writes to standard error, which a partial run shares
+    with the rerun hint and with console log records. "The stream parses whole"
+    is therefore *not* the contract here, and asserting it would encode a
+    misunderstanding: the hint and the log are legitimately on that stream. The
+    contract is narrower and is what this pins -- the document is emitted
+    intact, so the JSON a consumer extracts is parseable, and the summary
+    sentence that used to be appended to it is gone.
+    """
+
+    def test_a_partial_run_emits_a_parseable_json_document(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Extract the document from the mutating reporter's stream and parse it.
+
+        The summary sentence is asserted *absent* rather than merely not
+        required, because a trailing sentence after the closing brace is
+        exactly the regression being pinned, and a test that only parsed a
+        substring would pass while it was there.
+        """
+        (tmp_path / "a.md").write_text("Paragraph text.\n", encoding="utf-8")
+        (tmp_path / "b.md").write_text("# Notes\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        stream = io.StringIO()
+        errors = io.StringIO()
+        monkeypatch.setattr(sys, "stderr", errors)
+
+        monkeypatch.setattr(pathlib.Path, "replace", refuse_one_filename("b.md"))
+
+        exit_code = cli.run_check(
+            cli.CheckOptions(targets=("a.md", "b.md"), fix=True, output_format="json"),
+            collaborators=cli.CheckCollaborators(
+                output=stream, rule_runner=plan_one_edit_each
+            ),
+        )
+
+        report = errors.getvalue()
+        document = json.loads(_json_document_in(report))
+        assert_with_context(
+            [refusal["identifier"] for refusal in document["fix_errors"]]
+            == ["fix-error/write-failed"],
+            f"expected the refused write in {document!r}",
+        )
+        assert_with_context(
+            document["fix_errors"][0]["path"] == "b.md",
+            "expected the refusal to name the refused target",
+        )
+        assert_with_context(
+            "files fixed," not in report,
+            f"expected no summary sentence beside the document, got {report!r}",
+        )
+        assert exit_code == 2, "expected a partial run to exit two"

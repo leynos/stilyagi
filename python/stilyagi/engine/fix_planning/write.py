@@ -31,12 +31,14 @@ def write_source(
     staging began, which is exactly the interval that a long planning pass has
     already left behind.
 
-    **Residual race.** Two operations remain between the second check and the
-    swap: `shutil.copystat` and `Path.replace`. Neither can be folded into the
-    comparison, because the filesystem offers no compare-and-swap for a rename.
-    A write landing in that last window is still lost. The guarantee this
-    function gives is therefore "a target that changed before the swap begins is
-    refused", not "a target can never be overwritten".
+    **Residual race.** `shutil.copystat` runs *before* the second comparison,
+    so it is already covered by that check rather than sitting beside it. One
+    operation remains between the comparison and the swap: `Path.replace`,
+    which cannot be folded into the comparison because the filesystem offers no
+    compare-and-swap for a rename. A write landing in that last window is still
+    lost. The guarantee this function gives is therefore "a target that changed
+    before the swap begins is refused", not "a target can never be
+    overwritten".
 
     Parameters
     ----------
