@@ -700,14 +700,16 @@ warning level and echoes it to standard error; logging first would show the
 user the same sentence twice.
 
 Under `--fix`, the status is derived rather than assumed (D-13). `run_check`
-dispatches to `_apply_and_exit`, which plans every file, writes the planned
-ones, and then re-lints only the files it actually mutated. The re-lint's
-diagnostics and errors decide the code, and `had_error` is the union of the
-planning pass's error state and the re-lint's, so a file that failed to read or
-extract still exits `2` whether or not other files were written. A run that
-wrote nothing skips the re-lint entirely and reports the planning pass's own
-diagnostics, which is what keeps `--fix` on a clean tree byte-identical and
-exit-identical to a plain check.
+dispatches to `cli_apply.apply_fixes`, which plans every file, writes the
+planned ones, and then re-lints only the files it actually mutated through
+`cli_run.relint_written_files`. The re-lint's diagnostics and errors decide the
+code, and `had_error` is the union of the planning pass's error state and the
+re-lint's, so a file that failed to read or extract still exits `2` whether or
+not other files were written. `cli_run.reconcile_written_files` is what pairs
+each re-linted file back to its plan. A run that wrote nothing skips the
+re-lint entirely and reports the planning pass's own diagnostics, which is what
+keeps `--fix` on a clean tree byte-identical and exit-identical to a plain
+check.
 
 This is not a fixpoint loop. RFC 0003 §12's "0 when all found violations were
 fixed" is not computable in a single pass without *assuming* that applying a

@@ -99,6 +99,59 @@ def test_write_source_applies_a_fix_when_the_original_bytes_still_match(
     assert target.read_bytes() == b"planned fix\n", "expected the planned fix"
 
 
+def test_write_source_refuses_a_target_edited_during_staging(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refuse an edit that lands after staging but before the swap.
+
+    The staging window is the dangerous one, and the check that ran before it
+    cannot cover it: by the time the replacement bytes are on disk, a planning
+    pass may have been in flight for minutes. Without a second comparison the
+    swap would overwrite the intervening edit with bytes derived from a source
+    that no longer exists -- silently, and with no refusal recorded.
+
+    `shutil.copystat` is the deterministic hook for this window, because
+    `write_source` calls it in the interval between staging the replacement and
+    replacing the target. The stub performs the edit first and then copies the
+    metadata, so the target changes at exactly the moment the old code would
+    have stopped looking. Nothing here depends on timing or on a real
+    concurrent writer.
+
+    The edit has to survive *and* the staged file has to be gone: a refusal that
+    left the temporary file behind would trade silent data loss for visible
+    litter next to the user's source.
+    """
+    import shutil
+
+    from stilyagi.engine.fix_planning.write import (
+        SourceChangedOnDiskError,
+        write_source,
+    )
+
+    target = tmp_path / "notes.md"
+    target.write_bytes(b"planned\n")
+    before_entries = sorted(entry.name for entry in tmp_path.iterdir())
+    real_copystat = shutil.copystat
+
+    def edit_then_copy(source: object, destination: object) -> None:
+        """Change the target, then preserve metadata as the real call would."""
+        target.write_bytes(b"human edit during staging\n")
+        real_copystat(source, destination)
+
+    monkeypatch.setattr(shutil, "copystat", edit_then_copy)
+
+    with pytest.raises(SourceChangedOnDiskError, match="changed on disk"):
+        write_source(target, b"planned fix\n", original_bytes=b"planned\n")
+
+    assert target.read_bytes() == b"human edit during staging\n", (
+        "expected the mid-staging edit to survive the refusal"
+    )
+    assert sorted(entry.name for entry in tmp_path.iterdir()) == before_entries, (
+        "expected the refused write to leave no temporary file behind"
+    )
+
+
 def test_write_source_leaves_no_temporary_file_when_staging_fails(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,

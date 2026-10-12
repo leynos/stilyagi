@@ -149,7 +149,16 @@ def _log_plan(plan: FixPlan, selected: CandidatePartition) -> FixPlan:
                 for rejection in plan.rejections
             ),
             "source_backed_spans": plan.source_backed_spans,
-            "patch_byte_count": len(plan.fixed_bytes)
+            # The whole replacement document, named for what it measures. This
+            # field used to be called `patch_byte_count` while holding this
+            # value -- a different quantity wearing a patch's name, so a plan
+            # rewriting one line of a thousand-line file reported a
+            # near-whole-file count to anything sizing a review's patch. The
+            # planner cannot render a real patch: `FixPlanRequest` carries no
+            # reported path, so there is no header to measure. The rendered
+            # patch's byte count is measured where the patch is rendered, in
+            # `cli._render_and_exit`.
+            "replacement_byte_count": len(plan.fixed_bytes)
             if plan.fixed_bytes is not None
             else 0,
         },

@@ -4,9 +4,10 @@ import dataclasses as dc
 import logging
 import pathlib
 import sys
+import time
 import typing as typ
 
-from stilyagi import cli_fix, config, diagnostics, discovery, engine
+from stilyagi import cli_apply, cli_log, config, diagnostics, discovery, engine
 from stilyagi.cli_args import (
     PACKAGE_VERSION,
     CheckOptions,
@@ -14,26 +15,22 @@ from stilyagi.cli_args import (
     options_from_args,
 )
 from stilyagi.cli_config import resolve_discovery_config
-from stilyagi.cli_io import CheckInput, report_check_error, stdin_check_input
+from stilyagi.cli_io import (
+    CheckInput,
+    report_check_error,
+    stdin_check_input,
+    write_artefact,
+)
 from stilyagi.cli_pipeline import (
     CheckedFile,
     CheckReporter,
     CheckRun,
 )
-from stilyagi.cli_run import (
-    aggregate_checked_files,
-    collect_checked_files,
-    reconcile_written_files,
-    relint_written_files,
-)
-from stilyagi.fix_execution import apply_planned_fixes, deferred_plans
+from stilyagi.cli_run import aggregate_checked_files, collect_checked_files
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
-
-    from stilyagi.cli_run import CheckedFiles
-    from stilyagi.fix_execution import FixOutcome
 
 __all__ = [
     "PACKAGE_VERSION",
@@ -118,11 +115,20 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
 
 
 def _configure_logging(options: CheckOptions) -> None:
-    """Apply the requested verbosity level before running the check loop."""
+    """Apply the requested verbosity level before running the check loop.
+
+    The handler is `cli_log.log_handler`, not the stdlib default. The default
+    formatter renders the log message alone and drops `extra` entirely, so a
+    structured record arrived at the user as its bare sentence -- the planner's
+    per-file decision printed as `fix plan decided`, with no file identity and
+    none of the counters that are the reason the record exists. Installing the
+    handler here rather than in an entry point keeps `--verbose` the single
+    switch that decides whether any of it is shown.
+    """
     if options.silent or options.quiet:
-        logging.basicConfig(level=logging.WARNING)
+        logging.basicConfig(level=logging.WARNING, handlers=[cli_log.log_handler()])
     elif options.verbose:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, handlers=[cli_log.log_handler()])
 
 
 def run_check(
@@ -185,9 +191,33 @@ def run_check(
         rule_runner=resolved_collaborators.rule_runner,
         report=resolved_collaborators.reporter,
     )
+    started = time.perf_counter()
     checked_files = collect_checked_files(discovered_files, run)
+    # Logged at the command boundary rather than in the planner: the planner
+    # records what it *decided*, and a target it never planned -- a file with no
+    # fixable diagnostic, or a stream input -- would otherwise be missing from
+    # any timing record. The unit is whole-check elapsed milliseconds, covering
+    # discovery, extraction, config resolution, rule running, and planning.
+    _LOGGER.info(
+        "check pass finished",
+        extra={
+            "operation": "collect_checked_files",
+            "elapsed_ms": cli_apply.elapsed_ms(started),
+            "checked_files": len(checked_files),
+        },
+    )
     if options.fix:
-        return _apply_and_exit(checked_files, run, options, resolved_collaborators)
+        applied = cli_apply.apply_fixes(
+            checked_files, run, options, resolved_collaborators
+        )
+        # The exit policy is stated once, here, rather than in the module that
+        # performs the writes: a write failure is an operational error even when
+        # the re-lint found nothing left to report, and that coupling is a
+        # command-level decision about what an outcome means.
+        return compute_exit_code(
+            applied.checked.diagnostics_list,
+            had_error=applied.checked.error or applied.outcome.write_failed,
+        )
     return _render_and_exit(checked_files, options, resolved_collaborators)
 
 
@@ -214,88 +244,39 @@ def _render_and_exit(
     diagnostics_output = sys.stderr if options.diff else resolved_collaborators.output
     print(rendered, end="", file=diagnostics_output)
     if options.diff:
-        print("".join(aggregate.patches), end="", file=resolved_collaborators.output)
+        # The patch is a machine artefact a user pipes into `git apply`, so it
+        # goes through the byte-preserving boundary rather than through a text
+        # stream that would re-encode it (D-10).
+        diff_started = time.perf_counter()
+        patch = "".join(aggregate.patches).encode("utf-8")
+        # The rendered patch's real size, measured where the patch is actually
+        # rendered. The planner cannot report this: `FixPlanRequest` carries no
+        # reported path, so it has no header to measure and its own byte field
+        # counts the replacement document instead. A `--diff` run planning at
+        # least one file is the only case where a patch exists, so this record
+        # is the only place the quantity is observable at all.
+        #
+        # `planned_files` and `patched_files` are both here because the failed
+        # case has no other signal. A plan whose replacement restores the bytes
+        # already present, or one every edit was refused for, contributes an
+        # empty patch rather than no patch, so the run emits nothing while
+        # having planned something. The two counters differing is that state,
+        # and it is indistinguishable in the output alone -- an empty stdout
+        # looks the same whether nothing was planned or everything was refused.
+        _LOGGER.info(
+            "diff rendered",
+            extra={
+                "operation": "render_diff",
+                "patch_byte_count": len(patch),
+                "planned_files": len(aggregate.patches),
+                "patched_files": len([entry for entry in aggregate.patches if entry]),
+                "elapsed_ms": cli_apply.elapsed_ms(diff_started),
+            },
+        )
+        write_artefact(resolved_collaborators.output, patch)
     exit_code = compute_exit_code(aggregate.diagnostics_list, had_error=aggregate.error)
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
-
-
-def _fix_exit_code(checked: CheckedFiles, outcome: FixOutcome) -> int:
-    """Return the exit status a mutating run's current state implies.
-
-    Both tails of `_apply_and_exit` state this same policy, and a third would
-    have had to remember to thread `write_failed` as well. Naming it once keeps
-    that obligation in one place.
-
-    Returns
-    -------
-    int
-        Zero when no diagnostics remain, one when any do, two on an error.
-    """
-    return compute_exit_code(
-        checked.diagnostics_list,
-        had_error=checked.error or outcome.write_failed,
-    )
-
-
-def _apply_and_exit(
-    checked_files: cabc.Sequence[CheckedFile],
-    run: CheckRun,
-    options: CheckOptions,
-    resolved_collaborators: CheckCollaborators,
-) -> int:
-    """Write every planned fix, re-lint what changed, and report the outcome.
-
-    The exit status comes from the re-lint rather than from the plan, so a fix
-    that did not remove its diagnostic still exits one (D-13). A file that
-    failed to read or extract still exits two, whether or not other files were
-    written.
-
-    Returns
-    -------
-    int
-        Zero when no diagnostics remain, one when any do, two on an error.
-    """
-    plans = tuple(
-        checked.result.planned
-        for checked in checked_files
-        if checked.result.planned is not None
-    )
-    cli_fix.warn_if_unsafe_withheld(plans, options)
-    outcome = apply_planned_fixes(tuple(deferred_plans(plan) for plan in plans))
-    cli_fix.log_fix_summary(plans, outcome)
-    cli_fix.emit_fixed_document(plans, resolved_collaborators.output)
-
-    checked = aggregate_checked_files(checked_files)
-    if not outcome.changed_anything:
-        # A stream input already owns standard output with its fixed document,
-        # so its report has to go to standard error instead.
-        stream_input = any(plan.from_stdin for plan in plans)
-        cli_fix.print_unmodified_report(
-            checked,
-            options,
-            resolved_collaborators.renderer,
-            sys.stderr if stream_input else resolved_collaborators.output,
-        )
-        return _fix_exit_code(checked, outcome)
-
-    # The re-lint is authoritative only for the files this run wrote; every
-    # other file still holds the bytes the planning pass read, so its planning
-    # diagnostics stand. Overlaying keeps both, and keeps file order.
-    relinted = aggregate_checked_files(
-        reconcile_written_files(
-            checked_files,
-            relint_written_files(outcome.applied, run),
-            outcome.applied,
-        )
-    )
-    cli_fix.print_mutation_report(
-        relinted,
-        options,
-        resolved_collaborators.renderer,
-        outcome,
-    )
-    return _fix_exit_code(relinted, outcome)
 
 
 def compute_exit_code(

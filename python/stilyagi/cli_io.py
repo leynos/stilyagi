@@ -1,4 +1,17 @@
-"""Read byte-faithful check inputs and report command-line file failures."""
+"""Move check bytes across the command boundary without altering them.
+
+Both directions of the CLI's byte traffic live here. `read_source` and
+`read_stdin_bytes` bring a document in exactly as it is stored, with no newline
+translation and no re-encoding; `write_artefact` sends a produced document back
+out under the same constraint. Keeping the two halves in one module is what
+makes the fidelity claim checkable in a single place: a reader that is faithful
+and a writer that is not would still lose bytes, and neither module would look
+wrong on its own.
+
+The failures this boundary reports are *expected* ones -- an unreadable file, a
+document that is not UTF-8 -- and `report_check_error` is the command's default
+reporter for them. Nothing here chooses an exit status.
+"""
 
 import dataclasses as dc
 import logging
@@ -16,6 +29,7 @@ __all__ = [
     "read_stdin_bytes",
     "report_check_error",
     "stdin_check_input",
+    "write_artefact",
 ]
 
 _LOGGER = logging.getLogger(__name__)
@@ -181,6 +195,47 @@ def read_stdin_bytes() -> bytes:
     if buffer is not None:
         return typ.cast("typ.BinaryIO", buffer).read()
     return sys.stdin.read().encode("utf-8")
+
+
+def write_artefact(output: typ.TextIO, payload: bytes) -> None:
+    r"""Write one production artefact without letting the stream transcode it.
+
+    D-10 requires byte fidelity, and a text stream cannot supply it: default
+    standard output translates ``\n`` to the platform separator, and it encodes
+    with whatever the locale selected rather than UTF-8. The read and splice
+    stages are byte-faithful, so a lossy final write would be the one place the
+    pipeline broke a promise it had kept everywhere else.
+
+    The binary buffer is preferred when the stream has one, which is the exact
+    mirror of `read_stdin_bytes` reaching standard input the same way. A stream
+    that is itself binary is written directly. Anything else -- an injected
+    `StringIO`, which is the documented injection contract -- falls back to
+    decoding, so the seam keeps working for callers that supply text.
+
+    Parameters
+    ----------
+    output:
+        The stream to write to. Standard output and pytest's capture both
+        expose ``.buffer``; an injected text stream does not.
+    payload:
+        The exact bytes to write.
+
+    Examples
+    --------
+    >>> import io
+    >>> sink = io.StringIO()
+    >>> write_artefact(sink, "caf\\u00e9\\r\\n".encode())
+    >>> sink.getvalue() == "caf\\u00e9\\r\\n"
+    True
+    """
+    buffer = getattr(output, "buffer", None)
+    if buffer is not None:
+        typ.cast("typ.BinaryIO", buffer).write(payload)
+        return
+    if isinstance(output, typ.BinaryIO):
+        output.write(payload)
+        return
+    output.write(payload.decode("utf-8"))
 
 
 def report_check_error(path: pathlib.Path | None, error: Exception) -> None:

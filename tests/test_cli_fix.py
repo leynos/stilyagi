@@ -6,8 +6,8 @@ took place at all, while this function decides only what a stream input's fixed
 document looks like on the way out. The command-level coverage for a piped
 input lives in `tests/test_check_mutation.py`.
 
-Driving the function directly is also the only way to see two of the three
-outcomes. A command-level test necessarily uses a document the rest of the
+Driving the function directly is also the only way to see all three outcomes
+side by side. A command-level test necessarily uses a document the rest of the
 pipeline accepts, so it cannot present a plan whose every edit was refused, and
 it cannot present one that merely looks like a stream input without being one.
 
@@ -34,7 +34,7 @@ if typ.TYPE_CHECKING:
 
 
 class TestFixedDocumentEmission:
-    """`emit_fixed_document` prints a piped file's replacement and nothing else."""
+    """`emit_fixed_document` decides what one piped input contributes."""
 
     def test_a_stream_input_prints_its_replacement_verbatim(self) -> None:
         """The piped document is emitted with no decoration added.
@@ -79,24 +79,63 @@ class TestFixedDocumentEmission:
             "expected a file input's replacement to stay off standard output",
         )
 
-    def test_a_conflicted_stream_input_prints_nothing(self) -> None:
-        """A plan with no replacement has no document to emit.
+    def test_an_unchanged_stream_input_prints_its_source(self) -> None:
+        """A clean piped document is emitted even though nothing was planned.
 
-        A stream input whose every edit was refused has `fixed_bytes` of
-        ``None``, and there is nothing honest to print: emitting the unchanged
-        source would tell a user their document was fixed. The guard folds "no
-        replacement" and "not from a stream" into one decision, so this case and
-        the file case are asserted separately -- they differ in why nothing is
-        printed, and a regression could collapse either reason.
+        The planner reports two different events as a null `fixed_bytes`: a
+        refusal, and a plan that would rewrite spans with the bytes already
+        there. Only the first means the input was rejected. Treating both as
+        "emit nothing" loses the user's own text -- `cat notes.md | stilyagi
+        check -` is a documented pipeline, and a command that prints nothing
+        there hands back an empty file where a document should be.
+
+        The plan's source and replacement are byte-identical, which is exactly
+        what `planned_file` uses to produce a null `fixed_bytes` with no
+        refusals recorded.
         """
         stream = io.StringIO()
         plan = _piped_plan("Paragraph text.", "Paragraph text.")
 
-        cli_fix.emit_fixed_document([plan], stream)
+        emitted = cli_fix.emit_fixed_document([plan], stream)
+
+        assert_with_context(
+            stream.getvalue() == "Paragraph text.",
+            "expected an unchanged stream input to emit its own source bytes",
+        )
+        assert_with_context(
+            emitted,
+            "expected an emitted document to be reported as occupying stdout",
+        )
+
+    def test_a_refused_stream_input_prints_nothing(self) -> None:
+        """A plan whose every edit was refused has no document to emit.
+
+        This is the case the null `fixed_bytes` has to be read together with the
+        refusal channel to distinguish: the source is unchanged here too, but
+        emitting it would tell a user their document was fixed when the planner
+        refused every edit they asked for. The refusal is already on its own
+        channel, which is why nothing goes to standard output.
+        """
+        stream = io.StringIO()
+        plan = dc.replace(
+            planned_file(
+                "notes.md",
+                "Paragraph text.",
+                source_text="Paragraph text.",
+                identifiers=("PUN201/unsafe-span",),
+            ),
+            from_stdin=True,
+        )
+
+        emitted = cli_fix.emit_fixed_document([plan], stream)
 
         assert_with_context(
             not stream.getvalue(),
             "expected a refused stream input to emit no document",
+        )
+        assert_with_context(
+            not emitted,
+            "expected a refused stream input to leave standard output free",
         )
 
 

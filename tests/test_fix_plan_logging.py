@@ -31,7 +31,7 @@ _REQUIRED_FIELDS = frozenset({
     "rejection_category",
     "conflict_state",
     "source_backed_spans",
-    "patch_byte_count",
+    "replacement_byte_count",
 })
 
 
@@ -133,10 +133,10 @@ def test_planner_emits_one_event_naming_every_counter(
             record.candidate_count,
             record.accepted_count,
             record.rejection_count,
-            record.patch_byte_count,
+            record.replacement_byte_count,
         )
         == ("plan_fixes", "fixed", 1, 1, 0, len(plan.fixed_bytes or b"")),
-        "expected the fixed outcome to count its candidate, edit and patch bytes",
+        "expected the fixed outcome to count its candidate, edit and bytes",
     )
 
 
@@ -255,7 +255,7 @@ def test_planner_defaults_a_quiet_file_to_zero_counters(
             record.accepted_count,
             record.rejection_count,
             record.rejection_category,
-            record.patch_byte_count,
+            record.replacement_byte_count,
         )
         == ("unchanged", 0, 0, 0, None, 0),
         "expected a quiet file to report zeroes and no rejection category",

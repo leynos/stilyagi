@@ -185,7 +185,12 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--config",
         action="append",
-        default=(),
+        # A list, for the reason `_add_rule_code_argument` documents: `append`
+        # copies the default and appends to the copy, so a tuple default raises
+        # `AttributeError: 'tuple' object has no attribute 'append'` the first
+        # time the flag is used. The parsed list is normalised to a tuple by
+        # `options_from_args`.
+        default=[],
         metavar="VALUE",
         help="Use one explicit config file or inline TOML fragment.",
     )

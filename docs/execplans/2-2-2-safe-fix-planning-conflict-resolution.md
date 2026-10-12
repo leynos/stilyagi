@@ -1598,10 +1598,15 @@ with `git checkout -- tests/__snapshots__/`.
 
 The one destructive operation is `--fix` writing to a user's file. Its recovery
 path is the atomic write: content goes to a temporary file and moves into place
-with `os.replace`, so an interrupted run leaves the original intact, and
-two-phase execution means an interruption cannot leave a half-fixed tree. When
-developing, only run `--fix` against `tmp_path` fixtures or a scratch directory
-— never against the repository's own Markdown, which is gated by markdownlint.
+with `os.replace`, so an interrupted run leaves the original intact *for the
+file being written*. That guarantee is per file, not per run. Two-phase
+execution plans every file before the first write, so an interruption leaves a
+partial tree with a complete record of what was planned — it does **not**
+prevent a half-fixed tree, and `apply_planned_fixes` states the same limit in
+its own docstring. Files written before the interruption keep their new bytes.
+When developing, only run `--fix` against `tmp_path` fixtures or a scratch
+directory — never against the repository's own Markdown, which is gated by
+markdownlint.
 
 If a milestone goes wrong, `git reset --hard` to the previous milestone's
 commit. That is why each milestone commits separately.
@@ -3834,3 +3839,210 @@ every step after it is unverified, and "the gates fail on X" silently means "X
 is the first thing that failed". The line number is the honest part of the
 report, and the only trustworthy reading of a clean pass is one that names the
 last step that *ran*.
+
+## Revision 45 (2026-10-12): the assessment defects closed, and three claims re-proved by mutation
+
+The `execplan-completeness-04b984da-1` assessment returned five in-scope
+defects, four documentation corrections, and one disposition of its own earlier
+claims. This revision records what was done about each, and -- more usefully --
+how each new test was shown to be load-bearing rather than merely green.
+
+It also carries the assessment's two explicit retractions, because a reader of
+the older revisions would otherwise find them contradicted here: `--fix` is
+**not** missing and was implemented before the assessment (Revision 43's
+finding was about its *reporting*, not its existence), and **no new Python
+tracing stack is required**. The existing stdlib logging boundary is a valid
+implementation choice, and the assessment says so directly.
+
+### 45.1 The five defects
+
+| #   | Defect                                               | Repair                                                                                                                                                                  |
+| --- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Execution refusals dropped when no file was written  | `print_unmodified_report` and `print_mutation_report` both render `outcome.fix_errors`, the only channel holding all of them                                            |
+| 2   | A clean stream input produced an empty document      | `_document_bytes` distinguishes a refused plan from an unchanged one; the unchanged case emits `source_bytes`                                                           |
+| 3   | Artefacts written through text streams               | `write_artefact` reaches the binary buffer, with a decoding fallback for injected text streams                                                                          |
+| 4   | Stale-plan check covered only the pre-staging window | `write_source` revalidates after staging and before the swap, and documents the residual race                                                                           |
+| 5   | Operational summary incomplete or invisible          | `cli_log` renders structured fields; the summary line reaches standard error; refusal detail is logged before collapse; the diff-render record measures the drawn patch |
+
+### 45.2 The tests that were re-proved rather than assumed
+
+The assessment's standing objection is that passing tests are not evidence of
+coverage, so each new test was checked by breaking the code it claims to pin
+and confirming the test fails. Three of them had to be **rewritten** because
+the first version passed against the defect:
+
+**The byte-fidelity subprocess test was vacuous.** Its first version passed
+against a deliberately lossy writer
+(`sys.stdout.write(payload.decode("utf-8"))`). The reason is environmental: on
+Linux `os.linesep` is `\n` and Python 3.14 forces UTF-8 stdout even under
+`LC_ALL=C`, so the lossy and binary writers emit identical bytes and the
+assertion could not tell them apart. Forcing `PYTHONIOENCODING=latin-1` creates
+a real discriminator -- latin-1 encodes `é` as one byte where UTF-8 needs two
+-- and the test then failed against the lossy writer as it should. The
+docstring records that the hostile encoding was verified necessary, so a future
+reader does not remove it as decoration.
+
+**The staging-window test needed a deterministic hook.** Concurrency would make
+it flaky, so it intercepts `shutil.copystat`, which `write_source` calls
+exactly between staging the replacement and swapping it in. Neutering the
+revalidation to `if False and ...` made the test fail with
+`DID NOT RAISE SourceChangedOnDiskError`.
+
+**The field-list drift test scans the source.** It parses every `extra=` dict
+literal under `python/stilyagi` and asserts the union is exactly
+`cli_log.STRUCTURED_FIELDS`. Removing one entry from the list makes it fail with
+`unlisted: ['patched_files']`. A restated list would have agreed with itself.
+
+The remaining new tests were confirmed discriminating in the same way, one at a
+time: the JSON `--diff` refusal test, the unsafe-only diff case, the `--diff`
+render-record pair, and the ordered `--config` parser pins.
+
+### 45.3 The unsafe-only diff case, and why it is not vacuous
+
+`test_an_unsafe_only_diagnostic_exits_one_without_a_patch` asserts an empty
+patch, and an empty patch has an obvious vacuous reading: maybe nothing was
+planned at all. That reading was ruled out by driving the *same* runner through
+`--fix --unsafe-fixes`, which writes the file and re-lints clean. So the edit
+is well-formed, admissible, and source-backed -- it is excluded by the
+applicability level alone, which is precisely the case the users' guide's
+second bullet describes.
+
+The runner guards its needle lookup for the same reason: a mutating run re-runs
+it over the rewritten file, where "Paragraph" is gone, and an unguarded lookup
+would turn a successful fix into a crash. This mirrors the mixed-outcome runner
+in `test_check_mutation`.
+
+### 45.4 A pre-existing defect fixed alongside, as the assessment allowed
+
+`--config` combined `action="append"` with `default=()`. argparse's `append`
+copies the default before appending to it, and copying a tuple yields a tuple,
+so the flag raised `AttributeError: 'tuple' object has no attribute 'append'`
+the first time it was used -- it had never worked. The assessment confirmed the
+same code exists at the comparison base, so this is pre-existing rather than
+branch-introduced. It is fixed at the site, with two parser pins, because it is
+the same shape as the `--select`/`--ignore`/`--extend-select` defect already
+repaired and the rationale had to be restated at the call site the shared
+helper does not build.
+
+### 45.5 Documentation corrected
+
+Three statements the assessment identified as wrong, all of which were claims
+about behaviour that the code does not provide:
+
+- The execplan's recovery section claimed two-phase execution "means an
+  interruption cannot leave a half-fixed tree". It can: the guarantee is per
+  file, not per run, and `apply_planned_fixes` says so in its own docstring.
+  The paragraph now states the limit and points at the implementation.
+- `docs/users-guide.md` said an empty `--diff` patch exits `0`. Three distinct
+  situations produce an empty patch and only the first exits `0`; the second
+  (no *safe* fix eligible) and third (eligible fix refused) both exit `1`. The
+  guide now lists the three cases, and each has a test.
+- The subprocess-coverage limitation note is **retained**, not removed. It
+  remains true: fix-producing rules are still not reachable through a real
+  subprocess, so the rule-dependent halves are covered by injected
+  collaborators. The new byte-fidelity case narrows the gap -- it exercises the
+  production stream boundary for real -- without closing it.
+
+### 45.6 The diff-rendering failure signal
+
+The assessment's last observability gap was a missing failure signal at the
+diff-rendering boundary. The signal needed care, because diff rendering has no
+exception to catch that would distinguish anything: `patch_for` returns the
+empty string for a plan with no replacement, and a refusal produces the same
+empty string as a plan with nothing to do.
+
+The state that actually needs naming is therefore a *disagreement* -- a file
+was planned and contributed no patch -- and the record carries `planned_files`
+and `patched_files` as separate counters for exactly that. One counter would
+report `0` and be indistinguishable from a run that never planned anything. The
+record also carries `elapsed_ms`, measured around the render itself, and
+`patch_byte_count`, measured on the assembled patch rather than on the
+replacement document (`replacement_byte_count` already measures that, in
+`plan.py`, and the two are different quantities: a unified diff carries a
+header, hunk context and markers the replacement does not).
+
+`cli_log.STRUCTURED_FIELDS` gained both new keys. That is the failure mode the
+drift test exists to catch -- without the test, a field written and never
+rendered passes every other assertion in the suite while being invisible to the
+human the record is for.
+
+### 45.7 What is still unverified
+
+### 45.8 The proof inventory, answered rather than waived
+
+The assessment asks for the introduced or materially changed proofs and their
+scrutiny. This is **not** a `not applicable`: the branch introduces property
+tests, and they carry contract claims that are the reason the planning kernel
+is trusted. Listing them is the honest answer; declining the question would
+have been wrong.
+
+**What the branch introduces.** `tests/test_fix_planner_properties.py` (274
+lines) and its strategy module `tests/support/fix_plan_strategies.py` (125
+lines) are both new. The properties, and what each actually constrains:
+
+| Property                              | Claim                                                                            |
+| ------------------------------------- | -------------------------------------------------------------------------------- |
+| splice matches an independent oracle  | The production cursor splice agrees with a separate right-to-left implementation |
+| splice length matches byte arithmetic | Removed and inserted UTF-8 lengths account for the result exactly                |
+| splice is permutation-invariant       | Caller ordering cannot affect the output bytes                                   |
+| exact duplicates coalesce             | Adding a byte-identical duplicate edit does not change the output                |
+| accepted edits stay in one span       | Every accepted planned edit lies inside a single source-backed span              |
+| in-place edits offer nothing          | An accepted edit rewriting a span with its own bytes reports no replacement      |
+| straddling edits always abort         | A span crossing into synthetic text aborts the whole file's plan                 |
+| conflicting edits never produce bytes | Two different replacements for one span preserve the source                      |
+| empty plans offer nothing             | No eligible fixes means no replacement to write                                  |
+| accepted plans remain valid UTF-8     | Accepted edits leave decodable source bytes                                      |
+
+The oracle property is the load-bearing one: `apply_edits_naively` is a
+deliberately separate implementation, so agreement is evidence about the kernel
+rather than a restatement of it.
+
+**What is deliberately not here.** No `verus`, no `kani`, no `CrossHair`. D-01
+records the reason and it is specific, not a preference: both Rust proof tools
+are absent from the workspace, the kernel they would verify is Python (by D-01,
+because fixes are produced by Python rules), and standing up a proof toolchain
+on the branch whose job is to ship the safety property would trade the property
+for its ceremony. `hypothesis` is the Python analogue and is already a dev
+dependency. This is a scoped decision with a recorded rationale, not an
+omission.
+
+**A second oracle, and what it is not.**
+`crates/stilyagi-test-support/src/ round_trip_edits.rs` gained a
+module-docstring paragraph this round stating that it is a golden-fixture
+oracle, deliberately stricter than the production kernel on identical edits,
+and that the strictness is intended under RFC 0002 §10 rather than a divergence
+to fix. It was added because the temptation is real: a stricter instrument
+reports differences that are not defects, and a future reader would otherwise
+"fix" the oracle into agreement with the code it exists to check. Nothing
+executable changed there -- three doc lines.
+
+**The scrutiny limit.** These properties are evidence at `max_examples=64` per
+property, which is Hypothesis's default-adjacent setting and is a *sample*, not
+an exhaustive or symbolic result. They say the kernel agrees with its oracle
+across 64 drawn cases each; they do not say it agrees for every input. That is
+the correct scope for this kernel and it is stated here so no reader upgrades
+it into a proof it is not.
+
+### 45.9 What is still unverified
+
+Nothing in this revision is evidence about the gate chain. Every claim above
+rests on targeted suites run directly, not on `make lint` reaching its last
+step, and the assessment is explicit that hosted checks establish gate success
+rather than coverage of these paths. The full chain still has to run -- and per
+Revision 44, steps after the first failure remain unverified until it does.
+
+### Lesson: prove the test can fail, or it proves nothing
+
+Three tests in this round were green and worthless. The byte-fidelity one
+asserted a property the environment made true for *both* implementations; the
+diff-render one would have passed on a field nobody rendered; the unsafe-only
+one could have been satisfied by planning nothing at all. None of them was
+detectably wrong from the suite output -- all three looked exactly like a
+passing test.
+
+The habit that caught them was mechanical: before trusting a new test, break
+the thing it claims to pin and confirm the test fails. It is the same lesson
+Revision 43 recorded for the `--config` probe ("probe it, do not read it") and
+Revision 44 for the planner's event ("assert the failure mode is the right
+one"), arriving a third time from a third direction. A test's green light is a
+claim about the test, not about the code.

@@ -199,6 +199,95 @@ def test_python_module_entrypoint_keeps_standard_output_clean_for_a_diff(
     )
 
 
+def test_python_module_entrypoint_writes_a_stream_document_byte_for_byte(
+    tmp_path: pathlib.Path,
+) -> None:
+    r"""A piped document survives a hostile stdout without losing a byte.
+
+    This is the one test that exercises the *production* output boundary. Every
+    other fix-output test injects a `StringIO`, which cannot fail the way a real
+    stream does: `StringIO` neither translates newlines nor chooses an encoding,
+    so it would pass even if the command wrote through `print` to a locale-coded
+    text stream.
+
+    The child is given `PYTHONIOENCODING=latin-1`, which is the load-bearing
+    part of this test rather than decoration. Under a UTF-8 stream a text write
+    of this document produces the same bytes as a binary one, so the assertion
+    below would hold either way and prove nothing -- verified by running it
+    against a deliberately lossy writer, which passed until the encoding was
+    forced. Latin-1 can encode `é` (as one byte, `0xe9`) where UTF-8 needs two,
+    so the two writers disagree on the wire and the assertion can tell them
+    apart. The bytes are still expected to be UTF-8: `write_artefact` reaches
+    the binary buffer, which no text-stream setting can influence.
+
+    `--fix` is what makes the command produce a document at all: a stream input
+    is never written to disk, so without the flag this is a plain check and
+    standard output carries the summary instead. With the flag and nothing to
+    fix, the planner reports an unchanged plan and the command emits the source,
+    which is precisely the path this test is about.
+    """
+    source = "Café text.\r\nSecond line."
+    completed = _run_check_bytes(
+        tmp_path,
+        source.encode("utf-8"),
+        "--fix",
+        env_overrides={"PYTHONIOENCODING": "latin-1"},
+    )
+
+    assert_with_context(
+        completed.stdout == source.encode("utf-8"),
+        f"expected the document back byte for byte, got {completed.stdout!r}",
+    )
+    assert_with_context(
+        b"files fixed, " in completed.stderr,
+        f"expected the report on standard error, got {completed.stderr!r}",
+    )
+
+
+def _run_check_bytes(
+    cwd: pathlib.Path,
+    stdin_bytes: bytes,
+    *flags: str,
+    env_overrides: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run `check -` over a byte stream and capture its streams as bytes.
+
+    `_run_check` captures text, which is the right choice for asserting a
+    rendered report and the wrong one here: decoding the child's output at the
+    test boundary would repair exactly the corruption the caller wants to
+    observe. This helper keeps both sides in bytes so the comparison is a
+    comparison of what was actually written.
+
+    Parameters
+    ----------
+    cwd:
+        The directory to run in, which is also the discovered target.
+    stdin_bytes:
+        The exact bytes to pipe into the command.
+    *flags:
+        Extra command-line flags, inserted after the subcommand.
+    env_overrides:
+        Environment values to set for the child, on top of the importable
+        `PYTHONPATH`. Used to hand the child a stream configuration that would
+        expose a non-byte-faithful writer.
+
+    Returns
+    -------
+    subprocess.CompletedProcess
+        The finished process, with its streams captured as bytes.
+    """
+    env = python_module_environment()
+    env.update(env_overrides or {})
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted interpreter, fixed flags, no shell.
+        [sys.executable, "-m", "stilyagi", "check", *flags, "-"],
+        cwd=cwd,
+        env=env,
+        input=stdin_bytes,
+        capture_output=True,
+        check=False,
+    )
+
+
 def _tree_bytes(root: pathlib.Path) -> dict[str, bytes]:
     """Return every file under ``root`` mapped to its bytes.
 

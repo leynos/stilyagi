@@ -300,6 +300,48 @@ machine-readable output: a stable JSON document. `--output-format sarif` is
 planned for a later slice and is not yet available; requesting it fails with a
 message stating it is planned but not yet available.
 
+#### Verbosity and progress logs
+
+Three flags control how much the command narrates what it did. The diagnostics
+themselves are unaffected: all three change logging only, never which findings
+are reported or what the exit code is.
+
+| Flag        | Level logged | Formatted fields                       |
+| ----------- | ------------ | -------------------------------------- |
+| *(none)*    | `WARNING`    | No; warnings print unformatted.        |
+| `--verbose` | `INFO`       | Yes.                                   |
+| `--quiet`   | `WARNING`    | Yes.                                   |
+| `--silent`  | `WARNING`    | Yes; currently identical to `--quiet`. |
+
+`--verbose` is the only flag that raises the level above warning. It is what
+shows the progress records: which files were discovered, what the planner
+decided per file, how long a pass took. Progress records go to standard error,
+so `--verbose` never contaminates a pipeline. Each begins with a level, the
+emitting logger, and the message:
+
+```text
+INFO stilyagi.cli: check pass finished (checked_files=1, elapsed_ms=1, operation='collect_checked_files')
+```
+
+The parenthesized tail is the record's structured fields. They carry the values
+the message alone cannot — file identity, counters, durations — and they are
+rendered in a fixed alphabetical order so two runs are comparable by eye. The
+fields a run emits depend on what it did; the ones a `check --diff` run emits
+are described under
+[Previewing fixes with `--diff`](#previewing-fixes-with---diff).
+
+A warning is always shown, whatever the flags. What `--quiet` and `--silent`
+change is its *shape*: with no flag the command installs no log handler and
+Python's unformatted `lastResort` handler prints the bare message, while
+`--quiet` or `--silent` install the structured handler, so the same warning
+arrives with its level and logger name attached, followed by the diagnostics
+line the reporter writes to standard error. Neither flag hides a warning, and
+neither is a muting switch for standard error; redirect it if a caller needs
+silence.
+
+`--quiet` and `--silent` currently select the same level and handler; the two
+names are kept because they read differently at a call site.
+
 #### Configuration
 
 Pass `--config` with an explicit config file path or an inline TOML fragment to
@@ -333,10 +375,47 @@ pipeline can consume the patch directly:
 stilyagi check --diff | git apply
 ```
 
-An empty patch means there was nothing to fix; the command still exits `0` in
-that case. A `--diff` run exits `1` whenever a diagnostic is present, whatever
-the preview would apply, because the preview deliberately leaves the source for
-the user to apply.
+An empty patch means no safe fix preview was rendered, which does not by itself
+mean there was nothing to fix. Three situations produce one, and they do not
+share an exit status:
+
+- Nothing was reported for the checked files. The run exits `0`.
+- A diagnostic was reported but carries no *safe* fix — it is unsafe, or a
+  configuration such as `lint.unfixable` filtered it out — so nothing was
+  eligible to preview. The run exits `1`.
+- A fix was eligible and the planner refused it, most often because its span
+  falls outside source-backed text. The refusal is reported on standard error
+  and the run exits `1`.
+
+A `--diff` run exits `1` whenever a diagnostic is present, whatever the preview
+would apply, because the preview deliberately leaves the source for the user to
+apply. Only the first case above is a clean run, and only it exits `0`.
+
+The three cases are indistinguishable from the output alone: all three write a
+byte-empty standard output and may write nothing to standard error. To tell
+them apart, run with `--verbose` and read the `render_diff` record, which is
+emitted once per `--diff` run:
+
+```text
+INFO stilyagi.cli: diff rendered (elapsed_ms=0, operation='render_diff', patch_byte_count=0, patched_files=0, planned_files=1)
+```
+
+| Field              | Meaning                                                     |
+| ------------------ | ----------------------------------------------------------- |
+| `planned_files`    | Files the planner produced a plan for.                      |
+| `patched_files`    | Files whose plan rendered a non-empty patch.                |
+| `patch_byte_count` | Bytes of the patch written to standard output, as measured. |
+| `elapsed_ms`       | Whole milliseconds spent rendering the patch.               |
+
+`patch_byte_count` counts the patch as written, not the replacement document. A
+unified diff carries a header, hunk context and markers the replacement does
+not, so the two quantities differ and only this one describes the artefact.
+
+The pair of counters is the diagnostic: a run where `planned_files` is non-zero
+and `patched_files` is zero planned something and emitted nothing, which is
+cases two and three above. A run where both are zero had nothing to plan, which
+is case one. `patch_byte_count` is `0` in every empty-patch case, so it cannot
+distinguish them by itself.
 
 #### Applying fixes with `--fix`
 
@@ -405,7 +484,7 @@ were applied to this file
 | `fix-error/changed-on-disk`   | The file changed between planning and writing.        |
 | `fix-error/write-failed`      | The filesystem refused the write.                     |
 
-_Table 1: Refusal identifiers a `--fix` or `--diff` run can report._
+*Table 1: Refusal identifiers a `--fix` or `--diff` run can report.*
 
 These identifiers are engine reports, not rule codes. They cannot be silenced
 with `--select`, `--ignore`, or a suppression comment, because they are the
