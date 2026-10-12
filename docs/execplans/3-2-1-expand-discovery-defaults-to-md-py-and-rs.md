@@ -354,7 +354,12 @@ Closing:
       filesystem regression is in `tests/test_discovery_special_files.py`,
       after the initial gate run found the original test modules exceeded the
       400-line limit. Formatting and one Clippy portability issue were also
-      corrected. The follow-up then passed `make check-fmt`, `make lint`,
+      corrected. CodeScene then identified genuine duplication in the repeated
+      Python/Rust authored-suppression recovery-metric assertions in the new
+      snapshot tests; Wyvern verified the finding. The tests now share a
+      fixture/count collector and classification assertions while retaining
+      both named syntax-specific tests. The current tree passed
+      `make check-fmt`, `make lint`,
       `make typecheck`, `make test`, `make markdownlint`, and `make nixie`.
       Tests reported 357 Rust tests, 588 Python tests, and 38 doctests passed,
       with 2 doctests skipped; Markdownlint checked 70 files with zero errors.
