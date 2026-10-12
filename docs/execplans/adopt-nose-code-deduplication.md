@@ -1421,3 +1421,95 @@ CodeRabbit review that returns a current decision on this head, or a change in
 the assessment request path. Until then the PR is held at
 convergence-minus-two, with every requirement this branch controls satisfied
 and evidenced.
+
+### Fifth rebase: main advanced and the branch no longer merged
+
+The hand-off state above did not hold. When the PR was next inspected, GitHub
+reported `mergeable: CONFLICTING` and `mergeStateStatus: DIRTY`: `main` had
+moved from `ffb0fef` to `91941ef` (three commits), and the branch no longer
+merged. The three commits were:
+
+- `094c35c` pins the Rust toolchain exactly and lets Dependabot move it.
+- `b5b0fe1` bumps `insta` 1.48.0 to 1.49.0.
+- `91941ef` expands discovery defaults to Markdown, Python, and Rust (3.2.1),
+  a 2065-line ExecPlan, ADR 008, and a new `CodeScene`-visible surface under
+  `crates/stilyagi-pyext/src/check_metrics/`.
+
+The last of these is the consequential one: it landed
+`docs/adr-008-v1-discovery-defaults.md`, the same ADR number this branch was
+using.
+
+**Conflict set.** A merge-tree probe against `91941ef` reported conflicts in
+exactly two paths, `Makefile` and `docs/contents.md`, with clean auto-merges in
+`docs/developers-guide.md`, `pyproject.toml`, and five `tests/` modules.
+
+**Replay.** The series `ffb0fef..7e2fde3` was replayed onto `91941ef` with the
+thirty-four commits preserved:
+`--merge --no-fork-point --no-update-refs
+--no-autostash --reapply-cherry-picks --keep-empty --empty=stop`,
+with `merge.conflictStyle=zdiff3`. Weave was bypassed for the whole operation.
+It is selected on this host only by the ambient global attributes file
+(`*.py merge=weave`); the repository has no tracked `.gitattributes`, so the
+ambient enrolment is not repository consent. The bypass used
+`core.attributesFile=/dev/null` plus a command-scoped replacement of the Weave
+driver with `git merge-file --zdiff3`, reapplied on every `--continue`.
+
+**Conflicts resolved.**
+
+1. `Makefile`, in commit 2 of 34. The branch inserts the `NOSE_VERSION` block
+   immediately above `MD_FILES_FIND`; `main` added a `./.vtcode/*` exclusion to
+   that same line. Both changes are wanted, so the resolution keeps the
+   inserted block and the `main`-side line. This identical shape recurred in
+   commits 17 and 20, where a later branch commit inserted
+   `DUPLICATION_TEST_ARGS` and `DUPLICATION_TEST_PYTHON` at the same anchor;
+   both were resolved the same way.
+2. `docs/contents.md`, in commit 4 of 34. Both sides had added an ADR 008
+   index entry under a different title. This is a genuine number collision and
+   cannot be resolved by taking either side.
+3. `docs/execplans/adopt-nose-code-deduplication.md`, in commit 14 of 34. The
+   renumber applied in commit 4 met this commit's checkbox flip at the same
+   line; both changes are independent.
+4. `tests/test_package_skeleton_units.py`, in commit 17 of 34. `main` removed
+   the now-unused `subprocess` and `sys` imports; the branch added
+   `import typing as typ` to the same block. The resolution keeps `typing`
+   (used by the `if typ.TYPE_CHECKING:` guard at line 22) and drops the two
+   imports `main` removed, which have no remaining use in the file.
+
+**ADR renumbering.** Because `main` landed ADR 008 first, this branch's ADR was
+renumbered 008 to 009 rather than sharing the number. The file was renamed
+`docs/adr-008-nose-duplication-gate.md` to
+`docs/adr-009-nose-duplication-gate.md`, its title heading updated, and its two
+tracked references updated: `docs/contents.md` (now indexing both ADR 008 and
+ADR 009) and `docs/developers-guide.md` section 6j. The two `ADR 008`
+references in this plan were updated to `ADR 009`. A tree-wide search confirms
+no `adr-008-nose-duplication-gate` reference remains. The two `ADR 008`
+references that remain in `docs/roadmap.md` and the discovery ExecPlan belong
+to the discovery ADR and are correct as they stand.
+
+**Semantic audit.** The rebase raises no andon condition:
+
+1. All **66** target-only paths — changed by `main` and not by this branch —
+   are byte-identical at the new head to their `91941ef` blobs. Zero mismatches.
+2. Every deletion against the target is explained by the branch's own intended
+   change. There are no `D` or `R` entries in the target-relative diff at all;
+   the 149 deleted lines are dominated by `docs/developers-guide.md` (34 lines,
+   every one present in the branch's own pre-rebase diff) and by the
+   `PYLINT_TARGETS`/`INTERROGATE_TARGETS`/`AMBRLEAKS`/`typecheck` lines the
+   branch deliberately rewrote to add `scripts/` and the gate staging.
+3. No newly repeated block appears in any of the 33 merged files. The 41
+   repeated-block hits the scan reports are all in files this branch adds, and
+   are ordinary repeated test boilerplate and docstring section headers, not
+   reconstruction artefacts.
+
+`range-diff` over the two series is `=` for 30 of 34 commits and `!` for
+exactly the four conflict-affected ones: `a9760cf` (the `tests/` family count
+prose), `9e16ec5` (the checkbox flip), `780af9a` (the import block), and
+`99fbd02` (the `MD_FILES_FIND` anchor). The path manifest is 60 paths in and 60
+out, differing only by the deliberate ADR rename.
+
+New head: `201eaaaacd3756b4dd7d0ca6ae9208791307f3f9`, onto base
+`91941ef36df9c262af74e6089e661921d1ae3577`. Recovery refs for `7e2fde3`,
+`ffb0fef` and `91941ef` are held under
+`refs/recovery/pr164-{old-head,old-base,target}-20261013T010701`. Every gate
+result recorded above this section is stale for the new head and is retained
+only for its original scope.
