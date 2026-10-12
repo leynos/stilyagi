@@ -6,11 +6,11 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
-The original roadmap implementation remains complete. Review remediation dated
-2026-10-12 is complete locally, including a sequential pass of all six current
-gates recorded below. Hosted current-head PR review remains pending; this plan
-does not claim a merge. Earlier gate runs remain historical unless explicitly
-identified as the latest local closeout evidence.
+The original roadmap implementation remains complete. The current-head review
+follow-up has also passed all six local gates, with evidence recorded below.
+Hosted current-head PR review remains pending; this plan does not claim a
+merge. Earlier gate runs remain historical unless explicitly identified as the
+latest local closeout evidence.
 
 Approval gate: **satisfied on 2026-08-23**. The implementation request
 explicitly approves this ExecPlan.
@@ -118,11 +118,14 @@ Hard invariants. Violating one requires escalation, not a workaround.
 
 1. **No IR schema change.** `crates/stilyagi-ir/src/document.rs`
    `SCHEMA_VERSION` must not change, and `IrError` must not gain or lose fields.
-2. **No new runtime dependency.** Neither `Cargo.toml` `[dependencies]` nor the
-   `pyproject.toml` runtime dependency set may gain an entry. Test-only
-   development dependencies already present (`rstest`, `rstest-bdd`, `insta`,
-   `proptest`, `pytest`, `pytest-bdd`, `syrupy`, `hypothesis`) may be used
-   freely.
+2. **No new external runtime dependency.** Neither `Cargo.toml`
+   `[dependencies]` nor the `pyproject.toml` runtime dependency set may gain a
+   new external package. A direct dependency on an already-declared workspace
+   crate is permitted when required by the implementation. The final PyO3
+   extension adds `metrics.workspace = true` to use the existing workspace
+   metrics facade for bounded check instrumentation. Test-only development
+   dependencies already present (`rstest`, `rstest-bdd`, `insta`, `proptest`,
+   `pytest`, `pytest-bdd`, `syrupy`, `hypothesis`) may be used freely.
 3. **Vocabularies that appear in bridge payloads are Rust-owned.** Any string
    Python receives from, or sends to, `_stilyagi_rs` must have exactly one
    definition, in Rust, advertised through the bridge and parity-checked in
@@ -158,8 +161,10 @@ is bounded and predictable while the code work is where surprises live.
   code added, across both milestones.
 - **Documentation scope:** more than 8 documentation files changed. ADR 008 and
   its tables are expected to be large; that is not a breach.
-- **Dependencies:** any new entry in `Cargo.toml` `[dependencies]` or in the
-  `pyproject.toml` runtime dependency set. (Also Constraint 2.)
+- **Dependencies:** any new external package in `Cargo.toml` `[dependencies]`
+  or in the `pyproject.toml` runtime dependency set. (Also Constraint 2.) A
+  direct edge to the existing workspace `metrics` crate is the documented
+  observability exception.
 - **Interface:** any change to the signature of `_stilyagi_rs.extract_document`,
   to `stilyagi.engine.extract_document`, or to any symbol in Constraint 6.
 - **Schema:** any need to change `SCHEMA_VERSION` or `IrError`.
@@ -333,6 +338,29 @@ Closing:
       directory zero-summary CLI coverage (`tests/test_check_command.py`), and
       an unknown-verb authored-directive diagnostic assertion in
       `crates/stilyagi-tree-sitter/src/rust/suppression_tests.rs`.
+- [x] Current-head review follow-up (2026-10-12; local validation complete,
+      hosted review pending).
+      Review confirmed three defects: `tokenize.open` can raise
+      `SyntaxError` during encoding detection and abort the file batch;
+      directory walking can classify registered-suffix non-regular entries,
+      such as FIFOs, as source files; and authored suppression errors inflate
+      parse-recovery metrics and warnings. Minimal fixes and regression tests
+      are in the working tree: encoding `SyntaxError` is treated as an
+      unreadable/operational file outcome so the batch continues; unsupported
+      filesystem types are skipped with the bounded reason
+      `unsupported_candidate_type`; and authored-directive codes are excluded
+      from tree-sitter and PyO3 recovery counts and warnings. The encoding
+      regression is in `tests/test_check_encoding_failures.py`; the non-regular
+      filesystem regression is in `tests/test_discovery_special_files.py`,
+      after the initial gate run found the original test modules exceeded the
+      400-line limit. Formatting and one Clippy portability issue were also
+      corrected. The follow-up then passed `make check-fmt`, `make lint`,
+      `make typecheck`, `make test`, `make markdownlint`, and `make nixie`.
+      Tests reported 357 Rust tests, 588 Python tests, and 38 doctests passed,
+      with 2 doctests skipped; Markdownlint checked 70 files with zero errors.
+      `sccache` was unavailable, but compiler admission worked and compilation
+      and tests completed successfully. This is local evidence; hosted review
+      remains pending.
       Historical attempt 7 passed check-fmt, lint, and typecheck but had four
       test failures (ignored-target notices, engine exports, and wheel-layout
       snapshot); Markdown gates had not run. Historical r27 passed the same
@@ -987,7 +1015,9 @@ than a fabricated numeric comparison.
 The milestone-2 boundary against roadmap item 3.2.3 held: no IR schema field,
 public extraction signature, fix workflow, or violation discriminator was
 added. The temporary severity-based exit policy and every other deferred
-candidate have one home in ADR 008. No runtime dependency was added.
+candidate have one home in ADR 008. No new external runtime dependency was
+added. The extension gained a direct edge to the existing workspace `metrics`
+crate for bounded observability; see D16.
 
 ## Context and orientation
 

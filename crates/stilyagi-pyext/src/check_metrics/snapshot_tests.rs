@@ -6,7 +6,7 @@ use std::time::Duration;
 use pyo3::{
     exceptions::{PyAssertionError, PyRuntimeError},
     prelude::*,
-    types::PyDict,
+    types::{PyDict, PyTuple},
 };
 use rstest::rstest;
 use stilyagi_extract::{
@@ -14,8 +14,8 @@ use stilyagi_extract::{
 };
 
 use super::{
-    CHECK_METRICS_TEST_LOCK, DurationHistogram, check_metrics_snapshot, record_check_run,
-    record_checked_file, record_extraction_attempt, record_extraction_failure,
+    CHECK_METRICS_TEST_LOCK, DurationHistogram, EXTRACTION_RECOVERY_ERRORS, check_metrics_snapshot,
+    record_check_run, record_checked_file, record_extraction_attempt, record_extraction_failure,
     record_extraction_outcome, record_operational_failure, record_phase_duration,
     record_skipped_candidates, record_unreadable_file, reset_metrics,
 };
@@ -32,7 +32,11 @@ fn populated_snapshot() -> PyResult<Py<PyDict>> {
     for syntax in ["markdown", "python", "rust"] {
         record_checked_file(syntax)?;
     }
-    for reason in ["unregistered_candidate", "symlinked_directory_target"] {
+    for reason in [
+        "unregistered_candidate",
+        "symlinked_directory_target",
+        "unsupported_candidate_type",
+    ] {
         record_skipped_candidates(reason, 2)?;
     }
     record_unreadable_file();
@@ -111,6 +115,23 @@ fn assert_metric_categories(
     assert_metric_values(&metrics, expected)
 }
 
+fn bridge_recovery_count(source: &str, syntax: &str, counter_index: usize) -> PyResult<u64> {
+    reset_metrics();
+    Python::attach(|py| -> PyResult<()> {
+        let args = PyTuple::new(py, [source, syntax])?;
+        crate::extract_document_py(py, &args)?;
+        Ok(())
+    })?;
+    EXTRACTION_RECOVERY_ERRORS
+        .get(counter_index)
+        .map(|counter| counter.load(Ordering::Relaxed))
+        .ok_or_else(|| {
+            PyRuntimeError::new_err(format!(
+                "extraction syntax counter index {counter_index} is out of range"
+            ))
+        })
+}
+
 #[rstest]
 fn initializes_duration_histogram_counters_to_zero() {
     let histogram = DurationHistogram::new();
@@ -176,7 +197,80 @@ fn serializes_syntax_and_skip_reason_categories() {
             integer(&skipped, "symlinked_directory_target").expect("symlink count is an integer"),
             2
         );
+        assert_eq!(
+            integer(&skipped, "unsupported_candidate_type")
+                .expect("unsupported candidate count is an integer"),
+            2
+        );
     });
+}
+
+#[rstest]
+fn check_metrics_exclude_authored_python_suppression_errors() {
+    let _guard = CHECK_METRICS_TEST_LOCK
+        .lock()
+        .expect("check metrics test lock should be available");
+    let authored_only =
+        bridge_recovery_count("# stilyagi: disable\nvalue = 1\n", "python_docstring", 0)
+            .expect("Python authored-error fixture extracts");
+    let recovery_only = bridge_recovery_count("value = \"unterminated\n", "python_docstring", 0)
+        .expect("Python recovery fixture extracts");
+    let mixed = bridge_recovery_count(
+        "# stilyagi: disable\nvalue = \"unterminated\n",
+        "python_docstring",
+        0,
+    )
+    .expect("mixed Python fixture extracts");
+
+    assert_eq!(
+        authored_only, 0,
+        "authored-only errors are not parser recovery"
+    );
+    assert!(recovery_only > 0, "parser recovery remains counted");
+    assert_eq!(
+        mixed, recovery_only,
+        "authored errors do not inflate recovery"
+    );
+}
+
+#[rstest]
+fn check_metrics_exclude_authored_rust_suppression_errors() {
+    let _guard = CHECK_METRICS_TEST_LOCK
+        .lock()
+        .expect("check metrics test lock should be available");
+    let authored_only = bridge_recovery_count(
+        "pub fn stable() {\n    // stilyagi: disable\n}\n",
+        "rust_doc_comment",
+        1,
+    )
+    .expect("Rust authored-error fixture extracts");
+    let recovery_only = bridge_recovery_count(
+        "pub fn broken() { let value = \"unterminated; }\n",
+        "rust_doc_comment",
+        1,
+    )
+    .expect("Rust recovery fixture extracts");
+    let mixed = bridge_recovery_count(
+        concat!(
+            "pub fn stable() {\n",
+            "    // stilyagi: disable\n",
+            "}\n",
+            "pub fn broken() { let value = \"unterminated; }\n",
+        ),
+        "rust_doc_comment",
+        1,
+    )
+    .expect("mixed Rust fixture extracts");
+
+    assert_eq!(
+        authored_only, 0,
+        "authored-only errors are not parser recovery"
+    );
+    assert!(recovery_only > 0, "parser recovery remains counted");
+    assert_eq!(
+        mixed, recovery_only,
+        "authored errors do not inflate recovery"
+    );
 }
 
 #[rstest]

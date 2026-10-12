@@ -391,11 +391,12 @@ discovery.discover_files_with_summary(targets, config) -> DiscoveryResult
 - `files` — the registered source files as a tuple of `DiscoveredFile`, sorted
   by resolved path with duplicate resolved paths collapsed to one entry
 - `skipped_files` — the count of distinct source candidates without a
-  registered extractor, plus declined symlinked directory targets; a candidate
-  appearing under several overlapping targets is counted once
+  registered extractor or with an unsupported filesystem type, plus declined
+  symlinked directory targets; a candidate appearing under several overlapping
+  targets is counted once
 - `skipped_by_reason` — `SkippedCandidateCount` records for the bounded reasons
-  `unregistered_candidate` and `symlinked_directory_target`, with distinct
-  candidate totals for each reason
+  `unregistered_candidate`, `symlinked_directory_target`, and
+  `unsupported_candidate_type`, with distinct candidate totals for each reason
 - `notices` — bounded, structured informational or warning events, each with a
   fixed reason and optional target path
 - `failures` — structured path-expansion, metadata-lookup, path-resolution, or
@@ -436,9 +437,9 @@ Each discovered file becomes a `check_inputs.CheckInput` through
 `CheckInput` directly: `--stdin-filename` selects the syntax by final suffix
 (defaulting to Markdown when omitted), and an unregistered stdin filename is
 logged and counted as skipped rather than checked. Per-file dispatch then goes
-through `cli._check_one_file`, which reads Python source using its declared
-encoding and other source as UTF-8 (stripping a leading byte-order mark),
-extracts through the bridge, resolves the per-file config, and reports
+through `check_execution._check_one_file`, which reads Python source using its
+declared encoding and other source as UTF-8, stripping a leading byte-order
+mark. It extracts through the bridge, resolves the per-file config, and reports
 operational failures with exit code `2`.
 
 For filesystem targets, `cli._discover_targets` carries the result's notices

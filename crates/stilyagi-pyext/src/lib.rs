@@ -60,7 +60,9 @@ fn extract_document_py(py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<Py
     check_metrics::record_extraction_attempt(extract_syntax);
     let document = match py.detach(|| extract_document_from_rust(&source, extract_syntax)) {
         Ok(document) => {
-            let recovery_errors = document.ir().map_or(0, |ir| ir.errors.len());
+            let recovery_errors = document
+                .ir()
+                .map_or(0, |ir| check_metrics::recovery_error_count(&ir.errors));
             check_metrics::record_extraction_outcome(extract_syntax, recovery_errors);
             document
         }

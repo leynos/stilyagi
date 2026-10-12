@@ -111,7 +111,7 @@ _Table 1: Discovery options for the v1 CLI expansion._
 Adopt Option A.
 
 - Discovery recognizes `.md`, `.markdown`, `.py`, and `.rs`. The mapping is in
-  `python/stilyagi/discovery.py`, because file extensions are not
+  `python/stilyagi/discovery_targets.py`, because file extensions are not
   bridge-payload vocabulary. The selected `model.Syntax` travels with each
   discovered file.
 - Discovery remains a fixed built-in default. There are no `include` or
@@ -208,7 +208,7 @@ work.
 | Violation discriminator                       | Severity is only a temporary exit-code proxy.                    | Resolve before 3.2.2 adds warning-severity rules.                            |
 | Typed `IrError` code enum                     | Needs the 3.2.3 IR-envelope reshape.                             | Make code classification exhaustive while preserving kebab-case wire values. |
 | Rust discovery with `ignore`                  | Requires a coherent walker migration.                            | Respect gitignore and retire the growing prune list.                         |
-| `--doctest-modules`                           | Current Python doctests do not run.                              | Enforce the documented Python examples.                                      |
+| Additional Python doctest paths               | Doctests run for `python/stilyagi` and `tests/support`.          | Extend paths if examples move elsewhere.                                     |
 | Corpus-fixture relocation                     | Adversarial Python and Rust fixtures are currently discoverable. | Let CI dogfood `stilyagi check .`.                                           |
 | File-size, parallel, and incremental controls | Require a scalable execution and rendering design.               | Support monorepo-scale checking.                                             |
 | `.mdx` and `.pyi`                             | Neither belongs to the current supported set.                    | Revisit each as a separate product decision.                                 |

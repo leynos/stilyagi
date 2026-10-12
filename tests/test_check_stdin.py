@@ -75,6 +75,7 @@ def test_verbose_stdin_skip_records_its_fixed_reason(
     assert metrics_payload["stilyagi_check_skipped_candidates_total"] == {
         "symlinked_directory_target": 0,
         "unregistered_candidate": 1,
+        "unsupported_candidate_type": 0,
     }, "unsupported stdin filenames use the bounded unregistered reason"
 
 

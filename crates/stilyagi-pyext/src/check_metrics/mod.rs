@@ -20,10 +20,12 @@ use std::time::Duration;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use stilyagi_extract::{ExtractError, ExtractSyntax, PythonExtractError, RustExtractError};
+use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, IrError};
 
 static CHECK_RUNS: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
 static CHECKED_FILES: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
-static SKIPPED_CANDIDATES: [AtomicU64; 2] = [AtomicU64::new(0), AtomicU64::new(0)];
+static SKIPPED_CANDIDATES: [AtomicU64; 3] =
+    [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
 static UNREADABLE_FILES: AtomicU64 = AtomicU64::new(0);
 static OPERATIONAL_FAILURES: [AtomicU64; 6] = [
     AtomicU64::new(0),
@@ -52,7 +54,11 @@ static PHASE_DURATIONS: [DurationHistogram; 6] = [
 
 const RUN_OUTCOMES: [&str; 3] = ["success", "diagnostic_error", "operational_error"];
 const SYNTAXES: [&str; 3] = ["markdown", "python", "rust"];
-const SKIP_REASONS: [&str; 2] = ["unregistered_candidate", "symlinked_directory_target"];
+const SKIP_REASONS: [&str; 3] = [
+    "unregistered_candidate",
+    "symlinked_directory_target",
+    "unsupported_candidate_type",
+];
 const FAILURE_KINDS: [&str; 6] = ["discovery", "read", "extract", "config", "rules", "render"];
 const PHASES: [&str; 6] = ["discovery", "read", "extract", "config", "rules", "render"];
 const BUCKET_LIMITS: [Duration; 4] = [
@@ -132,6 +138,13 @@ pub(super) fn record_extraction_attempt(syntax: ExtractSyntax) {
         }
         ExtractSyntax::Markdown => {}
     }
+}
+
+pub(super) fn recovery_error_count(errors: &[IrError]) -> usize {
+    errors
+        .iter()
+        .filter(|error| !AUTHORED_DIRECTIVE_ERROR_CODES.contains(&error.code.as_str()))
+        .count()
 }
 
 pub(super) fn record_extraction_outcome(syntax: ExtractSyntax, recovery_errors: usize) {

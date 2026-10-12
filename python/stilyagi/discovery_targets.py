@@ -220,6 +220,13 @@ def _discover_directory_candidate(
             skipped_candidates=(("symlinked_directory_target", resolved_path),),
         )
 
+    if path_kind is _PathKind.MISSING:
+        return _TargetDiscovery()
+    if path_kind is not _PathKind.FILE:
+        return _TargetDiscovery(
+            skipped_candidates=(("unsupported_candidate_type", resolved_path),),
+        )
+
     syntax = syntax_for_path(candidate)
     if syntax is None:
         return _TargetDiscovery(

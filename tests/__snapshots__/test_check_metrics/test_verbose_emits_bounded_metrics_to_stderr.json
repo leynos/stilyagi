@@ -21,6 +21,7 @@
   "rust_documents": 1,
   "skipped_candidates": {
     "symlinked_directory_target": 1,
-    "unregistered_candidate": 1
+    "unregistered_candidate": 1,
+    "unsupported_candidate_type": 0
   }
 }

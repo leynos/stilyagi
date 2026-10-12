@@ -79,6 +79,7 @@ class DiscoveryFailure(typ.NamedTuple):
 type SkippedCandidateReason = typ.Literal[
     "unregistered_candidate",
     "symlinked_directory_target",
+    "unsupported_candidate_type",
 ]
 
 
@@ -104,11 +105,12 @@ class DiscoveryResult:
     Parameters
     ----------
     files:
-        Registered source files in deterministic resolved-path order.
+        Registered regular source files in deterministic resolved-path order.
     skipped_files:
-        Distinct source candidates without a registered extractor, plus
-        symlinked directory targets that discovery declined to traverse. A
-        candidate appearing under several overlapping targets is counted once.
+        Distinct source candidates without a registered extractor, unsupported
+        filesystem types, and symlinked directory targets that discovery
+        declined to traverse. A candidate appearing under several overlapping
+        targets is counted once.
     skipped_by_reason:
         Distinct skipped candidate counts by the fixed reason vocabulary.
     notices:

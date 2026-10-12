@@ -106,7 +106,7 @@ def _read_source(check_input: CheckInput) -> str | None:
                     source = source_file.read()
             else:
                 source = check_input.resolved_path.read_text(encoding="utf-8-sig")
-    except (MemoryError, OSError, UnicodeDecodeError) as exc:
+    except (MemoryError, OSError, SyntaxError, UnicodeDecodeError) as exc:
         report_file_error(check_input.reported_path, exc)
         return None
     return source
