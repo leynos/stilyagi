@@ -119,8 +119,12 @@ class DiscoveryInputs(typ.NamedTuple):
         Structured informational and warning events to report outside the
         discovery query.
     failures:
-        Directory traversal failures. Their presence makes the run an
-        operational failure even when some inputs were discovered.
+        Structured filesystem discovery failures, including path expansion,
+        metadata lookup, path resolution and directory-walk errors. These may
+        be ``OSError`` or ``RuntimeError`` instances (for example, an
+        unresolved home directory or a symlink loop). They are reported by the
+        command layer and make the run an operational failure even when some
+        inputs were discovered.
     skipped_by_reason:
         Distinct skipped candidate counts grouped by fixed reason.
 
@@ -172,11 +176,11 @@ class DiscoveryOutcome(typ.NamedTuple):
         Diagnostics accumulated across all inputs that could be checked.
     had_error:
         Whether reading, extraction or configuration failed for a checked
-        input. ``run_check`` folds discovery traversal failures into its final
+        input. ``run_check`` folds structured discovery failures into its final
         exit decision separately.
     unreadable_files:
         Number of inputs whose source could not be read or decoded; discovery
-        traversal errors do not increment this file count.
+        failures do not increment this file count.
 
     Examples
     --------
@@ -232,7 +236,8 @@ def report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> bool:
     Returns
     -------
     bool
-        ``True`` when any directory traversal failed, otherwise ``False``.
+        ``True`` when any filesystem discovery failure was retained, otherwise
+        ``False``.
 
     Examples
     --------
@@ -269,7 +274,9 @@ def _report_discovery_notice(notice: discovery.DiscoveryNotice) -> None:
 
 
 def report_file_error(path: str, error: Exception) -> None:
-    """Log one human-readable file read failure and return None.
+    """Log one file read failure and return ``None``.
+
+    The caller records the operational outcome separately.
 
     Parameters
     ----------
@@ -280,16 +287,24 @@ def report_file_error(path: str, error: Exception) -> None:
 
     Examples
     --------
-    >>> report_file_error(  # doctest: +SKIP
-    ...     "docs/guide.md", OSError("permission denied")
-    ... )
+    >>> from unittest.mock import patch
+    >>> with patch("stilyagi.check_inputs._COMMAND_LOGGER.warning") as warning:
+    ...     result = report_file_error(
+    ...         "docs/guide.md", OSError("permission denied")
+    ...     )
+    >>> result is None
+    True
+    >>> warning.call_args.args
+    ('%s', 'stilyagi check: failed to read docs/guide.md: permission denied')
     """
     message = f"{PROGRAM_NAME} check: failed to read {path}: {error}"
     _COMMAND_LOGGER.warning("%s", message)
 
 
 def report_check_error(path: str | None, error: Exception) -> None:
-    """Log one human-readable check failure and return None.
+    """Log one check failure and return ``None``.
+
+    The caller records the operational outcome separately.
 
     Parameters
     ----------
@@ -301,9 +316,15 @@ def report_check_error(path: str | None, error: Exception) -> None:
 
     Examples
     --------
-    >>> report_check_error(  # doctest: +SKIP
-    ...     "docs/guide.md", RuntimeError("extractor failed")
-    ... )
+    >>> from unittest.mock import patch
+    >>> with patch("stilyagi.check_inputs._COMMAND_LOGGER.warning") as warning:
+    ...     result = report_check_error(
+    ...         "docs/guide.md", RuntimeError("extractor failed")
+    ...     )
+    >>> result is None
+    True
+    >>> warning.call_args.args
+    ('%s', 'stilyagi check: failed to check docs/guide.md: extractor failed')
     """
     if path is None:
         message = f"{PROGRAM_NAME} check: {error}"

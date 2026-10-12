@@ -21,9 +21,8 @@ pub use region::{
 pub use source_identity::SourceIdentity;
 pub use suppression::{
     AUTHORED_DIRECTIVE_ERROR_CODES, DirectiveError, DirectiveOutcome, DirectiveVerb,
-    ParsedDirective, SuppressionCandidate, SuppressionValidationError, is_authored_directive_code,
-    is_directive_marker, parse_comment_directive, suppressions_from_candidates,
-    validate_suppressions, verb_kind,
+    ParsedDirective, SuppressionCandidate, SuppressionValidationError, is_directive_marker,
+    parse_comment_directive, suppressions_from_candidates, validate_suppressions, verb_kind,
 };
 pub use tree::{IrNode, IrTree, NodeFlags, SourceSpan};
 

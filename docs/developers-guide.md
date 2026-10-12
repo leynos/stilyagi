@@ -398,8 +398,11 @@ discovery.discover_files_with_summary(targets, config) -> DiscoveryResult
   candidate totals for each reason
 - `notices` — bounded, structured informational or warning events, each with a
   fixed reason and optional target path
-- `failures` — directory-walk `OSError` values, with their path, retained
-  alongside any files successfully discovered before or after the failure
+- `failures` — structured path-expansion, metadata-lookup, path-resolution, or
+  directory-walk failures (`OSError | RuntimeError`), with their path, retained
+  alongside any files successfully discovered before or after the failure.
+  Runtime errors include unresolved home directories during expansion and
+  symlink loops during resolution.
 
 `DiscoveredFile` is a frozen dataclass with three fields:
 
@@ -417,14 +420,15 @@ discovery is resolved by `cli._resolve_discovery_config` for the current
 working directory rather than for each individual file, so `--isolated`,
 explicit `--config` values, and CLI rule overrides all stay in force during the
 discovery pass. Discovery reads the filesystem but has no logging or
-command-output side effects: it returns notices and walk failures as structured
-data for its caller to handle.
+command-output side effects: it returns notices and structured discovery
+failures as data for its caller to handle.
 
 `discover_files(targets, config)` is the convenience wrapper that returns only
 the discovered files as a list for callers that do not need the skip count; the
 `DiscoveryResult.files` field itself is a tuple. Because the wrapper cannot
-represent a partial result together with a traversal error, it raises the first
-walk error when `DiscoveryResult.failures` is non-empty.
+represent a partial result together with a filesystem failure, it raises the
+first retained path-expansion, metadata-lookup, path-resolution, or traversal
+error (`OSError | RuntimeError`) when `DiscoveryResult.failures` is non-empty.
 
 Each discovered file becomes a `check_inputs.CheckInput` through
 `CheckInput.from_discovered`, which carries the `reported_path`,
@@ -439,10 +443,10 @@ operational failures with exit code `2`.
 
 For filesystem targets, `cli._discover_targets` carries the result's notices
 and failures in `DiscoveryInputs`. After the query returns,
-`report_discovery_outcomes` logs notices and reports traversal failures through
+`report_discovery_outcomes` logs notices and reports discovery failures through
 the command's WARNING-level stderr handler. The command logger does not
 propagate warnings to root handlers, so warnings appear once while rendered
-check output stays on stdout. A traversal failure marks the run as an
+check output stays on stdout. A discovery failure marks the run as an
 operational error: Stilyagi still checks files discovered successfully, prints
 their run summary, and exits `2`.
 
@@ -456,7 +460,7 @@ per-file checking, and run aggregation:
   resolved path, and syntax into a file-backed input.
 - `DiscoveryInputs` groups the ordered input tuple and skipped-candidate count
   with per-reason `SkippedCandidateCount` records, structured discovery
-  notices, and traversal failures.
+  notices, and filesystem discovery failures.
 - `FileCheckResult` carries one input's diagnostics, whether it produced an
   error, and whether it was unreadable.
 - `DiscoveryOutcome` accumulates diagnostics, the error state, and unreadable
@@ -465,9 +469,10 @@ per-file checking, and run aggregation:
   failure or an extraction/configuration failure, respectively. Both return
   `None`; the caller uses the corresponding result record to aggregate the
   operational outcome.
-- `report_discovery_outcomes` renders structured notices and traversal-failure
-  warnings after discovery. It returns `True` when any traversal failed so the
-  command can select exit code `2` while retaining partial discoveries.
+- `report_discovery_outcomes` renders structured notices and filesystem-failure
+  warnings after discovery. It returns `True` when any discovery failure was
+  retained so the command can select exit code `2` while retaining partial
+  discoveries.
 
 ### Per-file execution and metrics
 
@@ -479,13 +484,14 @@ and rules; `cli.py` owns the discovery and render phases around its command
 orchestration.
 
 `python/stilyagi/check_metrics.py` bridges Python execution to the PyO3 metrics
-functions. `crates/stilyagi-pyext/src/check_metrics.rs` owns the bounded,
+functions. `crates/stilyagi-pyext/src/check_metrics/mod.rs` owns the bounded,
 check-local snapshot in Stilyagi-owned atomics; it never installs or claims a
-process-global `metrics::Recorder`. Each check resets these snapshot values.
-The existing metrics-facade calls still reach a recorder installed by an
-embedding host, without changing its ownership or lifetime. The standalone
-`--verbose` JSON snapshot is independent of that recorder and is written to
-stderr.
+process-global `metrics::Recorder`. `check_metrics/recording_bindings.rs`
+exposes the recording functions, and `check_metrics/snapshot.rs` serializes the
+local snapshot. Each check resets these snapshot values. Existing
+metrics-facade calls still reach a recorder installed by an embedding host,
+without changing its ownership or lifetime. The standalone `--verbose` JSON
+snapshot is independent of that recorder and is written to stderr.
 
 `check_execution.py` records per-file `read`, `extract`, `config`, and `rules`
 durations; `cli.py` records the `discovery` and `render` phases. These are the

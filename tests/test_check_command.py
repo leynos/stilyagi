@@ -14,6 +14,7 @@ from tests.support.assertions import assert_with_context
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+    import os
 
     from syrupy.assertion import SnapshotAssertion
 
@@ -249,6 +250,62 @@ def test_main_reports_directory_walk_failure_after_checking_partial_results(
     assert captured.err.count("failed to discover") == 1, (
         "expected one user-facing traversal failure warning"
     )
+
+
+def test_main_reports_explicit_target_stat_failure_as_operational(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An explicit target stat error is reported and selects exit status two."""
+    target = tmp_path / "restricted.md"
+    _write_markdown(target, "Restricted")
+    original_lstat = pathlib.Path.lstat
+
+    def fail_target_lstat(path: pathlib.Path) -> os.stat_result:
+        """Raise a permission error only for the requested target."""
+        if path == target:
+            raise PermissionError(13, "permission denied", target.as_posix())
+        return original_lstat(path)
+
+    monkeypatch.setattr(pathlib.Path, "lstat", fail_target_lstat)
+
+    exit_code = cli.main(["check", target.as_posix()])
+    captured = capsys.readouterr()
+
+    assert exit_code == 2, "a target stat failure is an operational error"
+    assert captured.out == (
+        "checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n"
+    ), "the command emits the empty-run summary"
+    assert "failed to discover" in captured.err, "the command reports the failure"
+    assert target.as_posix() in captured.err, "the warning identifies the target"
+
+
+def test_main_reports_target_expansion_failure_as_operational(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unresolved home directory is reported instead of escaping the CLI."""
+    target = pathlib.Path("~/notes.md")
+    original_expanduser = pathlib.Path.expanduser
+
+    def fail_target_expansion(path: pathlib.Path) -> pathlib.Path:
+        """Simulate a home lookup failure for the command-line target."""
+        if path == target:
+            raise RuntimeError
+        return original_expanduser(path)
+
+    monkeypatch.setattr(pathlib.Path, "expanduser", fail_target_expansion)
+
+    exit_code = cli.main(["check", target.as_posix()])
+    captured = capsys.readouterr()
+
+    assert exit_code == 2, "target expansion failure is an operational error"
+    assert captured.out == (
+        "checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n"
+    ), "the command emits the empty-run summary"
+    assert "failed to discover" in captured.err, "the command reports the failure"
+    assert target.as_posix() in captured.err, "the warning identifies the raw target"
 
 
 def test_check_reraises_unexpected_extraction_failure(

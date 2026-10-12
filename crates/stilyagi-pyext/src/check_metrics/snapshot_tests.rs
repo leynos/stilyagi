@@ -3,7 +3,11 @@
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyDict};
+use pyo3::{
+    exceptions::{PyAssertionError, PyRuntimeError},
+    prelude::*,
+    types::PyDict,
+};
 use rstest::rstest;
 use stilyagi_extract::{
     ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError, RustExtractError,
@@ -86,6 +90,27 @@ fn integer(snapshot: &Bound<'_, PyDict>, key: &str) -> PyResult<u64> {
         .extract()
 }
 
+fn assert_metric_values(metrics: &Bound<'_, PyDict>, expected: &[(&str, u64)]) -> PyResult<()> {
+    for (name, expected_value) in expected {
+        let actual_value = integer(metrics, name)?;
+        if actual_value != *expected_value {
+            return Err(PyAssertionError::new_err(format!(
+                "metric counter `{name}`: expected {expected_value}, got {actual_value}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn assert_metric_categories(
+    snapshot: &Bound<'_, PyDict>,
+    category: &str,
+    expected: &[(&str, u64)],
+) -> PyResult<()> {
+    let metrics = dictionary(snapshot, category)?;
+    assert_metric_values(&metrics, expected)
+}
+
 #[rstest]
 fn initializes_duration_histogram_counters_to_zero() {
     let histogram = DurationHistogram::new();
@@ -164,32 +189,19 @@ fn serializes_unreadable_and_operational_failure_totals() {
                 .expect("unreadable count is an integer"),
             1
         );
-        let failures = dictionary(bound_snapshot, "stilyagi_check_operational_failures_total")
-            .expect("failure kinds are present");
-        assert_eq!(
-            integer(&failures, "discovery").expect("failure count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&failures, "read").expect("failure count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&failures, "extract").expect("failure count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&failures, "config").expect("failure count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&failures, "rules").expect("failure count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&failures, "render").expect("failure count is an integer"),
-            1
-        );
+        assert_metric_categories(
+            bound_snapshot,
+            "stilyagi_check_operational_failures_total",
+            &[
+                ("discovery", 1),
+                ("read", 1),
+                ("extract", 1),
+                ("config", 1),
+                ("rules", 1),
+                ("render", 1),
+            ],
+        )
+        .expect("operational failure counts match their categories");
     });
 }
 
@@ -198,32 +210,16 @@ fn serializes_extraction_document_and_recovery_counts() {
     let snapshot = populated_snapshot().expect("bounded metrics serialize");
     Python::attach(|py| {
         let bound_snapshot = snapshot.bind(py);
-        assert_eq!(
-            integer(bound_snapshot, "stilyagi_python_extraction_documents_total")
-                .expect("Python document count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(bound_snapshot, "stilyagi_rust_extraction_documents_total")
-                .expect("Rust document count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(
-                bound_snapshot,
-                "stilyagi_python_extraction_recovery_errors_total"
-            )
-            .expect("Python recovery count is an integer"),
-            2
-        );
-        assert_eq!(
-            integer(
-                bound_snapshot,
-                "stilyagi_rust_extraction_recovery_errors_total"
-            )
-            .expect("Rust recovery count is an integer"),
-            2
-        );
+        assert_metric_values(
+            bound_snapshot,
+            &[
+                ("stilyagi_python_extraction_documents_total", 1),
+                ("stilyagi_rust_extraction_documents_total", 1),
+                ("stilyagi_python_extraction_recovery_errors_total", 2),
+                ("stilyagi_rust_extraction_recovery_errors_total", 2),
+            ],
+        )
+        .expect("document and recovery counts match each extraction syntax");
     });
 }
 
@@ -242,22 +238,10 @@ fn serializes_fatal_extraction_error_categories() {
             "stilyagi_rust_extraction_fatal_errors_total",
         )
         .expect("Rust fatal errors are present");
-        assert_eq!(
-            integer(&python, "grammar_load").expect("grammar count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&python, "no_parse_tree").expect("parse tree count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&rust, "grammar_load").expect("grammar count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&rust, "no_parse_tree").expect("parse tree count is an integer"),
-            1
-        );
+        assert_metric_values(&python, &[("grammar_load", 1), ("no_parse_tree", 1)])
+            .expect("Python fatal error counts match their categories");
+        assert_metric_values(&rust, &[("grammar_load", 1), ("no_parse_tree", 1)])
+            .expect("Rust fatal error counts match their categories");
     });
 }
 
@@ -269,10 +253,8 @@ fn serializes_duration_counts_sums_and_cumulative_buckets() {
         let phases = dictionary(bound_snapshot, "stilyagi_check_phase_duration_seconds")
             .expect("phase distributions are present");
         let discovery = dictionary(&phases, "discovery").expect("discovery phase is present");
-        assert_eq!(
-            integer(&discovery, "count").expect("duration count is an integer"),
-            1
-        );
+        assert_metric_values(&discovery, &[("count", 1)])
+            .expect("discovery duration count is present");
         let sum = discovery
             .get_item("sum_seconds")
             .expect("sum lookup succeeds")
@@ -283,11 +265,11 @@ fn serializes_duration_counts_sums_and_cumulative_buckets() {
             sum.to_bits(),
             Duration::from_micros(500).as_secs_f64().to_bits()
         );
-        let buckets = dictionary(&discovery, "buckets").expect("duration buckets are present");
-        assert_eq!(integer(&buckets, "0.001").expect("bucket is an integer"), 1);
-        assert_eq!(integer(&buckets, "0.01").expect("bucket is an integer"), 1);
-        assert_eq!(integer(&buckets, "0.1").expect("bucket is an integer"), 1);
-        assert_eq!(integer(&buckets, "1").expect("bucket is an integer"), 1);
-        assert_eq!(integer(&buckets, "+Inf").expect("bucket is an integer"), 1);
+        assert_metric_categories(
+            &discovery,
+            "buckets",
+            &[("0.001", 1), ("0.01", 1), ("0.1", 1), ("1", 1), ("+Inf", 1)],
+        )
+        .expect("discovery duration buckets are cumulative");
     });
 }

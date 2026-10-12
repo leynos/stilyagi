@@ -268,9 +268,9 @@ each file, and renders deterministic diagnostics. Recoverable extraction
 anomalies are warnings; authored suppression-directive mistakes are errors. The
 text output ends with
 `checked N files (M skipped, K unreadable); E errors, W warnings`, and JSON
-output contains the same counts in its `summary` object. For changes when
-upgrading from published 0.1.0 to 0.2.0, see the
-[migration guide](v0-2-0-migration-guide.md).
+output contains the same counts in its `summary` object. See the
+[mixed-source discovery change notes](mixed-source-discovery-notes.md) for a
+concise overview of this behaviour.
 
 #### Output formats
 

@@ -6,10 +6,11 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
-The original implementation remains complete. Review remediation dated
-2026-10-12 is recorded below. The r6 local candidate passed all six gates
-before this documentation edit; its exact patch fingerprint and validation are
-recorded below. This candidate is not yet claimed as published or merged.
+The original roadmap implementation remains complete. Review remediation dated
+2026-10-12 is complete locally, including a sequential pass of all six current
+gates recorded below. Hosted current-head PR review remains pending; this plan
+does not claim a merge. Earlier gate runs remain historical unless explicitly
+identified as the latest local closeout evidence.
 
 Approval gate: **satisfied on 2026-08-23**. The implementation request
 explicitly approves this ExecPlan.
@@ -294,10 +295,9 @@ Closing:
       reporting helpers in `python/stilyagi/check_inputs.py`; `cli.py` consumes
       those records in the command flow. The developer guide now documents the
       tuple API and record ownership; the README shows the current run summary.
-      Package version 0.1.0 is published, so the review follow-up added
-      `docs/v0-2-0-migration-guide.md` to document expanded discovery,
-      mixed-source checks, summaries, warning/error exits, and stdin syntax
-      selection.
+      The version-neutral `docs/mixed-source-discovery-notes.md` records the
+      discovery, mixed-source, summary, diagnostic, and stdin behaviour without
+      claiming a published 0.1.0 baseline or a future release target.
 - [x] Architecture review follow-up (2026-09-28). Discovery now returns
       structured notices and directory traversal failures without logging.
       `DiscoveryInputs` carries them to command-layer reporting; a traversal
@@ -306,16 +306,29 @@ Closing:
       query purity, ignored-directory short-circuiting, retained partial results,
       and the command's warning/exit behaviour. See D13.
 
-- [x] Review remediation (2026-10-12). A valid ownership finding corrected
-      the metrics design: bounded Stilyagi-owned atomics provide check
-      snapshots without installing or claiming the process-global recorder;
+- [x] Review remediation (2026-10-12; local closeout, hosted review pending).
+      A valid ownership finding corrected the metrics design. Bounded
+      Stilyagi-owned atomics provide check snapshots without installing or
+      claiming the process-global recorder;
       facade calls still reach any host recorder. D16 and the module map now
-      reflect the implementation in `check_metrics.rs` and extraction counters
-      at the PyO3 boundary. Structured discovery notices and failures remain
-      command-side reporting; discovery queries do not log. `Path.walk`
-      symlink-directory entries retain the symlink skip reason, and resolved
-      path sets prevent double-counting across overlapping targets. Three
-      CodeRabbit testing gaps were addressed by staged regression tests:
+      reflect `check_metrics/mod.rs` and extraction counters at the PyO3
+      boundary. Structured discovery notices and failures remain command-side
+      reporting; discovery queries do not log. Discovery retains path
+      expansion, metadata/stat, resolution, and traversal failures as
+      `DiscoveryFailure` values (`OSError | RuntimeError`) while preserving
+      successfully discovered files. Missing targets and `ENOTDIR` races remain
+      missing/unsupported outcomes rather than operational failures. The
+      command owns warning output and exit policy. `Path.walk` symlink-directory
+      entries retain the symlink skip reason, and resolved path sets prevent
+      double-counting across overlapping targets. Regression tests cover
+      ignored-directory short-circuiting, target stat and expansion failures,
+      and partial files after a resolution failure in `tests/test_discovery.py`;
+      `tests/test_check_command.py` pins the CLI operational outcome. The CLI's
+      target-path binding is corrected, and
+      `features/stilyagi_check_command.feature` plus
+      `tests/test_check_stdin.py` pin mixed-syntax and `--stdin-filename`
+      extractor selection. Three CodeRabbit testing gaps were addressed by
+      staged regression tests:
       `.vtcode` exclusion (`tests/test_build_spine_units.py`), exact empty-
       directory zero-summary CLI coverage (`tests/test_check_command.py`), and
       an unknown-verb authored-directive diagnostic assertion in
@@ -345,8 +358,36 @@ Closing:
       development constraint and lockfile have since been updated to
       pytest-bdd 9.0.0; its upstream changelog says pytest 9.1+ `target_fixture`
       injection no longer emits this warning. R31 is historical for the final
-      candidate. The original 3.2.1 implementation status above remains
-      COMPLETE.
+      candidate. No Stilyagi release predecessor or approved 0.2.0 release
+      target exists, so the version-specific migration-guide proposal was
+      replaced by `docs/mixed-source-discovery-notes.md`; package metadata at
+      0.1.0 is not evidence of a published release. The original 3.2.1
+      implementation status above remains COMPLETE.
+
+      Historical r10, the first fresh candidate after those results, passed
+      `check-fmt`, `typecheck`, `test`, and `nixie`, including Rust coverage of
+      90.63%, but failed `lint` and `markdownlint`. The completed remediation
+      fixed Ruff's boolean-argument finding by making the parameter
+      keyword-only. Pylint's C0302 finding at 495 lines was resolved by moving
+      filesystem target-query, classification and walk helpers to
+      `python/stilyagi/discovery_targets.py`, leaving a 194-line public facade
+      and a 323-line internal module; wyvern verified public exports, an acyclic
+      dependency and preserved moved semantics. The maturin wheel snapshot was
+      updated only to include the new runtime module after its focused test
+      passed 1/1. The request for a versioned migration guide was skipped
+      because there is no published baseline or approved release target; the
+      version-neutral discovery notes remain. String-heavy test literals were
+      retained because they pin serialized IR, directive and error-code
+      contracts. The same-base CodeScene delta was clean. Focused
+      test-duplication findings were pre-existing.
+
+      The latest sequential local run passed `make check-fmt`, `make lint`,
+      `make typecheck`, `make test`, `make markdownlint`, and `make nixie`.
+      Results: 348/348 Rust tests, 586/586 pytest tests, 38 Python doctests
+      passed with 2 skipped, and 17 snapshots passed. Rust coverage was
+      4024/4440 lines (90.63%). Build admission was healthy; `sccache` was
+      unavailable, so compilation ran uncached. These are local results only:
+      hosted current-head PR review remains pending, and no merge is claimed.
 
 - [x] CodeScene review follow-up (published head `a86c8b8`). The `run_check`
   length finding was addressed by extracting command-side discovery outcome
@@ -390,7 +431,10 @@ Closing:
   tests passed, with 4 doctest-module skips; Rust doc tests passed.
   `cargo llvm-cov nextest` passed 357/357 tests and measured 4027/4443 lines
   (90.64%), above the 90.48% floor. This is local evidence only; the candidate
-  still requires publication and exact-head hosted/review reconciliation.
+  still requires publication and exact-head hosted/review reconciliation. The
+  final command-input records (`CheckInput`, `DiscoveryInputs`,
+  `FileCheckResult`, and `DiscoveryOutcome`) and reporting helpers remain owned
+  by `python/stilyagi/check_inputs.py`, consumed by `cli.py`.
 
 ## Surprises & discoveries
 
@@ -432,13 +476,11 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   Roadmap item 2.2.1 established that malformed Markdown recovers with an empty
   `errors[]`, so `check` exits `0`. That does not generalize:
 
-  ```plaintext
-  python/malformed: OK regions=1 errors=2 codes=['python-parse-recovery', 'python-parse-recovery']
-  rust/malformed:   OK regions=1 errors=2 codes=['rust-doc-comment-error-subtree', 'rust-parse-recovery']
-  garbage/python_docstring: OK regions=0 errors=3
-  garbage/rust_doc_comment: OK regions=0 errors=1
-  garbage/markdown:         OK regions=1 errors=0
-  ```
+      python/malformed: OK regions=1 errors=2 codes=['python-parse-recovery', 'python-parse-recovery']
+      rust/malformed:   OK regions=1 errors=2 codes=['rust-doc-comment-error-subtree', 'rust-parse-recovery']
+      garbage/python_docstring: OK regions=0 errors=3
+      garbage/rust_doc_comment: OK regions=0 errors=1
+      garbage/markdown:         OK regions=1 errors=0
 
   Because `map_ir_errors` hard-codes error severity and `compute_exit_code`
   returns `1` for any non-empty list, expanding discovery without milestone 2
@@ -448,13 +490,11 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
 
 - **S3. A full-repository dry run quantifies the change exactly.**
 
-  ```plaintext
-  discovered counts: {'md': 64, 'py': 76, 'rs': 92} total 232
-  files producing IR errors: 3
-    tests/fixtures/corpus/python/valid/module-class-function-docstrings.py  1  ['suppression-blanket-forbidden']
-    tests/fixtures/corpus/rust/malformed/unclosed-item.rs                   2  ['rust-doc-comment-error-subtree', 'rust-parse-recovery']
-    tests/fixtures/corpus/rust/valid/item-doc-comments.rs                   1  ['suppression-blanket-forbidden']
-  ```
+      discovered counts: {'md': 64, 'py': 76, 'rs': 92} total 232
+      files producing IR errors: 3
+        tests/fixtures/corpus/python/valid/module-class-function-docstrings.py  1  ['suppression-blanket-forbidden']
+        tests/fixtures/corpus/rust/malformed/unclosed-item.rs                   2  ['rust-doc-comment-error-subtree', 'rust-parse-recovery']
+        tests/fixtures/corpus/rust/valid/item-doc-comments.rs                   1  ['suppression-blanket-forbidden']
 
   Two caveats on that transcript, both instructive. The Markdown count is now
   65, because this ExecPlan is itself a discovered file. And the probe ran
@@ -474,17 +514,15 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   proves it.** Design §7.3 says the RFC "includes too many source-language file
   types". At the RFC's original commit `bbf93da`, §7 read:
 
-  ```plaintext
-  v1 built-in discovery SHOULD include at least:
+      v1 built-in discovery SHOULD include at least:
 
-  - `*.md`
-  - `*.mdx`
-  - `*.py`
-  - `*.rs`
-  - `*.js`
-  - `*.ts`
-  - `*.tsx`
-  ```
+      - `*.md`
+      - `*.mdx`
+      - `*.py`
+      - `*.rs`
+      - `*.js`
+      - `*.ts`
+      - `*.tsx`
 
   That is the over-claim. It was trimmed to the current three-extension list by
   `787526e` ("Add RFC harmonization execplan", roadmap item 1.1.3). W7 corrects
@@ -529,14 +567,12 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
 - **S9 (round 2). A run that checks zero files is byte-identical to a run that
   checks everything.** Probed:
 
-  ```plaintext
-  $ stilyagi check --verbose $T          # one .md file present
-  0 diagnostics found                                        exit=0
+      $ stilyagi check --verbose $T          # one .md file present
+      0 diagnostics found                                        exit=0
 
-  $ stilyagi check --verbose $T/link     # symlinked dir; ZERO files checked
-  INFO:...skipping symlinked directory target: /tmp/.../link
-  0 diagnostics found                                        exit=0
-  ```
+      $ stilyagi check --verbose $T/link     # symlinked dir; ZERO files checked
+      INFO:...skipping symlinked directory target: /tmp/.../link
+      0 diagnostics found                                        exit=0
 
   Impact: this is the load-bearing operational defect. Demoting anomalies to
   warnings without a denominator converts a loud, wrong failure into a quiet,
@@ -815,11 +851,9 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
      a `proptest` strategy constructor returning `impl Strategy<Value = T>`, or
      a `prop_map` closure — use `ExpectValid` from `stilyagi-test-fixtures`:
 
-     ```rust
-     fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
-         string_regex(pattern).expect_valid(pattern)
-     }
-     ```
+         fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
+             string_regex(pattern).expect_valid(pattern)
+         }
 
   W6 adds Rust unit tests under `crates/stilyagi-ir/src/tests/`, exactly the
   directory this governs, so any helper it introduces follows this order.
@@ -951,9 +985,10 @@ Rust:
 - `crates/stilyagi-ir/src/lib.rs` — re-exports the `stilyagi-ir` surface.
 - `crates/stilyagi-pyext/src/lib.rs` — the PyO3 module. `supported_syntaxes` and
   `supported_region_kinds` are the functions W4 mirrors.
-- `crates/stilyagi-pyext/src/check_metrics.rs` — owns bounded atomic check
+- `crates/stilyagi-pyext/src/check_metrics/mod.rs` — owns bounded atomic check
   counters and fixed-bucket phase histograms, plus extraction counters updated
   at the PyO3 boundary; it does not install a metrics recorder.
+  `check_metrics/recording_bindings.rs` exposes recording bindings, and
   `check_metrics/snapshot.rs` serializes the local snapshot for Python.
 
 Python:
@@ -1073,32 +1108,30 @@ an unbounded domain and would catch a real regression.
 scenarios below and add matching steps to `tests/steps/check_command.py`. Keep
 this specification synchronized with the implementation.
 
-```gherkin
-  Scenario: check discovers Markdown, Python, and Rust in one pass
-    Given a temporary tree with files "docs/guide.md", "src/app.py", and "src/lib.rs"
-    When I run "stilyagi check ." in that tree
-    Then the exit code is 0
-    And the processed paths are "docs/guide.md", "src/app.py", and "src/lib.rs"
-    And each processed path was extracted with its extension's syntax
+    Scenario: check discovers Markdown, Python, and Rust in one pass
+      Given a temporary tree with files "docs/guide.md", "src/app.py", and "src/lib.rs"
+      When I run "stilyagi check ." in that tree
+      Then the exit code is 0
+      And the processed paths are "docs/guide.md", "src/app.py", and "src/lib.rs"
+      And each processed path was extracted with its extension's syntax
 
-  Scenario: check ignores files with no registered extractor
-    Given a temporary tree with files "notes.txt", "data.json", and "README.md"
-    When I run "stilyagi check ." in that tree
-    Then the exit code is 0
-    And the processed paths are "README.md"
+    Scenario: check ignores files with no registered extractor
+      Given a temporary tree with files "notes.txt", "data.json", and "README.md"
+      When I run "stilyagi check ." in that tree
+      Then the exit code is 0
+      And the processed paths are "README.md"
 
-  Scenario: check attributes stdin to the syntax implied by the stdin filename
-    Given a temporary tree with two well-formed Markdown files
-    When I run "stilyagi check - --stdin-filename src/lib.rs" in that tree
-    Then the exit code is 0
-    And the standard input was extracted as Rust documentation comments
+    Scenario: check attributes stdin to the syntax implied by the stdin filename
+      Given a temporary tree with two well-formed Markdown files
+      When I run "stilyagi check - --stdin-filename src/lib.rs" in that tree
+      Then the exit code is 0
+      And the standard input was extracted as Rust documentation comments
 
-  Scenario: check skips stdin when the stdin filename has no registered extractor
-    Given a temporary tree with two well-formed Markdown files
-    When I run "stilyagi check - --stdin-filename main.go" in that tree
-    Then the exit code is 0
-    And no input was extracted
-```
+    Scenario: check skips stdin when the stdin filename has no registered extractor
+      Given a temporary tree with two well-formed Markdown files
+      When I run "stilyagi check - --stdin-filename main.go" in that tree
+      Then the exit code is 0
+      And no input was extracted
 
 **W3-red (end-to-end).** Extend `tests/test_cli_e2e.py` with a real subprocess
 run over a mixed tree.
@@ -1120,14 +1153,12 @@ Go/no-go: every new test fails, each for the reason it was written for.
 - Replace `_MARKDOWN_SUFFIXES` with the table (D1). Extensions are stored
   without a leading dot, lowercase:
 
-  ```python
-  _EXTENSION_SYNTAXES: typ.Final[cabc.Mapping[str, model.Syntax]] = {
-      "md": model.Syntax.MARKDOWN,
-      "markdown": model.Syntax.MARKDOWN,
-      "py": model.Syntax.PYTHON_DOCSTRING,
-      "rs": model.Syntax.RUST_DOC_COMMENT,
-  }
-  ```
+      _EXTENSION_SYNTAXES: typ.Final[cabc.Mapping[str, model.Syntax]] = {
+          "md": model.Syntax.MARKDOWN,
+          "markdown": model.Syntax.MARKDOWN,
+          "py": model.Syntax.PYTHON_DOCSTRING,
+          "rs": model.Syntax.RUST_DOC_COMMENT,
+      }
 
 - Replace `_is_markdown_file` with a module-level
   `syntax_for_path(path: pathlib.Path) -> model.Syntax | None`, matching on
@@ -1183,13 +1214,12 @@ ______________________________________________________________________
 #### Stage B2 — red tests
 
 **W6-red.** In `crates/stilyagi-ir/src/tests/`, assert
-`is_authored_directive_code` returns `true` for the two suppression codes and
-`false` for each of the six anomaly codes and for an unknown code — the last
-case pinning Constraint 9's fail-safe polarity. Follow D12's remediation order
-for any helper beside these tests: propagate a `Result` first, reach for
-`#[track_caller]` when the helper asserts, and funnel a genuinely
-non-propagating context through `ExpectValid`. In
-`crates/stilyagi-pyext/src/tests/`, assert the new module function is
+`AUTHORED_DIRECTIVE_ERROR_CODES` contains exactly the two authored suppression
+codes. In `tests/test_ir_error_adapter.py`, assert that an unlisted code maps
+to a warning. Follow D12's remediation order for any helper beside these tests:
+propagate a `Result` first, reach for `#[track_caller]` when the helper
+asserts, and funnel a genuinely non-propagating context through `ExpectValid`.
+In `crates/stilyagi-pyext/src/tests/`, assert the new module function is
 registered and returns the expected shape. In `tests/test_check_files.py`,
 assert a tree containing one malformed `.rs` file exits `0` with a
 warning-severity diagnostic, and a tree containing a bare `# stilyagi: disable`
@@ -1197,52 +1227,48 @@ exits `1` with an error-severity diagnostic. In `tests/test_renderers.py`,
 assert the summary line and the JSON `summary` object. Add the BDD scenarios
 below.
 
-```gherkin
-  Scenario: check reports a Rust parse recovery as a warning and still succeeds
-    Given a temporary tree containing malformed Rust
-    When I run "stilyagi check ." in that tree
-    Then the exit code is 0
-    And the text output reports a warning-severity diagnostic
-    And the summary reports 1 file checked and 0 errors
+    Scenario: check reports a Rust parse recovery as a warning and still succeeds
+      Given a temporary tree containing malformed Rust
+      When I run "stilyagi check ." in that tree
+      Then the exit code is 0
+      And the text output reports a warning-severity diagnostic
+      And the summary reports 1 file checked and 0 errors
 
-  Scenario: check reports a forbidden blanket suppression as an error
-    Given a temporary tree containing a Python file with a blanket suppression
-    When I run "stilyagi check ." in that tree
-    Then the exit code is 1
-    And the text output reports an error-severity diagnostic
+    Scenario: check reports a forbidden blanket suppression as an error
+      Given a temporary tree containing a Python file with a blanket suppression
+      When I run "stilyagi check ." in that tree
+      Then the exit code is 1
+      And the text output reports an error-severity diagnostic
 
-  Scenario: check reports how many files it checked
-    Given a temporary tree with files "docs/guide.md", "src/app.py", and "notes.txt"
-    When I run "stilyagi check ." in that tree
-    Then the exit code is 0
-    And the summary reports 2 files checked
-```
+    Scenario: check reports how many files it checked
+      Given a temporary tree with files "docs/guide.md", "src/app.py", and "notes.txt"
+      When I run "stilyagi check ." in that tree
+      Then the exit code is 0
+      And the summary reports 2 files checked
 
 #### Stage C2 — implementation
 
 **W4. Authored-directive codes.** In `crates/stilyagi-ir/src/suppression.rs`,
 beside the two `IrError` mint sites:
 
-```rust
-/// Codes describing a Stilyagi directive a human wrote incorrectly.
-///
-/// Every other IR error code describes a degraded extraction rather than an
-/// authored mistake, so classification defaults to "not authored". A new
-/// extractor anomaly code therefore becomes a warning without any coordinating
-/// edit, which is the fail-safe direction: an unrecognized extractor notice
-/// must never be able to break a user's build.
-pub const AUTHORED_DIRECTIVE_ERROR_CODES: &[&str] = &[
-    "suppression-blanket-forbidden",
-    "suppression-unknown-verb",
-];
-
-#[must_use]
-pub fn is_authored_directive_code(code: &str) -> bool { ... }
-```
+    /// Codes describing a Stilyagi directive a human wrote incorrectly.
+    ///
+    /// Every other IR error code describes a degraded extraction rather than an
+    /// authored mistake, so classification defaults to "not authored". A new
+    /// extractor anomaly code therefore becomes a warning without any coordinating
+    /// edit, which is the fail-safe direction: an unrecognized extractor notice
+    /// must never be able to break a user's build.
+    pub const AUTHORED_DIRECTIVE_ERROR_CODES: &[&str] = &[
+        "suppression-blanket-forbidden",
+        "suppression-unknown-verb",
+    ];
 
 Use `&'static [_]` rather than a fixed-size array, matching the house idiom in
 `crates/stilyagi-ir/src/region.rs` (`RegionKind::ALL`) and avoiding a length
-that appears in the type. Re-export from `crates/stilyagi-ir/src/lib.rs`.
+that appears in the type. Re-export from `crates/stilyagi-ir/src/lib.rs`. The
+initial draft also proposed a public `is_authored_directive_code` helper, but
+the implementation removed it as redundant: callers classify by membership in
+the exported code vocabulary, which is also exposed through the PyO3 bridge.
 
 In `crates/stilyagi-pyext/src/lib.rs`, mirror `supported_syntaxes` exactly: add
 `authored_directive_error_codes() -> tuple[str, ...]`, register it in the
@@ -1417,30 +1443,24 @@ in parallel.
 
 Baseline (W0):
 
-```bash
-git branch --show-current   # expect 3-2-1-expand-discovery-defaults-to-md-py-and-rs
-make check-fmt 2>&1 | tee "/tmp/check-fmt-$(get-project)-$(git branch --show-current).out"
-make typecheck 2>&1 | tee "/tmp/typecheck-$(get-project)-$(git branch --show-current).out"
-make lint      2>&1 | tee "/tmp/lint-$(get-project)-$(git branch --show-current).out"
-make test      2>&1 | tee "/tmp/test-$(get-project)-$(git branch --show-current).out"
-```
+    git branch --show-current   # expect 3-2-1-expand-discovery-defaults-to-md-py-and-rs
+    make check-fmt 2>&1 | tee "/tmp/check-fmt-$(get-project)-$(git branch --show-current).out"
+    make typecheck 2>&1 | tee "/tmp/typecheck-$(get-project)-$(git branch --show-current).out"
+    make lint      2>&1 | tee "/tmp/lint-$(get-project)-$(git branch --show-current).out"
+    make test      2>&1 | tee "/tmp/test-$(get-project)-$(git branch --show-current).out"
 
 Focused red-stage runs. Expect failures, and read the reason:
 
-```bash
-uv run python -m pytest tests/test_discovery.py tests/test_discovery_properties.py -v
-uv run python -m pytest tests/test_check_files.py tests/test_renderers.py -v
-uv run python -m pytest tests/test_package_skeleton_units.py -v
-cargo test -p stilyagi-ir is_authored_directive_code
-```
+    uv run python -m pytest tests/test_discovery.py tests/test_discovery_properties.py -v
+    uv run python -m pytest tests/test_check_files.py tests/test_renderers.py -v
+    uv run python -m pytest tests/test_package_skeleton_units.py -v
+    cargo test -p stilyagi-ir
 
 Milestone 1 needs no `make build`, because it touches no Rust — one of the
 practical gains from D1. Milestone 2 does:
 
-```bash
-make build
-make check-fmt && make typecheck && make lint && make test
-```
+    make build
+    make check-fmt && make typecheck && make lint && make test
 
 Per AGENTS.md, do not create an isolated Cargo cache or bypass managed compiler
 admission. Start each gate once and let the Cargo package-cache lock and
@@ -1451,17 +1471,13 @@ unrelated repositories, clear `RUSTC_WRAPPER`, or force job counts. If
 
 Documentation gates (W7, W8):
 
-```bash
-make fmt
-make markdownlint 2>&1 | tee "/tmp/markdownlint-$(get-project)-$(git branch --show-current).out"
-make nixie        2>&1 | tee "/tmp/nixie-$(get-project)-$(git branch --show-current).out"
-```
+    make fmt
+    make markdownlint 2>&1 | tee "/tmp/markdownlint-$(get-project)-$(git branch --show-current).out"
+    make nixie        2>&1 | tee "/tmp/nixie-$(get-project)-$(git branch --show-current).out"
 
 The acceptance demonstration. Lead with the clean run:
 
-```bash
-uv run stilyagi check python/ crates/ docs/ ; echo "exit=$?"
-```
+    uv run stilyagi check python/ crates/ docs/ ; echo "exit=$?"
 
 Observed on 2026-08-24: 178 files checked, 44 skipped, zero unreadable files,
 zero errors, zero warnings, and `exit=0`. This is the roadmap item's success
@@ -1469,9 +1485,7 @@ criterion — mixed documentation and source trees work.
 
 Then the corroborating run, which additionally reaches the adversarial corpus:
 
-```bash
-uv run stilyagi check . ; echo "exit=$?"
-```
+    uv run stilyagi check . ; echo "exit=$?"
 
 Observed on 2026-08-24: 237 files checked, 189 skipped, zero unreadable files,
 two error-severity `suppression-blanket-forbidden` diagnostics from the two
@@ -1483,9 +1497,7 @@ behaviour, not a defect — the fixtures really do contain forbidden directives.
 
 After each milestone, and only once all gates are green:
 
-```bash
-coderabbit review --agent
-```
+    coderabbit review --agent
 
 Clear every concern before starting the next milestone. CodeRabbit must not be
 used to catch what the deterministic gates already catch.
@@ -1508,8 +1520,8 @@ Acceptance is behavioural. Each item names an observation, not a code change.
    malformed Rust exits `0` and reports a warning-severity diagnostic.
 6. **Authored-directive violations do fail the run.** A tree containing a bare
    `# stilyagi: disable` exits `1` with an error-severity diagnostic.
-7. **Unclassified codes fail safe.** `is_authored_directive_code` returns
-   `false` for an unknown code, so it maps to a warning (Constraint 9).
+7. **Unclassified codes fail safe.** Unknown codes are absent from the
+   authored-directive vocabulary and map to warnings (Constraint 9).
 8. **Standard input follows `--stdin-filename`.**
    `stilyagi check - --stdin-filename src/lib.rs` extracts as
    `rust_doc_comment`; `--stdin-filename main.go` skips rather than guessing.
@@ -1579,36 +1591,32 @@ for its pending final-gate status.
 
 W0 evidence, 2026-08-23:
 
-```plaintext
-make check-fmt  PASS  /tmp/check-fmt-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
-make typecheck  PASS  /tmp/typecheck-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
-make lint       PASS  /tmp/lint-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
-make test       PASS  /tmp/test-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
-```
+    make check-fmt  PASS  /tmp/check-fmt-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
+    make typecheck  PASS  /tmp/typecheck-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
+    make lint       PASS  /tmp/lint-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
+    make test       PASS  /tmp/test-7dac0d2e-fd47-4ed3-ae7c-3814893c769e-3-2-1-expand-discovery-defaults-to-md-py-and-rs.out
 
 The test gate reported 332 Rust tests and 213 Python tests. `make` created
 `.uv-cache`; its presence was confirmed before recording S14.
 
 Milestone-1 W3 evidence, 2026-08-24:
 
-```plaintext
-RED   uv run python -m pytest tests/test_discovery.py \
-      tests/test_discovery_properties.py tests/test_cli_e2e.py \
-      tests/test_package_skeleton_units.py -q
-      -> 8 failed: the missing `discover_files` API and Markdown-only
-         extractor selection caused every failure.
+    RED   uv run python -m pytest tests/test_discovery.py \
+          tests/test_discovery_properties.py tests/test_cli_e2e.py \
+          tests/test_package_skeleton_units.py -q
+          -> 8 failed: the missing `discover_files` API and Markdown-only
+             extractor selection caused every failure.
 
-GREEN uv run python -m pytest tests/test_discovery.py \
-      tests/test_discovery_properties.py tests/test_check_files.py \
-      tests/test_cli_e2e.py tests/test_package_skeleton_units.py -q
-      -> 53 passed; the property, BDD scenarios, subprocess test, and
-         snapshot all passed.
+    GREEN uv run python -m pytest tests/test_discovery.py \
+          tests/test_discovery_properties.py tests/test_check_files.py \
+          tests/test_cli_e2e.py tests/test_package_skeleton_units.py -q
+          -> 53 passed; the property, BDD scenarios, subprocess test, and
+             snapshot all passed.
 
-GATES make check-fmt, make typecheck, make lint, make test,
-      make markdownlint, and make nixie
-      -> PASS; make test reported 332 Rust tests, 218 Python tests, and
-         17 snapshots. Logs end in `-4.out` under `/tmp` using the W0 prefix.
-```
+    GATES make check-fmt, make typecheck, make lint, make test,
+          make markdownlint, and make nixie
+          -> PASS; make test reported 332 Rust tests, 218 Python tests, and
+             17 snapshots. Logs end in `-4.out` under `/tmp` using the W0 prefix.
 
 The first full lint run rejected a runtime `collections.abc` import (TC003),
 and the second rejected a large assertion literal (C9102 and R9108). Moving the
@@ -1618,10 +1626,8 @@ changing the intended behaviour.
 
 The planning-time dry run, retained as the W6 baseline:
 
-```plaintext
-discovered counts: {'md': 64, 'py': 76, 'rs': 92} total 232
-files producing IR errors: 3
-```
+    discovered counts: {'md': 64, 'py': 76, 'rs': 92} total 232
+    files producing IR errors: 3
 
 Measured corpus sizes, so the W6 comparison can separate file-count growth from
 byte growth:
@@ -1637,22 +1643,23 @@ W1's prune list. File count grows 3.6× but total bytes only ~1.5×.*
 
 Milestone-2 W4--W6 evidence, 2026-08-24:
 
-```plaintext
-RED   cargo test -p stilyagi-ir is_authored_directive_code
-      -> E0432: unresolved import before the Rust vocabulary existed.
+The recorded `is_authored_directive_code` test commands below belong to the
+initial helper draft; the redundant public helper was later removed.
 
-GREEN cargo test -p stilyagi-ir is_authored_directive_code
-      -> 9 passed.
-      cargo test -p stilyagi-pyext authored_directive_error_codes
-      -> PASS.
-      uv run python -m pytest tests/test_discovery.py \
-      tests/test_discovery_properties.py tests/test_ir_error_adapter.py \
-      tests/test_check_command.py tests/test_check_files.py \
-      tests/test_renderers.py tests/test_cli_e2e.py tests/test_corpus.py \
-      tests/test_structural_performance_probe.py \
-      tests/test_package_skeleton_units.py -v
-      -> 92 passed; 9 snapshots passed.
-```
+    RED   cargo test -p stilyagi-ir is_authored_directive_code
+          -> E0432: unresolved import before the Rust vocabulary existed.
+
+    GREEN cargo test -p stilyagi-ir is_authored_directive_code
+          -> 9 passed.
+          cargo test -p stilyagi-pyext authored_directive_error_codes
+          -> PASS.
+          uv run python -m pytest tests/test_discovery.py \
+          tests/test_discovery_properties.py tests/test_ir_error_adapter.py \
+          tests/test_check_command.py tests/test_check_files.py \
+          tests/test_renderers.py tests/test_cli_e2e.py tests/test_corpus.py \
+          tests/test_structural_performance_probe.py \
+          tests/test_package_skeleton_units.py -v
+          -> 92 passed; 9 snapshots passed.
 
 The live discovery walk found 236 registered files and 183 unregistered source
 candidates: 65 Markdown files totalling 1,716,784 bytes, 78 Python files
@@ -1675,57 +1682,50 @@ These must exist when the plan is complete. Names are prescriptive.
 In `crates/stilyagi-ir/src/suppression.rs`, re-exported from
 `crates/stilyagi-ir/src/lib.rs`:
 
-```rust
-pub const AUTHORED_DIRECTIVE_ERROR_CODES: &[&str];
+    pub const AUTHORED_DIRECTIVE_ERROR_CODES: &[&str];
 
-#[must_use]
-pub fn is_authored_directive_code(code: &str) -> bool;
-```
+The public Rust classifier is the code vocabulary; the redundant
+`is_authored_directive_code` helper from the initial draft was removed. The
+PyO3 bridge exposes that vocabulary to the Python diagnostic classifier.
 
 In `crates/stilyagi-pyext/src/lib.rs`, registered in `_stilyagi_rs` and
 declared in `python/stilyagi/_stilyagi_rs.pyi`:
 
-```python
-def authored_directive_error_codes() -> tuple[str, ...]: ...
-```
+    def authored_directive_error_codes() -> tuple[str, ...]: ...
 
 In `python/stilyagi/discovery.py`:
 
-```python
-@dc.dataclass(frozen=True, slots=True)
-class DiscoveredFile:
-    reported_path: str
-    resolved_path: pathlib.Path
-    syntax: model.Syntax
+    @dc.dataclass(frozen=True, slots=True)
+    class DiscoveredFile:
+        reported_path: str
+        resolved_path: pathlib.Path
+        syntax: model.Syntax
 
 
-def syntax_for_path(path: pathlib.Path) -> model.Syntax | None: ...
+    def syntax_for_path(path: pathlib.Path) -> model.Syntax | None: ...
 
 
-def discover_files(
-    targets: cabc.Iterable[pathlib.Path | str],
-    config: StilyagiConfig,
-) -> list[DiscoveredFile]: ...
-```
+    def discover_files(
+        targets: cabc.Iterable[pathlib.Path | str],
+        config: StilyagiConfig,
+    ) -> list[DiscoveredFile]: ...
 
 In `python/stilyagi/check_inputs.py`:
 
-```python
-@dc.dataclass(frozen=True, slots=True)
-class CheckInput:
-    reported_path: str
-    resolved_path: pathlib.Path
-    syntax: model.Syntax
-    source_text: str | None = None
+    @dc.dataclass(frozen=True, slots=True)
+    class CheckInput:
+        reported_path: str
+        resolved_path: pathlib.Path
+        syntax: model.Syntax
+        source_text: str | None = None
 
-    @classmethod
-    def from_discovered(
-        cls,
-        file: discovery.DiscoveredFile,
-        *,
-        source_text: str | None = None,
-    ) -> CheckInput: ...
-```
+        @classmethod
+        def from_discovered(
+            cls,
+            file: discovery.DiscoveredFile,
+            *,
+            source_text: str | None = None,
+        ) -> CheckInput: ...
 
 Libraries: no new runtime dependency (Constraint 2). Test-only use of `rstest`,
 `insta`, and `proptest` on the Rust side and `pytest`, `pytest-bdd`, `syrupy`,

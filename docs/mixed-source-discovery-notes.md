@@ -1,9 +1,9 @@
-# Migration guide: 0.1.0 to 0.2.0
+# Mixed-source discovery change notes
 
-This guide summarizes user-facing changes when moving from published Stilyagi
-0.1.0 to the next pre-1.0 minor version, 0.2.0. It focuses on expanded
-`stilyagi check` discovery behaviour; the [user's guide](users-guide.md)
-remains the detailed command reference.
+These notes summarize the mixed-source discovery behaviour. Stilyagi has not
+published a release; the current `0.1.0` package metadata does not establish a
+published version or a future release target. The
+[user's guide](users-guide.md) remains the detailed command reference.
 
 ## Mixed-source discovery
 

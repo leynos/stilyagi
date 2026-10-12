@@ -27,6 +27,7 @@
       'stilyagi/diagnostics_location.py',
       'stilyagi/discovery.py',
       'stilyagi/discovery_results.py',
+      'stilyagi/discovery_targets.py',
       'stilyagi/engine/__init__.py',
       'stilyagi/engine/api.py',
       'stilyagi/engine/checker.py',

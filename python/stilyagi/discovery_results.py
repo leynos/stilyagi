@@ -1,7 +1,7 @@
 """Structured records returned by source discovery.
 
-Keeping files, notices and traversal failures together lets discovery remain a
-query while the command layer owns user-facing logging and exit policy.
+Keeping files, notices and filesystem failures together lets discovery remain
+a query while the command layer owns user-facing logging and exit policy.
 """
 
 import dataclasses as dc
@@ -55,18 +55,25 @@ class DiscoveryNotice(typ.NamedTuple):
 
 
 class DiscoveryFailure(typ.NamedTuple):
-    """One directory traversal error that may leave discovery incomplete.
+    """One structured filesystem error encountered during source discovery.
+
+    Failures are retained in the discovery result instead of being logged by
+    the query. The command layer reports them and treats their presence as an
+    operational failure; files found before or after an error remain available.
 
     Attributes
     ----------
     path:
-        Path whose traversal failed, as supplied by ``Path.walk`` when known.
+        Path whose expansion, metadata lookup, resolution or directory walk
+        failed.
     error:
-        The original operating-system error reported by the walk callback.
+        Original ``OSError`` from a filesystem operation, or ``RuntimeError``
+        raised when ``Path.expanduser`` cannot determine the home directory or
+        ``Path.resolve`` detects a symlink loop.
     """
 
     path: pathlib.Path
-    error: OSError
+    error: OSError | RuntimeError
 
 
 type SkippedCandidateReason = typ.Literal[
@@ -92,7 +99,7 @@ class SkippedCandidateCount(typ.NamedTuple):
 
 @dc.dataclass(frozen=True, slots=True)
 class DiscoveryResult:
-    """Files, skips, notices and traversal failures from one discovery pass.
+    """Files, skips, notices and filesystem failures from one discovery pass.
 
     Parameters
     ----------
@@ -108,8 +115,10 @@ class DiscoveryResult:
         Informational or warning events for the caller to report after the
         query completes. Discovery itself does not log.
     failures:
-        Directory traversal errors, retained alongside any files discovered
-        before or after the failure.
+        Structured path-expansion, metadata, path-resolution or directory-walk
+        failures, retained alongside any files discovered before or after each
+        failure. Errors are ``OSError`` or ``RuntimeError`` instances; runtime
+        errors include an unresolved home directory or a symlink loop.
     """
 
     files: tuple[DiscoveredFile, ...]

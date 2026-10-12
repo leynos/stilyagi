@@ -12,6 +12,7 @@ from tests.support.assertions import assert_with_context
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+    import os
 
     from syrupy.assertion import SnapshotAssertion
 
@@ -210,6 +211,102 @@ def test_a_missing_target_is_retained_as_a_notice_and_contributes_nothing(
     assert result.notices == (
         discovery.DiscoveryNotice("missing_or_unsupported_target", target),
     ), "the missing target is retained for command-layer reporting"
+
+
+def test_target_stat_failure_is_retained_as_a_discovery_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not turn an inaccessible explicit target into a missing-path notice."""
+    target = tmp_path / "restricted.md"
+    _write_markdown(target, "Restricted")
+    original_lstat = pathlib.Path.lstat
+
+    def fail_target_lstat(path: pathlib.Path) -> os.stat_result:
+        """Raise a permission error only for the explicit target."""
+        if path == target:
+            raise PermissionError(13, "permission denied", target.as_posix())
+        return original_lstat(path)
+
+    monkeypatch.setattr(pathlib.Path, "lstat", fail_target_lstat)
+
+    result = discovery.discover_files_with_summary(
+        [target], config.StilyagiConfig(respect_gitignore=False)
+    )
+
+    assert not result.files, "an inaccessible target cannot be checked"
+    assert result.skipped_files == 0, (
+        "an operational failure is not a skipped candidate"
+    )
+    assert len(result.failures) == 1, "the stat error is retained as a failure"
+    assert result.failures[0].path == target, "the failure retains the target path"
+    assert isinstance(result.failures[0].error, PermissionError), (
+        "the original permission error is retained"
+    )
+
+
+def test_target_expansion_failure_is_retained_as_a_discovery_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A home-directory lookup error remains visible to command reporting."""
+    target = pathlib.Path("~/notes.md")
+    original_expanduser = pathlib.Path.expanduser
+
+    def fail_target_expansion(path: pathlib.Path) -> pathlib.Path:
+        """Simulate an unavailable home directory for the requested target."""
+        if path == target:
+            raise RuntimeError
+        return original_expanduser(path)
+
+    monkeypatch.setattr(pathlib.Path, "expanduser", fail_target_expansion)
+
+    result = discovery.discover_files_with_summary(
+        [target], config.StilyagiConfig(respect_gitignore=False)
+    )
+
+    assert not result.files, "a target with no resolved home cannot be checked"
+    assert len(result.failures) == 1, "the expansion error is retained"
+    assert result.failures[0].path == target, "the raw target remains identifiable"
+    assert isinstance(result.failures[0].error, RuntimeError), (
+        "the original expansion error is retained"
+    )
+
+
+def test_candidate_resolution_failure_keeps_partial_discoveries(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A path resolution error is retained without discarding other files."""
+    root = tmp_path / "source"
+    _write_markdown(root / "notes.md", "Notes")
+    broken = root / "loop.py"
+    broken.write_text('"""Loop."""\n', encoding="utf-8")
+    original_resolve = pathlib.Path.resolve
+
+    def fail_candidate_resolution(
+        path: pathlib.Path,
+        *,
+        strict: bool = False,
+    ) -> pathlib.Path:
+        """Simulate a symlink-loop error for one candidate only."""
+        if path == broken:
+            raise RuntimeError
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(pathlib.Path, "resolve", fail_candidate_resolution)
+
+    result = discovery.discover_files_with_summary(
+        [root], config.StilyagiConfig(respect_gitignore=False)
+    )
+
+    assert [file.reported_path for file in result.files] == [
+        (root / "notes.md").as_posix(),
+    ], "a failed candidate does not discard successfully resolved files"
+    assert len(result.failures) == 1, "the resolution error is retained"
+    assert result.failures[0].path == broken, "the failure identifies the candidate"
+    assert isinstance(result.failures[0].error, RuntimeError), (
+        "the original resolution error is retained"
+    )
 
 
 def test_a_symlinked_directory_target_is_retained_as_a_notice_and_skipped(

@@ -13,12 +13,6 @@ use crate::{IrError, IrSuppression, SourceSpan, SuppressionKind};
 pub const AUTHORED_DIRECTIVE_ERROR_CODES: &[&str] =
     &["suppression-blanket-forbidden", "suppression-unknown-verb"];
 
-/// Return whether an IR error code describes an authored directive violation.
-#[must_use]
-pub fn is_authored_directive_code(code: &str) -> bool {
-    AUTHORED_DIRECTIVE_ERROR_CODES.contains(&code)
-}
-
 /// A candidate directive assembled by a syntax frontend.
 ///
 /// The `body` should contain the comment text with the syntax-specific

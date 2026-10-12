@@ -261,9 +261,9 @@ def _discover_targets(
     resolver: config.ConfigResolver,
 ) -> DiscoveryInputs:
     """Discover registered files beneath the requested targets."""
-    resolved_targets = [pathlib.Path(target).expanduser() for target in options.targets]
-    has_stdin_target = any(target.as_posix() == "-" for target in resolved_targets)
-    if has_stdin_target and len(resolved_targets) > 1:
+    target_paths = [pathlib.Path(target) for target in options.targets]
+    has_stdin_target = any(target.as_posix() == "-" for target in target_paths)
+    if has_stdin_target and len(target_paths) > 1:
         message = "stdin target cannot be combined with file targets"
         raise ValueError(message)
     if has_stdin_target:
@@ -279,7 +279,7 @@ def _discover_targets(
         )
     discovery_config = _resolve_discovery_config(options, resolver)
     result = discovery.discover_files_with_summary(
-        resolved_targets,
+        target_paths,
         discovery_config,
     )
     return DiscoveryInputs(
