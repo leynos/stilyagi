@@ -1,9 +1,8 @@
-"""Markdown discovery helpers for the check command.
+r"""Deterministic source discovery helpers for the check command.
 
-This module finds Markdown inputs deterministically from command-line targets.
-The public surface keeps both the command-line-relative reported path and the
-resolved filesystem path so later stages can attribute diagnostics without
-losing stable ordering.
+This module exposes source-discovery queries and aggregates their structured
+results across command-line targets. Filesystem probing and directory walking
+live in :mod:`stilyagi.discovery_targets`.
 
 Example
 -------
@@ -11,62 +10,55 @@ Example
 >>> import tempfile
 >>> from stilyagi import config
 >>> with tempfile.TemporaryDirectory() as directory:
-...     root = pathlib.Path(directory)
-...     _ = (root / "guide.md").write_text("# Guide", encoding="utf-8")
-...     files = discover_markdown_files([root], config.StilyagiConfig())
-...     [pathlib.Path(item.reported_path).name for item in files]
-['guide.md']
+...     note = pathlib.Path(directory) / "notes.md"
+...     _ = note.write_text("# Notes", encoding="utf-8")
+...     files = discover_files([note], config.StilyagiConfig())
+...     files[0].resolved_path.name
+'notes.md'
 """
 
-import dataclasses as dc
-import logging
-import pathlib
 import typing as typ
 
-_LOGGER = logging.getLogger(__name__)
-_MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
-_IGNORED_DIRECTORY_NAMES = frozenset({
-    ".git",
-    "build",
-    "dist",
-    "node_modules",
-    "target",
-    ".venv",
-})
+from stilyagi.discovery_results import (
+    DiscoveredFile,
+    DiscoveryFailure,
+    DiscoveryNotice,
+    DiscoveryResult,
+    SkippedCandidateCount,
+    SkippedCandidateReason,
+    _build_discovery_result,
+)
+from stilyagi.discovery_targets import (
+    _discover_target,
+    syntax_for_path,
+)
 
-__all__ = ["DiscoveredFile", "discover_markdown_files"]
+__all__ = [
+    "DiscoveredFile",
+    "DiscoveryFailure",
+    "DiscoveryNotice",
+    "DiscoveryResult",
+    "SkippedCandidateCount",
+    "discover_files",
+    "discover_files_with_summary",
+    "syntax_for_path",
+]
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+    import pathlib
 
     from stilyagi.config import StilyagiConfig
 
 
-@dc.dataclass(frozen=True, slots=True)
-class DiscoveredFile:
-    """One discovered Markdown file.
-
-    Parameters
-    ----------
-    reported_path:
-        The command-line-relative POSIX path used for user-facing reporting.
-    resolved_path:
-        The fully resolved filesystem path used for de-duplication and stable
-        ordering.
-    """
-
-    reported_path: str
-    resolved_path: pathlib.Path
-
-
-def discover_markdown_files(
+def discover_files(
     targets: cabc.Iterable[pathlib.Path | str],
     config: StilyagiConfig,
 ) -> list[DiscoveredFile]:
-    """Return Markdown files discovered from the supplied targets.
+    r"""Return registered source files discovered from the supplied targets.
 
-    Explicit Markdown files are always included. Directory targets recurse
-    deterministically, skip known build noise directories, and do not follow
+    Explicit registered files are included. Directory targets recurse
+    deterministically, skip known build-noise directories, and do not follow
     symlinked directories.
 
     Parameters
@@ -75,14 +67,17 @@ def discover_markdown_files(
         Command-line targets to inspect.
     config:
         Resolved Stilyagi configuration. The discovery layer currently only
-        uses it to report that ``respect_gitignore`` is accepted but not yet
-        enforced.
+        uses it to return a notice when ``respect_gitignore`` is accepted but
+        not yet enforced.
 
     Returns
     -------
     list[DiscoveredFile]
-        Markdown files sorted by resolved path, with duplicate resolved paths
-        collapsed to one entry.
+        Registered files sorted by resolved path, with duplicate resolved paths
+        collapsed to one entry. If path expansion, metadata lookup, path
+        resolution or traversal fails, the first retained ``OSError`` or
+        ``RuntimeError`` is raised because this files-only wrapper cannot
+        represent partial results and failures together.
 
     Examples
     --------
@@ -92,96 +87,99 @@ def discover_markdown_files(
     >>> with tempfile.TemporaryDirectory() as directory:
     ...     note = pathlib.Path(directory) / "notes.md"
     ...     _ = note.write_text("# Notes", encoding="utf-8")
-    ...     found = discover_markdown_files([note], config.StilyagiConfig())
-    ...     found[0].reported_path == str(note)
-    True
+    ...     files = discover_files([note], config.StilyagiConfig())
+    ...     files[0].resolved_path.name
+    'notes.md'
     """
-    if config.respect_gitignore:
-        _LOGGER.info("respect-gitignore is accepted but not yet enforced")
+    result = discover_files_with_summary(targets, config)
+    if result.failures:
+        raise result.failures[0].error
+    return list(result.files)
 
+
+def discover_files_with_summary(
+    targets: cabc.Iterable[pathlib.Path | str],
+    config: StilyagiConfig,
+) -> DiscoveryResult:
+    r"""Discover registered files and return skips, notices and failures.
+
+    This query performs no logging. Callers own reporting and exit policy.
+
+    Parameters
+    ----------
+    targets:
+        Command-line targets to inspect.
+    config:
+        Resolved Stilyagi configuration. Discovery currently only uses it to
+        return a notice that ``respect_gitignore`` is accepted but not yet
+        enforced.
+
+    Returns
+    -------
+    DiscoveryResult
+        Registered files sorted by resolved path, with duplicate resolved
+        paths collapsed to one entry, plus the count of skipped candidates,
+        bounded notices and structured filesystem errors. Path-expansion,
+        metadata-lookup, path-resolution and directory-traversal failures are
+        retained with any successfully discovered files; their errors are
+        ``OSError`` or ``RuntimeError`` instances. Runtime errors include an
+        unresolved home directory during expansion and a symlink loop during
+        resolution. A candidate is skipped when it has no registered extractor
+        or when it is a symlinked directory target or unsupported filesystem
+        type. Skips are counted once per distinct path, even when several
+        targets overlap; missing targets are ignored and not counted.
+
+    Examples
+    --------
+    >>> import os
+    >>> import tempfile
+    >>> from pathlib import Path
+    >>> from stilyagi import config
+    >>> cwd = os.getcwd()
+    >>> tmp = tempfile.TemporaryDirectory()
+    >>> os.chdir(tmp.name)
+    >>> _ = Path("notes.md").write_text("# Notes\\n", encoding="utf-8")
+    >>> _ = Path("data.json").write_text("{}", encoding="utf-8")
+    >>> result = discover_files_with_summary([Path(".")], config.StilyagiConfig())
+    >>> (result.files[0].reported_path, result.skipped_files)
+    ('notes.md', 1)
+    >>> os.chdir(cwd)
+    >>> tmp.cleanup()
+    """
     discovered: dict[pathlib.Path, DiscoveredFile] = {}
+    skipped_candidates: dict[SkippedCandidateReason, set[pathlib.Path]] = {}
+    notices: list[DiscoveryNotice] = []
+    if config.respect_gitignore:
+        notices.append(DiscoveryNotice("respect_gitignore_unenforced"))
+    notice_set = set(notices)
+    failures: list[DiscoveryFailure] = []
     for target in targets:
-        target_path = pathlib.Path(target).expanduser()
-        for candidate in _candidates_for_target(target_path):
+        target_result = _discover_target(target)
+        for reason, candidate_path in target_result.skipped_candidates:
+            skipped_candidates.setdefault(reason, set()).add(candidate_path)
+        failures.extend(target_result.failures)
+        for notice in target_result.notices:
+            _record_notice(notices, notice_set, notice)
+        for candidate in target_result.files:
             _record_candidate(discovered, candidate)
 
-    return [
-        discovered[resolved_path]
-        for resolved_path in sorted(discovered, key=lambda path: path.as_posix())
-    ]
-
-
-def _candidates_for_target(
-    target_path: pathlib.Path,
-) -> cabc.Iterator[DiscoveredFile | None]:
-    """Yield Markdown candidates for one command-line target."""
-    if _is_symlinked_directory(target_path):
-        _LOGGER.info("skipping symlinked directory target: %s", target_path.as_posix())
-        return
-    if target_path.is_file():
-        yield _discover_explicit_file(target_path)
-        return
-    if target_path.is_dir():
-        yield from _discover_directory(target_path)
-        return
-    _LOGGER.info("ignoring missing or unsupported target: %s", target_path.as_posix())
-
-
-def _discover_explicit_file(target_path: pathlib.Path) -> DiscoveredFile | None:
-    """Return one explicit file target if it is Markdown."""
-    if not _is_markdown_file(target_path):
-        _LOGGER.info("ignoring non-Markdown target: %s", target_path.as_posix())
-        return None
-    return DiscoveredFile(
-        reported_path=target_path.as_posix(),
-        resolved_path=target_path.resolve(),
+    return _build_discovery_result(
+        discovered,
+        skipped_candidates,
+        notices,
+        failures,
     )
 
 
-def _discover_directory(target_path: pathlib.Path) -> cabc.Iterator[DiscoveredFile]:
-    """Yield Markdown files discovered beneath one directory target."""
-    reported_base = pathlib.PurePosixPath(target_path.as_posix())
-    for root_path, dirnames, filenames in target_path.walk(follow_symlinks=False):
-        _prune_ignored_directories(root_path, dirnames)
-        relative_root = pathlib.PurePosixPath(
-            root_path.relative_to(target_path).as_posix()
-        )
-        reported_root = reported_base / relative_root
-        for filename in sorted(filenames):
-            candidate = root_path / filename
-            if not _is_markdown_file(candidate):
-                continue
-            yield DiscoveredFile(
-                reported_path=(reported_root / filename).as_posix(),
-                resolved_path=candidate.resolve(),
-            )
-
-
-def _prune_ignored_directories(
-    root_path: pathlib.Path,
-    dirnames: list[str],
+def _record_notice(
+    notices: list[DiscoveryNotice],
+    notice_set: set[DiscoveryNotice],
+    notice: DiscoveryNotice,
 ) -> None:
-    """Remove noise directories and symlinked directories from ``dirnames``."""
-    dirnames[:] = [
-        dirname
-        for dirname in dirnames
-        if not _should_skip_directory(root_path / dirname)
-    ]
-
-
-def _should_skip_directory(directory: pathlib.Path) -> bool:
-    """Return ``True`` when a child directory should not be traversed."""
-    return directory.name in _IGNORED_DIRECTORY_NAMES or directory.is_symlink()
-
-
-def _is_symlinked_directory(target_path: pathlib.Path) -> bool:
-    """Return ``True`` when the supplied target is a symlinked directory."""
-    return target_path.is_symlink() and target_path.is_dir()
-
-
-def _is_markdown_file(path: pathlib.Path) -> bool:
-    """Return ``True`` when ``path`` has a Markdown suffix."""
-    return path.suffix.lower() in _MARKDOWN_SUFFIXES
+    """Append one notice while suppressing repeated target messages."""
+    if notice not in notice_set:
+        notice_set.add(notice)
+        notices.append(notice)
 
 
 def _record_candidate(

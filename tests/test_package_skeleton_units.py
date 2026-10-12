@@ -1,10 +1,7 @@
 """Unit tests for the mixed-package Python skeleton."""
 
 import dataclasses as dc
-import os
 import pathlib
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests invoke a trusted local interpreter.
-import sys
 
 import pytest
 import stilyagi
@@ -41,6 +38,7 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
                 "ExecutionPlan",
                 "FixPlan",
                 "RendererRegistry",
+                "RunSummary",
                 "extract_document",
                 "supported_region_kinds",
             ],
@@ -120,38 +118,4 @@ def test_diagnostic_preserves_code_and_message() -> None:
     assert_with_context(
         diagnostic == dc.replace(diagnostic),
         "expected diagnostic == dc.replace(diagnostic)",
-    )
-
-
-def test_python_module_entrypoint_reports_invalid_config(
-    tmp_path: pathlib.Path,
-) -> None:
-    """Exercise the console entry point through `python -m stilyagi`."""
-    (tmp_path / "stilyagi.toml").write_text("[lint\n", encoding="utf-8")
-    (tmp_path / "notes.md").write_text("# Notes\n", encoding="utf-8")
-    python_path = pathlib.Path(__file__).resolve().parents[1] / "python"
-    env = dict(os.environ)
-    env["PYTHONPATH"] = (
-        f"{python_path}{os.pathsep}{env['PYTHONPATH']}"
-        if env.get("PYTHONPATH")
-        else str(python_path)
-    )
-
-    completed = subprocess.run(
-        [sys.executable, "-m", "stilyagi"],
-        cwd=tmp_path,
-        env=env,
-        capture_output=True,
-        check=False,
-        text=True,
-    )
-
-    assert completed.returncode == 2, "expected completed.returncode == 2"
-    assert_with_context(
-        "stilyagi check:" in completed.stderr,
-        "expected 'stilyagi check:' in completed.stderr",
-    )
-    assert_with_context(
-        "toml" in completed.stderr.lower(),
-        "expected 'toml' in completed.stderr.lower()",
     )

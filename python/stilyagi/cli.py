@@ -1,21 +1,34 @@
-"""Command-line interface for Stilyagi."""
+"""Command-line interface for Stilyagi.
 
-import dataclasses as dc
+The check command discovers registered source files, reads each input,
+extracts documents through the Rust bridge, and renders the accumulated
+diagnostics with an honest run summary.
+"""
+
 import logging
 import pathlib
 import sys
 import typing as typ
 
-from stilyagi import config, diagnostics, discovery, engine, model
+from stilyagi import check_metrics, config, diagnostics, discovery, engine, model
+from stilyagi.check_execution import (
+    _check_discovered_files,
+    _resolve_discovery_config,
+)
+from stilyagi.check_inputs import (
+    CheckInput,
+    DiscoveryInputs,
+    configure_command_warning_handler,
+    report_check_error,
+    report_discovery_outcomes,
+)
 from stilyagi.cli_args import (
     PACKAGE_VERSION,
-    PROGRAM_NAME,
     CheckOptions,
     build_parser,
     options_from_args,
 )
-from stilyagi.engine.checker import map_ir_errors
-from stilyagi.rules import registry as rules_registry
+from stilyagi.discovery_results import SkippedCandidateCount
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -33,13 +46,17 @@ __all__ = [
 _LOGGER = logging.getLogger(__name__)
 
 
-@dc.dataclass(frozen=True, slots=True)
-class CheckInput:
-    """One resolved `check` input, from disk or standard input."""
+def _configure_logging(options: CheckOptions) -> None:
+    """Configure verbosity and isolate warning output from root handlers."""
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        logging.basicConfig(level=logging.WARNING)
+    if options.silent or options.quiet:
+        root_logger.setLevel(logging.WARNING)
+    elif options.verbose:
+        root_logger.setLevel(logging.INFO)
 
-    reported_path: str
-    resolved_path: pathlib.Path
-    source_text: str | None = None
+    configure_command_warning_handler()
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
@@ -66,50 +83,7 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
         return typ.cast("int", exc.code)
 
     options = options_from_args(args)
-    _configure_logging(options)
     return run_check(options)
-
-
-def _configure_logging(options: CheckOptions) -> None:
-    """Apply the requested verbosity level before running the check loop."""
-    if options.silent or options.quiet:
-        logging.basicConfig(level=logging.WARNING)
-    elif options.verbose:
-        logging.basicConfig(level=logging.INFO)
-
-
-def _build_cli_overrides(options: CheckOptions) -> dict[str, object]:
-    """Return config overrides extracted from command-line options."""
-    lint_overrides: dict[str, object] = {}
-    if options.select:
-        lint_overrides["select"] = options.select
-    if options.ignore:
-        lint_overrides["ignore"] = options.ignore
-    if options.extend_select:
-        lint_select = typ.cast(
-            "tuple[str, ...]",
-            lint_overrides.get("select", ()),
-        )
-        lint_overrides["select"] = (*lint_select, *options.extend_select)
-
-    overrides: dict[str, object] = {}
-    if lint_overrides:
-        overrides["lint"] = lint_overrides
-    return overrides
-
-
-def _resolve_config(
-    target: pathlib.Path,
-    options: CheckOptions,
-    resolver: config.ConfigResolver,
-) -> config.StilyagiConfig:
-    """Resolve the effective config for one target path."""
-    return resolver.resolve_config_for_path(
-        target,
-        cli_overrides=_build_cli_overrides(options) or None,
-        explicit_config=options.explicit_config or None,
-        isolated=options.isolated,
-    )
 
 
 def run_check(
@@ -125,9 +99,7 @@ def run_check(
     options:
         The parsed options for one `check` invocation.
     resolver:
-        Configuration resolver to reuse across every checked file. A fresh
-        single-use resolver is created when one is not supplied, so no
-        configuration cache is shared between invocations.
+        Resolver shared between checked files; new when not supplied.
     renderer:
         Renderer used to serialise diagnostics. Defaults to a new
         :class:`~stilyagi.engine.RendererRegistry`.
@@ -135,42 +107,121 @@ def run_check(
     Returns
     -------
     int
-        Zero when the check succeeds without findings, one when diagnostics
-        are found, or two when an operational error occurs.
+        Zero when the check succeeds or produces warnings, one when it
+        produces failing diagnostics, or two when an operational error occurs.
     """
+    started_at_ns = check_metrics._start_check()
+    check_metrics.reset_check_metrics()
+    try:
+        _configure_logging(options)
+        exit_code = _run_check(options, resolver, renderer)
+    except Exception:
+        check_metrics._finish_check(
+            2,
+            verbose=options.verbose,
+            started_at_ns=started_at_ns,
+        )
+        raise
+    return check_metrics._finish_check(
+        exit_code,
+        verbose=options.verbose,
+        started_at_ns=started_at_ns,
+    )
+
+
+def _run_check(
+    options: CheckOptions,
+    resolver: config.ConfigResolver | None,
+    renderer: engine.RendererRegistry | None,
+) -> int:
+    """Discover inputs and check them, leaving run finalization to the caller."""
     resolver = resolver if resolver is not None else config.ConfigResolver()
     renderer = renderer if renderer is not None else engine.RendererRegistry()
-    had_error = False
-    diagnostics_list: list[diagnostics.Diagnostic] = []
-
     _LOGGER.debug("target discovery started for %r", options.targets)
     try:
-        discovered_files = _discover_targets(options, resolver)
+        with check_metrics._measure_phase("discovery"):
+            discovery_inputs = _discover_targets(options, resolver)
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
         ValueError,
     ) as error:
-        _LOGGER.warning("target discovery failed: %s", error)
-        _report_check_error(None, error)
-        return 2
-    _LOGGER.debug("target discovery finished: %d input(s)", len(discovered_files))
-
-    for discovered_file in discovered_files:
-        file_diagnostics, file_error = _check_one_file(
-            discovered_file, options, resolver
+        check_metrics.record_operational_failure(
+            "config"
+            if isinstance(
+                error, (config.InvalidCacheDirError, config.InvalidConfigError)
+            )
+            else "discovery"
         )
-        diagnostics_list.extend(file_diagnostics)
-        had_error = had_error or file_error
+        report_check_error(None, error)
+        return 2
+    except Exception:
+        check_metrics.record_operational_failure("discovery")
+        raise
+    _report_discovery_outcomes(discovery_inputs)
+    _LOGGER.debug(
+        "target discovery finished: %d input(s)",
+        len(discovery_inputs.inputs),
+    )
 
+    return _check_and_render(
+        discovery_inputs,
+        options,
+        resolver,
+        renderer,
+    )
+
+
+def _report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> None:
+    """Report discovery events and record their bounded operational metrics."""
+    check_metrics._record_skips(discovery_inputs.skipped_by_reason)
+    for _failure in discovery_inputs.failures:
+        check_metrics.record_operational_failure("discovery")
+    report_discovery_outcomes(discovery_inputs)
+
+
+def _check_and_render(
+    discovery_inputs: DiscoveryInputs,
+    options: CheckOptions,
+    resolver: config.ConfigResolver,
+    renderer: engine.RendererRegistry,
+) -> int:
+    """Check discovered inputs, render the summary, and return the outcome."""
+    check_outcome = _check_discovered_files(
+        discovery_inputs.inputs,
+        options,
+        resolver,
+    )
     _LOGGER.debug(
         "rendering %d diagnostic(s) as %s",
-        len(diagnostics_list),
+        len(check_outcome.diagnostics),
         options.output_format,
     )
-    rendered = renderer.render(diagnostics_list, options.output_format)
-    print(rendered, end="")
-    exit_code = compute_exit_code(diagnostics_list, had_error=had_error)
+    summary = engine.RunSummary.from_diagnostics(
+        check_outcome.diagnostics,
+        checked_files=len(discovery_inputs.inputs),
+        skipped_files=discovery_inputs.skipped_files,
+        unreadable_files=check_outcome.unreadable_files,
+    )
+    check_metrics._record_diagnostic_counts(summary.errors, summary.warnings)
+    try:
+        with check_metrics._measure_phase("render"):
+            print(
+                renderer.render(
+                    check_outcome.diagnostics,
+                    options.output_format,
+                    summary,
+                ),
+                end="",
+            )
+    except Exception:
+        check_metrics.record_operational_failure("render")
+        raise
+    exit_code = compute_exit_code(
+        check_outcome.diagnostics,
+        had_error=bool(discovery_inputs.failures) or check_outcome.had_error,
+    )
+    _LOGGER.info("config resolver cache stats: %s", resolver.cache_stats)
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
 
@@ -185,8 +236,8 @@ def compute_exit_code(
     Returns
     -------
     int
-        Zero for success, one for diagnostics, or two for an operational
-        error.
+        Zero for success or warning-only diagnostics, one for error-severity
+        diagnostics, or two for an operational error.
 
     Examples
     --------
@@ -196,12 +247,21 @@ def compute_exit_code(
     ...     diagnostics.Diagnostic(path="docs/example.md", code="STY001", message="x")
     ... ])
     1
+    >>> compute_exit_code([
+    ...     diagnostics.Diagnostic(
+    ...         path="docs/example.md",
+    ...         code="IR001",
+    ...         message="x",
+    ...         severity=diagnostics.Severity.WARNING,
+    ...     )
+    ... ])
+    0
     >>> compute_exit_code([], had_error=True)
     2
     """
     if had_error:
         return 2
-    if diagnostics_list:
+    if any(diagnostics.is_failing_severity(item.severity) for item in diagnostics_list):
         return 1
     return 0
 
@@ -209,54 +269,53 @@ def compute_exit_code(
 def _discover_targets(
     options: CheckOptions,
     resolver: config.ConfigResolver,
-) -> list[CheckInput]:
-    """Discover Markdown files beneath the requested targets."""
-    resolved_targets = [pathlib.Path(target).expanduser() for target in options.targets]
-    has_stdin_target = any(target.as_posix() == "-" for target in resolved_targets)
-    if has_stdin_target and len(resolved_targets) > 1:
+) -> DiscoveryInputs:
+    """Discover registered files beneath the requested targets."""
+    target_paths = [pathlib.Path(target) for target in options.targets]
+    has_stdin_target = any(target.as_posix() == "-" for target in target_paths)
+    if has_stdin_target and len(target_paths) > 1:
         message = "stdin target cannot be combined with file targets"
         raise ValueError(message)
     if has_stdin_target:
-        return [_stdin_check_input(options.stdin_filename)]
+        check_input = _stdin_check_input(options.stdin_filename)
+        return DiscoveryInputs(
+            inputs=() if check_input is None else (check_input,),
+            skipped_files=int(check_input is None),
+            skipped_by_reason=(
+                (SkippedCandidateCount("unregistered_candidate", 1),)
+                if check_input is None
+                else ()
+            ),
+        )
     discovery_config = _resolve_discovery_config(options, resolver)
-    return [
-        CheckInput(
-            reported_path=discovered_file.reported_path,
-            resolved_path=discovered_file.resolved_path,
-        )
-        for discovered_file in discovery.discover_markdown_files(
-            resolved_targets,
-            discovery_config,
-        )
-    ]
-
-
-def _resolve_discovery_config(
-    options: CheckOptions,
-    resolver: config.ConfigResolver,
-) -> config.StilyagiConfig:
-    """Resolve the configuration that governs Markdown discovery.
-
-    Discovery is a single pass over every target, so it is governed by the
-    configuration resolved for the current working directory rather than by any
-    individual file's nearest config. Resolving it here keeps ``--isolated``,
-    explicit ``--config`` values, and CLI overrides in force during discovery.
-
-    Returns
-    -------
-    config.StilyagiConfig
-        The configuration used to discover Markdown inputs.
-    """
-    return resolver.resolve_config_for_path(
-        pathlib.Path(),
-        cli_overrides=_build_cli_overrides(options) or None,
-        explicit_config=options.explicit_config or None,
-        isolated=options.isolated,
+    result = discovery.discover_files_with_summary(
+        target_paths,
+        discovery_config,
+    )
+    return DiscoveryInputs(
+        inputs=tuple(CheckInput.from_discovered(file) for file in result.files),
+        skipped_files=result.skipped_files,
+        notices=result.notices,
+        failures=result.failures,
+        skipped_by_reason=result.skipped_by_reason,
     )
 
 
-def _stdin_check_input(stdin_filename: str | None) -> CheckInput:
+def _stdin_check_input(stdin_filename: str | None) -> CheckInput | None:
     """Build the check input that consumes standard input."""
+    syntax = (
+        model.Syntax.MARKDOWN
+        if stdin_filename is None
+        else discovery.syntax_for_path(pathlib.Path(stdin_filename))
+    )
+    if syntax is None:
+        report_check_error(
+            None,
+            ValueError(
+                f"skipping stdin without a registered extractor: {stdin_filename}"
+            ),
+        )
+        return None
     reported_path = (
         pathlib.Path(stdin_filename).as_posix() if stdin_filename else "<stdin>"
     )
@@ -266,79 +325,6 @@ def _stdin_check_input(stdin_filename: str | None) -> CheckInput:
     return CheckInput(
         reported_path=reported_path,
         resolved_path=resolved_path,
+        syntax=syntax,
         source_text=sys.stdin.read(),
     )
-
-
-def _read_source(check_input: CheckInput) -> str | None:
-    """Return the source text for one input, reporting read failures."""
-    try:
-        source = check_input.source_text
-        if source is None:
-            source = check_input.resolved_path.read_text(encoding="utf-8")
-    except (
-        FileNotFoundError,
-        IsADirectoryError,
-        PermissionError,
-        UnicodeDecodeError,
-    ) as exc:
-        _report_file_error(check_input.resolved_path, exc)
-        return None
-    return source
-
-
-def _check_one_file(
-    check_input: CheckInput,
-    options: CheckOptions,
-    resolver: config.ConfigResolver,
-) -> tuple[list[diagnostics.Diagnostic], bool]:
-    """Check one discovered Markdown file or stdin payload."""
-    source = _read_source(check_input)
-    if source is None:
-        return [], True
-
-    _LOGGER.debug("extracting %s", check_input.reported_path)
-    try:
-        document = engine.extract_document(source, model.Syntax.MARKDOWN)
-    except engine.BridgeExtractionError as exc:
-        _report_check_error(check_input.resolved_path, exc)
-        return [], True
-    except Exception:
-        _LOGGER.exception(
-            "unexpected extraction failure for %s",
-            check_input.reported_path,
-        )
-        raise
-
-    _LOGGER.debug("resolving config for %s", check_input.reported_path)
-    try:
-        resolved_config = _resolve_config(check_input.resolved_path, options, resolver)
-    except (
-        config.InvalidCacheDirError,
-        config.InvalidConfigError,
-    ) as exc:
-        _report_check_error(check_input.resolved_path, exc)
-        return [], True
-
-    diagnostics_list = [
-        *map_ir_errors(document, check_input.reported_path),
-        *rules_registry.run_rules(document, resolved_config),
-    ]
-    return diagnostics_list, False
-
-
-def _report_file_error(path: pathlib.Path, error: Exception) -> None:
-    """Print and log a human-readable file read failure."""
-    message = f"failed to read {path.as_posix()}: {error}"
-    _LOGGER.warning("%s", message)
-    print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)
-
-
-def _report_check_error(path: pathlib.Path | None, error: Exception) -> None:
-    """Print and log a human-readable extraction failure."""
-    if path is None:
-        message = str(error)
-    else:
-        message = f"failed to check {path.as_posix()}: {error}"
-    _LOGGER.warning("%s", message)
-    print(f"{PROGRAM_NAME} check: {message}", file=sys.stderr)

@@ -286,6 +286,7 @@ def test_makefile_markdownlint_target_excludes_release_smoke_venv(
     for excluded in (
         "./.venv-release-smoke/*",
         "./.venv/*",
+        "./.vtcode/*",
         "./.uv-cache/*",
         "./.uv-tools/*",
         "./target/*",

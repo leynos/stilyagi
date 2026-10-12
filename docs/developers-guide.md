@@ -150,10 +150,11 @@ test-only and should not be used for application validation or control flow.
 
 ### The `.md.fixture` corpus convention
 
-Because `stilyagi check` discovers only `.md` and `.markdown` files, any test
-that exercises discovery must strip the trailing `.fixture` suffix when
-materializing fixtures into a temporary tree; otherwise the fixtures are
-invisible to discovery and the test passes vacuously.
+Because discovery matches the final suffix, `.md.fixture` remains undiscovered
+even though `stilyagi check` now discovers `.md`, `.markdown`, `.py`, and `.rs`
+files. Any test that exercises discovery must strip the trailing `.fixture`
+suffix when materializing fixtures into a temporary tree; otherwise the
+fixtures are invisible to discovery and the test passes vacuously.
 
 The shared helper `tests/support/malformed_corpus.py` centralizes this:
 `materialize_malformed_corpus(destination)` copies each fixture from
@@ -382,23 +383,135 @@ collaborator.
 `run_check` delegates target collection to `_discover_targets`, which calls:
 
 ```python
-discovery.discover_markdown_files(targets, config) -> list[DiscoveredFile]
+discovery.discover_files_with_summary(targets, config) -> DiscoveryResult
 ```
 
-`DiscoveredFile` is a frozen dataclass with two fields:
+`stilyagi.discovery_targets` owns filesystem classification, directory walking,
+and the fixed extension-to-syntax table. `stilyagi.discovery` is the facade and
+query: it delegates target inspection and aggregates structured results across
+the requested targets.
+
+`DiscoveryResult` is a frozen dataclass with five fields:
+
+- `files` — the registered source files as a tuple of `DiscoveredFile`, sorted
+  by resolved path with duplicate resolved paths collapsed to one entry
+- `skipped_files` — the count of distinct source candidates without a
+  registered extractor or with an unsupported filesystem type, plus declined
+  symlinked directory targets; a candidate appearing under several overlapping
+  targets is counted once
+- `skipped_by_reason` — `SkippedCandidateCount` records for the bounded reasons
+  `unregistered_candidate`, `symlinked_directory_target`, and
+  `unsupported_candidate_type`, with distinct candidate totals for each reason
+- `notices` — bounded, structured informational or warning events, each with a
+  fixed reason and optional target path
+- `failures` — structured path-expansion, metadata-lookup, path-resolution, or
+  directory-walk failures (`OSError | RuntimeError`), with their path, retained
+  alongside any files successfully discovered before or after the failure.
+  Runtime errors include unresolved home directories during expansion and
+  symlink loops during resolution.
+
+`DiscoveredFile` is a frozen dataclass with three fields:
 
 - `reported_path` — the command-line-relative POSIX path used for
   user-facing output
 - `resolved_path` — the fully resolved filesystem path used for
   de-duplication and stable ordering
+- `syntax` — the registered `model.Syntax` selected from the final file suffix
 
 Discovery is a single deterministic pass, sorted by resolved path, that skips
-known build-noise directories (`.git`, `build`, `dist`, `node_modules`,
-`target`, `.venv`) and does not follow symlinked directories. The configuration
-that governs discovery is resolved by `cli._resolve_discovery_config` for the
-current working directory rather than for each individual file, so
-`--isolated`, explicit `--config` values, and CLI rule overrides all stay in
-force during the discovery pass.
+known build-noise directories and does not follow symlinked directories. The
+registered suffixes are `.md`, `.markdown`, `.py`, and `.rs`; unregistered
+source candidates are counted as skipped. `check_execution` defines
+`_resolve_discovery_config`, which resolves configuration for the current
+working directory rather than per individual file. `cli._discover_targets` may
+call this helper during command orchestration. This keeps `--isolated`, explicit
+`--config` values, and CLI rule overrides in force during discovery. Discovery
+reads the filesystem without logging or command-output side effects: it returns
+notices and structured discovery failures for its caller to handle.
+
+`DiscoveryResult.files` is a tuple. The convenience wrapper
+`discover_files(targets, config)` returns only that collection for callers that
+do not need the skip count. Because the wrapper cannot represent a partial
+result together with a filesystem failure, it raises the first retained
+path-expansion, metadata-lookup, path-resolution, or traversal error
+(`OSError | RuntimeError`) when `DiscoveryResult.failures` is non-empty.
+
+Each discovered file becomes a `check_inputs.CheckInput` through
+`CheckInput.from_discovered`, which carries the `reported_path`,
+`resolved_path`, and selected `syntax`. Standard-input runs build their
+`CheckInput` directly: `--stdin-filename` selects the syntax by final suffix
+(defaulting to Markdown when omitted), and an unregistered stdin filename is
+logged and counted as skipped rather than checked. Per-file dispatch then goes
+through `check_execution._check_one_file`, which reads Python source using its
+declared encoding and other source as UTF-8, stripping a leading byte-order
+mark. It extracts through the bridge, resolves the per-file config, and reports
+operational failures with exit code `2`.
+
+For filesystem targets, `cli._discover_targets` carries the result's notices
+and failures in `DiscoveryInputs`. After the query returns,
+`report_discovery_outcomes` logs notices and reports discovery failures through
+the command's WARNING-level stderr handler. The command logger does not
+propagate warnings to root handlers, so warnings appear once while rendered
+check output stays on stdout. A discovery failure marks the run as an
+operational error: Stilyagi still checks files discovered successfully, prints
+their run summary, and exits `2`.
+
+### Check inputs and outcomes
+
+`python/stilyagi/check_inputs.py` owns the records shared between discovery,
+per-file checking, and run aggregation:
+
+- `CheckInput` is an immutable description of one file-backed or standard-input
+  input. `from_discovered` transfers a discovery result's reported path,
+  resolved path, and syntax into a file-backed input.
+- `DiscoveryInputs` groups the ordered input tuple and skipped-candidate count
+  with per-reason `SkippedCandidateCount` records, structured discovery
+  notices, and filesystem discovery failures.
+- `FileCheckResult` carries one input's diagnostics, whether it produced an
+  error, and whether it was unreadable.
+- `DiscoveryOutcome` accumulates diagnostics, the error state, and unreadable
+  file count across the run.
+- `report_file_error` and `report_check_error` emit one warning for a file read
+  failure or an extraction/configuration failure, respectively. Both return
+  `None`; the caller uses the corresponding result record to aggregate the
+  operational outcome.
+- `report_discovery_outcomes` renders structured notices and filesystem-failure
+  warnings after discovery. It returns `True` when any discovery failure was
+  retained so the command can select exit code `2` while retaining partial
+  discoveries.
+
+### Per-file execution and metrics
+
+`python/stilyagi/check_execution.py` owns the per-file execution stage:
+`_read_source` reads or decodes one input, `_check_one_file` runs extraction,
+configuration resolution, and rules, and `_check_discovered_files` aggregates
+those results. The module records phase timings around read, extract, config,
+and rules; `cli.py` owns the discovery and render phases around its command
+orchestration.
+
+`python/stilyagi/check_metrics.py` bridges Python execution to the PyO3 metrics
+functions. `crates/stilyagi-pyext/src/check_metrics/mod.rs` owns the bounded,
+check-local snapshot in Stilyagi-owned atomics; it never installs or claims a
+process-global `metrics::Recorder`. `check_metrics/recording_bindings.rs`
+exposes the recording functions, and `check_metrics/snapshot.rs` serializes the
+local snapshot. Each check resets these snapshot values. Existing
+metrics-facade calls still reach a recorder installed by an embedding host,
+without changing its ownership or lifetime. The standalone `--verbose` JSON
+snapshot is independent of that recorder and is written to stderr.
+
+`check_execution.py` records per-file `read`, `extract`, `config`, and `rules`
+durations; `cli.py` records the `discovery` and `render` phases. These are the
+six fixed-bucket phase labels in `stilyagi_check_phase_duration_seconds`, which
+also has the bounded `total` label. `total` measures one complete `run_check`
+invocation with the monotonic `time.perf_counter_ns()` clock. It is recorded
+once before the verbose snapshot on normal returns, handled operational
+returns, and propagated exceptions. Counters use only bounded run-outcome,
+syntax, skip-reason, failure-kind, and diagnostic-severity (`error`/`warning`)
+labels. Python and Rust extraction counters are recorded at the PyO3 boundary.
+No paths or raw error strings become labels, keeping metric cardinality
+independent of repository contents and failure text. Metrics-facade
+observations continue to reach a host-installed recorder; Stilyagi does not
+install or replace it.
 
 ### Configuration loading and resolution
 
@@ -448,14 +561,21 @@ force during the discovery pass.
 
 ### Diagnostics
 
-For each discovered file, `_check_one_file` extracts the document through the
-Rust bridge, resolves the per-file config, and collects diagnostics from two
-sources:
+For each discovered file, `check_execution._check_one_file` extracts the
+document through the Rust bridge, resolves the per-file config, and collects
+diagnostics from two sources:
 
 - `engine/checker.py` `map_ir_errors(document, reported_path)` maps the
   canonical IR error envelope on `Document.ir` into `diagnostics.Diagnostic`
   objects, propagating each IR-provided error code and falling back to a generic
   `IR000` placeholder only when the IR omits one.
+- Severity classification is deliberate: an IR error whose code is in the
+  Rust-owned authored-directive vocabulary (`AUTHORED_DIRECTIVE_ERROR_CODES`,
+  exposed to Python through the cached
+  `stilyagi.engine.extraction.authored_directive_error_codes()` bridge) is an
+  authored suppression mistake and keeps error severity; every other code,
+  including extractor recovery notices and any future unclassified code, fails
+  safe to warning severity and does not gate the exit code.
 - `rules_registry.run_rules(document, resolved_config)` runs the registered
   rule set against the extracted document.
 
@@ -465,12 +585,19 @@ positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 
 ### Rendering
 
-`engine/renderers.py` `RendererRegistry.render(diagnostics, output_format)`
-sorts diagnostics by path, location, and code, then renders either:
+`engine/renderers.py` defines `RunSummary`, the five-field record (checked,
+skipped, unreadable, errors, warnings) that the CLI fills from the check loop;
+`RunSummary.from_diagnostics` derives the severity counts from the diagnostics
+list and is also the zero-file fallback when a direct renderer caller omits the
+summary.
+
+`RendererRegistry.render(diagnostics, output_format, summary)` sorts
+diagnostics by path, location, and code, then renders either:
 
 - deterministic text: one line per finding formatted as
-  `path:line:column: severity code message`, followed by a summary line; or
-- a stable JSON document.
+  `path:line:column: severity code message`, followed by checked, skipped,
+  unreadable, error, and warning totals; or
+- a stable JSON document with the same additive `summary` object.
 
 Unknown format strings raise `ValueError`.
 
@@ -478,8 +605,8 @@ Unknown format strings raise `ValueError`.
 
 `cli.compute_exit_code` returns:
 
-- `0` — no diagnostics found
-- `1` — one or more diagnostics found
+- `0` — no error diagnostics found; warning-only diagnostics do not gate
+- `1` — one or more error diagnostics found
 - `2` — error (failed file read, invalid config, extractor failure, or usage
   error)
 
@@ -510,6 +637,11 @@ particular.
 - Syntax and locale scope
   - Current implemented extraction support covers Markdown, Python
     docstrings, and Rust documentation comments.
+  - Default command discovery covers `.md`, `.markdown`, `.py`, and `.rs`.
+    Keep the fixed extension-to-syntax table in `stilyagi.discovery_targets`;
+    `stilyagi.discovery` remains the facade/query until a deliberate Rust
+    discovery migration replaces it. Do not add configuration or flags for
+    inclusion and exclusion opportunistically.
   - MDX remains preview-only until later evidence upgrades it into the stable
     support matrix.
   - English is the only formally supported locale in v1. Architecture may stay
@@ -855,6 +987,36 @@ boundary:
   `supported_region_kinds` result and known-kind lookup data. Tests that patch
   bridge vocabulary functions must call it before and after the patched state;
   production code must not call it.
+
+### 4.3 Adding a language extractor
+
+Adding a syntax today is intentionally a coordinated change. Before starting,
+confirm that the supported surface is a product decision and update
+[ADR 008](adr-008-v1-discovery-defaults.md) rather than silently broadening the
+default walker. The current implementation needs all of the following edits:
+
+1. Add the `ExtractSyntax` variant.
+2. Add it to `ExtractSyntax::ALL`.
+3. Add its `ExtractSyntax::as_str` match arm.
+4. Add its `TryFrom<&str>` match arm.
+5. Add its dispatch arm in `extract_document_with_source_identity`.
+6. Add the registered extension to `_EXTENSION_SYNTAXES`.
+7. Add the tree-sitter grammar dependency and its module tree under
+   `crates/stilyagi-tree-sitter/src/`.
+8. Add per-language metrics counter names in `<lang>/observe.rs`.
+9. Classify any new IR error codes.
+10. Add the matching `model.Syntax` member.
+11. Add valid and malformed fixtures under
+    `tests/fixtures/corpus/<lang>/{valid,malformed}/`.
+12. Extend the structural performance probe.
+13. Extend the per-language comparison table in this section.
+14. Update the users' guide extension list.
+15. Update RFC 0003 §7.
+16. Update ADR 008's candidate table.
+
+This is a visible shotgun-surgery boundary. Do not paper over it with an
+unreviewed shortcut: the list makes each ownership boundary explicit until a
+future extractor-registration design can reduce the coordination cost.
 
 ## 5. Build workflow
 

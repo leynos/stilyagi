@@ -31,8 +31,8 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
         regions such as headings, paragraphs, tables, lists, blockquotes,
         frontmatter, image alt text, and link titles.
     syntax
-        Syntax identifier for the source text. The first implemented extractor
-        supports ``model.Syntax.MARKDOWN``.
+        Syntax identifier for the source text. Built-in extraction supports
+        Markdown, Python docstrings, and Rust documentation comments.
 
     Returns
     -------
@@ -46,7 +46,6 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
     reported through the ``stilyagi.engine.extraction`` logger. This keeps the
     lower-level adapter read-only while making compatibility drift visible at
     the supported public command boundary.
-
     """
     document = _extraction.extract_document(source, syntax)
     _extraction.warn_unknown_ir_region_kinds(

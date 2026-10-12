@@ -1,6 +1,7 @@
 """Stdin coverage for the `stilyagi check` command."""
 
 import io
+import json
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests invoke a trusted local interpreter.
 import sys
 import typing as typ
@@ -40,10 +41,42 @@ def test_cli_main_reads_stdin_and_attributes_diagnostic_to_filename(
     captured = capsys.readouterr()
     assert_with_context(
         captured.out
-        == ("README.md:1:1: error IR000 Synthetic IR error\n1 diagnostic found\n"),
+        == (
+            "README.md:1:1: error IR000 Synthetic IR error\n"
+            "checked 1 files (0 skipped, 0 unreadable); 1 errors, 0 warnings\n"
+        ),
         "expected captured.out == 'README.md:1:1: error IR000...",
     )
     assert not captured.err, "expected not captured.err"
+
+
+def test_verbose_stdin_skip_records_its_fixed_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Count an unsupported stdin suffix in the same bounded skip category."""
+    monkeypatch.setattr(sys, "stdin", io.StringIO("source"))
+
+    assert (
+        cli.main(["check", "-", "--stdin-filename", "notes.txt", "--verbose"]) == 0
+    ), "an unsupported stdin filename is skipped without failing the run"
+
+    captured = capsys.readouterr()
+    metric_line = next(
+        line
+        for line in captured.err.splitlines()
+        if line.startswith("stilyagi check metrics: ")
+    )
+    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+
+    assert captured.out == (
+        "checked 0 files (1 skipped, 0 unreadable); 0 errors, 0 warnings\n"
+    ), "the run summary counts the unregistered stdin candidate"
+    assert metrics_payload["stilyagi_check_skipped_candidates_total"] == {
+        "symlinked_directory_target": 0,
+        "unregistered_candidate": 1,
+        "unsupported_candidate_type": 0,
+    }, "unsupported stdin filenames use the bounded unregistered reason"
 
 
 def test_python_module_entrypoint_reads_clean_stdin_and_exits_zero(
@@ -70,8 +103,9 @@ def test_python_module_entrypoint_reads_clean_stdin_and_exits_zero(
 
     assert completed.returncode == 0, "expected completed.returncode == 0"
     assert_with_context(
-        completed.stdout == "0 diagnostics found\n",
-        "expected completed.stdout == '0 diagnostics found\\n'",
+        completed.stdout
+        == "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected completed.stdout to carry the stdin summary",
     )
     assert not completed.stderr, "expected not completed.stderr"
 

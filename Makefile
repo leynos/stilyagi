@@ -67,7 +67,7 @@ TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.3
 TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 	"git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
 	typos-config-builder
-MD_FILES_FIND = find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './.uv-cache/*' -not -path './.uv-tools/*' -not -path './target/*' -not -path './crates/stilyagi-pyext/target/*' -print0
+MD_FILES_FIND = find . -type f -name '*.md' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './.uv-cache/*' -not -path './.uv-tools/*' -not -path './.vtcode/*' -not -path './target/*' -not -path './crates/stilyagi-pyext/target/*' -print0
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
 # Modules whose docstring examples are executed. The library and the test
