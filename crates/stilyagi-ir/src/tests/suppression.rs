@@ -118,6 +118,41 @@ fn suppressions_from_candidates_assembles_directives_and_ignores_non_directives(
 }
 
 #[rstest]
+fn suppressions_from_candidates_preserves_authored_error_order() {
+    let candidates = [
+        SuppressionCandidate {
+            origin: "n0".to_owned(),
+            span: SourceSpan::new(0, 17).expect("expected valid span"),
+            body: "stilyagi: disable".to_owned(),
+        },
+        SuppressionCandidate {
+            origin: "n1".to_owned(),
+            span: SourceSpan::new(18, 48).expect("expected valid span"),
+            body: "stilyagi: invalid-verb RUST210".to_owned(),
+        },
+    ];
+
+    let (suppressions, errors) = suppressions_from_candidates(candidates);
+
+    assert_eq!(suppressions, Vec::<IrSuppression>::new());
+    assert_eq!(errors.len(), 2);
+    assert_eq!(
+        errors
+            .iter()
+            .map(|error| error.code.as_str())
+            .collect::<Vec<_>>(),
+        ["suppression-blanket-forbidden", "suppression-unknown-verb"]
+    );
+    assert_eq!(
+        errors.iter().map(|error| error.span).collect::<Vec<_>>(),
+        [
+            Some(SourceSpan::new(0, 17).expect("expected valid span")),
+            Some(SourceSpan::new(18, 48).expect("expected valid span")),
+        ]
+    );
+}
+
+#[rstest]
 fn validate_suppressions_accepts_known_origins_and_in_bounds_spans() {
     let suppressions = vec![IrSuppression {
         id: "s0".to_owned(),

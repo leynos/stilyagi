@@ -381,13 +381,59 @@ Closing:
       contracts. The same-base CodeScene delta was clean. Focused
       test-duplication findings were pre-existing.
 
-      The latest sequential local run passed `make check-fmt`, `make lint`,
+      An earlier sequential local bundle passed `make check-fmt`, `make lint`,
       `make typecheck`, `make test`, `make markdownlint`, and `make nixie`.
       Results: 348/348 Rust tests, 586/586 pytest tests, 38 Python doctests
       passed with 2 skipped, and 17 snapshots passed. Rust coverage was
       4024/4440 lines (90.63%). Build admission was healthy; `sccache` was
-      unavailable, so compilation ran uncached. These are local results only:
-      hosted current-head PR review remains pending, and no merge is claimed.
+      unavailable, so compilation ran uncached. This bundle is historical and
+      superseded by the r3 candidate evidence below.
+      After that recorded pass, the final valid Testing-row detail was added:
+      `crates/stilyagi-ir/src/tests/suppression.rs` now directly asserts the
+      ordered blanket-forbidden and unknown-verb diagnostics from
+      `suppressions_from_candidates`, including their spans. This complements
+      the extraction-level unknown-verb test. The `.vtcode` exclusion and
+      exact empty-directory summary were already covered; this was the one
+      remaining valid review detail. The completed implementation and review
+      status above are preserved. A subsequent valid CodeScene Large Method
+      finding in the expanded IR suppression test was fixed by restoring the
+      original assembly-test scope and moving ordered authored-error
+      assertions into
+      `suppressions_from_candidates_preserves_authored_error_order`. This is
+      the final candidate structure. The first
+      post-split gate run exposed rustfmt layout and Clippy's `assert_is_empty`
+      finding in the new test; `make fmt` and an exact empty-vector equality
+      now address both.
+
+      Historical r3 validation passed all six gates for the implementation/test
+      candidate fingerprint SHA-256
+      `6f4d3fb26942313ae0d0c742ba72fab3aacd7a9432b90aeb2744fbeff5f9b27d`
+      at prior HEAD `7bbf536e82563cf8e52080c5aefa5f8eead96818`: `make check-fmt`,
+      `make lint`, `make typecheck`, `make test`,
+      `make markdownlint`, and `make nixie`. The focused IR tests passed 2/2;
+      the workspace had 349/349 Rust tests, Rust documentation had 13
+      non-empty examples, and pytest had 586/586 tests plus 17 snapshots.
+      Python doctests passed 38 with 2 skipped. Rust coverage was 4024/4440
+      lines (90.63%). The same-base CodeScene delta was clean, focused review
+      found only pre-existing duplication findings, and the Large Method
+      finding is gone. R3 is historical and superseded by r4.
+
+      Local r4 validation passed all six gates for the implementation/test
+      content plus the preceding ExecPlan state, fingerprinted by SHA-256
+      `77ae67b06b81c96b77f2209bbfc04ceaff6f5b2fa1e4cb2d0df11de1976466ab`
+      at prior HEAD `7bbf536e82563cf8e52080c5aefa5f8eead96818`. This r4 results
+      section was added afterwards as documentation-only; source and tests are
+      unchanged. Gates were `make check-fmt`,
+      `make lint`, `make typecheck`, `make test`, `make markdownlint`, and
+      `make nixie`. The focused IR test passed 2/2 with command:
+      `cargo test -p stilyagi-ir suppressions_from_candidates`. Full results:
+      349 Rust tests, 13 non-empty Rust doctests, 586 pytest tests, 17 snapshots,
+      and 38 Python doctests passed with 2 skipped. Rust coverage was
+      4024/4440 lines (90.63%). The same-base CodeScene delta was clean;
+      focused review found only pre-existing duplication observations, and
+      the Large Method finding is cleared. Local candidate validation is
+      complete; hosted checks and
+      current-head PR review remain pending, and no merge is claimed.
 
 - [x] CodeScene review follow-up (published head `a86c8b8`). The `run_check`
   length finding was addressed by extracting command-side discovery outcome
