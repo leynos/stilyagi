@@ -7,6 +7,10 @@ Accepted (2026-08-24): adopt fixed mixed-source discovery defaults for `*.md`,
 mistakes as errors and extractor recovery notices as warnings, and report
 checked, skipped, unreadable, error, and warning counts per run.
 
+Amended (2026-10-12): check-level metrics snapshots use Stilyagi-owned bounded
+atomics without installing or claiming the process-global metrics recorder. The
+Python-owned discovery walker and its boundary remain unchanged.
+
 ## Date
 
 2026-08-24.
@@ -122,12 +126,32 @@ Adopt Option A.
   `1`, warning-only diagnostics produce exit `0`, and operational failures
   produce exit `2`. The behaviour is deliberately explicit but not the final
   violation model.
-- The command reads source with `utf-8-sig`, reports `OSError`, `MemoryError`,
-  and decoding failures against the reported path, and still treats them as an
-  operational failure for the run.
+- The command reads Python source using its declared encoding and other source
+  with `utf-8-sig`, reports read and decoding failures against the reported
+  path, and still treats them as an operational failure for the run.
 - Text and JSON output include a run summary. Discovery order and diagnostic
   classification are protected by the existing unit, behavioural, property,
   snapshot, and integration test tooling.
+
+### Review follow-up: bounded check metrics (2026-10-12)
+
+The original decision deferred check-level metrics because the extractor
+counters were not observable. The check command now keeps a bounded snapshot in
+Stilyagi-owned atomics in the existing PyO3 extension, reusing the workspace's
+`metrics` crate without adding an external dependency. It does not install or
+claim the process-global `metrics::Recorder`. Existing metrics-facade calls
+continue to reach a recorder installed by an embedding host; that path remains
+host-owned and independent of Stilyagi's snapshot.
+
+The counters cover check-run outcomes, checked files by syntax, skipped
+candidates by fixed reason, unreadable files, operational failures by fixed
+stage, and Python/Rust extraction counters recorded at the PyO3 boundary.
+Fixed-bucket histograms cover discovery, read, extract, config, rules, and
+render phases. No filesystem path or raw error text is used as a metric label.
+The standalone `--verbose` snapshot is independent of the metrics facade and
+goes to stderr; the normal diagnostics and run summary remain on stdout.
+Discovery remains a Python-owned query and does not acquire logging, recorder
+setup, or reporting side effects.
 
 The destination is a Rust-owned, gitignore-aware walker. That move should use
 the `ignore` crate and relocate the walker and extension table together rather
@@ -184,7 +208,6 @@ work.
 | Violation discriminator                       | Severity is only a temporary exit-code proxy.                    | Resolve before 3.2.2 adds warning-severity rules.                            |
 | Typed `IrError` code enum                     | Needs the 3.2.3 IR-envelope reshape.                             | Make code classification exhaustive while preserving kebab-case wire values. |
 | Rust discovery with `ignore`                  | Requires a coherent walker migration.                            | Respect gitignore and retire the growing prune list.                         |
-| Metrics recorder                              | Existing extractor counters are write-only; Markdown has none.   | Make per-language operational counters observable.                           |
 | `--doctest-modules`                           | Current Python doctests do not run.                              | Enforce the documented Python examples.                                      |
 | Corpus-fixture relocation                     | Adversarial Python and Rust fixtures are currently discoverable. | Let CI dogfood `stilyagi check .`.                                           |
 | File-size, parallel, and incremental controls | Require a scalable execution and rendering design.               | Support monorepo-scale checking.                                             |

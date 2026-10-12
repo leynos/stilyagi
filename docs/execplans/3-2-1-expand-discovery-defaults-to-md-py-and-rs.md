@@ -6,6 +6,11 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
+The original implementation remains complete. Review remediation dated
+2026-10-12 is recorded below. Candidate r31 passed all six gates before this
+documentation edit and is historical for the final candidate. PR closeout will
+record the final exact-candidate gate result and hash.
+
 Approval gate: **satisfied on 2026-08-23**. The implementation request
 explicitly approves this ExecPlan.
 
@@ -188,14 +193,14 @@ is bounded and predictable while the code work is where surprises live.
   payload then reports a clean run on stdout while the exit code says internal
   error. Severity: high. Likelihood: medium, and materially raised by this
   change — PEP 263 permits non-UTF-8 `.py` source, so a
-  `# -*- coding: latin-1 -*-` file is legal Python that
-  `read_text(encoding="utf-8")` rejects. Non-UTF-8 Markdown is a curiosity;
-  non-UTF-8 legacy Python is ordinary. Mitigation: W6 widens the read to
-  `utf-8-sig`, catches `OSError` and `MemoryError`, and reports the user's path
-  rather than the resolved path. The deeper redesign — per-file read failures
-  becoming per-file diagnostics rather than a run-wide fatal — is **not**
-  attempted here and is recorded in ADR 008 as required follow-up, because it
-  changes what exit `2` means.
+  `# -*- coding: latin-1 -*-` file is legal Python that a fixed UTF-8 decoder
+  rejects. Non-UTF-8 Markdown is a curiosity; non-UTF-8 legacy Python is
+  ordinary. Mitigation: Python source uses `tokenize.open` to honour its
+  declared encoding; other source uses `utf-8-sig`. Read failures are caught
+  and reported against the user's path rather than the resolved path. The
+  deeper redesign — per-file read failures becoming per-file diagnostics rather
+  than a run-wide fatal — is **not** attempted here and is recorded in ADR 008
+  as required follow-up, because it changes what exit `2` means.
 
 - **Risk:** The expanded ignored-directory list is name-based, so it prunes a
   directory a user legitimately wants checked, and fails to prune generated
@@ -284,6 +289,65 @@ Closing:
       concerns. Review remediation passed all six gates (342 Rust tests, 224
       Python tests, 17 snapshots); CodeRabbit reviewed commit `dc4c73e` with
       zero concerns.
+- [x] Review follow-up (2026-09-28). The implementation places `CheckInput`,
+      `DiscoveryInputs`, `FileCheckResult`, `DiscoveryOutcome`, and the
+      reporting helpers in `python/stilyagi/check_inputs.py`; `cli.py` consumes
+      those records in the command flow. The developer guide now documents the
+      tuple API and record ownership; the README shows the current run summary.
+      The versioned migration-guide suggestion was not adopted because the
+      package is not published yet, and the existing user's guide documents
+      discovery, summaries, exit codes, and standard-input syntax selection.
+- [x] Architecture review follow-up (2026-09-28). Discovery now returns
+      structured notices and directory traversal failures without logging.
+      `DiscoveryInputs` carries them to command-layer reporting; a traversal
+      failure warns once on stderr, preserves any discovered files for checking
+      and summary output, and makes the run exit `2`. Regression coverage pins
+      query purity, ignored-directory short-circuiting, retained partial results,
+      and the command's warning/exit behaviour. See D13.
+
+- [x] Review remediation (2026-10-12). A valid ownership finding corrected
+      the metrics design: bounded Stilyagi-owned atomics provide check
+      snapshots without installing or claiming the process-global recorder;
+      facade calls still reach any host recorder. D16 and the module map now
+      reflect the implementation in `check_metrics.rs` and extraction counters
+      at the PyO3 boundary. Structured discovery notices and failures remain
+      command-side reporting; discovery queries do not log. `Path.walk`
+      symlink-directory entries retain the symlink skip reason, and resolved
+      path sets prevent double-counting across overlapping targets. The
+      migration-guide warning is skipped: the package is unpublished and the
+      users' guide already documents this behaviour. Three CodeRabbit testing
+      gaps were addressed by staged regression tests:
+      `.vtcode` exclusion (`tests/test_build_spine_units.py`), exact empty-
+      directory zero-summary CLI coverage (`tests/test_check_command.py`), and
+      an unknown-verb authored-directive diagnostic assertion in
+      `crates/stilyagi-tree-sitter/src/rust/suppression_tests.rs`.
+      Historical attempt 7 passed check-fmt, lint, and typecheck but had four
+      test failures (ignored-target notices, engine exports, and wheel-layout
+      snapshot); Markdown gates had not run. Historical r27 passed the same
+      three gates, while tests reported 577 passed and 3 failed: skip-reason
+      overlap, an omitted zero-valued reason label, and a no-log assertion
+      placed after CLI invocation. Historical r30 passed all six gates before
+      the three added tests, on HEAD
+      `d5e0a5a26c7e616698593b1ceb10911c4ef43dc2`, staged hash
+      `eeab3c78c42a185a6f068d06def959196db954b76f68481e7566ed2edcef3673`:
+      `make test` reported 349 Rust and 580 Python tests passed, 40 warnings,
+      36 doctests passed, and 4 skipped; Markdownlint reported 0 errors and
+      Nixie validated all diagrams. R30 is historical for the now-staged
+      current tree, which includes the three tests above. Candidate r31 passed
+      all six gates on HEAD `d5e0a5a26c7e616698593b1ceb10911c4ef43dc2` and
+      staged diff hash
+      `dde1312ad9947392560d1ba88508c92ee5eea64085a399c834dd31cb97a7df93`:
+      `make check-fmt`, `make lint`, `make typecheck`, `make test`,
+      `make markdownlint`, and `make nixie` passed. Tests reported 350 Rust
+      tests and 581 Python tests passed (40 warnings), 36 doctests passed and 4
+      skipped; Markdownlint checked 69 files with 0 errors, and Nixie validated
+      all diagrams. The 40 pytest warnings were
+      `PytestRemovedIn10Warning`s from pytest-bdd 8.1.0 under pytest 9.1.1. The
+      development constraint and lockfile have since been updated to
+      pytest-bdd 9.0.0; its upstream changelog says pytest 9.1+ `target_fixture`
+      injection no longer emits this warning. R31 is historical for the final
+      candidate; PR closeout will record the final exact-candidate gates and
+      hash. The original 3.2.1 implementation status above remains COMPLETE.
 
 ## Surprises & discoveries
 
@@ -451,8 +515,9 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   instrumented ones — `stilyagi_python_extraction_documents_total`,
   `stilyagi_rust_extraction_documents_total`, and `*_recovery_errors_total` in
   both `observe.rs` files. Markdown, in `crates/stilyagi-markdown`, has none.
-  Nothing anywhere installs a `metrics` recorder, so every counter is
-  write-only. Recorded in ADR 008 as a known gap; not fixed here.
+  At planning time, nothing installed a `metrics` recorder, so these counters
+  were write-only. The 2026-10-12 review remediation supersedes that gap with a
+  bounded check-command recorder and snapshot; see D16.
 
 - **S13 (round 2). This repository keeps uv's caches *inside* the working tree,
   and pruning them is load-bearing.** `Makefile` sets
@@ -496,10 +561,12 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   broadening read failures to `OSError` and `MemoryError`.** The plan's D11
   wording described `OSError` as subsuming all four prior exceptions, but
   `UnicodeDecodeError` is a `UnicodeError`, not an `OSError`. Removing it would
-  let invalid UTF-8 escape the documented exit-2 path. The implementation reads
-  with `utf-8-sig`, catches `OSError`, `MemoryError`, and `UnicodeDecodeError`,
-  and attributes the one logged message to the reported rather than resolved
-  path. Date/Author: 2026-08-24, implementation agent.
+  let invalid UTF-8 escape the documented exit-2 path. The implementation
+  catches `OSError`, `MemoryError`, and `UnicodeDecodeError`, and attributes
+  the one warning to the reported rather than resolved path. A later review
+  follow-up uses `tokenize.open` for Python files so PEP 263 encodings are
+  honoured, retaining `utf-8-sig` for other source. Date/Author: 2026-08-24,
+  implementation agent; updated 2026-09-28.
 
 - **D15 (implementation). Keep the 20% Markdown performance tolerance as a
   review criterion, but do not fabricate a numeric comparison.** Roadmap item
@@ -664,19 +731,19 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   that roadmap item 3.2.2 must resolve the axis before shipping its first
   warning-severity rule. Date/Author: 2026-08-16, planning agent (round 2).
 
-- **D11 (new in round 2). File-read hardening is in scope; the run-wide exit-`2`
-  redesign is not.** Adding `*.py` makes `UnicodeDecodeError` reachable in a
-  way it was not for Markdown, because PEP 263 coding cookies make non-UTF-8
-  Python legal. The narrow fixes — read with `utf-8-sig` so a byte-order mark
-  does not become a parse-recovery warning, catch `OSError` (which subsumes the
-  four currently caught) plus `MemoryError`, and report the user's path rather
-  than the resolved path — are small, local, and directly caused by this
-  change, so they are in. Converting per-file read failures into per-file
-  diagnostics, so that one unreadable file stops discarding every other file's
-  results and stops masquerading as an internal error, is the right fix but
-  changes what exit `2` means. That is a contract change deserving its own
-  item; ADR 008 records it as required follow-up. Date/Author: 2026-08-16,
-  planning agent (round 2).
+- **D11 (new in round 2; implementation refined in review follow-up).
+  File-read hardening is in scope; the run-wide exit-`2` redesign is not.**
+  Adding `*.py` makes `UnicodeDecodeError` reachable in a way it was not for
+  Markdown, because PEP 263 coding cookies make non-UTF-8 Python legal. The
+  narrow fixes — use `tokenize.open` for Python source and `utf-8-sig` for
+  other source, catch `OSError`, `MemoryError`, and `UnicodeDecodeError`, and
+  report the user's path rather than the resolved path — are small, local, and
+  directly caused by this change, so they are in. Converting per-file read
+  failures into per-file diagnostics, so that one unreadable file stops
+  discarding every other file's results and stops masquerading as an internal
+  error, is the right fix but changes what exit `2` means. That is a contract
+  change deserving its own item; ADR 008 records it as required follow-up.
+  Date/Author: 2026-08-16, planning agent (round 2).
 
 - **D12 (revised). Rust test helpers follow the house remediation order:
   propagate, then `#[track_caller]`, then one documented panic boundary.**
@@ -728,6 +795,36 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   `addressing-whitaker-findings` guidance; dependency confirmed satisfied after
   rebasing onto `configure-df12-lints`).
 
+- **D13 (review follow-up). Discovery returns operational context; the command
+  owns reporting and exit policy.** Logging from the discovery query made its
+  results harder to reuse and allowed `Path.walk` enumeration errors to be
+  silently lost. `DiscoveryResult` therefore carries bounded notices and
+  traversal failures alongside its tuple of files. `DiscoveryInputs` transfers
+  those values to the CLI, which reports warnings once through its
+  command-owned stderr handler and marks traversal failure as an operational
+  error (exit `2`). The command still checks successfully discovered files and
+  renders their summary. The files-only `discover_files` wrapper returns a list
+  and raises the first retained traversal error because it cannot express
+  partial success and failure together. Tests cover query purity, explicit
+  ignored-directory short-circuiting, retained partial discoveries, and CLI
+  warning/exit behaviour (`tests/test_discovery.py` and
+  `tests/test_check_command.py`). Date/Author: 2026-09-28, review follow-up.
+
+- **D16 (review remediation). Add observable check metrics without moving the
+  discovery boundary.** A bounded snapshot in Stilyagi-owned atomics in the
+  existing PyO3 extension records check-run outcomes, checked files by syntax,
+  skips by fixed reason, unreadable files, operational failures by fixed stage,
+  and Python/Rust extraction counters recorded at the PyO3 boundary.
+  Fixed-bucket histograms cover discovery, read, extract, config, rules, and
+  render. No path or raw error text is a metric label. Existing metrics-facade
+  calls continue to reach a host-installed recorder, but Stilyagi never
+  installs or claims the global recorder. The standalone `--verbose` JSON
+  snapshot is independent of the facade recorder and is emitted to stderr; the
+  normal report remains on stdout. The workspace's existing `metrics` crate is
+  reused without adding a new external crate. Discovery stays a Python-owned
+  query and does not install or report metrics. Date/Author: 2026-10-12, review
+  remediation.
+
 ## Outcomes & retrospective
 
 Roadmap item 3.2.1 is delivered. `stilyagi check` now discovers `.md`,
@@ -742,6 +839,13 @@ Post-completion review remediation corrected the stale `.md.fixture` guidance
 and added the explicit symlinked-directory *target* acceptance test. The test
 asserts exit `0`, a warning log entry, and the load-bearing zero-checked,
 one-skipped summary, rather than relying on recursive-walk symlink coverage.
+
+The architecture review also removed logging from the discovery query and made
+directory-walk errors explicit. A regression simulates a failure after a file
+has been discovered: the file is still checked and included in stdout's
+summary, the command reports one warning on stderr, and it exits `2`. A
+separate ignored-directory test proves that an explicit `node_modules` target
+is not walked and yields a zero-file summary.
 
 The clean acceptance run checked 178 files and exited `0`; the whole-tree run
 checked 237 files and exited `1` only because its two deliberately invalid
@@ -804,16 +908,33 @@ Rust:
 - `crates/stilyagi-ir/src/lib.rs` — re-exports the `stilyagi-ir` surface.
 - `crates/stilyagi-pyext/src/lib.rs` — the PyO3 module. `supported_syntaxes` and
   `supported_region_kinds` are the functions W4 mirrors.
+- `crates/stilyagi-pyext/src/check_metrics.rs` — owns bounded atomic check
+  counters and fixed-bucket phase histograms, plus extraction counters updated
+  at the PyO3 boundary; it does not install a metrics recorder.
+  `check_metrics/snapshot.rs` serializes the local snapshot for Python.
 
 Python:
 
-- `python/stilyagi/discovery.py` — Markdown-scoped throughout: module docstring,
-  `_MARKDOWN_SUFFIXES`, `_IGNORED_DIRECTORY_NAMES`, `DiscoveredFile`,
-  `discover_markdown_files`, `_is_markdown_file`. W1 rewrites it.
-- `python/stilyagi/cli.py` — `CheckInput`, `_discover_targets`,
-  `_stdin_check_input`, `_read_source`, `_check_one_file` (with the hard-coded
-  `model.Syntax.MARKDOWN`), `_report_file_error`, `compute_exit_code`, and
-  `run_check`. W2, W5, and W6 edit these.
+- `python/stilyagi/discovery.py` — the original Markdown-scoped module
+  docstring, `_MARKDOWN_SUFFIXES`, `DiscoveredFile`, `discover_markdown_files`,
+  and `_is_markdown_file` were generalized during W1. The final module exposes
+  `discover_files` and `discover_files_with_summary`; its queries return
+  structured notices and traversal failures rather than logging them.
+- `python/stilyagi/discovery_results.py` — owns the immutable
+  `DiscoveredFile`, `DiscoveryNotice`, `DiscoveryFailure`,
+  `SkippedCandidateCount`, and `DiscoveryResult` records returned by discovery.
+- `python/stilyagi/check_inputs.py` — owns the final `CheckInput`,
+  `DiscoveryInputs`, `FileCheckResult`, and `DiscoveryOutcome` records plus
+  `configure_command_warning_handler`, `report_file_error`,
+  `report_check_error`, and `report_discovery_outcomes`.
+- `python/stilyagi/cli.py` — `_discover_targets`, `_stdin_check_input`,
+  `compute_exit_code`, and `run_check` orchestrate discovery, execution,
+  rendering, and exit handling. W2, W5, and W6 edit these.
+- `python/stilyagi/check_execution.py` — owns `_read_source`, `_check_one_file`,
+  and `_check_discovered_files`, the per-input read, extraction, config, and
+  rules stages and their phase timing.
+- `python/stilyagi/check_metrics.py` — bridges the Python command and execution
+  stages to the PyO3 metrics recorder and emits the local verbose JSON snapshot.
 - `python/stilyagi/engine/checker.py` — `map_ir_errors` and `_map_one_error`,
   which hard-code error severity. W5 edits these.
 - `python/stilyagi/engine/renderers.py` — `RendererRegistry`, `_render_text`,
@@ -983,16 +1104,18 @@ Go/no-go: every new test fails, each for the reason it was written for.
   Add a comment pointing at `MD_FILES_FIND` in the `Makefile`, naming it as the
   repository's existing authority on what to skip, so the two lists are
   maintained together rather than drifting.
-- Raise the symlinked-directory-target log from INFO to WARNING, and return the
-  count so W6 can report it as skipped.
+- Return a structured `symlinked_directory_target` notice and increment the
+  skipped count for a symlinked directory target. The command reports the
+  notice as a WARNING after discovery returns.
 
-**W2. Per-file extractor selection.** In `python/stilyagi/cli.py`:
+**W2. Per-file extractor selection.** In `python/stilyagi/check_inputs.py` and
+`python/stilyagi/cli.py`:
 
-- Add `syntax: model.Syntax` to `CheckInput`, and give it a
-  `from_discovered(cls, file, *, source_text=None)` constructor beside the
-  dataclass. `_discover_targets` currently copies `DiscoveredFile` fields one
-  by one, and nothing signals when the two shapes diverge; the constructor
-  closes that seam before the next language addition trips over it.
+- Add `syntax: model.Syntax` to `CheckInput` and give it a
+  `from_discovered(cls, file, *, source_text=None)` constructor. The final
+  implementation puts this record and the discovery/check aggregation records in
+  `check_inputs.py`; the CLI consumes them. This keeps the input/result shapes
+  together while discovery and checking remain command collaborators.
 - Replace the hard-coded `model.Syntax.MARKDOWN` in `_check_one_file` with
   `check_input.syntax`.
 - In `_stdin_check_input`, resolve the syntax from `--stdin-filename` via
@@ -1107,14 +1230,17 @@ when a diagnostic's severity is in that set, leaving the `had_error` exit-`2`
 path unchanged. Add a doctest covering the warning case — the existing doctests
 exercise only the error default, so without one the new branch is unverified.
 
-Harden `_read_source` (D11): read with `utf-8-sig` so a byte-order mark does
-not become a spurious parse-recovery warning on Windows-authored files; catch
-`OSError` (which subsumes the four currently caught, and adds `ELOOP`, `EIO`,
-`ESTALE`, and `ENAMETOOLONG`) plus `MemoryError`; and pass
-`check_input.reported_path` to `_report_file_error` so the message names the
-path the user has in their repository. Remove the duplicate emission — the same
-message currently reaches the terminal twice, once through the logger's last
--resort handler and once through the explicit `print`.
+Harden `_read_source` in `python/stilyagi/check_execution.py` (D11): use
+`tokenize.open` for Python source so PEP 263 encoding declarations are
+honoured, and `utf-8-sig` for other source so a byte-order mark does not become
+a spurious parse-recovery warning on Windows-authored files. Catch `OSError`,
+`MemoryError`, and `UnicodeDecodeError`; report failures with
+`check_input.reported_path` through `check_inputs.report_file_error`.
+`check_inputs.py` owns the error-reporting helpers and aggregate records;
+`check_execution.py` owns per-file read, extraction, configuration, and rule
+stages. The CLI installs a WARNING-level stderr handler owned by the command
+and disables propagation, preventing duplicate warnings when the root logger is
+preconfigured.
 
 **W6. Run summary and the rest of the tests.** In
 `python/stilyagi/engine/renderers.py`, add a summary to both renderers (D9).
@@ -1191,9 +1317,6 @@ ______________________________________________________________________
      classification exhaustive at every mint site — for roadmap item 3.2.3 (D5).
    - Moving discovery to Rust per design §1, delivering `respect-gitignore` via
      the `ignore` crate rather than a growing name list (D8).
-   - Installing a `metrics` recorder, since the per-language counters in
-     `crates/stilyagi-tree-sitter/src/*/observe.rs` are currently write-only, and
-     Markdown has no counters at all (S11).
    - Enabling `--doctest-modules`, since Python doctests never execute today and
      at least one is already false (S12).
    - Renaming the adversarial Python and Rust corpus fixtures to fall outside
@@ -1276,9 +1399,11 @@ make build
 make check-fmt && make typecheck && make lint && make test
 ```
 
-Per AGENTS.md, do not create an isolated Cargo cache; if another job holds the
-package-cache lock, wait. If a build fails with `EAGAIN`, fork, or
-internal-compiler-error noise, retry with `RUSTC_WRAPPER= CARGO_BUILD_JOBS=2`.
+Per AGENTS.md, do not create an isolated Cargo cache or bypass managed compiler
+admission. Let the Cargo package-cache lock and compiler-slot queue serialize
+builds; do not clear `RUSTC_WRAPPER` or force job counts to work around them. If
+`build-limits-status` reports an unhealthy supervisor or admission returns a
+`build-limits:` error, report the failure instead of bypassing it.
 
 Documentation gates (W7, W8):
 
@@ -1373,8 +1498,9 @@ Quality criteria — what "done" means:
 - **Review:** `coderabbit review --agent` reports no outstanding concerns at
   each milestone.
 
-All six gates are green on this branch as of the rebase onto `ddf791b`,
-including `whitaker`. That is a change from earlier in this branch's life: the
+Historical baseline: all six gates were green on this branch as of the rebase
+onto `ddf791b`, including `whitaker`. This is not current review-follow-up gate
+evidence. That was a change from earlier in this branch's life: the
 `no_expect_outside_tests` findings on pre-existing `.expect()` calls in Rust
 test helpers were cleared by `ddf791b` itself, so there is no longer a red
 baseline to work around. Any `whitaker` finding this branch produces is a
@@ -1403,6 +1529,9 @@ This section records the completed evidence for the plan. The required
 artefacts below are preserved as they were produced: the W0 baseline gate
 transcript; red and green transcripts per work item; the per-syntax figures,
 byte totals, and `cache_stats` from W6; and the final acceptance transcripts.
+These archived gate logs are historical evidence for their recorded commits,
+not validation of the current review follow-up; see the progress entry above
+for its pending final-gate status.
 
 W0 evidence, 2026-08-23:
 
@@ -1535,7 +1664,7 @@ def discover_files(
 ) -> list[DiscoveredFile]: ...
 ```
 
-In `python/stilyagi/cli.py`:
+In `python/stilyagi/check_inputs.py`:
 
 ```python
 @dc.dataclass(frozen=True, slots=True)
@@ -1700,10 +1829,11 @@ trusting any statement in this document about which tool sits behind
 
 **Round 3 (2026-08-26).** Rebased onto `main` after `configure-df12-lints`
 squash-merged as #102 and was deleted. Because the base was squashed, only this
-plan's own 19 commits were replayed (`git rebase --onto origin/main <old-base>`);
-replaying the 26 inherited lint commits would have conflicted against their own
-squash. `main` had also moved on with Skylos dead-code detection (#120, #125)
-and a Ruff and `ty` normalization (#124).
+plan's own 19 commits were replayed
+(`git rebase --onto origin/main <old-base>`); replaying the 26 inherited lint
+commits would have conflicted against their own squash. `main` had also moved
+on with Skylos dead-code detection (#120, #125) and a Ruff and `ty`
+normalization (#124).
 
 Four conflicts and gate failures were resolved by adopting `main`'s improvement
 rather than re-asserting this branch's version:
@@ -1729,27 +1859,28 @@ rather than re-asserting this branch's version:
   the developers' guide into a 119-character line that `markdownlint --fix`
   cannot break. `main`'s split form was restored.
 
-One test change was needed. `test_discovery_is_sorted_independent_of_target_order`
-failed the full-suite run with a hypothesis `DeadlineExceeded` at 309 ms against
-the 200 ms default, while passing three times in isolation. Each example builds
-a real directory tree and walks it twice, so the elapsed time tracks filesystem
-and machine load rather than the code under test. The test now sets
-`deadline=None` with that rationale recorded inline. This is a genuine gate
-defect rather than a tolerable flake: an intermittently failing property test
-teaches reviewers to re-run rather than investigate.
+One test change was needed.
+`test_discovery_is_sorted_independent_of_target_order` failed the full-suite
+run with a hypothesis `DeadlineExceeded` at 309 ms against the 200 ms default,
+while passing three times in isolation. Each example builds a real directory
+tree and walks it twice, so the elapsed time tracks filesystem and machine load
+rather than the code under test. The test now sets `deadline=None` with that
+rationale recorded inline. This is a genuine gate defect rather than a
+tolerable flake: an intermittently failing property test teaches reviewers to
+re-run rather than investigate.
 
 New gate to be aware of: `make lint` now ends with a Skylos dead-code gate over
 the production targets. The quality criteria list it.
 
-Gate evidence after this rebase: `make check-fmt`, `make typecheck` (`ty`
-0.0.74), `make lint` (including Whitaker and Skylos), `make test` (347 Rust
-tests, 242 Python tests, 17 snapshots), `make markdownlint`, and `make nixie`
-all pass.
+Historical gate evidence after this rebase: `make check-fmt`, `make typecheck`
+(`ty` 0.0.74), `make lint` (including Whitaker and Skylos), `make test` (347
+Rust tests, 242 Python tests, 17 snapshots), `make markdownlint`, and
+`make nixie` all passed on that candidate; this is not current-candidate
+validation.
 
-**Round 4 (2026-08-29).** A final review-follow-up audit found no unresolved
-review threads and no non-bot requested changes on draft PR #110. The PR now
-targets `main` with a clean merge state, so its earlier conflict warning is
-obsolete. The roadmap's 3.2.1 item remains checked complete. The implementation
-is unchanged; this delivery record and the PR description are refreshed, then
-the required full gate suite is re-run before the documentation-only commit is
-published.
+**Round 4 (2026-08-29; historical snapshot).** At that date, a review-follow-up
+audit found no unresolved review threads or non-bot requested changes on draft
+PR #110, and reported a clean merge state after retargeting to `main`. Those
+review and branch-state observations are superseded by the 2026-10-12 review
+remediation recorded above. The roadmap item remained complete; this paragraph
+does not describe the current candidate or its gate status.

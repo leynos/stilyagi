@@ -2,7 +2,6 @@
 
 import io
 import json
-import logging
 import pathlib
 import sys
 import typing as typ
@@ -33,7 +32,6 @@ type CheckCommandRunner = cabc.Callable[[pathlib.Path, list[str]], tuple[int, st
 def check_command_runner(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    caplog: pytest.LogCaptureFixture,
 ) -> CheckCommandRunner:
     """Provide an in-process check-command runner with captured output."""
 
@@ -42,11 +40,9 @@ def check_command_runner(
         if "-" in argv:
             monkeypatch.setattr(sys, "stdin", io.StringIO("# Notes\n"))
         monkeypatch.chdir(root)
-        with caplog.at_level(logging.WARNING):
-            exit_code = cli.main(argv)
+        exit_code = cli.main(argv)
         captured = capsys.readouterr()
-        stderr = "\n".join(record.getMessage() for record in caplog.records)
-        return exit_code, captured.out, stderr
+        return exit_code, captured.out, captured.err
 
     return run
 
@@ -278,10 +274,7 @@ def selected_syntaxes_cover_the_mixed_tree(
         model.Syntax.MARKDOWN,
         model.Syntax.PYTHON_DOCSTRING,
         model.Syntax.RUST_DOC_COMMENT,
-    ]
-    assert bool(check_command_state["extracted_syntaxes"]), (
-        "expected one extraction per registered suffix in mixed-source order"
-    )
+    ], "expected one extraction per registered suffix in mixed-source order"
 
 
 @then("the selected syntax is Rust documentation comments")
@@ -291,17 +284,13 @@ def selected_syntax_is_rust_documentation_comments(
     """Assert that the stdin filename selects the Rust extractor."""
     assert check_command_state["extracted_syntaxes"] == [
         model.Syntax.RUST_DOC_COMMENT,
-    ]
-    assert len(check_command_state["extracted_syntaxes"]) == 1, (
-        "expected --stdin-filename app.rs to select exactly the Rust extractor"
-    )
+    ], "expected --stdin-filename app.rs to select exactly the Rust extractor"
 
 
 @then("no input was extracted")
 def no_input_was_extracted(check_command_state: CheckCommandState) -> None:
     """Assert that an unregistered stdin filename is skipped."""
-    assert check_command_state["extracted_syntaxes"] == []
-    assert not check_command_state["extracted_syntaxes"], (
+    assert check_command_state["extracted_syntaxes"] == [], (
         "expected the unregistered stdin filename to skip extraction"
     )
     assert_with_context(

@@ -1,0 +1,26 @@
+{
+  "check_runs": {
+    "diagnostic_error": 0,
+    "operational_error": 0,
+    "success": 1
+  },
+  "checked_files": {
+    "markdown": 1,
+    "python": 1,
+    "rust": 1
+  },
+  "phase_counts": {
+    "config": 3,
+    "discovery": 1,
+    "extract": 3,
+    "read": 3,
+    "render": 1,
+    "rules": 3
+  },
+  "python_documents": 1,
+  "rust_documents": 1,
+  "skipped_candidates": {
+    "symlinked_directory_target": 1,
+    "unregistered_candidate": 1
+  }
+}

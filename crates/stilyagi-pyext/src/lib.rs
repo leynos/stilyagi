@@ -1,5 +1,7 @@
 //! Python bindings for the Stilyagi Rust extension crate.
 
+mod check_metrics;
+
 use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyCFunction, PyDict, PyList, PyModule, PyTuple};
@@ -55,9 +57,18 @@ fn extract_document_py(py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<Py
     let extract_syntax = ExtractSyntax::try_from(request.syntax.as_str())
         .map_err(|error| map_extract_error(&error))?;
     let source = request.source;
-    let document = py
-        .detach(|| extract_document_from_rust(&source, extract_syntax))
-        .map_err(|error| map_extract_error(&error))?;
+    check_metrics::record_extraction_attempt(extract_syntax);
+    let document = match py.detach(|| extract_document_from_rust(&source, extract_syntax)) {
+        Ok(document) => {
+            let recovery_errors = document.ir().map_or(0, |ir| ir.errors.len());
+            check_metrics::record_extraction_outcome(extract_syntax, recovery_errors);
+            document
+        }
+        Err(error) => {
+            check_metrics::record_extraction_failure(&error);
+            return Err(map_extract_error(&error));
+        }
+    };
     let document_dict = PyDict::new(py);
     let region_items = region_items_for_document(py, &document)?;
     let region_list = PyList::new(py, region_items)?;
@@ -164,6 +175,20 @@ fn map_extract_error(error: &ExtractError) -> PyErr {
 /// Initialize the `_stilyagi_rs` Python module and register exported functions.
 #[pymodule]
 fn _stilyagi_rs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(check_metrics::reset_check_metrics, m)?)?;
+    m.add_function(wrap_pyfunction!(check_metrics::record_check_run, m)?)?;
+    m.add_function(wrap_pyfunction!(check_metrics::record_checked_file, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        check_metrics::record_skipped_candidates,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(check_metrics::record_unreadable_file, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        check_metrics::record_operational_failure,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(check_metrics::record_phase_duration, m)?)?;
+    m.add_function(wrap_pyfunction!(check_metrics::check_metrics_snapshot, m)?)?;
     m.add_function(extract_document_function(py)?)?;
     m.add_function(wrap_pyfunction!(hello, m)?)?;
     m.add_function(wrap_pyfunction!(authored_directive_error_codes_py, m)?)?;

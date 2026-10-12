@@ -386,13 +386,20 @@ collaborator.
 discovery.discover_files_with_summary(targets, config) -> DiscoveryResult
 ```
 
-`DiscoveryResult` is a frozen dataclass with two fields:
+`DiscoveryResult` is a frozen dataclass with five fields:
 
 - `files` — the registered source files as a tuple of `DiscoveredFile`, sorted
   by resolved path with duplicate resolved paths collapsed to one entry
 - `skipped_files` — the count of distinct source candidates without a
   registered extractor, plus declined symlinked directory targets; a candidate
   appearing under several overlapping targets is counted once
+- `skipped_by_reason` — `SkippedCandidateCount` records for the bounded reasons
+  `unregistered_candidate` and `symlinked_directory_target`, with distinct
+  candidate totals for each reason
+- `notices` — bounded, structured informational or warning events, each with a
+  fixed reason and optional target path
+- `failures` — directory-walk `OSError` values, with their path, retained
+  alongside any files successfully discovered before or after the failure
 
 `DiscoveredFile` is a frozen dataclass with three fields:
 
@@ -409,20 +416,84 @@ source candidates are counted as skipped. The configuration that governs
 discovery is resolved by `cli._resolve_discovery_config` for the current
 working directory rather than for each individual file, so `--isolated`,
 explicit `--config` values, and CLI rule overrides all stay in force during the
-discovery pass.
+discovery pass. Discovery reads the filesystem but has no logging or
+command-output side effects: it returns notices and walk failures as structured
+data for its caller to handle.
 
 `discover_files(targets, config)` is the convenience wrapper that returns only
-the `DiscoveryResult.files` list for callers that do not need the skip count.
+the discovered files as a list for callers that do not need the skip count; the
+`DiscoveryResult.files` field itself is a tuple. Because the wrapper cannot
+represent a partial result together with a traversal error, it raises the first
+walk error when `DiscoveryResult.failures` is non-empty.
 
-Each discovered file becomes a `cli.CheckInput` through
+Each discovered file becomes a `check_inputs.CheckInput` through
 `CheckInput.from_discovered`, which carries the `reported_path`,
 `resolved_path`, and selected `syntax`. Standard-input runs build their
 `CheckInput` directly: `--stdin-filename` selects the syntax by final suffix
 (defaulting to Markdown when omitted), and an unregistered stdin filename is
 logged and counted as skipped rather than checked. Per-file dispatch then goes
-through `cli._check_one_file`, which reads the source with UTF-8 (stripping a
-leading byte-order mark), extracts through the bridge, resolves the per-file
-config, and reports operational failures with exit code `2`.
+through `cli._check_one_file`, which reads Python source using its declared
+encoding and other source as UTF-8 (stripping a leading byte-order mark),
+extracts through the bridge, resolves the per-file config, and reports
+operational failures with exit code `2`.
+
+For filesystem targets, `cli._discover_targets` carries the result's notices
+and failures in `DiscoveryInputs`. After the query returns,
+`report_discovery_outcomes` logs notices and reports traversal failures through
+the command's WARNING-level stderr handler. The command logger does not
+propagate warnings to root handlers, so warnings appear once while rendered
+check output stays on stdout. A traversal failure marks the run as an
+operational error: Stilyagi still checks files discovered successfully, prints
+their run summary, and exits `2`.
+
+### Check inputs and outcomes
+
+`python/stilyagi/check_inputs.py` owns the records shared between discovery,
+per-file checking, and run aggregation:
+
+- `CheckInput` is an immutable description of one file-backed or standard-input
+  input. `from_discovered` transfers a discovery result's reported path,
+  resolved path, and syntax into a file-backed input.
+- `DiscoveryInputs` groups the ordered input tuple and skipped-candidate count
+  with per-reason `SkippedCandidateCount` records, structured discovery
+  notices, and traversal failures.
+- `FileCheckResult` carries one input's diagnostics, whether it produced an
+  error, and whether it was unreadable.
+- `DiscoveryOutcome` accumulates diagnostics, the error state, and unreadable
+  file count across the run.
+- `report_file_error` and `report_check_error` emit one warning for a file read
+  failure or an extraction/configuration failure, respectively. Both return
+  `None`; the caller uses the corresponding result record to aggregate the
+  operational outcome.
+- `report_discovery_outcomes` renders structured notices and traversal-failure
+  warnings after discovery. It returns `True` when any traversal failed so the
+  command can select exit code `2` while retaining partial discoveries.
+
+### Per-file execution and metrics
+
+`python/stilyagi/check_execution.py` owns the per-file execution stage:
+`_read_source` reads or decodes one input, `_check_one_file` runs extraction,
+configuration resolution, and rules, and `_check_discovered_files` aggregates
+those results. The module records phase timings around read, extract, config,
+and rules; `cli.py` owns the discovery and render phases around its command
+orchestration.
+
+`python/stilyagi/check_metrics.py` bridges Python execution to the PyO3 metrics
+functions. `crates/stilyagi-pyext/src/check_metrics.rs` owns the bounded,
+check-local snapshot in Stilyagi-owned atomics; it never installs or claims a
+process-global `metrics::Recorder`. Each check resets these snapshot values.
+The existing metrics-facade calls still reach a recorder installed by an
+embedding host, without changing its ownership or lifetime. The standalone
+`--verbose` JSON snapshot is independent of that recorder and is written to
+stderr.
+
+`check_execution.py` records per-file `read`, `extract`, `config`, and `rules`
+durations; `cli.py` records the `discovery` and `render` phases. These are the
+fixed-bucket histogram phase labels. Counters use only bounded run-outcome,
+syntax, skip-reason, and failure-kind labels. Python and Rust extraction
+counters are recorded at the PyO3 boundary. No paths or raw error strings
+become labels, keeping metric cardinality independent of repository contents
+and failure text.
 
 ### Configuration loading and resolution
 
@@ -472,21 +543,21 @@ config, and reports operational failures with exit code `2`.
 
 ### Diagnostics
 
-For each discovered file, `_check_one_file` extracts the document through the
-Rust bridge, resolves the per-file config, and collects diagnostics from two
-sources:
+For each discovered file, `check_execution._check_one_file` extracts the
+document through the Rust bridge, resolves the per-file config, and collects
+diagnostics from two sources:
 
 - `engine/checker.py` `map_ir_errors(document, reported_path)` maps the
   canonical IR error envelope on `Document.ir` into `diagnostics.Diagnostic`
   objects, propagating each IR-provided error code and falling back to a generic
   `IR000` placeholder only when the IR omits one.
 - Severity classification is deliberate: an IR error whose code is in the
-  Rust-owned authored-directive vocabulary
-  (`AUTHORED_DIRECTIVE_ERROR_CODES`, exposed to Python through the cached
+  Rust-owned authored-directive vocabulary (`AUTHORED_DIRECTIVE_ERROR_CODES`,
+  exposed to Python through the cached
   `stilyagi.engine.extraction.authored_directive_error_codes()` bridge) is an
   authored suppression mistake and keeps error severity; every other code,
-  including extractor recovery notices and any future unclassified code,
-  fails safe to warning severity and does not gate the exit code.
+  including extractor recovery notices and any future unclassified code, fails
+  safe to warning severity and does not gate the exit code.
 - `rules_registry.run_rules(document, resolved_config)` runs the registered
   rule set against the extracted document.
 

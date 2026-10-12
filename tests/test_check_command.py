@@ -1,7 +1,9 @@
 """Unit tests for the `stilyagi check` command."""
 
+import io
 import json
 import logging
+import pathlib
 import typing as typ
 
 import pytest
@@ -11,7 +13,7 @@ from syrupy.extensions.json import JSONSnapshotExtension
 from tests.support.assertions import assert_with_context
 
 if typ.TYPE_CHECKING:
-    import pathlib
+    import collections.abc as cabc
 
     from syrupy.assertion import SnapshotAssertion
 
@@ -32,6 +34,24 @@ def test_main_returns_zero_for_a_clean_tree(
         == "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
         "expected captured.out to carry the clean-run summary",
     )
+    assert not captured.err, "expected not captured.err"
+
+
+def test_main_summarises_an_empty_directory(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty directory should be a successful check with a zero summary."""
+    target = tmp_path / "empty"
+    target.mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    assert cli.main(["check", target.name]) == 0, "expected an empty check to exit zero"
+    captured = capsys.readouterr()
+    assert captured.out == (
+        "checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n"
+    ), "expected the exact zero-file run summary"
     assert not captured.err, "expected not captured.err"
 
 
@@ -93,16 +113,16 @@ def test_main_renders_json_for_synthetic_diagnostics(
 def test_main_returns_two_for_invalid_configuration(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Malformed discovered config should fail with the documented exit code."""
     (tmp_path / "stilyagi.toml").write_text("[lint\n", encoding="utf-8")
     _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
 
-    with caplog.at_level(logging.WARNING):
-        assert cli.main(["check", "."]) == 2, "expected cli.main(['check', '.']) == 2"
-    messages = tuple(record.getMessage() for record in caplog.records)
+    assert cli.main(["check", "."]) == 2, "expected cli.main(['check', '.']) == 2"
+    captured = capsys.readouterr()
+    messages = (captured.err,)
     assert_with_context(
         any(message.startswith("stilyagi check:") for message in messages),
         "expected a user-facing check failure log message",
@@ -140,32 +160,41 @@ def test_check_pipeline_emits_stage_boundary_logs(
 def test_check_logs_extraction_failure_alongside_stderr(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A failed extraction is emitted once as a user-facing log message."""
     _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(engine, "extract_document", _raise_bridge_error)
 
-    with caplog.at_level(logging.WARNING):
+    root_logger = logging.getLogger()
+    previous_level = root_logger.level
+    root_output = io.StringIO()
+    root_handler = logging.StreamHandler(root_output)
+    root_logger.addHandler(root_handler)
+    try:
         assert cli.main(["check", "."]) == 2, "expected cli.main(['check', '.']) == 2"
-
-    warnings = [
-        record.getMessage()
-        for record in caplog.records
-        if record.levelno >= logging.WARNING
-    ]
+    finally:
+        root_logger.removeHandler(root_handler)
+        root_logger.setLevel(previous_level)
+    captured = capsys.readouterr()
+    warnings = captured.err.splitlines()
     assert_with_context(
         any("failed to check" in message for message in warnings),
         "expected any(('failed to check' in message for messa...",
     )
     assert len(warnings) == 1, "expected exactly one extraction failure warning"
+    assert not root_output.getvalue(), (
+        "expected the root handler not to duplicate warnings"
+    )
+    assert captured.out.startswith("checked 1 files "), (
+        "expected the normal run summary to remain on stdout"
+    )
 
 
 def test_main_skips_a_symlinked_directory_target(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A symlinked directory target must be visible as one skipped input."""
@@ -175,19 +204,51 @@ def test_main_skips_a_symlinked_directory_target(
     target.symlink_to(source_directory, target_is_directory=True)
     monkeypatch.chdir(tmp_path)
 
-    with caplog.at_level(logging.WARNING):
-        exit_code = cli.main(["check", target.name])
+    exit_code = cli.main(["check", target.name])
+    captured = capsys.readouterr()
 
     assert exit_code == 0, "expected a skipped symlink target to exit zero"
-    assert (
-        capsys.readouterr().out
-        == "checked 0 files (1 skipped, 0 unreadable); 0 errors, 0 warnings\n"
+    assert captured.out == (
+        "checked 0 files (1 skipped, 0 unreadable); 0 errors, 0 warnings\n"
     ), "expected the symlink target summary"
-    assert any(
-        record.levelno == logging.WARNING
-        and "skipping symlinked directory target" in record.getMessage()
-        for record in caplog.records
-    ), "expected a warning for the skipped symlinked directory target"
+    assert captured.err.count("skipping symlinked directory target") == 1, (
+        "expected one warning for the skipped symlinked directory target"
+    )
+
+
+def test_main_reports_directory_walk_failure_after_checking_partial_results(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Retain partial discoveries and report traversal failure as exit two."""
+    _write_markdown(tmp_path / "notes.md", "Notes")
+    monkeypatch.chdir(tmp_path)
+
+    def walk_with_failure(
+        path: pathlib.Path,
+        *,
+        follow_symlinks: bool = False,
+        on_error: cabc.Callable[[OSError], None] | None = None,
+    ) -> cabc.Iterator[tuple[pathlib.Path, list[str], list[str]]]:
+        """Yield one source and report a later traversal failure."""
+        assert not follow_symlinks, "expected symlink traversal to remain disabled"
+        yield path, [], ["notes.md"]
+        assert on_error is not None, "expected a pathlib walk error callback"
+        on_error(PermissionError(13, "permission denied", path.as_posix()))
+
+    monkeypatch.setattr(pathlib.Path, "walk", walk_with_failure)
+
+    exit_code = cli.main(["check", "."])
+    captured = capsys.readouterr()
+
+    assert exit_code == 2, "expected exit_code == 2 after an incomplete walk"
+    assert captured.out == (
+        "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n"
+    ), "expected the successfully discovered input to be checked"
+    assert captured.err.count("failed to discover") == 1, (
+        "expected one user-facing traversal failure warning"
+    )
 
 
 def test_check_reraises_unexpected_extraction_failure(

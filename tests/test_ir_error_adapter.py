@@ -108,6 +108,7 @@ def test_map_ir_errors_demotes_unknown_suppression_prefix_codes_to_warnings() ->
 
     diagnostics_list = map_ir_errors(document, "docs/example.md")
 
+    assert len(diagnostics_list) == 1, "expected exactly one mapped diagnostic"
     assert_with_context(
         diagnostics_list[0].severity is diagnostics.Severity.WARNING,
         "expected an unlisted suppression-* code to fail safe to a warning",

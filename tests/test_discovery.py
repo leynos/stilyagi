@@ -4,13 +4,15 @@ import logging
 import pathlib
 import typing as typ
 
-from stilyagi import config, discovery, model
+import pytest
+from stilyagi import cli, config, discovery, model
 from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.assertions import assert_with_context
 
 if typ.TYPE_CHECKING:
-    import pytest
+    import collections.abc as cabc
+
     from syrupy.assertion import SnapshotAssertion
 
 
@@ -40,30 +42,105 @@ def test_explicit_markdown_file_is_reported_verbatim(tmp_path: pathlib.Path) -> 
     )
 
 
-def test_explicit_unregistered_file_is_logged_and_skipped(
+def test_explicit_unregistered_file_returns_a_notice_and_is_skipped(
     tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Skip a direct unregistered target without pretending it was linted."""
+    """Return skip context without logging from the discovery query."""
     target = tmp_path / "notes.txt"
     target.write_text("plain text\n", encoding="utf-8")
 
     with caplog.at_level(logging.INFO, logger="stilyagi.discovery"):
-        files = discovery.discover_files([target], config.StilyagiConfig())
+        result = discovery.discover_files_with_summary(
+            [target],
+            config.StilyagiConfig(respect_gitignore=False),
+        )
+    assert not caplog.records, "expected discovery query not to emit log records"
+    monkeypatch.chdir(tmp_path)
+    exit_code = cli.main(["check", target.name])
 
-    assert not files, "expected not files"
-    result = discovery.discover_files_with_summary([target], config.StilyagiConfig())
     assert_with_context(
         result.skipped_files == 1,
         "expected result.skipped_files == 1 for the unregistered direct target",
     )
-    assert_with_context(
-        any(
-            "ignoring target without a registered extractor" in record.message
-            for record in caplog.records
-        ),
-        "expected any(('ignoring target without a registered extractor' in reco...",
+    assert result.skipped_by_reason == (
+        discovery.SkippedCandidateCount("unregistered_candidate", 1),
+    ), "the skip count retains its fixed, bounded reason"
+    assert not result.files, "expected result.files to be empty"
+    assert len(result.notices) == 1, "expected one structured discovery notice"
+    assert exit_code == 0, "expected exit_code == 0"
+
+
+def test_explicit_ignored_directory_is_not_walked_and_checks_zero_files(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An ignored directory target is skipped before traversal begins."""
+    target = tmp_path / "node_modules"
+    _write_markdown(target / "dependency.md", "Dependency")
+    original_walk = pathlib.Path.walk
+    walked_paths: list[pathlib.Path] = []
+
+    def record_walk(
+        path: pathlib.Path,
+        *,
+        follow_symlinks: bool = False,
+        on_error: cabc.Callable[[OSError], None] | None = None,
+    ) -> cabc.Iterator[tuple[pathlib.Path, list[str], list[str]]]:
+        """Record requested walks while preserving pathlib's traversal."""
+        walked_paths.append(path)
+        yield from original_walk(
+            path,
+            follow_symlinks=follow_symlinks,
+            on_error=on_error,
+        )
+
+    monkeypatch.setattr(pathlib.Path, "walk", record_walk)
+    result = discovery.discover_files_with_summary([target], config.StilyagiConfig())
+    monkeypatch.chdir(tmp_path)
+    exit_code = cli.main(["check", target.name])
+    captured = capsys.readouterr()
+
+    assert not result.files, "expected result.files to be empty"
+    assert not walked_paths, "expected no directory walks for an ignored target"
+    assert exit_code == 0, "expected exit_code == 0"
+    assert captured.out == (
+        "checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n"
+    ), "expected the zero-file run summary"
+
+
+def test_directory_walk_failure_is_retained_with_partial_results(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Preserve discovered files and traversal errors in the query result."""
+    target = tmp_path / "docs"
+    _write_markdown(target / "notes.md", "Notes")
+
+    def walk_with_failure(
+        path: pathlib.Path,
+        *,
+        follow_symlinks: bool = False,
+        on_error: cabc.Callable[[OSError], None] | None = None,
+    ) -> cabc.Iterator[tuple[pathlib.Path, list[str], list[str]]]:
+        """Yield a partial directory result and report its later failure."""
+        assert not follow_symlinks, "expected symlink traversal to remain disabled"
+        yield path, [], ["notes.md"]
+        assert on_error is not None, "expected a pathlib walk error callback"
+        on_error(PermissionError(13, "permission denied", path.as_posix()))
+
+    monkeypatch.setattr(pathlib.Path, "walk", walk_with_failure)
+    result = discovery.discover_files_with_summary([target], config.StilyagiConfig())
+
+    assert len(result.files) == 1, "expected the file found before the error"
+    assert len(result.failures) == 1, "expected one retained traversal failure"
+    assert isinstance(result.failures[0].error, PermissionError), (
+        "expected the original traversal error"
     )
+    with pytest.raises(PermissionError, match="permission denied"):
+        discovery.discover_files([target], config.StilyagiConfig())
 
 
 def test_directory_recursion_skips_noise_and_symlinked_directories(
@@ -119,26 +196,24 @@ def test_directory_recursion_skips_noise_and_symlinked_directories(
     )
 
 
-def test_a_missing_target_is_logged_and_contributes_nothing(
+def test_a_missing_target_is_retained_as_a_notice_and_contributes_nothing(
     tmp_path: pathlib.Path,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A target that is neither a file nor a directory is reported, not linted."""
     target = tmp_path / "absent.md"
 
-    with caplog.at_level(logging.INFO, logger="stilyagi.discovery"):
-        files = discovery.discover_files([target], config.StilyagiConfig())
+    result = discovery.discover_files_with_summary(
+        [target], config.StilyagiConfig(respect_gitignore=False)
+    )
 
-    assert files == [], "a missing target contributes no files"
-    assert any(
-        "ignoring missing or unsupported target" in record.message
-        for record in caplog.records
-    ), "the missing target is logged rather than dropped silently"
+    assert not result.files, "a missing target contributes no files"
+    assert result.notices == (
+        discovery.DiscoveryNotice("missing_or_unsupported_target", target),
+    ), "the missing target is retained for command-layer reporting"
 
 
-def test_a_symlinked_directory_target_is_skipped(
+def test_a_symlinked_directory_target_is_retained_as_a_notice_and_skipped(
     tmp_path: pathlib.Path,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A symlinked directory named on the command line is not followed."""
     real = tmp_path / "real"
@@ -146,14 +221,40 @@ def test_a_symlinked_directory_target_is_skipped(
     link = tmp_path / "link"
     link.symlink_to(real, target_is_directory=True)
 
-    with caplog.at_level(logging.INFO, logger="stilyagi.discovery"):
-        files = discovery.discover_files([link], config.StilyagiConfig())
+    result = discovery.discover_files_with_summary(
+        [link], config.StilyagiConfig(respect_gitignore=False)
+    )
 
-    assert files == [], "a symlinked directory target is not followed"
-    assert any(
-        "skipping symlinked directory target" in record.message
-        for record in caplog.records
-    ), "the skipped symlink is logged"
+    assert not result.files, "a symlinked directory target is not followed"
+    assert result.skipped_files == 1, "the skipped target contributes to the summary"
+    assert result.notices == (
+        discovery.DiscoveryNotice("symlinked_directory_target", link),
+    ), "the skipped symlink is retained for command-layer reporting"
+    assert result.skipped_by_reason == (
+        discovery.SkippedCandidateCount("symlinked_directory_target", 1),
+    ), "the symlink skip uses its fixed, bounded reason"
+
+
+def test_skip_reason_counts_deduplicate_overlapping_targets(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Group skip metrics by reason while de-duplicating the total paths."""
+    root = tmp_path / "source"
+    unsupported = root / "data.json"
+    unsupported.parent.mkdir()
+    unsupported.write_text("{}\n", encoding="utf-8")
+    link = root / "linked-source"
+    link.symlink_to(root, target_is_directory=True)
+
+    result = discovery.discover_files_with_summary(
+        [root, unsupported, link], config.StilyagiConfig(respect_gitignore=False)
+    )
+
+    assert result.skipped_files == 2, "overlapping targets skip two distinct paths"
+    assert result.skipped_by_reason == (
+        discovery.SkippedCandidateCount("symlinked_directory_target", 1),
+        discovery.SkippedCandidateCount("unregistered_candidate", 1),
+    ), "fixed reason counts are deterministic"
 
 
 def test_mixed_sources_carry_their_registered_syntaxes(

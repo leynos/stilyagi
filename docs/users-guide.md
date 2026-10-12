@@ -278,6 +278,15 @@ machine-readable output: a stable JSON document. `--output-format sarif` is
 planned for a later slice and is not yet available; requesting it fails with a
 message stating it is planned but not yet available.
 
+#### Verbose metrics
+
+Use `--verbose` to include a `stilyagi check metrics: {...}` JSON snapshot on
+standard error. This snapshot uses Stilyagi-owned bounded counters and
+histograms and is independent of the process-global metrics recorder. The
+normal diagnostics and run summary remain on standard output. If an embedding
+host has installed a recorder, existing metrics-facade calls continue to reach
+it; Stilyagi neither claims nor replaces that recorder.
+
 #### Configuration
 
 Pass `--config` with an explicit config file path or an inline TOML fragment to
@@ -288,8 +297,10 @@ discovery entirely.
 
 Pass `-` as the target to read a supported source from standard input instead
 of from files on disk. Use `--stdin-filename PATH` to attribute diagnostics to
-PATH rather than the default `<stdin>`. Combining `-` with file targets is a
-usage error (exit code 2).
+PATH rather than the default `<stdin>`. The filename's final suffix selects the
+extractor; without a filename, Stilyagi uses Markdown. An unregistered suffix
+is skipped with a warning, as it is for a file on disk. Combining `-` with file
+targets is a usage error (exit code 2).
 
 #### Exit codes
 
@@ -298,7 +309,9 @@ The command exits with one of three codes:
 - `0` — no error diagnostics found; warnings alone do not fail the command.
 - `1` — one or more error diagnostics found.
 - `2` — error: a failed file read, invalid configuration, an extractor
-  failure, or a usage error.
+  failure, a directory traversal failure, or a usage error. If traversal fails
+  after some files have been found, Stilyagi checks those files and prints a
+  summary for them before returning `2`; the traversal warning goes to stderr.
 
 Examples:
 

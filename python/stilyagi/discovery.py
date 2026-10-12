@@ -18,13 +18,20 @@ Example
 """
 
 import dataclasses as dc
-import logging
+import os
 import pathlib
 import typing as typ
 
 from stilyagi import model
+from stilyagi.discovery_results import (
+    DiscoveredFile,
+    DiscoveryFailure,
+    DiscoveryNotice,
+    DiscoveryResult,
+    SkippedCandidateCount,
+    SkippedCandidateReason,
+)
 
-_LOGGER = logging.getLogger(__name__)
 _EXTENSION_SYNTAXES: typ.Final[cabc.Mapping[str, model.Syntax]] = {
     "md": model.Syntax.MARKDOWN,
     "markdown": model.Syntax.MARKDOWN,
@@ -57,7 +64,10 @@ _IGNORED_DIRECTORY_NAMES = frozenset({
 
 __all__ = [
     "DiscoveredFile",
+    "DiscoveryFailure",
+    "DiscoveryNotice",
     "DiscoveryResult",
+    "SkippedCandidateCount",
     "discover_files",
     "discover_files_with_summary",
     "syntax_for_path",
@@ -70,41 +80,13 @@ if typ.TYPE_CHECKING:
 
 
 @dc.dataclass(frozen=True, slots=True)
-class DiscoveredFile:
-    """One discovered source file and its selected extractor syntax.
+class _TargetDiscovery:
+    """Candidates and operational context collected from one target."""
 
-    Parameters
-    ----------
-    reported_path:
-        The command-line-relative POSIX path used for user-facing reporting.
-    resolved_path:
-        The fully resolved filesystem path used for de-duplication and stable
-        ordering.
-    syntax:
-        The registered extractor syntax selected from the final file suffix.
-    """
-
-    reported_path: str
-    resolved_path: pathlib.Path
-    syntax: model.Syntax
-
-
-@dc.dataclass(frozen=True, slots=True)
-class DiscoveryResult:
-    """The discovered files and source candidates skipped during one walk.
-
-    Parameters
-    ----------
-    files:
-        Registered source files in deterministic resolved-path order.
-    skipped_files:
-        Distinct source candidates without a registered extractor, plus
-        symlinked directory targets that discovery declined to traverse. A
-        candidate appearing under several overlapping targets is counted once.
-    """
-
-    files: tuple[DiscoveredFile, ...]
-    skipped_files: int
+    files: tuple[DiscoveredFile, ...] = ()
+    skipped_candidates: tuple[tuple[SkippedCandidateReason, pathlib.Path], ...] = ()
+    notices: tuple[DiscoveryNotice, ...] = ()
+    failures: tuple[DiscoveryFailure, ...] = ()
 
 
 def discover_files(
@@ -123,14 +105,16 @@ def discover_files(
         Command-line targets to inspect.
     config:
         Resolved Stilyagi configuration. The discovery layer currently only
-        uses it to report that ``respect_gitignore`` is accepted but not yet
-        enforced.
+        uses it to return a notice when ``respect_gitignore`` is accepted but
+        not yet enforced.
 
     Returns
     -------
     list[DiscoveredFile]
         Registered files sorted by resolved path, with duplicate resolved paths
-        collapsed to one entry.
+        collapsed to one entry. If traversal fails, the first retained
+        OSError is raised because this files-only wrapper cannot represent
+        partial results and failures together.
 
     Examples
     --------
@@ -144,14 +128,19 @@ def discover_files(
     ...     files[0].resolved_path.name
     'notes.md'
     """
-    return list(discover_files_with_summary(targets, config).files)
+    result = discover_files_with_summary(targets, config)
+    if result.failures:
+        raise result.failures[0].error
+    return list(result.files)
 
 
 def discover_files_with_summary(
     targets: cabc.Iterable[pathlib.Path | str],
     config: StilyagiConfig,
 ) -> DiscoveryResult:
-    r"""Discover registered source files and report skipped source candidates.
+    r"""Discover registered files and return skips, notices and walk failures.
+
+    This query performs no logging. Callers own reporting and exit policy.
 
     Parameters
     ----------
@@ -159,17 +148,19 @@ def discover_files_with_summary(
         Command-line targets to inspect.
     config:
         Resolved Stilyagi configuration. Discovery currently only uses it to
-        report that ``respect_gitignore`` is accepted but not yet enforced.
+        return a notice that ``respect_gitignore`` is accepted but not yet
+        enforced.
 
     Returns
     -------
     DiscoveryResult
         Registered files sorted by resolved path, with duplicate resolved
-        paths collapsed to one entry, plus the count of skipped candidates. A
-        candidate is skipped when it has no registered extractor or when it is
-        a symlinked directory target. Skips are counted once per distinct
-        file, even when several targets overlap; missing targets are ignored
-        and not counted.
+        paths collapsed to one entry, plus the count of skipped candidates,
+        bounded notices and directory traversal errors. A candidate is skipped
+        when it has no registered extractor or when it is a symlinked
+        directory target. Skips are counted once per distinct file, even when
+        several targets overlap; missing targets are ignored and not counted.
+        Traversal failures are retained with any successfully discovered files.
 
     Examples
     --------
@@ -188,54 +179,79 @@ def discover_files_with_summary(
     >>> os.chdir(cwd)
     >>> tmp.cleanup()
     """
-    if config.respect_gitignore:
-        _LOGGER.info("respect-gitignore is accepted but not yet enforced")
-
     discovered: dict[pathlib.Path, DiscoveredFile] = {}
-    skipped_candidates: set[pathlib.Path] = set()
+    skipped_candidates: dict[SkippedCandidateReason, set[pathlib.Path]] = {}
+    notices: list[DiscoveryNotice] = []
+    notice_set: set[DiscoveryNotice] = set()
+    failures: list[DiscoveryFailure] = []
+    if config.respect_gitignore:
+        _record_notice(
+            notices,
+            notice_set,
+            DiscoveryNotice("respect_gitignore_unenforced"),
+        )
     for target in targets:
         target_path = pathlib.Path(target).expanduser()
-        candidates, skips = _candidates_for_target(target_path)
-        skipped_candidates.update(skips)
-        for candidate in candidates:
+        target_result = _candidates_for_target(target_path)
+        for reason, candidate_path in target_result.skipped_candidates:
+            skipped_candidates.setdefault(reason, set()).add(candidate_path)
+        failures.extend(target_result.failures)
+        for notice in target_result.notices:
+            _record_notice(notices, notice_set, notice)
+        for candidate in target_result.files:
             _record_candidate(discovered, candidate)
 
     files = tuple(
         discovered[resolved_path]
         for resolved_path in sorted(discovered, key=lambda path: path.as_posix())
     )
-    return DiscoveryResult(files=files, skipped_files=len(skipped_candidates))
+    all_skipped_paths = {
+        candidate_path
+        for candidate_paths in skipped_candidates.values()
+        for candidate_path in candidate_paths
+    }
+    return DiscoveryResult(
+        files=files,
+        skipped_files=len(all_skipped_paths),
+        skipped_by_reason=tuple(
+            SkippedCandidateCount(reason, len(skipped_candidates[reason]))
+            for reason in sorted(skipped_candidates)
+        ),
+        notices=tuple(notices),
+        failures=tuple(failures),
+    )
 
 
 def _candidates_for_target(
     target_path: pathlib.Path,
-) -> tuple[cabc.Iterator[DiscoveredFile | None], set[pathlib.Path]]:
+) -> _TargetDiscovery:
     """Return registered candidates and skipped candidate paths for one target."""
     if _is_symlinked_directory(target_path):
-        _LOGGER.warning(
-            "skipping symlinked directory target: %s",
-            target_path.as_posix(),
+        return _TargetDiscovery(
+            skipped_candidates=(("symlinked_directory_target", target_path.resolve()),),
+            notices=(DiscoveryNotice("symlinked_directory_target", target_path),),
         )
-        return iter(()), {target_path.resolve()}
     if target_path.is_file():
         discovered_file = _discover_explicit_file(target_path)
         if discovered_file is None:
-            return iter(()), {target_path.resolve()}
-        return iter((discovered_file,)), set()
+            return _TargetDiscovery(
+                skipped_candidates=(("unregistered_candidate", target_path.resolve()),),
+                notices=(DiscoveryNotice("unregistered_explicit_file", target_path),),
+            )
+        return _TargetDiscovery(files=(discovered_file,))
     if target_path.is_dir():
+        if target_path.name in _IGNORED_DIRECTORY_NAMES:
+            return _TargetDiscovery()
         return _discover_directory(target_path)
-    _LOGGER.info("ignoring missing or unsupported target: %s", target_path.as_posix())
-    return iter(()), set()
+    return _TargetDiscovery(
+        notices=(DiscoveryNotice("missing_or_unsupported_target", target_path),),
+    )
 
 
 def _discover_explicit_file(target_path: pathlib.Path) -> DiscoveredFile | None:
     """Return one explicitly requested file with a registered syntax."""
     syntax = syntax_for_path(target_path)
     if syntax is None:
-        _LOGGER.info(
-            "ignoring target without a registered extractor: %s",
-            target_path.as_posix(),
-        )
         return None
     return DiscoveredFile(
         reported_path=target_path.as_posix(),
@@ -246,12 +262,26 @@ def _discover_explicit_file(target_path: pathlib.Path) -> DiscoveredFile | None:
 
 def _discover_directory(
     target_path: pathlib.Path,
-) -> tuple[cabc.Iterator[DiscoveredFile], set[pathlib.Path]]:
+) -> _TargetDiscovery:
     """Return directory source candidates and skipped candidate paths."""
     reported_base = pathlib.PurePosixPath(target_path.as_posix())
     discovered_files: list[DiscoveredFile] = []
-    skipped_paths: set[pathlib.Path] = set()
-    for root_path, dirnames, filenames in target_path.walk(follow_symlinks=False):
+    skipped_candidates: dict[SkippedCandidateReason, set[pathlib.Path]] = {}
+    failures: list[DiscoveryFailure] = []
+
+    def record_walk_error(error: OSError) -> None:
+        """Retain the path and error supplied by ``Path.walk``."""
+        failed_path = (
+            target_path
+            if error.filename is None
+            else pathlib.Path(os.fsdecode(error.filename))
+        )
+        failures.append(DiscoveryFailure(path=failed_path, error=error))
+
+    for root_path, dirnames, filenames in target_path.walk(
+        follow_symlinks=False,
+        on_error=record_walk_error,
+    ):
         _prune_ignored_directories(root_path, dirnames)
         relative_root = pathlib.PurePosixPath(
             root_path.relative_to(target_path).as_posix()
@@ -259,9 +289,17 @@ def _discover_directory(
         reported_root = reported_base / relative_root
         for filename in sorted(filenames):
             candidate = root_path / filename
+            if _is_symlinked_directory(candidate):
+                # Path.walk exposes non-followed directory symlinks as filenames.
+                skipped_candidates.setdefault("symlinked_directory_target", set()).add(
+                    candidate.resolve()
+                )
+                continue
             syntax = syntax_for_path(candidate)
             if syntax is None:
-                skipped_paths.add(candidate.resolve())
+                skipped_candidates.setdefault("unregistered_candidate", set()).add(
+                    candidate.resolve()
+                )
                 continue
             discovered_files.append(
                 DiscoveredFile(
@@ -270,7 +308,28 @@ def _discover_directory(
                     syntax=syntax,
                 )
             )
-    return iter(discovered_files), skipped_paths
+    return _TargetDiscovery(
+        files=tuple(discovered_files),
+        skipped_candidates=tuple(
+            (reason, candidate)
+            for reason in sorted(skipped_candidates)
+            for candidate in sorted(
+                skipped_candidates[reason], key=lambda path: path.as_posix()
+            )
+        ),
+        failures=tuple(failures),
+    )
+
+
+def _record_notice(
+    notices: list[DiscoveryNotice],
+    notice_set: set[DiscoveryNotice],
+    notice: DiscoveryNotice,
+) -> None:
+    """Append one notice while suppressing repeated target messages."""
+    if notice not in notice_set:
+        notice_set.add(notice)
+        notices.append(notice)
 
 
 def _prune_ignored_directories(

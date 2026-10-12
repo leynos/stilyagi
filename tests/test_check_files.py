@@ -1,6 +1,7 @@
 """Failure-mode coverage for the `stilyagi check` command."""
 
 import dataclasses as dc
+import functools
 import pathlib
 import typing as typ
 
@@ -19,17 +20,25 @@ if typ.TYPE_CHECKING:
     ]
 
 
+@dc.dataclass(frozen=True, slots=True)
+class _InjectedReadFailure:
+    """Describe one read failure injected by a file-check test."""
+
+    filename: str
+    error_factory: cabc.Callable[[], Exception]
+    detail: str
+
+
 def _run_failing_check(
     harness: _FailingCheckHarness,
     target: pathlib.Path,
     *,
     unreadable_files: int,
 ) -> str:
-    """Run one failing check against a stubbed target and return logged warnings."""
+    """Run one failing check and return warnings captured on stderr."""
     _stub_discovery(harness.monkeypatch, target)
 
-    with harness.caplog.at_level("WARNING"):
-        exit_code = cli.run_check(cli.CheckOptions(targets=(target.name,)))
+    exit_code = cli.run_check(cli.CheckOptions(targets=(target.name,)))
     captured = harness.capsys.readouterr()
 
     assert exit_code == 2, "expected exit_code == 2"
@@ -43,7 +52,7 @@ def _run_failing_check(
         ),
         "expected captured.out to report the file-read outcome",
     )
-    return "\n".join(record.getMessage() for record in harness.caplog.records)
+    return captured.err
 
 
 def _patch_read_text_failure(
@@ -71,6 +80,18 @@ def _read_failure_fragments(
     return ("stilyagi check: failed to read ", target.name, detail)
 
 
+def _setup_injected_read_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: _InjectedReadFailure,
+) -> tuple[pathlib.Path, tuple[str, ...]]:
+    """Arrange a Markdown file whose read raises the configured failure."""
+    target = tmp_path / failure.filename
+    target.write_text("# Read failure\n", encoding="utf-8")
+    _patch_read_text_failure(monkeypatch, target, failure.error_factory)
+    return target, _read_failure_fragments(target, failure.detail)
+
+
 def _setup_unreadable_utf8(
     tmp_path: pathlib.Path,
     _monkeypatch: pytest.MonkeyPatch,
@@ -79,22 +100,6 @@ def _setup_unreadable_utf8(
     target = tmp_path / "broken.md"
     target.write_bytes(b"\xff")
     return target, _read_failure_fragments(target, "can't decode byte 0xff")
-
-
-def _setup_permission_error(
-    tmp_path: pathlib.Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> tuple[pathlib.Path, tuple[str, ...]]:
-    """Arrange a Markdown file whose read raises a permission failure."""
-    target = tmp_path / "restricted.md"
-    target.write_text("# Restricted\n", encoding="utf-8")
-    _patch_read_text_failure(
-        monkeypatch,
-        target,
-        lambda: PermissionError("permission denied"),
-    )
-    expected = f"stilyagi check: failed to read {target.name}: permission denied"
-    return target, (expected,)
 
 
 def _setup_mid_run_disappearance(
@@ -143,27 +148,39 @@ def _setup_extractor_failure(
     return target, (expected,)
 
 
-def _setup_memory_error(
-    tmp_path: pathlib.Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> tuple[pathlib.Path, tuple[str, ...]]:
-    """Arrange a Markdown file whose read raises ``MemoryError``."""
-    target = tmp_path / "huge.md"
-    target.write_text("# Huge\n", encoding="utf-8")
-    _patch_read_text_failure(monkeypatch, target, lambda: MemoryError("read too large"))
-    expected = f"stilyagi check: failed to read {target.name}: read too large"
-    return target, (expected,)
-
-
 @pytest.mark.parametrize(
     ("setup_failure", "unreadable_files"),
     [
         pytest.param(_setup_unreadable_utf8, 1, id="unreadable-utf8"),
-        pytest.param(_setup_permission_error, 1, id="permission-error"),
+        pytest.param(
+            functools.partial(
+                _setup_injected_read_failure,
+                failure=_InjectedReadFailure(
+                    filename="restricted.md",
+                    error_factory=functools.partial(
+                        PermissionError, "permission denied"
+                    ),
+                    detail="permission denied",
+                ),
+            ),
+            1,
+            id="permission-error",
+        ),
         pytest.param(_setup_mid_run_disappearance, 1, id="mid-run-disappearance"),
         pytest.param(_setup_directory_read, 1, id="directory-read"),
         pytest.param(_setup_extractor_failure, 0, id="extractor-failure"),
-        pytest.param(_setup_memory_error, 1, id="memory-error"),
+        pytest.param(
+            functools.partial(
+                _setup_injected_read_failure,
+                failure=_InjectedReadFailure(
+                    filename="huge.md",
+                    error_factory=functools.partial(MemoryError, "read too large"),
+                    detail="read too large",
+                ),
+            ),
+            1,
+            id="memory-error",
+        ),
     ],
 )
 def test_cli_run_check_maps_file_failures_to_exit_two(
@@ -236,7 +253,6 @@ def test_cli_main_checks_every_file_and_renders_earlier_diagnostics_on_failure(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A mid-batch failure must not stop earlier diagnostics or later files."""
     root = tmp_path / "docs"
@@ -249,8 +265,7 @@ def test_cli_main_checks_every_file_and_renders_earlier_diagnostics_on_failure(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(engine, "extract_document", _synthetic_ir_extract)
 
-    with caplog.at_level("WARNING"):
-        exit_code = cli.main(["check", "."])
+    exit_code = cli.main(["check", "."])
     captured = capsys.readouterr()
 
     # The unreadable file forces exit 2, yet the earlier file's diagnostic is
@@ -265,7 +280,7 @@ def test_cli_main_checks_every_file_and_renders_earlier_diagnostics_on_failure(
         in captured.out,
         "expected the mixed run summary in captured.out",
     )
-    log_messages = "\n".join(record.getMessage() for record in caplog.records)
+    log_messages = captured.err
     assert "failed to read" in log_messages, "expected 'failed to read' in logs"
     assert "c-broken.md" in log_messages, "expected 'c-broken.md' in logs"
 
@@ -303,7 +318,6 @@ class _FailingCheckHarness:
     tmp_path: pathlib.Path
     monkeypatch: pytest.MonkeyPatch
     capsys: pytest.CaptureFixture[str]
-    caplog: pytest.LogCaptureFixture
 
 
 @pytest.fixture(name="harness")
@@ -311,10 +325,9 @@ def _failing_check_harness(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    caplog: pytest.LogCaptureFixture,
 ) -> _FailingCheckHarness:
     """Provide the collaborators used by the failing-check test harness."""
-    return _FailingCheckHarness(tmp_path, monkeypatch, capsys, caplog)
+    return _FailingCheckHarness(tmp_path, monkeypatch, capsys)
 
 
 def test_cli_main_reads_bom_prefixed_source_and_reports_success(
@@ -337,4 +350,29 @@ def test_cli_main_reads_bom_prefixed_source_and_reports_success(
         captured.out
         == "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
         "expected captured.out to report the BOM-prefixed file as checked",
+    )
+
+
+def test_cli_main_honours_python_source_encoding_cookie(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Decode a discovered Python source using its declared legacy encoding."""
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    (source_dir / "legacy.py").write_bytes(
+        '# coding: latin-1\n"""caf\xe9"""\n'.encode("latin-1")
+    )
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = cli.main(["check", "."])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0, "expected exit_code == 0"
+    assert not captured.err, "expected not captured.err"
+    assert_with_context(
+        captured.out
+        == "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected the Python source with an encoding cookie to be checked",
     )
