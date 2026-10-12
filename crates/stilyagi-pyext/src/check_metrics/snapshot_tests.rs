@@ -115,10 +115,14 @@ fn assert_metric_categories(
     assert_metric_values(&metrics, expected)
 }
 
-fn bridge_recovery_count(source: &str, syntax: &str, counter_index: usize) -> PyResult<u64> {
+fn bridge_recovery_count(
+    source: &str,
+    syntax: ExtractSyntax,
+    counter_index: usize,
+) -> PyResult<u64> {
     reset_metrics();
     Python::attach(|py| -> PyResult<()> {
-        let args = PyTuple::new(py, [source, syntax])?;
+        let args = PyTuple::new(py, [source, syntax.as_str()])?;
         crate::extract_document_py(py, &args)?;
         Ok(())
     })?;
@@ -210,14 +214,21 @@ fn check_metrics_exclude_authored_python_suppression_errors() {
     let _guard = CHECK_METRICS_TEST_LOCK
         .lock()
         .expect("check metrics test lock should be available");
-    let authored_only =
-        bridge_recovery_count("# stilyagi: disable\nvalue = 1\n", "python_docstring", 0)
-            .expect("Python authored-error fixture extracts");
-    let recovery_only = bridge_recovery_count("value = \"unterminated\n", "python_docstring", 0)
-        .expect("Python recovery fixture extracts");
+    let authored_only = bridge_recovery_count(
+        "# stilyagi: disable\nvalue = 1\n",
+        ExtractSyntax::PythonDocstring,
+        0,
+    )
+    .expect("Python authored-error fixture extracts");
+    let recovery_only = bridge_recovery_count(
+        "value = \"unterminated\n",
+        ExtractSyntax::PythonDocstring,
+        0,
+    )
+    .expect("Python recovery fixture extracts");
     let mixed = bridge_recovery_count(
         "# stilyagi: disable\nvalue = \"unterminated\n",
-        "python_docstring",
+        ExtractSyntax::PythonDocstring,
         0,
     )
     .expect("mixed Python fixture extracts");
@@ -240,13 +251,13 @@ fn check_metrics_exclude_authored_rust_suppression_errors() {
         .expect("check metrics test lock should be available");
     let authored_only = bridge_recovery_count(
         "pub fn stable() {\n    // stilyagi: disable\n}\n",
-        "rust_doc_comment",
+        ExtractSyntax::RustDocComment,
         1,
     )
     .expect("Rust authored-error fixture extracts");
     let recovery_only = bridge_recovery_count(
         "pub fn broken() { let value = \"unterminated; }\n",
-        "rust_doc_comment",
+        ExtractSyntax::RustDocComment,
         1,
     )
     .expect("Rust recovery fixture extracts");
@@ -257,7 +268,7 @@ fn check_metrics_exclude_authored_rust_suppression_errors() {
             "}\n",
             "pub fn broken() { let value = \"unterminated; }\n",
         ),
-        "rust_doc_comment",
+        ExtractSyntax::RustDocComment,
         1,
     )
     .expect("mixed Rust fixture extracts");
