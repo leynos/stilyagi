@@ -6,6 +6,8 @@ from stilyagi.engine import ir_view
 from stilyagi.engine.ir_view import SourceSpan, iter_segments
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
     from stilyagi import model
 
 
@@ -109,10 +111,19 @@ def find_unclaimed_span(document: model.Document) -> SourceSpan:
     claimed = tuple(ir_view.source_backed_spans(document))
     if not claimed:
         raise NoUnclaimedByteError(claims_nothing=True)
-    for offset in range(max(span.byte_end for span in claimed)):
-        if not any(
-            span.byte_start <= offset and offset + 1 <= span.byte_end
-            for span in claimed
-        ):
+    for offset in range(_claimed_extent(claimed)):
+        if not _is_claimed(claimed, offset):
             return SourceSpan(offset, offset + 1)
     raise NoUnclaimedByteError(claims_nothing=False)
+
+
+def _claimed_extent(claimed: cabc.Sequence[SourceSpan]) -> int:
+    """Return the furthest byte the claimed spans reach."""
+    return max(span.byte_end for span in claimed)
+
+
+def _is_claimed(claimed: cabc.Sequence[SourceSpan], offset: int) -> bool:
+    """Report whether any claimed span covers the byte at ``offset``."""
+    return any(
+        span.byte_start <= offset and offset + 1 <= span.byte_end for span in claimed
+    )

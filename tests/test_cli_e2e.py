@@ -4,6 +4,7 @@ import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests invoke a
 import sys
 import typing as typ
 
+import pytest
 from stilyagi import cli_fix
 
 from tests.support.assertions import assert_with_context
@@ -11,31 +12,40 @@ from tests.support.malformed_corpus import materialize_malformed_corpus
 from tests.support.subprocess_env import python_module_environment
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     import pathlib
 
 
-def test_python_module_entrypoint_exits_zero_for_a_clean_markdown_tree(
+def _clean_markdown_tree(root: pathlib.Path) -> None:
+    """Write two tiny well-formed files under ``root``."""
+    _write_markdown(root / "docs" / "alpha.md", "Alpha")
+    _write_markdown(root / "docs" / "beta.md", "Beta")
+
+
+def _malformed_markdown_tree(root: pathlib.Path) -> None:
+    """Materialize the shared malformed corpus under ``root``."""
+    materialize_malformed_corpus(root / "docs")
+
+
+@pytest.mark.parametrize(
+    "materialize",
+    [_clean_markdown_tree, _malformed_markdown_tree],
+    ids=["clean", "malformed"],
+)
+def test_python_module_entrypoint_exits_zero_for_a_recoverable_tree(
     tmp_path: pathlib.Path,
+    materialize: cabc.Callable[[pathlib.Path], None],
 ) -> None:
-    """A clean Markdown tree should succeed through the module boundary."""
-    _write_markdown(tmp_path / "docs" / "alpha.md", "Alpha")
-    _write_markdown(tmp_path / "docs" / "beta.md", "Beta")
+    """A tree this slice recovers from should succeed through the module boundary.
 
-    completed = _run_check(tmp_path)
-
-    assert completed.returncode == 0, "expected completed.returncode == 0"
-    assert_with_context(
-        completed.stdout == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
-        "expected completed.stdout to include fix counts",
-    )
-    assert not completed.stderr, "expected not completed.stderr"
-
-
-def test_python_module_entrypoint_exits_zero_for_a_malformed_markdown_tree(
-    tmp_path: pathlib.Path,
-) -> None:
-    """A malformed Markdown tree should still recover cleanly in this slice."""
-    materialize_malformed_corpus(tmp_path / "docs")
+    The clean and malformed cases are one behaviour, not two: this slice's rule
+    engine reports nothing, so a malformed file is the honest way to prove the
+    boundary survives real Markdown it cannot yet fix. They are kept as separate
+    cases rather than one case with a merged tree because the clean tree is the
+    shape a user actually hits, and a regression confined to either one should
+    name the tree that broke.
+    """
+    materialize(tmp_path)
 
     completed = _run_check(tmp_path)
 

@@ -177,6 +177,36 @@ assert document.ir["regions"][1]["owner"] == {
 > [RegionKind and typed ExtractRegion API](developers-guide.md#regionkind-and-typed-extractregion-api)
 > for the Rust details.
 
+### Calling `check` from Python
+
+`cli.run_check` is part of the public import surface, and this release adds a
+`collaborators` keyword to it:
+
+```python
+from stilyagi import cli
+
+exit_code = cli.run_check(cli.CheckOptions(targets=("docs",)))
+```
+
+`options` is still positional, so an existing `cli.run_check(options)` call is
+unaffected. `collaborators` is keyword-only (`run_check` declares it after a
+bare `*`), and it takes a `cli.CheckCollaborators` bundle so a test can inject
+the pipeline's boundaries — the config resolver, renderer, rule runner, output
+stream, and error reporter — without constructing a command line:
+
+```python
+exit_code = cli.run_check(
+    cli.CheckOptions(targets=("docs",)),
+    collaborators=cli.CheckCollaborators(rule_runner=my_rules),
+)
+```
+
+Omitted fields fall back to their production defaults. There is deliberately no
+`writer` field: a mutating run reaches the filesystem through the real executor
+rather than through an injected boundary, so a collaborator for it would
+advertise an injection point that does nothing. Injection is a testing
+affordance, not a supported extension point for changing command behaviour.
+
 ## 1b. Package smoke check
 
 Stilyagi ships a built-in smoke check that confirms the embedded Rust extension

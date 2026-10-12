@@ -141,31 +141,39 @@ def _flatten_rule_codes(
     return tuple(code for group in groups for code in group)
 
 
+def _add_rule_code_argument(
+    parser: argparse.ArgumentParser,
+    name: str,
+    help_text: str,
+) -> None:
+    """Add one repeatable, comma-delimited rule-code selection argument.
+
+    ``default`` is a list rather than the empty tuple these codes are stored
+    as. argparse's ``append`` action copies the default and then appends to the
+    copy, and copying a tuple still yields a tuple, so a tuple default raises
+    ``AttributeError`` the first time the flag is actually used.
+    `_flatten_rule_codes` normalises the collected list back to a tuple.
+    """
+    parser.add_argument(
+        name,
+        action="append",
+        default=[],
+        type=_parse_rule_codes,
+        metavar="CODES",
+        help=help_text,
+    )
+
+
 def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
     """Add the `check` command arguments to one parser."""
-    parser.add_argument(
-        "--select",
-        action="append",
-        default=(),
-        type=_parse_rule_codes,
-        metavar="CODES",
-        help="Select additional rule codes or prefixes.",
+    # The three selection flags are one argument shape repeated, so they share
+    # a builder; the parse result is what differs, and that is argparse's.
+    _add_rule_code_argument(
+        parser, "--select", "Select additional rule codes or prefixes."
     )
-    parser.add_argument(
-        "--ignore",
-        action="append",
-        default=(),
-        type=_parse_rule_codes,
-        metavar="CODES",
-        help="Ignore rule codes or prefixes.",
-    )
-    parser.add_argument(
-        "--extend-select",
-        action="append",
-        default=(),
-        type=_parse_rule_codes,
-        metavar="CODES",
-        help="Extend the active rule selection.",
+    _add_rule_code_argument(parser, "--ignore", "Ignore rule codes or prefixes.")
+    _add_rule_code_argument(
+        parser, "--extend-select", "Extend the active rule selection."
     )
     parser.add_argument(
         "--output-format",

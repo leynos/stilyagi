@@ -33,7 +33,22 @@ from tests.support.check_pipeline_fixtures import (
 )
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     import pathlib
+
+
+def _make_directory(root: pathlib.Path) -> pathlib.Path:
+    """Return a directory path, which cannot be read as a file."""
+    target = root / "docs"
+    target.mkdir()
+    return target
+
+
+def _make_undecodable(root: pathlib.Path) -> pathlib.Path:
+    """Return a file holding bytes that are not valid UTF-8."""
+    target = root / "broken.md"
+    target.write_bytes(b"\xff")
+    return target
 
 
 class TestCheckOneFile:
@@ -87,12 +102,29 @@ class TestCheckOneFile:
             "expected the typed error to retain the underlying OS error"
         )
 
-    def test_a_directory_read_reports_the_whole_oserror_family(
-        self, tmp_path: pathlib.Path
+    @pytest.mark.parametrize(
+        ("corrupt", "expected"),
+        [
+            pytest.param(_make_directory, IsADirectoryError, id="directory"),
+            pytest.param(_make_undecodable, UnicodeDecodeError, id="undecodable"),
+        ],
+    )
+    def test_an_unreadable_target_reports_its_underlying_oserror(
+        self,
+        tmp_path: pathlib.Path,
+        corrupt: cabc.Callable[[pathlib.Path], pathlib.Path],
+        expected: type[OSError],
     ) -> None:
-        """A directory raising IsADirectoryError is caught by the OSError branch."""
-        target = tmp_path / "docs"
-        target.mkdir()
+        """Every read failure is wrapped in the typed error, keeping its cause.
+
+        A directory and undecodable bytes fail for different reasons, but the
+        contract the boundary owes a caller is the same for both: one
+        `SourceReadError` naming the path, retaining the underlying `OSError`
+        subclass so a caller can tell a directory from a decode failure. The
+        two cases are held here together so that contract is stated once, while
+        the parametrized id keeps a regression naming the target that broke.
+        """
+        target = corrupt(tmp_path)
         failures, report = recording_reporter()
 
         result = cli_pipeline.check_one_file(
@@ -100,35 +132,13 @@ class TestCheckOneFile:
             run_for(silent_runner, report),
         )
 
-        assert result.failed, "expected a directory read to flag the result"
+        assert result.failed, "expected an unreadable target to flag the result"
         error = failures[0][1]
         assert isinstance(error, cli_io.SourceReadError), (
             "expected the read failure to be wrapped in the typed error"
         )
-        assert isinstance(error.error, IsADirectoryError), (
-            "expected the OSError branch to catch IsADirectoryError"
-        )
-
-    def test_an_undecodable_file_reports_a_read_error(
-        self, tmp_path: pathlib.Path
-    ) -> None:
-        """Bytes that are not UTF-8 are reported as a read failure."""
-        target = tmp_path / "broken.md"
-        target.write_bytes(b"\xff")
-        failures, report = recording_reporter()
-
-        result = cli_pipeline.check_one_file(
-            input_for(target),
-            run_for(silent_runner, report),
-        )
-
-        assert result.failed, "expected undecodable bytes to flag the result"
-        error = failures[0][1]
-        assert isinstance(error, cli_io.SourceReadError), (
-            "expected the decoding failure to be wrapped in the typed error"
-        )
-        assert isinstance(error.error, UnicodeDecodeError), (
-            "expected the decoding failure to be retained"
+        assert isinstance(error.error, expected), (
+            f"expected the underlying failure to be {expected.__name__}"
         )
 
     def test_a_bridge_extraction_failure_is_reported_rather_than_raised(

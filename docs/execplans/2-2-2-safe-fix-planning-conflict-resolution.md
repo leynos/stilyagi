@@ -3502,23 +3502,23 @@ run at this tip.
 
 After the split, `pylint` is clean -- both invocations report
 `Your code has been rated at 10.00/10` and a `grep -c C0302` over the log
-returns zero. The split is a split, not a widened limit: `max-module-lines =
-400` is unchanged and is pinned by `tests/test_pylint_tier_contract.py`,
-`tests/test_skylos_lint_contract.py` and
+returns zero. The split is a split, not a widened limit:
+`max-module-lines = 400` is unchanged and is pinned by
+`tests/test_pylint_tier_contract.py`, `tests/test_skylos_lint_contract.py` and
 `tests/test_skylos_whitelist_contract.py`.
 
 ### 42.2 The two halves of the split
 
-| Module | Before | After | New module |
-| --- | --- | --- | --- |
-| `python/stilyagi/cli_pipeline.py` | 436 | 258 | `python/stilyagi/cli_run.py` 214 |
-| `tests/test_check_boundaries.py` | 571 | 174 | `tests/test_check_mutation.py` 276, `tests/test_cli_fix.py` 116 |
+| Module                            | Before | After | New module                                                      |
+| --------------------------------- | ------ | ----- | --------------------------------------------------------------- |
+| `python/stilyagi/cli_pipeline.py` | 436    | 258   | `python/stilyagi/cli_run.py` 214                                |
+| `tests/test_check_boundaries.py`  | 571    | 174   | `tests/test_check_mutation.py` 276, `tests/test_cli_fix.py` 116 |
 
 `cli_pipeline.py`'s own docstring drew the first seam: it claimed to own "the
 cohesive work one discovered file undergoes" while carrying four functions that
 sweep a *collection*. `CheckedFiles`, `collect_checked_files`,
-`aggregate_checked_files`, `relint_written_files` and
-`reconcile_written_files` moved to `cli_run.py`; the per-file workflow stayed.
+`aggregate_checked_files`, `relint_written_files` and `reconcile_written_files`
+moved to `cli_run.py`; the per-file workflow stayed.
 
 The second split followed the test module's docstring the same way. The
 mutating tail became `test_check_mutation.py`; `TestFixedDocumentEmission`
@@ -3554,19 +3554,19 @@ make: *** [Makefile:168: lint] Error 101
 reason, so both pytest lanes never ran.
 
 Neither failure is caused by this branch. Ten locations across
-`crates/stilyagi-markdown` and `crates/stilyagi-test-support` are byte-identical
-at the merge-base `7fdcff34` and at HEAD:
+`crates/stilyagi-markdown` and `crates/stilyagi-test-support` are
+byte-identical at the merge-base `7fdcff34` and at HEAD:
 
 ```text
 round_trip_helpers.rs   merge-base d912b4a7 = HEAD d912b4a7, main f6373d67
 ```
 
 and `git merge-base --is-ancestor c3beea9 HEAD` is false while
-`--is-ancestor c3beea9 origin/main` is true. `c3beea9` is
-**"Fix clippy 1.99 assert_is_empty findings (#190)"**, and it is exactly this
-remedy. `origin/main` is 40 commits ahead. The branch's only `crates/` change is
-a three-line doc comment in a different file, `round_trip_edits.rs`, which
-clippy does not flag.
+`--is-ancestor c3beea9 origin/main` is true. `c3beea9` is **"Fix clippy 1.99
+assert_is_empty findings (#190)"**, and it is exactly this remedy.
+`origin/main` is 40 commits ahead. The branch's only `crates/` change is a
+three-line doc comment in a different file, `round_trip_edits.rs`, which clippy
+does not flag.
 
 So this is the stale-base pattern this plan already names, not a new defect.
 The route to a green `lint` is the already-planned rebase onto `origin/main`,
@@ -3592,8 +3592,8 @@ conflict on this file resolves to `main`'s side with no judgement call.
 ### 42.5 The halted gates that still need evidence
 
 `check-fmt`, `typecheck`, `markdownlint` and `nixie` all pass at this tip. The
-unproven set is now exactly: `lint` steps 8--9 (`whitaker`, `skylos`), and every
-test lane, because `make test` aborts before reaching `pytest`.
+unproven set is now exactly: `lint` steps 8--9 (`whitaker`, `skylos`), and
+every test lane, because `make test` aborts before reaching `pytest`.
 
 ### Lesson: clearing a failure promotes the next one
 
@@ -3605,3 +3605,232 @@ it found there was a second, unrelated failure that had been sitting in the
 blind spot the whole time. The habit is to state where the chain stopped, by
 `Makefile:NNN`, and to treat every step after that as unverified rather than
 merely unmentioned.
+
+## Revision 43 (2026-10-12): the five review findings, adjudicated one by one
+
+The five findings CodeRabbit raised on `4b4842c` are not one workstream. Read
+against the tip, four were already closed by later commits and one was live.
+This revision records the adjudication, because "all five addressed" and "one
+of five addressed and four were never broken" are different claims, and only
+the second is true.
+
+### 43.1 Finding-by-finding disposition
+
+| Finding                   | Disposition    | Evidence at the tip                                                                                                                                                                                                                                                                                                       |
+| ------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Testing (Overall)         | Closed earlier | `test_write_source_leaves_no_temporary_file_when_staging_fails` injects an `fdopen` failure raising `ENOSPC` and asserts the directory listing is unchanged; `test_write_source_refuses_a_target_edited_after_planning` pins the refusal; `TestRefusalRendering` covers the multi-error and no-rule-code rendering shapes |
+| Unit Architecture         | Closed earlier | `cli_io.read_source` raises `SourceReadError` and neither logs nor prints; `report_check_error` is a separate function at the command boundary that does both                                                                                                                                                             |
+| User-Facing Documentation | Closed earlier | The users' guide documents the `--diff` workflow, safe-fix scope, non-mutation, the stdout/stderr split, refusal reporting, exit codes, and the text/JSON fields                                                                                                                                                          |
+| Developer Documentation   | Closed earlier | The developers' guide names the three-way split, documents the five collaborator fields and why there is no `writer`, and carries a "Fix planning" section covering `ir_view`, `FixPlanRequest`, the `--diff` split, `schema_version` and `fix_errors`                                                                    |
+| Observability             | **Live**       | `grep -c 'logging\|_LOGGER'` over all eight modules of `engine/fix_planning/` returned **0**                                                                                                                                                                                                                              |
+
+### 43.2 The one live finding, and why `logging` is the right answer
+
+The finding asked for operational logs at "the new decision points". `FixPlan`
+already carried `source_backed_spans` and `coalesced`, documented as counts "no
+later stage can recover" and existing "for the fix summary", but nothing logged
+them. The counters were built for a summary that was never written.
+
+The determination the task asked for, measured rather than assumed: the Python
+layer has **no `tracing` or `metrics` integration**. Both are dependencies of
+the Rust extension only; `docs/stilyagi-design.md:915` states the Rust producer
+emits them while "hosts install exporters", and no exporter host exists in the
+Python package. The supported integration here is the standard-library
+`logging` module, already the idiom in `cli_fix.py` and `fix_execution.py`. The
+finding is met with one INFO event carrying the planner's decision as
+structured fields -- no new dependency, no architectural change, and the
+observable behaviour the finding asked for.
+
+Introducing an OpenTelemetry-style stack into the Python layer, which is the
+literal reading of "introduce an integration", is a substantial architectural
+addition. It is not smuggled in under a review-warning fix.
+
+### 43.3 A pre-existing defect the fix surfaced
+
+While probing the parser to pin the new observability test, `cli_args.py` raised
+`AttributeError: 'tuple' object has no attribute 'append'`. The three
+selection flags (`--select`, `--ignore`, `--extend-select`) declared
+`action="append"` with `default=()`, and argparse copies the default before
+appending to it; copying a tuple yields a tuple, so the first actual use of any
+of the three raised.
+
+This is **not** branch-introduced. `git show e86256f` carries identical code,
+and `e86256f` arrived with `Implement Markdown check command (2.2.1) (#54)`. It
+survived because the only parser test exercised `--diff`, a `store_true` flag
+with no default to copy. The users' guide already documented `--select` and
+`--ignore` as deciding "which rules run at all", so the documented behaviour
+was unreachable through the parser.
+
+`git tag --contains e86256f` is empty and the package version is `0.1.0`, so
+**the defect never shipped in a release**. The users' guide is a forward
+statement of the settled v1 contract, and the fix makes that statement true
+rather than changing behaviour a user has seen, so the argparse repair alone
+requires no guide amendment. A regression test pins all three flags and their
+defaults.
+
+**Correction (recorded rather than edited away).** An earlier draft of this
+section closed with "No users' guide amendment is therefore required." That
+branch-level claim was falsified by this same revision's work, for a reason
+unrelated to argparse: `run_check` is exported in `cli.py`'s `__all__`, and
+this branch adds its keyword-only `collaborators` parameter, so the public
+Python surface *did* change and §1a of the users' guide now carries a "Calling
+`check` from Python" migration note. The argparse paragraph's reasoning holds
+for the argparse fix; it was the generalization to the whole revision that was
+wrong. The note is the one documentation change this revision found necessary,
+and it was found by re-reading the exported surface rather than by listing the
+findings.
+
+### 43.4 Refresh: the CodeScene verdict is bound to the old remote head
+
+The hosted CodeScene failure is attached to `81d2fe1`, which is the
+**pre-rebase, pre-fix** remote head. It reports `cli_args.py` at
+`10.00 -> 9.60` with `_add_check_arguments` as the flagged Large Method -- the
+exact shape the builder extraction in 43.3's sibling change removes. A local
+`cs delta` run against `origin/main` reads clean for all five files.
+
+Per the CodeScene skill, a local clean report does not override a hosted
+failure. The hosted verdict can only be re-read after the fixed tree is pushed,
+so this revision does not claim resolution: it records that the local and
+hosted measurements were taken on **different trees**, which is the only
+reading consistent with both.
+
+### 43.5 The five findings were not the only gate failures
+
+Running the full chain after the observability work returned a **red** verdict,
+and the failures were in this branch's own new code rather than in any of the
+five findings:
+
+| Gate                | Verdict  | Evidence                                                                            |
+| ------------------- | -------- | ----------------------------------------------------------------------------------- |
+| `make check-fmt`    | pass     | ruff 223 files formatted; `cargo fmt` clean; mdtablefix 68 unchanged                |
+| `make lint`         | **fail** | aborted at `Makefile:174` (`ruff check`) with 5 errors; steps 175--182 unrun        |
+| `make typecheck`    | pass     | `ty 0.0.74` -- `All checks passed!`                                                 |
+| `make test`         | pass     | nextest 337/337; Rust doctests 13; pytest 632 passed; doctests 40 passed, 2 skipped |
+| `make markdownlint` | pass     | typos gate clean; markdownlint 69 files, 0 errors                                   |
+| `make nixie`        | pass     | all diagrams validated                                                              |
+
+The five ruff errors were all mine, and three were consequences of one mistake:
+the `plan_records` fixture was annotated with the banned `typing.Iterator`, and
+`tests/support/fix_fixtures.py` referenced `cabc` without importing it, so the
+alias had to be added in the `TYPE_CHECKING` block the repository's other
+modules use. The remaining two were a `docstring-missing-yields` on a generator
+fixture and a `yoda-conditions` on a `<=` set comparison. None was
+pre-existing; none was reachable before the tree reached this tip.
+
+**A finding that was investigated and deliberately not "fixed".** The missing
+`cabc` import looked like a latent `NameError`. It is not one in practice: the
+module imports fine, and the tests pass, because PEP 649 defers annotation
+evaluation. `inspect.signature` over such a function *does* raise. The decisive
+experiment was to run the same probe against `tests/support/ir_identity.py`,
+which this branch never touched: it raises
+`NameError: name 'cabc' is not defined` and `name 'pathlib' is not defined` for
+its own functions. The behaviour is therefore the repository-wide convention for
+`TYPE_CHECKING`-only aliases under deferred annotations, not a defect
+introduced here, and changing it would be a repo-wide decision rather than a
+review-finding repair.
+
+### Lesson: a findings list is a claim about a tree, not a requirement
+
+The five findings were carried for several revisions as an undifferentiated
+"remaining work" block. Read against the current tree, four had already been
+closed by commits that never referenced them. A findings list is a statement
+about the revision the reviewer read; it decays as the branch moves, and the
+only way to know which entries are still live is to re-read each against the
+tip. The corollary is that "1 of 5 addressed" is a more useful record than "all
+5 addressed", because it preserves what was actually done.
+
+## Revision 44 (2026-10-12): the df12 tier runs, and both findings were mine
+
+Revision 43 cleared the five ruff findings, which was the first condition for
+`make lint` to advance past its first step. It advanced four steps, and stopped
+at the fifth:
+
+```text
+tests/test_fix_plan_logging.py:50:4: R9104: Function 'emit' only forwards attribute access or a proxied call (trivial-attribute-wrapper)
+tests/test_fix_plan_logging.py:183:4: R9103: Constant comparisons on 'case' would be clearer as a match statement (prefer-match-over-constant-chain)
+make: *** [Makefile:177: lint] Error 8
+```
+
+Both findings are in the Observability test module this session added, and both
+were previously invisible for the same reason the `C0302` pair was invisible in
+Revision 42: `make` aborts on the first failure, so the df12 tier at
+`Makefile:177` had never executed against this tip. The chain's progress is the
+evidence -- ruff, interrogate (100%) and pylint (10.00/10) all pass now, and
+the failure line has moved from `174` to `177`.
+
+Neither is a false positive. A sweep of the tree found **no** suppression
+convention for either rule: the only `logging.Handler` subclass in the entire
+repository was the one in this test module, and no module elsewhere suppresses
+`R9103`/`R9104`.
+
+### 44.1 R9104: a bespoke handler where the repository has an idiom
+
+`_RecordCollector` was a nine-line `logging.Handler` whose `emit` did one
+thing: forward to `list.append`. That is precisely the shape `R9104` names. The
+repair was not to suppress it but to delete it, because the repository already
+has a log-capture idiom and this module was the only place not using it:
+
+- `tests/test_discovery.py` (4 sites), `tests/test_check_command.py` (3),
+  `tests/test_package_skeleton_bridge_sync.py` (1) all use
+  `caplog: pytest.LogCaptureFixture` with
+  `with caplog.at_level(logging.INFO, logger=...)`.
+
+The rewrite follows that idiom exactly, including the `logger=` keyword, which
+preserves the isolation property the bespoke handler was written to get: a
+record emitted by a neighbouring module during the same call cannot satisfy an
+assertion here. Extraction into a module-level `_planner_record(caplog)` helper
+then replaced the fixture entirely, and with it the `list.append` forwarder,
+`typing.Protocol`, `contextlib` and `collections.abc` all became unnecessary.
+The module shrank from 311 to 261 lines.
+
+The one-line-loses, multi-paragraph-wins behaviour of ruff's `DOC201` bit again
+during this rewrite: expanding `_planner_record`'s docstring past one line
+switched the return-contract rule on, and it wanted a `Returns` section.
+Recorded here because it is the second occurrence of the same trap.
+
+### 44.2 R9103: a string-keyed dispatch that wanted to be a `match`
+
+The `test_planner_names_which_terminal_path_produced_the_plan` case built one
+of three diagnostic tuples from an
+`if case == "refused": … elif case == "fixed": …` chain. `R9103` is right that
+a constant chain off one value reads better as a `match`, and the repository
+already uses that idiom (`cli_pipeline.py:219`, `renderers.py:74`). The rewrite
+also removed the duplication the chain had: each branch constructed an identical
+`Diagnostic` with only the `TextEdit` differing, so a `_replacement(edit)`
+helper now builds the diagnostic and the three cases supply only the edit.
+
+### 44.3 Discrimination, re-established for the new shape
+
+Rewriting a test that had already passed invalidates its discrimination proof,
+so it was re-run rather than carried forward. The reverted tree is `HEAD:`'s
+`plan.py` (no `_LOGGER`, no `logging` import); the fixed tree is the staged blob
+`2651250a6c9992d78123a8a74583423f7d0bb06e`.
+
+| Tree              | `plan.py`                                  | Result                                                                        |
+| ----------------- | ------------------------------------------ | ----------------------------------------------------------------------------- |
+| Unfixed (`HEAD:`) | `891916a81761c362da31f7b8e68e0677301f2f34` | **7 failed** -- `AssertionError: expected exactly one planner record, got []` |
+| Fixed (staged)    | `2651250a6c9992d78123a8a74583423f7d0bb06e` | **7 passed**                                                                  |
+
+The restoration is byte-identical (`sha256 1ef3caad…`), and the staged blob is
+unchanged, so the proof did not perturb the tree it describes. The unfixed
+failure mode is also the right one: the tests fail because *no event was
+emitted*, which is exactly the observability gap the module exists to pin --
+not because of a typo in the test.
+
+### 44.4 What is still unverified
+
+`make lint` now reaches `Makefile:177` and stops there. Steps 178--182 --
+`ambrleaks`, `cargo doc`, `cargo clippy`, `whitaker`, `skylos` -- have **still
+never executed** at this tip. Two of them are new-gate risks: `whitaker` and
+`skylos` are the newest additions to the chain. Nothing in this revision
+supports a claim about them, and a green `make test` would not change that.
+
+### Lesson: the same masking mechanism, four revisions apart
+
+Revision 42 recorded that a `C0302` pair hid behind an earlier `ruff` failure.
+This revision found two `df12` findings hiding behind *that*. The mechanism is
+identical and worth naming once: `make` reports the first failure only, so
+every step after it is unverified, and "the gates fail on X" silently means "X
+is the first thing that failed". The line number is the honest part of the
+report, and the only trustworthy reading of a clean pass is one that names the
+last step that *ran*.

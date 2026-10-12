@@ -2,6 +2,7 @@
 
 import typing as typ
 
+import pytest
 from stilyagi import cli
 from syrupy.extensions.json import JSONSnapshotExtension
 
@@ -14,7 +15,6 @@ from tests.support.check_pipeline_fixtures import (
 if typ.TYPE_CHECKING:
     import pathlib
 
-    import pytest
     from syrupy.assertion import SnapshotAssertion
 
 
@@ -86,3 +86,49 @@ def test_check_parser_sets_the_diff_option() -> None:
     assert cli.CheckOptions(targets=("notes.md",), diff=True) == cli.options_from_args(
         parsed
     ), "expected --diff to populate the immutable check options"
+
+
+@pytest.mark.parametrize(
+    ("flag", "field", "codes"),
+    [
+        pytest.param("--select", "select", ("PUN201", "PUN202"), id="select"),
+        pytest.param("--ignore", "ignore", ("PUN201",), id="ignore"),
+        pytest.param(
+            "--extend-select", "extend_select", ("PUN202",), id="extend-select"
+        ),
+    ],
+)
+def test_check_parser_accepts_repeatable_rule_code_arguments(
+    flag: str, field: str, codes: tuple[str, ...]
+) -> None:
+    """Collect comma-delimited rule codes from a repeated selection flag.
+
+    This is the regression pin for a defect the parser carried silently: the
+    three selection flags declared `default=()` with `action="append"`, and
+    argparse copies the default before appending to it. Copying a tuple yields
+    a tuple, so every one of these flags raised `AttributeError` the first time
+    it was actually passed. The existing `--diff` test could not catch it
+    because `--diff` is a `store_true` flag with no default to copy, which is
+    why the defect survived the flags being documented in the users' guide.
+
+    Both halves are asserted: the flag parses at all, and the codes it selected
+    reach the options object. A parser that swallowed the flag without raising
+    would satisfy the first half alone.
+    """
+    parsed = cli.build_parser().parse_args(["check", flag, ",".join(codes), "notes.md"])
+
+    options = cli.options_from_args(parsed)
+    assert codes == getattr(options, field), (
+        f"expected {flag} to populate CheckOptions.{field}"
+    )
+
+
+def test_check_parser_defaults_repeated_rule_code_arguments_to_empty() -> None:
+    """Leave every selection field empty when no selection flag is passed."""
+    options = cli.options_from_args(
+        cli.build_parser().parse_args(["check", "notes.md"])
+    )
+
+    assert () == options.select == options.ignore == options.extend_select, (
+        "expected the selection defaults to stay empty"
+    )

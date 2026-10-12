@@ -1,6 +1,7 @@
 """Compose fix selection, admissibility, conflict checks, and byte splicing."""
 
 import dataclasses as dc
+import logging
 import typing as typ
 
 from stilyagi.engine import ir_view
@@ -16,6 +17,8 @@ if typ.TYPE_CHECKING:
     from stilyagi import diagnostics, model
     from stilyagi.config import LintConfig
     from stilyagi.fixes import FixLevel, TextEdit
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -74,28 +77,93 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
     )
     accepted, rejections = _validate_candidates(selected.eligible, request)
     if rejections:
-        return FixPlan((), (), rejections, None, selected, _span_count(request))
+        return _log_plan(
+            FixPlan((), (), rejections, None, selected, _span_count(request)),
+            selected,
+        )
     edits = coalesce_identical(edit for _code, edit in accepted)
     overlap = first_overlap(edits)
     if overlap is not None:
-        return FixPlan(
-            (),
-            (),
-            (_overlap_rejection(overlap, accepted),),
-            None,
+        return _log_plan(
+            FixPlan(
+                (),
+                (),
+                (_overlap_rejection(overlap, accepted),),
+                None,
+                selected,
+                _span_count(request),
+            ),
             selected,
-            _span_count(request),
         )
     fixed_codes = tuple(dict.fromkeys(code for code, _edit in accepted))
-    return FixPlan(
-        edits,
-        fixed_codes,
-        (),
-        _replacement(request.source_bytes, edits),
+    return _log_plan(
+        FixPlan(
+            edits,
+            fixed_codes,
+            (),
+            _replacement(request.source_bytes, edits),
+            selected,
+            _span_count(request),
+            coalesced=len(accepted) - len(edits),
+        ),
         selected,
-        _span_count(request),
-        coalesced=len(accepted) - len(edits),
     )
+
+
+def _log_plan(plan: FixPlan, selected: CandidatePartition) -> FixPlan:
+    """Emit one INFO event describing how this file's plan was decided.
+
+    One event per file per planning pass, so a run's fix behaviour can be
+    reconstructed from the log without re-running it: the counters below are
+    each consumed by a later stage and cannot be recovered from the returned
+    plan alone.
+
+    Returns
+    -------
+    FixPlan
+        The plan, unchanged, so callers can wrap a return in this call without
+        introducing a second name for it.
+
+    Examples
+    --------
+    >>> _log_plan(
+    ...     FixPlan((), (), (), None, CandidatePartition((), (), (), ())),
+    ...     CandidatePartition((), (), (), ()),
+    ... ).fixed_bytes is None
+    True
+    """
+    _LOGGER.info(
+        "fix plan decided",
+        extra={
+            "operation": "plan_fixes",
+            "outcome": _plan_outcome(plan),
+            "candidate_count": len(selected.eligible),
+            "accepted_count": len(plan.edits),
+            "coalesced_count": plan.coalesced,
+            "rejection_count": len(plan.rejections),
+            "rejection_category": plan.rejections[0].identifier
+            if plan.rejections
+            else None,
+            "conflict_state": any(
+                rejection.identifier == "fix-error/overlapping-edits"
+                for rejection in plan.rejections
+            ),
+            "source_backed_spans": plan.source_backed_spans,
+            "patch_byte_count": len(plan.fixed_bytes)
+            if plan.fixed_bytes is not None
+            else 0,
+        },
+    )
+    return plan
+
+
+def _plan_outcome(plan: FixPlan) -> str:
+    """Name which of the planner's terminal paths produced this plan."""
+    if plan.rejections:
+        return "refused"
+    if plan.fixed_bytes is None:
+        return "unchanged"
+    return "fixed"
 
 
 def _replacement(source_bytes: bytes, edits: tuple[TextEdit, ...]) -> bytes | None:

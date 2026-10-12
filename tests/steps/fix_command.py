@@ -71,6 +71,18 @@ def _safe_paragraph_rule() -> _RuleRunner:
     return _span_edit("Paragraph", "Section", Applicability.SAFE)
 
 
+def _rule_scenario(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    runner: _RuleRunner,
+    text: bytes = _SOURCE_TEXT.encode(),
+) -> FixCommandState:
+    """Inject one stubbed rule runner and lay down the scenario's file."""
+    monkeypatch.setattr(cli.rules_registry, "run_rules", runner)
+    return _state_with_source(tmp_path, text)
+
+
 @given(
     "a Markdown file and a rule offering one safe source-backed fix",
     target_fixture="fix_command_state",
@@ -80,8 +92,7 @@ def a_markdown_file_and_a_safe_rule(
     monkeypatch: pytest.MonkeyPatch,
 ) -> FixCommandState:
     """Create one file whose only finding is safely rewritable."""
-    monkeypatch.setattr(cli.rules_registry, "run_rules", _safe_paragraph_rule())
-    return _state_with_source(tmp_path, _SOURCE_TEXT.encode())
+    return _rule_scenario(tmp_path, monkeypatch, runner=_safe_paragraph_rule())
 
 
 @given(
@@ -93,12 +104,11 @@ def a_markdown_file_and_an_unsafe_rule(
     monkeypatch: pytest.MonkeyPatch,
 ) -> FixCommandState:
     """Create one file whose only finding is withheld until the opt-in."""
-    monkeypatch.setattr(
-        cli.rules_registry,
-        "run_rules",
-        _span_edit("Paragraph", "Section", Applicability.UNSAFE),
+    return _rule_scenario(
+        tmp_path,
+        monkeypatch,
+        runner=_span_edit("Paragraph", "Section", Applicability.UNSAFE),
     )
-    return _state_with_source(tmp_path, _SOURCE_TEXT.encode())
 
 
 @given(
@@ -110,12 +120,12 @@ def a_markdown_file_and_a_synthetic_span_rule(
     monkeypatch: pytest.MonkeyPatch,
 ) -> FixCommandState:
     """Offer an edit over bytes the IR does not claim as source-backed."""
-    monkeypatch.setattr(
-        cli.rules_registry,
-        "run_rules",
-        _synthetic_span_edit(),
+    return _rule_scenario(
+        tmp_path,
+        monkeypatch,
+        runner=_synthetic_span_edit(),
+        text=b"First line\nsecond line.\n",
     )
-    return _state_with_source(tmp_path, b"First line\nsecond line.\n")
 
 
 @given(
@@ -127,15 +137,14 @@ def a_markdown_file_and_two_conflicting_rules(
     monkeypatch: pytest.MonkeyPatch,
 ) -> FixCommandState:
     """Offer two different replacements for the same source bytes."""
-    monkeypatch.setattr(
-        cli.rules_registry,
-        "run_rules",
-        _two_rules(
+    return _rule_scenario(
+        tmp_path,
+        monkeypatch,
+        runner=_two_rules(
             _span_edit("Paragraph", "Section", Applicability.SAFE, code="PUN201"),
             _span_edit("Paragraph", "Passage", Applicability.SAFE, code="PUN202"),
         ),
     )
-    return _state_with_source(tmp_path, _SOURCE_TEXT.encode())
 
 
 @given(
@@ -147,15 +156,14 @@ def a_markdown_file_and_two_identical_rules(
     monkeypatch: pytest.MonkeyPatch,
 ) -> FixCommandState:
     """Offer the same replacement twice, which must coalesce into one edit."""
-    monkeypatch.setattr(
-        cli.rules_registry,
-        "run_rules",
-        _two_rules(
+    return _rule_scenario(
+        tmp_path,
+        monkeypatch,
+        runner=_two_rules(
             _span_edit("Paragraph", "Section", Applicability.SAFE, code="PUN201"),
             _span_edit("Paragraph", "Section", Applicability.SAFE, code="PUN202"),
         ),
     )
-    return _state_with_source(tmp_path, _SOURCE_TEXT.encode())
 
 
 @given(
