@@ -1,11 +1,13 @@
 """Command-boundary coverage for a write a mutating run refused to make.
 
-Both classes here pin the same subject from two directions: a write the run
-declined to perform, and how that refusal reaches the user. One is an
+The classes here pin the same subject from two directions: a write the run
+declined to perform, and how that refusal reaches the user. One direction is an
 environment fault -- the filesystem said no -- and the other is a planning
 decision -- the target changed after it was planned. The documented contract
 separates them by exit status, `2` and `1` respectively, and that difference is
-only meaningful because each refusal is reported rather than raised.
+only meaningful because each refusal is reported rather than raised. Both
+directions are pinned in text and in JSON, because a machine consumer reads the
+JSON document and never the prose.
 
 The rest of the mutating path -- which stream a run reports on, and the exit
 status when some files were written and some were not -- lives in
@@ -34,6 +36,28 @@ if typ.TYPE_CHECKING:
     import pytest
 
 
+def refuse_replace(
+    _self: object, _target: object, *_args: object, **_kwargs: object
+) -> None:
+    """Refuse the swap the way a read-only filesystem would.
+
+    `Path.replace` is the call that actually moves the staged bytes onto the
+    target, so making it raise is the narrowest stand-in for a full or
+    read-only filesystem: the plan is well-formed, the target has not moved,
+    and only the filesystem says no.
+
+    Both the text and the JSON test install this, so the two differ only in the
+    output format under test rather than in the failure they provoke.
+
+    Raises
+    ------
+    PermissionError
+        Always. The message is the one a read-only mount would give.
+    """
+    message = "Read-only file system"
+    raise PermissionError(message)
+
+
 class TestWriteFailuresAreReported:
     """A filesystem that refuses a write is reported, not raised.
 
@@ -58,13 +82,6 @@ class TestWriteFailuresAreReported:
         target.write_text("Paragraph text.\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
         stream = io.StringIO()
-
-        def refuse_replace(
-            _self: object, _target: object, *_args: object, **_kwargs: object
-        ) -> None:
-            """Refuse the swap the way a read-only filesystem would."""
-            message = "Read-only file system"
-            raise PermissionError(message)
 
         monkeypatch.setattr(pathlib.Path, "replace", refuse_replace)
 
@@ -220,3 +237,51 @@ class TestStalePlanRefusals:
             "expected the JSON refusal to name the untouched path",
         )
         assert exit_code == 1, "expected a stale plan to exit one in JSON too"
+
+
+class TestWriteFailuresInJsonOutput:
+    """The refused-write cause survives serialization too.
+
+    The text test above proves the filesystem's reason reaches a human. This
+    one proves the same refusal reaches a machine: the JSON document carries
+    the identifier, the path, and the status, so a tool that reads only the
+    document can tell a refused write from a clean run.
+    """
+
+    def test_a_permission_failure_is_reported_in_json_too(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Serialize a refused write as a JSON refusal, not a silent exit two.
+
+        The exit status is asserted alongside the document because the two are
+        separate promises: a run could report the refusal and still exit `0`,
+        which would tell a script the mutation succeeded. Both halves are
+        needed for the report to be actionable.
+        """
+        target = tmp_path / "notes.md"
+        target.write_text("Paragraph text.\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        stream = io.StringIO()
+
+        monkeypatch.setattr(pathlib.Path, "replace", refuse_replace)
+
+        exit_code = cli.run_check(
+            cli.CheckOptions(targets=(target.name,), fix=True, output_format="json"),
+            collaborators=cli.CheckCollaborators(
+                output=stream, rule_runner=rewrite_paragraph
+            ),
+        )
+
+        assert_with_context(
+            '"identifier": "fix-error/write-failed"' in stream.getvalue(),
+            f"expected the JSON refusal in {stream.getvalue()!r}",
+        )
+        assert_with_context(
+            f'"path": "{target.name}"' in stream.getvalue(),
+            "expected the JSON refusal to name the path it left alone",
+        )
+        assert_with_context(
+            "Read-only file system" in stream.getvalue(),
+            "expected the serialized refusal to carry the filesystem's reason",
+        )
+        assert exit_code == 2, "expected a refused write to exit two in JSON too"

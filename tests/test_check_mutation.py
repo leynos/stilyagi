@@ -21,7 +21,6 @@ or, for this module alone:
 """
 
 import io
-import pathlib
 import sys
 import typing as typ
 
@@ -35,6 +34,8 @@ from tests.support.check_pipeline_fixtures import (
 )
 
 if typ.TYPE_CHECKING:
+    import pathlib
+
     import pytest
 
 

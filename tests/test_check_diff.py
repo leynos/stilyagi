@@ -9,7 +9,6 @@ with the other option pins in `tests/test_cli_args.py`.
 import logging
 import typing as typ
 
-import pytest
 from stilyagi import cli, config, diagnostics, model
 from stilyagi.fixes import Applicability, Fix, TextEdit
 from syrupy.extensions.json import JSONSnapshotExtension
@@ -25,6 +24,7 @@ from tests.support.fix_fixtures import SourceTextNotFoundError, find_source_span
 if typ.TYPE_CHECKING:
     import pathlib
 
+    import pytest
     from syrupy.assertion import SnapshotAssertion
 
 
