@@ -4188,3 +4188,123 @@ line number identifies the code. The corresponding instruction -- stop and tell
 the user when the disk fills, do not route around it -- exists because a
 plausible-looking repair for `ENOSPC` is to start deleting things that belong
 to other agents.
+
+## Revision 47 (2026-10-12): the last hosted gate, and what its rule actually counts
+
+Revision 46 ended with the full gate chain green and left one hosted check
+failing. This revision closes it, and records how the target was found.
+
+### 47.1 The failure and why it survived a green local chain
+
+At `532cb99` every deterministic gate passed -- `check-fmt`, all nine `lint`
+steps, `typecheck`, 337 nextest plus the Python suite, `markdownlint`, `nixie`
+-- and hosted CI still reported `CodeScene Code Health Review (main)` as
+`fail`, leaving the PR in `BLOCKED`. The failing check is not part of `make` at
+all, which is why a green chain said nothing about it.
+
+Reproduced locally with `cs delta b5b0fe10 532cb99` (the same base and head the
+hosted run compares), which named exactly two files and no others:
+
+```text
+python/stilyagi/cli.py
+Code Health: (10.00 -> 9.38)
+  New issue: Overall Code Complexity
+     This module has a mean cyclomatic complexity of 4.14 across 7 functions.
+     The mean complexity threshold is 4
+
+tests/test_cli_log.py
+Code Health: (8.95)
+  New issue: Complex Method            _stamped_field_names cyclomatic 9 (threshold 9)
+  New issue: Bumpy Road Ahead          _stamped_field_names, 2 nested blocks
+  New issue: Deep, Nested Complexity   _stamped_field_names, nesting depth 4
+```
+
+The local run agreeing with the hosted one file-for-file is what makes it
+usable as a measurement rather than a guess.
+
+### 47.2 Measuring the metric instead of guessing at it
+
+`cli.py` needed its mean complexity below 4.00, but the audit trail's first
+instinct -- count every branch-like AST node -- gave a mean of 4.429, which is
+not the number CodeScene reported. Rather than extract code until the score
+moved, the counting rule was brute-forced: every combination of AST node
+categories was scored against the reported 4.14, and exactly one rule
+reproduces it.
+
+CodeScene counts `If`, `BoolOp` (each extra operand), `IfExp`, and comprehension
+`for`/`if` clauses. It does **not** count `ExceptHandler`, `For`/`While`,
+`Assert`, or `With` in this file. The matching measurement:
+
+```text
+sum=29  n=7  mean=4.143  per-function=[3, 4, 6, 5, 3, 5, 3]
+```
+
+That converts the task from guessing to arithmetic: the mean divides by the
+function count, so `sum <= 28` across 7 functions, **or** `sum <= 32` across 8,
+both read below 4.00. The second bound is what matters here, because it is the
+one a cohesive extraction has to satisfy -- splitting `_render_and_exit` moves
+a whole block of decisions from one function to another, so the sum it must
+clear is not lowered by the split.
+
+Stating this plainly is necessary, because the arithmetic admits a reading the
+policy forbids. A function whose only job is to divide a sum *is* a way to pass
+this check, and it is exactly what the CodeScene guidance calls dilution. So
+the bounds are a constraint on a decomposition that has to stand on its own
+merits, not a licence to manufacture one. Section 47.3 is where that
+distinction is argued and measured; what the arithmetic supplies is only the
+target, and the fact that a passing extraction is allowed to leave the total
+sum unchanged or even slightly higher, provided every function in the result is
+a real unit.
+
+### 47.3 The two extractions are cohesion splits, not dilution
+
+`_render_and_exit` carried three concerns behind two `options.diff` guards: it
+routed the rendered diagnostics to the right stream, assembled and wrote the
+diff patch with its structured record, and computed the exit code. The patch
+block -- assemble the bytes, measure and record their shape, write them through
+the byte-preserving boundary -- is a unit with its own rationale (D-10), and it
+moves to `_emit_patch` intact. Stripping comments, docstrings and indentation
+from both versions leaves twelve executable statements that are identical line
+for line, except that `resolved_collaborators.output` becomes the parameter
+`output`. `_render_and_exit` drops from 5 to 3; the module lands at **sum 30 /
+8 functions = 3.75**.
+
+`_stamped_field_names` walked the AST and applied two shape filters inline.
+Those filters are the whole of its syntactic knowledge, so they move to
+`_extra_arguments` (find `extra=` keywords) and `_string_keys` (read a dict
+literal's string keys), leaving the scan reading as a walk over modules.
+
+The equivalence was checked rather than asserted: the pre-refactor body was
+reconstructed verbatim alongside the new one and both were run over the tree.
+They return identical 27-element sets, with nothing in either difference.
+Stating it as "same files, same filters, same result" would have been a claim
+about a diff I had written; running both is a claim about behaviour.
+
+Both are the cohesive decomposition the CodeScene guidance asks for. No
+threshold was raised, no rule disabled, no suppression added, and no function
+was created whose only purpose is to divide a sum.
+
+### 47.4 Discrimination
+
+The repair is only evidence if the same measurement fails without it. Against
+`532cb99` the delta names two files; against `0f7be63` it names none:
+
+```text
+$ cs delta b5b0fe10 0f7be63
+No issues found in checked changes.
+$ cs delta --output-format json b5b0fe10 0f7be63
+(exit 0, zero-byte payload)
+```
+
+The empty JSON payload is CodeScene's machine-readable form of "no new issues",
+not a failed invocation -- the exit status distinguishes them.
+
+### Lesson: a gating metric is worth measuring, not approximating
+
+A metric that gates a merge is worth measuring directly rather than
+approximating. The first counter built here was wrong by 10%, and acting on it
+would have meant extracting code in the wrong places until the number happened
+to move -- metric gaming by accident rather than intent. Brute-forcing the rule
+took one script and turned the target into arithmetic that can be checked
+before an edit is made, which is what let a *single* extraction be chosen with
+confidence instead of iterating against CI.
