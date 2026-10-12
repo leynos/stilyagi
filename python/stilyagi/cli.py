@@ -26,7 +26,11 @@ from stilyagi.cli_pipeline import (
     CheckReporter,
     CheckRun,
 )
-from stilyagi.cli_run import aggregate_checked_files, collect_checked_files
+from stilyagi.cli_run import (
+    CheckedFiles,
+    aggregate_checked_files,
+    collect_checked_files,
+)
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
@@ -244,39 +248,45 @@ def _render_and_exit(
     diagnostics_output = sys.stderr if options.diff else resolved_collaborators.output
     print(rendered, end="", file=diagnostics_output)
     if options.diff:
-        # The patch is a machine artefact a user pipes into `git apply`, so it
-        # goes through the byte-preserving boundary rather than through a text
-        # stream that would re-encode it (D-10).
-        diff_started = time.perf_counter()
-        patch = "".join(aggregate.patches).encode("utf-8")
-        # The rendered patch's real size, measured where the patch is actually
-        # rendered. The planner cannot report this: `FixPlanRequest` carries no
-        # reported path, so it has no header to measure and its own byte field
-        # counts the replacement document instead. A `--diff` run planning at
-        # least one file is the only case where a patch exists, so this record
-        # is the only place the quantity is observable at all.
-        #
-        # `planned_files` and `patched_files` are both here because the failed
-        # case has no other signal. A plan whose replacement restores the bytes
-        # already present, or one every edit was refused for, contributes an
-        # empty patch rather than no patch, so the run emits nothing while
-        # having planned something. The two counters differing is that state,
-        # and it is indistinguishable in the output alone -- an empty stdout
-        # looks the same whether nothing was planned or everything was refused.
-        _LOGGER.info(
-            "diff rendered",
-            extra={
-                "operation": "render_diff",
-                "patch_byte_count": len(patch),
-                "planned_files": len(aggregate.patches),
-                "patched_files": len([entry for entry in aggregate.patches if entry]),
-                "elapsed_ms": cli_apply.elapsed_ms(diff_started),
-            },
-        )
-        write_artefact(resolved_collaborators.output, patch)
+        _emit_patch(aggregate, resolved_collaborators.output)
     exit_code = compute_exit_code(aggregate.diagnostics_list, had_error=aggregate.error)
     _LOGGER.debug("check complete: exit code %d", exit_code)
     return exit_code
+
+
+def _emit_patch(aggregate: CheckedFiles, output: typ.TextIO) -> None:
+    """Assemble one run's diff patch, record its shape, and write it out.
+
+    Delivery goes through the byte-preserving boundary rather than through a
+    text stream, because the patch is a machine artefact a user pipes into
+    `git apply` and a text stream would re-encode it (D-10).
+
+    The record's two counters are kept together because the failed case has no
+    other signal. A plan whose replacement restores the bytes already present,
+    or one every edit was refused for, contributes an *empty* patch rather than
+    no patch, so the run emits nothing while having planned something. The two
+    counters differing is that state, and it is invisible in the output alone:
+    an empty stdout looks the same whether nothing was planned or everything
+    was refused.
+
+    The patch size is measured here because this is the only place the quantity
+    exists. The planner cannot report it -- `FixPlanRequest` carries no reported
+    path, so it has no header to measure, and its own byte field counts the
+    replacement document instead.
+    """
+    diff_started = time.perf_counter()
+    patch = "".join(aggregate.patches).encode("utf-8")
+    _LOGGER.info(
+        "diff rendered",
+        extra={
+            "operation": "render_diff",
+            "patch_byte_count": len(patch),
+            "planned_files": len(aggregate.patches),
+            "patched_files": len([entry for entry in aggregate.patches if entry]),
+            "elapsed_ms": cli_apply.elapsed_ms(diff_started),
+        },
+    )
+    write_artefact(output, patch)
 
 
 def compute_exit_code(

@@ -17,12 +17,56 @@ import ast
 import io
 import logging
 import pathlib
+import typing as typ
 
 from stilyagi import cli_log
 
 from tests.support.assertions import assert_with_context
 
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
 _PRODUCTION_ROOT = pathlib.Path(__file__).resolve().parents[1] / "python" / "stilyagi"
+
+
+def _extra_arguments(tree: ast.Module) -> cabc.Iterator[ast.expr]:
+    """Yield the argument of every ``extra=`` keyword in one parsed module.
+
+    Knowing the AST shape is this function's whole job, so the two filters --
+    a call, then a keyword named ``extra`` -- live here and nowhere else. That
+    is what lets the scan below read as a walk over modules rather than a walk
+    over syntax, and it is why the nesting does not have to be repeated at the
+    call site.
+
+    Returns
+    -------
+    cabc.Iterator[ast.expr]
+        The value expression of each ``extra=`` keyword, in tree order.
+    """
+    return (
+        keyword.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        for keyword in node.keywords
+        if keyword.arg == "extra"
+    )
+
+
+def _string_keys(value: ast.expr) -> cabc.Iterator[str]:
+    """Yield the literal string keys of one keyword argument's dict literal.
+
+    Yields
+    ------
+    str
+        A string constant used as a key. Anything else yields nothing rather
+        than a guess: a computed key, or an argument that is not a dict literal
+        at all, is skipped so the scan cannot report a field that is not there.
+    """
+    if not isinstance(value, ast.Dict):
+        return
+    for key in value.keys:
+        if isinstance(key, ast.Constant) and isinstance(key.value, str):
+            yield key.value
 
 
 def _stamped_field_names() -> set[str]:
@@ -42,17 +86,8 @@ def _stamped_field_names() -> set[str]:
     names: set[str] = set()
     for path in sorted(_PRODUCTION_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            for keyword in node.keywords:
-                if keyword.arg != "extra" or not isinstance(keyword.value, ast.Dict):
-                    continue
-                names.update(
-                    key.value
-                    for key in keyword.value.keys
-                    if isinstance(key, ast.Constant) and isinstance(key.value, str)
-                )
+        for argument in _extra_arguments(tree):
+            names.update(_string_keys(argument))
     return names
 
 
