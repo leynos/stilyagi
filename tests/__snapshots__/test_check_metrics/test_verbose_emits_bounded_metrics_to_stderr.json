@@ -19,7 +19,8 @@
     "extract": 3,
     "read": 3,
     "render": 1,
-    "rules": 3
+    "rules": 3,
+    "total": 1
   },
   "python_documents": 1,
   "rust_documents": 1,

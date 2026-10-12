@@ -14,11 +14,13 @@ use stilyagi_extract::{
 };
 
 use super::{
-    CHECK_METRICS_TEST_LOCK, DurationHistogram, EXTRACTION_RECOVERY_ERRORS, check_metrics_snapshot,
-    record_check_run, record_checked_file, record_diagnostic_severity, record_extraction_attempt,
+    CHECK_METRICS_TEST_LOCK, EXTRACTION_RECOVERY_ERRORS, check_metrics_snapshot, record_check_run,
+    record_checked_file, record_diagnostic_severity, record_extraction_attempt,
     record_extraction_failure, record_extraction_outcome, record_operational_failure,
     record_phase_duration, record_skipped_candidates, record_unreadable_file, reset_metrics,
 };
+
+mod duration_tests;
 
 fn populated_snapshot() -> PyResult<Py<PyDict>> {
     let _guard = CHECK_METRICS_TEST_LOCK
@@ -73,6 +75,7 @@ fn populated_snapshot() -> PyResult<Py<PyDict>> {
         ("config", Duration::from_millis(500)),
         ("rules", Duration::from_secs(2)),
         ("render", Duration::from_secs(2)),
+        ("total", Duration::from_secs(3)),
     ] {
         let nanoseconds = u64::try_from(duration.as_nanos())
             .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
@@ -190,20 +193,6 @@ fn assert_authored_suppression_errors_are_excluded(
 }
 
 #[rstest]
-fn initializes_duration_histogram_counters_to_zero() {
-    let histogram = DurationHistogram::new();
-    assert_eq!(histogram.count.load(Ordering::Relaxed), 0);
-    assert_eq!(histogram.sum_nanoseconds.load(Ordering::Relaxed), 0);
-    assert!(
-        histogram
-            .buckets
-            .iter()
-            .all(|bucket| bucket.load(Ordering::Relaxed) == 0),
-        "a new histogram begins with empty buckets",
-    );
-}
-
-#[rstest]
 fn serializes_run_file_skip_and_operational_totals() {
     let snapshot = populated_snapshot().expect("bounded metrics serialize");
     Python::attach(|py| {
@@ -224,7 +213,6 @@ fn serializes_run_file_skip_and_operational_totals() {
         );
     });
 }
-
 #[rstest]
 fn serializes_syntax_skip_and_diagnostic_categories() {
     let snapshot = populated_snapshot().expect("bounded metrics serialize");
@@ -362,34 +350,5 @@ fn serializes_fatal_extraction_error_categories() {
             .expect("Python fatal error counts match their categories");
         assert_metric_values(&rust, &[("grammar_load", 1), ("no_parse_tree", 1)])
             .expect("Rust fatal error counts match their categories");
-    });
-}
-
-#[rstest]
-fn serializes_duration_counts_sums_and_cumulative_buckets() {
-    let snapshot = populated_snapshot().expect("bounded metrics serialize");
-    Python::attach(|py| {
-        let bound_snapshot = snapshot.bind(py);
-        let phases = dictionary(bound_snapshot, "stilyagi_check_phase_duration_seconds")
-            .expect("phase distributions are present");
-        let discovery = dictionary(&phases, "discovery").expect("discovery phase is present");
-        assert_metric_values(&discovery, &[("count", 1)])
-            .expect("discovery duration count is present");
-        let sum = discovery
-            .get_item("sum_seconds")
-            .expect("sum lookup succeeds")
-            .expect("duration sum is present")
-            .extract::<f64>()
-            .expect("duration sum is numeric");
-        assert_eq!(
-            sum.to_bits(),
-            Duration::from_micros(500).as_secs_f64().to_bits()
-        );
-        assert_metric_categories(
-            &discovery,
-            "buckets",
-            &[("0.001", 1), ("0.01", 1), ("0.1", 1), ("1", 1), ("+Inf", 1)],
-        )
-        .expect("discovery duration buckets are cumulative");
     });
 }

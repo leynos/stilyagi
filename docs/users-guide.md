@@ -289,6 +289,10 @@ normal diagnostics and run summary remain on standard output. If an embedding
 host has installed a recorder, existing metrics-facade calls continue to reach
 it; Stilyagi neither claims nor replaces that recorder.
 
+The `stilyagi_check_phase_duration_seconds` histogram has the fixed labels
+`discovery`, `read`, `extract`, `config`, `rules`, `render`, and `total`. The
+`total` observation measures one whole `stilyagi check` invocation.
+
 #### Configuration
 
 Pass `--config` with an explicit config file path or an inline TOML fragment to

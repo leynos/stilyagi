@@ -37,6 +37,7 @@ _PHASES: typ.Final = frozenset({
     "config",
     "rules",
     "render",
+    "total",
 })
 _METRIC_SYNTAX: typ.Final = {
     model.Syntax.MARKDOWN: "markdown",
@@ -58,6 +59,11 @@ def _measure_phase(phase: str) -> cabc.Iterator[None]:
         record_phase_duration(phase, time.perf_counter_ns() - start)
 
 
+def _start_check() -> int:
+    """Return the monotonic timestamp used to measure one whole check run."""
+    return time.perf_counter_ns()
+
+
 def _record_file(syntax: model.Syntax) -> None:
     """Record one input against its bounded registered syntax label."""
     record_checked_file(_METRIC_SYNTAX[syntax])
@@ -77,8 +83,14 @@ def _record_skips(
         record_skipped_candidates(skipped_count.reason, skipped_count.count)
 
 
-def _finish_check(exit_code: int, *, verbose: bool) -> int:
-    """Record a terminal check outcome and optionally render bounded metrics."""
+def _finish_check(
+    exit_code: int,
+    *,
+    verbose: bool,
+    started_at_ns: int,
+) -> int:
+    """Record run duration and outcome before optionally rendering metrics."""
+    record_phase_duration("total", time.perf_counter_ns() - started_at_ns)
     outcome = {
         0: "success",
         1: "diagnostic_error",

@@ -501,11 +501,16 @@ snapshot is independent of that recorder and is written to stderr.
 
 `check_execution.py` records per-file `read`, `extract`, `config`, and `rules`
 durations; `cli.py` records the `discovery` and `render` phases. These are the
-fixed-bucket histogram phase labels. Counters use only bounded run-outcome,
+six fixed-bucket phase labels in `stilyagi_check_phase_duration_seconds`, which
+also has the bounded `total` label. `total` measures one complete `run_check`
+invocation with the monotonic `time.perf_counter_ns()` clock. It is recorded
+once before the verbose snapshot on normal returns, handled operational
+returns, and propagated exceptions. Counters use only bounded run-outcome,
 syntax, skip-reason, and failure-kind labels. Python and Rust extraction
 counters are recorded at the PyO3 boundary. No paths or raw error strings
 become labels, keeping metric cardinality independent of repository contents
-and failure text.
+and failure text. Metrics-facade observations continue to reach a
+host-installed recorder; Stilyagi does not install or replace it.
 
 ### Configuration loading and resolution
 

@@ -4,7 +4,7 @@ import json
 import typing as typ
 
 import pytest
-from stilyagi import cli, diagnostics
+from stilyagi import cli, config, diagnostics, engine
 from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.assertions import assert_with_context
@@ -93,6 +93,9 @@ def test_verbose_emits_bounded_metrics_to_stderr(
     assert observed_contract["phase_counts"]["discovery"] == 1, (
         "expected one discovery phase"
     )
+    assert observed_contract["phase_counts"]["total"] == 1, (
+        "expected one whole-run duration observation"
+    )
     assert str(tmp_path) not in metric_lines[0], "metrics do not expose source paths"
 
 
@@ -167,6 +170,9 @@ def test_verbose_metrics_record_diagnostic_counts_by_severity(
     assert metrics_payload["stilyagi_check_runs_total"][case.run_outcome] == 1, (
         "the check outcome agrees with the diagnostic severities"
     )
+    assert (
+        metrics_payload["stilyagi_check_phase_duration_seconds"]["total"]["count"] == 1
+    ), "each diagnostic run records one total duration"
 
 
 def test_verbose_metrics_record_unreadable_inputs_as_operational_failures(
@@ -204,6 +210,37 @@ def test_verbose_metrics_record_unreadable_inputs_as_operational_failures(
     assert metrics_payload["stilyagi_check_operational_failures_total"]["read"] == 1, (
         "expected one read failure"
     )
+    assert (
+        metrics_payload["stilyagi_check_phase_duration_seconds"]["total"]["count"] == 1
+    ), "an unreadable run records one total duration"
+
+
+def test_verbose_metrics_record_total_duration_for_config_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Measure a handled configuration failure before rendering metrics."""
+
+    def fail_discovery(*_args: object) -> typ.NoReturn:
+        """Raise a configuration error before discovery returns inputs."""
+        raise config.InvalidConfigError(tmp_path / "stilyagi.toml", "rules", "invalid")
+
+    monkeypatch.setattr(cli, "_discover_targets", fail_discovery)
+
+    exit_code = cli.run_check(cli.CheckOptions(targets=(".",), verbose=True))
+    captured = capsys.readouterr()
+    metric_line = next(
+        line
+        for line in captured.err.splitlines()
+        if line.startswith("stilyagi check metrics: ")
+    )
+    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+
+    assert exit_code == 2, "a configuration failure remains an operational error"
+    assert (
+        metrics_payload["stilyagi_check_phase_duration_seconds"]["total"]["count"] == 1
+    ), "an early operational return records one total duration"
 
 
 def test_unexpected_discovery_failure_records_an_operational_outcome(
@@ -236,6 +273,43 @@ def test_unexpected_discovery_failure_records_an_operational_outcome(
     assert (
         metrics_payload["stilyagi_check_operational_failures_total"]["discovery"] == 1
     ), "expected one discovery failure"
+    assert (
+        metrics_payload["stilyagi_check_phase_duration_seconds"]["total"]["count"] == 1
+    ), "a propagated discovery exception records one total duration"
+
+
+@pytest.mark.parametrize("failure_phase", ["extract", "rules"])
+def test_unexpected_file_check_failures_record_one_total_duration(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure_phase: str,
+) -> None:
+    """Finalize once when extraction or rules failures propagate to the CLI."""
+    _write_markdown(tmp_path / "notes.md", "Notes")
+    monkeypatch.chdir(tmp_path)
+    if failure_phase == "extract":
+        monkeypatch.setattr(engine, "extract_document", _raise_check_failure)
+    else:
+        monkeypatch.setattr("stilyagi.rules.registry.run_rules", _raise_check_failure)
+
+    with pytest.raises(_UnexpectedCheckFailureError):
+        cli.run_check(cli.CheckOptions(targets=(".",), verbose=True))
+
+    captured = capsys.readouterr()
+    metric_line = next(
+        line
+        for line in captured.err.splitlines()
+        if line.startswith("stilyagi check metrics: ")
+    )
+    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+
+    assert metrics_payload["stilyagi_check_runs_total"]["operational_error"] == 1, (
+        "a propagated file-check failure records one operational outcome"
+    )
+    assert (
+        metrics_payload["stilyagi_check_phase_duration_seconds"]["total"]["count"] == 1
+    ), "a propagated file-check failure records exactly one total duration"
 
 
 def test_stdout_write_failure_is_measured_as_render_failure(
@@ -276,9 +350,21 @@ def test_stdout_write_failure_is_measured_as_render_failure(
     assert (
         metrics_payload["stilyagi_check_phase_duration_seconds"]["render"]["count"] == 1
     ), "expected the failed render phase to be timed"
+    assert (
+        metrics_payload["stilyagi_check_phase_duration_seconds"]["total"]["count"] == 1
+    ), "a propagated render exception records one total duration"
 
 
 def _write_markdown(path: pathlib.Path, title: str) -> None:
     """Write one tiny Markdown file for the metrics tests."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"# {title}\n", encoding="utf-8")
+
+
+def _raise_check_failure(*_args: object) -> typ.NoReturn:
+    """Raise one unexpected error from the selected file-check boundary."""
+    raise _UnexpectedCheckFailureError
+
+
+class _UnexpectedCheckFailureError(Exception):
+    """Identify a deliberate unexpected file-check error in the metrics tests."""

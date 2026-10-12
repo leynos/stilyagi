@@ -110,8 +110,31 @@ def run_check(
         Zero when the check succeeds or produces warnings, one when it
         produces failing diagnostics, or two when an operational error occurs.
     """
-    _configure_logging(options)
+    started_at_ns = check_metrics._start_check()
     check_metrics.reset_check_metrics()
+    try:
+        _configure_logging(options)
+        exit_code = _run_check(options, resolver, renderer)
+    except Exception:
+        check_metrics._finish_check(
+            2,
+            verbose=options.verbose,
+            started_at_ns=started_at_ns,
+        )
+        raise
+    return check_metrics._finish_check(
+        exit_code,
+        verbose=options.verbose,
+        started_at_ns=started_at_ns,
+    )
+
+
+def _run_check(
+    options: CheckOptions,
+    resolver: config.ConfigResolver | None,
+    renderer: engine.RendererRegistry | None,
+) -> int:
+    """Discover inputs and check them, leaving run finalization to the caller."""
     resolver = resolver if resolver is not None else config.ConfigResolver()
     renderer = renderer if renderer is not None else engine.RendererRegistry()
     _LOGGER.debug("target discovery started for %r", options.targets)
@@ -131,16 +154,9 @@ def run_check(
             else "discovery"
         )
         report_check_error(None, error)
-        return check_metrics._finish_check(
-            2,
-            verbose=options.verbose,
-        )
+        return 2
     except Exception:
         check_metrics.record_operational_failure("discovery")
-        check_metrics._finish_check(
-            2,
-            verbose=options.verbose,
-        )
         raise
     _report_discovery_outcomes(discovery_inputs)
     _LOGGER.debug(
@@ -170,7 +186,7 @@ def _check_and_render(
     resolver: config.ConfigResolver,
     renderer: engine.RendererRegistry,
 ) -> int:
-    """Check discovered inputs, render the summary and finalize metrics."""
+    """Check discovered inputs, render the summary, and return the outcome."""
     check_outcome = _check_discovered_files(
         discovery_inputs.inputs,
         options,
@@ -200,10 +216,6 @@ def _check_and_render(
             )
     except Exception:
         check_metrics.record_operational_failure("render")
-        check_metrics._finish_check(
-            2,
-            verbose=options.verbose,
-        )
         raise
     exit_code = compute_exit_code(
         check_outcome.diagnostics,
@@ -211,10 +223,7 @@ def _check_and_render(
     )
     _LOGGER.info("config resolver cache stats: %s", resolver.cache_stats)
     _LOGGER.debug("check complete: exit code %d", exit_code)
-    return check_metrics._finish_check(
-        exit_code,
-        verbose=options.verbose,
-    )
+    return exit_code
 
 
 def compute_exit_code(

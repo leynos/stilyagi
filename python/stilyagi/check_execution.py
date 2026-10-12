@@ -136,10 +136,6 @@ def _check_one_file(
         return FileCheckResult(diagnostics=[], had_error=True, was_unreadable=False)
     except Exception:
         check_metrics.record_operational_failure("extract")
-        check_metrics._finish_check(
-            2,
-            verbose=options.verbose,
-        )
         _LOGGER.exception(
             "unexpected extraction failure for %s",
             check_input.reported_path,
@@ -168,10 +164,6 @@ def _check_one_file(
             ]
     except Exception:
         check_metrics.record_operational_failure("rules")
-        check_metrics._finish_check(
-            2,
-            verbose=options.verbose,
-        )
         raise
     return FileCheckResult(
         diagnostics=diagnostics_list,

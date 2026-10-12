@@ -515,7 +515,8 @@ Closing:
   `FileCheckResult`, and `DiscoveryOutcome`) and reporting helpers remain owned
   by `python/stilyagi/check_inputs.py`, consumed by `cli.py`.
 
-- [ ] Current assessment follow-up (2026-10-12; pending). Assessment
+- [x] Current assessment follow-up (2026-10-12; fixes and local validation
+      complete; exact-head hosted review and publication pending). Assessment
       `stilyagi-3-2-1-794e34b2-20261012-a1` assessed base
       `b5b0fe10f040a2462ac9815a6c2aa56a1c91f573` and head
       `794e34b2ba9ac07d4ec09fe83145aa0dfc957d68`. The two missing encoding
@@ -526,12 +527,32 @@ Closing:
       this candidate and on `main` coverage runs from 2026-10-10 and 2026-10-11;
       it originates in the pinned shared-actions coverage startup, so no
       Stilyagi code change is indicated. The stable worktree based on published
-      HEAD `794e34b2ba9ac07d4ec09fe83145aa0dfc957d68` passed all six sequential
-      gates: `make check-fmt`, `make lint`, `make typecheck`, `make test`,
-      `make markdownlint`, and `make nixie`. Tests reported 357 Rust, 592
-      Python, and 38 doctests passed, with 2 skipped; Markdownlint checked 70
-      files with 0 errors. This is local working-tree evidence; commit/push and
-      exact-head assessment/review remain pending.
+      HEAD `68fb7e6eebb250892ceddd699a7d19e803a2b62c` passed all six sequential
+      gates for staged diff SHA-256
+      `828531c83d5188df4878d850632f6295cf321b7db9ed4183ad2b795eaa68472f`:
+      `make check-fmt`, `make lint`, `make typecheck`, `make test`,
+      `make markdownlint`, and `make nixie`. Tests reported 357 Rust and 595
+      Python tests passed, 38 doctests passed and 2 skipped; Rust doctests
+      passed. Markdownlint checked 70 files with 0 errors. The >400-line test
+      modules were split into focused modules, including the recognized move
+      from `snapshot_tests.rs` to `snapshot_tests/mod.rs`. The versioned
+      migration-guide proposal was withdrawn because no published predecessor
+      or successor release target exists; version-neutral notes remain. This
+      is local working-tree evidence; publication and exact-head hosted
+      assessment/review remain pending.
+      Performance acceptance item 12 remains unverified: without a comparable
+      historical raw baseline, the current warm measurement is an observation,
+      not evidence that the 20% criterion passed.
+
+- [x] Total-duration histogram follow-up (2026-10-12; locally validated;
+      exact-head hosted review and publication pending). The confirmed missing
+      total-duration observation is fixed: D17 adds one observation under the
+      bounded `total` label for each complete `run_check` invocation before any
+      verbose snapshot, including normal returns, handled operational returns,
+      and propagated exceptions. Regression tests cover the terminal paths.
+      The sequential six-gate pass and test totals are recorded in the current
+      assessment follow-up above; they are local evidence only. Publication
+      and exact-head hosted review remain pending.
 
 ## Surprises & discoveries
 
@@ -1001,6 +1022,15 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   reused without adding a new external crate. Discovery stays a Python-owned
   query and does not install or report metrics. Date/Author: 2026-10-12, review
   remediation.
+
+- **D17 (review follow-up). Measure whole-command duration using the existing
+  bounded histogram.** `stilyagi_check_phase_duration_seconds` has six fixed
+  phase labels—discovery, read, extract, config, rules, and render—plus `total`.
+  `total` spans one complete `run_check` invocation, uses the monotonic clock,
+  and is recorded once before the verbose snapshot on normal returns, handled
+  operational returns, and propagated exceptions. The metric uses no
+  input-derived labels, and existing metrics-facade calls remain owned by any
+  host-installed recorder. Date/Author: 2026-10-12, review follow-up.
 
 ## Outcomes & retrospective
 

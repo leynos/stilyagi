@@ -145,13 +145,16 @@ host-owned and independent of Stilyagi's snapshot.
 
 The counters cover check-run outcomes, checked files by syntax, skipped
 candidates by fixed reason, unreadable files, operational failures by fixed
-stage, and Python/Rust extraction counters recorded at the PyO3 boundary.
-Fixed-bucket histograms cover discovery, read, extract, config, rules, and
-render phases. No filesystem path or raw error text is used as a metric label.
-The standalone `--verbose` snapshot is independent of the metrics facade and
-goes to stderr; the normal diagnostics and run summary remain on stdout.
-Discovery remains a Python-owned query and does not acquire logging, recorder
-setup, or reporting side effects.
+stage, and Python/Rust extraction counters recorded at the PyO3 boundary. The
+fixed-bucket `stilyagi_check_phase_duration_seconds` histogram has six phase
+labels—discovery, read, extract, config, rules, and render—plus the bounded
+`total` label. `total` measures one whole `run_check` invocation with a
+monotonic clock and is recorded before the verbose snapshot on normal returns,
+handled operational returns, and propagated exceptions. No filesystem path or
+raw error text is used as a metric label. The standalone `--verbose` snapshot
+is independent of the metrics facade and goes to stderr; the normal diagnostics
+and run summary remain on stdout. Discovery remains a Python-owned query and
+does not acquire logging, recorder setup, or reporting side effects.
 
 The destination is a Rust-owned, gitignore-aware walker. That move should use
 the `ignore` crate and relocate the walker and extension table together rather
