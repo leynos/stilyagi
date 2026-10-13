@@ -284,6 +284,7 @@ def test_makefile_markdownlint_target_excludes_release_smoke_venv(
     ]
     assert len(md_find_definitions) == 1, "expected len(md_find_definitions) == 1"
     for excluded in (
+        "./.git/*",
         "./.venv-release-smoke/*",
         "./.venv/*",
         "./.vtcode/*",

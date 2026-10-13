@@ -1699,6 +1699,36 @@ drift in continuous integration. The gate conditionally refreshes
 local cache is not overwritten by an older source, and a populated cache
 supports offline runs.
 
+### Markdown lint scope and the `.git` exclusion
+
+`make markdownlint` and CI lint the same set of files by different routes, so
+both exclude version-control metadata explicitly. CI runs
+`DavidAnson/markdownlint-cli2-action` with `globs: '**/*.md'` from the
+repository root; `make markdownlint` builds its file list with `find` into
+`MD_FILES_FIND`. A checkout has a real `.git` directory for either to descend
+into, and GitHub materializes every remote branch as
+`refs/remotes/origin/<name>`. A branch whose name ends in `.md` therefore
+appears there as a file matching the glob, and the linter reads the ref's hex
+object name as Markdown, failing on MD010, MD013 and MD041.
+
+Both halves are required. `.markdownlint-cli2.jsonc` carries `.git/**` in its
+`ignores` array, which is what protects the CI action, since the action applies
+the configured ignores to the files its glob matched. `MD_FILES_FIND` carries
+`-not -path './.git/*'`, because `find` applies no such filtering of its own,
+so the `make markdownlint` and `make nixie` targets would lose the guard if the
+config entry were ever dropped. `nixie` shares the variable, so the CI "Mermaid
+lint" step is covered by the same line.
+
+Two contracts pin this, and each fails when its half of the fix is reverted:
+`tests/test_markdown_baseline_contract.py` names the mechanism and asserts the
+ignores entry, and `tests/test_build_spine_units.py` asserts the `find`
+exclusion. Add a new generated tree to both lists rather than to one.
+
+The failure is invisible in a linked worktree: its `.git` is a file pointing at
+a shared bare repository, so no local glob can descend into it. Reproducing it
+needs a normal clone, or an explicit check that the config and the `find` list
+name `.git`.
+
 Spelling policy has two maintainer-facing homes:
 
 - Generic Oxford stems, accepted terms, and phrase corrections belong in the
