@@ -38,10 +38,6 @@ def test_engine_skeleton_dataclasses_preserve_their_fields() -> None:
         "expected execution_plan.syntax == 'markdown'",
     )
     assert_with_context(
-        engine.FixPlan(applicability="safe").applicability == "safe",
-        "expected engine.FixPlan(applicability='safe').applic...",
-    )
-    assert_with_context(
         engine.RendererRegistry().default_format == "text",
         "expected engine.RendererRegistry().default_format ==...",
     )

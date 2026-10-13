@@ -58,6 +58,9 @@ class CheckOptions:
     select: tuple[str, ...] = ()
     ignore: tuple[str, ...] = ()
     extend_select: tuple[str, ...] = ()
+    diff: bool = False
+    fix: bool = False
+    unsafe_fixes: bool = False
     quiet: bool = False
     verbose: bool = False
     silent: bool = False
@@ -125,6 +128,9 @@ def options_from_args(args: argparse.Namespace) -> CheckOptions:
         select=_flatten_rule_codes(args.select),
         ignore=_flatten_rule_codes(args.ignore),
         extend_select=_flatten_rule_codes(args.extend_select),
+        diff=args.diff,
+        fix=args.fix,
+        unsafe_fixes=args.unsafe_fixes,
         quiet=args.quiet,
         verbose=args.verbose,
         silent=args.silent,
@@ -138,31 +144,39 @@ def _flatten_rule_codes(
     return tuple(code for group in groups for code in group)
 
 
+def _add_rule_code_argument(
+    parser: argparse.ArgumentParser,
+    name: str,
+    help_text: str,
+) -> None:
+    """Add one repeatable, comma-delimited rule-code selection argument.
+
+    ``default`` is a list rather than the empty tuple these codes are stored
+    as. argparse's ``append`` action copies the default and then appends to the
+    copy, and copying a tuple still yields a tuple, so a tuple default raises
+    ``AttributeError`` the first time the flag is actually used.
+    `_flatten_rule_codes` normalises the collected list back to a tuple.
+    """
+    parser.add_argument(
+        name,
+        action="append",
+        default=[],
+        type=_parse_rule_codes,
+        metavar="CODES",
+        help=help_text,
+    )
+
+
 def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
     """Add the `check` command arguments to one parser."""
-    parser.add_argument(
-        "--select",
-        action="append",
-        default=(),
-        type=_parse_rule_codes,
-        metavar="CODES",
-        help="Select additional rule codes or prefixes.",
+    # The three selection flags are one argument shape repeated, so they share
+    # a builder; the parse result is what differs, and that is argparse's.
+    _add_rule_code_argument(
+        parser, "--select", "Select additional rule codes or prefixes."
     )
-    parser.add_argument(
-        "--ignore",
-        action="append",
-        default=(),
-        type=_parse_rule_codes,
-        metavar="CODES",
-        help="Ignore rule codes or prefixes.",
-    )
-    parser.add_argument(
-        "--extend-select",
-        action="append",
-        default=(),
-        type=_parse_rule_codes,
-        metavar="CODES",
-        help="Extend the active rule selection.",
+    _add_rule_code_argument(parser, "--ignore", "Ignore rule codes or prefixes.")
+    _add_rule_code_argument(
+        parser, "--extend-select", "Extend the active rule selection."
     )
     parser.add_argument(
         "--output-format",
@@ -174,9 +188,29 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--config",
         action="append",
-        default=(),
+        # A list, for the reason `_add_rule_code_argument` documents: `append`
+        # copies the default and appends to the copy, so a tuple default raises
+        # `AttributeError: 'tuple' object has no attribute 'append'` the first
+        # time the flag is used. The parsed list is normalised to a tuple by
+        # `options_from_args`.
+        default=[],
         metavar="VALUE",
         help="Use one explicit config file or inline TOML fragment.",
+    )
+    parser.add_argument(
+        "--diff",
+        action="store_true",
+        help="Print safe fix previews as unified diffs without changing files.",
+    )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Apply safe fixes to the files on disk.",
+    )
+    parser.add_argument(
+        "--unsafe-fixes",
+        action="store_true",
+        help="Include fixes a rule marked unsafe. Requires --fix to take effect.",
     )
     parser.add_argument(
         "--stdin-filename",
@@ -193,10 +227,20 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Accept cache disabling requests without changing behaviour yet.",
     )
+    _add_verbosity_arguments(parser)
+    _add_target_arguments(parser)
+
+
+def _add_verbosity_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the mutually exclusive chatter-level flags to one parser."""
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument("--quiet", action="store_true", help="Reduce chatter.")
     verbosity.add_argument("--verbose", action="store_true", help="Increase chatter.")
     verbosity.add_argument("--silent", action="store_true", help="Suppress chatter.")
+
+
+def _add_target_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the trailing target operands to one parser."""
     parser.add_argument(
         "targets",
         nargs="*",

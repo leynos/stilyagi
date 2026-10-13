@@ -205,10 +205,37 @@ def test_no_workflow_runs_the_linter_directly(
     )
 
 
+def test_the_config_ignores_the_git_directory() -> None:
+    """A remote branch named `*.md` becomes a linted `.git` file.
+
+    CI lints `**/*.md` from the repository root, and the checkout has a
+    real `.git` directory for the glob to walk. A remote branch whose
+    name ends in `.md` is materialised there as
+    `refs/remotes/origin/<branch>` -- and the branch
+    `3-2-2-add-builtin-docstring-rules.md` is exactly that. The linter
+    then reads the ref's hex object name as Markdown and fails the
+    required `lint-test` job on MD010 and MD041, for every pull request
+    in the repository at once, with a diff that touches no linted file.
+
+    The `.git` tree is version-control metadata and is never Markdown
+    that this repository authors, so it is excluded unconditionally
+    rather than for the one branch name that exposed it. Asserted here
+    as well as in `MD_FILES_FIND`, because the two reach the linter by
+    different routes: the action glob would re-admit `.git` on its own
+    if this entry were dropped.
+    """
+    assert ".git/**" in read_configured_ignores(CONFIGURATION), (
+        ".markdownlint-cli2.jsonc no longer excludes `.git/**`, so the CI "
+        "action's `**/*.md` glob will lint git refs; a remote branch named "
+        "`*.md` turns the ref's hex object name into a Markdown file"
+    )
+
+
 @pytest.mark.parametrize(
     "entry",
     [
         "**/.venv/**",
+        ".git/**",
         ".vtcode/**",
         "**/node_modules/**",
         "**/target/**",

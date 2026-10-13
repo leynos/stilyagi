@@ -36,7 +36,6 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
                 "BridgeExtractionError",
                 "EngineRunner",
                 "ExecutionPlan",
-                "FixPlan",
                 "RendererRegistry",
                 "RunSummary",
                 "extract_document",

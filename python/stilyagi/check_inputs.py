@@ -4,13 +4,20 @@ These records are the internal currency of one `stilyagi check` run: discovery
 produces :class:`CheckInput` values, and the per-file check loop returns
 :class:`FileCheckResult` values that accumulate into a
 :class:`DiscoveryOutcome`.
+
+:class:`CheckInput` is the one input record for the whole command. It carries
+both the discovered identity -- the reported path, the resolved path, and the
+registered syntax -- and the optional pre-read payload a stream input arrives
+with. Collapsing those into a single type is what lets one read boundary serve
+every input regardless of where it came from, rather than adapting between two
+records that describe the same thing.
 """
 
 import dataclasses as dc
 import logging
-import sys
 import typing as typ
 
+from stilyagi import cli_log
 from stilyagi.cli_args import PROGRAM_NAME
 
 if typ.TYPE_CHECKING:
@@ -18,16 +25,14 @@ if typ.TYPE_CHECKING:
 
     from stilyagi import diagnostics, discovery, model
     from stilyagi.discovery_results import SkippedCandidateCount
+    from stilyagi.engine.fix_pipeline import PlannedFile
 
 __all__ = [
     "CheckInput",
     "DiscoveryInputs",
     "DiscoveryOutcome",
     "FileCheckResult",
-    "configure_command_warning_handler",
-    "report_check_error",
     "report_discovery_outcomes",
-    "report_file_error",
 ]
 
 
@@ -47,6 +52,16 @@ class CheckInput:
     source_text:
         Pre-read source text, used by standard input; file-backed inputs
         leave this empty and read :attr:`resolved_path` lazily.
+    source_bytes:
+        Pre-read source bytes, used by standard input. Kept beside the text
+        because the fix planner splices bytes and must see the exact sequence
+        its offsets were derived from.
+    from_stdin:
+        Whether the bytes came from the stream rather than from
+        :attr:`resolved_path`. `--stdin-filename` makes a stream input name a
+        real file on disk, so without this flag a mutating run would resolve
+        that name and overwrite the very file the user redirected into the
+        command.
 
     Examples
     --------
@@ -64,6 +79,8 @@ class CheckInput:
     resolved_path: pathlib.Path
     syntax: model.Syntax
     source_text: str | None = None
+    source_bytes: bytes | None = None
+    from_stdin: bool = False
 
     @classmethod
     def from_discovered(
@@ -143,7 +160,7 @@ class DiscoveryInputs(typ.NamedTuple):
 
 
 class FileCheckResult(typ.NamedTuple):
-    """Diagnostics and operational state produced by checking one input.
+    """Diagnostics, operational state, and any plan produced for one input.
 
     Attributes
     ----------
@@ -154,17 +171,23 @@ class FileCheckResult(typ.NamedTuple):
     was_unreadable:
         Whether the source could not be read or decoded. Extraction and
         configuration failures set ``had_error`` without setting this field.
+    planned:
+        The file's fix plan, when the run asked for one and planning ran. It
+        rides on the check result rather than being produced by a second pass
+        so that `--fix` and `--diff` cannot disagree about what a plan is: both
+        describe the document this one read produced.
 
     Examples
     --------
     >>> result = FileCheckResult(diagnostics=[], had_error=False, was_unreadable=False)
-    >>> (result.had_error, result.was_unreadable, len(result.diagnostics))
-    (False, False, 0)
+    >>> (result.had_error, result.was_unreadable, result.planned)
+    (False, False, None)
     """
 
     diagnostics: list[diagnostics.Diagnostic]
     had_error: bool
     was_unreadable: bool
+    planned: PlannedFile | None = None
 
 
 class DiscoveryOutcome(typ.NamedTuple):
@@ -195,34 +218,6 @@ class DiscoveryOutcome(typ.NamedTuple):
 
 
 _LOGGER = logging.getLogger(__name__)
-_COMMAND_LOGGER = logging.getLogger("stilyagi.command")
-
-
-class _CommandStderrHandler(logging.StreamHandler):
-    """Identify the handler owned by the check command."""
-
-
-def configure_command_warning_handler() -> None:
-    """Install one command-owned WARNING handler and return None.
-
-    Repeated setup replaces only the handler previously owned by this command,
-    which keeps repeated in-process CLI calls from duplicating warnings. The
-    command logger is configured as a side effect.
-
-    Examples
-    --------
-    >>> configure_command_warning_handler()  # doctest: +SKIP
-    """
-    for handler in tuple(_COMMAND_LOGGER.handlers):
-        if isinstance(handler, _CommandStderrHandler):
-            _COMMAND_LOGGER.removeHandler(handler)
-            handler.close()
-    command_handler = _CommandStderrHandler(sys.stderr)
-    command_handler.setLevel(logging.WARNING)
-    command_handler.setFormatter(logging.Formatter("%(message)s"))
-    _COMMAND_LOGGER.addHandler(command_handler)
-    _COMMAND_LOGGER.setLevel(logging.WARNING)
-    _COMMAND_LOGGER.propagate = False
 
 
 def report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> bool:
@@ -248,7 +243,7 @@ def report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> bool:
         _report_discovery_notice(notice)
 
     for failure in discovery_inputs.failures:
-        _COMMAND_LOGGER.warning(
+        cli_log.command_logger().warning(
             "%s check: failed to discover %s: %s",
             PROGRAM_NAME,
             failure.path.as_posix(),
@@ -263,7 +258,9 @@ def _report_discovery_notice(notice: discovery.DiscoveryNotice) -> None:
     if notice.reason == "respect_gitignore_unenforced":
         _LOGGER.info("respect-gitignore is accepted but not yet enforced")
     elif notice.reason == "symlinked_directory_target" and path is not None:
-        _COMMAND_LOGGER.warning("skipping symlinked directory target: %s", path)
+        cli_log.command_logger().warning(
+            "skipping symlinked directory target: %s", path
+        )
     elif notice.reason == "unregistered_explicit_file" and path is not None:
         _LOGGER.info(
             "ignoring target without a registered extractor: %s",
@@ -271,63 +268,3 @@ def _report_discovery_notice(notice: discovery.DiscoveryNotice) -> None:
         )
     elif notice.reason == "missing_or_unsupported_target" and path is not None:
         _LOGGER.info("ignoring missing or unsupported target: %s", path)
-
-
-def report_file_error(path: str, error: Exception) -> None:
-    """Log one file read failure and return ``None``.
-
-    The caller records the operational outcome separately.
-
-    Parameters
-    ----------
-    path:
-        The command-line-relative path used in every user-facing message.
-    error:
-        The read failure to explain.
-
-    Examples
-    --------
-    >>> from unittest.mock import patch
-    >>> with patch("stilyagi.check_inputs._COMMAND_LOGGER.warning") as warning:
-    ...     result = report_file_error(
-    ...         "docs/guide.md", OSError("permission denied")
-    ...     )
-    >>> result is None
-    True
-    >>> warning.call_args.args
-    ('%s', 'stilyagi check: failed to read docs/guide.md: permission denied')
-    """
-    message = f"{PROGRAM_NAME} check: failed to read {path}: {error}"
-    _COMMAND_LOGGER.warning("%s", message)
-
-
-def report_check_error(path: str | None, error: Exception) -> None:
-    """Log one check failure and return ``None``.
-
-    The caller records the operational outcome separately.
-
-    Parameters
-    ----------
-    path:
-        The command-line-relative path of the failing input, or ``None`` when
-        the failure applies to the whole run.
-    error:
-        The operational failure to explain.
-
-    Examples
-    --------
-    >>> from unittest.mock import patch
-    >>> with patch("stilyagi.check_inputs._COMMAND_LOGGER.warning") as warning:
-    ...     result = report_check_error(
-    ...         "docs/guide.md", RuntimeError("extractor failed")
-    ...     )
-    >>> result is None
-    True
-    >>> warning.call_args.args
-    ('%s', 'stilyagi check: failed to check docs/guide.md: extractor failed')
-    """
-    if path is None:
-        message = f"{PROGRAM_NAME} check: {error}"
-    else:
-        message = f"{PROGRAM_NAME} check: failed to check {path}: {error}"
-    _COMMAND_LOGGER.warning("%s", message)

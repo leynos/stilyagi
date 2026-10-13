@@ -3,38 +3,55 @@
 The check command discovers registered source files, reads each input,
 extracts documents through the Rust bridge, and renders the accumulated
 diagnostics with an honest run summary.
+
+The command is an orchestration layer and nothing more. Target resolution,
+per-file checking, aggregation, fix execution, rendering and the exit policy
+each live in their own module; what stays here is the sequence that binds them
+and the collaborator bundle that lets a test substitute one boundary.
+
+`compute_exit_code` is re-exported rather than reimplemented: RFC 0003 §12
+defines the mapping from diagnostics to process status, and it is documented at
+`cli.compute_exit_code`, but the single implementation lives in
+`check_outcome` beside the report it describes.
 """
 
+import dataclasses as dc
 import logging
-import pathlib
 import sys
+import time
 import typing as typ
 
-from stilyagi import check_metrics, config, diagnostics, discovery, engine, model
-from stilyagi.check_execution import (
-    _check_discovered_files,
-    _resolve_discovery_config,
+from stilyagi import (
+    check_metrics,
+    cli_apply,
+    cli_log,
+    config,
+    engine,
 )
+from stilyagi.check_execution import CheckReporter, CheckRun, check_one_file
 from stilyagi.check_inputs import (
     CheckInput,
     DiscoveryInputs,
-    configure_command_warning_handler,
-    report_check_error,
     report_discovery_outcomes,
 )
+from stilyagi.check_outcome import compute_exit_code, report_run
+from stilyagi.check_targets import discover_targets
 from stilyagi.cli_args import (
     PACKAGE_VERSION,
     CheckOptions,
     build_parser,
     options_from_args,
 )
-from stilyagi.discovery_results import SkippedCandidateCount
+from stilyagi.cli_io import report_check_error
+from stilyagi.cli_run import CheckedFile
+from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
 __all__ = [
     "PACKAGE_VERSION",
+    "CheckCollaborators",
     "CheckInput",
     "CheckOptions",
     "build_parser",
@@ -45,18 +62,45 @@ __all__ = [
 
 _LOGGER = logging.getLogger(__name__)
 
+#: The usage error reported when a mutating and a non-mutating flag are
+#: combined. Named so the message and the RFC 0003 §10 amendment cannot drift.
+_FIX_DIFF_CONFLICT = "--fix and --diff cannot be combined"
 
-def _configure_logging(options: CheckOptions) -> None:
-    """Configure verbosity and isolate warning output from root handlers."""
-    root_logger = logging.getLogger()
-    if not root_logger.handlers:
-        logging.basicConfig(level=logging.WARNING)
-    if options.silent or options.quiet:
-        root_logger.setLevel(logging.WARNING)
-    elif options.verbose:
-        root_logger.setLevel(logging.INFO)
 
-    configure_command_warning_handler()
+@dc.dataclass(frozen=True, slots=True)
+class CheckCollaborators:
+    """Injectable collaborators for one check run.
+
+    The bundle keeps the public check entry point small while allowing tests to
+    substitute one boundary without coupling themselves to pipeline internals.
+    Omitting a field uses its production default for this run.
+
+    The defaults are factories rather than ``None`` sentinels, and the factories
+    run once per instance, so two `run_check` invocations never share a
+    configuration cache or an output stream. A constructed bundle is therefore
+    already usable: there is no half-populated state left for a second pass to
+    resolve.
+
+    Each factory resolves its target through the module at call time rather
+    than capturing it at import time, so a test that substitutes a module-level
+    default -- as the rule-runner contract tests do -- still takes effect. The
+    two class defaults are passed as the callable itself, because constructing
+    them is already the fresh-instance-per-run behaviour the fields need.
+
+    There is no writer here. A mutating run reaches the filesystem through
+    `fix_execution`, and a collaborator that no code path consulted would be a
+    seam that only looks like one.
+    """
+
+    resolver: config.ConfigResolver = dc.field(default_factory=config.ConfigResolver)
+    renderer: engine.RendererRegistry = dc.field(
+        default_factory=engine.RendererRegistry
+    )
+    rule_runner: rules_registry.RuleRunner = dc.field(
+        default_factory=lambda: rules_registry.run_rules
+    )
+    output: typ.TextIO = dc.field(default_factory=lambda: sys.stdout)
+    reporter: CheckReporter = dc.field(default_factory=lambda: report_check_error)
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
@@ -89,8 +133,7 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
 def run_check(
     options: CheckOptions,
     *,
-    resolver: config.ConfigResolver | None = None,
-    renderer: engine.RendererRegistry | None = None,
+    collaborators: CheckCollaborators | None = None,
 ) -> int:
     """Run the check command and print rendered diagnostics.
 
@@ -98,23 +141,48 @@ def run_check(
     ----------
     options:
         The parsed options for one `check` invocation.
-    resolver:
-        Resolver shared between checked files; new when not supplied.
-    renderer:
-        Renderer used to serialise diagnostics. Defaults to a new
-        :class:`~stilyagi.engine.RendererRegistry`.
+    collaborators:
+        Optional injected pipeline boundaries. Missing collaborators use the
+        production defaults for this one run.
 
     Returns
     -------
     int
-        Zero when the check succeeds or produces warnings, one when it
-        produces failing diagnostics, or two when an operational error occurs.
+        Zero when the check succeeds without findings, one when diagnostics
+        are found, or two when an operational error occurs.
+
+    Examples
+    --------
+    >>> run_check(CheckOptions(targets=("--nope",)))  # doctest: +SKIP
+    2
     """
+    resolved_collaborators = collaborators or CheckCollaborators()
+    if options.fix and options.diff:
+        # D-06: silent precedence between a mutating and a non-mutating flag is
+        # the surprise the CLI contract exists to prevent. Rejection is the
+        # relaxable direction -- a rejected pair can be given meaning later,
+        # where an accepted one with silent precedence cannot be withdrawn.
+        #
+        # This runs before `_configure_logging`, so the command handler is not
+        # installed yet and the reporter's one emission would reach the
+        # terminal only through `logging.lastResort` -- which the logging module
+        # declines to use as soon as any handler exists in the chain, so an
+        # embedding application that called `basicConfig` first would swallow
+        # the message entirely. Installing the handler here makes the guarantee
+        # explicit instead of incidental. It is idempotent: setup replaces only
+        # the handler this function owns.
+        cli_log.configure_command_warning_handler()
+        resolved_collaborators.reporter(
+            None,
+            ValueError(_FIX_DIFF_CONFLICT),
+        )
+        return 2
+
     started_at_ns = check_metrics._start_check()
     check_metrics.reset_check_metrics()
     try:
         _configure_logging(options)
-        exit_code = _run_check(options, resolver, renderer)
+        exit_code = _run_check(options, resolved_collaborators)
     except Exception:
         check_metrics._finish_check(
             2,
@@ -129,18 +197,43 @@ def run_check(
     )
 
 
+def _report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> None:
+    """Report discovery events and record their bounded operational metrics."""
+    check_metrics._record_skips(discovery_inputs.skipped_by_reason)
+    for _failure in discovery_inputs.failures:
+        check_metrics.record_operational_failure("discovery")
+    report_discovery_outcomes(discovery_inputs)
+
+
+def _configure_logging(options: CheckOptions) -> None:
+    """Apply the requested verbosity level before running the check loop.
+
+    The handler is `cli_log.log_handler`, not the stdlib default. The default
+    formatter renders the log message alone and drops `extra` entirely, so a
+    structured record arrived at the user as its bare sentence -- the planner's
+    per-file decision printed as `fix plan decided`, with no file identity and
+    none of the counters that are the reason the record exists. Installing the
+    handler here rather than in an entry point keeps `--verbose` the single
+    switch that decides whether any of it is shown.
+    """
+    cli_log.configure_command_warning_handler()
+    if options.silent or options.quiet:
+        logging.basicConfig(level=logging.WARNING, handlers=[cli_log.log_handler()])
+    elif options.verbose:
+        logging.basicConfig(level=logging.INFO, handlers=[cli_log.log_handler()])
+
+
 def _run_check(
     options: CheckOptions,
-    resolver: config.ConfigResolver | None,
-    renderer: engine.RendererRegistry | None,
+    resolved_collaborators: CheckCollaborators,
 ) -> int:
     """Discover inputs and check them, leaving run finalization to the caller."""
-    resolver = resolver if resolver is not None else config.ConfigResolver()
-    renderer = renderer if renderer is not None else engine.RendererRegistry()
     _LOGGER.debug("target discovery started for %r", options.targets)
     try:
         with check_metrics._measure_phase("discovery"):
-            discovery_inputs = _discover_targets(options, resolver)
+            discovery_inputs = discover_targets(
+                options, resolved_collaborators.resolver
+            )
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
@@ -153,7 +246,7 @@ def _run_check(
             )
             else "discovery"
         )
-        report_check_error(None, error)
+        resolved_collaborators.reporter(None, error)
         return 2
     except Exception:
         check_metrics.record_operational_failure("discovery")
@@ -164,167 +257,48 @@ def _run_check(
         len(discovery_inputs.inputs),
     )
 
-    return _check_and_render(
+    run = CheckRun(
+        options=options,
+        resolver=resolved_collaborators.resolver,
+        rule_runner=resolved_collaborators.rule_runner,
+        report=resolved_collaborators.reporter,
+    )
+    started = time.perf_counter()
+    checked_files = [
+        CheckedFile(
+            reported_path=check_input.reported_path,
+            result=check_one_file(check_input, run),
+        )
+        for check_input in discovery_inputs.inputs
+    ]
+    # Logged at the command boundary rather than in the planner: the planner
+    # records what it *decided*, and a target it never planned -- a file with no
+    # fixable diagnostic, or a stream input -- would otherwise be missing from
+    # any timing record. The unit is whole-check elapsed milliseconds, covering
+    # discovery, extraction, config resolution, rule running, and planning.
+    _LOGGER.info(
+        "check pass finished",
+        extra={
+            "operation": "collect_checked_files",
+            "elapsed_ms": cli_apply.elapsed_ms(started),
+            "checked_files": len(checked_files),
+        },
+    )
+    if options.fix:
+        applied = cli_apply.apply_fixes(
+            checked_files, run, options, resolved_collaborators
+        )
+        # The exit policy is stated once, here, rather than in the module that
+        # performs the writes: a write failure is an operational error even when
+        # the re-lint found nothing left to report, and that coupling is a
+        # command-level decision about what an outcome means.
+        return compute_exit_code(
+            applied.checked.diagnostics_list,
+            had_error=applied.checked.error or applied.outcome.write_failed,
+        )
+    return report_run(
+        checked_files,
         discovery_inputs,
         options,
-        resolver,
-        renderer,
-    )
-
-
-def _report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> None:
-    """Report discovery events and record their bounded operational metrics."""
-    check_metrics._record_skips(discovery_inputs.skipped_by_reason)
-    for _failure in discovery_inputs.failures:
-        check_metrics.record_operational_failure("discovery")
-    report_discovery_outcomes(discovery_inputs)
-
-
-def _check_and_render(
-    discovery_inputs: DiscoveryInputs,
-    options: CheckOptions,
-    resolver: config.ConfigResolver,
-    renderer: engine.RendererRegistry,
-) -> int:
-    """Check discovered inputs, render the summary, and return the outcome."""
-    check_outcome = _check_discovered_files(
-        discovery_inputs.inputs,
-        options,
-        resolver,
-    )
-    _LOGGER.debug(
-        "rendering %d diagnostic(s) as %s",
-        len(check_outcome.diagnostics),
-        options.output_format,
-    )
-    summary = engine.RunSummary.from_diagnostics(
-        check_outcome.diagnostics,
-        checked_files=len(discovery_inputs.inputs),
-        skipped_files=discovery_inputs.skipped_files,
-        unreadable_files=check_outcome.unreadable_files,
-    )
-    check_metrics._record_diagnostic_counts(summary.errors, summary.warnings)
-    try:
-        with check_metrics._measure_phase("render"):
-            print(
-                renderer.render(
-                    check_outcome.diagnostics,
-                    options.output_format,
-                    summary,
-                ),
-                end="",
-            )
-    except Exception:
-        check_metrics.record_operational_failure("render")
-        raise
-    exit_code = compute_exit_code(
-        check_outcome.diagnostics,
-        had_error=bool(discovery_inputs.failures) or check_outcome.had_error,
-    )
-    _LOGGER.info("config resolver cache stats: %s", resolver.cache_stats)
-    _LOGGER.debug("check complete: exit code %d", exit_code)
-    return exit_code
-
-
-def compute_exit_code(
-    diagnostics_list: cabc.Sequence[diagnostics.Diagnostic],
-    *,
-    had_error: bool = False,
-) -> int:
-    """Return the documented exit code for one check run.
-
-    Returns
-    -------
-    int
-        Zero for success or warning-only diagnostics, one for error-severity
-        diagnostics, or two for an operational error.
-
-    Examples
-    --------
-    >>> compute_exit_code([])
-    0
-    >>> compute_exit_code([
-    ...     diagnostics.Diagnostic(path="docs/example.md", code="STY001", message="x")
-    ... ])
-    1
-    >>> compute_exit_code([
-    ...     diagnostics.Diagnostic(
-    ...         path="docs/example.md",
-    ...         code="IR001",
-    ...         message="x",
-    ...         severity=diagnostics.Severity.WARNING,
-    ...     )
-    ... ])
-    0
-    >>> compute_exit_code([], had_error=True)
-    2
-    """
-    if had_error:
-        return 2
-    if any(diagnostics.is_failing_severity(item.severity) for item in diagnostics_list):
-        return 1
-    return 0
-
-
-def _discover_targets(
-    options: CheckOptions,
-    resolver: config.ConfigResolver,
-) -> DiscoveryInputs:
-    """Discover registered files beneath the requested targets."""
-    target_paths = [pathlib.Path(target) for target in options.targets]
-    has_stdin_target = any(target.as_posix() == "-" for target in target_paths)
-    if has_stdin_target and len(target_paths) > 1:
-        message = "stdin target cannot be combined with file targets"
-        raise ValueError(message)
-    if has_stdin_target:
-        check_input = _stdin_check_input(options.stdin_filename)
-        return DiscoveryInputs(
-            inputs=() if check_input is None else (check_input,),
-            skipped_files=int(check_input is None),
-            skipped_by_reason=(
-                (SkippedCandidateCount("unregistered_candidate", 1),)
-                if check_input is None
-                else ()
-            ),
-        )
-    discovery_config = _resolve_discovery_config(options, resolver)
-    result = discovery.discover_files_with_summary(
-        target_paths,
-        discovery_config,
-    )
-    return DiscoveryInputs(
-        inputs=tuple(CheckInput.from_discovered(file) for file in result.files),
-        skipped_files=result.skipped_files,
-        notices=result.notices,
-        failures=result.failures,
-        skipped_by_reason=result.skipped_by_reason,
-    )
-
-
-def _stdin_check_input(stdin_filename: str | None) -> CheckInput | None:
-    """Build the check input that consumes standard input."""
-    syntax = (
-        model.Syntax.MARKDOWN
-        if stdin_filename is None
-        else discovery.syntax_for_path(pathlib.Path(stdin_filename))
-    )
-    if syntax is None:
-        report_check_error(
-            None,
-            ValueError(
-                f"skipping stdin without a registered extractor: {stdin_filename}"
-            ),
-        )
-        return None
-    reported_path = (
-        pathlib.Path(stdin_filename).as_posix() if stdin_filename else "<stdin>"
-    )
-    resolved_path = (
-        pathlib.Path(stdin_filename) if stdin_filename else pathlib.Path("<stdin>")
-    )
-    return CheckInput(
-        reported_path=reported_path,
-        resolved_path=resolved_path,
-        syntax=syntax,
-        source_text=sys.stdin.read(),
+        resolved_collaborators,
     )

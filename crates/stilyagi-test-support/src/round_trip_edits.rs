@@ -4,6 +4,9 @@
 //! boundaries, and overlaps through [`apply_round_trip_edits`]. Callers pass
 //! source text plus candidate edits and consume the returned
 //! [`RoundTripEditResult`] to compare before/after text and applied edit order.
+//! This is a golden-fixture oracle, not a second engine: it is deliberately
+//! stricter than the production kernel on identical edits, which RFC 0002 §10
+//! permits, and that strictness is intended rather than a divergence to fix.
 
 use crate::golden_ir::ByteSpan;
 

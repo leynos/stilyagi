@@ -8,6 +8,12 @@ from stilyagi import cli, config, diagnostics, engine
 from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.assertions import assert_with_context
+from tests.support.check_metric_fixtures import (
+    metric_lines,
+    metric_payload,
+    recorded_metrics,
+    write_markdown,
+)
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -31,7 +37,7 @@ def _run_verbose_mixed_source_check(
     capsys: pytest.CaptureFixture[str],
 ) -> tuple[int, str, str]:
     """Run a fixed mixed-source check with one skipped symlink target."""
-    _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
+    write_markdown(tmp_path / "docs" / "notes.md", "Notes")
     python_source = tmp_path / "src" / "app.py"
     python_source.parent.mkdir(parents=True)
     python_source.write_text('"""Module docs."""\n', encoding="utf-8")
@@ -44,15 +50,6 @@ def _run_verbose_mixed_source_check(
     exit_code = cli.main(["check", ".", linked_source.name, "--verbose"])
     captured = capsys.readouterr()
     return exit_code, captured.out, captured.err
-
-
-def _metric_lines(stderr: str) -> tuple[str, ...]:
-    """Return verbose metrics records from captured stderr."""
-    return tuple(
-        line
-        for line in stderr.splitlines()
-        if line.startswith("stilyagi check metrics: ")
-    )
 
 
 def test_verbose_mixed_source_check_keeps_summary_on_stdout(
@@ -68,9 +65,9 @@ def test_verbose_mixed_source_check_keeps_summary_on_stdout(
     assert stdout == (
         "checked 3 files (2 skipped, 0 unreadable); 0 errors, 0 warnings\n"
     ), "normal command output remains the run summary on stdout"
-    metric_lines = _metric_lines(stderr)
-    assert len(metric_lines) == 1, "verbose mode emits one metrics snapshot"
-    assert str(tmp_path) not in metric_lines[0], "metrics do not expose source paths"
+    records = metric_lines(stderr)
+    assert len(records) == 1, "verbose mode emits one metrics snapshot"
+    assert str(tmp_path) not in records[0], "metrics do not expose source paths"
 
 
 def test_verbose_emits_bounded_metrics_to_stderr(
@@ -83,11 +80,9 @@ def test_verbose_emits_bounded_metrics_to_stderr(
     result = _run_verbose_mixed_source_check(tmp_path, monkeypatch, capsys)
     _exit_code, _stdout, stderr = result
 
-    metric_lines = _metric_lines(stderr)
-    assert len(metric_lines) == 1, "verbose mode emits one metrics snapshot"
-    metrics_payload = json.loads(
-        metric_lines[0].removeprefix("stilyagi check metrics: ")
-    )
+    records = metric_lines(stderr)
+    assert len(records) == 1, "verbose mode emits one metrics snapshot"
+    metrics_payload = metric_payload(records)
     phase_counts = {
         phase: duration["count"]
         for phase, duration in metrics_payload[
@@ -157,7 +152,7 @@ def test_verbose_metrics_record_diagnostic_counts_by_severity(
     case: _DiagnosticMetricCase,
 ) -> None:
     """Count warning and error diagnostics with bounded severity labels."""
-    _write_markdown(tmp_path / "notes.md", "Notes")
+    write_markdown(tmp_path / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
     diagnostics_list = [
         diagnostics.Diagnostic(
@@ -175,12 +170,7 @@ def test_verbose_metrics_record_diagnostic_counts_by_severity(
 
     actual_exit_code = cli.main(["check", ".", "--verbose", "--output-format", "json"])
     captured = capsys.readouterr()
-    metric_line = next(
-        line
-        for line in captured.err.splitlines()
-        if line.startswith("stilyagi check metrics: ")
-    )
-    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+    metrics_payload = recorded_metrics(captured.err)
     output_payload = json.loads(captured.out)
 
     assert actual_exit_code == case.exit_code, (
@@ -210,21 +200,21 @@ def test_verbose_metrics_record_unreadable_inputs_as_operational_failures(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Count a failed read without turning it into a normal diagnostic."""
-    _write_markdown(tmp_path / "notes.md", "Notes")
+    write_markdown(tmp_path / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
+    # The stub stands in for a read that reported its own failure, so it takes
+    # the run whose reporter the real function would have called. Returning
+    # `None` is the signal `check_one_file` acts on, and that is the branch
+    # under test; driving a real unreadable file instead would test the read
+    # boundary, which `tests/test_check_read_failures.py` already owns.
     monkeypatch.setattr(
         "stilyagi.check_execution._read_source",
-        lambda _check_input: None,
+        lambda _check_input, _run: None,
     )
 
     exit_code = cli.main(["check", ".", "--verbose"])
     captured = capsys.readouterr()
-    metric_line = next(
-        line
-        for line in captured.err.splitlines()
-        if line.startswith("stilyagi check metrics: ")
-    )
-    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+    metrics_payload = recorded_metrics(captured.err)
 
     assert exit_code == 2, "an unreadable input remains an operational failure"
     assert captured.out == (
@@ -255,16 +245,11 @@ def test_verbose_metrics_record_total_duration_for_config_failure(
         """Raise a configuration error before discovery returns inputs."""
         raise config.InvalidConfigError(tmp_path / "stilyagi.toml", "rules", "invalid")
 
-    monkeypatch.setattr(cli, "_discover_targets", fail_discovery)
+    monkeypatch.setattr(cli, "discover_targets", fail_discovery)
 
     exit_code = cli.run_check(cli.CheckOptions(targets=(".",), verbose=True))
     captured = capsys.readouterr()
-    metric_line = next(
-        line
-        for line in captured.err.splitlines()
-        if line.startswith("stilyagi check metrics: ")
-    )
-    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+    metrics_payload = recorded_metrics(captured.err)
 
     assert exit_code == 2, "a configuration failure remains an operational error"
     assert (
@@ -282,18 +267,13 @@ def test_unexpected_discovery_failure_records_an_operational_outcome(
         """Raise a deliberate unexpected discovery error."""
         raise RuntimeError("failure")
 
-    monkeypatch.setattr(cli, "_discover_targets", fail_discovery)
+    monkeypatch.setattr(cli, "discover_targets", fail_discovery)
 
     with pytest.raises(RuntimeError, match="failure"):
         cli.run_check(cli.CheckOptions(targets=(".",), verbose=True))
 
     captured = capsys.readouterr()
-    metric_line = next(
-        line
-        for line in captured.err.splitlines()
-        if line.startswith("stilyagi check metrics: ")
-    )
-    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+    metrics_payload = recorded_metrics(captured.err)
 
     assert not captured.out, "an unexpected discovery failure emits no run summary"
     assert metrics_payload["stilyagi_check_runs_total"]["operational_error"] == 1, (
@@ -315,7 +295,7 @@ def test_unexpected_file_check_failures_record_one_total_duration(
     failure_phase: str,
 ) -> None:
     """Finalize once when extraction or rules failures propagate to the CLI."""
-    _write_markdown(tmp_path / "notes.md", "Notes")
+    write_markdown(tmp_path / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
     if failure_phase == "extract":
         monkeypatch.setattr(engine, "extract_document", _raise_check_failure)
@@ -326,12 +306,7 @@ def test_unexpected_file_check_failures_record_one_total_duration(
         cli.run_check(cli.CheckOptions(targets=(".",), verbose=True))
 
     captured = capsys.readouterr()
-    metric_line = next(
-        line
-        for line in captured.err.splitlines()
-        if line.startswith("stilyagi check metrics: ")
-    )
-    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+    metrics_payload = recorded_metrics(captured.err)
 
     assert metrics_payload["stilyagi_check_runs_total"]["operational_error"] == 1, (
         "a propagated file-check failure records one operational outcome"
@@ -347,7 +322,7 @@ def test_stdout_write_failure_is_measured_as_render_failure(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Include stdout writing in the render phase and failure accounting."""
-    _write_markdown(tmp_path / "notes.md", "Notes")
+    write_markdown(tmp_path / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
     printed_lines: list[str] = []
 
@@ -364,10 +339,7 @@ def test_stdout_write_failure_is_measured_as_render_failure(
         cli.main(["check", ".", "--verbose"])
 
     captured = capsys.readouterr()
-    metric_line = next(
-        line for line in printed_lines if line.startswith("stilyagi check metrics: ")
-    )
-    metrics_payload = json.loads(metric_line.removeprefix("stilyagi check metrics: "))
+    metrics_payload = metric_payload(printed_lines)
 
     assert not captured.out, "the failed stdout write emits no command output"
     assert metrics_payload["stilyagi_check_runs_total"]["operational_error"] == 1, (
@@ -382,12 +354,6 @@ def test_stdout_write_failure_is_measured_as_render_failure(
     assert (
         metrics_payload["stilyagi_check_phase_duration_seconds"]["total"]["count"] == 1
     ), "a propagated render exception records one total duration"
-
-
-def _write_markdown(path: pathlib.Path, title: str) -> None:
-    """Write one tiny Markdown file for the metrics tests."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"# {title}\n", encoding="utf-8")
 
 
 def _raise_check_failure(*_args: object) -> typ.NoReturn:

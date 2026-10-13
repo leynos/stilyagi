@@ -174,12 +174,21 @@ support normal repository linting and debugging for Markdown-only users. See
   - Requires 2.1.1 and 1.2.3.
   - Keep discovery scope limited to Markdown in this slice.
   - Success: `stilyagi check .` is useful on documentation repositories.
-- [ ] 2.2.2. Implement safe-fix planning, conflict resolution, `--diff`, and
+- [x] 2.2.2. Implement safe-fix planning, conflict resolution, `--diff`, and
   `--fix` for Markdown-only source-backed edits. See Stilyagi design
   (stilyagi-design.md) §7.3.
   - Requires 2.1.1 and 2.2.1.
   - Reject edits against synthetic spans and overlapping non-identical edits.
   - Success: safe fixes are conservative and auditable.
+  - Completed with validation evidence in
+    [the safe-fix planning execplan](
+    execplans/2-2-2-safe-fix-planning-conflict-resolution.md);
+    see [ADR 009](adr-009-safe-fix-planning-and-conflict-resolution.md) for
+    the admissibility bound, conflict policy, and exit-status decisions.
+  - Note for 2.3.1: a heading-depth rule cannot be auto-fixed under the
+    admissibility bound, because the `##` marker is not source-backed text. It
+    must ship `manual`, and that item must be reviewed against this constraint
+    before it starts.
 - [ ] 2.2.3. Implement `stilyagi config`, `clean`, `dump-ir`, and `--no-cache`
   for the Markdown slice. See Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 2.1.1 and 2.2.1.

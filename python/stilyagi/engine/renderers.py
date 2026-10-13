@@ -10,6 +10,8 @@ from stilyagi import diagnostics
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
+    from stilyagi.fixes import Fix
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -134,6 +136,8 @@ class RendererRegistry:
         diagnostics_list: cabc.Iterable[diagnostics.Diagnostic],
         output_format: str | None = None,
         summary: RunSummary | None = None,
+        *,
+        fix_errors: cabc.Iterable[diagnostics.FixError] = (),
     ) -> str:
         """Render diagnostics as either text or JSON.
 
@@ -161,10 +165,8 @@ class RendererRegistry:
             The requested output format is not supported.
         """
         effective_format = output_format or self.default_format
-        ordered_diagnostics = sorted(
-            diagnostics_list,
-            key=_diagnostic_sort_key,
-        )
+        ordered_diagnostics = sorted(diagnostics_list, key=_diagnostic_sort_key)
+        ordered_fix_errors = sorted(fix_errors, key=_fix_error_sort_key)
         _LOGGER.debug(
             "rendering %d diagnostic(s) as %s",
             len(ordered_diagnostics),
@@ -177,9 +179,13 @@ class RendererRegistry:
             unreadable_files=0,
         )
         if effective_format == "json":
-            return _render_json(ordered_diagnostics, effective_summary)
+            return _render_json(
+                ordered_diagnostics, effective_summary, ordered_fix_errors
+            )
         if effective_format == "text":
-            return _render_text(ordered_diagnostics, effective_summary)
+            return _render_text(
+                ordered_diagnostics, effective_summary, ordered_fix_errors
+            )
         _LOGGER.error("unsupported output format %r", effective_format)
         message = (
             f"unsupported output format {effective_format!r}; "
@@ -200,9 +206,17 @@ def _diagnostic_sort_key(
     )
 
 
+def _fix_error_sort_key(
+    fix_error: diagnostics.FixError,
+) -> tuple[str, str, tuple[str, ...]]:
+    """Sort independent fix errors without admitting them into rule ordering."""
+    return fix_error.path, fix_error.identifier, fix_error.rule_codes
+
+
 def _render_text(
     diagnostics_list: list[diagnostics.Diagnostic],
     summary: RunSummary,
+    fix_errors: list[diagnostics.FixError],
 ) -> str:
     """Render diagnostics as one human-readable line per finding."""
     lines = [
@@ -210,35 +224,161 @@ def _render_text(
         f"{diagnostic.severity.value} {diagnostic.code} {diagnostic.message}"
         for diagnostic in diagnostics_list
     ]
-    lines.append(
+    lines.extend(_render_fix_error(fix_error) for fix_error in fix_errors)
+    lines.append(_summary_line(diagnostics_list, fix_errors, summary))
+    return "\n".join(lines) + "\n"
+
+
+def _render_fix_error(fix_error: diagnostics.FixError) -> str:
+    """Render one engine-level refusal with its distinct non-rule prefix.
+
+    The rule-code segment is omitted rather than printed empty when a refusal
+    names no rule. Two of the seven identifiers -- `changed-on-disk` and
+    `standard-input` -- are raised by the executor and the phase-one wrapper,
+    not by a rule's proposed edit, so they carry no codes by construction.
+    Joining an empty tuple yields the empty string, which rendered as a
+    dangling `: ` after the path.
+
+    Returns
+    -------
+    str
+        One line naming the refusal's origin, path, and message.
+    """
+    rule_codes = ", ".join(fix_error.rule_codes)
+    origin = f"{rule_codes}: " if rule_codes else ""
+    return f"{fix_error.identifier}: {fix_error.path}: {origin}{fix_error.message}"
+
+
+def _summary_line(
+    diagnostics_list: list[diagnostics.Diagnostic],
+    fix_errors: list[diagnostics.FixError],
+    summary: RunSummary,
+) -> str:
+    """Return the run summary as one line, with fix counts when a plan exists.
+
+    The file and severity totals are the command's own accounting and are
+    always present. The fix counts are appended only when the run actually
+    handled a fix -- at least one diagnostic carries a payload, or a plan was
+    refused. That condition is what keeps a plain check's summary byte-stable
+    against the documented shape: a run with nothing fixable has nothing to
+    say about fixes, and a count of zero against every ordinary run would be
+    noise the contract test would have to pin forever.
+
+    The two nouns pluralize independently because a file can offer both: one
+    safe edit applied automatically and one unsafe edit withheld.
+
+    Returns
+    -------
+    str
+        The summary line, with fix counts appended when the run handled one.
+    """
+    fix_counts = _fix_counts(diagnostics_list, fix_errors)
+    line = (
         "checked "
         f"{summary.checked_files} files ({summary.skipped_files} skipped, "
         f"{summary.unreadable_files} unreadable); {summary.errors} errors, "
         f"{summary.warnings} warnings"
     )
-    return "\n".join(lines) + "\n"
+    if fix_counts is None:
+        return line
+    safe_count, unsafe_count = fix_counts
+    return (
+        f"{line}; {_count_label(safe_count, 'safe fix')}, "
+        f"{_count_label(unsafe_count, 'unsafe fix')}"
+    )
+
+
+def _fix_counts(
+    diagnostics_list: list[diagnostics.Diagnostic],
+    fix_errors: list[diagnostics.FixError],
+) -> tuple[int, int] | None:
+    """Count the safe and unsafe fixes on offer, or ``None`` if there are none.
+
+    A refusal counts as evidence that a plan ran even when no diagnostic
+    carries a payload -- an unsafe fix is withheld rather than attached, and
+    reporting nothing about it would hide the one case the counts exist for.
+
+    Returns
+    -------
+    tuple[int, int] | None
+        The safe and unsafe counts, or ``None`` when the run handled no fix.
+    """
+    safe_count = sum(
+        diagnostic.fix is not None and diagnostic.fix.applicability == "safe"
+        for diagnostic in diagnostics_list
+    )
+    unsafe_count = sum(
+        diagnostic.fix is not None and diagnostic.fix.applicability == "unsafe"
+        for diagnostic in diagnostics_list
+    )
+    handled_a_fix = bool(safe_count or unsafe_count or fix_errors)
+    if handled_a_fix:
+        return safe_count, unsafe_count
+    return None
+
+
+def _count_label(count: int, noun: str) -> str:
+    """Pluralize a counted text-renderer noun."""
+    suffix = "" if count == 1 else "es"
+    return f"{count} {noun}{suffix}"
 
 
 def _render_json(
     diagnostics_list: list[diagnostics.Diagnostic],
     summary: RunSummary,
+    fix_errors: list[diagnostics.FixError],
 ) -> str:
     """Render diagnostics as a stable JSON document."""
     payload = {
+        "schema_version": "1.0.0",
         "diagnostics": [
-            {
-                "path": diagnostic.path,
-                "code": diagnostic.code,
-                "message": diagnostic.message,
-                "severity": diagnostic.severity.value,
-                "location": {
-                    "line": diagnostic.line or 1,
-                    "column": diagnostic.column or 1,
-                },
-                "fix_applicable": diagnostic.fix is not None,
-            }
-            for diagnostic in diagnostics_list
+            _diagnostic_payload(diagnostic) for diagnostic in diagnostics_list
         ],
+        "fix_errors": [_fix_error_payload(fix_error) for fix_error in fix_errors],
         "summary": dc.asdict(summary),
     }
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def _diagnostic_payload(diagnostic: diagnostics.Diagnostic) -> dict[str, object]:
+    """Serialize one diagnostic without coupling rendering to execution flags."""
+    return {
+        "path": diagnostic.path,
+        "code": diagnostic.code,
+        "message": diagnostic.message,
+        "severity": diagnostic.severity.value,
+        "location": {
+            "line": diagnostic.line or 1,
+            "column": diagnostic.column or 1,
+        },
+        "fix_applicable": diagnostic.fix is not None,
+        "fix": _fix_payload(diagnostic.fix),
+    }
+
+
+def _fix_payload(fix: Fix | None) -> dict[str, object] | None:
+    """Serialize a rule-authored fix when the diagnostic carries one."""
+    if fix is None:
+        return None
+    return {
+        "title": fix.title,
+        "applicability": fix.applicability.value,
+        "edits": [
+            {
+                "byte_start": edit.byte_start,
+                "byte_end": edit.byte_end,
+                "replacement": edit.replacement,
+            }
+            for edit in fix.edits
+        ],
+    }
+
+
+def _fix_error_payload(fix_error: diagnostics.FixError) -> dict[str, object]:
+    """Serialize one engine refusal outside the selectable rule diagnostics."""
+    return {
+        "identifier": fix_error.identifier,
+        "path": fix_error.path,
+        "rule_codes": list(fix_error.rule_codes),
+        "message": fix_error.message,
+    }

@@ -410,10 +410,16 @@ fixture.
 
 Fix round-trip helpers are likewise internal. They apply source-backed edits in
 deterministic order, preserve untouched source ranges, accept adjacent edits,
-reject synthetic spans, and reject overlapping edits before mutation. These
-helpers establish the safety checks later fix planning must satisfy without
-exposing the future pytest plugin or freezing the raw PyO3 bridge payload as
-the public IR.
+reject synthetic spans, and reject overlapping edits before mutation.
+
+The production fix kernel has since landed at `engine/fix_planning/splice.py`,
+and it — not these helpers — is now normative for splice semantics. The helpers
+were the scaffolding the safety checks were worked out in; they are retained as
+a golden-fixture oracle, and their behaviour is regression coverage of the
+kernel rather than a second implementation of it. The Rust helper is
+deliberately stricter than the kernel on identical edits, which RFC 0002 §10
+permits, and its strictness is a feature of a test oracle rather than a
+divergence to reconcile.
 
 ### What are the core interfaces?
 
@@ -600,6 +606,46 @@ Implementation consequences:
 - Safe, unsafe, and manual fixes stay separate.
 - Overlapping edits from different diagnostics fail conflict resolution unless
   identical.
+
+**Admissibility.** An edit is applied only when its byte span is bounded by the
+source, aligned to UTF-8 boundaries, wholly contained in one source-backed
+segment, and when that segment's text equals the bytes the span covers.
+Touching source-backed segments are merged before the test, so an edit spanning
+a join is admissible on the same terms as one inside either half. An edit
+failing any condition is refused by name, the file is left completely
+unmodified, and the refusal is reported as described below.
+
+One consequence deserves stating plainly: **a heading-depth rule cannot be
+auto-fixed under this model.** The source-backed segment of `## Section` is
+`Section`; the `##` marker belongs to no source-backed segment, so no
+admissible span can express an edit to it. Widening the bound to intermediate
+representation node spans was considered and rejected as vacuous, because the
+root node spans the whole document and would admit every edit while
+constraining none. A rule that alters markup outside region text therefore ships
+`manual` — reported, never applied. Roadmap 2.3.1 must be reviewed against
+this constraint before it starts.
+
+**Refusals are not rule codes.** They are engine reports about a rule's
+defective output, so they travel on a separate channel: a `fix_errors` array
+beside `diagnostics` in JSON, and a distinct non-rule prefix in text. The
+identifiers are namespaced `fix-error/`: `invalid-span`, `non-utf8-boundary`,
+`synthetic-span`, and `source-mismatch` from admissibility; `overlapping-edits`
+from conflict detection; and `standard-input`, `changed-on-disk`, and
+`write-failed` from execution. They are exempt from `--select`, `--ignore`, and
+suppression by construction — silencing one would hide the evidence that a file
+is still not fixed.
+
+All but `write-failed` carry no exit-code weight of their own, because the
+unfixed diagnostic that prompted them already forces exit 1. `write-failed` is
+the exception: a filesystem that refuses the write is an environment fault
+rather than a planning decision, so it forces exit 2 the way an unreadable
+source does. Keeping it on the refusal channel means a partially applied run
+can name every file it could not write, instead of abandoning the rest as a
+traceback.
+
+See [ADR 009](adr-009-safe-fix-planning-and-conflict-resolution.md) for the
+decisions behind all of the above, including why a conflict aborts the whole
+file rather than skipping the losing edit.
 
 #### Suppression syntax
 

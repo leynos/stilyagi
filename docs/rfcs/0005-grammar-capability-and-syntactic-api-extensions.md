@@ -1014,9 +1014,15 @@ class OxfordCommaRule(Rule):
                     title="Insert serial comma",
                     applicability="safe",
                     edits=[
-                        TextEdit.insert_before(
-                            coordination.conjunction.span,
-                            ",",
+                        # The serial comma goes after the item preceding the
+                        # conjunction, not at the conjunction's own start: the
+                        # item's end offset already sits before the separating
+                        # space, so inserting here yields "docstrings, and
+                        # comments" rather than "docstrings , and comments".
+                        TextEdit(
+                            byte_start=coordination.items[-2].span.byte_end,
+                            byte_end=coordination.items[-2].span.byte_end,
+                            replacement=",",
                         )
                     ],
                 ),

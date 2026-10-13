@@ -328,6 +328,43 @@ prose itself.
 
 `--diff` SHALL print a patch instead of mutating files.
 
+`--fix` combined with `--diff` SHALL be a usage error, exiting `2`.
+
+Rejecting the pair is deliberate. Silent precedence between a mutating and a
+non-mutating flag is precisely the surprise this contract exists to prevent,
+and rejection is the relaxable direction: a rejected combination can be given
+meaning by a later amendment, whereas one accepted with an implicit winner
+cannot be withdrawn without breaking scripts that depended on that winner. The
+untouched source is also the only preview a user can trust, so a run that both
+printed a patch and wrote the file would make `--diff` mean "preview, or apply,
+depending on a flag you also passed".
+
+`--diff` SHALL reserve standard output for the patch alone, sending the
+rendered diagnostics and the summary line to standard error. Without this,
+`stilyagi check --diff | git apply` receives a summary line and fails on a
+clean repository, which a user resolves with `|| true` and so disarms the check
+permanently.
+
+`--fix` SHALL apply safe fixes only when the target came from a file. A target
+read from standard input SHALL NOT be written to disk; instead the fixed
+document SHALL be written to standard output, and the rendered diagnostics and
+summary SHALL go to standard error. `--stdin-filename` names the input for
+reporting only and never identifies a file to write.
+
+Planning refusals SHALL NOT be reported as rule codes. They SHALL travel in a
+`fix_errors` array alongside `diagnostics` in `json`, and in `text` under a
+distinct non-rule prefix. A refusal identifier is namespaced `fix-error/` and
+is exempt from `--select`, `--ignore`, and suppression by construction.
+
+A refusal that records a *planning* decision SHALL carry no exit-code weight of
+its own, because the unfixed diagnostic that prompted it already forces exit
+`1`. A refusal that records an *environmental* failure — a write the filesystem
+rejected — SHALL instead force exit `2`, as an unreadable source does. The two
+SHALL be distinguishable without parsing the message: the executor SHALL report
+an environmental failure as `fix-error/write-failed` and SHALL NOT abandon the
+remaining files, so that a partially applied run can still name every file it
+wrote and every file it could not.
+
 This contract follows Ruff’s fix model closely, because the safe or unsafe
 split is one of Ruff’s more civilized design choices.[^2]
 

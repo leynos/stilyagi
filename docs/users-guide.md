@@ -177,6 +177,36 @@ assert document.ir["regions"][1]["owner"] == {
 > [RegionKind and typed ExtractRegion API](developers-guide.md#regionkind-and-typed-extractregion-api)
 > for the Rust details.
 
+### Calling `check` from Python
+
+`cli.run_check` is part of the public import surface, and this release adds a
+`collaborators` keyword to it:
+
+```python
+from stilyagi import cli
+
+exit_code = cli.run_check(cli.CheckOptions(targets=("docs",)))
+```
+
+`options` is still positional, so an existing `cli.run_check(options)` call is
+unaffected. `collaborators` is keyword-only (`run_check` declares it after a
+bare `*`), and it takes a `cli.CheckCollaborators` bundle so a test can inject
+the pipeline's boundaries — the config resolver, renderer, rule runner, output
+stream, and error reporter — without constructing a command line:
+
+```python
+exit_code = cli.run_check(
+    cli.CheckOptions(targets=("docs",)),
+    collaborators=cli.CheckCollaborators(rule_runner=my_rules),
+)
+```
+
+Omitted fields fall back to their production defaults. There is deliberately no
+`writer` field: a mutating run reaches the filesystem through the real executor
+rather than through an injected boundary, so a collaborator for it would
+advertise an injection point that does nothing. Injection is a testing
+affordance, not a supported extension point for changing command behaviour.
+
 ## 1b. Package smoke check
 
 Stilyagi ships a built-in smoke check that confirms the embedded Rust extension
@@ -276,9 +306,58 @@ concise overview of this behaviour.
 
 Use `--output-format text` (the default) for human-readable output: one line
 per diagnostic followed by a summary line. Use `--output-format json` for
-machine-readable output: a stable JSON document. `--output-format sarif` is
-planned for a later slice and is not yet available; requesting it fails with a
-message stating it is planned but not yet available.
+machine-readable output: a stable JSON document with no summary sentence
+appended to it, so what a consumer parses is the document alone. A run that
+changes nothing hands that document alone to the stream; a run that writes
+files reports to standard error, which it shares with its rerun hint and its
+log records, so a consumer of that run extracts the document from the stream
+rather than treating the stream as the document. In both cases the summary line
+itself is text-format output only, and the same sentence is still logged at
+`--verbose`. `--output-format sarif` is planned for a later slice and is not
+yet available; requesting it fails with a message stating it is planned but not
+yet available.
+
+#### Verbosity and progress logs
+
+Three flags control how much the command narrates what it did. The diagnostics
+themselves are unaffected: all three change logging only, never which findings
+are reported or what the exit code is.
+
+| Flag        | Level logged | Formatted fields                       |
+| ----------- | ------------ | -------------------------------------- |
+| *(none)*    | `WARNING`    | No; warnings print unformatted.        |
+| `--verbose` | `INFO`       | Yes.                                   |
+| `--quiet`   | `WARNING`    | Yes.                                   |
+| `--silent`  | `WARNING`    | Yes; currently identical to `--quiet`. |
+
+`--verbose` is the only flag that raises the level above warning. It is what
+shows the progress records: which files were discovered, what the planner
+decided per file, how long a pass took. Progress records go to standard error,
+so `--verbose` never contaminates a pipeline. Each begins with a level, the
+emitting logger, and the message:
+
+```text
+INFO stilyagi.cli: check pass finished (checked_files=1, elapsed_ms=1, operation='collect_checked_files')
+```
+
+The parenthesized tail is the record's structured fields. They carry the values
+the message alone cannot — file identity, counters, durations — and they are
+rendered in a fixed alphabetical order so two runs are comparable by eye. The
+fields a run emits depend on what it did; the ones a `check --diff` run emits
+are described under
+[Previewing fixes with `--diff`](#previewing-fixes-with---diff).
+
+A warning is always shown, whatever the flags. What `--quiet` and `--silent`
+change is its *shape*: with no flag the command installs no log handler and
+Python's unformatted `lastResort` handler prints the bare message, while
+`--quiet` or `--silent` install the structured handler, so the same warning
+arrives with its level and logger name attached, followed by the diagnostics
+line the reporter writes to standard error. Neither flag hides a warning, and
+neither is a muting switch for standard error; redirect it if a caller needs
+silence.
+
+`--quiet` and `--silent` currently select the same level and handler; the two
+names are kept because they read differently at a call site.
 
 #### Verbose metrics
 
@@ -308,6 +387,191 @@ extractor; without a filename, Stilyagi uses Markdown. An unregistered suffix
 is skipped with a warning, as it is for a file on disk. Combining `-` with file
 targets is a usage error (exit code 2).
 
+#### Previewing fixes with `--diff`
+
+`stilyagi check --diff` plans the safe fixes for each file and prints a unified
+patch instead of changing anything. No source byte on disk is touched. The
+patch uses `a/<path>` and `b/<path>` headers with three lines of context, so it
+is accepted by `git apply`:
+
+```shell
+stilyagi check --diff > fixes.patch
+git apply fixes.patch
+```
+
+Under `--diff`, standard output carries the patch and nothing else. The
+rendered diagnostics and the summary line move to standard error, so a shell
+pipeline can consume the patch directly:
+
+```shell
+stilyagi check --diff | git apply
+```
+
+An empty patch means no safe fix preview was rendered, which does not by itself
+mean there was nothing to fix. Three situations produce one, and they do not
+share an exit status:
+
+- Nothing was reported for the checked files. The run exits `0`.
+- A diagnostic was reported but carries no *safe* fix — it is unsafe, or a
+  configuration such as `lint.unfixable` filtered it out — so nothing was
+  eligible to preview. The run exits `1`.
+- A fix was eligible and the planner refused it, most often because its span
+  falls outside source-backed text. The refusal is reported on standard error
+  and the run exits `1`.
+
+A `--diff` run exits `1` whenever a *failing* diagnostic is present, whatever
+the preview would apply, because the preview deliberately leaves the source for
+the user to apply. A failing diagnostic is one at error severity: a run whose
+only diagnostics are warnings exits `0`, the same as a run with none. The
+severity policy is the one [Exit codes](#exit-codes) describes, and `--diff`
+does not vary it. Only the first case above is a clean run, and only it exits
+`0`.
+
+The three cases are indistinguishable from the output alone: all three write a
+byte-empty standard output and may write nothing to standard error. To tell
+them apart, run with `--verbose` and read the `render_diff` record, which is
+emitted once per `--diff` run:
+
+```text
+INFO stilyagi.cli: diff rendered (elapsed_ms=0, operation='render_diff', patch_byte_count=0, patched_files=0, planned_files=1)
+```
+
+| Field              | Meaning                                                     |
+| ------------------ | ----------------------------------------------------------- |
+| `planned_files`    | Files the planner produced a plan for.                      |
+| `patched_files`    | Files whose plan rendered a non-empty patch.                |
+| `patch_byte_count` | Bytes of the patch written to standard output, as measured. |
+| `elapsed_ms`       | Whole milliseconds spent rendering the patch.               |
+
+`patch_byte_count` counts the patch as written, not the replacement document. A
+unified diff carries a header, hunk context and markers the replacement does
+not, so the two quantities differ and only this one describes the artefact.
+
+The pair of counters is the diagnostic: a run where `planned_files` is non-zero
+and `patched_files` is zero planned something and emitted nothing, which is
+cases two and three above. A run where both are zero had nothing to plan, which
+is case one. `patch_byte_count` is `0` in every empty-patch case, so it cannot
+distinguish them by itself.
+
+#### Applying fixes with `--fix`
+
+`stilyagi check --fix` applies the safe fixes to the files on disk.
+`stilyagi check --fix --unsafe-fixes` additionally applies fixes that a rule
+marked unsafe. `--unsafe-fixes` on its own is accepted and changes nothing, as
+its help text says it requires `--fix` to take effect.
+
+`--fix` combined with `--diff` is a usage error (exit code 2). The two flags
+cannot silently outrank one another, so the pair is rejected rather than given
+an implicit winner.
+
+A `--fix` run that writes at least one file reports on standard error and
+prints a note that re-running may apply further fixes. That note is honest
+rather than cautious: applying a fix can expose further fixable text, because
+an insertion shifts the spans after it. `--fix` is not a fixpoint loop — one
+run applies one round of fixes, and any diagnostics that remain are reported,
+not applied. Run it again if the note appears.
+
+A `--fix` run that writes nothing reports exactly like a plain check, on the
+ordinary stream, so `--fix` on an already-clean tree is byte-identical to a
+check without it. Because no builtin rules ship yet, this is currently every
+`--fix` run: the planner is complete but has nothing to plan over.
+
+##### Why a fix can be refused
+
+Stilyagi only edits text it can trace back to the original file byte-for-byte.
+Each proposed edit has to name a byte range that lies wholly inside one
+source-backed region of the file as it was read. An edit that names a range
+outside the file, that cuts a UTF-8 character in half, that targets text the
+extractor synthesized rather than read, or whose region text disagrees with the
+source, is refused.
+
+Two edits that overlap and are not identical are a conflict. **A conflict
+leaves the whole file completely unmodified** — including fixes that had
+nothing to do with the conflict. Resolving the conflict needs a human. This is
+the conservative direction: a partly-fixed file whose plan differs between runs
+would be harder to audit than a file that was left alone.
+
+Every refusal is reported and states that the file was not modified. Most also
+name the rule codes responsible:
+
+```text
+fix-error/synthetic-span: docs/notes.md: PUN201: span is not source-backed;
+file was not modified
+```
+
+Two identifiers name no rule, because no rule proposed the edit they refuse. A
+stream input and a file that changed on disk are both discovered after the
+rules have run, so their lines carry the reason alone:
+
+```text
+fix-error/changed-on-disk: docs/notes.md: the file changed on disk after it was
+planned, so the planned edits were not written; file was not modified; no edits
+were applied to this file
+```
+
+| Identifier                    | Meaning                                               |
+| ----------------------------- | ----------------------------------------------------- |
+| `fix-error/invalid-span`      | The byte range is outside the file.                   |
+| `fix-error/non-utf8-boundary` | The byte range cuts a UTF-8 character in half.        |
+| `fix-error/synthetic-span`    | The range targets text the extractor synthesized.     |
+| `fix-error/source-mismatch`   | The region's text disagrees with the source bytes.    |
+| `fix-error/overlapping-edits` | Two non-identical edits overlap.                      |
+| `fix-error/standard-input`    | The input came from a stream, which is never written. |
+| `fix-error/changed-on-disk`   | The file changed between planning and writing.        |
+| `fix-error/write-failed`      | The filesystem refused the write.                     |
+
+*Table 1: Refusal identifiers a `--fix` or `--diff` run can report.*
+
+These identifiers are engine reports, not rule codes. They cannot be silenced
+with `--select`, `--ignore`, or a suppression comment, because they are the
+evidence that a rule's proposed edits were unusable — silencing them would hide
+the fact that a file is still not fixed.
+
+They do not change the exit status, with one exception. The diagnostic that
+prompted a refusal is still standing, so the run already exits `1` without the
+refusal contributing anything. `fix-error/write-failed` is the exception: a
+filesystem that refuses the write is an environment fault, not a planning
+decision, so it exits `2`, like any other operational error.
+
+##### Fixes and standard input
+
+A file read from standard input is never written to disk. `--stdin-filename`
+names the input for reporting only; it does not identify a file to write. Under
+`--fix`, therefore, a piped document's repaired text is written to standard
+output, and the diagnostics and summary move to standard error:
+
+```shell
+stilyagi check --fix - --stdin-filename README.md < README.md > fixed.md
+```
+
+The exit status describes the files on disk, and a stream input is never one of
+them: the run re-checks only the files it wrote, so a diagnostic the planning
+pass found on a stream input is never cleared by the repair. Any such
+diagnostic still forces exit `1`, even though the repaired text is on standard
+output. The repaired text is the result to capture; the status tells you what
+remains on disk, not whether the pipe succeeded.
+
+##### Which fixes are eligible
+
+Two independent settings decide whether a diagnostic can become an edit.
+
+- `lint.fixable` and `lint.unfixable` are code-prefix lists that decide which
+  diagnostics may contribute edits to a plan. `lint.fixable` defaults to
+  `["ALL"]`; `lint.unfixable` defaults to empty and is checked after
+  `lint.fixable`, so a code matching both is refused.
+- `--select` and `--ignore` decide which rules run at all.
+
+The two are orthogonal, and deliberately so. A rule excluded by `--ignore`
+produces no diagnostic and therefore no edit. A code excluded by
+`lint.unfixable` still produces its diagnostic and still exits `1` — it is
+simply never planned over. A fix setting is not a way to hide a finding:
+
+```toml
+[lint]
+fixable = ["MD", "PUN"]
+unfixable = ["PUN201"]
+```
+
 #### Exit codes
 
 The command exits with one of three codes:
@@ -315,9 +579,28 @@ The command exits with one of three codes:
 - `0` — no error diagnostics found; warnings alone do not fail the command.
 - `1` — one or more error diagnostics found.
 - `2` — error: a failed file read, invalid configuration, an extractor
-  failure, a directory traversal failure, or a usage error. If traversal fails
-  after some files have been found, Stilyagi checks those files and prints a
-  summary for them before returning `2`; the traversal warning goes to stderr.
+  failure, a directory traversal failure, a write the filesystem refused, or a
+  usage error. If traversal fails after some files have been found, Stilyagi
+  checks those files and prints a summary for them before returning `2`; the
+  traversal warning goes to stderr.
+
+Under `--fix`, the status is measured rather than assumed: the run re-checks
+the files it actually wrote and derives the code from the result. So a fix that
+did not remove its diagnostic still exits `1`, and a run that wrote nothing
+exits as a plain check would. A file that failed to read or extract still exits
+`2`, whether or not other files were written.
+
+The status covers every file the run looked at, not only the ones it wrote. A
+file left unwritten — because its edits conflicted, or because it had nothing
+fixable — still holds the bytes that were checked, so its diagnostics still
+count. Fixing one file therefore cannot hide a surviving diagnostic in another.
+
+A refusal and a write failure mean different things, and only the second
+changes the exit code. A conflict is a planning decision: the file is untouched
+and the diagnostic that prompted the plan still stands, so the run exits `1`. A
+write failure is an environment fault — a full or read-only filesystem — and
+exits `2` like any other operational error, because nothing about the source
+explains it.
 
 Examples:
 
@@ -326,6 +609,10 @@ stilyagi check .
 stilyagi check docs/ --output-format json
 stilyagi check README.md --isolated
 stilyagi check - --stdin-filename README.md
+stilyagi check --diff > fixes.patch
+stilyagi check --fix .
+stilyagi check --fix --unsafe-fixes .
+stilyagi check --fix - --stdin-filename README.md < README.md
 ```
 
 ## 4. Locale policy in v1
@@ -357,9 +644,12 @@ Python docstring plus Rust doc-comment inputs expose `python_docstring` and
 `engine.supported_region_kinds()` returns the region-kind vocabulary supported
 by the installed package version.
 
-The remaining CLI subcommands and fix workflows land in later roadmap slices,
-so treat this guide as a record of the settled user-facing v1 contract rather
-than as a complete operating manual.
+The fix workflows (`--diff`, `--fix`, and `--unsafe-fixes`) have landed
+alongside `stilyagi check`, and this guide records their contract above. No
+builtin rules ship yet, so a run currently reports no diagnostics whatever the
+source; the remaining CLI subcommands (`config`, `clean`, and `dump-ir`) land
+in later roadmap slices. Treat this guide as a record of the settled
+user-facing v1 contract rather than as a complete operating manual.
 
 ## References
 
