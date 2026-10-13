@@ -333,7 +333,12 @@ def report_check_error(path: pathlib.Path | None, error: Exception) -> None:
         # actually attempted, which is what a caller holding no display name
         # needs; that is why the two are separate values rather than one.
         blamed = error.path if path is None else path
-        message = f"{PROGRAM_NAME} check: failed to read {blamed.as_posix()}: {error.error}"
+        # The detail is bound first so the sentence stays one f-string the
+        # formatter can wrap. Splitting it across two implicitly concatenated
+        # f-strings makes the formatter join them back onto a line the linter
+        # then rejects, so the two tools cannot both be satisfied that way.
+        detail = f"{blamed.as_posix()}: {error.error}"
+        message = f"{PROGRAM_NAME} check: failed to read {detail}"
     elif path is None:
         message = f"{PROGRAM_NAME} check: {error}"
     else:

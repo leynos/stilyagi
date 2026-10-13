@@ -100,7 +100,10 @@ class TestCheckOneFile:
         # still carries the resolved path the read actually attempted, so a
         # caller that needs to name the file on disk has it. Asserting both
         # keeps a future edit from collapsing them back into one.
-        assert path is not None and path.as_posix() == target.name, (
+        assert path is not None, (
+            "expected the failure to name a path rather than nothing"
+        )
+        assert path.as_posix() == target.name, (
             "expected the failure to name the reported path"
         )
         assert isinstance(error, cli_io.SourceReadError), (

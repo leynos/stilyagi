@@ -258,7 +258,9 @@ def _report_discovery_notice(notice: discovery.DiscoveryNotice) -> None:
     if notice.reason == "respect_gitignore_unenforced":
         _LOGGER.info("respect-gitignore is accepted but not yet enforced")
     elif notice.reason == "symlinked_directory_target" and path is not None:
-        cli_log.command_logger().warning("skipping symlinked directory target: %s", path)
+        cli_log.command_logger().warning(
+            "skipping symlinked directory target: %s", path
+        )
     elif notice.reason == "unregistered_explicit_file" and path is not None:
         _LOGGER.info(
             "ignoring target without a registered extractor: %s",

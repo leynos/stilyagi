@@ -411,9 +411,12 @@ influences the default, exactly as the previous call-time lookup did.
 ### Discovery
 
 `run_check` delegates target collection to `check_targets.discover_targets`.
-That function first calls `parse_targets`, which expands the requested targets
-and reports whether one of them is the `-` stdin sentinel; the sentinel is matched against
-the expanded path, so `./-` names standard input just as `-` does. Combining
+That function first calls `parse_targets`, which splits the requested targets
+and reports whether one of them is the `-` stdin sentinel; the sentinel is
+matched against the normalized path, so `./-` names standard input just as `-`
+does. Home expansion deliberately happens in discovery rather than here, where
+a `RuntimeError` from an unresolvable home directory would escape the
+command's error channel. Combining
 `-` with any file target is rejected with a `ValueError`, because one stream
 cannot also be walked. When stdin was requested, `discover_targets` returns
 the single `stdin_check_input` and never touches the filesystem. Otherwise it
