@@ -1569,3 +1569,146 @@ exceptions and no stale entry; `make duplication-test` passes 145/145;
 developers' guide's present-tense "the four families the gate adjudicates" and
 the `pyproject.toml` allowlist comment, whose claim that every entry was
 fragment-level was falsified by the new named keys.
+
+### The `lint-test` failure on the pushed head: a remote branch named `*.md`
+
+Pushing `6d05da8` turned the required `lint-test` check red, and the failure
+was not in this branch's diff. The offending paths were inside the object
+database:
+
+```text
+.git/logs/refs/remotes/origin/3-2-2-add-builtin-docstring-rules.md
+.git/refs/remotes/origin/3-2-2-add-builtin-docstring-rules.md
+```
+
+CI lints Markdown through `DavidAnson/markdownlint-cli2-action` with
+`globs: '**/*.md'`, run from the repository root. A checkout has a real `.git`
+**directory**, so the glob walks it. GitHub materializes every remote branch as
+`refs/remotes/origin/<name>`, so a branch whose name _ends in `.md`_ — here
+`3-2-2-add-builtin-docstring-rules.md`, pushed to the repository at
+`2026-10-12T23:48Z` by an unrelated workstream — lands in that tree as a file
+the glob matches. The linter then reads the ref's forty-character hex object
+name as Markdown and fails on MD010 (a hard tab; the SHA is separated from the
+ref path by one) and MD041 (no top-level heading at the start of the file).
+
+This is repository-wide, not branch-specific: five open pull requests all showed
+`lint-test: FAILURE` at once — `#225`, `#222`, `#195`, `#164` and `#44` — while
+`.markdownlint-cli2.jsonc` and the workflows held no `.git` exclusion. It also
+explains why the failure was invisible locally: this worktree's `.git` is a
+_file_ pointing at a shared bare repository, so the glob cannot descend into
+it. A normal clone would have reproduced it.
+
+The fix is to exclude version-control metadata, which is never Markdown this
+repository authors, in both places that reach the linter:
+
+- `.markdownlint-cli2.jsonc` gains `.git/**` in its `ignores`.
+- `MD_FILES_FIND` in the Makefile gains `-not -path './.git/*'`, so the
+  `make markdownlint` and `make nixie` half states the exclusion itself rather
+  than inheriting it from a config file elsewhere.
+
+Both halves are needed because the two routes are independent:
+`markdownlint-cli2` honours config ignores even for explicitly passed files (it
+announces them as `!` patterns), which is what makes the config entry load
+bearing for the action; but `find` performs no such filtering, so the Makefile
+target would lose the guard if the config entry were ever dropped. The `nixie`
+target shares `MD_FILES_FIND`, so the CI "Mermaid lint" step is fixed by the
+same change.
+
+Regression coverage asserts each half separately, and each was verified to fail
+when its half of the fix is reverted:
+
+- `test_the_config_ignores_the_git_directory` in
+  `tests/test_markdown_baseline_contract.py` names the mechanism, so the reason
+  survives the next reader who wonders why `.git` is in the list.
+- `.git/**` joins the existing canonical-ignore parametrization in the same
+  file, which asserts membership of the parsed `ignores` array.
+- `test_build_spine_units.py`'s `MD_FILES_FIND` exclusion list gains
+  `./.git/*` beside the other generated trees.
+
+Re-measured on the fixed tree: `make markdownlint` reports 0 errors over 72
+files, and the new contract tests pass 45/45, failing 3/3 when the fix is
+reverted and passing again when it is restored.
+
+Two traps in the documentation itself, both caught by the gates rather than by
+review, since a renumbering would have been invisible:
+
+- A prose line began `# 222, #195, …` after a soft wrap, so Markdown read it
+  as an ATX heading and failed MD022 and MD025 — a document gaining a spurious
+  top-level heading from a line break. Reworded to list the numbers after the
+  sentence rather than at the start of a line.
+- `materialises` is the spelling the `typos` gate rejects; the house style is
+  `-ize`, so both occurrences are `materializes`. The gate is right and the
+  prose was wrong, per the `-ize`/`-yse`/`-our` rule in `AGENTS.md`.
+
+The new developers' guide section is numbered `6d-bis` rather than `6e`, because
+`6e` is already "Tool version alignment between the Makefile and CI" and
+renumbering a published section to make room would churn anchors that other
+documents link to. `6f-bis` already exists, so the convention is the document's
+own.
+
+Two pre-merge checks in CodeRabbit's live table were re-adjudicated as stale.
+Both claimed `append_allow_entry` could persist via an early match while a
+later entry went unvalidated. That was true at `de80e652`, which is the commit
+the table's `coveredCommitId` still names, and was fixed by `49519d4`: the
+function now parses **every** entry into a list before mutating anything
+(`scripts/duplication_allowlist.py:314-317`), and
+`scripts/tests/test_duplication_gate_persistence.py::test_a_malformed_later_entry_fails_before_any_write`
+pins exactly the scenario the resolution asked for. A direct probe confirms
+it: a malformed later entry parses into a mutable `tomlkit.Table`, so the
+finding's premise is sound, but `append_allow_entry` raises `GateConfigError`
+naming `allow[1]` and leaves the file byte-unchanged.
+
+### The CodeScene regression this branch caused in `check_execution.py`
+
+Hosted CodeScene on `6d05da8` reported a row that neither the branch nor main
+had shown before:
+
+| File                                 | Rule             | Code Health  |
+| ------------------------------------ | ---------------- | ------------ |
+| `python/stilyagi/check_execution.py` | Code Duplication | 10.00 → 9.39 |
+
+`6d05da8` is the only commit in `91941ef..HEAD` that touches the file, so the
+regression is this branch's, not inherited. `cs review` on main's blob and on
+the head blob reproduces the hosted figures exactly (10.0 and 9.38; hosted
+rounds to 9.39), so the local CLI and the hosted service agree.
+
+The finding is not on the helper that commit added. It names `_resolve_config`
+(47–58) and `_resolve_discovery_config` (61–71), which the commit never edited.
+A calibration series isolates the trigger:
+
+| Input                                                        | Score | Reported         |
+| ------------------------------------------------------------ | ----- | ---------------- |
+| main's blob, copied verbatim                                 | 10.0  | nothing          |
+| main's blob + `_report_phase_failure` appended, never called | 9.38  | the resolve pair |
+| main's blob + an unrelated 11-line placeholder function      | 9.38  | the resolve pair |
+| head + `_resolve_discovery_config` delegating                | 10.0  | nothing          |
+
+So the file sits on a biomarker threshold. Main's copy carries a latent
+structural similarity between the two resolve helpers that stays below the
+reporting cut-off until the module grows by roughly eleven lines; **any**
+addition of about that size tips it over, whatever the addition is. Adding
+seven lines to the file was therefore enough. This is metric movement caused by
+file length rather than by the duplicated behaviour itself, but it is still a
+genuine 10.00 → 9.39 regression on a file this branch touches, and the policy
+is to repair it rather than argue it away.
+
+The repair is delegation, and it is behaviour-preserving by construction:
+`_resolve_config(pathlib.Path(), options, resolver)` passes the same `target`,
+`options` and `resolver` to the same `resolver.resolve_config_for_path` call
+the removed body made, with the same keyword arguments. Only the first
+positional argument differs between the two helpers, and `pathlib.Path()` is
+exactly what the discovery helper already passed. `python/stilyagi/cli.py` is
+the only caller, at line 290, and no test monkeypatches either helper.
+
+Verified after the repair: `cs delta` reports `Code Health: (9.38 -> 10.00)` and
+`Fixed issue: Code Duplication`; `cs review` on the file scores 10.0 with no
+findings; `make duplication` passes with five reasoned exceptions and no stale
+entry; the 43 tests in `test_check_command.py`, `test_check_files.py`,
+`test_discovery.py` and `test_check_metrics.py` pass, 5 snapshots included.
+
+One gate-side trap, caught rather than remembered: expanding the helper's
+docstring to a multi-line form activated Ruff's `DOC201`, which requires a
+`Returns` section once a return contract is stated in prose. Keeping the
+docstring a single line and explaining the choice in an inline comment leaves
+the rule satisfied while still recording why the call is scoped to the current
+directory.
