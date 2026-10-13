@@ -414,13 +414,13 @@ influences the default, exactly as the previous call-time lookup did.
 That function first calls `parse_targets`, which splits the requested targets
 and reports whether one of them is the `-` stdin sentinel; the sentinel is
 matched against the normalized path, so `./-` names standard input just as `-`
-does. Home expansion deliberately happens in discovery rather than here, where
-a `RuntimeError` from an unresolvable home directory would escape the
-command's error channel. Combining
-`-` with any file target is rejected with a `ValueError`, because one stream
-cannot also be walked. When stdin was requested, `discover_targets` returns
-the single `stdin_check_input` and never touches the filesystem. Otherwise it
-resolves the discovery configuration and calls:
+does. Home expansion deliberately happens in discovery rather than here, where a
+`RuntimeError` from an unresolvable home directory would escape the command's
+error channel. Combining `-` with any file target is rejected with a
+`ValueError`, because one stream cannot also be walked. When stdin was
+requested, `discover_targets` returns the single `stdin_check_input` and never
+touches the filesystem. Otherwise it resolves the discovery configuration and
+calls:
 
 ```python
 discovery.discover_files_with_summary(targets, config) -> DiscoveryResult
@@ -465,10 +465,10 @@ source candidates are counted as skipped. `check_execution` defines
 `_resolve_discovery_config`, which resolves configuration for the current
 working directory rather than per individual file.
 `check_targets.discover_targets` may call this helper during command
-orchestration. This keeps `--isolated`, explicit
-`--config` values, and CLI rule overrides in force during discovery. Discovery
-reads the filesystem without logging or command-output side effects: it returns
-notices and structured discovery failures for its caller to handle.
+orchestration. This keeps `--isolated`, explicit `--config` values, and CLI
+rule overrides in force during discovery. Discovery reads the filesystem
+without logging or command-output side effects: it returns notices and
+structured discovery failures for its caller to handle.
 
 `DiscoveryResult.files` is a tuple. The convenience wrapper
 `discover_files(targets, config)` returns only that collection for callers that
@@ -488,8 +488,8 @@ declared encoding and other source as UTF-8, stripping a leading byte-order
 mark. It extracts through the bridge, resolves the per-file config, and reports
 operational failures with exit code `2`.
 
-For filesystem targets, `check_targets.discover_targets` carries the result's notices
-and failures in `DiscoveryInputs`. After the query returns,
+For filesystem targets, `check_targets.discover_targets` carries the result's
+notices and failures in `DiscoveryInputs`. After the query returns,
 `report_discovery_outcomes` logs notices and reports discovery failures through
 the command's WARNING-level stderr handler. The command logger does not
 propagate warnings to root handlers, so warnings appear once while rendered
@@ -524,18 +524,18 @@ per-file checking, and run aggregation:
 ### Per-file execution and metrics
 
 `python/stilyagi/check_execution.py` owns the per-file execution stage:
-`_read_source` reads or decodes one input, and `check_one_file` runs extraction,
-configuration resolution, and rules for it. The module records phase timings
-around read, extract, config, and rules; `cli.py` owns the discovery and render
-phases around its command orchestration.
+`_read_source` reads or decodes one input, and `check_one_file` runs
+extraction, configuration resolution, and rules for it. The module records
+phase timings around read, extract, config, and rules; `cli.py` owns the
+discovery and render phases around its command orchestration.
 
-The run-level sweep deliberately does not live here. `cli_run.collect_checked_files`
-drives `check_one_file` once per input and keeps the per-file results, which a
-mutating run needs for its planning and re-lint, and
-`cli_run.aggregate_checked_files` folds them into one render-ready bundle. That
-split keeps this module's job to exactly one file, so a second implementation of
-"check one file" cannot appear beside it and disagree about the metric
-recording, the span boundaries, or the failure classification.
+The run-level sweep deliberately does not live here.
+`cli_run.collect_checked_files` drives `check_one_file` once per input and
+keeps the per-file results, which a mutating run needs for its planning and
+re-lint, and `cli_run.aggregate_checked_files` folds them into one render-ready
+bundle. That split keeps this module's job to exactly one file, so a second
+implementation of "check one file" cannot appear beside it and disagree about
+the metric recording, the span boundaries, or the failure classification.
 
 `python/stilyagi/check_metrics.py` bridges Python execution to the PyO3 metrics
 functions. `crates/stilyagi-pyext/src/check_metrics/mod.rs` owns the bounded,
@@ -732,9 +732,9 @@ already-read bytes and text, the extracted document, the diagnostics collected
 for it, and the resolved `lint_config`. It does so only when a mutating or
 preview mode is set, so the ordinary check path plans nothing. It returns a
 `FileCheckResult` — a named result carrying the file's diagnostics, whether the
-file failed, and its plan when one was made — rather than an anonymous tuple, so
-a file that could not be read, extracted, or configured reports `had_error=True`
-with no plan.
+file failed, and its plan when one was made — rather than an anonymous tuple,
+so a file that could not be read, extracted, or configured reports
+`had_error=True` with no plan.
 
 **Under `--diff`, the machine artefact owns the output stream alone.** The
 rendered diagnostics and the summary line go to standard error, while the
@@ -822,8 +822,8 @@ not significant for either. The renderer then produces one of:
   ends with `0 diagnostics found (0 safe fixes, 0 unsafe fixes)`
 - a stable JSON document, an object carrying a `schema_version` field
   (currently `"1.0.0"`), a `diagnostics` array, a separate `fix_errors` array,
-  and an additive `summary` object carrying checked, skipped, unreadable, error,
-  and warning totals.
+  and an additive `summary` object carrying checked, skipped, unreadable,
+  error, and warning totals.
 
 Unknown format strings raise `ValueError`.
 
