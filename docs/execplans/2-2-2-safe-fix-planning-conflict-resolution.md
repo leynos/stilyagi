@@ -4397,3 +4397,224 @@ the contract is written about -- the whole stream a consumer actually receives
 -- and the mutating case taught the second half of the lesson: establish
 *which* stream a contract applies to before asserting it, because one of the
 two reporters shares its stream with human prose on purpose.
+
+## Revision 49 (2026-10-13): the merge landed, lint reached step nine, and a CodeScene finding was misattributed
+
+Revision 48 closed the assessment findings. This revision records the merge
+resolution, the three gate repairs that followed it, and one correction to a
+premise the earlier revisions worked from.
+
+### 49.1 The merge, and why the push resolves the conflict
+
+The PR read `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY` because the
+branch had never been merged with the main that now exists. `origin/main` was
+`91941ef`, the merge base was `b5b0fe10`, and 15 paths were unmerged.
+
+The merge was completed locally as `11c0011`, an ordinary two-parent merge
+whose second parent is exactly `origin/main`'s tip. Of the 95 paths the merge
+result differs from the first parent on, 24 are present in exactly one parent
+and are pure additions. The remaining 21 have a merge result differing from
+*both* parents, which is where real adjudication happened; none was a
+`--ours`/`--theirs` selection.
+
+Two of those are worth naming, because both were prose that had drifted from
+code rather than a mechanical conflict:
+
+- `docs/users-guide.md` said a `--diff` run exits `1` "whenever a diagnostic is
+  present". That is false, and false in a way a passing suite would not show.
+  `engine/checker.py`'s `_map_one_error` mints `Severity.WARNING` for every IR
+  error entry whose code is not an authored-directive error code, and
+  `diagnostics._FAILING_SEVERITIES` is `frozenset({Severity.ERROR})`. A run
+  whose only diagnostics are warnings therefore exits `0`. The paragraph now
+  says *failing* diagnostic and links to `#exit-codes`.
+- `docs/developers-guide.md` claimed `parse_targets` expands the home
+  directory. It does not; discovery owns that step.
+
+**The push is what resolves the conflict.** `b5b0fe10` is an ancestor of the
+new tip (76 commits back), so GitHub's merge of the branch into its recorded
+base is a fast-forward and the conflicted state clears without any API change.
+No base retarget is required, and none was attempted.
+
+### 49.2 Three gate repairs, and the first time lint ran to step nine
+
+Two full chains ran. The first stopped at `make check-fmt` step 3
+(`mdtablefix`) and at `make lint` step 3 (`pylint`, `C0302`: the metrics test
+module had reached 404 lines against the pinned 400 ceiling). Both were
+repaired, committed as `338400a`, and the chain re-run.
+
+That second run is the one that matters, because it reached further than any
+before it. `make lint`'s nine steps are Makefile lines 174--182, and every
+prior run on this branch had died at step 1 (`ruff`) or step 3 (`pylint`), so
+**steps 4--9 had never executed**. The second run reached step 9 and reported:
+
+```text
+python/stilyagi/cli_io.py:47  SKY-U003  unused variable: _LOGGER
+make: *** [Makefile:182: lint] Error 1
+```
+
+The finding is correct rather than a suppression candidate. `_LOGGER` was bound
+once and read nowhere; the module reports user-facing messages through
+`cli_log.command_logger()`, and every sibling module that keeps a module logger
+references it at least twice. The `logging` import existed only to build it, so
+deleting the binding alone would have converted the failure into a ruff `F401`.
+Both were removed in `4168e56`. The removal also makes the code agree with its
+own docstring, which already stated that the read boundary "raises this instead
+of logging or printing".
+
+A third full chain on `4168e56` is green end to end: all nine lint steps
+complete, skylos silent, 357 nextest + 13 cargo doctests + 727 pytest + 61
+docstring doctests (3 skipped).
+
+### 49.3 The assessment's four corrections
+
+CodeRabbit's reply to `execplan-completeness-04b984da-1` accepted the three
+Revision 48 repairs and raised four claims that needed correcting. All four
+were verified against the tree first:
+
+1. `_json_document_in`'s docstring said slicing to the last brace makes the
+   return value fail to parse if a sentence were appended. **It is the
+   opposite.** `str.rindex` finds the *last* brace, so a trailing sentence
+   carrying no brace is discarded by the slice rather than exposed by it. The
+   helper now states this and names the assertion that actually detects the
+   regression. This was a claim about detection written into the detector.
+2. `fix_summary_line` said the command boundary prints it "unconditionally".
+   Both reporters ask `summarises_on_the_report` first, so it prints for
+   text-format reports. Corrected.
+3. The developer guide stated the JSON stream is a document a consumer parses
+   whole. True only for a run that changes nothing; a mutating run shares
+   stderr with the rerun hint and log records.
+4. The users guide said a program "can parse the whole stream a run hands it".
+   Same over-claim, same qualification.
+
+Corrections 3 and 4 are the general lesson of Revision 48 arriving a second
+time: the earlier fix corrected the code and left the *description* of it one
+step too strong. The docs now distinguish the two reporters explicitly.
+
+### 49.4 What the CodeScene check actually compares, and whose code it flags
+
+The first draft of this section claimed CodeScene was not a pull-request gate
+because `.github/workflows/smoke.yml` runs no CodeScene step. That inference
+was wrong, and Revision 47's own record is the counter-evidence: hosted
+`CodeScene Code Health Review (main)` **failed** at `532cb99` and blocked the
+pull request. The workflow grep only showed that the check does not come from
+this repository's Actions; it is a separate Codescene App check, and it does
+gate.
+
+Re-measured at the comparison the hosted check actually performs -- the pull
+request's **base**, `b5b0fe10`, not `origin/main` -- `cs delta b5b0fe10 HEAD`
+(CLI 1.0.52) names exactly one file:
+
+```text
+python/stilyagi/check_execution.py
+Code Health: (9.54)
+  New issue: Complex Method   check_one_file cyclomatic complexity 9, threshold 9
+  New issue: Large Method     check_one_file 81 lines, threshold 70
+```
+
+This is a **false attribution**, and the provenance is decisive:
+
+- The file is **absent at the pull request's base** `b5b0fe10`. It is not part
+  of the base the check measures against.
+- It was created by `a86c8b8` on `main` and carried into `main` by `91941ef`
+  ("Expand discovery defaults to Markdown, Python, and Rust (3.2.1)", #110),
+  which is the very commit the merge second-parents.
+- `git log b5b0fe10..d8bd85c -- python/stilyagi/check_execution.py` is empty:
+  **this branch has never touched the file.**
+
+Because the base lacks the file, the delta sees the whole 290-line file as
+added by the comparison and reports main's function as a new issue. The finding
+is real code health debt, but it belongs to `main` and to a separate change; it
+is not introduced here and there is nothing in this branch to decompose.
+
+Revision 47 did not make this mistake. Its two findings were `cli.py` (14
+branch commits touching it) and `tests/test_cli_log.py` (touched by `0f7be63`
+and `054b68b`), both genuinely branch-owned, and both were repaired in
+`0f7be63` rather than suppressed. The distinction is exactly the one that
+matters here: **a finding is actionable only when the branch owns the file**,
+and the test for that is whether the file exists at the comparison base and
+whether any branch commit touched it.
+
+**Consequence for the merge.** The hosted check compares base `b5b0fe10` to the
+pushed head. Once the merged head is pushed, this file stops being "added" by
+the comparison, because the merge brings `b5b0fe10`'s descendant `91941ef` into
+the head's ancestry and the file is no longer new relative to the base. The
+`check_one_file` finding should therefore disappear from the hosted delta on
+its own. It is not something this branch remedies, and it is not a reason to
+modify a file the branch does not own. This is a prediction to be confirmed
+against the hosted check after the push, not a claim to assert on the strength
+of the local run.
+
+What does stand from the earlier draft, and is worth keeping:
+
+- The active ruleset `main-required-checks` requires exactly four checks --
+  `lint-test`, `release-smoke (ubuntu-latest)`, `release-smoke (macos-latest)`,
+  `release-smoke (windows-latest)` -- plus a `deletion` rule. There is no
+  `pull_request` rule, so **no approving review is required** by repository
+  policy.
+- There is no tracked `.codescene/` config, so hosted rules come from project
+  settings and the local CLI is a reproduction aid rather than the arbiter.
+
+### 49.5 The stale `CHANGES_REQUESTED`, more precisely
+
+`reviewDecision` reads `CHANGES_REQUESTED`. The cause is narrower than earlier
+revisions assumed. The full review inventory is fifteen reviews, of which
+exactly one requests changes: CodeRabbit's, submitted 2026-09-24 on `4b4842c`
+-- a commit that is **not in this branch's history**, since the branch was
+rewritten. Every other review is `codescene-access`, and its last three are
+`APPROVED`, including one on the current head.
+
+Two things follow. First, no amount of local work can change `reviewDecision`,
+because GitHub recomputes it only when a new review arrives; the superseding
+formal review is the mechanism. Second, the pull request is not blocked by a
+review requirement at all, only by the mergeability state -- which the push
+clears.
+
+### Lesson: a report about a chain is not a report about its end
+
+Three times now the same defect has appeared in a different costume. Revision
+41's lesson was that a green step is not the same as a step that ran. Revision
+42 found the stop hook over-reporting the targets it had executed. This
+revision found `make lint` failing at step *nine* for the first time after nine
+revisions of work -- a failure that had been sitting behind seven earlier steps
+the whole time, invisible because the chain never got there.
+
+The general form: whenever a pipeline reports the *first* failure, everything
+after it is unverified, and any statement about the pipeline is a statement
+about its stopping point. The habit that catches this is naming the coordinate
+where the chain stopped -- the `Makefile:NNN` line, the step number -- because
+a coordinate that has moved forward is the signal that previously hidden work
+is now live.
+
+### Lesson: an analysis is only as good as the comparison it names
+
+Section 49.4 was written wrong twice before it was written right, and both
+errors were the same error.
+
+The first draft grepped `.github/workflows/` for a CodeScene step, found none,
+and concluded the check does not gate. The grep was accurate; the inference was
+not. Revision 47 was already on record saying the hosted check *failed* and
+blocked the pull request, and the draft was written without reading it. A
+negative search result is not a finding about system behaviour -- it is a
+finding about one place something might have been configured.
+
+The second draft ran `cs delta origin/main HEAD` and reported what it found.
+The command was valid and the result was real, but CodeScene compares the pull
+request's **base** `b5b0fe10`, not `origin/main`. The two differ by 73 files.
+Measuring against the wrong base produced a plausible one-file finding that
+then had to be explained, and the explanation on offer -- that the branch had
+introduced code health debt -- was false. The file is absent from the base
+entirely and no branch commit has ever touched it.
+
+The habit that catches both: **before interpreting an analysis, state the
+comparison it names and confirm it is the comparison that matters.** For a
+provenance question the decisive commands are cheap, and they were the ones
+that settled it after two wrong answers -- does the file exist at the stated
+base, and did any commit in the range touch it. Neither was run before the
+first two drafts, and either would have ended the question immediately.
+
+A corollary worth recording separately, because it generalizes past CodeScene:
+a file absent from the comparison base is reported as wholly new, so a
+base-relative analysis will attribute another change's code to this one. That
+is a structural artefact of diffing against a stale base, it will recur every
+time a long-lived branch is measured this way, and the discriminator is always
+the same pair of queries.
