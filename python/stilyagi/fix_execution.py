@@ -1,7 +1,7 @@
 """Two-phase `--fix` execution: plan every file, then write the planned ones.
 
 This module owns the mutating half of the fix workflow. It is deliberately
-separate from `cli_pipeline`, which owns the read-only per-file check: the
+separate from `check_execution`, which owns the read-only per-file check: the
 pipeline never writes, and this module never re-derives a plan it was handed.
 
 The shape follows D-16. Phase one wraps every plan so that no write can be

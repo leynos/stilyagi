@@ -1,25 +1,25 @@
 """Run-level sweep over the files a check invocation discovered.
 
-`cli_pipeline` owns the cohesive work one file undergoes; this module owns what
-happens to the *collection*. Collecting a result per input, flattening those
-results into one render-ready bundle, and -- for a mutating run -- re-linting
-what was written and overlaying that onto the planning pass are all operations
-whose unit is the run, not the file.
+`check_execution` owns the cohesive work one file undergoes; this module owns
+what happens to the *collection*. Collecting a result per input, flattening
+those results into one render-ready bundle, and -- for a mutating run --
+re-linting what was written and overlaying that onto the planning pass are all
+operations whose unit is the run, not the file.
 
-The split is along a seam `cli_pipeline`'s own docstring already drew: it
-claimed only per-file ownership while carrying four functions that sweep the
-whole set. Keeping the two apart lets the per-file workflow be read without the
-aggregation loops, and lets the aggregation be tested without a document.
+The split is along a seam the per-file module's own docstring draws: it claims
+only per-file ownership, and every function here sweeps the whole set. Keeping
+the two apart lets the per-file workflow be read without the aggregation loops,
+and lets the aggregation be tested with no document at all.
 
 The dependency runs inward and stays acyclic: this module imports
-`cli_pipeline`, and nothing in `cli_pipeline` imports this back.
+`check_execution`, and nothing in `check_execution` imports this back.
 """
 
 import dataclasses as dc
 import typing as typ
 
-from stilyagi.cli_io import CheckInput
-from stilyagi.cli_pipeline import CheckedFile, CheckRun, check_one_file
+from stilyagi.check_execution import CheckRun, check_one_file
+from stilyagi.check_inputs import CheckInput, FileCheckResult
 from stilyagi.engine.fix_pipeline import patch_for
 
 if typ.TYPE_CHECKING:
@@ -29,12 +29,21 @@ if typ.TYPE_CHECKING:
     from stilyagi.fix_execution import AppliedFix
 
 __all__ = [
+    "CheckedFile",
     "CheckedFiles",
     "aggregate_checked_files",
     "collect_checked_files",
     "reconcile_written_files",
     "relint_written_files",
 ]
+
+
+@dc.dataclass(frozen=True, slots=True)
+class CheckedFile:
+    """One file's result together with the path it was reported under."""
+
+    reported_path: str
+    result: FileCheckResult
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -89,10 +98,13 @@ def aggregate_checked_files(
 
     Examples
     --------
-    >>> from stilyagi.cli_pipeline import CheckedFile, FileCheck
+    >>> from stilyagi.check_inputs import FileCheckResult
     >>> aggregate_checked_files([]).error
     False
-    >>> aggregate_checked_files([CheckedFile("a.md", FileCheck([], failed=True))]).error
+    >>> failing = CheckedFile(
+    ...     "a.md", FileCheckResult([], had_error=True, was_unreadable=True)
+    ... )
+    >>> aggregate_checked_files([failing]).error
     True
     """
     diagnostics_list: list[diagnostics.Diagnostic] = []
@@ -101,10 +113,10 @@ def aggregate_checked_files(
     error = False
     for checked_file in checked_files:
         result = checked_file.result
-        diagnostics_list.extend(result.diagnostics_list)
-        error = result.failed or error
-        fix_errors.extend(result.fix_errors)
+        diagnostics_list.extend(result.diagnostics)
+        error = result.had_error or error
         if result.planned is not None:
+            fix_errors.extend(result.planned.fix_errors)
             patches.append(patch_for(result.planned))
     return CheckedFiles(
         diagnostics_list=diagnostics_list,
@@ -117,6 +129,7 @@ def aggregate_checked_files(
 def relint_written_files(
     applied: cabc.Sequence[AppliedFix],
     run: CheckRun,
+    planned: cabc.Sequence[CheckedFile] = (),
 ) -> list[CheckedFile]:
     """Re-lint only the files a fix run actually mutated (D-13).
 
@@ -137,6 +150,12 @@ def relint_written_files(
     run:
         The collaborators for this invocation, reused so the re-lint resolves
         the same configuration and rule selection as the planning pass.
+    planned:
+        The planning pass's own results. The executor records what it wrote,
+        not the syntax it was read under, so the re-lint recovers that from the
+        plan keyed on the same resolved path rather than re-deriving it from
+        the suffix. A path that resolution had already redirected cannot have
+        its syntax guessed from its spelling.
 
     Returns
     -------
@@ -146,12 +165,18 @@ def relint_written_files(
         would have reported it, rather than being flattened into diagnostics
         that cannot express it.
     """
+    syntaxes = {
+        checked.result.planned.resolved_path: checked.result.planned.syntax
+        for checked in planned
+        if checked.result.planned is not None
+    }
     rerun = dc.replace(run, options=dc.replace(run.options, diff=False, fix=False))
     return collect_checked_files(
         (
             CheckInput(
                 reported_path=fixed.reported_path,
                 resolved_path=fixed.resolved_path,
+                syntax=syntaxes[fixed.resolved_path],
             )
             for fixed in applied
         ),

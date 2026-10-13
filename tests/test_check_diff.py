@@ -161,7 +161,8 @@ class TestEmptyPatchExitStatus:
         )
         assert not captured.out, "expected no patch for a clean tree"
         assert_with_context(
-            "0 diagnostics found" in captured.err,
+            "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings"
+            in captured.err,
             "expected the summary to still reach standard error",
         )
 
@@ -230,7 +231,7 @@ def _unsafe_only_runner(
             path="notes.md",
             code="PUN201",
             message="Only an unsafe rewrite exists here.",
-            severity=diagnostics.Severity.WARNING,
+            severity=diagnostics.Severity.ERROR,
             fix=Fix(
                 "Rewrite paragraph",
                 Applicability.UNSAFE,

@@ -1,9 +1,9 @@
 """Unit coverage for the per-file check workflow and its aggregation.
 
-These tests drive `cli_pipeline` and `cli_run` directly, so they pin the
+These tests drive `check_execution` and `cli_run` directly, so they pin the
 boundaries the refactor introduced: the named per-file result and the typed
-read error in `cli_pipeline`, and the single aggregation pass in `cli_run`. The
-command-boundary behaviour that exercises the same code through
+read error in `check_execution`, and the single aggregation pass in `cli_run`.
+The command-boundary behaviour that exercises the same code through
 `cli.run_check` -- injected streams, injected reporters, and the two diff
 outcomes -- lives in `tests/test_check_boundaries.py`.
 
@@ -19,7 +19,7 @@ or, for this module alone:
 import typing as typ
 
 import pytest
-from stilyagi import cli_io, cli_pipeline, cli_run, config, engine
+from stilyagi import check_execution, check_inputs, cli_io, cli_run, config, engine
 
 from tests.support.assertions import assert_with_context
 from tests.support.check_pipeline_fixtures import (
@@ -62,19 +62,19 @@ class TestCheckOneFile:
         target.write_text("# Notes\n", encoding="utf-8")
         failures, report = recording_reporter()
 
-        result = cli_pipeline.check_one_file(
+        result = check_execution.check_one_file(
             input_for(target),
             run_for(one_diagnostic_runner, report),
         )
 
-        assert isinstance(result, cli_pipeline.FileCheck), (
-            "expected a named FileCheck rather than an anonymous tuple"
+        assert isinstance(result, check_inputs.FileCheckResult), (
+            "expected a named FileCheckResult rather than an anonymous tuple"
         )
         assert_with_context(
-            [item.code for item in result.diagnostics_list] == ["PUN201"],
+            [item.code for item in result.diagnostics] == ["PUN201"],
             "expected the injected rule runner's diagnostic to be collected",
         )
-        assert not result.failed, "expected a readable file not to fail"
+        assert not result.had_error, "expected a readable file not to fail"
         assert result.planned is None, "expected no plan without --fix or --diff"
         assert not failures, "expected no reported failure for a readable file"
 
@@ -85,18 +85,29 @@ class TestCheckOneFile:
         target = tmp_path / "gone.md"
         failures, report = recording_reporter()
 
-        result = cli_pipeline.check_one_file(
+        result = check_execution.check_one_file(
             input_for(target),
             run_for(silent_runner, report),
         )
 
-        assert result.failed, "expected a missing file to flag the result"
-        assert not result.diagnostics_list, "expected no diagnostics from a failure"
+        assert result.had_error, "expected a missing file to flag the result"
+        assert not result.diagnostics, "expected no diagnostics from a failure"
         assert len(failures) == 1, "expected exactly one reported failure"
         path, error = failures[0]
-        assert path == target, "expected the failure to name the target path"
+        # The two paths are deliberately different values. The reporter is
+        # handed the *reported* path, which is the command-line-relative
+        # identity the run summary and every diagnostic use; the typed error
+        # still carries the resolved path the read actually attempted, so a
+        # caller that needs to name the file on disk has it. Asserting both
+        # keeps a future edit from collapsing them back into one.
+        assert path is not None and path.as_posix() == target.name, (
+            "expected the failure to name the reported path"
+        )
         assert isinstance(error, cli_io.SourceReadError), (
             "expected the typed read error rather than the bare OS error"
+        )
+        assert error.path == target, (
+            "expected the typed error to retain the resolved path"
         )
         assert isinstance(error.error, OSError), (
             "expected the typed error to retain the underlying OS error"
@@ -127,12 +138,12 @@ class TestCheckOneFile:
         target = corrupt(tmp_path)
         failures, report = recording_reporter()
 
-        result = cli_pipeline.check_one_file(
+        result = check_execution.check_one_file(
             input_for(target),
             run_for(silent_runner, report),
         )
 
-        assert result.failed, "expected an unreadable target to flag the result"
+        assert result.had_error, "expected an unreadable target to flag the result"
         error = failures[0][1]
         assert isinstance(error, cli_io.SourceReadError), (
             "expected the read failure to be wrapped in the typed error"
@@ -150,13 +161,13 @@ class TestCheckOneFile:
         failures, report = recording_reporter()
         monkeypatch.setattr(engine, "extract_document", _raise_bridge_error)
 
-        result = cli_pipeline.check_one_file(
+        result = check_execution.check_one_file(
             input_for(target),
             run_for(silent_runner, report),
         )
 
-        assert result.failed, "expected a bridge refusal to flag the result"
-        assert not result.diagnostics_list, "expected no diagnostics on refusal"
+        assert result.had_error, "expected a bridge refusal to flag the result"
+        assert not result.diagnostics, "expected no diagnostics on refusal"
         assert isinstance(failures[0][1], engine.BridgeExtractionError), (
             "expected the bridge error to reach the reporter"
         )
@@ -171,7 +182,7 @@ class TestCheckOneFile:
         monkeypatch.setattr(engine, "extract_document", _raise_adapter_error)
 
         with pytest.raises(TypeError, match="adapter exploded"):
-            cli_pipeline.check_one_file(
+            check_execution.check_one_file(
                 input_for(target),
                 run_for(silent_runner, report),
             )
@@ -186,12 +197,12 @@ class TestCheckOneFile:
         monkeypatch.chdir(tmp_path)
         failures, report = recording_reporter()
 
-        result = cli_pipeline.check_one_file(
+        result = check_execution.check_one_file(
             input_for(target),
             run_for(silent_runner, report),
         )
 
-        assert result.failed, "expected invalid config to flag the result"
+        assert result.had_error, "expected invalid config to flag the result"
         assert isinstance(
             failures[0][1], (config.InvalidCacheDirError, config.InvalidConfigError)
         ), "expected the configuration error to reach the reporter"
@@ -233,7 +244,10 @@ class TestAggregateCheckedFiles:
         """One failed file is enough to set the run's error flag."""
         results = [
             checked_file("a.md", ["a1"]),
-            cli_pipeline.CheckedFile("b.md", cli_pipeline.FileCheck([], failed=True)),
+            cli_run.CheckedFile(
+                "b.md",
+                check_inputs.FileCheckResult([], had_error=True, was_unreadable=False),
+            ),
             checked_file("c.md", ["c1"]),
         ]
 

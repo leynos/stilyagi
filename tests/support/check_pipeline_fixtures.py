@@ -1,16 +1,16 @@
 """Shared fixtures for the per-file check pipeline tests.
 
-The pipeline tests are split across two modules: one drives `cli_pipeline`
-directly, and one drives the same code through `cli.run_check` to pin the
-injectable boundaries. Both need the same reporters, runners, and plan
-builders, so those live here rather than being duplicated or imported across
-test modules.
+The pipeline tests are split across two modules: one drives
+`check_execution.check_one_file` directly, and one drives the same code through
+`cli.run_check` to pin the injectable boundaries. Both need the same reporters,
+runners, and plan builders, so those live here rather than being duplicated or
+imported across test modules.
 """
 
 import pathlib
 import typing as typ
 
-from stilyagi import cli_io, cli_pipeline, config, diagnostics, model
+from stilyagi import check_execution, check_inputs, cli_run, config, diagnostics, model
 from stilyagi.cli_args import CheckOptions
 from stilyagi.engine.fix_pipeline import PlannedFile
 from stilyagi.engine.fix_planning.selection import CandidatePartition
@@ -21,13 +21,17 @@ if typ.TYPE_CHECKING:
     from stilyagi.rules import registry as rules_registry
 
 
-def input_for(path: pathlib.Path) -> cli_io.CheckInput:
+def input_for(path: pathlib.Path) -> check_inputs.CheckInput:
     """Return the check input that reads one real file."""
-    return cli_io.CheckInput(reported_path=path.name, resolved_path=path)
+    return check_inputs.CheckInput(
+        reported_path=path.name,
+        resolved_path=path,
+        syntax=model.Syntax.MARKDOWN,
+    )
 
 
 def recording_reporter() -> tuple[
-    list[tuple[pathlib.Path | None, Exception]], cli_pipeline.CheckReporter
+    list[tuple[pathlib.Path | None, Exception]], check_execution.CheckReporter
 ]:
     """Return a reporter that records every call instead of printing."""
     failures: list[tuple[pathlib.Path | None, Exception]] = []
@@ -41,10 +45,10 @@ def recording_reporter() -> tuple[
 
 def run_for(
     rule_runner: rules_registry.RuleRunner,
-    report: cli_pipeline.CheckReporter,
-) -> cli_pipeline.CheckRun:
+    report: check_execution.CheckReporter,
+) -> check_execution.CheckRun:
     """Return the collaborators for one per-file check."""
-    return cli_pipeline.CheckRun(
+    return check_execution.CheckRun(
         options=CheckOptions(targets=("docs",)),
         resolver=config.ConfigResolver(),
         rule_runner=rule_runner,
@@ -114,7 +118,7 @@ def rewrite_paragraph(
             path="notes.md",
             code="PUN201",
             message="Use the preferred paragraph term.",
-            severity=diagnostics.Severity.WARNING,
+            severity=diagnostics.Severity.ERROR,
             fix=Fix(
                 "Rewrite paragraph",
                 Applicability.SAFE,
@@ -145,7 +149,7 @@ def rewrite_heading_marker(
             path="notes.md",
             code="PUN201",
             message="Do not change the heading marker automatically.",
-            severity=diagnostics.Severity.WARNING,
+            severity=diagnostics.Severity.ERROR,
             fix=Fix(
                 "Remove heading marker",
                 Applicability.SAFE,
@@ -159,18 +163,19 @@ def checked_file(
     reported_path: str,
     messages: list[str],
     planned: PlannedFile | None = None,
-) -> cli_pipeline.CheckedFile:
+) -> cli_run.CheckedFile:
     """Build one checked file carrying diagnostics in the given order."""
-    return cli_pipeline.CheckedFile(
+    return cli_run.CheckedFile(
         reported_path,
-        cli_pipeline.FileCheck(
+        check_inputs.FileCheckResult(
             [
                 diagnostics.Diagnostic(
                     path=reported_path, code="PUN201", message=message
                 )
                 for message in messages
             ],
-            failed=False,
+            had_error=False,
+            was_unreadable=False,
             planned=planned,
         ),
     )
@@ -200,6 +205,10 @@ def planned_file(
     return PlannedFile(
         reported_path=reported_path,
         resolved_path=pathlib.Path(reported_path),
+        # The plan carries the syntax its offsets were derived under, because
+        # the re-lint that follows a write extracts the file the same way the
+        # planning pass did. Every fixture here plans Markdown.
+        syntax=model.Syntax.MARKDOWN,
         source_bytes=source_bytes,
         source_text=source_text,
         fixed_bytes=fixed_bytes if fixed_bytes != source_bytes else None,

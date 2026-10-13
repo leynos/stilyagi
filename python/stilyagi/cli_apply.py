@@ -34,10 +34,10 @@ from stilyagi.fix_execution import apply_planned_fixes, deferred_plans
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
+    from stilyagi.check_execution import CheckRun
     from stilyagi.cli import CheckCollaborators
     from stilyagi.cli_args import CheckOptions
-    from stilyagi.cli_pipeline import CheckedFile, CheckRun
-    from stilyagi.cli_run import CheckedFiles
+    from stilyagi.cli_run import CheckedFile, CheckedFiles
     from stilyagi.fix_execution import FixOutcome
 
 __all__ = ["AppliedRun", "apply_fixes", "elapsed_ms"]
@@ -137,7 +137,7 @@ def apply_fixes(
     relinted = aggregate_checked_files(
         reconcile_written_files(
             checked_files,
-            relint_written_files(outcome.applied, run),
+            relint_written_files(outcome.applied, run, checked_files),
             outcome.applied,
         )
     )

@@ -12,6 +12,7 @@ name = "_stilyagi_rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+metrics.workspace = true
 pyo3.workspace = true
 stilyagi-core = { path = "../stilyagi-core" }
 stilyagi-extract = { path = "../stilyagi-extract" }

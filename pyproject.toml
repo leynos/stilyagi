@@ -27,7 +27,7 @@ dev = [
     "interrogate==1.7.0",
     "ruff==0.16.8",
     "pytest-timeout",
-    "pytest-bdd",
+    "pytest-bdd>=9.0.0,<10.0.0",
     "hypothesis>=6.168.0,<7.0",
     "parse_type",
     "syrupy>=6.1.1,<7.0",

@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 008: Safe-fix planning and conflict resolution
+# Architectural decision record (ADR) 009: Safe-fix planning and conflict resolution
 
 ## Status
 

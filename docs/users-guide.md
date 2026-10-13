@@ -280,17 +280,27 @@ MDX remains preview-only. That means the architecture may continue to explore
 it, but users should not yet depend on MDX behaviour as part of Stilyagi's
 stable v1 contract.[^4]
 
-When the command-line interface (CLI) discovery contract lands, the stable
-default recursive file set will cover `*.md`, `*.py`, and `*.rs`. MDX stays
-outside that default set until preview behaviour graduates into the stable
-support matrix.
+The command-line interface (CLI) recursively discovers `.md`, `.markdown`,
+`.py`, and `.rs` files. MDX and Python stubs remain outside the default set
+until their support graduates into the stable matrix. Directory discovery skips
+the known build and cache directories `.eggs`, `.git`, `.mypy_cache`, `.nox`,
+`.pytest_cache`, `.ruff_cache`, `.stilyagi_cache`, `.tox`, `.uv-cache`,
+`.uv-tools`, `.venv`, `.venv-release-smoke`, `.vtcode`, `__pycache__`, `build`,
+`dist`, `node_modules`, `site-packages`, and `target`; files with other
+extensions are skipped. V1 has no `include` or `exclude` configuration for
+changing that fixed set.
 
-### Checking Markdown with `stilyagi check`
+### Checking mixed repositories with `stilyagi check`
 
-The first command-line surface in v1 is `stilyagi check` for Markdown files. It
-discovers Markdown targets recursively, resolves the nearest supported
-configuration for each file, and renders deterministic diagnostics. The command
-currently analyses Markdown files only (`*.md` and `*.markdown`).
+The first command-line surface in v1 is `stilyagi check`. It discovers
+supported targets recursively, resolves the nearest supported configuration for
+each file, and renders deterministic diagnostics. Recoverable extraction
+anomalies are warnings; authored suppression-directive mistakes are errors. The
+text output ends with
+`checked N files (M skipped, K unreadable); E errors, W warnings`, and JSON
+output contains the same counts in its `summary` object. See the
+[mixed-source discovery change notes](mixed-source-discovery-notes.md) for a
+concise overview of this behaviour.
 
 #### Output formats
 
@@ -345,6 +355,19 @@ silence.
 `--quiet` and `--silent` currently select the same level and handler; the two
 names are kept because they read differently at a call site.
 
+#### Verbose metrics
+
+Use `--verbose` to include a `stilyagi check metrics: {...}` JSON snapshot on
+standard error. This snapshot uses Stilyagi-owned bounded counters and
+histograms and is independent of the process-global metrics recorder. The
+normal diagnostics and run summary remain on standard output. If an embedding
+host has installed a recorder, existing metrics-facade calls continue to reach
+it; Stilyagi neither claims nor replaces that recorder.
+
+The `stilyagi_check_phase_duration_seconds` histogram has the fixed labels
+`discovery`, `read`, `extract`, `config`, `rules`, `render`, and `total`. The
+`total` observation measures one whole `stilyagi check` invocation.
+
 #### Configuration
 
 Pass `--config` with an explicit config file path or an inline TOML fragment to
@@ -353,10 +376,12 @@ discovery entirely.
 
 #### Standard input
 
-Pass `-` as the target to read Markdown from standard input instead of from
-files on disk. Use `--stdin-filename PATH` to attribute diagnostics to PATH
-rather than the default `<stdin>`. Combining `-` with file targets is a usage
-error (exit code 2).
+Pass `-` as the target to read a supported source from standard input instead
+of from files on disk. Use `--stdin-filename PATH` to attribute diagnostics to
+PATH rather than the default `<stdin>`. The filename's final suffix selects the
+extractor; without a filename, Stilyagi uses Markdown. An unregistered suffix
+is skipped with a warning, as it is for a file on disk. Combining `-` with file
+targets is a usage error (exit code 2).
 
 #### Previewing fixes with `--diff`
 
@@ -390,9 +415,13 @@ share an exit status:
   falls outside source-backed text. The refusal is reported on standard error
   and the run exits `1`.
 
-A `--diff` run exits `1` whenever a diagnostic is present, whatever the preview
-would apply, because the preview deliberately leaves the source for the user to
-apply. Only the first case above is a clean run, and only it exits `0`.
+A `--diff` run exits `1` whenever a *failing* diagnostic is present, whatever
+the preview would apply, because the preview deliberately leaves the source for
+the user to apply. A failing diagnostic is one at error severity: a run whose
+only diagnostics are warnings exits `0`, the same as a run with none. The
+severity policy is the one [Exit codes](#exit-codes) describes, and `--diff`
+does not vary it. Only the first case above is a clean run, and only it exits
+`0`.
 
 The three cases are indistinguishable from the output alone: all three write a
 byte-empty standard output and may write nothing to standard error. To tell
@@ -543,10 +572,13 @@ unfixable = ["PUN201"]
 
 The command exits with one of three codes:
 
-- `0` — no diagnostics found.
-- `1` — one or more diagnostics found.
+- `0` — no error diagnostics found; warnings alone do not fail the command.
+- `1` — one or more error diagnostics found.
 - `2` — error: a failed file read, invalid configuration, an extractor
-  failure, a write the filesystem refused, or a usage error.
+  failure, a directory traversal failure, a write the filesystem refused, or a
+  usage error. If traversal fails after some files have been found, Stilyagi
+  checks those files and prints a summary for them before returning `2`; the
+  traversal warning goes to stderr.
 
 Under `--fix`, the status is measured rather than assumed: the run re-checks
 the files it actually wrote and derives the code from the result. So a fix that
@@ -593,7 +625,7 @@ expectations in the first releases are defined around English only.
 Stilyagi is still in the roadmap phase where architectural contracts are being
 ratified before feature-complete releases land.[^2][^3] The stable user-facing
 surface is still the Python package API, but `stilyagi check` is now available
-for Markdown repositories.
+for Markdown, Python, and Rust repositories.
 
 Use `engine.extract_document()` to extract Markdown through the public engine
 boundary. Non-blank Markdown input returns typed `document.regions` for

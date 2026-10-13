@@ -43,8 +43,8 @@ def test_engine_skeleton_dataclasses_preserve_their_fields() -> None:
     )
     assert_with_context(
         engine.RendererRegistry().render([], "text")
-        == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
-        "expected engine.RendererRegistry().render([], 'text') to include fix counts",
+        == "checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected the renderer to include a zero-file run summary",
     )
     assert_with_context(
         engine.EngineRunner(execution_plan=execution_plan).execution_plan

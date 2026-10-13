@@ -3,7 +3,7 @@
 This module owns the *reporting* half of `--fix`: which stream a mutating run
 speaks on, the note that re-running may apply further fixes, the warning that
 names the flag which would apply the withheld unsafe fixes, and the per-file
-planning counters. It depends on `cli_pipeline`, `cli_run`, `engine`, and
+planning counters. It depends on `check_execution`, `cli_run`, `engine`, and
 `fix_execution`, and it is imported by `cli` rather than importing it, so the
 dependency direction runs inward.
 
@@ -131,8 +131,9 @@ def emit_fixed_document(
       there. The planner reports both as a null replacement, and for a stream
       input that reads as "emit the source", not "emit nothing".
 
-    Only the first stream input is emitted: `_parse_targets` rejects a stdin
-    target combined with any file target, so at most one can exist.
+    Only the first stream input is emitted: `check_targets.parse_targets`
+    rejects a stdin target combined with any file target, so at most one can
+    exist.
 
     Returns
     -------
@@ -143,12 +144,14 @@ def emit_fixed_document(
     Examples
     --------
     >>> import io
+    >>> from stilyagi import model
     >>> from stilyagi.engine.fix_pipeline import PlannedFile
     >>> from stilyagi.engine.fix_planning.selection import CandidatePartition
     >>> empty = CandidatePartition((), (), (), ())
     >>> plan = PlannedFile(
     ...     reported_path="notes.md",
     ...     resolved_path=__import__("pathlib").Path("notes.md"),
+    ...     syntax=model.Syntax.MARKDOWN,
     ...     source_bytes=b"Clean text.",
     ...     source_text="Clean text.",
     ...     fixed_bytes=None,

@@ -96,7 +96,7 @@ def plan_one_edit_each(
                 path="notes.md",
                 code="PUN201",
                 message="Use the preferred paragraph term.",
-                severity=diagnostics.Severity.WARNING,
+                severity=diagnostics.Severity.ERROR,
                 fix=Fix(
                     "Rewrite paragraph",
                     Applicability.SAFE,
@@ -114,7 +114,7 @@ def plan_one_edit_each(
                 path="notes.md",
                 code="PUN201",
                 message="Rename the heading text.",
-                severity=diagnostics.Severity.WARNING,
+                severity=diagnostics.Severity.ERROR,
                 fix=Fix(
                     "Rename heading",
                     Applicability.SAFE,

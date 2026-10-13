@@ -5,7 +5,7 @@ behaviour that only exists at the command boundary: an injected `output` stream
 receiving the rendered report, an injected `reporter` taking expected failures
 off the real standard error, and both outcomes of a `--diff` preview. The
 per-file workflow and the aggregation pass, which are covered by driving
-`cli_pipeline` and `cli_run` directly, live in
+`check_execution` and `cli_run` directly, live in
 `tests/test_check_pipeline_units.py`. A mutating run's own streams and exit
 statuses live in `tests/test_check_mutation.py`; the exit status of a write the
 run refused to make lives in `tests/test_check_refusals.py`, and a run that
@@ -61,7 +61,8 @@ class TestInjectedStreamsAndReporters:
 
         assert exit_code == 0, "expected a clean check to exit zero"
         assert_with_context(
-            stream.getvalue() == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+            stream.getvalue()
+            == "checked 1 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
             "expected the rendered report on the injected stream",
         )
 

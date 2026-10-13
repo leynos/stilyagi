@@ -38,5 +38,12 @@
     }
   ],
   "fix_errors": [],
-  "schema_version": "1.0.0"
+  "schema_version": "1.0.0",
+  "summary": {
+    "checked_files": 3,
+    "errors": 2,
+    "skipped_files": 1,
+    "unreadable_files": 0,
+    "warnings": 1
+  }
 }

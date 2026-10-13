@@ -483,7 +483,7 @@ def _span_edit(
             path="notes.md",
             code=code,
             message="Synthetic fix.",
-            severity=diagnostics.Severity.WARNING,
+            severity=diagnostics.Severity.ERROR,
             fix=Fix(
                 "Synthetic fix",
                 applicability,
@@ -525,7 +525,7 @@ def _synthetic_span_edit(
             path="notes.md",
             code=code,
             message="Synthetic fix.",
-            severity=diagnostics.Severity.WARNING,
+            severity=diagnostics.Severity.ERROR,
             fix=Fix("Synthetic fix", applicability, (TextEdit.replace(span, ""),)),
         )
 

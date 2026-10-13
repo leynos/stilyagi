@@ -54,8 +54,8 @@ def test_renderer_registry_retains_its_default_format_and_render_surface() -> No
     )
     assert_with_context(
         registry.render([], "text")
-        == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
-        "expected registry.render([], 'text') to include fix counts",
+        == "checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings\n",
+        "expected registry.render([], 'text') to render an empty summary",
     )
 
 
@@ -63,7 +63,18 @@ def test_text_renderer_orders_and_formats_diagnostics(
     snapshot: SnapshotAssertion,
 ) -> None:
     """Render text diagnostics in path, location, and code order."""
-    rendered = engine.RendererRegistry().render(_build_diagnostics(), "text")
+    summary = engine.RunSummary(
+        checked_files=3,
+        skipped_files=1,
+        unreadable_files=0,
+        errors=2,
+        warnings=1,
+    )
+    rendered = engine.RendererRegistry().render(
+        _build_diagnostics(),
+        "text",
+        summary,
+    )
 
     assert_with_context(
         rendered.splitlines()
@@ -71,7 +82,7 @@ def test_text_renderer_orders_and_formats_diagnostics(
             "docs/a.md:1:1: error STY001 First",
             "docs/a.md:1:2: error STY010 Later code",
             "docs/b.md:3:4: warning STY002 Second",
-            "3 diagnostics found (0 safe fixes, 0 unsafe fixes)",
+            "checked 3 files (1 skipped, 0 unreadable); 2 errors, 1 warnings",
         ],
         "expected rendered.splitlines() == ['docs/a.md:1:1: e...",
     )
@@ -85,8 +96,27 @@ def test_json_renderer_emits_stable_diagnostic_objects(
     snapshot: SnapshotAssertion,
 ) -> None:
     """Render diagnostics as stable JSON objects."""
-    rendered = engine.RendererRegistry().render(_build_diagnostics(), "json")
+    summary = engine.RunSummary(
+        checked_files=3,
+        skipped_files=1,
+        unreadable_files=0,
+        errors=2,
+        warnings=1,
+    )
+    rendered = engine.RendererRegistry().render(_build_diagnostics(), "json", summary)
     payload = json.loads(rendered)
+
+    assert_with_context(
+        payload["summary"]
+        == {
+            "checked_files": 3,
+            "skipped_files": 1,
+            "unreadable_files": 0,
+            "errors": 2,
+            "warnings": 1,
+        },
+        "expected payload['summary'] to carry the check-run totals",
+    )
 
     assert_with_context(
         payload == snapshot(extension_class=JSONSnapshotExtension),
@@ -143,12 +173,22 @@ def test_renderers_report_fix_payloads_and_fixability_counts() -> None:
                 },
             ],
             "fix_errors": [],
+            "summary": {
+                "checked_files": 0,
+                "skipped_files": 0,
+                "unreadable_files": 0,
+                "errors": 0,
+                "warnings": 1,
+            },
         },
         "expected JSON output to include the versioned fix payload",
     )
     assert_with_context(
         registry.render([diagnostic], "text").splitlines()[-1]
-        == "1 diagnostic found (1 safe fix, 0 unsafe fixes)",
+        == (
+            "checked 0 files (0 skipped, 0 unreadable); 0 errors, 1 warnings; "
+            "1 safe fix, 0 unsafe fixes"
+        ),
         "expected text output to disclose safe and unsafe fix counts",
     )
 
@@ -261,3 +301,33 @@ class TestRefusalRendering:
             payload["schema_version"] == "1.0.0",
             "expected the versioned fix payload to carry a schema version",
         )
+
+
+def test_omitted_summary_is_derived_from_mixed_diagnostics() -> None:
+    """Derive error and warning counts when a caller omits the run summary."""
+    rendered = engine.RendererRegistry().render(_build_diagnostics(), "text")
+
+    assert_with_context(
+        rendered.splitlines()[-1]
+        == "checked 0 files (0 skipped, 0 unreadable); 2 errors, 1 warnings",
+        "expected the derived summary to count 2 errors and 1 warning",
+    )
+
+
+def test_omitted_summary_is_derived_in_json_output() -> None:
+    """Keep JSON summary counts consistent when a caller omits the run summary."""
+    payload = json.loads(
+        engine.RendererRegistry().render(_build_diagnostics(), "json"),
+    )
+
+    assert_with_context(
+        payload["summary"]
+        == {
+            "checked_files": 0,
+            "skipped_files": 0,
+            "unreadable_files": 0,
+            "errors": 2,
+            "warnings": 1,
+        },
+        "expected the derived JSON summary to count 2 errors and 1 warning",
+    )

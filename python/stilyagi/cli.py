@@ -1,36 +1,49 @@
-"""Command-line interface for Stilyagi."""
+"""Command-line interface for Stilyagi.
+
+The check command discovers registered source files, reads each input,
+extracts documents through the Rust bridge, and renders the accumulated
+diagnostics with an honest run summary.
+
+The command is an orchestration layer and nothing more. Target resolution,
+per-file checking, aggregation, fix execution, rendering and the exit policy
+each live in their own module; what stays here is the sequence that binds them
+and the collaborator bundle that lets a test substitute one boundary.
+
+`compute_exit_code` is re-exported rather than reimplemented: RFC 0003 §12
+defines the mapping from diagnostics to process status, and it is documented at
+`cli.compute_exit_code`, but the single implementation lives in
+`check_outcome` beside the report it describes.
+"""
 
 import dataclasses as dc
 import logging
-import pathlib
 import sys
 import time
 import typing as typ
 
-from stilyagi import cli_apply, cli_log, config, diagnostics, discovery, engine
+from stilyagi import (
+    check_metrics,
+    cli_apply,
+    cli_log,
+    config,
+    engine,
+)
+from stilyagi.check_execution import CheckReporter, CheckRun, check_one_file
+from stilyagi.check_inputs import (
+    CheckInput,
+    DiscoveryInputs,
+    report_discovery_outcomes,
+)
+from stilyagi.check_outcome import compute_exit_code, report_run
+from stilyagi.check_targets import discover_targets
 from stilyagi.cli_args import (
     PACKAGE_VERSION,
     CheckOptions,
     build_parser,
     options_from_args,
 )
-from stilyagi.cli_config import resolve_discovery_config
-from stilyagi.cli_io import (
-    CheckInput,
-    report_check_error,
-    stdin_check_input,
-    write_artefact,
-)
-from stilyagi.cli_pipeline import (
-    CheckedFile,
-    CheckReporter,
-    CheckRun,
-)
-from stilyagi.cli_run import (
-    CheckedFiles,
-    aggregate_checked_files,
-    collect_checked_files,
-)
+from stilyagi.cli_io import report_check_error
+from stilyagi.cli_run import CheckedFile
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
@@ -114,25 +127,7 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
         return typ.cast("int", exc.code)
 
     options = options_from_args(args)
-    _configure_logging(options)
     return run_check(options)
-
-
-def _configure_logging(options: CheckOptions) -> None:
-    """Apply the requested verbosity level before running the check loop.
-
-    The handler is `cli_log.log_handler`, not the stdlib default. The default
-    formatter renders the log message alone and drops `extra` entirely, so a
-    structured record arrived at the user as its bare sentence -- the planner's
-    per-file decision printed as `fix plan decided`, with no file identity and
-    none of the counters that are the reason the record exists. Installing the
-    handler here rather than in an entry point keeps `--verbose` the single
-    switch that decides whether any of it is shown.
-    """
-    if options.silent or options.quiet:
-        logging.basicConfig(level=logging.WARNING, handlers=[cli_log.log_handler()])
-    elif options.verbose:
-        logging.basicConfig(level=logging.INFO, handlers=[cli_log.log_handler()])
 
 
 def run_check(
@@ -168,26 +163,99 @@ def run_check(
         # relaxable direction -- a rejected pair can be given meaning later,
         # where an accepted one with silent precedence cannot be withdrawn.
         #
-        # No explicit log here: the reporter already logs every expected
-        # failure at warning level and echoes it to standard error, so logging
-        # first would show the user the same sentence twice.
+        # This runs before `_configure_logging`, so the command handler is not
+        # installed yet and the reporter's one emission would reach the
+        # terminal only through `logging.lastResort` -- which the logging module
+        # declines to use as soon as any handler exists in the chain, so an
+        # embedding application that called `basicConfig` first would swallow
+        # the message entirely. Installing the handler here makes the guarantee
+        # explicit instead of incidental. It is idempotent: setup replaces only
+        # the handler this function owns.
+        cli_log.configure_command_warning_handler()
         resolved_collaborators.reporter(
             None,
             ValueError(_FIX_DIFF_CONFLICT),
         )
         return 2
+
+    started_at_ns = check_metrics._start_check()
+    check_metrics.reset_check_metrics()
+    try:
+        _configure_logging(options)
+        exit_code = _run_check(options, resolved_collaborators)
+    except Exception:
+        check_metrics._finish_check(
+            2,
+            verbose=options.verbose,
+            started_at_ns=started_at_ns,
+        )
+        raise
+    return check_metrics._finish_check(
+        exit_code,
+        verbose=options.verbose,
+        started_at_ns=started_at_ns,
+    )
+
+
+def _report_discovery_outcomes(discovery_inputs: DiscoveryInputs) -> None:
+    """Report discovery events and record their bounded operational metrics."""
+    check_metrics._record_skips(discovery_inputs.skipped_by_reason)
+    for _failure in discovery_inputs.failures:
+        check_metrics.record_operational_failure("discovery")
+    report_discovery_outcomes(discovery_inputs)
+
+
+def _configure_logging(options: CheckOptions) -> None:
+    """Apply the requested verbosity level before running the check loop.
+
+    The handler is `cli_log.log_handler`, not the stdlib default. The default
+    formatter renders the log message alone and drops `extra` entirely, so a
+    structured record arrived at the user as its bare sentence -- the planner's
+    per-file decision printed as `fix plan decided`, with no file identity and
+    none of the counters that are the reason the record exists. Installing the
+    handler here rather than in an entry point keeps `--verbose` the single
+    switch that decides whether any of it is shown.
+    """
+    cli_log.configure_command_warning_handler()
+    if options.silent or options.quiet:
+        logging.basicConfig(level=logging.WARNING, handlers=[cli_log.log_handler()])
+    elif options.verbose:
+        logging.basicConfig(level=logging.INFO, handlers=[cli_log.log_handler()])
+
+
+def _run_check(
+    options: CheckOptions,
+    resolved_collaborators: CheckCollaborators,
+) -> int:
+    """Discover inputs and check them, leaving run finalization to the caller."""
     _LOGGER.debug("target discovery started for %r", options.targets)
     try:
-        discovered_files = _discover_targets(options, resolved_collaborators.resolver)
+        with check_metrics._measure_phase("discovery"):
+            discovery_inputs = discover_targets(
+                options, resolved_collaborators.resolver
+            )
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
         ValueError,
     ) as error:
-        _LOGGER.warning("target discovery failed: %s", error)
+        check_metrics.record_operational_failure(
+            "config"
+            if isinstance(
+                error, (config.InvalidCacheDirError, config.InvalidConfigError)
+            )
+            else "discovery"
+        )
         resolved_collaborators.reporter(None, error)
         return 2
-    _LOGGER.debug("target discovery finished: %d input(s)", len(discovered_files))
+    except Exception:
+        check_metrics.record_operational_failure("discovery")
+        raise
+    _report_discovery_outcomes(discovery_inputs)
+    _LOGGER.debug(
+        "target discovery finished: %d input(s)",
+        len(discovery_inputs.inputs),
+    )
 
     run = CheckRun(
         options=options,
@@ -196,7 +264,13 @@ def run_check(
         report=resolved_collaborators.reporter,
     )
     started = time.perf_counter()
-    checked_files = collect_checked_files(discovered_files, run)
+    checked_files = [
+        CheckedFile(
+            reported_path=check_input.reported_path,
+            result=check_one_file(check_input, run),
+        )
+        for check_input in discovery_inputs.inputs
+    ]
     # Logged at the command boundary rather than in the planner: the planner
     # records what it *decided*, and a target it never planned -- a file with no
     # fixable diagnostic, or a stream input -- would otherwise be missing from
@@ -222,148 +296,9 @@ def run_check(
             applied.checked.diagnostics_list,
             had_error=applied.checked.error or applied.outcome.write_failed,
         )
-    return _render_and_exit(checked_files, options, resolved_collaborators)
-
-
-def _render_and_exit(
-    checked_files: cabc.Sequence[CheckedFile],
-    options: CheckOptions,
-    resolved_collaborators: CheckCollaborators,
-) -> int:
-    """Render one run's results to the right streams and return its exit code."""
-    aggregate = aggregate_checked_files(checked_files)
-
-    _LOGGER.debug(
-        "rendering %d diagnostic(s) as %s",
-        len(aggregate.diagnostics_list),
-        options.output_format,
+    return report_run(
+        checked_files,
+        discovery_inputs,
+        options,
+        resolved_collaborators,
     )
-    rendered = resolved_collaborators.renderer.render(
-        aggregate.diagnostics_list,
-        options.output_format,
-        fix_errors=aggregate.fix_errors,
-    )
-    # Under --diff the machine artefact owns stdout alone: diagnostics and the
-    # summary go to stderr so `stilyagi check --diff | git apply` stays usable.
-    diagnostics_output = sys.stderr if options.diff else resolved_collaborators.output
-    print(rendered, end="", file=diagnostics_output)
-    if options.diff:
-        _emit_patch(aggregate, resolved_collaborators.output)
-    exit_code = compute_exit_code(aggregate.diagnostics_list, had_error=aggregate.error)
-    _LOGGER.debug("check complete: exit code %d", exit_code)
-    return exit_code
-
-
-def _emit_patch(aggregate: CheckedFiles, output: typ.TextIO) -> None:
-    """Assemble one run's diff patch, record its shape, and write it out.
-
-    Delivery goes through the byte-preserving boundary rather than through a
-    text stream, because the patch is a machine artefact a user pipes into
-    `git apply` and a text stream would re-encode it (D-10).
-
-    The record's two counters are kept together because the failed case has no
-    other signal. A plan whose replacement restores the bytes already present,
-    or one every edit was refused for, contributes an *empty* patch rather than
-    no patch, so the run emits nothing while having planned something. The two
-    counters differing is that state, and it is invisible in the output alone:
-    an empty stdout looks the same whether nothing was planned or everything
-    was refused.
-
-    The patch size is measured here because this is the only place the quantity
-    exists. The planner cannot report it -- `FixPlanRequest` carries no reported
-    path, so it has no header to measure, and its own byte field counts the
-    replacement document instead.
-    """
-    diff_started = time.perf_counter()
-    patch = "".join(aggregate.patches).encode("utf-8")
-    _LOGGER.info(
-        "diff rendered",
-        extra={
-            "operation": "render_diff",
-            "patch_byte_count": len(patch),
-            "planned_files": len(aggregate.patches),
-            "patched_files": len([entry for entry in aggregate.patches if entry]),
-            "elapsed_ms": cli_apply.elapsed_ms(diff_started),
-        },
-    )
-    write_artefact(output, patch)
-
-
-def compute_exit_code(
-    diagnostics_list: cabc.Sequence[diagnostics.Diagnostic],
-    *,
-    had_error: bool = False,
-) -> int:
-    """Return the documented exit code for one check run.
-
-    Returns
-    -------
-    int
-        Zero for success, one for diagnostics, or two for an operational
-        error.
-
-    Examples
-    --------
-    >>> compute_exit_code([])
-    0
-    >>> compute_exit_code([
-    ...     diagnostics.Diagnostic(path="docs/example.md", code="STY001", message="x")
-    ... ])
-    1
-    >>> compute_exit_code([], had_error=True)
-    2
-    """
-    if had_error:
-        return 2
-    if diagnostics_list:
-        return 1
-    return 0
-
-
-def _parse_targets(
-    options: CheckOptions,
-) -> tuple[list[pathlib.Path], bool]:
-    """Split the requested targets into paths, and whether stdin was asked for.
-
-    The ``-`` sentinel is matched against the expanded path, so ``./-`` names
-    standard input just as ``-`` does.
-
-    Returns
-    -------
-    tuple[list[pathlib.Path], bool]
-        The expanded target paths, and whether one of them requested stdin.
-
-    Raises
-    ------
-    ValueError
-        Stdin was requested alongside at least one file target. Reading a
-        single stream cannot also walk the filesystem, so the two are
-        mutually exclusive.
-    """
-    resolved_targets = [pathlib.Path(target).expanduser() for target in options.targets]
-    has_stdin_target = any(target.as_posix() == "-" for target in resolved_targets)
-    if has_stdin_target and len(resolved_targets) > 1:
-        message = "stdin target cannot be combined with file targets"
-        raise ValueError(message)
-    return resolved_targets, has_stdin_target
-
-
-def _discover_targets(
-    options: CheckOptions,
-    resolver: config.ConfigResolver,
-) -> list[CheckInput]:
-    """Discover Markdown files beneath the requested targets."""
-    resolved_targets, has_stdin_target = _parse_targets(options)
-    if has_stdin_target:
-        return [stdin_check_input(options.stdin_filename)]
-    discovery_config = resolve_discovery_config(options, resolver)
-    return [
-        CheckInput(
-            reported_path=discovered_file.reported_path,
-            resolved_path=discovered_file.resolved_path,
-        )
-        for discovered_file in discovery.discover_markdown_files(
-            resolved_targets,
-            discovery_config,
-        )
-    ]

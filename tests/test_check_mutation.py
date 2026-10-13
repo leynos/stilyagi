@@ -205,7 +205,7 @@ def _fix_one_and_leave_the_other_standing(
                 path="notes.md",
                 code="STY900",
                 message="This finding is never fixable.",
-                severity=diagnostics.Severity.WARNING,
+                severity=diagnostics.Severity.ERROR,
             )
         ]
     if "Paragraph" in prose:
@@ -214,7 +214,7 @@ def _fix_one_and_leave_the_other_standing(
                 path="notes.md",
                 code="PUN201",
                 message="Use the preferred paragraph term.",
-                severity=diagnostics.Severity.WARNING,
+                severity=diagnostics.Severity.ERROR,
                 fix=Fix(
                     "Rewrite paragraph",
                     Applicability.SAFE,

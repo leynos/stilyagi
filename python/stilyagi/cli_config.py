@@ -3,7 +3,7 @@
 Both the discovery pass and the per-file check pass need the same translation,
 and they resolve it for different paths. Keeping it here lets the check
 pipeline resolve one file's configuration without importing the command module,
-so the dependency direction stays inward: `cli` and `cli_pipeline` both depend
+so the dependency direction stays inward: `cli` and `check_execution` both depend
 on this module, and neither depends on the other.
 """
 

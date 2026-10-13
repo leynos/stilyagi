@@ -51,8 +51,8 @@ def test_python_module_entrypoint_exits_zero_for_a_recoverable_tree(
 
     assert completed.returncode == 0, "expected completed.returncode == 0"
     assert_with_context(
-        completed.stdout == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
-        "expected completed.stdout to include fix counts",
+        completed.stdout.startswith("checked "),
+        "expected completed.stdout to begin with the run summary",
     )
     assert not completed.stderr, "expected not completed.stderr"
 
@@ -89,13 +89,14 @@ def test_python_module_entrypoint_rejects_fix_with_diff(
     a reporter, and the default reporter is what decides where a user sees the
     message.
 
-    The message appears twice on purpose, and that is the reporter's documented
-    contract rather than a defect: `report_check_error` logs every expected
-    failure at warning level and echoes it to standard error, so one line
-    survives a logging configuration that swallows the other. The assertion
-    counts occurrences rather than testing for presence, because a third
-    printing would mean a duplicate call site crept back in -- the shape this
-    test was written to catch.
+    The message appears exactly once. The command logger's own handler renders
+    it and suppresses propagation, so no second copy can arrive from a root
+    handler -- the assertion counts occurrences rather than testing for
+    presence, because a second printing would mean a duplicate call site or a
+    handler that propagates crept back in. That is the shape this test was
+    written to catch, and it is also why the count is load-bearing: this path
+    reaches the reporter before `_configure_logging` has run, so it is the one
+    that proves the handler is installed early enough to carry it.
     """
     _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
 
@@ -104,8 +105,8 @@ def test_python_module_entrypoint_rejects_fix_with_diff(
     assert completed.returncode == 2, "expected a rejected flag pair to exit two"
     assert not completed.stdout, "expected the usage error on standard error"
     assert_with_context(
-        completed.stderr.count("--fix and --diff cannot be combined") == 2,
-        "expected the reporter's log line and echo, and nothing further",
+        completed.stderr.count("--fix and --diff cannot be combined") == 1,
+        "expected exactly one reporter emission and no duplicate",
     )
 
 
@@ -160,7 +161,7 @@ def test_python_module_entrypoint_treats_unsafe_fixes_without_fix_as_a_no_op(
 
     assert completed.returncode == 0, "expected --unsafe-fixes alone to exit zero"
     assert_with_context(
-        completed.stdout == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        completed.stdout.startswith("checked "),
         "expected the ordinary report when --unsafe-fixes has no --fix to modify",
     )
     assert_with_context(
@@ -194,7 +195,7 @@ def test_python_module_entrypoint_keeps_standard_output_clean_for_a_diff(
         "expected standard output to hold only the patch, which is empty here",
     )
     assert_with_context(
-        completed.stderr == "0 diagnostics found (0 safe fixes, 0 unsafe fixes)\n",
+        completed.stderr.startswith("checked "),
         "expected the summary to move to standard error under --diff",
     )
 
@@ -334,3 +335,51 @@ def _write_markdown(path: pathlib.Path, title: str) -> None:
     """Write one tiny Markdown file for the subprocess tree."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"# {title}\n", encoding="utf-8")
+
+
+def _write_source(path: pathlib.Path, source: str) -> None:
+    """Write source text for a mixed-source subprocess tree."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(source, encoding="utf-8")
+
+
+def _populate_clean_markdown_tree(root: pathlib.Path) -> None:
+    """Populate a clean tree containing two Markdown documents."""
+    _write_markdown(root / "docs" / "alpha.md", "Alpha")
+    _write_markdown(root / "docs" / "beta.md", "Beta")
+
+
+def _populate_clean_mixed_source_tree(root: pathlib.Path) -> None:
+    """Populate a clean tree containing supported Markdown and source files."""
+    _write_markdown(root / "docs" / "guide.md", "Guide")
+    _write_source(root / "src" / "app.py", '"""Module docs."""\n')
+    _write_source(root / "src" / "lib.rs", "//! Crate docs.\n")
+
+
+@pytest.mark.parametrize(
+    ("populate_tree", "expected_checked_files"),
+    [
+        pytest.param(_populate_clean_markdown_tree, 2, id="markdown"),
+        pytest.param(_populate_clean_mixed_source_tree, 3, id="mixed-source"),
+    ],
+)
+def test_python_module_entrypoint_exits_zero_for_a_clean_tree(
+    tmp_path: pathlib.Path,
+    populate_tree: cabc.Callable[[pathlib.Path], None],
+    expected_checked_files: int,
+) -> None:
+    """A clean supported-source tree should succeed through the module boundary."""
+    populate_tree(tmp_path)
+
+    completed = _run_check(tmp_path)
+
+    assert completed.returncode == 0, "expected completed.returncode == 0"
+    assert_with_context(
+        completed.stdout
+        == (
+            f"checked {expected_checked_files} files (0 skipped, 0 unreadable); "
+            "0 errors, 0 warnings\n"
+        ),
+        "expected completed.stdout to carry the clean-run summary",
+    )
+    assert not completed.stderr, "expected not completed.stderr"

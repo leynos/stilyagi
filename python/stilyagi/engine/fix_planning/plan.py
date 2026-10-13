@@ -157,7 +157,7 @@ def _log_plan(plan: FixPlan, selected: CandidatePartition) -> FixPlan:
             # planner cannot render a real patch: `FixPlanRequest` carries no
             # reported path, so there is no header to measure. The rendered
             # patch's byte count is measured where the patch is rendered, in
-            # `cli._render_and_exit`.
+            # `check_outcome._emit_patch`.
             "replacement_byte_count": len(plan.fixed_bytes)
             if plan.fixed_bytes is not None
             else 0,

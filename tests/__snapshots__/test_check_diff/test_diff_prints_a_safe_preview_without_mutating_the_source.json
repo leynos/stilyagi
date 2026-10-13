@@ -1,5 +1,5 @@
 {
   "exit_code": 1,
-  "stderr": "notes.md:1:1: warning PUN201 Use the preferred paragraph term.\n1 diagnostic found (1 safe fix, 0 unsafe fixes)\n",
+  "stderr": "notes.md:1:1: error PUN201 Use the preferred paragraph term.\nchecked 1 files (0 skipped, 0 unreadable); 1 errors, 0 warnings; 1 safe fix, 0 unsafe fixes\n",
   "stdout": "--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-Paragraph text.\n+Section text.\n"
 }

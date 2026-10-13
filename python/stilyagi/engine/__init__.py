@@ -3,7 +3,7 @@
 from .api import extract_document
 from .extraction import BridgeExtractionError, supported_region_kinds
 from .planner import ExecutionPlan
-from .renderers import RendererRegistry
+from .renderers import RendererRegistry, RunSummary
 from .runner import EngineRunner
 
 __all__ = [
@@ -11,6 +11,7 @@ __all__ = [
     "EngineRunner",
     "ExecutionPlan",
     "RendererRegistry",
+    "RunSummary",
     "extract_document",
     "supported_region_kinds",
 ]

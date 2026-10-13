@@ -643,7 +643,7 @@ source does. Keeping it on the refusal channel means a partially applied run
 can name every file it could not write, instead of abandoning the rest as a
 traceback.
 
-See [ADR 008](adr-008-safe-fix-planning-and-conflict-resolution.md) for the
+See [ADR 009](adr-009-safe-fix-planning-and-conflict-resolution.md) for the
 decisions behind all of the above, including why a conflict aborts the whole
 file rather than skipping the losing edit.
 
@@ -1052,8 +1052,8 @@ Strong points in RFC 0003:
 
 Weaknesses and ambiguities:
 
-- The draft includes too many source-language file types for a v1 extractor
-  story that has not yet earned them.
+- The RFC previously over-claimed source-language file types; commit `787526e`
+  trimmed the v1 contract to the supported set.
 - It mirrors Ruff well, but it does not yet separate what is mandatory in v1
   from what is merely nice to have.
 - `version` as a subcommand is acceptable, but global `-V` is the more
@@ -1061,8 +1061,8 @@ Weaknesses and ambiguities:
 
 Recommended revisions:
 
-- V1 discovery defaults should cover `*.md`, `*.py`, and `*.rs`, with `*.mdx`
-  as preview-only until proven.
+- V1 discovery defaults should cover `*.md`, `*.markdown`, `*.py`, and `*.rs`,
+  with `*.mdx` as preview-only until proven.
 - Keep `check`, `rule`, `rules`, `config`, `clean`, and `dump-ir`.
 - Add `--no-cache` in v1 because cache debugging is unavoidable.
 - Keep `server`, `doctor`, and `migrate-config` reserved.
@@ -1070,6 +1070,11 @@ Recommended revisions:
 Compatibility risks:
 
 - Over-claiming file-type support in v1 will create a support burden.
+
+Post-v1.0 discovery and operational-policy candidates are recorded in
+[ADR 008](adr-008-v1-discovery-defaults.md), rather than duplicating a
+fast-changing candidate table in this design document.
+
 - Copying Ruff's user-level config fallback would make CI parity worse.
 
 V1 sufficiency:

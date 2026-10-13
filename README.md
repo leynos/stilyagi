@@ -10,9 +10,11 @@ Stilyagi reads Markdown pages, Python docstrings, and Rust documentation
 comments as structured regions rather than as undifferentiated lines. Rust does
 the parsing and keeps byte-exact source maps; Python runs the rules.
 
-> **Status: pre-0.1.0.** The extraction engine works. No rules ship yet, so
-> `stilyagi check` runs and finds nothing. Come for the architecture, not
-> for the linting — see the [roadmap](docs/roadmap.md) for what has landed.
+> **Status: pre-release; no release has been published.** Package metadata
+> currently carries version `0.1.0`, but that does not indicate a published
+> release. The extraction engine works. No rules ship yet, so `stilyagi check`
+> runs and finds nothing. Come for the architecture, not for the linting — see
+> the [roadmap](docs/roadmap.md) for what has landed.
 
 Website: <https://df12.studio/stilyagi>
 
@@ -62,7 +64,7 @@ Then point it at some Markdown:
 
 ```shell
 $ uv run stilyagi check docs/
-0 diagnostics found
+checked 59 files (2 skipped, 0 unreadable); 0 errors, 0 warnings
 ```
 
 Zero is the honest answer today: extraction runs over every file, and there are
@@ -86,8 +88,8 @@ Working today:
   each tied to the definition that owns it.
 - Suppression comments honoured in all three syntaxes, for a line, the next
   line, or a range.
-- `stilyagi check` over Markdown, with configuration discovery, text and JSON
-  output, and standard input.
+- `stilyagi check` over Markdown, Python, and Rust sources, with configuration
+  discovery, text and JSON output, run summaries, and standard input.
 - Wheels that build and smoke-test on Linux, macOS, and Windows.
 
 The [developers' guide](docs/developers-guide.md) covers the intermediate
@@ -99,8 +101,6 @@ Designed, not yet built:
 - Safe-fix planning, `--fix`, and `--diff`.
 - The `dump-ir`, `config`, `clean`, `rules`, and `rule` commands.
 - Grammar and spelling providers behind the capability planner.
-- Discovery covering `*.py` and `*.rs` alongside `*.md`.
-
 The [roadmap](docs/roadmap.md) is the reliable record: an item is ticked only
 once it is done.
 

@@ -48,7 +48,7 @@ pub struct IrSuppression {
     pub origin: String,
 }
 
-/// Non-fatal parser or extractor anomaly.
+/// Non-fatal parser or extractor anomaly, or an authored suppression directive error.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IrError {
     /// Stable error code.

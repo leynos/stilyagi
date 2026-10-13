@@ -102,6 +102,26 @@ fn blanket_directives_emit_errors_without_suppressions() {
 }
 
 #[rstest]
+fn unknown_directive_verbs_emit_errors_without_suppressions() {
+    let document = extract_rust(concat!(
+        "pub fn unknown_verb() {\n",
+        "    // stilyagi: invalid-verb RUST210\n",
+        "}\n",
+    ));
+
+    assert_eq!(document.suppressions, []);
+    assert_eq!(document.errors.len(), 1);
+    assert_eq!(
+        document
+            .errors
+            .first()
+            .expect("expected unknown-verb diagnostic")
+            .code,
+        "suppression-unknown-verb"
+    );
+}
+
+#[rstest]
 fn non_marker_comments_do_not_allocate_nodes_or_suppressions() {
     let with_comment = extract_rust(concat!(
         "/// Documented function.\n",

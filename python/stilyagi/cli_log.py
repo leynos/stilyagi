@@ -14,15 +14,24 @@ rather than the fix reporter: `cli` installs the handler, `plan` emits records
 the handler formats, and neither should have to import the other's reporting
 half to get them displayed.
 
+It owns a second, narrower handler as well. Expected operational failures are
+user-facing *output*, not diagnostics: they have to reach a terminal whatever
+the ambient logging configuration is, including one whose root handler is
+installed by an embedding application. The command logger therefore carries its
+own non-propagating handler, so one emission is enough and a root handler
+cannot double it.
+
 Dependency direction runs inward: this module imports nothing from `stilyagi`.
 """
 
 import logging
+import sys
 
 __all__ = [
     "LOG_FORMAT",
     "STRUCTURED_FIELDS",
     "append_structured_fields",
+    "command_warning_handler",
     "log_handler",
 ]
 
@@ -107,3 +116,81 @@ def append_structured_fields(record: logging.LogRecord) -> bool:
         record.msg = f"{record.getMessage()} ({', '.join(fields)})"
         record.args = ()
     return True
+
+
+class _CommandWarningHandler(logging.StreamHandler):
+    """Identify, by type, the handler :func:`configure_command_warning_handler` owns."""
+
+
+def command_warning_handler() -> logging.Handler:
+    """Build the handler that carries expected failures to standard error.
+
+    It renders the message alone: an expected failure is a sentence for a
+    human, not a structured record, so the field-rendering filter would add
+    nothing and could only obscure it.
+
+    Returns
+    -------
+    logging.Handler
+        A stream handler on standard error, warning level and above.
+
+    Examples
+    --------
+    >>> handler = command_warning_handler()
+    >>> handler.level == logging.WARNING
+    True
+    """
+    handler = _CommandWarningHandler(sys.stderr)
+    handler.setLevel(logging.WARNING)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    return handler
+
+
+#: The logger expected operational failures are reported through. It is named
+#: rather than module-scoped so that one handler serves every reporter, and so
+#: that a test can assert which logger a failure reached.
+_COMMAND_LOGGER_NAME = "stilyagi.command"
+
+
+def command_logger() -> logging.Logger:
+    """Return the logger expected failures are reported through.
+
+    A reporter calls this rather than holding a module logger because the
+    handler is installed on the command logger *by name*: a caller that bound
+    the object at import time would still see the right logger, but a reader
+    cannot tell from the call site that the propagation contract is what makes
+    one emission sufficient. Going through the name makes that explicit.
+
+    Returns
+    -------
+    logging.Logger
+        The command logger, without installing a handler on it.
+
+    Examples
+    --------
+    >>> command_logger() is logging.getLogger("stilyagi.command")
+    True
+    """
+    return logging.getLogger(_COMMAND_LOGGER_NAME)
+
+
+def configure_command_warning_handler() -> None:
+    """Install the command logger's own non-propagating warning handler.
+
+    Repeated setup replaces only the handler this function owns, so repeated
+    in-process CLI calls do not accumulate duplicates. Suppressing propagation
+    is what keeps the message from also reaching a root handler an embedding
+    application installed, which would show the user the same failure twice.
+
+    Examples
+    --------
+    >>> configure_command_warning_handler()  # doctest: +SKIP
+    """
+    logger = command_logger()
+    for handler in tuple(logger.handlers):
+        if isinstance(handler, _CommandWarningHandler):
+            logger.removeHandler(handler)
+            handler.close()
+    logger.addHandler(_CommandWarningHandler(sys.stderr))
+    logger.setLevel(logging.WARNING)
+    logger.propagate = False

@@ -25,12 +25,20 @@ class FixRequest:
     from, so a plan made from this request is applicable to the file on disk
     and to nothing else -- which is what makes the conditional write in phase
     two meaningful.
+
+    ``syntax`` is carried through to the plan so the re-lint that follows a
+    write extracts the file the same way the planning pass did. The executor
+    records the paths it wrote and the byte counts, not the extractor that was
+    used, and a written path cannot be made to answer that question: resolution
+    may already have redirected a target, so the suffix on disk is not
+    necessarily the suffix the plan was made under.
     """
 
     source_bytes: bytes
     source_text: str
     reported_path: str
     resolved_path: pathlib.Path
+    syntax: model.Syntax
     document: model.Document
     diagnostics: tuple[diagnostics.Diagnostic, ...]
     lint_config: LintConfig
@@ -55,6 +63,7 @@ class PlannedFile:
 
     reported_path: str
     resolved_path: pathlib.Path
+    syntax: model.Syntax
     source_bytes: bytes
     source_text: str
     fixed_bytes: bytes | None
@@ -85,6 +94,7 @@ def plan_file_fixes(request: FixRequest) -> PlannedFile:
     return PlannedFile(
         reported_path=request.reported_path,
         resolved_path=request.resolved_path,
+        syntax=request.syntax,
         source_bytes=request.source_bytes,
         source_text=request.source_text,
         fixed_bytes=plan.fixed_bytes,

@@ -14,6 +14,9 @@
 - [User's guide](users-guide.md) records the current user-facing promises for
   Stilyagi, including the accepted packaging boundary, supported syntax
   surfaces, and current locale policy for v1.
+- [Mixed-source discovery change notes](mixed-source-discovery-notes.md)
+  summarize the user-facing discovery behaviour without implying a release
+  target.
 - [ExecPlans](execplans/) records approved and in-progress execution plans for
   substantial repository work:
   - [1.1.1 packaging boundary decision ADR](
@@ -121,8 +124,11 @@
     adr-007-rust-doc-comment-owner-metadata.md)
     records the Rust `owner` contract reuse, `::` qualified-name semantics,
     verbatim doc-comment extraction, and bounded Rust node-store policy.
-  - [ADR 008: Safe-fix planning and conflict resolution](
-    adr-008-safe-fix-planning-and-conflict-resolution.md)
+  - [ADR 008: Adopt v1 discovery defaults](adr-008-v1-discovery-defaults.md)
+    records mixed-source discovery, extraction-anomaly classification, run
+    summaries, and the deliberately deferred discovery-policy work.
+  - [ADR 009: Safe-fix planning and conflict resolution](
+    adr-009-safe-fix-planning-and-conflict-resolution.md)
     records the admissibility bound, file-atomic conflict abort, machine
     artefact stream ownership, the refusal channel, byte fidelity, and the
     verification re-lint that decides a `--fix` exit status.

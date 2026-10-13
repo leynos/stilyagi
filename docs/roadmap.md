@@ -183,7 +183,7 @@ support normal repository linting and debugging for Markdown-only users. See
   - Completed with validation evidence in
     [the safe-fix planning execplan](
     execplans/2-2-2-safe-fix-planning-conflict-resolution.md);
-    see [ADR 008](adr-008-safe-fix-planning-and-conflict-resolution.md) for
+    see [ADR 009](adr-009-safe-fix-planning-and-conflict-resolution.md) for
     the admissibility bound, conflict policy, and exit-status decisions.
   - Note for 2.3.1: a heading-depth rule cannot be auto-fixed under the
     admissibility bound, because the `##` marker is not source-backed text. It
@@ -297,10 +297,15 @@ This step answers how much of the first slice survives unchanged once the
 extractor surface grows. See [Stilyagi design](stilyagi-design.md) §§3-4, 7.2,
 13 and [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
 
-- [ ] 3.2.1. Expand discovery defaults to `*.md`, `*.py`, and `*.rs`. See
-  Stilyagi design (stilyagi-design.md) §7.3.
+- [x] 3.2.1. Expand discovery defaults to `*.md`, `*.markdown`, `*.py`, and
+  `*.rs`. See Stilyagi design (stilyagi-design.md) §7.3 and
+  [ADR 008](adr-008-v1-discovery-defaults.md).
   - Requires 2.2.1.
   - Success: `stilyagi check .` works on mixed documentation and source trees.
+  - Completed by [ExecPlan 3.2.1](
+    execplans/3-2-1-expand-discovery-defaults-to-md-py-and-rs.md): the command
+    selects each file's extractor, classifies recoverable anomalies as warnings,
+    and reports checked, skipped, unreadable, error, and warning totals.
 - [ ] 3.2.2. Add builtin docstring and documentation-comment rules that reuse
   the shared region-oriented API. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 3.1.1, 3.1.2, and 2.3.1.
