@@ -1035,19 +1035,22 @@ as code improvements, not to satisfy the detector:
 Where a family is deliberate, the record states the independent contract or
 boundary that an extraction would wrongly couple. No unresolved genuine
 duplication is relabelled as "intentional", and no family is left adjudicated
-only by the `top` cutoff: the ranking is saturated, so the four above are all
-of them.
+only by the `top` cutoff: the ranking is saturated, so the four above were all
+of them at the time this paragraph was written. See the section below for the
+two further families the rebase exposed.
 
 ## Outcomes & Retrospective
 
-Delivered: the gate, its helper tests, four reasoned exception entries, the
-pin-agreement contract test, and the documentation. The scan is deterministic
-and its ranking is saturated, so the gate's coverage of `python/stilyagi` is
-total rather than merely the top 30.
+Delivered: the gate, its helper tests, four reasoned exception entries (five
+after the rebase exposed one further non-extractable family), the pin-agreement
+contract test, and the documentation. The scan is deterministic and its ranking
+is saturated, so the gate's coverage of `python/stilyagi` is total rather than
+merely the top 30.
 
 Demonstrated end to end in a disposable workspace with the real pinned binary,
 then torn down. No planted clone or temporary exception remains in this
-repository, and exactly the four adjudicated entries are present.
+repository, and exactly the adjudicated entries are present — the four original
+ones plus the one recorded when the rebase exposed main's own duplication.
 
 | Scenario                                                         | Observed                                           |
 | ---------------------------------------------------------------- | -------------------------------------------------- |
@@ -1513,3 +1516,56 @@ New head: `201eaaaacd3756b4dd7d0ca6ae9208791307f3f9`, onto base
 `refs/recovery/pr164-{old-head,old-base,target}-20261013T010701`. Every gate
 result recorded above this section is stale for the new head and is retained
 only for its original scope.
+
+### Gates on the rebased head, and the two families the rebase exposed
+
+The seven-gate run on `80ce07b` returned 4 passes (`check-fmt`, `typecheck`,
+`markdownlint`, `nixie`) and a red verdict from one shared root cause.
+
+`make lint` failed at the duplication gate with two unsuppressed families, and
+`make duplication-test` failed for the same reason, through
+`scripts/tests/test_duplication_gate_real_detector.py::TestRealDetectorIntegration::test_real_check_cli_passes`,
+which asserts the checked-in gate passes on the real tree. Both families sit
+in files this branch never touched — `python/stilyagi/discovery_targets.py` and
+`python/stilyagi/check_execution.py` are byte-identical to `origin/main`
+(`91941ef3`) and absent from `91941ef..HEAD`. They are main's own duplication,
+newly _visible_ because this branch introduces the gate that observes it. This
+is the predicted consequence of the ADR's own scoping: the scan covers
+`python/stilyagi`, and main added ~1602 lines there after the branch's original
+saturation measurement.
+
+- `check_execution.py:134-136 ~ 155-157` (`connected`, value 2.2) was
+  **genuine** duplication and was extracted, not excepted. Two byte-identical
+  three-line blocks — record the phase failure, report the error, return the
+  failed `FileCheckResult` — differing only in the phase label. nose's own
+  metrics agree: `shared_lines=2`, `removable=2`. The new
+  `_report_phase_failure` helper takes the phase as a parameter, so the two
+  former copies now share one implementation. nose no longer reports the family
+  at all.
+- `discovery_targets.py:247-266 _prune_ignored_directories ~ 125-129 _discover_directory_target`
+  (`subdag`, value 8.6) was **not** extractable and is recorded as a reasoned
+  exception. nose reports `shared_lines=0` and `removable=0`: nothing is
+  duplicated at line level. The only shared node is a membership test against
+  `_IGNORED_DIRECTORY_NAMES`, which is already the extracted abstraction,
+  reached from two independent phases — one decides whether a directory target
+  should be walked at all before descending, the other filters names during the
+  walk. The sole remaining "fix" would be a boolean-mode predicate wrapper
+  coupling a pre-walk gate to an in-walk filter, which the policy forbids
+  manufacturing. Both locations carry unit names, so this entry uses the
+  narrower `path::name` keys rather than a whole-file glob.
+
+`make test` failed separately on two trybuild UI timeouts
+(`stilyagi-ir::ui sha2_0_11_digest_lowerhex_formatting_is_rejected` and
+`stilyagi-pyext::compile_tests compile_time_ui`). The log shows the cause is
+environmental, not branch-bound: `sccache unreachable`, 13 "Blocking waiting
+for file lock" lines, and compile-slot waits up to "9 ahead, 45s", with one
+scratch crate taking 4m24s inside a 600s per-test budget. Neither crate is in
+the change surface. nextest aborted before the doc-test and pytest phases, so
+those never ran; a re-run is required to close this gate.
+
+Verification of the fix: `make duplication` passes with five reasoned
+exceptions and no stale entry; `make duplication-test` passes 145/145;
+`make check-fmt` passes. Documentation updated for the changed counts — the
+developers' guide's present-tense "the four families the gate adjudicates" and
+the `pyproject.toml` allowlist comment, whose claim that every entry was
+fragment-level was falsified by the new named keys.

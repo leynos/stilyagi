@@ -2191,8 +2191,11 @@ exclusions are deliberate:
 - **Docs and fixtures are not production sources.**
 
 `surface = "all"` is required rather than cosmetic: the detector's curated
-default dashboard reports nothing at all for this package, while `all` reports
-the four families the gate adjudicates.
+default dashboard reports almost nothing for this package, while `all` reports
+every family the gate adjudicates. Re-measure rather than quoting a count:
+adding the gate to a branch that had been rebased onto newer package code
+turned up two families the four original entries did not cover, one of which
+was genuine duplication and was extracted.
 
 #### Exceptions
 

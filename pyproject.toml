@@ -399,11 +399,12 @@ top = 30
 # `make duplication-allow FIRST=... [SECOND=...] REASON=...` and remove them
 # when the gate reports them as stale.
 #
-# Every family below was reported at fragment level, with no unit name, and
-# `path::name` keys never match an unnamed location. The narrowest key nose's
-# schema allows for such a family is therefore the whole file, so these entries
-# also silence any later fragment-level family in the same file. Prefer a
-# `path::name` key whenever the detector does supply a name.
+# A `path::name` key never matches an unnamed location, and nose names a unit
+# only when it matched a whole function, class, or method. A family reported
+# at fragment level therefore has no narrower key than the whole file, and
+# such an entry also silences any later fragment-level family in that file.
+# Always prefer a `path::name` key when the detector does supply a name; the
+# `discovery_targets.py` entry below is the one family so far that does.
 [tool.duplication_gate]
 
 [[tool.duplication_gate.allow]]
@@ -421,6 +422,11 @@ reason = "Parallel element validators: one rejects a mapping's non-string keys, 
 [[tool.duplication_gate.allow]]
 unit = "python/stilyagi/engine/extraction.py"
 reason = "Double-checked locking around one process-wide vocabulary validation. The unlocked pre-check and the locked re-check are the idiom itself; collapsing them into a helper would defeat the purpose, since the second read must happen under the lock."
+
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/discovery_targets.py::_prune_ignored_directories", "python/stilyagi/discovery_targets.py::_discover_directory_target"]
+reason = "Membership test against the already-extracted _IGNORED_DIRECTORY_NAMES constant, reached from two independent phases: one decides whether a directory target should be walked at all before descending, the other filters names during the walk. Nose reports shared_lines and removable as 0, so nothing here is extractable; the constant is already the shared abstraction, and the only other candidate would be a boolean-mode predicate wrapper coupling a pre-walk gate to an in-walk filter."
+
 [tool.ty.environment]
 python-version = "3.14"
 
