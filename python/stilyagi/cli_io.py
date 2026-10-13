@@ -22,7 +22,6 @@ here chooses an exit status or counts a metric.
 
 import dataclasses as dc
 import io
-import logging
 import pathlib
 import sys
 import tokenize
@@ -43,8 +42,6 @@ __all__ = [
     "stdin_check_input",
     "write_artefact",
 ]
-
-_LOGGER = logging.getLogger(__name__)
 
 
 @dc.dataclass(frozen=True, slots=True)
