@@ -792,12 +792,18 @@ otherwise report an empty refusal channel for a run that refused edits.
 
 Both reporters append the run-level summary through `summarises_on_the_report`,
 which is where the format rule lives: the sentence belongs on the stream for
-text and must not be for JSON, because the JSON stream is a document a consumer
-parses whole and a trailing sentence makes `json.loads` raise on it. The
-reference to the rule sits at both call sites rather than being duplicated as a
-condition, so a third reporter cannot reintroduce the trailing sentence by
-copying one of them. Nothing is lost by suppressing the copy: `log_fix_summary`
-emits the same sentence at INFO.
+text and must not be for JSON, because a trailing sentence makes `json.loads`
+raise on the document. The reference to the rule sits at both call sites rather
+than being duplicated as a condition, so a third reporter cannot reintroduce
+the trailing sentence by copying one of them. Nothing is lost by suppressing
+the copy: `log_fix_summary` emits the same sentence at INFO.
+
+The document is not the whole stream for a mutating run.
+`print_mutation_report` writes to standard error, which it shares with the
+rerun hint and with console log records, so a consumer of that run extracts the
+document rather than parsing the stream whole. Only the reporter for a run that
+changes nothing owns its stream outright, and only there is the stream itself
+the document.
 
 ### Rendering
 

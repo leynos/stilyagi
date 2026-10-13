@@ -210,9 +210,14 @@ def _json_document_in(stream: str) -> str:
     bounds are used rather than a line offset because the reporter's human
     prose is a prefix, not a suffix: the rerun hint and the console log records
     precede the document, so the tail of the stream is the document's own
-    closing brace. Slicing to the last brace is what makes the return value
-    fail to parse if a sentence were appended after it -- which is the
-    regression under test.
+    closing brace.
+
+    Slicing cannot detect an appended sentence, and this helper does not claim
+    to. ``str.rindex`` finds the *last* brace, so a trailing sentence carrying
+    no brace of its own is discarded by the slice rather than exposed by it: a
+    report that had one would still parse here. Detecting that regression is
+    the caller's job, and every caller pairs this helper with an assertion that
+    the summary sentence is absent from the whole stream.
 
     Returns
     -------

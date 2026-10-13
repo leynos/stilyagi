@@ -306,12 +306,16 @@ concise overview of this behaviour.
 
 Use `--output-format text` (the default) for human-readable output: one line
 per diagnostic followed by a summary line. Use `--output-format json` for
-machine-readable output: a stable JSON document, and nothing else on the stream
-that carries it. The summary line is part of the text format only, so a program
-can parse the whole stream a run hands it without trimming a human-readable
-sentence off the end; the same sentence is still logged at `--verbose`.
-`--output-format sarif` is planned for a later slice and is not yet available;
-requesting it fails with a message stating it is planned but not yet available.
+machine-readable output: a stable JSON document with no summary sentence
+appended to it, so what a consumer parses is the document alone. A run that
+changes nothing hands that document alone to the stream; a run that writes
+files reports to standard error, which it shares with its rerun hint and its
+log records, so a consumer of that run extracts the document from the stream
+rather than treating the stream as the document. In both cases the summary line
+itself is text-format output only, and the same sentence is still logged at
+`--verbose`. `--output-format sarif` is planned for a later slice and is not
+yet available; requesting it fails with a message stating it is planned but not
+yet available.
 
 #### Verbosity and progress logs
 

@@ -193,8 +193,10 @@ def fix_summary_line(outcome: FixOutcome) -> str:
     """Render the run-level summary the execplan requires on the report.
 
     The same sentence is logged at INFO, but a log line is invisible without
-    `--verbose` and the console default is WARNING. This is the copy the
-    command boundary prints unconditionally.
+    `--verbose` and the console default is WARNING. This returns the copy the
+    command boundary prints for text-format reports; both reporters ask
+    `summarises_on_the_report` first, and for JSON the sentence is dropped
+    rather than appended to the document.
 
     Returns
     -------
