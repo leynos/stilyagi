@@ -1043,6 +1043,12 @@ V1 sufficiency:
 
 ### 7.3 CLI contract
 
+The proposed Markdown inspection and cache contracts for roadmap 2.2.3 are
+recorded in [ADR 010](adr-010-markdown-cli-inspection-and-cache.md) and its
+[ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md). They remain
+subject to approval; the proposal does not imply that the commands already
+exist.
+
 Strong points in RFC 0003:
 
 - The compact Ruff-like command surface is right.[^6][^7]
