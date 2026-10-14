@@ -73,10 +73,15 @@
     execplans/2-2-2-safe-fix-planning-conflict-resolution.md)
     plans and records the safe-fix planner, `--diff` preview, `--fix`
     execution, and the conflict rules that keep automatic edits auditable.
+  - [2.2.3 Markdown inspection and cache commands](
+    execplans/2-2-3-cli-sub-commands-for-markdown.md)
+    proposes approval-gated delivery of effective configuration inspection,
+    canonical IR dumps, cache bypass and safe cleanup.
   - [2.3.1 Markdown rule starter pack](
     execplans/2-3-1-markdown-rules-starter-pack.md)
     plans the approval-gated builtin Markdown rules, source spans, policy
     targeting, and fix validation.
+
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
@@ -153,6 +158,11 @@
     adrs/adr-0013-prove-the-lint-policy-through-readers-and-fixtures.md)
     records the shared readers, the `cargo metadata` seam, the scratch crates
     that copy the workspace tables, and the unique run directory.
+
+  - [ADR 010: Markdown CLI inspection and cache](
+    adr-010-markdown-cli-inspection-and-cache.md)
+    proposes command framing, extraction-cache ownership and cleanup boundaries
+    for roadmap 2.2.3.
 
 ## Requests for comments (RFCs)
 
