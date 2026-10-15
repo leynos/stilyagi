@@ -132,8 +132,8 @@
     records the admissibility bound, file-atomic conflict abort, machine
     artefact stream ownership, the refusal channel, byte fidelity, and the
     verification re-lint that decides a `--fix` exit status.
-  - [ADR 009: Adopt the `nose` code-duplication gate](
-    adr-009-nose-duplication-gate.md)
+  - [ADR 010: Adopt the `nose` code-duplication gate](
+    adr-010-nose-duplication-gate.md)
     records the blocking duplication gate, its reasoned exception entries,
     scan scope, and detector provisioning policy.
 

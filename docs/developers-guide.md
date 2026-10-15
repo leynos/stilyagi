@@ -2151,7 +2151,7 @@ workflows together.
 
 `make lint` ends by running a blocking code-duplication gate. It is the second
 tool gate in this repository, after the Skylos dead-code scan in section 6b,
-and it is covered by [ADR 009](adr-009-nose-duplication-gate.md). Run it alone
+and it is covered by [ADR 010](adr-010-nose-duplication-gate.md). Run it alone
 with `make duplication`, and its own helper tests with `make duplication-test`.
 
 The detector is `nose` (`corca-ai/nose`), the Rust-built `nose-cli` binary, not

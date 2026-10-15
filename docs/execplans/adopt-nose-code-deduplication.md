@@ -78,7 +78,7 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
 - [x] Add the toolchain pin-agreement contract test.
 - [x] Adjudicate this repository's findings.
 - [x] Disposable-workspace end-to-end demonstration.
-- [x] Documentation and ADR 009.
+- [x] Documentation and ADR (009, renumbered to 010 after the fifth rebase).
 - [x] Full validation and draft pull request.
       - [x] Final-diff review for benchmark leakage, unrelated migrations,
             copied reference paths, broad suppressions, and runtime-dependency
@@ -705,7 +705,7 @@ counts IL tokens, **not** Python lines or AST nodes.
    planted clone fails, narrow exception passes, extra member fails again;
    deterministic across runs; nothing left behind.
 9. **Document.** Developer's guide, agent instructions, command help, the
-   documentation index, and ADR 009.
+   documentation index, and the gate's ADR.
 
 ## Concrete steps
 
@@ -1712,3 +1712,67 @@ docstring to a multi-line form activated Ruff's `DOC201`, which requires a
 docstring a single line and explaining the choice in an inline comment leaves
 the rule satisfied while still recording why the call is scoped to the current
 directory.
+
+### The fifth rebase: semantic audit, and the ADR renumber to 010
+
+The fifth rebase replayed 37 commits from `91941ef` onto `90aaccf`. Six
+conflict sites across four commits were adjudicated on evidence:
+
+| Commit    | Path(s)                                                                                            | Resolution                                                           |
+| --------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `fc6abe8` | `docs/contents.md`                                                                                 | Keep both ADR index entries                                          |
+| `78adfe1` | `Makefile`, `tests/test_check_files.py`                                                            | Compose both Makefile additions; take target's `test_check_files.py` |
+| `61df522` | `Makefile`                                                                                         | Compose both additions                                               |
+| `6d05da8` | `python/stilyagi/check_execution.py`                                                               | Port the helper onto `SourcedInput` and `run.report`                 |
+| `3e3d619` | `Makefile`, `docs/developers-guide.md`, `test_markdown_baseline_contract.py`, `check_execution.py` | Compose Makefile; keep target's guide section and contract test      |
+
+The rebase raises no andon condition. All three semantic checks pass:
+
+1. **Target-only paths are byte-identical.** Of 74 paths `main` changed and this
+   branch did not, one (`python/stilyagi/engine/fixes.py`) is deleted on both
+   sides and 73 were compared. Zero mismatches.
+2. **Every deletion against the target in a branch-touched file is explained.**
+   Two lines are deleted relative to the target, both in
+   `python/stilyagi/check_execution.py`:
+   `run.report(pathlib.Path(sourced_input.reported_path), exc)`, twice. Those
+   are the named conflict-resolution decision for commit 36, which moved both
+   copies into `_report_phase_failure`. One helper body replaces two call-site
+   pairs, so the deleted text is present exactly once at the new head.
+3. **No newly repeated block.** Two files carry a block repeated more often at
+   the new head than at the target: `docs/scripting-standards.md` (a PEP 723
+   header in each of three didactic examples),
+   `tests/support/pr_concurrency.py` (three functions documenting a
+   `document: WorkflowDocument` parameter). Both are branch-authored content,
+   not replay artefacts: the window counts are identical between
+   `OLD_BASE`/`TARGET` (498 and 274 windows; 18 and 12 repeated) and between
+   `OLD_HEAD`/`NEW_HEAD` (556 and 276; 19 and 12).
+
+`git diff --check` flags trailing whitespace at lines 8 and 15 of
+`scripts/tests/__snapshots__/test_duplication_gate_commands.ambr`. The path is
+branch-owned and its blob (`87766b4`) is byte-identical before and after the
+rebase; the whitespace sits on indented blank continuation lines inside
+syrupy's own `'''` snapshot body. It is a pre-existing serializer artefact, not
+rebase damage, and is deliberately left alone.
+
+**ADR renumbering, second time.** `main` landed
+`adr-009-safe-fix-planning-and-conflict-resolution.md` while this branch adds
+its own ADR, so the branch ADR was renumbered 009 to 010 rather than sharing
+the number — the same resolution this plan already recorded for the earlier 008
+collision. The file is now `docs/adr-010-nose-duplication-gate.md`, with its
+title heading updated and its two tracked references updated:
+`docs/contents.md` and `docs/developers-guide.md` section 6j. A tree-wide
+search finds the old path only inside this plan's own audit records, where it
+is a quoted historical filename rather than a link; no live reference to it
+remains, and `docs/` now numbers each ADR exactly once. The same scoping
+applies to the identical claim in the first renumber's paragraph above. The
+`ADR 009` references that remain in `docs/roadmap.md`,
+`docs/stilyagi-design.md` and the safe-fix ExecPlan belong to the safe-fix ADR
+and are correct as they stand.
+
+The renumber was deliberately deferred to this commit rather than applied
+during the replay: three later commits (`7bd99c4`, `d29969c`, `78adfe1`) patch
+the ADR by path, so renaming it mid-replay would have broken their replay.
+
+The paragraph above recording the first renumber, and the two `ADR 009`
+references in the earlier parts of this plan, are historical audit records of
+the state at that time and are intentionally left as written.

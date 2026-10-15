@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 009: Adopt the `nose` code-duplication gate
+# Architectural decision record (ADR) 010: Adopt the `nose` code-duplication gate
 
 ## Status
 
