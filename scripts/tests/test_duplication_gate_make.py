@@ -106,6 +106,15 @@ class TestMakeDuplicationAllow:
                 ("python/stilyagi/a.py", "python/stilyagi/b.py::beta"),
                 id="members",
             ),
+            pytest.param(
+                "python/stilyagi/b.py::beta python/stilyagi/c.py::gamma",
+                (
+                    "python/stilyagi/a.py",
+                    "python/stilyagi/b.py::beta",
+                    "python/stilyagi/c.py::gamma",
+                ),
+                id="multi-key",
+            ),
         ],
     )
     def test_make_duplication_allow_round_trips_quoted_values(
@@ -114,7 +123,13 @@ class TestMakeDuplicationAllow:
         second: str | None,
         expected_keys: tuple[str, ...],
     ) -> None:
-        """The Make target forwards unit and member inputs as literal arguments."""
+        """The Make target forwards unit and member inputs as literal arguments.
+
+        Multiple member keys travel in one whitespace-separated `SECOND` value.
+        Repeating `SECOND` would not work: GNU `make` keeps only the last
+        command-line assignment to a variable, silently dropping earlier ones,
+        so this case pins the form the guide documents.
+        """
         workspace, _script = copied_gate_workspace(tmp_path)
         marker = tmp_path / "injected-command"
         reason = f'kept literally: "$(touch {marker})"; $HOME'

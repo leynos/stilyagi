@@ -1441,7 +1441,8 @@ Their responsibilities are:
     `--snapshot-update` when a pinned report intentionally changes
 - `make duplication-allow`
   - record one reasoned duplication exception in `pyproject.toml`; requires
-    `FIRST` and `REASON`, and accepts repeated `SECOND` keys
+    `FIRST` and `REASON`, and accepts several `SECOND` keys in one quoted,
+    whitespace-separated value
 - `make smoke`
   - run `python -m stilyagi.smoke` against the development install
 - `make smoke-release`
@@ -2222,8 +2223,18 @@ make duplication-allow FIRST=python/stilyagi/a.py \
 
 `FIRST` and a non-blank `REASON` are required, and the target exits 2 without
 either, so a mistyped invocation cannot record an empty or unexplained entry.
-Repeat `SECOND` for a family with more than two members; do not join several
-keys into one value. The writer is atomic and holds a sidecar advisory lock
+For a family with more than two members, pass the additional keys in that one
+quoted `SECOND` value, whitespace-separated:
+
+```shell
+make duplication-allow FIRST=python/stilyagi/a.py \
+  SECOND="python/stilyagi/b.py::helper python/stilyagi/c.py::other" \
+  REASON="Independent contracts: the two guards differ in what they reject"
+```
+
+Repeating `SECOND` does not add keys: GNU `make` keeps only the last
+command-line assignment to a variable, so an earlier one is dropped without
+warning. The writer is atomic and holds a sidecar advisory lock
 (`.*.duplication-gate.lock`) so concurrent `allow` runs do not lose updates.
 That lock coordinates processes that participate in the protocol; it does not
 constrain an editor writing `pyproject.toml` directly.
