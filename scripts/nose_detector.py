@@ -94,6 +94,21 @@ class NoseSettings:
     exclude: tuple[str, ...]
 
 
+def _require_roots(configured: object) -> tuple[str, ...]:
+    """Return the configured scan roots, rejecting an empty scope."""
+    roots = require_string_tuple(configured, context="tool.nose.roots")
+    if not roots:
+        # An empty list is a well-formed array, so the shared validator accepts
+        # it. Left alone it reaches nose as no `--root` at all, which fails with
+        # a diagnostic about the bare `all` term rather than about the scope.
+        msg = (
+            "tool.nose.roots must name at least one directory: with none, the "
+            "detector has no scope to scan"
+        )
+        raise GateConfigError(msg)
+    return roots
+
+
 def load_settings(pyproject_path: pathlib.Path) -> NoseSettings:
     """Load the detector settings from ``[tool.nose]``.
 
@@ -121,16 +136,7 @@ def load_settings(pyproject_path: pathlib.Path) -> NoseSettings:
     if surface not in {"default", "all"}:
         msg = "tool.nose.surface must be 'default' or 'all'"
         raise GateConfigError(msg)
-    roots = require_string_tuple(nose.get("roots"), context="tool.nose.roots")
-    if not roots:
-        # An empty list is a well-formed array, so the shared validator accepts
-        # it. Left alone it reaches nose as no `--root` at all, which fails with
-        # a diagnostic about the bare `all` term rather than about the scope.
-        msg = (
-            "tool.nose.roots must name at least one directory: with none, the "
-            "detector has no scope to scan"
-        )
-        raise GateConfigError(msg)
+    roots = _require_roots(nose.get("roots"))
     return NoseSettings(
         version=require_string(nose.get("version"), context="tool.nose.version"),
         roots=roots,

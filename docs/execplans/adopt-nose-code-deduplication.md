@@ -1890,3 +1890,104 @@ saturation and `tests/` figures, and the `[tool.nose]` comment in
 `pyproject.toml`. The `pyproject.toml` comment now also records that the count
 has moved before and why, so the next reader knows the digit is a measurement
 and not a contract.
+
+### Seventh round: the static assessment's two real defects
+
+The seventh-round assessment (`stilyagi-164-7b9c2c4-a1`, [comment 6206522665])
+returned three findings. Two were real defects in this branch, and both were
+failures that would have let the gate report green while checking nothing.
+
+**The early-write cleanup window.** `atomic_write` created its temporary file
+with `delete=False` and entered the cleanup `try` only *after* writing,
+flushing, syncing and closing it. A failure in any of those four steps never
+reached the `finally`, stranding the sibling. The destination was never at risk
+on those paths — the replacement had not happened — but the stray file would be
+read by the next reader of the directory as if it were real. Cleanup now spans
+the whole temporary-file lifetime: the path is captured as soon as
+`NamedTemporaryFile` returns and the `finally` unlinks it with `missing_ok=True`,
+so the success path is a no-op because `replace` already consumed it.
+
+The regression proof was re-established twice, because an interim redesign of
+the test double invalidated the first. Restoring `scripts/atomic_write.py` from
+the pre-fix head makes the new cases fail with `A failure before the
+replacement must not leave the temporary sibling` while the 7 pre-existing
+cases pass; restoring the fix makes all 11 pass. Three injections are covered —
+`write`, `flush` and the temporary file's own `fsync` — plus a fourth case where
+the destination directory is created by the same call.
+
+**The empty scope, which is worse than it looked.** The assessment listed two
+scope gaps, an empty `roots` array and an existing root that selects no source,
+with the honest qualification that it had not executed `nose` and so could not
+claim either produced a false green. Running the pinned detector settles it, and
+the two cases are not equally serious. `nose 0.20.0` **exits 0** for a root that
+exists but holds nothing parseable, emitting `{"families": [], "summary":
+{"families": 0}}` on stdout and only `warning: no supported source files found
+under: <root>` on stderr — byte-for-byte the report a genuinely clean scan
+produces. So the empty array at least failed loudly, but the source-less root
+was a **vacuous green**, which is precisely the failure mode the plan's stated
+protection exists to prevent.
+
+Both are closed. `load_settings` rejects an empty `roots` array, and
+`_reject_empty_scope` promotes nose's stderr diagnostic to a
+`GateExecutionError`. Where the guard lives is load-bearing: it is called from
+`_run_command`, not `run_detector`, because `_run_command` returns only
+`result.stdout`, so stderr never reaches the caller and that boundary is the
+only place the signal exists. The guard matches nose's diagnostic string rather
+than reimplementing its language table, so if nose renames the warning the
+guard lapses to the previous behaviour instead of wrongly rejecting a root that
+uses a newly supported language.
+
+One residual is disclosed rather than closed: a *partial* narrowing, several
+roots where only one selects files, still exits 0 with no warning. It is not
+promoted, because a multi-root configuration can legitimately rank families from
+a subset of its roots. The risks section below records that as the accepted
+boundary.
+
+**The toolchain finding was refuted, and the refutation is worth keeping.** The
+assessment compared with a two-dot `git diff fb2e19f..7b9c2c4`, but `fb2e19f`
+is not an ancestor of this branch, so that range compares two unrelated trees
+rather than stating the PR's delta. Against the real merge base `90aaccf` the
+three-dot diff of `rust-toolchain.toml` is empty, no branch commit touches the
+file, both sides read `1.99.0`, and `git merge-tree` against current `origin/main`
+yields `1.99.1`. Separately, `origin/main` is itself at `1.99.1` while its own
+`docs/developers-guide.md:1185` still says the file pins `1.99.0` — a
+pre-existing contradiction on `main`, not this branch's, and deliberately left
+alone rather than edited in a PR that does not otherwise touch that file.
+
+**The metric regression was removed, not disclosed.** Adding the empty-scope
+guard first dropped `scripts/nose_detector.py` from a CodeScene code health of
+10.00 to 9.38 (`Overall Code Complexity`; the file is new on this branch, so the
+marker counts as new code). Disclosing a self-inflicted regression is weaker
+than removing it, so the cost was attributed rather than explained away.
+
+Measured on variants of the same file, the detector-side guard turned out to be
+free: with the `_reject_empty_scope` helper and its call in `_run_command` alone,
+the file still scores **10.00**. The whole 0.62 came from the empty-roots branch
+added inside `load_settings`, which was already the file's longest function.
+Extracting that check into a new `_require_roots` validator restores **10.00
+while keeping both guards**. This is decomposition, not dilution: no function was
+added to pad an average, and the file still has every protective branch it had.
+Two weaker alternatives were measured and rejected — folding the guard into
+`_run_command` (fewer functions, but 9.09) and a single-pass membership test
+(9.38) — so the extracted validator is the best-scoring honest shape, not merely
+the first one found.
+
+The remaining four CodeScene markers (`duplication_allowlist.py`,
+`nose_schema.py`, `test_duplication_gate_commands.py`,
+`test_duplication_gate_boundaries.py`) are unchanged by this round and carry the
+DELIBERATE-PARALLEL disposition and caveat recorded above. None is a blocking
+gate check: the required set is `lint-test` plus the three `release-smoke` jobs,
+and CodeScene is not in it. The duplication gate's `roots` is `python/stilyagi`
+and Skylos targets `python/stilyagi`, so `scripts/` is outside both.
+
+**Gate binding, because it cost a full re-run.** Committing forced a re-reading
+of which verdicts actually certified the committed content. Six gates
+(`check-fmt`, `typecheck`, `test-doc`, `duplication-test`, `test`) had all
+finished *before* the last three edits at 06:29-06:30, so their earlier passes
+described a tree that no longer existed; only `lint` (06:36:13) and the two
+docs-only gates were already bound to the final content. The lesson is that a
+gate's verdict is bound to the tree it ran against, not to the branch, and an
+edit made while a gate is still cycling silently invalidates it. A related
+near-miss: `make all` also runs `test-workflow-contracts`, a target none of the
+earlier rounds had covered, so a green `make lint` plus a green `make test` is
+not by itself a green `make all`.
