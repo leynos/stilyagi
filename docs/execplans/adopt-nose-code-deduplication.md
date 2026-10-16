@@ -2076,7 +2076,16 @@ assumed.
 Because this delta is Markdown-only, and because the two Markdown commits it
 sits on already passed the other eight gates at this same commit, the re-run is
 scoped to `markdownlint` plus `check-fmt` — `mdtablefix` also rewrites this
-file, so it has to be re-checked alongside. The remaining seven verdicts are
-carried forward with their binding stated: they were measured on `baba067`,
-they cannot read a Markdown file, and the only change is the emphasis marker in
-prose. That carry-forward is a claim with a reason attached, not a convenience.
+file, so it has to be re-checked alongside.
+
+The remaining seven verdicts are carried forward, and the reason is narrower
+than "they cannot see Markdown". One of them can: `nixie` validates Mermaid
+diagrams inside `*.md`, so it does read this file. It passes trivially, because
+the file contains no fenced `mermaid` block at all. The other six do not read
+it or any other `*.md`: `check-fmt`'s Ruff and `cargo fmt` tiers cover Python
+and Rust, and `typecheck`, `test-doc`, `test`, `lint`, `duplication-test` and
+`test-workflow-contracts` reach this file through no path. Each verdict was
+measured on `baba067`, and nothing has changed since except prose in this
+execplan: the four emphasis markers and this section. No test in the repository
+parses an execplan, so prose here cannot move any of the six. That
+carry-forward is a claim with a reason attached, not a convenience.
