@@ -2271,6 +2271,21 @@ configured root cannot turn the gate green while checking nothing. An empty
 diagnostic names the empty scope rather than a downstream argument. A mistyped
 or empty scope therefore fails loudly rather than passing vacuously.
 
+The empty-scope guard is textual: it matches the pinned detector's
+`no supported source files found under:` line rather than enumerating source
+files itself. A detector release that reworded that diagnostic would disable
+the guard silently, which is one more reason the version pin is enforced by
+contract test rather than by convention.
+
+That guarantee covers a scope that narrows to nothing. It does not cover a
+*partial* narrowing, where several roots are configured and at least one still
+selects supported files: measured on `nose` 0.20.0, that run exits 0 writing
+nothing at all to stderr, so there is no diagnostic to promote and the
+remaining roots' families are ranked as if the silent root were absent. The
+wrapper does not try to attribute families to individual roots, because a
+multi-root configuration can legitimately rank families from a subset. Partial
+narrowing is an accepted boundary of the gate, not a covered case.
+
 A manifest that cannot be read, that is not valid TOML, or that holds a scalar
 where a table belongs is likewise reported as a named configuration error with
 status 2, not as a traceback. Editing `pyproject.toml` by hand is supported

@@ -47,14 +47,22 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
 ## Risks
 
 - **Silent scope narrowing.** A mistyped or empty root would make the gate pass
-  vacuously. The configured roots are validated to exist and to select the
-  intended files. An empty `roots` array is rejected when settings load. A root
-  that exists but holds nothing `nose` can parse is caught at the subprocess
-  boundary, where the wrapper promotes `nose`'s own empty-scope warning to a
-  configuration error instead of accepting the empty family list it emits
-  alongside it. A _partial_ narrowing — several roots where only one selects
-  files — remains reported by `nose` on stderr and is not promoted, because a
-  legitimate multi-root configuration can rank families from a subset.
+  vacuously. A root that does not exist fails the detector run outright. An
+  empty `roots` array is rejected when settings load. A root that exists but
+  holds nothing `nose` can parse is caught at the subprocess boundary, where
+  the wrapper promotes `nose`'s own empty-scope warning to a configuration
+  error instead of accepting the empty family list it emits alongside it. A
+  _partial_ narrowing — several roots where at least one selects supported
+  files — remains undetected: measured on `nose` 0.20.0, that run exits 0 with
+  an empty stderr, so there is no diagnostic for the wrapper to promote. A
+  multi-root configuration can legitimately rank families from a subset of its
+  roots, so the wrapper does not attempt to infer each root's contribution.
+  Partial narrowing is therefore an accepted boundary recorded here, not a
+  closed one. The empty-scope guard is itself textual: it matches the pinned
+  detector's `no supported source files found under:` line rather than
+  enumerating source files, so a detector release that reworded that diagnostic
+  would disable the guard. The version pin is what keeps that from happening
+  unnoticed.
 - **Pin drift.** The pinned version appears in the Makefile, CI, and
   `[tool.nose]`. A contract test keeps the three in agreement.
 - **Gate/test coupling.** Gate tests must not be imported into the application
@@ -1940,10 +1948,17 @@ guard lapses to the previous behaviour instead of wrongly rejecting a root that
 uses a newly supported language.
 
 One residual is disclosed rather than closed: a _partial_ narrowing, several
-roots where only one selects files, still exits 0 with no warning. It is not
-promoted, because a multi-root configuration can legitimately rank families
-from a subset of its roots. The risks section below records that as the
-accepted boundary.
+roots where at least one selects files, still exits 0 with no warning. It is
+not promoted, because a multi-root configuration can legitimately rank families
+from a subset of its roots. The risks section records that as the accepted
+boundary. The claim was measured rather than assumed: `nose` 0.20.0 run with
+`python/stilyagi` plus an empty sibling root exits 0 with **zero bytes** of
+stderr, while the same binary run against two empty roots writes the 236-byte
+`warning: no supported source files found under:` line the wrapper matches. So
+the partial case is not merely unpromoted — there is no diagnostic present to
+promote, and the earlier Risks wording that said it "remains reported by `nose`
+on stderr" was wrong. It was corrected in the same commit that recorded this
+measurement.
 
 **The toolchain finding was refuted, and the refutation is worth keeping.** The
 assessment compared with a two-dot `git diff fb2e19f..7b9c2c4`, but `fb2e19f`

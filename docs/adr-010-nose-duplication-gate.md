@@ -154,12 +154,25 @@ is a path glob, and that the ranked surface bounds what the gate adjudicates.
 - The gate exits 0 for a clean or fully allowed scan, 1 for unsuppressed
   families, and 2 for configuration or tool-execution errors, including a
   missing binary, a version mismatch, a timeout, and a malformed report. A
-  mistyped root surfaces as exit 2 rather than a vacuous pass, so an empty or
-  misspelled scope cannot masquerade as a clean result. An empty `roots` array
-  is rejected before the detector runs. A root that exists but selects no
-  parseable source is also rejected: `nose` reports that case on stderr while
-  still exiting 0, so the wrapper promotes the diagnostic rather than treating
-  an empty family list as a clean scan.
+  mistyped root surfaces as a detector failure rather than a vacuous pass, so
+  an empty or misspelled scope cannot masquerade as a clean result. An empty
+  `roots` array is rejected before the detector runs. A root that exists but
+  selects no parseable source is also rejected: `nose` reports that case on
+  stderr while still exiting 0, so the wrapper promotes the diagnostic rather
+  than treating an empty family list as a clean scan. That acknowledgement is
+  textual: the wrapper matches the pinned detector's
+  `no supported source files found under:` line rather than enumerating source
+  files itself, so a future detector release that reworded the diagnostic would
+  disable the guard, and the version pin is what keeps local and CI runs
+  honest. Those guarantees cover a scope that narrows to nothing. They do not
+  cover a _partial_ narrowing, where several roots are configured and at least
+  one still selects supported files: measured on `nose` 0.20.0, that run exits
+  0 writing nothing to stderr, so there is no diagnostic to promote, and the
+  remaining roots' families are ranked as if the silent root were not
+  configured. The wrapper does not attempt to infer each root's contribution,
+  because a multi-root configuration can legitimately rank families from a
+  subset; partial narrowing is an accepted boundary of the gate, not a covered
+  case.
 - The allowlist writer is atomic and protected by a sidecar advisory lock
   (`.*.duplication-gate.lock`), so concurrent `make duplication-allow` runs do
   not lose updates. The lock coordinates processes that participate in the
