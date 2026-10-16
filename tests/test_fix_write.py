@@ -134,7 +134,7 @@ def test_write_source_refuses_a_target_edited_during_staging(
     before_entries = sorted(entry.name for entry in tmp_path.iterdir())
     real_copystat = shutil.copystat
 
-    def edit_then_copy(source: object, destination: object) -> None:
+    def edit_then_copy(source: pathlib.Path, destination: pathlib.Path) -> None:
         """Change the target, then preserve metadata as the real call would."""
         target.write_bytes(b"human edit during staging\n")
         real_copystat(source, destination)

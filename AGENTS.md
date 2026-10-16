@@ -90,14 +90,24 @@
 - **For Python files:**
   - **Testing:** Passes all relevant unit and behavioural tests (`make test`).
   - **Linting:** Passes the complete `make lint` pipeline, including the
-    blocking Skylos dead-code scan. The CI lint step runs the same target.
-    Investigate every finding and remove genuine dead code. Record verified
-    false positives with
+    blocking Skylos dead-code scan and the blocking code-duplication gate. The
+    CI lint step runs the same target.
+  - **Dead code:** Investigate every Skylos finding and remove genuine dead
+    code. Record verified false positives with
     a typed `[tool.skylos.dead_code]` entry-point rule for implicit runtime
     callers. Only if that rule cannot model the boundary, use
     `make skylos-allow SYMBOL=handler REASON="Loaded by plugin registry"`,
     including the verified runtime caller in the reason. `SYMBOL` is required
     because WSL may inject `NAME` with the hostname.
+  - **Duplication:** Extract the shared logic into one helper when the
+    duplication is genuine. When a family is a deliberate parallel rather than
+    shared logic, record a reasoned exception with
+    `make duplication-allow FIRST=<path[::name]> [SECOND=<path[::name]>]
+    REASON='<why this stays>'` and state the independent contract or boundary
+    that an extraction would wrongly couple. Never add a repository-wide
+    wildcard, a mass-generated reason, or an entry that covers only some of a
+    family's locations. Never relabel unresolved duplication as "intentional".
+    `make duplication-test` runs the gate's helper tests.
   - **Docstring coverage:** Interrogate, run as part of `make lint`, requires
     100% docstring coverage over `python/stilyagi` and `tests`. Add
     docstrings with new code rather than suppressing the check.
@@ -128,9 +138,14 @@
   versions. Ruff and Interrogate are pinned in the `pyproject.toml` `dev`
   dependency group and resolved from `uv.lock`; the spelling gate is pinned by
   the Makefile `TYPOS_CONFIG_BUILDER_VERSION` variable, which also fixes the
-  `typos` version it runs. Bump the pin at its single source of truth rather
-  than installing a different version ad hoc, and never add a separate
-  tool-install step to CI for a tool the Makefile already provides.
+  `typos` version it runs. The `nose` duplication detector is pinned by the
+  Makefile `NOSE_VERSION` variable, the workflow-level `NOSE_VERSION`, and
+  `[tool.nose] version`, with `tests/test_toolchain_contract.py` asserting the
+  three agree. Bump the pin at its single source of truth rather than
+  installing a different version ad hoc, and never add a separate tool-install
+  step to CI for a tool the Makefile already provides. Do not relax the
+  detector's `--disable-strategies compile,quick-install` prohibition to make a
+  missing binary build: fix provisioning instead.
 
 ## Refactoring heuristics and workflow
 
@@ -139,7 +154,8 @@
   - **Long methods/functions:** functions that are excessively long or try to do
     too many things.
   - **Duplicated code:** identical or very similar code blocks appearing in
-    multiple places.
+    multiple places. The code-duplication gate reports these automatically, so
+    a failing `make lint` is the usual signal.
   - **Complex conditionals:** deeply nested or overly complex `if`/`else` or
     `switch` statements.
   - **Large code blocks for single values:** significant logic blocks dedicated

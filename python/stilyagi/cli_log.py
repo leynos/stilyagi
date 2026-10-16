@@ -78,14 +78,16 @@ STRUCTURED_FIELDS = (
 )
 
 
-def log_handler() -> logging.Handler:
+def log_handler() -> logging.StreamHandler:
     """Build the console handler that makes this command's fields visible.
 
     Returns
     -------
-    logging.Handler
+    logging.StreamHandler
         A stream handler on standard error with a formatter that appends every
-        structured field a record carries, in a fixed order.
+        structured field a record carries, in a fixed order. The narrower type
+        states what this builds; it is still a `logging.Handler` to every
+        caller that installs it, and `logging.basicConfig` accepts it there.
 
     Examples
     --------

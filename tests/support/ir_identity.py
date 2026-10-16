@@ -22,7 +22,7 @@ def load_insta_json_snapshot(path: pathlib.Path) -> dict[str, JSONType]:
 
 
 def normalize_ir_identity(
-    ir: cabc.Mapping[str, JSONType],
+    ir: cabc.Mapping[str, object],
     *,
     producer_name: str,
     producer_version_placeholder: str,

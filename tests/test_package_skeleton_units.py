@@ -2,6 +2,7 @@
 
 import dataclasses as dc
 import pathlib
+import typing as typ
 
 import pytest
 import stilyagi
@@ -9,6 +10,9 @@ from pytest_bdd import scenarios
 from stilyagi import config, diagnostics, engine, model, nlp, plugins, rules
 
 from tests.support.assertions import assert_with_context
+
+if typ.TYPE_CHECKING:
+    import types
 
 pytest_plugins = ("tests.steps.check_command", "tests.package_skeleton_support")
 pytestmark = pytest.mark.usefixtures("reset_extraction_state")
@@ -47,7 +51,7 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
     ],
 )
 def test_package_boundaries_re_export_their_documented_types(
-    module: object,
+    module: types.ModuleType,
     expected: list[str],
 ) -> None:
     """Re-export the documented boundary types from each package surface."""

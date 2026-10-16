@@ -1,0 +1,17 @@
+# serializer version: 1
+# name: TestGateCommands.test_check_reports_blocking_findings
+  '''
+  duplicate code: 1 unsuppressed family/families
+    python/stilyagi/a.py:1-20 ~ python/stilyagi/b.py:30-49 beta (copy-paste, value 22.1)
+  Extract the shared logic into one helper, or record a considered exception:
+    make duplication-allow FIRST='<path[::name]>' [SECOND='<path[::name]>'] REASON='<why this stays>'
+  
+  '''
+# ---
+# name: TestGateCommands.test_check_reports_stale_entries
+  '''
+  stale allow entry (python/stilyagi/gone.py): it silences nothing in this run. Confirm the duplication is really gone before removing it: a family can drop out of the ranking because it fell below `top` or shrank under `min-size`, not because it was fixed.
+  duplication gate passed
+  
+  '''
+# ---

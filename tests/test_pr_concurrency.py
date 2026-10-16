@@ -27,10 +27,13 @@ from tests.support.pr_concurrency import (
     pull_request_workflows,
 )
 
+if typ.TYPE_CHECKING:
+    from tests.support.workflows import WorkflowDocument
+
 PULL_REQUEST_WORKFLOWS: typ.Final = pull_request_workflows()
 
 
-def _document(**concurrency: object) -> dict[str, object]:
+def _document(**concurrency: object) -> WorkflowDocument:
     """Build a minimal pull-request workflow with the given concurrency.
 
     Parameters
@@ -40,7 +43,7 @@ def _document(**concurrency: object) -> dict[str, object]:
 
     Returns
     -------
-    dict[str, object]
+    WorkflowDocument
         A parsed-shaped workflow document.
     """
     return {"on": {"pull_request": None}, "concurrency": dict(concurrency)}
@@ -123,7 +126,7 @@ def test_the_conforming_shape_is_accepted() -> None:
     ],
 )
 def test_a_non_conforming_document_is_rejected(
-    document: dict[str, object], fragment: str
+    document: WorkflowDocument, fragment: str
 ) -> None:
     """Each way of defeating the rule is reported, and named.
 
@@ -146,7 +149,7 @@ def test_a_non_conforming_document_is_rejected(
     ],
 )
 def test_the_trigger_reader_covers_every_accepted_shape(
-    document: dict[str, object],
+    document: WorkflowDocument,
 ) -> None:
     """An unquoted ``on:`` parses as the boolean True and still reads.
 
@@ -171,7 +174,7 @@ def test_the_trigger_reader_covers_every_accepted_shape(
     ],
 )
 def test_a_workflow_no_pull_request_starts_is_out_of_scope(
-    document: dict[str, object],
+    document: WorkflowDocument,
 ) -> None:
     """Only ``pull_request`` is in scope, and the reader says so.
 

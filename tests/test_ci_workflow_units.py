@@ -33,7 +33,9 @@ WorkflowJob = typ.TypedDict(
 type SmokeWorkflow = tuple[dict[str, WorkflowJob], list[WorkflowStep], set[str]]
 
 
-def _workflow_jobs(parsed_workflow: dict[str, object]) -> dict[str, WorkflowJob]:
+def _workflow_jobs(
+    parsed_workflow: dict[str | bool, object],
+) -> dict[str, WorkflowJob]:
     """Return the parsed workflow jobs with a narrow test-local shape."""
     jobs = parsed_workflow["jobs"]
     assert isinstance(jobs, dict), "expected isinstance(jobs, dict)"
@@ -42,7 +44,7 @@ def _workflow_jobs(parsed_workflow: dict[str, object]) -> dict[str, WorkflowJob]
 
 def _job_steps(job: WorkflowJob) -> list[WorkflowStep]:
     """Return a workflow job's steps with a narrow test-local shape."""
-    return typ.cast("list[WorkflowStep]", job["steps"])
+    return job["steps"]
 
 
 def _workflow_steps(jobs: dict[str, WorkflowJob]) -> list[WorkflowStep]:
@@ -63,7 +65,7 @@ def _workflow_step_named(job: WorkflowJob, name: str) -> WorkflowStep:
     raise AssertionError(msg)
 
 
-def _workflow_document(workflow_name: str) -> dict[str, object]:
+def _workflow_document(workflow_name: str) -> dict[str | bool, object]:
     """Parse one repository workflow file into its document mapping."""
     return load_workflow(
         (REPOSITORY_ROOT / ".github" / "workflows" / workflow_name).read_text(
@@ -72,7 +74,7 @@ def _workflow_document(workflow_name: str) -> dict[str, object]:
     )
 
 
-def _workflow_environment(parsed_workflow: dict[str, object]) -> dict[str, str]:
+def _workflow_environment(parsed_workflow: dict[str | bool, object]) -> dict[str, str]:
     """Return the workflow-level environment variables."""
     environment = parsed_workflow["env"]
     assert isinstance(environment, dict), "expected isinstance(environment, dict)"

@@ -70,7 +70,7 @@ def round_trip_helper_preserves_surrounding_text(
     round_trip_state: dict[str, object],
 ) -> None:
     """Assert the scenario-visible edit result."""
-    result = typ.cast("object", round_trip_state["result"])
+    result = round_trip_state["result"]
     assert_with_context(
         result
         == apply_round_trip_edits(

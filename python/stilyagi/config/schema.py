@@ -21,16 +21,45 @@ def _empty_rule_mapping() -> dict[str, dict[str, object]]:
     return {}
 
 
-def _coerce_path(value: object, *, field_name: str) -> pathlib.Path:
-    """Normalise a cache-directory value to a path object."""
+def normalise_path_value(value: object) -> pathlib.Path:
+    """Normalise a cache-directory value to a path object.
+
+    Parameters
+    ----------
+    value:
+        A ``pathlib.Path``, a string to interpret as one, or an unsupported
+        value.
+
+    Returns
+    -------
+    pathlib.Path
+        The normalised path.
+
+    Raises
+    ------
+    TypeError
+        If ``value`` is neither a path nor a string. The message names no
+        field, so each caller adds the context its own contract requires: a
+        dataclass field name here, or the offending config file and key
+        during table parsing.
+    """
     match value:
         case pathlib.Path():
             return value
         case str():
             return pathlib.Path(value)
         case _:
-            message = f"{field_name} must be a path or string"
+            message = "must be a path or string"
             raise TypeError(message)
+
+
+def _coerce_path(value: object, *, field_name: str) -> pathlib.Path:
+    """Normalise a cache-directory value, naming the field on rejection."""
+    try:
+        return normalise_path_value(value)
+    except TypeError as error:
+        message = f"{field_name} {error}"
+        raise TypeError(message) from error
 
 
 def _coerce_string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:

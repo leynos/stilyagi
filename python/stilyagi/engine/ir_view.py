@@ -139,9 +139,9 @@ def byte_start_from_span(span: object) -> int | None:
     int | None
         The byte start when it is an integer, otherwise ``None``.
     """
-    if not isinstance(span, cabc.Mapping):
+    typed_span = _ir_mapping(span)
+    if typed_span is None:
         return None
-    typed_span = typ.cast("cabc.Mapping[str, object]", span)
     byte_start = typed_span.get("byte_start")
     return byte_start if isinstance(byte_start, int) else None
 
@@ -178,9 +178,9 @@ def _region_segments(raw_region: object) -> cabc.Iterator[SegmentView]:
 
 def _segment_view(raw_segment: object) -> SegmentView | None:
     """Convert one raw segment mapping into a safe typed view."""
-    if not isinstance(raw_segment, cabc.Mapping):
+    typed_segment = _ir_mapping(raw_segment)
+    if typed_segment is None:
         return None
-    typed_segment = typ.cast("cabc.Mapping[str, object]", raw_segment)
     text = typed_segment.get("text")
     if not isinstance(text, str):
         return None
@@ -194,11 +194,29 @@ def _segment_view(raw_segment: object) -> SegmentView | None:
     return SegmentView(span, text, None) if span is not None else None
 
 
+def _ir_mapping(value: object) -> cabc.Mapping[str, object] | None:
+    """Narrow one untyped IR value to a string-keyed mapping, or ``None``.
+
+    Parameters
+    ----------
+    value
+        An untyped value lifted out of the IR envelope.
+
+    Returns
+    -------
+    collections.abc.Mapping[str, object] | None
+        The value as a mapping when it is one, otherwise ``None``.
+    """
+    if not isinstance(value, cabc.Mapping):
+        return None
+    return typ.cast("cabc.Mapping[str, object]", value)
+
+
 def _source_span(source: object) -> SourceSpan | None:
     """Return a well-ordered source span from one raw source mapping."""
-    if not isinstance(source, cabc.Mapping):
+    typed_source = _ir_mapping(source)
+    if typed_source is None:
         return None
-    typed_source = typ.cast("cabc.Mapping[str, object]", source)
     byte_start = typed_source.get("byte_start")
     byte_end = typed_source.get("byte_end")
     if not isinstance(byte_start, int) or not isinstance(byte_end, int):

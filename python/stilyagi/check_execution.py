@@ -198,6 +198,18 @@ def _read_source(check_input: CheckInput, run: CheckRun) -> SourcedInput | None:
         return None
 
 
+def _report_phase_failure(
+    sourced_input: SourcedInput,
+    run: CheckRun,
+    error: Exception,
+    phase: str,
+) -> FileCheckResult:
+    """Record one failed check phase and return that file's failed outcome."""
+    check_metrics.record_operational_failure(phase)
+    run.report(pathlib.Path(sourced_input.reported_path), error)
+    return FileCheckResult(diagnostics=[], had_error=True, was_unreadable=False)
+
+
 def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
     """Check one discovered file or standard-input payload.
 
@@ -230,9 +242,7 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
                 sourced_input.source_text, check_input.syntax
             )
     except engine.BridgeExtractionError as exc:
-        check_metrics.record_operational_failure("extract")
-        run.report(pathlib.Path(sourced_input.reported_path), exc)
-        return FileCheckResult(diagnostics=[], had_error=True, was_unreadable=False)
+        return _report_phase_failure(sourced_input, run, exc, "extract")
     except Exception:
         check_metrics.record_operational_failure("extract")
         _LOGGER.exception(
@@ -251,9 +261,7 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
         config.InvalidCacheDirError,
         config.InvalidConfigError,
     ) as exc:
-        check_metrics.record_operational_failure("config")
-        run.report(pathlib.Path(sourced_input.reported_path), exc)
-        return FileCheckResult(diagnostics=[], had_error=True, was_unreadable=False)
+        return _report_phase_failure(sourced_input, run, exc, "config")
 
     try:
         with check_metrics._measure_phase("rules"):

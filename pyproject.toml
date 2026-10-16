@@ -344,14 +344,117 @@ markers = [
     "act: integration tests that drive GitHub Actions via act",
     "slow: exercises that take longer or require heavyweight tooling",
 ]
+# Scope the bare run to the application suite. `make test` and the coverage
+# step both invoke `pytest` with no path, which would otherwise also discover
+# `scripts/tests/`: the duplication-gate helper tests import the gate's
+# PEP 723 dependencies (`cyclopts`, `tomlkit`) rather than the application's
+# dev group, so collecting them fails every application run at import. They
+# are a lane of their own, provisioned and run by `make duplication-test`,
+# which names its files explicitly; a path argument overrides `testpaths`, so
+# that lane is unaffected. Stated as the one place the suite lives rather than
+# as an exclusion, since `norecursedirs` would replace pytest's own defaults
+# rather than extend them.
+testpaths = ["tests"]
+
+# Settings for the pinned `nose` code-duplication detector, run by the
+# `make duplication` gate that `make lint` invokes. Keep `version` in sync with
+# NOSE_VERSION in the Makefile and CI; tests/test_toolchain_contract.py enforces
+# the match.
+#
+# `roots` deliberately names only the maintained production Python package.
+# `tests/` is excluded because a scan of it returns an order of magnitude more
+# families (87 when this was written, against 4 for the package itself), almost
+# all assertion-shape and fixture-setup repetition, which would dominate the
+# ranked budget with test scaffolding. The figure is a measurement of one tree,
+# not a constant: it read 82, 83, 85 and then 87 as this branch and its base
+# moved, so the exclusion rests on the order-of-magnitude gap and the character
+# of the duplication, not on the digit. `scripts/` is excluded so the gate's own
+# helper modules are not self-referential; and the Rust workspace under
+# `crates/` is covered by Clippy and Whitaker rather than by a Python clone
+# detector.
+#
+# `min-size` counts nose intermediate-language (IL) tokens, not Python lines or
+# AST nodes. `surface = "all"` is required: nose's curated default dashboard
+# reports nothing here at all, while `all` reports 9 families. `top = 30` sits
+# above the saturation point — the complete ranking is 9 families, so every one
+# of them is adjudicated rather than truncated, and the gate's coverage of this
+# package is total rather than merely the top 30. That saturation is a
+# measurement of the present tree rather than a guarantee: if the package grows
+# past 30 families the bound starts hiding some, and the surface should be
+# re-measured before the "nothing is hidden" claim is repeated. The count has
+# moved before: it stood at 4 until this branch was replayed onto main's
+# safe-fix work, which added package code the earlier measurement predated.
+[tool.nose]
+version = "0.20.0"
+roots = ["python/stilyagi"]
+mode = "syntax,semantic,near"
+min-size = 24
+surface = "all"
+top = 30
+
+# Reasoned exceptions for the duplication gate. Entries key on locations, not
+# line spans: `path` (glob) matches any location in matching files, and
+# `path::name` additionally requires nose's unit name. A `unit` entry names one
+# key; a `members` entry names several. Either silences a family only when every
+# location in it matches one of the entry's keys, so a new copy in an unlisted
+# file still blocks. Record entries with
+# `make duplication-allow FIRST=... [SECOND=...] REASON=...` and remove them
+# when the gate reports them as stale.
+#
+# A `path::name` key never matches an unnamed location, and nose names a unit
+# only when it matched a whole function, class, or method. A family reported
+# at fragment level therefore has no narrower key than the whole file, and
+# such an entry also silences any later fragment-level family in that file.
+# Always prefer a `path::name` key when the detector does supply a name; the
+# `discovery_targets.py` entry below is the one family so far that does.
+[tool.duplication_gate]
+
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/config/resolve.py", "python/stilyagi/engine/extraction.py"]
+reason = "Coincidental two-line guard shape in unrelated modules: one returns an empty tuple because the 'extend' key is unset, the other because no IR payload was supplied. Nothing is shared but the shape of the guard."
+
+[[tool.duplication_gate.allow]]
+unit = "python/stilyagi/config/validate.py"
+reason = "Parallel element validators: one rejects a mapping's non-string keys, the other a tuple's non-string items, and each raises its own diagnostic. Sharing them would require a predicate-taking helper with a boolean mode, which the config layer deliberately avoids."
+
+[[tool.duplication_gate.allow]]
+unit = "python/stilyagi/engine/extraction.py"
+reason = "Double-checked locking around one process-wide vocabulary validation. The unlocked pre-check and the locked re-check are the idiom itself; collapsing them into a helper would defeat the purpose, since the second read must happen under the lock."
+
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/discovery_targets.py::_prune_ignored_directories", "python/stilyagi/discovery_targets.py::_discover_directory_target"]
+reason = "Membership test against the already-extracted _IGNORED_DIRECTORY_NAMES constant, reached from two independent phases: one decides whether a directory target should be walked at all before descending, the other filters names during the walk. Nose reports shared_lines and removable as 0, so nothing here is extractable; the constant is already the shared abstraction, and the only other candidate would be a boolean-mode predicate wrapper coupling a pre-walk gate to an in-walk filter."
+
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/engine/fix_pipeline.py::FixRequest", "python/stilyagi/engine/fix_pipeline.py::PlannedFile"]
+reason = "Request and result are deliberate parallels with no shared behaviour. FixRequest carries planning inputs -- document, diagnostics, lint_config, level; PlannedFile carries planning outputs -- fixed_bytes, fix_errors, selected, and the counter fields. The six shared field annotations are just the file-level facts both sides have to name: bytes, text, two paths, syntax, and the stdin flag. A common base would assert an is-a relationship that is false and would drag planning inputs into the result type surface, coupling the two sides of the planner boundary so that neither could then evolve independently."
+
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/engine/fix_pipeline.py", "python/stilyagi/engine/fix_planning/plan.py"]
+reason = "Two unrelated two-line guards that happen to read alike: patch_for returns the empty string because a patch with no hunks is not a patch, while _plan_outcome returns unchanged because that is the name of a planner terminal state. One vocabulary is the diff format and the other is the plan state enum, and the two sentinels are deliberately not interchangeable. The only extractable content is the guard itself, and a helper taking the sentinel as an argument would be a boolean-mode wrapper around an if statement. The same guard shape is already recorded as an exception between config/resolve.py and engine/extraction.py."
+
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/engine/extraction.py", "python/stilyagi/engine/renderers.py"]
+reason = "Two unrelated serialization helpers guarding an optional input: _parse_ir_json returns None because the bridge field was absent, while _fix_payload returns None because the diagnostic carried no fix. One is a deserializer for the Rust bridge payload and the other is a JSON renderer for rule-authored fixes, so the shared content is only the two-line None guard. Extraction would couple a parse path to a render path that never exchange values."
+
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/cli_apply.py", "python/stilyagi/engine/fix_planning/plan.py"]
+reason = "The three shared lines are the PEP 484 conditional-import prologue for lazy annotations -- the TYPE_CHECKING guard, the cabc alias, and the blank line -- which 35 modules in python/stilyagi carry and which 19 bind cabc for. The module bodies beneath differ completely: one is fix application and the other is fix planning. There is nothing to extract, because the idiom is a language-level pattern each module must state for itself; a shared import module would make every module depend on it at runtime for a declaration that is, by construction, not evaluated at runtime."
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/cli_fix.py", "python/stilyagi/engine/fix_pipeline.py", "python/stilyagi/check_inputs.py"]
+reason = "The shared content is the two-line TYPE_CHECKING marker and a newline. cli_fix.py and fix_pipeline.py bind cabc under the guard, check_inputs.py binds pathlib instead, so even the guarded block contents do not agree. The marker appears in 35 modules across python/stilyagi and the entry is recorded per family only because nose ranks fragments; it is the PEP 484 idiom for lazy annotations, not a distinct abstraction, and no runtime helper can carry a compile-time-only declaration."
 
 [tool.ty.environment]
 python-version = "3.14"
 
 [tool.ty.src]
-include = ["python/stilyagi"]
+# The gateway covers tests and scripts as well as the package, so the checker
+# must see them. Excluded paths are build output and vendor trees only; the
+# deliberate corpus fixtures under tests/fixtures are added below, because
+# they are malformed on purpose and would otherwise report phantom errors.
+include = ["python/stilyagi", "tests", "scripts", ".github"]
 exclude = [
-    "tests",
+    "tests/fixtures",
     "build",
     "dist",
     ".venv",

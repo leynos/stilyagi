@@ -39,6 +39,7 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 ├── python/
 │   └── stilyagi/
 ├── scripts/
+│   └── tests/
 ├── tests/
 │   ├── __snapshots__/
 │   ├── fixtures/
@@ -165,8 +166,14 @@ there rather than embedded ad hoc in unrelated modules.
   - Continuous integration and automation workflow definitions.
 - `scripts/`
   - Maintainer scripts following the scripting standards, including the
-    focused exact-phrase checker. Shared configuration generation remains in
-    the pinned `typos-config-builder` CLI.
+    code-duplication gate. Shared configuration generation remains in the
+    pinned `typos-config-builder` CLI.
+- `scripts/tests/`
+  - Tests for the maintainer scripts, following the `scripts/tests/` layout in
+    the scripting standards. These are a lane of their own: they import the
+    gate's PEP 723 dependencies rather than the application's `dev` group, so
+    `make duplication-test` runs them and `testpaths` keeps a bare `pytest` run
+    out of this directory.
 
 ## 7. Generated and transient paths
 
@@ -178,6 +185,13 @@ The following paths are operationally useful but are not authoritative sources:
 
 - `.venv/`
   - Local virtual environment created by `make build` or `make typecheck`.
+- `.tools/`
+  - Pinned binaries installed by the Makefile, such as the `nose` duplication
+    detector under `.tools/nose`. Cached in CI by version and platform, never
+    committed.
+- `.*.duplication-gate.lock`
+  - Empty sidecar lock held while `make duplication-allow` rewrites
+    `pyproject.toml`. Transient, and never committed.
 - `.uv-cache/`
   - Local `uv` cache data.
 - `.ruff_cache/`
