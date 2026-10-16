@@ -74,12 +74,12 @@ Rely on review and the existing lint tiers.
 | Deterministic on commit   | Yes                                 | Yes, eventually                                 | No                  |
 | Evidence base             | Episodic's benchmark, reused        | Stilyagi's own, but on a much smaller corpus    | None                |
 | Risk of wrong tool choice | Low; the choice is already recorded | Low, but the corpus is too small to be decisive | Not applicable      |
-| Review burden carried     | Four reasoned entries               | Four, adjudicated identically                   | Growing duplication |
+| Review burden carried     | Nine reasoned entries               | Nine, adjudicated identically                   | Growing duplication |
 
 _Table 1: Comparison of the three options._
 
 Option B was rejected because Stilyagi's Python surface is small: a saturation
-scan reports four families. A benchmark run over four families cannot
+scan reports nine families. A benchmark run over nine families cannot
 distinguish three detectors any better than episodic's larger corpus already
 did, so re-running it would spend effort to reproduce a decision already
 recorded at an immutable revision. Option C was rejected because the existing

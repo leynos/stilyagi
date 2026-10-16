@@ -1776,3 +1776,111 @@ the ADR by path, so renaming it mid-replay would have broken their replay.
 The paragraph above recording the first renumber, and the two `ADR 009`
 references in the earlier parts of this plan, are historical audit records of
 the state at that time and are intentionally left as written.
+
+### Sixth round: the two blockers on the replayed head, and the ninth entry
+
+`make typecheck` and `make lint` both failed on the replayed head, and both
+failures trace to one cause: the fifth rebase replayed this branch onto
+`90aaccf` (main #160, "Safe-fix planning, conflict resolution, `--diff`, and
+`--fix` (2.2.2)"). `git log --diff-filter=A` shows that commit added
+`cli_fix.py`, `engine/fix_planning/plan.py`, `engine/fix_pipeline.py`,
+`cli_apply.py`, `engine/ir_view.py`, `fix_execution.py`, `cli_log.py` and the
+rest — roughly 1602 lines of new package code. Every measurement this plan had
+recorded for the gate and the type checker was taken _before_ that code
+existed, and nothing re-measured them after the replay.
+
+The two failures are therefore not independent defects. They are the same
+omission observed by two different gates, which is why the branch's own
+recorded "Verified: `make duplication` passes with five reasoned exceptions and
+no stale entry" (`e448d9f`) was true when measured and false on the tip it was
+pushed to. A committer-date rewrite does not re-run a gate.
+
+**`make typecheck`: 44 `ty` diagnostics, all in `tests/`.** None were in
+`python/stilyagi`. They were mechanical and fell into five shapes:
+
+- **Dynamically stamped log fields** (23 in `test_fix_plan_logging.py`, 10 in
+  `test_check_diff.py`, 3 in `test_cli_log.py`). A `logging.LogRecord` carries
+  `extra` keys the stubs cannot know about, so `record.files_written` is a type
+  error however true it is at runtime. Fixed by adding
+  `tests/support/log_records.py::record_field`, which reads one field with the
+  three-argument `getattr(record, name, None)` that returns `object`. The
+  three-argument form matters twice over: the two-argument form would trip
+  Ruff's `B009`, and it matches the precedent already in `test_check_diff.py`.
+- **Coercion tests whose loose values are their subject**
+  (`test_fixes_model.py`, `test_cli_fix.py`, `test_renderers.py`).
+  `Fix.__post_init__` exists to coerce the string applicability and the list of
+  edits an untyped rule author writes, so the test cannot pass tightly typed
+  values without deleting what it proves. Two of these were fixed by passing
+  the strictly typed value where the coercion is _not_ the subject, and one by
+  casting through `Any` rather than the narrower lie ty can see through.
+- **Fixtures that silently widened their parameters** (`test_fix_write.py`:
+  `source: object` → `pathlib.Path`).
+- **Missing or drifted annotations** (`test_fix_plan_logging.py`'s
+  `_source_with_one_span` return, `test_fix_planner_properties.py`'s optional
+  `fixed_bytes`).
+
+No suppression was added: `ty` has no configured `[tool.ty.rules]` and the
+repository carries no type-checker suppression comments, so the fixes are all
+in the code and the test's intent is now stated in its types.
+
+**`make lint`: eleven families on the replayed head, not four.** Re-measuring
+the saturation scan reports **eleven** families at `HEAD` rather than the four
+the plan recorded. Four were already covered by the pre-existing entries; two
+were the same `ir_view.py` mapping-narrowing guard, genuine duplication that
+was **extracted** into `_ir_mapping` and is no longer reported at all; the
+remaining five needed adjudication. After the extraction the scan reports
+**nine** families, all of them covered by reasoned entries. (The `cli_args.py`
+entry belongs to neither count: it was stale at `HEAD` and was deleted — see
+below.) `tests/support/log_records.py` also matters here: it is a _new_ file
+under `tests/`, so the `tests/`-scan figure moved again, and the exclusion
+paragraph's recorded 87 is now 125.
+
+One existing entry had gone stale and was **removed** rather than re-worded: the
+`cli_args.py` boolean-flag entry, which described two adjacent
+`add_argument(…, action="store_true", …)` declarations. The mechanism was
+measured rather than assumed, because the obvious explanation is wrong. The
+three flags main added in #160 (`--diff`, `--fix`, `--unsafe-fixes`) are _more_
+copies of that declaration shape, so they plausibly read as the cause; two
+isolation probes falsify that. A base-version file with those three blocks
+planted back into it **still reports the family** (`similar`, value 3.9), while
+the branch's file with them removed reports **nothing** — so the dropout comes
+from main's own `_add_rule_code_argument` extraction, which rewrote the
+`--select` / `--ignore` / `--extend-select` trio that nose had actually paired.
+
+The initial reading was that the entry was stale but the flags were still
+uncovered duplication, so a `_add_store_true_argument` builder was written and
+the five switches rewritten onto it, mirroring main's helper. The gate then
+reported the entry as stale _with HEAD's own file and entry restored_, which
+showed the duplication was already gone and the refactor was unmotivated churn.
+It was **reverted**: `python/stilyagi/cli_args.py` is byte-identical to `HEAD`,
+and the only change to that file's story is the deleted entry. The lesson is
+recorded here rather than tidied away because the wrong version was briefly
+committed to this plan's narrative: a family that drops out of a ranking is not
+evidence that the code below it changed, and a stale entry has to be diagnosed
+against the pre-edit tree before anything is written to "fix" it.
+
+The five new entries are adjudicated in full at `[tool.duplication_gate]`. Two
+are the PEP 484 conditional-import idiom, which 35 modules under
+`python/stilyagi` carry and 19 bind `cabc` for; one is that idiom's bare
+two-line marker, where the third member binds `pathlib` instead, so even the
+guarded block contents disagree. Two are `if <x> is None: return <sentinel>`
+guards in unrelated modules, one of which is already recorded as an exception
+elsewhere in the same file. One is `FixRequest` ~ `PlannedFile`: two frozen
+slotted dataclasses that legitimately share a six-field prefix, where a common
+base would assert a false is-a relationship and couple planning inputs to
+planning results.
+
+Because `nose` reports fragment-level locations without unit names, four of the
+five entries are forced to bare-path keys, and a bare path is coarser than the
+family it silences. That coarseness is recorded in each reason rather than
+hidden: the `fix_pipeline.py` ~ `plan.py` entry necessarily also covers the
+`FixRequest` ~ `PlannedFile` family, which is why both entries match and
+neither is stale. The alternative — inventing a narrower key shape — would mean
+changing the gate's key language to suit one family.
+
+Documentation corrected to match the re-measurement: `docs/adr-010`'s option
+table and Option B paragraph (four → nine), `docs/developers-guide.md`'s
+saturation and `tests/` figures, and the `[tool.nose]` comment in
+`pyproject.toml`. The `pyproject.toml` comment now also records that the count
+has moved before and why, so the next reader knows the digit is a measurement
+and not a contract.

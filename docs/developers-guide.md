@@ -2165,7 +2165,7 @@ Two units need stating plainly, because both are easy to misread:
 - **`min-size` counts IL tokens, not Python lines and not AST nodes.** The
   configured floor of 24 is neither a line count nor a node count.
 - **Ranking is bounded.** The gate adjudicates the ranked surface, not every
-  family the detector can find. Stilyagi's ranking currently saturates at four
+  family the detector can find. Stilyagi's ranking currently saturates at nine
   families, which is well below the configured `top = 30`, so nothing is hidden
   today. That is a measurement of the present tree, not a guarantee: if the
   ranked surface ever fills, families below the cutoff stop blocking, and the
@@ -2177,7 +2177,7 @@ Two units need stating plainly, because both are easy to misread:
 exclusions are deliberate:
 
 - **`tests/` is out of scope.** A scan of it reports an order of magnitude more
-  families than the package (87 against 4 when this was written),
+  families than the package (125 against 9 when this was written),
   overwhelmingly assertion-shape and fixture-setup repetition. Adjudicating
   those would dominate the ranked budget with test scaffolding and would need
   mass exception entries. The figure is a measurement of one tree and has moved
@@ -2194,8 +2194,8 @@ exclusions are deliberate:
 default dashboard reports almost nothing for this package, while `all` reports
 every family the gate adjudicates. Re-measure rather than quoting a count:
 adding the gate to a branch that had been rebased onto newer package code
-turned up two families the four original entries did not cover, one of which
-was genuine duplication and was extracted.
+turned up families the original entries did not cover, one of which was genuine
+duplication and was extracted.
 
 #### Exceptions
 
