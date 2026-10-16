@@ -155,7 +155,11 @@ is a path glob, and that the ranked surface bounds what the gate adjudicates.
   families, and 2 for configuration or tool-execution errors, including a
   missing binary, a version mismatch, a timeout, and a malformed report. A
   mistyped root surfaces as exit 2 rather than a vacuous pass, so an empty or
-  misspelled scope cannot masquerade as a clean result.
+  misspelled scope cannot masquerade as a clean result. An empty `roots` array
+  is rejected before the detector runs. A root that exists but selects no
+  parseable source is also rejected: `nose` reports that case on stderr while
+  still exiting 0, so the wrapper promotes the diagnostic rather than treating
+  an empty family list as a clean scan.
 - The allowlist writer is atomic and protected by a sidecar advisory lock
   (`.*.duplication-gate.lock`), so concurrent `make duplication-allow` runs do
   not lose updates. The lock coordinates processes that participate in the

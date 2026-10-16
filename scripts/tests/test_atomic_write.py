@@ -10,6 +10,7 @@ import dataclasses as dc
 import inspect
 import os
 import stat
+import tempfile
 import typing as typ
 
 import atomic_write
@@ -198,3 +199,179 @@ def test_syncs_the_temporary_file_when_requested(
     assert len(regular_files) == 1, "Exactly one fsync must target the temporary file."
     assert len(directories) == 1, "Exactly one fsync must target the parent directory."
     assert destination.read_bytes() == b"payload\n", "The write must still complete."
+
+
+@dc.dataclass(slots=True)
+class _FailingTemporaryFile:
+    """Stand in for ``tempfile`` and fail while the temporary is still open.
+
+    Failing the write, the flush or the temporary file's own sync exercises the
+    window before the replacement, which an earlier cleanup scope did not
+    cover. A real file is still created under the naming pattern the caller
+    asked for, so a missing cleanup leaves a sibling the assertions can see.
+    """
+
+    failure: str
+
+    def NamedTemporaryFile(  # ruff: ignore[invalid-function-name] - tempfile's name.
+        self, *, delete: bool, **kwargs: object
+    ) -> _ExplodingStream:
+        """Create a real temporary sibling whose stream fails on demand.
+
+        ``delete`` is keyword-only and asserted rather than honoured: this
+        double must leave the file on disk, so it can only stand in for the
+        ``delete=False`` call the wrapper makes, and failing loudly here keeps
+        a future change to that call from silently testing nothing.
+
+        Returns
+        -------
+        _ExplodingStream
+            A real temporary file that raises from the nominated method.
+        """
+        assert not delete, "The double can only model a retained temporary file."
+        return _ExplodingStream(
+            self.failure,
+            directory=typ.cast("Path", kwargs["dir"]),
+            prefix=typ.cast("str", kwargs["prefix"]),
+        )
+
+
+class _ExplodingStream:
+    """A real temporary file that raises from one nominated method."""
+
+    def __init__(self, failure: str, *, directory: Path, prefix: str) -> None:
+        """Create the real temporary sibling the wrapper would have created."""
+        self._failure = failure
+        descriptor, name = tempfile.mkstemp(dir=directory, prefix=prefix)
+        self._name = name
+        self._stream = os.fdopen(descriptor, "wb")
+
+    def __enter__(self) -> _ExplodingStream:
+        """Return this stream for the caller's own ``with`` block."""
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        """Close the underlying temporary file."""
+        self._stream.close()
+
+    @property
+    def name(self) -> str:
+        """Expose the temporary path the wrapper records for cleanup."""
+        return self._name
+
+    def __getattr__(self, attribute: str) -> object:
+        """Delegate every attribute this double does not nominate to the file.
+
+        ``os.fdopen`` gives a buffered stream whose ``name`` is the descriptor
+        rather than the path, so ``name`` stays an explicit property. Everything
+        else -- ``fileno`` above all -- is a genuine passthrough, and forwarding
+        it generically keeps the double's surface to the failures it injects.
+
+        Returns
+        -------
+        object
+            Whatever the underlying temporary file holds for that attribute.
+
+        Raises
+        ------
+        AttributeError
+            If the attribute is asked for before the underlying file exists,
+            which also keeps this method from recursing into itself.
+        """
+        try:
+            stream = self.__dict__["_stream"]
+        except KeyError:
+            message = f"{type(self).__name__!r} has no attribute {attribute!r}"
+            raise AttributeError(message) from None
+        return getattr(stream, attribute)
+
+    def write(self, content: bytes) -> int:
+        """Write, or fail the way a full device does."""
+        if self._failure == "write":
+            raise OSError(28, "No space left on device")
+        return self._stream.write(content)
+
+    def flush(self) -> None:
+        """Flush, or fail the way a broken device does."""
+        if self._failure == "flush":
+            raise OSError(5, "Input/output error")
+        self._stream.flush()
+
+
+@dc.dataclass(slots=True)
+class _FailingSync:
+    """Stand in for ``os`` and fail the temporary file's own sync.
+
+    Every other lookup is delegated, so the temporary is still created through
+    the real ``os`` and only the pre-replacement sync is disturbed. The
+    directory sync is never reached, because the temporary one raises first.
+    """
+
+    def fsync(self, descriptor: int) -> typ.NoReturn:
+        """Fail the way a broken device does."""
+        message = "Input/output error"
+        raise OSError(5, message)
+
+    def __getattr__(self, attribute: str) -> object:
+        """Delegate any other attribute to the real ``os`` module."""
+        return getattr(os, attribute)
+
+
+@pytest.mark.parametrize(
+    ("failure", "diagnostic"),
+    [
+        ("write", "No space left on device"),
+        ("flush", "Input/output error"),
+        ("fsync", "Input/output error"),
+    ],
+    ids=["write", "flush", "temporary-sync"],
+)
+def test_early_write_failures_leave_no_temporary_sibling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    diagnostic: str,
+) -> None:
+    """A failure before the replacement must not strand the temporary file.
+
+    The destination is never at risk on these paths, because the replacement
+    has not happened yet. What is at risk is the sibling written alongside it:
+    an interrupted manifest write that leaves a hidden file behind would be
+    picked up by the next reader of the directory as if it were real.
+    """
+    destination = tmp_path / "config.toml"
+    destination.write_bytes(b"ORIGINAL\n")
+    monkeypatch.setattr(atomic_write, "tempfile", _FailingTemporaryFile(failure))
+    if failure == "fsync":
+        monkeypatch.setattr(atomic_write, "os", _FailingSync())
+
+    with pytest.raises(OSError, match=diagnostic):
+        atomic_write.atomic_write(
+            destination,
+            b"REPLACEMENT\n",
+            options=atomic_write.AtomicWriteOptions(sync_file=True),
+        )
+
+    assert destination.read_bytes() == b"ORIGINAL\n", (
+        "A failed write must leave the destination untouched."
+    )
+    assert not list(tmp_path.glob(f".{destination.name}.*")), (
+        "A failure before the replacement must not leave the temporary sibling."
+    )
+
+
+def test_a_failed_write_still_cleans_up_when_parents_are_created(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cleanup covers a destination directory created by this call."""
+    destination = tmp_path / "made" / "config.toml"
+    monkeypatch.setattr(atomic_write, "tempfile", _FailingTemporaryFile("write"))
+
+    with pytest.raises(OSError, match="No space left on device"):
+        atomic_write.atomic_write(destination, b"REPLACEMENT\n")
+
+    assert not destination.exists(), "A failed write must not create the destination."
+    assert not list(destination.parent.glob(f".{destination.name}.*")), (
+        "A created parent must not retain a stranded temporary file."
+    )

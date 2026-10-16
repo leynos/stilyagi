@@ -48,7 +48,13 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
 
 - **Silent scope narrowing.** A mistyped or empty root would make the gate pass
   vacuously. The configured roots are validated to exist and to select the
-  intended files.
+  intended files. An empty `roots` array is rejected when settings load. A root
+  that exists but holds nothing `nose` can parse is caught at the subprocess
+  boundary, where the wrapper promotes `nose`'s own empty-scope warning to a
+  configuration error instead of accepting the empty family list it emits
+  alongside it. A _partial_ narrowing — several roots where only one selects
+  files — remains reported by `nose` on stderr and is not promoted, because a
+  legitimate multi-root configuration can rank families from a subset.
 - **Pin drift.** The pinned version appears in the Makefile, CI, and
   `[tool.nose]`. A contract test keeps the three in agreement.
 - **Gate/test coupling.** Gate tests must not be imported into the application

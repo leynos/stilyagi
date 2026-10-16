@@ -83,15 +83,21 @@ def atomic_write(
     if options.create_parents:
         path.parent.mkdir(parents=True, exist_ok=True)
     mode = path.stat().st_mode if options.preserve_mode and path.exists() else None
-    with tempfile.NamedTemporaryFile(
-        delete=False, dir=path.parent, prefix=f".{path.name}."
-    ) as stream:
-        stream.write(content)
-        stream.flush()
-        if options.sync_file:
-            os.fsync(stream.fileno())
-        temporary = pathlib.Path(stream.name)
+    # The cleanup covers the whole temporary-file lifetime, not just the
+    # replacement. A failure while writing, flushing or syncing the temporary
+    # never reaches a `finally` scoped to `replace`, so it would strand the
+    # sibling; the destination stays intact either way, but the stray file is
+    # left for the next reader of the directory to trip over.
+    temporary: pathlib.Path | None = None
     try:
+        with tempfile.NamedTemporaryFile(
+            delete=False, dir=path.parent, prefix=f".{path.name}."
+        ) as stream:
+            temporary = pathlib.Path(stream.name)
+            stream.write(content)
+            stream.flush()
+            if options.sync_file:
+                os.fsync(stream.fileno())
         if mode is not None:
             temporary.chmod(mode)
         temporary.replace(path)
@@ -99,4 +105,7 @@ def atomic_write(
             with _open_directory(path.parent) as descriptor:
                 os.fsync(descriptor)
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            # A completed `replace` has already consumed the temporary, so
+            # `missing_ok` makes this a no-op on the success path.
+            temporary.unlink(missing_ok=True)

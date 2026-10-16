@@ -79,3 +79,54 @@ class TestRunDetectorExecution:
             match=r"cannot run nose: .*Permission denied.*make install-nose",
         ):
             detector._run_command(("nose", "query"))
+
+
+class TestEmptyScope:
+    """A root that selects no source files must not read as a clean scan."""
+
+    def test_rejects_a_scope_that_selected_nothing(self) -> None:
+        """Nose's empty-scope diagnostic becomes a gate execution error.
+
+        nose exits 0 with an empty family list for a root that exists but holds
+        nothing it can parse, which is the same report a genuinely clean scan
+        produces. The stderr warning is the only signal distinguishing them.
+        """
+        with pytest.raises(
+            detector.GateExecutionError,
+            match=r"scanned no source files: warning: no supported source "
+            r"files found under: /nowhere",
+        ):
+            detector._reject_empty_scope(
+                "warning: no supported source files found under: /nowhere\n"
+                "  (supported extensions: py/pyi, rs)\n"
+            )
+
+    def test_accepts_a_scope_that_selected_files(self) -> None:
+        """A scan that found files leaves the diagnostic path alone.
+
+        Silent stderr covers both a clean scan and one with findings; a run
+        that reports no families is the gate's healthy state, so the guard must
+        key on nose's own warning rather than on an empty family list.
+        """
+        detector._reject_empty_scope("")
+
+    def test_the_run_command_boundary_enforces_the_guard(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`_run_command` applies the guard to the detector's stderr."""
+
+        def empty_scope(
+            *_args: object, **_kwargs: object
+        ) -> detector.subprocess.CompletedProcess[str]:
+            """Report success with an empty family list and the scope warning."""
+            return detector.subprocess.CompletedProcess(
+                args=["nose", "query"],
+                returncode=0,
+                stdout='{"families": [], "summary": {"families": 0}}',
+                stderr="warning: no supported source files found under: planted\n",
+            )
+
+        monkeypatch.setattr(detector.subprocess, "run", empty_scope)
+
+        with pytest.raises(detector.GateExecutionError, match="scanned no source"):
+            detector._run_command(("nose", "query"))

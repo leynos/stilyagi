@@ -36,6 +36,12 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 DEFAULT_NOSE_BIN = REPO_ROOT / ".tools" / "nose" / "nose"
 INSTALL_HINT = "run `make install-nose` to install the pinned detector"
 COMMAND_TIMEOUT_SECONDS = 120
+# nose reports a root that selects nothing on stderr while still exiting 0 with
+# an empty family list, which is indistinguishable from a genuinely clean scan.
+# The marker is matched rather than reimplementing nose's language table here:
+# if nose ever renames its diagnostic this guard lapses to the previous
+# behaviour, instead of wrongly rejecting a root that uses a new language.
+EMPTY_SCOPE_MARKER = "no supported source files found under:"
 
 type CommandRunner = cabc.Callable[[cabc.Sequence[str]], str]
 
@@ -115,9 +121,19 @@ def load_settings(pyproject_path: pathlib.Path) -> NoseSettings:
     if surface not in {"default", "all"}:
         msg = "tool.nose.surface must be 'default' or 'all'"
         raise GateConfigError(msg)
+    roots = require_string_tuple(nose.get("roots"), context="tool.nose.roots")
+    if not roots:
+        # An empty list is a well-formed array, so the shared validator accepts
+        # it. Left alone it reaches nose as no `--root` at all, which fails with
+        # a diagnostic about the bare `all` term rather than about the scope.
+        msg = (
+            "tool.nose.roots must name at least one directory: with none, the "
+            "detector has no scope to scan"
+        )
+        raise GateConfigError(msg)
     return NoseSettings(
         version=require_string(nose.get("version"), context="tool.nose.version"),
-        roots=require_string_tuple(nose.get("roots"), context="tool.nose.roots"),
+        roots=roots,
         mode=require_string(nose.get("mode"), context="tool.nose.mode"),
         min_size=require_positive_int(
             nose.get("min-size"), context="tool.nose.min-size"
@@ -293,4 +309,34 @@ def _run_command(command: cabc.Sequence[str]) -> str:
         detail = result.stderr.strip() or result.stdout.strip()
         msg = f"{command[0]} exited with status {result.returncode}: {detail}"
         raise GateExecutionError(msg)
+    _reject_empty_scope(result.stderr)
     return result.stdout
+
+
+def _reject_empty_scope(diagnostics: str) -> None:
+    """Fail when nose scanned no source files at all.
+
+    A root that exists but holds nothing nose can parse yields an empty family
+    list, exactly as a clean scan does. Left unchecked, a typo that lands on an
+    empty directory, or a package moved out from under the configured root,
+    would turn the gate green while checking nothing. nose already names this
+    case on stderr, so the wrapper promotes its diagnostic to a configuration
+    error rather than inferring the condition from the report shape.
+
+    Raises
+    ------
+    GateExecutionError
+        If the detector reported that no configured root selected any
+        supported source file.
+    """
+    detail = next(
+        (line for line in diagnostics.splitlines() if EMPTY_SCOPE_MARKER in line),
+        None,
+    )
+    if detail is None:
+        return
+    msg = (
+        f"nose scanned no source files: {detail.strip()} "
+        "Check that `[tool.nose] roots` still names the package."
+    )
+    raise GateExecutionError(msg)

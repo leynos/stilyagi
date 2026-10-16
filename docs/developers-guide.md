@@ -2258,9 +2258,18 @@ relevant scan.
 
 Exit status is 0 for a clean or fully allowed scan, 1 for unsuppressed
 families, and 2 for a configuration or tool-execution error. Status 2 covers a
-missing binary, a version mismatch, a timeout, and a malformed report — and it
-also covers a root that does not exist. A mistyped or empty scope therefore
-fails loudly rather than passing vacuously.
+missing binary, a version mismatch, a timeout, and a malformed report.
+
+Scope is validated on two axes, because a root can be wrong in two ways. A root
+that does not exist makes `nose` exit non-zero, which the wrapper reports as a
+tool-execution error. A root that exists but holds nothing `nose` can parse is
+the subtler case: `nose` exits 0 with an empty family list, exactly as a clean
+scan does, and names the condition only on stderr. The wrapper promotes that
+diagnostic to a configuration error, so a package moved out from under the
+configured root cannot turn the gate green while checking nothing. An empty
+`roots` array is rejected at load time, before the detector runs, so the
+diagnostic names the empty scope rather than a downstream argument. A mistyped
+or empty scope therefore fails loudly rather than passing vacuously.
 
 A manifest that cannot be read, that is not valid TOML, or that holds a scalar
 where a table belongs is likewise reported as a named configuration error with

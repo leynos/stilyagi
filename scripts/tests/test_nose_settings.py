@@ -99,8 +99,18 @@ class TestLoadSettings:
                 _settings_body(surface='"everything"'),
                 "tool.nose.surface must be 'default' or 'all'",
             ),
+            (
+                _settings_body(roots="[]"),
+                "tool.nose.roots must name at least one directory",
+            ),
         ],
-        ids=["missing-version", "string-roots", "zero-min-size", "bad-surface"],
+        ids=[
+            "missing-version",
+            "string-roots",
+            "zero-min-size",
+            "bad-surface",
+            "empty-roots",
+        ],
     )
     def test_rejects_malformed_settings(
         self, tmp_path: Path, body: str, diagnostic: str
