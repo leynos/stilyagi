@@ -122,7 +122,7 @@ class TestFixedDocumentEmission:
                 "notes.md",
                 "Paragraph text.",
                 source_text="Paragraph text.",
-                identifiers=("PUN201/unsafe-span",),
+                identifiers=["PUN201/unsafe-span"],
             ),
             from_stdin=True,
         )

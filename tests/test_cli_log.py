@@ -22,6 +22,7 @@ import typing as typ
 from stilyagi import cli_log
 
 from tests.support.assertions import assert_with_context
+from tests.support.log_records import record_field
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -209,10 +210,11 @@ def test_handler_keeps_record_attributes_readable_after_formatting() -> None:
     )
     record.files_written = 2
 
-    cli_log.log_handler().filters[0](record)
+    _render(record)
 
     assert_with_context(
-        record.files_written == 2, "expected the attribute to survive formatting"
+        record_field(record, "files_written") == 2,
+        "expected the attribute to survive formatting",
     )
     assert_with_context(
         record.args == (),
