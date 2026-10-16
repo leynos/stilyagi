@@ -1995,3 +1995,35 @@ edit made while a gate is still cycling silently invalidates it. A related
 near-miss: `make all` also runs `test-workflow-contracts`, a target none of the
 earlier rounds had covered, so a green `make lint` plus a green `make test` is
 not by itself a green `make all`.
+
+### Round eight: the CodeScene marker this round created, and its disposition
+
+The seventh round's fix left one artefact behind that the earlier rounds would
+not have caught, because it only becomes visible when the head moves:
+`codescene-access` opened a **new** review thread on `scripts/nose_detector.py`
+at 04:44:52Z against `c8fe15e`, reporting a mean cyclomatic complexity of 4.25
+across 8 functions. That marker did not exist on `7b9c2c4`, so it was this
+branch's own regression rather than inherited debt — the distinction the
+earlier rounds were careful to draw when four other markers were dispositioned
+as DELIBERATE-PARALLEL.
+
+It was answered as **FIXED**, citing `248c940` and quoting the variant table
+that attributed the cost. The disposition is posted on the thread itself
+(`discussion_r4291056669`), and it explicitly declines the Suppress route
+CodeScene offers in the same message: no Suppress link was clicked and no
+threshold was changed.
+
+Two process lessons are worth keeping, because both cost a full CI cycle:
+
+- **A gate run started before an edit describes the old tree.** This is the same
+  binding rule recorded in round seven, and it bit again in a new place: the
+  local `check-fmt` had passed, but it passed *before* the execplan paragraph
+  was written. CI then failed `Check formatting` with a 45-line reflow of that
+  file and skipped every later stage. The correction is to run the formatter on
+  the edited file, not on a remembered green result.
+- **A Markdown-only delta is not a gate-free delta in this repository.**
+  Contract tests parse the Markdown, so `make test` and `make markdownlint`
+  were re-run against `341e70e` rather than carried forward. Only the results
+  that a pure line-wrapping change provably cannot affect were considered for
+  carry-forward, and each such call was stated with its reasoning rather than
+  assumed.
