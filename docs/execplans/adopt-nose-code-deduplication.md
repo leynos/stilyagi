@@ -1898,7 +1898,7 @@ returned three findings. Two were real defects in this branch, and both were
 failures that would have let the gate report green while checking nothing.
 
 **The early-write cleanup window.** `atomic_write` created its temporary file
-with `delete=False` and entered the cleanup `try` only *after* writing,
+with `delete=False` and entered the cleanup `try` only _after_ writing,
 flushing, syncing and closing it. A failure in any of those four steps never
 reached the `finally`, stranding the sibling. The destination was never at risk
 on those paths — the replacement had not happened — but the stray file would be
@@ -1939,7 +1939,7 @@ than reimplementing its language table, so if nose renames the warning the
 guard lapses to the previous behaviour instead of wrongly rejecting a root that
 uses a newly supported language.
 
-One residual is disclosed rather than closed: a *partial* narrowing, several
+One residual is disclosed rather than closed: a _partial_ narrowing, several
 roots where only one selects files, still exits 0 with no warning. It is not
 promoted, because a multi-root configuration can legitimately rank families
 from a subset of its roots. The risks section below records that as the
@@ -1987,7 +1987,7 @@ blocking gate check: the required set is `lint-test` plus the three
 **Gate binding, because it cost a full re-run.** Committing forced a re-reading
 of which verdicts actually certified the committed content. Six gates
 (`check-fmt`, `typecheck`, `test-doc`, `duplication-test`, `test`) had all
-finished *before* the last three edits at 06:29-06:30, so their earlier passes
+finished _before_ the last three edits at 06:29-06:30, so their earlier passes
 described a tree that no longer existed; only `lint` (06:36:13) and the two
 docs-only gates were already bound to the final content. The lesson is that a
 gate's verdict is bound to the tree it ran against, not to the branch, and an
@@ -2017,7 +2017,7 @@ Two process lessons are worth keeping, because both cost a full CI cycle:
 
 - **A gate run started before an edit describes the old tree.** This is the same
   binding rule recorded in round seven, and it bit again in a new place: the
-  local `check-fmt` had passed, but it passed *before* the execplan paragraph
+  local `check-fmt` had passed, but it passed _before_ the execplan paragraph
   was written. CI then failed `Check formatting` with a 45-line reflow of that
   file and skipped every later stage. The correction is to run the formatter on
   the edited file, not on a remembered green result.
@@ -2027,3 +2027,56 @@ Two process lessons are worth keeping, because both cost a full CI cycle:
   that a pure line-wrapping change provably cannot affect were considered for
   carry-forward, and each such call was stated with its reasoning rather than
   assumed.
+
+## Round nine: the emphasis marker, recorded a third time
+
+The head `baba067` was gated locally across all nine targets before this edit.
+Eight passed and one failed:
+
+| Gate                      | Result                                     |
+| :------------------------ | :----------------------------------------- |
+| `test-workflow-contracts` | pass                                       |
+| `check-fmt`               | pass                                       |
+| `typecheck`               | pass (281s)                                |
+| `test-doc`                | pass (277s)                                |
+| `duplication-test`        | pass                                       |
+| `test`                    | pass (1027s)                               |
+| `lint`                    | pass (117s)                                |
+| `nixie`                   | pass                                       |
+| `markdownlint`            | **fail** — 8 `MD049/emphasis-style` errors |
+
+Both CI and the local run agree, and both name the same eight sites in this
+file. The gate ran with a clean tree before and after, so the failure is a
+property of the commit rather than of anything local.
+
+The cause is worth stating plainly because it has now recurred three times.
+`MD049` runs in its default "consistent" mode, and this repository sets no
+explicit `MD049` entry in `.markdownlint-cli2.jsonc`. Under that mode the
+document's _first_ single-marker emphasis settles the marker for every later
+one, and in this file that first emphasis is the `_partial_` at line 55. So
+underscores are canonical here, and the four asterisk sites added by the
+round-eight prose broke the rule the file had already set.
+
+Two observations make the miss harder to excuse, and both are recorded because
+they are process failures rather than knowledge gaps:
+
+- The rule is written down in this very document at line 361. Having documented
+  a trap is not the same as applying it.
+- The scrutineer found the contradiction independently: line 55 writes
+  `A _partial_ narrowing` while line 1942 wrote the same phrase as
+  `a *partial* narrowing`. The file disagreed with itself in the same words.
+
+The fix is the mechanical one: the four prose spans become `_after_`,
+`_partial_`, `_before_` and `_before_`. Asterisks inside inline backticks and
+fenced code are untouched, because `MD049` ignores code spans. The line 55
+first-emphasis rule is what makes the direction of the fix decidable rather
+than a matter of taste, which is why it is restated here instead of being
+assumed.
+
+Because this delta is Markdown-only, and because the two Markdown commits it
+sits on already passed the other eight gates at this same commit, the re-run is
+scoped to `markdownlint` plus `check-fmt` — `mdtablefix` also rewrites this
+file, so it has to be re-checked alongside. The remaining seven verdicts are
+carried forward with their binding stated: they were measured on `baba067`,
+they cannot read a Markdown file, and the only change is the emphasis marker in
+prose. That carry-forward is a claim with a reason attached, not a convenience.
