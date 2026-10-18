@@ -292,7 +292,7 @@ snapshot files next to the owning test module, for example under
 write JSON snapshots under `tests/__snapshots__/`. Markdown, Python docstring,
 and Rust doc-comment golden helpers all follow the same canonical IR contract.
 
-Two further contracts are pinned by `insta` snapshots:
+Three contracts are pinned by `insta` snapshots:
 
 - **`Display` output** for the extraction vocabulary. The spelling a Python
   caller receives from the bridge is the contract, so
@@ -306,6 +306,9 @@ Two further contracts are pinned by `insta` snapshots:
   snapshot that with `assert_json_snapshot!`. The projection drops the
   canonical IR JSON unless the test is specifically pinning the whole bridge
   document; the golden IR snapshots already cover its contents.
+- **Primitive typing**. The same projection keeps each value's JSON type and
+  panics on a type it does not model, so a bridge field that changes from an
+  integer to a string cannot pass its snapshot unnoticed.
 
 Update snapshots only when the reviewed contract changes. The `make` target
 runs the same two crates as a single step:
