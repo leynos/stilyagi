@@ -49,7 +49,7 @@ def _make_test_invocation(
 ) -> Invocation:
     """Return a `make` invocation of *target* with every tool pointed at a shim."""
     shim_dir = cmd_mox.environment.shim_dir
-    assert_with_context(shim_dir is not None, "expected cmd-mox command shims")
+    assert isinstance(shim_dir, pathlib.Path), "expected cmd-mox command shims"
     make = shutil.which("make")
     assert_with_context(make is not None, "expected make executable")
     return Invocation(

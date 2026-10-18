@@ -267,8 +267,8 @@ def test_accepted_plans_remain_valid_utf8(case: CorpusSpanCase) -> None:
 
     plan = plan_fixes(_request(case, (_diagnostic("PUN201", edit),)))
 
-    assert_with_context(plan.fixed_bytes is not None, "expected a contained edit")
-    assert_with_context(
-        plan.fixed_bytes.decode() is not None,
-        "expected accepted UTF-8 edits to yield decodable source bytes",
+    fixed_bytes = plan.fixed_bytes
+    assert fixed_bytes is not None, "expected a contained edit"
+    assert fixed_bytes.decode() is not None, (
+        "expected accepted UTF-8 edits to yield decodable source bytes"
     )

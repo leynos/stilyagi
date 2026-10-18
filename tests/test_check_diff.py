@@ -20,6 +20,7 @@ from tests.support.check_pipeline_fixtures import (
     silent_runner,
 )
 from tests.support.fix_fixtures import SourceTextNotFoundError, find_source_span
+from tests.support.log_records import record_field
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -302,14 +303,19 @@ class TestDiffRenderSignal:
             f"{[record.getMessage() for record in records]!r}",
         )
         record = records[0]
-        assert_with_context(
-            (record.planned_files, record.patched_files, record.patch_byte_count)
-            == (1, 0, 0),
-            "expected the render record to separate a planned file from a patched one",
+        counts = (
+            record_field(record, "planned_files"),
+            record_field(record, "patched_files"),
+            record_field(record, "patch_byte_count"),
         )
         assert_with_context(
-            isinstance(record.elapsed_ms, int) and record.elapsed_ms >= 0,
-            f"expected a non-negative render duration, got {record.elapsed_ms!r}",
+            counts == (1, 0, 0),
+            "expected the render record to separate a planned file from a patched one",
+        )
+        elapsed_ms = record_field(record, "elapsed_ms")
+        assert_with_context(
+            isinstance(elapsed_ms, int) and elapsed_ms >= 0,
+            f"expected a non-negative render duration, got {elapsed_ms!r}",
         )
 
     def test_a_rendered_patch_reports_its_measured_size(
@@ -341,12 +347,17 @@ class TestDiffRenderSignal:
 
         assert exit_code == 1, "expected a previewed diagnostic to exit one"
         assert_with_context(captured.out, "expected a planned edit to render a patch")
-        assert_with_context(
-            (record.planned_files, record.patched_files) == (1, 1),
-            "expected one planned file to be counted as patched",
+        revisions = (
+            record_field(record, "planned_files"),
+            record_field(record, "patched_files"),
         )
         assert_with_context(
-            record.patch_byte_count == len(captured.out.encode("utf-8")),
+            revisions == (1, 1),
+            "expected one planned file to be counted as patched",
+        )
+        patch_byte_count = record_field(record, "patch_byte_count")
+        assert_with_context(
+            patch_byte_count == len(captured.out.encode("utf-8")),
             f"expected the byte count to measure the written patch, got "
-            f"{record.patch_byte_count} for {len(captured.out.encode('utf-8'))} bytes",
+            f"{patch_byte_count} for {len(captured.out.encode('utf-8'))} bytes",
         )

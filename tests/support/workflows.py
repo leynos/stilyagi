@@ -15,6 +15,7 @@ pass over an empty set.
 import typing as typ
 
 import yaml
+import yaml.constructor
 
 #: A parsed workflow document.
 #:
@@ -288,9 +289,9 @@ def workflow_steps(document: WorkflowDocument) -> list[dict[str, object]]:
         Every step, in the order the document declares them, flattened
         across jobs.
     """
-    return [
-        step
-        for job in workflow_jobs(document).values()
-        for step in (job.get("steps") or [])
-        if isinstance(step, dict)
-    ]
+    steps: list[dict[str, object]] = []
+    for job in workflow_jobs(document).values():
+        declared = job.get("steps")
+        if isinstance(declared, list):
+            steps.extend(step for step in declared if isinstance(step, dict))
+    return steps

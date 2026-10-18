@@ -8,6 +8,7 @@ the log, and neither shows up as a failure anywhere else.
 """
 
 import logging
+import typing as typ
 
 import pytest
 from stilyagi import diagnostics, model
@@ -17,6 +18,10 @@ from stilyagi.fixes import Applicability, Fix, FixLevel, TextEdit
 
 from tests.support.assertions import assert_with_context
 from tests.support.fix_fixtures import find_source_span
+from tests.support.log_records import record_field
+
+if typ.TYPE_CHECKING:
+    from stilyagi.engine import ir_view
 
 _LOGGER_NAME = "stilyagi.engine.fix_planning.plan"
 
@@ -57,7 +62,7 @@ def _planner_record(caplog: pytest.LogCaptureFixture) -> logging.LogRecord:
     return records[0]
 
 
-def _source_with_one_span(source: str) -> tuple[model.Document, object]:
+def _source_with_one_span(source: str) -> tuple[model.Document, ir_view.SourceSpan]:
     """Return a one-segment document and the span covering its whole text."""
     document = model.Document(
         model.Syntax.MARKDOWN,
@@ -128,12 +133,12 @@ def test_planner_emits_one_event_naming_every_counter(
     )
     assert_with_context(
         (
-            record.operation,
-            record.outcome,
-            record.candidate_count,
-            record.accepted_count,
-            record.rejection_count,
-            record.replacement_byte_count,
+            record_field(record, "operation"),
+            record_field(record, "outcome"),
+            record_field(record, "candidate_count"),
+            record_field(record, "accepted_count"),
+            record_field(record, "rejection_count"),
+            record_field(record, "replacement_byte_count"),
         )
         == ("plan_fixes", "fixed", 1, 1, 0, len(plan.fixed_bytes or b"")),
         "expected the fixed outcome to count its candidate, edit and bytes",
@@ -177,7 +182,7 @@ def test_planner_names_which_terminal_path_produced_the_plan(
         plan_fixes(_request(source, document, diagnostics_list))
 
     assert_with_context(
-        _planner_record(caplog).outcome == expected_outcome,
+        record_field(_planner_record(caplog), "outcome") == expected_outcome,
         f"expected the {case!r} case to report {expected_outcome!r}",
     )
 
@@ -195,11 +200,11 @@ def test_planner_reports_a_refusal_category_and_conflict_state(
 
     record = _planner_record(caplog)
     assert_with_context(
-        record.rejection_category == "fix-error/invalid-span",
+        record_field(record, "rejection_category") == "fix-error/invalid-span",
         "expected the event to name the rejection family",
     )
     assert_with_context(
-        record.conflict_state is False,
+        record_field(record, "conflict_state") is False,
         "expected a plain refusal not to be reported as a conflict",
     )
 
@@ -228,11 +233,11 @@ def test_planner_distinguishes_a_conflict_from_an_ordinary_refusal(
         plan.fixed_bytes is None, "expected competing edits to abort the mutation"
     )
     assert_with_context(
-        record.rejection_category == "fix-error/overlapping-edits",
+        record_field(record, "rejection_category") == "fix-error/overlapping-edits",
         "expected the conflict to be named as such",
     )
     assert_with_context(
-        record.conflict_state is True,
+        record_field(record, "conflict_state") is True,
         "expected a rule disagreement to be flagged as a conflict",
     )
 
@@ -250,17 +255,17 @@ def test_planner_defaults_a_quiet_file_to_zero_counters(
     record = _planner_record(caplog)
     assert_with_context(
         (
-            record.outcome,
-            record.candidate_count,
-            record.accepted_count,
-            record.rejection_count,
-            record.rejection_category,
-            record.replacement_byte_count,
+            record_field(record, "outcome"),
+            record_field(record, "candidate_count"),
+            record_field(record, "accepted_count"),
+            record_field(record, "rejection_count"),
+            record_field(record, "rejection_category"),
+            record_field(record, "replacement_byte_count"),
         )
         == ("unchanged", 0, 0, 0, None, 0),
         "expected a quiet file to report zeroes and no rejection category",
     )
     assert_with_context(
-        record.source_backed_spans == 1,
+        record_field(record, "source_backed_spans") == 1,
         "expected the span denominator to be reported even when nothing was planned",
     )

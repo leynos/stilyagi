@@ -19,6 +19,10 @@ env:
   BUILD_PROFILE: debug
   RUFF_VERSION: '0.16.4'
   TY_VERSION: '0.0.74'
+  # Keep this pin in sync with NOSE_VERSION in the Makefile and with
+  # [tool.nose] version in pyproject.toml;
+  # tests/test_toolchain_contract.py enforces the match.
+  NOSE_VERSION: '0.20.0'
   # The 927edd4 shared-actions pin adds a 600s cargo wall-clock cap;
   # stilyagi's trybuild-heavy suite and the maturin extension build need
   # more headroom under cold coverage instrumentation.
@@ -139,6 +143,47 @@ jobs:
         uses: leynos/shared-actions/.github/actions/install-whitaker@0606ca899ce2995a0c4bc78e660e80832e6e8855
         with:
           cranelift: true
+
+      - name: Cache the pinned nose duplication detector
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: .tools/nose
+          key: nose-${{ runner.os }}-${{ runner.arch }}-${{ env.NOSE_VERSION }}
+
+      - name: Install nose duplication detector
+        # `make lint` runs the duplication gate, which needs the detector.
+        # The binary is a prebuilt release artefact fetched by cargo-binstall
+        # and installed through the same Make target developers use, so the
+        # gate cannot differ between local runs and CI.
+        #
+        # cargo-binstall is itself downloaded rather than assumed present, and
+        # is verified against the checksum GitHub publishes for its release
+        # asset. The Makefile's install-nose passes
+        # `--disable-strategies compile,quick-install`, so a missing prebuilt
+        # binary fails provisioning loudly instead of starting a Rust build.
+        env:
+          BINSTALL_VERSION: "v1.22.0"
+          # SHA-256 of cargo-binstall-x86_64-unknown-linux-musl.tgz at that
+          # tag, read from the release metadata. This runner is x86-64 Linux;
+          # another platform needs its own asset and its own digest.
+          BINSTALL_SHA256: "df2921254924066627685ee09f6c8b9acd7acef68a338668f879d2b033c09458"
+        run: |
+          if [ "$(.tools/nose/nose --version 2>/dev/null)" = "nose ${NOSE_VERSION}" ]; then
+            echo "nose ${NOSE_VERSION} restored from cache"
+            exit 0
+          fi
+          binstall_archive="$(mktemp)"
+          binstall_directory="$(mktemp -d)"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$binstall_archive" \
+            "https://github.com/cargo-bins/cargo-binstall/releases/download/${BINSTALL_VERSION}/cargo-binstall-x86_64-unknown-linux-musl.tgz"
+          echo "${BINSTALL_SHA256}  ${binstall_archive}" | sha256sum -c -
+          tar -xzf "$binstall_archive" -C "$binstall_directory"
+          mkdir -p .tools/nose
+          make install-nose CARGO_BINSTALL="$binstall_directory/cargo-binstall"
+          .tools/nose/nose --version
+
+      - name: Duplication-gate helper tests
+        run: make duplication-test
 
       - name: Typecheck
         run: make typecheck

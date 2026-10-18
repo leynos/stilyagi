@@ -5,7 +5,7 @@ import typing as typ
 
 import pytest
 from stilyagi import diagnostics, engine
-from stilyagi.fixes import Fix, TextEdit
+from stilyagi.fixes import Applicability, Fix, TextEdit
 from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.assertions import assert_with_context
@@ -141,8 +141,8 @@ def test_renderers_report_fix_payloads_and_fixability_counts() -> None:
         column=30,
         fix=Fix(
             title="Insert serial comma",
-            applicability="safe",
-            edits=[TextEdit(341, 341, ",")],
+            applicability=Applicability.SAFE,
+            edits=(TextEdit(341, 341, ","),),
         ),
     )
     registry = engine.RendererRegistry()

@@ -317,6 +317,6 @@ def test_a_malformed_job_shape_yields_no_steps(body: str) -> None:
     nothing to do with coverage fail a contract about coverage, which
     is the wrong failure in the wrong place.
     """
-    assert workflow_steps(load_workflow(f"on:\n  push:\n{body}")) == [], (
+    assert not workflow_steps(load_workflow(f"on:\n  push:\n{body}")), (
         f"a malformed job shape yields no steps: {body!r}"
     )
