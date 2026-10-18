@@ -3,7 +3,7 @@
 use rstest::rstest;
 use stilyagi_extract::{ExtractSyntax, RegionKind};
 
-use crate::test_utils::{shared_python_source, shared_rust_source};
+use crate::test_utils::{FixtureSource, shared_python_source, shared_rust_source};
 
 #[test]
 fn every_shared_bridge_kind_is_an_ir_kind() {
@@ -38,11 +38,12 @@ fn every_shared_bridge_kind_is_an_ir_kind() {
 )]
 fn extracted_ir_regions_use_only_the_shared_vocabulary(
     #[case] syntax: ExtractSyntax,
-    #[case] source: String,
+    #[case] source: FixtureSource,
     #[case] expected_kind: RegionKind,
     #[case] expected_spelling: &str,
 ) {
-    let document = stilyagi_extract::extract_document(&source, syntax)
+    let source_text = source.expect("shared corpus fixture should be readable");
+    let document = stilyagi_extract::extract_document(&source_text, syntax)
         .expect("expected shared syntax extraction");
     let ir = document.ir().expect("expected IR payload");
 

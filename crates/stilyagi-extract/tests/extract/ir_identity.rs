@@ -1,7 +1,7 @@
 //! Integration tests for Markdown IR identity and snapshot contracts.
 
 use rstest::rstest;
-use stilyagi_extract::{ExtractSyntax, SourceIdentity};
+use stilyagi_extract::{ExtractDocument, ExtractError, ExtractSyntax, SourceIdentity};
 use stilyagi_ir::SuppressionKind;
 use stilyagi_test_support::{
     MALFORMED_PYTHON_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, NESTED_RUST_FIXTURE_PATH,
@@ -10,17 +10,16 @@ use stilyagi_test_support::{
 };
 
 use crate::test_utils::{
-    extracted_markdown, markdown_extraction_with_identity, shared_markdown_source,
+    FixtureSource, extracted_markdown, markdown_extraction_with_identity, shared_markdown_source,
     shared_python_source, shared_rust_source,
 };
 
 #[rstest]
 fn markdown_extraction_uses_anonymous_ir_identity_by_default(
-    extracted_markdown: stilyagi_extract::ExtractDocument,
+    extracted_markdown: Result<ExtractDocument, ExtractError>,
 ) {
-    let ir = extracted_markdown
-        .ir()
-        .expect("expected Markdown IR payload");
+    let document = extracted_markdown.expect("extracted_markdown fixture should extract");
+    let ir = document.ir().expect("expected Markdown IR payload");
 
     assert_eq!(ir.document.path, None);
     assert_eq!(ir.document.uri, None);
@@ -34,7 +33,8 @@ fn markdown_extraction_propagates_explicit_source_identity() {
             Some("docs/example.md".to_owned()),
             Some("file:///repo/docs/example.md".to_owned()),
         ),
-    );
+    )
+    .expect("Markdown extraction with explicit identity should succeed");
     let ir = document.ir().expect("expected Markdown IR payload");
 
     assert_eq!(ir.document.path.as_deref(), Some("docs/example.md"));
@@ -45,21 +45,27 @@ fn markdown_extraction_propagates_explicit_source_identity() {
 }
 
 #[rstest]
-#[case::markdown(
+fn shared_markdown_fixture_has_a_golden_ir_snapshot() {
+    let document = stilyagi_test_support::golden_markdown_ir_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
+        .expect("shared Markdown fixture should produce golden IR");
+
+    insta::assert_snapshot!(
         "extraction_tests__shared_markdown_fixture_has_a_golden_ir_snapshot",
-        || stilyagi_test_support::golden_markdown_ir_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
-            .expect("shared Markdown fixture should produce golden IR")
-            .to_canonical_json()
-    )]
-#[case::python(
+        document.to_canonical_json()
+    );
+}
+
+#[rstest]
+fn shared_python_fixture_has_a_golden_ir_snapshot() {
+    let document = stilyagi_test_support::golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
+        .expect("shared Python fixture should produce golden IR");
+
+    insta::assert_snapshot!(
         "extraction_tests__shared_python_fixture_has_a_golden_ir_snapshot",
-        || stilyagi_test_support::golden_python_ir_fixture(SHARED_PYTHON_FIXTURE_PATH)
-            .expect("shared Python fixture should produce golden IR")
+        document
             .to_canonical_json()
             .expect("shared Python golden IR should serialize to canonical JSON")
-    )]
-fn shared_fixture_has_a_golden_ir_snapshot(#[case] name: &str, #[case] build: impl Fn() -> String) {
-    insta::assert_snapshot!(name, build());
+    );
 }
 
 #[rstest]
@@ -183,12 +189,11 @@ fn suppressions_are_shape_parity_across_the_v1_syntaxes() {
 }
 
 #[rstest]
-fn markdown_extraction_attaches_markdown_ir(shared_markdown_source: String) {
-    let document = stilyagi_extract::extract_document(
-        &shared_markdown_source,
-        stilyagi_extract::ExtractSyntax::Markdown,
-    )
-    .expect("shared Markdown source should extract successfully");
+fn markdown_extraction_attaches_markdown_ir(shared_markdown_source: FixtureSource) {
+    let source = shared_markdown_source.expect("shared Markdown corpus fixture should be readable");
+    let document =
+        stilyagi_extract::extract_document(&source, stilyagi_extract::ExtractSyntax::Markdown)
+            .expect("shared Markdown source should extract successfully");
     let ir = document.ir();
 
     assert!(matches!(ir, Some(value) if value.document.syntax == "markdown"));
@@ -202,9 +207,10 @@ fn markdown_extraction_attaches_markdown_ir(shared_markdown_source: String) {
 }
 
 #[rstest]
-fn python_extraction_attaches_owner_aware_ir(shared_python_source: String) {
+fn python_extraction_attaches_owner_aware_ir(shared_python_source: FixtureSource) {
+    let source = shared_python_source.expect("shared Python corpus fixture should be readable");
     let document = stilyagi_extract::extract_document(
-        &shared_python_source,
+        &source,
         stilyagi_extract::ExtractSyntax::PythonDocstring,
     )
     .expect("shared Python source should extract successfully");
@@ -221,9 +227,10 @@ fn python_extraction_attaches_owner_aware_ir(shared_python_source: String) {
 }
 
 #[rstest]
-fn rust_extraction_attaches_owner_aware_ir(shared_rust_source: String) {
+fn rust_extraction_attaches_owner_aware_ir(shared_rust_source: FixtureSource) {
+    let source = shared_rust_source.expect("shared Rust corpus fixture should be readable");
     let document = stilyagi_extract::extract_document(
-        &shared_rust_source,
+        &source,
         stilyagi_extract::ExtractSyntax::RustDocComment,
     )
     .expect("shared Rust source should extract successfully");
