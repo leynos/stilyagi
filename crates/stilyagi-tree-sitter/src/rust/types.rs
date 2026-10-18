@@ -8,7 +8,7 @@ pub(super) struct NodeId(pub String);
 
 impl NodeId {
     /// Return the identifier as a borrowed string slice.
-    pub(super) fn as_str(&self) -> &str {
+    pub(super) const fn as_str(&self) -> &str {
         self.0.as_str()
     }
 }

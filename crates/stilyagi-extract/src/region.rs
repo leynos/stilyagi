@@ -1,6 +1,6 @@
 //! Bridge region kinds and extracted-region values.
 
-use core::fmt;
+use core::{fmt, str::FromStr};
 
 /// Stable kind names for extracted prose regions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,15 +69,25 @@ impl fmt::Display for RegionKind {
     }
 }
 
-impl TryFrom<&str> for RegionKind {
-    type Error = String;
+impl FromStr for RegionKind {
+    type Err = String;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         if value == "document" {
             Ok(Self::Document)
         } else {
             Self::from_shared_ir_kind(value)
         }
+    }
+}
+
+// Kept beside `FromStr` so existing `RegionKind::try_from(&str)` callers keep
+// compiling; both routes share one vocabulary table.
+impl TryFrom<&str> for RegionKind {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 

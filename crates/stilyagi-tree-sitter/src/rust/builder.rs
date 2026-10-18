@@ -279,12 +279,11 @@ impl<'source> RustIrBuilder<'source> {
         if let Some(name) = text_for_field(self.source, node, "name") {
             fields.insert("name".to_owned(), name);
         }
-        if matches!(node.kind(), "impl_item") {
-            if let Some(self_type) = text_for_field(self.source, node, "type")
+        if matches!(node.kind(), "impl_item")
+            && let Some(self_type) = text_for_field(self.source, node, "type")
                 .or_else(|| text_for_field(self.source, node, "self_type"))
-            {
-                fields.insert("type".to_owned(), self_type);
-            }
+        {
+            fields.insert("type".to_owned(), self_type);
         }
         self.push_node(IrNode {
             id: node_id.clone().into(),

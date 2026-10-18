@@ -266,10 +266,10 @@ impl<'source> PythonIrBuilder<'source> {
         let parent = nearest_emitted_owner(stack).unwrap_or_else(root_node_id);
         let node_id = self.next_node_id();
         let mut fields = BTreeMap::new();
-        if let Some(name) = node.child_by_field_name("name") {
-            if let Some(name_text) = helpers::text_for_node(self.source, name) {
-                fields.insert("name".to_owned(), name_text);
-            }
+        if let Some(name) = node.child_by_field_name("name")
+            && let Some(name_text) = helpers::text_for_node(self.source, name)
+        {
+            fields.insert("name".to_owned(), name_text);
         }
         self.push_node(IrNode {
             id: node_id.clone().into(),

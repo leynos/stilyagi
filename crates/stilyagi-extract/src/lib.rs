@@ -1,6 +1,6 @@
 //! Source extraction orchestration for the first Rust-to-Python bridge.
 
-use core::fmt;
+use core::{fmt, str::FromStr};
 mod error;
 mod region;
 
@@ -46,16 +46,26 @@ impl fmt::Display for ExtractSyntax {
     }
 }
 
-impl TryFrom<&str> for ExtractSyntax {
-    type Error = ExtractError;
+impl FromStr for ExtractSyntax {
+    type Err = ExtractError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "markdown" => Ok(Self::Markdown),
             "python_docstring" => Ok(Self::PythonDocstring),
             "rust_doc_comment" => Ok(Self::RustDocComment),
             _ => Err(ExtractError::UnknownSyntax(value.to_owned())),
         }
+    }
+}
+
+// Kept beside `FromStr` so existing `ExtractSyntax::try_from(&str)` callers keep
+// compiling; both routes share one vocabulary table.
+impl TryFrom<&str> for ExtractSyntax {
+    type Error = ExtractError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 
