@@ -96,10 +96,13 @@ planning. They shape the design and are not negotiable:
   already imports, reads, measures, and prints.
 - `[tool.pylint.main] max-module-lines = 400` bounds every module.
   `structural_probe.py` is at 368 of 400 with the new code to be added.
-- `ruff rule B008` forbids a function call in an argument default. A frozen
-  dataclass used as a default must be passed as the class itself (a
-  module-level name, which passes), not as an instance. `ruff rule RUF009`
-  enforces the same for report payload classes.
+- `ruff rule B008` forbids a *call* in an argument default, so
+  `dependencies: ProbeDependencies = DEFAULT_DEPENDENCIES` passes and
+  `= ProbeDependencies()` does not. Verified with an isolated
+  `ruff check --select B008,RUF009` probe rather than assumed: the module-level
+  singleton is the sanctioned form, which is why every injectable parameter
+  defaults to one. `ruff rule RUF009` applies the same reasoning to
+  `dataclasses.field`-like call defaults in report payload classes.
 
 ## Constraints
 
@@ -146,10 +149,12 @@ down the same call chain, which is the "data clumps" signal listed under the
 refactoring heuristics in `AGENTS.md`.
 
 A second risk is that passing a bundle to the leaf functions that only need one
-seam is abstraction leakage of a different kind. `_measure_extraction` needs
-only the clock and `_measure_cold_iteration` needs only the subprocess runner,
-so both keep their single, directly-named parameter, and both keep a real
-default so existing callers are unaffected.
+seam is abstraction leakage of a different kind. `measure_extraction` needs
+only the clock, so it keeps a single, directly named `clock` parameter with a
+production default, and existing callers are unaffected.
+`_measure_cold_iteration` takes the `dependencies` bundle: it is reached only
+through `_measure_run`, whose tests already inject that bundle, so one carrier
+serves the whole cold path.
 
 A third risk is lint-boundary interaction with the bundle default.
 `ruff rule RUF009` only fires on `dataclasses.field`-like call defaults in
@@ -194,8 +199,10 @@ Then thread the seams:
 - `_measure_cold_iteration(request, *, dependencies=DEFAULT_DEPENDENCIES)`.
 - `_measure_run(*, mode, iterations, request, dependencies=DEFAULT_DEPENDENCIES)`.
 - `build_report(*, corpus, runs, environment_provider=default_environment)`.
-- `measure_probe(*, mode, iterations, root, dependencies=DEFAULT_DEPENDENCIES)`,
-  in both the re-export and the execution module.
+- `measure_probe(*, mode, iterations, root, dependencies=DEFAULT_DEPENDENCIES)`
+  in the re-export module, which reads the corpus from `root`; the execution
+  module's `measure_probe` takes `corpus` instead and performs no read of its
+  own.
 
 `main` continues to call `discover_structural_fixtures()` and read the chosen
 fixture itself, which is how the child-run mode still works from the command
@@ -250,9 +257,10 @@ The acceptance evidence is:
 - `ruff`'s `max-args = 4` counts keyword-only parameters. A five-keyword-only
   function fails `PLR0913`. This is the single constraint that forced the
   dependency bundle.
-- `ruff rule B008` permits a module-level class name as a default but rejects a
-  call in the default position, and `RUF009` does not fire on function
-  defaults. A frozen data class is therefore the safe carrier for the bundle.
+- `ruff rule B008` permits a module-level name as a default but rejects a call
+  in the default position, and `RUF009` does not fire on function defaults. A
+  frozen data class bound to a module-level singleton is therefore the safe
+  carrier for the bundle.
 - Ruff reports `unresolved-reference` on a PEP 695 `type` alias whose right-hand
   side names an imported symbol that lives only in a type-checking block. The
   alias's imports must be at runtime.
@@ -282,12 +290,14 @@ The acceptance evidence is:
   structs and warns against data clumps and excessive parameters. Date:
   2026-10-13
 
-- Decision: keep `clock` and `subprocess_runner` as directly named single
-  parameters with production defaults on `measure_extraction` and
-  `_measure_cold_iteration`, rather than passing the bundle down. Rationale:
-  each leaf needs exactly one seam, so naming it keeps the leaf honest and
-  keeps every pre-existing caller source-compatible. Only `_measure_run` and
-  the two entry points take the bundle. Date: 2026-10-13
+- Decision: keep `clock` as a directly named parameter on `measure_extraction`,
+  but pass the `dependencies` bundle to `_measure_cold_iteration`. Rationale:
+  extraction needs only the clock, so naming it keeps that leaf honest and
+  every pre-existing caller source-compatible. `_measure_cold_iteration` is
+  reached only through `_measure_run`, whose tests already inject the bundle,
+  so taking the bundle there keeps one carrier on the cold path rather than two.
+  `_measure_run`, `_measure_cold_iteration`, and both `measure_probe` entry
+  points take the bundle. Date: 2026-10-13
 
 - Decision: pass source text into `measure_probe` rather than having it read the
   fixture. Rationale: goal 5 of issue #17. It also mirrors `main`, which must
@@ -322,7 +332,7 @@ The acceptance evidence is:
 - Decision: carry the request's source text across the child-process boundary
   rather than having the child reopen `--source`. Rationale: CodeRabbit review
   found that a `ProbeRequest` whose `source` differs from its `path` would be
-  measured as the file, silently benchmarketing the wrong text. The argv is a
+  measured as the file, silently benchmarking the wrong text. The argv is a
   list, so no shell re-parses the text, and the path still travels for error
   messages and manual reproduction. A request too large for the platform's
   argument limit fails loudly with `OSError` rather than silently measuring the
@@ -341,6 +351,35 @@ The acceptance evidence is:
   so reading `ClockFn.__value__` under a `TYPE_CHECKING`-only binding raises
   `NameError`. Confirmed against the interpreter. Ruff accepts the guarded
   form, so only a runtime read catches it. Date: 2026-10-18
+
+- Decision: share one `StubRunner`, one source constant, and one request
+  factory through `tests/support/structural_probe_stubs.py` rather than keeping
+  near-copies in the CLI and injection test modules. Rationale: CodeRabbit
+  review found the two copies had already diverged in name (`RecordingRunner`
+  against `StubRunner`), which is how two modules end up asserting different
+  protocol shapes. `docs/repository-layout.md` names `tests/support/` as where
+  a helper reused by tests belongs, and the stub is a constructor and callable
+  rather than fixture setup, so a `conftest.py` fixture would have wrapped it
+  in indirection without removing the shared code. The runner keeps its optional
+  `error` argument so the injection failure tests lose no coverage. Date:
+  2026-10-18
+
+- Decision: merge the two file-fallback child-run tests into one case
+  parametrized over the syntax argument. Rationale: CodeRabbit review found the
+  two ran the same command, differing only in an argument whose value was
+  already the default. `AGENTS.md` asks for `rstest`-style parameterized cases
+  in place of duplicated tests, and pytest's `parametrize` is the Python
+  equivalent. The surviving test keeps both assertions: an integer duration and
+  a non-negative one. Date: 2026-10-18
+
+- Decision: continue past the eight-file tolerance, at nine files. Rationale:
+  measured against the merge base, `git diff --stat 91941ef..HEAD` reports nine
+  files changed. One of them is this ExecPlan, which the planning workflow
+  requires and which no implementation could avoid; the other eight are the
+  change proper, the count the tolerance anticipated. Two of those eight are
+  new test modules, created only because the 400-line module ceiling split the
+  tests three ways. Recorded rather than left as an unremarked overrun so the
+  tolerance stays auditable. Date: 2026-10-18
 
 ## Progress
 
@@ -388,6 +427,17 @@ The acceptance evidence is:
   typecheck, markdownlint, and nixie green; `make test` once more hit the same
   `compile_time_ui` contention and passed on a warm re-run. Final counts: 357
   Rust tests, 612 Python tests, 38 doctest targets.
+- [x] 2026-10-18: CodeRabbit review round two. Nine findings, two of them
+  duplicates of each other, which reduced to seven distinct items. Six were
+  real and were fixed: five en-GB-oxendict spelling slips (`normalised` once,
+  `normalise` twice, `unrecognised`, `benchmarketing`), the plan's description
+  of the shipped signatures and test counts, the duplicated stub runner and
+  request factory, and the duplicated file-fallback test. The seventh, the
+  plan's explanation of `B008`, was wrong in the opposite direction from the
+  finding's suggestion: an isolated `ruff check --select B008,RUF009` probe
+  showed that `= Deps()` is rejected and `= DEFAULT` accepted, so the plan now
+  says that. A scope-tolerance Decision Log entry records the measured file
+  count against the merge base.
 
 ## Outcomes & Retrospective
 
@@ -409,13 +459,17 @@ from the requests, so nothing in the report path touches the filesystem.
 request that source text travel as a parameter.
 
 `tests/test_structural_probe_injection.py` is the evidence that the seams are
-real rather than nominal: twelve tests drive the cold path through a stub
+real rather than nominal: eleven tests drive the cold path through a stub
 runner with a clock that fails if read, the warm path through a stub clock with
-a runner that fails if called, all three child-failure modes, the argv the
-child command is built from, an injected environment payload, and a
-`measure_probe` call with `Path.read_text` disabled. A byte-count test pins the
-corpus totals to the caller's request, so a fallback to `Path.stat` would fail
-it.
+a runner that fails if called, all three child-failure modes, an injected
+environment payload, and a `measure_probe` call with `Path.read_text` disabled.
+A byte-count test pins the corpus totals to the caller's request, so a fallback
+to `Path.stat` would fail it.
+
+`tests/test_structural_probe_cli.py` holds the eight command-line and
+child-protocol tests, including the argv the child command is built from and
+the transmitted-text behaviour. They live apart from the injection tests
+because the combined module would exceed the 400-line ceiling.
 
 Two things are worth recording for the next maintainer.
 
