@@ -1204,8 +1204,9 @@ argument type as `&Bound<..>` rather than the `&pyo3::Bound<..>` that earlier
 releases printed. A compiler older than 1.99 (including the declared minimum
 supported Rust version, if run by hand with `cargo +<version>`) therefore fails
 `compile_time_ui` although the code compiles. Dependabot's `rust-toolchain`
-entry proposes each new release as a pull request; re-record the snapshots in
-that pull request when the wording changes.
+entry proposes each new release as a pull request on its next daily run, with
+no cooldown (matching the concordat canon, so a nightly pin keeps pace);
+re-record the snapshots in that pull request when the wording changes.
 
 ### 4.2 Current mixed-package skeleton
 

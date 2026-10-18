@@ -83,5 +83,3 @@ updates:
       - "rust-toolchain"
     schedule:
       interval: "daily"
-    cooldown:
-      default-days: 7
