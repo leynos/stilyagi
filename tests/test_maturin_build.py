@@ -11,6 +11,7 @@ snapshot-update helper with ``python -m pytest tests/test_maturin_build.py
 import ast
 import importlib.metadata as im
 import importlib.util
+import os
 import pathlib
 import re
 import shutil
@@ -84,6 +85,23 @@ def _toolchain_available() -> bool:
     )
 
 
+def _release_build_env() -> dict[str, str]:
+    """Return the environment of a release build, with `RUSTFLAGS` always named.
+
+    `.cargo/config.toml` supplies the development standard (the parallel
+    frontend and, on Linux, mold) to every bare Cargo run, and an assigned
+    `RUSTFLAGS` displaces it. Assigning the caller's own value, or an empty
+    one, keeps development flags out of the wheel under test, as
+    `make release-artifact` does.
+
+    Returns
+    -------
+    dict[str, str]
+        The process environment with `RUSTFLAGS` set.
+    """
+    return {**os.environ, "RUSTFLAGS": os.environ.get("RUSTFLAGS", "")}
+
+
 def _build_native_wheel_artifact(
     root: pathlib.Path, out_dir: pathlib.Path
 ) -> pathlib.Path:
@@ -101,6 +119,7 @@ def _build_native_wheel_artifact(
         command,
         check=True,
         cwd=root,
+        env=_release_build_env(),
         timeout=_SUBPROCESS_TIMEOUT_SECONDS,
     )
     wheels = sorted(out_dir.glob("*.whl"))
@@ -263,6 +282,38 @@ def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
         pytest.skip(f"maturin pin {expected_maturin} != active {installed_maturin!r}.")
     wheelhouse = tmp_path_factory.mktemp("wheelhouse")
     return _build_native_wheel_artifact(REPOSITORY_ROOT, wheelhouse)
+
+
+@pytest.mark.parametrize("ambient", [None, "-D warnings"], ids=["unset", "ci"])
+def test_the_release_build_displaces_the_development_standard(
+    ambient: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    """The wheel build names `RUSTFLAGS` itself, so config flags cannot leak in.
+
+    Without the assignment the configuration's `-Zthreads=8` (and mold, on
+    Linux) would reach the release wheel, and the wheel built here would no
+    longer be the one `make release-artifact` produces.
+    """
+    if ambient is None:
+        monkeypatch.delenv("RUSTFLAGS", raising=False)
+    else:
+        monkeypatch.setenv("RUSTFLAGS", ambient)
+    seen: dict[str, typ.Any] = {}
+
+    def record(command: list[str], **kwargs: typ.Any) -> None:  # ruff: ignore[any-type] - mirrors subprocess.run's open keyword surface.
+        """Capture the keyword arguments the build passed to `subprocess.run`."""
+        seen.update(kwargs)
+
+    monkeypatch.setattr(subprocess, "run", record)
+
+    with pytest.raises(AssertionError, match="Expected exactly one wheel"):
+        _build_native_wheel_artifact(REPOSITORY_ROOT, tmp_path)
+
+    assert seen["env"]["RUSTFLAGS"] == (ambient or ""), (
+        "expected seen['env']['RUSTFLAGS'] == (ambient or '')"
+    )
 
 
 def test_maturin_pins_are_synchronized() -> None:

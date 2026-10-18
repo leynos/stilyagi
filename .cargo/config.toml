@@ -1,0 +1,33 @@
+# The development build standard, discovered by every bare `cargo build`,
+# `test`, `check` and `clippy` run from this repository's tree (every Make
+# recipe and every trybuild scratch crate under `target/` runs inside it).
+#
+# - `-Zthreads=8` is the parallel rustc frontend. It needs the pinned nightly
+#   in rust-toolchain.toml.
+# - `-Clink-arg=-fuse-ld=mold` selects the pinned mold linker, on Linux only.
+#   No flag is named for other platforms, so macOS and Windows keep their
+#   default linkers.
+#
+# Cargo selects ONE `rustflags` source and never merges them, so the
+# Linux-scoped table repeats `-Zthreads=8` rather than inheriting it from
+# `[build]`. tests/test_build_standard_config.py holds both sources equal.
+#
+# Explicit exclusions, which work by displacing this file's `rustflags`:
+#
+# - The Makefile's gate recipes assign `RUSTFLAGS`, which displaces both
+#   sources, so each restates the standard (see `STANDARD_RUSTFLAGS`).
+# - `make release-artifact` and the maturin release build in
+#   tests/test_maturin_build.py assign `RUSTFLAGS` without the standard, so the
+#   published wheel takes no development flags.
+# - Coverage runs under CI's exported `RUSTFLAGS=-D warnings`, which displaces
+#   the flags and keeps instrumentation.
+# - Whitaker assigns its own `RUSTFLAGS` (`WHITAKER_RUST_FLAGS`).
+#
+# docs/adr-010-pinned-nightly-and-build-standard.md records the decision and
+# the exclusions; docs/developers-guide.md explains them for developers.
+
+[build]
+rustflags = ["-Zthreads=8"]
+
+[target.'cfg(target_os = "linux")']
+rustflags = ["-Zthreads=8", "-Clink-arg=-fuse-ld=mold"]

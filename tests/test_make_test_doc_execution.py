@@ -14,7 +14,7 @@ import typing as typ
 from cmd_mox.command_runner import CommandRunner
 
 from tests.support.assertions import assert_with_context
-from tests.test_make_test_execution import _make_test_invocation
+from tests.test_make_test_execution import _is_preflight, _make_test_invocation
 
 pytest_plugins = ("cmd_mox.pytest_plugin",)
 
@@ -142,4 +142,32 @@ class TestMakeTestDocExecution:
         assert_with_context(
             _run_test_doc(cmd_mox, tmp_path) != 0,
             "expected make test-doc to fail when a Python doctest fails",
+        )
+
+
+class TestMakeTestDocPreflight:
+    """`make test-doc` reaches the preflight, which the coverage lane relies on.
+
+    CI runs this target instead of `make test`, so it is the Make route by
+    which the lint-test job reaches the preflight; the install step ahead of
+    it exists because of this prerequisite.
+    """
+
+    def test_the_preflight_runs_before_the_doctests(
+        self, cmd_mox: CmdMox, tmp_path: pathlib.Path
+    ) -> None:
+        """The preflight is journalled ahead of the Rust doctest pass."""
+        for command in ("uv", "cargo", "rustfmt", "whitaker", "python"):
+            cmd_mox.spy(command).returns()
+
+        assert_with_context(_run_test_doc(cmd_mox, tmp_path) == 0, "expected a pass")
+
+        journal = tuple(cmd_mox.journal)
+        preflight = next((i for i, c in enumerate(journal) if _is_preflight(c)), None)
+        doctest = next((i for i, c in enumerate(journal) if _is_rust_doctest(c)), None)
+        assert_with_context(preflight is not None, "expected the preflight to run")
+        assert_with_context(doctest is not None, "expected the Rust doctest pass")
+        assert_with_context(
+            typ.cast("int", preflight) < typ.cast("int", doctest),
+            "expected the preflight ahead of the Rust doctests",
         )

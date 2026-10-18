@@ -175,3 +175,84 @@ class TestMakeTestExecution:
             "expected no doctest phase after a failing unit suite; the failure was "
             "run past rather than propagated",
         )
+
+
+def _is_preflight(invocation: Invocation) -> bool:
+    """Report whether a call is the build-tools preflight."""
+    return invocation.command == "uv" and invocation.args == [
+        "run",
+        "--script",
+        "scripts/build_tools.py",
+        "check",
+    ]
+
+
+def _is_compilation(invocation: Invocation) -> bool:
+    """Report whether a call can reach rustc, Cargo or maturin."""
+    return (
+        invocation.command == "cargo"
+        and bool(
+            {"check", "clippy", "doc", "nextest", "test"} & set(invocation.args[:1])
+        )
+    ) or (invocation.command == "uv" and "maturin" in invocation.args)
+
+
+class TestMakeTestPreflight:
+    """The build-tools preflight leads `make test`, and a failure stops it.
+
+    The preflight exists so a missing mold or nightly is reported as an
+    installation hint before any compiler runs. A preflight that ran after
+    the first compile, or whose failure was run past, would leave the opaque
+    linker error it is there to replace.
+    """
+
+    def test_the_preflight_runs_before_any_compilation(
+        self, cmd_mox: CmdMox, tmp_path: pathlib.Path
+    ) -> None:
+        """The preflight is the first call, ahead of every compiling call."""
+        for command in ("uv", "cargo", "rustfmt", "whitaker", "python"):
+            cmd_mox.spy(command).returns()
+
+        response = CommandRunner(cmd_mox.environment).run(
+            _make_test_invocation(cmd_mox),
+            dict(os.environ, HOME=str(tmp_path / "home")),
+        )
+        assert_with_context(response.exit_code == 0, response.stderr)
+
+        journal = tuple(cmd_mox.journal)
+        preflight = next((i for i, c in enumerate(journal) if _is_preflight(c)), None)
+        first_compile = next(
+            (i for i, c in enumerate(journal) if _is_compilation(c)), None
+        )
+        assert_with_context(preflight is not None, "expected the preflight to run")
+        assert_with_context(first_compile is not None, "expected a compiling call")
+        assert_with_context(
+            typ.cast("int", preflight) < typ.cast("int", first_compile),
+            "expected the preflight ahead of the first compiling call",
+        )
+
+    def test_a_failing_preflight_stops_the_target_before_compiling(
+        self, cmd_mox: CmdMox, tmp_path: pathlib.Path
+    ) -> None:
+        """A preflight exiting 1 ends the run: nothing compiles after it."""
+
+        def fails_the_preflight(invocation: Invocation) -> tuple[str, str, int]:
+            """Fail only the preflight, leaving every other `uv` call alone."""
+            if _is_preflight(invocation):
+                return ("", "build-tools: mold is missing", 1)
+            return ("", "", 0)
+
+        for command in ("cargo", "rustfmt", "whitaker", "python"):
+            cmd_mox.spy(command).returns()
+        cmd_mox.spy("uv").runs(fails_the_preflight)
+
+        response = CommandRunner(cmd_mox.environment).run(
+            _make_test_invocation(cmd_mox),
+            dict(os.environ, HOME=str(tmp_path / "home")),
+        )
+
+        assert_with_context(response.exit_code != 0, "expected `make test` to fail")
+        compiled = [c for c in cmd_mox.journal if _is_compilation(c)]
+        assert_with_context(
+            not compiled, f"compiled after a failed preflight: {compiled}"
+        )

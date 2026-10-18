@@ -21,6 +21,9 @@ dev = [
     "pytest",
     "pytest-xdist",
     "cmd-mox==0.2.0",
+    # scripts/build_tools.py declares the same pins in its uv script block.
+    "cyclopts>=5.2,<6",
+    "cuprum==0.1.0",
     # Pin development lint dependencies so every local environment resolves
     # the same toolchain.
     "df12-python-lints @ git+https://github.com/leynos/df12-python-lints.git@v0.3.0",

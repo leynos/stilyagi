@@ -128,7 +128,7 @@ def makefile_text() -> str:
         pytest.param(
             MakefileTargetCase(
                 target="lint",
-                expected_header_fragments=("tools-lint",),
+                expected_header_fragments=("check-build-tools", "tools-lint"),
                 expected_recipe_fragments=(
                     "$(RUFF) check",
                     "$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)",
@@ -136,12 +136,15 @@ def makefile_text() -> str:
                     "$(DF12_PYLINT) $(PYLINT_TARGETS)",
                     "$(AMBRLEAKS) $(AMBRLEAKS_TARGETS)",
                     (
-                        'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" '
+                        'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" '
                         "$(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)"
                     ),
-                    "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)",
                     (
                         'RUSTFLAGS="$(RUST_FLAGS)" '
+                        "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)"
+                    ),
+                    (
+                        'RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" '
                         "$(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)"
                     ),
                 ),
@@ -152,7 +155,7 @@ def makefile_text() -> str:
         pytest.param(
             MakefileTargetCase(
                 target="typecheck",
-                expected_header_fragments=("build", "tools-check"),
+                expected_header_fragments=("check-build-tools", "build", "tools-check"),
                 expected_recipe_fragments=(
                     (
                         'RUSTFLAGS="$(RUST_FLAGS)" '
@@ -168,13 +171,20 @@ def makefile_text() -> str:
         pytest.param(
             MakefileTargetCase(
                 target="test",
-                expected_header_fragments=("build", "tools-lint"),
+                expected_header_fragments=(
+                    "check-build-tools",
+                    "build",
+                    "tools-lint",
+                ),
                 expected_recipe_fragments=(
                     (
                         "$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) "
                         "--all -- --check"
                     ),
-                    "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)",
+                    (
+                        'RUSTFLAGS="$(RUST_FLAGS)" '
+                        "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)"
+                    ),
                     "nextest run --profile default --no-tests pass",
                     "cargo-nextest not installed, falling back to cargo test",
                     "$(CARGO) test $(TEST_FLAGS) $(BUILD_JOBS)",
@@ -188,7 +198,7 @@ def makefile_text() -> str:
         pytest.param(
             MakefileTargetCase(
                 target="test-ci",
-                expected_header_fragments=("build", "tools-lint"),
+                expected_header_fragments=("check-build-tools", "build", "tools-lint"),
                 expected_recipe_fragments=(
                     "nextest run --profile ci --no-tests pass",
                     "$(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)",
@@ -242,7 +252,8 @@ def test_lint_recipe_runs_df12_tools_before_rust_checks(makefile_text: str) -> N
     df12_pylint = "$(DF12_PYLINT) $(PYLINT_TARGETS)"
     ambrleaks = "$(AMBRLEAKS) $(AMBRLEAKS_TARGETS)"
     rustdoc = (
-        'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)'
+        'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" '
+        "$(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)"
     )
 
     assert_with_context(df12_pylint in recipe, "expected df12 Pylint lint command")

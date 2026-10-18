@@ -115,18 +115,20 @@ def test_smoke_runs_the_doctests_and_no_repeated_suite() -> None:
 
 
 def test_test_doc_runs_only_the_doctests() -> None:
-    """Hold the recipe to the two doctest commands, and `build` as its one prerequisite.
+    """Hold the recipe to the two doctest commands and its two prerequisites.
 
     A prerequisite runs before the recipe, so `test` or `test-ci` there would
-    bring the whole suite back without changing a recipe line.
+    bring the whole suite back without changing a recipe line. The preflight
+    and `build` are the only ones allowed.
     """
     assert_with_context(
         _recipe("test-doc") == TEST_DOC_RECIPE,
         "test-doc must run the Rust and Python doctests and nothing else",
     )
     assert_with_context(
-        _prerequisites("test-doc") == ["build"],
-        f"test-doc may depend only on build, got {_prerequisites('test-doc')}",
+        _prerequisites("test-doc") == ["check-build-tools", "build"],
+        "test-doc may depend only on the build-tools preflight and build, "
+        f"got {_prerequisites('test-doc')}",
     )
 
 
