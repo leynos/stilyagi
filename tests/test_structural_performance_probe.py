@@ -52,6 +52,8 @@ STRUCTURAL_FIXTURES = (
         model.Syntax.RUST_DOC_COMMENT,
     ),
 )
+#: The shared corpus, read into memory once for report-building tests.
+MARKDOWN_CORPUS = structural_probe.read_probe_corpus(REPOSITORY_ROOT)
 
 
 @scenario(
@@ -206,8 +208,7 @@ def test_summarise_durations_rejects_empty_sequence() -> None:
 def test_builds_structural_report_shape() -> None:
     """Build the stable report shape from measured run data."""
     report = structural_probe.build_report(
-        repository_root=REPOSITORY_ROOT,
-        fixtures=STRUCTURAL_FIXTURES,
+        corpus=MARKDOWN_CORPUS,
         runs=[
             structural_probe.ProbeRun(
                 mode="cold",
@@ -249,8 +250,7 @@ def test_redacted_report_matches_json_snapshot(
 ) -> None:
     """Pin the stable redacted report schema without timing noise."""
     report = structural_probe.build_report(
-        repository_root=REPOSITORY_ROOT,
-        fixtures=STRUCTURAL_FIXTURES,
+        corpus=MARKDOWN_CORPUS,
         runs=[
             structural_probe.ProbeRun(
                 mode="cold",
@@ -279,8 +279,7 @@ def test_redacted_report_matches_json_snapshot(
 def test_redacted_report_contains_no_integer_timings() -> None:
     """Confirm that redaction removes all integer timing values."""
     report = structural_probe.build_report(
-        repository_root=REPOSITORY_ROOT,
-        fixtures=STRUCTURAL_FIXTURES,
+        corpus=MARKDOWN_CORPUS,
         runs=[
             structural_probe.ProbeRun(
                 mode="cold",
@@ -340,8 +339,7 @@ def test_write_report_creates_parent_directories(
     """Create missing parent directories and write a valid JSON file."""
     output_path = tmp_path / "nested" / "dir" / "report.json"
     report = structural_probe.build_report(
-        repository_root=REPOSITORY_ROOT,
-        fixtures=STRUCTURAL_FIXTURES,
+        corpus=MARKDOWN_CORPUS,
         runs=[
             structural_probe.ProbeRun(
                 mode="warm",
