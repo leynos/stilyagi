@@ -8,11 +8,17 @@ use stilyagi_test_support::{
     golden_markdown_ir_fixture, golden_python_ir_fixture, normalize_repository_path,
 };
 
-fn span(start: usize, end: usize) -> ByteSpan {
-    match ByteSpan::new(start, end) {
-        Ok(span) => span,
-        Err(error) => panic!("expected valid byte span {start}..{end}: {error:?}"),
-    }
+/// Build a `ByteSpan` from literal bounds, panicking at the caller's line.
+///
+/// A macro rather than a helper function so that it can appear inside
+/// `#[case(...)]` attributes and so failures point at the offending test.
+macro_rules! span {
+    ($start:expr, $end:expr $(,)?) => {
+        match ByteSpan::new($start, $end) {
+            Ok(span) => span,
+            Err(error) => panic!("expected valid byte span {}..{}: {error:?}", $start, $end),
+        }
+    };
 }
 
 #[rstest]
@@ -98,8 +104,8 @@ fn round_trip_edits_reject_overlapping_non_identical_ranges() {
     assert_eq!(
         error,
         RoundTripEditError::OverlappingEdits {
-            previous: span(1, 4),
-            current: span(3, 5),
+            previous: span!(1, 4),
+            current: span!(3, 5),
         },
     );
 }
@@ -125,8 +131,8 @@ fn round_trip_edits_reject_invalid_spans(
 }
 
 #[rstest]
-#[case("é", 1, 2, span(1, 2))]
-#[case("éx", 0, 1, span(0, 1))]
+#[case("é", 1, 2, span!(1, 2))]
+#[case("éx", 0, 1, span!(0, 1))]
 fn round_trip_edits_reject_non_utf8_boundaries(
     #[case] source: &str,
     #[case] start: usize,
@@ -254,8 +260,8 @@ proptest! {
         suffix in unicode_chunk(),
     ) {
         let source = format!("{prefix}{left}{shared}{right}{suffix}");
-        let first = span(prefix.len(), prefix.len() + left.len() + shared.len());
-        let second = span(
+        let first = span!(prefix.len(), prefix.len() + left.len() + shared.len());
+        let second = span!(
             prefix.len() + left.len(),
             prefix.len() + left.len() + shared.len() + right.len(),
         );
@@ -285,7 +291,7 @@ proptest! {
     ) {
         let source = format!("{prefix}é{suffix}");
         let start = prefix.len() + 1;
-        let span = span(start, start + 1);
+        let span = span!(start, start + 1);
 
         let error = apply_round_trip_edits(
             &source,
@@ -316,6 +322,7 @@ trait UnwrapErrOrElse<T, E> {
 }
 
 impl<T, E> UnwrapErrOrElse<T, E> for Result<T, E> {
+    #[track_caller]
     fn unwrap_err_or_else(self, message: &str) -> E {
         match self {
             Ok(_) => panic!("{message}"),
