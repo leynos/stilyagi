@@ -365,10 +365,11 @@ visible in the snapshot's shape.
 
 1. Add the variant to `ExtractSyntax` or `RegionKind`.
 2. Add a case to the relevant `#[rstest]` table in
-   `crates/stilyagi-extract/tests/extract/spelling_display.rs`. Snapshot names
-   are composed inside the macro from `as_str()`, so
-   `ExtractSyntax::NewVariant` yields `syntax_display__new_variant` without a
-   second case parameter.
+   `crates/stilyagi-extract/tests/extract/spelling_display.rs`. Pass a
+   `SnapshotName` such as `SnapshotName("syntax_display__new_variant")` and
+   keep the spelling itself as the value under test. Do not derive the name from
+   `as_str()`: two variants that collided would then read one snapshot and
+   both pass.
 3. Run `make update-snapshots`; a new `.snap` file appears beside the test
    module.
 4. Inspect the generated file, confirm the spelling is what the bridge should
