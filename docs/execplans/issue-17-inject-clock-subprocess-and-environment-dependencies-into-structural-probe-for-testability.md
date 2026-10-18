@@ -372,14 +372,19 @@ The acceptance evidence is:
   equivalent. The surviving test keeps both assertions: an integer duration and
   a non-negative one. Date: 2026-10-18
 
-- Decision: continue past the eight-file tolerance, at nine files. Rationale:
-  measured against the merge base, `git diff --stat 91941ef..HEAD` reports nine
-  files changed. One of them is this ExecPlan, which the planning workflow
-  requires and which no implementation could avoid; the other eight are the
-  change proper, the count the tolerance anticipated. Two of those eight are
-  new test modules, created only because the 400-line module ceiling split the
-  tests three ways. Recorded rather than left as an unremarked overrun so the
-  tolerance stays auditable. Date: 2026-10-18
+- Decision: continue past both scope tolerances: ten files instead of eight,
+  and 1073 net new lines instead of roughly 500. Rationale: measured against
+  the merge base, `git diff --numstat` reports ten files and, excluding this
+  ExecPlan, 1306 insertions against 233 deletions. One file is this ExecPlan,
+  which the planning workflow requires and which no implementation could avoid.
+  Another is `tests/support/structural_probe_stubs.py`, which exists because
+  CodeRabbit review found the CLI and injection tests had grown near-copies of
+  the same runner and request factory. Three of the remaining eight are new
+  test modules, created only because the 400-line module ceiling split the
+  tests three ways. The line count exceeds the estimate mainly because each
+  moved test carries a NumPy-style docstring and contextual assertion messages,
+  which the repository requires. Recorded rather than left as an unremarked
+  overrun so the tolerance stays auditable. Date: 2026-10-18
 
 ## Progress
 
