@@ -15,6 +15,7 @@ paths are normalised against. Bundling keeps every measurement function inside
 the repository's four-argument ceiling, which counts keyword-only parameters.
 """
 
+import collections.abc as cabc
 import dataclasses as dc
 import pathlib
 import platform
@@ -25,9 +26,6 @@ import typing as typ
 from stilyagi import model
 
 from tests.performance.structural_probe_reporting import EnvironmentPayload
-
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
 
 #: Identifier recorded in every report.
 PROBE_NAME = "structural-syntax"

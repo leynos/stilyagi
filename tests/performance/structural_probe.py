@@ -236,13 +236,24 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
 
 
 def _child_run(args: argparse.Namespace) -> int:
-    """Measure one extraction in this interpreter and print its duration."""
+    """Measure one extraction in this interpreter and print its duration.
+
+    The parent sends the source text it wants measured, so the child never
+    reopens a file whose contents might differ from the request. ``--source``
+    still names the fixture, and a command run by hand without ``--text`` reads
+    it, so the documented manual reproduction keeps working.
+
+    Returns
+    -------
+    int
+        Process exit status, always 0 because a failure raises instead.
+    """
     from tests.performance.structural_probe_execution import measure_extraction
 
-    duration_ns = measure_extraction(
-        args.source.read_text(encoding="utf-8"),
-        model.Syntax(args.syntax),
-    )
+    source = args.text
+    if source is None:
+        source = args.source.read_text(encoding="utf-8")
+    duration_ns = measure_extraction(source, model.Syntax(args.syntax))
     print(json.dumps({"duration_ns": duration_ns}, sort_keys=True))
     return 0
 
@@ -334,6 +345,11 @@ def _argument_parser() -> argparse.ArgumentParser:
         "--source",
         type=pathlib.Path,
         default=repository_root() / MARKDOWN_FIXTURE,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--text",
+        default=None,
         help=argparse.SUPPRESS,
     )
     parser.add_argument(

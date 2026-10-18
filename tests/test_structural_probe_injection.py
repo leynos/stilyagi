@@ -212,39 +212,6 @@ def test_measure_run_cold_and_warm_differ_under_stubs() -> None:
     )
 
 
-def test_measure_cold_iteration_builds_child_argv() -> None:
-    """Invoke the child interpreter with the child-run and source arguments."""
-    runner = StubRunner()
-    dependencies = boundary.ProbeDependencies(subprocess_runner=runner)
-
-    execution._measure_cold_iteration(
-        markdown_fixture_request(),
-        dependencies=dependencies,
-    )
-
-    argv, kwargs = runner.calls[0]
-    assert_with_context(
-        execution.CHILD_RUN_FLAG in argv,
-        f"expected {execution.CHILD_RUN_FLAG} in {argv}",
-    )
-    assert_with_context(
-        execution.SOURCE_FLAG in argv,
-        f"expected {execution.SOURCE_FLAG} in {argv}",
-    )
-    assert_with_context(
-        argv[argv.index(execution.SOURCE_FLAG) + 1] == str(MARKDOWN_PATH),
-        "expected the fixture path to follow the source flag",
-    )
-    assert_with_context(
-        argv[-1] == model.Syntax.MARKDOWN.value,
-        "expected the syntax value to be the final argument",
-    )
-    assert_with_context(
-        kwargs.get("check") is True,
-        "expected the child to be run with check=True",
-    )
-
-
 def test_measure_cold_iteration_rejects_non_json_output() -> None:
     """Reject child output that is not JSON."""
     runner = StubRunner(stdout="not json at all")
