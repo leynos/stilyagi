@@ -150,6 +150,11 @@ jobs:
       # coverage-main.yml on a push, run the Rust and Python suites, and the
       # steps above run the format check and Clippy, so `make test` here ran
       # all of that a second time. tests/test_suite_runs_once.py holds it.
+      #
+      # No INSTA_UPDATE is set anywhere in this workflow, and that is
+      # deliberate: the test runs here (and the coverage run below) must fail
+      # on a snapshot mismatch and print the `.snap.new` file for review.
+      # `make update-snapshots` is a local, reviewed act only.
       - name: Docstring examples
         run: make test-doc
 

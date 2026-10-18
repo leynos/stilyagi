@@ -19,6 +19,7 @@ stilyagi-extract = { path = "../stilyagi-extract" }
 stilyagi-ir = { path = "../stilyagi-ir" }
 
 [dev-dependencies]
+insta.workspace = true
 rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true

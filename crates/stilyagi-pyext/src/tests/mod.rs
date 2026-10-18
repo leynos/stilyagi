@@ -1,4 +1,10 @@
 //! Tests for the Python extension bridge payload and error mapping.
+//!
+//! The payload assertions snapshot a canonical, stable rendering of each
+//! `PyDict` rather than `Bound`'s `repr()`, which can change with the
+//! interpreter and with any object whose repr embeds an address. Projections
+//! omit the canonical IR JSON where a structural assertion already covers it;
+//! see the snapshot workflow in the developers' guide.
 
 mod rust_doc_comment;
 
@@ -7,13 +13,98 @@ use super::{
     map_extract_error, supported_region_kinds_py, supported_syntaxes_py,
 };
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
-use pyo3::prelude::{Py, PyErr, PyResult, Python};
-use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
-use rstest::rstest;
-use stilyagi_extract::{
-    ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError, RustExtractError,
+use pyo3::prelude::{Bound, Py, PyErr, PyResult, Python};
+use pyo3::types::{
+    PyAny, PyAnyMethods, PyDict, PyDictMethods, PyList, PyListMethods, PyTuple, PyTupleMethods,
 };
-use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, RegionKind as IrRegionKind};
+use rstest::rstest;
+use serde_json::json;
+use stilyagi_extract::{ExtractError, MarkdownIrFailure, PythonExtractError, RustExtractError};
+
+/// Renders one Python tuple as a stable JSON array.
+///
+/// Projection functions never fail for the bridge's own payloads, so a
+/// malformed payload surfaces as a test panic rather than a `Result`.
+fn tuple_json(py: Python<'_>, tuple: &Py<PyTuple>) -> serde_json::Value {
+    let bound = tuple.bind(py);
+    let items = bound
+        .iter()
+        .map(|item| item.extract::<String>())
+        .collect::<PyResult<Vec<_>>>()
+        .expect("expected tuple items to be strings");
+    json!(items)
+}
+
+/// Renders one payload value: strings stay strings, lists of region dicts
+/// become JSON arrays, and anything else falls back to Python `str()`.
+fn rendered_value(value: &Bound<'_, PyAny>) -> serde_json::Value {
+    if let Ok(text) = value.extract::<String>() {
+        return serde_json::Value::String(text);
+    }
+
+    value
+        .cast::<PyList>()
+        .map_or_else(|_| serde_json::Value::String(value.to_string()), list_json)
+}
+
+/// Renders one `PyDict` as a stable JSON object.
+///
+/// String members become JSON strings and lists of region dicts become JSON
+/// arrays of objects. Any other value is rendered through Python `str()`,
+/// which keeps the projection total while still making an unexpected payload
+/// shape visible in the snapshot diff.
+fn dictionary_json(dictionary: &Bound<'_, PyDict>) -> serde_json::Value {
+    let mut rendered = serde_json::Map::new();
+    for (key, value) in dictionary.iter() {
+        let rendered_key = key
+            .extract::<String>()
+            .expect("expected payload keys to be strings");
+        rendered.insert(rendered_key, rendered_value(&value));
+    }
+    serde_json::Value::Object(rendered)
+}
+
+/// Renders a list of region dictionaries as a JSON array.
+fn list_json(list: &Bound<'_, PyList>) -> serde_json::Value {
+    let items = list
+        .iter()
+        .map(|item| {
+            let region = item
+                .cast::<PyDict>()
+                .expect("expected list items to be region dicts");
+            dictionary_json(region)
+        })
+        .collect::<Vec<_>>();
+    serde_json::Value::Array(items)
+}
+
+/// Returns the bridge document payload as a stable, snapshot-friendly value.
+///
+/// The canonical IR JSON is dropped: it records the full document, so
+/// snapshotting it here would duplicate an existing golden-IR snapshot and
+/// bury the bridge shape in hundreds of lines of IR.
+pub(super) fn document_payload(payload: &Bound<'_, PyDict>) -> serde_json::Value {
+    let mut rendered = document_payload_with_ir(payload);
+    if let serde_json::Value::Object(ref mut map) = rendered {
+        map.remove("ir_json");
+    }
+    rendered
+}
+
+/// Returns the whole bridge payload, canonical IR JSON included.
+pub(super) fn document_payload_with_ir(payload: &Bound<'_, PyDict>) -> serde_json::Value {
+    let mut rendered = dictionary_json(payload);
+    let Some(map) = rendered.as_object_mut() else {
+        return rendered;
+    };
+    let Some(serde_json::Value::String(ir_json)) = map.get("ir_json").cloned() else {
+        return rendered;
+    };
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&ir_json) {
+        map.insert("ir_json".to_owned(), parsed);
+    }
+    rendered
+}
 
 fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
     Python::attach(|py| {
@@ -58,37 +149,18 @@ fn assert_ir_json_contract(ir_json: &str) {
     );
 }
 
-fn assert_supported_tuple_matches(
+fn assert_supported_tuple_snapshot(
     py: Python<'_>,
     tuple_result: PyResult<Py<PyTuple>>,
-    expected: &[String],
+    snapshot_name: &str,
     failure_context: &str,
 ) {
     let supported_values = match tuple_result {
         Ok(tuple) => tuple,
         Err(error) => panic!("unexpected {failure_context} failure: {error}"),
     };
-    let supported_tuple = supported_values.bind(py);
-    let tuple_len = match supported_tuple.len() {
-        Ok(len) => len,
-        Err(error) => panic!("expected tuple length: {error}"),
-    };
 
-    assert_eq!(tuple_len, expected.len());
-    let actual = (0..tuple_len)
-        .map(|index| {
-            let item = match supported_tuple.get_item(index) {
-                Ok(item) => item,
-                Err(error) => panic!("missing tuple item: {error}"),
-            };
-            match item.extract::<String>() {
-                Ok(value) => value,
-                Err(error) => panic!("expected tuple string: {error}"),
-            }
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(actual, expected);
+    insta::assert_json_snapshot!(snapshot_name, tuple_json(py, &supported_values));
 }
 
 #[rstest]
@@ -105,17 +177,10 @@ fn hello_is_not_the_legacy_python_fallback(#[case] legacy_fallback: &str) {
 #[rstest]
 fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
     Python::attach(|py| {
-        let expected = ExtractSyntax::ALL
-            .iter()
-            .copied()
-            .map(ExtractSyntax::as_str)
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
-
-        assert_supported_tuple_matches(
+        assert_supported_tuple_snapshot(
             py,
             supported_syntaxes_py(py),
-            &expected,
+            "supported_syntaxes",
             "supported_syntaxes",
         );
     });
@@ -124,17 +189,10 @@ fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
 #[rstest]
 fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
     Python::attach(|py| {
-        let expected = IrRegionKind::ALL
-            .iter()
-            .copied()
-            .map(IrRegionKind::as_str)
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
-
-        assert_supported_tuple_matches(
+        assert_supported_tuple_snapshot(
             py,
             supported_region_kinds_py(py),
-            &expected,
+            "supported_region_kinds",
             "supported_region_kinds",
         );
     });
@@ -143,15 +201,10 @@ fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
 #[rstest]
 fn authored_directive_error_codes_follow_the_rust_ir_vocabulary() {
     Python::attach(|py| {
-        let expected = AUTHORED_DIRECTIVE_ERROR_CODES
-            .iter()
-            .map(|code| (*code).to_owned())
-            .collect::<Vec<_>>();
-
-        assert_supported_tuple_matches(
+        assert_supported_tuple_snapshot(
             py,
             authored_directive_error_codes_py(py),
-            &expected,
+            "authored_directive_error_codes",
             "authored_directive_error_codes",
         );
     });
@@ -190,75 +243,20 @@ fn extract_document_py_exposes_markdown_document() {
         let extracted_document_dict = extracted_document_bound
             .cast::<PyDict>()
             .expect("extracted Markdown document should be a PyDict");
-        let regions_any = extracted_document_dict
-            .get_item("regions")
-            .expect("missing regions payload");
-        let ir_json_any = extracted_document_dict
+
+        insta::assert_json_snapshot!(
+            "extract_document_py__markdown_payload",
+            document_payload(extracted_document_dict)
+        );
+
+        let ir_json = extracted_document_dict
             .get_item("ir_json")
-            .expect("missing IR payload");
-        let regions = regions_any
-            .cast::<PyList>()
-            .expect("Markdown regions payload should be a PyList");
-        let first_region_any = regions.get_item(0).expect("missing first region");
-        let first_region = first_region_any
-            .cast::<PyDict>()
-            .expect("first Markdown region should be a PyDict");
-
-        assert_eq!(
-            extracted_document_dict
-                .get_item("syntax")
-                .expect("missing syntax payload")
-                .extract::<&str>()
-                .expect("expected syntax string"),
-            ExtractSyntax::Markdown.as_str(),
-        );
-        assert_eq!(regions.len().expect("expected list length"), 1,);
-        assert_eq!(
-            first_region
-                .get_item("kind")
-                .expect("missing kind payload")
-                .extract::<&str>()
-                .expect("expected kind string"),
-            "heading",
-        );
-        assert_eq!(
-            first_region
-                .get_item("text")
-                .expect("missing text payload")
-                .extract::<&str>()
-                .expect("expected text string"),
-            "Heading",
-        );
-        let ir_json = ir_json_any
-            .extract::<&str>()
+            .expect("expected IR payload lookup to succeed")
+            .expect("missing IR payload")
+            .extract::<String>()
             .expect("expected IR JSON string");
-        assert_ir_json_contract(ir_json);
+        assert_ir_json_contract(&ir_json);
     });
-}
-
-fn region_at<'py>(regions: &pyo3::Bound<'py, PyList>, index: usize) -> pyo3::Bound<'py, PyDict> {
-    let item = match regions.get_item(index) {
-        Ok(region) => region,
-        Err(error) => panic!("missing region at index {index}: {error}"),
-    };
-    match item.cast::<PyDict>() {
-        Ok(dict) => dict.clone(),
-        Err(error) => panic!("expected PyDict but got {error}"),
-    }
-}
-
-fn assert_region(region: &pyo3::Bound<'_, PyDict>, expected_kind: &str, expected_text: &str) {
-    for (key, expected) in [("kind", expected_kind), ("text", expected_text)] {
-        let value = match region.get_item(key) {
-            Ok(payload) => payload,
-            Err(error) => panic!("missing {key} payload: {error}"),
-        };
-        let actual = match value.extract::<String>() {
-            Ok(text) => text,
-            Err(error) => panic!("expected {key} string: {error}"),
-        };
-        assert_eq!(actual, expected, "unexpected {key}");
-    }
 }
 
 #[rstest]
@@ -271,26 +269,23 @@ fn extract_document_py_exposes_python_docstrings() {
         let document_dict = document.bind(py);
         let regions_any = document_dict
             .get_item("regions")
-            .expect("missing regions payload");
+            .expect("missing regions payload")
+            .expect("missing regions value");
         let regions = regions_any
             .cast::<PyList>()
             .expect("Python regions payload should be a PyList");
 
-        assert_eq!(
-            document_dict
-                .get_item("syntax")
-                .expect("missing syntax payload")
-                .extract::<&str>()
-                .expect("expected syntax string"),
-            ExtractSyntax::PythonDocstring.as_str(),
+        insta::assert_json_snapshot!(
+            "extract_document_py__python_docstring_payload",
+            document_payload(document_dict)
         );
-        assert_eq!(regions.len().expect("expected list length"), 2);
-        assert_region(&region_at(regions, 0), "python_docstring", "Module docs.");
-        assert_region(&region_at(regions, 1), "python_docstring", "Function docs.");
+
+        assert_eq!(regions.len(), 2);
 
         let ir_json = document_dict
             .get_item("ir_json")
             .expect("missing IR payload")
+            .expect("missing IR value")
             .extract::<String>()
             .expect("expected IR JSON string");
         assert_ir_json_contract(&ir_json);
@@ -300,16 +295,10 @@ fn extract_document_py_exposes_python_docstrings() {
 /// Keep rejection behaviour stable for both unsupported and unknown syntax
 /// strings.
 #[rstest]
-#[case("not_a_syntax", "not_a_syntax")]
-fn extract_document_py_rejects_invalid_syntaxes(
-    #[case] syntax: &str,
-    #[case] expected_fragment: &str,
-) {
+#[case("not_a_syntax", "extract_document_py__invalid_syntax_error")]
+fn extract_document_py_rejects_invalid_syntaxes(#[case] syntax: &str, #[case] snapshot_name: &str) {
     let err = invalid_syntax_error(syntax);
-    assert!(
-        err.to_string().contains(expected_fragment),
-        "error message {err:?} did not contain {expected_fragment:?}"
-    );
+    insta::assert_snapshot!(snapshot_name, format!("{err}"));
 }
 
 /// Keep the `UnknownSyntax` arm of `map_extract_error` wired to a

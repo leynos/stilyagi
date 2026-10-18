@@ -286,16 +286,82 @@ capability-oriented path.
 Golden IR scaffolding is intentionally internal while the public pytest plugin
 from RFC 0004 remains future work. Rust snapshot tests use `insta` and write
 snapshot files next to the owning test module, for example under
-`crates/stilyagi-extract/tests/snapshots/` or
-`crates/stilyagi-test-support/tests/snapshots/`. Python snapshot tests use
-`syrupy` and write JSON snapshots under `tests/__snapshots__/`. Markdown,
-Python docstring, and Rust doc-comment golden helpers all follow the same
-canonical IR contract. Update snapshots only when the reviewed contract changes:
+`crates/stilyagi-extract/tests/extract/snapshots/` or
+`crates/stilyagi-test-support/tests/snapshots/`; inline module tests write to
+`src/snapshots/` beside the module. Python snapshot tests use `syrupy` and
+write JSON snapshots under `tests/__snapshots__/`. Markdown, Python docstring,
+and Rust doc-comment golden helpers all follow the same canonical IR contract.
+
+Two further contracts are pinned by `insta` snapshots:
+
+- **`Display` output** for the extraction vocabulary. The spelling a Python
+  caller receives from the bridge is the contract, so
+  `crates/stilyagi-extract/tests/extract/spelling_display.rs` snapshots each
+  `ExtractSyntax` and `RegionKind` spelling rather than restating it in an
+  `assert_eq!`.
+- **`PyO3` payload shape**. The bridge returns `PyDict` values, whose `repr()`
+  is interpreter-dependent and can embed addresses. Tests therefore project the
+  payload into a canonical `serde_json::Value` (`document_payload` and
+  `document_payload_with_ir` in `crates/stilyagi-pyext/src/tests/mod.rs`) and
+  snapshot that with `assert_json_snapshot!`. The projection drops the
+  canonical IR JSON unless the test is specifically pinning the whole bridge
+  document; the golden IR snapshots already cover its contents.
+
+Update snapshots only when the reviewed contract changes. The `make` target
+runs the same two crates as a single step:
 
 ```bash
-INSTA_UPDATE=always cargo test -p stilyagi-ir -p stilyagi-test-support -p stilyagi-extract
+make update-snapshots
+# equivalent to:
+INSTA_UPDATE=always cargo test -p stilyagi-extract -p stilyagi-pyext
+```
+
+Python snapshots are regenerated separately:
+
+```bash
 .venv/bin/python -m pytest tests/test_round_trip_helpers.py --snapshot-update
 ```
+
+CI sets no `INSTA_UPDATE`, so a mismatch fails the run and prints the
+`.snap.new` file for review. Accepting a snapshot is always a local, reviewed
+act: inspect the diff, then commit the regenerated `.snap`. Never set
+`INSTA_UPDATE=always` in CI — that would let a changed contract pass unnoticed.
+
+##### Redacting nondeterministic fields
+
+A snapshot of an object carrying an address, a temporary path, a timestamp, or
+another environment-dependent value churns on every run. Redact such fields
+rather than deleting the surrounding assertion. Redaction is implemented by
+`insta`'s `redactions` feature and applies to the serialization-based macros
+(`assert_json_snapshot!`, `assert_yaml_snapshot!`, and the other serde formats);
+`assert_snapshot!` and `assert_debug_snapshot!` render a value directly and
+cannot redact, so project the value first if you need it.
+
+```rust
+insta::assert_json_snapshot!(
+    "bridge_payload",
+    payload,
+    { ".address" => "[REDACTED]", ".path" => "[REDACTED]" }
+);
+```
+
+Selectors are dotted paths into the serialized value. A `.key` segment names a
+field, `.*` matches every child at one level, `**` matches recursively, and a
+subscript such as `[0]` or `[]` selects an array element or the whole array.
+Prefer a stable projection (the `document_payload` helpers above) over
+redaction where the field is not part of the contract, and use redaction when
+the field must stay visible in the snapshot's shape.
+
+##### Adding a display variant
+
+1. Add the variant to `ExtractSyntax` or `RegionKind`.
+2. Add a case to the relevant `#[rstest]` table in
+   `crates/stilyagi-extract/tests/extract/spelling_display.rs`, supplying a
+   unique snapshot name such as `syntax_display__new_variant`.
+3. Run `make update-snapshots`; a new `.snap` file appears beside the test
+   module.
+4. Inspect the generated file, confirm the spelling is what the bridge should
+   expose, and commit it with the code change.
 
 The golden IR helper scope currently covers Markdown and Python docstrings.
 Markdown helper output records the repository-relative fixture path, syntax,

@@ -5,8 +5,8 @@ use pyo3::prelude::Python;
 use pyo3::types::{PyAnyMethods, PyDictMethods, PyList, PyListMethods};
 
 use super::{
-    ExtractError, ExtractSyntax, RustExtractError, assert_ir_json_contract,
-    bridge_extract_document, map_extract_error, region_at,
+    ExtractError, RustExtractError, assert_ir_json_contract, bridge_extract_document,
+    document_payload, map_extract_error,
 };
 
 #[rstest::rstest]
@@ -21,41 +21,19 @@ fn extract_document_py_exposes_rust_doc_comments() {
         let document_dict = document.bind(py);
         let regions_any = document_dict
             .get_item("regions")
-            .expect("missing regions payload");
-        let regions_value = regions_any.expect("missing regions value");
-        let regions = regions_value
+            .expect("missing regions payload")
+            .expect("missing regions value");
+        let regions = regions_any
             .cast::<PyList>()
             .expect("Rust regions payload should be a PyList");
-        let first_region = region_at(regions, 0);
 
-        assert_eq!(
-            document_dict
-                .get_item("syntax")
-                .expect("missing syntax payload")
-                .expect("missing syntax value")
-                .extract::<&str>()
-                .expect("expected syntax string"),
-            ExtractSyntax::RustDocComment.as_str(),
+        insta::assert_json_snapshot!(
+            "extract_document_py__rust_doc_comments_payload",
+            document_payload(document_dict)
         );
+
         assert_eq!(regions.len(), 4);
-        assert_eq!(
-            first_region
-                .get_item("kind")
-                .expect("missing kind payload")
-                .expect("missing kind value")
-                .extract::<&str>()
-                .expect("expected kind string"),
-            "rust_doc_comment",
-        );
-        assert_eq!(
-            first_region
-                .get_item("text")
-                .expect("missing text payload")
-                .expect("missing text value")
-                .extract::<&str>()
-                .expect("expected text string"),
-            " Crate-level documentation comment for the shared Stilyagi corpus.",
-        );
+
         let ir_json = document_dict
             .get_item("ir_json")
             .expect("missing IR payload")

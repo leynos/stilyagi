@@ -1,0 +1,8 @@
+---
+source: crates/stilyagi-pyext/src/tests/mod.rs
+expression: "tuple_json(py, &supported_values)"
+---
+[
+  "suppression-blanket-forbidden",
+  "suppression-unknown-verb"
+]
