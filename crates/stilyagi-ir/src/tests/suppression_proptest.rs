@@ -39,7 +39,7 @@ proptest! {
         };
 
         prop_assert_eq!(parsed.codes, codes);
-        prop_assert_eq!(verb_kind(parsed.verb), expected_kind_from_token(verb));
+        prop_assert_eq!(Some(verb_kind(parsed.verb)), expected_kind_from_token(verb));
     }
 
     #[test]

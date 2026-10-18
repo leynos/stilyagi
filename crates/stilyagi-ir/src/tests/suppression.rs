@@ -7,6 +7,7 @@ use proptest::string::string_regex;
 use rstest::rstest;
 use stilyagi_test_fixtures::ExpectValid;
 
+use super::assert_json_round_trip;
 use crate::suppression::{
     DirectiveError, DirectiveOutcome, DirectiveVerb, SuppressionCandidate,
     SuppressionValidationError, parse_comment_directive, suppressions_from_candidates,
@@ -25,22 +26,18 @@ fn suppression_serialises_and_deserialises_with_the_rfc_shape() {
         origin: "n7".to_owned(),
     };
 
-    let json = serde_json::to_value(&suppression).expect("expected suppression JSON");
-    let expected = serde_json::json!({
-        "id": "s0",
-        "kind": "inline",
-        "codes": ["PUN201"],
-        "span": {
-            "byte_start": 3,
-            "byte_end": 18,
-        },
-        "origin": "n7",
-    });
-
-    assert_eq!(json, expected);
-    assert_eq!(
-        serde_json::from_value::<IrSuppression>(json).expect("expected suppression round trip"),
-        suppression
+    assert_json_round_trip(
+        &suppression,
+        &serde_json::json!({
+            "id": "s0",
+            "kind": "inline",
+            "codes": ["PUN201"],
+            "span": {
+                "byte_start": 3,
+                "byte_end": 18,
+            },
+            "origin": "n7",
+        }),
     );
 }
 
@@ -238,18 +235,21 @@ fn validate_suppressions_rejects_out_of_bounds_spans() {
     "stilyagi: ignore-next PUN201",
     DirectiveVerb::IgnoreNext,
     &["PUN201"],
+    SuppressionKind::Inline,
 )]
-#[case("stilyagi: disable STY", DirectiveVerb::Disable, &["STY"])]
-#[case("stilyagi: enable STY", DirectiveVerb::Enable, &["STY"])]
+#[case("stilyagi: disable STY", DirectiveVerb::Disable, &["STY"], SuppressionKind::Range)]
+#[case("stilyagi: enable STY", DirectiveVerb::Enable, &["STY"], SuppressionKind::Range)]
 #[case(
     "stilyagi: ignore-file MD,DOC",
     DirectiveVerb::IgnoreFile,
     &["MD", "DOC"],
+    SuppressionKind::File,
 )]
 fn parse_comment_directive_parses_canonical_verbs(
     #[case] inner: &str,
     #[case] expected_verb: DirectiveVerb,
     #[case] expected_codes: &[&str],
+    #[case] expected_kind: SuppressionKind,
 ) {
     let DirectiveOutcome::Parsed(parsed) = parse_comment_directive(inner) else {
         panic!("expected parsed directive for {inner:?}");
@@ -263,7 +263,7 @@ fn parse_comment_directive_parses_canonical_verbs(
             .map(|code| (*code).to_owned())
             .collect::<Vec<_>>()
     );
-    assert_eq!(verb_kind(parsed.verb), expected_kind(expected_verb));
+    assert_eq!(verb_kind(parsed.verb), expected_kind);
 }
 
 #[rstest]
@@ -295,16 +295,14 @@ fn parse_comment_directive_accepts_file_blankets_or_ignores_non_directives(#[cas
     }
 }
 
-fn expected_kind(verb: DirectiveVerb) -> SuppressionKind {
-    verb_kind(verb)
-}
-
-fn expected_kind_from_token(token: &str) -> SuppressionKind {
+/// Return the canonical suppression kind for a directive token, or `None` when
+/// the token is not a known directive verb.
+fn expected_kind_from_token(token: &str) -> Option<SuppressionKind> {
     match token {
-        "ignore-next" => SuppressionKind::Inline,
-        "disable" | "enable" => SuppressionKind::Range,
-        "ignore-file" => SuppressionKind::File,
-        other => panic!("unexpected verb token {other:?}"),
+        "ignore-next" => Some(SuppressionKind::Inline),
+        "disable" | "enable" => Some(SuppressionKind::Range),
+        "ignore-file" => Some(SuppressionKind::File),
+        _ => None,
     }
 }
 
@@ -354,23 +352,19 @@ fn range_suppression_serialises_with_its_role(
         origin: "n7".to_owned(),
     };
 
-    let json = serde_json::to_value(&suppression).expect("expected suppression JSON");
-    let expected = serde_json::json!({
-        "id": "s1",
-        "kind": "range",
-        "range_role": expected_role,
-        "codes": ["PUN201"],
-        "span": {
-            "byte_start": 3,
-            "byte_end": 18,
-        },
-        "origin": "n7",
-    });
-
-    assert_eq!(json, expected);
-    assert_eq!(
-        serde_json::from_value::<IrSuppression>(json).expect("expected suppression round trip"),
-        suppression
+    assert_json_round_trip(
+        &suppression,
+        &serde_json::json!({
+            "id": "s1",
+            "kind": "range",
+            "range_role": expected_role,
+            "codes": ["PUN201"],
+            "span": {
+                "byte_start": 3,
+                "byte_end": 18,
+            },
+            "origin": "n7",
+        }),
     );
 }
 
