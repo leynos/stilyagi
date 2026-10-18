@@ -173,6 +173,16 @@ def test_rejects_paths_outside_repository(tmp_path: pathlib.Path) -> None:
         structural_probe.normalise_repository_path(tmp_path, REPOSITORY_ROOT)
 
 
+def test_normalise_accepts_the_repository_root_itself(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The root is beneath itself and normalises to a single dot."""
+    assert_with_context(
+        structural_probe.normalise_repository_path(tmp_path, tmp_path) == ".",
+        "expected the root to normalise to the current-directory marker",
+    )
+
+
 def test_summarises_odd_and_even_duration_sets() -> None:
     """Summarise duration lists with deterministic integer medians."""
     assert_with_context(
