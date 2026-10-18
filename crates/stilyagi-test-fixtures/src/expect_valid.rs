@@ -30,14 +30,13 @@
 //!
 //! # Relationship to the `must_ok!` and `must_some!` macros
 //!
-//! `crates/stilyagi-markdown/src/tests.rs` and
-//! `crates/stilyagi-pyext/src/bridge_bdd.rs` each define `must_ok!` and
-//! `must_some!`. Those remain the right tool inside a test body, where a macro
-//! expands in place and clippy's `allow-expect-in-tests` already applies.
-//! [`ExpectValid`] covers the case they cannot: helper and fixture code that
-//! sits *outside* a test body, which the Whitaker suite treats as production.
-//! Both spellings report the caller's line — the macros because they expand
-//! there, this trait because its methods are `#[track_caller]`.
+//! `crates/stilyagi-pyext/src/bridge_bdd.rs` defines `must_ok!` and
+//! `must_some!` for its `then` steps, where a macro expands in place and the
+//! panic is the test verdict. [`ExpectValid`] covers the case they cannot:
+//! helper and fixture code that sits *outside* a test body, which the Whitaker
+//! suite treats as production. Both spellings report the caller's line: the
+//! macros because they expand there, this trait because its methods are
+//! `#[track_caller]`.
 //!
 //! # Examples
 //!
