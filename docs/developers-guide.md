@@ -339,7 +339,7 @@ rather than deleting the surrounding assertion. Redaction is implemented by
 `insta`'s `redactions` feature and applies to the serialization-based macros
 (`assert_json_snapshot!`, `assert_yaml_snapshot!`, and the other serde formats);
 `assert_snapshot!` and `assert_debug_snapshot!` render a value directly and
-cannot redact, so project the value first if you need it.
+cannot redact, so project the value first when redaction is required.
 
 ```rust
 insta::assert_json_snapshot!(
