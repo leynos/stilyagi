@@ -322,10 +322,14 @@ Python snapshots are regenerated separately:
 .venv/bin/python -m pytest tests/test_round_trip_helpers.py --snapshot-update
 ```
 
-CI sets no `INSTA_UPDATE`, so a mismatch fails the run and prints the
-`.snap.new` file for review. Accepting a snapshot is always a local, reviewed
-act: inspect the diff, then commit the regenerated `.snap`. Never set
-`INSTA_UPDATE=always` in CI — that would let a changed contract pass unnoticed.
+CI sets no `INSTA_UPDATE`, so a mismatch fails the run. Locally, insta's default
+`auto` mode writes a `.snap.new` file beside the committed snapshot when a
+value changes, and that file is the diff to review. Under CI, insta detects the
+`CI` environment variable and resolves `auto` to no-update: the run still
+fails, but no `.snap.new` file is written, so read the assertion diff from the
+test log. Accepting a snapshot is always a local, reviewed act: inspect the
+diff, then commit the regenerated `.snap`. Never set `INSTA_UPDATE=always` in
+CI — that would let a changed contract pass unnoticed.
 
 ##### Redacting nondeterministic fields
 
@@ -346,11 +350,13 @@ insta::assert_json_snapshot!(
 ```
 
 Selectors are dotted paths into the serialized value. A `.key` segment names a
-field, `.*` matches every child at one level, `**` matches recursively, and a
-subscript such as `[0]` or `[]` selects an array element or the whole array.
-Prefer a stable projection (the `document_payload` helpers above) over
-redaction where the field is not part of the contract, and use redaction when
-the field must stay visible in the snapshot's shape.
+field, `.*` matches every child at one level, and `**` matches recursively.
+Subscripts address array items: `[0]` matches one index, `[1:3]` a half-open
+range, and `[]` matches every item in the array rather than the array itself,
+so the array keeps its shape and length in the snapshot. Prefer a stable
+projection (the `document_payload` helpers above) over redaction where the
+field is not part of the contract, and use redaction when the field must stay
+visible in the snapshot's shape.
 
 ##### Adding a display variant
 
