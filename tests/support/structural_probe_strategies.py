@@ -28,6 +28,18 @@ if typ.TYPE_CHECKING:
 #: keeps per-example temporary directories cheap to create and remove.
 FILE_BYTES = st.integers(min_value=0, max_value=2048)
 
+#: A single clock reading in nanoseconds. Non-negative because a clock never
+#: runs backwards, and bounded well below ``2**53`` because
+#: ``statistics.median`` averages an even-length sequence in floating point:
+#: beyond that range the mean is no longer exact, so a generated reading could
+#: put the median outside its own extremes for reasons that have nothing to do
+#: with the helper. One thousand seconds is far longer than any probe run.
+DURATION_NS = st.integers(min_value=0, max_value=10**12)
+
+#: One run's readings: at least one, because ``build_report`` documents that
+#: every run carries a duration, and few enough to keep 64 examples cheap.
+DURATIONS = st.lists(DURATION_NS, min_size=1, max_size=8)
+
 #: Plain ASCII segments keep the path invariant about separators rather than
 #: about which Unicode code points the host filesystem happens to accept.
 PATH_COMPONENT = st.text(
@@ -49,14 +61,7 @@ RUNS = st.lists(
         mode=st.sampled_from(("cold", "warm")),
         syntax=SYNTAXES,
         byte_count=FILE_BYTES,
-        # Non-negative: a clock reading is never negative, and a zero-length
-        # extraction is a real reading rather than an error. Non-empty:
-        # ``build_report`` documents that each run has at least one duration.
-        durations_ns=st.lists(
-            st.integers(min_value=0, max_value=10**12),
-            min_size=1,
-            max_size=16,
-        ).map(tuple),
+        durations_ns=DURATIONS.map(tuple),
     ),
     max_size=4,
 )

@@ -21,6 +21,7 @@ from stilyagi import model
 from tests.performance import structural_probe
 from tests.support.assertions import assert_with_context
 from tests.support.structural_probe_strategies import (
+    DURATIONS,
     FILE_BYTES,
     PATH_COMPONENT,
     RELATIVE_PATH,
@@ -30,7 +31,7 @@ from tests.support.structural_probe_strategies import (
 )
 
 
-@hyp.given(durations=st.lists(st.integers(), min_size=1, max_size=8))
+@hyp.given(durations=DURATIONS)
 @hyp.settings(max_examples=64)
 def test_summarise_durations_is_bounded_by_its_own_extremes(
     durations: list[int],
@@ -44,7 +45,7 @@ def test_summarise_durations_is_bounded_by_its_own_extremes(
     )
 
 
-@hyp.given(durations=st.lists(st.integers(), min_size=1, max_size=8))
+@hyp.given(durations=DURATIONS)
 @hyp.settings(max_examples=64)
 def test_summarise_durations_reports_the_actual_minimum_and_maximum(
     durations: list[int],
@@ -62,7 +63,7 @@ def test_summarise_durations_reports_the_actual_minimum_and_maximum(
     )
 
 
-@hyp.given(durations=st.lists(st.integers(), min_size=1, max_size=8))
+@hyp.given(durations=DURATIONS)
 @hyp.settings(max_examples=64)
 def test_summarise_durations_always_reports_an_integer_median(
     durations: list[int],
@@ -112,7 +113,7 @@ def test_summarise_durations_median_is_the_truncated_lower_middle(
     )
 
 
-@hyp.given(durations=st.lists(st.integers(), min_size=1, max_size=8))
+@hyp.given(durations=DURATIONS)
 @hyp.settings(max_examples=64)
 def test_summarise_durations_ignores_input_order(durations: list[int]) -> None:
     """Reversing the readings cannot change the summary."""
@@ -215,9 +216,17 @@ def test_build_report_corpus_totals_describe_the_supplied_fixtures(
     with built_report(fixture_specs, runs) as report:
         corpus = report["corpus"]
 
+        # Compare against the inputs, not against another field of the same
+        # report: a build that dropped or duplicated a fixture could leave
+        # ``file_count`` and ``fixture_paths`` agreeing with each other.
         assert_with_context(
-            corpus["file_count"] == len(corpus["fixture_paths"]),
-            "expected corpus['file_count'] == len(corpus['fixture_paths'])",
+            corpus["file_count"] == len(fixture_specs) == len(corpus["fixture_paths"]),
+            "expected one corpus entry per supplied fixture",
+        )
+        assert_with_context(
+            sorted(corpus["fixture_paths"])
+            == sorted(path.as_posix() for path, _ in fixture_specs),
+            "expected the corpus paths to be the supplied relative paths",
         )
         assert_with_context(
             all(
