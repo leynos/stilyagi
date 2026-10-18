@@ -104,10 +104,29 @@ jobs:
           makeutil parse Makefile | python3 -c \
             'import json, sys; assert json.load(sys.stdin)["parse"]["status"] == "complete"'
 
+      - name: Install the build standard
+        # The measured build excludes mold: CI's exported `-D warnings`
+        # displaces the development flags, and the coverage route keeps
+        # instrumentation only. The suite it runs still drives Make targets
+        # that run `make check-build-tools`, which refuses to continue without
+        # the pinned mold and nightly toolchain, so the publisher installs them
+        # itself. tests/test_build_tools_wiring.py holds the step unconditional
+        # and ahead of the coverage action.
+        run: make install-build-tools
+
       - name: Generate coverage
         # The selection here is the baseline every pull request's ratchet
         # is measured against, so smoke.yml's must match it field for
         # field.
+        # The coverage route, which excludes the development standard. An
+        # assigned `RUSTFLAGS` displaces `.cargo/config.toml`'s `-Zthreads=8`
+        # and mold, and instrumentation is added on top of it; the action
+        # itself selects LLVM over the dev profile's Cranelift. setup-rust
+        # exports the same value job-wide, but the exclusion is stated here so
+        # it does not hang on that default. tests/test_build_standard_exclusions.py
+        # holds the value free of development flags.
+        env:
+          RUSTFLAGS: -D warnings
         uses: leynos/shared-actions/.github/actions/generate-coverage@6cec89bac47a21cf756d68d638a9a510998e57f8
         with:
           output-path: coverage.xml

@@ -77,6 +77,17 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: cargo binstall --no-confirm cargo-nextest@0.9.138
 
+      - name: Install the build standard
+        # The checksum-verified mold release and the pinned nightly with its
+        # components. `make typecheck`, `make lint`, `make test-doc` and the
+        # coverage lane's Make-driving tests all run `make check-build-tools`,
+        # which refuses to continue without them. The coverage lane excludes
+        # mold from its compiler flags and still reaches that preflight, so the
+        # install is not conditional on the step that uses mold.
+        # tests/test_build_tools_wiring.py derives this job from reachability
+        # and holds the step unconditional and ahead of the suite.
+        run: make install-build-tools
+
       - name: Install makeutil
         id: makeutil
         # A digest-verified prebuilt release rather than a from-source build.
@@ -219,6 +230,15 @@ jobs:
         # for a branch it added a whole second tool to the critical path
         # for a gate the ratchet already applies.
         if: github.event_name == 'pull_request'
+        # The coverage route, which excludes the development standard. An
+        # assigned `RUSTFLAGS` displaces `.cargo/config.toml`'s `-Zthreads=8`
+        # and mold, and instrumentation is added on top of it; the action
+        # itself selects LLVM over the dev profile's Cranelift. setup-rust
+        # exports the same value job-wide, but the exclusion is stated here so
+        # it does not hang on that default. tests/test_build_standard_exclusions.py
+        # holds the value free of development flags.
+        env:
+          RUSTFLAGS: -D warnings
         uses: leynos/shared-actions/.github/actions/generate-coverage@6cec89bac47a21cf756d68d638a9a510998e57f8
         with:
           output-path: coverage.xml
@@ -256,6 +276,15 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e
+
+      - name: Install the build standard
+        # The wheel itself takes the release flags, which displace the
+        # development standard. `make release` still reaches
+        # `make check-build-tools`, because `smoke-release` takes its base
+        # interpreter from `.venv`, whose editable install compiles under the
+        # standard. Off Linux the script skips mold and installs the toolchain.
+        # tests/test_build_tools_wiring.py derives this job from reachability.
+        run: make install-build-tools
 
       - name: Release smoke
         run: make release
