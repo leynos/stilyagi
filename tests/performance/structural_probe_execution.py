@@ -16,8 +16,11 @@ from tests.performance import structural_probe as probe
 
 #: Argument that switches a child process into single-extraction mode.
 CHILD_RUN_FLAG = "--child-run"
-#: Argument naming the fixture the child process should measure.
+#: Argument naming the file to measure, used only to locate the source text.
 SOURCE_FLAG = "--source"
+#: Argument carrying the source text itself, so the child measures what the
+#: request carries rather than reopening the path.
+TEXT_FLAG = "--text"
 
 
 def measure_probe(
@@ -193,7 +196,8 @@ def _measure_cold_iteration(
     Parameters
     ----------
     request:
-        The fixture to measure. Only its path and syntax reach the child.
+        The fixture to measure. Its path, syntax, and source text all reach the
+        child, so an in-memory request is measured as its own text.
     dependencies:
         Supplies the subprocess runner.
 
@@ -226,7 +230,22 @@ def _measure_cold_iteration(
 
 
 def _child_command(request: probe.ProbeRequest) -> list[str]:
-    """Return the argv that measures one fixture in a fresh interpreter."""
+    """Return the argv that measures one request in a fresh interpreter.
+
+    The source text travels on the command line rather than being reopened by
+    the child. ``path`` still travels so error messages name the fixture, and
+    so an operator can reproduce a cold run by hand.
+
+    The argv is built as a list, so the text is passed as one argument whatever
+    it contains; no shell re-parses it. A repository fixture is small enough for
+    the platform's argument limit, and a request that is not would fail loudly
+    with ``OSError`` from the runner rather than silently measuring the file.
+
+    Returns
+    -------
+    list[str]
+        Arguments for the child interpreter, including the source text.
+    """
     return [
         sys.executable,
         "-m",
@@ -234,6 +253,8 @@ def _child_command(request: probe.ProbeRequest) -> list[str]:
         CHILD_RUN_FLAG,
         SOURCE_FLAG,
         str(request.path),
+        TEXT_FLAG,
+        request.source,
         "--syntax",
         request.syntax.value,
     ]

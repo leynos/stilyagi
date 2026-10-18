@@ -50,21 +50,27 @@ module: one `pytest-bdd` scenario driven from
 `features/stilyagi_structural_performance_probe.feature`, plus unit tests and a
 `syrupy` JSON snapshot.
 
-The three infrastructure dependencies that must become injectable are:
+Three infrastructure dependencies must become injectable. Each is a call that
+leaves the process from a function that should be testable without it:
 
 - `structural_probe_execution.measure_extraction` calls
   `time.perf_counter_ns()` directly, so extraction timing cannot be stubbed.
 - `structural_probe_execution._measure_cold_iteration` calls `subprocess.run`
   directly, so cold-path tests must spawn a real interpreter.
-- `structural_probe_execution._measure_run` calls `_measure_cold_iteration`
-  and `measure_extraction` directly, so cold and warm cannot be distinguished
-  without a real subprocess.
 - `structural_probe.build_report` calls `platform.platform()` and
   `platform.python_version()` inline, so the environment section cannot be
   pinned.
+
+Two further call-chain problems follow from those, and are the reason the first
+three are not the whole task:
+
+- `structural_probe_execution._measure_run` calls `_measure_cold_iteration`
+  and `measure_extraction` directly, so cold and warm cannot be distinguished
+  without a real subprocess. Injecting the clock and the runner is what makes
+  this distinction observable.
 - `structural_probe.measure_probe` delegates to the execution module, which
   calls `fixture.path.read_text()` internally, so fixture content cannot be
-  injected.
+  injected at all. This one is fixed by passing data rather than by a port.
 
 Issue #17 also asks to remove `# type: ignore[return-value]` suppressions in
 `redact_report` and `_redact_run`. Those suppressions no longer exist: PR #16's
@@ -165,8 +171,10 @@ type EnvironmentProvider = cabc.Callable[[], EnvironmentPayload]
 ```
 
 `cabc` must be imported at runtime, not inside `if typ.TYPE_CHECKING`, because
-ruff evaluates PEP 695 `type` alias statements and reports
-`unresolved-reference` for a name that is not bound at runtime. A frozen slotted
+the aliases are lazy: reading `ClockFn.__value__` evaluates the right-hand side
+in the module namespace, and a `TYPE_CHECKING`-only binding raises `NameError`.
+Ruff accepts the guarded form, so nothing but a runtime read catches this; it
+was caught in review and confirmed against the interpreter. A frozen slotted
 `ProbeDependencies` dataclass holds `clock`, `subprocess_runner`, and
 `environment_provider`, defaulting to `time.perf_counter_ns`, `subprocess.run`,
 and a new `default_environment()` helper that reads `platform.platform()` and
@@ -311,6 +319,29 @@ The acceptance evidence is:
   `build_report` at three parameters instead of needing both a root and a
   provider per fixture. Date: 2026-10-13
 
+- Decision: carry the request's source text across the child-process boundary
+  rather than having the child reopen `--source`. Rationale: CodeRabbit review
+  found that a `ProbeRequest` whose `source` differs from its `path` would be
+  measured as the file, silently benchmarketing the wrong text. The argv is a
+  list, so no shell re-parses the text, and the path still travels for error
+  messages and manual reproduction. A request too large for the platform's
+  argument limit fails loudly with `OSError` rather than silently measuring the
+  wrong thing, which is the failure mode worth having. Date: 2026-10-18
+
+- Decision: move the shared corpus read from module import into a
+  module-scoped `structural_corpus` fixture. Rationale: CodeRabbit review found
+  that an import-time read raises `FileNotFoundError` during collection, which
+  aborts every test in the module rather than the four that need the corpus. No
+  `testpaths` is configured, so this is a real exposure rather than a
+  hypothetical one. Renamed from `MARKDOWN_CORPUS` because the corpus holds
+  Markdown, Python, and Rust requests. Date: 2026-10-18
+
+- Decision: import `collections.abc as cabc` at module scope in the boundary
+  module. Rationale: CodeRabbit review found that the PEP 695 aliases are lazy,
+  so reading `ClockFn.__value__` under a `TYPE_CHECKING`-only binding raises
+  `NameError`. Confirmed against the interpreter. Ruff accepts the guarded
+  form, so only a runtime read catches it. Date: 2026-10-18
+
 ## Progress
 
 - [x] 2026-10-13: Renamed the worktree branch to
@@ -328,11 +359,11 @@ The acceptance evidence is:
   parameters; changed `build_report` to take a `ProbeCorpus` so corpus totals
   come from the requests.
 - [x] 2026-10-13: Milestone 2, unit tests. Added
-  `tests/test_structural_probe_injection.py` with twelve tests covering both
-  `_measure_run` paths, all three `_measure_cold_iteration` failure modes, the
-  argv the child command is built from, the injected environment provider, and
-  the fact that `measure_probe` reads no file. Updated the four `build_report`
-  call sites in the existing test module for the new signature.
+  `tests/test_structural_probe_injection.py` covering both `_measure_run`
+  paths, all three `_measure_cold_iteration` failure modes, the argv the child
+  command is built from, the injected environment provider, and the fact that
+  `measure_probe` reads no file. Updated the four `build_report` call sites in
+  the existing test module for the new signature.
 - [x] 2026-10-18: Milestone 3, docs and gates. Added the "Probe ports and
   adapters" subsection to the developers' guide, corrected the design
   document's validation plan to name all three corpus syntaxes, and ran every
@@ -348,6 +379,15 @@ The acceptance evidence is:
       `ruff format --check` clean, `pylint` 10.00/10,
       `interrogate --fail-under 100` at 100.0%,
       and 28 probe tests passing with the JSON snapshot unchanged.
+- [x] 2026-10-18: CodeRabbit review round one. Six findings, two of them
+  duplicates of each other, which reduced to four distinct items. Three were
+  real and were fixed: the runtime `cabc` binding for the lazy PEP 695 aliases,
+  the cold child protocol transmitting source text rather than reopening the
+  path, and the import-time corpus read that could abort collection. One was a
+  documentation-accuracy fix in this plan. Re-ran every gate: check-fmt, lint,
+  typecheck, markdownlint, and nixie green; `make test` once more hit the same
+  `compile_time_ui` contention and passed on a warm re-run. Final counts: 357
+  Rust tests, 612 Python tests, 38 doctest targets.
 
 ## Outcomes & Retrospective
 

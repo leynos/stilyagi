@@ -359,6 +359,12 @@ size that were read once, up front, so no measurement reads a file and a test
 can measure text that was never written to disk. `ProbeCorpus` carries the
 already-read requests and the root their report paths are recorded against.
 
+Source text crosses the child-process boundary too. A cold iteration sends the
+request's text in addition to its path, so the child measures what the request
+carries rather than reopening a file that might have changed since. `--source`
+still names the fixture, both for error messages and for reproducing a run by
+hand; a manual invocation without the text argument reads that file.
+
 Bundling is deliberate rather than incidental: the repository caps functions at
 four parameters, and that cap counts keyword-only and defaulted parameters, so
 the ports travel together. `tests/test_structural_probe_injection.py` is the
