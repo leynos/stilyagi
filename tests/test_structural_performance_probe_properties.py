@@ -6,16 +6,12 @@ readings instead, so a summary, path, or report that is right about the
 fixtures someone typed and wrong about another sequence fails here rather
 than in a baseline comparison months later.
 
-Every generated fixture is a tiny file inside one per-example temporary
-directory. Real repository fixtures would make the module slow and tie these
-invariants to the corpus; the helpers under test read only a fixture's
-resolved location and byte size, never its content.
+The generated inputs live in ``tests.support.structural_probe_strategies``
+so the report-building context manager can be shared rather than restated.
 """
 
-import contextlib
 import pathlib
 import tempfile
-import typing as typ
 
 import hypothesis as hyp
 import hypothesis.strategies as st
@@ -24,111 +20,14 @@ from stilyagi import model
 
 from tests.performance import structural_probe
 from tests.support.assertions import assert_with_context
-
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
-
-# One byte per character keeps the corpus small enough that 64 examples
-# write a few hundred kilobytes rather than a few hundred megabytes.
-FILE_BYTES = st.integers(min_value=0, max_value=2048)
-
-# Plain ASCII segments keep the path invariant about separators rather than
-# about which Unicode code points the host filesystem happens to accept.
-PATH_COMPONENT = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_",
-    min_size=1,
-    max_size=8,
+from tests.support.structural_probe_strategies import (
+    FILE_BYTES,
+    PATH_COMPONENT,
+    RELATIVE_PATH,
+    RUNS,
+    built_report,
+    fixture_corpora,
 )
-
-RELATIVE_PATH = st.lists(PATH_COMPONENT, min_size=1, max_size=4).map("/".join)
-
-
-@st.composite
-def fixture_corpora(draw: st.DrawFn) -> list[tuple[pathlib.Path, int]]:
-    """Draw a corpus of distinct files that cannot collide on disk.
-
-    Every fixture gets its own top-level directory, so no generated path is
-    ever a directory prefix of another. Drawing arbitrary relative paths
-    instead lets Hypothesis find pairs such as ``0`` and ``0/0``, which
-    cannot both be files.
-
-    Returns
-    -------
-    list
-        One ``(relative_path, byte_count)`` pair per fixture.
-    """
-    count = draw(st.integers(min_value=0, max_value=4))
-    return [
-        (
-            pathlib.Path(f"fixture-{index}") / draw(RELATIVE_PATH),
-            draw(FILE_BYTES),
-        )
-        for index in range(count)
-    ]
-
-
-SYNTAXES = st.sampled_from(tuple(model.Syntax))
-
-RUNS = st.lists(
-    st.builds(
-        structural_probe.ProbeRun,
-        mode=st.sampled_from(("cold", "warm")),
-        syntax=SYNTAXES,
-        byte_count=FILE_BYTES,
-        # Non-negative: a clock reading is never negative, and a zero-length
-        # extraction is a real reading rather than an error. Non-empty:
-        # ``build_report`` documents that each run has at least one duration.
-        durations_ns=st.lists(
-            st.integers(min_value=0, max_value=10**12),
-            min_size=1,
-            max_size=16,
-        ).map(tuple),
-    ),
-    max_size=4,
-)
-
-
-@contextlib.contextmanager
-def built_report(
-    fixture_specs: list[tuple[pathlib.Path, int]],
-    runs: list[structural_probe.ProbeRun],
-) -> cabc.Iterator[structural_probe.ReportPayload]:
-    """Build a report over a temporary corpus and remove it afterwards.
-
-    Parameters
-    ----------
-    fixture_specs:
-        One ``(relative_path, byte_count)`` pair per fixture to create.
-    runs:
-        Measured runs to place in the report.
-
-    Yields
-    ------
-    ReportPayload
-        A report describing the temporary corpus.
-
-    Examples
-    --------
-    >>> import tests.test_structural_performance_probe_properties as props
-    >>> with props.built_report([], []) as report:
-    ...     report["corpus"]["file_count"]
-    0
-    """
-    with tempfile.TemporaryDirectory(prefix="structural-probe-") as root_dir:
-        root = pathlib.Path(root_dir)
-        fixtures = []
-        for relative_path, byte_count in fixture_specs:
-            path = root / relative_path
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(b"x" * byte_count)
-            fixtures.append(
-                structural_probe.StructuralFixture(path, model.Syntax.MARKDOWN),
-            )
-        yield structural_probe.build_report(
-            repository_root=root,
-            fixtures=tuple(fixtures),
-            runs=runs,
-        )
 
 
 @hyp.given(durations=st.lists(st.integers(), min_size=1, max_size=8))
@@ -225,11 +124,16 @@ def test_summarise_durations_ignores_input_order(durations: list[int]) -> None:
     )
 
 
-@hyp.given(relative_path=RELATIVE_PATH, root_fragment=PATH_COMPONENT)
+@hyp.given(
+    relative_path=RELATIVE_PATH,
+    root_fragment=PATH_COMPONENT,
+    byte_count=FILE_BYTES,
+)
 @hyp.settings(max_examples=64, deadline=None)
 def test_normalise_repository_path_returns_posix_relative_text(
     relative_path: str,
     root_fragment: str,
+    byte_count: int,
 ) -> None:
     """A path beneath the root normalises to a relative POSIX string.
 
@@ -240,7 +144,7 @@ def test_normalise_repository_path_returns_posix_relative_text(
         root = pathlib.Path(root_dir)
         target = root / relative_path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("", encoding="utf-8")
+        target.write_bytes(b"x" * byte_count)
 
         normalised = structural_probe.normalise_repository_path(target, root)
 

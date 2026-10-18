@@ -26,29 +26,17 @@ class ProbeState(typ.TypedDict):
 
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
-MARKDOWN_FIXTURE = REPOSITORY_ROOT / (
-    "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md"
-)
+# The probe declares its fixtures repository-relative; resolving them here
+# keeps the test pointed at the same files the probe discovers for itself.
+MARKDOWN_FIXTURE = REPOSITORY_ROOT / structural_probe.MARKDOWN_FIXTURE
 STRUCTURAL_FIXTURES = (
     structural_probe.StructuralFixture(MARKDOWN_FIXTURE, model.Syntax.MARKDOWN),
     structural_probe.StructuralFixture(
-        REPOSITORY_ROOT
-        / "tests"
-        / "fixtures"
-        / "corpus"
-        / "python"
-        / "valid"
-        / "module-class-function-docstrings.py",
+        REPOSITORY_ROOT / structural_probe.PYTHON_FIXTURE,
         model.Syntax.PYTHON_DOCSTRING,
     ),
     structural_probe.StructuralFixture(
-        REPOSITORY_ROOT
-        / "tests"
-        / "fixtures"
-        / "corpus"
-        / "rust"
-        / "valid"
-        / "item-doc-comments.rs",
+        REPOSITORY_ROOT / structural_probe.RUST_FIXTURE,
         model.Syntax.RUST_DOC_COMMENT,
     ),
 )
@@ -157,6 +145,9 @@ def test_discovers_markdown_structural_fixture() -> None:
             "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
         ),
         (REPOSITORY_ROOT / "build" / "performance", "build/performance"),
+        # The root is beneath itself, and ``relative_to`` renders that as
+        # the current-directory marker rather than the empty string.
+        (REPOSITORY_ROOT, "."),
     ],
 )
 def test_normalises_repository_paths(path: pathlib.Path, expected: str) -> None:
@@ -171,16 +162,6 @@ def test_rejects_paths_outside_repository(tmp_path: pathlib.Path) -> None:
     """Reject non-repository paths instead of leaking machine-local paths."""
     with pytest.raises(ValueError, match="is not under repository root"):
         structural_probe.normalise_repository_path(tmp_path, REPOSITORY_ROOT)
-
-
-def test_normalise_accepts_the_repository_root_itself(
-    tmp_path: pathlib.Path,
-) -> None:
-    """The root is beneath itself and normalises to a single dot."""
-    assert_with_context(
-        structural_probe.normalise_repository_path(tmp_path, tmp_path) == ".",
-        "expected the root to normalise to the current-directory marker",
-    )
 
 
 def test_summarises_odd_and_even_duration_sets() -> None:
