@@ -220,7 +220,7 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             shim removed from `PATH` and the injected git config disabled
             resolved the same pinned commit (`4cf41736`) anonymously. The
             fault is local to this machine; CI fetches with its own token.
-- [ ] Review remediation round two. The pull request drew a review with eight
+- [x] Review remediation round two. The pull request drew a review with eight
       inline findings plus a failing "Unit Architecture" check and a warning on
       developer documentation. Each finding is verified against the current
       code before any edit, and only still-valid findings are fixed.
