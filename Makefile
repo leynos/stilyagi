@@ -242,7 +242,9 @@ test-quick: build tools-lint ## Run Rust library tests only with nextest
 
 # Rewrite insta snapshots for the crates that pin Display spellings and bridge
 # payload shapes. Deliberately absent from `test` and CI: a mismatch there must
-# fail and surface the `.snap.new` file for review, never silently accept it.
+# fail, never silently accept the new value. Locally insta writes a `.snap.new`
+# file to review; under CI it writes none, so read the assertion diff from the
+# failing test's log instead.
 # See "Snapshot and round-trip helper workflow" in docs/developers-guide.md.
 update-snapshots: ## Regenerate insta snapshots for review
 	INSTA_UPDATE=always $(CARGO_BUILD_ENV) $(CARGO) test -p stilyagi-extract -p stilyagi-pyext

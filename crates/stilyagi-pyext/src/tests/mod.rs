@@ -15,7 +15,8 @@ use super::{
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::{Bound, Py, PyErr, PyResult, Python};
 use pyo3::types::{
-    PyAny, PyAnyMethods, PyDict, PyDictMethods, PyList, PyListMethods, PyTuple, PyTupleMethods,
+    PyAny, PyAnyMethods, PyBool, PyBoolMethods, PyDict, PyDictMethods, PyInt, PyList,
+    PyListMethods, PyTuple, PyTupleMethods, PyTypeMethods,
 };
 use rstest::rstest;
 use serde_json::json;
@@ -35,24 +36,44 @@ fn tuple_json(py: Python<'_>, tuple: &Py<PyTuple>) -> serde_json::Value {
     json!(items)
 }
 
-/// Renders one payload value: strings stay strings, lists of region dicts
-/// become JSON arrays, and anything else falls back to Python `str()`.
+/// Renders one payload value with its primitive type preserved.
+///
+/// Strings, booleans, and integers map to the matching JSON types, and a list
+/// of region dicts becomes a JSON array. Order matters: Python's `bool` is a
+/// subclass of `int`, so the boolean check must come before the exact-integer
+/// one. An unsupported type panics rather than being stringified, so a bridge
+/// field that changes from the integer `1` to a list (or any other unsupported
+/// type) fails here instead of passing a snapshot that renders both alike.
 fn rendered_value(value: &Bound<'_, PyAny>) -> serde_json::Value {
     if let Ok(text) = value.extract::<String>() {
         return serde_json::Value::String(text);
     }
+    if let Ok(flag) = value.cast::<PyBool>() {
+        return serde_json::Value::Bool(flag.is_true());
+    }
+    if value.is_exact_instance_of::<PyInt>() {
+        let number = value
+            .extract::<i64>()
+            .expect("expected payload integers to fit in i64");
+        return serde_json::Value::from(number);
+    }
+    if let Ok(list) = value.cast::<PyList>() {
+        return list_json(list);
+    }
 
-    value
-        .cast::<PyList>()
-        .map_or_else(|_| serde_json::Value::String(value.to_string()), list_json)
+    let rendered_type = value
+        .get_type()
+        .name()
+        .map_or_else(|_| "<unavailable>".to_owned(), |name| name.to_string());
+    panic!("payload value type is not supported by the projection: {rendered_type}");
 }
 
 /// Renders one `PyDict` as a stable JSON object.
 ///
-/// String members become JSON strings and lists of region dicts become JSON
-/// arrays of objects. Any other value is rendered through Python `str()`,
-/// which keeps the projection total while still making an unexpected payload
-/// shape visible in the snapshot diff.
+/// Members keep their primitive JSON type through [`rendered_value`]: strings
+/// stay strings, booleans and integers stay booleans and integers, and lists
+/// of region dicts become arrays of objects. An unsupported value type panics,
+/// so the projection cannot quietly flatten a type change into a string.
 fn dictionary_json(dictionary: &Bound<'_, PyDict>) -> serde_json::Value {
     let mut rendered = serde_json::Map::new();
     for (key, value) in dictionary.iter() {
@@ -351,5 +372,20 @@ fn map_extract_error_uses_value_error_for_unknown_syntax() {
         let error = map_extract_error(&ExtractError::UnknownSyntax("bogus".to_owned()));
 
         assert!(error.is_instance_of::<PyValueError>(py));
+    });
+}
+
+#[rstest]
+fn rendered_value_preserves_primitive_types() {
+    Python::attach(|py| {
+        let value = PyDict::new(py);
+        value
+            .set_item("flag", true)
+            .expect("expected a boolean item");
+        value
+            .set_item("count", 7)
+            .expect("expected an integer item");
+
+        assert_eq!(dictionary_json(&value), json!({ "flag": true, "count": 7 }));
     });
 }
