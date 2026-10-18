@@ -12,7 +12,7 @@ probe still called `time.perf_counter_ns`, `subprocess.run`, `platform`, or
 
 import json
 import pathlib
-import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: constructing the CompletedProcess results a stub runner must return
+import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: naming the failure a cold iteration must propagate
 import typing as typ
 
 import pytest
@@ -23,55 +23,14 @@ from tests.performance import structural_probe_boundary as boundary
 from tests.performance import structural_probe_execution as execution
 from tests.performance.structural_probe_reporting import EnvironmentPayload
 from tests.support.assertions import assert_with_context
-
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
+from tests.support.structural_probe_stubs import (
+    MARKDOWN_PATH,
+    SYNTHETIC_SOURCE,
+    StubRunner,
+    markdown_fixture_request,
+)
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
-MARKDOWN_PATH = REPOSITORY_ROOT / boundary.MARKDOWN_FIXTURE
-
-#: Synthetic source that exists only in memory, so no test can silently pass by
-#: reading the real fixture off disk.
-SYNTHETIC_SOURCE = "# Synthetic heading\n\nBody text.\n"
-
-
-class StubRunner:
-    """A subprocess runner that records its calls and returns canned output.
-
-    Parameters
-    ----------
-    stdout:
-        Text the stub reports on standard output. Ignored when ``error`` is
-        set, because a failing child never reports parsed output.
-    error:
-        Exception raised instead of returning, modelling a child that fails.
-
-    Examples
-    --------
-    >>> StubRunner(stdout='{"duration_ns": 3}')(["python"]) is not None
-    True
-    """
-
-    def __init__(
-        self,
-        stdout: str = '{"duration_ns": 7}',
-        error: BaseException | None = None,
-    ) -> None:
-        """Record the canned output and the failure to raise, if any."""
-        self.stdout = stdout
-        self.error = error
-        self.calls: list[tuple[list[str], dict[str, object]]] = []
-
-    def __call__(
-        self,
-        argv: cabc.Sequence[str],
-        **kwargs: object,
-    ) -> subprocess.CompletedProcess[str]:
-        """Record one invocation and return the canned result."""
-        self.calls.append((list(argv), kwargs))
-        if self.error is not None:
-            raise self.error
-        return subprocess.CompletedProcess(list(argv), 0, stdout=self.stdout)
 
 
 class CountingClock:
@@ -93,22 +52,6 @@ class CountingClock:
         """Return the next tick."""
         self.calls += 1
         return next(self.ticks)
-
-
-def markdown_fixture_request() -> boundary.ProbeRequest:
-    """Return a Markdown request carrying synthetic, in-memory source.
-
-    Returns
-    -------
-    boundary.ProbeRequest
-        A request whose source never existed on disk.
-    """
-    return boundary.ProbeRequest(
-        path=MARKDOWN_PATH,
-        source=SYNTHETIC_SOURCE,
-        syntax=model.Syntax.MARKDOWN,
-        byte_count=len(SYNTHETIC_SOURCE.encode()),
-    )
 
 
 def test_measure_run_cold_uses_subprocess_runner_only() -> None:

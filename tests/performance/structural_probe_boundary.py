@@ -11,7 +11,7 @@ Everything a measurement needs travels in two small bundles.
 :class:`ProbeDependencies` holds the ports: the adapters through which the probe
 reaches the clock, the process table, and the platform. :class:`ProbeCorpus`
 holds the inputs: fixtures already read into memory, plus the root their report
-paths are normalised against. Bundling keeps every measurement function inside
+paths are normalized against. Bundling keeps every measurement function inside
 the repository's four-argument ceiling, which counts keyword-only parameters.
 """
 
@@ -193,7 +193,7 @@ class ProbeRequest:
     Parameters
     ----------
     path:
-        Fixture path, kept so reports can normalise it repository-relative.
+        Fixture path, kept so reports can normalize it repository-relative.
     source:
         Source text measured for this fixture.
     syntax:
@@ -277,7 +277,7 @@ class ProbeCorpus:
     Parameters
     ----------
     root:
-        The repository root that fixture paths are normalised against.
+        The repository root that fixture paths are normalized against.
     requests:
         Fixtures read into memory, in the order they should be measured.
 

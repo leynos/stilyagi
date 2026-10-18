@@ -101,7 +101,7 @@ def build_report(
     ----------
     corpus:
         The fixtures to describe, already read, with the root their paths are
-        normalised against. For an unambiguous per-syntax summary, provide no
+        normalized against. For an unambiguous per-syntax summary, provide no
         more than one request for each syntax.
     runs:
         Measured runs in report order. Each run must contain at least one
