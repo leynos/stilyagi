@@ -256,7 +256,9 @@ def _child_run(args: argparse.Namespace) -> int:
 
     source = args.text
     if source is None:
-        source = args.source.read_text(encoding="utf-8")
+        # Match `ProbeRequest.from_fixture`: no newline translation, so a
+        # manual reproduction measures the same text as an automated run.
+        source = args.source.read_bytes().decode("utf-8")
     duration_ns = measure_extraction(source, model.Syntax(args.syntax))
     print(json.dumps({"duration_ns": duration_ns}, sort_keys=True))
     return 0

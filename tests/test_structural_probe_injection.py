@@ -6,8 +6,9 @@ paths can be told apart, the child-process failure modes can be forced without
 spawning an interpreter, and the report's environment section can be pinned.
 
 Each test here would be impossible, or would need a real subprocess, if the
-probe still called `time.perf_counter_ns`, `subprocess.run`, `platform`, or
-`Path.read_text` directly. That is the evidence these tests exist to give.
+probe still called `time.perf_counter_ns`, `subprocess.run`, `platform`,
+`Path.read_text`, or `Path.read_bytes` directly. That is the evidence these
+tests exist to give.
 """
 
 import json
@@ -231,13 +232,18 @@ def test_build_report_defaults_to_running_platform() -> None:
     )
 
 
+@pytest.mark.parametrize("mode", ["cold", "warm"])
 def test_measure_probe_uses_injected_source_without_file_access(
     monkeypatch: pytest.MonkeyPatch,
+    mode: str,
 ) -> None:
     """Measure supplied source text without reading any fixture.
 
-    Every `Path.read_text` in the process is disabled, so the probe can only
-    succeed by using the source text and byte count it was handed.
+    Every `Path.read_text` and `Path.read_bytes` in the process is disabled, so
+    the probe can only succeed by using the source text and byte count it was
+    handed. Both modes are exercised: cold measures through the injected
+    runner, while warm reads `request.source` in this interpreter, which is
+    where a reread of `request.path` would otherwise hide.
     """
     runner = StubRunner(stdout='{"duration_ns": 5}')
 
@@ -247,13 +253,14 @@ def test_measure_probe_uses_injected_source_without_file_access(
         raise AssertionError(msg)
 
     monkeypatch.setattr(pathlib.Path, "read_text", forbidden_read)
+    monkeypatch.setattr(pathlib.Path, "read_bytes", forbidden_read)
 
     dependencies = boundary.ProbeDependencies(subprocess_runner=runner)
     request = markdown_fixture_request()
     corpus = boundary.ProbeCorpus(root=REPOSITORY_ROOT, requests=(request,))
 
     report = execution.measure_probe(
-        mode="cold",
+        mode=mode,
         iterations=1,
         corpus=corpus,
         dependencies=dependencies,
@@ -320,8 +327,9 @@ def test_entry_point_measure_probe_takes_source_as_data(
     """Accept a pre-read corpus and read no fixture from disk.
 
     The public entry point named in issue #17 must honour the caller's source
-    text, not rediscover and read the fixtures. Every `Path.read_text` in the
-    process is disabled, so the call can only succeed through the corpus.
+    text, not rediscover and read the fixtures. Every `Path.read_text` and
+    `Path.read_bytes` in the process is disabled, so the call can only succeed
+    through the corpus.
     """
     runner = StubRunner(stdout='{"duration_ns": 5}')
     dependencies = boundary.ProbeDependencies(subprocess_runner=runner)
@@ -332,6 +340,7 @@ def test_entry_point_measure_probe_takes_source_as_data(
         raise AssertionError(msg)
 
     monkeypatch.setattr(pathlib.Path, "read_text", forbidden_read)
+    monkeypatch.setattr(pathlib.Path, "read_bytes", forbidden_read)
 
     request = boundary.ProbeRequest(
         path=MARKDOWN_PATH,

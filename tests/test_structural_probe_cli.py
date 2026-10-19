@@ -225,3 +225,38 @@ def test_child_run_reads_the_source_file_when_no_text_is_sent(
         isinstance(payload["duration_ns"], int) and payload["duration_ns"] >= 0,
         f"expected a non-negative integer duration_ns, got {payload['duration_ns']!r}",
     )
+
+
+def test_child_run_fallback_measures_the_file_bytes_verbatim(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    """Measure the file's bytes untranslated when the parent sends no text.
+
+    `read_text` translates CRLF to LF, so a manual reproduction on a CRLF
+    checkout would measure different text from the automated cold iteration,
+    which decodes the fixture bytes directly. A CRLF file pins the two apart.
+    """
+    source_path = tmp_path / "crlf.md"
+    source_path.write_bytes(b"# Heading\r\n\r\nBody.\r\n")
+    measured: list[str] = []
+
+    def record_extraction(text: str, _syntax: model.Syntax) -> int:
+        """Record the measured source and report a fixed duration."""
+        measured.append(text)
+        return 1
+
+    monkeypatch.setattr(execution, "measure_extraction", record_extraction)
+    exit_code = structural_probe.main([
+        "--child-run",
+        "--source",
+        str(source_path),
+        "--syntax",
+        model.Syntax.MARKDOWN.value,
+    ])
+
+    assert exit_code == 0, f"expected exit_code == 0, got {exit_code}"
+    assert_with_context(
+        measured == ["# Heading\r\n\r\nBody.\r\n"],
+        f"expected the untranslated source, got {measured!r}",
+    )
