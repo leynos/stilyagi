@@ -486,6 +486,19 @@ The acceptance evidence is:
   `test_entry_point_measure_probe_takes_source_as_data` disables
   `Path.read_text` and drives the entry point through an injected runner, so a
   return to reading fixtures fails it.
+- [x] 2026-10-19: CodeRabbit review round four, on tip `695b3c8`. One finding,
+  real and fixed. `ProbeRequest.from_fixture` read each fixture twice:
+  `read_text` for the source and `stat().st_size` for the byte count. On a CRLF
+  checkout `read_text` translates the pair to one LF, while `st_size` still
+  counts both bytes, so the request would report a size the probe never
+  measured and the docstring's "repeats no file access" promise would be false
+  in spirit. It now takes one `read_bytes` and decodes it explicitly, so source
+  and byte count come from the same buffer. The Markdown fixture is 273 bytes
+  with no CRLF, so the snapshot and the doctest count are unchanged. All six
+  gates passed on the post-fix tree before the commit: check-fmt 1 s, lint 212
+  s, typecheck 228 s, markdownlint 7 s, nixie 1 s, and `make test` 636 s with
+  357 Rust tests, 750 Python tests, 63 doctest-module tests and 3 skipped, and
+  both `trybuild` suites inside the 600 s override first time.
 
 ## Outcomes & Retrospective
 
