@@ -23,7 +23,7 @@
 #   the flags and keeps instrumentation.
 # - Whitaker assigns its own `RUSTFLAGS` (`WHITAKER_RUST_FLAGS`).
 #
-# docs/adr-010-pinned-nightly-and-build-standard.md records the decision and
+# docs/adr-011-pinned-nightly-and-build-standard.md records the decision and
 # the exclusions; docs/developers-guide.md explains them for developers.
 
 [build]

@@ -1,6 +1,6 @@
 # Pinned dated nightly: the build standard needs the parallel rustc frontend
 # (`-Zthreads=8`) and the Cranelift backend component. Dependabot's
-# `rust-toolchain` entry moves the pin. See docs/adr-010-pinned-nightly-and-build-standard.md.
+# `rust-toolchain` entry moves the pin. See docs/adr-011-pinned-nightly-and-build-standard.md.
 [toolchain]
 channel = "nightly-2026-10-18"
 components = [

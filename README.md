@@ -57,8 +57,15 @@ make build
 ```
 
 That creates the virtual environment, compiles the Rust extension through
-`maturin`, and installs the package in editable mode. Python 3.14 or newer and
-a Rust toolchain are required.
+`maturin`, and installs the package in editable mode. Python 3.14 or newer,
+`uv`, and [`rustup`](https://rustup.rs) are required. The repository pins a
+dated Rust nightly in `rust-toolchain.toml`, which `rustup` selects
+automatically. On Linux the development build also links with the
+[`mold`](https://github.com/rui314/mold) linker, so run
+`make install-build-tools` once to install the pinned `mold` and the pinned
+toolchain before `make build`. See the
+[developer's guide](docs/developers-guide.md) for what each tool does and for
+building without `make`.
 
 Then point it at some Markdown:
 

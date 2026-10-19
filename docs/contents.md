@@ -136,6 +136,11 @@
     adrs/adr-0010-adopt-the-nose-code-duplication-gate.md)
     records the blocking duplication gate, its reasoned exception entries,
     scan scope, and detector provisioning policy.
+  - [ADR 011: Pinned nightly and the development build standard](
+    adr-011-pinned-nightly-and-build-standard.md)
+    records the dated-nightly decision, the removed `rust-version`, the
+    `mold` and parallel-frontend build standard, the Cranelift verdict, and
+    the routes that exclude the standard.
 
 ## Requests for comments (RFCs)
 
