@@ -263,9 +263,13 @@ The acceptance evidence is:
   in the default position, and `RUF009` does not fire on function defaults. A
   frozen data class bound to a module-level singleton is therefore the safe
   carrier for the bundle.
-- Ruff reports `unresolved-reference` on a PEP 695 `type` alias whose right-hand
-  side names an imported symbol that lives only in a type-checking block. The
-  alias's imports must be at runtime.
+- Neither static gate reports a PEP 695 `type` alias whose right-hand side
+  names a `TYPE_CHECKING`-only import. Measured on 2026-10-19:
+  `ruff check --isolated --select ALL` raised no diagnostic for it, and
+  `ty 0.0.74 check` passed both the alias definition and a module that reads
+  `ClockFn.__value__`. `unresolved-reference` is not a Ruff rule name. Only
+  reading the alias at runtime raises `NameError`, so the alias's imports must
+  be at runtime.
 - `build_report` still reached the filesystem after the first pass, through
   `fixture.path.stat().st_size`. Two of the new tests caught it: they supply a
   synthetic request whose `byte_count` disagrees with the fixture's real size
@@ -499,6 +503,29 @@ The acceptance evidence is:
   s, typecheck 228 s, markdownlint 7 s, nixie 1 s, and `make test` 636 s with
   357 Rust tests, 750 Python tests, 63 doctest-module tests and 3 skipped, and
   both `trybuild` suites inside the 600 s override first time.
+- [x] 2026-10-19: CodeRabbit review round five, on tip `6f72624`. Five
+  findings, two of them duplicates, which reduced to three distinct items, all
+  real and all fixed.
+  - `_child_run`'s no-`--text` fallback still used `read_text`, so a manual
+    `--child-run --source PATH` reproduction would measure translated text on a
+    CRLF checkout while the automated iteration measured the raw bytes. It now
+    decodes `read_bytes` the same way, and
+    `test_child_run_fallback_measures_the_file_bytes_verbatim` pins the two
+    apart with a CRLF file; the test fails against the old code with
+    `['# Heading\n\nBody.\n']` and passes against the fix.
+  - Both `read_text`-blocking guards in the injection tests were written before
+    the fixture reader moved to `read_bytes`, so a regression could reread
+    `request.path.read_bytes()` and pass. Both guards now patch both methods,
+    and the module and test docstrings name both. Investigation showed the
+    first guard only ever ran cold mode, which never reads `request.source`, so
+    the test is now parametrized over cold and warm; the warm case is where a
+    reread could hide, and mutation testing confirms it now fails with
+    "measure_probe must not read files".
+  - The plan attributed `unresolved-reference` to Ruff. Measured against both
+    gates: `ruff check --isolated --select ALL` raises nothing for a guarded
+    PEP 695 alias, `ty 0.0.74` passes both the alias and a module that reads
+    `__value__`, and `unresolved-reference` is not a Ruff rule name. The bullet
+    now records what was measured.
 
 ## Outcomes & Retrospective
 
