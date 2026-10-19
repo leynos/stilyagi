@@ -242,11 +242,15 @@ class ProbeRequest:
         ... ).byte_count
         273
         """
+        # One read, decoded explicitly: `read_text` would translate CRLF to
+        # LF, leaving a byte count from `stat` describing bytes the probe
+        # never measured.
+        raw = fixture.path.read_bytes()
         return cls(
             path=fixture.path,
-            source=fixture.path.read_text(encoding="utf-8"),
+            source=raw.decode("utf-8"),
             syntax=fixture.syntax,
-            byte_count=fixture.path.stat().st_size,
+            byte_count=len(raw),
         )
 
     def as_fixture(self) -> StructuralFixture:
