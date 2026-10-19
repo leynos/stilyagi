@@ -443,6 +443,23 @@ The acceptance evidence is:
   showed that `= Deps()` is rejected and `= DEFAULT` accepted, so the plan now
   says that. A scope-tolerance Decision Log entry records the measured file
   count against the merge base.
+- [ ] 2026-10-19: Post-rebase gate runs on tip `9d996d4`. `make check-fmt`,
+  `make lint`, `make typecheck`, `make markdownlint`, and `make nixie` are
+  green. `make test` has now been run twice more and failed both times only in
+  the two `trybuild` UI tests, at exactly the 600 s override:
+  - r6: 355/357 Rust tests passed, `stilyagi-ir::ui` and
+    `stilyagi-pyext::compile_tests` timed out. No assertion failed.
+  - r7: 356/357 passed, `stilyagi-ir::ui` passed at 503.6 s and only
+    `stilyagi-pyext::compile_tests` timed out. Its scratch crate finished in
+    4 m 28 s after queuing behind four package-cache lock waits, and the first
+    case had no budget left.
+  Neither run reached the doctest or pytest stages, so those stages have no
+  verdict at this tip. The branch diff contains no Rust file, so this is host
+  contention rather than a property of the change. Warming the two tests
+  outside the gate under the gate's flags passed `stilyagi-ir::ui` in 268 s but
+  not `stilyagi-pyext::compile_tests`, which rebuilt its scratch crate for
+  eight UI cases and timed out again. Compiled artefacts for that scratch crate
+  now exist, which is the state in which earlier runs of this branch passed.
 
 ## Outcomes & Retrospective
 
