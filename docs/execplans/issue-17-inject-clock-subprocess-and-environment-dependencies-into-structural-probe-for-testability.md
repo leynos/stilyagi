@@ -199,13 +199,15 @@ Then thread the seams:
 - `_measure_cold_iteration(request, *, dependencies=DEFAULT_DEPENDENCIES)`.
 - `_measure_run(*, mode, iterations, request, dependencies=DEFAULT_DEPENDENCIES)`.
 - `build_report(*, corpus, runs, environment_provider=default_environment)`.
-- `measure_probe(*, mode, iterations, root, dependencies=DEFAULT_DEPENDENCIES)`
-  in the re-export module, which reads the corpus from `root`; the execution
-  module's `measure_probe` takes `corpus` instead and performs no read of its
-  own.
+- `measure_probe(*, mode, iterations, corpus, dependencies=DEFAULT_DEPENDENCIES)`
+  in both the re-export module and the execution module. Both take a pre-read
+  `ProbeCorpus` and perform no read of their own; callers that hold only a root
+  reach the filesystem through `read_probe_corpus` first.
 
-`main` continues to call `discover_structural_fixtures()` and read the chosen
-fixture itself, which is how the child-run mode still works from the command
+`main` builds the corpus once through `read_probe_corpus(root)` and hands it to
+`measure_probe`, which is the only filesystem read on the parent's measurement
+path. The child-run mode still reads the fixture named by `--source` when no
+text is transmitted, which is how a manual reproduction works from the command
 line.
 
 Milestone 2 adds the unit tests. Every module in scope currently parses and
@@ -443,9 +445,9 @@ The acceptance evidence is:
   showed that `= Deps()` is rejected and `= DEFAULT` accepted, so the plan now
   says that. A scope-tolerance Decision Log entry records the measured file
   count against the merge base.
-- [ ] 2026-10-19: Post-rebase gate runs on tip `9d996d4`. `make check-fmt`,
+- [x] 2026-10-19: Post-rebase gate runs on tip `9d996d4`. `make check-fmt`,
   `make lint`, `make typecheck`, `make markdownlint`, and `make nixie` are
-  green. `make test` has now been run twice more and failed both times only in
+  green. `make test` failed twice before passing, and failed both times only in
   the two `trybuild` UI tests, at exactly the 600 s override:
   - r6: 355/357 Rust tests passed, `stilyagi-ir::ui` and
     `stilyagi-pyext::compile_tests` timed out. No assertion failed.
@@ -453,13 +455,37 @@ The acceptance evidence is:
     `stilyagi-pyext::compile_tests` timed out. Its scratch crate finished in
     4 m 28 s after queuing behind four package-cache lock waits, and the first
     case had no budget left.
-  Neither run reached the doctest or pytest stages, so those stages have no
-  verdict at this tip. The branch diff contains no Rust file, so this is host
+  Neither run reached the doctest or pytest stages, so those stages had no
+  verdict at that point. The branch diff contains no Rust file, so this is host
   contention rather than a property of the change. Warming the two tests
   outside the gate under the gate's flags passed `stilyagi-ir::ui` in 268 s but
   not `stilyagi-pyext::compile_tests`, which rebuilt its scratch crate for
-  eight UI cases and timed out again. Compiled artefacts for that scratch crate
-  now exist, which is the state in which earlier runs of this branch passed.
+  eight UI cases and timed out again. Compiling that scratch crate's dependency
+  graph outside the gate took the next run's scratch compile from 4 m 28 s to
+  104 s. The third gate run then passed every stage: 357 Rust tests (pyext
+  `compile_time_ui` at 405.9 s and `stilyagi-ir::ui` at 101.0 s, both inside
+  the override), 13 Rust doctests, 745 Python tests, and 63 doctest-module
+  tests with 3 skipped.
+- [x] 2026-10-19: CodeRabbit review round three, on the pushed tip. Three
+  findings, all real and all fixed. The warm-mode test claimed one clock read
+  per iteration when `measure_extraction` reads the clock twice (start and
+  end), and it never checked `CountingClock.calls`, so a dropped or extra read
+  passed; it now asserts six reads over three iterations. `_child_command`
+  passed the source text as a separate argv element, which `argparse` reads as
+  an option when the text begins with a prefix character; reproduced exit 2 for
+  `-item`, `--`, `--syntax`, and `-x=y`, all of which are accepted once the
+  text is bound as `--text=<value>`. A parameterized child-run test now covers
+  those sources. The third finding was this plan's status: the Progress entry
+  still said the later stages had no verdict, which is now recorded above.
+- [x] 2026-10-19: Issue #17 conformance review found the source-text
+  requirement only half met. The execution module's `measure_probe` took a
+  pre-read corpus, but the entry point re-exported from `structural_probe.py`
+  still accepted `root` and called `read_probe_corpus(root)` internally, so the
+  probing entry point named in the issue read files. Both now take `corpus`;
+  `main` builds it once through `read_probe_corpus`, and
+  `test_entry_point_measure_probe_takes_source_as_data` disables
+  `Path.read_text` and drives the entry point through an injected runner, so a
+  return to reading fixtures fails it.
 
 ## Outcomes & Retrospective
 
@@ -476,20 +502,20 @@ ceiling.
 `structural_probe_execution.py` is now a measurement loop over those ports, and
 `structural_probe.py` re-exports the boundary names so the pre-existing public
 surface is unchanged. `build_report` takes a `ProbeCorpus` and reads its totals
-from the requests, so nothing in the report path touches the filesystem.
-`measure_probe` takes the corpus rather than a root, satisfying the issue's
-request that source text travel as a parameter.
+from the requests, so nothing in the report path touches the filesystem. Both
+`measure_probe` definitions take the corpus rather than a root, satisfying the
+issue's request that source text travel as a parameter.
 
 `tests/test_structural_probe_injection.py` is the evidence that the seams are
-real rather than nominal: eleven tests drive the cold path through a stub
+real rather than nominal: twelve tests drive the cold path through a stub
 runner with a clock that fails if read, the warm path through a stub clock with
 a runner that fails if called, all three child-failure modes, an injected
 environment payload, and a `measure_probe` call with `Path.read_text` disabled.
 A byte-count test pins the corpus totals to the caller's request, so a fallback
 to `Path.stat` would fail it.
 
-`tests/test_structural_probe_cli.py` holds the eight command-line and
-child-protocol tests, including the argv the child command is built from and
+`tests/test_structural_probe_cli.py` collects twelve command-line and
+child-protocol cases, including the argv the child command is built from and
 the transmitted-text behaviour. They live apart from the injection tests
 because the combined module would exceed the 400-line ceiling.
 

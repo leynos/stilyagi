@@ -236,8 +236,12 @@ def _child_command(request: probe.ProbeRequest) -> list[str]:
     the child. ``path`` still travels so error messages name the fixture, and
     so an operator can reproduce a cold run by hand.
 
-    The argv is built as a list, so the text is passed as one argument whatever
-    it contains; no shell re-parses it. A repository fixture is small enough for
+    The text is bound to its flag as one ``--text=<value>`` argument. Sending
+    it as a separate element would let the child's `argparse` read any text
+    beginning with a prefix character, such as a `-item` list item, as an
+    option, and the child would exit reporting a missing argument. The bound
+    form splits on the first `=`, so every later character is taken verbatim.
+    No shell re-parses either form. A repository fixture is small enough for
     the platform's argument limit, and a request that is not would fail loudly
     with ``OSError`` from the runner rather than silently measuring the file.
 
@@ -253,8 +257,7 @@ def _child_command(request: probe.ProbeRequest) -> list[str]:
         CHILD_RUN_FLAG,
         SOURCE_FLAG,
         str(request.path),
-        TEXT_FLAG,
-        request.source,
+        f"{TEXT_FLAG}={request.source}",
         "--syntax",
         request.syntax.value,
     ]

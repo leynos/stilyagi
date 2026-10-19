@@ -335,13 +335,15 @@ def test_redacted_report_contains_no_integer_timings(
     )
 
 
-def test_measure_probe_rejects_non_positive_iterations() -> None:
+def test_measure_probe_rejects_non_positive_iterations(
+    structural_corpus: structural_probe.ProbeCorpus,
+) -> None:
     """Reject iteration counts below 1 with a clear ValueError."""
     with pytest.raises(ValueError, match="iterations must be at least 1"):
         structural_probe.measure_probe(
             mode="warm",
             iterations=0,
-            root=REPOSITORY_ROOT,
+            corpus=structural_corpus,
         )
 
 

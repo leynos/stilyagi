@@ -168,7 +168,7 @@ def measure_probe(
     *,
     mode: str,
     iterations: int,
-    root: pathlib.Path,
+    corpus: ProbeCorpus,
     dependencies: ProbeDependencies = DEFAULT_DEPENDENCIES,
 ) -> ReportPayload:
     """Measure the requested structural probe mode and return a report.
@@ -179,8 +179,11 @@ def measure_probe(
         Either ``"cold"``, ``"warm"``, or ``"both"``.
     iterations:
         Measurements per mode. Must be at least 1.
-    root:
-        The repository root containing the shared fixture corpus.
+    corpus:
+        Fixtures already read into memory, with the root their paths are
+        normalized against. Callers reach the filesystem through
+        :func:`read_probe_corpus`; this function reads no fixture itself, so a
+        test can measure text that was never written to disk.
     dependencies:
         The clock, subprocess runner, and environment provider to measure
         through. Defaults to the production adapters.
@@ -193,7 +196,8 @@ def measure_probe(
 
     Examples
     --------
-    >>> report = measure_probe(mode="warm", iterations=1, root=repository_root())
+    >>> corpus = read_probe_corpus(repository_root())
+    >>> report = measure_probe(mode="warm", iterations=1, corpus=corpus)
     >>> report["probe"]
     'structural-syntax'
     """
@@ -204,7 +208,7 @@ def measure_probe(
     return run_probe(
         mode=mode,
         iterations=iterations,
-        corpus=read_probe_corpus(root),
+        corpus=corpus,
         dependencies=dependencies,
     )
 
@@ -228,7 +232,7 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
     report = measure_probe(
         mode=args.mode,
         iterations=args.iterations,
-        root=root,
+        corpus=read_probe_corpus(root),
     )
     write_report(report, args.output)
     print(f"wrote {_display_output_path(args.output, root)}")

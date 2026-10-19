@@ -95,6 +95,11 @@ def test_measure_cold_iteration_transmits_the_request_source() -> None:
     A request may carry source that differs from the file at ``path``. If the
     child reopened the path it would measure the wrong text, so the argv must
     carry the source verbatim and the child must treat it as authoritative.
+
+    The text is bound to its flag as one ``--text=<value>`` element, so the
+    child's `argparse` cannot mistake a leading hyphen for an option. A
+    separate element would also put the text one position later, so this
+    pins the binding as well as the payload.
     """
     runner = StubRunner()
     dependencies = boundary.ProbeDependencies(subprocess_runner=runner)
@@ -105,10 +110,52 @@ def test_measure_cold_iteration_transmits_the_request_source() -> None:
     )
 
     argv, _ = runner.calls[0]
-    text_index = argv.index(execution.TEXT_FLAG) + 1
+    text_prefix = f"{execution.TEXT_FLAG}="
+    text_element = next(
+        (argument for argument in argv if argument.startswith(text_prefix)),
+        None,
+    )
     assert_with_context(
-        argv[text_index] == SYNTHETIC_SOURCE,
-        f"expected the synthetic source on the command line, got {argv[text_index]!r}",
+        text_element is not None,
+        f"expected a {text_prefix}<source> argument in {argv}",
+    )
+    assert_with_context(
+        text_element.removeprefix(text_prefix) == SYNTHETIC_SOURCE,
+        f"expected the synthetic source on the command line, got {text_element!r}",
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["-item", "--", "--syntax", "-x=y"],
+    ids=["list-item", "double-dash", "option-prefix", "short-option-with-equals"],
+)
+def test_child_run_accepts_source_text_that_looks_like_an_option(
+    capsys: pytest.CaptureFixture[str],
+    source: str,
+) -> None:
+    """Accept transmitted text that `argparse` would read as an option.
+
+    Markdown may legitimately begin with a hyphen, and the cold protocol
+    cannot escape it for the child. Binding the text to its flag as one
+    ``--text=<value>`` argument is what keeps it a value; sent separately,
+    every one of these sources makes the child exit 2 with "expected one
+    argument" before it measures anything.
+    """
+    exit_code = structural_probe.main([
+        "--child-run",
+        "--source",
+        str(MARKDOWN_PATH),
+        f"{execution.TEXT_FLAG}={source}",
+        "--syntax",
+        model.Syntax.MARKDOWN.value,
+    ])
+
+    assert exit_code == 0, f"expected exit_code == 0, got {exit_code}"
+    payload = json.loads(capsys.readouterr().out)
+    assert_with_context(
+        isinstance(payload["duration_ns"], int) and payload["duration_ns"] >= 0,
+        f"expected a non-negative integer duration_ns, got {payload['duration_ns']!r}",
     )
 
 

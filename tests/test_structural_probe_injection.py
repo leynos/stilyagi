@@ -92,7 +92,9 @@ def test_measure_run_warm_uses_clock_only() -> None:
     """Measure the warm path through the injected clock and no subprocess.
 
     Warm timing happens in this interpreter, so the parent clock must be read
-    once per iteration and no child may be spawned.
+    twice per iteration, once before the extraction and once after, and no
+    child may be spawned. Counting the reads is what stops a regression that
+    drops a read, or adds an unaccounted one, from passing unnoticed.
     """
     clock = CountingClock()
 
@@ -117,6 +119,10 @@ def test_measure_run_warm_uses_clock_only() -> None:
     assert_with_context(
         run.durations_ns == (1, 1, 1),
         f"expected three unit durations, got {run.durations_ns}",
+    )
+    assert_with_context(
+        clock.calls == 6,
+        f"expected two clock reads per iteration, got {clock.calls} for 3 iterations",
     )
 
 
@@ -305,4 +311,48 @@ def test_measure_probe_honours_caller_byte_count() -> None:
     assert_with_context(
         report["corpus"]["total_bytes"] == 1,
         "expected the caller's byte count, not the fixture's size",
+    )
+
+
+def test_entry_point_measure_probe_takes_source_as_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Accept a pre-read corpus and read no fixture from disk.
+
+    The public entry point named in issue #17 must honour the caller's source
+    text, not rediscover and read the fixtures. Every `Path.read_text` in the
+    process is disabled, so the call can only succeed through the corpus.
+    """
+    runner = StubRunner(stdout='{"duration_ns": 5}')
+    dependencies = boundary.ProbeDependencies(subprocess_runner=runner)
+
+    def forbidden_read(*args: object, **kwargs: object) -> typ.NoReturn:
+        """Fail the test if the entry point reads any file."""
+        msg = "entry-point measure_probe must not read files"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(pathlib.Path, "read_text", forbidden_read)
+
+    request = boundary.ProbeRequest(
+        path=MARKDOWN_PATH,
+        source=SYNTHETIC_SOURCE,
+        syntax=model.Syntax.MARKDOWN,
+        byte_count=len(SYNTHETIC_SOURCE.encode()),
+    )
+    corpus = boundary.ProbeCorpus(root=REPOSITORY_ROOT, requests=(request,))
+
+    report = probe.measure_probe(
+        mode="cold",
+        iterations=1,
+        corpus=corpus,
+        dependencies=dependencies,
+    )
+
+    assert_with_context(
+        report["corpus"]["total_bytes"] == request.byte_count,
+        "expected the caller's byte count in the entry-point report",
+    )
+    assert_with_context(
+        bool(runner.calls),
+        "expected the injected runner to be used by the entry point",
     )
