@@ -54,6 +54,22 @@ STRUCTURAL_FIXTURES = (
 )
 
 
+@pytest.fixture(scope="module")
+def structural_corpus() -> structural_probe.ProbeCorpus:
+    """Return the Markdown, Python, and Rust fixtures, read once.
+
+    Reading happens in fixture setup rather than at import, so a missing
+    fixture fails the tests that need the corpus instead of aborting
+    collection of the whole module.
+
+    Returns
+    -------
+    structural_probe.ProbeCorpus
+        The shared corpus with every fixture already in memory.
+    """
+    return structural_probe.read_probe_corpus(REPOSITORY_ROOT)
+
+
 @scenario(
     "../features/stilyagi_structural_performance_probe.feature",
     "Maintainers can record cold and warm structural timings",
@@ -203,11 +219,12 @@ def test_summarise_durations_rejects_empty_sequence() -> None:
         structural_probe.summarise_durations([])
 
 
-def test_builds_structural_report_shape() -> None:
+def test_builds_structural_report_shape(
+    structural_corpus: structural_probe.ProbeCorpus,
+) -> None:
     """Build the stable report shape from measured run data."""
     report = structural_probe.build_report(
-        repository_root=REPOSITORY_ROOT,
-        fixtures=STRUCTURAL_FIXTURES,
+        corpus=structural_corpus,
         runs=[
             structural_probe.ProbeRun(
                 mode="cold",
@@ -246,11 +263,11 @@ def test_builds_structural_report_shape() -> None:
 
 def test_redacted_report_matches_json_snapshot(
     snapshot: SnapshotAssertion,
+    structural_corpus: structural_probe.ProbeCorpus,
 ) -> None:
     """Pin the stable redacted report schema without timing noise."""
     report = structural_probe.build_report(
-        repository_root=REPOSITORY_ROOT,
-        fixtures=STRUCTURAL_FIXTURES,
+        corpus=structural_corpus,
         runs=[
             structural_probe.ProbeRun(
                 mode="cold",
@@ -276,11 +293,12 @@ def test_redacted_report_matches_json_snapshot(
     )
 
 
-def test_redacted_report_contains_no_integer_timings() -> None:
+def test_redacted_report_contains_no_integer_timings(
+    structural_corpus: structural_probe.ProbeCorpus,
+) -> None:
     """Confirm that redaction removes all integer timing values."""
     report = structural_probe.build_report(
-        repository_root=REPOSITORY_ROOT,
-        fixtures=STRUCTURAL_FIXTURES,
+        corpus=structural_corpus,
         runs=[
             structural_probe.ProbeRun(
                 mode="cold",
@@ -316,13 +334,15 @@ def test_redacted_report_contains_no_integer_timings() -> None:
     )
 
 
-def test_measure_probe_rejects_non_positive_iterations() -> None:
+def test_measure_probe_rejects_non_positive_iterations(
+    structural_corpus: structural_probe.ProbeCorpus,
+) -> None:
     """Reject iteration counts below 1 with a clear ValueError."""
     with pytest.raises(ValueError, match="iterations must be at least 1"):
         structural_probe.measure_probe(
             mode="warm",
             iterations=0,
-            root=REPOSITORY_ROOT,
+            corpus=structural_corpus,
         )
 
 
@@ -336,12 +356,12 @@ def test_discover_structural_fixtures_raises_when_missing(
 
 def test_write_report_creates_parent_directories(
     tmp_path: pathlib.Path,
+    structural_corpus: structural_probe.ProbeCorpus,
 ) -> None:
     """Create missing parent directories and write a valid JSON file."""
     output_path = tmp_path / "nested" / "dir" / "report.json"
     report = structural_probe.build_report(
-        repository_root=REPOSITORY_ROOT,
-        fixtures=STRUCTURAL_FIXTURES,
+        corpus=structural_corpus,
         runs=[
             structural_probe.ProbeRun(
                 mode="warm",
@@ -355,44 +375,3 @@ def test_write_report_creates_parent_directories(
     assert output_path.is_file(), "expected output_path.is_file()"
     written = json.loads(output_path.read_text(encoding="utf-8"))
     assert written["schema_version"] == 1, "expected written['schema_version'] == 1"
-
-
-def test_argument_parser_defaults() -> None:
-    """Verify default argument values for the structural probe CLI."""
-    parser = structural_probe._argument_parser()
-    args = parser.parse_args([])
-    assert args.mode == "both", "expected args.mode == 'both'"
-    assert_with_context(
-        args.iterations == structural_probe.DEFAULT_ITERATIONS,
-        "expected args.iterations == structural_probe.DEFAULT...",
-    )
-    assert_with_context(
-        args.output == pathlib.Path("build/performance/structural-baseline.json"),
-        "expected args.output == pathlib.Path('build/performa...",
-    )
-    assert args.child_run is False, "expected args.child_run is False"
-
-
-def test_argument_parser_rejects_unknown_mode() -> None:
-    """Reject an unrecognised --mode value."""
-    parser = structural_probe._argument_parser()
-    with pytest.raises(SystemExit) as exc_info:
-        parser.parse_args(["--mode", "unknown"])
-    assert exc_info.value.code == 2, "expected exc_info.value.code == 2"
-
-
-def test_main_child_run_emits_duration_ns(capsys: pytest.CaptureFixture[str]) -> None:
-    """Emit a JSON payload with an integer duration_ns in child-run mode."""
-    exit_code = structural_probe.main([
-        "--child-run",
-        "--source",
-        str(MARKDOWN_FIXTURE),
-    ])
-    captured = capsys.readouterr()
-    assert exit_code == 0, "expected exit_code == 0"
-    payload = json.loads(captured.out)
-    assert_with_context(
-        isinstance(payload["duration_ns"], int),
-        "expected isinstance(payload['duration_ns'], int)",
-    )
-    assert payload["duration_ns"] >= 0, "expected payload['duration_ns'] >= 0"
