@@ -1,0 +1,17 @@
+---
+source: crates/stilyagi-pyext/src/tests/mod.rs
+expression: "tuple_json(py, &supported_values)"
+---
+[
+  "heading",
+  "paragraph",
+  "list_item",
+  "blockquote",
+  "table_cell",
+  "frontmatter",
+  "frontmatter_field",
+  "image_alt",
+  "link_title",
+  "python_docstring",
+  "rust_doc_comment"
+]

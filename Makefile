@@ -132,7 +132,7 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
         typecheck tools skylos-allow \
         install-nose duplication duplication-test duplication-allow \
         tools-check tools-docs tools-lint release release-artifact smoke \
-        smoke-release test-workflow-contracts
+        smoke-release test-workflow-contracts update-snapshots
 
 .DEFAULT_GOAL := all
 
@@ -347,6 +347,15 @@ test-ci: build tools-lint ## Run Rust tests with the CI nextest profile
 
 test-quick: build tools-lint ## Run Rust library tests only with nextest
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass --lib $(TEST_FLAGS) $(BUILD_JOBS)
+
+# Rewrite insta snapshots for the crates that pin Display spellings and bridge
+# payload shapes. Deliberately absent from `test` and CI: a mismatch there must
+# fail, never silently accept the new value. Locally insta writes a `.snap.new`
+# file to review; under CI it writes none, so read the assertion diff from the
+# failing test's log instead.
+# See "Snapshot and round-trip helper workflow" in docs/developers-guide.md.
+update-snapshots: ## Regenerate insta snapshots for review
+	INSTA_UPDATE=always $(CARGO_BUILD_ENV) $(CARGO) test -p stilyagi-extract -p stilyagi-pyext
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

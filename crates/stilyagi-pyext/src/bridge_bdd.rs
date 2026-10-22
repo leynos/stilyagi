@@ -4,7 +4,7 @@ use std::path::Path;
 
 use super::{extract_document_py, hello};
 use pyo3::prelude::{Bound, Py, Python};
-use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
+use pyo3::types::{PyAnyMethods, PyDict, PyList, PyListMethods, PyTuple};
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serde_json::Value;
@@ -120,17 +120,14 @@ fn extracted_document_reports_markdown_syntax(bridge_state: &BridgeState) {
         let extracted_document_bound = extracted_document.bind(py);
         let extracted_document_dict =
             must_ok!(extracted_document_bound.cast::<PyDict>(), "expected PyDict");
+        let syntax = must_ok!(
+            extracted_document_dict.get_item("syntax"),
+            "missing syntax payload"
+        );
 
-        assert_eq!(
-            must_ok!(
-                must_ok!(
-                    extracted_document_dict.get_item("syntax"),
-                    "missing syntax payload"
-                )
-                .extract::<&str>(),
-                "expected syntax string"
-            ),
-            "markdown",
+        insta::assert_json_snapshot!(
+            "markdown_syntax_payload",
+            serde_json::json!({ "syntax": must_ok!(syntax.extract::<String>(), "expected syntax string") })
         );
     });
 }
@@ -138,6 +135,29 @@ fn extracted_document_reports_markdown_syntax(bridge_state: &BridgeState) {
 #[then("the extracted document preserves one source-backed region")]
 fn extracted_document_preserves_one_source_backed_region(bridge_state: &BridgeState) {
     assert_expected_document_payload(bridge_state, assert_source_backed_region_payload);
+    assert_expected_document_payload(bridge_state, snapshot_document_payload);
+}
+
+/// Snapshot the whole bridge payload for the rendered Markdown scenario.
+///
+/// The scenario carries every payload field, so the snapshot pins the bridge
+/// shape itself: syntax, region kind and text, and the canonical IR JSON,
+/// which `document_payload_with_ir` embeds as structured JSON rather than the
+/// escaped string the bridge transports.
+fn snapshot_document_payload(
+    py: Python<'_>,
+    extracted_document: &Py<PyDict>,
+    _expected_text: &str,
+) {
+    let extracted_document_dict = must_ok!(
+        extracted_document.bind(py).clone().cast_into::<PyDict>(),
+        "expected PyDict"
+    );
+
+    insta::assert_json_snapshot!(
+        "markdown_document_payload",
+        super::tests::document_payload_with_ir(&extracted_document_dict)
+    );
 }
 
 fn assert_expected_document_payload(
@@ -173,7 +193,7 @@ fn extracted_document_has_no_regions(bridge_state: &BridgeState) {
         );
         let regions = must_ok!(regions_any.cast::<PyList>(), "expected PyList");
 
-        assert_eq!(must_ok!(regions.len(), "expected list length"), 0);
+        assert_eq!(regions.len(), 0);
     });
 }
 
@@ -211,7 +231,7 @@ fn extracted_document_regions<'py>(
 }
 
 fn assert_has_regions(regions: &Bound<'_, PyList>) {
-    assert_eq!(must_ok!(regions.len(), "expected list length"), 1);
+    assert_eq!(regions.len(), 1);
 }
 
 fn assert_heading_region_payload(region: &Bound<'_, PyDict>, expected_text: &str) {
@@ -288,7 +308,7 @@ fn assert_first_region_payload(
     expected_text: &str,
 ) {
     let (_extracted_document_dict, regions) = extracted_document_regions(py, extracted_document);
-    assert_ne!(must_ok!(regions.len(), "expected list length"), 0);
+    assert_ne!(regions.len(), 0);
     let first_region_any = must_ok!(regions.get_item(0), "missing first region");
     let first_region = must_ok!(first_region_any.cast::<PyDict>(), "expected PyDict");
     assert_heading_region_payload(first_region, expected_text);
