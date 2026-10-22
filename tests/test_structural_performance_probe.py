@@ -26,29 +26,17 @@ class ProbeState(typ.TypedDict):
 
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
-MARKDOWN_FIXTURE = REPOSITORY_ROOT / (
-    "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md"
-)
+# The probe declares its fixtures repository-relative; resolving them here
+# keeps the test pointed at the same files the probe discovers for itself.
+MARKDOWN_FIXTURE = REPOSITORY_ROOT / structural_probe.MARKDOWN_FIXTURE
 STRUCTURAL_FIXTURES = (
     structural_probe.StructuralFixture(MARKDOWN_FIXTURE, model.Syntax.MARKDOWN),
     structural_probe.StructuralFixture(
-        REPOSITORY_ROOT
-        / "tests"
-        / "fixtures"
-        / "corpus"
-        / "python"
-        / "valid"
-        / "module-class-function-docstrings.py",
+        REPOSITORY_ROOT / structural_probe.PYTHON_FIXTURE,
         model.Syntax.PYTHON_DOCSTRING,
     ),
     structural_probe.StructuralFixture(
-        REPOSITORY_ROOT
-        / "tests"
-        / "fixtures"
-        / "corpus"
-        / "rust"
-        / "valid"
-        / "item-doc-comments.rs",
+        REPOSITORY_ROOT / structural_probe.RUST_FIXTURE,
         model.Syntax.RUST_DOC_COMMENT,
     ),
 )
@@ -156,6 +144,9 @@ def test_discovers_markdown_structural_fixture() -> None:
             "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
         ),
         (REPOSITORY_ROOT / "build" / "performance", "build/performance"),
+        # The root is beneath itself, and ``relative_to`` renders that as
+        # the current-directory marker rather than the empty string.
+        (REPOSITORY_ROOT, "."),
     ],
 )
 def test_normalises_repository_paths(path: pathlib.Path, expected: str) -> None:
