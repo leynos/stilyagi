@@ -95,11 +95,20 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
 - [x] (2026-10-14) Publish the reviewed draft in PR #226.
 - [x] (2026-10-24) Verify whole-block frontmatter IR support and revise the plan
   for `.mdc`, verbatim repairs and frontmatter-aware cache integrity.
-- [ ] Validate and publish the frontmatter plan amendment.
+- [x] (2026-10-24) Validate and publish the frontmatter plan amendment with
+      `make check-fmt`, `make markdownlint` and `make nixie`.
 - [x] (2026-10-24) Obtain explicit implementation approval from the user.
 - [x] (2026-10-24) Rebase PR #226 onto `main` at
       `765915e5f0ff47899184ed24c9a398c3bc9f2b90`; preserve main's nose ADR 010
       and renumber the Markdown CLI ADR to 011.
+- [x] (2026-10-24) Publish the rebased documentation candidate with
+      `--force-with-lease`; verify PR #226 still targets `main` and that local,
+      tracking and remote heads match `12da6f72d0969bbc2b133eb3a45491c2ee2ec263`.
+- [ ] Complete post-rebase implementation gates. `make check-fmt` passed;
+      three `make test` attempts stopped at 600-second Cargo package-cache lock
+      timeouts in nested UI tests (355/357 passed in the first two attempts;
+      140/357 passed before the timeout in the serialized attempt). No source
+      assertion failed. `make typecheck` and `make lint` remain pending.
 - [ ] M1: effective configuration inspection and provenance.
 - [ ] M2: canonical Markdown IR inspection and bridge identity.
 - [ ] M3: extraction cache, strict bypass, and safe cleanup.
@@ -788,3 +797,10 @@ frontmatter during repair and verify existing whole-block IR support. Retain
 full-source cache invalidation and checksum the parsed IR representation; defer
 configurable exclusion and YAML parser robustness. Extend M2/M3 and V6 without
 approving implementation.
+
+Revision note (2026-10-24): implementation approval was recorded before work.
+Rebase onto `origin/main` preserved its ADR 010 and renumbered the cache ADR to
+011; the resulting candidate was published to PR #226 with a verified lease.
+Markdown gates pass. Three functional-suite attempts timed out waiting for the
+shared Cargo package-cache lock in nested UI tests, so full implementation
+gates remain pending and M1 has not started.
