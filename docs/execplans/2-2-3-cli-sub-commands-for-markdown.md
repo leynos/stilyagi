@@ -97,6 +97,9 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
   for `.mdc`, verbatim repairs and frontmatter-aware cache integrity.
 - [ ] Validate and publish the frontmatter plan amendment.
 - [x] (2026-10-24) Obtain explicit implementation approval from the user.
+- [x] (2026-10-24) Rebase PR #226 onto `main` at
+      `765915e5f0ff47899184ed24c9a398c3bc9f2b90`; preserve main's nose ADR 010
+      and renumber the Markdown CLI ADR to 011.
 - [ ] M1: effective configuration inspection and provenance.
 - [ ] M2: canonical Markdown IR inspection and bridge identity.
 - [ ] M3: extraction cache, strict bypass, and safe cleanup.
@@ -119,6 +122,10 @@ configuration. M3 must move configuration resolution before extraction to build
 a configuration-sensitive key, preserving existing error classification and
 phase measurements.
 
+The rebase target added the nose duplication-gate ADR as ADR 010. The Markdown
+CLI ADR is now ADR 011; the existing main entry and both design intents remain
+in the documentation index.
+
 The PyO3 bridge serializes canonical JSON but the Python adapter discards its
 string after parsing. Rust already has `extract_document_with_source_identity`;
 the bridge currently uses anonymous identity. Reuse that Rust entrypoint
@@ -136,7 +143,7 @@ block-level IR support, not semantic parsing of individual YAML fields.
 
 The implementation decisions below were proposed on 2026-10-14 and approved
 with this plan on 2026-10-24.
-[ADR 010](../adr-010-markdown-cli-inspection-and-cache.md) records the
+[ADR 011](../adr-011-markdown-cli-inspection-and-cache.md) records the
 substantive framing and persistent-state choices; its status remains Proposed
 until implementation and conformance review are complete.
 
@@ -216,8 +223,10 @@ Existing tests include `tests/test_config_resolution.py`,
 
 ## Conformance basis
 
-The baseline for all local references is commit
-`90aaccf9b3baa19f41d09a9f69f172127cd051a2`. There is no separate task-specific
+The original plan references were verified against the PR's then-current base,
+commit `90aaccf9b3baa19f41d09a9f69f172127cd051a2`. The implementation baseline
+is the rebased target, commit `765915e5f0ff47899184ed24c9a398c3bc9f2b90`;
+revalidate source references against it. There is no separate task-specific
 Terms of Reference. The governing documents are [the roadmap](../roadmap.md)
 2.2.3, [the design](../stilyagi-design.md) §§4, 7.3 and 13,
 [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §§3.4–3.6, 5 and 13,
