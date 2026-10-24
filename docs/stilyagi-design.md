@@ -1043,6 +1043,20 @@ V1 sufficiency:
 
 ### 7.3 CLI contract
 
+The approved Markdown inspection and cache contracts for roadmap 2.2.3 are
+recorded in [ADR 011](adr-011-markdown-cli-inspection-and-cache.md) and its
+[ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md). The ADR remains
+proposed pending implementation and conformance review; these documents do not
+imply that the commands already exist.
+
+The 2.2.3 proposal includes `.mdc` alongside `.md` and `.markdown`, and
+requires verbatim YAML frontmatter preservation during repairs. Existing
+[ADR 005](adr-005-markdown-region-vocabulary-scope.md) support retains a
+positioned whole block rather than parsed YAML fields. The proposed cache
+includes that IR representation in its integrity checksum and invalidates on
+frontmatter-only changes; configurable exclusion and YAML parser robustness
+remain deferred.
+
 Strong points in RFC 0003:
 
 - The compact Ruff-like command surface is right.[^6][^7]
