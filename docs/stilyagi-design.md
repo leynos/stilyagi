@@ -1049,6 +1049,14 @@ recorded in [ADR 010](adr-010-markdown-cli-inspection-and-cache.md) and its
 subject to approval; the proposal does not imply that the commands already
 exist.
 
+The 2.2.3 proposal includes `.mdc` alongside `.md` and `.markdown`, and
+requires verbatim YAML frontmatter preservation during repairs. Existing
+[ADR 005](adr-005-markdown-region-vocabulary-scope.md) support retains a
+positioned whole block rather than parsed YAML fields. The proposed cache
+includes that IR representation in its integrity checksum and invalidates on
+frontmatter-only changes; configurable exclusion and YAML parser robustness
+remain deferred.
+
 Strong points in RFC 0003:
 
 - The compact Ruff-like command surface is right.[^6][^7]
