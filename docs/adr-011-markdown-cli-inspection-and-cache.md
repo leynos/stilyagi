@@ -1,8 +1,9 @@
-# Architectural decision record (ADR) 010: Markdown CLI inspection and cache
+# Architectural decision record (ADR) 011: Markdown CLI inspection and cache
 
 ## Status
 
-Proposed. Approval of the associated ExecPlan is required before implementation.
+Proposed. The associated ExecPlan was explicitly approved on 2026-10-24; this
+ADR remains proposed pending implementation and conformance review.
 
 ## Date
 
@@ -100,9 +101,9 @@ alone. Independent analysis-cache invalidation remains roadmap 3.3.1 work.
 
 ## Outstanding decisions
 
-The maintainer must approve these proposed command, framing and storage
-contracts before execution. Any inability to meet the safety or compatibility
-constraints must return to the ExecPlan's exception process.
+Implementation acceptance evidence remains outstanding. Any inability to meet
+the safety or compatibility constraints must return to the ExecPlan's exception
+process.
 
 ## Architectural rationale
 
