@@ -6,7 +6,7 @@ Proposed. Approval of the associated ExecPlan is required before implementation.
 
 ## Date
 
-2026-10-14.
+2026-10-24.
 
 ## Context and problem statement
 
@@ -46,6 +46,17 @@ parents without granting cleanup authority over those parents.
 Adopt the detailed command contracts in the
 [2.2.3 ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md):
 
+- Treat `.md`, `.markdown` and `.mdc` as Markdown throughout discovery, stdin,
+  inspection and repair. Preserve YAML frontmatter bytes, including fences and
+  their closing line ending, during body fixes. Frontmatter edits remain out of
+  scope even when unsafe fixes are requested.
+- Reuse ADR 005's existing whole-block frontmatter nodes and regions;
+  field-level YAML parsing and parser robustness are deferred. Include that
+  representation in the stored canonical IR checksum and retain full-source
+  lookup hashing. Frontmatter-only edits invalidate extraction so body offsets
+  remain current. Future configurable exclusion needs a versioned policy and
+  reconstruction of current source coordinates; no exclusion switch is
+  introduced here.
 - Resolve effective configuration and per-leaf origins through one precedence
   path. `config` exposes text and JSON, plus `--target PATH`.
 - Retain Rust's canonical JSON and carry source identity through the existing
