@@ -141,8 +141,8 @@
     records the blocking duplication gate, its reasoned exception entries,
     scan scope, and detector provisioning policy.
 
-  - [ADR 010: Markdown CLI inspection and cache](
-    adr-010-markdown-cli-inspection-and-cache.md)
+  - [ADR 011: Markdown CLI inspection and cache](
+    adr-011-markdown-cli-inspection-and-cache.md)
     proposes command framing, extraction-cache ownership and cleanup boundaries
     for roadmap 2.2.3.
 
