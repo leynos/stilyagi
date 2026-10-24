@@ -18,9 +18,10 @@ regions, syntax trees, suppression directives and extraction errors.
 
 Deliver `stilyagi config [KEY]`, `stilyagi clean`, and
 `stilyagi dump-ir [FILES]...`, and make `check --no-cache` effective. This
-includes one bounded Markdown extraction cache: analysis and fix planning still
-run on every invocation. Independent analysis caching remains roadmap 3.3.1
-work.
+includes `.md`, `.markdown` and `.mdc` files with YAML frontmatter preserved
+verbatim, and one bounded Markdown extraction cache: analysis and fix planning
+still run on every invocation. Independent analysis caching remains roadmap
+3.3.1 work.
 
 ## Constraints
 
@@ -38,6 +39,10 @@ work.
   the Rust parser nor the pure IR model discovers configuration or opens caches.
 - Never delete arbitrary configured directories. Cache data is disposable;
   source files, neighbouring files and targets outside the working tree are not.
+- Treat `.mdc` as ordinary Markdown in recursive discovery, explicit paths and
+  stdin filename inference for check and dump, including diff/fix workflows.
+  YAML frontmatter must survive repairs byte-for-byte. YAML field parsing and
+  parser robustness improvements are outside this task.
 - Do not activate plugins, NLP models or new rules for an inspection command.
   Reserved configuration remains inspectable without pretending it is executed.
 - No new production dependency is planned. Requested test dependencies are
@@ -88,7 +93,10 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
   reconcile hydration, storage safety, metrics and spool recommendations.
 - [x] (2026-10-14) Pass planning-document formatting, Markdown/spelling and
   Mermaid gates.
-- [ ] Commit and publish the reviewed draft for maintainer approval.
+- [x] (2026-10-14) Publish the reviewed draft in PR #226.
+- [x] (2026-10-24) Verify whole-block frontmatter IR support and revise the plan
+  for `.mdc`, verbatim repairs and frontmatter-aware cache integrity.
+- [ ] Validate and publish the frontmatter plan amendment.
 - [ ] Obtain explicit implementation approval.
 - [ ] M1: effective configuration inspection and provenance.
 - [ ] M2: canonical Markdown IR inspection and bridge identity.
@@ -116,6 +124,14 @@ The PyO3 bridge serializes canonical JSON but the Python adapter discards its
 string after parsing. Rust already has `extract_document_with_source_identity`;
 the bridge currently uses anonymous identity. Reuse that Rust entrypoint
 instead of patching serialized JSON.
+
+The 2026-10-24 source inspection confirms that Markdown enables frontmatter in
+`crates/stilyagi-markdown/src/lib.rs`. The `frontmatter_region` function in
+`region_emission.rs` retains the entire fenced block, its source segment and
+`attrs.format = "yaml"`. ADR 005 and the frontmatter snapshots confirm this is
+block-level IR support, not semantic parsing of individual YAML fields.
+`frontmatter_field` remains reserved. The source baseline is still
+`5eaa1f5abca13826c41e08998e7bed5e5fd0be23`; no runtime changes have landed.
 
 ## Decision log
 
@@ -146,6 +162,17 @@ avoids changing resolution semantics merely to bypass disposable extraction.
 D5: use a dedicated marked namespace inside each configured cache directory;
 clean removes only that namespace, never the arbitrary configured parent.
 Configuration such as `cache-dir = "."` therefore cannot delete the repository.
+
+D6 (2026-10-24, maintainer amendment): add `.mdc` to Markdown classification
+for all relevant commands. Preserve YAML frontmatter bytes during repair,
+including delimiters, comments, quoting, whitespace and line endings. Existing
+block-level IR support is sufficient to include frontmatter in cache integrity;
+do not add YAML field parsing. Full-source lookup hashes continue to invalidate
+on frontmatter-only edits, and the stored canonical IR checksum includes the
+parsed frontmatter nodes and regions. Future configurable exclusion must be a
+separate, versioned policy with fresh source identity and offset
+reconstruction; never reuse stale whole-document spans by dropping frontmatter
+from the hash.
 
 ## Outcomes & retrospective
 
@@ -203,7 +230,9 @@ RFC §3.4) goes to M1 and V1; C2 (canonical extraction visibility, §3.6) goes t
 M2 and V2; C3 (real bypass and versioned cache identity, §13) goes to M3 and
 V3; C4 (cwd-bounded cleanup, §3.5) goes to M3 and V4; C5 (preserved check/fix
 behaviour and maintainable operation) goes to all milestones and V5. M4
-reconciles all five with documentation and observed end-to-end evidence.
+reconciles these with documentation and observed end-to-end evidence. C6 (the
+2026-10-24 maintainer amendment: `.mdc`, frontmatter preservation and cache
+policy) goes to M2/M3 and V6. ADR 005 supplies the existing block-level scope.
 
 Required reading includes [complexity and refactoring][complexity],
 [Rust fixtures][fixtures], [doctest guidance][doctests],
@@ -245,12 +274,13 @@ user-level fallback.
 
 ### IR inspection
 
-`dump-ir [FILES]...` defaults to `.` and recurses for `.md` and `.markdown`
-only. Explicit unsupported files exit 2. Share existing ordering, ignore rules,
-deduplication and explicit-file semantics; do not narrow mixed-source check.
-Accept `-` once, requiring a Markdown `--stdin-filename`; reject mixed stdin
-and file operands with exit 2. Accept config/isolated flags, `--no-cache`, and
-`--output-format json` only. Do not accept fix or rule-selection flags here.
+`dump-ir [FILES]...` defaults to `.` and recurses for `.md`, `.markdown` and
+`.mdc` only. Explicit unsupported files exit 2. Share existing ordering, ignore
+rules, deduplication and explicit-file semantics; do not narrow mixed-source
+check. Accept `-` once, requiring a Markdown `--stdin-filename`; reject mixed
+stdin and file operands with exit 2. Accept config/isolated flags,
+`--no-cache`, and `--output-format json` only. Do not accept fix or
+rule-selection flags here.
 
 Pass reported path identity through the existing Rust identity API. Keep URI
 null unless existing identity helpers supply one consistently. Source bytes,
@@ -263,6 +293,40 @@ input yields no partial JSON. Spool creation/write failures exit 2 with empty
 stdout. A failure of stdout itself can occur after emission begins; report it
 without promising rollback of a pipe. Normal output has one final newline.
 Logging and errors use stderr only.
+
+### Markdown extensions and YAML frontmatter
+
+Add `"mdc": model.Syntax.MARKDOWN` to the shared extension classifier in
+`python/stilyagi/discovery_targets.py`. Apply it to check and dump directory
+walks, explicit filenames and `--stdin-filename`; preserve the existing suffix
+case policy and ignore semantics. Do not introduce a separate MDC dialect or
+change repository documentation-lint globs merely to support runtime inputs.
+
+Reuse the Markdown parser's existing YAML frontmatter recognition and the
+whole-block `frontmatter` region defined by ADR 005. A frontmatter-bearing file
+must proceed through ordinary Markdown extraction and body repair without an
+extra preprocessing script. Retain its existing node/region metadata in dump
+output; do not claim a parsed YAML mapping or emit `frontmatter_field`.
+
+For this slice, frontmatter is protected source during repair. In
+`python/stilyagi/engine/fix_planning/admissibility.py`, reject edits
+overlapping the fenced frontmatter span, including insertion at its opening
+boundary or inside it. An insertion at its exclusive end is allowed only if the
+complete fenced block remains recognized and byte-identical after
+re-extraction; otherwise refuse that fix. Apply the same preservation check to
+edits elsewhere that could change frontmatter recognition, such as removing its
+closing-line separator. Refuse the whole fix bundle through the existing
+non-rule refusal channel, using `fix-error/frontmatter-protected`, rather than
+silently dropping one edit. Preserve the established file-atomic conflict
+policy. Neither safe nor unsafe fixes may normalize or rewrite YAML in this
+slice. Keep the trailing line-ending bytes of the closing fence protected as
+part of the source prefix.
+
+YAML robustness, validation of field semantics and a new YAML dependency are
+out of scope. Use the existing recognizer's delimiter behaviour; retain
+existing parse anomalies and conservative repair refusal for inputs it cannot
+classify safely. Do not describe unrecognized malformed content as proven safe
+to repair.
 
 ### Cache and bypass
 
@@ -286,10 +350,27 @@ executed, retaining configured values in the config hash. Hash the native
 extension once per cached invocation; its binary digest invalidates development
 rebuilds even without version bumps.
 
-On hit, validate the outer format/key in Python, then deserialize canonical IR
-through a Rust bridge `hydrate_ir_json` using existing `IrDocument` serde
-types. Reuse Rust's region-to-bridge conversion and Python's typed payload
-adapter. Reject malformed known fields and inconsistent source
+Include a SHA-256 checksum of the complete canonical IR bytes in the cache
+entry. This checksum includes the parser's frontmatter node/region
+representation (text, spans, segments and format metadata); it does not require
+semantic YAML parsing. Compute it after fresh extraction and verify it before
+hydration on a hit. Lookup remains based on the original full-source hash, so
+frontmatter-only changes, including comments or layout, invalidate the entry
+and refresh body spans and line indices. Do not parse the document just to
+locate a cache entry.
+
+Leave room for a future versioned frontmatter-inclusion policy in cache
+identity, with inclusion fixed to enabled in this slice. Do not add a
+configuration switch yet or reinterpret `extract.markdown.frontmatter` as cache
+exclusion. Ignoring frontmatter could only reuse body data after reconstructing
+the current document hash, prefix, offsets, line index and dump IR. Existing
+block-level IR support means the proposed no-IR fallback (ignore
+frontmatter-only changes) is not taken.
+
+On hit, validate the outer format/key and canonical IR checksum in Python, then
+deserialize canonical IR through a Rust bridge `hydrate_ir_json` using existing
+`IrDocument` serde types. Reuse Rust's region-to-bridge conversion and Python's
+typed payload adapter. Reject malformed known fields and inconsistent source
 hash/syntax/identity; retain supported extensible metadata. This uses one
 schema, rather than a second Python definition. Cache hydration must not
 increment extraction-attempt or extraction-outcome metrics. Never use pickle.
@@ -426,25 +507,62 @@ through `tests/support/subprocess_env.py` for subprocess tests, with actual
 temporary files rather than mocks at the CLI boundary. Extend real bridge BDD
 for the Rust identity seam. Do not add a second Rust CLI test harness.
 
+V6: all three Markdown suffixes accept frontmatter, preserve it during repair
+and expose its current representation in dump/cache data. Parameterize
+discovery, CLI, stdin, diff and fix tests over `.md`, `.markdown` and `.mdc`.
+Add `tests/test_frontmatter_cli.py` and focused Rust fixture/BDD cases using
+existing frontmatter fixtures, LF/CRLF, Unicode, comments, quoted scalars and
+multiline values. Use an injected body-fixing rule to prove a real body repair
+occurred while the original fenced prefix, including its closing newline,
+stayed exactly equal. Also inject frontmatter-targeting edits, cross-boundary
+edits and boundary insertions; each unsafe proposal must be refused without
+changing the prefix. Test both fix applicability levels and stdin output, never
+writing stdin paths.
+
+Extend V3 properties to generate frontmatter-only mutations with unchanged
+bodies, including a longer prefix and more lines. Each mutation must miss the
+cache; new dump spans must re-slice the current body and the whole-source hash
+must match current bytes. Compare cached/uncached output. Corrupt only a
+frontmatter field in the cached IR without updating its checksum and require a
+miss. These are cache/repair properties, not a YAML fuzzing campaign: generate
+recognized valid fenced blocks. A seeded mutation stripping frontmatter from
+the lookup hash or permitting an edit to its prefix must fail. Snapshot
+existing block metadata, not a nonexistent YAML field schema. Do not conflate a
+content hash used for lookup with the canonical IR checksum used for
+stored-data integrity.
+
 Trusted assumptions are Rust's existing canonical serializer and extractor,
 PyO3's documented conversion boundary, SHA-256 collision resistance, the Python
 JSON/TOML interfaces, and the operating system's descriptor-relative filesystem
 and atomic-replace semantics. Test repository composition against these real
 interfaces, rather than attempting to prove third-party internals.
 
-No new mathematical axiom or pure business-rule kernel is proposed: precedence
-is existing policy and the new cache is an optimization over unchanged
-extraction. The introduced operational invariants above require properties and
-real boundary tests. If implementation introduces new contractual business
-logic or a lemma requiring universal proof, stop and revise the plan to prefer
-a small Rust kernel and substantive Verus proof. State its inhabited
-assumptions, implementation correspondence and trusted boundary; never assume
-its conclusion or label finite testing an exhaustive proof.
+Frontmatter preservation is a new contractual repair policy (V6). Its
+obligation is that every emitted or written repair retains the original
+frontmatter prefix bytes and recognition. Enforce it with a mandatory final
+candidate check in `python/stilyagi/engine/fix_pipeline.py`, after byte
+splicing and before diff emission, stdin output or disk writes. Compare the
+actual candidate prefix with the original and re-extract the candidate to check
+the frontmatter boundary; refuse the candidate if either check fails.
+Preliminary span rejection alone does not discharge this obligation.
+
+A Rust proof kernel was considered. The existing repair/splice pipeline is
+Python-owned; a detached proof of an interval model would not establish that
+its actual output passes this boundary. This plan therefore uses exhaustive
+checking of each concrete candidate's prefix bytes at runtime, plus V6's
+properties, negative controls and real pipeline tests to establish wiring. This
+is not a formal proof over all executions, parser behaviour or filesystem
+races, and no such claim should be made. It adds no mathematical axiom. Do not
+introduce a Rust extension merely to restate prefix equality as a theorem. If
+implementation moves repair policy into Rust or introduces another lemma
+requiring universal proof, revise the plan to include a substantive Verus proof
+with inhabited assumptions and implementation correspondence. The explicitly
+planned V6 policy itself is not an unplanned deviation or stop trigger.
 
 ## Behaviour specification
 
 Implement the following specification in the named Python feature file, using
-scenario outlines for the detailed partitions in V1–V5:
+scenario outlines for the detailed partitions in V1–V6:
 
 ```gherkin
 Feature: Inspect and maintain the Markdown CLI
@@ -472,6 +590,18 @@ Feature: Inspect and maintain the Markdown CLI
     Then extraction runs again with identical diagnostics
     And no persistent cache is read or changed
 
+  Scenario: Repair Markdown with YAML frontmatter
+    Given an mdc file with YAML frontmatter and a fixable body diagnostic
+    When I apply the body fix
+    Then the body is repaired
+    And the entire frontmatter prefix is byte-identical
+
+  Scenario: Frontmatter-only edits refresh cached source coordinates
+    Given a cached Markdown file with YAML frontmatter
+    When I add a frontmatter line without changing the body
+    Then the next check misses the extraction cache
+    And dumped body spans match the current source bytes
+
   Scenario: Clean only owned cache data
     Given owned cache entries beside source files and an outside symlink
     When I clean twice from the project directory
@@ -493,20 +623,26 @@ with a usable config command and unchanged check results. Dump/cache remain
 open. Recovery is reverting the complete milestone commit; no stored state
 exists.
 
-M2 delivers C2/V2: add red identity/serialization/CLI tests, expose source
-identity through PyO3, retain canonical JSON and implement dump coordination.
-Amend RFC §3.6 and the user guide with framing, stdin and failures. End with
-usable uncached dump output; cache work remains open. Recovery is reverting the
-whole milestone including bridge stub/callers; no temporary compatibility layer.
+M2 delivers C2/V2 and C6/V6: add red identity/serialization/CLI tests, expose
+source identity through PyO3, retain canonical JSON and implement dump
+coordination. Add `.mdc` to shared discovery and stdin classification, and
+enforce verbatim frontmatter preservation in fix planning. Amend RFC §§3.6 and
+7, the design syntax list, ADR 008 and the user guide with extensions, framing,
+stdin, frontmatter preservation and failures. Keep ADR 005 field parsing
+deferred. End with usable uncached dump output; cache work remains open.
+Recovery is reverting the whole milestone including bridge stub/callers; no
+temporary compatibility layer.
 
-M3 delivers C3/C4 and V3/V4: add red cache and cleanup tests, implement the
-owned namespace, complete identity, validated hydration and injected extraction
-service. Wire Markdown check/dump to it, preserve fresh post-fix extraction,
-then implement strict bypass and safe cleanup. Update RFC §13, design §7.3 and
-user/developer documentation in the same coherent milestone. Cache, bypass and
-clean ship together: do not land persistent writes without cleanup. Recovery is
-reverting the milestone; cache data can be ignored or removed through the
-tested clean command. There is no deployed predecessor format to migrate.
+M3 delivers C3/C4/C6 and V3/V4/V6: add red cache and cleanup tests, implement
+the owned namespace, complete identity, validated hydration and injected
+extraction service. Wire Markdown check/dump to it, preserve fresh post-fix
+extraction, then implement strict bypass and safe cleanup. Include canonical IR
+checksums and frontmatter-only invalidation evidence before declaring the cache
+usable. Update RFC §13, design §7.3 and user/developer documentation in the
+same coherent milestone. Cache, bypass and clean ship together: do not land
+persistent writes without cleanup. Recovery is reverting the milestone; cache
+data can be ignored or removed through the tested clean command. There is no
+deployed predecessor format to migrate.
 
 M4 closes C5/V5 and all trace links: run real CLI workflows, reconcile docs and
 ADR status with approved decisions, review complexity and property non-vacuity,
@@ -518,7 +654,7 @@ these new internal boundaries.
 
 At every milestone, verify the assigned requirements, approved design, upstream
 assumptions, interfaces, dependencies, trust boundaries and stored formats;
-record evidence beside C1–C5/V1–V5. Update living sections before committing.
+record evidence beside C1–C6/V1–V6. Update living sections before committing.
 No compatibility shim is required for these internal/pre-1.0 source APIs.
 
 ## Concrete steps and validation
@@ -637,3 +773,9 @@ authorizing execution.
 [injection]: ../reliable-testing-in-rust-via-dependency-injection.md
 [bdd]: ../rstest-bdd-users-guide.md
 [style]: ../documentation-style-guide.md
+
+Revision note (2026-10-24): add `.mdc` across Markdown CLI inputs, protect YAML
+frontmatter during repair and verify existing whole-block IR support. Retain
+full-source cache invalidation and checksum the parsed IR representation; defer
+configurable exclusion and YAML parser robustness. Extend M2/M3 and V6 without
+approving implementation.
