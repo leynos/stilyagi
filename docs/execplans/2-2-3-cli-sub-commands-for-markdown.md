@@ -1,6 +1,6 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: DRAFT — implementation requires explicit maintainer approval.
+Status: APPROVED — implementation authorized on 2026-10-24.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -25,10 +25,9 @@ still run on every invocation. Independent analysis caching remains roadmap
 
 ## Constraints
 
-- This delivery is planning only until explicit approval. Do not mark 2.2.3 done
-  in this PR. The implementor must mark it done after all acceptance evidence
-  passes, and update this plan to COMPLETE only after conformance
-  reconciliation.
+- Implementation is approved as recorded in Progress. Do not mark 2.2.3 done
+  until all acceptance evidence passes. Then update this plan to COMPLETE only
+  after conformance reconciliation.
 - Preserve current `check`, mixed-source discovery, source-byte fidelity,
   diagnostics, fix/refusal streams and exit codes. Cache only Markdown in this
   slice; existing Python and Rust extraction continue uncached.
@@ -97,7 +96,7 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
 - [x] (2026-10-24) Verify whole-block frontmatter IR support and revise the plan
   for `.mdc`, verbatim repairs and frontmatter-aware cache integrity.
 - [ ] Validate and publish the frontmatter plan amendment.
-- [ ] Obtain explicit implementation approval.
+- [x] (2026-10-24) Obtain explicit implementation approval from the user.
 - [ ] M1: effective configuration inspection and provenance.
 - [ ] M2: canonical Markdown IR inspection and bridge identity.
 - [ ] M3: extraction cache, strict bypass, and safe cleanup.
@@ -135,9 +134,11 @@ block-level IR support, not semantic parsing of individual YAML fields.
 
 ## Decision log
 
-All implementation decisions below are proposals for approval, recorded on
-2026-10-14. [ADR 010](../adr-010-markdown-cli-inspection-and-cache.md) records
-the substantive framing and persistent-state choices; it remains Proposed.
+The implementation decisions below were proposed on 2026-10-14 and approved
+with this plan on 2026-10-24.
+[ADR 010](../adr-010-markdown-cli-inspection-and-cache.md) records the
+substantive framing and persistent-state choices; its status remains Proposed
+until implementation and conformance review are complete.
 
 D1: implement extraction-only caching now, retaining every RFC 0003 key
 dimension. Use explicit inactive signatures for unavailable rule-pack/NLP
@@ -176,11 +177,10 @@ from the hash.
 
 ## Outcomes & retrospective
 
-The reviewed plan and Proposed ADR are ready for maintainer review. The six
-expert perspectives have been reconciled and documentation gates passed. No
-feature code has been implemented, no performance claim has been established,
-and approval remains outstanding. Record actual milestone results and any
-undischarged obligations here during implementation.
+The reviewed plan and Proposed ADR incorporate six expert perspectives. The
+user approved implementation on 2026-10-24. No feature code has been
+implemented and no performance claim has been established. Record actual
+milestone results and any undischarged obligations here during implementation.
 
 ## Context and orientation
 
