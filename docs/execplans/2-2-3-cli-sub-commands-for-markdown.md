@@ -915,3 +915,8 @@ candidate then passed the full sequential gate set: check-fmt, lint, typecheck,
 test, markdownlint and nixie. Nextest passed 357/357, both Python test stages
 passed (including 154 tests and 4 snapshots in the second stage), and all
 workspace doctests passed. No timeout budget changes were needed.
+
+Resolution note (2026-10-25): the successful rerun used the existing timeout
+budgets after temporary disk pressure had been relieved. M1 is complete; the
+proposed 1,800-second trybuild allowance and related budget changes were not
+adopted.
