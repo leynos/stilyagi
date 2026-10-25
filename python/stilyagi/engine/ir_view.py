@@ -127,7 +127,7 @@ def line_index(document: model.Document) -> tuple[int, ...] | None:
     raw_line_index = ir_value(document, "line_index")
     if not is_sequence(raw_line_index):
         return None
-    values = typ.cast("cabc.Sequence[object]", raw_line_index)
+    values = raw_line_index
     if not all(isinstance(start, int) for start in values):
         return None
     return tuple(typ.cast("int", start) for start in values)
@@ -161,7 +161,7 @@ def _region_segments(raw_region: object) -> cabc.Iterator[SegmentView]:
     raw_segments = typed_region.get("segments")
     if not is_sequence(raw_segments):
         return
-    for raw_segment in typ.cast("cabc.Sequence[object]", raw_segments):
+    for raw_segment in raw_segments:
         segment = _segment_view(raw_segment)
         if segment is not None:
             yield segment

@@ -8,6 +8,7 @@ from stilyagi.engine import ir_view
 
 from .admissibility import EditRejection, classify_edit
 from .conflicts import coalesce_identical, first_overlap
+from .frontmatter import frontmatter_is_unchanged, yaml_frontmatter
 from .selection import CandidatePartition, partition_candidates
 from .splice import apply_edits
 
@@ -96,18 +97,62 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
             selected,
         )
     fixed_codes = tuple(dict.fromkeys(code for code, _edit in accepted))
+    replacement = _replacement(request.source_bytes, edits)
+    if replacement is not None and not _preserves_yaml_frontmatter(
+        request.source_bytes,
+        replacement,
+        request.document,
+    ):
+        refusal = EditRejection(
+            "fix-error/frontmatter-protected",
+            ",".join(fixed_codes),
+            "planned edits change or cannot verify YAML frontmatter bytes",
+        )
+        return _log_plan(
+            FixPlan((), (), (refusal,), None, selected, _span_count(request)),
+            selected,
+        )
     return _log_plan(
         FixPlan(
             edits,
             fixed_codes,
             (),
-            _replacement(request.source_bytes, edits),
+            replacement,
             selected,
             _span_count(request),
             coalesced=len(accepted) - len(edits),
         ),
         selected,
     )
+
+
+def _preserves_yaml_frontmatter(
+    source_bytes: bytes,
+    replacement: bytes,
+    document: model.Document,
+) -> bool:
+    """Re-extract Markdown to verify its recognized YAML prefix byte-for-byte."""
+    if document.syntax.value != "markdown":
+        return True
+    before = yaml_frontmatter(document, source_bytes)
+    try:
+        from stilyagi import model
+        from stilyagi.engine.api import extract_document
+        from stilyagi.engine.extraction import BridgeExtractionError
+
+        replacement_text = replacement.decode("utf-8-sig")
+        updated_document = extract_document(
+            replacement_text,
+            model.Syntax.MARKDOWN,
+        )
+    except (BridgeExtractionError, RuntimeError, TypeError, ValueError) as error:
+        _LOGGER.warning(
+            "could not verify YAML frontmatter after planned edits: %s",
+            error,
+        )
+        return False
+    after = yaml_frontmatter(updated_document, replacement)
+    return frontmatter_is_unchanged(before, after)
 
 
 def _log_plan(plan: FixPlan, selected: CandidatePartition) -> FixPlan:
