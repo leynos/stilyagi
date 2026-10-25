@@ -1,6 +1,8 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: APPROVED — implementation authorized on 2026-10-24.
+Status: BLOCKED — implementation remains authorized, but M1 is blocked on
+repeated `make test` timeouts and requires the user's acceptance of the next
+gate action.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -104,15 +106,44 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
 - [x] (2026-10-24) Publish the rebased documentation candidate with
       `--force-with-lease`; verify PR #226 still targets `main` and that local,
       tracking and remote heads match `12da6f72d0969bbc2b133eb3a45491c2ee2ec263`.
-- [ ] Complete post-rebase implementation gates. `make check-fmt` passed;
-      three `make test` attempts stopped at 600-second Cargo package-cache lock
-      timeouts in nested UI tests (355/357 passed in the first two attempts;
-      140/357 passed before the timeout in the serialized attempt). No source
-      assertion failed. `make typecheck` and `make lint` remain pending.
-- [ ] M1: effective configuration inspection and provenance.
-- [ ] M2: canonical Markdown IR inspection and bridge identity.
-- [ ] M3: extraction cache, strict bypass, and safe cleanup.
-- [ ] M4: end-to-end acceptance, documentation and roadmap completion.
+- [ ] Complete post-rebase implementation gates. M1 formatting, lint and
+      typecheck pass. Three successive M1 candidates have needed targeted
+      repairs: the 900-second trybuild allowance timed out; Python assertions
+      then exposed an oracle bug, a stale wheel snapshot and a runner-placement
+      contract mismatch; the next candidate exposed Pylint R0913 in the
+      recursive oracle helper. After those repairs, the latest candidate again
+      passed formatting, lint and typecheck, but `make test` timed out after
+      1,500 seconds in `compile_time_ui` while compiling
+      `tests/ui/pass/pyo3_pymodule.rs` (356/357 Nextest tests passed). The log
+      shows nested Cargo package-cache waits and a heavily queued shared
+      compiler pool. Per the three-repair tolerance, M1 is BLOCKED; do not
+      increase timeout budgets or begin M2 until the user accepts the next
+      gate action. The blocked-status update passes `make check-fmt`,
+      `make markdownlint` and `make nixie`.
+- [x] (2026-10-24) Start M1 test-first: establish missing-command and
+      provenance failures, then implement the config command and pass its
+      focused CLI, resolver and Hypothesis suites. Full M1 gates remain pending.
+- [x] (2026-10-25) Pass M1 formatting, typechecking and lint. The first
+      serialized test run reached 355/357, then its remaining UI test exceeded
+      600 s while shared compiler admission was heavily queued. Increase the
+      trybuild allowance to 900 s while retaining the 18 m whole-run allowance;
+      a 19 m value violates the 1,800 s watchdog ordering after termination and
+      cold-build reserves. Rerun all M1 gates.
+- [x] (2026-10-25) Implement the M1 configuration inspection command and
+      provenance tracking. Correct the property-test oracle, Maturin wheel
+      snapshot, runner-placement contract and recursive helper lint finding.
+      The latest candidate passes `make check-fmt`, `make lint` and
+      `make typecheck`, but `make test` times out after 1,500 s in the final
+      PyO3 UI test while nested Cargo work is heavily queued. This follows more
+      than three targeted repairs; mark M1 BLOCKED and seek acceptance before
+      changing budgets or proceeding to M2. See the captured gate log:
+      `/tmp/test-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-r4.out`.
+- [!] M1: effective configuration inspection and provenance — BLOCKED pending
+      acceptance of a next gate action.
+- [ ] M2: canonical Markdown IR inspection and bridge identity — not started.
+- [ ] M3: extraction cache, strict bypass, and safe cleanup — not started.
+- [ ] M4: end-to-end acceptance, documentation and roadmap completion — not
+      started.
 
 ## Surprises & discoveries
 
@@ -125,6 +156,10 @@ persistent cache, rather than merely removing the no-op wording.
 `ConfigResolver.resolve_config_for_path` returns values without provenance.
 Provenance cannot be recovered accurately from the final dataclass. It must be
 retained while following `extend` and applying override layers.
+
+Nextest started both trybuild UI binaries together even though their nested
+Cargo builds use one target-directory lock. A serial test group keeps the
+second binary from spending its timeout waiting behind the active build.
 
 `check_execution.check_one_file` currently extracts before resolving per-file
 configuration. M3 must move configuration resolution before extraction to build
@@ -155,6 +190,11 @@ with this plan on 2026-10-24.
 [ADR 011](../adr-011-markdown-cli-inspection-and-cache.md) records the
 substantive framing and persistent-state choices; its status remains Proposed
 until implementation and conformance review are complete.
+
+Validation sequencing follows the installed scrutineer's fixed order:
+`make check-fmt`, `make lint`, `make typecheck`, `make test`,
+`make markdownlint` and `make nixie`. The gate set and acceptance criteria are
+unchanged; every gate still runs sequentially against one candidate.
 
 D1: implement extraction-only caching now, retaining every RFC 0003 key
 dimension. Use explicit inactive signatures for unavailable rule-pack/NLP
@@ -194,9 +234,10 @@ from the hash.
 ## Outcomes & retrospective
 
 The reviewed plan and Proposed ADR incorporate six expert perspectives. The
-user approved implementation on 2026-10-24. No feature code has been
-implemented and no performance claim has been established. Record actual
-milestone results and any undischarged obligations here during implementation.
+user approved implementation on 2026-10-24. M1 source changes are present in
+the worktree but remain uncommitted because the full test gate timed out after
+repeated targeted repairs. No M2–M4 work has begun, and no performance claim
+has been established. Record remaining obligations here during implementation.
 
 ## Context and orientation
 
@@ -689,13 +730,14 @@ authoritative if the environment differs. Rust focused tests use the workspace
 Cargo configuration and compiler wrappers; select the actual added test names.
 
 After **each major milestone**, delegate these commands to scrutineer in this
-order, with shell `pipefail` and separate `/tmp` tee logs:
+order, with shell `pipefail` and separate `/tmp` tee logs. The order matches
+the installed scrutineer's required sequence:
 
 ```bash
 set -o pipefail
 make check-fmt 2>&1 | tee /tmp/check-fmt-stilyagi-2-2-3-cli-sub-commands-for-markdown.out
-make typecheck 2>&1 | tee /tmp/typecheck-stilyagi-2-2-3-cli-sub-commands-for-markdown.out
 make lint 2>&1 | tee /tmp/lint-stilyagi-2-2-3-cli-sub-commands-for-markdown.out
+make typecheck 2>&1 | tee /tmp/typecheck-stilyagi-2-2-3-cli-sub-commands-for-markdown.out
 make test 2>&1 | tee /tmp/test-stilyagi-2-2-3-cli-sub-commands-for-markdown.out
 make markdownlint 2>&1 | tee /tmp/markdownlint-stilyagi-2-2-3-cli-sub-commands-for-markdown.out
 make nixie 2>&1 | tee /tmp/nixie-stilyagi-2-2-3-cli-sub-commands-for-markdown.out
@@ -803,4 +845,74 @@ Rebase onto `origin/main` preserved its ADR 010 and renumbered the cache ADR to
 011; the resulting candidate was published to PR #226 with a verified lease.
 Markdown gates pass. Three functional-suite attempts timed out waiting for the
 shared Cargo package-cache lock in nested UI tests, so full implementation
-gates remain pending and M1 has not started.
+gates remain pending. M1 has since started with red CLI and provenance tests;
+its focused command, resolver and generated-chain tests pass, while the full
+milestone gates remain pending.
+
+Revision note (2026-10-25): M1 formatting, typecheck and lint pass. Its first
+full test run reached 355/357, then both trybuild UI binaries timed out while
+sharing one target lock. A serial Nextest test group now covers those binaries;
+the full M1 gate sequence remains pending.
+
+Revision note (2026-10-25): after serialization, the UI test
+`sha2_0_11_digest_lowerhex_formatting_is_rejected` still exceeded its 600 s
+allowance under a heavily queued host. Its nested check completed in 4m13s, but
+the test timed out at 600s after repeated package-cache and compiler-admission
+waits. Increase the trybuild allowance to 900s while retaining the 18m Nextest
+whole-run budget. A focused timeout-contract run rejected 19m because 19m plus
+the termination procedure and 10m cold-build allowance exceeds the 1,800s Cargo
+watchdog. The delegated gate order now follows the installed scrutineer's fixed
+sequence; all gates remain mandatory and sequential. Rerun the complete M1 gate
+sequence before accepting the milestone.
+
+Revision note (2026-10-25): the next full run passed 356/357 tests, but its
+18-minute Nextest global timeout stopped the second serial UI test after about
+603 seconds. With the first UI test taking about 477 seconds, the global budget
+did not leave enough time for the second test's 900-second allowance. Increase
+the global timeout to 26 minutes, the Cargo watchdog to 2,400 seconds, and the
+coverage job ceiling to 75 minutes. The timeout contracts and developers' guide
+now hold that ordering and the observed trybuild sequence. Rerun all M1 gates
+before accepting the milestone.
+
+Revision note (2026-10-25): the 26-minute run passed 356/357 tests. The final
+`stilyagi-pyext::compile_tests::compile_time_ui` test reached its 900-second
+limit while compiling `tests/ui/pass/pyo3_detach.rs`; its nested build spent
+about 8 minutes compiling the dev profile. Raise the trybuild allowance to
+1,500 seconds and the Nextest whole-run budget to 33 minutes. The Cargo
+watchdog is now 2,700 seconds and both coverage job ceilings are 80 minutes.
+Timeout contracts and the developers' guide reflect those values. Rerun all M1
+gates before accepting the milestone.
+
+Revision note (2026-10-25): the 33-minute candidate passed lint, typecheck,
+Nextest (357/357), and Rust doctests. Its Python suite reported 757 passed and
+three failures: the generated provenance oracle updated the wrong mapping
+during recursion, the Maturin wheel snapshot omitted the new config command
+module, and the runner-placement contract still expected 60-minute ceilings.
+The UI tests passed in 143 s and 464 s. Correct those contracts and rerun the
+full gate sequence.
+
+Revision note (2026-10-25): the focused provenance, timeout, and placement
+tests passed 36/36, and the refreshed Maturin wheel snapshot passed with all
+three M1 modules in its package listing. The next full run passed
+`make check-fmt` but `make lint` stopped at Pylint R0913 because the
+independent oracle helper took five arguments. Its recursion now uses a local
+helper that closes over the source and origin state. Rerun the sequential gates.
+
+Revision note (2026-10-25): the next full run passed `make check-fmt`,
+`make lint` and `make typecheck`, but `make test` timed out after 1,500 seconds
+in `stilyagi-pyext::compile_tests::compile_time_ui`, while compiling
+`tests/ui/pass/pyo3_pymodule.rs`. Nextest reported 356/357 tests passed. The
+captured log contains repeated package-cache lock messages and a long shared
+compiler queue. The plan's three-repair tolerance is met, so M1 is BLOCKED
+pending the user's acceptance of a next gate action; do not further increase
+timeout budgets or begin M2 yet. The status update itself passed
+`make check-fmt`, `make markdownlint` (0 issues), and `make nixie` (all
+diagrams valid), followed by `make fmt` with no reported formatting changes.
+
+Proposed deviation for user acceptance: allow one final full gate run with the
+trybuild allowance raised from 1,500 s to 1,800 s, Nextest `global-timeout`
+raised from 33 m to 36 m, and `RUN_RUST_CARGO_WAIT_TIMEOUT` raised from 2,700 s
+to 3,000 s. Keep the 80 m workflow job ceiling unchanged. If `make test` fails
+again, leave M1 BLOCKED without another budget change. This changes the M1
+timeout contracts and their tests/documentation, but keeps the existing
+acceptance requirement that the full `make test` gate pass before M1 completes.
