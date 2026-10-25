@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: IMPLEMENTATION COMPLETE — M1–M4 and conformance reconciliation are
-complete; the final local CodeRabbit review is pending.
+Status: IMPLEMENTATION IN FINAL REVIEW — review findings are addressed and
+local gates pass; final committed-candidate review remains pending.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -221,16 +221,30 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       seven actionable findings covering FIFO blocking, cache-marker recovery,
       bridge `None` coverage, duplicated extraction test helpers, a stale module
       name, a redundant step-module future import, and compound-duration prose.
-      Retain the future import in `markdown_cli_inspection.py`: its
-      `TYPE_CHECKING`-only `pathlib.Path` annotations are inspected by
-      pytest-bdd at runtime, as required by `.rules/python-typing.md`.
+      The later review found that the `.rules/python-typing.md` exception does
+      not cover `markdown_cli_inspection.py`; import `pathlib` at runtime under
+      Python 3.14 so pytest-bdd can inspect its deferred annotations.
 - [x] (2026-10-25) Run the six gates after those fixes on the review-follow-up
       working tree based on `040c9f5`: Nextest 368/368, pytest 876/876, and
       script tests 154/154 passed. Formatting, lint, typecheck, Markdown lint
       (76 files, zero issues) and Mermaid validation passed. R29 logs are
       `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-r29.out`.
-- [ ] Re-run the local CodeRabbit review and all six gates on the committed
-      review-follow-up candidate before completing this plan.
+- [x] (2026-10-25) Triage the eight CodeRabbit findings on `9c00d3a`: resolve
+      pytest-bdd's runtime `pathlib` annotation import, trust the chosen cwd
+      while refusing linked descendants, memoize construction failures per
+      root, retain retries after read failures, correct roadmap evidence, add
+      subprocess timeout coverage and reuse the shared counting extractor.
+- [x] (2026-10-25) Add cache-root and retry regressions; the focused cache and
+      Markdown CLI suite passed 55/55 tests.
+- [x] (2026-10-25) Pass the R1 local gates: `make check-fmt`, `make lint`,
+      `make typecheck`, `make test`, `make markdownlint` and `make nixie`. Test
+      evidence: Nextest 368/368, pytest 879/879, 75 passed and 3 skipped in the
+      second Python stage, and script tests 154/154 with four snapshots. The
+      spelling correction was followed by successful check-fmt, Markdown lint
+      and Mermaid gates. Logs use the `r1-retry-2.out` and `doc-fix-1.out`
+      suffixes under `/tmp`.
+- [ ] Run the local CodeRabbit review on the committed R1 candidate, reconcile
+      any valid findings, then complete this plan and roadmap item.
 
 ## Surprises & discoveries
 
@@ -531,17 +545,22 @@ hash/syntax/identity; retain supported extensible metadata. This uses one
 schema, rather than a second Python definition. Cache hydration must not
 increment extraction-attempt or extraction-outcome metrics. Never use pickle.
 Invalid, truncated or stale data is a miss with verbose evidence; unavailable
-storage warns and runs uncached without changing lint exit status. Write
-through an exclusive temporary file in the namespace and atomic replace; never
-follow a symlink for a marker, cache entry or temporary path. Open and anchor
-every configured-root and namespace component without following symlinks; a
-symlinked root/ancestor or replaced namespace triggers uncached fallback. Apply
-descriptor-relative safety to storage as well as cleanup. A removed namespace
-during a write is a recoverable cache miss/write failure. This cache is bounded
-in feature scope, not disk capacity: entries accumulate until clean. Document
-that limitation and avoid adding eviction policy in this slice. Disk-full cache
-writes fall back to uncached operation; a full development disk or `/tmp`
-during implementation requires stopping and notifying the maintainer.
+storage warns once per normalized root and runs uncached without changing lint
+exit status. Later requests for that construction-failed root count as bypasses
+without repeating the warning. Read and write failures discard the open store;
+later requests may retry construction. Write through an exclusive temporary
+file in the namespace and atomic replace; never follow a symlink for a marker,
+cache entry or temporary path. For each directory-chain walk, open the
+caller-selected invocation cwd once as the trusted descriptor anchor, then
+refuse symlinks in cache-root components beneath it. Absolute cache roots
+outside cwd retain a strict no-follow walk from the filesystem root. Cleanup
+opens its selected cwd once and traverses descendants without following links.
+Apply descriptor-relative safety to storage as well as cleanup. A removed
+namespace during a write is a recoverable cache miss/write failure. This cache
+is bounded in feature scope, not disk capacity: entries accumulate until clean.
+Document that limitation and avoid adding eviction policy in this slice.
+Disk-full cache writes fall back to uncached operation; a full development disk
+or `/tmp` during implementation requires stopping and notifying the maintainer.
 
 No-cache chooses the direct extraction path before constructing the disk-cache
 adapter or hashing its native binary. It performs zero persistent-cache I/O,

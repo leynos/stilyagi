@@ -360,7 +360,11 @@ def clean_cache_tree(root: pathlib.Path) -> CacheCleanResult:
     counts = _CleanCounts()
     absolute_root = root.absolute()
     try:
-        root_fd = _open_directory_chain(absolute_root, create=False)
+        root_fd = _open_directory_chain(
+            absolute_root,
+            create=False,
+            trusted_base=absolute_root,
+        )
     except OSError as error:
         return CacheCleanResult(errors=(f"{absolute_root}: {error}",))
     try:

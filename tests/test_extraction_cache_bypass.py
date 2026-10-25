@@ -1,5 +1,6 @@
 """Verify extraction-cache failures, bypasses, and collaborator boundaries."""
 
+import logging
 import typing as typ
 
 import pytest
@@ -77,12 +78,16 @@ def test_cache_storage_failure_falls_back_to_uncached_extraction(
 
 def test_cache_open_failure_warns_and_extracts_without_storage(
     tmp_path: pathlib.Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An unavailable cache adapter is a bypass, not a lint failure."""
+    """Warn once per unusable cache root while each request still extracts."""
     calls: list[str] = []
+    storage_attempts = 0
 
     def refuse_storage(*_args: object, **_kwargs: object) -> typ.NoReturn:
         """Simulate an unsafe or unavailable configured cache root."""
+        nonlocal storage_attempts
+        storage_attempts += 1
         message = "injected unavailable cache"
         raise CacheStorageError(message)
 
@@ -97,15 +102,94 @@ def test_cache_open_failure_warns_and_extracts_without_storage(
         )
     )
 
-    result = extract_cached_document(
-        service, StilyagiConfig(cache_dir=tmp_path / "cache")
+    with caplog.at_level(logging.WARNING, logger="stilyagi.cache.extraction"):
+        first = extract_cached_document(
+            service, StilyagiConfig(cache_dir=tmp_path / "cache")
+        )
+        second = extract_cached_document(
+            service,
+            StilyagiConfig(cache_dir=tmp_path / "cache"),
+            CacheTestRequest(identity="second.md"),
+        )
+
+    assert first.canonical_json is not None, "open failure must return canonical IR"
+    assert second.canonical_json is not None, "later bypass must return canonical IR"
+    assert calls == ["# Café\r\n", "# Café\r\n"], (
+        "each file must still reach fresh extraction"
+    )
+    assert storage_attempts == 1, "an unusable cache root must be opened only once"
+    assert service.counters.bypasses == 2, "each unavailable request counts as a bypass"
+    warnings = tuple(
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "stilyagi.cache.extraction"
+        and record.levelno == logging.WARNING
+    )
+    assert warnings == ("persistent extraction cache unavailable",), (
+        "an unusable root must emit only one warning"
+    )
+    service.close()
+
+
+def test_cache_read_failure_retries_store_construction_for_later_requests(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Treat read faults as request failures, not permanently unusable roots."""
+    calls: list[str] = []
+    storage_attempts = 0
+    closed: list[bool] = []
+
+    class ReadFailingStore:
+        """Simulate a store that opens but cannot read its cache entry."""
+
+        def read(self, _key: str) -> bytes | None:
+            """Fail one cache lookup while leaving the root reopenable."""
+            message = "injected transient read failure"
+            raise CacheStorageError(message)
+
+        def write(self, _key: str, _content: bytes) -> None:
+            """Reject unexpected publication after the injected read failure."""
+            pytest.fail("unexpected cache write after a read failure")
+
+        def close(self) -> None:
+            """Record that each failed adapter is discarded."""
+            closed.append(True)
+
+    def create_store(*_args: object, **_kwargs: object) -> ReadFailingStore:
+        """Return a new store after counting each construction attempt."""
+        nonlocal storage_attempts
+        storage_attempts += 1
+        return ReadFailingStore()
+
+    service = CacheExtractionService(
+        CacheServiceConfig(
+            invocation_cwd=tmp_path,
+            package_version="test-version",
+            extractor=counting_extractor(calls),
+            native_digest_factory=lambda: "native-digest",
+            builtin_signature_factory=lambda _config: "builtin-signature",
+            storage_factory=create_store,
+        )
+    )
+    config = StilyagiConfig(cache_dir=tmp_path / "cache")
+
+    first = extract_cached_document(service, config)
+    second = extract_cached_document(
+        service,
+        config,
+        CacheTestRequest(identity="second.md"),
     )
 
-    assert result.canonical_json is not None, (
-        "open failure must still return canonical IR"
+    assert first.canonical_json is not None, "read failure must return fresh extraction"
+    assert second.canonical_json is not None, (
+        "retry failure must return fresh extraction"
     )
-    assert calls == ["# Café\r\n"], "open failure must extract exactly once"
-    assert service.counters.bypasses == 1, "unavailable storage must count as a bypass"
+    assert storage_attempts == 2, "later requests must retry a read-failed root"
+    assert closed == [True, True], "each read-failed store must be closed"
+    assert calls == ["# Café\r\n", "# Café\r\n"], (
+        "each read-failed request must reach fresh extraction"
+    )
+    assert service.counters.bypasses == 2, "each read failure must count as a bypass"
     service.close()
 
 
