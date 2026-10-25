@@ -2,7 +2,8 @@
 
 The check command discovers registered source files, reads each input,
 extracts documents through the Rust bridge, and renders the accumulated
-diagnostics with an honest run summary.
+diagnostics with an honest run summary. The config command inspects effective
+values and their source origins without linting files.
 
 The command is an orchestration layer and nothing more. Target resolution,
 per-file checking, aggregation, fix execution, rendering and the exit policy
@@ -39,9 +40,11 @@ from stilyagi.check_targets import discover_targets
 from stilyagi.cli_args import (
     PACKAGE_VERSION,
     CheckOptions,
+    _config_inspection_options_from_args,
     build_parser,
     options_from_args,
 )
+from stilyagi.cli_config_command import _run_config_inspection
 from stilyagi.cli_io import report_check_error
 from stilyagi.cli_run import CheckedFile
 from stilyagi.rules import registry as rules_registry
@@ -125,6 +128,10 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
         args = parser.parse_args(list(normalized_argv))
     except SystemExit as exc:
         return typ.cast("int", exc.code)
+
+    if args.command == "config":
+        config_options = _config_inspection_options_from_args(args)
+        return _run_config_inspection(config_options)
 
     options = options_from_args(args)
     return run_check(options)
