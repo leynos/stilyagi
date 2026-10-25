@@ -18,6 +18,7 @@
       'stilyagi/cache/ir.py',
       'stilyagi/cache/model.py',
       'stilyagi/cache/storage.py',
+      'stilyagi/cache/storage_primitives.py',
       'stilyagi/check_execution.py',
       'stilyagi/check_inputs.py',
       'stilyagi/check_metrics.py',

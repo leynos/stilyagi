@@ -10,6 +10,7 @@ from stilyagi.cache.model import CACHE_NAMESPACE_NAME
 from stilyagi.config import StilyagiConfig
 
 from tests.support.cache_extraction import (
+    CacheServiceRegistrar,
     CacheTestRequest,
     counting_extractor,
     extract_cached_document,
@@ -70,6 +71,7 @@ def test_source_and_identity_changes_miss_the_cache(
 @pytest.mark.parametrize("dimension", ["config", "extension", "version", "builtin"])
 def test_each_runtime_key_dimension_prevents_reuse(
     cache_invocation: tuple[CacheExtractionService, list[str]],
+    close_cache_services: CacheServiceRegistrar,
     tmp_path: pathlib.Path,
     dimension: str,
 ) -> None:
@@ -85,13 +87,15 @@ def test_each_runtime_key_dimension_prevents_reuse(
         "other-builtin" if dimension == "builtin" else "builtin-signature"
     )
 
-    second_service = CacheExtractionService(
-        CacheServiceConfig(
-            invocation_cwd=tmp_path,
-            package_version=package_version,
-            extractor=counting_extractor(calls),
-            native_digest_factory=lambda: native_digest,
-            builtin_signature_factory=lambda _config: builtin_signature,
+    second_service = close_cache_services(
+        CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=tmp_path,
+                package_version=package_version,
+                extractor=counting_extractor(calls),
+                native_digest_factory=lambda: native_digest,
+                builtin_signature_factory=lambda _config: builtin_signature,
+            )
         )
     )
     second_config = (
@@ -121,27 +125,25 @@ def _corrupt_cache_entry(entry: pathlib.Path, corruption: str) -> None:
         envelope["ir_json"] = "{}"
     else:
         payload = json.loads(envelope["ir_json"])
-        if corruption == "frontmatter-checksum":
+        if corruption == "frontmatter-structure":
             frontmatter = next(
                 region
                 for region in payload["regions"]
                 if region["kind"] == "frontmatter"
             )
-            frontmatter["attrs"]["format"] = "toml"
+            frontmatter.pop("segments")
         else:
             payload["document"]["path"] = "wrong.md"
-            envelope["ir_sha256"] = hashlib.sha256(
-                json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
-                    "utf-8"
-                )
-            ).hexdigest()
         envelope["ir_json"] = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        envelope["ir_sha256"] = hashlib.sha256(
+            envelope["ir_json"].encode("utf-8")
+        ).hexdigest()
     entry.write_text(json.dumps(envelope), encoding="utf-8")
 
 
 @pytest.mark.parametrize(
     "corruption",
-    ["truncated", "checksum", "identity", "frontmatter-checksum"],
+    ["truncated", "checksum", "identity", "frontmatter-structure"],
 )
 def test_corrupt_entry_is_an_invalid_miss_then_replaced(
     cache_invocation: tuple[CacheExtractionService, list[str]],
@@ -156,7 +158,7 @@ def test_corrupt_entry_is_an_invalid_miss_then_replaced(
             source="---\ntitle: Café\n---\n# Body\r\n",
             identity="guide.md",
         )
-        if corruption == "frontmatter-checksum"
+        if corruption == "frontmatter-structure"
         else CacheTestRequest()
     )
     extract_cached_document(service, config, request)
