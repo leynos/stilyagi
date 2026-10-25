@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: APPROVED — implementation authorized on 2026-10-24; M1, M2 and M3 are
-complete, and M4 is underway.
+Status: IMPLEMENTATION COMPLETE — M1–M4 and conformance reconciliation are
+complete; the final local CodeRabbit review is pending.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -194,20 +194,29 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       source-span re-slicing assertions, plus stale-checksum tampering of the
       cached YAML format field. The focused Python suite passes; the remaining
       M4 docs, complexity review and final gates are open.
-- [ ] M4: end-to-end acceptance, documentation and roadmap completion — in
-      progress; final gates and conformance review remain.
+- [x] M4: end-to-end acceptance, documentation and roadmap completion —
+      complete after acceptance, complexity review and final conformance.
 - [x] (2026-10-25) Commit M4 process-boundary acceptance, frontmatter repair
       coverage, source-coordinate property checks and user/developer docs as
       `31bffbc`. All six sequential gates passed on the exact candidate,
       including Nextest 367/367 and Python 872/872; Markdown lint and Mermaid
-      validation passed. Final ADR, design, roadmap and review reconciliation
-      remains open.
+      validation passed. ADR, design and roadmap reconciliation passed the
+      R25 documentation gates.
 - [x] (2026-10-25) Begin the separate CodeScene refactor commit. Extract the
       check and dump coordinators' phase work, split provenance merge helpers,
       narrow frontmatter IR traversal, and consolidate the PyO3 test request.
       Local `cs delta origin/main` clears the planned complexity findings;
-      all six sequential R23 gates passed on the candidate. CodeRabbit review
-      and final conformance reconciliation remain open.
+      all six sequential R23 gates passed on the candidate. The R23 logs record
+      Nextest 367/367 and Python 872/872. The current-head CodeRabbit review
+      remains pending.
+- [x] (2026-10-25) Accept ADR 011 and reconcile the design, documentation index
+      and roadmap item 2.2.3. `make check-fmt`, `make markdownlint` and
+      `make nixie` passed sequentially on the R25 candidate; all three gates
+      passed without temporary-directory or storage errors.
+- [x] (2026-10-25) Complete conformance review: no new runtime dependencies,
+      IR schema changes, expanded persistent-cache scope or unsupported
+      deviations were introduced. The proof inventory is not applicable: this
+      implementation adds no formal proofs. Roadmap 3.3.1 remains separate.
 
 ## Surprises & discoveries
 
@@ -259,10 +268,9 @@ resolve these findings without disabling or suppressing the CodeScene rules.
 ## Decision log
 
 The implementation decisions below were proposed on 2026-10-14 and approved
-with this plan on 2026-10-24.
-[ADR 011](../adr-011-markdown-cli-inspection-and-cache.md) records the
-substantive framing and persistent-state choices; its status remains Proposed
-until implementation and conformance review are complete.
+with this plan on 2026-10-24. They were implemented within the recorded scope.
+[ADR 011](../adr-011-markdown-cli-inspection-and-cache.md) records the accepted
+substantive framing and persistent-state choices.
 
 Validation sequencing follows the installed scrutineer's fixed order:
 `make check-fmt`, `make lint`, `make typecheck`, `make test`,
@@ -306,12 +314,13 @@ from the hash.
 
 ## Outcomes & retrospective
 
-The reviewed plan and Proposed ADR incorporate six expert perspectives. The
-user approved implementation on 2026-10-24. M1 and M2 are complete after all
-six local quality gates passed for each milestone. M3 delivered the extraction
-cache, validated Rust hydration, strict bypass and safe cleanup; all six
-milestone gates passed. M4 process-boundary acceptance and final conformance
-review are underway. No performance claim has been established.
+The reviewed plan incorporates six expert perspectives and was approved for
+implementation on 2026-10-24. M1–M4 each passed all six local quality gates. M4
+added process-boundary acceptance and frontmatter integrity evidence; the
+separate CodeScene refactor cleared the planned findings. ADR 011, the design,
+documentation index and roadmap now record the accepted implementation. The
+final documentation gates passed, and roadmap 3.3.1 remains separate. No
+performance claim has been established.
 
 ## Context and orientation
 

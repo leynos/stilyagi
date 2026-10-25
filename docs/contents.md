@@ -144,8 +144,8 @@
 
   - [ADR 011: Markdown CLI inspection and cache](
     adr-011-markdown-cli-inspection-and-cache.md)
-    proposes command framing, extraction-cache ownership and cleanup boundaries
-    for roadmap 2.2.3.
+    records the accepted command framing, extraction-cache ownership and
+    cleanup boundaries for roadmap 2.2.3.
 
 ## Requests for comments (RFCs)
 

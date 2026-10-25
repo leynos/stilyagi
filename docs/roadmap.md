@@ -189,11 +189,16 @@ support normal repository linting and debugging for Markdown-only users. See
     admissibility bound, because the `##` marker is not source-backed text. It
     must ship `manual`, and that item must be reviewed against this constraint
     before it starts.
-- [ ] 2.2.3. Implement `stilyagi config`, `clean`, `dump-ir`, and `--no-cache`
+- [x] 2.2.3. Implement `stilyagi config`, `clean`, `dump-ir`, and `--no-cache`
   for the Markdown slice. See Stilyagi design (stilyagi-design.md) §7.3.
   - Requires 2.1.1 and 2.2.1.
   - Success: maintainers can inspect effective config, clear caches, and debug
     extraction without special scripts.
+  - Completed on 2026-10-25 under the approved ExecPlan with process-boundary
+    CLI coverage, frontmatter repair/cache invariants, and documentation
+    reconciliation. All six local gates passed: Nextest 367/367, Python
+    872/872, lint, typecheck, Markdown lint and Mermaid validation. Independent
+    analysis caching remains item 3.3.1.
 
 ### 2.3. Ship the first builtin rules that make the slice worth adopting
 
