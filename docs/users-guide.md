@@ -378,6 +378,47 @@ Pass `--config` with an explicit config file path or an inline TOML fragment to
 supply configuration directly. Use `--isolated` to bypass configuration
 discovery entirely.
 
+#### Inspecting effective configuration
+
+Use `stilyagi config` to inspect the effective configuration for the current
+working directory. Add `--target PATH` to inspect one existing file or
+directory without linting it. Pass a TOML dotted key, such as `lint.select` or
+`extract.markdown.gfm`, to show one value or table. The output includes schema
+defaults and preserved settings.
+
+The command accepts the same `--config`, `--isolated`, `--select`, `--ignore`,
+and `--extend-select` options as `check`. It observes the same configuration
+precedence and selection translation, and it does not write config files or
+create a cache. It does not load user-level configuration.
+`--output-format text` is the deterministic human-readable default; use
+`--output-format json` for a machine-readable result.
+
+For JSON output without a key, `values` contains the complete effective
+configuration and `origins` maps each leaf path to its source. For example,
+`stilyagi config lint.select --output-format json` returns this shape:
+
+```json
+{
+  "key": "lint.select",
+  "value": ["MD", "DOC", "PUN", "STY", "PYDOC"],
+  "origins": {
+    "lint.select": {
+      "kind": "default",
+      "source_file": null,
+      "cli_overridden": false
+    }
+  }
+}
+```
+
+Origins distinguish `default`, `file`, `inline`, and `flag` values. File
+origins name the file that defined the value, including inherited values.
+Inline and flag overrides set `cli_overridden` and retain the displaced file
+path when one supplied the previous value. Tables report origins for their
+descendant leaves, while an empty table has its own origin. An unknown key,
+missing target, invalid TOML, or cyclic `extend` returns status 2, writes an
+error to standard error, and leaves standard output empty.
+
 #### Standard input
 
 Pass `-` as the target to read a supported source from standard input instead

@@ -369,6 +369,10 @@ parses the arguments into an immutable `CheckOptions` via
 `cli_args.options_from_args()`, and then calls
 `run_check(options, *, collaborators=None)`.
 
+The `check` and `config` parsers share builders for output-format and isolated
+options. Keep the argument shape and validation in those builders; each command
+supplies only the help text that describes its target.
+
 The command module keeps four responsibilities: target discovery, rendering,
 handling and printing to the correct streams, and computing the exit status.
 The per-file workflow lives in `check_execution.py`, the run-level sweep and
@@ -605,6 +609,16 @@ install or replace it.
     rendering, and exit-code computation) emits log records through a
     per-module `logging` logger, so runs can be traced without changing any
     user-facing output.
+- `config/provenance.py` owns the recursive config-table merge and the
+  per-leaf source ledger used by `stilyagi config`. Its scope is config values
+  and their source layers; it is not a reusable provenance framework and does
+  not perform discovery or filesystem writes. `config/inspection.py` projects
+  validated schema values, defaults and preserved settings into the command's
+  output shape. Inspection reuses the resolver's discovery and raw-table caches.
+- `cli_config._build_rule_selection_overrides` is the one translation for
+  `--select`, `--ignore` and `--extend-select`, shared by `check` and `config`.
+  Keep those flag semantics here; unrelated override sources use their own
+  explicit layer handling.
 - `config/schema.py` holds the frozen config dataclasses (`StilyagiConfig`,
   `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
   `ConfigError` base class, with `InvalidCacheDirError` and
@@ -2112,9 +2126,9 @@ requests are rare here, and a second hosted writer would pay double on every
 main push. `release-smoke` stays hosted: its runner comes from an operating
 system matrix.
 
-Both jobs keep their 60-minute ceilings. An Ubicloud runner is a self-hosted
+Both jobs keep their 80-minute ceilings. An Ubicloud runner is a self-hosted
 just-in-time runner, so GitHub's six-hour cap for hosted jobs does not bound it
-and each job must state its own; section 12 holds these two above the 1,800 s
+and each job must state its own; section 12 holds these two above the 2,700 s
 cargo watchdog, so neither can be set to twice a warm run.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
@@ -2707,19 +2721,19 @@ they must be ordered lives in the `generate-coverage` README in
 `leynos/shared-actions`.[^6] Before the nextest file was added exactly one of
 the four was set here.
 
-| Tier                     | What it bounds                     | Where it is set                                  | Current value             |
-| ------------------------ | ---------------------------------- | ------------------------------------------------ | ------------------------- |
-| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | 180 s; 600 s for trybuild |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 18 m                      |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 1,800 s (30 m)            |
-| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new                 |
+| Tier                     | What it bounds                     | Where it is set                                  | Current value               |
+| ------------------------ | ---------------------------------- | ------------------------------------------------ | --------------------------- |
+| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | 180 s; 1,500 s for trybuild |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 33 m                        |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 2,700 s (45 m)              |
+| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 80 m, new                   |
 
 *Table: the timers that can end a run, innermost first.*
 
 ### What the watchdog does and does not cover
 
 The watchdog is the only inner bound. It kills the `cargo` invocation after
-1,800 s, so a hung test is caught, but by a timer that names `cargo` rather
+2,700 s, so a hung test is caught, but by a timer that names `cargo` rather
 than the test. Nothing hung outside `cargo` was bounded at all before the job
 ceilings landed: those jobs declared no `timeout-minutes` and so inherited
 GitHub's six-hour default.
@@ -2728,22 +2742,29 @@ GitHub's six-hour default.
 
 `.config/nextest.toml` sets both. The default profile keeps the 180 s per-test
 budget that `generate-coverage` writes when the file is absent, with a 5 s
-grace period and `terminate-after = 1`, and adds an 18 minute `global-timeout`,
-which sits above the largest per-test budget and below the 1,800 s watchdog.
+grace period and `terminate-after = 1`, and adds a 33 minute `global-timeout`,
+which gives the serial trybuild tests room to run before the 2,700 s watchdog.
 
 One override widens the budget for the two trybuild binaries, `stilyagi-ir`'s
-`ui` and `stilyagi-pyext`'s `compile_tests`, to 600 s. They build a scratch
+`ui` and `stilyagi-pyext`'s `compile_tests`, to 1,500 s. They build a scratch
 crate per case, so their duration is a compile, not a computation. On a pull
 request whose workflow change left the Cargo cache cold, both were terminated
-at 180 s in the `Generate coverage` step (exit code 100), although the same
-tests pass in well under that with a warm cache. Every other test keeps 180 s,
-so a hung test is still reported as one rather than absorbed by a generous
-default.
+at 180 s in the `Generate coverage` step (exit code 100). A later local run
+also exceeded 600 s while shared compiler admission was heavily queued. In the
+preceding run, the first UI test passed in 260 s; the second spent 8 minutes
+compiling its dev profile and timed out at 900 s while compiling its first UI
+fixture. The next full run passed both UI tests in 143 s and 464 s, with all
+357 Nextest tests passing in 607 s. The per-test allowance is now 1,500 s. The
+two binaries share a serial `trybuild` test group because their nested Cargo
+builds use the same target-directory lock. The 33 minute whole-run allowance
+leaves time for both tests. Every other test keeps 180 s, so a hung test is
+still reported as one rather than absorbed by a generous default.
 
 `tests/test_trybuild_timeout_contract.py` asserts the override names both
-binaries with a budget of at least 600 s, below the whole-run budget, and that
-the profile default is unchanged; `tests/test_timeout_ordering_contract.py`
-holds the ordering against the watchdog and the job ceiling.
+binaries with a budget of at least 1,500 s, below the whole-run budget, and
+that the profile default is unchanged;
+`tests/test_timeout_ordering_contract.py` holds the ordering against the 45
+minute watchdog and 80 minute job ceiling.
 
 [Issue 137](https://github.com/leynos/stilyagi/issues/137) recorded the
 measurements that a later pass needed to choose these values.
@@ -2771,7 +2792,7 @@ cancelled or timeout-terminated run, so no run in the sample was ended by any
 of these four timers, and the measurements are of work that completed.
 
 The widest gap is 541 s, so the contract allows 15 minutes, making the
-requirement 45 minutes, and the ceilings are 60: fifteen above it, which is the
+requirement 75 minutes, and the ceilings are 80: five above it, which is the
 margin the estate asks for above every requirement. A ceiling equal to the sum
 it contains cancels the job at the moment the watchdog would have reported the
 overrun, and the report is the only thing that makes an overrun actionable, so
@@ -3057,8 +3078,8 @@ plausible number the ordering is then checked against.
 
 There is no `act` run behind any of this. `act` does not implement
 `timeout-minutes`, which GitHub enforces in the runner scheduler rather than in
-the job, and proving a 60-minute ceiling by observation would take a 60-minute
-run. What can be checked statically is checked statically.
+the job, and proving an 80-minute ceiling by observation would take an
+80-minute run. What can be checked statically is checked statically.
 
 It pins the condition each lane carries as well as its budgets. A skipped step
 runs no `cargo`, so its watchdog never arms and every assertion about the tiers
@@ -3076,9 +3097,9 @@ does not, so its coverage step is conditional on the pull-request event;
 `coverage-main.yml` is the trunk lane and runs unconditionally. A lane gaining,
 losing or changing a condition has to change this section with it.
 
-It pins each ceiling to the documented 60 minutes as well as deriving the 45
+It pins each ceiling to the documented 80 minutes as well as deriving the 75
 minutes required. The derivation alone would accept a ceiling anywhere above
-45, including one that had drifted away from this guide without anything
+75, including one that had drifted away from this guide without anything
 failing; the pin makes the table above the source of the value.
 
 The termination allowance it demands between a whole-run budget and the

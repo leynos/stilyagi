@@ -1,21 +1,17 @@
 """Contract for the timers that can end a test run.
 
-Four independent budgets can end a coverage lane, each set somewhere
-different, and they only work if each sits above the one inside it. Two
-of the four are set here: the shared coverage action's wall-clock
-watchdog on the ``cargo`` invocation, and the job's own
-``timeout-minutes``, which this contract adds.
+Four independent budgets can end a coverage lane, each set at a different
+level, and they only work if each sits above the one inside it. The coverage
+action sets the wall-clock watchdog on its ``cargo`` invocation; the workflows
+set the job's ``timeout-minutes``; and `.config/nextest.toml` sets both the
+per-test ``slow-timeout`` and whole-run ``global-timeout``. This contract reads
+the declared values and checks their ordering rather than assuming them.
 
-The outermost tier was the one missing. Neither coverage job declared
-``timeout-minutes``, so both inherited GitHub's six-hour default while
-the pull-request lane already runs for twelve minutes.
-
-The two inner tiers are absent because there is no
-``.config/nextest.toml`` to set them in: no per-test ``slow-timeout``
-and no whole-run ``global-timeout``. The contract binds both the moment
-one appears, so it arrives above the per-test allowance and inside the
-watchdog rather than merely somewhere, and it reads the values from the
-configuration rather than assuming them.
+The job ceilings and both nextest tiers were absent when this contract was
+introduced. Their absence let a hung process inherit GitHub's six-hour hosted
+job default and left the nested UI builds without a per-test or whole-run
+budget. The current values are documented in
+``docs/developers-guide.md``.
 
 See "Test timeouts: one tier of four" in ``docs/developers-guide.md``,
 and the canonical wording in `leynos/shared-actions`' `generate-coverage`
@@ -74,7 +70,7 @@ OUTSIDE_WATCHDOG_ALLOWANCE_SECONDS: typ.Final[float] = 15 * 60.0
 #: repository's: stilyagi's trybuild-heavy suite and its maturin
 #: extension build need this much headroom under cold instrumentation,
 #: and both workflows say so where they set it.
-REQUIRED_WATCHDOG_SECONDS: typ.Final[float] = 1800.0
+REQUIRED_WATCHDOG_SECONDS: typ.Final[float] = 2700.0
 
 #: The condition each coverage lane legitimately carries, keyed by
 #: workflow and job, as a tuple of the step's ``if`` and its job's.
@@ -102,9 +98,9 @@ CEILING_MARGIN_SECONDS: typ.Final[float] = 15 * 60.0
 
 #: The ceiling both coverage jobs carry, as `docs/developers-guide.md`
 #: records it. Pinned as well as derived: the derivation below would
-#: accept anything above its 45-minute requirement, so a ceiling that
+#: accept anything above its 75-minute requirement, so a ceiling that
 #: had drifted away from the guide would fail nothing.
-REQUIRED_JOB_CEILING_SECONDS: typ.Final[float] = 60 * 60.0
+REQUIRED_JOB_CEILING_SECONDS: typ.Final[float] = 80 * 60.0
 
 #: Build time inside a `cargo` invocation before nextest starts its own
 #: clock. Only used if a `global-timeout` appears.
@@ -131,10 +127,8 @@ def coverage_jobs() -> tuple[CoverageJob, ...]:
 def nextest_config() -> str:
     """Return the nextest configuration file's text, or an empty string.
 
-    This repository has no ``.config/nextest.toml``, which is the whole
-    of why two tiers are missing. Returning an empty string rather than
-    failing lets the tiers that do exist be asserted, and lets the two
-    that do not be reported as absent rather than as a broken fixture.
+    Keeping absence representable lets the contract exercise repositories or
+    controlled fixtures that have not configured nextest budgets yet.
 
     Returns
     -------
@@ -196,7 +190,7 @@ def test_every_coverage_step_runs_under_an_explicit_watchdog(
 ) -> None:
     """The default is invisible, so every step must write it down.
 
-    The action kills `cargo` after 1,800 s unless told otherwise, and the
+    The action kills `cargo` after 2,700 s unless told otherwise, and the
     value here equals that default, which makes writing it down more
     important rather than less: an accidental deletion would change
     nothing observable until the run it killed.
@@ -245,7 +239,7 @@ def test_each_coverage_job_carries_the_documented_ceiling(
 ) -> None:
     """The value is the guide's, not merely something above the requirement.
 
-    The derivation above is satisfied by any ceiling over 45 minutes, so
+    The derivation above is satisfied by any ceiling over 75 minutes, so
     on its own it would let the value drift away from the table in
     `docs/developers-guide.md` without failing anything. Pinning it makes
     the guide and the workflows one statement.
@@ -265,16 +259,14 @@ def test_each_coverage_job_carries_the_documented_ceiling(
 def test_a_whole_run_budget_would_sit_inside_each_watchdog(
     coverage_jobs: tuple[CoverageJob, ...], nextest_config: str
 ) -> None:
-    """Tier three must not pre-empt tier two, if tier two appears.
+    """Keep the whole-run budget inside every Cargo watchdog.
 
-    No ``global-timeout`` is set today, so this asserts nothing about the
-    current tree and is not a licence to leave it that way: the guide
-    records the gap. What it does is bind the value the moment one is
-    added, so it arrives above the largest per-test allowance and inside
-    the watchdog rather than merely somewhere.
+    Repositories without a nextest whole-run budget skip this ordering check;
+    once the tier is present, it must exceed the largest per-test allowance
+    and leave room for cold compilation and termination before the watchdog.
     """
     if global_timeout(nextest_config) is None:
-        pytest.skip("no global-timeout is set; the guide records this as a gap")
+        pytest.skip("no global-timeout is configured")
     wrong = whole_run_violations(
         coverage_jobs, nextest_config, COLD_BUILD_ALLOWANCE_SECONDS
     )

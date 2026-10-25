@@ -44,7 +44,7 @@ env:
   # See smoke.yml for why the coverage run needs extra wall-clock
   # headroom under cold instrumentation (trybuild-heavy suite, maturin
   # extension build).
-  RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+  RUN_RUST_CARGO_WAIT_TIMEOUT: '2700'
 
 jobs:
   coverage-upload:
@@ -57,7 +57,7 @@ jobs:
     # admits `main` alone; the codescene environment contract holds it to
     # this job.
     environment: codescene
-    # Kept in step with smoke.yml's coverage lane: above the 1,800 s cargo
+    # Kept in step with smoke.yml's coverage lane: above the 2,700 s cargo
     # watchdog plus the work either side. This job's own worst was 98 s
     # outside the watchdog, on run 32946918439.
     #
@@ -67,7 +67,7 @@ jobs:
     # outside it, and counting them as inside gives 84 s for this run
     # and understates what the ceiling has to cover. The contract in
     # tests/test_timeout_ordering_contract.py reads it the same way.
-    timeout-minutes: 60
+    timeout-minutes: 80
     permissions:
       contents: read
     steps:

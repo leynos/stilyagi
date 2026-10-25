@@ -1,0 +1,120 @@
+{
+  "origins": {
+    "cache-dir": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "extract.markdown.frontmatter": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "extract.markdown.gfm": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "extract.markdown.mdx": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "line-length": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "lint.fixable": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "lint.ignore": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "lint.per-file-ignores": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "lint.preview": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "lint.select": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "lint.unfixable": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "nlp.model": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "nlp.sentence-provider": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "plugins": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "respect-gitignore": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    },
+    "rule": {
+      "cli_overridden": false,
+      "kind": "default",
+      "source_file": null
+    }
+  },
+  "values": {
+    "cache-dir": ".stilyagi_cache",
+    "extract": {
+      "markdown": {
+        "frontmatter": true,
+        "gfm": true,
+        "mdx": false
+      }
+    },
+    "line-length": 88,
+    "lint": {
+      "fixable": [
+        "ALL"
+      ],
+      "ignore": [],
+      "per-file-ignores": {},
+      "preview": false,
+      "select": [
+        "MD",
+        "DOC",
+        "PUN",
+        "STY",
+        "PYDOC"
+      ],
+      "unfixable": []
+    },
+    "nlp": {
+      "model": "en_core_web_sm",
+      "sentence-provider": "sentencizer"
+    },
+    "plugins": [
+      "builtin"
+    ],
+    "respect-gitignore": true,
+    "rule": {}
+  }
+}
