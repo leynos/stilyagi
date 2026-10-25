@@ -32,6 +32,7 @@ import pathlib
 import typing as typ
 
 from stilyagi import check_metrics, config, diagnostics, engine, model
+from stilyagi.cache.extraction import CacheExtractionInput
 from stilyagi.check_inputs import (
     CheckInput,
     FileCheckResult,
@@ -52,6 +53,7 @@ from stilyagi.rules.registry import RuleRunRequest
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
+    from stilyagi.cache.extraction import CacheExtractionService
     from stilyagi.cli_args import CheckOptions
     from stilyagi.config import ResolvedTargetConfig
     from stilyagi.rules import registry as rules_registry
@@ -90,6 +92,8 @@ class CheckRun:
     resolver: config.ConfigResolver
     rule_runner: rules_registry.RuleRunner
     report: CheckReporter
+    extraction_cache: CacheExtractionService | None = None
+    force_fresh: bool = False
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -290,24 +294,6 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
         check_metrics.record_operational_failure("read")
         return FileCheckResult(diagnostics=[], had_error=True, was_unreadable=True)
 
-    _LOGGER.debug("extracting %s", sourced_input.reported_path)
-    try:
-        with check_metrics._measure_phase("extract"):
-            document = engine.extract_document(
-                sourced_input.source_text,
-                check_input.syntax,
-                source_path=sourced_input.reported_path,
-            )
-    except engine.BridgeExtractionError as exc:
-        return _report_phase_failure(sourced_input, run, exc, "extract")
-    except Exception:
-        check_metrics.record_operational_failure("extract")
-        _LOGGER.exception(
-            "unexpected extraction failure for %s",
-            sourced_input.reported_path,
-        )
-        raise
-
     _LOGGER.debug("resolving config for %s", sourced_input.reported_path)
     try:
         with check_metrics._measure_phase("config"):
@@ -329,6 +315,38 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
         # path failure is absorbed; any other ``RuntimeError`` is a defect and
         # must propagate rather than be reported as an ordinary file failure.
         return _report_phase_failure(sourced_input, run, exc, "config")
+
+    _LOGGER.debug("extracting %s", sourced_input.reported_path)
+    try:
+        with check_metrics._measure_phase("extract"):
+            if run.extraction_cache is None:
+                document = engine.extract_document(
+                    sourced_input.source_text,
+                    check_input.syntax,
+                    source_path=sourced_input.reported_path,
+                )
+            else:
+                extraction = run.extraction_cache.extract(
+                    CacheExtractionInput(
+                        source_text=sourced_input.source_text,
+                        syntax=check_input.syntax,
+                        reported_identity=sourced_input.reported_path,
+                        effective_config=resolved_target.config,
+                        cache_dir=resolved_target.config.cache_dir,
+                        from_stdin=sourced_input.from_stdin,
+                        force_fresh=run.force_fresh,
+                    )
+                )
+                document = extraction.document
+    except engine.BridgeExtractionError as exc:
+        return _report_phase_failure(sourced_input, run, exc, "extract")
+    except Exception:
+        check_metrics.record_operational_failure("extract")
+        _LOGGER.exception(
+            "unexpected extraction failure for %s",
+            sourced_input.reported_path,
+        )
+        raise
 
     config_outcome = _ConfigOutcome(resolved_target, relative_path)
     diagnostics_list = _collect_diagnostics(
