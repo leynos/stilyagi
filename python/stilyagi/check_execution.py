@@ -239,7 +239,9 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
     try:
         with check_metrics._measure_phase("extract"):
             document = engine.extract_document(
-                sourced_input.source_text, check_input.syntax
+                sourced_input.source_text,
+                check_input.syntax,
+                source_path=sourced_input.reported_path,
             )
     except engine.BridgeExtractionError as exc:
         return _report_phase_failure(sourced_input, run, exc, "extract")

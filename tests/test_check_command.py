@@ -361,13 +361,21 @@ def test_check_reraises_unexpected_extraction_failure(
     assert errors[0].exc_info is not None, "expected exception traceback details"
 
 
-def _raise_bridge_error(_source: str, _syntax: object) -> typ.NoReturn:
+def _raise_bridge_error(
+    _source: str,
+    _syntax: object,
+    **_kwargs: object,
+) -> typ.NoReturn:
     """Raise the deterministic extractor failure used by the logging test."""
     message = "bridge exploded"
     raise engine.BridgeExtractionError(message)
 
 
-def _raise_adapter_error(_source: str, _syntax: object) -> typ.NoReturn:
+def _raise_adapter_error(
+    _source: str,
+    _syntax: object,
+    **_kwargs: object,
+) -> typ.NoReturn:
     """Raise an unexpected adapter failure used by the propagation test."""
     message = "adapter exploded"
     raise TypeError(message)

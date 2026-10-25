@@ -120,7 +120,7 @@ def line_index(document: model.Document) -> tuple[int, ...] | None:
     raw_line_index = _ir_value(document, "line_index")
     if not _is_sequence(raw_line_index):
         return None
-    values = typ.cast("cabc.Sequence[object]", raw_line_index)
+    values = raw_line_index
     if not all(isinstance(start, int) for start in values):
         return None
     return tuple(typ.cast("int", start) for start in values)
@@ -149,7 +149,7 @@ def byte_start_from_span(span: object) -> int | None:
 def _ir_sequence(document: model.Document, key: str) -> cabc.Sequence[object]:
     """Return one sequence-valued IR field, or an empty sequence."""
     value = _ir_value(document, key)
-    return typ.cast("cabc.Sequence[object]", value) if _is_sequence(value) else ()
+    return value if _is_sequence(value) else ()
 
 
 def _ir_value(document: model.Document, key: str) -> object:
@@ -157,7 +157,7 @@ def _ir_value(document: model.Document, key: str) -> object:
     return document.ir.get(key) if document.ir is not None else None
 
 
-def _is_sequence(value: object) -> bool:
+def _is_sequence(value: object) -> typ.TypeGuard[cabc.Sequence[object]]:
     """Return whether a value is a non-text sequence."""
     return isinstance(value, cabc.Sequence) and not isinstance(value, (str, bytes))
 
@@ -170,7 +170,7 @@ def _region_segments(raw_region: object) -> cabc.Iterator[SegmentView]:
     raw_segments = typed_region.get("segments")
     if not _is_sequence(raw_segments):
         return
-    for raw_segment in typ.cast("cabc.Sequence[object]", raw_segments):
+    for raw_segment in raw_segments:
         segment = _segment_view(raw_segment)
         if segment is not None:
             yield segment

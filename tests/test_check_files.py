@@ -80,10 +80,17 @@ def test_cli_main_preserves_crlf_source_for_extraction(
     target = tmp_path / "notes.md"
     target.write_bytes(source)
     extracted_sources: list[str] = []
+    extracted_paths: list[str | None] = []
 
-    def capture_source(text: str, _syntax: object) -> model.Document:
+    def capture_source(
+        text: str,
+        _syntax: object,
+        *,
+        source_path: str | None = None,
+    ) -> model.Document:
         """Record the source passed through the command-line pipeline."""
         extracted_sources.append(text)
+        extracted_paths.append(source_path)
         return model.Document(syntax=model.Syntax.MARKDOWN)
 
     monkeypatch.chdir(tmp_path)
@@ -95,9 +102,14 @@ def test_cli_main_preserves_crlf_source_for_extraction(
         extracted_sources == [source.decode("utf-8")],
         "expected extraction to receive the original CRLF text",
     )
+    assert extracted_paths == [target.name], "expected reported path identity"
 
 
-def _synthetic_ir_extract(source: str, _syntax: object) -> model.Document:
+def _synthetic_ir_extract(
+    source: str,
+    _syntax: object,
+    **_kwargs: object,
+) -> model.Document:
     """Return a document that carries one IR error for the 'warn' source only."""
     errors = (
         [{"code": "IR900", "message": "synthetic", "span": {"byte_start": 0}}]
