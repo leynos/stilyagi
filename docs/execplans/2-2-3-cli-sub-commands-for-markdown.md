@@ -1,8 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: BLOCKED — implementation remains authorized, but M1 is blocked on
-repeated `make test` timeouts and requires the user's acceptance of the next
-gate action.
+Status: APPROVED — implementation authorized on 2026-10-24; M1 is complete,
+with M2–M4 remaining.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -106,40 +105,31 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
 - [x] (2026-10-24) Publish the rebased documentation candidate with
       `--force-with-lease`; verify PR #226 still targets `main` and that local,
       tracking and remote heads match `12da6f72d0969bbc2b133eb3a45491c2ee2ec263`.
-- [ ] Complete post-rebase implementation gates. M1 formatting, lint and
-      typecheck pass. Three successive M1 candidates have needed targeted
-      repairs: the 900-second trybuild allowance timed out; Python assertions
-      then exposed an oracle bug, a stale wheel snapshot and a runner-placement
-      contract mismatch; the next candidate exposed Pylint R0913 in the
-      recursive oracle helper. After those repairs, the latest candidate again
-      passed formatting, lint and typecheck, but `make test` timed out after
-      1,500 seconds in `compile_time_ui` while compiling
-      `tests/ui/pass/pyo3_pymodule.rs` (356/357 Nextest tests passed). The log
-      shows nested Cargo package-cache waits and a heavily queued shared
-      compiler pool. Per the three-repair tolerance, M1 is BLOCKED; do not
-      increase timeout budgets or begin M2 until the user accepts the next
-      gate action. The blocked-status update passes `make check-fmt`,
-      `make markdownlint` and `make nixie`.
+- [x] (2026-10-25) Complete M1 implementation gates on the corrected
+      candidate at HEAD `39078353b0552fa9381ca19d03c79f5276a5fe46`:
+      `make check-fmt`, `make lint`, `make typecheck`, `make test`,
+      `make markdownlint` and `make nixie` all passed. Nextest passed 357/357;
+      doctests and both pytest stages passed. The test run initially exposed a
+      missing doctest import for `_ConfigInspectionOptions`; add the explicit
+      import and rerun the full sequence. See the `-r9.out` gate logs under
+      `/tmp`.
 - [x] (2026-10-24) Start M1 test-first: establish missing-command and
       provenance failures, then implement the config command and pass its
-      focused CLI, resolver and Hypothesis suites. Full M1 gates remain pending.
+      focused CLI, resolver and Hypothesis suites. Full M1 gates subsequently
+      passed on 2026-10-25.
 - [x] (2026-10-25) Pass M1 formatting, typechecking and lint. The first
       serialized test run reached 355/357, then its remaining UI test exceeded
       600 s while shared compiler admission was heavily queued. Increase the
       trybuild allowance to 900 s while retaining the 18 m whole-run allowance;
       a 19 m value violates the 1,800 s watchdog ordering after termination and
       cold-build reserves. Rerun all M1 gates.
-- [x] (2026-10-25) Implement the M1 configuration inspection command and
-      provenance tracking. Correct the property-test oracle, Maturin wheel
-      snapshot, runner-placement contract and recursive helper lint finding.
-      The latest candidate passes `make check-fmt`, `make lint` and
-      `make typecheck`, but `make test` times out after 1,500 s in the final
-      PyO3 UI test while nested Cargo work is heavily queued. This follows more
-      than three targeted repairs; mark M1 BLOCKED and seek acceptance before
-      changing budgets or proceeding to M2. See the captured gate log:
-      `/tmp/test-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-r4.out`.
-- [!] M1: effective configuration inspection and provenance — BLOCKED pending
-      acceptance of a next gate action.
+- [x] (2026-10-25) Implement M1 configuration inspection and provenance.
+      Correct the property-test oracle, Maturin wheel snapshot,
+      runner-placement contract, recursive helper lint finding and the
+      `_ConfigInspectionOptions` doctest import. The final full gate sequence
+      passed without further timeout-budget changes.
+- [x] M1: effective configuration inspection and provenance — complete after
+      all six quality gates passed.
 - [ ] M2: canonical Markdown IR inspection and bridge identity — not started.
 - [ ] M3: extraction cache, strict bypass, and safe cleanup — not started.
 - [ ] M4: end-to-end acceptance, documentation and roadmap completion — not
@@ -234,10 +224,9 @@ from the hash.
 ## Outcomes & retrospective
 
 The reviewed plan and Proposed ADR incorporate six expert perspectives. The
-user approved implementation on 2026-10-24. M1 source changes are present in
-the worktree but remain uncommitted because the full test gate timed out after
-repeated targeted repairs. No M2–M4 work has begun, and no performance claim
-has been established. Record remaining obligations here during implementation.
+user approved implementation on 2026-10-24. M1 is complete after all six local
+quality gates passed. No M2–M4 work has begun, and no performance claim has
+been established. Record remaining obligations here during implementation.
 
 ## Context and orientation
 
@@ -898,9 +887,10 @@ three M1 modules in its package listing. The next full run passed
 independent oracle helper took five arguments. Its recursion now uses a local
 helper that closes over the source and origin state. Rerun the sequential gates.
 
-Revision note (2026-10-25): the next full run passed `make check-fmt`,
-`make lint` and `make typecheck`, but `make test` timed out after 1,500 seconds
-in `stilyagi-pyext::compile_tests::compile_time_ui`, while compiling
+Revision note (2026-10-25; superseded by the successful run below): the next
+full run passed `make check-fmt`, `make lint` and `make typecheck`, but
+`make test` timed out after 1,500 seconds in
+`stilyagi-pyext::compile_tests::compile_time_ui`, while compiling
 `tests/ui/pass/pyo3_pymodule.rs`. Nextest reported 356/357 tests passed. The
 captured log contains repeated package-cache lock messages and a long shared
 compiler queue. The plan's three-repair tolerance is met, so M1 is BLOCKED
@@ -909,10 +899,19 @@ timeout budgets or begin M2 yet. The status update itself passed
 `make check-fmt`, `make markdownlint` (0 issues), and `make nixie` (all
 diagrams valid), followed by `make fmt` with no reported formatting changes.
 
-Proposed deviation for user acceptance: allow one final full gate run with the
-trybuild allowance raised from 1,500 s to 1,800 s, Nextest `global-timeout`
-raised from 33 m to 36 m, and `RUN_RUST_CARGO_WAIT_TIMEOUT` raised from 2,700 s
-to 3,000 s. Keep the 80 m workflow job ceiling unchanged. If `make test` fails
-again, leave M1 BLOCKED without another budget change. This changes the M1
-timeout contracts and their tests/documentation, but keeps the existing
-acceptance requirement that the full `make test` gate pass before M1 completes.
+Proposed deviation for user acceptance (superseded by the successful run
+below): allow one final full gate run with the trybuild allowance raised from
+1,500 s to 1,800 s, Nextest `global-timeout` raised from 33 m to 36 m, and
+`RUN_RUST_CARGO_WAIT_TIMEOUT` raised from 2,700 s to 3,000 s. Keep the 80 m
+workflow job ceiling unchanged. If `make test` fails again, leave M1 BLOCKED
+without another budget change. This changes the M1 timeout contracts and their
+tests/documentation, but keeps the existing acceptance requirement that the full
+`make test` gate pass before M1 completes.
+
+Revision note (2026-10-25): the doctest for `_run_config_inspection` failed
+because `_ConfigInspectionOptions` was imported only under `TYPE_CHECKING`. Add
+the concrete import to the example; its focused doctest passed. The corrected
+candidate then passed the full sequential gate set: check-fmt, lint, typecheck,
+test, markdownlint and nixie. Nextest passed 357/357, both Python test stages
+passed (including 154 tests and 4 snapshots in the second stage), and all
+workspace doctests passed. No timeout budget changes were needed.

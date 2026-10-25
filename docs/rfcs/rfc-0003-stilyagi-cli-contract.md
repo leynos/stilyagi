@@ -106,13 +106,26 @@ Notation (JSON) output.
 ### 3.4 `stilyagi config [KEY]`
 
 Without `KEY`, print the resolved configuration for the current working
-directory or target path.
+directory or target path, including defaults and preserved schema values. The
+command SHALL accept `--target PATH` for one existing file or directory,
+repeated `--config` values, `--isolated`, and the rule-selection flags also
+accepted by `check`. It SHALL NOT lint files, write configuration, or create a
+cache.
 
-With `KEY`, print:
+Keys use the TOML dotted spelling, such as `cache-dir`, `lint.select`, or
+`extract.markdown.gfm`. With `KEY`, print its effective value and the origins
+of that leaf or table's descendants. Each origin SHALL identify its kind
+(`default`, `file`, `inline`, or `flag`), source file when a file supplied the
+displaced value, and whether a CLI value overrode it. File origins SHALL name
+the file that defined the winning value, including values inherited through
+`extend`.
 
-- effective value
-- source file that provided it
-- whether a CLI flag overrode it
+`--output-format text|json` selects deterministic human-readable or JSON
+output. JSON without `KEY` has `values` and `origins` objects. JSON with `KEY`
+has `key`, `value`, and `origins` fields. An unknown key, missing target,
+invalid TOML, or cyclic `extend` SHALL exit with status 2, write a useful error
+to standard error, and leave standard output empty. The command SHALL NOT
+autoload user-level configuration.
 
 ### 3.5 `stilyagi clean`
 

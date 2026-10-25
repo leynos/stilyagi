@@ -34,8 +34,8 @@ FORK_OR_DEPENDABOT_CONDITION: typ.Final = (
 #: ceiling it states in minutes. The inventory is exact, so a new Ubicloud lane
 #: without a ceiling, or a class or ceiling changed, fails until reviewed.
 PLACEMENTS: typ.Final = (
-    ("coverage-main.yml", "coverage-upload", "ubicloud-standard-4", "60"),
-    ("smoke.yml", "lint-test", "ubicloud-standard-4", "60"),
+    ("coverage-main.yml", "coverage-upload", "ubicloud-standard-4", "80"),
+    ("smoke.yml", "lint-test", "ubicloud-standard-4", "80"),
 )
 
 #: The inventoried lanes that also send Dependabot's pull requests to the hosted

@@ -483,6 +483,11 @@ Implementation consequences:
 
 - Use nearest-config semantics with explicit `extend`, modelled on Ruff.[^6]
 - Do not auto-load user-level configuration in v1.
+- Keep configuration inspection read-only and route it through the same source
+  ordering and selection-flag translation as `check`.
+- Track per-leaf origins while merging config layers. This ledger belongs to
+  configuration inspection; it is not a general provenance framework and does
+  not participate in lint execution or persistent caching.
 - Separate `locale` from `syntax` and from `nlp.profile`. The current RFC
   overloads `language`.
 
