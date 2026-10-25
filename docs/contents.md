@@ -73,6 +73,10 @@
     execplans/2-2-2-safe-fix-planning-conflict-resolution.md)
     plans and records the safe-fix planner, `--diff` preview, `--fix`
     execution, and the conflict rules that keep automatic edits auditable.
+  - [2.3.1 Markdown rule starter pack](
+    execplans/2-3-1-markdown-rules-starter-pack.md)
+    plans the approval-gated builtin Markdown rules, source spans, policy
+    targeting, and fix validation.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
