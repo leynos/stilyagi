@@ -72,6 +72,14 @@ Adopt the detailed command contracts in the
 - Treat `--no-cache` as zero persistent-cache I/O, including directory creation
   and fingerprint reads. Retain per-run config and bridge-vocabulary
   memoization. Stdin and post-fix verification use fresh extraction.
+- Anchor descriptor-relative cache operations at the caller-selected invocation
+  cwd: open it once per chain walk, then refuse symlinks in cache-root
+  descendants. Walk absolute roots outside cwd strictly from the filesystem
+  root without following links. Cleanup likewise opens its selected cwd once
+  and safely traverses below it.
+- Memoize cache-store construction failures for the invocation. Warn once per
+  normalized cache root and count later requests as uncached bypasses. Discard
+  stores after read or write failures so later requests may retry.
 - Discover owned namespaces beneath cwd without following symlinks or loading
   configuration. Remove only recognized disposable contents; preserve unknown
   files, arbitrary parent directories and outside targets. Concurrent writers
@@ -92,8 +100,11 @@ authenticated boundary against an attacker who can rewrite the user's files.
 
 Cache entries have no automatic eviction in this slice; `clean` reclaims them.
 Disk-full writes fall back to uncached operation. Output spooling uses a 1 MiB
-memory threshold. Cache reads and writes, as well as cleanup, must reject
-symlinked root components and anchor operations to directory descriptors.
+memory threshold. A symlink used to select the invocation cwd is resolved once
+per directory-chain walk when opening the trusted base descriptor. Symlinks
+below that base are refused. An absolute cache root outside cwd must have a
+symlink-free component chain. Cleanup never follows symlinks beneath its
+selected cwd.
 
 The binary digest used in cache identity adds one native-extension read per
 cached invocation. Measure this overhead; do not claim a speedup from timing
