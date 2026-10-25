@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
 Status: APPROVED — implementation authorized on 2026-10-24; M1, M2 and M3 are
-complete, and M4 remains.
+complete, and M4 is underway.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -177,8 +177,25 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       the follow-up CodeRabbit review and exact-head gates passed.
 - [x] M3: extraction cache, strict bypass, and safe cleanup — complete after
       all six quality gates passed.
-- [ ] M4: end-to-end acceptance, documentation and roadmap completion — not
-      started.
+- [x] (2026-10-25) Start M4: add actual-process CLI acceptance for config,
+      canonical IR, failure framing, cache bypass and cleanup; add CLI-level
+      frontmatter repair evidence, reconcile docs and review property
+      non-vacuity. The existing in-process and Rust fixture tests provide
+      baseline evidence; the planned process-boundary cases remain open.
+- [x] (2026-10-25) Add six process-boundary BDD scenarios for config
+      provenance, multi-input IR, failure atomicity, cold/warm/bypass
+      equivalence, frontmatter-only cache invalidation, and repeatable cache
+      cleanup. Add CLI repair and refusal cases for all three Markdown suffixes
+      and both fix applicability levels.
+      Focused Python acceptance currently passes 28 tests; Rust frontmatter BDD
+      validation and full candidate gates remain in progress.
+- [x] (2026-10-25) Strengthen frontmatter cache properties with a longer
+      multiline prefix, fixed-body mutations, current whole-source hash and
+      source-span re-slicing assertions, plus stale-checksum tampering of the
+      cached YAML format field. The focused Python suite passes; the remaining
+      M4 docs, complexity review and final gates are open.
+- [ ] M4: end-to-end acceptance, documentation and roadmap completion — in
+      progress; final gates and conformance review remain.
 
 ## Surprises & discoveries
 
@@ -281,8 +298,8 @@ The reviewed plan and Proposed ADR incorporate six expert perspectives. The
 user approved implementation on 2026-10-24. M1 and M2 are complete after all
 six local quality gates passed for each milestone. M3 delivered the extraction
 cache, validated Rust hydration, strict bypass and safe cleanup; all six
-milestone gates passed. M4 acceptance and final conformance remain. No
-performance claim has been established.
+milestone gates passed. M4 process-boundary acceptance and final conformance
+review are underway. No performance claim has been established.
 
 ## Context and orientation
 

@@ -716,11 +716,13 @@ Python docstring plus Rust doc-comment inputs expose `python_docstring` and
 `engine.supported_region_kinds()` returns the region-kind vocabulary supported
 by the installed package version.
 
-The `check`, `config`, and `dump-ir` commands are available. Cache cleanup via
-`clean` remains in a later roadmap slice. No builtin rules ship yet, so a run
-currently reports no diagnostics whatever the source. Treat this guide as a
-record of the settled user-facing v1 contract rather than as a complete
-operating manual.
+The `check`, `config`, `dump-ir`, and `clean` commands are available. Markdown
+extraction caching reuses only canonical IR; each run still evaluates its
+current rules and fix plan. `--no-cache` bypasses persistent cache access, and
+`clean` removes only recognized Stilyagi cache data beneath the working
+directory. No builtin rules ship yet, so a run currently reports no diagnostics
+whatever the source. Treat this guide as a record of the settled user-facing v1
+contract rather than as a complete operating manual.
 
 ## References
 

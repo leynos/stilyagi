@@ -119,7 +119,39 @@ def test_each_runtime_key_dimension_prevents_reuse(
     second_service.close()
 
 
-@pytest.mark.parametrize("corruption", ["truncated", "checksum", "identity"])
+def _corrupt_cache_entry(entry: pathlib.Path, corruption: str) -> None:
+    """Apply one malformed, stale-checksum, or identity mutation."""
+    if corruption == "truncated":
+        entry.write_bytes(b"{")
+        return
+
+    envelope = json.loads(entry.read_bytes())
+    if corruption == "checksum":
+        envelope["ir_json"] = "{}"
+    else:
+        payload = json.loads(envelope["ir_json"])
+        if corruption == "frontmatter-checksum":
+            frontmatter = next(
+                region
+                for region in payload["regions"]
+                if region["kind"] == "frontmatter"
+            )
+            frontmatter["attrs"]["format"] = "toml"
+        else:
+            payload["document"]["path"] = "wrong.md"
+            envelope["ir_sha256"] = hashlib.sha256(
+                json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+                    "utf-8"
+                )
+            ).hexdigest()
+        envelope["ir_json"] = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    entry.write_text(json.dumps(envelope), encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    ["truncated", "checksum", "identity", "frontmatter-checksum"],
+)
 def test_corrupt_entry_is_an_invalid_miss_then_replaced(
     cache_invocation: tuple[CacheExtractionService, list[str]],
     tmp_path: pathlib.Path,
@@ -128,31 +160,24 @@ def test_corrupt_entry_is_an_invalid_miss_then_replaced(
     """Treat malformed, checksummed, or identity-mismatched entries as misses."""
     service, calls = cache_invocation
     config = StilyagiConfig(cache_dir=tmp_path / "cache")
-    extract_cached_document(service, config)
+    request = (
+        CacheTestRequest(
+            source="---\ntitle: Café\n---\n# Body\r\n",
+            identity="guide.md",
+        )
+        if corruption == "frontmatter-checksum"
+        else CacheTestRequest()
+    )
+    extract_cached_document(service, config, request)
     namespace = config.cache_dir / CACHE_NAMESPACE_NAME
     entry = next(namespace.glob("[0-9a-f]*.json"))
-    if corruption == "truncated":
-        entry.write_bytes(b"{")
-    else:
-        envelope = json.loads(entry.read_bytes())
-        if corruption == "checksum":
-            envelope["ir_json"] = "{}"
-        else:
-            payload = json.loads(envelope["ir_json"])
-            payload["document"]["path"] = "wrong.md"
-            envelope["ir_json"] = json.dumps(
-                payload, sort_keys=True, separators=(",", ":")
-            )
-            envelope["ir_sha256"] = hashlib.sha256(
-                envelope["ir_json"].encode("utf-8")
-            ).hexdigest()
-        entry.write_text(json.dumps(envelope), encoding="utf-8")
+    _corrupt_cache_entry(entry, corruption)
 
-    cold_again = extract_cached_document(service, config)
-    warm_after_repair = extract_cached_document(service, config)
+    cold_again = extract_cached_document(service, config, request)
+    warm_after_repair = extract_cached_document(service, config, request)
 
     assert cold_again == warm_after_repair, "repaired entries must hydrate the same IR"
-    assert calls == ["# Café\r\n", "# Café\r\n"], (
+    assert calls == [request.source, request.source], (
         "a corrupt entry must be replaced after one fresh extraction"
     )
     assert service.counters.invalid == 1, "the corrupt entry must be counted once"

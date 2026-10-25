@@ -372,7 +372,9 @@ parses the arguments into an immutable `CheckOptions` via
 
 The `check` and `config` parsers share builders for output-format and isolated
 options. Keep the argument shape and validation in those builders; each command
-supplies only the help text that describes its target.
+supplies only the help text that describes its target. `cli_config_command.py`,
+`cli_dump_ir.py`, and `cli_clean.py` own the command-specific coordination for
+configuration inspection, canonical IR output, and owned-cache cleanup.
 
 The command module keeps four responsibilities: target discovery, rendering,
 handling and printing to the correct streams, and computing the exit status.
@@ -639,8 +641,9 @@ install or replace it.
 ### Diagnostics
 
 `check_execution.check_one_file` owns the per-file path. For each discovered
-file it extracts the document through the Rust bridge, resolves the per-file
-config, and collects diagnostics from two sources:
+file it resolves the per-file config before requesting Markdown extraction, so
+the cache key uses the same effective values as the rule run. It then collects
+diagnostics from two sources:
 
 - `engine/checker.py` `map_ir_errors(document, reported_path)` maps the
   canonical IR error envelope on `Document.ir` into `diagnostics.Diagnostic`
@@ -1152,6 +1155,11 @@ sets `force_fresh`. These paths perform no persistent-cache reads, writes,
 directory creation, or cache-path stats. The fixed cache counters are logged
 without file paths; keep their names in `cli_log.STRUCTURED_FIELDS` so verbose
 output exposes them.
+
+`cli_clean.py` invokes cleanup from the current working directory without
+loading project configuration. Cleanup owns only marked cache namespaces and
+recognized disposable entries; a configured cache parent, unknown files and
+symlink targets remain outside its deletion boundary.
 
 The `cli_dump_ir` coordinator reuses `check_targets.parse_target_operands`,
 shared configuration resolution, discovery and source reading. It filters the

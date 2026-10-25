@@ -75,8 +75,9 @@
     execution, and the conflict rules that keep automatic edits auditable.
   - [2.2.3 Markdown inspection and cache commands](
     execplans/2-2-3-cli-sub-commands-for-markdown.md)
-    proposes approval-gated delivery of effective configuration inspection,
-    canonical IR dumps, cache bypass and safe cleanup.
+    records the approved implementation and acceptance evidence for effective
+    configuration inspection, canonical IR dumps, cache bypass and safe
+    cleanup.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
