@@ -90,6 +90,20 @@ def test_clean_removes_owned_files_and_namespace_but_keeps_parent(
     )
 
 
+def test_clean_accepts_a_symlinked_invocation_root(tmp_path: pathlib.Path) -> None:
+    """Follow the selected root once, then traverse its contents safely."""
+    project = tmp_path / "project"
+    project.mkdir()
+    namespace = _marked_cache(project / "cache")
+    (namespace / cache_entry_name("a" * 64)).write_bytes(b"owned")
+    linked_root = tmp_path / "project-link"
+    linked_root.symlink_to(project, target_is_directory=True)
+    result = clean.clean_cache_tree(linked_root)
+    assert not result.errors, "the chosen invocation root must be openable"
+    assert result.removed_files == 2, "clean must remove the entry and owner marker"
+    assert not namespace.exists(), "the marked namespace must be removed"
+
+
 def test_clean_restores_marker_if_a_writer_repopulates_before_rmdir(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -80,6 +80,31 @@ def test_store_marks_owned_namespace_and_atomically_roundtrips_entry(
     ], "atomic publication must leave only the marker and final entry"
 
 
+def test_store_trusts_invocation_root_but_refuses_symlinks_below_it(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Anchor at the chosen cwd while refusing linked cache descendants."""
+    project = tmp_path / "project"
+    project.mkdir()
+    linked_cwd = tmp_path / "project-link"
+    linked_cwd.symlink_to(project, target_is_directory=True)
+
+    with CacheStore(pathlib.Path("cache"), invocation_cwd=linked_cwd) as store:
+        store.write("a" * 64, b"owned")
+        assert store.read("a" * 64) == b"owned", (
+            "a linked invocation path must still support anchored cache I/O"
+        )
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (project / "linked-cache").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(CacheStorageError):
+        CacheStore(pathlib.Path("linked-cache"), invocation_cwd=linked_cwd)
+    assert not (outside / CACHE_NAMESPACE_NAME).exists(), (
+        "a symlink beneath the trusted cwd must never create cache contents"
+    )
+
+
 def test_store_refuses_to_adopt_an_unmarked_namespace(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -163,14 +188,16 @@ def test_store_refuses_symlinked_cache_root_without_touching_target(
 def test_store_refuses_symlinked_cache_root_ancestor(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Refuse every linked root component before creating a cache namespace."""
+    """Keep a strict no-follow walk for roots outside the invocation cwd."""
+    project = tmp_path / "project"
+    project.mkdir()
     real_parent = tmp_path / "real-parent"
     real_parent.mkdir()
     linked_parent = tmp_path / "linked-parent"
     linked_parent.symlink_to(real_parent, target_is_directory=True)
 
     with pytest.raises(CacheStorageError):
-        CacheStore(linked_parent / "cache", invocation_cwd=tmp_path)
+        CacheStore(linked_parent / "cache", invocation_cwd=project)
 
     assert not (real_parent / "cache").exists(), (
         "refusing a symlinked ancestor must not create a cache under its target"

@@ -63,21 +63,51 @@ def _absolute_lexical_path(
     return candidate.absolute()
 
 
-def _open_directory_chain(path: pathlib.Path, *, create: bool) -> int:
-    """Open a directory chain from its filesystem root, refusing symlinks."""
-    flags = _DIRECTORY_FLAGS
+def _open_chain_start(
+    path: pathlib.Path,
+    trusted_base: pathlib.Path | None,
+) -> tuple[int, tuple[str, ...]]:
+    """Anchor at a selected base when possible; otherwise start at the root."""
+    absolute_path = path.absolute()
+    base_path = trusted_base.absolute() if trusted_base is not None else None
+    if base_path is not None and absolute_path.is_relative_to(base_path):
+        descriptor = os.open(base_path, _DIRECTORY_FLAGS & ~_O_NOFOLLOW)
+        return descriptor, absolute_path.relative_to(base_path).parts
+    descriptor = os.open(absolute_path.anchor, _DIRECTORY_FLAGS)
+    return descriptor, absolute_path.parts[1:]
+
+
+def _open_chain_component(parent_fd: int, component: str, *, create: bool) -> int:
+    """Open one no-follow directory component, creating it when requested."""
+    try:
+        return os.open(component, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+    except FileNotFoundError:
+        if not create:
+            raise
+        with contextlib.suppress(FileExistsError):
+            os.mkdir(component, mode=0o700, dir_fd=parent_fd)
+        return os.open(component, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+
+
+def _open_directory_chain(
+    path: pathlib.Path,
+    *,
+    create: bool,
+    trusted_base: pathlib.Path | None = None,
+) -> int:
+    """Open a no-follow chain, following the selected base only once.
+
+    Returns
+    -------
+    int
+        Open descriptor for the final directory in the chain.
+
+    """
     descriptor = -1
     try:
-        descriptor = os.open(path.anchor, flags)
-        for component in path.parts[1:]:
-            try:
-                child = os.open(component, flags, dir_fd=descriptor)
-            except FileNotFoundError:
-                if not create:
-                    raise
-                with contextlib.suppress(FileExistsError):
-                    os.mkdir(component, mode=0o700, dir_fd=descriptor)
-                child = os.open(component, flags, dir_fd=descriptor)
+        descriptor, components = _open_chain_start(path, trusted_base)
+        for component in components:
+            child = _open_chain_component(descriptor, component, create=create)
             os.close(descriptor)
             descriptor = child
     except (OSError, ValueError) as error:
@@ -184,17 +214,15 @@ class CacheStore:
     Parameters
     ----------
     cache_dir
-        Configured cache parent. A relative path is rooted at
-        ``invocation_cwd``; every component is opened without following links.
+        Configured cache parent, relative to ``invocation_cwd`` when needed.
     invocation_cwd
         The directory from which this CLI invocation began.
 
     Raises
     ------
     CacheStorageError
-        If safe descriptor-relative operations are unavailable, a path
-        component is a symlink, or an existing namespace is not marked as
-        owned by Stilyagi.
+        If safe operations are unavailable, traversal is unsafe, or the
+        namespace is not marked as owned.
     """
 
     def __init__(
@@ -205,8 +233,13 @@ class CacheStore:
     ) -> None:
         """Open the configured parent and its exact owned namespace."""
         _require_descriptor_support()
-        self._root_path = _absolute_lexical_path(cache_dir, invocation_cwd)
-        self._root_fd = _open_directory_chain(self._root_path, create=True)
+        self._invocation_cwd = invocation_cwd.absolute()
+        self._root_path = _absolute_lexical_path(cache_dir, self._invocation_cwd)
+        self._root_fd = _open_directory_chain(
+            self._root_path,
+            create=True,
+            trusted_base=self._invocation_cwd,
+        )
         self._namespace_fd = -1
         self._closed = False
         try:
@@ -248,7 +281,11 @@ class CacheStore:
 
     def _verify_directories(self) -> None:
         """Reject a replaced root or namespace before touching an entry."""
-        current_root = _open_directory_chain(self._root_path, create=False)
+        current_root = _open_directory_chain(
+            self._root_path,
+            create=False,
+            trusted_base=self._invocation_cwd,
+        )
         try:
             if _directory_identity(current_root) != self._root_identity:
                 _raise_storage_error("configured cache root was replaced")

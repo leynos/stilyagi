@@ -1055,6 +1055,12 @@ implementation exposes effective configuration inspection, canonical IR dumps,
 persistent extraction-cache bypass and safe cache cleanup. ADR 011 was accepted
 after implementation and conformance review on 2026-10-25.
 
+Descriptor-relative cache access trusts the selected invocation directory as
+its starting point, opens it once per directory-chain walk, and refuses links
+below that anchor. Absolute cache roots outside cwd keep a strict no-follow
+walk. Construction failures are reported once per cache root for an invocation;
+later files bypass that root while read and write failures remain retryable.
+
 The 2.2.3 contract includes `.mdc` alongside `.md` and `.markdown`, and
 preserves YAML frontmatter verbatim during repairs. Existing
 [ADR 005](adr-005-markdown-region-vocabulary-scope.md) retains a positioned

@@ -1,9 +1,8 @@
 """Pytest-BDD steps for real Markdown inspection CLI processes."""
 
-from __future__ import annotations
-
 import hashlib
 import json
+import pathlib  # ruff: ignore[typing-only-standard-library-import] - pytest-bdd resolves step annotations at runtime.
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - fixed local argv, no shell.
 import sys
 import typing as typ
@@ -12,9 +11,6 @@ import pytest
 from pytest_bdd import given, then, when
 
 from tests.support.subprocess_env import python_module_environment
-
-if typ.TYPE_CHECKING:
-    import pathlib
 
 
 class MarkdownInspectionState(typ.TypedDict, total=False):

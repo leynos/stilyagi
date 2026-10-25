@@ -5,13 +5,13 @@ import json
 import typing as typ
 
 import pytest
-from stilyagi import engine, model
 from stilyagi.cache.extraction import CacheExtractionService, CacheServiceConfig
 from stilyagi.cache.model import CACHE_NAMESPACE_NAME
 from stilyagi.config import StilyagiConfig
 
 from tests.support.cache_extraction import (
     CacheTestRequest,
+    counting_extractor,
     extract_cached_document,
 )
 
@@ -85,20 +85,11 @@ def test_each_runtime_key_dimension_prevents_reuse(
         "other-builtin" if dimension == "builtin" else "builtin-signature"
     )
 
-    def extract(
-        source: str,
-        syntax: model.Syntax,
-        source_path: str | None,
-    ) -> engine.ExtractionResult:
-        """Share the independent parser count across service instances."""
-        calls.append(source)
-        return engine.extract_document_result(source, syntax, source_path=source_path)
-
     second_service = CacheExtractionService(
         CacheServiceConfig(
             invocation_cwd=tmp_path,
             package_version=package_version,
-            extractor=extract,
+            extractor=counting_extractor(calls),
             native_digest_factory=lambda: native_digest,
             builtin_signature_factory=lambda _config: builtin_signature,
         )
