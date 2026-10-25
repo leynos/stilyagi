@@ -2,8 +2,6 @@
 
 import io
 import json
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests use a trusted local interpreter.
-import sys
 import typing as typ
 
 import pytest
@@ -11,10 +9,11 @@ from stilyagi import cli_dump_ir, cli_dump_ir_output, engine, model
 from stilyagi.cli_args import DumpIrOptions
 from syrupy.extensions.json import JSONSnapshotExtension
 
-from tests.support.subprocess_env import python_module_environment
+from tests.support.subprocess_env import run_python_module
 
 if typ.TYPE_CHECKING:
     import pathlib
+    import subprocess
 
     from syrupy.assertion import SnapshotAssertion
 
@@ -375,11 +374,4 @@ def _run_dump_ir(
     stdin_bytes: bytes | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Run one dump-ir subprocess with the checkout package importable."""
-    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted interpreter, fixed argv, no shell.
-        [sys.executable, "-m", "stilyagi", "dump-ir", *arguments],
-        cwd=cwd,
-        env=python_module_environment(),
-        input=stdin_bytes,
-        capture_output=True,
-        check=False,
-    )
+    return run_python_module(cwd, "dump-ir", *arguments, stdin_bytes=stdin_bytes)

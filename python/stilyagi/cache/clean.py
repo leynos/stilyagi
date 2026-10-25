@@ -13,7 +13,7 @@ from .model import (
     CacheFileKind,
     classify_cache_filename,
 )
-from .storage import (
+from .storage_primitives import (
     _DIRECTORY_FLAGS,
     _FILE_FLAGS,
     _directory_identity,

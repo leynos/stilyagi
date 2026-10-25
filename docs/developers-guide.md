@@ -1140,18 +1140,21 @@ hydrate it. Check and dump share this service; check still runs current rules
 and fix planning after a hit, and written files are re-extracted during
 post-fix verification.
 
-`cache/storage.py` owns descriptor-anchored reads and atomic writes beneath a
-marked `stilyagi-v1` namespace. `cache/model.py` owns the exact filename
-classifier shared with `cache/clean.py`. Cleanup traverses from the invocation
-directory, prunes `.git`, skips directory symlinks, and removes only marked
-namespaces and recognized disposable files. It never owns the configured parent
-directory. Unknown entries keep their namespace in place. If a platform lacks
-the no-follow or non-blocking descriptor operations, cleanup refuses the
-operation rather than falling back to resolved-path checks. Regular-file
-candidates are opened non-blocking before their type is checked, so a FIFO
-cannot stall a cache read. If a concurrent writer repopulates a namespace after
-its marker is removed, cleanup restores the exact marker only while the same
-namespace identity remains.
+`cache/storage_primitives.py` owns descriptor-relative no-follow operations and
+normalizes filesystem faults as `CacheStorageError`. Its scope is limited to
+operations shared by cache storage and cleanup; request policy belongs in the
+adapters. `cache/storage.py` owns reads and atomic writes beneath a marked
+`stilyagi-v1` namespace. `cache/model.py` owns the exact filename classifier
+shared with `cache/clean.py`. Cleanup traverses from the invocation directory,
+prunes `.git`, skips directory symlinks, and removes only marked namespaces and
+recognized disposable files. It never owns the configured parent directory.
+Unknown entries keep their namespace in place. If a platform lacks the
+no-follow or non-blocking descriptor operations, cleanup refuses the operation
+rather than falling back to resolved-path checks. Regular-file candidates are
+opened non-blocking before their type is checked, so a FIFO cannot stall a
+cache read. If a concurrent writer repopulates a namespace after its marker is
+removed, cleanup restores the exact marker only while the same namespace
+identity remains.
 
 Extraction-cache tests use `tests/support/cache_extraction.py` for independent
 parser-call counters and forbidden cache callbacks. Keep fault adapters,

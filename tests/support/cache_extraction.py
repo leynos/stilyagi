@@ -5,6 +5,7 @@ forbidden cache collaborator. Keep storage faults, assertions and expected
 outcomes local to the test that owns each contract.
 """
 
+import collections.abc as cabc
 import dataclasses as dc
 import typing as typ
 
@@ -17,7 +18,6 @@ from stilyagi.cache.extraction import (
 )
 
 if typ.TYPE_CHECKING:
-    import collections.abc as cabc
     import pathlib
 
     from stilyagi.config import StilyagiConfig
@@ -34,6 +34,10 @@ class CacheTestRequest:
 
 
 _DEFAULT_REQUEST = CacheTestRequest()
+
+type CacheServiceRegistrar = cabc.Callable[
+    [CacheExtractionService], CacheExtractionService
+]
 
 
 def counting_extractor(
@@ -66,8 +70,26 @@ def forbidden_cache_callback(
 
 
 @pytest.fixture
+def close_cache_services() -> cabc.Generator[CacheServiceRegistrar]:
+    """Register services for unconditional teardown after assertions."""
+    services: list[CacheExtractionService] = []
+
+    def register(service: CacheExtractionService) -> CacheExtractionService:
+        """Track one service and return it for direct use in the test."""
+        services.append(service)
+        return service
+
+    try:
+        yield register
+    finally:
+        for service in reversed(services):
+            service.close()
+
+
+@pytest.fixture
 def cache_invocation(
     tmp_path: pathlib.Path,
+    close_cache_services: CacheServiceRegistrar,
 ) -> tuple[CacheExtractionService, list[str]]:
     """Build a real-storage service with an independently counted extractor."""
     calls: list[str] = []
@@ -80,7 +102,7 @@ def cache_invocation(
             builtin_signature_factory=lambda _config: "builtin-signature",
         )
     )
-    return service, calls
+    return close_cache_services(service), calls
 
 
 def extract_cached_document(
