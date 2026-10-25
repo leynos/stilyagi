@@ -1146,8 +1146,17 @@ classifier shared with `cache/clean.py`. Cleanup traverses from the invocation
 directory, prunes `.git`, skips directory symlinks, and removes only marked
 namespaces and recognized disposable files. It never owns the configured parent
 directory. Unknown entries keep their namespace in place. If a platform lacks
-the no-follow descriptor operations, cleanup refuses the operation rather than
-falling back to resolved-path checks.
+the no-follow or non-blocking descriptor operations, cleanup refuses the
+operation rather than falling back to resolved-path checks. Regular-file
+candidates are opened non-blocking before their type is checked, so a FIFO
+cannot stall a cache read. If a concurrent writer repopulates a namespace after
+its marker is removed, cleanup restores the exact marker only while the same
+namespace identity remains.
+
+Extraction-cache tests use `tests/support/cache_extraction.py` for independent
+parser-call counters and forbidden cache callbacks. Keep fault adapters,
+assertions and expected outcomes in each test so shared helpers do not hide the
+contract being checked.
 
 `--no-cache` and stdin reach the extraction service's direct path before it
 constructs a storage adapter or hashes the extension. The post-fix check also
@@ -2805,7 +2814,7 @@ GitHub's six-hour default.
 
 `.config/nextest.toml` sets both. The default profile keeps the 180 s per-test
 budget that `generate-coverage` writes when the file is absent, with a 5 s
-grace period and `terminate-after = 1`, and adds a 33 minute `global-timeout`,
+grace period and `terminate-after = 1`, and adds a 33-minute `global-timeout`,
 which gives the serial trybuild tests room to run before the 2,700 s watchdog.
 
 One override widens the budget for the two trybuild binaries, `stilyagi-ir`'s
@@ -2819,15 +2828,15 @@ compiling its dev profile and timed out at 900 s while compiling its first UI
 fixture. The next full run passed both UI tests in 143 s and 464 s, with all
 357 Nextest tests passing in 607 s. The per-test allowance is now 1,500 s. The
 two binaries share a serial `trybuild` test group because their nested Cargo
-builds use the same target-directory lock. The 33 minute whole-run allowance
+builds use the same target-directory lock. The 33-minute whole-run allowance
 leaves time for both tests. Every other test keeps 180 s, so a hung test is
 still reported as one rather than absorbed by a generous default.
 
 `tests/test_trybuild_timeout_contract.py` asserts the override names both
 binaries with a budget of at least 1,500 s, below the whole-run budget, and
 that the profile default is unchanged;
-`tests/test_timeout_ordering_contract.py` holds the ordering against the 45
-minute watchdog and 80 minute job ceiling.
+`tests/test_timeout_ordering_contract.py` holds the ordering against the
+45-minute watchdog and 80-minute job ceiling.
 
 [Issue 137](https://github.com/leynos/stilyagi/issues/137) recorded the
 measurements that a later pass needed to choose these values.

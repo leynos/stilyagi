@@ -15,6 +15,7 @@ from stilyagi.cache.model import (
     OWNER_MARKER_NAME,
     cache_entry_name,
 )
+from stilyagi.cache.storage import CacheStore
 
 
 def _marked_cache(parent: pathlib.Path) -> pathlib.Path:
@@ -23,6 +24,41 @@ def _marked_cache(parent: pathlib.Path) -> pathlib.Path:
     namespace.mkdir(parents=True)
     (namespace / OWNER_MARKER_NAME).write_bytes(OWNER_MARKER_BYTES)
     return namespace
+
+
+def test_marker_identity_uses_nonblocking_open(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recheck marker identity without blocking if its path becomes a FIFO."""
+    if not hasattr(os, "O_NONBLOCK"):
+        pytest.skip("non-blocking descriptor opens are unavailable")
+    namespace = _marked_cache(tmp_path / "cache")
+    namespace_fd = os.open(namespace, clean._DIRECTORY_FLAGS)
+    original_open = os.open
+    marker_flags: list[int] = []
+
+    def record_marker_open(
+        path: str,
+        flags: int,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        """Capture flags only for the marker identity recheck."""
+        if path == OWNER_MARKER_NAME:
+            marker_flags.append(flags)
+        return original_open(path, flags, dir_fd=dir_fd)
+
+    monkeypatch.setattr(clean.os, "open", record_marker_open)
+    try:
+        clean._marker_identity(namespace_fd)
+    finally:
+        os.close(namespace_fd)
+
+    assert len(marker_flags) == 1, "identity verification must open the marker once"
+    assert marker_flags[0] & os.O_NONBLOCK, (
+        "marker rechecks must not wait for a FIFO writer"
+    )
 
 
 def test_clean_removes_owned_files_and_namespace_but_keeps_parent(
@@ -52,6 +88,56 @@ def test_clean_removes_owned_files_and_namespace_but_keeps_parent(
     assert clean.clean_cache_tree(tmp_path).removed_files == 0, (
         "repeated cleanup must be idempotent"
     )
+
+
+def test_clean_restores_marker_if_a_writer_repopulates_before_rmdir(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep the cache usable when a writer wins cleanup's final rmdir race."""
+    cache_parent = tmp_path / "cache"
+    namespace = _marked_cache(cache_parent)
+    key = "7" * 64
+    original_rmdir = os.rmdir
+    repopulated = False
+
+    def repopulate_before_rmdir(
+        path: str,
+        *,
+        dir_fd: int | None = None,
+    ) -> None:
+        """Publish a concurrent entry immediately before namespace removal."""
+        nonlocal repopulated
+        if path == CACHE_NAMESPACE_NAME:
+            (namespace / cache_entry_name(key)).write_bytes(b"concurrent entry")
+            repopulated = True
+        original_rmdir(path, dir_fd=dir_fd)
+
+    original_require = clean._require_safe_cleanup_support
+
+    def require_then_patch_rmdir() -> None:
+        """Validate native support before replacing the race boundary."""
+        original_require()
+        monkeypatch.setattr(clean.os, "rmdir", repopulate_before_rmdir)
+        monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
+
+    monkeypatch.setattr(
+        clean,
+        "_require_safe_cleanup_support",
+        require_then_patch_rmdir,
+    )
+
+    result = clean.clean_cache_tree(tmp_path)
+
+    assert repopulated, "cleanup must reach the race injection point"
+    assert result.errors, "failed namespace removal must be reported"
+    assert (namespace / OWNER_MARKER_NAME).read_bytes() == OWNER_MARKER_BYTES, (
+        "a failed rmdir must restore the exact ownership marker"
+    )
+    with CacheStore(cache_parent, invocation_cwd=tmp_path) as store:
+        assert store.read(key) == b"concurrent entry", (
+            "the repopulated cache must remain available after cleanup"
+        )
 
 
 def test_clean_preserves_unknown_content_and_unmarked_lookalikes(
