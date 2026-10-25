@@ -15,9 +15,11 @@ from .model import (
 )
 from .storage import (
     _DIRECTORY_FLAGS,
+    _FILE_FLAGS,
     _directory_identity,
     _open_directory_chain,
     _read_marker,
+    _write_marker,
 )
 
 __all__ = ["CacheCleanResult", "clean_cache_tree"]
@@ -90,7 +92,9 @@ def _supports_safe_cleanup() -> bool:
         return False
     if os.scandir not in os.supports_fd:
         return False
-    return all(hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW"))
+    return all(
+        hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW", "O_NONBLOCK")
+    )
 
 
 def _same_directory(parent_fd: int, name: str, identity: tuple[int, int]) -> bool:
@@ -151,11 +155,13 @@ def _marker_identity(namespace_fd: int) -> tuple[int, int]:
     """Return the identity of the exact no-follow ownership marker."""
     marker_fd = os.open(
         OWNER_MARKER_NAME,
-        os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+        _FILE_FLAGS,
         dir_fd=namespace_fd,
     )
     try:
         marker_metadata = os.fstat(marker_fd)
+        if not stat.S_ISREG(marker_metadata.st_mode):
+            _raise_cleanup_error("cache owner marker is not a regular file")
         return marker_metadata.st_dev, marker_metadata.st_ino
     finally:
         os.close(marker_fd)
@@ -227,6 +233,7 @@ def _namespace_has_preserved_entries(namespace: _OwnedNamespace) -> bool:
 def _remove_namespace(namespace: _OwnedNamespace) -> bool:
     """Remove the marker and namespace only while both identities still match."""
     path = namespace.path
+    marker_removed = False
     try:
         current_marker = os.stat(
             OWNER_MARKER_NAME,
@@ -240,6 +247,7 @@ def _remove_namespace(namespace: _OwnedNamespace) -> bool:
         ):
             _raise_cleanup_error("cache owner marker was replaced during cleanup")
         os.unlink(OWNER_MARKER_NAME, dir_fd=path.descriptor)
+        marker_removed = True
         if not _same_directory(
             path.parent_fd,
             path.name,
@@ -248,11 +256,26 @@ def _remove_namespace(namespace: _OwnedNamespace) -> bool:
             _raise_cleanup_error("cache namespace was replaced during cleanup")
         os.rmdir(path.name, dir_fd=path.parent_fd)
     except OSError as error:
+        if marker_removed:
+            _restore_owner_marker(namespace)
         _record_namespace_error(path, None, error)
         return True
     path.counts.removed_files += 1
     path.counts.removed_namespaces += 1
     return False
+
+
+def _restore_owner_marker(namespace: _OwnedNamespace) -> None:
+    """Restore ownership after failed removal while the same namespace remains."""
+    path = namespace.path
+    if not _same_directory(path.parent_fd, path.name, namespace.directory_identity):
+        return
+    try:
+        _write_marker(path.descriptor)
+        if _read_marker(path.descriptor) != OWNER_MARKER_BYTES:
+            _raise_cleanup_error("cache owner marker could not be restored")
+    except OSError as error:
+        _record_namespace_error(path, OWNER_MARKER_NAME, error)
 
 
 def _is_removable_owned_file(directory_fd: int, name: str) -> bool:

@@ -1,8 +1,8 @@
 //! Source identity contracts across the `PyO3` extraction boundary.
 
-use super::{BridgeExtractRequest, bridge_extract_document};
+use super::{BridgeExtractRequest, bridge_extract_document, extract_document_py};
 use pyo3::prelude::Python;
-use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods};
+use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyTuple};
 use rstest::rstest;
 use serde_json::Value;
 
@@ -32,6 +32,21 @@ fn bridge_keeps_two_argument_calls_anonymous() {
         source_path: None,
     })
     .expect("expected the legacy bridge call shape to keep working");
+    let ir_json = canonical_ir_json(&payload);
+    let ir: Value = serde_json::from_str(&ir_json).expect("expected valid canonical IR");
+
+    let document = document_metadata(&ir);
+    assert!(document.get("path").is_some_and(Value::is_null));
+    assert!(document.get("uri").is_some_and(Value::is_null));
+}
+
+#[rstest]
+fn bridge_accepts_explicit_none_as_anonymous_identity() {
+    let payload = Python::attach(|py| {
+        let args = PyTuple::new(py, [Some("# Heading"), Some("markdown"), None::<&str>])?;
+        extract_document_py(py, &args)
+    })
+    .expect("expected an explicit None source path to preserve anonymous identity");
     let ir_json = canonical_ir_json(&payload);
     let ir: Value = serde_json::from_str(&ir_json).expect("expected valid canonical IR");
 

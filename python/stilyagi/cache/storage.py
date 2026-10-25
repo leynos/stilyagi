@@ -20,8 +20,9 @@ __all__ = ["CacheStorageError", "CacheStore"]
 _O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 _O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 _O_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
+_O_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
 _DIRECTORY_FLAGS = os.O_RDONLY | _O_DIRECTORY | _O_NOFOLLOW | _O_CLOEXEC
-_FILE_FLAGS = os.O_RDONLY | _O_NOFOLLOW | _O_CLOEXEC
+_FILE_FLAGS = os.O_RDONLY | _O_NOFOLLOW | _O_CLOEXEC | _O_NONBLOCK
 _WRITE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_NOFOLLOW | _O_CLOEXEC
 _READ_SIZE = 1024 * 1024
 
@@ -44,7 +45,8 @@ def _require_descriptor_support() -> None:
     """Refuse cache use when required no-follow descriptor operations are absent."""
     required = (os.open, os.mkdir, os.stat, os.unlink, os.rename)
     if not all(operation in os.supports_dir_fd for operation in required) or not all(
-        hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW", "O_CLOEXEC")
+        hasattr(os, flag)
+        for flag in ("O_DIRECTORY", "O_NOFOLLOW", "O_CLOEXEC", "O_NONBLOCK")
     ):
         _raise_storage_error("descriptor-relative safe cache operations unavailable")
 

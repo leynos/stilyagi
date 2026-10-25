@@ -1,4 +1,9 @@
-"""Share a real-storage extraction service and request helper across tests."""
+"""Share narrow call-oracle helpers across extraction-cache tests.
+
+Use the factories when a test needs an independent parser-call count or a
+forbidden cache collaborator. Keep storage faults, assertions and expected
+outcomes local to the test that owns each contract.
+"""
 
 import dataclasses as dc
 import typing as typ
@@ -12,6 +17,7 @@ from stilyagi.cache.extraction import (
 )
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     import pathlib
 
     from stilyagi.config import StilyagiConfig
@@ -30,27 +36,46 @@ class CacheTestRequest:
 _DEFAULT_REQUEST = CacheTestRequest()
 
 
-@pytest.fixture
-def cache_invocation(
-    tmp_path: pathlib.Path,
-) -> tuple[CacheExtractionService, list[str]]:
-    """Build a real-storage service with an independently counted extractor."""
-    calls: list[str] = []
+def counting_extractor(
+    calls: list[str],
+) -> cabc.Callable[[str, model.Syntax, str | None], engine.ExtractionResult]:
+    """Count parser calls independently of cache-service metrics."""
 
     def extract(
         source: str,
         syntax: model.Syntax,
         source_path: str | None,
     ) -> engine.ExtractionResult:
-        """Count calls independently of the service counters."""
+        """Record source bytes before delegating to the production engine."""
         calls.append(source)
         return engine.extract_document_result(source, syntax, source_path=source_path)
 
+    return extract
+
+
+def forbidden_cache_callback(
+    message: str,
+) -> cabc.Callable[..., typ.NoReturn]:
+    """Build a collaborator that fails if a strict bypass reaches cache work."""
+
+    def forbidden(*_args: object, **_kwargs: object) -> typ.NoReturn:
+        """Fail with the request-specific cache-boundary explanation."""
+        raise AssertionError(message)
+
+    return forbidden
+
+
+@pytest.fixture
+def cache_invocation(
+    tmp_path: pathlib.Path,
+) -> tuple[CacheExtractionService, list[str]]:
+    """Build a real-storage service with an independently counted extractor."""
+    calls: list[str] = []
     service = CacheExtractionService(
         CacheServiceConfig(
             invocation_cwd=tmp_path,
             package_version="test-version",
-            extractor=extract,
+            extractor=counting_extractor(calls),
             native_digest_factory=lambda: "native-digest",
             builtin_signature_factory=lambda _config: "builtin-signature",
         )
