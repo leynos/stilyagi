@@ -226,7 +226,7 @@ pub fn hydrate_ir_json(json: &str) -> Result<ExtractDocument, IrHydrationError> 
         ));
     }
     let syntax = ExtractSyntax::try_from(ir.document.syntax.as_str())
-        .map_err(|error| IrHydrationError::UnknownSyntax(error.to_string()))?;
+        .map_err(|_| IrHydrationError::UnknownSyntax(ir.document.syntax.clone()))?;
     let regions = ir
         .regions
         .iter()

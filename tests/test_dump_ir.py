@@ -281,6 +281,36 @@ def test_dump_ir_reports_spool_write_failure_before_stdout(
     )
 
 
+def test_dump_ir_reports_short_text_output_write(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Report incomplete writes from text-only output streams."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "notes.md").write_text("# Heading\n", encoding="utf-8")
+
+    class ShortWritingOutput(io.StringIO):
+        """Accept only part of each text write."""
+
+        def write(self, text: str) -> int:
+            """Write one character to simulate a short stream write."""
+            return super().write(text[:1])
+
+    output = ShortWritingOutput()
+    error = io.StringIO()
+
+    exit_code = cli_dump_ir.run_dump_ir(
+        DumpIrOptions(targets=("notes.md",)),
+        output=output,
+        error=error,
+    )
+
+    assert exit_code == 2, "expected a short stdout write to exit two"
+    assert "short write to standard output" in error.getvalue(), (
+        "expected short text output failure detail"
+    )
+
+
 def test_dump_ir_reports_framing_spool_failure_before_stdout(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,

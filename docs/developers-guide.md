@@ -678,6 +678,11 @@ small package, one module per concern:
   not. `source_backed_spans(document)` returns sorted, merged, disjoint spans,
   and `segment_for_span(document, span)` returns the source-backed segment that
   wholly contains a span, or `None`.
+- `frontmatter.py` keeps `_source_segments(region)` local to YAML-frontmatter
+  provenance. It shares segment/source mapping checks between span selection
+  and source-text matching; those callers retain their distinct validation
+  rules. Do not generalize it into a replacement for document-wide segment
+  iteration.
 - `admissibility.py` `classify_edit(edit, source_bytes, document, rule_code)`
   returns an `EditRejection` or `None`. A span is admissible when it is bounded
   by the source, aligned to UTF-8 boundaries, wholly inside one source-backed
@@ -1127,6 +1132,11 @@ discovered set to Markdown, carries each reported path into Rust source
 identity, and builds the complete canonical output in a 1 MiB spooled stream
 before writing stdout. Keep this boundary read-only; check-only rule and fix
 options do not belong on the command.
+
+The private `_write_chunk` stays inside `cli_dump_ir`: its callers write
+canonical JSON framing or stdout chunks. Its error-code argument shares the
+complete-write check while keeping spool and stdout failures distinct. Do not
+promote it to a general stream API.
 
 Table: Current Markdown, Python, and Rust extraction differences.
 

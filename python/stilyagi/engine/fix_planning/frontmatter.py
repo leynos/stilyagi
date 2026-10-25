@@ -1,4 +1,4 @@
-"""Recognise and protect source-backed YAML frontmatter during fixes."""
+"""Recognize and protect source-backed YAML frontmatter during fixes."""
 
 import collections.abc as cabc
 import dataclasses as dc
@@ -108,18 +108,25 @@ def _yaml_attributes(value: object) -> bool:
     return attributes is not None and attributes.get("format") == "yaml"
 
 
+def _source_segments(
+    region: cabc.Mapping[str, object],
+) -> cabc.Iterator[tuple[cabc.Mapping[str, object], cabc.Mapping[str, object]]]:
+    """Yield segment and source mappings with valid shapes."""
+    raw_segments = region.get("segments")
+    if not ir_view._is_sequence(raw_segments):
+        return
+    for raw_segment in raw_segments:
+        segment = _as_mapping(raw_segment)
+        source = None if segment is None else _as_mapping(segment.get("source"))
+        if segment is not None and source is not None:
+            yield segment, source
+
+
 def _region_source_span(
     region: cabc.Mapping[str, object],
 ) -> ir_view.SourceSpan | None:
     """Return the first valid source span carried by a frontmatter region."""
-    raw_segments = region.get("segments")
-    if not ir_view._is_sequence(raw_segments):
-        return None
-    for raw_segment in raw_segments:
-        segment = _as_mapping(raw_segment)
-        source = None if segment is None else _as_mapping(segment.get("source"))
-        if source is None:
-            continue
+    for _, source in _source_segments(region):
         start = source.get("byte_start")
         end = source.get("byte_end")
         return _source_span(start, end)
@@ -134,14 +141,7 @@ def _matches_region_text(
     """Ensure the source-backed segment still describes its claimed bytes."""
     if span.byte_end > len(source_bytes):
         return False
-    raw_segments = region.get("segments")
-    if not ir_view._is_sequence(raw_segments):
-        return False
-    for raw_segment in raw_segments:
-        segment = _as_mapping(raw_segment)
-        source = None if segment is None else _as_mapping(segment.get("source"))
-        if segment is None or source is None:
-            continue
+    for segment, source in _source_segments(region):
         if source.get("byte_start") != span.byte_start:
             continue
         if source.get("byte_end") != span.byte_end:
