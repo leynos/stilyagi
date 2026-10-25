@@ -1,6 +1,8 @@
 """Generated cache operations agree with an independent selection model."""
 
+import collections.abc as cabc
 import dataclasses as dc
+import hashlib
 import pathlib
 import shutil
 
@@ -26,6 +28,7 @@ _FRONTMATTER_PREFIXES = (
     "",
     "---\ntitle: Café\n---\n",
     "---\ntitle: Café\nsummary: Longer\n---\r\n",
+    "---\ntitle: Café\nsummary: Longer\nnotes: |\n  First line\n  Second line\n---\n",
 )
 _OPERATIONS = (
     "read",
@@ -110,10 +113,16 @@ class _GeneratedCacheRun:
 
     def _change_frontmatter(self) -> None:
         """Cycle through frontmatter byte variants used by generated runs."""
+        original_body = self.source[
+            len(_FRONTMATTER_PREFIXES[self.frontmatter_index]) :
+        ]
         self.frontmatter_index = (self.frontmatter_index + 1) % len(
             _FRONTMATTER_PREFIXES
         )
         self._refresh_source()
+        assert self.source[len(_FRONTMATTER_PREFIXES[self.frontmatter_index]) :] == (
+            original_body
+        ), "frontmatter-only mutations must leave the Markdown body unchanged"
 
     def _refresh_source(self) -> None:
         """Rebuild the exact source string from generated prefix and body."""
@@ -180,6 +189,7 @@ class _GeneratedCacheRun:
             source_path="generated.md",
         )
         assert result == expected, "cache selection must not change canonical IR output"
+        _assert_current_source_coordinates(result, self.source)
         assert len(self.calls) - before_calls == int(should_parse), (
             "the parser call count must match the independent selection prediction"
         )
@@ -218,7 +228,7 @@ def _generated_run(root: pathlib.Path, label: str) -> _GeneratedCacheRun:
     """Create an isolated service whose parser calls are counted separately."""
     shutil.rmtree(root)
     root.mkdir()
-    body = f"# {label}\r\n" if label else ""
+    body = f"# {label or 'Generated'}\r\n"
     source = f"{_FRONTMATTER_PREFIXES[0]}{body}"
     config = StilyagiConfig(cache_dir=pathlib.Path("cache"))
     version = "v1"
@@ -256,6 +266,44 @@ def _generated_run(root: pathlib.Path, label: str) -> _GeneratedCacheRun:
         calls=calls,
         service=service,
     )
+
+
+def _assert_current_source_coordinates(
+    result: engine.ExtractionResult,
+    source: str,
+) -> None:
+    """Check the IR hash and every source-backed span against current bytes."""
+    ir = result.document.ir
+    assert ir is not None, "expected canonical IR in the extracted document"
+    metadata = ir.get("document")
+    assert isinstance(metadata, cabc.Mapping), "expected canonical document metadata"
+    source_bytes = source.encode("utf-8")
+    expected_hash = hashlib.sha256(source_bytes).hexdigest()
+    assert metadata.get("content_hash") == f"sha256:{expected_hash}", (
+        "the hydrated content hash must describe the current whole source"
+    )
+
+    regions = ir.get("regions")
+    assert isinstance(regions, list), "expected canonical IR regions"
+    for region in regions:
+        assert isinstance(region, dict), "expected a canonical IR region object"
+        segments = region.get("segments")
+        assert isinstance(segments, list), "expected canonical IR segments"
+        for segment in segments:
+            assert isinstance(segment, dict), "expected a canonical IR segment object"
+            span = segment.get("source")
+            if span is None:
+                continue
+            assert isinstance(span, dict), "expected source span coordinates"
+            byte_start = span.get("byte_start")
+            byte_end = span.get("byte_end")
+            text = segment.get("text")
+            assert isinstance(byte_start, int), "expected an integer source start"
+            assert isinstance(byte_end, int), "expected an integer source end"
+            assert isinstance(text, str), "expected source-backed segment text"
+            assert source_bytes[byte_start:byte_end].decode("utf-8") == text, (
+                "every hydrated source span must re-slice the current bytes"
+            )
 
 
 @given(
