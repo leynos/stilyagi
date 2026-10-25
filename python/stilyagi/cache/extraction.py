@@ -12,7 +12,7 @@ from stilyagi.config.inspection import _config_table
 
 from .ir import InvalidCacheEntryError, decode_cache_entry, encode_cache_entry
 from .model import ExtractionRequest, cache_key
-from .storage import CacheStorageError, CacheStore
+from .storage import CacheStorageError, CacheStore, _absolute_lexical_path
 
 __all__ = [
     "CacheEventCounts",
@@ -165,15 +165,6 @@ def _builtin_pack_signature(effective_config: cabc.Mapping[str, object]) -> str:
     return digest.hexdigest()
 
 
-def _absolute_cache_dir(
-    cache_dir: pathlib.Path,
-    invocation_cwd: pathlib.Path,
-) -> pathlib.Path:
-    """Return a lexical absolute cache-parent path for the invocation key."""
-    candidate = cache_dir if cache_dir.is_absolute() else invocation_cwd / cache_dir
-    return candidate.absolute()
-
-
 class CacheExtractionService:
     """Reuse validated Rust Markdown IR and retain a direct extraction path.
 
@@ -216,6 +207,7 @@ class CacheExtractionService:
         self._native_digest: str | None = None
         self._builtin_signatures: dict[tuple[str, ...], str] = {}
         self._stores: dict[pathlib.Path, _CacheAdapter] = {}
+        self._unusable_roots: set[pathlib.Path] = set()
         self.counters = CacheEventCounts()
 
     def extract(self, request: CacheExtractionInput) -> engine.ExtractionResult:
@@ -258,12 +250,20 @@ class CacheExtractionService:
             return self._fresh(extraction_input)
 
         key = cache_key(request)
-        store_key = _absolute_cache_dir(
+        store_key = _absolute_lexical_path(
             extraction_input.cache_dir,
             self.invocation_cwd,
         )
+        if store_key in self._unusable_roots:
+            self.counters.bypasses += 1
+            return self._fresh(extraction_input)
         try:
             store = self._store_for(extraction_input.cache_dir, store_key)
+        except CacheStorageError:
+            self._unusable_roots.add(store_key)
+            self._record_bypass("unavailable", "warning")
+            return self._fresh(extraction_input)
+        try:
             cached = store.read(key)
         except CacheStorageError:
             self._record_bypass("read_failure", "warning")
@@ -396,3 +396,4 @@ class CacheExtractionService:
         for store in tuple(self._stores.values()):
             store.close()
         self._stores.clear()
+        self._unusable_roots.clear()

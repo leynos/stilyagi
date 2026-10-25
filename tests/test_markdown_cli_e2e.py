@@ -75,4 +75,5 @@ def _run_module(
         input=stdin_bytes,
         capture_output=True,
         check=False,
+        timeout=60,
     )
