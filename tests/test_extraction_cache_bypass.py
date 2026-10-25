@@ -3,7 +3,6 @@
 import typing as typ
 
 import pytest
-from stilyagi import engine, model
 from stilyagi.cache.extraction import CacheExtractionService, CacheServiceConfig
 from stilyagi.cache.model import CACHE_NAMESPACE_NAME
 from stilyagi.cache.storage import CacheStorageError
@@ -11,7 +10,9 @@ from stilyagi.config import StilyagiConfig
 
 from tests.support.cache_extraction import (
     CacheTestRequest,
+    counting_extractor,
     extract_cached_document,
+    forbidden_cache_callback,
 )
 
 if typ.TYPE_CHECKING:
@@ -48,20 +49,11 @@ def test_cache_storage_failure_falls_back_to_uncached_extraction(
             """Record that the unusable cache adapter was closed."""
             closed.append(True)
 
-    def extract(
-        source: str,
-        syntax: model.Syntax,
-        source_path: str | None,
-    ) -> engine.ExtractionResult:
-        """Count fresh extraction and delegate to the real engine."""
-        calls.append(source)
-        return engine.extract_document_result(source, syntax, source_path=source_path)
-
     service = CacheExtractionService(
         CacheServiceConfig(
             invocation_cwd=tmp_path,
             package_version="test-version",
-            extractor=extract,
+            extractor=counting_extractor(calls),
             native_digest_factory=lambda: "native-digest",
             builtin_signature_factory=lambda _config: "builtin-signature",
             storage_factory=lambda *_args, **_kwargs: WriteFailingStore(),
@@ -94,20 +86,11 @@ def test_cache_open_failure_warns_and_extracts_without_storage(
         message = "injected unavailable cache"
         raise CacheStorageError(message)
 
-    def extract(
-        source: str,
-        syntax: model.Syntax,
-        source_path: str | None,
-    ) -> engine.ExtractionResult:
-        """Count the uncached extraction path."""
-        calls.append(source)
-        return engine.extract_document_result(source, syntax, source_path=source_path)
-
     service = CacheExtractionService(
         CacheServiceConfig(
             invocation_cwd=tmp_path,
             package_version="test-version",
-            extractor=extract,
+            extractor=counting_extractor(calls),
             native_digest_factory=lambda: "native-digest",
             builtin_signature_factory=lambda _config: "builtin-signature",
             storage_factory=refuse_storage,
@@ -141,27 +124,16 @@ def test_no_cache_constructs_no_storage_or_fingerprint_and_changes_no_cache_byte
         for path in namespace.iterdir()
     }
     calls: list[str] = []
-
-    def extract(
-        source: str,
-        syntax: model.Syntax,
-        source_path: str | None,
-    ) -> engine.ExtractionResult:
-        """Count the parser call while preserving the production extraction path."""
-        calls.append(source)
-        return engine.extract_document_result(source, syntax, source_path=source_path)
-
-    def forbidden(*_args: object, **_kwargs: object) -> object:
-        """Fail if strict no-cache mode touches any cache-only collaborator."""
-        message = "strict bypass reached a cache-only collaborator"
-        raise AssertionError(message)
+    forbidden = forbidden_cache_callback(
+        "strict bypass reached a cache-only collaborator"
+    )
 
     no_cache = CacheExtractionService(
         CacheServiceConfig(
             invocation_cwd=tmp_path,
             package_version="test-version",
             no_cache=True,
-            extractor=extract,
+            extractor=counting_extractor(calls),
             native_digest_factory=typ.cast("NativeDigestFactory", forbidden),
             builtin_signature_factory=typ.cast("BuiltinSignatureFactory", forbidden),
             storage_factory=typ.cast("CacheStoreFactory", forbidden),
@@ -282,23 +254,15 @@ def test_stdin_and_post_fix_skip_storage_and_fingerprint_factories(
     bypass: str,
 ) -> None:
     """Take a direct path before any persistent-cache-only collaborator runs."""
-
-    def forbidden(*_args: object, **_kwargs: object) -> typ.NoReturn:
-        """Fail if a bypass reaches a cache-only callback."""
-        message = "fresh extraction reached a cache-only collaborator"
-        raise AssertionError(message)
+    forbidden = forbidden_cache_callback(
+        "fresh extraction reached a cache-only collaborator"
+    )
 
     service = CacheExtractionService(
         CacheServiceConfig(
             invocation_cwd=tmp_path,
             package_version="test-version",
-            extractor=lambda source, syntax, source_path: (
-                engine.extract_document_result(
-                    source,
-                    syntax,
-                    source_path=source_path,
-                )
-            ),
+            extractor=counting_extractor([]),
             native_digest_factory=forbidden,
             builtin_signature_factory=forbidden,
             storage_factory=forbidden,
