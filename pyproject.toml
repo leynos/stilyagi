@@ -444,9 +444,6 @@ reason = "Type-only import blocks declare each module's own dependency boundary;
 members = ["python/stilyagi/config/tables.py", "python/stilyagi/engine/extraction.py"]
 reason = "The shared shape is only the generic guard 'if value is None: return ()'. The two functions discharge different contracts: an absent 'extend' value normalizes to an empty tuple, while an absent IR payload means no regions to report. A shared helper would couple configuration resolution to the extractor's IR payload."
 [[tool.duplication_gate.allow]]
-members = ["python/stilyagi/engine/fix_planning/frontmatter.py::_matches_region_text", "python/stilyagi/engine/fix_planning/frontmatter.py::_region_source_span"]
-reason = "These helpers enforce distinct frontmatter safety checks: one selects the first source span and fails closed on malformed provenance; the other confirms that the selected span still matches current source bytes and IR text. Sharing their traversal would require a mode or callback and obscure those separate invariants."
-[[tool.duplication_gate.allow]]
 members = ["python/stilyagi/cli_dump_ir.py::DumpIrErrorCode", "python/stilyagi/discovery_targets.py::_PathKind"]
 reason = "DumpIrErrorCode identifies command failures whose messages are rendered by DumpIrError; _PathKind classifies discovery operands. They use the same standard StrEnum declaration form but have separate domains and consumers. Shared enum machinery would couple unrelated contracts without extracting behavior."
 [tool.ty.environment]

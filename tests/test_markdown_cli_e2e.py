@@ -31,7 +31,7 @@ def test_python_module_entrypoint_dumps_canonical_markdown_ir(
 def test_python_module_entrypoint_checks_an_explicit_mdc_file(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Recognise `.mdc` as Markdown when supplied as an explicit check target."""
+    """Recognize `.mdc` as Markdown when supplied as an explicit check target."""
     (tmp_path / "notes.mdc").write_text("# Notes\n", encoding="utf-8")
     completed = _run_module(tmp_path, "check", "notes.mdc")
 

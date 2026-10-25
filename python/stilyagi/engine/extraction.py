@@ -224,7 +224,7 @@ def extract_document_result(
     -------
     ExtractionResult
         The adapted Python document and the canonical JSON string emitted by
-        Rust, without parsing and serialising that string again.
+        Rust, without parsing and serializing that string again.
 
     Examples
     --------

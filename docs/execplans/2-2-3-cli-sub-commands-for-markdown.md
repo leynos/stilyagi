@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: APPROVED — implementation authorized on 2026-10-24; M1–M2 are complete
-and M3–M4 remain.
+Status: APPROVED — implementation authorized on 2026-10-24; M1 is complete, M2
+review corrections are in progress, and M3–M4 remain.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -146,7 +146,14 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       Markdown lint and Mermaid validation. Repair the injected extractor mock,
       package export contract, wheel snapshot, frontmatter property strategy
       and raw-docstring newline examples exposed by sequential full runs.
-- [x] M2: canonical Markdown IR inspection and bridge identity — complete.
+- [x] (2026-10-25) Apply the M2 CodeRabbit corrections: detect short text
+      writes, preserve raw unknown syntax names, parameterize hydration
+      rejection cases, share frontmatter segment validation, and correct four
+      Oxford spelling findings. All six gates passed on the R6 working tree,
+      including Nextest 366/366; the follow-up CodeRabbit review remains
+      pending.
+- [ ] M2: canonical Markdown IR inspection and bridge identity — complete after
+      the follow-up CodeRabbit review confirms the corrections.
 - [ ] M3: extraction cache, strict bypass, and safe cleanup — not started.
 - [ ] M4: end-to-end acceptance, documentation and roadmap completion — not
       started.
