@@ -75,8 +75,9 @@
     execution, and the conflict rules that keep automatic edits auditable.
   - [2.2.3 Markdown inspection and cache commands](
     execplans/2-2-3-cli-sub-commands-for-markdown.md)
-    proposes approval-gated delivery of effective configuration inspection,
-    canonical IR dumps, cache bypass and safe cleanup.
+    records the approved implementation and acceptance evidence for effective
+    configuration inspection, canonical IR dumps, cache bypass and safe
+    cleanup.
   - [2.3.1 Markdown rule starter pack](
     execplans/2-3-1-markdown-rules-starter-pack.md)
     plans the approval-gated builtin Markdown rules, source spans, policy
