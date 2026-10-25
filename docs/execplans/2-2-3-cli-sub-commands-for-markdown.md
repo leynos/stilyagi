@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: APPROVED — implementation authorized on 2026-10-24; M1 is complete, M2
-review corrections are in progress, and M3–M4 remain.
+Status: APPROVED — implementation authorized on 2026-10-24; M1 and M2 are
+complete, M3 is starting, and M4 remains.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -137,10 +137,10 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
 - [x] (2026-10-25) Implement M2 bridge identity, `dump-ir`, `.mdc`
       classification and frontmatter-protected repairs. Focused Rust bridge
       and extractor tests passed, as did 142 focused Python tests; full gates
-      remain pending.
+      subsequently passed on R25 and the exact M2 commit below.
 - [x] (2026-10-25) Add typed Rust `hydrate_ir_json` through the PyO3 bridge and
       stream canonical dump documents through bounded spools. Full gate
-      validation remains pending.
+      validation passed on R25 and was repeated at the exact M2 commit below.
 - [x] (2026-10-25) Complete M2 after all six gates passed on R25: formatting,
       lint, typecheck, Nextest 365/365, Rust doctests, Python tests and doctests,
       Markdown lint and Mermaid validation. Repair the injected extractor mock,
@@ -150,11 +150,18 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       writes, preserve raw unknown syntax names, parameterize hydration
       rejection cases, share frontmatter segment validation, and correct four
       Oxford spelling findings. All six gates passed on the R6 working tree,
-      including Nextest 366/366; the follow-up CodeRabbit review remains
-      pending.
-- [ ] M2: canonical Markdown IR inspection and bridge identity — complete after
-      the follow-up CodeRabbit review confirms the corrections.
-- [ ] M3: extraction cache, strict bypass, and safe cleanup — not started.
+      including Nextest 366/366.
+- [x] (2026-10-25) Re-review the M2 correction commit `963a931` with CodeRabbit
+      CLI 0.9.1 against `74bca310..963a931`; the prescribed cooldown completed
+      and the review reported zero findings across all 10 changed files.
+- [x] (2026-10-25) Re-run all six gates sequentially on exact committed HEAD
+      `963a93148875b14132f251508e43bb3a0f35fa8e`. Nextest passed 366/366;
+      doctests, Python and script tests, four snapshots, formatting, lint,
+      typecheck, Markdown lint and Mermaid validation passed. Logs are
+      `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-complete-1.out`.
+- [x] M2: canonical Markdown IR inspection and bridge identity — complete after
+      the follow-up CodeRabbit review and exact-head gates passed.
+- [ ] M3: extraction cache, strict bypass, and safe cleanup — starting.
 - [ ] M4: end-to-end acceptance, documentation and roadmap completion — not
       started.
 
@@ -194,7 +201,16 @@ The 2026-10-24 source inspection confirms that Markdown enables frontmatter in
 `attrs.format = "yaml"`. ADR 005 and the frontmatter snapshots confirm this is
 block-level IR support, not semantic parsing of individual YAML fields.
 `frontmatter_field` remains reserved. The source baseline is still
-`5eaa1f5abca13826c41e08998e7bed5e5fd0be23`; no runtime changes have landed.
+`5eaa1f5abca13826c41e08998e7bed5e5fd0be23` at the time of that inspection; M2
+runtime changes subsequently landed in `963a931`.
+
+The hosted CodeScene gate fails on M2 head
+`963a93148875b14132f251508e43bb3a0f35fa8e`. Local `cs delta origin/main`
+reproduces new complexity findings in `config/provenance.py`,
+`tests/test_config_provenance_properties.py`, `cli_config_command.py` and
+`engine/fix_planning/frontmatter.py`, plus a small `check_execution.py`
+degradation and PyO3 test duplication. M4's planned complexity review must
+resolve these findings without disabling or suppressing the CodeScene rules.
 
 ## Decision log
 
