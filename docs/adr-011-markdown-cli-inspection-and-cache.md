@@ -2,8 +2,8 @@
 
 ## Status
 
-Proposed. The associated ExecPlan was explicitly approved on 2026-10-24; this
-ADR remains proposed pending implementation and conformance review.
+Accepted on 2026-10-25. The approved implementation and its acceptance evidence
+are recorded in the associated ExecPlan.
 
 ## Date
 
@@ -42,7 +42,7 @@ Deleting a configured cache root by name risks removing source data when its
 value is `.` or `docs`. A dedicated owned namespace permits custom cache
 parents without granting cleanup authority over those parents.
 
-## Proposed direction
+## Decision outcome
 
 Adopt the detailed command contracts in the
 [2.2.3 ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md):
@@ -101,9 +101,8 @@ alone. Independent analysis-cache invalidation remains roadmap 3.3.1 work.
 
 ## Outstanding decisions
 
-Implementation acceptance evidence remains outstanding. Any inability to meet
-the safety or compatibility constraints must return to the ExecPlan's exception
-process.
+None. Independent analysis caching remains intentionally deferred to roadmap
+3.3.1.
 
 ## Architectural rationale
 
