@@ -1,6 +1,6 @@
 //! Source identity contracts across the `PyO3` extraction boundary.
 
-use super::{bridge_extract_document, bridge_extract_document_with_path};
+use super::{BridgeExtractRequest, bridge_extract_document};
 use pyo3::prelude::Python;
 use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods};
 use rstest::rstest;
@@ -10,8 +10,12 @@ use serde_json::Value;
 #[case("docs/guide.md")]
 #[case("nested/frontmatter.mdc")]
 fn bridge_preserves_reported_path_and_leaves_uri_absent(#[case] path: &str) {
-    let payload = bridge_extract_document_with_path("# Heading", "markdown", path)
-        .expect("expected the bridge to extract Markdown with an identity");
+    let payload = bridge_extract_document(&BridgeExtractRequest {
+        source: "# Heading",
+        syntax: "markdown",
+        source_path: Some(path),
+    })
+    .expect("expected the bridge to extract Markdown with an identity");
     let ir_json = canonical_ir_json(&payload);
     let ir: Value = serde_json::from_str(&ir_json).expect("expected valid canonical IR");
 
@@ -22,8 +26,12 @@ fn bridge_preserves_reported_path_and_leaves_uri_absent(#[case] path: &str) {
 
 #[rstest]
 fn bridge_keeps_two_argument_calls_anonymous() {
-    let payload = bridge_extract_document("# Heading", "markdown")
-        .expect("expected the legacy bridge call shape to keep working");
+    let payload = bridge_extract_document(&BridgeExtractRequest {
+        source: "# Heading",
+        syntax: "markdown",
+        source_path: None,
+    })
+    .expect("expected the legacy bridge call shape to keep working");
     let ir_json = canonical_ir_json(&payload);
     let ir: Value = serde_json::from_str(&ir_json).expect("expected valid canonical IR");
 
