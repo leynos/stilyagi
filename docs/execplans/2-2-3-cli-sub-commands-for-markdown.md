@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: IMPLEMENTATION IN FINAL REVIEW — review findings are addressed and
-local gates pass; final committed-candidate review remains pending.
+Status: IMPLEMENTATION IN FINAL REVIEW — R2 review findings are addressed and
+all six local gates pass; committed-candidate review remains pending.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -243,8 +243,24 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       spelling correction was followed by successful check-fmt, Markdown lint
       and Mermaid gates. Logs use the `r1-retry-2.out` and `doc-fix-1.out`
       suffixes under `/tmp`.
-- [ ] Run the local CodeRabbit review on the committed R1 candidate, reconcile
-      any valid findings, then complete this plan and roadmap item.
+- [x] (2026-10-25) Review committed R1 candidate
+      `7ebeb90287b44d1fd95ffa056f4a79a816dda844` with CodeRabbit and triage its
+      six findings. Normalize descriptor-relative filesystem errors at the
+      cache boundary so unavailable storage falls back to fresh extraction;
+      add the permission-failure regression; bound shared CLI subprocesses and
+      close test services during fixture teardown; validate malformed
+      frontmatter after recomputing the IR checksum. Split cache I/O primitives
+      and storage-failure tests to respect the 400-line module limit.
+- [x] (2026-10-25) Pass all six local gates on the R2 working tree based on
+      `7ebeb90287b44d1fd95ffa056f4a79a816dda844`: `make check-fmt`, `make lint`,
+      `make typecheck`, `make test`, `make markdownlint` and `make nixie`. Test
+      evidence: Nextest 368/368, pytest 880/880 with 24 snapshots, pytest
+      doctests 76 passed and 3 skipped, and script tests 154/154 with four
+      snapshots. Markdown lint found zero issues and Mermaid validation passed.
+      Logs are `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-r38.out`.
+- [ ] Commit the R2 changes, review that exact committed candidate with
+      CodeRabbit, reconcile any valid findings, then complete this plan and
+      roadmap item.
 
 ## Surprises & discoveries
 
