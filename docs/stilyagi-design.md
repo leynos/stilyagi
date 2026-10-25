@@ -1050,10 +1050,10 @@ V1 sufficiency:
 
 The Markdown inspection and cache contracts for roadmap 2.2.3 are recorded in
 [ADR 011](adr-011-markdown-cli-inspection-and-cache.md) and its
-[ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md). The approved
-implementation now exposes effective configuration inspection, canonical IR
-dumps, persistent extraction-cache bypass and safe cache cleanup. ADR 011
-remains proposed until final implementation and conformance review complete.
+[ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md). The accepted
+implementation exposes effective configuration inspection, canonical IR dumps,
+persistent extraction-cache bypass and safe cache cleanup. ADR 011 was accepted
+after implementation and conformance review on 2026-10-25.
 
 The 2.2.3 contract includes `.mdc` alongside `.md` and `.markdown`, and
 preserves YAML frontmatter verbatim during repairs. Existing
