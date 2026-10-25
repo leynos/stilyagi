@@ -129,28 +129,11 @@ def run_dump_ir(
     )
     try:
         inputs = _discover_markdown_inputs(options, config_resolver)
-        with (
-            tempfile.SpooledTemporaryFile(
-                max_size=_SPOOL_MEMORY_LIMIT,
-                mode="w+b",
-            ) as document_spool,
-            tempfile.SpooledTemporaryFile(
-                max_size=_SPOOL_MEMORY_LIMIT,
-                mode="w+b",
-            ) as output_spool,
-        ):
-            document_lengths = _extract_documents(
-                inputs,
-                document_spool,
-                _ExtractionContext(options, config_resolver, extraction_cache),
-            )
-            _write_json_framing(
-                output_spool,
-                document_spool,
-                document_lengths,
-            )
-            output_spool.seek(0)
-            _copy_spool_to_output(output_spool, out_stream)
+        _write_dump_output(
+            inputs,
+            _ExtractionContext(options, config_resolver, extraction_cache),
+            out_stream,
+        )
     except (DumpIrError, config.ConfigError, OSError, ValueError) as exc:
         error_stream.write(f"stilyagi dump-ir: {exc}\n")
         return 2
@@ -158,6 +141,28 @@ def run_dump_ir(
         extraction_cache.log_summary()
         extraction_cache.close()
     return 0
+
+
+def _write_dump_output(
+    inputs: cabc.Iterable[CheckInput],
+    context: _ExtractionContext,
+    output: typ.TextIO | typ.BinaryIO,
+) -> None:
+    """Spool every document before writing one complete JSON result."""
+    with (
+        tempfile.SpooledTemporaryFile(
+            max_size=_SPOOL_MEMORY_LIMIT,
+            mode="w+b",
+        ) as document_spool,
+        tempfile.SpooledTemporaryFile(
+            max_size=_SPOOL_MEMORY_LIMIT,
+            mode="w+b",
+        ) as output_spool,
+    ):
+        document_lengths = _extract_documents(inputs, document_spool, context)
+        _write_json_framing(output_spool, document_spool, document_lengths)
+        output_spool.seek(0)
+        _copy_spool_to_output(output_spool, output)
 
 
 def _discover_markdown_inputs(
@@ -240,48 +245,56 @@ def _extract_documents(
     """Write each canonical document to a spool and retain its byte length."""
     document_lengths: list[int] = []
     for check_input in inputs:
-        try:
-            sourced = read_source(check_input)
-        except SourceReadError as exc:
-            raise DumpIrError(
-                DumpIrErrorCode.CANNOT_READ,
-                check_input.reported_path,
-                exc.error,
-            ) from exc
-        try:
-            effective_config = context.resolver.resolve_config_for_path(
-                sourced.resolved_path,
-                cli_overrides=None,
-                explicit_config=context.options.explicit_config or None,
-                isolated=context.options.isolated,
-            )
-            result = context.cache.extract(
-                CacheExtractionInput(
-                    source_text=sourced.source_text,
-                    syntax=model.Syntax.MARKDOWN,
-                    reported_identity=sourced.reported_path,
-                    effective_config=effective_config,
-                    cache_dir=effective_config.cache_dir,
-                    from_stdin=sourced.from_stdin,
-                )
-            )
-        except (
-            engine.BridgeExtractionError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-        ) as exc:
-            raise DumpIrError(
-                DumpIrErrorCode.CANNOT_EXTRACT,
-                sourced.reported_path,
-                exc,
-            ) from exc
-        if result.canonical_json is None:
-            raise DumpIrError(
-                DumpIrErrorCode.MISSING_IR,
-                sourced.reported_path,
-            )
-        canonical_document = _canonical_bytes(result.canonical_json)
+        canonical_document = _extract_document(check_input, context)
         _write_chunk(document_spool, canonical_document)
         document_lengths.append(len(canonical_document))
     return tuple(document_lengths)
+
+
+def _extract_document(
+    check_input: CheckInput,
+    context: _ExtractionContext,
+) -> bytes:
+    """Read, cache and serialize one canonical Markdown document."""
+    try:
+        sourced = read_source(check_input)
+    except SourceReadError as exc:
+        raise DumpIrError(
+            DumpIrErrorCode.CANNOT_READ,
+            check_input.reported_path,
+            exc.error,
+        ) from exc
+    try:
+        effective_config = context.resolver.resolve_config_for_path(
+            sourced.resolved_path,
+            cli_overrides=None,
+            explicit_config=context.options.explicit_config or None,
+            isolated=context.options.isolated,
+        )
+        result = context.cache.extract(
+            CacheExtractionInput(
+                source_text=sourced.source_text,
+                syntax=model.Syntax.MARKDOWN,
+                reported_identity=sourced.reported_path,
+                effective_config=effective_config,
+                cache_dir=effective_config.cache_dir,
+                from_stdin=sourced.from_stdin,
+            )
+        )
+    except (
+        engine.BridgeExtractionError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise DumpIrError(
+            DumpIrErrorCode.CANNOT_EXTRACT,
+            sourced.reported_path,
+            exc,
+        ) from exc
+    if result.canonical_json is None:
+        raise DumpIrError(
+            DumpIrErrorCode.MISSING_IR,
+            sourced.reported_path,
+        )
+    return _canonical_bytes(result.canonical_json)

@@ -96,10 +96,22 @@ def _yaml_frontmatter_regions(
     return tuple(
         region
         for raw_region in raw_regions
-        if (region := _as_mapping(raw_region)) is not None
-        and region.get("kind") == "frontmatter"
-        and _yaml_attributes(region.get("attrs"))
+        if (region := _yaml_frontmatter_region(raw_region)) is not None
     )
+
+
+def _yaml_frontmatter_region(
+    raw_region: object,
+) -> cabc.Mapping[str, object] | None:
+    """Return a region mapping only when it identifies YAML frontmatter."""
+    region = _as_mapping(raw_region)
+    if region is None:
+        return None
+    if region.get("kind") != "frontmatter":
+        return None
+    if not _yaml_attributes(region.get("attrs")):
+        return None
+    return region
 
 
 def _yaml_attributes(value: object) -> bool:
@@ -116,10 +128,22 @@ def _source_segments(
     if not ir_view._is_sequence(raw_segments):
         return
     for raw_segment in raw_segments:
-        segment = _as_mapping(raw_segment)
-        source = None if segment is None else _as_mapping(segment.get("source"))
-        if segment is not None and source is not None:
-            yield segment, source
+        source_segment = _source_segment(raw_segment)
+        if source_segment is not None:
+            yield source_segment
+
+
+def _source_segment(
+    raw_segment: object,
+) -> tuple[cabc.Mapping[str, object], cabc.Mapping[str, object]] | None:
+    """Narrow an IR segment to a valid segment and source mapping pair."""
+    segment = _as_mapping(raw_segment)
+    if segment is None:
+        return None
+    source = _as_mapping(segment.get("source"))
+    if source is None:
+        return None
+    return segment, source
 
 
 def _region_source_span(
@@ -146,13 +170,22 @@ def _matches_region_text(
             continue
         if source.get("byte_end") != span.byte_end:
             continue
-        try:
-            return source_bytes[
-                span.byte_start : span.byte_end
-            ].decode() == segment.get("text")
-        except UnicodeDecodeError:
-            return False
+        return _source_text_matches(segment, span, source_bytes)
     return False
+
+
+def _source_text_matches(
+    segment: cabc.Mapping[str, object],
+    span: ir_view.SourceSpan,
+    source_bytes: bytes,
+) -> bool:
+    """Decode one verified source range and compare its segment text."""
+    try:
+        return source_bytes[span.byte_start : span.byte_end].decode() == segment.get(
+            "text"
+        )
+    except UnicodeDecodeError:
+        return False
 
 
 def _closing_line_end(source_bytes: bytes, offset: int) -> int:
