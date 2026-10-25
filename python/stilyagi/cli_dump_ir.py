@@ -1,17 +1,28 @@
 """Run the read-only command that emits Rust's canonical Markdown IR."""
 
-import codecs
+import dataclasses as dc
 import enum
-import io
 import pathlib
 import sys
 import tempfile
 import typing as typ
 
 from stilyagi import config, discovery, engine, model
+from stilyagi.cache.extraction import (
+    CacheExtractionInput,
+    CacheExtractionService,
+    CacheServiceConfig,
+)
 from stilyagi.check_inputs import CheckInput
 from stilyagi.check_targets import parse_target_operands
+from stilyagi.cli_args import PACKAGE_VERSION
 from stilyagi.cli_config import resolve_discovery_config
+from stilyagi.cli_dump_ir_output import (
+    _canonical_bytes,
+    _copy_spool_to_output,
+    _write_chunk,
+    _write_json_framing,
+)
 from stilyagi.cli_io import SourceReadError, read_source, stdin_check_input
 
 if typ.TYPE_CHECKING:
@@ -21,7 +32,15 @@ if typ.TYPE_CHECKING:
 
 
 _SPOOL_MEMORY_LIMIT = 1024 * 1024
-_OUTPUT_CHUNK_SIZE = 64 * 1024
+
+
+@dc.dataclass(frozen=True, slots=True)
+class _ExtractionContext:
+    """Hold fixed configuration and cache collaborators for one dump run."""
+
+    options: DumpIrOptions
+    resolver: config.ConfigResolver
+    cache: CacheExtractionService
 
 
 class DumpIrErrorCode(enum.StrEnum):
@@ -36,14 +55,6 @@ class DumpIrErrorCode(enum.StrEnum):
     CANNOT_READ = enum.auto()
     CANNOT_EXTRACT = enum.auto()
     MISSING_IR = enum.auto()
-
-
-class DumpIrSpoolErrorCode(enum.StrEnum):
-    """Identify one failure while framing or writing canonical IR bytes."""
-
-    DOCUMENT_TRUNCATED = enum.auto()
-    SHORT_JSON_SPOOL_WRITE = enum.auto()
-    SHORT_STDOUT_WRITE = enum.auto()
 
 
 class DumpIrError(Exception):
@@ -70,22 +81,6 @@ class DumpIrError(Exception):
     def __init__(self, code: DumpIrErrorCode, *values: object) -> None:
         """Render one contextual error from its stable command message code."""
         super().__init__(self._MESSAGES[code].format(*values))
-
-
-class DumpIrSpoolError(OSError):
-    """One bounded temporary-spool failure that prevents complete JSON output."""
-
-    _MESSAGES: typ.ClassVar[dict[DumpIrSpoolErrorCode, str]] = {
-        DumpIrSpoolErrorCode.DOCUMENT_TRUNCATED: (
-            "canonical document spool ended unexpectedly"
-        ),
-        DumpIrSpoolErrorCode.SHORT_JSON_SPOOL_WRITE: "short write to JSON spool",
-        DumpIrSpoolErrorCode.SHORT_STDOUT_WRITE: "short write to standard output",
-    }
-
-    def __init__(self, code: DumpIrSpoolErrorCode) -> None:
-        """Render one bounded-spool failure from its stable error code."""
-        super().__init__(self._MESSAGES[code])
 
 
 def run_dump_ir(
@@ -125,6 +120,13 @@ def run_dump_ir(
     out_stream = output if output is not None else sys.stdout
     error_stream = error if error is not None else sys.stderr
     config_resolver = resolver if resolver is not None else config.ConfigResolver()
+    extraction_cache = CacheExtractionService(
+        CacheServiceConfig(
+            invocation_cwd=pathlib.Path.cwd(),
+            package_version=PACKAGE_VERSION,
+            no_cache=options.no_cache,
+        )
+    )
     try:
         inputs = _discover_markdown_inputs(options, config_resolver)
         with (
@@ -137,7 +139,11 @@ def run_dump_ir(
                 mode="w+b",
             ) as output_spool,
         ):
-            document_lengths = _extract_documents(inputs, document_spool)
+            document_lengths = _extract_documents(
+                inputs,
+                document_spool,
+                _ExtractionContext(options, config_resolver, extraction_cache),
+            )
             _write_json_framing(
                 output_spool,
                 document_spool,
@@ -148,6 +154,9 @@ def run_dump_ir(
     except (DumpIrError, config.ConfigError, OSError, ValueError) as exc:
         error_stream.write(f"stilyagi dump-ir: {exc}\n")
         return 2
+    finally:
+        extraction_cache.log_summary()
+        extraction_cache.close()
     return 0
 
 
@@ -226,6 +235,7 @@ def _raise_target_notices(
 def _extract_documents(
     inputs: cabc.Iterable[CheckInput],
     document_spool: typ.IO[bytes],
+    context: _ExtractionContext,
 ) -> tuple[int, ...]:
     """Write each canonical document to a spool and retain its byte length."""
     document_lengths: list[int] = []
@@ -239,10 +249,21 @@ def _extract_documents(
                 exc.error,
             ) from exc
         try:
-            result = engine.extract_document_result(
-                sourced.source_text,
-                model.Syntax.MARKDOWN,
-                source_path=sourced.reported_path,
+            effective_config = context.resolver.resolve_config_for_path(
+                sourced.resolved_path,
+                cli_overrides=None,
+                explicit_config=context.options.explicit_config or None,
+                isolated=context.options.isolated,
+            )
+            result = context.cache.extract(
+                CacheExtractionInput(
+                    source_text=sourced.source_text,
+                    syntax=model.Syntax.MARKDOWN,
+                    reported_identity=sourced.reported_path,
+                    effective_config=effective_config,
+                    cache_dir=effective_config.cache_dir,
+                    from_stdin=sourced.from_stdin,
+                )
             )
         except (
             engine.BridgeExtractionError,
@@ -264,104 +285,3 @@ def _extract_documents(
         _write_chunk(document_spool, canonical_document)
         document_lengths.append(len(canonical_document))
     return tuple(document_lengths)
-
-
-def _write_json_framing(
-    output_spool: typ.IO[bytes],
-    document_spool: typ.IO[bytes],
-    document_lengths: tuple[int, ...],
-) -> None:
-    """Frame spooled canonical documents without reserializing their IR."""
-    if len(document_lengths) == 1:
-        _copy_document_spool(
-            document_spool,
-            output_spool,
-            0,
-            document_lengths[0],
-        )
-        return
-    if not document_lengths:
-        _write_chunk(output_spool, b"[]\n")
-        return
-    _write_chunk(output_spool, b"[")
-    offset = 0
-    for index, length in enumerate(document_lengths):
-        if index:
-            _write_chunk(output_spool, b",")
-        _copy_document_spool(document_spool, output_spool, offset, length)
-        offset += length
-    _write_chunk(output_spool, b"]\n")
-
-
-def _copy_document_spool(
-    document_spool: typ.IO[bytes],
-    output_spool: typ.IO[bytes],
-    offset: int,
-    length: int,
-) -> None:
-    """Copy one spooled canonical document in bounded chunks."""
-    document_spool.seek(offset)
-    remaining = length
-    while remaining:
-        chunk = document_spool.read(min(_OUTPUT_CHUNK_SIZE, remaining))
-        if not chunk:
-            raise DumpIrSpoolError(DumpIrSpoolErrorCode.DOCUMENT_TRUNCATED)
-        _write_chunk(output_spool, chunk)
-        remaining -= len(chunk)
-
-
-def _write_chunk[WriteContent: (str, bytes)](
-    output: typ.IO[WriteContent],
-    contents: WriteContent,
-    error_code: DumpIrSpoolErrorCode = DumpIrSpoolErrorCode.SHORT_JSON_SPOOL_WRITE,
-) -> None:
-    """Write a chunk or report an incomplete spool or stdout write."""
-    if output.write(contents) != len(contents):
-        raise DumpIrSpoolError(error_code)
-
-
-def _canonical_bytes(document: str) -> bytes:
-    """Encode canonical Rust JSON and guarantee its required final newline."""
-    encoded = document.encode("utf-8")
-    return encoded if encoded.endswith(b"\n") else encoded + b"\n"
-
-
-def _copy_spool_to_output(
-    spool: typ.IO[bytes], output: typ.TextIO | typ.BinaryIO
-) -> None:
-    """Copy completed bytes to stdout without loading a large spool at once."""
-    binary_output = getattr(output, "buffer", None)
-    if binary_output is None and not isinstance(output, io.TextIOBase):
-        binary_output = output
-    if binary_output is not None:
-        _copy_binary_chunks(spool, typ.cast("typ.BinaryIO", binary_output))
-        return
-
-    text_output = typ.cast("typ.TextIO", output)
-    decoder = codecs.getincrementaldecoder("utf-8")()
-    while chunk := spool.read(_OUTPUT_CHUNK_SIZE):
-        decoded = decoder.decode(chunk)
-        if decoded:
-            _write_chunk(
-                text_output,
-                decoded,
-                DumpIrSpoolErrorCode.SHORT_STDOUT_WRITE,
-            )
-    final_text = decoder.decode(b"", final=True)
-    if final_text:
-        _write_chunk(
-            text_output,
-            final_text,
-            DumpIrSpoolErrorCode.SHORT_STDOUT_WRITE,
-        )
-
-
-def _copy_binary_chunks(spool: typ.IO[bytes], output: typ.BinaryIO) -> None:
-    """Stream binary output in bounded chunks and flush it when supported."""
-    while chunk := spool.read(_OUTPUT_CHUNK_SIZE):
-        _write_chunk(
-            output,
-            chunk,
-            DumpIrSpoolErrorCode.SHORT_STDOUT_WRITE,
-        )
-    output.flush()
