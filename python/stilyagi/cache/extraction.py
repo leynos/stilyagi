@@ -12,7 +12,8 @@ from stilyagi.config.inspection import _config_table
 
 from .ir import InvalidCacheEntryError, decode_cache_entry, encode_cache_entry
 from .model import ExtractionRequest, cache_key
-from .storage import CacheStorageError, CacheStore, _absolute_lexical_path
+from .storage import CacheStorageError, CacheStore
+from .storage_primitives import _absolute_lexical_path
 
 __all__ = [
     "CacheEventCounts",

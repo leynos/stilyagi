@@ -1,14 +1,13 @@
 """End-to-end subprocess coverage for Markdown-specific CLI commands."""
 
 import json
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - trusted local interpreter, fixed argv.
-import sys
 import typing as typ
 
-from tests.support.subprocess_env import python_module_environment
+from tests.support.subprocess_env import run_python_module
 
 if typ.TYPE_CHECKING:
     import pathlib
+    import subprocess
 
 
 def test_python_module_entrypoint_dumps_canonical_markdown_ir(
@@ -68,12 +67,4 @@ def _run_module(
     stdin_bytes: bytes | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Run one CLI command with the checkout's package importable."""
-    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted interpreter, fixed argv, no shell.
-        [sys.executable, "-m", "stilyagi", *arguments],
-        cwd=cwd,
-        env=python_module_environment(),
-        input=stdin_bytes,
-        capture_output=True,
-        check=False,
-        timeout=60,
-    )
+    return run_python_module(cwd, *arguments, stdin_bytes=stdin_bytes, timeout=60)
