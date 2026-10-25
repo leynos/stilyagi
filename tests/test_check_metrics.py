@@ -356,7 +356,7 @@ def test_stdout_write_failure_is_measured_as_render_failure(
     ), "a propagated render exception records one total duration"
 
 
-def _raise_check_failure(*_args: object) -> typ.NoReturn:
+def _raise_check_failure(*_args: object, **_kwargs: object) -> typ.NoReturn:
     """Raise one unexpected error from the selected file-check boundary."""
     raise _UnexpectedCheckFailureError
 

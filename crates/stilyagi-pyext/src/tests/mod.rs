@@ -1,46 +1,47 @@
 //! Tests for the Python extension bridge payload and error mapping.
 
 pub(crate) mod payload;
+mod hydration;
+mod identity;
 mod rust_doc_comment;
 
+use super::{
+    authored_directive_error_codes_py, extract_document_function, extract_document_py, hello,
+    hydrate_ir_json_function, map_extract_error, supported_region_kinds_py, supported_syntaxes_py,
+};
 use payload::{
-    dict_list,
-    dict_string,
-    list_dict_at,
-    parse_ir_json,
-    region_kind_and_text,
-    tuple_strings,
+    dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text, tuple_strings,
 };
-use pyo3::{
-    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
-    prelude::{Py, PyResult, Python},
-    types::{PyAnyMethods, PyDict, PyListMethods, PyTuple},
-};
+use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
+use pyo3::prelude::{Py, PyErr, PyResult, Python};
+use pyo3::types::{PyAnyMethods, PyDict, PyListMethods, PyTuple};
 use rstest::rstest;
 use stilyagi_extract::{
-    ExtractError,
-    ExtractSyntax,
-    MarkdownIrFailure,
-    PythonExtractError,
-    RustExtractError,
+    ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError, RustExtractError,
 };
 use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, RegionKind as IrRegionKind};
-
-use super::{
-    authored_directive_error_codes_py,
-    extract_document_function,
-    extract_document_py,
-    hello,
-    map_extract_error,
-    supported_region_kinds_py,
-    supported_syntaxes_py,
-};
 
 fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
     Python::attach(|py| {
         let args = PyTuple::new(py, [source, syntax])?;
         extract_document_py(py, &args)
     })
+}
+
+fn bridge_extract_document_with_path(
+    source: &str,
+    syntax: &str,
+    source_path: &str,
+) -> PyResult<Py<PyDict>> {
+    Python::attach(|py| {
+        let args = PyTuple::new(py, [source, syntax, source_path])?;
+        extract_document_py(py, &args)
+    })
+}
+
+fn invalid_syntax_error(syntax: &str) -> PyErr {
+    bridge_extract_document("Example", syntax)
+        .expect_err(&format!("expected an error for syntax {syntax:?}"))
 }
 
 /// Name every violated clause of the canonical IR JSON envelope contract.

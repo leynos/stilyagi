@@ -222,7 +222,7 @@ def _setup_extractor_failure(
     monkeypatch.setattr(
         engine,
         "extract_document",
-        lambda _source, _syntax: _raise_bridge_extraction_error(),
+        lambda _source, _syntax, *, source_path=None: _raise_bridge_extraction_error(),
     )
     expected = f"stilyagi check: failed to check {target.name}: bridge exploded"
     return target, (expected,)

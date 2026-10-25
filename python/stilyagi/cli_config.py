@@ -21,10 +21,42 @@ __all__ = [
 
 if typ.TYPE_CHECKING:
     from stilyagi import config
-    from stilyagi.cli_args import CheckOptions
 
 
-def build_cli_overrides(options: CheckOptions) -> dict[str, object]:
+class _TargetConfigOptions(typ.Protocol):
+    """Configuration fields needed to resolve one target or discovery pass."""
+
+    @property
+    def explicit_config(self) -> tuple[str | pathlib.Path, ...]:
+        """Explicit configuration paths in command-line order."""
+        ...
+
+    @property
+    def isolated(self) -> bool:
+        """Whether discovery ignores parent configuration."""
+        ...
+
+
+class _RuleSelectionOptions(_TargetConfigOptions, typ.Protocol):
+    """Rule-selection fields available on commands that execute rules."""
+
+    @property
+    def select(self) -> tuple[str, ...]:
+        """Rule codes explicitly selected by the command line."""
+        ...
+
+    @property
+    def ignore(self) -> tuple[str, ...]:
+        """Rule codes excluded by the command line."""
+        ...
+
+    @property
+    def extend_select(self) -> tuple[str, ...]:
+        """Rule codes appended to the selected set."""
+        ...
+
+
+def build_cli_overrides(options: _RuleSelectionOptions) -> dict[str, object]:
     """Return config overrides extracted from command-line options.
 
     ``--extend-select`` appends to whatever ``--select`` already contributed,
@@ -97,7 +129,7 @@ def _build_rule_selection_overrides(
 
 def resolve_target_config(
     target: pathlib.Path,
-    options: CheckOptions,
+    options: _RuleSelectionOptions,
     resolver: config.ConfigResolver,
 ) -> ResolvedTargetConfig:
     """Resolve and validate the effective config for one target path.
@@ -141,8 +173,10 @@ def resolve_target_config(
 
 
 def resolve_discovery_config(
-    options: CheckOptions,
+    options: _TargetConfigOptions,
     resolver: config.ConfigResolver,
+    *,
+    cli_overrides: dict[str, object] | None = None,
 ) -> config.StilyagiConfig:
     """Resolve the configuration that governs Markdown discovery.
 
@@ -156,4 +190,17 @@ def resolve_discovery_config(
     config.StilyagiConfig
         The configuration used to discover Markdown inputs.
     """
-    return resolve_target_config(pathlib.Path(), options, resolver).config
+    # `dump-ir` accepts `--config` and `--isolated` but runs no rules, so its
+    # options object has no selection fields for `build_cli_overrides` to
+    # read. Discovery therefore takes the overrides it should apply, which
+    # lets `check` pass its selection flags and `dump-ir` pass none.
+    resolved = resolver.resolve_with_provenance(
+        pathlib.Path(),
+        cli_overrides=cli_overrides,
+        explicit_config=options.explicit_config or None,
+        isolated=options.isolated,
+    )
+    rule_options.validate_builtin_tables(
+        resolved.config, path=resolved.config_file or pathlib.Path()
+    )
+    return resolved.config

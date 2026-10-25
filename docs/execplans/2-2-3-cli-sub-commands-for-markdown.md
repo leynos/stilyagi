@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: APPROVED — implementation authorized on 2026-10-24; M1 is complete, M2
-is in progress and M3–M4 remain.
+Status: APPROVED — implementation authorized on 2026-10-24; M1–M2 are complete
+and M3–M4 remain.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -134,7 +134,19 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       the Rust extractor, PyO3 bridge and Python adapter. CodeGraph MCP is
       unavailable because its transport closes; Leta LSP is available for Rust
       navigation. Begin with red tests for bridge identity and dump framing.
-- [ ] M2: canonical Markdown IR inspection and bridge identity — in progress.
+- [x] (2026-10-25) Implement M2 bridge identity, `dump-ir`, `.mdc`
+      classification and frontmatter-protected repairs. Focused Rust bridge
+      and extractor tests passed, as did 142 focused Python tests; full gates
+      remain pending.
+- [x] (2026-10-25) Add typed Rust `hydrate_ir_json` through the PyO3 bridge and
+      stream canonical dump documents through bounded spools. Full gate
+      validation remains pending.
+- [x] (2026-10-25) Complete M2 after all six gates passed on R25: formatting,
+      lint, typecheck, Nextest 365/365, Rust doctests, Python tests and doctests,
+      Markdown lint and Mermaid validation. Repair the injected extractor mock,
+      package export contract, wheel snapshot, frontmatter property strategy
+      and raw-docstring newline examples exposed by sequential full runs.
+- [x] M2: canonical Markdown IR inspection and bridge identity — complete.
 - [ ] M3: extraction cache, strict bypass, and safe cleanup — not started.
 - [ ] M4: end-to-end acceptance, documentation and roadmap completion — not
       started.
@@ -228,8 +240,8 @@ from the hash.
 ## Outcomes & retrospective
 
 The reviewed plan and Proposed ADR incorporate six expert perspectives. The
-user approved implementation on 2026-10-24. M1 is complete after all six local
-quality gates passed. M2 is in progress; M3–M4 have not begun, and no
+user approved implementation on 2026-10-24. M1 and M2 are complete after all
+six local quality gates passed for each milestone. M3–M4 have not begun, and no
 performance claim has been established. Record remaining obligations here
 during implementation.
 

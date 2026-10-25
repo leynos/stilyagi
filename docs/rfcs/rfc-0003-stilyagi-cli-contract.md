@@ -139,6 +139,23 @@ documents `clean` as a top-level cache-clearing command.[^1]
 
 Emit RFC 0001 IR as canonical JSON.
 
+The command SHALL default to `.` and recursively inspect Markdown files with
+`.md`, `.markdown` or `.mdc` suffixes. Explicit non-Markdown files SHALL exit
+`2`. It SHALL accept `-` once when paired with a Markdown `--stdin-filename`,
+and SHALL reject stdin mixed with file or directory operands. Configuration
+flags, `--no-cache` and `--output-format json` are supported; fix and
+rule-selection flags are not.
+
+One successful input SHALL emit its canonical IR object. Zero or multiple
+inputs SHALL emit a JSON array, with empty discovery represented as `[]`.
+Rust's canonical document JSON SHALL be retained without parsing and
+re-serializing it. The command SHALL prepare the complete result in a spooled
+temporary stream with a 1 MiB memory threshold before writing standard output.
+An input failure SHALL therefore emit no partial JSON. Normal output SHALL end
+with one newline, and errors or logs SHALL use standard error only. If the
+standard-output stream itself fails after copying begins, the command SHALL
+report the write error without promising rollback of bytes already sent.
+
 This is the one major addition beyond the Ruff-like surface. A parser-heavy
 prose linter without an IR dump command would be begging for séance-grade
 debugging.
@@ -244,11 +261,14 @@ Files passed explicitly on the command line SHALL still be analysed unless
 v1 built-in discovery SHOULD include at least:
 
 - `*.md`
+- `*.markdown`
+- `*.mdc`
 - `*.py`
 - `*.rs`
 
-MDX is not part of the stable default discovery surface in v1. Preview support
-for `*.mdx` MAY land later behind explicit preview configuration, but stable
+The Markdown suffixes SHALL be accepted by both `check` and `dump-ir`. MDX is
+not part of the stable default discovery surface in v1. Preview support for
+`*.mdx` MAY land later behind explicit preview configuration, but stable
 recursive discovery should assume only Markdown, Python, and Rust.
 
 ## 8. Rule selection

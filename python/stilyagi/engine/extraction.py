@@ -17,6 +17,7 @@ functions must call `reset_extraction_state_for_tests` before observing patched
 vocabulary behaviour.
 """
 
+import dataclasses as dc
 import json
 import logging
 import threading
@@ -85,6 +86,26 @@ class UnknownIrRegionKind(typ.NamedTuple):
     kind: str
 
 
+@dc.dataclass(frozen=True, slots=True)
+class ExtractionResult:
+    r"""Typed document plus the unmodified canonical JSON from Rust.
+
+    Examples
+    --------
+    >>> from stilyagi import engine, model
+    >>> result = engine.extract_document_result(
+    ...     "# Title", model.Syntax.MARKDOWN
+    ... )
+    >>> result.document.regions[0].text
+    'Title'
+    >>> result.canonical_json.endswith("\n")
+    True
+    """
+
+    document: model.Document
+    canonical_json: str | None
+
+
 def _validate_syntax_vocab_once() -> None:
     """Fail fast once if the Python and Rust syntax vocabularies drift apart."""
     global _syntax_vocab_validated
@@ -148,7 +169,12 @@ def authored_directive_error_codes() -> frozenset[str]:
     return frozenset(bridge_authored_directive_error_codes())
 
 
-def extract_document(source: str, syntax: model.Syntax) -> model.Document:
+def extract_document(
+    source: str,
+    syntax: model.Syntax,
+    *,
+    source_path: str | None = None,
+) -> model.Document:
     """Extract one minimal document payload through the Rust extension.
 
     Parameters
@@ -157,17 +183,66 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
         Source text to extract.
     syntax:
         Source syntax understood by the extractor.
+    source_path:
+        Optional reported path copied into canonical IR. The path does not
+        affect source bytes or parsing.
 
     Returns
     -------
     model.Document
         Narrow document payload adapted onto the Python model surface.
 
+    Examples
+    --------
+    >>> document = extract_document(
+    ...     "# Title", model.Syntax.MARKDOWN, source_path="README.md"
+    ... )
+    >>> document.ir["document"]["path"]
+    'README.md'
+    """
+    return extract_document_result(source, syntax, source_path=source_path).document
+
+
+def extract_document_result(
+    source: str,
+    syntax: model.Syntax,
+    *,
+    source_path: str | None = None,
+) -> ExtractionResult:
+    r"""Return the typed document and Rust's original canonical JSON string.
+
+    Parameters
+    ----------
+    source:
+        Source text to extract.
+    syntax:
+        Source syntax understood by the extractor.
+    source_path:
+        Optional reported path copied into canonical IR.
+
+    Returns
+    -------
+    ExtractionResult
+        The adapted Python document and the canonical JSON string emitted by
+        Rust, without parsing and serialising that string again.
+
+    Examples
+    --------
+    >>> result = extract_document_result(
+    ...     "# Title", model.Syntax.MARKDOWN, source_path="README.md"
+    ... )
+    >>> result.document.ir["document"]["path"]
+    'README.md'
+    >>> result.canonical_json.endswith("\n")
+    True
     """
     _validate_syntax_vocab_once()
-    bridge_document = _coerce_bridge_document(_extract_bridge_payload(source, syntax))
-    ir_payload = _parse_ir_json(bridge_document.get("ir_json"))
-    return model.Document(
+    bridge_document = _coerce_bridge_document(
+        _extract_bridge_payload(source, syntax, source_path=source_path)
+    )
+    canonical_json = bridge_document.get("ir_json")
+    ir_payload = _parse_ir_json(canonical_json)
+    document = model.Document(
         syntax=model.Syntax(bridge_document["syntax"]),
         regions=tuple(
             model.Region(kind=region["kind"], text=region["text"])
@@ -175,12 +250,20 @@ def extract_document(source: str, syntax: model.Syntax) -> model.Document:
         ),
         ir=ir_payload,
     )
+    return ExtractionResult(document, canonical_json)
 
 
-def _extract_bridge_payload(source: str, syntax: model.Syntax) -> object:
+def _extract_bridge_payload(
+    source: str,
+    syntax: model.Syntax,
+    *,
+    source_path: str | None,
+) -> object:
     """Return one raw bridge payload, translating documented bridge failures."""
     try:
-        return extract_document_bridge(source, syntax.value)
+        if source_path is None:
+            return extract_document_bridge(source, syntax.value)
+        return extract_document_bridge(source, syntax.value, source_path)
     except (NotImplementedError, ValueError, RuntimeError) as exc:
         raise BridgeExtractionError(str(exc)) from exc
 

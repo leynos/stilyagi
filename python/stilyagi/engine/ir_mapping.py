@@ -77,7 +77,7 @@ def ir_sequence(document: model.Document, key: str) -> cabc.Sequence[object]:
     return typ.cast("cabc.Sequence[object]", value) if is_sequence(value) else ()
 
 
-def is_sequence(value: object) -> bool:
+def is_sequence(value: object) -> typ.TypeGuard[cabc.Sequence[object]]:
     """Return whether a value is a non-text sequence.
 
     Parameters
@@ -88,7 +88,9 @@ def is_sequence(value: object) -> bool:
     Returns
     -------
     bool
-        ``True`` for lists, tuples, and other non-string sequences.
+        ``True`` for lists, tuples, and other non-string sequences. The
+        ``TypeGuard`` return narrows ``value`` for callers, so a guard is
+        enough to make the sequence usable without a separate ``cast``.
 
     Examples
     --------

@@ -7,10 +7,10 @@ published version or a future release target. The
 
 ## Mixed-source discovery
 
-Default discovery now includes `.md`, `.markdown`, `.py`, and `.rs` files.
-`stilyagi check` can check Markdown, Python docstrings, and Rust documentation
-comments together in one repository pass, selecting an extractor for each file
-by its final suffix.
+Default discovery now includes `.md`, `.markdown`, `.mdc`, `.py`, and `.rs`
+files. `stilyagi check` can check Markdown, Python docstrings, and Rust
+documentation comments together in one repository pass, selecting an extractor
+for each file by its final suffix.
 
 ## Run summary and diagnostics
 
