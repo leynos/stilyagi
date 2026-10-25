@@ -217,6 +217,20 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       IR schema changes, expanded persistent-cache scope or unsupported
       deviations were introduced. The proof inventory is not applicable: this
       implementation adds no formal proofs. Roadmap 3.3.1 remains separate.
+- [x] (2026-10-25) Triage the final local CodeRabbit review of `040c9f5`: fix
+      seven actionable findings covering FIFO blocking, cache-marker recovery,
+      bridge `None` coverage, duplicated extraction test helpers, a stale module
+      name, a redundant step-module future import, and compound-duration prose.
+      Retain the future import in `markdown_cli_inspection.py`: its
+      `TYPE_CHECKING`-only `pathlib.Path` annotations are inspected by
+      pytest-bdd at runtime, as required by `.rules/python-typing.md`.
+- [x] (2026-10-25) Run the six gates after those fixes on the review-follow-up
+      working tree based on `040c9f5`: Nextest 368/368, pytest 876/876, and
+      script tests 154/154 passed. Formatting, lint, typecheck, Markdown lint
+      (76 files, zero issues) and Mermaid validation passed. R29 logs are
+      `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-r29.out`.
+- [ ] Re-run the local CodeRabbit review and all six gates on the committed
+      review-follow-up candidate before completing this plan.
 
 ## Surprises & discoveries
 
@@ -559,7 +573,7 @@ needed.
 
 ## Interfaces and dependencies
 
-Add small command modules `cli_inspect_config.py`, `cli_dump_ir.py` and
+Add small command modules `cli_config_command.py`, `cli_dump_ir.py` and
 `cli_clean.py`; keep `cli.py:main` as dispatch. Introduce command-specific
 immutable options and reuse config overrides without fabricating CheckOptions
 for unrelated commands. Add `config/provenance.py` with typed origin and
@@ -829,9 +843,9 @@ make nixie 2>&1 | tee /tmp/nixie-stilyagi-2-2-3-cli-sub-commands-for-markdown.ou
 Stop at the first failure, inspect the captured log, fix the cause and rerun
 the affected gate before continuing sequentially. Run `make fmt` for
 documentation changes; inspect its diff and preserve unrelated files. Never
-hand-edit generated `typos.toml`. For this documentation-only planning PR, use
-the documentation formatting, spelling/Markdown and Mermaid gates; the four
-implementation gates above remain mandatory for each implementation milestone.
+hand-edit generated `typos.toml`. Documentation-only reconciliation uses the
+formatting, spelling/Markdown and Mermaid gates; each implementation milestone
+uses all six gates above.
 
 Observable acceptance uses a disposable Markdown project with `notes.md`:
 

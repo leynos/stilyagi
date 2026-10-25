@@ -1,6 +1,9 @@
 """Descriptor-anchored ownership rules for persistent cache storage."""
 
+import os
 import pathlib
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - trusted interpreter and fixed probe script.
+import sys
 
 import pytest
 from stilyagi.cache import storage
@@ -11,6 +14,47 @@ from stilyagi.cache.model import (
     cache_entry_name,
 )
 from stilyagi.cache.storage import CacheStorageError, CacheStore
+
+from tests.support.subprocess_env import python_module_environment
+
+_FIFO_READ_PROBE = """
+import os
+import pathlib
+import sys
+
+from stilyagi.cache.model import (
+    CACHE_NAMESPACE_NAME,
+    OWNER_MARKER_BYTES,
+    OWNER_MARKER_NAME,
+    cache_entry_name,
+)
+from stilyagi.cache.storage import CacheStorageError, CacheStore
+
+root = pathlib.Path(sys.argv[1])
+kind = sys.argv[2]
+namespace = root / "cache" / CACHE_NAMESPACE_NAME
+namespace.mkdir(parents=True)
+key = "e" * 64
+
+if kind == "marker":
+    os.mkfifo(namespace / OWNER_MARKER_NAME)
+    try:
+        CacheStore(pathlib.Path("cache"), invocation_cwd=root)
+    except CacheStorageError:
+        pass
+    else:
+        raise AssertionError("a FIFO owner marker must be refused")
+else:
+    (namespace / OWNER_MARKER_NAME).write_bytes(OWNER_MARKER_BYTES)
+    os.mkfifo(namespace / cache_entry_name(key))
+    with CacheStore(pathlib.Path("cache"), invocation_cwd=root) as store:
+        try:
+            store.read(key)
+        except CacheStorageError:
+            pass
+        else:
+            raise AssertionError("a FIFO cache entry must be refused")
+"""
 
 
 def test_store_marks_owned_namespace_and_atomically_roundtrips_entry(
@@ -51,6 +95,32 @@ def test_store_refuses_to_adopt_an_unmarked_namespace(
     assert sentinel.read_text(encoding="utf-8") == "unowned", (
         "refusing an unmarked namespace must preserve its content"
     )
+
+
+@pytest.mark.parametrize("fifo_kind", ["marker", "entry"])
+def test_store_refuses_fifo_files_without_blocking(
+    tmp_path: pathlib.Path,
+    fifo_kind: str,
+) -> None:
+    """Reject FIFO markers and entries without waiting for a writer."""
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("FIFO creation is unavailable on this platform")
+
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed probe script, trusted paths, no shell.
+        [
+            sys.executable,
+            "-c",
+            _FIFO_READ_PROBE,
+            str(tmp_path),
+            fifo_kind,
+        ],
+        env=python_module_environment(),
+        capture_output=True,
+        check=False,
+        timeout=5,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
 
 
 def test_store_does_not_follow_owner_marker_symlink(
