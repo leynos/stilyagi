@@ -19,6 +19,7 @@ defines the mapping from diagnostics to process status, and it is documented at
 
 import dataclasses as dc
 import logging
+import pathlib
 import sys
 import time
 import typing as typ
@@ -30,6 +31,7 @@ from stilyagi import (
     config,
     engine,
 )
+from stilyagi.cache.extraction import CacheExtractionService, CacheServiceConfig
 from stilyagi.check_execution import CheckReporter, CheckRun, check_one_file
 from stilyagi.check_inputs import (
     CheckInput,
@@ -46,6 +48,7 @@ from stilyagi.cli_args import (
     dump_ir_options_from_args,
     options_from_args,
 )
+from stilyagi.cli_clean import run_clean
 from stilyagi.cli_config_command import _run_config_inspection
 from stilyagi.cli_dump_ir import run_dump_ir
 from stilyagi.cli_io import report_check_error
@@ -137,6 +140,8 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
         return _run_config_inspection(config_options)
     if args.command == "dump-ir":
         return run_dump_ir(dump_ir_options_from_args(args))
+    if args.command == "clean":
+        return run_clean()
 
     options = options_from_args(args)
     return run_check(options)
@@ -269,11 +274,38 @@ def _run_check(
         len(discovery_inputs.inputs),
     )
 
+    extraction_cache = CacheExtractionService(
+        CacheServiceConfig(
+            invocation_cwd=pathlib.Path.cwd(),
+            package_version=PACKAGE_VERSION,
+            no_cache=options.no_cache,
+        )
+    )
+    try:
+        return _run_discovered_check(
+            options,
+            resolved_collaborators,
+            discovery_inputs,
+            extraction_cache,
+        )
+    finally:
+        extraction_cache.log_summary()
+        extraction_cache.close()
+
+
+def _run_discovered_check(
+    options: CheckOptions,
+    resolved_collaborators: CheckCollaborators,
+    discovery_inputs: DiscoveryInputs,
+    extraction_cache: CacheExtractionService,
+) -> int:
+    """Check discovered inputs and finish the command's output and status."""
     run = CheckRun(
         options=options,
         resolver=resolved_collaborators.resolver,
         rule_runner=resolved_collaborators.rule_runner,
         report=resolved_collaborators.reporter,
+        extraction_cache=extraction_cache,
     )
     started = time.perf_counter()
     checked_files = [

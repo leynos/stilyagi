@@ -447,6 +447,18 @@ reason = "The shared content is the two-line TYPE_CHECKING marker and a newline.
 [[tool.duplication_gate.allow]]
 members = ["python/stilyagi/cli_dump_ir.py::DumpIrErrorCode", "python/stilyagi/discovery_targets.py::_PathKind"]
 reason = "DumpIrErrorCode identifies command failures whose messages are rendered by DumpIrError; _PathKind classifies discovery operands. They use the same standard StrEnum declaration form but have separate domains and consumers. Shared enum machinery would couple unrelated contracts without extracting behavior."
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/cli_config_command.py", "python/stilyagi/cli_clean.py"]
+reason = "Config inspection and cache cleaning remain independent CLI boundaries: one resolves and serializes config provenance, the other removes owned filesystem state and reports partial cleanup. A shared runner would force distinct error, rendering, and exit contracts through callbacks for only the same command-shell shape."
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/cache/clean.py", "python/stilyagi/cache/storage.py"]
+reason = "These modules need overlapping standard filesystem names but own separate descriptor operations: cleanup walks and removes marked namespaces, storage anchors cache reads and atomic writes. Import declarations contain no shared runtime behavior, and a common import module would add a dependency solely to avoid local imports."
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/engine/bridge_adapter.py", "python/stilyagi/engine/renderers.py"]
+reason = "The optional-value guards belong to different serialization boundaries: bridge hydration returns no IR when Rust omitted its payload, while rendering emits no fix when a diagnostic has none. Their only common behavior is returning None for distinct domain values; extraction would couple deserialization to rendering."
+[[tool.duplication_gate.allow]]
+unit = "python/stilyagi/cache/storage.py"
+reason = "CacheStore.read and CacheStore.write each verify their retained parent and namespace descriptors at their own operation boundary to catch replacement races before touching an entry. The exact one-line calls intentionally duplicate this safety precondition; a wrapper or decorator would obscure the invariant and still require both methods to invoke it."
 [tool.ty.environment]
 python-version = "3.14"
 

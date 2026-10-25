@@ -7,7 +7,7 @@ import sys
 import typing as typ
 
 import pytest
-from stilyagi import cli_dump_ir, engine, model
+from stilyagi import cli_dump_ir, cli_dump_ir_output, engine, model
 from stilyagi.cli_args import DumpIrOptions
 from syrupy.extensions.json import JSONSnapshotExtension
 
@@ -335,8 +335,8 @@ def test_dump_ir_reports_framing_spool_failure_before_stdout(
 
         def write(self, _data: bytes) -> typ.Never:
             """Fail every attempted write."""
-            raise cli_dump_ir.DumpIrSpoolError(
-                cli_dump_ir.DumpIrSpoolErrorCode.SHORT_JSON_SPOOL_WRITE
+            raise cli_dump_ir_output.DumpIrSpoolError(
+                cli_dump_ir_output.DumpIrSpoolErrorCode.SHORT_JSON_SPOOL_WRITE
             )
 
     def spool_factory(

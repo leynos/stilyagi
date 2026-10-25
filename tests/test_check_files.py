@@ -87,14 +87,17 @@ def test_cli_main_preserves_crlf_source_for_extraction(
         _syntax: object,
         *,
         source_path: str | None = None,
-    ) -> model.Document:
+    ) -> engine.ExtractionResult:
         """Record the source passed through the command-line pipeline."""
         extracted_sources.append(text)
         extracted_paths.append(source_path)
-        return model.Document(syntax=model.Syntax.MARKDOWN)
+        return engine.ExtractionResult(
+            model.Document(syntax=model.Syntax.MARKDOWN),
+            canonical_json=None,
+        )
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(engine, "extract_document", capture_source)
+    monkeypatch.setattr(engine, "extract_document_result", capture_source)
 
     assert cli.main(["check", target.name]) == 0, "expected a clean check"
     assert not capsys.readouterr().err, "expected no read error"
@@ -109,16 +112,19 @@ def _synthetic_ir_extract(
     source: str,
     _syntax: object,
     **_kwargs: object,
-) -> model.Document:
+) -> engine.ExtractionResult:
     """Return a document that carries one IR error for the 'warn' source only."""
     errors = (
         [{"code": "IR900", "message": "synthetic", "span": {"byte_start": 0}}]
         if "WARN" in source
         else []
     )
-    return model.Document(
-        syntax=model.Syntax.MARKDOWN,
-        ir={"line_index": [0, 8], "errors": errors},
+    return engine.ExtractionResult(
+        model.Document(
+            syntax=model.Syntax.MARKDOWN,
+            ir={"line_index": [0, 8], "errors": errors},
+        ),
+        canonical_json=None,
     )
 
 
@@ -136,7 +142,7 @@ def test_cli_main_checks_every_file_and_renders_earlier_diagnostics_on_failure(
     # diagnostic is accumulated before the failure is encountered.
     (root / "c-broken.md").write_bytes(b"\xff")
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(engine, "extract_document", _synthetic_ir_extract)
+    monkeypatch.setattr(engine, "extract_document_result", _synthetic_ir_extract)
 
     exit_code = cli.main(["check", "."])
     captured = capsys.readouterr()

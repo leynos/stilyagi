@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: APPROVED — implementation authorized on 2026-10-24; M1 and M2 are
-complete, M3 is starting, and M4 remains.
+Status: APPROVED — implementation authorized on 2026-10-24; M1, M2 and M3 are
+complete, and M4 remains.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -159,9 +159,24 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       doctests, Python and script tests, four snapshots, formatting, lint,
       typecheck, Markdown lint and Mermaid validation passed. Logs are
       `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-complete-1.out`.
+- [x] (2026-10-25) Begin M3 implementation: add request identity, owned storage,
+      checksummed Rust hydration, strict cache bypass, CLI wiring for check and
+      dump, and descriptor-relative cleanup. Focused cache and affected CLI
+      suites passed 141 tests; the full gates were completed at this milestone.
+- [x] (2026-10-25) Complete M3 on the candidate at HEAD
+      `7f5530a6d7a3dc10a68b0a9f20f19ec2f1406e17`. The six sequential gates
+      passed: check-fmt, lint, typecheck, test, markdownlint and nixie. Nextest
+      passed 366/366; Rust doctests, Python tests, duplication helpers and
+      snapshots passed. The full test run exposed cache reuse in the extractor
+      failure test, generated cache writes in source-tree assertions, and new
+      packaged modules missing from the wheel snapshot. The tests now disable
+      cache reuse, compare source files while excluding generated cache state,
+      and include the new modules in the package snapshot. Gate logs end in
+      `-r11.out` under `/tmp`.
 - [x] M2: canonical Markdown IR inspection and bridge identity — complete after
       the follow-up CodeRabbit review and exact-head gates passed.
-- [ ] M3: extraction cache, strict bypass, and safe cleanup — starting.
+- [x] M3: extraction cache, strict bypass, and safe cleanup — complete after
+      all six quality gates passed.
 - [ ] M4: end-to-end acceptance, documentation and roadmap completion — not
       started.
 
@@ -264,17 +279,18 @@ from the hash.
 
 The reviewed plan and Proposed ADR incorporate six expert perspectives. The
 user approved implementation on 2026-10-24. M1 and M2 are complete after all
-six local quality gates passed for each milestone. M3–M4 have not begun, and no
-performance claim has been established. Record remaining obligations here
-during implementation.
+six local quality gates passed for each milestone. M3 delivered the extraction
+cache, validated Rust hydration, strict bypass and safe cleanup; all six
+milestone gates passed. M4 acceptance and final conformance remain. No
+performance claim has been established.
 
 ## Context and orientation
 
 Start with [documentation contents](../contents.md) and
 [repository layout](../repository-layout.md). `python/stilyagi/cli_args.py`
-registers only `check`; `python/stilyagi/cli.py:main` sends every parsed
-command to `run_check`. Preserve the empty-argument default and version
-behaviour while adding explicit dispatch.
+registers `check`, `config`, `dump-ir` and `clean`;
+`python/stilyagi/cli.py:main` dispatches those commands while preserving the
+empty-argument default and version behaviour.
 
 `python/stilyagi/config/{load,parse,resolve,schema,validate}.py` implement TOML
 loading, schema defaults, nearest-config resolution, ordered explicit extends

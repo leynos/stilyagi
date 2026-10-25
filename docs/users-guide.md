@@ -301,6 +301,19 @@ output contains the same counts in its `summary` object. See the
 [mixed-source discovery change notes](mixed-source-discovery-notes.md) for a
 concise overview of this behaviour.
 
+Markdown extraction is cached under the configured cache directory. Cache hits
+reuse only the canonical extracted IR; current rules, diagnostics, and fix
+planning still run. `--no-cache` forces fresh extraction without reading,
+creating, or writing persistent cache state. Stdin and the verification pass
+after `--fix` also always extract the current source again. Cache write errors
+warn and fall back to fresh extraction.
+
+Use `stilyagi clean` to remove recognized caches beneath the current working
+directory. It preserves the configured parent directory, unknown files, source
+files and symlink targets. Cleanup needs no project configuration and returns
+status `2` if a safe cleanup operation fails. Cache entries do not expire
+automatically.
+
 #### Output formats
 
 Use `--output-format text` (the default) for human-readable output: one line
@@ -671,7 +684,8 @@ The JSON retains Rust's source path, byte spans, line index, content hash,
 frontmatter region, and extraction errors. An input or extraction failure exits
 `2` without writing partial JSON. Use `--config`, `--isolated`, and
 `--no-cache` as with `check`; `dump-ir` does not accept fix or rule-selection
-options. Markdown fixes preserve recognized YAML frontmatter byte-for-byte.
+options. `--no-cache` bypasses persistent reads and writes. Markdown fixes
+preserve recognized YAML frontmatter byte-for-byte.
 
 ## 4. Locale policy in v1
 

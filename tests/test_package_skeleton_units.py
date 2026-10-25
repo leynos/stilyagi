@@ -45,6 +45,7 @@ def test_public_package_re_exports_the_supported_boundaries() -> None:
                 "RunSummary",
                 "extract_document",
                 "extract_document_result",
+                "hydrate_ir_json",
                 "supported_region_kinds",
             ],
         ),

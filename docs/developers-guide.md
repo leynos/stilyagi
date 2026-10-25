@@ -342,9 +342,10 @@ interpreter before the measured iterations run in that same interpreter.
 Use the probe output as review evidence when changing the structural extractor,
 Python adapter, or build spine. Compare cold with cold and warm with warm, and
 look for large regressions in context rather than treating one noisy local
-sample as a hard threshold. If later roadmap slices extend `stilyagi check`
-with additional subcommands or persistent Stilyagi caches, update this section
-and the ExecPlan-backed tests together.
+sample as a hard threshold. The Markdown inspection commands and the persistent
+extraction cache are described in the command-boundary section below; later
+changes to those surfaces should update the relevant tests and documentation
+together.
 
 Round-trip edit helpers exist to test fix safety before the full rule engine
 lands. They must preserve source text outside edited ranges, accept adjacent
@@ -1125,6 +1126,32 @@ The extension's `hydrate_ir_json` entrypoint restores canonical IR through the
 same Rust schema and region conversion used by extraction. Cache callers must
 validate the cache key and canonical-byte checksum before hydration; hydration
 does not represent a new extraction and does not increment extraction metrics.
+
+`cache/extraction.py` owns invocation-scoped cache selection. It receives the
+already-resolved per-file configuration, source text, syntax and reported
+identity; it does not discover targets or load configuration. Its complete
+identity includes the normalized effective values, the loaded extension digest,
+package version, enabled built-in rule signature and explicit inactive NLP
+signature. It validates the canonical JSON envelope before asking Rust to
+hydrate it. Check and dump share this service; check still runs current rules
+and fix planning after a hit, and written files are re-extracted during
+post-fix verification.
+
+`cache/storage.py` owns descriptor-anchored reads and atomic writes beneath a
+marked `stilyagi-v1` namespace. `cache/model.py` owns the exact filename
+classifier shared with `cache/clean.py`. Cleanup traverses from the invocation
+directory, prunes `.git`, skips directory symlinks, and removes only marked
+namespaces and recognized disposable files. It never owns the configured parent
+directory. Unknown entries keep their namespace in place. If a platform lacks
+the no-follow descriptor operations, cleanup refuses the operation rather than
+falling back to resolved-path checks.
+
+`--no-cache` and stdin reach the extraction service's direct path before it
+constructs a storage adapter or hashes the extension. The post-fix check also
+sets `force_fresh`. These paths perform no persistent-cache reads, writes,
+directory creation, or cache-path stats. The fixed cache counters are logged
+without file paths; keep their names in `cli_log.STRUCTURED_FIELDS` so verbose
+output exposes them.
 
 The `cli_dump_ir` coordinator reuses `check_targets.parse_target_operands`,
 shared configuration resolution, discovery and source reading. It filters the

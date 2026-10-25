@@ -437,17 +437,48 @@ That mirrors Ruff’s documented exit-code contract and is the right one.[^2]
 
 ## 13. Caching
 
-The default cache directory SHALL be `.stilyagi_cache`.
+The default cache directory SHALL be `.stilyagi_cache`. Stilyagi SHALL persist
+only Markdown extraction results in a marked `stilyagi-v1` namespace within the
+configured cache directory. Cache entries SHALL contain Rust's canonical IR
+JSON and a checksum of those exact UTF-8 bytes. A cache hit SHALL validate the
+entry envelope and checksum in Python, then hydrate through the existing Rust
+IR schema and bridge conversion. Hydration SHALL NOT count as a new extraction.
+Analysis, diagnostics, fix planning and rule execution remain fresh for every
+check.
 
 The cache key SHALL include at least:
 
-- file content hash
-- effective configuration hash
-- extractor or parser versions
-- enabled rule-pack versions
-- NLP model signature
+- complete source bytes, including Markdown frontmatter and line endings;
+- syntax and reported source identity;
+- normalized effective configuration values;
+- the loaded native-extension digest and Stilyagi package version;
+- the enabled built-in rule-pack signature; and
+- an explicit NLP signature, currently `inactive`.
 
-`clean` SHALL remove these caches.
+The frontmatter inclusion policy is versioned in cache identity. A
+frontmatter-only edit SHALL miss the extraction cache so current document
+hashes, byte spans and line indices are regenerated. Cache data is disposable:
+malformed or inconsistent entries SHALL be treated as misses, while unavailable
+storage SHALL warn and continue with fresh extraction. Writes use an exclusive
+temporary file and descriptor-relative atomic replacement. Symlinked cache
+roots, namespace directories, markers, entries and temporary files SHALL never
+be followed. Platforms without the required safe filesystem operations SHALL
+refuse cache access rather than weaken these guarantees.
+
+`--no-cache` SHALL bypass persistent-cache construction, reads, writes,
+directory creation and native-extension fingerprinting. Standard input and
+post-fix verification SHALL always use fresh extraction. Both `check` and
+`dump-ir` accept `--no-cache`.
+
+`clean` SHALL walk beneath the current working directory without following
+directory symlinks and SHALL prune `.git` metadata. It SHALL recognize a cache
+only by the exact `stilyagi-v1` directory name and ownership-marker bytes.
+Cleanup removes only exact 64-character lowercase hexadecimal `.json` entry
+names and `.tmp-` files followed by 32 lowercase hexadecimal characters.
+Unknown files preserve their namespace; the configured parent is never removed.
+Cleanup is idempotent best effort, and concurrent writers may repopulate caches
+afterwards. Entries have no automatic eviction in this slice; `clean` is the
+reclamation mechanism.
 
 ## 14. Plugin activation
 

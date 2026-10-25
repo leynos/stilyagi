@@ -154,6 +154,10 @@ def build_parser() -> argparse.ArgumentParser:
             help_text="Skip config discovery for the requested Markdown targets.",
         ),
     )
+    subparsers.add_parser(
+        "clean",
+        help="Remove recognized Stilyagi caches beneath the current directory.",
+    )
     return parser
 
 
@@ -276,7 +280,7 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-cache",
         action="store_true",
-        help="Accept cache disabling requests without changing behaviour yet.",
+        help="Bypass persistent extraction cache reads and writes.",
     )
     _add_verbosity_arguments(parser)
     _add_target_arguments(parser)
