@@ -261,7 +261,7 @@ def _extract_documents(
                 sourced.reported_path,
             )
         canonical_document = _canonical_bytes(result.canonical_json)
-        _write_spool(document_spool, canonical_document)
+        _write_chunk(document_spool, canonical_document)
         document_lengths.append(len(canonical_document))
     return tuple(document_lengths)
 
@@ -271,7 +271,7 @@ def _write_json_framing(
     document_spool: typ.IO[bytes],
     document_lengths: tuple[int, ...],
 ) -> None:
-    """Frame spooled canonical documents without reserialising their IR."""
+    """Frame spooled canonical documents without reserializing their IR."""
     if len(document_lengths) == 1:
         _copy_document_spool(
             document_spool,
@@ -281,16 +281,16 @@ def _write_json_framing(
         )
         return
     if not document_lengths:
-        _write_spool(output_spool, b"[]\n")
+        _write_chunk(output_spool, b"[]\n")
         return
-    _write_spool(output_spool, b"[")
+    _write_chunk(output_spool, b"[")
     offset = 0
     for index, length in enumerate(document_lengths):
         if index:
-            _write_spool(output_spool, b",")
+            _write_chunk(output_spool, b",")
         _copy_document_spool(document_spool, output_spool, offset, length)
         offset += length
-    _write_spool(output_spool, b"]\n")
+    _write_chunk(output_spool, b"]\n")
 
 
 def _copy_document_spool(
@@ -306,14 +306,18 @@ def _copy_document_spool(
         chunk = document_spool.read(min(_OUTPUT_CHUNK_SIZE, remaining))
         if not chunk:
             raise DumpIrSpoolError(DumpIrSpoolErrorCode.DOCUMENT_TRUNCATED)
-        _write_spool(output_spool, chunk)
+        _write_chunk(output_spool, chunk)
         remaining -= len(chunk)
 
 
-def _write_spool(spool: typ.IO[bytes], contents: bytes) -> None:
-    """Write all bytes to a temporary spool or report an operational failure."""
-    if spool.write(contents) != len(contents):
-        raise DumpIrSpoolError(DumpIrSpoolErrorCode.SHORT_JSON_SPOOL_WRITE)
+def _write_chunk[WriteContent: (str, bytes)](
+    output: typ.IO[WriteContent],
+    contents: WriteContent,
+    error_code: DumpIrSpoolErrorCode = DumpIrSpoolErrorCode.SHORT_JSON_SPOOL_WRITE,
+) -> None:
+    """Write a chunk or report an incomplete spool or stdout write."""
+    if output.write(contents) != len(contents):
+        raise DumpIrSpoolError(error_code)
 
 
 def _canonical_bytes(document: str) -> bytes:
@@ -338,15 +342,26 @@ def _copy_spool_to_output(
     while chunk := spool.read(_OUTPUT_CHUNK_SIZE):
         decoded = decoder.decode(chunk)
         if decoded:
-            text_output.write(decoded)
+            _write_chunk(
+                text_output,
+                decoded,
+                DumpIrSpoolErrorCode.SHORT_STDOUT_WRITE,
+            )
     final_text = decoder.decode(b"", final=True)
     if final_text:
-        text_output.write(final_text)
+        _write_chunk(
+            text_output,
+            final_text,
+            DumpIrSpoolErrorCode.SHORT_STDOUT_WRITE,
+        )
 
 
 def _copy_binary_chunks(spool: typ.IO[bytes], output: typ.BinaryIO) -> None:
     """Stream binary output in bounded chunks and flush it when supported."""
     while chunk := spool.read(_OUTPUT_CHUNK_SIZE):
-        if output.write(chunk) != len(chunk):
-            raise DumpIrSpoolError(DumpIrSpoolErrorCode.SHORT_STDOUT_WRITE)
+        _write_chunk(
+            output,
+            chunk,
+            DumpIrSpoolErrorCode.SHORT_STDOUT_WRITE,
+        )
     output.flush()
