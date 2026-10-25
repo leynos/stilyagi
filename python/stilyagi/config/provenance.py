@@ -193,31 +193,56 @@ def _merge_origin_layers(
     """Update origins using the same recursive shape as table merging."""
     for key, override_value in override.items():
         path = (*prefix, key)
-        dotted_path = ".".join(path)
-        base_value = base.get(key)
-        if isinstance(base_value, cabc.Mapping) and isinstance(
-            override_value, cabc.Mapping
-        ):
-            _merge_origin_layers(
-                typ.cast("cabc.Mapping[str, object]", base_value),
-                typ.cast("cabc.Mapping[str, object]", override_value),
-                state,
-                prefix=path,
-            )
-            if _merge_config_tables(base_value, override_value):
-                state.merged.pop(dotted_path, None)
-            elif not override_value and not base_value:
-                origin = state.override.get(dotted_path)
-                if origin is not None:
-                    state.merged[dotted_path] = origin
-            continue
+        _merge_origin_entry(base.get(key), override_value, state, path)
 
-        _discard_origin_subtree(state.merged, dotted_path)
-        state.merged.update(
-            (origin_path, origin)
-            for origin_path, origin in state.override.items()
-            if origin_path == dotted_path or origin_path.startswith(f"{dotted_path}.")
-        )
+
+def _merge_origin_entry(
+    base_value: object,
+    override_value: object,
+    state: _OriginMergeState,
+    path: tuple[str, ...],
+) -> None:
+    """Merge one origin subtree using the matching table operation."""
+    if isinstance(base_value, cabc.Mapping) and isinstance(
+        override_value, cabc.Mapping
+    ):
+        base_table = typ.cast("cabc.Mapping[str, object]", base_value)
+        override_table = typ.cast("cabc.Mapping[str, object]", override_value)
+        _merge_origin_layers(base_table, override_table, state, prefix=path)
+        _reconcile_mapping_origin(".".join(path), base_table, override_table, state)
+        return
+    _replace_origin_subtree(".".join(path), state)
+
+
+def _reconcile_mapping_origin(
+    dotted_path: str,
+    base: cabc.Mapping[str, object],
+    override: cabc.Mapping[str, object],
+    state: _OriginMergeState,
+) -> None:
+    """Keep only an origin for an empty mapping after recursive merging."""
+    if _merge_config_tables(base, override):
+        state.merged.pop(dotted_path, None)
+        return
+    if base or override:
+        return
+    origin = state.override.get(dotted_path)
+    if origin is None:
+        return
+    state.merged[dotted_path] = origin
+
+
+def _replace_origin_subtree(
+    dotted_path: str,
+    state: _OriginMergeState,
+) -> None:
+    """Replace displaced leaf origins with the overriding subtree."""
+    _discard_origin_subtree(state.merged, dotted_path)
+    state.merged.update(
+        (origin_path, origin)
+        for origin_path, origin in state.override.items()
+        if origin_path == dotted_path or origin_path.startswith(f"{dotted_path}.")
+    )
 
 
 def _discard_origin_subtree(

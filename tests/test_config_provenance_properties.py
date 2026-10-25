@@ -92,13 +92,24 @@ def _write_layer(
     lines: list[str] = []
     if parent is not None:
         lines.append(f"extend = {_toml_value(str(parent))}")
+    _append_scalar_values(lines, layer)
+    _append_lint_values(lines, layer)
+    _append_markdown_values(lines, layer)
+    _append_rule_values(lines, layer)
+    path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
+
+def _append_scalar_values(lines: list[str], layer: dict[str, object]) -> None:
+    """Append the supported root-level generated TOML values."""
     lines.extend(
         f"{key} = {_toml_value(layer[key])}"
         for key in ("cache-dir", "line-length", "plugins")
         if key in layer
     )
 
+
+def _append_lint_values(lines: list[str], layer: dict[str, object]) -> None:
+    """Append generated lint settings under their TOML table."""
     lint_values = {
         "select": layer.get("lint.select"),
         "preview": layer.get("lint.preview"),
@@ -112,6 +123,9 @@ def _write_layer(
             f"{key} = {_toml_value(value)}" for key, value in lint_values.items()
         )
 
+
+def _append_markdown_values(lines: list[str], layer: dict[str, object]) -> None:
+    """Append generated Markdown extraction settings."""
     if "extract.markdown.gfm" in layer:
         lines.extend((
             "",
@@ -119,14 +133,15 @@ def _write_layer(
             f"gfm = {_toml_value(layer['extract.markdown.gfm'])}",
         ))
 
+
+def _append_rule_values(lines: list[str], layer: dict[str, object]) -> None:
+    """Append generated STY001 rule settings."""
     if "rule" in layer:
         lines.extend(("", "[rule.STY001]"))
         rule_values = typ.cast("dict[str, object]", layer["rule"])
         lines.extend(
             f"{key} = {_toml_value(value)}" for key, value in rule_values.items()
         )
-
-    path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
 
 def _flatten_origins(
@@ -168,6 +183,14 @@ class _OracleState:
     origins: dict[str, dict[str, object]]
 
 
+@dc.dataclass(frozen=True, slots=True)
+class _OracleLayerMerge:
+    """Carry one source identity through an independent layer fold."""
+
+    state: _OracleState
+    source_file: pathlib.Path
+
+
 def _merge_layer(
     state: _OracleState,
     layer: dict[str, object],
@@ -175,48 +198,82 @@ def _merge_layer(
     source_file: pathlib.Path,
 ) -> None:
     """Fold one nested mapping into the independent value/origin oracle."""
+    merge = _OracleLayerMerge(state, source_file)
+    _merge_nested_layer(merge, state.values, layer, ())
 
-    def merge_nested_values(
-        current_values: dict[str, object],
-        current_layer: dict[str, object],
-        prefix: tuple[str, ...],
-    ) -> None:
-        """Merge one nested table while retaining the winning leaf origins."""
-        for key, value in current_layer.items():
-            dotted_key = ".".join((*prefix, key))
-            current = current_values.get(key)
-            if isinstance(current, dict) and isinstance(value, dict):
-                merge_nested_values(
-                    typ.cast("dict[str, object]", current),
-                    typ.cast("dict[str, object]", value),
-                    (*prefix, key),
-                )
-                if current:
-                    state.origins.pop(dotted_key, None)
-                elif not value:
-                    state.origins[dotted_key] = {
-                        "kind": "file",
-                        "source_file": str(source_file.resolve()),
-                        "cli_overridden": False,
-                    }
-                continue
 
-            for existing_key in tuple(state.origins):
-                if existing_key == dotted_key or existing_key.startswith(
-                    f"{dotted_key}."
-                ):
-                    del state.origins[existing_key]
-            current_values[key] = copy.deepcopy(value)
-            state.origins.update(
-                _flatten_origins(
-                    value,
-                    prefix=(*prefix, key),
-                    kind="file",
-                    source_file=str(source_file.resolve()),
-                )
+def _merge_nested_layer(
+    merge: _OracleLayerMerge,
+    current_values: dict[str, object],
+    current_layer: dict[str, object],
+    prefix: tuple[str, ...],
+) -> None:
+    """Fold one table level into the independent value/origin oracle."""
+    for key, value in current_layer.items():
+        path = (*prefix, key)
+        current = current_values.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            current_table = typ.cast("dict[str, object]", current)
+            override_table = typ.cast("dict[str, object]", value)
+            _merge_nested_layer(
+                merge,
+                current_table,
+                override_table,
+                path,
             )
+            _reconcile_empty_table_origin(
+                merge,
+                ".".join(path),
+                current_table,
+                override_table,
+            )
+            continue
+        _replace_oracle_value(
+            merge,
+            current_values,
+            value,
+            path,
+        )
 
-    merge_nested_values(state.values, layer, ())
+
+def _reconcile_empty_table_origin(
+    merge: _OracleLayerMerge,
+    dotted_key: str,
+    current_table: dict[str, object],
+    override_table: dict[str, object],
+) -> None:
+    """Assign an origin to an empty table or remove its shadowed marker."""
+    if current_table:
+        merge.state.origins.pop(dotted_key, None)
+        return
+    if not override_table:
+        merge.state.origins[dotted_key] = {
+            "kind": "file",
+            "source_file": str(merge.source_file.resolve()),
+            "cli_overridden": False,
+        }
+
+
+def _replace_oracle_value(
+    merge: _OracleLayerMerge,
+    current_values: dict[str, object],
+    value: object,
+    path: tuple[str, ...],
+) -> None:
+    """Replace one oracle value and every origin below its dotted path."""
+    dotted_key = ".".join(path)
+    for existing_key in tuple(merge.state.origins):
+        if existing_key == dotted_key or existing_key.startswith(f"{dotted_key}."):
+            del merge.state.origins[existing_key]
+    current_values[path[-1]] = copy.deepcopy(value)
+    merge.state.origins.update(
+        _flatten_origins(
+            value,
+            prefix=path,
+            kind="file",
+            source_file=str(merge.source_file.resolve()),
+        )
+    )
 
 
 def _render_expected(

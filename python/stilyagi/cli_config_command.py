@@ -57,37 +57,71 @@ def _run_config_inspection(
     """
     out_stream = output if output is not None else sys.stdout
     error_stream = error if error is not None else sys.stderr
-    target = pathlib.Path(options.target).expanduser()
-    if not target.exists() or not (target.is_file() or target.is_dir()):
-        error_stream.write(f"stilyagi config: target does not exist: {target}\n")
+    target = _inspection_target(options.target, error_stream)
+    if target is None:
         return 2
+    try:
+        inspection, selected_value, selected_origins = _load_inspection(
+            options,
+            target,
+        )
+    except config.ConfigError as exc:
+        error_stream.write(f"stilyagi config: {exc}\n")
+        return 2
+    rendered = _render_inspection(
+        options,
+        inspection,
+        selected_value,
+        selected_origins,
+    )
+    out_stream.write(rendered)
+    return 0
 
+
+def _inspection_target(
+    target_value: str,
+    error: typ.TextIO,
+) -> pathlib.Path | None:
+    """Expand and validate the file or directory inspected by the command."""
+    target = pathlib.Path(target_value).expanduser()
+    if target.is_file():
+        return target
+    if target.is_dir():
+        return target
+    error.write(f"stilyagi config: target does not exist: {target}\n")
+    return None
+
+
+def _load_inspection(
+    options: _ConfigInspectionOptions,
+    target: pathlib.Path,
+) -> tuple[_ConfigInspection, object, dict[str, _ConfigOrigin]]:
+    """Resolve the effective config and select its requested key and origins."""
     overrides = _build_rule_selection_overrides(
         select=options.select,
         ignore=options.ignore,
         extend_select=options.extend_select,
     )
-    try:
-        inspection = config.ConfigResolver()._inspect_config_for_path(
-            target,
-            cli_overrides=overrides or None,
-            explicit_config=options.explicit_config or None,
-            isolated=options.isolated,
-        )
-        selected_value, selected_origins = _select_inspection(
-            inspection,
-            options.key,
-        )
-    except config.ConfigError as exc:
-        error_stream.write(f"stilyagi config: {exc}\n")
-        return 2
+    inspection = config.ConfigResolver()._inspect_config_for_path(
+        target,
+        cli_overrides=overrides or None,
+        explicit_config=options.explicit_config or None,
+        isolated=options.isolated,
+    )
+    selected_value, selected_origins = _select_inspection(inspection, options.key)
+    return inspection, selected_value, selected_origins
 
+
+def _render_inspection(
+    options: _ConfigInspectionOptions,
+    inspection: _ConfigInspection,
+    selected_value: object,
+    selected_origins: dict[str, _ConfigOrigin],
+) -> str:
+    """Render the selected inspection in the requested stable format."""
     if options.output_format == "json":
-        rendered = _render_json(options.key, selected_value, selected_origins)
-    else:
-        rendered = _render_text(selected_origins, inspection)
-    out_stream.write(rendered)
-    return 0
+        return _render_json(options.key, selected_value, selected_origins)
+    return _render_text(selected_origins, inspection)
 
 
 def _select_inspection(

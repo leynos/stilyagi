@@ -1,15 +1,17 @@
 """Per-file execution for the `stilyagi check` command.
 
 This is the one path a discovered input travels: read it byte-faithfully,
-extract it through the syntax it was discovered under, resolve the
-configuration in force for its path, run the rules, and -- when the run asked
-for one -- plan its fix. Every stage is wrapped in an operational metric span,
-so a run's cost can be attributed to the phase that spent it.
+resolve the configuration in force for its path, extract it through the syntax
+it was discovered under, run the rules, and -- when the run asked for one --
+plan its fix. Every stage is wrapped in an operational metric span, so a run's
+cost can be attributed to the phase that spent it.
 
-Keeping that in one function is what makes the run's accounting honest: a
-second implementation would repeat the metric recording, span boundaries, and
-failure classification, and the two copies would disagree the first time one
-changed. The run-level sweep imports this module rather than reimplementing it.
+Keeping these per-file phases on one path makes the run's accounting honest.
+The orchestrator owns their metric spans and failure classification; focused
+helpers perform extraction and rule/fix work without creating a second runner.
+The run-level sweep, which flattens these per-file results and reconciles a
+mutating run's re-lint, is `cli_run`'s work and imports this module rather than
+reimplementing it.
 
 The read lives here rather than entirely in `cli_io`. `cli_io` owns the byte
 *boundary*: how a stream is read without newline translation, and how an
@@ -118,24 +120,9 @@ def _rule_request(
 ) -> RuleRunRequest:
     """Build the per-document rule request from the values already in hand.
 
-    The check pipeline already holds the original bytes, the reported path and
-    the resolved configuration here, so rules can be handed byte-exact source
-    without a second read and without reaching for the filesystem themselves.
     The config file travels with the configuration because both describe the
     same resolution; re-deriving it here would let the origin a diagnostic
     names drift from the configuration it was produced under.
-
-    Parameters
-    ----------
-    sourced_input:
-        The read result carrying both the original bytes and decoded text.
-    document:
-        The extracted document with its canonical IR envelope.
-    config_outcome:
-        The effective configuration for this target, the config file that
-        supplied it, and the target's spelling relative to the glob anchor,
-        resolved once in the config phase so a resolution failure is reported
-        there.
 
     Returns
     -------
@@ -222,27 +209,10 @@ def _plan_fix(request: _PlannedFileRequest) -> PlannedFile:
 def _read_source(check_input: CheckInput, run: CheckRun) -> SourcedInput | None:
     """Return one input with its bytes and text, or ``None`` after reporting.
 
-    Every read and decoding failure is caught here, so the check loop has one
-    shape of failure to handle rather than a family of exception types. The
-    function is deliberately the only place a read failure is converted into a
-    reported outcome, which is what keeps the operational metrics and the exit
-    status telling the same story about the same file.
-
-    The failure is reported against the input's *reported* path, not the
-    resolved one the read attempted. That is the command-line-relative identity
-    the run summary and every diagnostic already use, so a user reading the
-    warning can match it to the file they asked about rather than to an
-    absolute path they never typed. The typed `SourceReadError` is handed on
-    intact, so a consumer that needs the path the read actually reached still
-    has it.
-
-    Parameters
-    ----------
-    check_input:
-        The resolved input to read.
-    run:
-        The collaborators for this invocation, whose reporter receives any
-        failure.
+    The failure is reported against the input's *reported* path, the identity
+    the run summary and every diagnostic already use, so a user can match the
+    warning to the file they asked about. The typed `SourceReadError` is handed
+    on intact, so a consumer that needs the path the read reached still has it.
 
     Returns
     -------
@@ -267,6 +237,81 @@ def _report_phase_failure(
     check_metrics.record_operational_failure(phase)
     run.report(pathlib.Path(sourced_input.reported_path), error)
     return FileCheckResult(diagnostics=[], had_error=True, was_unreadable=False)
+
+
+def _extract_document(
+    check_input: CheckInput,
+    sourced_input: SourcedInput,
+    resolved_config: config.StilyagiConfig,
+    run: CheckRun,
+) -> model.Document:
+    """Extract one document through the selected fresh or cached path."""
+    if run.extraction_cache is None:
+        return engine.extract_document(
+            sourced_input.source_text,
+            check_input.syntax,
+            source_path=sourced_input.reported_path,
+        )
+    extraction = run.extraction_cache.extract(
+        CacheExtractionInput(
+            source_text=sourced_input.source_text,
+            syntax=check_input.syntax,
+            reported_identity=sourced_input.reported_path,
+            effective_config=resolved_config,
+            cache_dir=resolved_config.cache_dir,
+            from_stdin=sourced_input.from_stdin,
+            force_fresh=run.force_fresh,
+        )
+    )
+    return extraction.document
+
+
+def _run_rules_and_plan(
+    sourced_input: SourcedInput,
+    document: model.Document,
+    config_outcome: _ConfigOutcome,
+    run: CheckRun,
+) -> FileCheckResult:
+    """Evaluate one extracted document and plan only requested fixes."""
+    try:
+        with check_metrics._measure_phase("rules"):
+            diagnostics_list = [
+                *map_ir_errors(document, sourced_input.reported_path),
+                *run.rule_runner(
+                    _rule_request(
+                        sourced_input=sourced_input,
+                        document=document,
+                        config_outcome=config_outcome,
+                    )
+                ),
+            ]
+    except Exception:
+        check_metrics.record_operational_failure("rules")
+        raise
+
+    if not _wants_a_plan(run):
+        # Planning is skipped entirely unless a fix was asked for, so an
+        # ordinary check never pays for it and never reports a plan it did not
+        # make.
+        return FileCheckResult(
+            diagnostics=diagnostics_list,
+            had_error=False,
+            was_unreadable=False,
+        )
+    return FileCheckResult(
+        diagnostics=diagnostics_list,
+        had_error=False,
+        was_unreadable=False,
+        planned=_plan_fix(
+            _PlannedFileRequest(
+                sourced_input=sourced_input,
+                document=document,
+                diagnostics_list=diagnostics_list,
+                resolved_config=config_outcome.resolved_target.config,
+                run=run,
+            )
+        ),
+    )
 
 
 def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
@@ -319,25 +364,12 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
     _LOGGER.debug("extracting %s", sourced_input.reported_path)
     try:
         with check_metrics._measure_phase("extract"):
-            if run.extraction_cache is None:
-                document = engine.extract_document(
-                    sourced_input.source_text,
-                    check_input.syntax,
-                    source_path=sourced_input.reported_path,
-                )
-            else:
-                extraction = run.extraction_cache.extract(
-                    CacheExtractionInput(
-                        source_text=sourced_input.source_text,
-                        syntax=check_input.syntax,
-                        reported_identity=sourced_input.reported_path,
-                        effective_config=resolved_target.config,
-                        cache_dir=resolved_target.config.cache_dir,
-                        from_stdin=sourced_input.from_stdin,
-                        force_fresh=run.force_fresh,
-                    )
-                )
-                document = extraction.document
+            document = _extract_document(
+                check_input,
+                sourced_input,
+                resolved_target.config,
+                run,
+            )
     except engine.BridgeExtractionError as exc:
         return _report_phase_failure(sourced_input, run, exc, "extract")
     except Exception:
@@ -347,62 +379,9 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
             sourced_input.reported_path,
         )
         raise
-
-    config_outcome = _ConfigOutcome(resolved_target, relative_path)
-    diagnostics_list = _collect_diagnostics(
-        sourced_input, document, config_outcome, run
+    return _run_rules_and_plan(
+        sourced_input,
+        document,
+        _ConfigOutcome(resolved_target, relative_path),
+        run,
     )
-    return FileCheckResult(
-        diagnostics=diagnostics_list,
-        had_error=False,
-        was_unreadable=False,
-        planned=_plan_if_wanted(
-            _PlannedFileRequest(
-                sourced_input=sourced_input,
-                document=document,
-                diagnostics_list=diagnostics_list,
-                resolved_config=resolved_target.config,
-                run=run,
-            )
-        ),
-    )
-
-
-def _collect_diagnostics(
-    sourced_input: SourcedInput,
-    document: model.Document,
-    config_outcome: _ConfigOutcome,
-    run: CheckRun,
-) -> list[diagnostics.Diagnostic]:
-    """Return the file's IR-error and rule diagnostics for the rules phase."""
-    try:
-        with check_metrics._measure_phase("rules"):
-            return [
-                *map_ir_errors(document, sourced_input.reported_path),
-                *run.rule_runner(
-                    _rule_request(
-                        sourced_input=sourced_input,
-                        document=document,
-                        config_outcome=config_outcome,
-                    )
-                ),
-            ]
-    except Exception:
-        check_metrics.record_operational_failure("rules")
-        raise
-
-
-def _plan_if_wanted(request: _PlannedFileRequest) -> PlannedFile | None:
-    """Plan this file's fix, unless the run asked for no plan.
-
-    Planning is skipped unless a fix was asked for, so an ordinary check never
-    pays for it and never reports a plan it did not make.
-
-    Returns
-    -------
-    PlannedFile | None
-        The file's plan, or ``None`` when this run asked for no plan.
-    """
-    if not _wants_a_plan(request.run):
-        return None
-    return _plan_fix(request)

@@ -196,6 +196,18 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       M4 docs, complexity review and final gates are open.
 - [ ] M4: end-to-end acceptance, documentation and roadmap completion — in
       progress; final gates and conformance review remain.
+- [x] (2026-10-25) Commit M4 process-boundary acceptance, frontmatter repair
+      coverage, source-coordinate property checks and user/developer docs as
+      `31bffbc`. All six sequential gates passed on the exact candidate,
+      including Nextest 367/367 and Python 872/872; Markdown lint and Mermaid
+      validation passed. Final ADR, design, roadmap and review reconciliation
+      remains open.
+- [x] (2026-10-25) Begin the separate CodeScene refactor commit. Extract the
+      check and dump coordinators' phase work, split provenance merge helpers,
+      narrow frontmatter IR traversal, and consolidate the PyO3 test request.
+      Local `cs delta origin/main` clears the planned complexity findings;
+      all six sequential R23 gates passed on the candidate. CodeRabbit review
+      and final conformance reconciliation remain open.
 
 ## Surprises & discoveries
 
