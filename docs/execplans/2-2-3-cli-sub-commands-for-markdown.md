@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: APPROVED — implementation authorized on 2026-10-24; M1 is complete,
-with M2–M4 remaining.
+Status: APPROVED — implementation authorized on 2026-10-24; M1 is complete, M2
+is in progress and M3–M4 remain.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -130,7 +130,11 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       passed without further timeout-budget changes.
 - [x] M1: effective configuration inspection and provenance — complete after
       all six quality gates passed.
-- [ ] M2: canonical Markdown IR inspection and bridge identity — not started.
+- [x] (2026-10-25) Start M2: trace canonical IR and source identity through
+      the Rust extractor, PyO3 bridge and Python adapter. CodeGraph MCP is
+      unavailable because its transport closes; Leta LSP is available for Rust
+      navigation. Begin with red tests for bridge identity and dump framing.
+- [ ] M2: canonical Markdown IR inspection and bridge identity — in progress.
 - [ ] M3: extraction cache, strict bypass, and safe cleanup — not started.
 - [ ] M4: end-to-end acceptance, documentation and roadmap completion — not
       started.
@@ -225,8 +229,9 @@ from the hash.
 
 The reviewed plan and Proposed ADR incorporate six expert perspectives. The
 user approved implementation on 2026-10-24. M1 is complete after all six local
-quality gates passed. No M2–M4 work has begun, and no performance claim has
-been established. Record remaining obligations here during implementation.
+quality gates passed. M2 is in progress; M3–M4 have not begun, and no
+performance claim has been established. Record remaining obligations here
+during implementation.
 
 ## Context and orientation
 
