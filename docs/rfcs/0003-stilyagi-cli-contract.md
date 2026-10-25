@@ -106,13 +106,26 @@ Notation (JSON) output.
 ### 3.4 `stilyagi config [KEY]`
 
 Without `KEY`, print the resolved configuration for the current working
-directory or target path.
+directory or target path, including defaults and preserved schema values. The
+command SHALL accept `--target PATH` for one existing file or directory,
+repeated `--config` values, `--isolated`, and the rule-selection flags also
+accepted by `check`. It SHALL NOT lint files, write configuration, or create a
+cache.
 
-With `KEY`, print:
+Keys use the TOML dotted spelling, such as `cache-dir`, `lint.select`, or
+`extract.markdown.gfm`. With `KEY`, print its effective value and the origins
+of that leaf or table's descendants. Each origin SHALL identify its kind
+(`default`, `file`, `inline`, or `flag`), source file when a file supplied the
+displaced value, and whether a CLI value overrode it. File origins SHALL name
+the file that defined the winning value, including values inherited through
+`extend`.
 
-- effective value
-- source file that provided it
-- whether a CLI flag overrode it
+`--output-format text|json` selects deterministic human-readable or JSON
+output. JSON without `KEY` has `values` and `origins` objects. JSON with `KEY`
+has `key`, `value`, and `origins` fields. An unknown key, missing target,
+invalid TOML, or cyclic `extend` SHALL exit with status 2, write a useful error
+to standard error, and leave standard output empty. The command SHALL NOT
+autoload user-level configuration.
 
 ### 3.5 `stilyagi clean`
 
@@ -125,6 +138,23 @@ documents `clean` as a top-level cache-clearing command.[^1]
 ### 3.6 `stilyagi dump-ir [FILES]...`
 
 Emit RFC 0001 IR as canonical JSON.
+
+The command SHALL default to `.` and recursively inspect Markdown files with
+`.md`, `.markdown` or `.mdc` suffixes. Explicit non-Markdown files SHALL exit
+`2`. It SHALL accept `-` once when paired with a Markdown `--stdin-filename`,
+and SHALL reject stdin mixed with file or directory operands. Configuration
+flags, `--no-cache` and `--output-format json` are supported; fix and
+rule-selection flags are not.
+
+One successful input SHALL emit its canonical IR object. Zero or multiple
+inputs SHALL emit a JSON array, with empty discovery represented as `[]`.
+Rust's canonical document JSON SHALL be retained without parsing and
+re-serializing it. The command SHALL prepare the complete result in a spooled
+temporary stream with a 1 MiB memory threshold before writing standard output.
+An input failure SHALL therefore emit no partial JSON. Normal output SHALL end
+with one newline, and errors or logs SHALL use standard error only. If the
+standard-output stream itself fails after copying begins, the command SHALL
+report the write error without promising rollback of bytes already sent.
 
 This is the one major addition beyond the Ruff-like surface. A parser-heavy
 prose linter without an IR dump command would be begging for séance-grade
@@ -231,11 +261,14 @@ Files passed explicitly on the command line SHALL still be analysed unless
 v1 built-in discovery SHOULD include at least:
 
 - `*.md`
+- `*.markdown`
+- `*.mdc`
 - `*.py`
 - `*.rs`
 
-MDX is not part of the stable default discovery surface in v1. Preview support
-for `*.mdx` MAY land later behind explicit preview configuration, but stable
+The Markdown suffixes SHALL be accepted by both `check` and `dump-ir`. MDX is
+not part of the stable default discovery surface in v1. Preview support for
+`*.mdx` MAY land later behind explicit preview configuration, but stable
 recursive discovery should assume only Markdown, Python, and Rust.
 
 ## 8. Rule selection
@@ -404,17 +437,48 @@ That mirrors Ruff’s documented exit-code contract and is the right one.[^2]
 
 ## 13. Caching
 
-The default cache directory SHALL be `.stilyagi_cache`.
+The default cache directory SHALL be `.stilyagi_cache`. Stilyagi SHALL persist
+only Markdown extraction results in a marked `stilyagi-v1` namespace within the
+configured cache directory. Cache entries SHALL contain Rust's canonical IR
+JSON and a checksum of those exact UTF-8 bytes. A cache hit SHALL validate the
+entry envelope and checksum in Python, then hydrate through the existing Rust
+IR schema and bridge conversion. Hydration SHALL NOT count as a new extraction.
+Analysis, diagnostics, fix planning and rule execution remain fresh for every
+check.
 
 The cache key SHALL include at least:
 
-- file content hash
-- effective configuration hash
-- extractor or parser versions
-- enabled rule-pack versions
-- NLP model signature
+- complete source bytes, including Markdown frontmatter and line endings;
+- syntax and reported source identity;
+- normalized effective configuration values;
+- the loaded native-extension digest and Stilyagi package version;
+- the enabled built-in rule-pack signature; and
+- an explicit NLP signature, currently `inactive`.
 
-`clean` SHALL remove these caches.
+The frontmatter inclusion policy is versioned in cache identity. A
+frontmatter-only edit SHALL miss the extraction cache so current document
+hashes, byte spans and line indices are regenerated. Cache data is disposable:
+malformed or inconsistent entries SHALL be treated as misses, while unavailable
+storage SHALL warn and continue with fresh extraction. Writes use an exclusive
+temporary file and descriptor-relative atomic replacement. Symlinked cache
+roots, namespace directories, markers, entries and temporary files SHALL never
+be followed. Platforms without the required safe filesystem operations SHALL
+refuse cache access rather than weaken these guarantees.
+
+`--no-cache` SHALL bypass persistent-cache construction, reads, writes,
+directory creation and native-extension fingerprinting. Standard input and
+post-fix verification SHALL always use fresh extraction. Both `check` and
+`dump-ir` accept `--no-cache`.
+
+`clean` SHALL walk beneath the current working directory without following
+directory symlinks and SHALL prune `.git` metadata. It SHALL recognize a cache
+only by the exact `stilyagi-v1` directory name and ownership-marker bytes.
+Cleanup removes only exact 64-character lowercase hexadecimal `.json` entry
+names and `.tmp-` files followed by 32 lowercase hexadecimal characters.
+Unknown files preserve their namespace; the configured parent is never removed.
+Cleanup is idempotent best effort, and concurrent writers may repopulate caches
+afterwards. Entries have no automatic eviction in this slice; `clean` is the
+reclamation mechanism.
 
 ## 14. Plugin activation
 

@@ -21,15 +21,18 @@ from stilyagi.check_inputs import (
     CheckInput,
     DiscoveryInputs,
 )
-from stilyagi.cli_config import resolve_discovery_config
+from stilyagi.cli_config import build_cli_overrides, resolve_discovery_config
 from stilyagi.cli_io import report_check_error, stdin_check_input
 from stilyagi.discovery_results import SkippedCandidateCount
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
     from stilyagi.cli_args import CheckOptions
 
 __all__ = [
     "discover_targets",
+    "parse_target_operands",
     "parse_targets",
 ]
 
@@ -63,13 +66,6 @@ def parse_targets(options: CheckOptions) -> tuple[list[pathlib.Path], bool]:
         The requested target paths as normalized `Path` objects, and whether
         one of them requested stdin.
 
-    Raises
-    ------
-    ValueError
-        Stdin was requested alongside at least one file target. Reading a
-        single stream cannot also walk the filesystem, so the two are
-        mutually exclusive.
-
     Examples
     --------
     >>> from stilyagi.cli_args import CheckOptions
@@ -85,7 +81,41 @@ def parse_targets(options: CheckOptions) -> tuple[list[pathlib.Path], bool]:
         ...
     ValueError: stdin target cannot be combined with file targets
     """
-    resolved_targets = [pathlib.Path(target) for target in options.targets]
+    return parse_target_operands(options.targets)
+
+
+def parse_target_operands(
+    targets: cabc.Sequence[str],
+) -> tuple[list[pathlib.Path], bool]:
+    """Split shared command operands into paths and an optional stdin request.
+
+    The check and dump commands share this interpretation so `-` is accepted
+    once and never alongside file or directory operands.
+
+    Parameters
+    ----------
+    targets
+        Ordered command-line file and directory operands.
+
+    Returns
+    -------
+    tuple[list[pathlib.Path], bool]
+        The path operands and whether the single operand requests stdin.
+
+    Raises
+    ------
+    ValueError
+        When `-` is combined with any file or directory operand.
+
+    Examples
+    --------
+    >>> paths, is_stdin = parse_target_operands(("docs",))
+    >>> [path.as_posix() for path in paths], is_stdin
+    (['docs'], False)
+    >>> parse_target_operands(("-",))[1]
+    True
+    """
+    resolved_targets = [pathlib.Path(target) for target in targets]
     has_stdin_target = any(target.as_posix() == "-" for target in resolved_targets)
     if has_stdin_target and len(resolved_targets) > 1:
         message = "stdin target cannot be combined with file targets"
@@ -129,7 +159,11 @@ def discover_targets(
                 else ()
             ),
         )
-    discovery_config = resolve_discovery_config(options, resolver)
+    discovery_config = resolve_discovery_config(
+        options,
+        resolver,
+        cli_overrides=build_cli_overrides(options) or None,
+    )
     result = discovery.discover_files_with_summary(
         target_paths,
         discovery_config,

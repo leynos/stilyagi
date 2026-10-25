@@ -67,6 +67,39 @@ impl IrDocument {
         json.push('\n');
         Ok(json)
     }
+
+    /// Deserialize JSON into the typed IR document schema.
+    ///
+    /// Required fields and their value types are checked by Serde. Unknown
+    /// fields follow Serde's default handling and are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns a deserialization error when the JSON is malformed or does not
+    /// match the known IR field types.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use stilyagi_ir::{DocumentMetadata, IrDocument};
+    ///
+    /// let source = "# Heading";
+    /// let document = IrDocument::empty(
+    ///     DocumentMetadata::new("markdown", Some("README.md".to_owned()), None, source),
+    ///     Vec::new(),
+    ///     source,
+    /// );
+    /// let canonical_json = document
+    ///     .to_canonical_json()
+    ///     .expect("expected canonical IR JSON");
+    /// let restored = IrDocument::from_json(&canonical_json)
+    ///     .expect("expected typed IR deserialization");
+    ///
+    /// assert_eq!(restored, document);
+    /// ```
+    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(json)
+    }
 }
 
 /// Metadata about the source document represented by an IR payload.

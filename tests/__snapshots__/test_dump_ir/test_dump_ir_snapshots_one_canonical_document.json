@@ -1,0 +1,137 @@
+{
+  "document": {
+    "content_hash": "sha256:14fb5ebdf36c86541b6ca44a58c0944efac709d9ea967d29e460d689cf552659",
+    "encoding": "utf-8",
+    "natural_language": null,
+    "path": "notes.md",
+    "syntax": "markdown",
+    "uri": null
+  },
+  "errors": [],
+  "line_index": [
+    0,
+    10
+  ],
+  "metadata": {},
+  "nodes": [
+    {
+      "children": [
+        "n1"
+      ],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n0",
+      "kind": "root",
+      "parent": null,
+      "props": {},
+      "span": {
+        "byte_end": 10,
+        "byte_start": 0
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [
+        "n2"
+      ],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n1",
+      "kind": "heading",
+      "parent": "n0",
+      "props": {
+        "depth": 1
+      },
+      "span": {
+        "byte_end": 9,
+        "byte_start": 0
+      },
+      "tree": "t0"
+    },
+    {
+      "children": [],
+      "fields": {},
+      "flags": {
+        "error": false,
+        "missing": false,
+        "named": true,
+        "synthetic": false
+      },
+      "id": "n2",
+      "kind": "text",
+      "parent": "n1",
+      "props": {},
+      "span": {
+        "byte_end": 9,
+        "byte_start": 2
+      },
+      "tree": "t0"
+    }
+  ],
+  "producers": [
+    {
+      "kind": "markdown",
+      "name": "markdown-rs",
+      "options": {
+        "frontmatter": true,
+        "gfm": true
+      },
+      "version": "1.0.0"
+    }
+  ],
+  "regions": [
+    {
+      "attrs": {
+        "depth": 1
+      },
+      "id": "r0",
+      "kind": "heading",
+      "natural_language": null,
+      "origin_nodes": [
+        "n1"
+      ],
+      "owner": null,
+      "parent_region": null,
+      "scope": [
+        "markdown",
+        "heading",
+        "h1"
+      ],
+      "segments": [
+        {
+          "node": "n1",
+          "source": {
+            "byte_end": 9,
+            "byte_start": 2
+          },
+          "synthetic": null,
+          "text": "Heading",
+          "text_end": 7,
+          "text_start": 0
+        }
+      ],
+      "syntax": "markdown",
+      "text": "Heading"
+    }
+  ],
+  "schema_version": "1.1.0",
+  "suppressions": [],
+  "trees": [
+    {
+      "family": "mdast",
+      "id": "t0",
+      "root": "n0",
+      "syntax": "markdown"
+    }
+  ]
+}

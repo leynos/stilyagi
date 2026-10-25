@@ -17,6 +17,7 @@ import typing as typ
 
 import pytest
 from stilyagi import engine, model
+from stilyagi._stilyagi_rs import extract_document as bridge_extract_document
 
 from tests.support.assertions import assert_with_context
 
@@ -73,6 +74,30 @@ def test_engine_extract_document_returns_a_model_document() -> None:
     ir_document = typ.cast("dict[str, JSONType]", document.ir["document"])
     assert ir_document["path"] is None, "expected ir_document['path'] is None"
     assert ir_document["uri"] is None, "expected ir_document['uri'] is None"
+
+
+def test_engine_extraction_result_retains_rust_canonical_json_and_identity() -> None:
+    """Expose Rust's exact canonical bytes with the caller's source identity."""
+    source = "# Heading\n"
+    source_path = "docs/guide.mdc"
+
+    result = engine.extract_document_result(
+        source,
+        model.Syntax.MARKDOWN,
+        source_path=source_path,
+    )
+    bridge_payload = bridge_extract_document(source, "markdown", source_path)
+
+    assert result.canonical_json == bridge_payload["ir_json"], (
+        "expected adapter JSON to match the bridge bytes"
+    )
+    assert result.canonical_json is not None, "expected canonical Markdown IR"
+    assert result.canonical_json.endswith("\n"), "expected canonical JSON newline"
+    parsed_ir = json.loads(result.canonical_json)
+    ir_document = typ.cast("dict[str, JSONType]", parsed_ir["document"])
+    assert ir_document["path"] == source_path, "expected reported source identity"
+    assert ir_document["uri"] is None, "expected no synthetic source URI"
+    assert result.document.ir == parsed_ir, "expected the typed model to retain full IR"
 
 
 def test_engine_extract_document_maps_regions_into_model_regions() -> None:

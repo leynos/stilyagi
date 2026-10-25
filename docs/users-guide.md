@@ -261,12 +261,11 @@ efficient transport internally.[^4]
 
 It does not yet promise:
 
-- the final end-user command set;
+- the final release command set or release channels;
 - full Markdown with JSX (MDX) support as part of the stable v1 syntax matrix;
 - support for locales beyond English;
-- the final release channels or installation instructions for each platform; or
-- the exact debugging and diagnostic workflows, which land in later roadmap
-  slices.[^3]
+- installation instructions for every platform; or
+- broader rule-debugging workflows beyond canonical IR inspection.[^3]
 
 ## 3. Supported surfaces in v1
 
@@ -281,10 +280,10 @@ it, but users should not yet depend on MDX behaviour as part of Stilyagi's
 stable v1 contract.[^4]
 
 The command-line interface (CLI) recursively discovers `.md`, `.markdown`,
-`.py`, and `.rs` files. MDX and Python stubs remain outside the default set
-until their support graduates into the stable matrix. Directory discovery skips
-the known build and cache directories `.eggs`, `.git`, `.mypy_cache`, `.nox`,
-`.pytest_cache`, `.ruff_cache`, `.stilyagi_cache`, `.tox`, `.uv-cache`,
+`.mdc`, `.py`, and `.rs` files. MDX and Python stubs remain outside the default
+set until their support graduates into the stable matrix. Directory discovery
+skips the known build and cache directories `.eggs`, `.git`, `.mypy_cache`,
+`.nox`, `.pytest_cache`, `.ruff_cache`, `.stilyagi_cache`, `.tox`, `.uv-cache`,
 `.uv-tools`, `.venv`, `.venv-release-smoke`, `.vtcode`, `__pycache__`, `build`,
 `dist`, `node_modules`, `site-packages`, and `target`; files with other
 extensions are skipped. V1 has no `include` or `exclude` configuration for
@@ -301,6 +300,19 @@ text output ends with
 output contains the same counts in its `summary` object. See the
 [mixed-source discovery change notes](mixed-source-discovery-notes.md) for a
 concise overview of this behaviour.
+
+Markdown extraction is cached under the configured cache directory. Cache hits
+reuse only the canonical extracted IR; current rules, diagnostics, and fix
+planning still run. `--no-cache` forces fresh extraction without reading,
+creating, or writing persistent cache state. Stdin and the verification pass
+after `--fix` also always extract the current source again. Cache write errors
+warn and fall back to fresh extraction.
+
+Use `stilyagi clean` to remove recognized caches beneath the current working
+directory. It preserves the configured parent directory, unknown files, source
+files and symlink targets. Cleanup needs no project configuration and returns
+status `2` if a safe cleanup operation fails. Cache entries do not expire
+automatically.
 
 #### Output formats
 
@@ -377,6 +389,47 @@ The `stilyagi_check_phase_duration_seconds` histogram has the fixed labels
 Pass `--config` with an explicit config file path or an inline TOML fragment to
 supply configuration directly. Use `--isolated` to bypass configuration
 discovery entirely.
+
+#### Inspecting effective configuration
+
+Use `stilyagi config` to inspect the effective configuration for the current
+working directory. Add `--target PATH` to inspect one existing file or
+directory without linting it. Pass a TOML dotted key, such as `lint.select` or
+`extract.markdown.gfm`, to show one value or table. The output includes schema
+defaults and preserved settings.
+
+The command accepts the same `--config`, `--isolated`, `--select`, `--ignore`,
+and `--extend-select` options as `check`. It observes the same configuration
+precedence and selection translation, and it does not write config files or
+create a cache. It does not load user-level configuration.
+`--output-format text` is the deterministic human-readable default; use
+`--output-format json` for a machine-readable result.
+
+For JSON output without a key, `values` contains the complete effective
+configuration and `origins` maps each leaf path to its source. For example,
+`stilyagi config lint.select --output-format json` returns this shape:
+
+```json
+{
+  "key": "lint.select",
+  "value": ["MD", "DOC", "PUN", "STY", "PYDOC"],
+  "origins": {
+    "lint.select": {
+      "kind": "default",
+      "source_file": null,
+      "cli_overridden": false
+    }
+  }
+}
+```
+
+Origins distinguish `default`, `file`, `inline`, and `flag` values. File
+origins name the file that defined the value, including inherited values.
+Inline and flag overrides set `cli_overridden` and retain the displaced file
+path when one supplied the previous value. Tables report origins for their
+descendant leaves, while an empty table has its own origin. An unknown key,
+missing target, invalid TOML, or cyclic `extend` returns status 2, writes an
+error to standard error, and leaves standard output empty.
 
 #### Standard input
 
@@ -615,6 +668,25 @@ stilyagi check --fix --unsafe-fixes .
 stilyagi check --fix - --stdin-filename README.md < README.md
 ```
 
+### Inspecting Markdown IR with `stilyagi dump-ir`
+
+Use `dump-ir` to inspect the canonical JSON produced by the Rust extractor:
+
+```shell
+stilyagi dump-ir README.md
+stilyagi dump-ir docs/ --output-format json
+stilyagi dump-ir - --stdin-filename notes.mdc < notes.mdc
+```
+
+The command accepts `.md`, `.markdown`, and `.mdc` files. One input emits one
+IR object; multiple inputs emit an array, and an empty directory emits `[]`.
+The JSON retains Rust's source path, byte spans, line index, content hash,
+frontmatter region, and extraction errors. An input or extraction failure exits
+`2` without writing partial JSON. Use `--config`, `--isolated`, and
+`--no-cache` as with `check`; `dump-ir` does not accept fix or rule-selection
+options. `--no-cache` bypasses persistent reads and writes. Markdown fixes
+preserve recognized YAML frontmatter byte-for-byte.
+
 ## 4. Locale policy in v1
 
 English is the only formally supported v1 locale. The design keeps locale and
@@ -644,12 +716,13 @@ Python docstring plus Rust doc-comment inputs expose `python_docstring` and
 `engine.supported_region_kinds()` returns the region-kind vocabulary supported
 by the installed package version.
 
-The fix workflows (`--diff`, `--fix`, and `--unsafe-fixes`) have landed
-alongside `stilyagi check`, and this guide records their contract above. No
-builtin rules ship yet, so a run currently reports no diagnostics whatever the
-source; the remaining CLI subcommands (`config`, `clean`, and `dump-ir`) land
-in later roadmap slices. Treat this guide as a record of the settled
-user-facing v1 contract rather than as a complete operating manual.
+The `check`, `config`, `dump-ir`, and `clean` commands are available. Markdown
+extraction caching reuses only canonical IR; each run still evaluates its
+current rules and fix plan. `--no-cache` bypasses persistent cache access, and
+`clean` removes only recognized Stilyagi cache data beneath the working
+directory. No builtin rules ship yet, so a run currently reports no diagnostics
+whatever the source. Treat this guide as a record of the settled user-facing v1
+contract rather than as a complete operating manual.
 
 ## References
 

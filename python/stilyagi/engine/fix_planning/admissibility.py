@@ -5,6 +5,13 @@ import typing as typ
 
 from stilyagi.engine import ir_view
 
+from .frontmatter import (
+    YamlFrontmatter,
+    edit_conflicts_with_frontmatter,
+    is_frontmatter_boundary_insertion,
+    yaml_frontmatter,
+)
+
 if typ.TYPE_CHECKING:
     from stilyagi import model
     from stilyagi.fixes import TextEdit
@@ -31,6 +38,24 @@ def classify_edit(
 ) -> EditRejection | None:
     """Return a rejection when an edit is not source-backed and UTF-8 aligned."""
     span = ir_view.SourceSpan(edit.byte_start, edit.byte_end)
+    rejection = _span_rejection(span, source_bytes, rule_code)
+    if rejection is not None:
+        return rejection
+    frontmatter = yaml_frontmatter(document, source_bytes)
+    rejection = _frontmatter_rejection(edit, frontmatter, rule_code)
+    if rejection is not None:
+        return rejection
+    if is_frontmatter_boundary_insertion(edit, frontmatter):
+        return None
+    return _source_backing_rejection(span, source_bytes, document, rule_code)
+
+
+def _span_rejection(
+    span: ir_view.SourceSpan,
+    source_bytes: bytes,
+    rule_code: str,
+) -> EditRejection | None:
+    """Reject spans outside the input or between UTF-8 continuation bytes."""
     if not _is_bounded(span, source_bytes):
         return EditRejection(
             "fix-error/invalid-span", rule_code, "span is out of bounds"
@@ -39,6 +64,31 @@ def classify_edit(
         return EditRejection(
             "fix-error/non-utf8-boundary", rule_code, "span cuts UTF-8"
         )
+    return None
+
+
+def _frontmatter_rejection(
+    edit: TextEdit,
+    frontmatter: YamlFrontmatter | None,
+    rule_code: str,
+) -> EditRejection | None:
+    """Reject edits that overlap or cannot verify YAML metadata bytes."""
+    if edit_conflicts_with_frontmatter(edit, frontmatter):
+        return EditRejection(
+            "fix-error/frontmatter-protected",
+            rule_code,
+            "edit overlaps or cannot verify YAML frontmatter bytes",
+        )
+    return None
+
+
+def _source_backing_rejection(
+    span: ir_view.SourceSpan,
+    source_bytes: bytes,
+    document: model.Document,
+    rule_code: str,
+) -> EditRejection | None:
+    """Reject spans not supported by a matching source segment."""
     if not _is_source_backed(span, document):
         return EditRejection(
             "fix-error/synthetic-span", rule_code, "span is not source-backed"

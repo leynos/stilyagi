@@ -1,10 +1,10 @@
-"""Discovery handling for filesystem entries that are not regular files."""
+"""Discovery contracts for special entries and Markdown component files."""
 
 import os
 import typing as typ
 
 import pytest
-from stilyagi import config, discovery
+from stilyagi import config, discovery, model
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -31,3 +31,19 @@ def test_directory_discovery_skips_fifo_with_registered_suffix(
     assert result.skipped_by_reason == (
         discovery.SkippedCandidateCount("unsupported_candidate_type", 1),
     ), "the unsupported filesystem kind uses its bounded skip reason"
+
+
+def test_explicit_mdc_file_is_reported_as_markdown(tmp_path: pathlib.Path) -> None:
+    """Treat the Markdown component suffix as an explicit Markdown target."""
+    target = tmp_path / "notes.mdc"
+    target.write_text("# Notes\n", encoding="utf-8")
+
+    files = discovery.discover_files([target], config.StilyagiConfig())
+
+    assert files == [
+        discovery.DiscoveredFile(
+            reported_path=target.as_posix(),
+            resolved_path=target.resolve(),
+            syntax=model.Syntax.MARKDOWN,
+        ),
+    ], "expected the component file to retain its reported path and Markdown syntax"

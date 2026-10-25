@@ -1,0 +1,221 @@
+"""Verify extraction-cache failures, bypasses, and collaborator boundaries."""
+
+import typing as typ
+
+import pytest
+from stilyagi.cache.extraction import CacheExtractionService, CacheServiceConfig
+from stilyagi.cache.model import CACHE_NAMESPACE_NAME
+from stilyagi.config import StilyagiConfig
+
+from tests.support.cache_extraction import (
+    CacheServiceRegistrar,
+    CacheTestRequest,
+    counting_extractor,
+    extract_cached_document,
+    forbidden_cache_callback,
+)
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+    import pathlib
+
+    from stilyagi.cache.extraction import (
+        BuiltinSignatureFactory,
+        CacheStoreFactory,
+        NativeDigestFactory,
+    )
+
+
+def test_no_cache_constructs_no_storage_or_fingerprint_and_changes_no_cache_bytes(
+    cache_invocation: tuple[CacheExtractionService, list[str]],
+    close_cache_services: CacheServiceRegistrar,
+    tmp_path: pathlib.Path,
+) -> None:
+    """Avoid storage, fingerprinting, and persistent changes for no-cache."""
+    warm_service, _ = cache_invocation
+    config = StilyagiConfig(cache_dir=tmp_path / "cache")
+    extract_cached_document(warm_service, config)
+    warm_service.close()
+    namespace = config.cache_dir / CACHE_NAMESPACE_NAME
+    before = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in namespace.iterdir()
+    }
+    calls: list[str] = []
+    forbidden = forbidden_cache_callback(
+        "strict bypass reached a cache-only collaborator"
+    )
+
+    no_cache = close_cache_services(
+        CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=tmp_path,
+                package_version="test-version",
+                no_cache=True,
+                extractor=counting_extractor(calls),
+                native_digest_factory=typ.cast("NativeDigestFactory", forbidden),
+                builtin_signature_factory=typ.cast(
+                    "BuiltinSignatureFactory", forbidden
+                ),
+                storage_factory=typ.cast("CacheStoreFactory", forbidden),
+            )
+        )
+    )
+
+    result = extract_cached_document(no_cache, config)
+    no_cache.close()
+    after = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in namespace.iterdir()
+    }
+
+    assert result.canonical_json is not None, "no-cache mode must return canonical IR"
+    assert calls == ["# Café\r\n"], "no-cache mode must extract exactly once"
+    assert before == after, "no-cache mode must preserve the warm cache byte-for-byte"
+    assert no_cache.counters.bypasses == 1, "no-cache extraction must count as a bypass"
+
+
+def test_cold_no_cache_creates_no_cache_directory(
+    tmp_path: pathlib.Path,
+    close_cache_services: CacheServiceRegistrar,
+) -> None:
+    """A cold direct extraction leaves no marker or cache parent behind."""
+    cache_dir = tmp_path / "absent-cache"
+    service = close_cache_services(
+        CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=tmp_path,
+                package_version="test-version",
+                no_cache=True,
+            )
+        )
+    )
+
+    result = extract_cached_document(service, StilyagiConfig(cache_dir=cache_dir))
+
+    assert result.canonical_json is not None, (
+        "cold no-cache mode must return canonical IR"
+    )
+    assert not cache_dir.exists(), "cold no-cache mode must not create its cache root"
+    assert service.counters.bypasses == 1, (
+        "cold no-cache extraction must count as a bypass"
+    )
+    service.close()
+
+
+def test_cache_fingerprints_are_computed_once_per_invocation(
+    tmp_path: pathlib.Path,
+    close_cache_services: CacheServiceRegistrar,
+) -> None:
+    """Reuse native and built-in signatures across distinct source requests."""
+    native_calls = 0
+    builtin_calls = 0
+
+    def native_digest() -> str:
+        """Count one loaded-extension identity calculation."""
+        nonlocal native_calls
+        native_calls += 1
+        return "native-digest"
+
+    def builtin_signature(_config: cabc.Mapping[str, object]) -> str:
+        """Count one signature calculation for the enabled pack."""
+        nonlocal builtin_calls
+        builtin_calls += 1
+        return "builtin-signature"
+
+    service = close_cache_services(
+        CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=tmp_path,
+                package_version="test-version",
+                native_digest_factory=native_digest,
+                builtin_signature_factory=builtin_signature,
+            )
+        )
+    )
+    config = StilyagiConfig(cache_dir=tmp_path / "cache")
+
+    extract_cached_document(service, config, CacheTestRequest(source="# First\n"))
+    extract_cached_document(service, config, CacheTestRequest(source="# Second\n"))
+
+    assert native_calls == 1, (
+        "native extension identity must be computed once per invocation"
+    )
+    assert builtin_calls == 1, (
+        "built-in pack identity must be computed once per invocation"
+    )
+    assert service.counters.misses == 2, (
+        "each distinct source must produce one cold miss"
+    )
+    service.close()
+
+
+@pytest.mark.parametrize("bypass", ["stdin", "post-fix"])
+def test_stdin_and_post_fix_checks_bypass_a_warm_cache(
+    cache_invocation: tuple[CacheExtractionService, list[str]],
+    tmp_path: pathlib.Path,
+    bypass: str,
+) -> None:
+    """Always extract stdin and post-fix bytes instead of using a warm hit."""
+    service, calls = cache_invocation
+    config = StilyagiConfig(cache_dir=tmp_path / "cache")
+    warm = extract_cached_document(service, config)
+    fresh = extract_cached_document(
+        service,
+        config,
+        CacheTestRequest(
+            from_stdin=bypass == "stdin",
+            force_fresh=bypass == "post-fix",
+        ),
+    )
+
+    assert fresh == warm, "bypass extraction must preserve canonical IR"
+    assert len(calls) == 2, "stdin and post-fix requests must each extract freshly"
+    assert service.counters.hits == 0, "bypass requests must not use a warm entry"
+    assert service.counters.bypasses == 1, (
+        "the direct extraction must be counted as a bypass"
+    )
+    service.close()
+
+
+@pytest.mark.parametrize("bypass", ["stdin", "post-fix"])
+def test_stdin_and_post_fix_skip_storage_and_fingerprint_factories(
+    tmp_path: pathlib.Path,
+    bypass: str,
+    close_cache_services: CacheServiceRegistrar,
+) -> None:
+    """Take a direct path before any persistent-cache-only collaborator runs."""
+    forbidden = forbidden_cache_callback(
+        "fresh extraction reached a cache-only collaborator"
+    )
+
+    service = close_cache_services(
+        CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=tmp_path,
+                package_version="test-version",
+                extractor=counting_extractor([]),
+                native_digest_factory=forbidden,
+                builtin_signature_factory=forbidden,
+                storage_factory=forbidden,
+            ),
+        )
+    )
+
+    result = extract_cached_document(
+        service,
+        StilyagiConfig(cache_dir=tmp_path / "cache"),
+        CacheTestRequest(
+            from_stdin=bypass == "stdin",
+            force_fresh=bypass == "post-fix",
+        ),
+    )
+
+    assert result.canonical_json is not None, "fresh requests must return canonical IR"
+    assert not (tmp_path / "cache").exists(), (
+        "fresh requests must not create cache storage"
+    )
+    assert service.counters.bypasses == 1, (
+        "fresh extraction must be counted as a bypass"
+    )
+    service.close()

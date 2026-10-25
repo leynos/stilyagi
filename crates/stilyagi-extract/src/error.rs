@@ -22,6 +22,17 @@ pub enum ExtractError {
     RustIr(RustExtractError),
 }
 
+/// A cached IR document could not be restored through the Rust extraction boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IrHydrationError {
+    /// JSON syntax or known IR field types were invalid.
+    InvalidJson(String),
+    /// The document uses an IR schema version this extractor does not support.
+    UnsupportedSchemaVersion(String),
+    /// The document names a syntax outside the extractor's supported vocabulary.
+    UnknownSyntax(String),
+}
+
 const EXTRACT_ERROR_SIZE_LIMIT_BYTES: usize = 128;
 const _: () = assert!(core::mem::size_of::<ExtractError>() <= EXTRACT_ERROR_SIZE_LIMIT_BYTES);
 
@@ -111,6 +122,20 @@ impl fmt::Display for ExtractError {
     }
 }
 
+impl fmt::Display for IrHydrationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidJson(error) => write!(formatter, "invalid IR JSON: {error}"),
+            Self::UnsupportedSchemaVersion(version) => {
+                write!(formatter, "unsupported IR schema version '{version}'")
+            }
+            Self::UnknownSyntax(syntax) => {
+                write!(formatter, "unknown IR syntax '{syntax}'")
+            }
+        }
+    }
+}
+
 impl std::error::Error for ExtractError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
@@ -120,3 +145,5 @@ impl std::error::Error for ExtractError {
         }
     }
 }
+
+impl std::error::Error for IrHydrationError {}

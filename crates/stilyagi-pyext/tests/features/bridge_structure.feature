@@ -16,6 +16,11 @@ Feature: PyO3 bridge structure
     Then the extracted document reports Markdown syntax
     And the extracted document preserves one source-backed region
 
+  Scenario: Bridge reports the caller-supplied Markdown path in canonical IR
+    Given the bridge identity fixture is ready
+    When the bridge extracts Markdown with a reported source path
+    Then canonical IR retains the reported path and has no URI
+
   Scenario: Bridge extracts the shared Markdown fixture through the Rust boundary
     Given the bridge can call the Rust extraction entrypoint
     When the bridge extracts the shared Markdown fixture

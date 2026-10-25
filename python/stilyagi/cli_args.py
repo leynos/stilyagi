@@ -1,7 +1,7 @@
-"""Argument parsing for the Stilyagi command-line interface.
+"""Argument parsing for Stilyagi's check and read-only CLI commands.
 
-This module owns the `check` command's parser, option validation, and the
-translation from parsed arguments into one immutable `CheckOptions`.
+This module owns command parsers, option validation, and translation from
+parsed arguments into immutable command-specific option values.
 
 Example
 -------
@@ -13,7 +13,18 @@ Example
 import argparse
 import dataclasses as dc
 import typing as typ
+from functools import partial
 from importlib import metadata
+
+from stilyagi.cli_dump_ir_args import (
+    DumpIrOptions as DumpIrOptions,
+)
+from stilyagi.cli_dump_ir_args import (
+    _add_dump_ir_arguments,
+)
+from stilyagi.cli_dump_ir_args import (
+    dump_ir_options_from_args as dump_ir_options_from_args,
+)
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -66,14 +77,28 @@ class CheckOptions:
     silent: bool = False
 
 
+@dc.dataclass(frozen=True, slots=True)
+class _ConfigInspectionOptions:
+    """Options for one read-only `stilyagi config` invocation."""
+
+    key: str | None
+    target: str
+    output_format: str
+    explicit_config: tuple[str | pathlib.Path, ...]
+    isolated: bool
+    select: tuple[str, ...]
+    ignore: tuple[str, ...]
+    extend_select: tuple[str, ...]
+
+
 def build_parser() -> argparse.ArgumentParser:
-    """Build the parser for the `check` command.
+    """Build the parser for check and read-only inspection commands.
 
     Returns
     -------
     argparse.ArgumentParser
-        A parser exposing the top-level `--version` flag and the `check`
-        subcommand with all of its options.
+        A parser exposing the top-level `--version` flag and the `check`,
+        `config`, and `dump-ir` subcommands with their supported options.
 
     Examples
     --------
@@ -100,6 +125,39 @@ def build_parser() -> argparse.ArgumentParser:
         version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
     )
     _add_check_arguments(check_parser)
+    config_parser = subparsers.add_parser(
+        "config",
+        help="Inspect the effective configuration without linting files.",
+    )
+    config_parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
+    )
+    _add_config_inspection_arguments(config_parser)
+    dump_ir_parser = subparsers.add_parser(
+        "dump-ir",
+        help="Emit canonical JSON IR for Markdown files.",
+    )
+    dump_ir_parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
+    )
+    _add_dump_ir_arguments(
+        dump_ir_parser,
+        add_config_argument=_add_config_argument,
+        add_isolated_argument=partial(
+            _add_isolated_argument,
+            help_text="Skip config discovery for the requested Markdown targets.",
+        ),
+    )
+    subparsers.add_parser(
+        "clean",
+        help="Remove recognized Stilyagi caches beneath the current directory.",
+    )
     return parser
 
 
@@ -134,6 +192,22 @@ def options_from_args(args: argparse.Namespace) -> CheckOptions:
         quiet=args.quiet,
         verbose=args.verbose,
         silent=args.silent,
+    )
+
+
+def _config_inspection_options_from_args(
+    args: argparse.Namespace,
+) -> _ConfigInspectionOptions:
+    """Build the immutable options for one config inspection command."""
+    return _ConfigInspectionOptions(
+        key=args.key,
+        target=args.target,
+        output_format=args.output_format,
+        explicit_config=tuple(args.config),
+        isolated=args.isolated,
+        select=_flatten_rule_codes(args.select),
+        ignore=_flatten_rule_codes(args.ignore),
+        extend_select=_flatten_rule_codes(args.extend_select),
     )
 
 
@@ -178,25 +252,8 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
     _add_rule_code_argument(
         parser, "--extend-select", "Extend the active rule selection."
     )
-    parser.add_argument(
-        "--output-format",
-        default="text",
-        metavar="{text,json}",
-        type=_parse_output_format,
-        help="Render diagnostics as text or JSON.",
-    )
-    parser.add_argument(
-        "--config",
-        action="append",
-        # A list, for the reason `_add_rule_code_argument` documents: `append`
-        # copies the default and appends to the copy, so a tuple default raises
-        # `AttributeError: 'tuple' object has no attribute 'append'` the first
-        # time the flag is used. The parsed list is normalised to a tuple by
-        # `options_from_args`.
-        default=[],
-        metavar="VALUE",
-        help="Use one explicit config file or inline TOML fragment.",
-    )
+    _add_output_format_argument(parser, help_text="Render diagnostics as text or JSON.")
+    _add_config_argument(parser)
     parser.add_argument(
         "--diff",
         action="store_true",
@@ -217,18 +274,86 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="VALUE",
         help="Report stdin diagnostics with this path instead of <stdin>.",
     )
-    parser.add_argument(
-        "--isolated",
-        action="store_true",
-        help="Skip config discovery for the checked targets.",
+    _add_isolated_argument(
+        parser, help_text="Skip config discovery for the checked targets."
     )
     parser.add_argument(
         "--no-cache",
         action="store_true",
-        help="Accept cache disabling requests without changing behaviour yet.",
+        help="Bypass persistent extraction cache reads and writes.",
     )
     _add_verbosity_arguments(parser)
     _add_target_arguments(parser)
+
+
+def _add_config_inspection_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the read-only configuration inspection options."""
+    parser.add_argument(
+        "key",
+        nargs="?",
+        help="Show one dotted TOML key instead of the complete configuration.",
+    )
+    parser.add_argument(
+        "--target",
+        default=".",
+        metavar="PATH",
+        help="Inspect configuration for one existing file or directory.",
+    )
+    _add_output_format_argument(
+        parser, help_text="Render effective values and origins as text or JSON."
+    )
+    _add_config_argument(parser)
+    _add_isolated_argument(
+        parser, help_text="Skip nearest-config discovery for the target."
+    )
+    _add_rule_code_argument(
+        parser, "--select", "Select additional rule codes or prefixes."
+    )
+    _add_rule_code_argument(parser, "--ignore", "Ignore rule codes or prefixes.")
+    _add_rule_code_argument(
+        parser, "--extend-select", "Extend the active rule selection."
+    )
+
+
+def _add_output_format_argument(
+    parser: argparse.ArgumentParser,
+    *,
+    help_text: str,
+) -> None:
+    """Add the shared JSON-or-text output option."""
+    parser.add_argument(
+        "--output-format",
+        default="text",
+        metavar="{text,json}",
+        type=_parse_output_format,
+        help=help_text,
+    )
+
+
+def _add_isolated_argument(
+    parser: argparse.ArgumentParser,
+    *,
+    help_text: str,
+) -> None:
+    """Add the shared config-discovery bypass option."""
+    parser.add_argument(
+        "--isolated",
+        action="store_true",
+        help=help_text,
+    )
+
+
+def _add_config_argument(parser: argparse.ArgumentParser) -> None:
+    """Add one repeatable config path or inline TOML argument."""
+    parser.add_argument(
+        "--config",
+        action="append",
+        # argparse copies an append default before adding values, so this must
+        # remain a list; option converters normalise it to a tuple afterward.
+        default=[],
+        metavar="VALUE",
+        help="Use one explicit config file or inline TOML fragment.",
+    )
 
 
 def _add_verbosity_arguments(parser: argparse.ArgumentParser) -> None:

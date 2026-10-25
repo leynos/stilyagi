@@ -15,6 +15,7 @@ stilyagi-tree-sitter = { path = "../stilyagi-tree-sitter" }
 
 [dev-dependencies]
 insta.workspace = true
+proptest.workspace = true
 rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true

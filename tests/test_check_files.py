@@ -80,14 +80,24 @@ def test_cli_main_preserves_crlf_source_for_extraction(
     target = tmp_path / "notes.md"
     target.write_bytes(source)
     extracted_sources: list[str] = []
+    extracted_paths: list[str | None] = []
 
-    def capture_source(text: str, _syntax: object) -> model.Document:
+    def capture_source(
+        text: str,
+        _syntax: object,
+        *,
+        source_path: str | None = None,
+    ) -> engine.ExtractionResult:
         """Record the source passed through the command-line pipeline."""
         extracted_sources.append(text)
-        return model.Document(syntax=model.Syntax.MARKDOWN)
+        extracted_paths.append(source_path)
+        return engine.ExtractionResult(
+            model.Document(syntax=model.Syntax.MARKDOWN),
+            canonical_json=None,
+        )
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(engine, "extract_document", capture_source)
+    monkeypatch.setattr(engine, "extract_document_result", capture_source)
 
     assert cli.main(["check", target.name]) == 0, "expected a clean check"
     assert not capsys.readouterr().err, "expected no read error"
@@ -95,18 +105,26 @@ def test_cli_main_preserves_crlf_source_for_extraction(
         extracted_sources == [source.decode("utf-8")],
         "expected extraction to receive the original CRLF text",
     )
+    assert extracted_paths == [target.name], "expected reported path identity"
 
 
-def _synthetic_ir_extract(source: str, _syntax: object) -> model.Document:
+def _synthetic_ir_extract(
+    source: str,
+    _syntax: object,
+    **_kwargs: object,
+) -> engine.ExtractionResult:
     """Return a document that carries one IR error for the 'warn' source only."""
     errors = (
         [{"code": "IR900", "message": "synthetic", "span": {"byte_start": 0}}]
         if "WARN" in source
         else []
     )
-    return model.Document(
-        syntax=model.Syntax.MARKDOWN,
-        ir={"line_index": [0, 8], "errors": errors},
+    return engine.ExtractionResult(
+        model.Document(
+            syntax=model.Syntax.MARKDOWN,
+            ir={"line_index": [0, 8], "errors": errors},
+        ),
+        canonical_json=None,
     )
 
 
@@ -124,7 +142,7 @@ def test_cli_main_checks_every_file_and_renders_earlier_diagnostics_on_failure(
     # diagnostic is accumulated before the failure is encountered.
     (root / "c-broken.md").write_bytes(b"\xff")
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(engine, "extract_document", _synthetic_ir_extract)
+    monkeypatch.setattr(engine, "extract_document_result", _synthetic_ir_extract)
 
     exit_code = cli.main(["check", "."])
     captured = capsys.readouterr()

@@ -151,10 +151,10 @@ test-only and should not be used for application validation or control flow.
 ### The `.md.fixture` corpus convention
 
 Because discovery matches the final suffix, `.md.fixture` remains undiscovered
-even though `stilyagi check` now discovers `.md`, `.markdown`, `.py`, and `.rs`
-files. Any test that exercises discovery must strip the trailing `.fixture`
-suffix when materializing fixtures into a temporary tree; otherwise the
-fixtures are invisible to discovery and the test passes vacuously.
+even though `stilyagi check` now discovers `.md`, `.markdown`, `.mdc`, `.py`,
+and `.rs` files. Any test that exercises discovery must strip the trailing
+`.fixture` suffix when materializing fixtures into a temporary tree; otherwise
+the fixtures are invisible to discovery and the test passes vacuously.
 
 The shared helper `tests/support/malformed_corpus.py` centralizes this:
 `materialize_malformed_corpus(destination)` copies each fixture from
@@ -342,9 +342,10 @@ interpreter before the measured iterations run in that same interpreter.
 Use the probe output as review evidence when changing the structural extractor,
 Python adapter, or build spine. Compare cold with cold and warm with warm, and
 look for large regressions in context rather than treating one noisy local
-sample as a hard threshold. If later roadmap slices extend `stilyagi check`
-with additional subcommands or persistent Stilyagi caches, update this section
-and the ExecPlan-backed tests together.
+sample as a hard threshold. The Markdown inspection commands and the persistent
+extraction cache are described in the command-boundary section below; later
+changes to those surfaces should update the relevant tests and documentation
+together.
 
 Round-trip edit helpers exist to test fix safety before the full rule engine
 lands. They must preserve source text outside edited ranges, accept adjacent
@@ -368,6 +369,12 @@ level.
 parses the arguments into an immutable `CheckOptions` via
 `cli_args.options_from_args()`, and then calls
 `run_check(options, *, collaborators=None)`.
+
+The `check` and `config` parsers share builders for output-format and isolated
+options. Keep the argument shape and validation in those builders; each command
+supplies only the help text that describes its target. `cli_config_command.py`,
+`cli_dump_ir.py`, and `cli_clean.py` own the command-specific coordination for
+configuration inspection, canonical IR output, and owned-cache cleanup.
 
 The command module keeps four responsibilities: target discovery, rendering,
 handling and printing to the correct streams, and computing the exit status.
@@ -460,8 +467,8 @@ the requested targets.
 
 Discovery is a single deterministic pass, sorted by resolved path, that skips
 known build-noise directories and does not follow symlinked directories. The
-registered suffixes are `.md`, `.markdown`, `.py`, and `.rs`; unregistered
-source candidates are counted as skipped. `check_execution` defines
+registered suffixes are `.md`, `.markdown`, `.mdc`, `.py`, and `.rs`;
+unregistered source candidates are counted as skipped. `check_execution` defines
 `_resolve_discovery_config`, which resolves configuration for the current
 working directory rather than per individual file.
 `check_targets.discover_targets` may call this helper during command
@@ -481,12 +488,13 @@ Each discovered file becomes a `check_inputs.CheckInput` through
 `CheckInput.from_discovered`, which carries the `reported_path`,
 `resolved_path`, and selected `syntax`. Standard-input runs build their
 `CheckInput` directly: `--stdin-filename` selects the syntax by final suffix
-(defaulting to Markdown when omitted), and an unregistered stdin filename is
-logged and counted as skipped rather than checked. Per-file dispatch then goes
-through `check_execution._check_one_file`, which reads Python source using its
-declared encoding and other source as UTF-8, stripping a leading byte-order
-mark. It extracts through the bridge, resolves the per-file config, and reports
-operational failures with exit code `2`.
+(including `.mdc`, and defaulting to Markdown when omitted), and an
+unregistered stdin filename is logged and counted as skipped rather than
+checked. Per-file dispatch then goes through `check_execution._check_one_file`,
+which reads Python source using its declared encoding and other source as
+UTF-8, stripping a leading byte-order mark. It extracts through the bridge,
+resolves the per-file config, and reports operational failures with exit code
+`2`.
 
 For filesystem targets, `check_targets.discover_targets` carries the result's
 notices and failures in `DiscoveryInputs`. After the query returns,
@@ -605,6 +613,16 @@ install or replace it.
     rendering, and exit-code computation) emits log records through a
     per-module `logging` logger, so runs can be traced without changing any
     user-facing output.
+- `config/provenance.py` owns the recursive config-table merge and the
+  per-leaf source ledger used by `stilyagi config`. Its scope is config values
+  and their source layers; it is not a reusable provenance framework and does
+  not perform discovery or filesystem writes. `config/inspection.py` projects
+  validated schema values, defaults and preserved settings into the command's
+  output shape. Inspection reuses the resolver's discovery and raw-table caches.
+- `cli_config._build_rule_selection_overrides` is the one translation for
+  `--select`, `--ignore` and `--extend-select`, shared by `check` and `config`.
+  Keep those flag semantics here; unrelated override sources use their own
+  explicit layer handling.
 - `config/schema.py` holds the frozen config dataclasses (`StilyagiConfig`,
   `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
   `ConfigError` base class, with `InvalidCacheDirError` and
@@ -623,8 +641,9 @@ install or replace it.
 ### Diagnostics
 
 `check_execution.check_one_file` owns the per-file path. For each discovered
-file it extracts the document through the Rust bridge, resolves the per-file
-config, and collects diagnostics from two sources:
+file it resolves the per-file config before requesting Markdown extraction, so
+the cache key uses the same effective values as the rule run. It then collects
+diagnostics from two sources:
 
 - `engine/checker.py` `map_ir_errors(document, reported_path)` maps the
   canonical IR error envelope on `Document.ir` into `diagnostics.Diagnostic`
@@ -663,6 +682,11 @@ small package, one module per concern:
   not. `source_backed_spans(document)` returns sorted, merged, disjoint spans,
   and `segment_for_span(document, span)` returns the source-backed segment that
   wholly contains a span, or `None`.
+- `frontmatter.py` keeps `_source_segments(region)` local to YAML-frontmatter
+  provenance. It shares segment/source mapping checks between span selection
+  and source-text matching; those callers retain their distinct validation
+  rules. Do not generalize it into a replacement for document-wide segment
+  iteration.
 - `admissibility.py` `classify_edit(edit, source_bytes, document, rule_code)`
   returns an `EditRejection` or `None`. A span is admissible when it is bounded
   by the source, aligned to UTF-8 boundaries, wholly inside one source-backed
@@ -910,7 +934,8 @@ particular.
 - Syntax and locale scope
   - Current implemented extraction support covers Markdown, Python
     docstrings, and Rust documentation comments.
-  - Default command discovery covers `.md`, `.markdown`, `.py`, and `.rs`.
+  - Default command discovery covers `.md`, `.markdown`, `.mdc`, `.py`, and
+    `.rs`.
     Keep the fixed extension-to-syntax table in `stilyagi.discovery_targets`;
     `stilyagi.discovery` remains the facade/query until a deliberate Rust
     discovery migration replaces it. Do not add configuration or flags for
@@ -1079,7 +1104,7 @@ The first real extraction path is now:
 
 ```plaintext
 python/stilyagi/engine/extraction.py
-  -> stilyagi._stilyagi_rs.extract_document(source, syntax)
+  -> stilyagi._stilyagi_rs.extract_document(source, syntax[, source_path])
   -> crates/stilyagi-pyext/src/lib.rs
   -> crates/stilyagi-extract/src/lib.rs
 ```
@@ -1094,9 +1119,71 @@ crate.
 
 String-only extraction uses anonymous IR source identity: `document.path` and
 `document.uri` are serialized as `null` instead of synthetic memory paths or
-URIs. Callers with real file context should use the identity-aware extraction
-API once the relevant adapter or CLI surface exposes it, so source identity is
-supplied at the boundary rather than invented inside the IR domain.
+URIs. Callers with file context may pass `source_path` to
+`engine.extract_document` or `engine.extract_document_result`. The latter
+returns an `ExtractionResult` containing both the typed `document` and Rust's
+original `canonical_json`; use it when framing debug output without
+re-serializing the IR.
+
+The extension's `hydrate_ir_json` entrypoint restores canonical IR through the
+same Rust schema and region conversion used by extraction. Cache callers must
+validate the cache key and canonical-byte checksum before hydration; hydration
+does not represent a new extraction and does not increment extraction metrics.
+
+`cache/extraction.py` owns invocation-scoped cache selection. It receives the
+already-resolved per-file configuration, source text, syntax and reported
+identity; it does not discover targets or load configuration. Its complete
+identity includes the normalized effective values, the loaded extension digest,
+package version, enabled built-in rule signature and explicit inactive NLP
+signature. It validates the canonical JSON envelope before asking Rust to
+hydrate it. Check and dump share this service; check still runs current rules
+and fix planning after a hit, and written files are re-extracted during
+post-fix verification.
+
+`cache/storage_primitives.py` owns descriptor-relative no-follow operations and
+normalizes filesystem faults as `CacheStorageError`. Its scope is limited to
+operations shared by cache storage and cleanup; request policy belongs in the
+adapters. `cache/storage.py` owns reads and atomic writes beneath a marked
+`stilyagi-v1` namespace. `cache/model.py` owns the exact filename classifier
+shared with `cache/clean.py`. Cleanup traverses from the invocation directory,
+prunes `.git`, skips directory symlinks, and removes only marked namespaces and
+recognized disposable files. It never owns the configured parent directory.
+Unknown entries keep their namespace in place. If a platform lacks the
+no-follow or non-blocking descriptor operations, cleanup refuses the operation
+rather than falling back to resolved-path checks. Regular-file candidates are
+opened non-blocking before their type is checked, so a FIFO cannot stall a
+cache read. If a concurrent writer repopulates a namespace after its marker is
+removed, cleanup restores the exact marker only while the same namespace
+identity remains.
+
+Extraction-cache tests use `tests/support/cache_extraction.py` for independent
+parser-call counters and forbidden cache callbacks. Keep fault adapters,
+assertions and expected outcomes in each test so shared helpers do not hide the
+contract being checked.
+
+`--no-cache` and stdin reach the extraction service's direct path before it
+constructs a storage adapter or hashes the extension. The post-fix check also
+sets `force_fresh`. These paths perform no persistent-cache reads, writes,
+directory creation, or cache-path stats. The fixed cache counters are logged
+without file paths; keep their names in `cli_log.STRUCTURED_FIELDS` so verbose
+output exposes them.
+
+`cli_clean.py` invokes cleanup from the current working directory without
+loading project configuration. Cleanup owns only marked cache namespaces and
+recognized disposable entries; a configured cache parent, unknown files and
+symlink targets remain outside its deletion boundary.
+
+The `cli_dump_ir` coordinator reuses `check_targets.parse_target_operands`,
+shared configuration resolution, discovery and source reading. It filters the
+discovered set to Markdown, carries each reported path into Rust source
+identity, and builds the complete canonical output in a 1 MiB spooled stream
+before writing stdout. Keep this boundary read-only; check-only rule and fix
+options do not belong on the command.
+
+The private `_write_chunk` stays inside `cli_dump_ir`: its callers write
+canonical JSON framing or stdout chunks. Its error-code argument shares the
+complete-write check while keeping spool and stdout failures distinct. Do not
+promote it to a general stream API.
 
 Table: Current Markdown, Python, and Rust extraction differences.
 
@@ -1229,9 +1316,11 @@ There are also three concrete cross-boundary rules worth preserving:
   scope. Syntax-vocabulary validation is protected by a module lock so
   concurrent callers share one validated state, and bridge-patching tests must
   reset that state through the dedicated test helper before observing patched
-  vocabularies. Its public `extract_document(source, syntax)` adapter validates
-  the bridge vocabulary, converts the Rust payload into a `model.Document`, and
-  preserves the optional IR JSON mapping on that document.
+  vocabularies. Its `extract_document(source, syntax, *, source_path=None)`
+  adapter validates the bridge vocabulary, converts the Rust payload into a
+  `model.Document`, and preserves the optional IR JSON mapping on that document.
+  `extract_document_result` additionally retains Rust's canonical JSON string
+  for callers such as `dump-ir`.
 - The Rust workspace should not depend on Python package modules for policy or
   plugin decisions. Python owns orchestration and registration; Rust owns
   extraction and source fidelity.
@@ -2112,9 +2201,9 @@ requests are rare here, and a second hosted writer would pay double on every
 main push. `release-smoke` stays hosted: its runner comes from an operating
 system matrix.
 
-Both jobs keep their 60-minute ceilings. An Ubicloud runner is a self-hosted
+Both jobs keep their 80-minute ceilings. An Ubicloud runner is a self-hosted
 just-in-time runner, so GitHub's six-hour cap for hosted jobs does not bound it
-and each job must state its own; section 12 holds these two above the 1,800 s
+and each job must state its own; section 12 holds these two above the 2,700 s
 cargo watchdog, so neither can be set to twice a warm run.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
@@ -2707,19 +2796,19 @@ they must be ordered lives in the `generate-coverage` README in
 `leynos/shared-actions`.[^6] Before the nextest file was added exactly one of
 the four was set here.
 
-| Tier                     | What it bounds                     | Where it is set                                  | Current value             |
-| ------------------------ | ---------------------------------- | ------------------------------------------------ | ------------------------- |
-| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | 180 s; 600 s for trybuild |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 18 m                      |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 1,800 s (30 m)            |
-| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new                 |
+| Tier                     | What it bounds                     | Where it is set                                  | Current value               |
+| ------------------------ | ---------------------------------- | ------------------------------------------------ | --------------------------- |
+| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | 180 s; 1,500 s for trybuild |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 33 m                        |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 2,700 s (45 m)              |
+| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 80 m, new                   |
 
 *Table: the timers that can end a run, innermost first.*
 
 ### What the watchdog does and does not cover
 
 The watchdog is the only inner bound. It kills the `cargo` invocation after
-1,800 s, so a hung test is caught, but by a timer that names `cargo` rather
+2,700 s, so a hung test is caught, but by a timer that names `cargo` rather
 than the test. Nothing hung outside `cargo` was bounded at all before the job
 ceilings landed: those jobs declared no `timeout-minutes` and so inherited
 GitHub's six-hour default.
@@ -2728,22 +2817,29 @@ GitHub's six-hour default.
 
 `.config/nextest.toml` sets both. The default profile keeps the 180 s per-test
 budget that `generate-coverage` writes when the file is absent, with a 5 s
-grace period and `terminate-after = 1`, and adds an 18 minute `global-timeout`,
-which sits above the largest per-test budget and below the 1,800 s watchdog.
+grace period and `terminate-after = 1`, and adds a 33-minute `global-timeout`,
+which gives the serial trybuild tests room to run before the 2,700 s watchdog.
 
 One override widens the budget for the two trybuild binaries, `stilyagi-ir`'s
-`ui` and `stilyagi-pyext`'s `compile_tests`, to 600 s. They build a scratch
+`ui` and `stilyagi-pyext`'s `compile_tests`, to 1,500 s. They build a scratch
 crate per case, so their duration is a compile, not a computation. On a pull
 request whose workflow change left the Cargo cache cold, both were terminated
-at 180 s in the `Generate coverage` step (exit code 100), although the same
-tests pass in well under that with a warm cache. Every other test keeps 180 s,
-so a hung test is still reported as one rather than absorbed by a generous
-default.
+at 180 s in the `Generate coverage` step (exit code 100). A later local run
+also exceeded 600 s while shared compiler admission was heavily queued. In the
+preceding run, the first UI test passed in 260 s; the second spent 8 minutes
+compiling its dev profile and timed out at 900 s while compiling its first UI
+fixture. The next full run passed both UI tests in 143 s and 464 s, with all
+357 Nextest tests passing in 607 s. The per-test allowance is now 1,500 s. The
+two binaries share a serial `trybuild` test group because their nested Cargo
+builds use the same target-directory lock. The 33-minute whole-run allowance
+leaves time for both tests. Every other test keeps 180 s, so a hung test is
+still reported as one rather than absorbed by a generous default.
 
 `tests/test_trybuild_timeout_contract.py` asserts the override names both
-binaries with a budget of at least 600 s, below the whole-run budget, and that
-the profile default is unchanged; `tests/test_timeout_ordering_contract.py`
-holds the ordering against the watchdog and the job ceiling.
+binaries with a budget of at least 1,500 s, below the whole-run budget, and
+that the profile default is unchanged;
+`tests/test_timeout_ordering_contract.py` holds the ordering against the
+45-minute watchdog and 80-minute job ceiling.
 
 [Issue 137](https://github.com/leynos/stilyagi/issues/137) recorded the
 measurements that a later pass needed to choose these values.
@@ -2771,7 +2867,7 @@ cancelled or timeout-terminated run, so no run in the sample was ended by any
 of these four timers, and the measurements are of work that completed.
 
 The widest gap is 541 s, so the contract allows 15 minutes, making the
-requirement 45 minutes, and the ceilings are 60: fifteen above it, which is the
+requirement 75 minutes, and the ceilings are 80: five above it, which is the
 margin the estate asks for above every requirement. A ceiling equal to the sum
 it contains cancels the job at the moment the watchdog would have reported the
 overrun, and the report is the only thing that makes an overrun actionable, so
@@ -3057,8 +3153,8 @@ plausible number the ordering is then checked against.
 
 There is no `act` run behind any of this. `act` does not implement
 `timeout-minutes`, which GitHub enforces in the runner scheduler rather than in
-the job, and proving a 60-minute ceiling by observation would take a 60-minute
-run. What can be checked statically is checked statically.
+the job, and proving an 80-minute ceiling by observation would take an
+80-minute run. What can be checked statically is checked statically.
 
 It pins the condition each lane carries as well as its budgets. A skipped step
 runs no `cargo`, so its watchdog never arms and every assertion about the tiers
@@ -3076,9 +3172,9 @@ does not, so its coverage step is conditional on the pull-request event;
 `coverage-main.yml` is the trunk lane and runs unconditionally. A lane gaining,
 losing or changing a condition has to change this section with it.
 
-It pins each ceiling to the documented 60 minutes as well as deriving the 45
+It pins each ceiling to the documented 80 minutes as well as deriving the 75
 minutes required. The derivation alone would accept a ceiling anywhere above
-45, including one that had drifted away from this guide without anything
+75, including one that had drifted away from this guide without anything
 failing; the pin makes the table above the source of the value.
 
 The termination allowance it demands between a whole-run budget and the

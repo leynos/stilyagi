@@ -7,7 +7,8 @@ and on a cold instrumented runner they outlast 180 s: both were terminated at
 180 s in the `Generate coverage` step of a pull request whose workflow change
 left the Cargo cache cold. The configuration must therefore carry an override
 naming both binaries with a budget well beyond the default, and that budget
-must stay under the whole-run budget.
+must stay under the whole-run budget. Both binaries also share a serial test
+group because their nested Cargo builds use the same trybuild target directory.
 """
 
 import re
@@ -17,16 +18,18 @@ from pathlib import Path
 
 import pytest
 
-from tests.support.nextest_config import largest_test_allowance
+from tests.support.nextest_config import global_timeout, largest_test_allowance
 
 REPOSITORY_ROOT: typ.Final = Path(__file__).resolve().parents[1]
 CONFIG_PATH: typ.Final = REPOSITORY_ROOT / ".config" / "nextest.toml"
 DEFAULT_PER_TEST_SECONDS: typ.Final = 180
-MINIMUM_TRYBUILD_SECONDS: typ.Final = 600
+MINIMUM_TRYBUILD_SECONDS: typ.Final = 1500
+MINIMUM_WHOLE_RUN_SECONDS: typ.Final = 33 * 60
 TRYBUILD_BINARIES: typ.Final = (
     "package(stilyagi-ir) & binary(ui)",
     "package(stilyagi-pyext) & binary(compile_tests)",
 )
+TRYBUILD_TEST_GROUP: typ.Final = "trybuild"
 
 
 def _seconds(duration: str) -> int:
@@ -152,6 +155,36 @@ def test_the_trybuild_budget_stays_below_the_whole_run_budget() -> None:
     )
 
 
+def test_the_whole_run_budget_covers_the_serial_trybuild_sequence() -> None:
+    """Leave time for the second UI build after the first has completed.
+
+    The first UI test passed in 260 s. The second then spent 8 minutes
+    compiling its dev profile and reached its 900 s limit while compiling its
+    first fixture. The global budget must allow the 1,500 s per-test allowance
+    plus that observed prefix and three minutes of suite margin.
+    """
+    whole_run = global_timeout(read_config_text(CONFIG_PATH))
+    assert whole_run is not None, "the configuration must bound the whole run"
+    assert whole_run >= MINIMUM_WHOLE_RUN_SECONDS, (
+        f"whole-run budget is {whole_run}s; the serial trybuild sequence needs "
+        f"at least {MINIMUM_WHOLE_RUN_SECONDS}s"
+    )
+
+
+def test_trybuild_binaries_share_a_serial_test_group() -> None:
+    """Serialize nested trybuild builds that share one target lock."""
+    document = tomllib.loads(read_config_text(CONFIG_PATH))
+    group = _trybuild_override().get("test-group")
+    groups = document.get("test-groups", {})
+
+    assert group == TRYBUILD_TEST_GROUP, (
+        "expected both trybuild binaries to use the shared test group"
+    )
+    assert groups.get(TRYBUILD_TEST_GROUP, {}).get("max-threads") == 1, (
+        "expected the trybuild test group to allow one active test"
+    )
+
+
 def test_every_other_test_keeps_the_default_budget() -> None:
     """Only the trybuild binaries are widened; the profile default is unchanged."""
     slow = _profile()["slow-timeout"]
@@ -164,7 +197,7 @@ def test_every_other_test_keeps_the_default_budget() -> None:
 def test_the_widened_budget_is_scoped_to_the_two_binaries_only() -> None:
     """The override filter names only package-and-binary terms, never a wildcard.
 
-    A filter such as `all()` or `test(/./)` would widen the 600 s budget to
+    A filter such as `all()` or `test(/./)` would widen the 1,500 s budget to
     every test and hide a hang as a slow test.
     """
     override = _trybuild_override()
@@ -182,7 +215,7 @@ def test_the_widened_budget_is_scoped_to_the_two_binaries_only() -> None:
 def test_the_trybuild_override_is_the_only_override() -> None:
     """No second override may exist, whatever its filter or budget.
 
-    A second entry such as `filter = "all()"` at the same 600 s would leave the
+    A second entry such as `filter = "all()"` at the same 1,500 s would leave the
     matching override unique and the shared reading unchanged, yet widen the
     budget to every test. The same holds under another profile, such as the
     `ci` profile `make test-ci` selects, which inherits the default. Requiring

@@ -1371,6 +1371,7 @@ version = "0.1.0"
 dependencies = [
  "insta",
  "markdown",
+ "proptest",
  "rstest",
  "rstest-bdd",
  "rstest-bdd-macros",

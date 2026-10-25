@@ -298,7 +298,7 @@ def test_unexpected_file_check_failures_record_one_total_duration(
     write_markdown(tmp_path / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
     if failure_phase == "extract":
-        monkeypatch.setattr(engine, "extract_document", _raise_check_failure)
+        monkeypatch.setattr(engine, "extract_document_result", _raise_check_failure)
     else:
         monkeypatch.setattr("stilyagi.rules.registry.run_rules", _raise_check_failure)
 
@@ -356,7 +356,7 @@ def test_stdout_write_failure_is_measured_as_render_failure(
     ), "a propagated render exception records one total duration"
 
 
-def _raise_check_failure(*_args: object) -> typ.NoReturn:
+def _raise_check_failure(*_args: object, **_kwargs: object) -> typ.NoReturn:
     """Raise one unexpected error from the selected file-check boundary."""
     raise _UnexpectedCheckFailureError
 

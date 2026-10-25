@@ -18,10 +18,42 @@ __all__ = [
 
 if typ.TYPE_CHECKING:
     from stilyagi import config
-    from stilyagi.cli_args import CheckOptions
 
 
-def build_cli_overrides(options: CheckOptions) -> dict[str, object]:
+class _TargetConfigOptions(typ.Protocol):
+    """Configuration fields needed to resolve one target or discovery pass."""
+
+    @property
+    def explicit_config(self) -> tuple[str | pathlib.Path, ...]:
+        """Explicit configuration paths in command-line order."""
+        ...
+
+    @property
+    def isolated(self) -> bool:
+        """Whether discovery ignores parent configuration."""
+        ...
+
+
+class _RuleSelectionOptions(_TargetConfigOptions, typ.Protocol):
+    """Rule-selection fields available on commands that execute rules."""
+
+    @property
+    def select(self) -> tuple[str, ...]:
+        """Rule codes explicitly selected by the command line."""
+        ...
+
+    @property
+    def ignore(self) -> tuple[str, ...]:
+        """Rule codes excluded by the command line."""
+        ...
+
+    @property
+    def extend_select(self) -> tuple[str, ...]:
+        """Rule codes appended to the selected set."""
+        ...
+
+
+def build_cli_overrides(options: _RuleSelectionOptions) -> dict[str, object]:
     """Return config overrides extracted from command-line options.
 
     ``--extend-select`` appends to whatever ``--select`` already contributed,
@@ -41,27 +73,60 @@ def build_cli_overrides(options: CheckOptions) -> dict[str, object]:
     >>> build_cli_overrides(CheckOptions(targets=("docs",)))
     {}
     """
-    lint_overrides: dict[str, object] = {}
-    if options.select:
-        lint_overrides["select"] = options.select
-    if options.ignore:
-        lint_overrides["ignore"] = options.ignore
-    if options.extend_select:
-        lint_select = typ.cast(
-            "tuple[str, ...]",
-            lint_overrides.get("select", ()),
-        )
-        lint_overrides["select"] = (*lint_select, *options.extend_select)
+    return _build_rule_selection_overrides(
+        select=options.select,
+        ignore=options.ignore,
+        extend_select=options.extend_select,
+    )
 
-    overrides: dict[str, object] = {}
-    if lint_overrides:
-        overrides["lint"] = lint_overrides
-    return overrides
+
+def _build_rule_selection_overrides(
+    *,
+    select: tuple[str, ...],
+    ignore: tuple[str, ...],
+    extend_select: tuple[str, ...],
+) -> dict[str, object]:
+    """Translate rule selection flags to one nested config override.
+
+    Parameters
+    ----------
+    select:
+        Rule prefixes that replace the configured selection.
+    ignore:
+        Rule prefixes that replace the configured ignore list.
+    extend_select:
+        Rule prefixes appended after ``select`` when both are supplied.
+
+    Returns
+    -------
+    dict[str, object]
+        The nested ``lint`` mapping implied by the flags, or an empty mapping
+        when no selection flag is present.
+
+    Examples
+    --------
+    >>> _build_rule_selection_overrides(
+    ...     select=("STY",), ignore=(), extend_select=("DOC",)
+    ... )
+    {'lint': {'select': ('STY', 'DOC')}}
+    >>> _build_rule_selection_overrides(select=(), ignore=(), extend_select=())
+    {}
+    """
+    lint_overrides: dict[str, object] = {}
+    if select:
+        lint_overrides["select"] = select
+    if ignore:
+        lint_overrides["ignore"] = ignore
+    if extend_select:
+        lint_select = typ.cast("tuple[str, ...]", lint_overrides.get("select", ()))
+        lint_overrides["select"] = (*lint_select, *extend_select)
+
+    return {"lint": lint_overrides} if lint_overrides else {}
 
 
 def resolve_target_config(
     target: pathlib.Path,
-    options: CheckOptions,
+    options: _RuleSelectionOptions,
     resolver: config.ConfigResolver,
 ) -> config.StilyagiConfig:
     """Resolve the effective config for one target path.
@@ -81,8 +146,10 @@ def resolve_target_config(
 
 
 def resolve_discovery_config(
-    options: CheckOptions,
+    options: _TargetConfigOptions,
     resolver: config.ConfigResolver,
+    *,
+    cli_overrides: dict[str, object] | None = None,
 ) -> config.StilyagiConfig:
     """Resolve the configuration that governs Markdown discovery.
 
@@ -96,4 +163,9 @@ def resolve_discovery_config(
     config.StilyagiConfig
         The configuration used to discover Markdown inputs.
     """
-    return resolve_target_config(pathlib.Path(), options, resolver)
+    return resolver.resolve_config_for_path(
+        pathlib.Path(),
+        cli_overrides=cli_overrides,
+        explicit_config=options.explicit_config or None,
+        isolated=options.isolated,
+    )

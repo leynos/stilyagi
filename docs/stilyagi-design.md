@@ -483,6 +483,11 @@ Implementation consequences:
 
 - Use nearest-config semantics with explicit `extend`, modelled on Ruff.[^6]
 - Do not auto-load user-level configuration in v1.
+- Keep configuration inspection read-only and route it through the same source
+  ordering and selection-flag translation as `check`.
+- Track per-leaf origins while merging config layers. This ledger belongs to
+  configuration inspection; it is not a general provenance framework and does
+  not participate in lint execution or persistent caching.
 - Separate `locale` from `syntax` and from `nlp.profile`. The current RFC
   overloads `language`.
 
@@ -1043,6 +1048,26 @@ V1 sufficiency:
 
 ### 7.3 CLI contract
 
+The Markdown inspection and cache contracts for roadmap 2.2.3 are recorded in
+[ADR 011](adr-011-markdown-cli-inspection-and-cache.md) and its
+[ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md). The accepted
+implementation exposes effective configuration inspection, canonical IR dumps,
+persistent extraction-cache bypass and safe cache cleanup. ADR 011 was accepted
+after implementation and conformance review on 2026-10-25.
+
+Descriptor-relative cache access trusts the selected invocation directory as
+its starting point, opens it once per directory-chain walk, and refuses links
+below that anchor. Absolute cache roots outside cwd keep a strict no-follow
+walk. Construction failures are reported once per cache root for an invocation;
+later files bypass that root while read and write failures remain retryable.
+
+The 2.2.3 contract includes `.mdc` alongside `.md` and `.markdown`, and
+preserves YAML frontmatter verbatim during repairs. Existing
+[ADR 005](adr-005-markdown-region-vocabulary-scope.md) retains a positioned
+whole block rather than parsed YAML fields. The extraction cache includes that
+IR representation in its integrity checksum and invalidates on frontmatter-only
+changes; configurable exclusion and YAML parser robustness remain deferred.
+
 Strong points in RFC 0003:
 
 - The compact Ruff-like command surface is right.[^6][^7]
@@ -1061,8 +1086,8 @@ Weaknesses and ambiguities:
 
 Recommended revisions:
 
-- V1 discovery defaults should cover `*.md`, `*.markdown`, `*.py`, and `*.rs`,
-  with `*.mdx` as preview-only until proven.
+- V1 discovery defaults should cover `*.md`, `*.markdown`, `*.mdc`, `*.py`,
+  and `*.rs`, with `*.mdx` as preview-only until proven.
 - Keep `check`, `rule`, `rules`, `config`, `clean`, and `dump-ir`.
 - Add `--no-cache` in v1 because cache debugging is unavoidable.
 - Keep `server`, `doctor`, and `migrate-config` reserved.
