@@ -6,6 +6,7 @@ outcomes local to the test that owns each contract.
 """
 
 import collections.abc as cabc
+import contextlib
 import dataclasses as dc
 import typing as typ
 
@@ -72,18 +73,14 @@ def forbidden_cache_callback(
 @pytest.fixture
 def close_cache_services() -> cabc.Generator[CacheServiceRegistrar]:
     """Register services for unconditional teardown after assertions."""
-    services: list[CacheExtractionService] = []
+    with contextlib.ExitStack() as service_closers:
 
-    def register(service: CacheExtractionService) -> CacheExtractionService:
-        """Track one service and return it for direct use in the test."""
-        services.append(service)
-        return service
+        def register(service: CacheExtractionService) -> CacheExtractionService:
+            """Track one service and return it for direct use in the test."""
+            service_closers.callback(service.close)
+            return service
 
-    try:
         yield register
-    finally:
-        for service in reversed(services):
-            service.close()
 
 
 @pytest.fixture

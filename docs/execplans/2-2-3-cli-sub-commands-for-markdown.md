@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: IMPLEMENTATION IN FINAL REVIEW — R2 review findings are addressed and
-all six local gates pass; committed-candidate review remains pending.
+Status: IMPLEMENTATION IN FINAL REVIEW — R3 corrections pass all six local
+gates; committed-candidate review remains pending.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -258,8 +258,21 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       doctests 76 passed and 3 skipped, and script tests 154/154 with four
       snapshots. Markdown lint found zero issues and Mermaid validation passed.
       Logs are `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-r38.out`.
-- [ ] Commit the R2 changes, review that exact committed candidate with
-      CodeRabbit, reconcile any valid findings, then complete this plan and
+- [x] (2026-10-25) Review committed R2 candidate
+      `397a305e56da513c7a28949cbc2296dd8e3e98e5` with CodeRabbit. It identified
+      two valid test-quality gaps: fixture teardown could stop after a close
+      error, and frontmatter corruption coverage lacked a stale-checksum case.
+      The R3 corrections use `ExitStack` teardown and separate stale-checksum
+      and structural IR corruption cases.
+- [x] (2026-10-25) Pass all six local gates on the corrected R3 working tree
+      based on `397a305e56da513c7a28949cbc2296dd8e3e98e5`: `make check-fmt`,
+      `make lint`, `make typecheck`, `make test`, `make markdownlint` and
+      `make nixie`. Test evidence: Nextest 368/368, pytest 881/881 with 24
+      snapshots, pytest doctests 76 passed and 3 skipped, and script tests
+      154/154 with four snapshots. Markdown lint found zero issues and Mermaid
+      validation passed. Logs are `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-r40.out`.
+- [ ] Commit the corrected R3 changes and review that exact candidate with
+      CodeRabbit. Reconcile any valid findings, then complete this plan and
       roadmap item.
 
 ## Surprises & discoveries
