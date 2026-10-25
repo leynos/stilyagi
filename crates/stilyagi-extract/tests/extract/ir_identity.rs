@@ -1,7 +1,8 @@
 //! Integration tests for Markdown IR identity and snapshot contracts.
 
+use proptest::prelude::*;
 use rstest::rstest;
-use stilyagi_extract::{ExtractSyntax, SourceIdentity};
+use stilyagi_extract::{ExtractSyntax, SourceIdentity, extract_document};
 use stilyagi_ir::SuppressionKind;
 use stilyagi_test_support::{
     MALFORMED_PYTHON_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, NESTED_RUST_FIXTURE_PATH,
@@ -42,6 +43,59 @@ fn markdown_extraction_propagates_explicit_source_identity() {
         ir.document.uri.as_deref(),
         Some("file:///repo/docs/example.md")
     );
+}
+
+proptest! {
+    #[test]
+    fn markdown_identity_changes_preserve_source_ir_and_detect_byte_mutations(
+        generated in prop::collection::vec(any::<char>(), 0..48)
+    ) {
+        let body: String = generated.into_iter().collect();
+        let source = format!("# Café {body}\r\n\r\nBody {body}\r\n");
+        let anonymous = extract_document(&source, ExtractSyntax::Markdown)
+            .expect("generated Markdown should extract anonymously");
+        let identified = stilyagi_extract::extract_document_with_source_identity(
+            &source,
+            ExtractSyntax::Markdown,
+            SourceIdentity::new(Some("docs/generated.mdc".to_owned()), None),
+        )
+        .expect("generated Markdown should extract with identity");
+        let anonymous_ir = anonymous.ir().expect("expected anonymous Markdown IR");
+        let identified_ir = identified.ir().expect("expected identified Markdown IR");
+
+        prop_assert_eq!(
+            &identified_ir.document.content_hash,
+            &anonymous_ir.document.content_hash
+        );
+        prop_assert_eq!(&identified_ir.line_index, &anonymous_ir.line_index);
+        prop_assert_eq!(&identified_ir.regions, &anonymous_ir.regions);
+        prop_assert_eq!(identified_ir.document.path.as_deref(), Some("docs/generated.mdc"));
+        prop_assert_eq!(identified_ir.document.uri.as_deref(), None);
+
+        let source_without_last_line_feed = source
+            .strip_suffix('\n')
+            .expect("generated Markdown should end in a line feed");
+        let truncated = extract_document(
+            source_without_last_line_feed,
+            ExtractSyntax::Markdown,
+        )
+            .expect("Markdown without its final line feed should still extract");
+        let normalized_source = source.replace("\r\n", "\n");
+        let normalized = extract_document(&normalized_source, ExtractSyntax::Markdown)
+            .expect("LF-normalized Markdown should extract");
+        let truncated_ir = truncated.ir().expect("expected truncated Markdown IR");
+        let normalized_ir = normalized.ir().expect("expected normalized Markdown IR");
+
+        prop_assert_ne!(
+            &truncated_ir.document.content_hash,
+            &anonymous_ir.document.content_hash
+        );
+        prop_assert_ne!(
+            &normalized_ir.document.content_hash,
+            &anonymous_ir.document.content_hash
+        );
+        prop_assert_ne!(&normalized_ir.line_index, &anonymous_ir.line_index);
+    }
 }
 
 #[rstest]

@@ -444,6 +444,12 @@ reason = "The three shared lines are the PEP 484 conditional-import prologue for
 members = ["python/stilyagi/cli_fix.py", "python/stilyagi/engine/fix_pipeline.py", "python/stilyagi/check_inputs.py"]
 reason = "The shared content is the two-line TYPE_CHECKING marker and a newline. cli_fix.py and fix_pipeline.py bind cabc under the guard, check_inputs.py binds pathlib instead, so even the guarded block contents do not agree. The marker appears in 35 modules across python/stilyagi and the entry is recorded per family only because nose ranks fragments; it is the PEP 484 idiom for lazy annotations, not a distinct abstraction, and no runtime helper can carry a compile-time-only declaration."
 
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/engine/fix_planning/frontmatter.py::_matches_region_text", "python/stilyagi/engine/fix_planning/frontmatter.py::_region_source_span"]
+reason = "These helpers enforce distinct frontmatter safety checks: one selects the first source span and fails closed on malformed provenance; the other confirms that the selected span still matches current source bytes and IR text. Sharing their traversal would require a mode or callback and obscure those separate invariants."
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/cli_dump_ir.py::DumpIrErrorCode", "python/stilyagi/discovery_targets.py::_PathKind"]
+reason = "DumpIrErrorCode identifies command failures whose messages are rendered by DumpIrError; _PathKind classifies discovery operands. They use the same standard StrEnum declaration form but have separate domains and consumers. Shared enum machinery would couple unrelated contracts without extracting behavior."
 [tool.ty.environment]
 python-version = "3.14"
 
@@ -474,6 +480,11 @@ python-source = "python"
 
 [tool.skylos.gate]
 strict = true
+
+[tool.skylos.dead_code]
+entrypoints = [
+    { type = "function", name = "hydrate_ir_json", path = "python/stilyagi/_stilyagi_rs.pyi", reason = "Public PyO3 function registered on stilyagi._stilyagi_rs for Python callers." },
+]
 
 [tool.skylos.whitelist]
 names = [

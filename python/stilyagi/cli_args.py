@@ -1,7 +1,7 @@
-"""Argument parsing for the Stilyagi command-line interface.
+"""Argument parsing for Stilyagi's check and read-only CLI commands.
 
-This module owns the `check` command's parser, option validation, and the
-translation from parsed arguments into one immutable `CheckOptions`.
+This module owns command parsers, option validation, and translation from
+parsed arguments into immutable command-specific option values.
 
 Example
 -------
@@ -13,7 +13,18 @@ Example
 import argparse
 import dataclasses as dc
 import typing as typ
+from functools import partial
 from importlib import metadata
+
+from stilyagi.cli_dump_ir_args import (
+    DumpIrOptions as DumpIrOptions,
+)
+from stilyagi.cli_dump_ir_args import (
+    _add_dump_ir_arguments,
+)
+from stilyagi.cli_dump_ir_args import (
+    dump_ir_options_from_args as dump_ir_options_from_args,
+)
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -81,13 +92,13 @@ class _ConfigInspectionOptions:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the parser for the `check` and read-only `config` commands.
+    """Build the parser for check and read-only inspection commands.
 
     Returns
     -------
     argparse.ArgumentParser
-        A parser exposing the top-level `--version` flag and both command
-        subparsers with their supported options.
+        A parser exposing the top-level `--version` flag and the `check`,
+        `config`, and `dump-ir` subcommands with their supported options.
 
     Examples
     --------
@@ -125,6 +136,24 @@ def build_parser() -> argparse.ArgumentParser:
         version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
     )
     _add_config_inspection_arguments(config_parser)
+    dump_ir_parser = subparsers.add_parser(
+        "dump-ir",
+        help="Emit canonical JSON IR for Markdown files.",
+    )
+    dump_ir_parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
+    )
+    _add_dump_ir_arguments(
+        dump_ir_parser,
+        add_config_argument=_add_config_argument,
+        add_isolated_argument=partial(
+            _add_isolated_argument,
+            help_text="Skip config discovery for the requested Markdown targets.",
+        ),
+    )
     return parser
 
 

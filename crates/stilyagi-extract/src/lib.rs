@@ -4,10 +4,10 @@ use core::fmt;
 mod error;
 mod region;
 
-pub use error::{ExtractError, MarkdownIrFailure};
+pub use error::{ExtractError, IrHydrationError, MarkdownIrFailure};
 pub use region::{ExtractRegion, RegionKind};
 pub use stilyagi_ir::SourceIdentity;
-use stilyagi_ir::{IrBoundary, IrDocument};
+use stilyagi_ir::{IrBoundary, IrDocument, SCHEMA_VERSION};
 use stilyagi_markdown::{MarkdownBoundary, markdown_ir_document};
 pub use stilyagi_tree_sitter::{PythonExtractError, RustExtractError};
 use stilyagi_tree_sitter::{
@@ -186,6 +186,53 @@ pub fn extract_document_with_source_identity(
             ExtractError::RustIr,
         ),
     }
+}
+
+/// Restore a canonical IR document through the shared Rust bridge model.
+///
+/// The restored payload retains the canonical regions and source identity
+/// carried in the IR document. This is intended for validated cache hydration;
+/// callers remain responsible for checking their cache key and content hash.
+///
+/// # Errors
+///
+/// Returns [`IrHydrationError::InvalidJson`] when JSON syntax or known fields
+/// are malformed, [`IrHydrationError::UnsupportedSchemaVersion`] when the IR
+/// schema differs from the current version, and [`IrHydrationError::UnknownSyntax`]
+/// when the source syntax is unsupported.
+///
+/// # Examples
+///
+/// ```
+/// use stilyagi_extract::{ExtractSyntax, extract_document, hydrate_ir_json};
+///
+/// let extracted = extract_document("# Heading", ExtractSyntax::Markdown)
+///     .expect("expected Markdown extraction");
+/// let ir_json = extracted
+///     .ir()
+///     .expect("expected canonical Markdown IR")
+///     .to_canonical_json()
+///     .expect("expected canonical IR JSON");
+/// let restored = hydrate_ir_json(&ir_json).expect("expected IR hydration");
+///
+/// assert_eq!(restored.ir(), extracted.ir());
+/// ```
+pub fn hydrate_ir_json(json: &str) -> Result<ExtractDocument, IrHydrationError> {
+    let ir = IrDocument::from_json(json)
+        .map_err(|error| IrHydrationError::InvalidJson(error.to_string()))?;
+    if ir.schema_version != SCHEMA_VERSION {
+        return Err(IrHydrationError::UnsupportedSchemaVersion(
+            ir.schema_version,
+        ));
+    }
+    let syntax = ExtractSyntax::try_from(ir.document.syntax.as_str())
+        .map_err(|error| IrHydrationError::UnknownSyntax(error.to_string()))?;
+    let regions = ir
+        .regions
+        .iter()
+        .map(|region| ExtractRegion::new(region.kind.clone(), region.text.clone()))
+        .collect();
+    Ok(ExtractDocument::new(syntax, regions).with_ir(ir))
 }
 
 /// Keeps Markdown bridge regions coarse while canonical IR retains detail.

@@ -261,12 +261,11 @@ efficient transport internally.[^4]
 
 It does not yet promise:
 
-- the final end-user command set;
+- the final release command set or release channels;
 - full Markdown with JSX (MDX) support as part of the stable v1 syntax matrix;
 - support for locales beyond English;
-- the final release channels or installation instructions for each platform; or
-- the exact debugging and diagnostic workflows, which land in later roadmap
-  slices.[^3]
+- installation instructions for every platform; or
+- broader rule-debugging workflows beyond canonical IR inspection.[^3]
 
 ## 3. Supported surfaces in v1
 
@@ -281,10 +280,10 @@ it, but users should not yet depend on MDX behaviour as part of Stilyagi's
 stable v1 contract.[^4]
 
 The command-line interface (CLI) recursively discovers `.md`, `.markdown`,
-`.py`, and `.rs` files. MDX and Python stubs remain outside the default set
-until their support graduates into the stable matrix. Directory discovery skips
-the known build and cache directories `.eggs`, `.git`, `.mypy_cache`, `.nox`,
-`.pytest_cache`, `.ruff_cache`, `.stilyagi_cache`, `.tox`, `.uv-cache`,
+`.mdc`, `.py`, and `.rs` files. MDX and Python stubs remain outside the default
+set until their support graduates into the stable matrix. Directory discovery
+skips the known build and cache directories `.eggs`, `.git`, `.mypy_cache`,
+`.nox`, `.pytest_cache`, `.ruff_cache`, `.stilyagi_cache`, `.tox`, `.uv-cache`,
 `.uv-tools`, `.venv`, `.venv-release-smoke`, `.vtcode`, `__pycache__`, `build`,
 `dist`, `node_modules`, `site-packages`, and `target`; files with other
 extensions are skipped. V1 has no `include` or `exclude` configuration for
@@ -656,6 +655,24 @@ stilyagi check --fix --unsafe-fixes .
 stilyagi check --fix - --stdin-filename README.md < README.md
 ```
 
+### Inspecting Markdown IR with `stilyagi dump-ir`
+
+Use `dump-ir` to inspect the canonical JSON produced by the Rust extractor:
+
+```shell
+stilyagi dump-ir README.md
+stilyagi dump-ir docs/ --output-format json
+stilyagi dump-ir - --stdin-filename notes.mdc < notes.mdc
+```
+
+The command accepts `.md`, `.markdown`, and `.mdc` files. One input emits one
+IR object; multiple inputs emit an array, and an empty directory emits `[]`.
+The JSON retains Rust's source path, byte spans, line index, content hash,
+frontmatter region, and extraction errors. An input or extraction failure exits
+`2` without writing partial JSON. Use `--config`, `--isolated`, and
+`--no-cache` as with `check`; `dump-ir` does not accept fix or rule-selection
+options. Markdown fixes preserve recognized YAML frontmatter byte-for-byte.
+
 ## 4. Locale policy in v1
 
 English is the only formally supported v1 locale. The design keeps locale and
@@ -685,12 +702,11 @@ Python docstring plus Rust doc-comment inputs expose `python_docstring` and
 `engine.supported_region_kinds()` returns the region-kind vocabulary supported
 by the installed package version.
 
-The fix workflows (`--diff`, `--fix`, and `--unsafe-fixes`) have landed
-alongside `stilyagi check`, and this guide records their contract above. No
-builtin rules ship yet, so a run currently reports no diagnostics whatever the
-source; the remaining CLI subcommands (`config`, `clean`, and `dump-ir`) land
-in later roadmap slices. Treat this guide as a record of the settled
-user-facing v1 contract rather than as a complete operating manual.
+The `check`, `config`, and `dump-ir` commands are available. Cache cleanup via
+`clean` remains in a later roadmap slice. No builtin rules ship yet, so a run
+currently reports no diagnostics whatever the source. Treat this guide as a
+record of the settled user-facing v1 contract rather than as a complete
+operating manual.
 
 ## References
 

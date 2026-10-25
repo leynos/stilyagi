@@ -278,13 +278,21 @@ class TestAggregateCheckedFiles:
         )
 
 
-def _raise_bridge_error(_source: str, _syntax: object) -> None:
+def _raise_bridge_error(
+    _source: str,
+    _syntax: object,
+    **_kwargs: object,
+) -> None:
     """Raise the deterministic extractor failure used by these tests."""
     message = "bridge exploded"
     raise engine.BridgeExtractionError(message)
 
 
-def _raise_adapter_error(_source: str, _syntax: object) -> None:
+def _raise_adapter_error(
+    _source: str,
+    _syntax: object,
+    **_kwargs: object,
+) -> None:
     """Raise an unexpected adapter failure used by these tests."""
     message = "adapter exploded"
     raise TypeError(message)

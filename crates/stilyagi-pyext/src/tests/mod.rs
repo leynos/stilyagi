@@ -1,10 +1,12 @@
 //! Tests for the Python extension bridge payload and error mapping.
 
+mod hydration;
+mod identity;
 mod rust_doc_comment;
 
 use super::{
     authored_directive_error_codes_py, extract_document_function, extract_document_py, hello,
-    map_extract_error, supported_region_kinds_py, supported_syntaxes_py,
+    hydrate_ir_json_function, map_extract_error, supported_region_kinds_py, supported_syntaxes_py,
 };
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::{Py, PyErr, PyResult, Python};
@@ -18,6 +20,17 @@ use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, RegionKind as IrRegionKind};
 fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
     Python::attach(|py| {
         let args = PyTuple::new(py, [source, syntax])?;
+        extract_document_py(py, &args)
+    })
+}
+
+fn bridge_extract_document_with_path(
+    source: &str,
+    syntax: &str,
+    source_path: &str,
+) -> PyResult<Py<PyDict>> {
+    Python::attach(|py| {
+        let args = PyTuple::new(py, [source, syntax, source_path])?;
         extract_document_py(py, &args)
     })
 }

@@ -151,10 +151,10 @@ test-only and should not be used for application validation or control flow.
 ### The `.md.fixture` corpus convention
 
 Because discovery matches the final suffix, `.md.fixture` remains undiscovered
-even though `stilyagi check` now discovers `.md`, `.markdown`, `.py`, and `.rs`
-files. Any test that exercises discovery must strip the trailing `.fixture`
-suffix when materializing fixtures into a temporary tree; otherwise the
-fixtures are invisible to discovery and the test passes vacuously.
+even though `stilyagi check` now discovers `.md`, `.markdown`, `.mdc`, `.py`,
+and `.rs` files. Any test that exercises discovery must strip the trailing
+`.fixture` suffix when materializing fixtures into a temporary tree; otherwise
+the fixtures are invisible to discovery and the test passes vacuously.
 
 The shared helper `tests/support/malformed_corpus.py` centralizes this:
 `materialize_malformed_corpus(destination)` copies each fixture from
@@ -464,8 +464,8 @@ the requested targets.
 
 Discovery is a single deterministic pass, sorted by resolved path, that skips
 known build-noise directories and does not follow symlinked directories. The
-registered suffixes are `.md`, `.markdown`, `.py`, and `.rs`; unregistered
-source candidates are counted as skipped. `check_execution` defines
+registered suffixes are `.md`, `.markdown`, `.mdc`, `.py`, and `.rs`;
+unregistered source candidates are counted as skipped. `check_execution` defines
 `_resolve_discovery_config`, which resolves configuration for the current
 working directory rather than per individual file.
 `check_targets.discover_targets` may call this helper during command
@@ -485,12 +485,13 @@ Each discovered file becomes a `check_inputs.CheckInput` through
 `CheckInput.from_discovered`, which carries the `reported_path`,
 `resolved_path`, and selected `syntax`. Standard-input runs build their
 `CheckInput` directly: `--stdin-filename` selects the syntax by final suffix
-(defaulting to Markdown when omitted), and an unregistered stdin filename is
-logged and counted as skipped rather than checked. Per-file dispatch then goes
-through `check_execution._check_one_file`, which reads Python source using its
-declared encoding and other source as UTF-8, stripping a leading byte-order
-mark. It extracts through the bridge, resolves the per-file config, and reports
-operational failures with exit code `2`.
+(including `.mdc`, and defaulting to Markdown when omitted), and an
+unregistered stdin filename is logged and counted as skipped rather than
+checked. Per-file dispatch then goes through `check_execution._check_one_file`,
+which reads Python source using its declared encoding and other source as
+UTF-8, stripping a leading byte-order mark. It extracts through the bridge,
+resolves the per-file config, and reports operational failures with exit code
+`2`.
 
 For filesystem targets, `check_targets.discover_targets` carries the result's
 notices and failures in `DiscoveryInputs`. After the query returns,
@@ -924,7 +925,8 @@ particular.
 - Syntax and locale scope
   - Current implemented extraction support covers Markdown, Python
     docstrings, and Rust documentation comments.
-  - Default command discovery covers `.md`, `.markdown`, `.py`, and `.rs`.
+  - Default command discovery covers `.md`, `.markdown`, `.mdc`, `.py`, and
+    `.rs`.
     Keep the fixed extension-to-syntax table in `stilyagi.discovery_targets`;
     `stilyagi.discovery` remains the facade/query until a deliberate Rust
     discovery migration replaces it. Do not add configuration or flags for
@@ -1093,7 +1095,7 @@ The first real extraction path is now:
 
 ```plaintext
 python/stilyagi/engine/extraction.py
-  -> stilyagi._stilyagi_rs.extract_document(source, syntax)
+  -> stilyagi._stilyagi_rs.extract_document(source, syntax[, source_path])
   -> crates/stilyagi-pyext/src/lib.rs
   -> crates/stilyagi-extract/src/lib.rs
 ```
@@ -1108,9 +1110,23 @@ crate.
 
 String-only extraction uses anonymous IR source identity: `document.path` and
 `document.uri` are serialized as `null` instead of synthetic memory paths or
-URIs. Callers with real file context should use the identity-aware extraction
-API once the relevant adapter or CLI surface exposes it, so source identity is
-supplied at the boundary rather than invented inside the IR domain.
+URIs. Callers with file context may pass `source_path` to
+`engine.extract_document` or `engine.extract_document_result`. The latter
+returns an `ExtractionResult` containing both the typed `document` and Rust's
+original `canonical_json`; use it when framing debug output without
+re-serializing the IR.
+
+The extension's `hydrate_ir_json` entrypoint restores canonical IR through the
+same Rust schema and region conversion used by extraction. Cache callers must
+validate the cache key and canonical-byte checksum before hydration; hydration
+does not represent a new extraction and does not increment extraction metrics.
+
+The `cli_dump_ir` coordinator reuses `check_targets.parse_target_operands`,
+shared configuration resolution, discovery and source reading. It filters the
+discovered set to Markdown, carries each reported path into Rust source
+identity, and builds the complete canonical output in a 1 MiB spooled stream
+before writing stdout. Keep this boundary read-only; check-only rule and fix
+options do not belong on the command.
 
 Table: Current Markdown, Python, and Rust extraction differences.
 
@@ -1243,9 +1259,11 @@ There are also three concrete cross-boundary rules worth preserving:
   scope. Syntax-vocabulary validation is protected by a module lock so
   concurrent callers share one validated state, and bridge-patching tests must
   reset that state through the dedicated test helper before observing patched
-  vocabularies. Its public `extract_document(source, syntax)` adapter validates
-  the bridge vocabulary, converts the Rust payload into a `model.Document`, and
-  preserves the optional IR JSON mapping on that document.
+  vocabularies. Its `extract_document(source, syntax, *, source_path=None)`
+  adapter validates the bridge vocabulary, converts the Rust payload into a
+  `model.Document`, and preserves the optional IR JSON mapping on that document.
+  `extract_document_result` additionally retains Rust's canonical JSON string
+  for callers such as `dump-ir`.
 - The Rust workspace should not depend on Python package modules for policy or
   plugin decisions. Python owns orchestration and registration; Rust owns
   extraction and source fidelity.

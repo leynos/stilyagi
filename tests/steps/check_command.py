@@ -188,7 +188,7 @@ def extractor_emits_one_synthetic_ir_error_per_file(
     monkeypatch.setattr(
         engine,
         "extract_document",
-        lambda _source, _syntax: synthetic_document,
+        lambda _source, _syntax, **_kwargs: synthetic_document,
     )
 
 
@@ -200,7 +200,11 @@ def extractor_records_selected_syntaxes(
     """Replace extraction with a recorder that preserves the chosen syntax."""
     extracted_syntaxes: list[model.Syntax] = []
 
-    def record_syntax(_source: str, syntax: model.Syntax) -> model.Document:
+    def record_syntax(
+        _source: str,
+        syntax: model.Syntax,
+        **_kwargs: object,
+    ) -> model.Document:
         """Record one selected syntax and return an empty document."""
         extracted_syntaxes.append(syntax)
         return model.Document(syntax=syntax)

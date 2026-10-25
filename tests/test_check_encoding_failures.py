@@ -42,10 +42,15 @@ def test_cli_continues_after_python_encoding_detection_failure(
     extracted_syntaxes: list[model.Syntax] = []
     original_extract = engine.extract_document
 
-    def track_extraction(source: str, syntax: model.Syntax) -> model.Document:
+    def track_extraction(
+        source: str,
+        syntax: model.Syntax,
+        *,
+        source_path: str | None = None,
+    ) -> model.Document:
         """Record each extraction while retaining the real implementation."""
         extracted_syntaxes.append(syntax)
-        return original_extract(source, syntax)
+        return original_extract(source, syntax, source_path=source_path)
 
     monkeypatch.setattr(engine, "extract_document", track_extraction)
 
