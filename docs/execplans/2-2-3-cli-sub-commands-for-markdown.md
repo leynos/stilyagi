@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: IMPLEMENTATION IN FINAL REVIEW — R3 corrections pass all six local
-gates; committed-candidate review remains pending.
+Status: COMPLETE — the R3 candidate passes all six local gates and its
+committed CodeRabbit review found no remaining issues.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -271,9 +271,13 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       snapshots, pytest doctests 76 passed and 3 skipped, and script tests
       154/154 with four snapshots. Markdown lint found zero issues and Mermaid
       validation passed. Logs are `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-49853f07-73ba-4ebd-8c88-844f84cdf038-2-2-3-cli-sub-commands-for-markdown-r40.out`.
-- [ ] Commit the corrected R3 changes and review that exact candidate with
-      CodeRabbit. Reconcile any valid findings, then complete this plan and
-      roadmap item.
+- [x] (2026-10-25) Commit the R3 corrections as
+      `488764aad31508e26323c471b184bd165fbbfc4e`. CodeRabbit CLI 0.9.1 reviewed
+      that exact candidate against `7ebeb90287b44d1fd95ffa056f4a79a816dda844`
+      and reported zero findings across all 14 changed files. Review output:
+      `/tmp/coderabbit-stilyagi-r3-488764a-xZKYrO/coderabbit-r3.out`.
+- [x] (2026-10-25) Complete roadmap item 2.2.3 after full gate, review and
+      conformance reconciliation. Roadmap 3.3.1 remains separate.
 
 ## Surprises & discoveries
 
@@ -375,9 +379,10 @@ The reviewed plan incorporates six expert perspectives and was approved for
 implementation on 2026-10-24. M1–M4 each passed all six local quality gates. M4
 added process-boundary acceptance and frontmatter integrity evidence; the
 separate CodeScene refactor cleared the planned findings. ADR 011, the design,
-documentation index and roadmap now record the accepted implementation. The
-final documentation gates passed, and roadmap 3.3.1 remains separate. No
-performance claim has been established.
+documentation index and roadmap now record the accepted implementation. The R3
+candidate passed all six local gates, and CodeRabbit found no remaining
+findings. Roadmap 2.2.3 is complete; 3.3.1 remains separate. No performance
+claim has been established.
 
 ## Context and orientation
 
