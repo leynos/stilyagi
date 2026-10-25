@@ -113,13 +113,14 @@ def test_python_module_entrypoint_rejects_fix_with_diff(
 def test_python_module_entrypoint_leaves_a_clean_tree_untouched_under_fix(
     tmp_path: pathlib.Path,
 ) -> None:
-    """`--fix` over a tree with nothing to fix must not claim a mutation.
+    """`--fix` with no source edits must not claim a file mutation.
 
     This is the defect Revision 36 repaired, pinned where it actually appeared.
     The planner used to offer the source as its own replacement when no edit
     survived, so the run counted a written file and printed the re-run note
     while `write_source` skipped the write -- a run that left the tree
-    untouched reported that it had changed it.
+    untouched reported that it had changed it. The persistent extraction cache
+    is separate runtime state, so this byte check is limited to source files.
 
     The tree is deliberately malformed: this slice's rule engine reports
     nothing, so a malformed file is the honest way to be sure the run has no
@@ -147,7 +148,7 @@ def test_python_module_entrypoint_leaves_a_clean_tree_untouched_under_fix(
 def test_python_module_entrypoint_treats_unsafe_fixes_without_fix_as_a_no_op(
     tmp_path: pathlib.Path,
 ) -> None:
-    """`--unsafe-fixes` alone is accepted and changes nothing.
+    """`--unsafe-fixes` alone is accepted and leaves source files unchanged.
 
     Reported as a no-op rather than a usage error because that is what the
     shipped flag help promises ("Requires --fix to take effect"), and the
@@ -290,18 +291,18 @@ def _run_check_bytes(
 
 
 def _tree_bytes(root: pathlib.Path) -> dict[str, bytes]:
-    """Return every file under ``root`` mapped to its bytes.
+    """Return source-tree files and bytes, excluding the generated cache.
 
     Returns
     -------
     dict[str, bytes]
-        Relative POSIX path to contents, for comparing a tree before and after
-        a run without assuming which files the run might have touched.
+        Relative POSIX path to source contents. The dedicated persistent cache
+        is omitted because its expected writes do not change source files.
     """
     return {
         path.relative_to(root).as_posix(): path.read_bytes()
         for path in sorted(root.rglob("*"))
-        if path.is_file()
+        if path.is_file() and path.relative_to(root).parts[0] != ".stilyagi_cache"
     }
 
 

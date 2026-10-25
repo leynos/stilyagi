@@ -14,6 +14,8 @@ import pytest
 
 from tests.support.workflow_files import read_workflows
 
+pytest_plugins = ("tests.support.cache_extraction",)
+
 if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from tests.support.workflows import WorkflowDocument
 

@@ -187,8 +187,11 @@ def extractor_emits_one_synthetic_ir_error_per_file(
     )
     monkeypatch.setattr(
         engine,
-        "extract_document",
-        lambda _source, _syntax, **_kwargs: synthetic_document,
+        "extract_document_result",
+        lambda _source, _syntax, **_kwargs: engine.ExtractionResult(
+            synthetic_document,
+            None,
+        ),
     )
 
 
@@ -204,13 +207,13 @@ def extractor_records_selected_syntaxes(
         _source: str,
         syntax: model.Syntax,
         **_kwargs: object,
-    ) -> model.Document:
+    ) -> engine.ExtractionResult:
         """Record one selected syntax and return an empty document."""
         extracted_syntaxes.append(syntax)
-        return model.Document(syntax=syntax)
+        return engine.ExtractionResult(model.Document(syntax=syntax), None)
 
     check_command_state["extracted_syntaxes"] = extracted_syntaxes
-    monkeypatch.setattr(engine, "extract_document", record_syntax)
+    monkeypatch.setattr(engine, "extract_document_result", record_syntax)
 
 
 @when(parsers.parse('I run "{command}" in that tree'))

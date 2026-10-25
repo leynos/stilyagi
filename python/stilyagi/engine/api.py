@@ -16,6 +16,7 @@ Example
 import typing as typ
 
 from . import extraction as _extraction
+from .hydration import hydrate_canonical_ir
 
 if typ.TYPE_CHECKING:
     from stilyagi import model
@@ -116,5 +117,33 @@ def extract_document_result(
     _extraction.warn_unknown_ir_region_kinds(
         result.document.ir,
         operation="stilyagi.engine.extract_document",
+    )
+    return result
+
+
+def hydrate_ir_json(canonical_json: str) -> _extraction.ExtractionResult:
+    """Hydrate a typed document through Rust's canonical IR schema.
+
+    Parameters
+    ----------
+    canonical_json
+        Complete canonical IR JSON previously emitted by the Rust extractor.
+
+    Returns
+    -------
+    stilyagi.engine.extraction.ExtractionResult
+        The typed document restored by Rust plus the original JSON string.
+
+    Examples
+    --------
+    >>> from stilyagi import engine, model
+    >>> extracted = engine.extract_document_result("# Title", model.Syntax.MARKDOWN)
+    >>> engine.hydrate_ir_json(extracted.canonical_json).document == extracted.document
+    True
+    """
+    result = hydrate_canonical_ir(canonical_json)
+    _extraction.warn_unknown_ir_region_kinds(
+        result.document.ir,
+        operation="stilyagi.engine.hydrate_ir_json",
     )
     return result

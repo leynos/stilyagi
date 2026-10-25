@@ -50,6 +50,11 @@ LOG_FORMAT = "%(levelname)s %(name)s: %(message)s"
 STRUCTURED_FIELDS = (
     "accepted_count",
     "bytes_delta",
+    "cache_bypasses",
+    "cache_hits",
+    "cache_invalid",
+    "cache_misses",
+    "cache_write_failures",
     "candidate_count",
     "checked_files",
     "coalesced_count",
