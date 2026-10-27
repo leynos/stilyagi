@@ -155,7 +155,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
   Severity: medium. Likelihood: low for prose rules, **certain** for heading
   markers. Mitigation: Milestone 3 includes an executable proof that a
   list-punctuation insertion is admissible against the real corpus. The
-  heading-depth limitation is accepted, documented in ADR 008, and raised
+  heading-depth limitation is accepted, documented in ADR 0008, and raised
   against roadmap 2.3.1.
 
 - **Risk:** an extractor off-by-one turns a wrong diagnostic into a destroyed
@@ -325,10 +325,10 @@ Established during planning; use them instead of re-measuring.
   - 2026-09-28: the CodeRabbit review returned five genuine defects, all
     repaired and each pinned by a test confirmed to fail without its fix; see
     Revision 39.
-- [x] Milestone 6 — documentation, ADR 008, and the RFC 0003 amendment
+- [x] Milestone 6 — documentation, ADR 0008, and the RFC 0003 amendment
   - 2026-09-28: all eight Stage D deliverables are in the working tree and were
     verified individually, not assumed; see Revision 39 for the table and for
-    the two substantively required statements (ADR 008's heading-depth
+    the two substantively required statements (ADR 0008's heading-depth
     constraint and the 2.3.1 warning).
   - 2026-09-28: three gate failures found by `scrutineer` at the Revision 40
     tip, all repaired and recorded in Revision 41. `make check-fmt` (Revision
@@ -413,7 +413,7 @@ Established during planning; use them instead of re-measuring.
   **region** segment covers only `Top Level` (bytes 2–11). The root node spans
   the entire document, so admitting node spans would admit every byte and the
   guard would become vacuous. Impact: a heading-depth rule must ship `manual`.
-  Recorded in D-03 and ADR 008, and must be raised against roadmap 2.3.1.
+  Recorded in D-03 and ADR 0008, and must be raised against roadmap 2.3.1.
 
 - Observation: there are already **two** splice implementations, not one.
   Evidence: `tests/support/round_trip.py` (126 lines) is a Python twin of
@@ -708,11 +708,11 @@ Read these first. They are the authority when this plan and the code disagree.
 - `docs/stilyagi-design.md` — §4 (the "Applying safe fixes in CI or pre-commit"
   flow, and the "Fix and edit model" and "Diagnostics output" subsections) and
   §7.3.
-- `docs/rfcs/0002-stilyagi-python-rule-api.md` §§9–10 — the ratified diagnostic
-  and fix shapes. Note the worked example in §4, which passes
+- `docs/rfcs/rfc-0002-stilyagi-python-rule-api.md` §§9–10 — the ratified
+  diagnostic and fix shapes. Note the worked example in §4, which passes
   `applicability="safe"` as a bare string and `edits=[...]` as a list; the
   model must accept that (see D-14 and the interface section).
-- `docs/rfcs/0003-stilyagi-cli-contract.md` §§3.1, 10, 11, 12.
+- `docs/rfcs/rfc-0003-stilyagi-cli-contract.md` §§3.1, 10, 11, 12.
 - `docs/developers-guide.md` §2b — the existing pipeline, written for exactly
   this orientation.
 - `AGENTS.md` and `docs/documentation-style-guide.md`.
@@ -792,7 +792,7 @@ New: `python/stilyagi/fixes.py`, `python/stilyagi/engine/ir_view.py`,
 `features/stilyagi_fix_command.feature`, `tests/steps/fix_command.py`,
 `tests/support/fix_fixtures.py`, `tests/support/fix_plan_strategies.py`, the
 matching `tests/test_*.py` modules, and
-`docs/adr-008-safe-fix-planning-and-conflict-resolution.md`.
+`docs/adrs/adr-0009-safe-fix-planning-and-conflict-resolution.md`.
 
 Deleted: `python/stilyagi/engine/fixes.py`.
 
@@ -1098,7 +1098,7 @@ for the first time. Write the semantics down before implementing:
   fix is *applied*. A selected but unfixable code still reports. State this
   explicitly in the users' guide — "I set `unfixable` and the warning did not
   go away" is the support question this design will generate.
-- **`ALL`:** reserved as a pseudo-prefix. Note in ADR 008 that RFC 0002 §12
+- **`ALL`:** reserved as a pseudo-prefix. Note in ADR 0008 that RFC 0002 §12
   does not currently reserve it and that a follow-up should.
 - Model fixability as a set operation over prefixes so a future `--fixable`
   slots in as replacement and `--extend-fixable` as union, mirroring how
@@ -1457,16 +1457,16 @@ Stage D: gates.
 
 Commit: `Add stilyagi check --fix with conservative conflict handling`.
 
-### Milestone 6 — documentation, ADR 008, and the RFC amendment
+### Milestone 6 — documentation, ADR 0008, and the RFC amendment
 
-Write `docs/adr-008-safe-fix-planning-and-conflict-resolution.md` with the
-sections `docs/documentation-style-guide.md` requires: Status (Accepted, with
-date), Date, Context and Problem Statement, Decision Drivers, Requirements,
-Options Considered (a comparison table with a caption below it), Decision
-Outcome, Goals and Non-Goals, Migration Plan, Known Risks and Limitations, and
-Architectural Rationale. In review experience, Decision Drivers, Options
-Considered, and Migration Plan are the sections that get stubbed — do not stub
-them.
+Write `docs/adrs/adr-0009-safe-fix-planning-and-conflict-resolution.md` with
+the sections `docs/documentation-style-guide.md` requires: Status (Accepted,
+with date), Date, Context and Problem Statement, Decision Drivers,
+Requirements, Options Considered (a comparison table with a caption below it),
+Decision Outcome, Goals and Non-Goals, Migration Plan, Known Risks and
+Limitations, and Architectural Rationale. In review experience, Decision
+Drivers, Options Considered, and Migration Plan are the sections that get
+stubbed — do not stub them.
 
 Its substance is D-03, D-04, D-05, D-07, D-10, and D-13. **State explicitly
 that a heading-depth rule cannot be auto-fixed under this admissibility
@@ -1474,9 +1474,9 @@ model**, that widening to node spans was considered and rejected as vacuous,
 and that roadmap 2.3.1 must be reviewed against this constraint before it
 starts.
 
-Amend `docs/rfcs/0003-stilyagi-cli-contract.md` §10 to record that `--fix` with
-`--diff` is a usage error, with the rationale. Without this the exit-2 path is
-undocumented (D-06).
+Amend `docs/rfcs/rfc-0003-stilyagi-cli-contract.md` §10 to record that `--fix`
+with `--diff` is a usage error, with the rationale. Without this the exit-2
+path is undocumented (D-06).
 
 Update:
 
@@ -1493,7 +1493,7 @@ Update:
   "Collaborator injection"; the revised "Exit codes"; and a note that
   `engine.fix_planning.splice.apply_edits` is normative.
 - `docs/stilyagi-design.md` — the "Fix and edit model" subsection gains the
-  fix-error identifiers, the admissibility rule, and an ADR 008 link. Under
+  fix-error identifiers, the admissibility rule, and an ADR 0008 link. Under
   "Internal golden IR and edit helper scaffolding", update the claim that the
   round-trip helpers establish the safety checks, now that the production
   kernel exists.
@@ -1501,14 +1501,14 @@ Update:
   `//!` comment recording that it is deliberately stricter than the engine on
   identical edits and is a golden-fixture oracle, not a second engine. This is
   the only Rust change in the slice.
-- `docs/contents.md` — index ADR 008 and this ExecPlan.
+- `docs/contents.md` — index ADR 0008 and this ExecPlan.
 - `docs/roadmap.md` — tick 2.2.2, matching the "Completed with validation
   evidence in …" pattern used by earlier entries.
 
 Stage D: `make fmt`, then `make markdownlint` and `make nixie`, then the full
 chain.
 
-Commit: `Document safe-fix planning and record ADR 008`.
+Commit: `Document safe-fix planning and record ADR 0008`.
 
 ## Concrete steps
 
@@ -3131,7 +3131,7 @@ deadlock Revision 37 documented, and are **not** claimed as passing.
 
 ### What remains
 
-At the time of writing: Milestone 6 only -- ADR 008, the users'/developers'
+At the time of writing: Milestone 6 only -- ADR 0008, the users'/developers'
 guide updates, the RFC 0003 §10 amendment for the `--fix --diff` exit-2 path,
 the roadmap tick, and the `docs/contents.md` index entry. **All of these
 landed; see Revision 39.**
@@ -3240,18 +3240,18 @@ tests precisely the comma after `items[-2]`.
 All eight Stage D deliverables are in place and were verified in the working
 tree rather than assumed:
 
-| Deliverable                | State                                                        |
-| -------------------------- | ------------------------------------------------------------ |
-| `docs/adr-008-*.md`        | 362 lines, all required style-guide sections present         |
-| `docs/rfcs/0003-*.md` §10  | +30 lines: the `--fix --diff` usage error and stream rules   |
-| `docs/users-guide.md` §3   | +144 lines: `--fix`, `--diff`, refusals, exit codes          |
-| `docs/developers-guide.md` | +182: fix planning, the `--fix` path, no-writer collaborator |
-| `docs/stilyagi-design.md`  | +43: fix-error identifiers and the admissibility rule        |
-| `round_trip_edits.rs`      | +3: the one-sentence oracle disclaimer                       |
-| `docs/contents.md`         | +9: ADR 008 and this ExecPlan indexed                        |
-| `docs/roadmap.md`          | 2.2.2 ticked with evidence, plus the 2.3.1 note              |
+| Deliverable                   | State                                                        |
+| ----------------------------- | ------------------------------------------------------------ |
+| `docs/adrs/adr-0009-*.md`     | 362 lines, all required style-guide sections present         |
+| `docs/rfcs/rfc-0003-*.md` §10 | +30 lines: the `--fix --diff` usage error and stream rules   |
+| `docs/users-guide.md` §3      | +144 lines: `--fix`, `--diff`, refusals, exit codes          |
+| `docs/developers-guide.md`    | +182: fix planning, the `--fix` path, no-writer collaborator |
+| `docs/stilyagi-design.md`     | +43: fix-error identifiers and the admissibility rule        |
+| `round_trip_edits.rs`         | +3: the one-sentence oracle disclaimer                       |
+| `docs/contents.md`            | +9: ADR 0008 and this ExecPlan indexed                       |
+| `docs/roadmap.md`             | 2.2.2 ticked with evidence, plus the 2.3.1 note              |
 
-The two substance requirements the plan singled out are both present: ADR 008
+The two substance requirements the plan singled out are both present: ADR 0008
 states at line 180 that a heading-depth rule cannot be auto-fixed under this
 admissibility model, and carries the warning forward to roadmap 2.3.1 at line
 306; `roadmap.md:188` repeats the note where 2.3.1 is actually scoped.

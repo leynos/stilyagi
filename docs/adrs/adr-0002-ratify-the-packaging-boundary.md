@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 002: Ratify the packaging boundary
+# Architectural decision record (ADR) 0002: Ratify the packaging boundary
 
 ## Status
 
@@ -221,7 +221,7 @@ discover, launch, and version a second runtime artefact.
 
 ## References
 
-[^1]: [Stilyagi design](stilyagi-design.md)
-[^2]: [Makefile](../Makefile)
-[^3]: [Developer's guide](developers-guide.md)
-[^4]: [Roadmap](roadmap.md)
+[^1]: [Stilyagi design](../stilyagi-design.md)
+[^2]: [Makefile](../../Makefile)
+[^3]: [Developer's guide](../developers-guide.md)
+[^4]: [Roadmap](../roadmap.md)

@@ -50,7 +50,7 @@ first user-facing command of the Markdown vertical slice: `stilyagi check`. It
 answers whether the v1 command-line interface (CLI) contract is already strong
 enough to support normal repository linting for Markdown-only users, per
 [Stilyagi design](../stilyagi-design.md) §7.3 and
-[RFC 0003](../rfcs/0003-stilyagi-cli-contract.md).
+[RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md).
 
 After this change a maintainer can run, from a documentation repository:
 
@@ -611,13 +611,13 @@ commit gates before the next begins. Each ends with its own validation.
 
 ### W1 — Configuration schema and same-directory TOML loading
 
-Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §§4,
-6; [Stilyagi design](../stilyagi-design.md) §4 "Config file schema" and §7.3;
-[ADR 003](../adr-003-v1-contract-scope.md) for v1 contract scope. Skills to
-load: `python-router` (then the smaller skills it routes to, e.g.
-`python-data-shapes`, `python-types-and-apis`, `python-errors-and-logging`),
-`python-verification` then `hypothesis`, `leta` for navigation,
-`en-gb-oxendict`.
+Documents to read first: [RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md)
+§§4, 6; [Stilyagi design](../stilyagi-design.md) §4 "Config file schema" and
+§7.3; [ADR 0003](../adrs/adr-0003-ratify-the-v1-contract-scope.md) for v1
+contract scope. Skills to load: `python-router` (then the smaller skills it
+routes to, e.g. `python-data-shapes`, `python-types-and-apis`,
+`python-errors-and-logging`), `python-verification` then `hypothesis`, `leta`
+for navigation, `en-gb-oxendict`.
 
 Convert `python/stilyagi/config.py` into a package `python/stilyagi/config/`:
 
@@ -692,11 +692,11 @@ Acceptance: focused tests fail before implementation (Red) and pass after
 
 ### W2 — Nearest-config discovery, `extend` chain, CLI overrides, `--isolated`
 
-Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §5
-(discovery and precedence); [Stilyagi design](../stilyagi-design.md) §4 "Config
-file schema" (nearest-config, explicit `extend`, no user-level autoload).
-Skills: `python-router` → `python-abstractions`, `python-errors-and-logging`;
-`python-verification`; `leta`; `en-gb-oxendict`.
+Documents to read first: [RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md)
+§5 (discovery and precedence); [Stilyagi design](../stilyagi-design.md) §4
+"Config file schema" (nearest-config, explicit `extend`, no user-level
+autoload). Skills: `python-router` → `python-abstractions`,
+`python-errors-and-logging`; `python-verification`; `leta`; `en-gb-oxendict`.
 
 In `python/stilyagi/config/resolve.py` implement:
 
@@ -738,8 +738,8 @@ Acceptance: focused tests Red→Green; `make check-fmt`, `make typecheck`,
 
 ### W3 — Deterministic Markdown file discovery
 
-Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §7
-(file discovery); [Stilyagi design](../stilyagi-design.md) §4 system
+Documents to read first: [RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md)
+§7 (file discovery); [Stilyagi design](../stilyagi-design.md) §4 system
 requirements ("sort files by normalized path before execution") and §7.3.
 Skills: `python-router` → `python-iterators-and-generators`,
 `python-data-shapes`; `python-verification` → `hypothesis`; `leta`;
@@ -801,8 +801,8 @@ Acceptance: Red→Green; `make check-fmt`, `make typecheck`, `make lint`,
 
 Documents to read first: [Stilyagi design](../stilyagi-design.md) §4
 "Diagnostics output" and "Fix and edit model";
-[RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §§11, 12;
-[RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md) for
+[RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md) §§11, 12;
+[RFC 0001](../rfcs/rfc-0001-stilyagi-intermediate-representation.md) for
 `line_index`, `regions`, and `errors` shape;
 [developers guide](../developers-guide.md) §§7.1, 8. Skills: `python-router` →
 `python-data-shapes`, `python-types-and-apis`; `python-verification` →
@@ -918,7 +918,7 @@ Acceptance: Red→Green; snapshots reviewed and stable on re-run;
 
 ### W5 — `check` command, argparse CLI, exit codes, console entry point
 
-Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md)
+Documents to read first: [RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md)
 §§3.1, 5, 8, 10 (flags), 12 (exit codes), 16 (examples);
 [Stilyagi design](../stilyagi-design.md) §4 "CLI" and "First run on a docs
 repository" user flow, §7.3. Skills: `python-router` →
@@ -1085,8 +1085,8 @@ wheel/console check.)
 
 ### W6 — Standard-input support (`-` and `--stdin-filename`)
 
-Documents to read first: [RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §3.1
-(stdin and `--stdin-filename`). Skills: `python-router` →
+Documents to read first: [RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md)
+§3.1 (stdin and `--stdin-filename`). Skills: `python-router` →
 `python-errors-and-logging`; `python-testing`; `leta`; `en-gb-oxendict`.
 
 Extend the `check` parser and `run_check` so a single `-` target reads source

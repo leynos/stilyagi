@@ -20,8 +20,8 @@ The change is intentionally narrow. It does not implement the full
 intermediate-representation (IR) contract from roadmap item 2.1.1, and it does
 not widen syntax support beyond the first Markdown bridge. Its job is to prove
 that the accepted packaging boundary from
-[docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md) is real
-for extraction, not just for a greeting string.
+[docs/adrs/adr-0002-ratify-the-packaging-boundary.md](../adrs/adr-0002-ratify-the-packaging-boundary.md)
+is real for extraction, not just for a greeting string.
 
 The observable outcome is straightforward. After `make build`, a maintainer
 should be able to run a small Python snippet that imports `stilyagi.engine`,
@@ -64,16 +64,17 @@ The implementer should keep these documents open while executing the plan:
   10, 11, and 13, for the Rust-versus-Python ownership split, the warning that
   JSON is canonical debug output rather than the mandatory hot-path transport,
   the target repository shape, and the long-term validation classes.
-- [docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md) for
-  the accepted PyO3 plus `maturin` runtime model and the rejection of helper
-  binaries for normal execution.
-- [docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md) for the
-  accepted v1 syntax and transport boundaries that later slices will build on.
+- [docs/adrs/adr-0002-ratify-the-packaging-boundary.md](../adrs/adr-0002-ratify-the-packaging-boundary.md)
+  for the accepted PyO3 plus `maturin` runtime model and the rejection of
+  helper binaries for normal execution.
+- [docs/adrs/adr-0003-ratify-the-v1-contract-scope.md](../adrs/adr-0003-ratify-the-v1-contract-scope.md)
+  for the accepted v1 syntax and transport boundaries that later slices will
+  build on.
 - [docs/developers-guide.md](../developers-guide.md) and
   [docs/users-guide.md](../users-guide.md) for the maintainer-facing and
   user-facing guidance that must be updated once the bridge exists.
-- [docs/rfcs/0001-stilyagi-intermediate-representation.md](
-  ../rfcs/0001-stilyagi-intermediate-representation.md) for the future IR
+- [docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md](
+  ../rfcs/rfc-0001-stilyagi-intermediate-representation.md) for the future IR
   destination, even though this slice must stay narrower than that RFC's full
   contract.
 - [docs/rust-testing-with-rstest-fixtures.md](

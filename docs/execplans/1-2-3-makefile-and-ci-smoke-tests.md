@@ -49,11 +49,11 @@ The implementer should keep these documents open while executing the plan:
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 7.3,
   8, 10, and 11, for the CLI and CI parity expectations, packaging risk,
   repository layout, and validation classes.
-- [docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md) for
-  the accepted PyO3 plus `maturin` boundary and rejection of helper-binary
+- [docs/adrs/adr-0002-ratify-the-packaging-boundary.md](../adrs/adr-0002-ratify-the-packaging-boundary.md)
+  for the accepted PyO3 plus `maturin` boundary and rejection of helper-binary
   transport for normal execution.
-- [docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md) for the
-  v1 syntax and transport scope that the smoke path must not broaden.
+- [docs/adrs/adr-0003-ratify-the-v1-contract-scope.md](../adrs/adr-0003-ratify-the-v1-contract-scope.md)
+  for the v1 syntax and transport scope that the smoke path must not broaden.
 - [docs/developers-guide.md](../developers-guide.md) for the local build,
   verification, and internal boundary guidance that must reflect any new smoke
   target or CI practice.

@@ -84,7 +84,7 @@ development loop and a release build without compatibility shims.
 This step answers which artefacts and checks must exist before the first
 meaningful feature slice can be trusted. See
 [Stilyagi design](stilyagi-design.md) §11 and
-[RFC 0004](rfcs/0004-stilyagi-rule-testing-framework.md).
+[RFC 0004](rfcs/rfc-0004-stilyagi-rule-testing-framework.md).
 
 - [x] 1.3.1. Assemble representative Markdown, Python, and Rust fixtures,
   including malformed-input cases. See Stilyagi design (stilyagi-design.md)
@@ -123,7 +123,7 @@ underlying IR when behaviour looks wrong.
 This step answers whether Markdown-specific structure, flattening, and
 suppression handling are sufficient for v1. The result informs rule design, fix
 planning, and cache keys. See [Stilyagi design](stilyagi-design.md) §§6-7.1, 11
-and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
+and [RFC 0001](rfcs/rfc-0001-stilyagi-intermediate-representation.md).
 
 - [x] 2.1.1. Implement the Markdown IR envelope, `line_index`, region text, and
   `segments` mappings. See Stilyagi design (stilyagi-design.md) §7.1.
@@ -166,7 +166,7 @@ and [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
 This step answers whether the v1 CLI contract is already strong enough to
 support normal repository linting and debugging for Markdown-only users. See
 [Stilyagi design](stilyagi-design.md) §§4, 7.3, 13 and
-[RFC 0003](rfcs/0003-stilyagi-cli-contract.md).
+[RFC 0003](rfcs/rfc-0003-stilyagi-cli-contract.md).
 
 - [x] 2.2.1. Implement `stilyagi check` for Markdown files with nearest-config
   discovery, deterministic file order, and JSON or text diagnostics. See
@@ -183,7 +183,7 @@ support normal repository linting and debugging for Markdown-only users. See
   - Completed with validation evidence in
     [the safe-fix planning execplan](
     execplans/2-2-2-safe-fix-planning-conflict-resolution.md);
-    see [ADR 009](adr-009-safe-fix-planning-and-conflict-resolution.md) for
+    see [ADR 0009](adrs/adr-0009-safe-fix-planning-and-conflict-resolution.md) for
     the admissibility bound, conflict policy, and exit-status decisions.
   - Note for 2.3.1: a heading-depth rule cannot be auto-fixed under the
     admissibility bound, because the `##` marker is not source-backed text. It
@@ -200,7 +200,7 @@ support normal repository linting and debugging for Markdown-only users. See
 This step answers which non-NLP rules provide immediate value while exercising
 the rule engine, diagnostics model, and safe-fix machinery. See
 [Stilyagi design](stilyagi-design.md) §§3-5, 7.2 and
-[RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
+[RFC 0002](rfcs/rfc-0002-stilyagi-python-rule-api.md).
 
 - [ ] 2.3.1. Implement a starter pack of builtin Markdown rules. See Stilyagi
   design (stilyagi-design.md) §7.2.
@@ -243,7 +243,7 @@ standalone Markdown.
 This step answers whether the extractor can recover the owner metadata and
 source maps that docstring rules need across Python and Rust. See
 [Stilyagi design](stilyagi-design.md) §§4, 7.1, 11 and
-[RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md).
+[RFC 0001](rfcs/rfc-0001-stilyagi-intermediate-representation.md).
 
 - [x] 3.1.1. Implement Python docstring extraction with owner metadata for
   modules, classes, and functions. See Stilyagi design (stilyagi-design.md)
@@ -253,7 +253,7 @@ source maps that docstring rules need across Python and Rust. See
   - Success: IR fixtures identify both the prose region and its owning symbol.
   - Completed with validation evidence in
     [the Python docstring extraction execplan](execplans/3-1-1-python-docstring-extraction.md);
-    see [ADR 006](adr-006-docstring-owner-metadata.md) for owner metadata
+    see [ADR 0006](adrs/adr-0006-adopt-docstring-owner-metadata.md) for owner metadata
     decisions.
 - [x] 3.1.2. Implement Rust documentation-comment extraction with equivalent
   owner metadata. See Stilyagi design (stilyagi-design.md) §7.1.
@@ -263,8 +263,9 @@ source maps that docstring rules need across Python and Rust. See
     prose and Python docstrings.
   - Completed with validation evidence in
     [the roadmap 3.1.2 execplan](execplans/roadmap-3-1-2.md);
-    see [ADR 007](adr-007-rust-doc-comment-owner-metadata.md) for owner
-    metadata decisions.
+    see [ADR 0007](
+    adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md) for
+    owner metadata decisions.
   - [x] 3.1.2.1. Make Rust impl-member qualified names module-rooted, or record
     a formal v1 limitation before owner-aware rules depend on them.
     - Requires 3.1.2.
@@ -295,11 +296,11 @@ source maps that docstring rules need across Python and Rust. See
 
 This step answers how much of the first slice survives unchanged once the
 extractor surface grows. See [Stilyagi design](stilyagi-design.md) §§3-4, 7.2,
-13 and [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
+13 and [RFC 0002](rfcs/rfc-0002-stilyagi-python-rule-api.md).
 
 - [x] 3.2.1. Expand discovery defaults to `*.md`, `*.markdown`, `*.py`, and
   `*.rs`. See Stilyagi design (stilyagi-design.md) §7.3 and
-  [ADR 008](adr-008-v1-discovery-defaults.md).
+  [ADR 0008](adrs/adr-0008-adopt-v1-discovery-defaults.md).
   - Requires 2.2.1.
   - Success: `stilyagi check .` works on mixed documentation and source trees.
   - Completed by [ExecPlan 3.2.1](
@@ -362,8 +363,8 @@ defines the target grammar-capability surface for this phase.
 
 This step answers whether capability declarations are sufficient to select the
 minimum enrichment plan per run. See [Stilyagi design](stilyagi-design.md) §§4,
-6, 7.2, 8, [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md), and
-[RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md).
+6, 7.2, 8, [RFC 0002](rfcs/rfc-0002-stilyagi-python-rule-api.md), and
+[RFC 0005](rfcs/rfc-0005-grammar-capability-and-syntactic-api-extensions.md).
 
 - [ ] 4.1.1. Implement rule-declared capabilities and planner union logic. See
   Stilyagi design (stilyagi-design.md) §7.2.
@@ -386,8 +387,8 @@ minimum enrichment plan per run. See [Stilyagi design](stilyagi-design.md) §§4
 
 This step answers what the stable public rule surface should look like once
 language-aware features exist. See [Stilyagi design](stilyagi-design.md) §§7.2,
-8, [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md), and
-[RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md).
+8, [RFC 0002](rfcs/rfc-0002-stilyagi-python-rule-api.md), and
+[RFC 0005](rfcs/rfc-0005-grammar-capability-and-syntactic-api-extensions.md).
 
 - [ ] 4.2.1. Add `UPos`, `Dep`, `MorphFeatures`, `SentenceNode`, and
   `TokenNode` to the rule API as the first grammar-capability wave, including
@@ -410,7 +411,7 @@ language-aware features exist. See [Stilyagi design](stilyagi-design.md) §§7.2
   - Requires 4.2.1 and 4.2.2.
   - Include at least one POS-only rule, one morphology-plus-dependency rule,
     and one higher-order coordination or clause rule from RFC 0005 or
-    [RFC 0006](rfcs/0006-editorial-policy-vertical-slices.md), such as person,
+    [RFC 0006](rfcs/rfc-0006-editorial-policy-vertical-slices.md), such as person,
     imperative, passive-voice, serial-comma, or clause-punctuation policy.
   - Success: the slice ships at least one sentence-level rule and one
     syntax-aware editorial rule that would be awkward in the structural-only
@@ -442,11 +443,11 @@ before language-aware rules are safe to recommend broadly. See
 This step answers whether Stilyagi can add a first-party spelling capability
 without turning grammar support and dictionary checks into one tangled provider
 surface. See
-[ADR 001](adr-001-spell-checking-provider.md), [Stilyagi design](stilyagi-design.md)
+[ADR 0001](adrs/adr-0001-select-a-spell-checking-provider.md), [Stilyagi design](stilyagi-design.md)
 §§4, 6-8, 11, and
-[RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md).
+[RFC 0005](rfcs/rfc-0005-grammar-capability-and-syntactic-api-extensions.md).
 
-- [ ] 4.4.1. Build the Rust-side `spellbook` spike described in ADR 001. See
+- [ ] 4.4.1. Build the Rust-side `spellbook` spike described in ADR 0001. See
   Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 4.1.1, 3.1.1, 3.1.2, and 3.2.3.
   - Prove dictionary loading, region-scoped checking, and source-backed span
@@ -455,8 +456,8 @@ surface. See
     types into the public rule API and operates fully offline, with no network
     access, runtime auto-downloads, or reliance on system package managers.
 - [ ] 4.4.2. Add a diagnostic-only spelling capability behind the provider
-  planner. See ADR 001 (adr-001-spell-checking-provider.md). See
-  stilyagi-design.md §7.2.
+  planner. See ADR 0001 (adrs/adr-0001-select-a-spell-checking-provider.md).
+  See stilyagi-design.md §7.2.
   - Requires 4.4.1.
   - Include repo-local personal-dictionary support and keep suggestions out of
     scope for the first wave.
@@ -465,7 +466,7 @@ surface. See
     offline with no network access, runtime auto-downloads, or system package
     manager dependencies.
 - [ ] 4.4.3. Add dictionary acquisition and configurable override profiles.
-  See [RFC 0006](rfcs/0006-editorial-policy-vertical-slices.md).
+  See [RFC 0006](rfcs/rfc-0006-editorial-policy-vertical-slices.md).
   - Requires 4.4.2.
   - Provide a simple workflow that downloads Hunspell dictionaries, or a
     supported equivalent, into the location defined by the Cross-Desktop Group
@@ -480,16 +481,17 @@ surface. See
     location and select it explicitly without Stilyagi privileging or bundling
     one house dictionary.
 - [ ] 4.4.4. Accept `spellbook` or switch to the `zspell` fallback using the
-  ADR 001 gate criteria. See ADR 001 (adr-001-spell-checking-provider.md). See
-  stilyagi-design.md §11.
+  ADR 0001 gate criteria. See ADR 0001
+  (adrs/adr-0001-select-a-spell-checking-provider.md). See stilyagi-design.md
+  §11.
   - Requires 4.4.2 and 4.3.3.
   - Measure correctness, performance, and offset fidelity before freezing the
-    provider choice. Treat the offline constraint as part of the ADR 001 gate:
+    provider choice. Treat the offline constraint as part of the ADR 0001 gate:
     no network access, no runtime auto-downloads, and no reliance on system
     package managers.
   - Success: the spelling capability lands behind one documented provider
     decision rather than an open-ended experiment, and the accepted provider
-    clears the offline gate alongside the other ADR 001 acceptance criteria.
+    clears the offline gate alongside the other ADR 0001 acceptance criteria.
 
 ### 4.5. Add the `df12-editorial-style` showcase pack
 
@@ -497,7 +499,7 @@ This step proves that Stilyagi's `astroid`-like API can express opinionated,
 logic-driven grammatical rules without hard-coding house style into extractor,
 IR, or provider nodes. The first-party pack enforces df12 house style when
 selected and serves as a worked rule-authoring example. See
-[RFC 0006](rfcs/0006-editorial-policy-vertical-slices.md).
+[RFC 0006](rfcs/rfc-0006-editorial-policy-vertical-slices.md).
 
 - [ ] 4.5.1. Add policy-rule configuration and lexicon or phrase-table
   primitives.
@@ -558,7 +560,7 @@ adopt in CI, extend safely, and test against the real product surface.
 This step answers whether the extension surface is stable enough for external
 consumers and safe enough for teams to adopt deliberately. See
 [Stilyagi design](stilyagi-design.md) §§4, 6, 8, 11 and
-[RFC 0002](rfcs/0002-stilyagi-python-rule-api.md).
+[RFC 0002](rfcs/rfc-0002-stilyagi-python-rule-api.md).
 
 - [ ] 5.1.1. Implement entry-point-based discovery for rule packs and
   capability providers. See Stilyagi design (stilyagi-design.md) §7.2.
@@ -581,7 +583,7 @@ consumers and safe enough for teams to adopt deliberately. See
 
 This step answers whether RFC 0004 can make rule-pack development ergonomic
 without inventing a second test-only universe. See
-[RFC 0004](rfcs/0004-stilyagi-rule-testing-framework.md) and
+[RFC 0004](rfcs/rfc-0004-stilyagi-rule-testing-framework.md) and
 [Stilyagi design](stilyagi-design.md) §11.
 
 - [ ] 5.2.1. Implement the `stilyagi_path` pytest fixture and subprocess-backed
@@ -607,7 +609,7 @@ without inventing a second test-only universe. See
 
 This step answers what must be true before the first release candidate is worth
 publishing. See [Stilyagi design](stilyagi-design.md) §§5, 8, 11, 13 and
-[RFC 0003](rfcs/0003-stilyagi-cli-contract.md).
+[RFC 0003](rfcs/rfc-0003-stilyagi-cli-contract.md).
 
 - [ ] 5.3.1. Implement Static Analysis Results Interchange Format (SARIF)
   rendering from the shared diagnostic model. See Stilyagi design
@@ -683,7 +685,7 @@ land.
 Arbitrary non-doc comments remain out of scope for the current extraction and
 editorial-policy surfaces. This step preserves a deliberate post-v1 path
 without weakening that boundary. See
-[RFC 0006](rfcs/0006-editorial-policy-vertical-slices.md).
+[RFC 0006](rfcs/rfc-0006-editorial-policy-vertical-slices.md).
 
 - [ ] 6.5.1. Draft a post-v1 RFC for arbitrary non-doc comment extraction.
   - Requires 5.3.3.

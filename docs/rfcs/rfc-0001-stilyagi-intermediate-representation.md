@@ -236,7 +236,7 @@ these kinds:
 - `python_docstring`
 - `rust_doc_comment`
 
-ADR 005 clarifies the Markdown subset of this vocabulary.[^6] `list_item` and
+ADR 0005 clarifies the Markdown subset of this vocabulary.[^6] `list_item` and
 `blockquote` are thin structural regions: their prose is emitted by child
 regions linked through `parent_region`. `frontmatter` is emitted as one
 source-backed fenced block, while `frontmatter_field` is reserved and
@@ -301,11 +301,11 @@ section context or other non-code ancestry. If a region needs heading or
 debugging context, that information SHOULD live in `attrs` or in a separate
 dedicated field rather than overloading `owner`.
 
-ADR 006 records the concrete Python docstring owner policy: Python class and
+ADR 0006 records the concrete Python docstring owner policy: Python class and
 function regions use Python `__qualname__` semantics, including `<locals>` for
 definitions nested inside function bodies; module owners remain anonymous until
 a future package-aware extraction entrypoint can supply trustworthy module
-identity.[^7] ADR 007 records the concrete Rust documentation-comment owner
+identity.[^7] ADR 0007 records the concrete Rust documentation-comment owner
 policy, reusing the same `owner` contract with Rust-specific `::` qualnames and
 inner/outer attachment rules.[^8]
 
@@ -471,9 +471,9 @@ interchange contract.[^4]
 [^3]: <https://github.com/tree-sitter/tree-sitter>
 [^4]: <https://spacy.io/usage/processing-pipelines>
 [^5]: <https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html>
-[^6]: [ADR 005: Scope Markdown region vocabulary](
-    ../adr-005-markdown-region-vocabulary-scope.md)
-[^7]: [ADR 006: Adopt docstring owner metadata](
-    ../adr-006-docstring-owner-metadata.md)
-[^8]: [ADR 007: Adopt Rust documentation-comment owner metadata](
-    ../adr-007-rust-doc-comment-owner-metadata.md)
+[^6]: [ADR 0005: Scope Markdown region vocabulary](
+    ../adrs/adr-0005-scope-markdown-region-vocabulary.md)
+[^7]: [ADR 0006: Adopt docstring owner metadata](
+    ../adrs/adr-0006-adopt-docstring-owner-metadata.md)
+[^8]: [ADR 0007: Adopt Rust documentation-comment owner metadata](
+    ../adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md)

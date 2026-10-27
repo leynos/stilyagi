@@ -66,8 +66,9 @@ Hard invariants that must hold throughout implementation.
   and roadmap 2.1.3 ("Do not let later rules infer suppression state ad hoc").
 - Vocabulary boundary: suppressions are NOT IR regions. They populate the
   document-level `suppressions` array only, never `regions`. This respects
-  `docs/adr-005-markdown-region-vocabulary-scope.md`, which fixes the Markdown
-  region vocabulary and does not include a suppression/HTML-comment region kind.
+  `docs/adrs/adr-0005-scope-markdown-region-vocabulary.md`, which fixes the
+  Markdown region vocabulary and does not include a suppression/HTML-comment
+  region kind.
 - Canonical grammar: the only recognized directive form is the RFC 0003 §9.1
   logical grammar delivered through the Markdown HTML-comment form of RFC 0003
   §9.2, namely `<!-- stilyagi: <verb> [CODE[,CODE...]] -->` where `<verb>` is
@@ -78,11 +79,11 @@ Hard invariants that must hold throughout implementation.
   (`disable`/`enable`) directive that names no code MUST be refused, per
   `docs/stilyagi-design.md` §7.1 (`docs/stilyagi-design.md:626`, "Blanket
   inline suppression remains forbidden in v1") and RFC 0003 §9.1
-  (`docs/rfcs/0003-stilyagi-cli-contract.md:281`, "Range and inline directives
-  MUST name at least one code or prefix"). A *file* (`ignore-file`) directive
-  that names no code is NOT refused: the v1 contract permits a whole-file
-  exemption without a code (Decision D6), so it is accepted with an empty
-  `codes` vector.
+  (`docs/rfcs/rfc-0003-stilyagi-cli-contract.md:281`, "Range and inline
+  directives MUST name at least one code or prefix"). A *file* (`ignore-file`)
+  directive that names no code is NOT refused: the v1 contract permits a
+  whole-file exemption without a code (Decision D6), so it is accepted with an
+  empty `codes` vector.
 - Determinism: suppression order in the array MUST be deterministic (document
   order), consistent with the deterministic-IR requirement in RFC 0001 §9 and
   the existing canonical-JSON contract.
@@ -222,11 +223,11 @@ Hard invariants that must hold throughout implementation.
   `enable`) directive is refused (`Rejected(BlanketForbidden)`); a codeless
   file directive (`ignore-file`) is *accepted* as a whole-file exemption with
   an empty `codes` vector. Rationale: RFC 0003 §9.1
-  (`docs/rfcs/0003-stilyagi-cli-contract.md:281`) scopes the "MUST name at
+  (`docs/rfcs/rfc-0003-stilyagi-cli-contract.md:281`) scopes the "MUST name at
   least one code" mandate to "Range and inline directives" and forbids only
   "Blanket inline suppression"; design §7.1 (`docs/stilyagi-design.md:626`)
   forbids only "Blanket inline suppression"; RFC 0003 §9's overview
-  (`docs/rfcs/0003-stilyagi-cli-contract.md:268`) enumerates "file-level
+  (`docs/rfcs/rfc-0003-stilyagi-cli-contract.md:268`) enumerates "file-level
   exemptions" as a first-class stratum. Emitting an IR error for a codeless
   `ignore-file` would refuse input the v1 contract permits, contradicting an
   established contract. This supersedes the round-1/2 reading that refused
@@ -326,15 +327,15 @@ Design and contract references, by section:
 - `docs/stilyagi-design.md` §7.1 — suppression syntax, "Suppression parsing
   belongs in extraction", "Suppression state must be visible in IR and debug
   output", "Blanket inline suppression remains forbidden in v1".
-- `docs/rfcs/0001-stilyagi-intermediate-representation.md` §8 — suppression
+- `docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md` §8 — suppression
   fields `{id, kind, codes, span, origin}` and kinds `inline`/`range`/`file`/
   `config`; §9 — canonical JSON and compatibility rules.
-- `docs/rfcs/0003-stilyagi-cli-contract.md` §9, §9.1, §9.2 — three suppression
-  strata, the logical directive grammar, the Markdown HTML-comment form, and
-  the prohibition on inventing a second grammar.
-- `docs/adr-003-v1-contract-scope.md` — v1 syntax/contract scope (Markdown
-  first; blanket suppression forbidden).
-- `docs/adr-005-markdown-region-vocabulary-scope.md` — the fixed Markdown
+- `docs/rfcs/rfc-0003-stilyagi-cli-contract.md` §9, §9.1, §9.2 — three
+  suppression strata, the logical directive grammar, the Markdown HTML-comment
+  form, and the prohibition on inventing a second grammar.
+- `docs/adrs/adr-0003-ratify-the-v1-contract-scope.md` — v1 syntax/contract
+  scope (Markdown first; blanket suppression forbidden).
+- `docs/adrs/adr-0005-scope-markdown-region-vocabulary.md` — the fixed Markdown
   region vocabulary (justifies keeping suppressions out of `regions`).
 - `AGENTS.md` — quality gates and the testing rules (rstest, rstest-bdd, insta
   snapshots, proptest for new invariants; en-GB Oxford spelling in prose and
@@ -504,15 +505,15 @@ Parsing rules (pin each with a test):
    (Decision D6). RFC 0003 §9.1 requires at least one code only for range and
    inline directives ("Range and inline directives MUST name at least one code
    or prefix. Blanket inline suppression is forbidden in v1",
-   `docs/rfcs/0003-stilyagi-cli-contract.md:281`), and design §7.1 forbids only
-   "Blanket inline suppression" (`docs/stilyagi-design.md:626`). Neither
+   `docs/rfcs/rfc-0003-stilyagi-cli-contract.md:281`), and design §7.1 forbids
+   only "Blanket inline suppression" (`docs/stilyagi-design.md:626`). Neither
    forbids a codeless whole-file exemption. Therefore:
    - For `ignore-next` (inline) and `disable`/`enable` (range) verbs, an empty
      code list returns `Rejected(BlanketForbidden)`.
    - For `ignore-file` (file) an empty code list is *permitted*: return
      `Parsed` with an empty `codes` vector (a whole-file exemption naming no
      code). RFC 0003 §9 explicitly lists "file-level exemptions"
-     (`docs/rfcs/0003-stilyagi-cli-contract.md:268`) alongside inline/range
+     (`docs/rfcs/rfc-0003-stilyagi-cli-contract.md:268`) alongside inline/range
      suppressions, and §9.1's mandate does not name `ignore-file`.
 5. Otherwise return `Parsed`.
 
@@ -871,11 +872,11 @@ Point 2 (blanket rule over-reached the contract): the round-1/2 parsing rule 4
 and Decision D5 classified a codeless `<!-- stilyagi: ignore-file -->` as
 `Rejected(BlanketForbidden)` and emitted a `suppression-blanket-forbidden` IR
 error "for all four verbs". RFC 0003 §9.1
-(`docs/rfcs/0003-stilyagi-cli-contract.md:281`) scopes the "MUST name at least
-one code" mandate to "Range and inline directives" and forbids only "Blanket
-inline suppression"; design §7.1 (`docs/stilyagi-design.md:626`) forbids only
-"Blanket inline suppression"; and RFC 0003 §9's overview
-(`docs/rfcs/0003-stilyagi-cli-contract.md:268`) enumerates "file-level
+(`docs/rfcs/rfc-0003-stilyagi-cli-contract.md:281`) scopes the "MUST name at
+least one code" mandate to "Range and inline directives" and forbids only
+"Blanket inline suppression"; design §7.1 (`docs/stilyagi-design.md:626`)
+forbids only "Blanket inline suppression"; and RFC 0003 §9's overview
+(`docs/rfcs/rfc-0003-stilyagi-cli-contract.md:268`) enumerates "file-level
 exemptions" as a first-class stratum. Emitting an error for a codeless
 `ignore-file` refused input the v1 contract permits. Fixed by adding Decision
 D6: the blanket refusal is now verb-scoped — codeless inline/range directives

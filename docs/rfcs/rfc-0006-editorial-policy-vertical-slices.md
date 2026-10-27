@@ -7,12 +7,12 @@
 - Created: 2026-08-15
 - Target: Stilyagi 0.2 and later
 - Depends on:
-  - [RFC 0001](0001-stilyagi-intermediate-representation.md)
-  - [RFC 0002](0002-stilyagi-python-rule-api.md)
-  - [RFC 0003](0003-stilyagi-cli-contract.md)
-  - [RFC 0005](0005-grammar-capability-and-syntactic-api-extensions.md)
-  - [ADR 001](../adr-001-spell-checking-provider.md)
-  - [ADR 003](../adr-003-v1-contract-scope.md)
+  - [RFC 0001](rfc-0001-stilyagi-intermediate-representation.md)
+  - [RFC 0002](rfc-0002-stilyagi-python-rule-api.md)
+  - [RFC 0003](rfc-0003-stilyagi-cli-contract.md)
+  - [RFC 0005](rfc-0005-grammar-capability-and-syntactic-api-extensions.md)
+  - [ADR 0001](../adrs/adr-0001-select-a-spell-checking-provider.md)
+  - [ADR 0003](../adrs/adr-0003-ratify-the-v1-contract-scope.md)
 
 ## 1. Summary
 
@@ -618,7 +618,7 @@ examples, not silently mutate authorial intent.
 ## 9. Open questions
 
 - Which download metadata, integrity checks, and provenance requirements must
-  ADR 001 define for dictionaries installed into the XDG data-share location?
+  ADR 0001 define for dictionaries installed into the XDG data-share location?
 - Should `df12-editorial-style` ship as a first-party external pack, or as a
   separately selectable builtin pack that exercises the same extension surface?
 - What is the default severity for high-opinion punctuation rules?

@@ -95,45 +95,45 @@
 
 - ADRs record narrower implementation and architecture choices that refine the
   main design:
-  - [ADR 001: Select a spell checking provider](
-    adr-001-spell-checking-provider.md)
+  - [ADR 0001: Select a spell checking provider](
+    adrs/adr-0001-select-a-spell-checking-provider.md)
     records the proposed backend choice for dictionary-based spelling support
     and the fallback path if the first provider spike fails.
-  - [ADR 002: Ratify the packaging boundary](
-    adr-002-packaging-boundary.md)
+  - [ADR 0002: Ratify the packaging boundary](
+    adrs/adr-0002-ratify-the-packaging-boundary.md)
     records the accepted v1 build and runtime boundary between the Python
     package and the embedded Rust extension.
-  - [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
+  - [ADR 0003: Ratify the v1 contract scope](adrs/adr-0003-ratify-the-v1-contract-scope.md)
     records the accepted v1 syntax support matrix, IR transport policy, and
     locale boundary that later roadmap slices may assume.
-  - [ADR 004: Adopt layered Python linting](
-    adr-004-python-linting-architecture.md)
+  - [ADR 0004: Adopt layered Python linting](
+    adrs/adr-0004-adopt-layered-python-linting.md)
     records the accepted layered Python linting architecture using Ruff,
     Interrogate, focused Pylint, df12 Pylint, ambrleaks, and Skylos, plus its
     Makefile execution model.
-  - [ADR 005: Scope Markdown region vocabulary](
-    adr-005-markdown-region-vocabulary-scope.md)
+  - [ADR 0005: Scope Markdown region vocabulary](
+    adrs/adr-0005-scope-markdown-region-vocabulary.md)
     records the accepted thin-container convention and the reserved
     `frontmatter_field` / source-backing deferrals for Markdown IR regions.
-  - [ADR 006: Adopt docstring owner metadata](
-    adr-006-docstring-owner-metadata.md)
+  - [ADR 0006: Adopt docstring owner metadata](
+    adrs/adr-0006-adopt-docstring-owner-metadata.md)
     records the accepted owner metadata shape, Python `__qualname__`
     semantics, verbatim docstring extraction, and bounded Python node-store
     policy.
-  - [ADR 007: Adopt Rust documentation-comment owner metadata](
-    adr-007-rust-doc-comment-owner-metadata.md)
+  - [ADR 0007: Adopt Rust documentation-comment owner metadata](
+    adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md)
     records the Rust `owner` contract reuse, `::` qualified-name semantics,
     verbatim doc-comment extraction, and bounded Rust node-store policy.
-  - [ADR 008: Adopt v1 discovery defaults](adr-008-v1-discovery-defaults.md)
+  - [ADR 0008: Adopt v1 discovery defaults](adrs/adr-0008-adopt-v1-discovery-defaults.md)
     records mixed-source discovery, extraction-anomaly classification, run
     summaries, and the deliberately deferred discovery-policy work.
-  - [ADR 009: Safe-fix planning and conflict resolution](
-    adr-009-safe-fix-planning-and-conflict-resolution.md)
+  - [ADR 0009: Safe-fix planning and conflict resolution](
+    adrs/adr-0009-safe-fix-planning-and-conflict-resolution.md)
     records the admissibility bound, file-atomic conflict abort, machine
     artefact stream ownership, the refusal channel, byte fidelity, and the
     verification re-lint that decides a `--fix` exit status.
-  - [ADR 010: Adopt the `nose` code-duplication gate](
-    adr-010-nose-duplication-gate.md)
+  - [ADR 0010: Adopt the `nose` code-duplication gate](
+    adrs/adr-0010-adopt-the-nose-code-duplication-gate.md)
     records the blocking duplication gate, its reasoned exception entries,
     scan scope, and detector provisioning policy.
 
@@ -141,24 +141,24 @@
 
 - [RFCs](rfcs/) capture narrower draft contracts and design inputs that feed the
   main design:
-  - [RFC 0001: Stilyagi IR](rfcs/0001-stilyagi-intermediate-representation.md)
+  - [RFC 0001: Stilyagi IR](rfcs/rfc-0001-stilyagi-intermediate-representation.md)
     proposes the initial IR contract between the Rust extractor and Python
     analysis engine.
-  - [RFC 0002: Stilyagi Python rule API](rfcs/0002-stilyagi-python-rule-api.md)
+  - [RFC 0002: Stilyagi Python rule API](rfcs/rfc-0002-stilyagi-python-rule-api.md)
     proposes the Python-facing rule model and plugin surface.
-  - [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md)
+  - [RFC 0003: Stilyagi CLI contract](rfcs/rfc-0003-stilyagi-cli-contract.md)
     proposes the command surface, config discovery rules, and suppression
     semantics.
   - [RFC 0004: Stilyagi rule tests](
-    rfcs/0004-stilyagi-rule-testing-framework.md)
+    rfcs/rfc-0004-stilyagi-rule-testing-framework.md)
     proposes a first-party pytest plugin for exercising rules, temporary
     packs, diagnostics, fixes, and IR output against the real Stilyagi engine.
   - [RFC 0005: Grammar capability and syntactic API extensions](
-    rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
+    rfcs/rfc-0005-grammar-capability-and-syntactic-api-extensions.md)
     proposes the provider-neutral grammar-node API, capability model, and
     syntax-aware rule helpers for richer editorial analysis.
   - [RFC 0006: Editorial policy vertical slices](
-    rfcs/0006-editorial-policy-vertical-slices.md)
+    rfcs/rfc-0006-editorial-policy-vertical-slices.md)
     proposes policy-oriented spelling, punctuation, person,
     imperative, and `write-good` gap-probe slices that build on the roadmap's
     structural, source-tree, grammar, and spelling phases.

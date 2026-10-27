@@ -6,8 +6,8 @@
 - Status: Proposed
 - Created: 2026-04-19
 - Target: Stilyagi 0.2
-- Depends on: [RFC 0001](0001-stilyagi-intermediate-representation.md),
-  [RFC 0002](0002-stilyagi-python-rule-api.md)
+- Depends on: [RFC 0001](rfc-0001-stilyagi-intermediate-representation.md),
+  [RFC 0002](rfc-0002-stilyagi-python-rule-api.md)
 - Primary backend for v1 implementation: spaCy
 
 ## 1. Summary

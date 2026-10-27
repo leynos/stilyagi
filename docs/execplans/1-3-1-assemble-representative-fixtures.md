@@ -63,10 +63,10 @@ The implementer should keep these documents open while executing the plan:
   roadmap checkbox update.
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 7.1,
   10, and 11, for the IR vocabulary, repository layout, and validation plan.
-- [docs/rfcs/0004-stilyagi-rule-testing-framework.md](
-  ../rfcs/0004-stilyagi-rule-testing-framework.md) for the future rule-testing
-  harness shape that this corpus must support. Request for Comments (RFC)
-  documents record proposed technical contracts.
+- [docs/rfcs/rfc-0004-stilyagi-rule-testing-framework.md](
+  ../rfcs/rfc-0004-stilyagi-rule-testing-framework.md) for the future
+  rule-testing harness shape that this corpus must support. Request for
+  Comments (RFC) documents record proposed technical contracts.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](
   ../complexity-antipatterns-and-refactoring-strategies.md) for keeping corpus
   helpers small rather than building a premature fixture framework.

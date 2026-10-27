@@ -394,10 +394,11 @@ and the following apply:
   `SKYLOS_PRODUCTION_TARGETS` (`python/stilyagi`) only, and the duplication
   gate's `[tool.nose] roots` names `python/stilyagi` alone, with `scripts/`
   excluded so the gate's own modules are not self-referential
-  ([ADR 010](adr-010-nose-duplication-gate.md)). Those two gates will not
-  catch a single-caller helper or a copy of an existing helper in `scripts/`,
-  so the reuse rule here is a convention the reviewer enforces rather than one
-  the tooling checks: reuse the repository helper instead of re-declaring it.
+  ([ADR 0010](adrs/adr-0010-adopt-the-nose-code-duplication-gate.md)). Those
+  two gates will not catch a single-caller helper or a copy of an existing
+  helper in `scripts/`, so the reuse rule here is a convention the reviewer
+  enforces rather than one the tooling checks: reuse the repository helper
+  instead of re-declaring it.
 
 ### Mocking Python dependencies (pytest-mock) and environment (monkeypatch)
 

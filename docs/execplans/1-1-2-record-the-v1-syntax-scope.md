@@ -32,10 +32,11 @@ final recommendation.
 
 ## Orientation
 
-Step 1.1.1 is already complete. [ADR 002](../adr-002-packaging-boundary.md)
-freezes the packaging boundary and deliberately leaves the narrower syntax
-scope, intermediate representation (IR) transport policy, and locale-policy
-questions for this roadmap item.
+Step 1.1.1 is already complete.
+[ADR 0002](../adrs/adr-0002-ratify-the-packaging-boundary.md) freezes the
+packaging boundary and deliberately leaves the narrower syntax scope,
+intermediate representation (IR) transport policy, and locale-policy questions
+for this roadmap item.
 
 The design document already points strongly toward the likely answers:
 
@@ -47,12 +48,12 @@ The design document already points strongly toward the likely answers:
 
 The complication is that the narrower contract documents do not yet all agree
 with that design direction.
-[RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md) still says
+[RFC 0001](../rfcs/rfc-0001-stilyagi-intermediate-representation.md) still says
 JSON is the mandatory interchange contract, and
-[RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) still speaks about Markdown
-and MDX together in places where the design now recommends MDX as preview-only.
-That mismatch is expected to be cleaned up in roadmap item 1.1.3 instead of
-being silently folded into this slice.
+[RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md) still speaks about
+Markdown and MDX together in places where the design now recommends MDX as
+preview-only. That mismatch is expected to be cleaned up in roadmap item 1.1.3
+instead of being silently folded into this slice.
 
 This means the work here is not a broad rewrite. It is a ratification step:
 record the accepted v1 promise in one place, align the governing design and
@@ -68,8 +69,9 @@ The implementer should keep these documents open while executing the plan:
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 7.1,
   12, and 13, for the current recommended answers and the final v1 promise that
   this slice must ratify.
-- [docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md) for
-  the accepted boundary this slice depends on and for ADR tone and structure.
+- [docs/adrs/adr-0002-ratify-the-packaging-boundary.md](../adrs/adr-0002-ratify-the-packaging-boundary.md)
+  for the accepted boundary this slice depends on and for ADR tone and
+  structure.
 - [docs/developers-guide.md](../developers-guide.md) for the maintainer-facing
   transport and syntax-boundary language that must become explicit.
 - [docs/users-guide.md](../users-guide.md) for the current user-facing promise
@@ -80,10 +82,10 @@ The implementer should keep these documents open while executing the plan:
 - [docs/documentation-style-guide.md](../documentation-style-guide.md) for
   sentence-case headings, British English, link style, and ExecPlan-adjacent
   documentation conventions.
-- [docs/rfcs/0001-stilyagi-intermediate-representation.md](../rfcs/0001-stilyagi-intermediate-representation.md),
-  [docs/rfcs/0002-stilyagi-python-rule-api.md](../rfcs/0002-stilyagi-python-rule-api.md),
+- [docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md](../rfcs/rfc-0001-stilyagi-intermediate-representation.md),
+  [docs/rfcs/rfc-0002-stilyagi-python-rule-api.md](../rfcs/rfc-0002-stilyagi-python-rule-api.md),
   and
-  [docs/rfcs/0003-stilyagi-cli-contract.md](../rfcs/0003-stilyagi-cli-contract.md)
+  [docs/rfcs/rfc-0003-stilyagi-cli-contract.md](../rfcs/rfc-0003-stilyagi-cli-contract.md)
   as the draft contracts that this slice must not contradict silently, even if
   their normative text is only amended in 1.1.3.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](../complexity-antipatterns-and-refactoring-strategies.md)
@@ -201,7 +203,7 @@ The relevant skills for the person executing this plan are:
 
 ### Milestone 1: establish the evidence and contradiction set
 
-Re-read the roadmap entry, design sections 7.1, 12, and 13, ADR 002, the
+Re-read the roadmap entry, design sections 7.1, 12, and 13, ADR 0002, the
 developer's guide, the user's guide, and the relevant RFC passages that still
 disagree or remain ambiguous. Capture a short working matrix that answers:
 
@@ -219,9 +221,10 @@ them.
 
 ### Milestone 2: draft the accepted ADR for the three remaining v1 contract decisions
 
-Create the next sequential ADR under `docs/`. With ADR 002 already present, the
-expected filename is `docs/adr-003-v1-contract-scope.md`. If another ADR lands
-first, use the next free zero-padded number and update references accordingly.
+Create the next sequential ADR under `docs/`. With ADR 0002 already present,
+the expected filename is `docs/adrs/adr-0003-ratify-the-v1-contract-scope.md`.
+If another ADR lands first, use the next free zero-padded number and update
+references accordingly.
 
 Write one accepted ADR that records the three decisions together because they
 jointly define the remaining v1 contract boundary after packaging:
@@ -343,8 +346,9 @@ claimed complete without clean validation evidence.
 ## Progress
 
 - [x] 2026-04-20 00:00Z: Reviewed the roadmap entry, design sections 7.1, 12,
-  and 13, ADR 002, the developer's guide, the user's guide, RFC 0001, RFC 0002,
-  RFC 0003, the Makefile, and the documentation style guide to draft this plan.
+  and 13, ADR 0002, the developer's guide, the user's guide, RFC 0001, RFC
+  0002, RFC 0003, the Makefile, and the documentation style guide to draft this
+  plan.
 - [x] 2026-04-20 00:00Z: Identified the main contradiction set that this slice
   must narrow without overreaching: the design already recommends MDX
   preview-only and JSON as canonical debug output, while RFC 0001 and RFC 0003
@@ -357,14 +361,14 @@ claimed complete without clean validation evidence.
   `make nixie`, `make check-fmt`, `make lint`, and `make test`, with logs
   written under `/tmp/*-stilyagi-feat_plan-v1-syntax-scope.out`.
 - [x] 2026-04-20 00:00Z: User approved the plan and authorized implementation.
-- [x] 2026-04-20 00:00Z: Re-checked the design, ADR 002, the guides, and the
+- [x] 2026-04-20 00:00Z: Re-checked the design, ADR 0002, the guides, and the
   RFC contradiction set before editing. The intended implementation touch-set
-  is ADR 003 plus the design, user, developer, contents, roadmap, and ExecPlan
+  is ADR 0003 plus the design, user, developer, contents, roadmap, and ExecPlan
   documents.
 - [x] 2026-04-20 00:00Z: Drafted
-  `docs/adr-003-v1-contract-scope.md` and aligned the design, user's guide,
-  developer's guide, and documentation index around the narrower accepted v1
-  promise.
+  `docs/adrs/adr-0003-ratify-the-v1-contract-scope.md` and aligned the design,
+  user's guide, developer's guide, and documentation index around the narrower
+  accepted v1 promise.
 - [x] 2026-04-20 00:00Z: Re-ran `make markdownlint`, `make nixie`,
   `make check-fmt`, `make lint`, and `make test` successfully, with logs
   written under `/tmp/*-stilyagi-1-1-2-record-v1-syntax-scope.out`.
@@ -385,7 +389,7 @@ claimed complete without clean validation evidence.
 - Even though this turn only writes a plan, the repository gate suite already
   passes cleanly on the branch, so later implementation work can treat current
   failures as regressions rather than inherited baseline noise.
-- ADR 002 already models the right tone and structure for this slice, so ADR
+- ADR 0002 already models the right tone and structure for this slice, so ADR
   003 can stay parallel in shape without inventing a new decision-record format.
 - `make test` creates an untracked `rust_extension/Cargo.lock` in this
   repository. It is not tracked in Git and should be removed after validation
@@ -399,7 +403,7 @@ claimed complete without clean validation evidence.
   promise before later feature work depends on it.
 
 - 2026-04-20: Plan for one ADR that records syntax scope, transport policy, and
-  locale policy together. Rationale: after ADR 002 fixed the packaging
+  locale policy together. Rationale: after ADR 0002 fixed the packaging
   boundary, these three remaining decisions jointly define the rest of the v1
   contract surface described in design section 12.
 
@@ -414,7 +418,7 @@ claimed complete without clean validation evidence.
   step, and merging the two slices would blur the completion criteria.
 
 - 2026-04-20: Do not update `docs/repository-layout.md` in this slice.
-  Rationale: adding ADR 003 does not materially change repository navigation,
+  Rationale: adding ADR 0003 does not materially change repository navigation,
   so touching that document would add noise without clarifying the accepted
   contract.
 
@@ -428,21 +432,21 @@ claimed complete without clean validation evidence.
 Completed on 2026-04-20.
 
 The final ADR is
-[docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md). It
-records the accepted v1 syntax support matrix, keeps MDX preview-only, keeps
-JSON canonical for debug and compatibility rather than mandatory as the only
-hot-path transport, and limits formal v1 locale support to English.
+[docs/adrs/adr-0003-ratify-the-v1-contract-scope.md](../adrs/adr-0003-ratify-the-v1-contract-scope.md).
+It records the accepted v1 syntax support matrix, keeps MDX preview-only,
+keeps JSON canonical for debug and compatibility rather than mandatory as the
+only hot-path transport, and limits formal v1 locale support to English.
 
 The supporting documentation now tells one coherent story:
 
 - [docs/stilyagi-design.md](../stilyagi-design.md) no longer treats these
-  three questions as unresolved and now references ADR 003 directly.
+  three questions as unresolved and now references ADR 0003 directly.
 - [docs/developers-guide.md](../developers-guide.md) spells out the stable v1
   syntax scope, transport policy, locale boundary, and the fact that RFC
   alignment still belongs to roadmap item 1.1.3.
 - [docs/users-guide.md](../users-guide.md) records the user-facing syntax,
   locale, and `dump-ir` promises created by the accepted contract.
-- [docs/contents.md](../contents.md) indexes ADR 003.
+- [docs/contents.md](../contents.md) indexes ADR 0003.
 - [docs/roadmap.md](../roadmap.md) marks item 1.1.2 done.
 
 Validation completed successfully with:
@@ -454,6 +458,6 @@ Validation completed successfully with:
 - `make test`
 
 The main lesson for later roadmap work is that the design had already narrowed
-the v1 promise more than the RFC set had. ADR 003 makes that narrower contract
+the v1 promise more than the RFC set had. ADR 0003 makes that narrower contract
 explicit without collapsing roadmap item 1.1.3 into this slice, which keeps the
 next step focused on RFC alignment rather than rediscovering the decision.

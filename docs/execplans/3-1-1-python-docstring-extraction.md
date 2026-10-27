@@ -160,10 +160,10 @@ Keep these repository documents open:
   on 2.1.1 and 1.3.1.
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially §§3.2, 4, 7.1,
   10, 11, and the §12 open question on owner metadata shape.
-- [RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md), especially
-  the regions and owner sections.
-- [docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md), which
-  fixes Python docstrings as a stable v1 syntax surface.
+- [RFC 0001](../rfcs/rfc-0001-stilyagi-intermediate-representation.md),
+  especially the regions and owner sections.
+- [docs/adrs/adr-0003-ratify-the-v1-contract-scope.md](../adrs/adr-0003-ratify-the-v1-contract-scope.md),
+  which fixes Python docstrings as a stable v1 syntax surface.
 - [docs/execplans/2-1-1-markdown-ir-envelope.md](2-1-1-markdown-ir-envelope.md),
   the precursor slice whose shape this plan mirrors.
 - [Complexity antipatterns](../complexity-antipatterns-and-refactoring-strategies.md),
@@ -760,8 +760,8 @@ commit.
 
 ### Stage 6: documentation, ADR, and roadmap completion
 
-- Add `docs/adr-006-docstring-owner-metadata.md` (Y-Statement format via
-  `arch-decision-records`) recording the owner-metadata shape and the
+- Add `docs/adrs/adr-0006-adopt-docstring-owner-metadata.md` (Y-Statement
+  format via `arch-decision-records`) recording the owner-metadata shape and the
   `__qualname__` semantics, the verbatim-`string_content` flattening decision,
   the bounded node-store policy, and the v1 limitations: module owners carry
   `name: null`/`qualname: null` (no package resolution from a path-only
@@ -770,7 +770,7 @@ commit.
   module owner. Reference the ADR from `docs/stilyagi-design.md` §7.1 and
   resolve the §12 open question ("Exact owner metadata shape for docstrings and
   comments").
-- Amend RFC 0001's owner section with a short note pointing to ADR 006 for the
+- Amend RFC 0001's owner section with a short note pointing to ADR 0006 for the
   concrete Python `qualname` semantics, without changing the existing field
   contract.
 - Update `docs/developers-guide.md` with the tree-sitter extraction boundary,
@@ -874,9 +874,10 @@ Acceptance for the implemented feature:
   Python `Document.ir` exposes the regions with owner metadata. The Rust
   `ExtractSyntax::ALL` and Python `Syntax` vocabularies still agree.
 - Markdown behaviour and snapshots are unchanged.
-- `docs/adr-006-docstring-owner-metadata.md` exists and is referenced from the
-  design; `docs/developers-guide.md` and `docs/users-guide.md` are updated;
-  `docs/roadmap.md` marks only item 3.1.1 done.
+- `docs/adrs/adr-0006-adopt-docstring-owner-metadata.md` exists and is
+  referenced from the design; `docs/developers-guide.md` and
+  `docs/users-guide.md` are updated; `docs/roadmap.md` marks only item 3.1.1
+  done.
 
 Red-Green-Refactor evidence to record as work proceeds:
 
@@ -1055,7 +1056,7 @@ acceptance exact (one region plus per-`ERROR`-subtree `IrError`s); define
 IR-error message content; specify snapshot naming and a shared parity redaction
 helper; keep the hypothesis test to fixed-shape source with generated prose;
 and record the manual-walk, bounded-store, and module-anonymity decisions in
-the Decision Log and ADR 006. The tensions surfaced (bounded store versus
+the Decision Log and ADR 0006. The tensions surfaced (bounded store versus
 future rule depth; hypothesis breadth versus flakiness; query elegance versus
 single-pass owner tracking) were resolved in favour of the bounded v1 contract,
 documented for the 3.1.2 and 3.2.2 follow-ups.
@@ -1291,10 +1292,10 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   `/tmp/coderabbit-stage5-rerun2-stilyagi-3-1-1-python-docstring-extraction.out`
   passed with zero CodeRabbit findings.
 - [x] (2026-06-15) Stage 6 documentation updates drafted. Added
-  `docs/adr-006-docstring-owner-metadata.md`, referenced ADR 006 from the
-  contents and design documents, amended RFC 0001 with a Python owner-semantics
-  note, documented Python docstring owner metadata in the user and developer
-  guides, and marked only roadmap item 3.1.1 complete.
+  `docs/adrs/adr-0006-adopt-docstring-owner-metadata.md`, referenced ADR 0006
+  from the contents and design documents, amended RFC 0001 with a Python
+  owner-semantics note, documented Python docstring owner metadata in the user
+  and developer guides, and marked only roadmap item 3.1.1 complete.
 - [x] (2026-06-15) Stage 6 deterministic gates passed before CodeRabbit.
   Evidence: `/tmp/fmt-stage6-stilyagi-3-1-1-python-docstring-extraction.out`,
   `/tmp/markdownlint-stage6-stilyagi-3-1-1-python-docstring-extraction.out`,
@@ -1306,7 +1307,7 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   full test gate reported 159 Rust tests, 102 Python tests, and five snapshots
   passing.
 - [x] (2026-06-15) Stage 6 CodeRabbit review returned three ADR findings:
-  remove first-person Y-Statement wording, reflow the ADR, and reshape ADR 006
+  remove first-person Y-Statement wording, reflow the ADR, and reshape ADR 0006
   to match the repository's Context, Problem statement, and Decision structure.
   Evidence:
   `/tmp/coderabbit-stage6-stilyagi-3-1-1-python-docstring-extraction.out`. The
@@ -1496,7 +1497,7 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   prefix for module-level entities. Rationale: it is the canonical,
   well-defined qualified-name format Python rules are most likely to expect;
   the alternative (a plain dotted path) silently collides for function-local
-  declarations. Recorded for ratification in ADR 006 and an RFC 0001 note.
+  declarations. Recorded for ratification in ADR 0006 and an RFC 0001 note.
   Date/Author: 2026-06-12, planning agent.
 
 - Decision: emit a bounded node store (synthetic `module` root, owning
@@ -1535,7 +1536,7 @@ documented for the 3.1.2 and 3.2.2 follow-ups.
   fields have no `skip_serializing_if`), so module owners emit
   `"name": null, "qualname": null`. Module owners stay anonymous in v1 because
   string-only extraction has no package context; a package-qualified module
-  owner is reserved as a future migration recorded in ADR 006. Date/Author:
+  owner is reserved as a future migration recorded in ADR 0006. Date/Author:
   2026-06-12, planning agent (community-of-experts review).
 
 - Decision: the Python hypothesis test keeps the source shape fixed
@@ -1566,7 +1567,7 @@ Markdown extraction path or the IR domain contract.
 
 The final behaviour is backed by Rust unit and integration coverage, Python
 adapter tests, rstest-bdd scenarios, property tests for Python owner qualified
-names, canonical Rust and Python snapshots, and documentation updates. ADR 006
+names, canonical Rust and Python snapshots, and documentation updates. ADR 0006
 records the owner metadata decision: Python docstring regions expose explicit
 `owner` metadata, use Python `__qualname__` semantics for class and function
 owners, keep module owners anonymous in v1, and preserve verbatim

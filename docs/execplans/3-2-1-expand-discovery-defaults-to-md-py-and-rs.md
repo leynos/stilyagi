@@ -29,7 +29,7 @@ Roadmap item 3.2.1 (see [docs/roadmap.md](../roadmap.md) §3.2) is the first
 step of the second vertical slice. It turns `stilyagi check` from a
 Markdown-only command into a mixed-repository command, per
 [Stilyagi design](../stilyagi-design.md) §7.3 and
-[RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §7.
+[RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md) §7.
 
 After this change, a maintainer standing in a mixed documentation and source
 repository can run:
@@ -104,12 +104,12 @@ together obscures that.
   roadmap item 2.2.1 explicitly removed an invented `[discovery] include` key
   as out-of-contract. See D2.
 - **`*.mdx`, `*.pyi`, and every post-v1.0 language.** Documented as future
-  targets in ADR 008, not implemented.
+  targets in ADR 0008, not implemented.
 - **Any IR schema change.** `SCHEMA_VERSION` is not bumped; `IrError` gains no
   fields. See D5.
 - **New CLI flags.** No `--fail-on`, `--max-warnings`, `--max-file-size`, or
   `--jobs`. RFC 0003 defines none of them, and inventing CLI surface ahead of
-  the contract is the mistake D2 exists to avoid. Each is recorded in ADR 008
+  the contract is the mistake D2 exists to avoid. Each is recorded in ADR 0008
   as required follow-up.
 
 ## Constraints
@@ -159,7 +159,7 @@ is bounded and predictable while the code work is where surprises live.
 
 - **Code scope:** more than 18 code files changed, or more than 550 net lines of
   code added, across both milestones.
-- **Documentation scope:** more than 8 documentation files changed. ADR 008 and
+- **Documentation scope:** more than 8 documentation files changed. ADR 0008 and
   its tables are expected to be large; that is not a breach.
 - **Dependencies:** any new external package in `Cargo.toml` `[dependencies]`
   or in the `pyproject.toml` runtime dependency set. (Also Constraint 2.) A
@@ -191,7 +191,7 @@ is bounded and predictable while the code work is where surprises live.
   count a denominator; and a region-count regression test over the fixed corpus
   makes a coverage-reducing grammar bump fail Stilyagi's own suite before it
   reaches users. `--fail-on` / `--max-warnings`, the proper remedy, is recorded
-  in ADR 008 as follow-up.
+  in ADR 0008 as follow-up.
 
 - **Risk:** One unreadable file poisons an entire run. `had_error` is a single
   boolean ORed across every file, and `compute_exit_code` returns `2`
@@ -205,7 +205,7 @@ is bounded and predictable while the code work is where surprises live.
   declared encoding; other source uses `utf-8-sig`. Read failures are caught
   and reported against the user's path rather than the resolved path. The
   deeper redesign — per-file read failures becoming per-file diagnostics rather
-  than a run-wide fatal — is **not** attempted here and is recorded in ADR 008
+  than a run-wide fatal — is **not** attempted here and is recorded in ADR 0008
   as required follow-up, because it changes what exit `2` means.
 
 - **Risk:** The expanded ignored-directory list is name-based, so it prunes a
@@ -215,7 +215,7 @@ is bounded and predictable while the code work is where surprises live.
   `vendor/`, `third_party/`, `bazel-*`. Severity: medium. Likelihood: high for
   the second half. Mitigation: generated source is exactly the code the pinned
   grammar parses worst, so this compounds the first risk. The name list is an
-  acknowledged stopgap; ADR 008 records that the remedy is gitignore support
+  acknowledged stopgap; ADR 0008 records that the remedy is gitignore support
   via the `ignore` crate once discovery moves to Rust, not a perpetually
   growing name list.
 
@@ -234,7 +234,7 @@ is bounded and predictable while the code work is where surprises live.
   Introducing that discriminator now would mean a new `Diagnostic` field, which
   the tolerances forbid. Instead W6 names the failing severities in one
   explicit constant, documents on `Diagnostic` that `WARNING` does not gate,
-  and ADR 008 records this as a constraint roadmap item 3.2.2 must resolve
+  and ADR 0008 records this as a constraint roadmap item 3.2.2 must resolve
   before it ships its first warning-severity rule.
 
 - **Risk:** This repository cannot dogfood `stilyagi check .` in continuous
@@ -243,7 +243,7 @@ is bounded and predictable while the code work is where surprises live.
   `# stilyagi: disable` blanket suppressions to exercise the forbidden path.
   Severity: low. Likelihood: certain. Mitigation: the exit `1` is *correct*
   behaviour, so nothing is broken. The acceptance demonstration leads with an
-  explicit target list. ADR 008 records the clean remedy — extending the
+  explicit target list. ADR 0008 records the clean remedy — extending the
   existing `.md.fixture` / `.py.txt` naming convention to the adversarial
   Python and Rust corpus files so they fall outside discovery — as follow-up,
   since it touches `crates/stilyagi-test-fixtures/src/fixture_paths.rs` and
@@ -287,7 +287,7 @@ Milestone 2 — classification, severity, and observability:
 
 Closing:
 
-- [x] W7. Documentation: ADR 008, design §7.3, users' guide, developers' guide,
+- [x] W7. Documentation: ADR 0008, design §7.3, users' guide, developers' guide,
       contents index (2026-08-24). CodeRabbit reviewed commit `a8456f3` with
       zero concerns.
 - [x] W8. Tick roadmap item 3.2.1; record outcomes (2026-08-24). The closing
@@ -741,7 +741,7 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   `discover_markdown_files([Path("docs")], ...)` yields `['docs/guide.md']`;
   `docs/guide.md` did not exist and `docs/` held 55 Markdown files. Impact:
   "update the doctests" was an unfalsifiable instruction. W1 fixed the false
-  example; ADR 008 recorded enabling `--doctest-modules` as follow-up. That
+  example; ADR 0008 recorded enabling `--doctest-modules` as follow-up. That
   follow-up is now implemented: `make test` and `make test-doc` run configured
   Python doctests in `python/stilyagi` and `tests/support`.
 
@@ -808,14 +808,14 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   out-of-contract; inventing configuration surface ahead of the contract is the
   mistake that decision corrected. The same reasoning bars `--fail-on`,
   `--max-warnings`, and `--max-file-size`, however useful — RFC 0003 §2 defines
-  the flag set. All are recorded in ADR 008 as required follow-up rather than
+  the flag set. All are recorded in ADR 0008 as required follow-up rather than
   smuggled in here. Date/Author: 2026-08-16, planning agent.
 
 - **D3. `.markdown` is retained; `.pyi` and `.mdx` are not added.**
   `.markdown` is discovered today and dropping it would be a silent regression.
   `.mdx` is explicitly preview-only per RFC 0003 §7. `.pyi` is not named by the
   RFC and stub files carry a different docstring culture, so admitting them is
-  a product decision that has not been taken. Both appear in ADR 008's
+  a product decision that has not been taken. Both appear in ADR 0008's
   candidate table. Date/Author: 2026-08-16, planning agent.
 
 - **D4 (upheld in round 2). Extraction anomalies are reported as warnings and do
@@ -862,9 +862,9 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   review's stronger alternative — replacing the `code: String` with a
   `#[serde(rename_all = "kebab-case")]` enum, which would preserve the wire
   format byte-for-byte while making exhaustiveness a compile error at every
-  mint site — is genuinely better and is recorded in ADR 008 as the destination
-  for roadmap item 3.2.3, which owns the IR envelope reshape. Date/Author:
-  2026-08-16, planning agent (round 2).
+  mint site — is genuinely better and is recorded in ADR 0008 as the
+  destination for roadmap item 3.2.3, which owns the IR envelope reshape.
+  Date/Author: 2026-08-16, planning agent (round 2).
 
 - **D6 (upheld, and narrowed). Invariants are proven with tests, not with `kani`
   or `verus`.** Neither is wired into this repository — no Makefile target, no
@@ -894,7 +894,7 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   survive the move: a Cargo dependency such as the `ignore` crate compiles into
   the wheel and is invisible to users, and `ignore` provides gitignore matching
   as a side effect of the walk. So the remedy for the growing ignored-directory
-  name list is not more names — it is the relocation. ADR 008 records this so
+  name list is not more names — it is the relocation. ADR 0008 records this so
   the next maintainer inherits a dated stopgap rather than an open-ended one.
   Date/Author: 2026-08-16, planning agent (round 2).
 
@@ -927,8 +927,8 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   plan therefore takes the severity axis deliberately, names the failing
   severities in a single explicit constant so widening it is a one-line change,
   documents on `Diagnostic` that `WARNING` does not gate, requires a
-  `compute_exit_code` doctest covering the warning case, and records in ADR 008
-  that roadmap item 3.2.2 must resolve the axis before shipping its first
+  `compute_exit_code` doctest covering the warning case, and records in ADR
+  0008 that roadmap item 3.2.2 must resolve the axis before shipping its first
   warning-severity rule. Date/Author: 2026-08-16, planning agent (round 2).
 
 - **D11 (new in round 2; implementation refined in review follow-up).
@@ -942,7 +942,7 @@ Log; they are why this plan is larger than "add three strings to a frozenset".
   failures into per-file diagnostics, so that one unreadable file stops
   discarding every other file's results and stops masquerading as an internal
   error, is the right fix but changes what exit `2` means. That is a contract
-  change deserving its own item; ADR 008 records it as required follow-up.
+  change deserving its own item; ADR 0008 records it as required follow-up.
   Date/Author: 2026-08-16, planning agent (round 2).
 
 - **D12 (revised). Rust test helpers follow the house remediation order:
@@ -1071,7 +1071,7 @@ than a fabricated numeric comparison.
 The milestone-2 boundary against roadmap item 3.2.3 held: no IR schema field,
 public extraction signature, fix workflow, or violation discriminator was
 added. The temporary severity-based exit policy and every other deferred
-candidate have one home in ADR 008. No new external runtime dependency was
+candidate have one home in ADR 0008. No new external runtime dependency was
 added. The extension gained a direct edge to the existing workspace `metrics`
 crate for bounded observability; see D16.
 
@@ -1095,7 +1095,7 @@ Terms used throughout:
 - **Syntax.** Which extractor to run. Spelled `markdown`, `python_docstring`, or
   `rust_doc_comment`. Note this differs from the IR's `metadata.syntax` field,
   which uses bare language names (`markdown`, `python`, `rust`). This plan
-  touches only the former; ADR 008 records the two-vocabulary hazard for
+  touches only the former; ADR 0008 records the two-vocabulary hazard for
   roadmap items 3.2.3 and 3.3.1, which will both key off it.
 - **Discovery.** Walking command-line targets to produce the ordered list of
   files to check.
@@ -1495,8 +1495,8 @@ ______________________________________________________________________
 
 **W7.** In this order:
 
-1. **ADR 008** at `docs/adr-008-v1-discovery-defaults.md`, following the
-   sectioned template in the
+1. **ADR 0008** at `docs/adrs/adr-0008-adopt-v1-discovery-defaults.md`,
+   following the sectioned template in the
    [documentation style guide](../documentation-style-guide.md) — the structure
    every existing ADR uses, not a one-line Y-Statement. It records D1 through
    D11, the post-v1.0 candidate table, and the follow-up register below. ADR
@@ -1504,7 +1504,7 @@ ______________________________________________________________________
    permitted to be a research snapshot, whereas a design document is a source
    of truth that must not silently rot.
 
-   The follow-up register ADR 008 must carry, each of which this plan
+   The follow-up register ADR 0008 must carry, each of which this plan
    deliberately declined:
 
    - `--fail-on` / `--max-warnings`, so a team can gate on extraction
@@ -1529,7 +1529,7 @@ ______________________________________________________________________
 2. **`docs/stilyagi-design.md` §7.3.** Rewrite the "Weaknesses and ambiguities"
    bullet so it records that the RFC *did* over-claim file types and was
    trimmed by `787526e`, rather than asserting in the present tense that it
-   still does (S4). Then add one sentence pointing at ADR 008 for post-v1.0
+   still does (S4). Then add one sentence pointing at ADR 0008 for post-v1.0
    targets. Do not duplicate the table here.
 
 3. **`docs/users-guide.md` §3.** Replace the forward-looking sentence and the
@@ -1554,16 +1554,16 @@ ______________________________________________________________________
    classification; the `model.Syntax` member; corpus fixtures under
    `tests/fixtures/corpus/<lang>/{valid,malformed}/`; the structural
    performance probe; the per-language comparison table in §4; the users' guide
-   extension list; RFC 0003 §7; and ADR 008's candidate table. That is sixteen
+   extension list; RFC 0003 §7; and ADR 0008's candidate table. That is sixteen
    places. Documenting four would actively mislead the first person who trusted
    it — and naming all sixteen is the honest way to make the shotgun-surgery
    smell visible enough that someone eventually fixes it.
 
-5. **`docs/contents.md`.** Add the ADR 008 entry under
+5. **`docs/contents.md`.** Add the ADR 0008 entry under
    `## Architecture decision records (ADRs)`, matching the existing pattern.
 
 **W8.** Tick roadmap item 3.2.1, adding a completion note linking this ExecPlan
-and ADR 008 in the style of the 3.1.1 and 3.1.2 entries. Complete
+and ADR 0008 in the style of the 3.1.1 and 3.1.2 entries. Complete
 `Outcomes & retrospective`.
 
 Go/no-go: all six gates green.
@@ -1870,9 +1870,9 @@ adds a direct dependency on the already-declared workspace `metrics` crate
 ## References
 
 - [Stilyagi design](../stilyagi-design.md) §§1, 3-4, 7.2, 7.3, 13
-- [RFC 0002: Stilyagi Python rule API](../rfcs/0002-stilyagi-python-rule-api.md)
+- [RFC 0002: Stilyagi Python rule API](../rfcs/rfc-0002-stilyagi-python-rule-api.md)
   §9 (severity vocabulary)
-- [RFC 0003: Stilyagi CLI contract](../rfcs/0003-stilyagi-cli-contract.md)
+- [RFC 0003: Stilyagi CLI contract](../rfcs/rfc-0003-stilyagi-cli-contract.md)
   §§2-3, 5-7, 11-12
 - [Roadmap](../roadmap.md) §3.2
 - [ExecPlan for roadmap 2.2.1](roadmap-2-2-1.md) — the `check` loop this extends
@@ -1881,8 +1881,8 @@ adds a direct dependency on the already-declared workspace `metrics` crate
 - [ExecPlan for roadmap 3.1.3](roadmap-3-1-3.md) — cross-syntax suppressions
 - [ExecPlan for roadmap 1.3.3](1-3-3-cold-and-warm-baseline-performance-probes.md)
   — the structural probe W6 extends
-- [ADR 006](../adr-006-docstring-owner-metadata.md),
-  [ADR 007](../adr-007-rust-doc-comment-owner-metadata.md)
+- [ADR 0006](../adrs/adr-0006-adopt-docstring-owner-metadata.md),
+  [ADR 0007](../adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md)
 - [Developers' guide](../developers-guide.md),
   [users' guide](../users-guide.md), [documentation style guide](../documentation-style-guide.md)
 
@@ -1939,7 +1939,7 @@ What changed and why:
   additive; classification and severity change the meaning of every run. They
   now have separate red-green cycles and separate reviews.
 - **Documentation targets corrected.** The post-v1.0 table gets exactly one home
-  (ADR 008, which is dated and permitted to be a snapshot) rather than being
+  (ADR 0008, which is dated and permitted to be a snapshot) rather than being
   duplicated into a source-of-truth design document. The "adding a language"
   checklist is written from the real sixteen-item list rather than a plausible
   four. Line-number citations are replaced by section headings everywhere
@@ -1995,7 +1995,7 @@ Two updates were needed because the new base moves the gates the plan cites:
 
 Checked and found *not* to need changes: developers' guide §6b survives at the
 same heading, `assert_validation_reports` and `malformed.rs::document_for` are
-still the names §6b cites, and ADR 008 is still the next free number. The
+still the names §6b cites, and ADR 0008 is still the next free number. The
 `must_ok!`/`must_some!` consolidation noted as follow-up in §6b remains open.
 
 The typecheck gate moved twice on that branch and settled where it started. An

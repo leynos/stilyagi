@@ -107,8 +107,8 @@ Definitions used in this plan:
 The current emission gap, confirmed during planning: `MarkdownIrBuilder`
 (`crates/stilyagi-markdown/src/lib.rs`, `push_region_for_node`) emits regions
 only for `heading`, `paragraph`, and `table_cell`. RFC 0001
-(`docs/rfcs/0001-stilyagi-intermediate-representation.md`, lines 223–236) lists
-a v1 region vocabulary that also includes `list_item`, `blockquote`,
+(`docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md`, lines 223–236)
+lists a v1 region vocabulary that also includes `list_item`, `blockquote`,
 `frontmatter`, `frontmatter_field`, `image_alt`, and `link_title` (plus
 `python_docstring` and `rust_doc_comment`, which are non-Markdown and out of
 scope for this slice).
@@ -143,7 +143,7 @@ Keep these repository documents open:
 - `docs/roadmap.md`, item 2.1.2 and its dependency on 2.1.1.
 - `docs/stilyagi-design.md`, especially §6 (region model and owner contract) and
   §7.1 (IR review and consequences).
-- `docs/rfcs/0001-stilyagi-intermediate-representation.md`, especially §6
+- `docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md`, especially §6
   (region fields and the v1 `kind` vocabulary, lines 205–292) and §7 (region
   invariants, lines 294–307).
 - `docs/execplans/2-1-1-markdown-ir-envelope.md`, the predecessor slice, for the
@@ -598,13 +598,13 @@ Run `coderabbit review --agent`, resolve concerns, and commit.
 
 ### Stage 6: documentation, ADR, and roadmap completion
 
-Write `docs/adr-005-markdown-region-vocabulary-scope.md` as a Y-Statement ADR
-(use the `arch-decision-records` skill) recording two decisions: that
+Write `docs/adrs/adr-0005-scope-markdown-region-vocabulary.md` as a Y-Statement
+ADR (use the `arch-decision-records` skill) recording two decisions: that
 `list_item` and `blockquote` are thin structural regions with prose in child
 regions, and that `frontmatter_field` (and `image_alt` / `link_title`
 byte-accurate source backing) are deferred, with the markdown-rs decoded-value
 and YAML/TOML-parser rationale. Amend
-`docs/rfcs/0001-stilyagi-intermediate-representation.md` to mark
+`docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md` to mark
 `frontmatter_field` reserved and not-yet-emitted and to reference the ADR, so
 the v1 vocabulary promise is corrected in the open rather than silently shrunk.
 
@@ -708,8 +708,8 @@ Acceptance for the implemented feature:
   the new kinds; existing Python callers are unaffected;
   `supported_region_kinds()` (if added) returns the full RFC vocabulary and
   unknown kinds pass through with a warning.
-- `docs/adr-005-markdown-region-vocabulary-scope.md` exists, RFC 0001 marks
-  `frontmatter_field` reserved, and the developers' guide documents the
+- `docs/adrs/adr-0005-scope-markdown-region-vocabulary.md` exists, RFC 0001
+  marks `frontmatter_field` reserved, and the developers' guide documents the
   conventions.
 - `docs/roadmap.md` marks only item 2.1.2 done.
 
