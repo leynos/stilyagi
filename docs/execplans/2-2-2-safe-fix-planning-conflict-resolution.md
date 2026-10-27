@@ -1098,7 +1098,7 @@ for the first time. Write the semantics down before implementing:
   fix is *applied*. A selected but unfixable code still reports. State this
   explicitly in the users' guide — "I set `unfixable` and the warning did not
   go away" is the support question this design will generate.
-- **`ALL`:** reserved as a pseudo-prefix. Note in ADR 0008 that RFC 0002 §12
+- **`ALL`:** reserved as a pseudo-prefix. Note in ADR 0009 that RFC 0002 §12
   does not currently reserve it and that a follow-up should.
 - Model fixability as a set operation over prefixes so a future `--fixable`
   slots in as replacement and `--extend-fixable` as union, mirroring how
