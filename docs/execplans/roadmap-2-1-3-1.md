@@ -617,9 +617,9 @@ remain unchanged. `suppressions_from_candidates` keeps its signature
 ## Signposting: docs and skills relied upon
 
 - Docs: `docs/stilyagi-design.md` §4 (Suppression syntax) and §5;
-  `docs/rfcs/ rfc-0001-stilyagi-intermediate-representation.md` §7-§8;
+  `docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md` §7-§8;
   `docs/adrs/adr-0005-scope-markdown-region-vocabulary.md` (Markdown scope
-  boundary); `docs/repository- layout.md`; `AGENTS.md` (gate order and testing
+  boundary); `docs/repository-layout.md`; `AGENTS.md` (gate order and testing
   rules); `docs/roadmap.md` item 2.1.3.1.
 - Skills: `execplans` (this document); `rust-router` → `rust-unit-testing`,
   `rust-errors`, `rust-verification` → `proptest`; `leta` for symbol navigation

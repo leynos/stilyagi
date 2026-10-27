@@ -1494,14 +1494,14 @@ driver with `git merge-file --zdiff3`, reapplied on every `--continue`.
 
 **ADR renumbering.** Because `main` landed ADR 0008 first, this branch's ADR
 was renumbered 008 to 009 rather than sharing the number. The file was renamed
-`docs/adrs/adr-0010-adopt-the-nose-code-duplication-gate.md` to
-`docs/adrs/adr-0010-adopt-the-nose-code-duplication-gate.md`, its title heading
-updated, and its two tracked references updated: `docs/contents.md` (now
-indexing both ADR 0008 and ADR 0009) and `docs/developers-guide.md` section 6j.
-The two `ADR 0008` references in this plan were updated to `ADR 0009`. A
-tree-wide search confirms no `adr-008-nose-duplication-gate` reference remains.
-The two `ADR 0008` references that remain in `docs/roadmap.md` and the
-discovery ExecPlan belong to the discovery ADR and are correct as they stand.
+`docs/adr-008-nose-duplication-gate.md` to
+`docs/adr-009-nose-duplication-gate.md`, its title heading updated, and its two
+tracked references updated: `docs/contents.md` (now indexing both ADR 0008 and
+ADR 0009) and `docs/developers-guide.md` section 6j. The two `ADR 0008`
+references in this plan were updated to `ADR 0009`. The old paths above are
+retained as historical records; no live link points to them. The two `ADR 0008`
+references that remain in `docs/roadmap.md` and the discovery ExecPlan belong
+to the discovery ADR and are correct as they stand.
 
 **Semantic audit.** The rebase raises no andon condition:
 

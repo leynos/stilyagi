@@ -1,8 +1,9 @@
 # User's guide
 
 This guide is for people who use Stilyagi rather than modify its internals. It
-currently records the user-visible v1 promises that are already settled, even
-while the linter itself is still under construction.
+describes the settled user-visible promises for Stilyagi 0.1.0, an
+early-adopter release whose interfaces may change while the linter is under
+construction.
 
 ## 1. Packaging model
 

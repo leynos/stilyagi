@@ -1431,6 +1431,7 @@ Their responsibilities are:
 - `make test-doc`
   - run Rust doc tests with Rustdoc warnings denied
   - run the Python docstring examples through `pytest --doctest-modules`
+
 - `make duplication`
   - install the pinned `nose` detector if needed
   - run the blocking duplication gate over `python/stilyagi`
@@ -1466,6 +1467,27 @@ resolves that tag to immutable commit
 `4cf41736cce2f7ba2778882a5c629c044568a0e5`. These Python tiers run before the
 Rust lint tiers, with Interrogate enforcing a 100% docstring-coverage
 threshold. Skylos runs after the Rust lint tiers as the final lint step.
+
+### Documentation examples
+
+The documentation style guide requires every fenced example in a user-facing
+document to carry a unique `<!-- tested-example: <identifier> -->` marker
+immediately before the fence. Tests must load the example from the published
+document through a shared loader, so they exercise the text readers receive.
+The loader must reject unmarked or unterminated fences, missing identifiers,
+and duplicate identifiers. The same loader is intended for integration tests
+and behaviour-driven scenarios.
+
+The shared Markdown example loader and its build checks are not implemented
+yet. Until they are, the user-facing examples do not have the required
+executable coverage; adding the policy here does not imply that `make test-doc`
+checks Markdown fences.
+
+Rust documentation examples should run as doctests whenever they can execute.
+Use `no_run` only for examples that genuinely cannot execute, such as snippets
+that require external resources, incomplete snippets, or environment-specific
+setup. `make test-doc` currently runs the Rust doctests and Python docstring
+examples; it does not change the Markdown-example gap above.
 
 ### Shared workflow parser
 
