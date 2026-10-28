@@ -220,9 +220,9 @@ Design and standards references:
   remains forbidden in v1"; §5 business rules "Source spans must remain
   faithful to original bytes"; §7.1 the Markdown IR envelope and suppression
   parsing.
-- `docs/rfcs/0001-stilyagi-intermediate-representation.md` — the IR contract
+- `docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md` — the IR contract
   that suppressions are part of.
-- `docs/adr-005-markdown-region-vocabulary-scope.md` — Markdown region
+- `docs/adrs/adr-0005-scope-markdown-region-vocabulary.md` — Markdown region
   vocabulary scope (confirms HTML comments are the Markdown directive carrier).
 - `AGENTS.md` §"Rust specific guidance" (lines 150-227): unit and behavioural
   tests with `rstest`/`rstest-bdd`, cover happy/unhappy/edge paths; module-level

@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 007: Adopt Rust documentation-comment owner metadata
+# Architectural decision record (ADR) 0007: Adopt Rust documentation-comment owner metadata
 
 ## Status
 
@@ -31,7 +31,7 @@ recoverable parse behaviour, accepting the downside that crate-root module
 owners stay anonymous and trait-impl method names use the implementor-type
 prefix.
 
-Rust doc-comment regions reuse the ADR 006 owner contract with Rust-specific
+Rust doc-comment regions reuse the ADR 0006 owner contract with Rust-specific
 `kind`, optional `name`, and optional `qualname` fields. Outer doc comments
 attach to the immediately following item, even when ordinary `//` comments
 intervene; inner doc comments attach to the enclosing item or crate root, even

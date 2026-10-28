@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 005: Scope Markdown region vocabulary
+# Architectural decision record (ADR) 0005: Scope Markdown region vocabulary
 
 ## Status
 

@@ -41,7 +41,7 @@ three ways:
   `/home/leynos/Projects/stilyagi.worktrees/roadmap-2-1-4`. Do not edit the
   root or control worktree.
 - The suppression contract lives in RFC 0001 §8 (`docs/rfcs/`
-  `0001-stilyagi-intermediate-representation.md`). The new field must be an
+  `rfc-0001-stilyagi-intermediate-representation.md`). The new field must be an
   **optional** addition: existing `inline`, `file`, and `config` suppressions
   MUST serialize byte-for-byte as they do today (RFC 0001 §9 compatibility
   rules: "Producers MUST NOT change field meaning within a major version";
@@ -315,7 +315,7 @@ Terms:
 ### Documentation to read
 
 - `docs/roadmap.md` task 2.1.4 (and its parent step 2.1).
-- `docs/rfcs/0001-stilyagi-intermediate-representation.md` §8 (suppression
+- `docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md` §8 (suppression
   fields) and §9 (serialization and compatibility).
 - `docs/stilyagi-design.md`, the "Suppression syntax" heading (`####` at
   line 603; the load-bearing sentence "Suppression state must be visible in IR
@@ -525,7 +525,7 @@ Tests this work item adds:
 Implements AGENTS.md documentation-maintenance rules; keeps `docs/` the source
 of truth.
 
-1. `docs/rfcs/0001-stilyagi-intermediate-representation.md` §8: add
+1. `docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md` §8: add
    `range_role` to the suppression field list, stating it is present only for
    `range` suppressions and carries `open`/`close`. Note in §9 (or a short
    changelog line) that the field is an additive optional field introduced at

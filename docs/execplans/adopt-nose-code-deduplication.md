@@ -1249,7 +1249,7 @@ CodeRabbit review round".
   dead-code and duplication gates check `scripts/`. It now states the Skylos
   scope (`SKYLOS_PRODUCTION_TARGETS`, `python/stilyagi` only) and the
   duplication roots (`[tool.nose] roots`, `python/stilyagi`, with `scripts/`
-  excluded so the gate's modules are not self-referential), cites ADR 008, and
+  excluded so the gate's modules are not self-referential), cites ADR 0008, and
   keeps the reuse rule as a review-enforced convention.
 - **`4175478782` (declined).** The finding asked for `timeout=29` on the
   gate test support's `subprocess.run` calls, on the premise that pytest's
@@ -1449,12 +1449,12 @@ merged. The three commits were:
 - `094c35c` pins the Rust toolchain exactly and lets Dependabot move it.
 - `b5b0fe1` bumps `insta` 1.48.0 to 1.49.0.
 - `91941ef` expands discovery defaults to Markdown, Python, and Rust (3.2.1),
-  a 2065-line ExecPlan, ADR 008, and a new `CodeScene`-visible surface under
+  a 2065-line ExecPlan, ADR 0008, and a new `CodeScene`-visible surface under
   `crates/stilyagi-pyext/src/check_metrics/`.
 
 The last of these is the consequential one: it landed
-`docs/adr-008-v1-discovery-defaults.md`, the same ADR number this branch was
-using.
+`docs/adrs/adr-0008-adopt-v1-discovery-defaults.md`, the same ADR number this
+branch was using.
 
 **Conflict set.** A merge-tree probe against `91941ef` reported conflicts in
 exactly two paths, `Makefile` and `docs/contents.md`, with clean auto-merges in
@@ -1480,7 +1480,7 @@ driver with `git merge-file --zdiff3`, reapplied on every `--continue`.
    commits 17 and 20, where a later branch commit inserted
    `DUPLICATION_TEST_ARGS` and `DUPLICATION_TEST_PYTHON` at the same anchor;
    both were resolved the same way.
-2. `docs/contents.md`, in commit 4 of 34. Both sides had added an ADR 008
+2. `docs/contents.md`, in commit 4 of 34. Both sides had added an ADR 0008
    index entry under a different title. This is a genuine number collision and
    cannot be resolved by taking either side.
 3. `docs/execplans/adopt-nose-code-deduplication.md`, in commit 14 of 34. The
@@ -1492,14 +1492,14 @@ driver with `git merge-file --zdiff3`, reapplied on every `--continue`.
    (used by the `if typ.TYPE_CHECKING:` guard at line 22) and drops the two
    imports `main` removed, which have no remaining use in the file.
 
-**ADR renumbering.** Because `main` landed ADR 008 first, this branch's ADR was
-renumbered 008 to 009 rather than sharing the number. The file was renamed
+**ADR renumbering.** Because `main` landed ADR 0008 first, this branch's ADR
+was renumbered 008 to 009 rather than sharing the number. The file was renamed
 `docs/adr-008-nose-duplication-gate.md` to
 `docs/adr-009-nose-duplication-gate.md`, its title heading updated, and its two
-tracked references updated: `docs/contents.md` (now indexing both ADR 008 and
-ADR 009) and `docs/developers-guide.md` section 6j. The two `ADR 008`
-references in this plan were updated to `ADR 009`. A tree-wide search confirms
-no `adr-008-nose-duplication-gate` reference remains. The two `ADR 008`
+tracked references updated: `docs/contents.md` (now indexing both ADR 0008 and
+ADR 0009) and `docs/developers-guide.md` section 6j. The two `ADR 0008`
+references in this plan were updated to `ADR 0009`. The old paths above are
+retained as historical records; no live link points to them. The two `ADR 0008`
 references that remain in `docs/roadmap.md` and the discovery ExecPlan belong
 to the discovery ADR and are correct as they stand.
 
@@ -1769,25 +1769,25 @@ syrupy's own `'''` snapshot body. It is a pre-existing serializer artefact, not
 rebase damage, and is deliberately left alone.
 
 **ADR renumbering, second time.** `main` landed
-`adr-009-safe-fix-planning-and-conflict-resolution.md` while this branch adds
-its own ADR, so the branch ADR was renumbered 009 to 010 rather than sharing
-the number — the same resolution this plan already recorded for the earlier 008
-collision. The file is now `docs/adr-010-nose-duplication-gate.md`, with its
-title heading updated and its two tracked references updated:
-`docs/contents.md` and `docs/developers-guide.md` section 6j. A tree-wide
-search finds the old path only inside this plan's own audit records, where it
-is a quoted historical filename rather than a link; no live reference to it
-remains, and `docs/` now numbers each ADR exactly once. The same scoping
-applies to the identical claim in the first renumber's paragraph above. The
-`ADR 009` references that remain in `docs/roadmap.md`,
-`docs/stilyagi-design.md` and the safe-fix ExecPlan belong to the safe-fix ADR
-and are correct as they stand.
+`adrs/adr-0009-safe-fix-planning-and-conflict-resolution.md` while this branch
+adds its own ADR, so the branch ADR was renumbered 009 to 010 rather than
+sharing the number — the same resolution this plan already recorded for the
+earlier 008 collision. The file is now
+`docs/adrs/adr-0010-adopt-the-nose-code-duplication-gate.md`, with its title
+heading updated and its two tracked references updated: `docs/contents.md` and
+`docs/developers-guide.md` section 6j. A tree-wide search finds the old path
+only inside this plan's own audit records, where it is a quoted historical
+filename rather than a link; no live reference to it remains, and `docs/` now
+numbers each ADR exactly once. The same scoping applies to the identical claim
+in the first renumber's paragraph above. The `ADR 0009` references that remain
+in `docs/roadmap.md`, `docs/stilyagi-design.md` and the safe-fix ExecPlan
+belong to the safe-fix ADR and are correct as they stand.
 
 The renumber was deliberately deferred to this commit rather than applied
 during the replay: three later commits (`7bd99c4`, `d29969c`, `78adfe1`) patch
 the ADR by path, so renaming it mid-replay would have broken their replay.
 
-The paragraph above recording the first renumber, and the two `ADR 009`
+The paragraph above recording the first renumber, and the two `ADR 0009`
 references in the earlier parts of this plan, are historical audit records of
 the state at that time and are intentionally left as written.
 

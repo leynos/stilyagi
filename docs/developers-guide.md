@@ -8,22 +8,23 @@ with the normative design.
 The primary design reference is [Stilyagi design](stilyagi-design.md). The
 narrower contracts live in:
 
-- [ADR 002](adr-002-packaging-boundary.md) for the accepted build and runtime
-  boundary between the Python package and the embedded Rust engine
-- [ADR 003](adr-003-v1-contract-scope.md) for the accepted v1 syntax scope, IR
-  transport policy, and locale support boundary
-- [ADR 006](adr-006-docstring-owner-metadata.md) for the accepted docstring
-  owner metadata shape, Python qualified-name policy, and bounded Python
-  node-store contract
-- [RFC 0001](rfcs/0001-stilyagi-intermediate-representation.md) for the
+- [ADR 0002](adrs/adr-0002-ratify-the-packaging-boundary.md) for the accepted
+  build and runtime boundary between the Python package and the embedded Rust
+  engine
+- [ADR 0003](adrs/adr-0003-ratify-the-v1-contract-scope.md) for the accepted v1
+  syntax scope, IR transport policy, and locale support boundary
+- [ADR 0006](adrs/adr-0006-adopt-docstring-owner-metadata.md) for the accepted
+  docstring owner metadata shape, Python qualified-name policy, and bounded
+  Python node-store contract
+- [RFC 0001](rfcs/rfc-0001-stilyagi-intermediate-representation.md) for the
   intermediate representation (IR)
-- [RFC 0002](rfcs/0002-stilyagi-python-rule-api.md) for the Python rule API
-- [RFC 0003](rfcs/0003-stilyagi-cli-contract.md) for the command-line
+- [RFC 0002](rfcs/rfc-0002-stilyagi-python-rule-api.md) for the Python rule API
+- [RFC 0003](rfcs/rfc-0003-stilyagi-cli-contract.md) for the command-line
   interface (CLI)
-- [RFC 0004](rfcs/0004-stilyagi-rule-testing-framework.md) for the
+- [RFC 0004](rfcs/rfc-0004-stilyagi-rule-testing-framework.md) for the
   rule-testing framework
-- [RFC 0005](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md) for
-  the grammar layer, grammar-node model, and syntax-aware rule extensions
+- [RFC 0005](rfcs/rfc-0005-grammar-capability-and-syntactic-api-extensions.md)
+  for the grammar layer, grammar-node model, and syntax-aware rule extensions
 - [Roadmap](roadmap.md) for the ordered implementation sequence across the six
   phases, including which architectural questions should be settled before
   later slices are expanded
@@ -229,7 +230,7 @@ Use `stilyagi_ir::RegionKind::ALL` and call `RegionKind::as_str()` on each
 `stilyagi_ir::RegionKind` value when code needs the stable IR spellings; the
 `supported_region_kinds()` PyO3 export is built from that same source of truth.
 
-Markdown region emission follows ADR 005:
+Markdown region emission follows ADR 0005:
 
 - `list_item` and `blockquote` are thin structural regions. They carry empty
   `text` and `segments`; child paragraph, table, and other prose regions keep
@@ -964,8 +965,9 @@ particular.
     `NodeTarget` usage should stay narrow and debug-oriented until later slices
     prove a broader node contract.
   - Python docstring owner metadata follows
-    [ADR 006](adr-006-docstring-owner-metadata.md). Module docstrings use
-    `owner.kind == "module"` with `name` and `qualname` serialized as `null`.
+    [ADR 0006](adrs/adr-0006-adopt-docstring-owner-metadata.md). Module
+    docstrings use `owner.kind == "module"` with `name` and `qualname`
+    serialized as `null`.
     Class and function docstrings use Python `__qualname__` semantics; a
     definition nested inside a function receives `<locals>` after the function
     frame, for example `outer.<locals>.inner`.
@@ -1265,8 +1267,9 @@ boundary:
 
 Adding a syntax today is intentionally a coordinated change. Before starting,
 confirm that the supported surface is a product decision and update
-[ADR 008](adr-008-v1-discovery-defaults.md) rather than silently broadening the
-default walker. The current implementation needs all of the following edits:
+[ADR 0008](adrs/adr-0008-adopt-v1-discovery-defaults.md) rather than silently
+broadening the default walker. The current implementation needs all of the
+following edits:
 
 1. Add the `ExtractSyntax` variant.
 2. Add it to `ExtractSyntax::ALL`.
@@ -1285,7 +1288,7 @@ default walker. The current implementation needs all of the following edits:
 13. Extend the per-language comparison table in this section.
 14. Update the users' guide extension list.
 15. Update RFC 0003 §7.
-16. Update ADR 008's candidate table.
+16. Update ADR 0008's candidate table.
 
 This is a visible shotgun-surgery boundary. Do not paper over it with an
 unreviewed shortcut: the list makes each ownership boundary explicit until a
@@ -1428,6 +1431,7 @@ Their responsibilities are:
 - `make test-doc`
   - run Rust doc tests with Rustdoc warnings denied
   - run the Python docstring examples through `pytest --doctest-modules`
+
 - `make duplication`
   - install the pinned `nose` detector if needed
   - run the blocking duplication gate over `python/stilyagi`
@@ -1464,6 +1468,27 @@ resolves that tag to immutable commit
 Rust lint tiers, with Interrogate enforcing a 100% docstring-coverage
 threshold. Skylos runs after the Rust lint tiers as the final lint step.
 
+### Documentation examples
+
+The documentation style guide requires every fenced example in a user-facing
+document to carry a unique `<!-- tested-example: <identifier> -->` marker
+immediately before the fence. Tests must load the example from the published
+document through a shared loader, so they exercise the text readers receive.
+The loader must reject unmarked or unterminated fences, missing identifiers,
+and duplicate identifiers. The same loader is intended for integration tests
+and behaviour-driven scenarios.
+
+The shared Markdown example loader and its build checks are not implemented
+yet. Until they are, the user-facing examples do not have the required
+executable coverage; adding the policy here does not imply that `make test-doc`
+checks Markdown fences.
+
+Rust documentation examples should run as doctests whenever they can execute.
+Use `no_run` only for examples that genuinely cannot execute, such as snippets
+that require external resources, incomplete snippets, or environment-specific
+setup. `make test-doc` currently runs the Rust doctests and Python docstring
+examples; it does not change the Markdown-example gap above.
+
 ### Shared workflow parser
 
 Workflow contract tests use `tests/support/workflows.py::load_workflow` to
@@ -1478,8 +1503,8 @@ reuse this helper instead of maintaining separate workflow parsers.
 
 ### 6a. Python linting architecture
 
-ADR 004 records the accepted Python linting architecture.[^4] The short version
-is that Python linting has five tiers:
+ADR 0004 records the accepted Python linting architecture.[^4] The short
+version is that Python linting has five tiers:
 
 1. Ruff 0.16.4 runs first through the pinned `RUFF` Makefile command.
 2. Interrogate runs second with `--fail-under 100` over `INTERROGATE_TARGETS`,
@@ -2152,7 +2177,8 @@ workflows together.
 
 `make lint` ends by running a blocking code-duplication gate. It is the second
 tool gate in this repository, after the Skylos dead-code scan in section 6b,
-and it is covered by [ADR 010](adr-010-nose-duplication-gate.md). Run it alone
+and it is covered by
+[ADR 0010](adrs/adr-0010-adopt-the-nose-code-duplication-gate.md). Run it alone
 with `make duplication`, and its own helper tests with `make duplication-test`.
 
 The detector is `nose` (`corca-ai/nose`), the Rust-built `nose-cli` binary, not
@@ -2365,13 +2391,13 @@ single-language package.
 
 ## References
 
-[^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
-[^2]: [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
+[^1]: [ADR 0002: Ratify the packaging boundary](adrs/adr-0002-ratify-the-packaging-boundary.md)
+[^2]: [ADR 0003: Ratify the v1 contract scope](adrs/adr-0003-ratify-the-v1-contract-scope.md)
 [^3]: [PyO3 FAQ: linker issues with `cargo test`](https://pyo3.rs/main/faq)
-[^4]: [ADR 004: Adopt layered Python linting](
-    adr-004-python-linting-architecture.md)
-[^5]: [ADR 005: Scope Markdown region vocabulary](
-    adr-005-markdown-region-vocabulary-scope.md)
+[^4]: [ADR 0004: Adopt layered Python linting](
+    adrs/adr-0004-adopt-layered-python-linting.md)
+[^5]: [ADR 0005: Scope Markdown region vocabulary](
+    adrs/adr-0005-scope-markdown-region-vocabulary.md)
 
 Substantial architecture changes should update both the code and the documents
 that define the current contracts. Stale documentation is treated as a defect,

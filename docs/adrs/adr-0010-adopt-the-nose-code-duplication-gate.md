@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 010: Adopt the `nose` code-duplication gate
+# Architectural decision record (ADR) 0010: Adopt the `nose` code-duplication gate
 
 ## Status
 
@@ -214,5 +214,5 @@ is a path glob, and that the ranked surface bounds what the gate adjudicates.
   adoption this one follows.
 - `corca-ai/nose` `v0.20.0`, the Rust-built `nose-cli` detector. Not the PyPI
   `nose` test framework of the same name.
-- [ADR 004](adr-004-python-linting-architecture.md), the Python linting
+- [ADR 0004](adr-0004-adopt-layered-python-linting.md), the Python linting
   architecture this gate extends.

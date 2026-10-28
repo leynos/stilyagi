@@ -81,7 +81,7 @@ Verdict: **REVISE** — not implementable/design-conformant as written.
 ## Signposting
 
 Skills: `logisphere-design-review`. Sources: `docs/roadmap.md` §2.2;
-`docs/rfcs/0003-stilyagi-cli-contract.md` §§3-12; `docs/stilyagi-design.md`
+`docs/rfcs/rfc-0003-stilyagi-cli-contract.md` §§3-12; `docs/stilyagi-design.md`
 lines 302/405/495 and §7.3; `Makefile`; `pyproject.toml`; direct inspection of
 `python/stilyagi/{cli,config,diagnostics,model/document,engine/api}.py` and the
 affected tests/snapshots. Branch-local facts verified by file inspection.

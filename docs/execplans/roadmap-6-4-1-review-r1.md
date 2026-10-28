@@ -7,7 +7,7 @@ Verified against source in this worktree:
 
 - `stilyagi_ir::RegionKind` — 11 variants, `pub const fn as_str`,
   `pub const ALL`, `TryFrom<&str>` (`crates/stilyagi-ir/src/region.rs`). No
-  `document` variant. Matches the plan and RFC 0001 §6 / ADR 005. ✔
+  `document` variant. Matches the plan and RFC 0001 §6 / ADR 0005. ✔
 - `stilyagi_extract::RegionKind` — `#[non_exhaustive]`, three variants,
   handwritten `as_str`/`TryFrom`
   (`crates/stilyagi-extract/src/lib.rs:152–193`). ✔
@@ -82,6 +82,6 @@ un-forwarding it), and state which mutation exercises which guard.
   reused" phrasing is loose.
 
 Signposts: `logisphere-design-review` skill; `execplans` skill
-(novice-followable standard); RFC 0001 §6; ADR 003/005; AGENTS.md §65–84,
+(novice-followable standard); RFC 0001 §6; ADR 0003/005; AGENTS.md §65–84,
 §156–184. Source verified via direct inspection in the worktree (Memtrace/Leta
 not required for this branch-local verification).

@@ -33,13 +33,13 @@ surface.
 ## Orientation
 
 The prerequisite contract work is already complete.
-[Architecture Decision Record (ADR) 002](../adr-002-packaging-boundary.md)
+[Architecture Decision Record (ADR) 0002](../adrs/adr-0002-ratify-the-packaging-boundary.md)
 fixes the v1 build and runtime boundary as a single Python package with an
 embedded PyO3 extension built through `maturin`.
-[ADR 003](../adr-003-v1-contract-scope.md) narrows the stable v1 scope to
-Markdown, Python docstrings, Rust documentation comments, canonical JSON for
-debug and fixture flows, and English-only locale support. Roadmap item 1.1.3
-then aligned the RFC set with those decisions.
+[ADR 0003](../adrs/adr-0003-ratify-the-v1-contract-scope.md) narrows the stable
+v1 scope to Markdown, Python docstrings, Rust documentation comments, canonical
+JSON for debug and fixture flows, and English-only locale support. Roadmap item
+1.1.3 then aligned the RFC set with those decisions.
 
 The repository, however, is still on the pre-skeleton layout. The current tree
 has a top-level `stilyagi/` Python package, a `rust_extension/` crate, no root
@@ -65,12 +65,12 @@ The implementer should keep these documents open while executing the plan:
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 7.1,
   10, 11, and 13, for the target repository layout, intermediate representation
   (IR) ownership split, test classes, and final architecture recommendation.
-- [docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md) for
-  the accepted PyO3 plus `maturin` boundary and the explicit rejection of the
-  helper-binary transport model.
-- [docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md) for the
-  narrowed v1 syntax, transport, and locale promises that the new layout must
-  preserve.
+- [docs/adrs/adr-0002-ratify-the-packaging-boundary.md](../adrs/adr-0002-ratify-the-packaging-boundary.md)
+  for the accepted PyO3 plus `maturin` boundary and the explicit rejection of
+  the helper-binary transport model.
+- [docs/adrs/adr-0003-ratify-the-v1-contract-scope.md](../adrs/adr-0003-ratify-the-v1-contract-scope.md)
+  for the narrowed v1 syntax, transport, and locale promises that the new
+  layout must preserve.
 - [docs/developers-guide.md](../developers-guide.md),
   [docs/users-guide.md](../users-guide.md), and
   [docs/repository-layout.md](../repository-layout.md) for the maintainer,
@@ -86,7 +86,7 @@ The implementer should keep these documents open while executing the plan:
   [docs/reliable-testing-in-rust-via-dependency-injection.md](../reliable-testing-in-rust-via-dependency-injection.md)
   for the required Rust-side unit, behaviour, doctest, and
   dependency-injection testing style.
-- [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../rfcs/0004-stilyagi-rule-testing-framework.md)
+- [docs/rfcs/rfc-0004-stilyagi-rule-testing-framework.md](../rfcs/rfc-0004-stilyagi-rule-testing-framework.md)
   for the long-lived testing direction that later slices will extend from the
   skeleton laid down here.
 
@@ -431,10 +431,11 @@ old and new source root models.
   now passes.
 - [x] 2026-04-20 22:37 CEST: updated the repository-shape documentation and
   bookkeeping. `docs/developers-guide.md`, `docs/users-guide.md`,
-  `docs/repository-layout.md`, `docs/adr-002-packaging-boundary.md`, and
-  `docs/roadmap.md` now describe the `python/` source root, the `crates/`
-  workspace, the package-scoped `stilyagi._stilyagi_rs` extension, and the
-  completion of roadmap item 1.2.1.
+  `docs/repository-layout.md`,
+  `docs/adrs/adr-0002-ratify-the-packaging-boundary.md`, and `docs/roadmap.md`
+  now describe the `python/` source root, the `crates/` workspace, the
+  package-scoped `stilyagi._stilyagi_rs` extension, and the completion of
+  roadmap item 1.2.1.
 - [x] 2026-04-20 22:49 CEST: completed the full validation sequence and
   confirmed the new build spine stays green. `make check-fmt`, `make lint`,
   `make typecheck`, `make markdownlint`, `make nixie`, `make test`, and

@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 004: Adopt layered Python linting
+# Architectural decision record (ADR) 0004: Adopt layered Python linting
 
 ## Status
 
@@ -291,7 +291,7 @@ developers' guide describes the current one.
 
 ## References
 
-[^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
+[^1]: [ADR 0002: Ratify the packaging boundary](adr-0002-ratify-the-packaging-boundary.md)
 [^2]: [leynos/episodic](https://github.com/leynos/episodic)
 [^3]: [leynos/pylint-pypy-shim](https://github.com/leynos/pylint-pypy-shim)
 [^4]: [leynos/df12-python-lints v0.3.0](https://github.com/leynos/df12-python-lints/tree/v0.3.0)

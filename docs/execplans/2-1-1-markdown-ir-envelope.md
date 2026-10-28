@@ -124,9 +124,9 @@ Keep these repository documents open:
   dependencies on 1.1.3, 1.2.2, and 1.3.1.
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 6,
   7.1, 10 and 11.
-- [docs/rfcs/0001-stilyagi-intermediate-representation.md](
-  ../rfcs/0001-stilyagi-intermediate-representation.md), especially sections 4
-  through 10.
+- [docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md](
+  ../rfcs/rfc-0001-stilyagi-intermediate-representation.md), especially
+  sections 4 through 10.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](
   ../complexity-antipatterns-and-refactoring-strategies.md), for keeping the
   flattening and mapping logic small enough to review.

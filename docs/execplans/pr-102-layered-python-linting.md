@@ -49,7 +49,7 @@ Status: COMPLETE
   property for string-key acceptance and non-string-key rejection.
 - [x] Document the extraction vocabulary helpers and their cache-reset
   boundary.
-- [x] Align this record, ADR 004, and the developer's guide with `uv.lock`.
+- [x] Align this record, ADR 0004, and the developer's guide with `uv.lock`.
 
 ## Surprises & Discoveries
 
@@ -77,8 +77,8 @@ the focused `ensure_mapping` regression test, the Hypothesis property proving
 string-key acceptance and non-string-key rejection, and documentation for the
 extraction helper contracts.
 
-The documentation changes in this follow-up add the ADR 004 addendum, align the
-release wording with `uv.lock`, and make this plan discoverable from the
+The documentation changes in this follow-up add the ADR 0004 addendum, align
+the release wording with `uv.lock`, and make this plan discoverable from the
 documentation index. The repository-configured validation commands that must be
 run after these changes are:
 

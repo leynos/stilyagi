@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 008: Adopt v1 discovery defaults
+# Architectural decision record (ADR) 0008: Adopt v1 discovery defaults
 
 ## Status
 
@@ -36,7 +36,8 @@ configurable or fully scalable source walker prematurely?
 
 ## Decision drivers
 
-- Match the accepted v1 syntax scope in [ADR 003](adr-003-v1-contract-scope.md).
+- Match the accepted v1 syntax scope in
+  [ADR 0003](adr-0003-ratify-the-v1-contract-scope.md).
 - Preserve deterministic output, ordering, and a narrow command-line contract.
 - Avoid treating recoverable extraction anomalies as user-authored violations.
 - Make mixed-tree coverage observable rather than inferring it from silence.
@@ -221,7 +222,7 @@ _Table 2: Deferred discovery and operational-policy candidates._
 
 ## References
 
-- [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
-- [RFC 0003: CLI contract](rfcs/0003-stilyagi-cli-contract.md)
-- [Roadmap](roadmap.md)
-- [ExecPlan 3.2.1](execplans/3-2-1-expand-discovery-defaults-to-md-py-and-rs.md)
+- [ADR 0003: Ratify the v1 contract scope](adr-0003-ratify-the-v1-contract-scope.md)
+- [RFC 0003: CLI contract](../rfcs/rfc-0003-stilyagi-cli-contract.md)
+- [Roadmap](../roadmap.md)
+- [ExecPlan 3.2.1](../execplans/3-2-1-expand-discovery-defaults-to-md-py-and-rs.md)

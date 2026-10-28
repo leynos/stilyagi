@@ -13,7 +13,7 @@ within the constraints and tolerances recorded here.
 
 Roadmap item 1.1.3 exists to remove the last contract mismatch between the
 normative design and the narrower RFC set. After this work is complete,
-maintainers should be able to read the design document, ADR 002, ADR 003, and
+maintainers should be able to read the design document, ADR 0002, ADR 0003, and
 RFCs 0001, 0002, 0003, and 0005 without having to guess which document is stale.
 
 The observable outcome is documentary coherence, not new runtime behaviour. A
@@ -26,12 +26,13 @@ canonical-JSON-versus-hot-path distinction, and the staged grammar-node plan.
 ## Orientation
 
 The prerequisite decisions are already ratified.
-[ADR 002](../adr-002-packaging-boundary.md) fixes the build and runtime
-boundary as one Python package with an embedded PyO3 extension built through
-`maturin`. [ADR 003](../adr-003-v1-contract-scope.md) narrows the stable v1
-promise to Markdown, Python docstrings, and Rust documentation comments; keeps
-MDX preview-only; keeps canonical JSON for `dump-ir`, fixtures, and contract
-review; and limits formal locale support to English.
+[ADR 0002](../adrs/adr-0002-ratify-the-packaging-boundary.md) fixes the build
+and runtime boundary as one Python package with an embedded PyO3 extension
+built through `maturin`.
+[ADR 0003](../adrs/adr-0003-ratify-the-v1-contract-scope.md) narrows the stable
+v1 promise to Markdown, Python docstrings, and Rust documentation comments;
+keeps MDX preview-only; keeps canonical JSON for `dump-ir`, fixtures, and
+contract review; and limits formal locale support to English.
 
 The design document already treats those decisions as normative. Section 7 of
 [docs/stilyagi-design.md](../stilyagi-design.md) calls out the remaining
@@ -53,19 +54,20 @@ The implementer should keep these documents open while executing the plan:
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 7.1,
   7.2, 7.3, 12, and 13, for the exact contract revisions that the RFCs now need
   to absorb.
-- [docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md) and
-  [docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md) for the
-  accepted packaging, syntax-scope, transport, and locale decisions that now
-  outrank the older RFC wording.
+- [docs/adrs/adr-0002-ratify-the-packaging-boundary.md](../adrs/adr-0002-ratify-the-packaging-boundary.md)
+  and
+  [docs/adrs/adr-0003-ratify-the-v1-contract-scope.md](../adrs/adr-0003-ratify-the-v1-contract-scope.md)
+  for the accepted packaging, syntax-scope, transport, and locale decisions
+  that now outrank the older RFC wording.
 - the four primary amendment targets for this slice:
-  - [docs/rfcs/0001-stilyagi-intermediate-representation.md](
-    ../rfcs/0001-stilyagi-intermediate-representation.md)
-  - [docs/rfcs/0002-stilyagi-python-rule-api.md](
-    ../rfcs/0002-stilyagi-python-rule-api.md)
-  - [docs/rfcs/0003-stilyagi-cli-contract.md](
-    ../rfcs/0003-stilyagi-cli-contract.md)
-  - [docs/rfcs/0005-grammar-capability-and-syntactic-api-extensions.md](
-    ../rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
+  - [docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md](
+    ../rfcs/rfc-0001-stilyagi-intermediate-representation.md)
+  - [docs/rfcs/rfc-0002-stilyagi-python-rule-api.md](
+    ../rfcs/rfc-0002-stilyagi-python-rule-api.md)
+  - [docs/rfcs/rfc-0003-stilyagi-cli-contract.md](
+    ../rfcs/rfc-0003-stilyagi-cli-contract.md)
+  - [docs/rfcs/rfc-0005-grammar-capability-and-syntactic-api-extensions.md](
+    ../rfcs/rfc-0005-grammar-capability-and-syntactic-api-extensions.md)
 - [docs/users-guide.md](../users-guide.md) and
   [docs/developers-guide.md](../developers-guide.md) for user-facing and
   maintainer-facing contract statements that may need small cleanups once the
@@ -108,7 +110,7 @@ The relevant skills for the person executing this plan are:
   RFC 0005 so the design and the narrower contracts agree." Keep it narrower
   than roadmap items 1.2.x and 2.x. Do not implement bridge code, extractor
   code, CLI behaviour, repository reshaping, or new package structure here.
-- Treat [docs/stilyagi-design.md](../stilyagi-design.md), ADR 002, and ADR 003
+- Treat [docs/stilyagi-design.md](../stilyagi-design.md), ADR 0002, and ADR 0003
   as the normative contract sources. If an RFC appears to conflict with those
   documents, the RFC should be amended unless fresh repository-local evidence
   proves the design is internally contradictory. If such a contradiction is
@@ -197,12 +199,12 @@ The relevant skills for the person executing this plan are:
 - Risk: wording changes in RFC 0001 and RFC 0002 could accidentally create a
   new public contract rather than restating the already-ratified one. Severity:
   medium Likelihood: medium Mitigation: check every normative change against
-  section 7 of the design and ADR 003. If a change cannot be traced back to
+  section 7 of the design and ADR 0003. If a change cannot be traced back to
   those sources, either justify it in the Decision Log and update the design or
   remove it.
 
 - Risk: `docs/users-guide.md` may not need a material update because it already
-  matches ADR 003, but the task still requests guide maintenance. Severity:
+  matches ADR 0003, but the task still requests guide maintenance. Severity:
   medium Likelihood: high Mitigation: verify both guides explicitly. Update
   whichever guide benefits from the RFC-alignment result, and record in the
   Decision Log if one guide remains unchanged because no user-facing or
@@ -218,7 +220,7 @@ The relevant skills for the person executing this plan are:
 ### Milestone 1: build the contradiction matrix
 
 Re-read the roadmap entry, design sections 7.1 to 7.3, sections 12 and 13, ADR
-002, ADR 003, the current guides, and the four target RFCs. Capture a short
+002, ADR 0003, the current guides, and the four target RFCs. Capture a short
 working matrix that answers:
 
 1. which design or ADR statements each RFC must now mirror;
@@ -360,7 +362,7 @@ number of RFC files touched.
 
 ## Surprises & discoveries
 
-- The guides already reflect ADR 003 more accurately than the RFC set does.
+- The guides already reflect ADR 0003 more accurately than the RFC set does.
   That means the likely support-document work is cleanup and deconfliction, not
   fresh user-facing contract drafting.
 - [docs/developers-guide.md](../developers-guide.md) still contains an explicit

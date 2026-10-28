@@ -14,7 +14,7 @@ they name them independently:
 - `stilyagi-ir` owns the canonical region-kind vocabulary as the enum
   `stilyagi_ir::RegionKind` (`crates/stilyagi-ir/src/region.rs`). Its eleven
   variants and their stable string spellings are the v1 contract named by RFC
-  0001 §6 (region `kind` vocabulary) and clarified by ADR 005.
+  0001 §6 (region `kind` vocabulary) and clarified by ADR 0005.
 - `stilyagi-extract` defines a *second*, unrelated enum, also called
   `RegionKind` (`crates/stilyagi-extract/src/lib.rs`), with three variants —
   `Document`, `PythonDocstring`, `RustDocComment` — whose spellings
@@ -60,12 +60,12 @@ Hard invariants that must hold throughout implementation. Violation requires
 escalation, not a workaround.
 
 - The stable v1 IR region-kind vocabulary is fixed by RFC 0001 §6
-  (`docs/rfcs/0001-stilyagi-intermediate-representation.md`, the "`kind` SHALL
-  come from a stable, small vocabulary" list) and ADR 005
-  (`docs/adr-005-markdown-region-vocabulary-scope.md`). Do **not** add, remove,
-  rename, or reorder any `stilyagi_ir::RegionKind` variant or spelling. In
-  particular, `document` is **not** an IR region kind and must not be added to
-  `stilyagi_ir::RegionKind`; `frontmatter_field` stays reserved.
+  (`docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md`, the "`kind`
+  SHALL come from a stable, small vocabulary" list) and ADR 0005
+  (`docs/adrs/adr-0005-scope-markdown-region-vocabulary.md`). Do **not** add,
+  remove, rename, or reorder any `stilyagi_ir::RegionKind` variant or spelling.
+  In particular, `document` is **not** an IR region kind and must not be added
+  to `stilyagi_ir::RegionKind`; `frontmatter_field` stays reserved.
 - Public serialized spellings must not change. `IrRegion.kind` is a `String`
   field serialized via serde (`crates/stilyagi-ir/src/region.rs`); all existing
   golden fixtures and snapshots must continue to match byte-for-byte.
@@ -159,7 +159,7 @@ escalation, not a workaround.
 - [x] 2026-07-07: Confirmed the branch is `roadmap-6-4-1`, already tracking
       `origin/roadmap-6-4-1`; renamed the Lody session to
       `roadmap-6-4-1 region vocabulary unification`.
-- [x] 2026-07-07: Re-read the plan, RFC 0001 §6, ADR 003, ADR 005, the design
+- [x] 2026-07-07: Re-read the plan, RFC 0001 §6, ADR 0003, ADR 0005, the design
       note's IR section, the developer guide's region-kind notes, and the
       `leta`, `execplans`, `rust-router`, `rust-types-and-apis`,
       `rust-unit-testing`, and `sem` skills before editing.
@@ -331,10 +331,10 @@ escalation, not a workaround.
 - Decision: keep `document` as a bridge-only region kind and explicitly assert
   it is *not* in the IR vocabulary, instead of adding it to
   `stilyagi_ir::RegionKind`. Rationale: RFC 0001 §6 fixes the IR vocabulary at
-  eleven kinds and does not include `document`; ADR 005 constrains the Markdown
-  subset. `document` is a coarse whole-source bridge region on `ExtractRegion`,
-  not an `IrRegion` kind. Adding it to the IR enum would be an RFC/ADR change
-  and is out of scope. Date/Author: 2026-07-05, planning agent.
+  eleven kinds and does not include `document`; ADR 0005 constrains the
+  Markdown subset. `document` is a coarse whole-source bridge region on
+  `ExtractRegion`, not an `IrRegion` kind. Adding it to the IR enum would be an
+  RFC/ADR change and is out of scope. Date/Author: 2026-07-05, planning agent.
 - Decision: include the tree-sitter literal replacement as Work item 3 but mark
   it independently committable and droppable. Rationale: the roadmap names
   `stilyagi-ir` and `stilyagi-extract`; touching `stilyagi-tree-sitter` is a
@@ -372,15 +372,16 @@ CodeRabbit review completed with zero findings after each major milestone.
 
 Read these before starting. Paths are repository-relative.
 
-- `docs/rfcs/0001-stilyagi-intermediate-representation.md` §6 (the
+- `docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md` §6 (the
   "`kind` SHALL come from a stable, small vocabulary" list, lines ~223–251):
   the authoritative eleven-kind vocabulary and the note that `summary_line` is
   a derived view, not a region kind. This is what "the shared vocabulary" means.
-- `docs/adr-005-markdown-region-vocabulary-scope.md`: why `list_item` /
+- `docs/adrs/adr-0005-scope-markdown-region-vocabulary.md`: why `list_item` /
   `blockquote` are thin, why `frontmatter_field` is reserved, and why
   `image_alt` / `link_title` are synthetic. Confirms the vocabulary is closed.
-- `docs/adr-003-v1-contract-scope.md`: the v1 contract-freezing discipline that
-  makes "cannot silently diverge" a real requirement.
+- `docs/adrs/adr-0003-ratify-the-v1-contract-scope.md`: the v1
+  contract-freezing discipline that makes "cannot silently diverge" a real
+  requirement.
 - `docs/stilyagi-design.md` §7.1 (Intermediate representation, lines ~786+):
   design commentary confirming region vocabulary is engine-owned and stable.
 - `AGENTS.md`: quality gates and testing rules (unit + behavioural tests
@@ -433,10 +434,10 @@ hardening on the IR-producing side.
 
 ### Work item 1 — `stilyagi-ir` as the single source of truth; `stilyagi-extract` forwards
 
-Implements: RFC 0001 §6 (canonical vocabulary), ADR 003 (frozen v1 contract),
+Implements: RFC 0001 §6 (canonical vocabulary), ADR 0003 (frozen v1 contract),
 roadmap 6.4.1 ("keep the shared vocabulary as the single source of truth").
 
-Docs to read first: RFC 0001 §6; ADR 005; `docs/stilyagi-design.md` §7.1.
+Docs to read first: RFC 0001 §6; ADR 0005; `docs/stilyagi-design.md` §7.1.
 Skills to load: `rust-router` (route to `rust-types-and-apis` for the enum
 mapping and `const fn` question, and `rust-unit-testing` for the guard test);
 `leta` for symbol navigation; `sem` for the region-kind history.
@@ -539,7 +540,7 @@ Implements: roadmap 6.4.1 ("add a cross-checking test that fails on drift";
 "the two crates cannot silently diverge on region names or meanings"); RFC 0001
 §6; AGENTS.md testing rules (unit + behavioural coverage).
 
-Docs to read first: RFC 0001 §6; ADR 005 (the closed vocabulary); `AGENTS.md`
+Docs to read first: RFC 0001 §6; ADR 0005 (the closed vocabulary); `AGENTS.md`
 testing section. Skills to load: `rust-router` → `rust-unit-testing`;
 `rust-verification` (to judge whether a property/`proptest` case adds value
 over the enumerated cross-check — see below); `leta`.
@@ -750,10 +751,10 @@ Prescriptive end state:
 
 ## Signposts (docs and skills relied upon while planning)
 
-- Docs: `docs/rfcs/0001-stilyagi-intermediate-representation.md` §6 (region
-  vocabulary), `docs/adr-005-markdown-region-vocabulary-scope.md`,
-  `docs/adr-003-v1-contract-scope.md`, `docs/stilyagi-design.md` §7.1,
-  `AGENTS.md` (gates + testing rules).
+- Docs: `docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md` §6 (region
+  vocabulary), `docs/adrs/adr-0005-scope-markdown-region-vocabulary.md`,
+  `docs/adrs/adr-0003-ratify-the-v1-contract-scope.md`,
+  `docs/stilyagi-design.md` §7.1, `AGENTS.md` (gates + testing rules).
 - Skills: `execplans` (this document's structure), `rust-router` (and the
   `rust-types-and-apis`, `rust-unit-testing`, `rust-verification` skills it
   routes to), `leta` (symbol navigation), `sem` (history), `scrutineer` (gate

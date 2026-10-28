@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 003: Ratify the v1 contract scope
+# Architectural decision record (ADR) 0003: Ratify the v1 contract scope
 
 ## Status
 
@@ -10,7 +10,7 @@ Accepted.
 
 ## Context and problem statement
 
-ADR 002 settled how Stilyagi crosses the Rust and Python boundary: one Python
+ADR 0002 settled how Stilyagi crosses the Rust and Python boundary: one Python
 package with an in-process PyO3 extension built through `maturin`.[^1] That
 still left three narrower v1 contract questions open:
 
@@ -115,7 +115,7 @@ maintainer expectations that the project cannot yet validate consistently.
 | Gives one explicit, testable locale promise for v1                            | Yes                          | Partial                                         | No                                 |
 | Minimizes rework risk for roadmap slices 1.2 and 2.x                          | Yes                          | No                                              | No                                 |
 
-_Table 1: Candidate v1 contract scopes after ADR 002 fixed the packaging
+_Table 1: Candidate v1 contract scopes after ADR 0002 fixed the packaging
 boundary._
 
 ## Decision outcome
@@ -227,5 +227,5 @@ extend the system deliberately instead of inheriting fuzzy promises.
 
 ## References
 
-[^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
-[^2]: [Stilyagi design](stilyagi-design.md)
+[^1]: [ADR 0002: Ratify the packaging boundary](adr-0002-ratify-the-packaging-boundary.md)
+[^2]: [Stilyagi design](../stilyagi-design.md)

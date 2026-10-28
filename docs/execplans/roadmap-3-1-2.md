@@ -42,7 +42,7 @@ This slice deliberately stops at owner-aware extraction. It does not implement
 Rust documentation-comment lint rules (roadmap item 3.2.2), Rust suppression
 parsing (roadmap item 3.1.3), discovery defaults for `*.rs` (roadmap item
 3.2.1), or any Markdown-inside-doc-comment analysis. It supplies the IR facts
-those later items must trust. It reuses the ADR 006 `owner` field contract
+those later items must trust. It reuses the ADR 0006 `owner` field contract
 while defining Rust-specific owner kinds and qualified-name semantics, exactly
 as [docs/stilyagi-design.md](../stilyagi-design.md) §12 ("Exact owner metadata
 shape for Rust documentation comments") anticipates.
@@ -208,7 +208,7 @@ Before implementing this plan, load and apply these skills:
 - `python-router`, then `python-testing` and `python-types-and-apis`, for the
   pytest, pytest-bdd, and typed-adapter work. Load `python-verification` then
   `hypothesis` for the Python property test.
-- `arch-decision-records`, for the Rust owner-metadata ADR (ADR 007) in
+- `arch-decision-records`, for the Rust owner-metadata ADR (ADR 0007) in
   Y-Statement format.
 - `en-gb-oxendict`, for all prose, comments, and commit messages (British
   English, Oxford `-ize`/`-yse`/`-our` spelling).
@@ -223,11 +223,11 @@ Keep these repository documents open:
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially §§3.2, 4, 7.1,
   10, 11, and the §12 open question "Exact owner metadata shape for Rust
   documentation comments".
-- [RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md), the regions
-  and owner sections.
-- [docs/adr-003-v1-contract-scope.md](../adr-003-v1-contract-scope.md), which
-  fixes Rust documentation comments as a stable v1 syntax surface.
-- [docs/adr-006-docstring-owner-metadata.md](../adr-006-docstring-owner-metadata.md),
+- [RFC 0001](../rfcs/rfc-0001-stilyagi-intermediate-representation.md), the
+  regions and owner sections.
+- [docs/adrs/adr-0003-ratify-the-v1-contract-scope.md](../adrs/adr-0003-ratify-the-v1-contract-scope.md),
+  which fixes Rust documentation comments as a stable v1 syntax surface.
+- [docs/adrs/adr-0006-adopt-docstring-owner-metadata.md](../adrs/adr-0006-adopt-docstring-owner-metadata.md),
   whose `owner` field contract and bounded-node-store policy this slice reuses;
   its "Follow-on work" explicitly hands Rust owner kinds and qualified-name
   semantics to this item.
@@ -312,7 +312,7 @@ External prior art relied on during planning:
   synthetic separators follows the Markdown soft-break convention and is pinned
   by snapshot and property tests rather than restated here.
 - `owner` is populated for every `rust_doc_comment` region and follows the
-  RFC 0001 / ADR 006 code-entity contract (`kind`, optional `name`, optional
+  RFC 0001 / ADR 0006 code-entity contract (`kind`, optional `name`, optional
   `qualname`). Outer doc comments own the immediately following item; inner doc
   comments own the enclosing item. Crate-root inner doc comments emit
   `kind: "module"`, `name: null`, `qualname: null`, mirroring the Python module
@@ -322,7 +322,7 @@ External prior art relied on during planning:
   left-to-right; assign node identifiers (`n0`, `n1`, …) in emission order;
   assign region identifiers (`r0`, `r1`, …) in doc-comment-discovery order; and
   append `errors` entries in source order.
-- Keep the non-Markdown structural surface minimal, exactly as ADR 006 requires
+- Keep the non-Markdown structural surface minimal, exactly as ADR 0006 requires
   for Python. The Rust extractor emits a bounded node store: a synthetic
   `module` (crate) root, each doc-comment-owning item node, and each emitted
   doc-comment node, with honest parent/child links. Undocumented enclosing
@@ -889,21 +889,22 @@ Resolve concerns and commit.
 
 ### Stage 6: documentation, ADR, and roadmap completion
 
-- Add `docs/adr-007-rust-doc-comment-owner-metadata.md` (Y-Statement format via
-  `arch-decision-records`) recording the Rust owner-metadata shape: the owner
-  kinds, the `::` qualname semantics (including `Type::method` for impl methods
-  and the trait-impl `Type`-prefix decision), the inner/outer attachment rule,
-  the verbatim-content flattening decision, the consecutive-line-merge decision
-  with synthetic separators, the bounded node-store policy, and the v1
-  limitations (no rustdoc leading-space or common-indentation stripping; crate
-  module owners carry `name: null`/`qualname: null`; block-comment edge cases
-  and the unrecognized-item `kind: "item"` fallback). Reference ADR 006 as the
-  reused owner contract.
+- Add `docs/adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md`
+  (Y-Statement format via `arch-decision-records`) recording the Rust
+  owner-metadata shape: the owner kinds, the `::` qualname semantics (including
+  `Type::method` for impl methods and the trait-impl `Type`-prefix decision),
+  the inner/outer attachment rule, the verbatim-content flattening decision,
+  the consecutive-line-merge decision with synthetic separators, the bounded
+  node-store policy, and the v1 limitations (no rustdoc leading-space or
+  common-indentation stripping; crate module owners carry
+  `name: null`/`qualname: null`; block-comment edge cases and the
+  unrecognized-item `kind: "item"` fallback). Reference ADR 0006 as the reused
+  owner contract.
 - Resolve the design §12 open question "Exact owner metadata shape for Rust
-  documentation comments" by pointing it at ADR 007, and update
+  documentation comments" by pointing it at ADR 0007, and update
   `docs/stilyagi-design.md` §7.1 to state that Rust documentation comments are
   now implemented with `rust_doc_comment` regions and Rust owner kinds.
-- Amend RFC 0001's owner section with a short note pointing to ADR 007 for the
+- Amend RFC 0001's owner section with a short note pointing to ADR 0007 for the
   concrete Rust `qualname` semantics, without changing the field contract.
 - Update `docs/developers-guide.md`: extend the extraction section and the
   Markdown-versus-Python comparison into a Markdown-versus-Python-versus-Rust
@@ -922,14 +923,14 @@ Format only the Markdown files this stage changed, then run the documentation
 gates and the full gates:
 
 ```bash
-mdtablefix docs/adr-007-rust-doc-comment-owner-metadata.md \
+mdtablefix docs/adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md \
   docs/stilyagi-design.md docs/developers-guide.md docs/users-guide.md \
   docs/roadmap.md docs/execplans/roadmap-3-1-2.md \
-  docs/rfcs/0001-stilyagi-intermediate-representation.md
-markdownlint-cli2 --fix docs/adr-007-rust-doc-comment-owner-metadata.md \
+  docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md
+markdownlint-cli2 --fix docs/adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md \
   docs/stilyagi-design.md docs/developers-guide.md docs/users-guide.md \
   docs/roadmap.md docs/execplans/roadmap-3-1-2.md \
-  docs/rfcs/0001-stilyagi-intermediate-representation.md
+  docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md
 make markdownlint 2>&1 | tee "/tmp/markdownlint-stage6-stilyagi-${BRANCH}.out"
 make nixie        2>&1 | tee "/tmp/nixie-stage6-stilyagi-${BRANCH}.out"
 make check-fmt    2>&1 | tee "/tmp/check-fmt-stage6-stilyagi-${BRANCH}.out"
@@ -1018,9 +1019,10 @@ Acceptance for the implemented feature:
   Python `Document.ir` exposes the regions with owner metadata. The Rust
   `ExtractSyntax::ALL` and Python `Syntax` vocabularies still agree.
 - Markdown and Python behaviour and snapshots are unchanged.
-- `docs/adr-007-rust-doc-comment-owner-metadata.md` exists and is referenced
-  from the design; `docs/developers-guide.md` and `docs/users-guide.md` are
-  updated; `docs/roadmap.md` marks only item 3.1.2 done.
+- `docs/adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md`
+  exists and is referenced from the design; `docs/developers-guide.md` and
+  `docs/users-guide.md` are updated; `docs/roadmap.md` marks only item 3.1.2
+  done.
 
 Red-Green-Refactor evidence to record as work proceeds:
 
@@ -1214,7 +1216,7 @@ other new external dependency without approval.
   materializing every enclosing item. Date/Author: 2026-07-04, implementation
   agent.
 
-- Decision: reuse the ADR 006 `owner` field contract with Rust-specific kinds
+- Decision: reuse the ADR 0006 `owner` field contract with Rust-specific kinds
   and `::` qualnames; impl methods use `Type::method`; trait impls use the
   `Type` prefix; crate module owners carry `null` name/qualname. Rationale: ADR
   006 "Follow-on work" and design §12 explicitly hand these semantics to this

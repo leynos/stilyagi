@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 001: Select a spell checking provider
+# Architectural decision record (ADR) 0001: Select a spell checking provider
 
 ## Status
 
@@ -246,9 +246,9 @@ provider facade and keeping `zspell` as a documented fallback, the project can
 move forward without hard-coding the public product surface to one external
 crate.
 
-[^1]: [Stilyagi design](stilyagi-design.md)
-[^2]: [RFC 0002: Stilyagi Python rule API](rfcs/0002-stilyagi-python-rule-api.md)
-[^3]: [RFC 0005: Grammar capability and syntactic API extensions](rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
+[^1]: [Stilyagi design](../stilyagi-design.md)
+[^2]: [RFC 0002: Stilyagi Python rule API](../rfcs/rfc-0002-stilyagi-python-rule-api.md)
+[^3]: [RFC 0005: Grammar capability and syntactic API extensions](../rfcs/rfc-0005-grammar-capability-and-syntactic-api-extensions.md)
 [^4]: [Helix spellchecking integration issue](https://github.com/helix-editor/helix/issues/11660)
 [^5]: [spellbook crate documentation](https://docs.rs/spellbook/latest/spellbook/)
 [^6]: [zspell crate documentation](https://docs.rs/zspell/latest/zspell/)

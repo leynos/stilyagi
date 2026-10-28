@@ -97,15 +97,15 @@ plan:
   exact dependency and completion checkbox.
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 7.1,
   10 and 11, for the target IR contract, repository layout and validation plan.
-- [docs/rfcs/0001-stilyagi-intermediate-representation.md](
-  ../rfcs/0001-stilyagi-intermediate-representation.md) for the proposed IR
+- [docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md](
+  ../rfcs/rfc-0001-stilyagi-intermediate-representation.md) for the proposed IR
   vocabulary that later amendments and this helper slice must respect.
-- [docs/rfcs/0003-stilyagi-cli-contract.md](
-  ../rfcs/0003-stilyagi-cli-contract.md) for the proposed CLI behaviours that
-  snapshot tests may eventually pin.
-- [docs/rfcs/0004-stilyagi-rule-testing-framework.md](
-  ../rfcs/0004-stilyagi-rule-testing-framework.md) for the future public pytest
-  plugin shape that this slice must not prematurely publish.
+- [docs/rfcs/rfc-0003-stilyagi-cli-contract.md](
+  ../rfcs/rfc-0003-stilyagi-cli-contract.md) for the proposed CLI behaviours
+  that snapshot tests may eventually pin.
+- [docs/rfcs/rfc-0004-stilyagi-rule-testing-framework.md](
+  ../rfcs/rfc-0004-stilyagi-rule-testing-framework.md) for the future public
+  pytest plugin shape that this slice must not prematurely publish.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](
   ../complexity-antipatterns-and-refactoring-strategies.md) for keeping helper
   abstractions small and avoiding a premature test framework.
@@ -329,7 +329,7 @@ new internal helper locations, snapshot update workflow, golden fixture naming,
 and fix round-trip conventions. Update `docs/stilyagi-design.md` section 7.1 or
 11 if this slice finalizes a canonical test IR helper shape, snapshot directory
 layout, or edit safety convention. Update
-`docs/rfcs/0004-stilyagi-rule-testing-framework.md` only if implementation
+`docs/rfcs/rfc-0004-stilyagi-rule-testing-framework.md` only if implementation
 deliberately diverges from the proposed later pytest plugin path. Update
 `docs/users-guide.md` only if a user-facing CLI command, API, or output
 contract changes.

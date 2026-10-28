@@ -22,7 +22,7 @@ full release path fails. Observable success is `make check-fmt`, `make lint`,
 ## Constraints
 
 - Preserve the accepted in-process PyO3 plus maturin packaging boundary from
-  `docs/adr-002-packaging-boundary.md`.
+  `docs/adrs/adr-0002-ratify-the-packaging-boundary.md`.
 - Keep `make build`, `make release`, and the existing CI smoke workflow as the
   canonical development and release-wheel paths.
 - Do not introduce a new package backend or helper-binary transport.

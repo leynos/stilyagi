@@ -13,8 +13,9 @@ Stilyagi extracts suppression directives (for example
 representation (IR) so that later rules trust one source of truth rather than
 re-scanning comment bytes. This is roadmap task 2.1.3 and is described in
 [Stilyagi design](../stilyagi-design.md) §4 "Suppression syntax" (lines
-603-626) and [RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md)
-§8 "Suppressions and parse anomalies".
+603-626) and
+[RFC 0001](../rfcs/rfc-0001-stilyagi-intermediate-representation.md) §8
+"Suppressions and parse anomalies".
 
 Today the extractor assumes exactly one HTML comment per `Node::Html` AST node.
 It slices the node's source, strips a single leading `<!--` and a single
@@ -330,12 +331,12 @@ as `dead_code` — see the commit-boundary note in Work item 1.
 > only way to keep every commit gate-green, so the earlier "additive helper
 > first" split is merged into this single work item.
 
-Docs to read: [RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md)
-§7 (span invariants) and §8; [Stilyagi design](../stilyagi-design.md) §4
-"Suppression syntax" and §5. Skills to load: `rust-router` →
-`rust-unit-testing` (rstest cases) and `rust-errors` (per-comment error
-emission), and, for the scanner's invariants, `rust-verification` → `proptest`
-for a property test.
+Docs to read:
+[RFC 0001](../rfcs/rfc-0001-stilyagi-intermediate-representation.md) §7 (span
+invariants) and §8; [Stilyagi design](../stilyagi-design.md) §4 "Suppression
+syntax" and §5. Skills to load: `rust-router` → `rust-unit-testing` (rstest
+cases) and `rust-errors` (per-comment error emission), and, for the scanner's
+invariants, `rust-verification` → `proptest` for a property test.
 
 #### Part A — the pure helper
 
@@ -451,9 +452,9 @@ passes unchanged.
 ### Work item 2 — BDD coverage and node-shape characterization
 
 Docs to read: AGENTS.md §"Testing" (behavioural tests with `rstest-bdd`, lines
-195-210); [RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md) §8.
-Skills to load: `rust-router` → `rust-unit-testing`; consult the `leta` skill
-to confirm step-definition wiring.
+195-210); [RFC 0001](../rfcs/rfc-0001-stilyagi-intermediate-representation.md)
+§8. Skills to load: `rust-router` → `rust-unit-testing`; consult the `leta`
+skill to confirm step-definition wiring.
 
 BDD (feature-first): in
 `crates/stilyagi-extract/tests/features/markdown_suppression.feature` add a
@@ -616,10 +617,10 @@ remain unchanged. `suppressions_from_candidates` keeps its signature
 ## Signposting: docs and skills relied upon
 
 - Docs: `docs/stilyagi-design.md` §4 (Suppression syntax) and §5;
-  `docs/rfcs/ 0001-stilyagi-intermediate-representation.md` §7-§8;
-  `docs/adr-005-markdown- region-vocabulary-scope.md` (Markdown scope boundary);
-  `docs/repository- layout.md`; `AGENTS.md` (gate order and testing rules);
-  `docs/roadmap.md` item 2.1.3.1.
+  `docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md` §7-§8;
+  `docs/adrs/adr-0005-scope-markdown-region-vocabulary.md` (Markdown scope
+  boundary); `docs/repository-layout.md`; `AGENTS.md` (gate order and testing
+  rules); `docs/roadmap.md` item 2.1.3.1.
 - Skills: `execplans` (this document); `rust-router` → `rust-unit-testing`,
   `rust-errors`, `rust-verification` → `proptest`; `leta` for symbol navigation
   and branch-local verification; `en-gb-oxendict` for prose.

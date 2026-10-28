@@ -79,9 +79,9 @@ plan:
   exact dependency and completion checkbox.
 - [docs/stilyagi-design.md](../stilyagi-design.md), especially sections 7.1,
   10, and 11, for the IR boundary, build spine, and validation plan.
-- [docs/rfcs/0004-stilyagi-rule-testing-framework.md](
-  ../rfcs/0004-stilyagi-rule-testing-framework.md) for subprocess isolation,
-  path normalization, and future rule-test harness expectations.
+- [docs/rfcs/rfc-0004-stilyagi-rule-testing-framework.md](
+  ../rfcs/rfc-0004-stilyagi-rule-testing-framework.md) for subprocess
+  isolation, path normalization, and future rule-test harness expectations.
 - [docs/complexity-antipatterns-and-refactoring-strategies.md](
   ../complexity-antipatterns-and-refactoring-strategies.md) for keeping the
   first harness small and avoiding a premature performance framework.

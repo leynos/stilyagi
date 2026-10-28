@@ -125,6 +125,8 @@ rule-engine-facing runtime.
 - `docs/execplans/`
   - Living execution plans for scoped pieces of work that need explicit
     approval, milestones, and validation notes before implementation.
+- `docs/adrs/`
+  - Accepted architectural decisions, numbered independently from RFCs.
 - `docs/rfcs/`
   - Draft contract and proposal documents.
   - Use this directory for RFCs that still need review or that record narrower

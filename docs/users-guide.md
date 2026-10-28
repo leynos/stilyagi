@@ -1,8 +1,9 @@
 # User's guide
 
 This guide is for people who use Stilyagi rather than modify its internals. It
-currently records the user-visible v1 promises that are already settled, even
-while the linter itself is still under construction.
+describes the settled user-visible promises for Stilyagi 0.1.0, an
+early-adopter release whose interfaces may change while the linter is under
+construction.
 
 ## 1. Packaging model
 
@@ -653,7 +654,7 @@ user-facing v1 contract rather than as a complete operating manual.
 
 ## References
 
-[^1]: [ADR 002: Ratify the packaging boundary](adr-002-packaging-boundary.md)
+[^1]: [ADR 0002: Ratify the packaging boundary](adrs/adr-0002-ratify-the-packaging-boundary.md)
 [^2]: [Developer's guide](developers-guide.md)
 [^3]: [Roadmap](roadmap.md)
-[^4]: [ADR 003: Ratify the v1 contract scope](adr-003-v1-contract-scope.md)
+[^4]: [ADR 0003: Ratify the v1 contract scope](adrs/adr-0003-ratify-the-v1-contract-scope.md)

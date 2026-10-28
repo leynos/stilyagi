@@ -5,25 +5,25 @@
 - Audience: Maintainers and reviewers implementing Stilyagi as a wholesale
   replacement for the current Vale-oriented repository.
 - Companion documents:
-  - [RFC 0001: Stilyagi Intermediate Representation](rfcs/0001-stilyagi-intermediate-representation.md)
-  - [RFC 0002: Stilyagi Python rule API](rfcs/0002-stilyagi-python-rule-api.md)
-  - [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md)
-  - [RFC 0004: Stilyagi rule testing framework](rfcs/0004-stilyagi-rule-testing-framework.md)
+  - [RFC 0001: Stilyagi Intermediate Representation](rfcs/rfc-0001-stilyagi-intermediate-representation.md)
+  - [RFC 0002: Stilyagi Python rule API](rfcs/rfc-0002-stilyagi-python-rule-api.md)
+  - [RFC 0003: Stilyagi CLI contract](rfcs/rfc-0003-stilyagi-cli-contract.md)
+  - [RFC 0004: Stilyagi rule testing framework](rfcs/rfc-0004-stilyagi-rule-testing-framework.md)
   - [RFC 0005: Grammar capability and syntactic API extensions](
-    rfcs/0005-grammar-capability-and-syntactic-api-extensions.md)
-  - [ADR 001: Select a spell checking provider](
-    adr-001-spell-checking-provider.md)
-  - [ADR 002: Ratify the packaging boundary](
-    adr-002-packaging-boundary.md)
-  - [ADR 003: Ratify the v1 contract scope](
-    adr-003-v1-contract-scope.md)
-  - [ADR 004: Adopt layered Python linting](
-    adr-004-python-linting-architecture.md)
+    rfcs/rfc-0005-grammar-capability-and-syntactic-api-extensions.md)
+  - [ADR 0001: Select a spell checking provider](
+    adrs/adr-0001-select-a-spell-checking-provider.md)
+  - [ADR 0002: Ratify the packaging boundary](
+    adrs/adr-0002-ratify-the-packaging-boundary.md)
+  - [ADR 0003: Ratify the v1 contract scope](
+    adrs/adr-0003-ratify-the-v1-contract-scope.md)
+  - [ADR 0004: Adopt layered Python linting](
+    adrs/adr-0004-adopt-layered-python-linting.md)
     records the layered Python linting and production dead-code architecture.
-  - [ADR 005: Scope Markdown region vocabulary](
-    adr-005-markdown-region-vocabulary-scope.md)
-  - [ADR 006: Adopt docstring owner metadata](
-    adr-006-docstring-owner-metadata.md)
+  - [ADR 0005: Scope Markdown region vocabulary](
+    adrs/adr-0005-scope-markdown-region-vocabulary.md)
+  - [ADR 0006: Adopt docstring owner metadata](
+    adrs/adr-0006-adopt-docstring-owner-metadata.md)
   - [Documentation style guide](documentation-style-guide.md)
 - Precedence: This design is normative for the v1 architecture. The existing
   RFC drafts remain useful inputs, but where they disagree with this document,
@@ -258,7 +258,7 @@ The recommended stack is:
 - spaCy as the default NLP provider behind a capability interface, not as the
   public API itself.[^4][^5]
 - A pure-Rust spell checking provider behind the same internal capability
-  boundary, with ADR 001 currently proposing `spellbook` and keeping `zspell`
+  boundary, with ADR 0001 currently proposing `spellbook` and keeping `zspell`
   as the fallback backend.
 - Python entry points for rule-pack discovery.[^10]
 - A Ruff-inspired CLI contract and configuration model.[^6][^7]
@@ -643,9 +643,9 @@ source does. Keeping it on the refusal channel means a partially applied run
 can name every file it could not write, instead of abandoning the rest as a
 traceback.
 
-See [ADR 009](adr-009-safe-fix-planning-and-conflict-resolution.md) for the
-decisions behind all of the above, including why a conflict aborts the whole
-file rather than skipping the losing edit.
+See [ADR 0009](adrs/adr-0009-safe-fix-planning-and-conflict-resolution.md) for
+the decisions behind all of the above, including why a conflict aborts the
+whole file rather than skipping the losing edit.
 
 #### Suppression syntax
 
@@ -712,7 +712,7 @@ Medium priority:
   higher-order clause and coordination helpers.
 - spaCy-backed sentence, lemma, part-of-speech, and dependency capabilities.
 - Built-in dictionary-based spelling support behind a Stilyagi-owned provider
-  facade, following ADR 001's `spellbook`-first plan and `zspell` fallback.
+  facade, following ADR 0001's `spellbook`-first plan and `zspell` fallback.
 - Third-party rule packs and capability plugins.
 - SARIF output.
 - MDX and additional host-language support after extractor tests exist.
@@ -774,16 +774,16 @@ flowchart LR
 
 Figure 2: Capability-planned enrichment flow from source text through
 extraction, grammar and spelling providers, rule execution, and source-mapped
-diagnostics. The diagram shows the ADR 001 spelling-provider path alongside the
-grammar-provider path, with both feeding validated analysis results back into
-the same rule-engine and diagnostics pipeline.
+diagnostics. The diagram shows the ADR 0001 spelling-provider path alongside
+the grammar-provider path, with both feeding validated analysis results back
+into the same rule-engine and diagnostics pipeline.
 
 ```mermaid
 sequenceDiagram
   participant Source as Source Text
   participant Extractor as Extraction Layer
   participant GrammarProv as GrammarProvider
-  participant SpellProv as SpellingProvider (ADR 001)
+  participant SpellProv as SpellingProvider (ADR 0001)
   participant Planner as Planner/Validator
   participant RuleEngine as Rule Engine
   participant Diagnostics as Diagnostics/Output
@@ -891,9 +891,9 @@ Current implementation note for roadmap item 3.1.1:
   syntax-neutral, so the later Rust documentation comment producer can emit the
   same canonical shape without adding syntax-specific fields to the IR domain.
 - Python docstring owner metadata is resolved by
-  [ADR 006](adr-006-docstring-owner-metadata.md). Python regions use
-  `owner.kind` values of `module`, `class`, or `function`; class and function
-  owners carry Python `__qualname__`-style qualified names, including
+  [ADR 0006](adrs/adr-0006-adopt-docstring-owner-metadata.md). Python regions
+  use `owner.kind` values of `module`, `class`, or `function`; class and
+  function owners carry Python `__qualname__`-style qualified names, including
   `<locals>` for definitions nested inside function bodies. Module owners stay
   anonymous in v1 because string-only extraction has no package-resolution
   context.
@@ -1005,7 +1005,7 @@ V1 sufficiency:
 
 #### Spelling-capability extension
 
-Strong points in ADR 001:
+Strong points in ADR 0001:
 
 - It keeps built-in spelling support behind the same provider-neutral boundary
   as the rest of the rule engine.
@@ -1037,7 +1037,7 @@ Compatibility risks:
 
 V1 sufficiency:
 
-- ADR 001 gives the project a concrete provider direction, but the capability
+- ADR 0001 gives the project a concrete provider direction, but the capability
   names, planner integration, and acceptance gates still need implementation
   work before built-in spelling support becomes part of the stable v1 surface.
 
@@ -1072,8 +1072,8 @@ Compatibility risks:
 - Over-claiming file-type support in v1 will create a support burden.
 
 Post-v1.0 discovery and operational-policy candidates are recorded in
-[ADR 008](adr-008-v1-discovery-defaults.md), rather than duplicating a
-fast-changing candidate table in this design document.
+[ADR 0008](adrs/adr-0008-adopt-v1-discovery-defaults.md), rather than
+duplicating a fast-changing candidate table in this design document.
 
 - Copying Ruff's user-level config fallback would make CI parity worse.
 
@@ -1258,26 +1258,26 @@ The design must be validated with the following test classes.
 ### Resolved before implementation
 
 - Packaging boundary: resolved by
-  [ADR 002](adr-002-packaging-boundary.md), which accepts the PyO3 plus
-  `maturin` extension boundary and rejects helper-binary transport for normal
-  v1 execution.
+  [ADR 0002](adrs/adr-0002-ratify-the-packaging-boundary.md), which accepts the
+  PyO3 plus `maturin` extension boundary and rejects helper-binary transport
+  for normal v1 execution.
 - V1 syntax scope, IR transport policy, and locale support policy: resolved by
-  [ADR 003](adr-003-v1-contract-scope.md), which keeps Markdown, Python
-  docstrings, and Rust documentation comments as the stable v1 syntax surfaces,
-  keeps MDX preview-only, keeps JSON canonical for debug and compatibility
-  without forcing it as the only in-process transport, and limits formal v1
-  locale support to English.
+  [ADR 0003](adrs/adr-0003-ratify-the-v1-contract-scope.md), which keeps
+  Markdown, Python docstrings, and Rust documentation comments as the stable v1
+  syntax surfaces, keeps MDX preview-only, keeps JSON canonical for debug and
+  compatibility without forcing it as the only in-process transport, and limits
+  formal v1 locale support to English.
 - Exact owner metadata shape for Python docstrings: resolved by
-  [ADR 006](adr-006-docstring-owner-metadata.md), which accepts explicit region
-  owner metadata, Python `__qualname__` semantics, verbatim string-content
-  extraction, and a bounded Python node store.
+  [ADR 0006](adrs/adr-0006-adopt-docstring-owner-metadata.md), which accepts
+  explicit region owner metadata, Python `__qualname__` semantics, verbatim
+  string-content extraction, and a bounded Python node store.
 
 ### Can resolve during implementation
 
 - Exact owner metadata shape for Rust documentation comments: resolved by
-  [ADR 007](adr-007-rust-doc-comment-owner-metadata.md), which reuses the ADR
-  006 `owner` field contract while defining Rust-specific owner kinds and
-  qualified-name semantics.
+  [ADR 0007](adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md),
+  which reuses the ADR 006 `owner` field contract while defining Rust-specific
+  owner kinds and qualified-name semantics.
 - Spelling capability names, planner semantics, and acceptance gates after ADR
   001's provider selection. Recommendation: implementation spike plus RFC
   amendment.
@@ -1302,10 +1302,12 @@ The design must be validated with the following test classes.
 Build this in the following order.
 
 - Build first: a Python-distributed replacement product with a Rust extraction
-  extension, ratified by [ADR 002](adr-002-packaging-boundary.md) and
-  [ADR 003](adr-003-v1-contract-scope.md), Markdown extraction, Python and Rust
-  docstring or doc comment extraction, a stable region-oriented IR, built-in
-  structural rules, safe fixes, and a Ruff-like CLI.
+  extension, ratified by
+  [ADR 0002](adrs/adr-0002-ratify-the-packaging-boundary.md) and
+  [ADR 0003](adrs/adr-0003-ratify-the-v1-contract-scope.md), Markdown
+  extraction, Python and Rust docstring or doc comment extraction, a stable
+  region-oriented IR, built-in structural rules, safe fixes, and a Ruff-like
+  CLI.
 - Add next: the RFC 0005 grammar layer in two waves, with `TokenNode` and
   `SentenceNode` plus selective POS or dependency capabilities first, then
   higher-order clause and coordination helpers after the low-level model has
@@ -1338,5 +1340,5 @@ grand architecture that tries to solve every prose problem at once.
 [^10]: [PyPA entry points specification](https://packaging.python.org/en/latest/specifications/entry-points/)
 [^11]: [PyO3 user guide](https://pyo3.rs/)
 [^12]: [Maturin user guide](https://www.maturin.rs/)
-[^13]: [ADR 005: Scope Markdown region vocabulary](
-    adr-005-markdown-region-vocabulary-scope.md)
+[^13]: [ADR 0005: Scope Markdown region vocabulary](
+    adrs/adr-0005-scope-markdown-region-vocabulary.md)

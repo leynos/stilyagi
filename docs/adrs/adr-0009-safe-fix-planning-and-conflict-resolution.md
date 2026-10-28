@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 009: Safe-fix planning and conflict resolution
+# Architectural decision record (ADR) 0009: Safe-fix planning and conflict resolution
 
 ## Status
 
@@ -359,13 +359,14 @@ contract violation even when the behaviour is right.
 
 ## References
 
-- [Stilyagi design](stilyagi-design.md) §4 and §7.3 — the failure path this
+- [Stilyagi design](../stilyagi-design.md) §4 and §7.3 — the failure path this
   record implements.
-- [RFC 0001: Stilyagi IR](rfcs/0001-stilyagi-intermediate-representation.md) —
-  the byte-span contract admissibility is defined against.
-- [RFC 0002: Stilyagi Python rule API](rfcs/0002-stilyagi-python-rule-api.md)
+- [RFC 0001: Stilyagi IR](
+  ../rfcs/rfc-0001-stilyagi-intermediate-representation.md) — the byte-span
+  contract admissibility is defined against.
+- [RFC 0002: Stilyagi Python rule API](../rfcs/rfc-0002-stilyagi-python-rule-api.md)
   §10 and §12 — identical-edit handling and the reserved code namespace.
-- [RFC 0003: Stilyagi CLI contract](rfcs/0003-stilyagi-cli-contract.md) §§10,
-  12 — the fix surface and the exit codes.
-- [ADR 005: Scope Markdown region vocabulary](adr-005-markdown-region-vocabulary-scope.md)
+- [RFC 0003: Stilyagi CLI contract](../rfcs/rfc-0003-stilyagi-cli-contract.md)
+  §§10, 12 — the fix surface and the exit codes.
+- [ADR 0005: Scope Markdown region vocabulary](adr-0005-scope-markdown-region-vocabulary.md)
   — which regions are source-backed.

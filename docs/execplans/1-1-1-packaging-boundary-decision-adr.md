@@ -57,12 +57,12 @@ The implementer should keep these documents open while executing the plan:
 - [docs/contents.md](../contents.md) and
   [docs/repository-layout.md](../repository-layout.md) for documentation-set
   bookkeeping when new files or subtrees are introduced.
-- [docs/adr-001-spell-checking-provider.md](../adr-001-spell-checking-provider.md)
+- [docs/adrs/adr-0001-select-a-spell-checking-provider.md](../adrs/adr-0001-select-a-spell-checking-provider.md)
   as the existing ADR shape to follow.
-- [docs/rfcs/0001-stilyagi-intermediate-representation.md](../rfcs/0001-stilyagi-intermediate-representation.md),
-  [docs/rfcs/0003-stilyagi-cli-contract.md](../rfcs/0003-stilyagi-cli-contract.md),
+- [docs/rfcs/rfc-0001-stilyagi-intermediate-representation.md](../rfcs/rfc-0001-stilyagi-intermediate-representation.md),
+  [docs/rfcs/rfc-0003-stilyagi-cli-contract.md](../rfcs/rfc-0003-stilyagi-cli-contract.md),
   and
-  [docs/rfcs/0004-stilyagi-rule-testing-framework.md](../rfcs/0004-stilyagi-rule-testing-framework.md)
+  [docs/rfcs/rfc-0004-stilyagi-rule-testing-framework.md](../rfcs/rfc-0004-stilyagi-rule-testing-framework.md)
   as upstream contracts that the ADR must not contradict.
 - [docs/rust-testing-with-rstest-fixtures.md](../rust-testing-with-rstest-fixtures.md),
   [docs/rstest-bdd-users-guide.md](../rstest-bdd-users-guide.md), and
@@ -185,12 +185,13 @@ decision.
 
 ### Milestone 2: draft the accepted ADR
 
-Create the next sequential ADR file under `docs/`. If ADR 001 is still the
-latest, use `docs/adr-002-packaging-boundary.md`. If another ADR lands first,
-use the next free zero-padded number and update all references accordingly.
+Create the next sequential ADR file under `docs/`. If ADR 0001 is still the
+latest, use `docs/adrs/adr-0002-ratify-the-packaging-boundary.md`. If another
+ADR lands first, use the next free zero-padded number and update all references
+accordingly.
 
-Write the ADR in the same broad shape as ADR 001, but keep it narrower and more
-decisive:
+Write the ADR in the same broad shape as ADR 0001, but keep it narrower and
+more decisive:
 
 1. State the context and problem in terms of Stilyagi's build and runtime
    boundary.
@@ -307,9 +308,9 @@ help make the reasoning tangible.
   `maturin` path, so the ADR can ratify that direction without widening scope
   into executable packaging work.
 - [x] 2026-04-20 00:00Z: Executed Milestones 2 and 3 by drafting
-  `docs/adr-002-packaging-boundary.md`, creating `docs/users-guide.md`, and
-  aligning the design, developer guide, contents index, and roadmap around the
-  accepted boundary.
+  `docs/adrs/adr-0002-ratify-the-packaging-boundary.md`, creating
+  `docs/users-guide.md`, and aligning the design, developer guide, contents
+  index, and roadmap around the accepted boundary.
 - [x] 2026-04-20 00:00Z: Ran `make markdownlint`, `make nixie`,
   `make check-fmt`, `make lint`, and `make test` successfully with logs written
   under `/tmp/*-stilyagi-feat_adr-packaging-plan.out`.
@@ -360,9 +361,10 @@ help make the reasoning tangible.
   embedded extension rather than as a Python wrapper around a separately
   managed helper binary.
 
-- 2026-04-20: Record the accepted ADR as `docs/adr-002-packaging-boundary.md`.
-  Rationale: ADR 001 already exists, and this slice needs a stable, sequential
-  identifier that later roadmap and design references can cite directly.
+- 2026-04-20: Record the accepted ADR as
+  `docs/adrs/adr-0002-ratify-the-packaging-boundary.md`. Rationale: ADR 0001
+  already exists, and this slice needs a stable, sequential identifier that
+  later roadmap and design references can cite directly.
 
 - 2026-04-20: Sanitize the branch name before writing validation logs.
   Rationale: this repository uses branch names such as
@@ -379,14 +381,14 @@ help make the reasoning tangible.
 Completed on 2026-04-20.
 
 The final ADR is
-[docs/adr-002-packaging-boundary.md](../adr-002-packaging-boundary.md). It
-accepts the in-process PyO3 plus `maturin` boundary, rejects helper-binary
+[docs/adrs/adr-0002-ratify-the-packaging-boundary.md](../adrs/adr-0002-ratify-the-packaging-boundary.md).
+It accepts the in-process PyO3 plus `maturin` boundary, rejects helper-binary
 transport for normal v1 execution, and leaves the narrower transport-policy
 details to roadmap item 1.1.2.
 
 The supporting documentation now tells one coherent story:
 
-- [docs/stilyagi-design.md](../stilyagi-design.md) references ADR 002 and no
+- [docs/stilyagi-design.md](../stilyagi-design.md) references ADR 0002 and no
   longer treats the packaging boundary as unresolved.
 - [docs/developers-guide.md](../developers-guide.md) states the accepted
   in-process boundary explicitly.
