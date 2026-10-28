@@ -214,17 +214,16 @@ with error exit 1. An invalid `TERM001` option exits 2.
 - Observation: `RegionTarget(..., scope_has=...)` from RFC 0002 §5 has no
   implementation. The Rust IR field is `scope: Vec<String>`
   (`crates/stilyagi-ir/src/region.rs`), and `scope_has` appears only in
-  `docs/rfcs/rfc-0002-stilyagi-python-rule-api.md`,
-  `docs/developers-guide.md`, and this plan. Impact: the typed target is new
-  surface in this slice, not a wrapper over an existing descriptor; it must
-  match the serialized `scope` list.
+  `docs/rfcs/rfc-0002-stilyagi-python-rule-api.md`, `docs/developers-guide.md`,
+  and this plan. Impact: the typed target is new surface in this slice, not a
+  wrapper over an existing descriptor; it must match the serialized `scope`
+  list.
 - Observation: `run_rules(document, config)` receives neither the original
-  source bytes nor the reported path, yet
-  `python/stilyagi/check_execution.py` holds both as
-  `sourced_input.source_bytes` and `sourced_input.reported_path` at the call
-  site. Impact: the private `RuleRunRequest` from Stage C is genuinely
-  required for byte spans and per-file policy, and the call site must be
-  updated in the same commit.
+  source bytes nor the reported path, yet `python/stilyagi/check_execution.py`
+  holds both as `sourced_input.source_bytes` and `sourced_input.reported_path`
+  at the call site. Impact: the private `RuleRunRequest` from Stage C is
+  genuinely required for byte spans and per-file policy, and the call site must
+  be updated in the same commit.
 - Observation: `engine.ir_view.iter_segments` yields only
   `(span, text, synthetic_reason)`. It discards the region `kind`, `attrs`,
   `scope`, and each segment's owning `node`, although all four are serialized
@@ -319,16 +318,16 @@ with error exit 1. An invalid `TERM001` option exits 2.
   receive either today, even though `check_execution` already holds both as
   `sourced_input.source_bytes` and `sourced_input.reported_path`. Rationale:
   widening the existing two-argument seam would still leave rules unable to
-  produce byte spans or evaluate per-file globs; a request object supplies
-  them without touching the public surface. Date/author: 2026-10-28,
-  implementation agent.
+  produce byte spans or evaluate per-file globs; a request object supplies them
+  without touching the public surface. Date/author: 2026-10-28, implementation
+  agent.
 - Stage A reconciliation: a region-aware view is added beside
   `engine.ir_view.iter_segments` rather than replacing it, because existing
   callers depend on the current three-field `SegmentView`. The new view reads
-  `kind`, `scope`, `attrs`, per-segment `node`, and node spans from the same
-  IR envelope. Rationale: preserve the established projection while exposing
-  the fields this pack needs, with no extractor change. Date/author:
-  2026-10-28, implementation agent.
+  `kind`, `scope`, `attrs`, per-segment `node`, and node spans from the same IR
+  envelope. Rationale: preserve the established projection while exposing the
+  fields this pack needs, with no extractor change. Date/author: 2026-10-28,
+  implementation agent.
 
 ## Outcomes & retrospective
 
