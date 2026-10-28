@@ -5,7 +5,8 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 `Progress`, `Surprises & discoveries`, `Decision log`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan`.
 
-Status: DRAFT — implementation requires explicit user approval.
+Status: APPROVED — user approved implementation on 2026-10-28; milestones M1–M3
+are authorized within the stated constraints and tolerances.
 
 Roadmap item: 2.3.1. Prerequisites 2.1.2 (Markdown IR coverage) and 2.2.1
 (`stilyagi check`) are complete. Safe-fix planning, 2.2.2, is also complete.
@@ -173,8 +174,8 @@ with error exit 1. An invalid `TERM001` option exits 2.
   below.
 - Planning delivery: the associated draft pull request records formatting and
   Markdown gate results, the publication commit, and the review entrypoint.
-- [ ] Await explicit approval before implementation begins.
-- [ ] Implementation milestones M1–M3 remain unstarted and unapproved.
+- [x] (2026-10-28) Explicit user approval obtained; implementation may begin.
+- [ ] Implementation milestones M1–M3 remain unstarted.
 
 ## Surprises & discoveries
 
@@ -185,12 +186,12 @@ with error exit 1. An invalid `TERM001` option exits 2.
   callers atomically; no CLI composition redesign is proposed.
 - Observation: Python diagnostics do not yet carry the span that RFC 0002
   expects. Evidence: `python/stilyagi/diagnostics.py` and
-  `docs/rfcs/0002-stilyagi-python-rule-api.md` §8. Impact: diagnostics span
+  `docs/rfcs/rfc-0002-stilyagi-python-rule-api.md` §8. Impact: diagnostics span
   support is an enabling part of this slice, not a property already present.
 - Observation: RFC 0003 suppression parsing and IR support exist, but the
   check-rule pipeline does not filter rules through them. Evidence:
   `crates/stilyagi-ir/src/suppression.rs` and
-  `docs/rfcs/0003-stilyagi-cli-contract.md` §9. Impact: implementation must
+  `docs/rfcs/rfc-0003-stilyagi-cli-contract.md` §9. Impact: implementation must
   finish the consumer side for rules in this slice, subject to confirming the
   unit coverage semantics against the actual IR.
 - Observation: IR `segment.node` records the region owner, so it cannot
@@ -215,12 +216,12 @@ with error exit 1. An invalid `TERM001` option exits 2.
   terms. Defer list punctuation, weasel words, and wordy phrases. Rationale:
   these exercise structural IR, byte-backed lightweight text matching, policy
   configuration, and safe-fix applicability without NLP. Date/author:
-  2026-10-25, planning agent; pending user approval.
+  2026-10-25, planning agent; approved 2026-10-28.
 - Decision: first heading may be any level; only a subsequent increase that
   skips one or more levels is reported. A frontmatter title does not imply a
   level-one heading. Suppressed headings still update the previous-heading
   state. Rationale: make the rule deterministic while avoiding hidden policy
-  inferred from metadata. Date/author: 2026-10-25; pending user approval.
+  inferred from metadata. Date/author: 2026-10-25; approved 2026-10-28.
 - Decision: `STY001` matches maximal exact, case-sensitive runs of Unicode
   alphabetic tokens (`str.isalpha`) within one verified prose segment,
   separated only by ASCII spaces or tabs. It reports the second token's span
@@ -228,7 +229,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
   first token through the end of the last token. Rationale: identify the
   repeated occurrence while keeping run edits non-overlapping and byte-backed;
   do not conflate repetitions across markup or synthetic text. Date/author:
-  2026-10-25; pending user approval.
+  2026-10-25; approved 2026-10-28.
 - Decision: `TERM001` is disabled unless selected, accepts a typed list of
   alphabetic single-token terms (empty list means no matches; an explicit empty
   string or nonalphabetic term is invalid), compares with Unicode case-folding
@@ -236,7 +237,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
   coalesces duplicate terms under the selected comparison mode, reports the
   original token span, and never fixes. Rationale: users choose policy
   vocabulary; no universal banned list or locale claim is appropriate.
-  Date/author: 2026-10-25; pending user approval.
+  Date/author: 2026-10-25; approved 2026-10-28.
 - Decision: proposed suppression consumption follows RFC 0003 and canonical
   IR. `ignore-file` applies its named prefixes to the whole document regardless
   of directive position; an empty code list applies to all builtin rules.
@@ -250,7 +251,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
   units; thin list and blockquote containers are skipped, nested paragraphs
   remain their own units. Apply filtering after rule state updates using the
   finding's primary span start. Rationale: stable state independent of rule
-  selection. Date/author: 2026-10-25; pending user approval.
+  selection. Date/author: 2026-10-25; approved 2026-10-28.
 - Review resolution: split application `RuleRunRequest` from per-rule frozen
   `RuleContext[T]`; index source-backed segments and inline-code node spans
   once because segment node IDs denote owners; define explicit severity/exit
@@ -276,15 +277,15 @@ with error exit 1. An invalid `TERM001` option exits 2.
   specification, preconditions, postconditions, representation relation, lemma
   sketches, and Verus acceptance command to this plan before proceeding. No
   `assume`, `admit`, or trusted proof body is permitted. Date/author:
-  2026-10-25; pending user approval.
+  2026-10-25; approved 2026-10-28.
 
 ## Outcomes & retrospective
 
 The expert review is complete and its corrections are incorporated; user
-approval remains pending. No implementation or roadmap completion has started.
-At implementation close, record the exact rule codes and configuration forms
-shipped, verification and gate evidence, accepted deviations, and remaining
-work before setting the plan to `COMPLETE`.
+approval was granted on 2026-10-28. No implementation or roadmap completion has
+started. At implementation close, record the exact rule codes and configuration
+forms shipped, verification and gate evidence, accepted deviations, and
+remaining work before setting the plan to `COMPLETE`.
 
 ## Context and orientation
 
@@ -322,11 +323,11 @@ silently inventing source provenance from placeholder text.
   heading markers are outside admissible source-backed text.
 - `docs/stilyagi-design.md`, §§3–5 and 7.2: Python rule layer, typed targets,
   capabilities, deterministic execution, source-faithful findings.
-- `docs/rfcs/0002-stilyagi-python-rule-api.md`, §§4–12: rule declaration,
+- `docs/rfcs/rfc-0002-stilyagi-python-rule-api.md`, §§4–12: rule declaration,
   `RegionTarget`, hook scheduling, diagnostic/fix shape, options and prefixes.
-- `docs/rfcs/0003-stilyagi-cli-contract.md`, §§8–12: configuration,
+- `docs/rfcs/rfc-0003-stilyagi-cli-contract.md`, §§8–12: configuration,
   suppression, output, and exit-code contract.
-- `docs/adr-009-safe-fix-planning-and-conflict-resolution.md`: edit
+- `docs/adrs/adr-0009-safe-fix-planning-and-conflict-resolution.md`: edit
   admissibility, overlap policy, refusal channel, byte fidelity, verification
   re-lint.
 - All repository references above are pinned to planning base
@@ -551,7 +552,7 @@ Search for equivalent span and policy helpers before creating any abstraction.
 
 Write the BDD scenario and the smallest rule tests first. Any mismatch between
 the actual IR/config contract and the proposal returns to this plan's decision
-log for reconciliation. Do not begin implementation while this plan is DRAFT.
+log for reconciliation. Implementation proceeds under the approved plan.
 
 ### Stage B — source mapping and policy red tests
 
@@ -864,9 +865,9 @@ Primary repository contracts:
 
 - `docs/roadmap.md` items 2.1.2, 2.2.1–2.2.2, and 2.3.1–2.3.3.
 - `docs/stilyagi-design.md` §§3–5, 7.2, and 7.3.
-- `docs/rfcs/0002-stilyagi-python-rule-api.md` and
-  `docs/rfcs/0003-stilyagi-cli-contract.md`.
-- `docs/adr-009-safe-fix-planning-and-conflict-resolution.md`.
+- `docs/rfcs/rfc-0002-stilyagi-python-rule-api.md` and
+  `docs/rfcs/rfc-0003-stilyagi-cli-contract.md`.
+- `docs/adrs/adr-0009-safe-fix-planning-and-conflict-resolution.md`.
 - `docs/complexity-antipatterns-and-refactoring-strategies.md`.
 - `docs/rust-testing-with-rstest-fixtures.md`,
   `docs/rust-doctest-dry-guide.md`,
@@ -1013,3 +1014,5 @@ these deliberate boundaries and case-fold expansion.
   diagnostics, suppression filtering, and selected three-rule scope as explicit
   proposals; six-perspective expert review completed and its findings were
   incorporated; user approval remains outstanding.
+- 2026-10-28: User approved the plan; Status moved from DRAFT to APPROVED and
+  implementation milestones M1–M3 are authorized.
