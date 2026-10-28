@@ -175,6 +175,9 @@ with error exit 1. An invalid `TERM001` option exits 2.
 - Planning delivery: the associated draft pull request records formatting and
   Markdown gate results, the publication commit, and the review entrypoint.
 - [x] (2026-10-28) Explicit user approval obtained; implementation may begin.
+- [x] (2026-10-28) Stage A contract sweep completed against the candidate at
+  `4fa47c3`; every mismatch is recorded under *Surprises & discoveries* and
+  reconciled in the *Decision log* before any production edit.
 - [ ] Implementation milestones M1–M3 remain unstarted.
 
 ## Surprises & discoveries
@@ -208,6 +211,32 @@ with error exit 1. An invalid `TERM001` option exits 2.
   configurable repeated-word checks. They inform familiar rule behaviour but do
   not define Stilyagi's frontmatter or fix contracts. Impact: the plan uses
   them as prior art only; no runtime dependency is introduced.
+- Observation: `RegionTarget(..., scope_has=...)` from RFC 0002 §5 has no
+  implementation. The Rust IR field is `scope: Vec<String>`
+  (`crates/stilyagi-ir/src/region.rs`), and `scope_has` appears only in
+  `docs/rfcs/rfc-0002-stilyagi-python-rule-api.md`,
+  `docs/developers-guide.md`, and this plan. Impact: the typed target is new
+  surface in this slice, not a wrapper over an existing descriptor; it must
+  match the serialized `scope` list.
+- Observation: `run_rules(document, config)` receives neither the original
+  source bytes nor the reported path, yet
+  `python/stilyagi/check_execution.py` holds both as
+  `sourced_input.source_bytes` and `sourced_input.reported_path` at the call
+  site. Impact: the private `RuleRunRequest` from Stage C is genuinely
+  required for byte spans and per-file policy, and the call site must be
+  updated in the same commit.
+- Observation: `engine.ir_view.iter_segments` yields only
+  `(span, text, synthetic_reason)`. It discards the region `kind`, `attrs`,
+  `scope`, and each segment's owning `node`, although all four are serialized
+  by the extractor. Impact: MD001 cannot read heading depth and inline-code
+  exclusion cannot intersect node spans until a region-aware view exists.
+- Observation: `Diagnostic` carries `line`/`column` but no byte span, and
+  `engine.renderers._diagnostic_payload` emits only `location.line` and
+  `location.column`. Impact: the plan's promised `{"byte_start", "byte_end"}`
+  JSON object is new output, so an existing-snapshot check is required.
+- Observation: `Document` (`python/stilyagi/model/document.py`) has `syntax`,
+  `regions`, and `ir` only. Impact: rules cannot reach original bytes through
+  the document; the request object must carry them explicitly.
 
 ## Decision log
 
@@ -278,6 +307,28 @@ with error exit 1. An invalid `TERM001` option exits 2.
   sketches, and Verus acceptance command to this plan before proceeding. No
   `assume`, `admit`, or trusted proof body is permitted. Date/author:
   2026-10-25; approved 2026-10-28.
+- Stage A reconciliation: `RegionTarget` is new surface in this slice. Its
+  `scope_has` field maps onto the serialized IR `scope` list, which the
+  extractor already emits, so no RFC amendment and no Rust change is needed;
+  the descriptor is added at the Python boundary exactly as RFC 0002 §5
+  specifies. Rationale: the ratified contract already names the field and the
+  IR already carries the data, so this is an implementation gap rather than a
+  contract change. Date/author: 2026-10-28, implementation agent.
+- Stage A reconciliation: the original source bytes and the reported path
+  travel in the new private `RuleRunRequest` because `run_rules` does not
+  receive either today, even though `check_execution` already holds both as
+  `sourced_input.source_bytes` and `sourced_input.reported_path`. Rationale:
+  widening the existing two-argument seam would still leave rules unable to
+  produce byte spans or evaluate per-file globs; a request object supplies
+  them without touching the public surface. Date/author: 2026-10-28,
+  implementation agent.
+- Stage A reconciliation: a region-aware view is added beside
+  `engine.ir_view.iter_segments` rather than replacing it, because existing
+  callers depend on the current three-field `SegmentView`. The new view reads
+  `kind`, `scope`, `attrs`, per-segment `node`, and node spans from the same
+  IR envelope. Rationale: preserve the established projection while exposing
+  the fields this pack needs, with no extractor change. Date/author:
+  2026-10-28, implementation agent.
 
 ## Outcomes & retrospective
 
