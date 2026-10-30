@@ -398,6 +398,8 @@ production adapters that stand in for them:
 | Child-process runner | `SubprocessRunner`    | `subprocess.run`       |
 | Platform metadata    | `EnvironmentProvider` | `default_environment`  |
 
+_Table 1: Structural probe ports and their production adapters._
+
 All three are bundled in the frozen `ProbeDependencies` dataclass, whose single
 `DEFAULT_DEPENDENCIES` instance is the default for every injectable probe
 parameter. Fixtures travel the same way: `ProbeRequest.source` carries text and
@@ -763,7 +765,7 @@ small package, one module per concern:
 - `splice.py` `apply_edits(source_bytes, edits)` is the normative kernel for
   splice semantics. It is deliberately narrow: it assumes its input is already
   validated and does nothing but give admitted edits deterministic byte
-  semantics. Every other module in the package decides *whether* an edit may be
+  semantics. Every other module in the package decides _whether_ an edit may be
   applied; this one decides only what applying it means.
 - `diff.py` `unified_diff(before, after, reported_path)` renders a
   Git-applicable unified patch, with `a/<path>` and `b/<path>` headers and
@@ -956,7 +958,7 @@ keeps `--fix` on a clean tree byte-identical and exit-identical to a plain
 check.
 
 This is not a fixpoint loop. RFC 0003 §12's "0 when all found violations were
-fixed" is not computable in a single pass without *assuming* that applying a
+fixed" is not computable in a single pass without _assuming_ that applying a
 fix removes its diagnostic — an assumption nothing tests and which a partial
 fix falsifies. If the re-lint surfaces new fixable diagnostics they are
 reported, not applied, and the mutation report says so.
@@ -1993,7 +1995,7 @@ Whitaker's `no_expect_outside_tests` and `no_unwrap_or_else_panic` encode a
 policy that is easy to misread: **fixture and helper functions are not tests.**
 A fixture arranges state, arrangement can fail, and a failure there is a broken
 test rather than a test verdict. Clippy's `allow-expect-in-tests` covers a
-`#[test]` or `#[rstest]` *body*; it does not cover the helper functions sitting
+`#[test]` or `#[rstest]` _body_; it does not cover the helper functions sitting
 beside them, and attribute-driven functions (rstest `#[fixture]`, `#[serial]`
 tests, and macro-generated step functions) are invisible to the lint because
 their attributes are gone by the time it runs.
@@ -2004,7 +2006,7 @@ Resolve a finding in this order.
    unwrap. `crates/stilyagi-markdown/src/tests/malformed.rs` shows the shape:
    `document_for` returns `Result<IrDocument, Message>` and each test calls
    `.expect("expected Markdown IR document")` in its own body. Do not convert
-   the *test* to return `Result` — `clippy::panic_in_result_fn` is denied
+   the _test_ to return `Result` — `clippy::panic_in_result_fn` is denied
    workspace-wide, so `assert!` and `assert_eq!` are unavailable there.
 2. **Attribute the failure to the caller.** Where a helper legitimately
    asserts, mark it `#[track_caller]` so a failure names the calling test
@@ -2059,7 +2061,7 @@ boundary per call site. One named, documented boundary is auditable; twenty
 anonymous ones are not.
 
 One crate additionally defines `must_ok!` and `must_some!` macros
-(`crates/stilyagi-pyext/src/bridge_bdd.rs`). Those remain correct *inside* a
+(`crates/stilyagi-pyext/src/bridge_bdd.rs`). Those remain correct _inside_ a
 test body, where a macro expands in place and the panic is the test verdict.
 They are no longer duplicated: the Markdown copy went away when that module's
 helpers became fallible and the canonical-JSON round trip became one shared
@@ -2178,7 +2180,7 @@ the test fails until a human edits the pinned constant to match. That defeats
 the purpose of automated dependency updates and turns a routine bump into a
 manual chore.
 
-Contract tests may still verify the *shape* of a reusable-workflow caller. They
+Contract tests may still verify the _shape_ of a reusable-workflow caller. They
 must not verify the specific SHA value.
 
 - Do assert the workflow references the correct reusable workflow path.
@@ -2261,7 +2263,7 @@ What a pull-request lane keeps is the ratchet. `smoke.yml` runs
 gate from the repository's own history with no token and no second tool.
 
 **The two selections have to match.** The ratchet compares this commit's report
-against that baseline, so the inputs deciding *what* is measured, the output
+against that baseline, so the inputs deciding _what_ is measured, the output
 path, the format, the runner and the feature set, must agree between the two
 lanes. A difference there makes the comparison report the difference between
 two builds rather than between two commits, and it does so silently.
@@ -2439,7 +2441,7 @@ The step reading is also driven by Hypothesis in
 number of jobs and steps with malformed fragments among them.
 
 Per section 6f, none of those tests names a pin's SHA. They assert the shape,
-that both coverage lanes name the *same* commit, and that the Markdown linter
+that both coverage lanes name the _same_ commit, and that the Markdown linter
 is not pinned to the one annotated tag object this repository is known to have
 used. A Dependabot bump that moves both lanes together stays green.
 
@@ -2602,8 +2604,8 @@ duplication and was extracted.
 #### Exceptions
 
 An exception is a reasoned entry under `[tool.duplication_gate]`, not an opaque
-ignore file or a generated baseline. A baseline records *what* was duplicated;
-an entry records *why* it may stay, stays visible in a diff, and is reported as
+ignore file or a generated baseline. A baseline records _what_ was duplicated;
+an entry records _why_ it may stay, stays visible in a diff, and is reported as
 stale once it silences nothing.
 
 Keys are locations, not line spans, because spans churn whenever code above
@@ -2690,7 +2692,7 @@ the guard silently, which is one more reason the version pin is enforced by
 contract test rather than by convention.
 
 That guarantee covers a scope that narrows to nothing. It does not cover a
-*partial* narrowing, where several roots are configured and at least one still
+_partial_ narrowing, where several roots are configured and at least one still
 selects supported files: measured on `nose` 0.20.0, that run exits 0 writing
 nothing at all to stderr, so there is no diagnostic to promote and the
 remaining roots' families are ranked as if the silent root were absent. The
@@ -3116,7 +3118,7 @@ the four was set here.
 | Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 1,800 s (30 m)            |
 | Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new                 |
 
-*Table: the timers that can end a run, innermost first.*
+_Table: the timers that can end a run, innermost first._
 
 ### What the watchdog does and does not cover
 
@@ -3163,9 +3165,9 @@ needed it.
 | `smoke.yml` `lint-test`               | 221 s               | 758 s           | 541 s      | 34069884428 |
 | `coverage-main.yml` `coverage-upload` | 221 s               | 314 s           | 98 s       | 32946918439 |
 
-*Table: measured coverage-step and whole-job durations. The gap is the job's
+_Table: measured coverage-step and whole-job durations. The gap is the job's
 duration less its `Generate coverage` step, so it is the work the job timer
-bounds and the watchdog does not.*
+bounds and the watchdog does not._
 
 The sample is the last 60 runs of `smoke.yml`, 43 successful and 17 failed, and
 all 25 runs of `coverage-main.yml`, all successful. Neither history contains a
@@ -3392,7 +3394,7 @@ Reading a value through a float instead rounds what humantime refuses into
 something plausible and certifies a configuration nextest cannot load.
 
 Which integer depends on the unit. A fraction of an hour or anything longer is
-converted into whole *seconds*, so `0.000001h` is refused although its value is
+converted into whole _seconds_, so `0.000001h` is refused although its value is
 a whole 3,600,000 ns, while `0.25h` is fifteen minutes. A fraction of a minute
 or anything shorter is converted into whole nanoseconds, so `1.999999999s` is
 accepted and `0.0000000015s` is not. A fraction of a nanosecond is refused

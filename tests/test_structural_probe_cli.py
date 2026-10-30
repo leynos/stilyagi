@@ -113,10 +113,10 @@ def test_measure_cold_iteration_transmits_the_request_source() -> None:
     text_prefix = f"{execution.TEXT_FLAG}="
     text_element = next(
         (argument for argument in argv if argument.startswith(text_prefix)),
-        None,
+        "",
     )
     assert_with_context(
-        text_element is not None,
+        text_element.startswith(text_prefix),
         f"expected a {text_prefix}<source> argument in {argv}",
     )
     assert_with_context(

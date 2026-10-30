@@ -526,6 +526,48 @@ The acceptance evidence is:
     PEP 695 alias, `ty 0.0.74` passes both the alias and a module that reads
     `__value__`, and `unresolved-reference` is not a Ruff rule name. The bullet
     now records what was measured.
+- [x] 2026-10-19: CodeRabbit review round six, on tip `57cd8ef`. Three
+  findings, all real and all fixed. The developers' guide's ports table lacked
+  the caption the documentation style guide requires, so it now carries "Table
+  1: Structural probe ports and their production adapters." The two
+  read-blocking `measure_probe` tests had already diverged as the round-five
+  feedback predicted: the entry-point copy still ran only cold mode. They are
+  merged into one test parametrized over entry point and mode, with the guard
+  moved into a `no_file_reads` fixture; mutation testing confirms both entry
+  points now fail on a warm-path reread. The retrospective's test counts and
+  guard description were stale and now match the measured collection counts.
+  One side effect is worth recording: the caption is the guide's first
+  underscore emphasis, so MD049 requires underscore style throughout that file.
+  `make fmt` normalized 22 existing asterisk emphases; a later full Markdown
+  lint exposed six more emphasis delimiters in three paragraphs, and a second
+  formatting pass converted those as well. The wider churn is
+  formatter-generated and is recorded here because it extends beyond the
+  changed subsection.
+- [ ] 2026-10-20: The first full gate run on rebased head `a8dbce8`, with the
+  review delta staged, reproduced three gate problems. `make typecheck` found
+  that the CLI test's contextual assertion did not narrow the optional result of
+  `next`, leaving `removeprefix` called on `str | None`; the test now uses an
+  empty-string sentinel and checks the flag prefix before removing it.
+  `make test` reached 355 of 357 Rust tests before the two trybuild UI cases
+  timed out at their 600-second ceiling while compiler requests queued up to 59
+  places ahead; neither produced an assertion failure. `make markdownlint`
+  found six remaining asterisk emphasis delimiters in the developers' guide; a
+  subsequent `make fmt` normalized all six to the configured underscore style.
+  The passing gates were `make check-fmt`, `make lint`, and `make nixie`; the
+  full test and Markdown gates must be rerun after remediation.
+- [ ] 2026-10-20: The second full gate run on rebased head `a8dbce8` found a
+  formatter-only `+8 -8` change in this plan; `make fmt` has now applied it.
+  `make lint`, `make typecheck`, `make markdownlint`, and `make nixie` passed.
+  Both targeted trybuild warm-ups also passed: the IR case in 478.87 seconds
+  and the pyext harness in 2742.13 seconds, including all five UI fixtures.
+  Despite that, `make test` reached 355 of 357 Rust tests before the IR and
+  pyext UI tests timed out at 600.011 and 600.008 seconds. Both emitted only
+  repeated `Blocking waiting for file lock on package cache` messages, with no
+  assertion failure. The default cache was contended by Cargo processes in
+  other worktrees; compiler admission stayed healthy. Rerun the full test gate
+  after the exclusive cache lock clears, preserving the configured timeout and
+  shared default cache. A focused `CARGO_NET_OFFLINE=true cargo metadata`
+  experiment hit the same lock, so offline mode is not a mitigation.
 
 ## Outcomes & Retrospective
 
@@ -547,17 +589,18 @@ from the requests, so nothing in the report path touches the filesystem. Both
 issue's request that source text travel as a parameter.
 
 `tests/test_structural_probe_injection.py` is the evidence that the seams are
-real rather than nominal: twelve tests drive the cold path through a stub
-runner with a clock that fails if read, the warm path through a stub clock with
-a runner that fails if called, all three child-failure modes, an injected
-environment payload, and a `measure_probe` call with `Path.read_text` disabled.
-A byte-count test pins the corpus totals to the caller's request, so a fallback
-to `Path.stat` would fail it.
+real rather than nominal: fourteen collected cases drive the cold path through
+a stub runner with a clock that fails if read, the warm path through a stub
+clock with a runner that fails if called, all three child-failure modes, an
+injected environment payload, and both `measure_probe` entry points in both
+modes with `Path.read_text` and `Path.read_bytes` disabled. A byte-count test
+pins the corpus totals to the caller's request, so a fallback to `Path.stat`
+would fail it.
 
-`tests/test_structural_probe_cli.py` collects twelve command-line and
-child-protocol cases, including the argv the child command is built from and
-the transmitted-text behaviour. They live apart from the injection tests
-because the combined module would exceed the 400-line ceiling.
+`tests/test_structural_probe_cli.py` collects thirteen command-line and
+child-protocol cases, including the argv the child command is built from, the
+CRLF fallback, and the transmitted-text behaviour. They live apart from the
+injection tests because the combined module would exceed the 400-line ceiling.
 
 Two things are worth recording for the next maintainer.
 

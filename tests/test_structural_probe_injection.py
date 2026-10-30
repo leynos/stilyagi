@@ -16,6 +16,9 @@ import pathlib
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: naming the failure a cold iteration must propagate
 import typing as typ
 
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
 import pytest
 from stilyagi import model
 
@@ -232,20 +235,9 @@ def test_build_report_defaults_to_running_platform() -> None:
     )
 
 
-@pytest.mark.parametrize("mode", ["cold", "warm"])
-def test_measure_probe_uses_injected_source_without_file_access(
-    monkeypatch: pytest.MonkeyPatch,
-    mode: str,
-) -> None:
-    """Measure supplied source text without reading any fixture.
-
-    Every `Path.read_text` and `Path.read_bytes` in the process is disabled, so
-    the probe can only succeed by using the source text and byte count it was
-    handed. Both modes are exercised: cold measures through the injected
-    runner, while warm reads `request.source` in this interpreter, which is
-    where a reread of `request.path` would otherwise hide.
-    """
-    runner = StubRunner(stdout='{"duration_ns": 5}')
+@pytest.fixture
+def no_file_reads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable both fixture readers for the duration of one test."""
 
     def forbidden_read(*args: object, **kwargs: object) -> typ.NoReturn:
         """Fail the test if the probe reads any file."""
@@ -255,11 +247,33 @@ def test_measure_probe_uses_injected_source_without_file_access(
     monkeypatch.setattr(pathlib.Path, "read_text", forbidden_read)
     monkeypatch.setattr(pathlib.Path, "read_bytes", forbidden_read)
 
+
+@pytest.mark.parametrize(
+    "measure",
+    [execution.measure_probe, probe.measure_probe],
+    ids=["execution", "entry-point"],
+)
+@pytest.mark.parametrize("mode", ["cold", "warm"])
+def test_measure_probe_uses_injected_source_without_file_access(
+    measure: cabc.Callable[..., probe.ReportPayload],
+    mode: str,
+    no_file_reads: None,
+) -> None:
+    """Measure supplied source text without reading any fixture.
+
+    Every `Path.read_text` and `Path.read_bytes` in the process is disabled, so
+    the probe can only succeed by using the source text and byte count it was
+    handed. Both entry points are exercised, and both modes: cold measures
+    through the injected runner, while warm reads `request.source` in this
+    interpreter, which is where a reread of `request.path` would otherwise
+    hide.
+    """
+    runner = StubRunner(stdout='{"duration_ns": 5}')
     dependencies = boundary.ProbeDependencies(subprocess_runner=runner)
     request = markdown_fixture_request()
     corpus = boundary.ProbeCorpus(root=REPOSITORY_ROOT, requests=(request,))
 
-    report = execution.measure_probe(
+    report = measure(
         mode=mode,
         iterations=1,
         corpus=corpus,
@@ -274,6 +288,10 @@ def test_measure_probe_uses_injected_source_without_file_access(
     assert_with_context(
         report["runs"][0]["byte_count"] == request.byte_count,
         "expected the injected byte count in the run payload",
+    )
+    assert_with_context(
+        bool(runner.calls) == (mode == "cold"),
+        f"expected runner calls to be {mode == 'cold'}, got {bool(runner.calls)}",
     )
 
 
@@ -318,50 +336,4 @@ def test_measure_probe_honours_caller_byte_count() -> None:
     assert_with_context(
         report["corpus"]["total_bytes"] == 1,
         "expected the caller's byte count, not the fixture's size",
-    )
-
-
-def test_entry_point_measure_probe_takes_source_as_data(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Accept a pre-read corpus and read no fixture from disk.
-
-    The public entry point named in issue #17 must honour the caller's source
-    text, not rediscover and read the fixtures. Every `Path.read_text` and
-    `Path.read_bytes` in the process is disabled, so the call can only succeed
-    through the corpus.
-    """
-    runner = StubRunner(stdout='{"duration_ns": 5}')
-    dependencies = boundary.ProbeDependencies(subprocess_runner=runner)
-
-    def forbidden_read(*args: object, **kwargs: object) -> typ.NoReturn:
-        """Fail the test if the entry point reads any file."""
-        msg = "entry-point measure_probe must not read files"
-        raise AssertionError(msg)
-
-    monkeypatch.setattr(pathlib.Path, "read_text", forbidden_read)
-    monkeypatch.setattr(pathlib.Path, "read_bytes", forbidden_read)
-
-    request = boundary.ProbeRequest(
-        path=MARKDOWN_PATH,
-        source=SYNTHETIC_SOURCE,
-        syntax=model.Syntax.MARKDOWN,
-        byte_count=len(SYNTHETIC_SOURCE.encode()),
-    )
-    corpus = boundary.ProbeCorpus(root=REPOSITORY_ROOT, requests=(request,))
-
-    report = probe.measure_probe(
-        mode="cold",
-        iterations=1,
-        corpus=corpus,
-        dependencies=dependencies,
-    )
-
-    assert_with_context(
-        report["corpus"]["total_bytes"] == request.byte_count,
-        "expected the caller's byte count in the entry-point report",
-    )
-    assert_with_context(
-        bool(runner.calls),
-        "expected the injected runner to be used by the entry point",
     )
