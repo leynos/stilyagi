@@ -30,6 +30,9 @@ from tests.support.workflow_documents import WORKFLOWS_DIRECTORY
 from tests.support.workflow_files import WorkflowReadingError, read_workflows
 from tests.support.workflows import load_workflow, workflow_jobs
 
+if typ.TYPE_CHECKING:
+    from tests.support.workflows import WorkflowDocument
+
 #: Reusable-workflow calls whose steps live outside this repository, each with
 #: why no install is needed. A new call fails until it is classified here.
 CLASSIFIED_EXTERNAL_CALLS: typ.Final = {
@@ -50,9 +53,9 @@ def reach(tmp_path_factory: pytest.TempPathFactory) -> MakeReach:
     return MakeReach(make_available_tools(tmp_path_factory.mktemp("wiring-probes")))
 
 
-def _workflow(jobs: str) -> dict[str, object]:
+def _workflow(jobs: str) -> WorkflowDocument:
     """Return a parsed workflow document holding `jobs`."""
-    return typ.cast("dict[str, object]", load_workflow(f"on: push\njobs:\n{jobs}"))
+    return load_workflow(f"on: push\njobs:\n{jobs}")
 
 
 def _install(extra: str = "") -> str:

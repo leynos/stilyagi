@@ -12,6 +12,7 @@ import tomllib
 import typing as typ
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     import pathlib
 
 # `rustup component list --installed` prints `<name>-<host triple>`.
@@ -94,7 +95,7 @@ def read_toolchain(path: pathlib.Path) -> ToolchainPin:
     return ToolchainPin(channel=channel, components=components)
 
 
-def component_present(name: str, installed: list[str]) -> bool:
+def component_present(name: str, installed: cabc.Iterable[str]) -> bool:
     """Return whether a `rust-toolchain.toml` component is in rustup's list.
 
     The manifest spells some components with a ``-preview`` suffix that

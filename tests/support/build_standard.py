@@ -52,6 +52,7 @@ PROBE_NAMES: typ.Final = (
     "probe-mdlint",
     "probe-nixie",
     "probe-mdtablefix",
+    "probe-cargo-binstall",
 )
 
 #: Overrides that point every tool a recipe runs at a probe.
@@ -65,6 +66,7 @@ MAKE_OVERRIDES: typ.Final = (
     "MDLINT=probe-mdlint",
     "NIXIE=probe-nixie",
     "MDTABLEFIX=probe-mdtablefix",
+    "CARGO_BINSTALL=probe-cargo-binstall",
 )
 
 _SEGMENT_BOUNDARY: typ.Final = re.compile(

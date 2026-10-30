@@ -169,7 +169,7 @@ RECORDED_EXCEPTION: typ.Final = (
     "## 5a\n\n### Why Cranelift is not part of the standard\n\n"
     f"Reproduced on {CHANNEL}.\n\n## 6\n"
 )
-ADOPTED: typ.Final = {
+ADOPTED: typ.Final[dict[str, object]] = {
     "unstable": {"codegen-backend": True},
     "profile": {"dev": {"codegen-backend": "cranelift"}},
 }

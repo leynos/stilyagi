@@ -77,8 +77,17 @@ def stage_makefile_tree(destination: pathlib.Path) -> pathlib.Path:
         `destination`, now holding the copied files.
     """
     destination.mkdir(parents=True, exist_ok=True)
-    for name in ("Makefile", "pyproject.toml", "uv.lock", "Cargo.toml", "Cargo.lock"):
-        shutil.copy2(REPOSITORY_ROOT / name, destination / name)
+    for name in (
+        "Makefile",
+        "pyproject.toml",
+        "uv.lock",
+        "Cargo.toml",
+        "Cargo.lock",
+        "scripts/duplication_gate.py",
+    ):
+        target = destination / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REPOSITORY_ROOT / name, target)
     return destination
 
 

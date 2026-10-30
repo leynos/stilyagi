@@ -355,7 +355,7 @@ skylos-allow: ## Document one named Skylos exception, not an entry point
 typecheck: check-build-tools build tools-check $(TY_GATE_DEPS) ## Run typechecking
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)
 	$(TY) --version
-	$(TY) check $(TY_EXTRA_PATHS)
+	$(TY) check --python .venv $(TY_EXTRA_PATHS)
 
 markdownlint: tools-docs spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
 	$(call ensure_tool,$(MDLINT))

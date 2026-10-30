@@ -1221,14 +1221,13 @@ compiles. The repository declares no minimum supported Rust version, so no
 older compiler is expected to pass.
 
 Dependabot's `rust-toolchain` entry proposes each newer nightly as a pull
-request on its daily run, with no cooldown (matching concordat), so wording
-can change as often as daily. Re-record the snapshots in
-the bump pull request with the `TRYBUILD=overwrite` command above, inspect the
-diff to confirm each fail test still represents a genuine PyO3 contract
-violation, and fix any new Clippy lint the strict workspace lint set raises in
-the same pull request. The exception in "Why Cranelift is not part of the
-standard" (section 5a) names the pinned channel and is re-evaluated on the same
-occasion.
+request on its daily run, with no cooldown (matching concordat), so wording can
+change as often as daily. Re-record the snapshots in the bump pull request with
+the `TRYBUILD=overwrite` command above, inspect the diff to confirm each fail
+test still represents a genuine PyO3 contract violation, and fix any new Clippy
+lint the strict workspace lint set raises in the same pull request. The
+exception in "Why Cranelift is not part of the standard" (section 5a) names the
+pinned channel and is re-evaluated on the same occasion.
 
 ### 4.2 Current mixed-package skeleton
 
@@ -1382,7 +1381,7 @@ failing Rust doctest ends the target before the Python pass.
 
 `rust-toolchain.toml` pins a dated nightly, and `.cargo/config.toml` applies
 the development build standard to it.
-[ADR 010](adr-011-pinned-nightly-and-build-standard.md) records the decision;
+[ADR 011](adr-011-pinned-nightly-and-build-standard.md) records the decision;
 this section explains how it works and where it does not apply. Bare Cargo
 behaviour, Make's restatement of the flags, the installed components, and the
 explicit non-development routes are separate facts, and the sections below keep
@@ -1410,11 +1409,11 @@ Any `RUSTFLAGS` in the environment displaces the configuration's `rustflags`
 outright. CI exports `RUSTFLAGS=-D warnings`, and the gate recipes assign their
 own, so each restates the standard rather than relying on the file:
 
-| Variable             | Value                                   | Used by                                                    |
-| -------------------- | --------------------------------------- | ---------------------------------------------------------- |
-| `STANDARD_RUSTFLAGS` | `-Zthreads=8`, plus mold on Linux hosts | The two below                                              |
-| `RUST_FLAGS`         | `-D warnings $(STANDARD_RUSTFLAGS)`     | `typecheck`, `lint` (rustdoc, Clippy), `test*`, `test-doc` |
-| `DEBUG_RUST_FLAGS`   | `$(STANDARD_RUSTFLAGS)`                 | `build` (`maturin develop`), `.venv` (`uv sync`)           |
+| Variable             | Value                                     | Used by                                                    |
+| -------------------- | ----------------------------------------- | ---------------------------------------------------------- |
+| `STANDARD_RUSTFLAGS` | `-Zthreads=8`, plus `mold` on Linux hosts | The two below                                              |
+| `RUST_FLAGS`         | `-D warnings $(STANDARD_RUSTFLAGS)`       | `typecheck`, `lint` (rustdoc, Clippy), `test*`, `test-doc` |
+| `DEBUG_RUST_FLAGS`   | `$(STANDARD_RUSTFLAGS)`                   | `build` (`maturin develop`), `.venv` (`uv sync`)           |
 
 _Table 3: The development flags Make restates._
 
@@ -1528,7 +1527,7 @@ coverage route, run
 llvm-cov nextest -p stilyagi-ir --lib`
 with the `cargo-llvm-cov` the shared action installs (0.9.0 at the pinned
 action revision; older releases cannot read this nightly's build layout) and
-confirm `-C instrument-coverage` appears without `-Zthreads=8`, mold, or a
+confirm `-C instrument-coverage` appears without `-Zthreads=8`, `mold`, or a
 `codegen-backend` argument.
 
 ### Why Cranelift is not part of the standard
@@ -1635,8 +1634,10 @@ Their responsibilities are:
     stamp, so the checker can resolve the imports of `scripts/duplication_gate.py`.
   - It runs `cargo check` for all workspace crates, targets, and features with
     warnings denied.
-  - It runs the pinned `ty` 0.0.74 release through `uv tool run`, checking
-    `python/stilyagi`, `tests`, `scripts`, and `.github` — the same roots
+  - It runs the pinned `ty` 0.0.74 release through `uv tool run` with
+    `--python .venv`, so third-party imports resolve against the project
+    environment. It checks `python/stilyagi`, `tests`, `scripts`, and `.github`
+    — the same roots
     `make lint` covers, plus the workflow and action YAML that drives them.
 - `make test`
   - verify Rust formatting

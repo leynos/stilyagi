@@ -162,7 +162,7 @@ def makefile_text() -> str:
                         "$(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)"
                     ),
                     "$(TY) --version",
-                    "$(TY) check",
+                    "$(TY) check --python .venv",
                 ),
                 should_include_pytest=False,
             ),

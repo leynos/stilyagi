@@ -25,7 +25,7 @@ from tests.support.build_standard import (
 )
 from tests.support.workflow_documents import WORKFLOWS_DIRECTORY
 from tests.support.workflow_files import WorkflowReadingError, read_workflows
-from tests.support.workflows import load_workflow, workflow_jobs
+from tests.support.workflows import load_workflow, workflow_steps
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -93,9 +93,8 @@ def coverage_steps(
     """Return every step that uses the shared coverage action."""
     return [
         step
-        for job in workflow_jobs(document).values()
-        for step in job.get("steps") or []
-        if isinstance(step, dict) and COVERAGE_ACTION in str(step.get("uses", ""))
+        for step in workflow_steps(document)
+        if COVERAGE_ACTION in str(step.get("uses", ""))
     ]
 
 
