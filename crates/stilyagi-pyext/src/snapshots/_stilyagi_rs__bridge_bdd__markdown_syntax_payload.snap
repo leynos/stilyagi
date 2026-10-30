@@ -1,0 +1,7 @@
+---
+source: crates/stilyagi-pyext/src/bridge_bdd.rs
+expression: "serde_json::json!({\n    \"syntax\": must_ok!(syntax.extract::<String>(), \"expected syntax string\")\n})"
+---
+{
+  "syntax": "markdown"
+}

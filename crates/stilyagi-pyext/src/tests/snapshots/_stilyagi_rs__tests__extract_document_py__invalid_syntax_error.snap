@@ -1,0 +1,5 @@
+---
+source: crates/stilyagi-pyext/src/tests/mod.rs
+expression: "format!(\"{err}\")"
+---
+ValueError: unknown syntax 'not_a_syntax'

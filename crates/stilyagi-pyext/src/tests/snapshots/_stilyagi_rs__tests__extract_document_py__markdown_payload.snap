@@ -1,0 +1,13 @@
+---
+source: crates/stilyagi-pyext/src/tests/mod.rs
+expression: document_payload(extracted_document_dict)
+---
+{
+  "regions": [
+    {
+      "kind": "heading",
+      "text": "Heading"
+    }
+  ],
+  "syntax": "markdown"
+}
