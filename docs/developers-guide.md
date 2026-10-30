@@ -1387,8 +1387,8 @@ failing Rust doctest ends the target before the Python pass.
 
 `rust-toolchain.toml` pins a dated nightly, and `.cargo/config.toml` applies
 the development build standard to it.
-[ADR 011](adr-011-pinned-nightly-and-build-standard.md) records the decision;
-this section explains how it works and where it does not apply. Bare Cargo
+[ADR 0011](adrs/adr-0011-pinned-nightly-and-build-standard.md) records the
+decision; this section explains how it works and where it does not apply. Bare Cargo
 behaviour, Make's restatement of the flags, the installed components, and the
 explicit non-development routes are separate facts, and the sections below keep
 them apart.

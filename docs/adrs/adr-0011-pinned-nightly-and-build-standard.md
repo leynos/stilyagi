@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 011: Pinned nightly and the development build standard
+# Architectural decision record (ADR) 0011: Pinned nightly and the development build standard
 
 ## Status
 
