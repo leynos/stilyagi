@@ -1455,6 +1455,12 @@ control so a change that lets a route inherit the flags fails.
 `scripts/build_tools.py` is a Cyclopts CLI (with `cuprum` running the four
 catalogued programs `curl`, `tar`, `rustup`, and `mold`) behind two targets:
 
+The CLI keeps verified installation orchestration in `build_tools.py`.
+`build_tools_environment.py` owns its layout, catalogued command execution,
+and host capability checks; `build_tools_pins.py` owns pure pin and checksum
+readers. These internal siblings serve this entrypoint, rather than a general
+command-runner abstraction.
+
 - `make install-build-tools` downloads the pinned `mold`, verifies it against
   exactly one row of `tools/mold/SHA256SUMS`, unpacks it under
   `$(BUILD_TOOLS_PREFIX)`, and runs `rustup toolchain install` for the pinned

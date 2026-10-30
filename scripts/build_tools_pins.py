@@ -21,33 +21,64 @@ _DIGEST_ROW_FIELDS = 2
 
 
 class BuildToolsError(Exception):
-    """A prerequisite is missing, mismatched or unverifiable."""
+    """A prerequisite is missing, mismatched or cannot be verified.
+
+    This exception represents an actionable build-tool configuration or
+    verification failure for callers of the pin-reading functions.
+
+    Examples
+    --------
+    ``read_pin(path)`` raises this exception when the pin file is empty.
+    """
 
 
 @dc.dataclass(frozen=True, slots=True)
 class ToolchainPin:
-    """The pinned channel and the components it must carry."""
+    """The nightly channel and components required by the build standard.
+
+    Attributes
+    ----------
+    channel : str
+        Rustup toolchain channel from ``rust-toolchain.toml``.
+    components : tuple[str, ...]
+        Components that must be installed for that channel.
+
+    Examples
+    --------
+    ``ToolchainPin("nightly-2026-10-18", ("rustfmt",))`` represents a dated
+    nightly that requires rustfmt.
+    """
 
     channel: str
     components: tuple[str, ...]
 
 
 def read_pin(path: pathlib.Path) -> str:
-    """Return a single-line version pin, trimmed of surrounding whitespace.
+    """Read one version pin and trim surrounding whitespace.
 
     A missing, blank, multi-line or internally spaced pin is refused rather
-    than repaired: deleting whitespace would turn ``1.2 3`` into ``1.23`` and
-    build a nonsensical download URL.
+    than repaired: deleting whitespace could change the version value.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        File expected to contain one version on one line.
 
     Returns
     -------
     str
-        The pin, without surrounding whitespace.
+        The pin without surrounding whitespace.
 
     Raises
     ------
     BuildToolsError
-        If the pin is absent or malformed.
+        If the file is unreadable or the value is empty, multi-line or
+        contains whitespace internally.
+
+    Examples
+    --------
+    If a file contains ``2.41.0`` followed by a newline,
+    ``read_pin(path)`` returns ``"2.41.0"``.
     """
     try:
         text = path.read_text(encoding="utf-8")
@@ -69,17 +100,29 @@ def read_pin(path: pathlib.Path) -> str:
 
 
 def read_toolchain(path: pathlib.Path) -> ToolchainPin:
-    """Return the channel and components `rust-toolchain.toml` pins.
+    """Read the pinned channel and components from a Rust toolchain manifest.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        TOML file containing a ``[toolchain]`` table.
 
     Returns
     -------
     ToolchainPin
-        The pinned channel and the components it must carry.
+        Channel and component names from the manifest.
 
     Raises
     ------
     BuildToolsError
-        If the file is absent, is not TOML, or names no channel.
+        If the file is unreadable, invalid TOML or has no non-empty channel.
+
+    Examples
+    --------
+    Given ``path = pathlib.Path("rust-toolchain.toml")`` containing
+    ``channel = "nightly-2026-10-18"`` and ``components = ["rustfmt"]``,
+    ``read_toolchain(path)`` returns
+    ``ToolchainPin(channel="nightly-2026-10-18", components=("rustfmt",))``.
     """
     try:
         document = tomllib.loads(path.read_text(encoding="utf-8"))
@@ -96,15 +139,28 @@ def read_toolchain(path: pathlib.Path) -> ToolchainPin:
 
 
 def component_present(name: str, installed: cabc.Iterable[str]) -> bool:
-    """Return whether a `rust-toolchain.toml` component is in rustup's list.
+    """Check whether an installed rustup entry matches a manifest component.
 
-    The manifest spells some components with a ``-preview`` suffix that
-    rustup's installed list drops, and appends the host triple to all of them.
+    The manifest may add ``-preview`` to a component name; rustup's
+    installed list omits it and appends an architecture and host suffix.
+
+    Parameters
+    ----------
+    name : str
+        Component name from the toolchain manifest.
+    installed : collections.abc.Iterable[str]
+        Installed entries as printed by
+        ``rustup component list --installed``.
 
     Returns
     -------
     bool
-        True when an installed entry is `name` for some host triple.
+        ``True`` when an entry matches the component and a supported host.
+
+    Examples
+    --------
+    ``component_present("rustfmt", ["rustfmt-x86_64-unknown-linux-gnu"])``
+    returns ``True``.
     """
     base = name.removesuffix("-preview")
     pattern = re.compile(rf"^{re.escape(base)}-{_ARCHITECTURES}-")
@@ -112,11 +168,17 @@ def component_present(name: str, installed: cabc.Iterable[str]) -> bool:
 
 
 def expected_checksum(sums_file: pathlib.Path, name: str) -> str:
-    """Return the one digest recorded for `name`.
+    """Read the unique SHA-256 digest recorded for an archive name.
 
-    Exactly one row must match. An unlisted artefact is a hard failure, and so
-    are several rows: a file recording a wrong digest beside the right one must
-    not verify because one of them happened to win.
+    Exactly one matching row must exist. An absent or duplicated row is
+    rejected rather than guessed.
+
+    Parameters
+    ----------
+    sums_file : pathlib.Path
+        Checksum list with digest and archive-name columns.
+    name : str
+        Exact archive filename to find.
 
     Returns
     -------
@@ -126,7 +188,15 @@ def expected_checksum(sums_file: pathlib.Path, name: str) -> str:
     Raises
     ------
     BuildToolsError
-        If the checksum file is unreadable, or does not record exactly one row.
+        If the file is unreadable or does not contain exactly one matching
+        row.
+
+    Examples
+    --------
+    If ``sums_file`` contains the row
+    ``e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  empty.tar.gz``,
+    ``expected_checksum(sums_file, "empty.tar.gz")`` returns that 64-digit
+    digest. It is the SHA-256 of an empty file.
     """
     try:
         rows = sums_file.read_text(encoding="utf-8").splitlines()
@@ -152,12 +222,28 @@ def expected_checksum(sums_file: pathlib.Path, name: str) -> str:
 
 
 def verify_archive(archive: pathlib.Path, expected: str) -> None:
-    """Refuse an archive whose SHA-256 digest is not `expected`.
+    """Refuse an archive whose SHA-256 digest differs from the expected value.
+
+    Parameters
+    ----------
+    archive : pathlib.Path
+        Archive whose bytes are checked.
+    expected : str
+        Expected hexadecimal SHA-256 digest; letter case is ignored.
 
     Raises
     ------
     BuildToolsError
-        On a mismatch.
+        If the calculated digest does not match ``expected``. File-read
+        errors from ``pathlib`` are allowed to propagate.
+
+    Examples
+    --------
+    If ``archive = pathlib.Path("empty.tar.gz")`` names an empty file,
+    set ``digest`` to its SHA-256 hexadecimal checksum. The call
+    ``verify_archive(archive, digest)`` returns ``None``. A different digest
+    raises ``BuildToolsError`` before
+    installation.
     """
     actual = hashlib.sha256(archive.read_bytes()).hexdigest()
     if actual != expected.lower():

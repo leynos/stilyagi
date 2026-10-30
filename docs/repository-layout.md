@@ -184,9 +184,11 @@ there rather than embedded ad hoc in unrelated modules.
   - Continuous integration and automation workflow definitions.
 - `scripts/`
   - Maintainer scripts following the scripting standards, including the
-    code-duplication gate and `build_tools.py` (with pin readers in
-    `build_tools_pins.py`), the CLI behind `make install-build-tools` and
-    `make check-build-tools`. Shared configuration generation remains in the
+    code-duplication gate and `build_tools.py`, the CLI behind
+    `make install-build-tools` and `make check-build-tools`. Its internal
+    `build_tools_environment.py` sibling owns host configuration and preflight;
+    `build_tools_pins.py` owns pure pin and checksum readers. Shared
+    configuration generation remains in the
     pinned `typos-config-builder` CLI.
 - `scripts/tests/`
   - Tests for the maintainer scripts, following the `scripts/tests/` layout in
