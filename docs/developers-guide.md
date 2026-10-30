@@ -1229,6 +1229,12 @@ lint the strict workspace lint set raises in the same pull request. The
 exception in "Why Cranelift is not part of the standard" (section 5a) names the
 pinned channel and is re-evaluated on the same occasion.
 
+The workspace declares a `1.0.122` caret minimum for `trybuild`. Earlier
+releases copy every root workspace dependency into the generated UI-test
+workspace, although that synthetic workspace inherits only some of them, so the
+nightly compiler's unused-dependency lint reports the rest. `1.0.122` contains
+the upstream fix and leaves the expected `.stderr` output unchanged.
+
 ### 4.2 Current mixed-package skeleton
 
 The general architecture above now maps to concrete repository modules and
