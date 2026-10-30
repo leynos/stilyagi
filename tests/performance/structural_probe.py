@@ -3,11 +3,32 @@
 import argparse
 import json
 import pathlib
-import platform
 import typing as typ
 
 from stilyagi import model
 
+from tests.performance.structural_probe_boundary import (
+    DEFAULT_DEPENDENCIES,
+    DEFAULT_ITERATIONS,
+    ENTRYPOINT,
+    MARKDOWN_FIXTURE,
+    PROBE_NAME,
+    PYTHON_FIXTURE,
+    RUST_FIXTURE,
+    SCHEMA_VERSION,
+    ClockFn,
+    EnvironmentProvider,
+    ProbeCorpus,
+    ProbeDependencies,
+    ProbeMode,
+    ProbeRequest,
+    StructuralFixture,
+    SubprocessRunner,
+    default_environment,
+    discover_structural_fixtures,
+    read_probe_corpus,
+    repository_root,
+)
 from tests.performance.structural_probe_reporting import (
     CorpusPayload,
     EnvironmentPayload,
@@ -20,21 +41,40 @@ from tests.performance.structural_probe_reporting import (
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
-PROBE_NAME = "structural-syntax"
-ENTRYPOINT = "stilyagi.engine.extract_document"
-SCHEMA_VERSION = 1
-DEFAULT_ITERATIONS = 5
-MARKDOWN_FIXTURE = pathlib.Path(
-    "tests/fixtures/corpus/markdown/valid/heading-table-link-suppression.md",
-)
-PYTHON_FIXTURE = pathlib.Path(
-    "tests/fixtures/corpus/python/valid/module-class-function-docstrings.py",
-)
-RUST_FIXTURE = pathlib.Path(
-    "tests/fixtures/corpus/rust/valid/item-doc-comments.rs",
-)
-
-type ProbeMode = typ.Literal["cold", "warm"]
+__all__ = [
+    "DEFAULT_DEPENDENCIES",
+    "DEFAULT_ITERATIONS",
+    "ENTRYPOINT",
+    "MARKDOWN_FIXTURE",
+    "PROBE_NAME",
+    "PYTHON_FIXTURE",
+    "RUST_FIXTURE",
+    "SCHEMA_VERSION",
+    "ClockFn",
+    "CorpusPayload",
+    "EnvironmentPayload",
+    "EnvironmentProvider",
+    "ProbeCorpus",
+    "ProbeDependencies",
+    "ProbeMode",
+    "ProbeRequest",
+    "ProbeRun",
+    "ReportPayload",
+    "RunPayload",
+    "StructuralFixture",
+    "SubprocessRunner",
+    "build_report",
+    "default_environment",
+    "discover_structural_fixtures",
+    "main",
+    "measure_probe",
+    "normalise_repository_path",
+    "read_probe_corpus",
+    "redact_report",
+    "repository_root",
+    "summarise_durations",
+    "write_report",
+]
 
 
 class ProbeRun(typ.NamedTuple):
@@ -46,105 +86,30 @@ class ProbeRun(typ.NamedTuple):
     durations_ns: tuple[int, ...]
 
 
-class StructuralFixture(typ.NamedTuple):
-    """One representative source fixture for a supported extractor syntax.
-
-    Parameters
-    ----------
-    path:
-        Repository-relative fixture file path.
-    syntax:
-        The registered extractor syntax applied to the fixture.
-
-    Examples
-    --------
-    >>> StructuralFixture(
-    ...     path=MARKDOWN_FIXTURE,
-    ...     syntax=model.Syntax.MARKDOWN,
-    ... ).syntax.value
-    'markdown'
-    """
-
-    path: pathlib.Path
-    syntax: model.Syntax
-
-
-def repository_root() -> pathlib.Path:
-    """Return the repository root, derived from this module's location.
-
-    Returns
-    -------
-    pathlib.Path
-        The resolved repository root two parent directories above this file.
-
-    Examples
-    --------
-    >>> repository_root().is_dir()
-    True
-    """
-    return pathlib.Path(__file__).resolve().parents[2]
-
-
-def discover_structural_fixtures(
-    root: pathlib.Path,
-) -> tuple[StructuralFixture, ...]:
-    """Return representative fixtures for each registered extractor syntax.
-
-    Parameters
-    ----------
-    root:
-        The repository root containing the shared fixture corpus.
-
-    Returns
-    -------
-    tuple[StructuralFixture, ...]
-        One Markdown, Python, and Rust fixture in a fixed, deterministic
-        order.
-
-    Raises
-    ------
-    FileNotFoundError
-        A representative fixture is missing from the corpus.
-
-    Examples
-    --------
-    >>> fixtures = discover_structural_fixtures(repository_root())
-    >>> tuple(fixture.syntax.value for fixture in fixtures)
-    ('markdown', 'python_docstring', 'rust_doc_comment')
-    """
-    fixtures = (
-        StructuralFixture(root / MARKDOWN_FIXTURE, model.Syntax.MARKDOWN),
-        StructuralFixture(root / PYTHON_FIXTURE, model.Syntax.PYTHON_DOCSTRING),
-        StructuralFixture(root / RUST_FIXTURE, model.Syntax.RUST_DOC_COMMENT),
-    )
-    for fixture in fixtures:
-        if not fixture.path.is_file():
-            msg = f"structural fixture is missing: {fixture.path.as_posix()}"
-            raise FileNotFoundError(msg)
-    return fixtures
-
-
 def build_report(
     *,
-    repository_root: pathlib.Path,
-    fixtures: cabc.Sequence[StructuralFixture],
+    corpus: ProbeCorpus,
     runs: cabc.Sequence[ProbeRun],
+    environment_provider: EnvironmentProvider = default_environment,
 ) -> ReportPayload:
     """Build the stable JSON-compatible structural probe report.
 
+    Corpus totals come from the sizes recorded when the fixtures were read, so
+    reporting touches no file of its own.
+
     Parameters
     ----------
-    repository_root:
-        The root used to normalise fixture paths to repository-relative POSIX
-        form; every fixture must live beneath it.
-    fixtures:
-        Existing fixture files beneath ``repository_root``. Their byte sizes
-        populate the corpus totals. For an unambiguous per-syntax summary,
-        provide no more than one fixture for each syntax.
+    corpus:
+        The fixtures to describe, already read, with the root their paths are
+        normalized against. For an unambiguous per-syntax summary, provide no
+        more than one request for each syntax.
     runs:
         Measured runs in report order. Each run must contain at least one
         duration so its summary can be calculated; an empty sequence of runs
         is allowed.
+    environment_provider:
+        Reports the platform metadata recorded in the report. Defaults to the
+        running platform; a test substitutes a provider to pin those fields.
 
     Returns
     -------
@@ -154,35 +119,31 @@ def build_report(
 
     Examples
     --------
-    >>> root = repository_root()
-    >>> fixtures = discover_structural_fixtures(root)
-    >>> report = build_report(repository_root=root, fixtures=fixtures, runs=[])
+    >>> corpus = read_probe_corpus(repository_root())
+    >>> report = build_report(corpus=corpus, runs=[])
     >>> (report["probe"], report["corpus"]["file_count"], report["runs"])
     ('structural-syntax', 3, [])
     """
-    normalised_fixtures = [
-        normalise_repository_path(fixture.path, repository_root) for fixture in fixtures
-    ]
-    per_syntax = {
-        fixture.syntax.value: {
-            "file_count": 1,
-            "total_bytes": fixture.path.stat().st_size,
-        }
-        for fixture in fixtures
-    }
+    requests = corpus.requests
     return ReportPayload(
         schema_version=SCHEMA_VERSION,
         probe=PROBE_NAME,
         entrypoint=ENTRYPOINT,
-        environment=EnvironmentPayload(
-            platform=platform.platform(),
-            python=platform.python_version(),
-        ),
+        environment=environment_provider(),
         corpus=CorpusPayload(
-            fixture_paths=normalised_fixtures,
-            file_count=len(normalised_fixtures),
-            total_bytes=sum(fixture.path.stat().st_size for fixture in fixtures),
-            per_syntax=per_syntax,
+            fixture_paths=[
+                normalise_repository_path(request.path, corpus.root)
+                for request in requests
+            ],
+            file_count=len(requests),
+            total_bytes=sum(request.byte_count for request in requests),
+            per_syntax={
+                request.syntax.value: {
+                    "file_count": 1,
+                    "total_bytes": request.byte_count,
+                }
+                for request in requests
+            },
         ),
         runs=[_run_payload(run) for run in runs],
     )
@@ -194,10 +155,10 @@ def redact_report(report: ReportPayload) -> ReportPayload:
         schema_version=report["schema_version"],
         probe=report["probe"],
         entrypoint=report["entrypoint"],
-        environment={
-            "platform": "<redacted>",
-            "python": "<redacted>",
-        },
+        environment=EnvironmentPayload(
+            platform="<redacted>",
+            python="<redacted>",
+        ),
         corpus=report["corpus"],
         runs=[_redact_run(run) for run in _runs_from_report(report)],
     )
@@ -207,7 +168,8 @@ def measure_probe(
     *,
     mode: str,
     iterations: int,
-    root: pathlib.Path,
+    corpus: ProbeCorpus,
+    dependencies: ProbeDependencies = DEFAULT_DEPENDENCIES,
 ) -> ReportPayload:
     """Measure the requested structural probe mode and return a report.
 
@@ -217,8 +179,14 @@ def measure_probe(
         Either ``"cold"``, ``"warm"``, or ``"both"``.
     iterations:
         Measurements per mode. Must be at least 1.
-    root:
-        The repository root containing the shared fixture corpus.
+    corpus:
+        Fixtures already read into memory, with the root their paths are
+        normalized against. Callers reach the filesystem through
+        :func:`read_probe_corpus`; this function reads no fixture itself, so a
+        test can measure text that was never written to disk.
+    dependencies:
+        The clock, subprocess runner, and environment provider to measure
+        through. Defaults to the production adapters.
 
     Returns
     -------
@@ -228,13 +196,21 @@ def measure_probe(
 
     Examples
     --------
-    >>> report = measure_probe(mode="warm", iterations=1, root=repository_root())
+    >>> corpus = read_probe_corpus(repository_root())
+    >>> report = measure_probe(mode="warm", iterations=1, corpus=corpus)
     >>> report["probe"]
     'structural-syntax'
     """
-    from tests.performance.structural_probe_execution import measure_probe as run_probe
+    from tests.performance.structural_probe_execution import (
+        measure_probe as run_probe,
+    )
 
-    return run_probe(mode=mode, iterations=iterations, root=root)
+    return run_probe(
+        mode=mode,
+        iterations=iterations,
+        corpus=corpus,
+        dependencies=dependencies,
+    )
 
 
 def write_report(report: ReportPayload, output_path: pathlib.Path) -> None:
@@ -250,19 +226,41 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Run the structural performance probe command."""
     args = _argument_parser().parse_args(argv)
     if args.child_run:
-        from tests.performance.structural_probe_execution import measure_extraction
-
-        duration_ns = measure_extraction(
-            args.source.read_text(encoding="utf-8"),
-            model.Syntax(args.syntax),
-        )
-        print(json.dumps({"duration_ns": duration_ns}, sort_keys=True))
-        return 0
+        return _child_run(args)
 
     root = repository_root()
-    report = measure_probe(mode=args.mode, iterations=args.iterations, root=root)
+    report = measure_probe(
+        mode=args.mode,
+        iterations=args.iterations,
+        corpus=read_probe_corpus(root),
+    )
     write_report(report, args.output)
     print(f"wrote {_display_output_path(args.output, root)}")
+    return 0
+
+
+def _child_run(args: argparse.Namespace) -> int:
+    """Measure one extraction in this interpreter and print its duration.
+
+    The parent sends the source text it wants measured, so the child never
+    reopens a file whose contents might differ from the request. ``--source``
+    still names the fixture, and a command run by hand without ``--text`` reads
+    it, so the documented manual reproduction keeps working.
+
+    Returns
+    -------
+    int
+        Process exit status, always 0 because a failure raises instead.
+    """
+    from tests.performance.structural_probe_execution import measure_extraction
+
+    source = args.text
+    if source is None:
+        # Match `ProbeRequest.from_fixture`: no newline translation, so a
+        # manual reproduction measures the same text as an automated run.
+        source = args.source.read_bytes().decode("utf-8")
+    duration_ns = measure_extraction(source, model.Syntax(args.syntax))
+    print(json.dumps({"duration_ns": duration_ns}, sort_keys=True))
     return 0
 
 
@@ -353,6 +351,11 @@ def _argument_parser() -> argparse.ArgumentParser:
         "--source",
         type=pathlib.Path,
         default=repository_root() / MARKDOWN_FIXTURE,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--text",
+        default=None,
         help=argparse.SUPPRESS,
     )
     parser.add_argument(

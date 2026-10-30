@@ -340,6 +340,38 @@ deliberately does not flush operating-system page caches or require elevated
 host privileges. A warm structural run means one extraction primes the current
 interpreter before the measured iterations run in that same interpreter.
 
+##### Probe ports and adapters
+
+The probe reaches the clock, the process table, and the platform through three
+ports, so the measurement path can be tested without a real subprocess. The
+ports live in `tests/performance/structural_probe_boundary.py` beside the
+production adapters that stand in for them:
+
+| Port                 | Type alias            | Production adapter     |
+| -------------------- | --------------------- | ---------------------- |
+| Monotonic clock      | `ClockFn`             | `time.perf_counter_ns` |
+| Child-process runner | `SubprocessRunner`    | `subprocess.run`       |
+| Platform metadata    | `EnvironmentProvider` | `default_environment`  |
+
+All three are bundled in the frozen `ProbeDependencies` dataclass, whose single
+`DEFAULT_DEPENDENCIES` instance is the default for every injectable probe
+parameter. Fixtures travel the same way: `ProbeRequest.source` carries text and
+size that were read once, up front, so no measurement reads a file and a test
+can measure text that was never written to disk. `ProbeCorpus` carries the
+already-read requests and the root their report paths are recorded against.
+
+Source text crosses the child-process boundary too. A cold iteration sends the
+request's text in addition to its path, so the child measures what the request
+carries rather than reopening a file that might have changed since. `--source`
+still names the fixture, both for error messages and for reproducing a run by
+hand; a manual invocation without the text argument reads that file.
+
+Bundling is deliberate rather than incidental: the repository caps functions at
+four parameters, and that cap counts keyword-only and defaulted parameters, so
+the ports travel together. `tests/test_structural_probe_injection.py` is the
+evidence that each port is genuinely substitutable; a test there fails if a
+measurement reaches the outside world directly again.
+
 Use the probe output as review evidence when changing the structural extractor,
 Python adapter, or build spine. Compare cold with cold and warm with warm, and
 look for large regressions in context rather than treating one noisy local
