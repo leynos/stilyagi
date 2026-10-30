@@ -1344,7 +1344,8 @@ the development flags and does not run the build-tools preflight; the smoke
 step that follows does, through `.venv` (section 5a). It first runs:
 
 ```bash
-RUSTFLAGS="${RUSTFLAGS-}" uv run --group dev maturin build --release --manifest-path crates/stilyagi-pyext/Cargo.toml --out dist
+RUSTFLAGS="${RUSTFLAGS-}" uv run --group dev maturin build --release \
+  --manifest-path crates/stilyagi-pyext/Cargo.toml --out dist
 ```
 
 That command produces Python wheel artefacts in `dist/`, which is the expected
@@ -1388,10 +1389,10 @@ failing Rust doctest ends the target before the Python pass.
 `rust-toolchain.toml` pins a dated nightly, and `.cargo/config.toml` applies
 the development build standard to it.
 [ADR 0011](adrs/adr-0011-pinned-nightly-and-build-standard.md) records the
-decision; this section explains how it works and where it does not apply. Bare Cargo
-behaviour, Make's restatement of the flags, the installed components, and the
-explicit non-development routes are separate facts, and the sections below keep
-them apart.
+decision; this section explains how it works and where it does not apply. Bare
+Cargo behaviour, Make's restatement of the flags, the installed components, and
+the explicit non-development routes are separate facts, and the sections below
+keep them apart.
 
 ### What a bare `cargo` run does
 
@@ -1421,7 +1422,7 @@ own, so each restates the standard rather than relying on the file:
 | `RUST_FLAGS`         | `-D warnings $(STANDARD_RUSTFLAGS)`       | `typecheck`, `lint` (rustdoc, Clippy), `test*`, `test-doc` |
 | `DEBUG_RUST_FLAGS`   | `$(STANDARD_RUSTFLAGS)`                   | `build` (`maturin develop`), `.venv` (`uv sync`)           |
 
-_Table 3: The development flags Make restates._
+*Table 3: The development flags Make restates.*
 
 Extend the gate flags with `RUST_FLAGS_EXTRA` or `RUSTDOC_FLAGS_EXTRA`;
 overriding `RUST_FLAGS` itself replaces the whole set, standard included. Every
@@ -1450,7 +1451,7 @@ excludes it from its compiler flags.
 | Whitaker                | `RUSTFLAGS="$(WHITAKER_RUST_FLAGS)"` is `-D warnings` alone.                                   |
 | Mutation testing        | The shared workflow's setup-rust exports `-D warnings`; no Make goal is reached.               |
 
-_Table 4: Routes that do not take the development standard._
+*Table 4: Routes that do not take the development standard.*
 
 `tests/test_build_standard_exclusions.py` holds the workflow half, and the
 Make-route contracts hold the release and Whitaker halves, each with a negative
@@ -1462,8 +1463,8 @@ control so a change that lets a route inherit the flags fails.
 catalogued programs `curl`, `tar`, `rustup`, and `mold`) behind two targets:
 
 The CLI keeps verified installation orchestration in `build_tools.py`.
-`build_tools_environment.py` owns its layout, catalogued command execution,
-and host capability checks; `build_tools_pins.py` owns pure pin and checksum
+`build_tools_environment.py` owns its layout, catalogued command execution, and
+host capability checks; `build_tools_pins.py` owns pure pin and checksum
 readers. These internal siblings serve this entrypoint, rather than a general
 command-runner abstraction.
 

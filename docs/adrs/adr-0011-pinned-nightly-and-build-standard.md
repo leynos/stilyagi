@@ -89,8 +89,8 @@ Option A.
 `rust-toolchain.toml` pins `nightly-2026-10-18` with the components `clippy`,
 `llvm-tools-preview`, `rust-analyzer`, `rustc-codegen-cranelift-preview`, and
 `rustfmt`. The dated 2026-10-18 distribution manifest reports every component
-available for the Linux, macOS, and Windows targets in the release matrix.
-The Cranelift component stays in the pin for future backend requalification;
+available for the Linux, macOS, and Windows targets in the release matrix. The
+Cranelift component stays in the pin for future backend requalification;
 installing it does not select the backend (see the exception below).
 
 `rust-version` is removed from `[workspace.package]` and from every crate. No
