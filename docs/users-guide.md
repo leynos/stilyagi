@@ -379,6 +379,91 @@ Pass `--config` with an explicit config file path or an inline TOML fragment to
 supply configuration directly. Use `--isolated` to bypass configuration
 discovery entirely.
 
+#### Builtin Markdown rules
+
+The builtin pack ships three deterministic Markdown rules. None of them uses a
+natural language processing (NLP) component, downloads a model, or makes a
+locale claim.
+
+| Code      | Name            | Severity | Offered fix                                   |
+| --------- | --------------- | -------- | --------------------------------------------- |
+| `MD001`   | `heading-depth` | error    | Manual only; no edit is proposed.             |
+| `STY001`  | `repeated-word` | warning  | Unsafe suffix removal; needs explicit opt-in. |
+| `TERM001` | `banned-term`   | error    | None.                                         |
+
+*Table 2: The starter-pack rules, their default severities, and fixability.*
+
+`MD001` reports a heading whose depth is more than one greater than the
+previous heading. The first heading may be any depth. The diagnostic covers the
+whole heading node, marker included, and it cannot be fixed automatically
+because the `#` marker is not source-backed text that a rule may rewrite.
+
+`STY001` reports an adjacent repeated word inside one prose segment, for example
+`the the`. Matching is exact and case-sensitive, and only ASCII spaces or tabs
+may separate the tokens; a line break, markup boundary, punctuation, inline
+code, or different spelling ends the run. The diagnostic covers the second
+word, and the proposed edit removes the repeated suffix, leaving one word. That
+edit is classified **unsafe**, so `--fix` alone withholds it and the text
+output names `--unsafe-fixes`.
+
+`TERM001` is opt-in. It does nothing until it is selected *and* given at least
+one term. Each term must be a single alphabetic word; a multi-word, empty, or
+non-alphabetic term is a configuration error (exit code `2`). Comparison folds
+Unicode case by default; `case_sensitive = true` requires the configured
+spelling. The rule reports the original token span and never offers a fix.
+
+```toml
+[lint]
+select = ["MD", "STY", "TERM"]
+ignore = ["STY001"]
+
+[lint.per-file-ignores]
+"docs/generated/*.md" = ["MD"]
+
+[rule.TERM001]
+terms = ["obviously", "clearly"]
+case_sensitive = false
+```
+
+`lint.select` defaults to `["MD", "DOC", "PUN", "STY", "PYDOC"]`, so `MD001` and
+`STY001` run without configuration while `TERM001` stays dormant. An entry may
+be a full code such as `STY001`, a prefix such as `STY`, or `ALL`. Prefixes
+expand against the builtin codes that are actually enabled. `lint.ignore` is
+applied after `select` and wins regardless of which prefix is longer.
+`lint.per-file-ignores` maps a glob to codes; the glob is matched against the
+path relative to the directory holding the effective config file, and `*`
+crosses directory separators.
+
+The whole pack is disabled when `plugins` omits `builtin`:
+
+```toml
+plugins = []
+```
+
+Each finding is filtered by its primary span's start byte. The supported
+directives are:
+
+```markdown
+<!-- stilyagi: disable STY -->
+<!-- stilyagi: enable STY001 -->
+<!-- stilyagi: ignore-next MD001 -->
+<!-- stilyagi: ignore-file -->
+```
+
+`disable` and `enable` toggle named codes or prefixes from that point in the
+document; `enable STY001` re-enables just that code inside a disabled `STY`
+range. Repeated disables are harmless, an unmatched `enable` does nothing, and
+an unclosed disable lasts to the end of the file. `ignore-file` covers the
+whole document, and an empty code list there means every builtin. `ignore-next`
+consumes the next nonempty heading, paragraph, or table-cell unit, so a blank
+line between the directive and the text it protects is allowed.
+
+JSON output carries the byte contract directly. Each diagnostic has a `span`
+object with `byte_start` and `byte_end` offsets into the original file (or
+`null` when the finding has no source location), and `fix_applicable` says
+whether the rule offered a fix at all. `fix.applicability` distinguishes a
+`manual` fix from an `unsafe` one.
+
 #### Standard input
 
 Pass `-` as the target to read a supported source from standard input instead

@@ -1,22 +1,29 @@
 """Built-in rule package boundary for Stilyagi.
 
-The repository's own bundled rules will live under this namespace once the
-real rule-engine slices land. It exists now so the mixed-package skeleton has
-an explicit reserved home for built-ins instead of scattering that contract
-across design notes.
+The starter pack declares three deterministic rules. ``MD`` structural rules
+come first, then ``STY`` style rules, then opt-in ``TERM`` rules, which is the
+documented code-prefix scheme.
 
-External packages should not import private implementation modules from here.
-They should register their own rule namespaces through the
-`stilyagi.rules` entry-point group in `pyproject.toml`, where they will be
-discovered and loaded by the runtime, for example:
-
-```toml
-[project.entry-points."stilyagi.rules"]
-team_rules = "team_stilyagi.rules"
-```
-
-That keeps built-in rules, third-party rules, and discovery configuration
-separate even though they all participate in the same Python-side rule engine.
-Use this module only as the namespace marker for rule implementations shipped
-with Stilyagi itself.
+Each rule runs once per document against only the regions its
+:class:`~stilyagi.rules.base.RegionTarget` claims. Rules run in inventory order
+so diagnostics are deterministic, and a rule still evaluates its full state
+when its findings are later suppressed. The inventory and runner live in
+:mod:`stilyagi.rules.builtin.pack`; this module re-exports them so callers keep
+one stable import path.
 """
+
+from .pack import (
+    BuiltinRule,
+    enabled_codes,
+    inventory,
+    registry_codes,
+    run_selected,
+)
+
+__all__ = [
+    "BuiltinRule",
+    "enabled_codes",
+    "inventory",
+    "registry_codes",
+    "run_selected",
+]

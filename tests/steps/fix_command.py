@@ -16,7 +16,7 @@ import typing as typ
 
 import pytest
 from pytest_bdd import given, parsers, then, when
-from stilyagi import cli, config, diagnostics, model
+from stilyagi import cli, diagnostics
 from stilyagi.fixes import Applicability, Fix, TextEdit
 
 from tests.support.assertions import assert_with_context
@@ -26,6 +26,9 @@ from tests.support.fix_fixtures import (
     find_source_span,
     find_unclaimed_span,
 )
+
+if typ.TYPE_CHECKING:
+    from stilyagi.rules.registry import RuleRunRequest
 
 #: The one paragraph the safe and unsafe rules rewrite, and the text they
 #: replace it with. Named so the scenarios and the assertions cannot drift.
@@ -424,15 +427,11 @@ def the_standard_error_reports_the_fix_diff_conflict(
 
 
 #: The callable shape the check pipeline accepts as its injected rule runner.
-type _RuleRunner = cabc.Callable[
-    [model.Document, config.StilyagiConfig], list[diagnostics.Diagnostic]
-]
+type _RuleRunner = cabc.Callable[[RuleRunRequest], list[diagnostics.Diagnostic]]
 
 #: The callable that derives one diagnostic's edit from the extracted document.
 #: Returning ``None`` means the edit cannot be offered against this document.
-type _EditMaker = cabc.Callable[
-    [model.Document, config.StilyagiConfig], diagnostics.Diagnostic | None
-]
+type _EditMaker = cabc.Callable[[RuleRunRequest], diagnostics.Diagnostic | None]
 
 
 def _rule_offering(make_edit: _EditMaker) -> _RuleRunner:
@@ -450,12 +449,9 @@ def _rule_offering(make_edit: _EditMaker) -> _RuleRunner:
         A runner wrapping the supplied edit maker.
     """
 
-    def run(
-        document: model.Document,
-        resolved_config: config.StilyagiConfig,
-    ) -> list[diagnostics.Diagnostic]:
+    def run(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:
         """Return one diagnostic, or none once the edit no longer applies."""
-        diagnostic = make_edit(document, resolved_config)
+        diagnostic = make_edit(request)
         return [] if diagnostic is None else [diagnostic]
 
     return run
@@ -470,13 +466,10 @@ def _span_edit(
 ) -> _RuleRunner:
     """Return a rule that replaces one source-backed needle with new text."""
 
-    def make_edit(
-        document: model.Document,
-        _config: config.StilyagiConfig,
-    ) -> diagnostics.Diagnostic | None:
+    def make_edit(request: RuleRunRequest) -> diagnostics.Diagnostic | None:
         """Build the diagnostic, or none when the needle is gone."""
         try:
-            span = find_source_span(document, needle)
+            span = find_source_span(request.document, needle)
         except SourceTextNotFoundError:
             return None
         return diagnostics.Diagnostic(
@@ -512,13 +505,10 @@ def _synthetic_span_edit(
         A runner offering one edit over an unclaimed byte range.
     """
 
-    def make_edit(
-        document: model.Document,
-        _config: config.StilyagiConfig,
-    ) -> diagnostics.Diagnostic | None:
+    def make_edit(request: RuleRunRequest) -> diagnostics.Diagnostic | None:
         """Build the diagnostic over the document's first unclaimed byte."""
         try:
-            span = find_unclaimed_span(document)
+            span = find_unclaimed_span(request.document)
         except NoUnclaimedByteError:
             return None
         return diagnostics.Diagnostic(
@@ -545,15 +535,8 @@ def _two_rules(*rules: _RuleRunner) -> _RuleRunner:
         A runner that concatenates each constituent rule's diagnostics.
     """
 
-    def run(
-        document: model.Document,
-        resolved_config: config.StilyagiConfig,
-    ) -> list[diagnostics.Diagnostic]:
+    def run(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:
         """Return every constituent rule's diagnostics for this document."""
-        return [
-            diagnostic
-            for rule in rules
-            for diagnostic in rule(document, resolved_config)
-        ]
+        return [diagnostic for rule in rules for diagnostic in rule(request)]
 
     return run

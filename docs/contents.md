@@ -140,6 +140,10 @@
     adrs/adr-0010-adopt-the-nose-code-duplication-gate.md)
     records the blocking duplication gate, its reasoned exception entries,
     scan scope, and detector provisioning policy.
+  - [ADR 0011: The source-backed builtin rule contract](
+    adrs/adr-0011-adopt-the-source-backed-builtin-rule-contract.md)
+    records the per-document projection, span verification, one-time
+    tokenization, policy resolution, and the three starter-pack rules.
 
 ## Requests for comments (RFCs)
 

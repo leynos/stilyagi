@@ -178,7 +178,66 @@ with error exit 1. An invalid `TERM001` option exits 2.
 - [x] (2026-10-28) Stage A contract sweep completed against the candidate at
   `4fa47c3`; every mismatch is recorded under *Surprises & discoveries* and
   reconciled in the *Decision log* before any production edit.
-- [ ] Implementation milestones M1–M3 remain unstarted.
+- [x] (2026-10-29) Rebased the branch onto `origin/main` and recorded the WIP
+  boundary commit. The range-diff against the pre-rebase series is identical;
+  no packaging lock file conflicted.
+- [x] (2026-10-29) EP-M1 implemented: typed `RegionTarget`/`RuleMetadata`/
+  `RuleContext`/`RuleRunRequest`, the per-document projection with source-span
+  verification, policy and suppression consumption, and span-carrying JSON
+  rendering.
+- [x] (2026-10-30) EP-M2 implemented: `MD001`, `STY001`, and opt-in `TERM001`
+  with exact spans, the unsafe suffix edit, single tokenization, and the
+  no-spaCy fresh-interpreter probe. Focused suites pass:
+  `tests/test_builtin_markdown_rules.py` (30), `tests/test_rule_policy.py` (20),
+  `tests/test_rule_properties.py` (2),
+  `tests/performance/test_builtin_rule_scaling.py` (5), and
+  `tests/test_builtin_rules_no_nlp.py` (1).
+- [x] (2026-10-30) EP-M3 behavioural coverage added:
+  `features/stilyagi_builtin_markdown_rules.feature` with three scenarios and
+  `tests/test_builtin_markdown_rules_bdd.py` (3 passing), driving the real
+  builtin pack through `stilyagi check`.
+- [x] (2026-10-30) EP-M3 documentation: user's guide rule catalogue, policy,
+  and suppression; developer's guide rule-execution map; design §7.2
+  starter-pack note;
+  [ADR 0011]( adrs/adr-0011-adopt-the-source-backed-builtin-rule-contract.md);
+  contents index entry.
+- [x] (2026-10-31) Post-rebase remediation. The first full `make test` reached
+  `pytest` with 13 failures, all consequences of the new typed runner boundary
+  and the newly rendered `span` field: the BDD stubs still took
+  `(document, config)`, and one expected JSON payload and its snapshot predated
+  `span`. Fixed by rebuilding the stubs around `RuleRunRequest`, rejecting an
+  inverted edit span in `classify_edit` instead of aborting the planning pass,
+  and regenerating the two snapshots. Full Python suite then reported
+  `812 passed`; the doctest lane `116 passed, 3 skipped`;
+  `make duplication-test` `154 passed`.
+- [x] (2026-10-31) Duplication gate repaired. Five of the seven reported
+  families were genuine duplication and were extracted into shared helpers
+  (`engine.ir_mapping.string_tuple`, `segment_with_text`, `span_fields`,
+  `_bounding_span`, `config.rules._parse_optionless`); the remaining two are
+  structural parallels recorded as reasoned `[tool.duplication_gate].allow`
+  entries. `make lint` reports the gate passing with 9 allowed exceptions.
+- [x] (2026-10-31) Focused suite counts re-measured after the rebase:
+  `tests/test_builtin_markdown_rules.py` (30), `tests/test_rule_policy.py` (20),
+  `tests/test_rule_properties.py` (2),
+  `tests/performance/test_builtin_rule_scaling.py` (5),
+  `tests/test_builtin_rules_no_nlp.py` (1), and
+  `tests/test_builtin_markdown_rules_bdd.py` (3). The figures quoted under
+  EP-M2 and EP-M3 above remain accurate.
+- [x] (2026-10-31) Full sequential gates run against HEAD
+  `6296a458950251ff48a807011c0c49d2b2a9ccf1` with all changes staged.
+  `make check-fmt`, `make typecheck`, `make lint` (including Skylos and the
+  duplication gate), `make markdownlint`, and `make nixie` all passed. The
+  `make test` nextest lane reported 355 passed and two timeouts, and stopped
+  before the later Python lanes; those lanes were therefore run directly and
+  passed (see above).
+- [x] (2026-10-31) The two timed-out trybuild tests were re-run on the same
+  candidate through libtest, which has no wall-clock cap, and both passed:
+  `stilyagi-ir` `sha2_0_11_digest_lowerhex_formatting_is_rejected` in 512 s and
+  `stilyagi-pyext` `compile_time_ui` in 1299 s. Their durations exceed
+  nextest's 600-second `terminate-after`, which is the sole cause of the
+  `make test` failure under compile-admission pressure from other repositories;
+  no test failed.
+- [x] (2026-10-31) Roadmap 2.3.1 ticked; committed and published.
 
 ## Surprises & discoveries
 
@@ -230,12 +289,32 @@ with error exit 1. An invalid `TERM001` option exits 2.
   by the extractor. Impact: MD001 cannot read heading depth and inline-code
   exclusion cannot intersect node spans until a region-aware view exists.
 - Observation: `Diagnostic` carries `line`/`column` but no byte span, and
-  `engine.renderers._diagnostic_payload` emits only `location.line` and
+  `engine.renderers.diagnostic_payload` emits only `location.line` and
   `location.column`. Impact: the plan's promised `{"byte_start", "byte_end"}`
   JSON object is new output, so an existing-snapshot check is required.
 - Observation: `Document` (`python/stilyagi/model/document.py`) has `syntax`,
   `regions`, and `ir` only. Impact: rules cannot reach original bytes through
   the document; the request object must carry them explicitly.
+- Observation: Python slice clamping makes an out-of-bounds advertised span
+  look plausible (`source[b"the the"[0:700]]` is the whole file), so a
+  verification that only compared decoded text would accept a malformed span
+  whenever the clamp happened to match. Impact: `_slice_matches` rejects
+  negative or past-EOF bounds before decoding;
+  `tests/test_builtin_markdown_rules.py::TestSourceVerification` covers
+  wrong-text, past-EOF, and split-code-point controls.
+- Observation: the projection initially lived inside `engine/rule_view.py`,
+  which then carried the façade, the node walk, and the region model together.
+  Impact: the projection moved to `engine/rule_projection.py`; `rule_view`
+  stays a thin façade, which also keeps both files under the 400-line limit and
+  lets `rules/base.py` depend on `rules/tokens.py` without an import cycle.
+- Observation: `--fix` with only an unsafe finding withholds the edit and still
+  exits `0`, because the run wrote nothing and the verification re-lint sees
+  the warning that was already allowed to pass. Impact: the CLI BDD scenario
+  asserts `0` plus the `--unsafe-fixes` hint, not `1`.
+- Observation: JSON `fix_applicable` is `diagnostic.fix is not None`, so it is
+  `true` for `MD001`'s manual fix as well as for an applicable edit. Impact:
+  consumers that need "an edit would be applied" must read `fix.applicability`;
+  the user's guide says so explicitly.
 
 ## Decision log
 
@@ -328,14 +407,51 @@ with error exit 1. An invalid `TERM001` option exits 2.
   envelope. Rationale: preserve the established projection while exposing the
   fields this pack needs, with no extractor change. Date/author: 2026-10-28,
   implementation agent.
+- Implementation: the private rule contract is recorded as
+  [ADR 0011](adrs/adr-0011-adopt-the-source-backed-builtin-rule-contract.md),
+  covering the per-document projection, span verification, one-time
+  tokenization, policy resolution order, and the three shipped rules.
+  Rationale: these decisions bind every later builtin and third-party pack, and
+  a reader of the design would otherwise have to reconstruct them from code.
+  Date/author: 2026-10-30, implementation agent.
+- Implementation: span verification rejects out-of-range advertised spans
+  before decoding rather than relying on the decoded-text comparison alone.
+  Rationale: Python slicing clamps, so a past-EOF span can decode to the
+  segment text and pass a naive check. Date/author: 2026-10-30, implementation
+  agent.
 
 ## Outcomes & retrospective
 
 The expert review is complete and its corrections are incorporated; user
-approval was granted on 2026-10-28. No implementation or roadmap completion has
-started. At implementation close, record the exact rule codes and configuration
-forms shipped, verification and gate evidence, accepted deviations, and
-remaining work before setting the plan to `COMPLETE`.
+approval was granted on 2026-10-28. Implementation of M1–M3 is complete, the
+branch is rebased onto `origin/main`, and the gates and roadmap tick are done.
+Every gate passed on the final candidate except the nextest lane, whose two
+trybuild UI tests exceed its 600-second `terminate-after` whenever compile
+admission is saturated; both pass when run without that cap.
+
+The lasting lesson from the rebase is that changing a seam and a rendered
+payload in the same slice makes every test that stubs the seam a manual-merge
+hazard. The runner signature moved from `(document, config)` to a single
+`RuleRunRequest`, and the JSON payload gained `span`; neither change surfaced
+until a full `pytest` run, because the git-level rebase was textually clean.
+Gates are the only place that class of drift is visible, so a clean rebase is a
+starting point, not a verdict.
+
+Shipped:
+
+- `MD001` `heading-depth` — error severity, manual fix with no edits, reports
+  a depth increase greater than one at the heading node span.
+- `STY001` `repeated-word` — warning severity, unsafe suffix removal, reports
+  the second token of a maximal adjacent run.
+- `TERM001` `banned-term` — error severity, opt-in, no fix, whole-token
+  matching under `[rule.TERM001] terms` with optional `case_sensitive`.
+- Policy: `lint.select`/`ignore`/`per-file-ignores`, `plugins = []`,
+  `ALL`/prefix expansion, and the four suppression directives.
+- JSON diagnostics carry `span.byte_start`/`span.byte_end` and the `fix`
+  payload.
+
+Deferred by design: a public rule-authoring API, rule metadata commands
+(2.3.2), pack-level configuration, locale claims, and any NLP-backed rule.
 
 ## Context and orientation
 

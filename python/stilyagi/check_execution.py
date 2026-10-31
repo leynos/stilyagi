@@ -30,6 +30,7 @@ the same call.
 
 import dataclasses as dc
 import logging
+import os
 import pathlib
 import typing as typ
 
@@ -48,6 +49,7 @@ from stilyagi.engine.fix_pipeline import (
     preview_safe_fixes,
 )
 from stilyagi.fixes import FixLevel
+from stilyagi.rules.registry import RuleRunRequest
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -89,6 +91,86 @@ class CheckRun:
     resolver: config.ConfigResolver
     rule_runner: rules_registry.RuleRunner
     report: CheckReporter
+
+
+def _rule_request(
+    *,
+    sourced_input: SourcedInput,
+    document: model.Document,
+    resolved_config: config.StilyagiConfig,
+    run: CheckRun,
+) -> RuleRunRequest:
+    """Build the per-document rule request from the values already in hand.
+
+    The check pipeline already holds the original bytes, the reported path and
+    the resolved configuration here, so rules can be handed byte-exact source
+    without a second read and without reaching for the filesystem themselves.
+
+    Parameters
+    ----------
+    sourced_input:
+        The read result carrying both the original bytes and decoded text.
+    document:
+        The extracted document with its canonical IR envelope.
+    resolved_config:
+        The effective configuration for this target.
+    run:
+        The collaborators and options fixed for this invocation.
+
+    Returns
+    -------
+    RuleRunRequest
+        The frozen request a rule runner receives.
+    """
+    config_file = run.resolver.config_file_for_path(
+        sourced_input.resolved_path,
+        explicit_config=run.options.explicit_config or None,
+        isolated=run.options.isolated,
+    )
+    return RuleRunRequest(
+        config=resolved_config,
+        config_path=str(config_file) if config_file is not None else None,
+        source_bytes=sourced_input.source_bytes,
+        reported_path=sourced_input.reported_path,
+        document=document,
+        config_relative_path=_config_relative_path(
+            sourced_input.resolved_path, config_file
+        ),
+    )
+
+
+def _config_relative_path(
+    target: pathlib.Path,
+    config_file: pathlib.Path | None,
+) -> str:
+    """Return the POSIX target path per-file ignore globs are matched against.
+
+    Globs are config-relative, anchored at the governing config file's parent,
+    or at the invocation working directory when no config file governs the
+    target. ``os.path.relpath`` is used rather than ``Path.relative_to`` so a
+    target outside the config tree still yields a stable relative spelling
+    instead of failing the check.
+
+    Parameters
+    ----------
+    target:
+        The resolved path of the file being checked.
+    config_file:
+        The governing config file, or ``None`` when configuration is inline
+        only or absent.
+
+    Returns
+    -------
+    str
+        The target path as POSIX text, relative to the glob anchor.
+    """
+    anchor = (
+        config_file.expanduser().resolve().parent
+        if config_file is not None
+        else pathlib.Path.cwd()
+    )
+    relative = os.path.relpath(target.expanduser().resolve(), anchor)
+    return pathlib.PurePath(relative).as_posix()
 
 
 def _wants_a_plan(run: CheckRun) -> bool:
@@ -267,7 +349,14 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
         with check_metrics._measure_phase("rules"):
             diagnostics_list = [
                 *map_ir_errors(document, sourced_input.reported_path),
-                *run.rule_runner(document, resolved_config),
+                *run.rule_runner(
+                    _rule_request(
+                        sourced_input=sourced_input,
+                        document=document,
+                        resolved_config=resolved_config,
+                        run=run,
+                    )
+                ),
             ]
     except Exception:
         check_metrics.record_operational_failure("rules")

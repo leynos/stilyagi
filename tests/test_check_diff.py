@@ -9,7 +9,7 @@ with the other option pins in `tests/test_cli_args.py`.
 import logging
 import typing as typ
 
-from stilyagi import cli, config, diagnostics, model
+from stilyagi import cli, diagnostics
 from stilyagi.fixes import Applicability, Fix, TextEdit
 from syrupy.extensions.json import JSONSnapshotExtension
 
@@ -26,6 +26,7 @@ if typ.TYPE_CHECKING:
     import pathlib
 
     import pytest
+    from stilyagi.rules.registry import RuleRunRequest
     from syrupy.assertion import SnapshotAssertion
 
 
@@ -200,8 +201,7 @@ class TestEmptyPatchExitStatus:
 
 
 def _unsafe_only_runner(
-    document: model.Document,
-    _config: config.StilyagiConfig,
+    request: RuleRunRequest,
 ) -> list[diagnostics.Diagnostic]:
     """Offer one fix a rule marked unsafe and nothing else.
 
@@ -224,7 +224,7 @@ def _unsafe_only_runner(
         targets is gone.
     """
     try:
-        span = find_source_span(document, "Paragraph")
+        span = find_source_span(request.document, "Paragraph")
     except SourceTextNotFoundError:
         return []
     return [

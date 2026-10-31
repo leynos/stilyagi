@@ -22,7 +22,7 @@ import pathlib
 import sys
 import typing as typ
 
-from stilyagi import cli, config, diagnostics, model
+from stilyagi import cli, diagnostics
 from stilyagi.fixes import Applicability, Fix, TextEdit
 
 from tests.support.assertions import assert_with_context
@@ -32,6 +32,7 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
     import pytest
+    from stilyagi.rules.registry import RuleRunRequest
 
 
 def refuse_one_filename(
@@ -67,8 +68,7 @@ def refuse_one_filename(
 
 
 def plan_one_edit_each(
-    document: model.Document,
-    _config: config.StilyagiConfig,
+    request: RuleRunRequest,
 ) -> list[diagnostics.Diagnostic]:
     """Offer one safe source-backed edit per file, chosen by its own text.
 
@@ -89,6 +89,7 @@ def plan_one_edit_each(
     list[diagnostics.Diagnostic]
         One fixable finding for each file that still holds its original text.
     """
+    document = request.document
     prose = "".join(region.text for region in document.regions)
     if "Paragraph" in prose:
         return [

@@ -202,7 +202,7 @@ the rule engine, diagnostics model, and safe-fix machinery. See
 [Stilyagi design](stilyagi-design.md) §§3-5, 7.2 and
 [RFC 0002](rfcs/rfc-0002-stilyagi-python-rule-api.md).
 
-- [ ] 2.3.1. Implement a starter pack of builtin Markdown rules. See Stilyagi
+- [x] 2.3.1. Implement a starter pack of builtin Markdown rules. See Stilyagi
   design (stilyagi-design.md) §7.2.
   - Requires 2.1.2 and 2.2.1.
   - Prioritize structural and lightweight text rules such as heading depth,

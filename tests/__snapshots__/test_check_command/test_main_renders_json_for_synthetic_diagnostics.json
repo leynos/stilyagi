@@ -10,7 +10,8 @@
       },
       "message": "Synthetic diagnostic",
       "path": "docs/notes.md",
-      "severity": "warning"
+      "severity": "warning",
+      "span": null
     }
   ],
   "fix_errors": [],
