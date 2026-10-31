@@ -294,6 +294,24 @@ with error exit 1. An invalid `TERM001` option exits 2.
   reported as `R0913`. One piped-check step now appends `--isolated` when a
   preceding Given requests it, and `_spy` takes a `(module, attribute)` pair.
   Focused suites: 84 passed.
+- [x] (2026-10-31) Full-gate repair 3 — duplication and wheel snapshot. The
+  duplication gate reported two families new to this branch: a two-line
+  missing-argument guard repeated in `diagnostics_location.py`, and the
+  type-only import prologue whose member set had shifted from `rules/base.py` to
+  `rules/builtin/text.py` when `base.py` gained a runtime import.
+  `line_column_from_offset` now delegates to
+  `line_column_from_validated_starts`, leaving one guard, and the existing
+  reasoned entry was updated to the detector's current members rather than
+  duplicated. The maturin wheel snapshot also predated `rules/inline_code.py`;
+  the module was added to its file list. Duplication gate: passed with 9
+  reasoned exceptions; focused suites and the wheel snapshot pass.
+- [x] (2026-10-31) Final gate run on `e507547c`. `check-fmt`, `typecheck`,
+  `lint`, `markdownlint`, and `nixie` pass. `make test` ran 357 nextest tests:
+  355 passed and the two trybuild compile-fail tests timed out at the 600-second
+  `terminate-after` while queued for compile slots. Every later lane was run
+  separately and passed: pytest 842 passed with 19 snapshots, the doctest lane
+  120 passed with 3 skipped, and `make duplication-test` 154 passed. The Rust
+  tree is byte-identical to the hosted-green `9667e1ef` head.
 
 ## Surprises & discoveries
 
@@ -494,15 +512,21 @@ with error exit 1. An invalid `TERM001` option exits 2.
 
 The expert review is complete and its corrections are incorporated; user
 approval was granted on 2026-10-28. Implementation of M1–M3 is complete and the
-branch is rebased onto `origin/main`. The published candidate `9667e1ef` passed
-every hosted check — `lint-test`, all three `release-smoke` platforms,
-CodeScene, and Gecko — so the suite is green under CI's compile admission.
-Locally, the two trybuild compile-fail UI tests in the nextest lane can exceed
-their 600-second `terminate-after` while the shared compiler queue is
-saturated; they are waiting for slots, not failing, and the same tests pass in
-CI and when run without the cap. The hosted code-health review flagged five
-delta findings on the new code; each was repaired by extraction rather than
-suppression, and the delta re-run against the base reported none.
+branch is rebased onto `origin/main`. The first published candidate `9667e1ef`
+passed every hosted check — `lint-test`, all three `release-smoke` platforms,
+CodeScene, and Gecko. Later commits respond to the hosted assessment and carry
+the final candidate `e507547c`. On that candidate the deterministic gates
+`check-fmt`, `typecheck`, `lint`, `markdownlint`, and `nixie` pass. `make test`
+runs 357 nextest tests, of which 355 pass; the two trybuild compile-fail UI
+tests exceed their 600-second `terminate-after` while waiting for shared
+compiler slots. Every later `make test` lane was run separately and passed:
+pytest 842 passed with 19 snapshots, the doctest lane 120 passed with 3
+skipped, and `make duplication-test` 154 passed. The Rust tree is
+byte-identical to `9667e1ef`, so hosted CI covers those two waiting tests; the
+hosted checks for `e507547c` remain the acceptance evidence for the final head.
+The hosted code-health review flagged five delta findings on the new code; each
+was repaired by extraction rather than suppression, and the delta re-run
+against the base reported none.
 
 A later hosted review made four further findings, all in this slice's evidence:
 per-finding index rebuilding, a preservation property built from its own
@@ -511,8 +535,11 @@ no-NLP claim. Each is repaired and re-measured above. The repair commits
 introduced two further code-health findings of their own — a duplicated pair of
 step functions and an over-parameterized test spy that Pylint also rejected —
 and both were removed by a shared step flag and a paired patch target rather
-than by suppression. The final gate run is bound to the repaired head in the
-delivery ledger rather than inferred from an earlier candidate.
+than by suppression. A third gate cycle then found two duplication families and
+a stale wheel snapshot: the repeated guard was removed by delegation, and the
+existing reasoned entry and snapshot were updated to the current modules
+instead of adding exceptions. The final gate run is bound to the repaired head
+in the delivery ledger rather than inferred from an earlier candidate.
 
 The lasting lesson from the rebase is that changing a seam and a rendered
 payload in the same slice makes every test that stubs the seam a manual-merge
@@ -536,6 +563,12 @@ function taking a sequence, and a helper's inferred dict type was narrower than
 its declared one. Folding the value into the predicate's return and naming the
 optional-index bridge fixed the first two at their source; neither needed a
 suppression.
+
+The fourth lesson is that a gate verdict is bound to the tree it ran on. The
+published `9667e1ef` was fully green, yet the commits after it introduced two
+duplication families and a stale wheel snapshot; only a fresh run on the
+repaired head exposed them. An ancestor's green result is evidence for that
+ancestor, not for the tip, so each new head renews its own gate evidence.
 
 Shipped:
 
