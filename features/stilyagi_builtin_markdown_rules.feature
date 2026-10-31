@@ -41,5 +41,6 @@ Feature: Builtin Markdown rules
 
   Scenario: ignore the configuration when isolation is requested
     Given a repository whose extended config ignores STY for "docs/*.md"
-    When I pipe the repeated word "the the" to stilyagi check named "docs/notes.md" with isolated configuration
+    And configuration discovery is isolated
+    When I pipe the repeated word "the the" to stilyagi check named "docs/notes.md"
     Then STY001 is reported for the piped document

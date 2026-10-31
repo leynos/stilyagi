@@ -66,9 +66,9 @@ def test_indexes_are_built_once_per_document(
 ) -> None:
     """Projection and tokenization happen once; tokenization per segment."""
     calls = {"project": 0, "tokenize_segments": 0, "alpha_tokens": 0}
-    _spy(monkeypatch, rule_view, "project", calls)
-    _spy(monkeypatch, text, "tokenize_segments", calls)
-    _spy(monkeypatch, text, "alpha_tokens", calls)
+    _spy(monkeypatch, (rule_view, "project"), calls)
+    _spy(monkeypatch, (text, "tokenize_segments"), calls)
+    _spy(monkeypatch, (text, "alpha_tokens"), calls)
 
     started = time.perf_counter()
     result = LintSetup().run(_paragraphs(count))
@@ -93,8 +93,8 @@ def test_a_second_text_rule_does_not_retokenize(
 ) -> None:
     """Selection changes which rules run, not how often text is tokenized."""
     calls = {"tokenize_segments": 0, "alpha_tokens": 0}
-    _spy(monkeypatch, text, "tokenize_segments", calls)
-    _spy(monkeypatch, text, "alpha_tokens", calls)
+    _spy(monkeypatch, (text, "tokenize_segments"), calls)
+    _spy(monkeypatch, (text, "alpha_tokens"), calls)
 
     LintSetup(rules=rules).run(_paragraphs(20))
 
@@ -110,9 +110,14 @@ def test_line_starts_are_validated_once_and_located_per_finding(
 ) -> None:
     """Line mapping validates the index once, then bisects once per finding."""
     calls = {"line_index": 0, "validated_line_starts": 0, "bisect": 0}
-    _spy(monkeypatch, ir_view, "line_index", calls)
-    _spy(monkeypatch, diagnostics_location, "validated_line_starts", calls)
-    _spy(monkeypatch, diagnostics_location, "bisect_right", calls, label="bisect")
+    _spy(monkeypatch, (ir_view, "line_index"), calls)
+    _spy(monkeypatch, (diagnostics_location, "validated_line_starts"), calls)
+    _spy(
+        monkeypatch,
+        (diagnostics_location, "bisect_right"),
+        calls,
+        label="bisect",
+    )
 
     result = LintSetup().run(_paragraphs(count))
 
@@ -131,12 +136,11 @@ def test_inline_code_lookup_searches_once_per_segment(
     source = _code_paragraphs(count)
     segments = _source_backed_segments(source)
     calls = {"contains": 0, "bisect": 0, "bisect-findings": 0}
-    _spy(monkeypatch, inline_code.InlineCodeIndex, "contains", calls)
-    _spy(monkeypatch, inline_code, "bisect_right", calls, label="bisect")
+    _spy(monkeypatch, (inline_code.InlineCodeIndex, "contains"), calls)
+    _spy(monkeypatch, (inline_code, "bisect_right"), calls, label="bisect")
     _spy(
         monkeypatch,
-        diagnostics_location,
-        "bisect_right",
+        (diagnostics_location, "bisect_right"),
         calls,
         label="bisect-findings",
     )
@@ -153,19 +157,21 @@ def test_inline_code_lookup_searches_once_per_segment(
 
 def _spy(
     monkeypatch: pytest.MonkeyPatch,
-    module: object,
-    name: str,
+    target: tuple[object, str],
     calls: dict[str, int],
     *,
     label: str | None = None,
 ) -> None:
-    """Replace ``module.name`` with a wrapper that counts into ``calls``.
+    """Replace the attribute named by ``target`` with a counting wrapper.
 
+    ``target`` pairs the module or class with the attribute to patch, so the
+    wrapper keeps four parameters while still naming both halves of the patch.
     The count is keyed by ``label``, defaulting to the attribute name, so a
     call site names the operation it measures once rather than repeating a
-    second label beside it. Patch two modules exposing the same attribute name
+    second label beside it. Patch two targets exposing the same attribute name
     by giving each an explicit ``label``.
     """
+    module, name = target
     original = getattr(module, name)
 
     def wrapper(*args: object, **kwargs: object) -> object:
