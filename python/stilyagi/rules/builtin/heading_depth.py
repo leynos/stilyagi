@@ -57,27 +57,35 @@ def check_heading_depth(
         depth = region.depth
         if depth is None:
             continue
-        if _is_skipped_level(region, previous, depth):
-            found.append(_heading_diagnostic(context, region, previous, depth))
+        jumped_from = _jumped_from(region, previous, depth)
+        if jumped_from is not None:
+            found.append(_heading_diagnostic(context, region, jumped_from, depth))
         previous = depth
     return tuple(found)
 
 
-def _is_skipped_level(
+def _jumped_from(
     region: RegionView,
     previous: int | None,
     depth: int,
-) -> bool:
-    """Whether this heading jumps more than one level and can be located.
+) -> int | None:
+    """Return the depth jumped from when this heading is reportable.
+
+    Returning the baseline rather than a boolean lets the caller hand the
+    narrowed value straight to the diagnostic constructor, so no second check
+    is needed to convince a type checker the jump had a starting depth.
 
     Returns
     -------
-    bool
-        ``True`` when the jump is reportable against the canonical node span.
+    int | None
+        The previous depth when the jump exceeds one level and the canonical
+        node span is locatable, otherwise ``None``.
     """
-    return (
-        previous is not None and depth - previous > 1 and region.node_span is not None
-    )
+    if previous is None or region.node_span is None:
+        return None
+    if depth - previous <= 1:
+        return None
+    return previous
 
 
 def _heading_diagnostic(

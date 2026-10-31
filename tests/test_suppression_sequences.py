@@ -141,7 +141,7 @@ def _suppression_case(draw: st.DrawFn) -> _SuppressionCase:
 
 def _raw_suppressions(case: _SuppressionCase) -> list[dict[str, object]]:
     """Return IR suppression entries for one generated case."""
-    ranges = [
+    ranges: list[dict[str, object]] = [
         {
             "kind": "range",
             "range_role": role,
@@ -150,7 +150,7 @@ def _raw_suppressions(case: _SuppressionCase) -> list[dict[str, object]]:
         }
         for position, role, codes in case.events
     ]
-    inline = [
+    inline: list[dict[str, object]] = [
         {
             "kind": "inline",
             "codes": list(codes),

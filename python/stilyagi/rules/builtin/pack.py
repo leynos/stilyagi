@@ -25,7 +25,7 @@ from stilyagi.rules.inline_code import InlineCodeIndex
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
-    from stilyagi import diagnostics
+    from stilyagi import diagnostics, model
     from stilyagi.rules.policy import RulePolicy
     from stilyagi.rules.registry import RuleRunRequest
 
@@ -194,9 +194,7 @@ def run_selected(
     view = document_view or rule_view.project(
         request.document, source_bytes=request.source_bytes
     )
-    line_starts = diagnostics_location.validated_line_starts(
-        ir_view.line_index(request.document)
-    )
+    line_starts = _validated_line_starts(request.document)
     inline_code = InlineCodeIndex.from_spans(view.inline_code_spans)
     tokenized = text.tokenize_segments(view.for_target(_TEXT_TARGET), inline_code)
     config_path = pathlib.Path(request.config_path or request.reported_path)
@@ -223,3 +221,24 @@ def run_selected(
         )
         produced.extend(rule.hook(context))
     return tuple(produced)
+
+
+def _validated_line_starts(
+    document: model.Document,
+) -> tuple[int, ...] | None:
+    """Validate the document's line index once, tolerating an omitted one.
+
+    ``line_index`` returns ``None`` for IR that carries no usable line
+    metadata, and ``validated_line_starts`` only accepts a sequence. This
+    bridges the two so the ``None`` means "no line metadata" all the way to
+    the location mapper instead of becoming an argument type error.
+
+    Returns
+    -------
+    tuple[int, ...] | None
+        Validated line starts, or ``None`` when the IR omits them.
+    """
+    raw_line_index = ir_view.line_index(document)
+    if raw_line_index is None:
+        return None
+    return diagnostics_location.validated_line_starts(raw_line_index)
