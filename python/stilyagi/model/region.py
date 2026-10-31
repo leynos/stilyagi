@@ -72,9 +72,14 @@ class RegionView:
     segments:
         Segments belonging to the region, in document order.
     span:
-        Canonical region span, taken from the origin nodes so it includes
-        structural markers such as a heading's ``#`` prefix. ``None`` when the
-        IR supplied neither origins nor source-backed segments.
+        Canonical region span, taken from the origin nodes when they exist and
+        otherwise from source-backed segments. ``None`` when the IR supplied
+        neither.
+    node_span:
+        Bounding span of the region's origin nodes alone, so it includes
+        structural markers such as a heading's ``#`` prefix. Unlike ``span`` it
+        is never inferred from segments, so a rule that must report the
+        canonical node can require it explicitly.
     """
 
     region_id: str
@@ -84,6 +89,7 @@ class RegionView:
     attrs: cabc.Mapping[str, object]
     segments: tuple[RegionSegment, ...]
     span: SourceSpan | None = None
+    node_span: SourceSpan | None = None
 
     @property
     def depth(self) -> int | None:

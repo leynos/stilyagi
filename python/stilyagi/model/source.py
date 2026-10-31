@@ -7,6 +7,41 @@ package stops those layers from depending on the engine for a coordinate value.
 
 import dataclasses as dc
 
+_UTF8_CONTINUATION_MASK = 0b1100_0000
+_UTF8_CONTINUATION_PREFIX = 0b1000_0000
+
+
+def is_utf8_boundary(source_bytes: bytes, offset: int) -> bool:
+    """Return whether ``offset`` lies between UTF-8 code points.
+
+    Parameters
+    ----------
+    source_bytes:
+        The encoded source the offset addresses.
+    offset:
+        Candidate byte offset.
+
+    Returns
+    -------
+    bool
+        ``True`` when the offset is the buffer's start or end, or when the byte
+        at that offset does not continue a multi-byte code point.
+
+    Examples
+    --------
+    >>> is_utf8_boundary("é".encode(), 0)
+    True
+    >>> is_utf8_boundary("é".encode(), 1)
+    False
+    >>> is_utf8_boundary(b"", 0)
+    True
+    """
+    if offset == 0 or offset == len(source_bytes):
+        return True
+    if offset < 0 or offset > len(source_bytes):
+        return False
+    return source_bytes[offset] & _UTF8_CONTINUATION_MASK != _UTF8_CONTINUATION_PREFIX
+
 
 @dc.dataclass(frozen=True, slots=True, order=True)
 class SourceSpan:
