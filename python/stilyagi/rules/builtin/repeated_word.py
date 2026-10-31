@@ -37,19 +37,16 @@ def check_repeated_word(
 
     Examples
     --------
-    >>> from stilyagi import config, model
+    >>> from stilyagi import model
     >>> from stilyagi.config.rules import Sty001Config
     >>> from stilyagi.rules.base import RuleContext
-    >>> from stilyagi.rules.registry import RuleRunRequest
-    >>> request = RuleRunRequest(
-    ...     config=config.StilyagiConfig(),
-    ...     config_path=None,
-    ...     source_bytes=b"",
-    ...     reported_path="doc.md",
-    ...     document=model.Document(syntax=model.Syntax.MARKDOWN),
-    ... )
     >>> check_repeated_word(
-    ...     RuleContext(request=request, rule_config=Sty001Config())
+    ...     RuleContext(
+    ...         rule_config=Sty001Config(),
+    ...         document=model.Document(syntax=model.Syntax.MARKDOWN),
+    ...         source_bytes=b"",
+    ...         reported_path="doc.md",
+    ...     )
     ... )
     ()
     """

@@ -11,11 +11,11 @@ import dataclasses as dc
 import typing as typ
 
 from stilyagi.model.source import SourceSpan
+from stilyagi.rules.inline_code import InlineCodeIndex
 
 if typ.TYPE_CHECKING:
     from stilyagi import model
     from stilyagi.model.region import RegionView
-    from stilyagi.rules.registry import RuleRunRequest
     from stilyagi.rules.tokens import TokenizedSegment
 
 
@@ -142,43 +142,43 @@ class RuleMetadata:
 class RuleContext[T]:
     """The validated, read-only view a rule hook receives.
 
+    The context carries only per-document facts and the rule's own validated
+    configuration. The application-level run request, which also holds global
+    configuration and the paths used for selection, is deliberately absent: a
+    rule cannot read policy it does not own.
+
     Parameters
     ----------
-    request:
-        The per-document run request.
     rule_config:
         Frozen per-rule configuration validated for this rule.
+    document:
+        The extracted document with its canonical IR envelope.
+    source_bytes:
+        The immutable original file bytes.
+    reported_path:
+        Command-line-relative path attributed to diagnostics.
+    line_starts:
+        Validated IR line starts, computed once per document, or ``None`` when
+        the IR omitted line metadata. Location mapping reuses this index.
+    inline_code:
+        Index over the canonical inline-code spans, built once per document.
+        Text rules exclude any segment contained in one of those spans.
     regions:
         The regions the rule's target claims, in document order.
-    inline_code_spans:
-        Canonical inline-code spans whose text must not be matched. Text rules
-        exclude any segment contained in one of these spans.
     tokenized_segments:
         The target's eligible segments, tokenized once per document. Text
         rules read this instead of tokenizing a segment again, so a document
         with two selected text rules pays for tokenization only once.
     """
 
-    request: RuleRunRequest
     rule_config: T
+    document: model.Document
+    source_bytes: bytes
+    reported_path: str
+    line_starts: tuple[int, ...] | None = None
+    inline_code: InlineCodeIndex = dc.field(default_factory=InlineCodeIndex)
     regions: tuple[RegionView, ...] = ()
-    inline_code_spans: tuple[SourceSpan, ...] = ()
     tokenized_segments: tuple[TokenizedSegment, ...] = ()
-
-    @property
-    def source_bytes(self) -> bytes:
-        """The immutable original file bytes."""
-        return self.request.source_bytes
-
-    @property
-    def reported_path(self) -> str:
-        """The command-line-relative path for diagnostics."""
-        return self.request.reported_path
-
-    @property
-    def document(self) -> model.Document:
-        """The extracted document with its canonical IR envelope."""
-        return self.request.document
 
 
 type RuleHook = cabc.Callable[[RuleContext[typ.Any]], cabc.Iterable[typ.Any]]
