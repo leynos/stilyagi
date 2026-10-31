@@ -36,7 +36,7 @@ def line_column_from_offset(
     >>> line_column_from_offset(None, 7)
     (1, 1)
     """
-    if line_index is None or offset is None:
+    if line_index is None:
         return (1, 1)
     return line_column_from_validated_starts(validated_line_starts(line_index), offset)
 
