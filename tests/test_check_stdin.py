@@ -25,7 +25,7 @@ def test_cli_main_reads_stdin_and_attributes_diagnostic_to_filename(
     monkeypatch.setattr(sys, "stdin", io.StringIO("# Notes\n"))
     monkeypatch.setattr(
         "stilyagi.rules.registry.run_rules",
-        lambda _document, _config: [
+        lambda _request: [
             diagnostics.Diagnostic(
                 path="README.md",
                 code="IR000",

@@ -30,7 +30,14 @@ def classify_edit(
     rule_code: str,
 ) -> EditRejection | None:
     """Return a rejection when an edit is not source-backed and UTF-8 aligned."""
-    span = ir_view.SourceSpan(edit.byte_start, edit.byte_end)
+    try:
+        span = ir_view.SourceSpan(edit.byte_start, edit.byte_end)
+    except ValueError:
+        # A rule may advertise an inverted range. Refusing it here keeps the
+        # edit reportable instead of aborting the whole planning pass.
+        return EditRejection(
+            "fix-error/invalid-span", rule_code, "span is out of bounds"
+        )
     if not _is_bounded(span, source_bytes):
         return EditRejection(
             "fix-error/invalid-span", rule_code, "span is out of bounds"

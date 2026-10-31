@@ -19,6 +19,7 @@ from stilyagi.fixes import Applicability, Fix, TextEdit
 if typ.TYPE_CHECKING:
     import pytest
     from stilyagi.rules import registry as rules_registry
+    from stilyagi.rules.registry import RuleRunRequest
 
 
 def input_for(path: pathlib.Path) -> check_inputs.CheckInput:
@@ -57,16 +58,14 @@ def run_for(
 
 
 def silent_runner(
-    _document: model.Document,
-    _config: config.StilyagiConfig,
+    _request: RuleRunRequest,
 ) -> list[diagnostics.Diagnostic]:
     """Return no diagnostics, so a test controls the only finding."""
     return []
 
 
 def one_diagnostic_runner(
-    _document: model.Document,
-    _config: config.StilyagiConfig,
+    _request: RuleRunRequest,
 ) -> list[diagnostics.Diagnostic]:
     """Return one diagnostic, so a readable file has something to collect."""
     return [diagnostics.Diagnostic(path="notes.md", code="PUN201", message="x")]
@@ -96,8 +95,7 @@ def patch_read_bytes_failure(
 
 
 def rewrite_paragraph(
-    document: model.Document,
-    _config: config.StilyagiConfig,
+    request: RuleRunRequest,
 ) -> list[diagnostics.Diagnostic]:
     """Offer one safe replacement against a source-backed paragraph span.
 
@@ -112,7 +110,7 @@ def rewrite_paragraph(
     """
     from tests.support.fix_fixtures import find_source_span
 
-    span = find_source_span(document, "Paragraph")
+    span = find_source_span(request.document, "Paragraph")
     return [
         diagnostics.Diagnostic(
             path="notes.md",
@@ -129,8 +127,7 @@ def rewrite_paragraph(
 
 
 def rewrite_heading_marker(
-    _document: model.Document,
-    _config: config.StilyagiConfig,
+    _request: RuleRunRequest,
 ) -> list[diagnostics.Diagnostic]:
     """Offer a deliberately unsafe synthetic-span edit against a heading.
 

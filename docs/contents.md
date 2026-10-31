@@ -145,6 +145,10 @@
     records the dated-nightly decision, the removed `rust-version`, the
     `mold` and parallel-frontend build standard, the Cranelift verdict, and
     the routes that exclude the standard.
+  - [ADR 0012: The source-backed builtin rule contract](
+    adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md)
+    records the per-document projection, span verification, one-time
+    tokenization, policy resolution, and the three starter-pack rules.
 
 ## Requests for comments (RFCs)
 
