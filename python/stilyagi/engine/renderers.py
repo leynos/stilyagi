@@ -6,11 +6,13 @@ import logging
 import typing as typ
 
 from stilyagi import diagnostics
+from stilyagi.engine.text_renderer import render_text
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
     from stilyagi.fixes import Fix
+    from stilyagi.model.source import SourceSpan
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -183,7 +185,7 @@ class RendererRegistry:
                 ordered_diagnostics, effective_summary, ordered_fix_errors
             )
         if effective_format == "text":
-            return _render_text(
+            return render_text(
                 ordered_diagnostics, effective_summary, ordered_fix_errors
             )
         _LOGGER.error("unsupported output format %r", effective_format)
@@ -213,116 +215,6 @@ def _fix_error_sort_key(
     return fix_error.path, fix_error.identifier, fix_error.rule_codes
 
 
-def _render_text(
-    diagnostics_list: list[diagnostics.Diagnostic],
-    summary: RunSummary,
-    fix_errors: list[diagnostics.FixError],
-) -> str:
-    """Render diagnostics as one human-readable line per finding."""
-    lines = [
-        f"{diagnostic.path}:{diagnostic.line or 1}:{diagnostic.column or 1}: "
-        f"{diagnostic.severity.value} {diagnostic.code} {diagnostic.message}"
-        for diagnostic in diagnostics_list
-    ]
-    lines.extend(_render_fix_error(fix_error) for fix_error in fix_errors)
-    lines.append(_summary_line(diagnostics_list, fix_errors, summary))
-    return "\n".join(lines) + "\n"
-
-
-def _render_fix_error(fix_error: diagnostics.FixError) -> str:
-    """Render one engine-level refusal with its distinct non-rule prefix.
-
-    The rule-code segment is omitted rather than printed empty when a refusal
-    names no rule. Two of the seven identifiers -- `changed-on-disk` and
-    `standard-input` -- are raised by the executor and the phase-one wrapper,
-    not by a rule's proposed edit, so they carry no codes by construction.
-    Joining an empty tuple yields the empty string, which rendered as a
-    dangling `: ` after the path.
-
-    Returns
-    -------
-    str
-        One line naming the refusal's origin, path, and message.
-    """
-    rule_codes = ", ".join(fix_error.rule_codes)
-    origin = f"{rule_codes}: " if rule_codes else ""
-    return f"{fix_error.identifier}: {fix_error.path}: {origin}{fix_error.message}"
-
-
-def _summary_line(
-    diagnostics_list: list[diagnostics.Diagnostic],
-    fix_errors: list[diagnostics.FixError],
-    summary: RunSummary,
-) -> str:
-    """Return the run summary as one line, with fix counts when a plan exists.
-
-    The file and severity totals are the command's own accounting and are
-    always present. The fix counts are appended only when the run actually
-    handled a fix -- at least one diagnostic carries a payload, or a plan was
-    refused. That condition is what keeps a plain check's summary byte-stable
-    against the documented shape: a run with nothing fixable has nothing to
-    say about fixes, and a count of zero against every ordinary run would be
-    noise the contract test would have to pin forever.
-
-    The two nouns pluralize independently because a file can offer both: one
-    safe edit applied automatically and one unsafe edit withheld.
-
-    Returns
-    -------
-    str
-        The summary line, with fix counts appended when the run handled one.
-    """
-    fix_counts = _fix_counts(diagnostics_list, fix_errors)
-    line = (
-        "checked "
-        f"{summary.checked_files} files ({summary.skipped_files} skipped, "
-        f"{summary.unreadable_files} unreadable); {summary.errors} errors, "
-        f"{summary.warnings} warnings"
-    )
-    if fix_counts is None:
-        return line
-    safe_count, unsafe_count = fix_counts
-    return (
-        f"{line}; {_count_label(safe_count, 'safe fix')}, "
-        f"{_count_label(unsafe_count, 'unsafe fix')}"
-    )
-
-
-def _fix_counts(
-    diagnostics_list: list[diagnostics.Diagnostic],
-    fix_errors: list[diagnostics.FixError],
-) -> tuple[int, int] | None:
-    """Count the safe and unsafe fixes on offer, or ``None`` if there are none.
-
-    A refusal counts as evidence that a plan ran even when no diagnostic
-    carries a payload -- an unsafe fix is withheld rather than attached, and
-    reporting nothing about it would hide the one case the counts exist for.
-
-    Returns
-    -------
-    tuple[int, int] | None
-        The safe and unsafe counts, or ``None`` when the run handled no fix.
-    """
-    safe_count = sum(
-        diagnostic.fix is not None and diagnostic.fix.applicability == "safe"
-        for diagnostic in diagnostics_list
-    )
-    unsafe_count = sum(
-        diagnostic.fix is not None and diagnostic.fix.applicability == "unsafe"
-        for diagnostic in diagnostics_list
-    )
-    handled_a_fix = bool(safe_count or unsafe_count or fix_errors)
-    if handled_a_fix:
-        return safe_count, unsafe_count
-    return None
-
-
-def _count_label(count: int, noun: str) -> str:
-    """Pluralize a counted text-renderer noun."""
-    suffix = "" if count == 1 else "es"
-    return f"{count} {noun}{suffix}"
-
-
 def _render_json(
     diagnostics_list: list[diagnostics.Diagnostic],
     summary: RunSummary,
@@ -332,7 +224,7 @@ def _render_json(
     payload = {
         "schema_version": "1.0.0",
         "diagnostics": [
-            _diagnostic_payload(diagnostic) for diagnostic in diagnostics_list
+            diagnostic_payload(diagnostic) for diagnostic in diagnostics_list
         ],
         "fix_errors": [_fix_error_payload(fix_error) for fix_error in fix_errors],
         "summary": dc.asdict(summary),
@@ -340,8 +232,29 @@ def _render_json(
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
 
-def _diagnostic_payload(diagnostic: diagnostics.Diagnostic) -> dict[str, object]:
-    """Serialize one diagnostic without coupling rendering to execution flags."""
+def diagnostic_payload(diagnostic: diagnostics.Diagnostic) -> dict[str, object]:
+    """Return the JSON-shaped mapping for one diagnostic.
+
+    Parameters
+    ----------
+    diagnostic:
+        The diagnostic to serialize.
+
+    Returns
+    -------
+    dict[str, object]
+        The renderer's JSON object for this diagnostic, including the
+        ``span`` key alongside the existing ``location`` key.
+
+    Examples
+    --------
+    >>> from stilyagi import diagnostics
+    >>> payload = diagnostic_payload(
+    ...     diagnostics.Diagnostic(path="a.md", code="MD001", message="m")
+    ... )
+    >>> payload["span"] is None
+    True
+    """
     return {
         "path": diagnostic.path,
         "code": diagnostic.code,
@@ -351,9 +264,17 @@ def _diagnostic_payload(diagnostic: diagnostics.Diagnostic) -> dict[str, object]
             "line": diagnostic.line or 1,
             "column": diagnostic.column or 1,
         },
+        "span": _span_payload(diagnostic.span),
         "fix_applicable": diagnostic.fix is not None,
         "fix": _fix_payload(diagnostic.fix),
     }
+
+
+def _span_payload(span: SourceSpan | None) -> dict[str, int] | None:
+    """Serialize a byte span, or ``None`` when the diagnostic has no source."""
+    if span is None:
+        return None
+    return {"byte_start": span.byte_start, "byte_end": span.byte_end}
 
 
 def _fix_payload(fix: Fix | None) -> dict[str, object] | None:

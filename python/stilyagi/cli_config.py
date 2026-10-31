@@ -10,6 +10,8 @@ on this module, and neither depends on the other.
 import pathlib
 import typing as typ
 
+from stilyagi.config import rules as rule_options
+
 __all__ = [
     "build_cli_overrides",
     "resolve_discovery_config",
@@ -64,7 +66,22 @@ def resolve_target_config(
     options: CheckOptions,
     resolver: config.ConfigResolver,
 ) -> config.StilyagiConfig:
-    """Resolve the effective config for one target path.
+    """Resolve and validate the effective config for one target path.
+
+    Per-rule tables are validated here rather than only when a rule runs, so a
+    malformed option is reported the same way whether or not its rule is
+    selected. A malformed table raises :class:`config.InvalidConfigError`; the
+    error names the config file that governs the target when one does, and
+    falls back to the target path for an inline-only configuration.
+
+    Parameters
+    ----------
+    target:
+        The file or directory whose effective configuration is resolved.
+    options:
+        Parsed command-line options supplying overrides and explicit config.
+    resolver:
+        The run's shared configuration resolver.
 
     Returns
     -------
@@ -72,12 +89,19 @@ def resolve_target_config(
         The configuration in force for ``target``, with the command-line
         overrides applied over whatever the discovered config files provide.
     """
-    return resolver.resolve_config_for_path(
+    resolved = resolver.resolve_config_for_path(
         target,
         cli_overrides=build_cli_overrides(options) or None,
         explicit_config=options.explicit_config or None,
         isolated=options.isolated,
     )
+    config_file = resolver.config_file_for_path(
+        target,
+        explicit_config=options.explicit_config or None,
+        isolated=options.isolated,
+    )
+    rule_options.validate_builtin_tables(resolved, path=config_file or target)
+    return resolved
 
 
 def resolve_discovery_config(

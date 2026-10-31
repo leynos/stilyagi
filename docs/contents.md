@@ -73,6 +73,10 @@
     execplans/2-2-2-safe-fix-planning-conflict-resolution.md)
     plans and records the safe-fix planner, `--diff` preview, `--fix`
     execution, and the conflict rules that keep automatic edits auditable.
+  - [2.3.1 Markdown rule starter pack](
+    execplans/2-3-1-markdown-rules-starter-pack.md)
+    plans the approval-gated builtin Markdown rules, source spans, policy
+    targeting, and fix validation.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
@@ -136,6 +140,10 @@
     adrs/adr-0010-adopt-the-nose-code-duplication-gate.md)
     records the blocking duplication gate, its reasoned exception entries,
     scan scope, and detector provisioning policy.
+  - [ADR 0011: The source-backed builtin rule contract](
+    adrs/adr-0011-adopt-the-source-backed-builtin-rule-contract.md)
+    records the per-document projection, span verification, one-time
+    tokenization, policy resolution, and the three starter-pack rules.
 
 ## Requests for comments (RFCs)
 

@@ -36,22 +36,24 @@ def line_column_from_offset(
     >>> line_column_from_offset(None, 7)
     (1, 1)
     """
-    if line_index is None or offset is None:
+    if line_index is None:
         return (1, 1)
-
-    starts = _normalised_line_starts(line_index)
-    if starts is None:
-        return (1, 1)
-
-    position = max(0, offset)
-    line_number = _line_number_for_position(starts, position)
-    return (line_number + 1, position - starts[line_number] + 1)
+    return line_column_from_validated_starts(validated_line_starts(line_index), offset)
 
 
-def _normalised_line_starts(
+def validated_line_starts(
     line_index: cabc.Sequence[int],
 ) -> tuple[int, ...] | None:
     """Return validated line starts anchored at offset zero.
+
+    A document's rules ask for the same line index once per finding. Validating
+    it once per document and reusing the result keeps location mapping
+    proportional to the number of findings rather than to findings times lines.
+
+    Parameters
+    ----------
+    line_index:
+        Raw line-start byte offsets, as supplied by the IR.
 
     Returns
     -------
@@ -60,9 +62,9 @@ def _normalised_line_starts(
 
     Examples
     --------
-    >>> _normalised_line_starts((6, 12))
+    >>> validated_line_starts((6, 12))
     (0, 6, 12)
-    >>> _normalised_line_starts(()) is None
+    >>> validated_line_starts(()) is None
     True
     """
     try:
@@ -82,6 +84,41 @@ def _normalised_line_starts(
         return None
 
     return starts
+
+
+def line_column_from_validated_starts(
+    starts: tuple[int, ...] | None,
+    offset: int | None,
+) -> tuple[int, int]:
+    """Return a 1-based line and column for an offset in validated starts.
+
+    Parameters
+    ----------
+    starts:
+        Output of :func:`validated_line_starts`, so it is already anchored and
+        ordered, or ``None`` when the IR omitted line metadata.
+    offset:
+        The 0-based byte offset to locate, or ``None`` when it is unknown.
+
+    Returns
+    -------
+    tuple[int, int]
+        The 1-based ``(line, column)`` position, or ``(1, 1)`` when either
+        argument is missing.
+
+    Examples
+    --------
+    >>> line_column_from_validated_starts((0, 6, 12), 7)
+    (2, 2)
+    >>> line_column_from_validated_starts(None, 7)
+    (1, 1)
+    """
+    if starts is None or offset is None:
+        return (1, 1)
+
+    position = max(0, offset)
+    line_number = _line_number_for_position(starts, position)
+    return (line_number + 1, position - starts[line_number] + 1)
 
 
 def _has_valid_line_starts(starts: tuple[int, ...]) -> bool:

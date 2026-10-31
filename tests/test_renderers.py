@@ -158,6 +158,7 @@ def test_renderers_report_fix_payloads_and_fixability_counts() -> None:
                     "message": "Insert a serial comma.",
                     "severity": "warning",
                     "location": {"line": 12, "column": 30},
+                    "span": None,
                     "fix_applicable": True,
                     "fix": {
                         "title": "Insert serial comma",

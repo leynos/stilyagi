@@ -582,6 +582,11 @@ install or replace it.
   selected mapping into a `StilyagiConfig`, preserving the raw reserved values.
   Unsupported keys and invalid field or section values raise
   `InvalidConfigError` with the source path and offending key.
+- `config/tables.py` holds the raw-table primitives the resolver composes:
+  recursive table merging, inline `--config` parsing, `extend` reference
+  resolution, the discovery start directory, and the split of `--config` values
+  into file paths and fragments. Keeping them separate leaves
+  `config/resolve.py` to state the order in which those steps apply.
 - `config/resolve.py` defines `ConfigResolver`, which owns the per-run
   discovery and resolved-table caches so one `run_check` invocation reuses
   parsed config across many targets while leaking no state between runs. The
@@ -639,14 +644,57 @@ config, and collects diagnostics from two sources:
   including extractor recovery notices and any future unclassified code, fails
   safe to warning severity and does not gate the exit code.
 - the injected `rule_runner` — `rules_registry.run_rules` unless a
-  `CheckCollaborators.rule_runner` was supplied — is called as
-  `rule_runner(document, resolved_config)` to run the registered rule set
-  against the extracted document. The current default returns an empty list,
-  because the rule engine has not landed yet.
+  `CheckCollaborators.rule_runner` was supplied — receives one
+  `rules_registry.RuleRunRequest`. `_rule_request` builds it from the values
+  the pipeline already holds: the extractor's `Document`, the original source
+  bytes, the reported path, the config-relative path, and the resolved
+  configuration. The default runner executes the builtin pack described below.
 
 `diagnostics_location.py` converts IR byte offsets into 1-based line and column
 positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 `Severity` enum.
+
+### Rule execution and the builtin pack
+
+[ADR 0011](adrs/adr-0011-adopt-the-source-backed-builtin-rule-contract.md)
+records the contract; this section is the maintainer's map of where it lives.
+
+`rules/base.py` defines the typed boundary. A `RuleMetadata` declares a code,
+name, severity, and `RegionTarget`; the target selects by region kind, syntax,
+and required scope entries. `RuleContext` carries the source bytes, paths,
+configuration, the matched `RegionView` objects, and — for rules that declare
+`textual = True` — the document's tokenized segments. `RuleRunRequest` is the
+application-level packet the check pipeline constructs.
+
+`engine/rule_projection.py` performs the one per-document pass:
+
+- `_node_facts` walks `ir["nodes"]` once, producing the node-id-to-span index
+  and the inline-code spans;
+- `_region_view` projects each canonical region into a `RegionView`;
+- `_segment_view` keeps an advertised span only when the source slice decodes
+  to exactly the segment text, otherwise demoting it to synthetic with
+  `synthetic_reason="source_mismatch"`;
+- `prose_units` records the heading, paragraph, and table-cell spans that
+  `ignore-next` may consume.
+
+`engine/rule_view.py` is the façade other modules import. `rules/tokens.py`
+holds the shared `Token` and `TokenizedSegment` records;
+`rules/builtin/text.py` tokenizes every nonempty segment once per document, so
+a second text rule reuses the tokens rather than rescanning the prose.
+
+`rules/policy.py` and `rules/suppression.py` decide which findings survive.
+`resolve_policy` expands `select` and `ignore` prefixes against the enabled
+builtin inventory, applies per-file globs to the config-relative path, and
+passes the projection's prose units into suppression resolution.
+`filter_diagnostics` drops findings whose primary span start falls in a
+suppressed interval; the runner filters only after every rule has reported, so
+stateful rules such as `MD001` still see the headings they suppress.
+
+The pack itself is `rules/builtin/{heading_depth,repeated_word,banned_term}.py`
+with shared text helpers in `rules/builtin/text.py`. `MD001` is manual-only,
+`STY001` proposes an unsafe suffix edit, and `TERM001` never fixes. No builtin
+imports an NLP library; `tests/test_builtin_rules_no_nlp.py` runs a full pass
+in a fresh interpreter with spaCy blocked at the import system.
 
 ### Fix planning
 
@@ -826,6 +874,12 @@ skipped, unreadable, errors, warnings) that the CLI fills from the check loop;
 `RunSummary.from_diagnostics` derives the severity counts from the diagnostics
 list and is also the zero-file fallback when a direct renderer caller omits the
 summary.
+
+The text formats themselves live in `engine/text_renderer.py` as `render_text`,
+which is handed the already-ordered diagnostics and fix errors and returns the
+newline-terminated text document. `engine/renderers.py` keeps the summary
+model, the format dispatch, and the JSON payload shapes, so a change to the
+human-readable line format does not have to be read past the JSON contract.
 
 `RendererRegistry.render` accepts the diagnostics to render, an optional output
 format, an optional `summary`, and a keyword-only

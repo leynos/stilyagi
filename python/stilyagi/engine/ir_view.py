@@ -4,22 +4,29 @@ import collections.abc as cabc
 import dataclasses as dc
 import typing as typ
 
+from stilyagi.engine.ir_mapping import (
+    ir_mapping,
+    ir_sequence,
+    ir_value,
+    is_sequence,
+    merge_touching_spans,
+    segment_with_text,
+    source_span,
+)
+from stilyagi.model.source import SourceSpan
+
 if typ.TYPE_CHECKING:
     from stilyagi import model
 
-
-@dc.dataclass(frozen=True, slots=True, order=True)
-class SourceSpan:
-    """A half-open UTF-8 byte range in the original source.
-
-    Examples
-    --------
-    >>> SourceSpan(3, 8)
-    SourceSpan(byte_start=3, byte_end=8)
-    """
-
-    byte_start: int
-    byte_end: int
+__all__ = [
+    "SegmentView",
+    "SourceSpan",
+    "byte_start_from_span",
+    "iter_segments",
+    "line_index",
+    "segment_for_span",
+    "source_backed_spans",
+]
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -50,7 +57,7 @@ def iter_segments(document: model.Document) -> cabc.Iterator[SegmentView]:
     SegmentView
         Source-backed or synthetic segments that can be interpreted safely.
     """
-    raw_regions = _ir_sequence(document, "regions")
+    raw_regions = ir_sequence(document, "regions")
     for raw_region in raw_regions:
         yield from _region_segments(raw_region)
 
@@ -71,7 +78,7 @@ def source_backed_spans(document: model.Document) -> tuple[SourceSpan, ...]:
     spans = sorted(
         segment.span for segment in iter_segments(document) if segment.span is not None
     )
-    return _merge_touching_spans(spans)
+    return merge_touching_spans(spans)
 
 
 def segment_for_span(
@@ -117,8 +124,8 @@ def line_index(document: model.Document) -> tuple[int, ...] | None:
     tuple[int, ...] | None
         Typed line-start offsets, or ``None`` for malformed input.
     """
-    raw_line_index = _ir_value(document, "line_index")
-    if not _is_sequence(raw_line_index):
+    raw_line_index = ir_value(document, "line_index")
+    if not is_sequence(raw_line_index):
         return None
     values = typ.cast("cabc.Sequence[object]", raw_line_index)
     if not all(isinstance(start, int) for start in values):
@@ -139,27 +146,11 @@ def byte_start_from_span(span: object) -> int | None:
     int | None
         The byte start when it is an integer, otherwise ``None``.
     """
-    typed_span = _ir_mapping(span)
+    typed_span = ir_mapping(span)
     if typed_span is None:
         return None
     byte_start = typed_span.get("byte_start")
     return byte_start if isinstance(byte_start, int) else None
-
-
-def _ir_sequence(document: model.Document, key: str) -> cabc.Sequence[object]:
-    """Return one sequence-valued IR field, or an empty sequence."""
-    value = _ir_value(document, key)
-    return typ.cast("cabc.Sequence[object]", value) if _is_sequence(value) else ()
-
-
-def _ir_value(document: model.Document, key: str) -> object:
-    """Return one raw IR field when an IR envelope is available."""
-    return document.ir.get(key) if document.ir is not None else None
-
-
-def _is_sequence(value: object) -> bool:
-    """Return whether a value is a non-text sequence."""
-    return isinstance(value, cabc.Sequence) and not isinstance(value, (str, bytes))
 
 
 def _region_segments(raw_region: object) -> cabc.Iterator[SegmentView]:
@@ -168,7 +159,7 @@ def _region_segments(raw_region: object) -> cabc.Iterator[SegmentView]:
         return
     typed_region = typ.cast("cabc.Mapping[str, object]", raw_region)
     raw_segments = typed_region.get("segments")
-    if not _is_sequence(raw_segments):
+    if not is_sequence(raw_segments):
         return
     for raw_segment in typ.cast("cabc.Sequence[object]", raw_segments):
         segment = _segment_view(raw_segment)
@@ -178,61 +169,15 @@ def _region_segments(raw_region: object) -> cabc.Iterator[SegmentView]:
 
 def _segment_view(raw_segment: object) -> SegmentView | None:
     """Convert one raw segment mapping into a safe typed view."""
-    typed_segment = _ir_mapping(raw_segment)
-    if typed_segment is None:
+    typed = segment_with_text(raw_segment)
+    if typed is None:
         return None
-    text = typed_segment.get("text")
-    if not isinstance(text, str):
-        return None
+    typed_segment, text = typed
     source = typed_segment.get("source")
     if source is None:
         synthetic = typed_segment.get("synthetic")
         return SegmentView(
             None, text, synthetic if isinstance(synthetic, str) else None
         )
-    span = _source_span(source)
+    span = source_span(source)
     return SegmentView(span, text, None) if span is not None else None
-
-
-def _ir_mapping(value: object) -> cabc.Mapping[str, object] | None:
-    """Narrow one untyped IR value to a string-keyed mapping, or ``None``.
-
-    Parameters
-    ----------
-    value
-        An untyped value lifted out of the IR envelope.
-
-    Returns
-    -------
-    collections.abc.Mapping[str, object] | None
-        The value as a mapping when it is one, otherwise ``None``.
-    """
-    if not isinstance(value, cabc.Mapping):
-        return None
-    return typ.cast("cabc.Mapping[str, object]", value)
-
-
-def _source_span(source: object) -> SourceSpan | None:
-    """Return a well-ordered source span from one raw source mapping."""
-    typed_source = _ir_mapping(source)
-    if typed_source is None:
-        return None
-    byte_start = typed_source.get("byte_start")
-    byte_end = typed_source.get("byte_end")
-    if not isinstance(byte_start, int) or not isinstance(byte_end, int):
-        return None
-    return SourceSpan(byte_start, byte_end) if byte_start <= byte_end else None
-
-
-def _merge_touching_spans(spans: list[SourceSpan]) -> tuple[SourceSpan, ...]:
-    """Merge sorted overlapping or touching source spans."""
-    merged: list[SourceSpan] = []
-    for span in spans:
-        if not merged or merged[-1].byte_end < span.byte_start:
-            merged.append(span)
-            continue
-        previous = merged.pop()
-        merged.append(
-            SourceSpan(previous.byte_start, max(previous.byte_end, span.byte_end))
-        )
-    return tuple(merged)
