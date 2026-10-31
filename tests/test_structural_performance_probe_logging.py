@@ -3,6 +3,7 @@
 import logging
 import pathlib
 import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: typing a simulated child process result; no process is spawned
+from unittest import mock
 
 import pytest
 from stilyagi import model
@@ -126,7 +127,6 @@ def test_measure_run_logs_entry_and_exit_with_mode_and_iterations(
 
 def test_cold_iteration_logs_command_and_iteration_index(
     caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Record the invocation command and iteration index before spawning."""
     caplog.set_level(logging.DEBUG, logger=structural_probe_execution.__name__)
@@ -143,12 +143,11 @@ def test_cold_iteration_logs_command_and_iteration_index(
             stderr="",
         )
 
-    monkeypatch.setattr(structural_probe_execution.subprocess, "run", fake_run)
-
-    duration_ns = structural_probe_execution._measure_cold_iteration(
-        MARKDOWN_STRUCTURAL_FIXTURE,
-        3,
-    )
+    with mock.patch.object(structural_probe_execution.subprocess, "run", fake_run):
+        duration_ns = structural_probe_execution._measure_cold_iteration(
+            MARKDOWN_STRUCTURAL_FIXTURE,
+            3,
+        )
 
     assert duration_ns == 42, f"expected the canned duration; got {duration_ns}"
     messages = _messages(caplog)
@@ -161,7 +160,6 @@ def test_cold_iteration_logs_command_and_iteration_index(
 
 def test_cold_iteration_logs_child_stderr_before_reraising(
     caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Capture child stderr at ERROR level when the subprocess fails."""
     caplog.set_level(logging.ERROR, logger=structural_probe_execution.__name__)
@@ -178,9 +176,10 @@ def test_cold_iteration_logs_child_stderr_before_reraising(
             stderr="child exploded",
         )
 
-    monkeypatch.setattr(structural_probe_execution.subprocess, "run", failing_run)
-
-    with pytest.raises(subprocess.CalledProcessError):
+    with (
+        mock.patch.object(structural_probe_execution.subprocess, "run", failing_run),
+        pytest.raises(subprocess.CalledProcessError),
+    ):
         structural_probe_execution._measure_cold_iteration(
             MARKDOWN_STRUCTURAL_FIXTURE,
             4,
