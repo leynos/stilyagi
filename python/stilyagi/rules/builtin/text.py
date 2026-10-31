@@ -11,8 +11,7 @@ boundary and joining would let a repeat or a banned term cross it.
 
 import typing as typ
 
-from stilyagi.diagnostics_location import line_column_from_offset
-from stilyagi.engine import ir_view
+from stilyagi.diagnostics_location import line_column_from_validated_starts
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.tokens import Token, TokenizedSegment
 
@@ -21,6 +20,7 @@ if typ.TYPE_CHECKING:
 
     from stilyagi.model.region import RegionSegment, RegionView
     from stilyagi.rules.base import RuleContext
+    from stilyagi.rules.inline_code import InlineCodeIndex
 
 __all__ = [
     "Token",
@@ -192,7 +192,7 @@ def location(
     Parameters
     ----------
     context:
-        Rule context carrying the document's IR line index.
+        Rule context carrying the document's validated line starts.
     span:
         The finding's byte span, or ``None`` when unknown.
 
@@ -202,12 +202,12 @@ def location(
         The 1-based ``(line, column)`` position, or ``(1, 1)`` when unknown.
     """
     offset = span.byte_start if span is not None else None
-    return line_column_from_offset(ir_view.line_index(context.document), offset)
+    return line_column_from_validated_starts(context.line_starts, offset)
 
 
 def is_inline_code(
     segment: RegionSegment,
-    inline_code_spans: cabc.Sequence[SourceSpan],
+    inline_code: InlineCodeIndex,
 ) -> bool:
     """Return whether a segment lies inside an inline-code node.
 
@@ -215,8 +215,8 @@ def is_inline_code(
     ----------
     segment:
         Candidate segment.
-    inline_code_spans:
-        Canonical inline-code node spans.
+    inline_code:
+        Index over the document's canonical inline-code node spans.
 
     Returns
     -------
@@ -224,18 +224,12 @@ def is_inline_code(
         ``True`` when the segment is source-backed and wholly contained in an
         inline-code span.
     """
-    span = segment.span
-    if span is None:
-        return False
-    return any(
-        inline.byte_start <= span.byte_start and span.byte_end <= inline.byte_end
-        for inline in inline_code_spans
-    )
+    return segment.span is not None and inline_code.contains(segment.span)
 
 
 def source_segments(
     regions: cabc.Iterable[RegionView],
-    inline_code_spans: cabc.Sequence[SourceSpan],
+    inline_code: InlineCodeIndex,
 ) -> cabc.Iterator[tuple[RegionView, RegionSegment]]:
     """Yield source-backed segments that are eligible for text matching.
 
@@ -247,8 +241,8 @@ def source_segments(
     ----------
     regions:
         Regions already filtered by the rule's target.
-    inline_code_spans:
-        Canonical inline-code node spans.
+    inline_code:
+        Index over the document's canonical inline-code node spans.
 
     Yields
     ------
@@ -257,15 +251,13 @@ def source_segments(
     """
     for region in regions:
         for segment in region.segments:
-            if segment.span is not None and not is_inline_code(
-                segment, inline_code_spans
-            ):
+            if segment.span is not None and not is_inline_code(segment, inline_code):
                 yield region, segment
 
 
 def tokenize_segments(
     regions: cabc.Iterable[RegionView],
-    inline_code_spans: cabc.Sequence[SourceSpan],
+    inline_code: InlineCodeIndex,
 ) -> tuple[TokenizedSegment, ...]:
     """Tokenize every eligible segment exactly once.
 
@@ -278,8 +270,8 @@ def tokenize_segments(
     ----------
     regions:
         Regions already filtered by the rule's target.
-    inline_code_spans:
-        Canonical inline-code node spans.
+    inline_code:
+        Index over the document's canonical inline-code node spans.
 
     Returns
     -------
@@ -289,7 +281,8 @@ def tokenize_segments(
 
     Examples
     --------
-    >>> tokenize_segments((), ())
+    >>> from stilyagi.rules.inline_code import InlineCodeIndex
+    >>> tokenize_segments((), InlineCodeIndex())
     ()
     """
     return tuple(
@@ -299,5 +292,5 @@ def tokenize_segments(
             tokens=alpha_tokens(segment.text),
             offsets=utf8_offsets(segment.text),
         )
-        for region, segment in source_segments(regions, inline_code_spans)
+        for region, segment in source_segments(regions, inline_code)
     )

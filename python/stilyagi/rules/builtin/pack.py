@@ -15,10 +15,12 @@ import functools
 import pathlib
 import typing as typ
 
+from stilyagi import diagnostics_location
 from stilyagi.config import rules as rule_options
-from stilyagi.engine import rule_view
+from stilyagi.engine import ir_view, rule_view
 from stilyagi.rules.base import RegionTarget, RuleContext, RuleMetadata
 from stilyagi.rules.builtin import banned_term, heading_depth, repeated_word, text
+from stilyagi.rules.inline_code import InlineCodeIndex
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -167,9 +169,10 @@ def run_selected(
     table, so an option error cannot hide behind selection. A disabled rule's
     hook is never called.
 
-    The document's regions, inline-code spans, and tokenized text segments are
-    built once here and shared by every rule, so selecting a second text rule
-    does not tokenize the document again.
+    The document's regions, line starts, inline-code index, and tokenized text
+    segments are built once here and shared by every rule, so selecting a
+    second text rule does not tokenize the document again and a document with
+    many findings does not re-validate its line index for each one.
 
     Parameters
     ----------
@@ -191,9 +194,11 @@ def run_selected(
     view = document_view or rule_view.project(
         request.document, source_bytes=request.source_bytes
     )
-    tokenized = text.tokenize_segments(
-        view.for_target(_TEXT_TARGET), view.inline_code_spans
+    line_starts = diagnostics_location.validated_line_starts(
+        ir_view.line_index(request.document)
     )
+    inline_code = InlineCodeIndex.from_spans(view.inline_code_spans)
+    tokenized = text.tokenize_segments(view.for_target(_TEXT_TARGET), inline_code)
     config_path = pathlib.Path(request.config_path or request.reported_path)
     produced: list[diagnostics.Diagnostic] = []
     for rule in _BUILTIN_RULES:
@@ -207,10 +212,13 @@ def run_selected(
         if not request_policy.is_enabled(rule.metadata.code):
             continue
         context = RuleContext(
-            request=request,
             rule_config=parsed,
+            document=request.document,
+            source_bytes=request.source_bytes,
+            reported_path=request.reported_path,
+            line_starts=line_starts,
+            inline_code=inline_code,
             regions=view.for_target(rule.metadata.target),
-            inline_code_spans=view.inline_code_spans,
             tokenized_segments=tokenized if rule.textual else (),
         )
         produced.extend(rule.hook(context))
