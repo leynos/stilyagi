@@ -31,7 +31,10 @@ def check_heading_depth(
     Returns
     -------
     tuple[diagnostics.Diagnostic, ...]
-        One error per heading jump, in document order.
+        One error per heading jump, in document order. A heading whose
+        canonical node span the extractor could not locate is never reported,
+        because ``MD001`` must point at real bytes; its depth still becomes the
+        baseline the next heading is compared against.
 
     Examples
     --------
@@ -57,10 +60,27 @@ def check_heading_depth(
         depth = region.depth
         if depth is None:
             continue
-        if previous is not None and depth - previous > 1:
+        if _is_skipped_level(region, previous, depth):
             found.append(_heading_diagnostic(context, region, previous, depth))
         previous = depth
     return tuple(found)
+
+
+def _is_skipped_level(
+    region: RegionView,
+    previous: int | None,
+    depth: int,
+) -> bool:
+    """Whether this heading jumps more than one level and can be located.
+
+    Returns
+    -------
+    bool
+        ``True`` when the jump is reportable against the canonical node span.
+    """
+    return (
+        previous is not None and depth - previous > 1 and region.node_span is not None
+    )
 
 
 def _heading_diagnostic(
@@ -70,7 +90,7 @@ def _heading_diagnostic(
     depth: int,
 ) -> diagnostics.Diagnostic:
     """Build one ``MD001`` diagnostic for a skipped heading level."""
-    line, column = text.location(context, region.span)
+    line, column = text.location(context, region.node_span)
     return diagnostics.Diagnostic(
         path=context.reported_path,
         code="MD001",
@@ -81,7 +101,7 @@ def _heading_diagnostic(
         severity=diagnostics.Severity.ERROR,
         line=line,
         column=column,
-        span=region.span,
+        span=region.node_span,
         fix=Fix(
             title="Heading level skips a level",
             applicability=Applicability.MANUAL,

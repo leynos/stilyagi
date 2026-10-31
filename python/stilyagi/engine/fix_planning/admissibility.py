@@ -4,14 +4,11 @@ import dataclasses as dc
 import typing as typ
 
 from stilyagi.engine import ir_view
+from stilyagi.model.source import is_utf8_boundary
 
 if typ.TYPE_CHECKING:
     from stilyagi import model
     from stilyagi.fixes import TextEdit
-
-
-_UTF8_CONTINUATION_MASK = 0b1100_0000
-_UTF8_CONTINUATION_PREFIX = 0b1000_0000
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -66,16 +63,8 @@ def _is_bounded(span: ir_view.SourceSpan, source_bytes: bytes) -> bool:
 
 def _is_utf8_aligned(span: ir_view.SourceSpan, source_bytes: bytes) -> bool:
     """Return whether both span boundaries fall between UTF-8 code points."""
-    return _is_utf8_boundary(source_bytes, span.byte_start) and _is_utf8_boundary(
+    return is_utf8_boundary(source_bytes, span.byte_start) and is_utf8_boundary(
         source_bytes, span.byte_end
-    )
-
-
-def _is_utf8_boundary(source_bytes: bytes, offset: int) -> bool:
-    """Return whether one bounded offset is not a UTF-8 continuation byte."""
-    return (
-        offset == len(source_bytes)
-        or source_bytes[offset] & _UTF8_CONTINUATION_MASK != _UTF8_CONTINUATION_PREFIX
     )
 
 

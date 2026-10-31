@@ -24,7 +24,7 @@ from stilyagi.engine.ir_mapping import (
     string_tuple,
 )
 from stilyagi.model.region import RegionSegment, RegionView
-from stilyagi.model.source import SourceSpan
+from stilyagi.model.source import SourceSpan, is_utf8_boundary
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -114,7 +114,7 @@ def project(
     >>> project(model.Document(syntax=model.Syntax.MARKDOWN)).regions
     ()
     """
-    nodes, inline_spans = _node_facts(document)
+    nodes, inline_spans = _node_facts(document, source_bytes)
     regions = tuple(
         region
         for raw_region in ir_sequence(document, "regions")
@@ -162,8 +162,21 @@ def select_regions(
 
 def _node_facts(
     document: model.Document,
+    source_bytes: bytes | None,
 ) -> tuple[dict[str, SourceSpan], list[SourceSpan]]:
-    """Return the node-id index and inline-code spans in one node pass."""
+    """Return the node-id index and inline-code spans in one node pass.
+
+    A node span is kept only when it addresses the original source: it must be
+    within bounds and both ends must fall between UTF-8 code points. A heading
+    node's span is the only acceptable ``MD001`` span, so an IR entry that
+    cannot be located is dropped here rather than diagnosed against arbitrary
+    bytes.
+
+    Returns
+    -------
+    tuple[dict[str, SourceSpan], list[SourceSpan]]
+        Locatable node spans by id, and the locatable inline-code spans.
+    """
     index: dict[str, SourceSpan] = {}
     inline: list[SourceSpan] = []
     for raw_node in ir_sequence(document, "nodes"):
@@ -171,7 +184,7 @@ def _node_facts(
         if node is None:
             continue
         span = source_span(node.get("span"))
-        if span is None:
+        if span is None or not _addresses_source(span, source_bytes):
             continue
         node_id = node.get("id")
         if isinstance(node_id, str):
@@ -180,6 +193,26 @@ def _node_facts(
         if isinstance(kind, str) and kind in _INLINE_CODE_KINDS:
             inline.append(span)
     return index, inline
+
+
+def _addresses_source(span: SourceSpan, source_bytes: bytes | None) -> bool:
+    """Return whether a node span is bounded and UTF-8 aligned in the source.
+
+    ``source_bytes`` is ``None`` for callers that project a document without
+    its bytes, such as suppression resolution; bounds cannot be checked then.
+
+    Returns
+    -------
+    bool
+        ``True`` when the span is addressable, or when no source was supplied.
+    """
+    if source_bytes is None:
+        return True
+    return (
+        span.byte_end <= len(source_bytes)
+        and is_utf8_boundary(source_bytes, span.byte_start)
+        and is_utf8_boundary(source_bytes, span.byte_end)
+    )
 
 
 def _region_view(
@@ -196,6 +229,7 @@ def _region_view(
     if not isinstance(region_id, str) or not isinstance(kind, str):
         return None
     segments = tuple(_region_segments(region, source_bytes))
+    node_span = _origin_span(region, nodes)
     return RegionView(
         region_id=region_id,
         kind=kind,
@@ -203,25 +237,30 @@ def _region_view(
         scope=string_tuple(region.get("scope")),
         attrs=_attribute_mapping(region.get("attrs")),
         segments=segments,
-        span=_region_span(region, segments, nodes),
+        span=node_span
+        if node_span is not None
+        else _bounding_span(
+            segment.span for segment in segments if segment.span is not None
+        ),
+        node_span=node_span,
     )
 
 
-def _region_span(
+def _origin_span(
     region: cabc.Mapping[str, object],
-    segments: tuple[RegionSegment, ...],
     nodes: cabc.Mapping[str, SourceSpan],
 ) -> SourceSpan | None:
-    """Return the canonical region span, preferring origin node spans."""
-    origin_spans = [
+    """Return the bounding span of a region's origin nodes, if any.
+
+    Returns
+    -------
+    SourceSpan | None
+        The covering span, or ``None`` when no origin node was located.
+    """
+    return _bounding_span(
         nodes[node_id]
         for node_id in string_tuple(region.get("origin_nodes"))
         if node_id in nodes
-    ]
-    if origin_spans:
-        return _bounding_span(origin_spans)
-    return _bounding_span(
-        segment.span for segment in segments if segment.span is not None
     )
 
 

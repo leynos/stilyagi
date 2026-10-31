@@ -230,8 +230,9 @@ def source_span(source: object) -> SourceSpan | None:
     Returns
     -------
     SourceSpan | None
-        The span when both offsets are integers and ordered, otherwise
-        ``None``.
+        The span when both offsets are integers, non-negative, and ordered,
+        otherwise ``None``. A malformed span is absent rather than raising, so
+        one corrupt IR entry cannot abort a whole run.
 
     Examples
     --------
@@ -239,12 +240,16 @@ def source_span(source: object) -> SourceSpan | None:
     SourceSpan(byte_start=1, byte_end=4)
     >>> source_span({"byte_start": 4, "byte_end": 1}) is None
     True
+    >>> source_span({"byte_start": -1, "byte_end": 4}) is None
+    True
     """
     fields = span_fields(source)
     if fields is None:
         return None
     byte_start, byte_end = fields
-    return SourceSpan(byte_start, byte_end) if byte_start <= byte_end else None
+    if byte_start < 0 or byte_end < byte_start:
+        return None
+    return SourceSpan(byte_start, byte_end)
 
 
 def merge_touching_spans(spans: list[SourceSpan]) -> tuple[SourceSpan, ...]:
