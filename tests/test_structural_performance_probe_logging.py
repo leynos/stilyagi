@@ -91,7 +91,8 @@ def test_write_report_logs_oserror_before_reraising(
     output_path = tmp_path / "directory-in-the-way"
     output_path.mkdir()
 
-    with pytest.raises(IsADirectoryError):
+    # Opening a directory for writing raises PermissionError on Windows.
+    with pytest.raises((IsADirectoryError, PermissionError)):
         structural_probe.write_report(_empty_report(), output_path)
 
     messages = _messages(caplog)
