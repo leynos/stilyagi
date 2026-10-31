@@ -5,18 +5,31 @@ address exactly the repetition it names (V-1), and the unsafe edit must remove
 only the repeated suffix while leaving every other byte alone (V-3). Both
 checks are written against an independent tokenizer and byte arithmetic rather
 than against the rule's own helpers, so a shared bug cannot satisfy both.
+
+The preservation check splices the rule's production edits and compares the
+result with an independently collapsed paragraph. A mutation control then
+shifts one edit boundary one byte into a multi-byte code point and requires the
+fix planner to refuse it, so a planner that silently accepted every range
+would fail rather than pass.
 """
 
 import itertools
 import re
+import typing as typ
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from stilyagi import diagnostics, engine, model
+from stilyagi.engine.fix_planning import admissibility
+from stilyagi.fixes import TextEdit
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.builtin.text import Token
 
 from tests.support.rule_fixtures import LintSetup
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
 
 pytest_plugins = ("tests.package_skeleton_support",)
 
@@ -142,31 +155,107 @@ def test_reported_spans_and_edits_match_the_oracle(text: str) -> None:
 @settings(max_examples=120, deadline=None)
 @given(text=_prose())
 def test_applying_the_edits_preserves_every_other_byte(text: str) -> None:
-    """The spliced result keeps all bytes outside the removed suffixes."""
+    """Splicing the rule's own edits collapses only the repeated runs."""
     source = text.encode("utf-8")
-    expected = _expected_findings(text)
-    edits = sorted(
-        (edit for (_, _, edit_span) in expected for edit in (edit_span,)),
-        key=lambda span: span.byte_start,
-    )
+    result = LintSetup().run(source)
+    spans = _production_edit_spans(result)
+    edits = sorted(spans, key=lambda span: span.byte_start)
 
     for earlier, later in itertools.pairwise(edits):
         assert earlier.byte_end <= later.byte_start, "edits must be disjoint"
 
-    pieces: list[bytes] = []
-    cursor = 0
-    for span in edits:
-        pieces.append(source[cursor : span.byte_start])
-        cursor = span.byte_end
-    pieces.append(source[cursor:])
-    spliced = b"".join(pieces)
-
-    assert spliced == _collapse_runs(text).encode("utf-8"), (
-        "expected splicing the edits to collapse only repeated runs"
+    assert _splice(source, edits) == _collapse_runs(text).encode("utf-8"), (
+        "expected splicing the rule's edits to collapse only repeated runs"
     )
     for span in edits:
         source[: span.byte_start].decode("utf-8")
         source[: span.byte_end].decode("utf-8")
+
+
+_MULTIBYTE_SOURCES = (
+    "é é\n",
+    "Ünïcode Ünïcode é é\n",
+    "the thé thé\n",
+    "a é é\n",
+)
+
+
+@pytest.mark.parametrize("text", _MULTIBYTE_SOURCES)
+def test_a_boundary_shifted_into_a_continuation_byte_is_rejected(text: str) -> None:
+    """The mutation control: a one-byte shift into a code point is refused."""
+    source = text.encode("utf-8")
+    document = engine.extract_document(text, model.Syntax.MARKDOWN)
+    result = LintSetup().run(source)
+    assert result, "expected the fixture to produce an edit"
+
+    mutations = 0
+    for diagnostic in result:
+        assert diagnostic.fix is not None, "expected each finding to carry a fix"
+        (edit,) = diagnostic.fix.edits
+        assert admissibility.classify_edit(edit, source, document, "STY001") is None, (
+            "expected the rule's own edit to be admissible"
+        )
+        mutated = _continuation_shift(edit, source)
+        if mutated is None:
+            continue
+        mutations += 1
+        rejection = admissibility.classify_edit(mutated, source, document, "STY001")
+        assert rejection is not None, "expected the shifted edit to be refused"
+        assert rejection.identifier == "fix-error/non-utf8-boundary", (
+            "expected the refusal to name the UTF-8 boundary"
+        )
+    assert mutations, "expected at least one shift into a continuation byte"
+
+
+def _production_edit_spans(
+    result: cabc.Sequence[diagnostics.Diagnostic],
+) -> list[SourceSpan]:
+    """Return each finding's edit as a source span, in diagnostic order."""
+    spans: list[SourceSpan] = []
+    for diagnostic in result:
+        assert diagnostic.fix is not None, "expected each finding to carry a fix"
+        spans.extend(
+            SourceSpan(edit.byte_start, edit.byte_end) for edit in diagnostic.fix.edits
+        )
+    return spans
+
+
+def _splice(source: bytes, spans: cabc.Iterable[SourceSpan]) -> bytes:
+    """Return ``source`` with every span's bytes removed."""
+    pieces: list[bytes] = []
+    cursor = 0
+    for span in spans:
+        pieces.append(source[cursor : span.byte_start])
+        cursor = span.byte_end
+    pieces.append(source[cursor:])
+    return b"".join(pieces)
+
+
+def _continuation_shift(edit: TextEdit, source: bytes) -> TextEdit | None:
+    """Return the edit with its end moved one byte into a code point, if any.
+
+    A ``STY001`` edit starts where a token ends, and a run's tokens are joined
+    only by spaces or tabs, so its start is always a character boundary. Only
+    the end can fall inside a multi-byte code point.
+
+    Returns
+    -------
+    TextEdit | None
+        The shifted edit, or ``None`` when the end is already a boundary.
+    """
+    if edit.byte_end > 0 and _is_continuation_byte(source[edit.byte_end - 1]):
+        return TextEdit(edit.byte_start, edit.byte_end - 1, edit.replacement)
+    return None
+
+
+#: The two high bits identify a UTF-8 lead byte; ``10`` marks a continuation.
+_HIGH_BITS_MASK = 0b1100_0000
+_CONTINUATION_PREFIX = 0b1000_0000
+
+
+def _is_continuation_byte(value: int) -> bool:
+    """Return whether ``value`` continues a multi-byte code point."""
+    return value & _HIGH_BITS_MASK == _CONTINUATION_PREFIX
 
 
 def _collapse_runs(text: str) -> str:
