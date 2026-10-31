@@ -16,7 +16,7 @@ if typ.TYPE_CHECKING:
 
     from stilyagi.config.rules import Sty001Config
     from stilyagi.rules.base import RuleContext
-    from stilyagi.rules.tokens import TokenizedSegment
+    from stilyagi.rules.tokens import Token, TokenizedSegment
 
 
 def check_repeated_word(
@@ -69,17 +69,27 @@ def _segment_repeats(
     index = 0
     while index < len(tokens) - 1:
         run_end = index
-        while (
-            run_end + 1 < len(tokens)
-            and tokens[run_end + 1].text == tokens[index].text
-            and text.only_blanks_between(segment.text, tokens, run_end, run_end + 1)
-        ):
+        while _extends_run(segment.text, tokens, run_end, index):
             run_end += 1
         if run_end > index:
             yield _repeat_diagnostic(context, item, index, run_end)
             index = run_end + 1
             continue
         index += 1
+
+
+def _extends_run(
+    segment_text: str,
+    tokens: cabc.Sequence[Token],
+    run_end: int,
+    index: int,
+) -> bool:
+    """Whether the token after ``run_end`` repeats the run's first word."""
+    return (
+        run_end + 1 < len(tokens)
+        and tokens[run_end + 1].text == tokens[index].text
+        and text.only_blanks_between(segment_text, tokens, run_end, run_end + 1)
+    )
 
 
 def _repeat_diagnostic(

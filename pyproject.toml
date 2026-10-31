@@ -445,7 +445,7 @@ members = ["python/stilyagi/cli_fix.py", "python/stilyagi/engine/fix_pipeline.py
 reason = "The shared content is the two-line TYPE_CHECKING marker and a newline. cli_fix.py and fix_pipeline.py bind cabc under the guard, check_inputs.py binds pathlib instead, so even the guarded block contents do not agree. The marker appears in 35 modules across python/stilyagi and the entry is recorded per family only because nose ranks fragments; it is the PEP 484 idiom for lazy annotations, not a distinct abstraction, and no runtime helper can carry a compile-time-only declaration."
 
 [[tool.duplication_gate.allow]]
-members = ["python/stilyagi/cli_fix.py", "python/stilyagi/engine/fix_pipeline.py", "python/stilyagi/check_inputs.py", "python/stilyagi/rules/base.py", "python/stilyagi/rules/registry.py"]
+members = ["python/stilyagi/cli_fix.py", "python/stilyagi/engine/fix_pipeline.py", "python/stilyagi/check_inputs.py", "python/stilyagi/rules/builtin/repeated_word.py", "python/stilyagi/rules/base.py", "python/stilyagi/rules/registry.py"]
 reason = "Type-only import blocks declare each module's own dependency boundary; importing is a per-module declaration, so there is no shared logic to extract and a common import module would re-export names and couple unrelated modules."
 [[tool.duplication_gate.allow]]
 members = ["python/stilyagi/config/tables.py", "python/stilyagi/engine/extraction.py"]

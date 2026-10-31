@@ -302,35 +302,50 @@ def _range_intervals(
 ) -> tuple[RuleInterval, ...]:
     """Fold ordered range directives into per-code suppression intervals."""
     events = sorted(
-        (
-            directive
-            for directive in directives
-            if directive.kind == "range"
-            and directive.span is not None
-            and directive.range_role in {"open", "close"}
-        ),
-        key=lambda directive: (
-            directive.span.byte_start if directive.span is not None else 0
-        ),
+        (directive for directive in directives if _is_range_event(directive)),
+        key=_event_offset,
     )
     active: dict[str, int] = {}
     intervals: list[RuleInterval] = []
     for directive in events:
-        span = directive.span
-        if span is None:
-            continue
-        for code in directive.codes:
-            if directive.range_role == "open":
-                active.setdefault(code, span.byte_start)
-                continue
-            start = active.pop(code, None)
-            if start is not None:
-                intervals.append(RuleInterval(code, start, span.byte_start))
+        _apply_range_event(directive, active, intervals)
     intervals.extend(
         RuleInterval(code, start, source_length)
         for code, start in sorted(active.items())
     )
     return tuple(intervals)
+
+
+def _is_range_event(directive: IgnoreDirective) -> bool:
+    """Whether a directive opens or closes a range suppression."""
+    return (
+        directive.kind == "range"
+        and directive.span is not None
+        and directive.range_role in {"open", "close"}
+    )
+
+
+def _event_offset(directive: IgnoreDirective) -> int:
+    """Return a directive's byte offset, or 0 when it has no span."""
+    return directive.span.byte_start if directive.span is not None else 0
+
+
+def _apply_range_event(
+    directive: IgnoreDirective,
+    active: dict[str, int],
+    intervals: list[RuleInterval],
+) -> None:
+    """Fold one range event into the active starts and closed intervals."""
+    span = directive.span
+    if span is None:
+        return
+    for code in directive.codes:
+        if directive.range_role == "open":
+            active.setdefault(code, span.byte_start)
+            continue
+        start = active.pop(code, None)
+        if start is not None:
+            intervals.append(RuleInterval(code, start, span.byte_start))
 
 
 def _inline_suppressions(
