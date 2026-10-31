@@ -79,6 +79,7 @@
       'stilyagi/rules/builtin/pack.py',
       'stilyagi/rules/builtin/repeated_word.py',
       'stilyagi/rules/builtin/text.py',
+      'stilyagi/rules/inline_code.py',
       'stilyagi/rules/policy.py',
       'stilyagi/rules/registry.py',
       'stilyagi/rules/suppression.py',
