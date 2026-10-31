@@ -13,7 +13,7 @@ import operator
 import typing as typ
 from itertools import starmap
 
-from hypothesis import assume, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from stilyagi import model
 from stilyagi.model.source import SourceSpan
@@ -77,22 +77,23 @@ class _SuppressionCase:
         return state
 
     def _inline_covers(self, code: str, offset: int) -> bool:
-        """Bind each inline directive to one unit and test containment.
+        """Bind each inline directive independently to its next unit.
+
+        The resolver resolves every directive on its own, so two directives
+        before the same unit both bind to it. A shared advancing cursor would
+        instead bind them to successive units and disagree with production.
 
         Returns
         -------
         bool
-            ``True`` when a consumed unit covering the offset names the code.
+            ``True`` when a bound unit covering the offset names the code.
         """
-        cursor = 0
         for directive_end, codes in self.inline:
-            while cursor < len(self.units) and self.units[cursor][0] < directive_end:
-                cursor += 1
-            if cursor == len(self.units):
+            unit = next((unit for unit in self.units if unit[0] >= directive_end), None)
+            if unit is None or code not in _expand(codes):
                 continue
-            unit_start, unit_end = self.units[cursor]
-            cursor += 1
-            if code in _expand(codes) and unit_start <= offset < unit_end:
+            unit_start, unit_end = unit
+            if unit_start <= offset < unit_end:
                 return True
         return False
 
@@ -125,10 +126,26 @@ def _suppression_case(draw: st.DrawFn) -> _SuppressionCase:
         )
     )
     inline = tuple(
-        (start - 3, draw(st.sampled_from(_CODE_SETS)))
-        for start in unit_starts
-        if draw(st.booleans())
+        (directive_end, draw(st.sampled_from(_CODE_SETS)))
+        for directive_end in sorted(
+            draw(
+                st.sets(
+                    st.integers(min_value=1, max_value=_SOURCE_LENGTH - 1),
+                    max_size=4,
+                )
+            )
+        )
     )
+    return _named_case(events=events, inline=inline, unit_starts=unit_starts)
+
+
+def _named_case(
+    *,
+    events: tuple[tuple[int, str, tuple[str, ...]], ...] = (),
+    inline: tuple[tuple[int, tuple[str, ...]], ...] = (),
+    unit_starts: tuple[int, ...] = (_FIRST_UNIT_START,),
+) -> _SuppressionCase:
+    """Build a named case over the standard code/offset query grid."""
     return _SuppressionCase(
         events=events,
         inline=inline,
@@ -161,12 +178,8 @@ def _raw_suppressions(case: _SuppressionCase) -> list[dict[str, object]]:
     return ranges + inline
 
 
-@settings(max_examples=80, deadline=None)
-@given(case=_suppression_case())
-def test_generated_suppression_sequences_match_a_direct_replay(
-    case: _SuppressionCase,
-) -> None:
-    """Ranges and ``ignore-next`` agree with an independent replay."""
+def _assert_matches_replay(case: _SuppressionCase) -> None:
+    """Compare the resolved plan with the direct replay over every query."""
     plan = resolve_suppressions(
         model.Document(
             syntax=model.Syntax.MARKDOWN,
@@ -176,14 +189,65 @@ def test_generated_suppression_sequences_match_a_direct_replay(
         source_length=_SOURCE_LENGTH,
         prose_units=tuple(starmap(SourceSpan, case.units)),
     )
-    oracle = {
-        (code, offset): case.suppresses(code, offset) for code, offset in case.queries
-    }
-    assume(any(oracle.values()) and not all(oracle.values()))
-
-    for (code, offset), expected in oracle.items():
+    for code, offset in case.queries:
+        expected = case.suppresses(code, offset)
         assert plan.suppresses(code, SourceSpan(offset, offset + 1)) is expected, (
             case,
             code,
             offset,
         )
+
+
+@settings(max_examples=80, deadline=None)
+@given(case=_suppression_case())
+def test_generated_suppression_sequences_match_a_direct_replay(
+    case: _SuppressionCase,
+) -> None:
+    """Ranges and ``ignore-next`` agree with an independent replay."""
+    _assert_matches_replay(case)
+
+
+def test_named_witnesses_cover_states_the_property_must_reach() -> None:
+    """Named histories keep the unfiltered property non-vacuous.
+
+    Without outcome-dependent filtering a generated example may suppress
+    nothing or everything. These witnesses always exercise an empty history,
+    an active-to-inactive transition, a consumed next unit, two directives
+    before one unit, and a directive with no following unit.
+    """
+    empty = _named_case()
+    assert not any(starmap(empty.suppresses, empty.queries)), (
+        "an empty history must suppress nothing"
+    )
+
+    transition = _named_case(
+        events=((10, "open", ("STY001",)), (20, "close", ("STY001",)))
+    )
+    states = {
+        transition.suppresses("STY001", offset) for offset in range(_SOURCE_LENGTH)
+    }
+    assert states == {False, True}, "the transition must reach both states"
+
+    bound = _named_case(inline=((5, ("STY001",)),))
+    assert bound.suppresses("STY001", _FIRST_UNIT_START), (
+        "the directive must consume the next unit"
+    )
+    assert not bound.suppresses("STY001", _FIRST_UNIT_START - 1), (
+        "the directive must not reach the preceding byte"
+    )
+
+    shared = _named_case(inline=((5, ("STY001",)), (6, ("STY002",))))
+    assert shared.suppresses("STY001", _FIRST_UNIT_START), (
+        "the first directive must bind the shared unit"
+    )
+    assert shared.suppresses("STY002", _FIRST_UNIT_START), (
+        "the second directive must also bind the shared unit"
+    )
+
+    orphan = _named_case(inline=((_SOURCE_LENGTH - 1, ("STY001",)),))
+    assert not any(starmap(orphan.suppresses, orphan.queries)), (
+        "a directive with no following unit must suppress nothing"
+    )
+
+    for case in (empty, transition, bound, shared, orphan):
+        _assert_matches_replay(case)

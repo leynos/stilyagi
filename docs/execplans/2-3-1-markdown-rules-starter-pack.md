@@ -312,6 +312,17 @@ with error exit 1. An invalid `TERM001` option exits 2.
   separately and passed: pytest 842 passed with 19 snapshots, the doctest lane
   120 passed with 3 skipped, and `make duplication-test` 154 passed. The Rust
   tree is byte-identical to the hosted-green `9667e1ef` head.
+- [x] (2026-10-31) Assessment repair 5 — V-2 generated coverage. The hosted
+  reassessment of `1838d557` cleared every earlier finding but found the
+  generated suppression property still filtered on its own outcome
+  (`assume(any(...) and not all(...))`), the generator placed at most one
+  directive per unit gap, and the replay advanced a shared unit cursor where
+  the resolver binds each directive independently. The filter is gone, the
+  generator now draws directives independently of unit starts (including
+  several before one unit and none before a following unit), and the replay
+  binds each directive to its own next unit. Named witnesses pin an empty
+  history, an active/inactive transition, a consumed next unit, two directives
+  before one unit, and an orphan directive. Focused module: 2 passed.
 
 ## Surprises & discoveries
 
@@ -398,6 +409,11 @@ with error exit 1. An invalid `TERM001` option exits 2.
   same name is ignored from inside the config tree and reported from outside
   it. Impact: the fresh-process scenarios assert on output text, not exit
   status, because `STY001` is a warning and exits `0` either way.
+- Observation: the generated suppression replay advanced one shared unit
+  cursor, while `_inline_suppressions` resolves each directive independently,
+  so the two algorithms could only agree while the generator placed at most one
+  directive per gap. Impact: the replay now binds each directive on its own,
+  and the generator draws directives independently of unit starts.
 
 ## Decision log
 
@@ -541,6 +557,13 @@ existing reasoned entry and snapshot were updated to the current modules
 instead of adding exceptions. The final gate run is bound to the repaired head
 in the delivery ledger rather than inferred from an earlier candidate.
 
+A second hosted reassessment then cleared all four findings and found one
+acceptance gap in the same evidence: the generated suppression comparison was
+filtered on its own outcome and could not express two directives before one
+unit. Removing the filter, widening the generator, and aligning the replay with
+the resolver's independent binding closed it; named witnesses keep the
+now-unfiltered property non-vacuous.
+
 The lasting lesson from the rebase is that changing a seam and a rendered
 payload in the same slice makes every test that stubs the seam a manual-merge
 hazard. The runner signature moved from `(document, config)` to a single
@@ -569,6 +592,14 @@ published `9667e1ef` was fully green, yet the commits after it introduced two
 duplication families and a stale wheel snapshot; only a fresh run on the
 repaired head exposed them. An ancestor's green result is evidence for that
 ancestor, not for the tip, so each new head renews its own gate evidence.
+
+The fifth lesson is that an outcome-dependent `assume` hides the shapes a
+property cannot express. The generated suppression comparison looked
+adversarial, but it skipped every history that suppressed nothing or
+everything, and its generator could not place two directives before one unit.
+Removing the filter and widening the generator exposed a disagreement between
+the replay's shared cursor and the resolver's independent binding; named
+witnesses now keep the unfiltered property non-vacuous.
 
 Shipped:
 
