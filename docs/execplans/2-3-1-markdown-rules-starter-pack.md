@@ -264,8 +264,8 @@ with error exit 1. An invalid `TERM001` option exits 2.
 - [x] (2026-10-31) Review repair 3 — suppression evidence. Handwritten
   witnesses cover a finding-free consumer, a thin first list paragraph, an
   empty item, blockquote nesting, and file-directive position. A generated
-  Hypothesis sequence property is checked against a per-code replay oracle
-  that folds nothing into intervals; it lives in
+  Hypothesis sequence property is checked against a per-code replay oracle that
+  folds nothing into intervals; it lives in
   `tests/test_suppression_sequences.py` so both modules stay inside the
   400-line lint limit. `tests/test_rule_policy.py`: 28 passed;
   `tests/test_suppression_sequences.py`: 1 passed (80 examples).
@@ -279,6 +279,21 @@ with error exit 1. An invalid `TERM001` option exits 2.
   `en_core_web_sm`, and `spacy_lookups_data`, and a second probe runs the real
   `check` command with a `sitecustomize` blocker that records any attempt in a
   marker file. `tests/test_builtin_rules_no_nlp.py`: 2 passed.
+- [x] (2026-10-31) Full-gate repair 1 — type narrowing. A `make typecheck` run
+  rejected three repairs that had passed their focused suites: `MD001`'s
+  predicate returned a boolean, so the caller could not prove a previous depth
+  existed; the pack passed `ir_view.line_index`'s optional result to a helper
+  accepting only a sequence; and the generated suppression helper's inferred
+  dict type was not assignable to its declared one. The predicate now returns
+  the reportable baseline, `_validated_line_starts` bridges the optional index,
+  and the helper annotates its two lists. `ty check`: all checks passed;
+  `ruff check` and Pylint 4.0.9: clean.
+- [x] (2026-10-31) Full-gate repair 2 — code health. The repair commits
+  themselves introduced two findings: `pipe_named`/`pipe_named_isolated` were
+  structurally identical, and `_spy` took five arguments, which Pylint also
+  reported as `R0913`. One piped-check step now appends `--isolated` when a
+  preceding Given requests it, and `_spy` takes a `(module, attribute)` pair.
+  Focused suites: 84 passed.
 
 ## Surprises & discoveries
 
@@ -479,19 +494,25 @@ with error exit 1. An invalid `TERM001` option exits 2.
 
 The expert review is complete and its corrections are incorporated; user
 approval was granted on 2026-10-28. Implementation of M1–M3 is complete and the
-branch is rebased onto `origin/main`. An earlier candidate passed every gate
-except the nextest lane, whose two trybuild UI tests exceed its 600-second
-`terminate-after` whenever compile admission is saturated; both pass when run
-without that cap, so no test failed. The hosted code-health review flagged five
+branch is rebased onto `origin/main`. The published candidate `9667e1ef` passed
+every hosted check — `lint-test`, all three `release-smoke` platforms,
+CodeScene, and Gecko — so the suite is green under CI's compile admission.
+Locally, the two trybuild compile-fail UI tests in the nextest lane can exceed
+their 600-second `terminate-after` while the shared compiler queue is
+saturated; they are waiting for slots, not failing, and the same tests pass in
+CI and when run without the cap. The hosted code-health review flagged five
 delta findings on the new code; each was repaired by extraction rather than
 suppression, and the delta re-run against the base reported none.
 
 A later hosted review made four further findings, all in this slice's evidence:
 per-finding index rebuilding, a preservation property built from its own
 oracle, thin suppression coverage, and an unexercised command path for the
-no-NLP claim. Each is repaired and re-measured above. The final gate run is
-bound to the repaired head in the delivery ledger rather than inferred from an
-earlier candidate.
+no-NLP claim. Each is repaired and re-measured above. The repair commits
+introduced two further code-health findings of their own — a duplicated pair of
+step functions and an over-parameterized test spy that Pylint also rejected —
+and both were removed by a shared step flag and a paired patch target rather
+than by suppression. The final gate run is bound to the repaired head in the
+delivery ledger rather than inferred from an earlier candidate.
 
 The lasting lesson from the rebase is that changing a seam and a rendered
 payload in the same slice makes every test that stubs the seam a manual-merge
@@ -507,6 +528,14 @@ test's own helpers, and the suppression truth tables held while no case
 consumed a directive on a paragraph that reported nothing. Both repairs made
 the oracle independent and the witnesses adversarial; a test's ability to fail
 is a property of the test, not of its green result.
+
+The third lesson is that runtime green does not imply type green. Three repairs
+passed every focused suite and then failed `ty`: a predicate returned a boolean
+where the caller needed a narrowed value, an optional index was handed to a
+function taking a sequence, and a helper's inferred dict type was narrower than
+its declared one. Folding the value into the predicate's return and naming the
+optional-index bridge fixed the first two at their source; neither needed a
+suppression.
 
 Shipped:
 
@@ -689,14 +718,13 @@ unbounded theorem has been identified.
   `tests/test_suppression_sequences.py` (the generated half, kept separate to
   respect the 400-line module limit), `tests/test_builtin_markdown_rules.py`,
   plus `features/stilyagi_builtin_markdown_rules.feature` and its pytest-bdd
-  steps.
-  Use `tests/support/subprocess_env.py::python_module_environment` and the
-  existing BDD binding/step patterns for fresh-process CLI checks. Non-vacuity:
-  each truth-table row has a positive match witness; generated sequences must
-  reach both active and inactive states and consume a next-unit directive on a
-  finding-free region. The independent oracle is run over generated sequences
-  with no filtering. Negative controls reverse select/ignore, prefix overlap,
-  or suppression and must change findings.
+  steps. Use `tests/support/subprocess_env.py::python_module_environment` and
+  the existing BDD binding/step patterns for fresh-process CLI checks.
+  Non-vacuity: each truth-table row has a positive match witness; generated
+  sequences must reach both active and inactive states and consume a next-unit
+  directive on a finding-free region. The independent oracle is run over
+  generated sequences with no filtering. Negative controls reverse
+  select/ignore, prefix overlap, or suppression and must change findings.
 - **V-3:** Hypothesis generates Unicode tokens and separator runs. The
   independent oracle uses bytes: after applying one proposed edit, bytes before
   and after its interval are identical, the diagnostic spans only the second
