@@ -221,8 +221,9 @@ with error exit 1. An invalid `TERM001` option exits 2.
   `tests/test_rule_properties.py` (2),
   `tests/performance/test_builtin_rule_scaling.py` (5),
   `tests/test_builtin_rules_no_nlp.py` (1), and
-  `tests/test_builtin_markdown_rules_bdd.py` (3). The figures quoted under
-  EP-M2 and EP-M3 above remain accurate.
+  `tests/test_builtin_markdown_rules_bdd.py` (3). These are the counts for the
+  candidate of that date; the review repairs below changed several of them, and
+  their own entries carry the current figures.
 - [x] (2026-10-31) Full sequential gates run against HEAD
   `6296a458950251ff48a807011c0c49d2b2a9ccf1` with all changes staged.
   `make check-fmt`, `make typecheck`, `make lint` (including Skylos and the
@@ -248,6 +249,36 @@ with error exit 1. An invalid `TERM001` option exits 2.
   `_is_range_event`/`_apply_range_event`, and `_extends_run` give each
   predicate one home. `cs delta` against `435f121` then reported no findings;
   the focused suites (86 tests) and the changed modules' doctests (14) pass.
+- [x] (2026-10-31) Review repair 1 — per-document indexes. Line starts are
+  validated once per document and each finding is located with one binary
+  search; inline-code containment is answered by an `InlineCodeIndex` built
+  once from the canonical spans. `RuleContext` no longer wraps
+  `RuleRunRequest`, only per-document facts and the rule's own config.
+  Operation-count tests in `tests/performance` provision the contract without a
+  wall-clock threshold (10 passed).
+- [x] (2026-10-31) Review repair 2 — preservation property. The V-3 property
+  now splices the rule's production edits and compares the result with an
+  independently collapsed paragraph, and a mutation control shifts an edit
+  boundary one byte into a UTF-8 continuation byte, requiring
+  `fix-error/non-utf8-boundary`. `tests/test_rule_properties.py`: 6 passed.
+- [x] (2026-10-31) Review repair 3 — suppression evidence. Handwritten
+  witnesses cover a finding-free consumer, a thin first list paragraph, an
+  empty item, blockquote nesting, and file-directive position. A generated
+  Hypothesis sequence property is checked against a per-code replay oracle
+  that folds nothing into intervals; it lives in
+  `tests/test_suppression_sequences.py` so both modules stay inside the
+  400-line lint limit. `tests/test_rule_policy.py`: 28 passed;
+  `tests/test_suppression_sequences.py`: 1 passed (80 examples).
+- [x] (2026-10-31) Review repair 4 — CLI scoping. Four fresh-process BDD
+  scenarios spawn `python -m stilyagi` and prove the per-file glob is anchored
+  at the governing config's directory (including through `extend`),
+  `--stdin-filename` resolves against the invocation directory, and both a
+  non-matching name and `--isolated` report.
+  `tests/test_builtin_markdown_rules_bdd.py`: 7 passed.
+- [x] (2026-10-31) No-NLP guard widened: the direct probe blocks `spacy`,
+  `en_core_web_sm`, and `spacy_lookups_data`, and a second probe runs the real
+  `check` command with a `sitecustomize` blocker that records any attempt in a
+  marker file. `tests/test_builtin_rules_no_nlp.py`: 2 passed.
 
 ## Surprises & discoveries
 
@@ -325,6 +356,15 @@ with error exit 1. An invalid `TERM001` option exits 2.
   `true` for `MD001`'s manual fix as well as for an applicable edit. Impact:
   consumers that need "an edit would be applied" must read `fix.applicability`;
   the user's guide says so explicitly.
+- Observation: the Pylint gateway's 400-line module limit covers `tests/`, so a
+  generated property block added to `tests/test_rule_policy.py` raised C0302 at
+  516 lines. Impact: the suppression oracle moved to its own module rather than
+  a lint exception being recorded.
+- Observation: `--stdin-filename` is resolved against the invocation directory
+  while per-file globs are anchored at the governing config's directory, so the
+  same name is ignored from inside the config tree and reported from outside
+  it. Impact: the fresh-process scenarios assert on output text, not exit
+  status, because `STY001` is a warning and exits `0` either way.
 
 ## Decision log
 
@@ -429,18 +469,29 @@ with error exit 1. An invalid `TERM001` option exits 2.
   Rationale: Python slicing clamps, so a past-EOF span can decode to the
   segment text and pass a naive check. Date/author: 2026-10-30, implementation
   agent.
+- Review repair: the preservation property splices the rule's production edits,
+  and the suppression property replays directives directly, because a property
+  built from the same helper the rule uses, or from the resolver's own folding,
+  can satisfy both sides of its own comparison. Rationale: the two checks must
+  be able to disagree. Date/author: 2026-10-31, implementation agent.
 
 ## Outcomes & retrospective
 
 The expert review is complete and its corrections are incorporated; user
-approval was granted on 2026-10-28. Implementation of M1–M3 is complete, the
-branch is rebased onto `origin/main`, and the gates and roadmap tick are done.
-Every gate passed on the final candidate except the nextest lane, whose two
-trybuild UI tests exceed its 600-second `terminate-after` whenever compile
-admission is saturated; both pass when run without that cap. The hosted
-code-health review then flagged five delta findings on the new code; each was
-repaired by extraction rather than suppression, and the delta re-run against
-the base reported none.
+approval was granted on 2026-10-28. Implementation of M1–M3 is complete and the
+branch is rebased onto `origin/main`. An earlier candidate passed every gate
+except the nextest lane, whose two trybuild UI tests exceed its 600-second
+`terminate-after` whenever compile admission is saturated; both pass when run
+without that cap, so no test failed. The hosted code-health review flagged five
+delta findings on the new code; each was repaired by extraction rather than
+suppression, and the delta re-run against the base reported none.
+
+A later hosted review made four further findings, all in this slice's evidence:
+per-finding index rebuilding, a preservation property built from its own
+oracle, thin suppression coverage, and an unexercised command path for the
+no-NLP claim. Each is repaired and re-measured above. The final gate run is
+bound to the repaired head in the delivery ledger rather than inferred from an
+earlier candidate.
 
 The lasting lesson from the rebase is that changing a seam and a rendered
 payload in the same slice makes every test that stubs the seam a manual-merge
@@ -449,6 +500,13 @@ hazard. The runner signature moved from `(document, config)` to a single
 until a full `pytest` run, because the git-level rebase was textually clean.
 Gates are the only place that class of drift is visible, so a clean rebase is a
 starting point, not a verdict.
+
+The second lesson is that a property test can be vacuous without failing. The
+preservation property held while both sides of its comparison came from the
+test's own helpers, and the suppression truth tables held while no case
+consumed a directive on a paragraph that reported nothing. Both repairs made
+the oracle independent and the witnesses adversarial; a test's ability to fail
+is a property of the test, not of its green result.
 
 Shipped:
 
@@ -628,8 +686,10 @@ unbounded theorem has been identified.
   reporting still influences the next heading depth. Confirm `ignore-next`
   region advancement for thin containers and nested paragraphs against Stage A
   evidence. Artefacts: `tests/test_rule_policy.py`,
-  `tests/test_builtin_markdown_rules.py`, plus
-  `features/stilyagi_builtin_markdown_rules.feature` and its pytest-bdd steps.
+  `tests/test_suppression_sequences.py` (the generated half, kept separate to
+  respect the 400-line module limit), `tests/test_builtin_markdown_rules.py`,
+  plus `features/stilyagi_builtin_markdown_rules.feature` and its pytest-bdd
+  steps.
   Use `tests/support/subprocess_env.py::python_module_environment` and the
   existing BDD binding/step patterns for fresh-process CLI checks. Non-vacuity:
   each truth-table row has a positive match witness; generated sequences must
