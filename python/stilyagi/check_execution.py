@@ -6,12 +6,10 @@ configuration in force for its path, run the rules, and -- when the run asked
 for one -- plan its fix. Every stage is wrapped in an operational metric span,
 so a run's cost can be attributed to the phase that spent it.
 
-Keeping that in one function is what makes the run's accounting honest. A
-second implementation of "check one file" would have to repeat the metric
-recording, the span boundaries, and the failure classification, and the two
-copies would disagree the first time one of them changed. The run-level sweep,
-which flattens these per-file results and reconciles a mutating run's re-lint,
-is `cli_run`'s work and imports this module rather than reimplementing it.
+Keeping that in one function is what makes the run's accounting honest: a
+second implementation would repeat the metric recording, span boundaries, and
+failure classification, and the two copies would disagree the first time one
+changed. The run-level sweep imports this module rather than reimplementing it.
 
 The read lives here rather than entirely in `cli_io`. `cli_io` owns the byte
 *boundary*: how a stream is read without newline translation, and how an
@@ -199,12 +197,9 @@ def _requested_level(run: CheckRun) -> FixLevel:
 class _PlannedFileRequest:
     """Everything one file's fix plan needs to be described.
 
-    Grouped rather than passed as five positional arguments because they are
-    one fact each and read as a clump at the call site: which file, the two
-    products of reading it, the configuration resolved for its path, and the
-    run whose flags decide the level. Splitting them across an argument list
-    made the call site a puzzle in which every argument's role had to be
-    recovered from position.
+    Grouped because these values read as one clump at every call site; spread
+    across an argument list, each argument's role had to be recovered from
+    position.
     """
 
     sourced_input: SourcedInput
@@ -345,9 +340,35 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
     ) as exc:
         return _report_phase_failure(sourced_input, run, exc, "config")
 
+    diagnostics_list = _collect_diagnostics(
+        sourced_input, document, resolved_config, run
+    )
+    return FileCheckResult(
+        diagnostics=diagnostics_list,
+        had_error=False,
+        was_unreadable=False,
+        planned=_plan_if_wanted(
+            _PlannedFileRequest(
+                sourced_input=sourced_input,
+                document=document,
+                diagnostics_list=diagnostics_list,
+                resolved_config=resolved_config,
+                run=run,
+            )
+        ),
+    )
+
+
+def _collect_diagnostics(
+    sourced_input: SourcedInput,
+    document: model.Document,
+    resolved_config: config.StilyagiConfig,
+    run: CheckRun,
+) -> list[diagnostics.Diagnostic]:
+    """Return the file's IR-error and rule diagnostics for the rules phase."""
     try:
         with check_metrics._measure_phase("rules"):
-            diagnostics_list = [
+            return [
                 *map_ir_errors(document, sourced_input.reported_path),
                 *run.rule_runner(
                     _rule_request(
@@ -362,26 +383,18 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
         check_metrics.record_operational_failure("rules")
         raise
 
-    if not _wants_a_plan(run):
-        # Planning is skipped entirely unless a fix was asked for, so an
-        # ordinary check never pays for it and never reports a plan it did not
-        # make.
-        return FileCheckResult(
-            diagnostics=diagnostics_list,
-            had_error=False,
-            was_unreadable=False,
-        )
-    return FileCheckResult(
-        diagnostics=diagnostics_list,
-        had_error=False,
-        was_unreadable=False,
-        planned=_plan_fix(
-            _PlannedFileRequest(
-                sourced_input=sourced_input,
-                document=document,
-                diagnostics_list=diagnostics_list,
-                resolved_config=resolved_config,
-                run=run,
-            )
-        ),
-    )
+
+def _plan_if_wanted(request: _PlannedFileRequest) -> PlannedFile | None:
+    """Plan this file's fix, unless the run asked for no plan.
+
+    Planning is skipped unless a fix was asked for, so an ordinary check never
+    pays for it and never reports a plan it did not make.
+
+    Returns
+    -------
+    PlannedFile | None
+        The file's plan, or ``None`` when this run asked for no plan.
+    """
+    if not _wants_a_plan(request.run):
+        return None
+    return _plan_fix(request)

@@ -64,11 +64,7 @@ def _expected_findings(
     index = 0
     while index < len(tokens) - 1:
         end = index
-        while (
-            end + 1 < len(tokens)
-            and tokens[end + 1].text == tokens[index].text
-            and _joinable(text[tokens[end].char_end : tokens[end + 1].char_start])
-        ):
+        while _extends_run(text, tokens, end, index):
             end += 1
         if end > index:
             found.append((
@@ -83,6 +79,20 @@ def _expected_findings(
             continue
         index += 1
     return tuple(found)
+
+
+def _extends_run(
+    text: str,
+    tokens: tuple[Token, ...],
+    end: int,
+    index: int,
+) -> bool:
+    """Whether the token after ``end`` repeats the run's first word."""
+    return (
+        end + 1 < len(tokens)
+        and tokens[end + 1].text == tokens[index].text
+        and _joinable(text[tokens[end].char_end : tokens[end + 1].char_start])
+    )
 
 
 def _joinable(gap: str) -> bool:
@@ -167,11 +177,7 @@ def _collapse_runs(text: str) -> str:
     index = 0
     while index < len(tokens) - 1:
         end = index
-        while (
-            end + 1 < len(tokens)
-            and tokens[end + 1].text == tokens[index].text
-            and _joinable(text[tokens[end].char_end : tokens[end + 1].char_start])
-        ):
+        while _extends_run(text, tokens, end, index):
             end += 1
         if end > index:
             pieces.append(text[cursor : tokens[index].char_end])

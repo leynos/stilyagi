@@ -11,6 +11,7 @@ when its findings are later suppressed.
 """
 
 import dataclasses as dc
+import functools
 import pathlib
 import typing as typ
 
@@ -68,7 +69,9 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             target=RegionTarget(kinds=("heading",)),
             default_severity="error",
         ),
-        parser=rule_options.parse_md001,
+        parser=functools.partial(
+            rule_options.parse_optionless, config_type=rule_options.Md001Config
+        ),
         hook=heading_depth.check_heading_depth,
     ),
     BuiltinRule(
@@ -78,7 +81,9 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             target=_TEXT_TARGET,
             default_severity="warning",
         ),
-        parser=rule_options.parse_sty001,
+        parser=functools.partial(
+            rule_options.parse_optionless, config_type=rule_options.Sty001Config
+        ),
         hook=repeated_word.check_repeated_word,
         textual=True,
     ),

@@ -213,7 +213,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
 - [x] (2026-10-31) Duplication gate repaired. Five of the seven reported
   families were genuine duplication and were extracted into shared helpers
   (`engine.ir_mapping.string_tuple`, `segment_with_text`, `span_fields`,
-  `_bounding_span`, `config.rules._parse_optionless`); the remaining two are
+  `_bounding_span`, `config.rules.parse_optionless`); the remaining two are
   structural parallels recorded as reasoned `[tool.duplication_gate].allow`
   entries. `make lint` reports the gate passing with 9 allowed exceptions.
 - [x] (2026-10-31) Focused suite counts re-measured after the rebase:
@@ -238,6 +238,16 @@ with error exit 1. An invalid `TERM001` option exits 2.
   `make test` failure under compile-admission pressure from other repositories;
   no test failed.
 - [x] (2026-10-31) Roadmap 2.3.1 ticked; committed and published.
+- [x] (2026-10-31) CodeScene code-health findings cleared. The delta review
+  flagged five findings: a lengthened `check_one_file`, a duplicated
+  optionless-parser pair and a complexity in `config/rules.py`, and nested
+  conditionals in `suppression.py`, `repeated_word.py`, and the property-test
+  oracle. Repaired by extraction rather than suppression — `check_one_file` now
+  delegates diagnostics collection and planning, `parse_optionless` replaces
+  the two parser wrappers, and `_validated_term`,
+  `_is_range_event`/`_apply_range_event`, and `_extends_run` give each
+  predicate one home. `cs delta` against `435f121` then reported no findings;
+  the focused suites (86 tests) and the changed modules' doctests (14) pass.
 
 ## Surprises & discoveries
 
@@ -427,7 +437,10 @@ approval was granted on 2026-10-28. Implementation of M1–M3 is complete, the
 branch is rebased onto `origin/main`, and the gates and roadmap tick are done.
 Every gate passed on the final candidate except the nextest lane, whose two
 trybuild UI tests exceed its 600-second `terminate-after` whenever compile
-admission is saturated; both pass when run without that cap.
+admission is saturated; both pass when run without that cap. The hosted
+code-health review then flagged five delta findings on the new code; each was
+repaired by extraction rather than suppression, and the delta re-run against
+the base reported none.
 
 The lasting lesson from the rebase is that changing a seam and a rendered
 payload in the same slice makes every test that stubs the seam a manual-merge

@@ -12,6 +12,7 @@ Tables for other rule families are preserved untouched for future slices.
 
 import collections.abc as cabc
 import dataclasses as dc
+import functools
 import pathlib
 import typing as typ
 
@@ -136,68 +137,43 @@ def validate_builtin_tables(
             parser(table, code, path)
 
 
-def parse_md001(
+def parse_optionless[T](
     table: cabc.Mapping[str, object],
     code: str,
     path: pathlib.Path = _DEFAULT_PATH,
-) -> Md001Config:
-    """Validate an ``MD001`` table, which accepts no options.
+    *,
+    config_type: type[T],
+) -> T:
+    """Validate a rule table that accepts no options into ``config_type``.
 
-    Any option present raises :class:`stilyagi.config.InvalidConfigError`, so a
-    misspelled option cannot pass silently.
+    Rules with no options share this parser; :data:`_PARSERS` and the builtin
+    pack bind each one with :func:`functools.partial`. Any option present
+    raises :class:`stilyagi.config.InvalidConfigError`, so a misspelled option
+    cannot pass silently.
 
     Parameters
     ----------
     table:
-        Raw ``[tool.stilyagi.rule.MD001]`` mapping.
+        Raw ``[tool.stilyagi.rule.CODE]`` mapping.
     code:
         Rule code, used verbatim in error keys.
     path:
         Originating config path used in error keys.
+    config_type:
+        The empty frozen record the rule's options validate into.
 
     Returns
     -------
-    Md001Config
-        The empty frozen configuration.
+    T
+        A fresh instance of ``config_type``.
 
     Examples
     --------
-    >>> parse_md001({}, "MD001")
+    >>> parse_optionless({}, "MD001", config_type=Md001Config)
     Md001Config()
     """
-    return _parse_optionless(table, code, path, Md001Config)
-
-
-def parse_sty001(
-    table: cabc.Mapping[str, object],
-    code: str,
-    path: pathlib.Path = _DEFAULT_PATH,
-) -> Sty001Config:
-    """Validate an ``STY001`` table, which accepts no options.
-
-    Any option present raises :class:`stilyagi.config.InvalidConfigError`, so a
-    misspelled option cannot pass silently.
-
-    Parameters
-    ----------
-    table:
-        Raw ``[tool.stilyagi.rule.STY001]`` mapping.
-    code:
-        Rule code, used verbatim in error keys.
-    path:
-        Originating config path used in error keys.
-
-    Returns
-    -------
-    Sty001Config
-        The empty frozen configuration.
-
-    Examples
-    --------
-    >>> parse_sty001({}, "STY001")
-    Sty001Config()
-    """
-    return _parse_optionless(table, code, path, Sty001Config)
+    _reject_unknown(table, code, _EMPTY_KEYS, path)
+    return config_type()
 
 
 def parse_term001(
@@ -239,17 +215,6 @@ def parse_term001(
     )
 
 
-def _parse_optionless[T](
-    table: cabc.Mapping[str, object],
-    code: str,
-    path: pathlib.Path,
-    config_type: type[T],
-) -> T:
-    """Validate a table that accepts no options into ``config_type``."""
-    _reject_unknown(table, code, _EMPTY_KEYS, path)
-    return config_type()
-
-
 def _reject_unknown(
     table: cabc.Mapping[str, object],
     code: str,
@@ -282,17 +247,22 @@ def _parse_terms(
     terms: list[str] = []
     seen: set[str] = set()
     for index, entry in enumerate(typ.cast("cabc.Sequence[object]", raw)):
-        key = f"rule.{code}.terms[{index}]"
-        if not isinstance(entry, str):
-            raise InvalidConfigError(path, key, "must be a string")
-        if not entry.isalpha():
-            raise InvalidConfigError(path, key, "must be a single alphabetic word")
-        normalized = entry if case_sensitive else entry.casefold()
+        term = _validated_term(entry, f"rule.{code}.terms[{index}]", path)
+        normalized = term if case_sensitive else term.casefold()
         if normalized in seen:
             continue
         seen.add(normalized)
         terms.append(normalized)
     return tuple(terms)
+
+
+def _validated_term(entry: object, key: str, path: pathlib.Path) -> str:
+    """Return one configured term, rejecting anything but a single word."""
+    if not isinstance(entry, str):
+        raise InvalidConfigError(path, key, "must be a string")
+    if not entry.isalpha():
+        raise InvalidConfigError(path, key, "must be a single alphabetic word")
+    return entry
 
 
 def _parse_case_sensitive(
@@ -312,8 +282,8 @@ def _parse_case_sensitive(
 
 
 _PARSERS: tuple[tuple[str, RuleOptionParser], ...] = (
-    ("MD001", parse_md001),
-    ("STY001", parse_sty001),
+    ("MD001", functools.partial(parse_optionless, config_type=Md001Config)),
+    ("STY001", functools.partial(parse_optionless, config_type=Sty001Config)),
     ("TERM001", parse_term001),
 )
 
@@ -322,8 +292,7 @@ __all__ = [
     "RuleOptionParser",
     "Sty001Config",
     "Term001Config",
-    "parse_md001",
-    "parse_sty001",
+    "parse_optionless",
     "parse_term001",
     "rule_table",
     "validate_builtin_tables",
