@@ -21,3 +21,25 @@ Feature: Builtin Markdown rules
     When I run stilyagi check on the file
     Then TERM001 reports the exact original UTF-8 byte span
     And no automatic fix is offered
+
+  Scenario: anchor a per-file ignore at its own configuration directory
+    Given a repository whose extended config ignores STY for "docs/*.md"
+    And a Markdown document under "docs" repeats the word "the"
+    And a Markdown document under "src" repeats the word "the"
+    When I run stilyagi check from outside the repository on every document
+    Then only the document outside the ignored tree reports STY001
+
+  Scenario: resolve a stream filename against the working directory
+    Given a repository whose extended config ignores STY for "docs/*.md"
+    When I pipe the repeated word "the the" to stilyagi check named "docs/notes.md"
+    Then no STY001 diagnostic is reported
+
+  Scenario: report a stream file whose name misses the ignored glob
+    Given a repository whose extended config ignores STY for "docs/*.md"
+    When I pipe the repeated word "the the" to stilyagi check named "notes.md"
+    Then STY001 is reported for the piped document
+
+  Scenario: ignore the configuration when isolation is requested
+    Given a repository whose extended config ignores STY for "docs/*.md"
+    When I pipe the repeated word "the the" to stilyagi check named "docs/notes.md" with isolated configuration
+    Then STY001 is reported for the piped document

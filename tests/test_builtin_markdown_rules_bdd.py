@@ -19,6 +19,7 @@ from pytest_bdd import scenarios
 
 pytest_plugins = (
     "tests.steps.builtin_markdown_rules",
+    "tests.steps.builtin_markdown_rules_cli",
     "tests.package_skeleton_support",
 )
 pytestmark = pytest.mark.usefixtures("reset_extraction_state")
