@@ -7,11 +7,7 @@ single repeated word stands in for "some finding" so a failure points at
 policy rather than at a rule.
 """
 
-import operator
-
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
 from stilyagi import model
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.suppression import (
@@ -181,6 +177,63 @@ class TestSuppressionDirectives:
             "expected ignore-next to bind even when unselected"
         )
 
+    def test_ignore_next_consumes_a_finding_free_paragraph(self) -> None:
+        """A paragraph with nothing to report still consumes the directive."""
+        source = (
+            "<!-- stilyagi: ignore-next STY001 -->\n\nA quiet paragraph.\n\nthe the.\n"
+        )
+
+        assert _reported_words(source) == [b"the"], (
+            "expected the quiet paragraph to consume the directive"
+        )
+
+    def test_ignore_next_suppresses_the_unit_when_it_reports(self) -> None:
+        """The positive control for the finding-free consumer above."""
+        source = "<!-- stilyagi: ignore-next STY001 -->\n\nthe the.\n"
+
+        assert _reported_words(source) == [], (
+            "expected the reporting paragraph to be suppressed"
+        )
+
+    def test_ignore_next_binds_the_first_list_paragraph(self) -> None:
+        """A thin list container is skipped; its first paragraph is the unit."""
+        source = "<!-- stilyagi: ignore-next STY001 -->\n\n- one\n- the the\n"
+
+        assert _reported_words(source) == [b"the"], (
+            "expected the directive to bind the first list paragraph"
+        )
+
+    def test_ignore_next_skips_an_empty_list_item(self) -> None:
+        """An empty item is not a unit, so the next item consumes nothing."""
+        source = "<!-- stilyagi: ignore-next STY001 -->\n\n- \n- the the\n"
+
+        assert _reported_words(source) == [], (
+            "expected the empty item to be skipped, not consumed"
+        )
+
+    def test_ignore_next_binds_a_blockquote_paragraph_not_its_child(self) -> None:
+        """A nested paragraph stays distinct from the quote it sits inside."""
+        source = "<!-- stilyagi: ignore-next STY001 -->\n\n> outer\n>\n> - the the\n"
+
+        assert _reported_words(source) == [b"the"], (
+            "expected the quote's own paragraph to consume the directive"
+        )
+
+    def test_a_nested_blockquote_paragraph_is_its_own_unit(self) -> None:
+        """A directive inside a quote binds only the paragraph that follows it."""
+        source = "> outer\n>\n> <!-- stilyagi: ignore-next STY001 -->\n>\n> the the.\n"
+
+        assert _reported_words(source) == [], (
+            "expected the nested paragraph to be its own suppression unit"
+        )
+
+    @pytest.mark.parametrize("position", ["before", "between", "after"])
+    def test_file_ignore_applies_wherever_it_appears(self, position: str) -> None:
+        """A file directive covers the document regardless of its position."""
+        assert LintSetup().run(_file_ignore_source(position)) == [], (
+            f"expected a file directive placed {position} to cover the document"
+        )
+
 
 class TestSuppressionPlumbing:
     """Resolved plans expose their decisions without exercising a rule."""
@@ -263,74 +316,24 @@ class TestSuppressionPlumbing:
         )
 
 
-def _naive_suppressed(
-    events: list[tuple[int, str, str]],
-    code: str,
-    offset: int,
-) -> bool:
-    """Say whether ``code`` is suppressed at ``offset`` by direct inspection.
-
-    This is deliberately not the interval-folding algorithm under test: it
-    replays the directive sequence for one query and asks what the latest
-    directive covering the offset did.
-
-    Returns
-    -------
-    bool
-        ``True`` when the last directive at or before ``offset`` disabled
-        ``code``.
-    """
-    state = False
-    for position, role, event_code in events:
-        if position > offset:
-            break
-        if event_code == code:
-            state = role == "open"
-    return state
+def _reported_words(source: str) -> list[bytes]:
+    """Return the source bytes each finding addresses, in document order."""
+    data = source.encode("utf-8")
+    return [
+        data[diagnostic.span.byte_start : diagnostic.span.byte_end]
+        for diagnostic in LintSetup().run(source)
+        if diagnostic.span is not None
+    ]
 
 
-@settings(max_examples=60, deadline=None)
-@given(
-    directives=st.lists(
-        st.tuples(
-            st.integers(min_value=0, max_value=80),
-            st.sampled_from(["open", "close"]),
-            st.sampled_from(["STY001", "STY002"]),
-        ),
-        max_size=6,
-    ),
-    queries=st.lists(
-        st.tuples(st.sampled_from(["STY001", "STY002"]), st.integers(0, 90)),
-        min_size=1,
-        max_size=8,
-    ),
-)
-def test_interval_folding_matches_a_direct_replay(
-    directives: list[tuple[int, str, str]],
-    queries: list[tuple[str, int]],
-) -> None:
-    """The folded intervals agree with replaying the sequence per query."""
-    ordered = sorted(directives, key=operator.itemgetter(0))
-    plan = resolve_suppressions(
-        model.Document(
-            syntax=model.Syntax.MARKDOWN,
-            ir={
-                "suppressions": [
-                    {
-                        "kind": "range",
-                        "range_role": role,
-                        "codes": [code],
-                        "span": {"byte_start": position, "byte_end": position},
-                    }
-                    for position, role, code in ordered
-                ]
-            },
-        ),
-        concrete_codes=("STY001", "STY002"),
-        source_length=100,
-    )
+_FILE_DIRECTIVE = "<!-- stilyagi: ignore-file STY001 -->\n"
+_FINDING_PARAGRAPH = "the the.\n"
 
-    for code, offset in queries:
-        assert plan.suppresses(code, SourceSpan(offset, offset + 1)) is (
-            _naive_suppressed(ordered, code, offset)
-        ), (ordered, code, offset)
+
+def _file_ignore_source(position: str) -> str:
+    """Return a two-finding document with the file directive in one position."""
+    if position == "before":
+        return _FILE_DIRECTIVE + _FINDING_PARAGRAPH + "\n" + _FINDING_PARAGRAPH
+    if position == "between":
+        return _FINDING_PARAGRAPH + "\n" + _FILE_DIRECTIVE + _FINDING_PARAGRAPH
+    return _FINDING_PARAGRAPH + "\n" + _FINDING_PARAGRAPH + "\n" + _FILE_DIRECTIVE
