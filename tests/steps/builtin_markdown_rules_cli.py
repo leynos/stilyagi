@@ -31,9 +31,10 @@ _EXTENDING_CONFIG = (
 
 
 class ScopingState(typ.TypedDict):
-    """The scenario's repository and its most recent completed run."""
+    """The scenario's repository, run options, and latest completed run."""
 
     root: pathlib.Path
+    isolated: bool
     completed: subprocess.CompletedProcess[str] | None
 
 
@@ -80,7 +81,13 @@ def a_repository_with_an_extended_per_file_ignore(
     root.mkdir()
     (root / "base.toml").write_text(_BASE_CONFIG, encoding="utf-8")
     (root / "stilyagi.toml").write_text(_EXTENDING_CONFIG, encoding="utf-8")
-    return {"root": root, "completed": None}
+    return {"root": root, "isolated": False, "completed": None}
+
+
+@given("configuration discovery is isolated")
+def discovery_is_isolated(scoping_state: ScopingState) -> None:
+    """Record that the next invocation must suppress configuration discovery."""
+    scoping_state["isolated"] = True
 
 
 @given(
@@ -109,25 +116,6 @@ def run_from_outside(scoping_state: ScopingState) -> None:
 
 @when(
     parsers.parse(
-        'I pipe the repeated word "{words}" to stilyagi check named "{name}" '
-        "with isolated configuration"
-    ),
-)
-def pipe_named_isolated(
-    scoping_state: ScopingState,
-    words: str,
-    name: str,
-) -> None:
-    """Check piped bytes with discovery suppressed by ``--isolated``."""
-    scoping_state["completed"] = _run(
-        scoping_state["root"],
-        ["check", "-", "--stdin-filename", name, "--isolated"],
-        stdin=f"{words}\n",
-    )
-
-
-@when(
-    parsers.parse(
         'I pipe the repeated word "{words}" to stilyagi check named "{name}"'
     ),
 )
@@ -136,10 +124,17 @@ def pipe_named(
     words: str,
     name: str,
 ) -> None:
-    """Check piped bytes whose name is resolved against the working directory."""
+    """Check piped bytes whose name is resolved against the working directory.
+
+    ``--isolated`` is appended only when an earlier step asked for it, keeping
+    one command path for both the scoped and the isolation-control scenarios.
+    """
+    args = ["check", "-", "--stdin-filename", name]
+    if scoping_state["isolated"]:
+        args.append("--isolated")
     scoping_state["completed"] = _run(
         scoping_state["root"],
-        ["check", "-", "--stdin-filename", name],
+        args,
         stdin=f"{words}\n",
     )
 
