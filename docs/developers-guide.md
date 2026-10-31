@@ -347,6 +347,12 @@ sample as a hard threshold. If later roadmap slices extend `stilyagi check`
 with additional subcommands or persistent Stilyagi caches, update this section
 and the ExecPlan-backed tests together.
 
+Both probe modules log through a module-level logger. Enable `DEBUG` logging to
+see fixture discovery, measurement-run boundaries, the command and iteration
+index of each cold subprocess, and the report output path. When a cold
+subprocess exits non-zero, the probe logs its captured standard error before
+re-raising the failure.
+
 Round-trip edit helpers exist to test fix safety before the full rule engine
 lands. They must preserve source text outside edited ranges, accept adjacent
 source-backed edits, reject synthetic spans, and reject overlapping source

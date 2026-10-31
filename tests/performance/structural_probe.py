@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import logging
 import pathlib
 import platform
 import typing as typ
@@ -19,6 +20,8 @@ from tests.performance.structural_probe_reporting import (
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+
+logger = logging.getLogger(__name__)
 
 PROBE_NAME = "structural-syntax"
 ENTRYPOINT = "stilyagi.engine.extract_document"
@@ -119,8 +122,10 @@ def discover_structural_fixtures(
     )
     for fixture in fixtures:
         if not fixture.path.is_file():
+            logger.error("structural fixture is missing: path=%s", fixture.path)
             msg = f"structural fixture is missing: {fixture.path.as_posix()}"
             raise FileNotFoundError(msg)
+        logger.debug("fixture discovered: path=%s", fixture.path)
     return fixtures
 
 
@@ -239,11 +244,16 @@ def measure_probe(
 
 def write_report(report: ReportPayload, output_path: pathlib.Path) -> None:
     """Write a structural probe report as formatted JSON."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        f"{json.dumps(report, indent=2, sort_keys=True)}\n",
-        encoding="utf-8",
-    )
+    logger.debug("writing report: path=%s", output_path)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            f"{json.dumps(report, indent=2, sort_keys=True)}\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        logger.exception("report write failed: path=%s", output_path)
+        raise
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
