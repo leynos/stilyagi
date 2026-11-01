@@ -261,6 +261,35 @@ Markdown region emission follows ADR 0005:
   IR validator rejects span drift, unresolved `parent_region` links, and
   missing or invalid `origin_nodes`.
 
+#### Rust test helper boundaries
+
+Keep setup and lookup helpers fallible, including BDD state lookups and PyO3
+payload extraction. Plain test bodies extract successful values with contextual
+`expect` messages; BDD setup and action steps propagate errors. Assertions stay
+in test bodies, `then` steps, or thin assertion wrappers with
+`#[track_caller]`. A wrapper may assert the result of a separate pure query,
+but a setup helper must not replace error propagation with a panic.
+
+Share helpers within the feature that owns their contracts. The private
+`stilyagi-tree-sitter::test_support` module owns parser, node, owner, and
+segment queries used by that crate's tests. The private PyO3 test payload
+module owns Python dictionary and sequence lookups. Keep these helpers inside
+their crates; repository-wide fixture reading and golden IR support remain in
+the existing `stilyagi-test-fixtures` and `stilyagi-test-support` crates. The
+IR tests share a caller-tracked JSON round-trip assertion, and byte-span
+assertions used in parameterized cases remain macros so failures identify the
+calling test.
+
+Repository-root resolution is confined to the test-fixture crates. It returns
+`Result<PathBuf, FixturePathError>` and reports the `RepositoryLayout` kind
+when the crate manifest directory is outside the expected `crates/<package>`
+layout. Fixture readers propagate this error through
+`FixtureReadError::InvalidPath`; they do not panic on malformed setup paths.
+
+Suppression generators construct token and whitespace strategies directly from
+character ranges and bounded vectors. This preserves their accepted alphabets
+and lengths without a fallible regex-construction helper inside strategy setup.
+
 #### stilyagi-test-support API reference
 
 The `stilyagi-test-support` crate (at `crates/stilyagi-test-support/`) provides
@@ -270,25 +299,25 @@ that need access to repository-local files:
 Table: Repository fixture utilities and signatures.
 
 <!-- markdownlint-disable MD060 -->
-| Symbol                          | Signature                                                            | Description                                                                                                                               |
-| ------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `SHARED_MARKDOWN_FIXTURE_PATH`  | `&str`                                                               | Repository-relative path to the shared valid Markdown corpus fixture.                                                                     |
-| `SHARED_PYTHON_FIXTURE_PATH`    | `&str`                                                               | Repository-relative path to the shared valid Python docstring corpus fixture.                                                             |
-| `SHARED_RUST_FIXTURE_PATH`      | `&str`                                                               | Repository-relative path to the shared valid Rust doc-comment corpus fixture.                                                             |
-| `MALFORMED_PYTHON_FIXTURE_PATH` | `&str`                                                               | Repository-relative path to the malformed Python fixture used for recovery tests.                                                         |
-| `MALFORMED_RUST_FIXTURE_PATH`   | `&str`                                                               | Repository-relative path to the malformed Rust fixture used for recovery tests.                                                           |
-| `NESTED_RUST_FIXTURE_PATH`      | `&str`                                                               | Repository-relative path to the nested Rust doc-comment corpus fixture.                                                                   |
-| `MULTILINE_RUST_FIXTURE_PATH`   | `&str`                                                               | Repository-relative path to the multiline Rust doc-comment corpus fixture.                                                                |
-| `repository_root`               | `() -> PathBuf`                                                      | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`. Panics with a descriptive message when the crate layout assumption breaks. |
-| `corpus_fixture_path`           | `(impl AsRef<Path>) -> PathBuf`                                      | Resolves a repository-relative path against the workspace root.                                                                           |
-| `read_corpus_fixture`           | `(impl AsRef<Path>) -> Result<String, io::Error>`                    | Reads a repository-relative corpus fixture as UTF-8 text.                                                                                 |
-| `read_corpus_fixture_bytes`     | `(impl AsRef<Path>) -> Result<Vec<u8>, FixtureReadError>`            | Reads a repository-relative corpus fixture as raw bytes for byte-level tests.                                                             |
-| `fixture_paths_in`              | `(impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError>`        | Lists repository-relative fixture entries in deterministic sorted order.                                                                  |
-| `golden_markdown_ir_fixture`    | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`            | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                                  |
-| `golden_python_ir_fixture`      | `(impl AsRef<Path>) -> Result<IrDocument, GoldenPythonFixtureError>` | Builds the canonical Python docstring IR used by Rust snapshot tests.                                                                     |
-| `golden_rust_ir_fixture`        | `(impl AsRef<Path>) -> Result<IrDocument, GoldenRustFixtureError>`   | Builds the canonical Rust doc-comment IR used by Rust snapshot tests.                                                                     |
-| `normalize_repository_path`     | `(impl AsRef<Path>) -> String`                                       | Converts repository-relative paths to `/`-separated snapshot text.                                                                        |
-| `apply_round_trip_edits`        | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>`     | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                               |
+| Symbol                          | Signature                                                            | Description                                                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `SHARED_MARKDOWN_FIXTURE_PATH`  | `&str`                                                               | Repository-relative path to the shared valid Markdown corpus fixture.                                                              |
+| `SHARED_PYTHON_FIXTURE_PATH`    | `&str`                                                               | Repository-relative path to the shared valid Python docstring corpus fixture.                                                      |
+| `SHARED_RUST_FIXTURE_PATH`      | `&str`                                                               | Repository-relative path to the shared valid Rust doc-comment corpus fixture.                                                      |
+| `MALFORMED_PYTHON_FIXTURE_PATH` | `&str`                                                               | Repository-relative path to the malformed Python fixture used for recovery tests.                                                  |
+| `MALFORMED_RUST_FIXTURE_PATH`   | `&str`                                                               | Repository-relative path to the malformed Rust fixture used for recovery tests.                                                    |
+| `NESTED_RUST_FIXTURE_PATH`      | `&str`                                                               | Repository-relative path to the nested Rust doc-comment corpus fixture.                                                            |
+| `MULTILINE_RUST_FIXTURE_PATH`   | `&str`                                                               | Repository-relative path to the multiline Rust doc-comment corpus fixture.                                                         |
+| `repository_root`               | `() -> Result<PathBuf, FixturePathError>`                            | Returns the workspace root resolved from `CARGO_MANIFEST_DIR`; reports `RepositoryLayout` when the crate layout assumption breaks. |
+| `corpus_fixture_path`           | `(impl AsRef<Path>) -> Result<PathBuf, FixturePathError>`            | Resolves a repository-relative path against the workspace root.                                                                    |
+| `read_corpus_fixture`           | `(impl AsRef<Path>) -> Result<String, FixtureReadError>`             | Reads a repository-relative corpus fixture as UTF-8 text.                                                                          |
+| `read_corpus_fixture_bytes`     | `(impl AsRef<Path>) -> Result<Vec<u8>, FixtureReadError>`            | Reads a repository-relative corpus fixture as raw bytes for byte-level tests.                                                      |
+| `fixture_paths_in`              | `(impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError>`        | Lists repository-relative fixture entries in deterministic sorted order.                                                           |
+| `golden_markdown_ir_fixture`    | `(impl AsRef<Path>) -> Result<GoldenDocument, io::Error>`            | Builds the private Markdown golden IR shape used by Rust snapshot tests.                                                           |
+| `golden_python_ir_fixture`      | `(impl AsRef<Path>) -> Result<IrDocument, GoldenPythonFixtureError>` | Builds the canonical Python docstring IR used by Rust snapshot tests.                                                              |
+| `golden_rust_ir_fixture`        | `(impl AsRef<Path>) -> Result<IrDocument, GoldenRustFixtureError>`   | Builds the canonical Rust doc-comment IR used by Rust snapshot tests.                                                              |
+| `normalize_repository_path`     | `(impl AsRef<Path>) -> Result<String, FixturePathError>`             | Converts repository-relative paths to `/`-separated snapshot text.                                                                 |
+| `apply_round_trip_edits`        | `(&str, &[RoundTripEdit]) -> Result<RoundTripEditResult, Error>`     | Applies source-backed test edits while rejecting synthetic, invalid, or overlapping ranges.                                        |
 <!-- markdownlint-enable MD060 -->
 
 Add `stilyagi-test-support` as a dev-dependency in any crate whose tests
@@ -1948,10 +1977,12 @@ Resolve a finding in this order.
 2. **Attribute the failure to the caller.** Where a helper legitimately
    asserts, mark it `#[track_caller]` so a failure names the calling test
    instead of the helper. This is what otherwise forces shared assertion shapes
-   to become macros. `assert_validation_reports` in
-   `crates/stilyagi-markdown/src/tests/ir_consistency.rs` is the reference.
+   to become macros. `assert_canonical_json_round_trip` in
+   `crates/stilyagi-markdown/src/tests.rs` is the reference: it is a plain
+   function, marked `#[track_caller]`, that panics through `match` because the
+   no-`expect`-outside-tests policy also applies to it.
 3. **Funnel through the one documented boundary.** Some contexts genuinely
-   cannot propagate: a `proptest` strategy constructor returns
+   cannot propagate: a `proptest` strategy combinator returns
    `impl Strategy<Value = T>` with nowhere to put an error, and `prop_map`
    closures cannot use `?`. Those use
    [`ExpectValid`](../crates/stilyagi-test-fixtures/src/expect_valid.rs), which
@@ -1960,14 +1991,25 @@ Resolve a finding in this order.
    forming a cycle.
 
 ```rust,no_run
-use proptest::prelude::Strategy;
-use proptest::string::string_regex;
+use proptest::prelude::*;
 use stilyagi_test_fixtures::ExpectValid;
 
-fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
-    string_regex(pattern).expect_valid(pattern)
+fn source_lengths() -> impl Strategy<Value = usize> {
+    prop::collection::vec(any::<u8>(), 1..8).prop_map(|bytes| {
+        String::from_utf8(bytes)
+            .expect_valid("generated source bytes")
+            .len()
+    })
 }
 ```
+
+The workspace currently has no `ExpectValid` call site: the suppression
+generators now build their strategies from character ranges and bounded
+vectors, and the fixture readers return `Result`. The trait and this policy
+remain in place for the next context that genuinely cannot propagate, because
+deleting it would leave that site with only an anonymous panic, which Whitaker's
+`no_expect_outside_tests` forbids. The example above shows the shape such a
+site must take; it is illustrative and is not present in the tree.
 
 **Scope and re-use policy for `ExpectValid`.** Use it only where an error
 cannot be propagated — strategy constructors, `prop_map` closures, fixture
@@ -1984,12 +2026,12 @@ lint while reproducing the problem it exists to surface — an unnamed panic
 boundary per call site. One named, documented boundary is auditable; twenty
 anonymous ones are not.
 
-Two crates additionally define `must_ok!` and `must_some!` macros
-(`crates/stilyagi-markdown/src/tests.rs` and
-`crates/stilyagi-pyext/src/bridge_bdd.rs`). Those remain correct *inside* a
-test body, where a macro expands in place. They are duplicated across the two
-crates; consolidating them onto `ExpectValid` is tracked as follow-up work
-rather than done piecemeal.
+One crate additionally defines `must_ok!` and `must_some!` macros
+(`crates/stilyagi-pyext/src/bridge_bdd.rs`). Those remain correct *inside* a
+test body, where a macro expands in place and the panic is the test verdict.
+They are no longer duplicated: the Markdown copy went away when that module's
+helpers became fallible and the canonical-JSON round trip became one shared
+caller-tracked assertion.
 
 ### 6d. Spelling gate
 

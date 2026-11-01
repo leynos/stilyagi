@@ -28,6 +28,17 @@
 //! that both `stilyagi-ir` and the extraction crates can use it without
 //! forming a dependency cycle through `stilyagi-test-support`.
 //!
+//! # Current call sites
+//!
+//! There are none. The suppression generators build their strategies from
+//! character ranges and bounded vectors, and the fixture readers return
+//! `Result`, so the last call sites disappeared with those changes. The trait
+//! is retained deliberately: it is the only sanctioned shape for the next
+//! context that genuinely cannot propagate, and deleting it would leave that
+//! site with an anonymous panic that Whitaker's `no_expect_outside_tests`
+//! rejects. Do not read its presence as an invitation to use it where a
+//! `Result` would do; the scope policy above governs.
+//!
 //! # Relationship to the `must_ok!` and `must_some!` macros
 //!
 //! `crates/stilyagi-pyext/src/bridge_bdd.rs` defines `must_ok!` and
