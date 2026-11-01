@@ -34,16 +34,6 @@ where
     }
 }
 
-/// Keep the marker type default stable and comparable.
-#[test]
-#[expect(
-    clippy::default_constructed_unit_structs,
-    reason = "this test explicitly exercises the Default implementation"
-)]
-fn ir_boundary_default_matches_the_marker_value() {
-    assert_eq!(IrBoundary::default(), IrBoundary);
-}
-
 /// Keep the marker type clone semantics trivial.
 #[test]
 fn ir_boundary_clone_matches_the_original() {

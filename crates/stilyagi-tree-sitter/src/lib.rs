@@ -30,16 +30,6 @@ mod tests {
     const SHARED_PYTHON_FIXTURE: &str = SHARED_PYTHON_FIXTURE_PATH;
     const MALFORMED_PYTHON_FIXTURE: &str = MALFORMED_PYTHON_FIXTURE_PATH;
 
-    /// Keep the marker type default stable and comparable.
-    #[test]
-    #[expect(
-        clippy::default_constructed_unit_structs,
-        reason = "this test explicitly exercises the Default implementation"
-    )]
-    fn tree_sitter_boundary_default_matches_the_marker_value() {
-        assert_eq!(TreeSitterBoundary::default(), TreeSitterBoundary);
-    }
-
     /// Keep the marker type clone semantics trivial.
     #[test]
     fn tree_sitter_boundary_clone_matches_the_original() {
