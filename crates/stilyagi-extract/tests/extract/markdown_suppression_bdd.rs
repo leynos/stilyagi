@@ -23,20 +23,18 @@ const fn find_extracted_ir(state: &MarkdownSuppressionState) -> Option<&IrDocume
     document.ir()
 }
 
-#[track_caller]
-fn extracted_ir(state: &MarkdownSuppressionState) -> &IrDocument {
-    let Some(ir) = find_extracted_ir(state) else {
-        panic!("expected an extracted Markdown IR payload; did the extraction step run?");
-    };
-    ir
+/// Return the extracted Markdown IR or report the missing extraction step.
+fn extracted_ir(state: &MarkdownSuppressionState) -> Result<&IrDocument, &'static str> {
+    find_extracted_ir(state)
+        .ok_or("expected an extracted Markdown IR payload; did the extraction step run?")
 }
 
-#[track_caller]
-fn configured_source(state: &MarkdownSuppressionState) -> &str {
-    let Some(source) = state.source.as_deref() else {
-        panic!("expected Markdown source to be configured");
-    };
-    source
+/// Return the configured Markdown source or report the missing setup step.
+fn configured_source(state: &MarkdownSuppressionState) -> Result<&str, &'static str> {
+    state
+        .source
+        .as_deref()
+        .ok_or("expected Markdown source to be configured")
 }
 
 /// Returns the text the blanket-forbidden error span re-slices to, if any.
@@ -50,13 +48,30 @@ fn blanket_error_text<'a>(source: &'a str, ir: &IrDocument) -> Option<&'a str> {
 }
 
 #[track_caller]
-fn assert_blanket_error_re_slices_to_the_blanket_comment(state: &MarkdownSuppressionState) {
-    let source = configured_source(state);
-    let ir = extracted_ir(state);
+fn assert_blanket_error_re_slices_to_the_blanket_comment(
+    state: &MarkdownSuppressionState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let source = configured_source(state)?;
+    let ir = extracted_ir(state)?;
 
     assert_eq!(
         blanket_error_text(source, ir),
         Some("<!-- stilyagi: disable -->")
+    );
+    Ok(())
+}
+
+/// Missing BDD extraction state is reported without panicking.
+#[test]
+fn missing_extraction_state_returns_an_error() {
+    let state = MarkdownSuppressionState::default();
+    assert_eq!(
+        extracted_ir(&state).expect_err("missing extraction should return an error"),
+        "expected an extracted Markdown IR payload; did the extraction step run?"
+    );
+    assert_eq!(
+        configured_source(&state).expect_err("missing source should return an error"),
+        "expected Markdown source to be configured"
     );
 }
 
@@ -151,8 +166,8 @@ fn the_document_is_extracted(
 #[then("the IR suppressions contain one inline entry naming PUN201")]
 fn the_ir_suppressions_contain_one_inline_entry_naming_pun201(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    let ir = extracted_ir(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(markdown_suppression_state)?;
 
     assert_eq!(ir.suppressions.len(), 1);
     let Some(suppression) = ir.suppressions.first() else {
@@ -160,14 +175,15 @@ fn the_ir_suppressions_contain_one_inline_entry_naming_pun201(
     };
     assert_eq!(suppression.kind, SuppressionKind::Inline);
     assert_eq!(suppression.codes, vec!["PUN201".to_owned()]);
+    Ok(())
 }
 
 #[then("the suppression span re-slices to the directive comment")]
 fn the_suppression_span_re_slices_to_the_directive_comment(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    let source = configured_source(markdown_suppression_state);
-    let ir = extracted_ir(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let source = configured_source(markdown_suppression_state)?;
+    let ir = extracted_ir(markdown_suppression_state)?;
 
     assert_eq!(ir.suppressions.len(), 1);
     let Some(suppression) = ir.suppressions.first() else {
@@ -177,20 +193,24 @@ fn the_suppression_span_re_slices_to_the_directive_comment(
         source.get(suppression.span.byte_start..suppression.span.byte_end),
         Some("<!-- stilyagi: ignore-next PUN201 -->")
     );
+    Ok(())
 }
 
 #[then("the IR suppressions are empty")]
-fn the_ir_suppressions_are_empty(markdown_suppression_state: &MarkdownSuppressionState) {
-    let ir = extracted_ir(markdown_suppression_state);
+fn the_ir_suppressions_are_empty(
+    markdown_suppression_state: &MarkdownSuppressionState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(markdown_suppression_state)?;
 
     assert_eq!(ir.suppressions, []);
+    Ok(())
 }
 
 #[then("the IR suppressions contain two range entries naming STY")]
 fn the_ir_suppressions_contain_two_range_entries_naming_sty(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    let ir = extracted_ir(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(markdown_suppression_state)?;
 
     assert_eq!(ir.errors, []);
     assert_eq!(ir.suppressions.len(), 2);
@@ -198,28 +218,31 @@ fn the_ir_suppressions_contain_two_range_entries_naming_sty(
         assert_eq!(suppression.kind, SuppressionKind::Range);
         assert_eq!(suppression.codes, vec!["STY".to_owned()]);
     }
+    Ok(())
 }
 
 #[then("the IR errors contain a blanket-forbidden entry for the second comment")]
 fn the_ir_errors_contain_a_blanket_forbidden_entry_for_the_second_comment(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    assert_blanket_error_re_slices_to_the_blanket_comment(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    assert_blanket_error_re_slices_to_the_blanket_comment(markdown_suppression_state)?;
+    Ok(())
 }
 
 #[then("the blanket error span re-slices to the second coalesced comment")]
 fn the_blanket_error_span_re_slices_to_the_second_coalesced_comment(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    assert_blanket_error_re_slices_to_the_blanket_comment(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    assert_blanket_error_re_slices_to_the_blanket_comment(markdown_suppression_state)?;
+    Ok(())
 }
 
 #[then("the suppression spans re-slice to the coalesced comments")]
 fn the_suppression_spans_re_slice_to_the_coalesced_comments(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    let source = configured_source(markdown_suppression_state);
-    let ir = extracted_ir(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let source = configured_source(markdown_suppression_state)?;
+    let ir = extracted_ir(markdown_suppression_state)?;
 
     assert_eq!(ir.suppressions.len(), 2);
     let expected_comments = [
@@ -233,13 +256,14 @@ fn the_suppression_spans_re_slice_to_the_coalesced_comments(
             Some(expected_comment)
         );
     }
+    Ok(())
 }
 
 #[then("the IR suppressions contain one range entry naming STY")]
 fn the_ir_suppressions_contain_one_range_entry_naming_sty(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    let ir = extracted_ir(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(markdown_suppression_state)?;
 
     assert_eq!(ir.errors.len(), 1);
     assert_eq!(ir.suppressions.len(), 1);
@@ -248,14 +272,15 @@ fn the_ir_suppressions_contain_one_range_entry_naming_sty(
     };
     assert_eq!(suppression.kind, SuppressionKind::Range);
     assert_eq!(suppression.codes, vec!["STY".to_owned()]);
+    Ok(())
 }
 
 #[then("the suppression span re-slices to the first coalesced comment")]
 fn the_suppression_span_re_slices_to_the_first_coalesced_comment(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    let source = configured_source(markdown_suppression_state);
-    let ir = extracted_ir(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let source = configured_source(markdown_suppression_state)?;
+    let ir = extracted_ir(markdown_suppression_state)?;
     let Some(suppression) = ir.suppressions.first() else {
         panic!("expected a suppression entry");
     };
@@ -264,20 +289,22 @@ fn the_suppression_span_re_slices_to_the_first_coalesced_comment(
         source.get(suppression.span.byte_start..suppression.span.byte_end),
         Some("<!-- stilyagi: disable STY -->")
     );
+    Ok(())
 }
 
 #[then("the IR errors contain a blanket-forbidden entry")]
 fn the_ir_errors_contain_a_blanket_forbidden_entry(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    assert_blanket_error_re_slices_to_the_blanket_comment(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    assert_blanket_error_re_slices_to_the_blanket_comment(markdown_suppression_state)?;
+    Ok(())
 }
 
 #[then("the first IR suppression records the disable as a range open")]
 fn the_first_ir_suppression_records_the_disable_as_a_range_open(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    let ir = extracted_ir(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(markdown_suppression_state)?;
     let Some(suppression) = ir.suppressions.first() else {
         panic!("expected a suppression entry");
     };
@@ -286,13 +313,14 @@ fn the_first_ir_suppression_records_the_disable_as_a_range_open(
     assert_eq!(suppression.kind, SuppressionKind::Range);
     assert_eq!(suppression.codes, vec!["STY".to_owned()]);
     assert_eq!(suppression.range_role, Some(RangeRole::Open));
+    Ok(())
 }
 
 #[then("the second IR suppression records the enable as a range close")]
 fn the_second_ir_suppression_records_the_enable_as_a_range_close(
     markdown_suppression_state: &MarkdownSuppressionState,
-) {
-    let ir = extracted_ir(markdown_suppression_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(markdown_suppression_state)?;
     let Some(suppression) = ir.suppressions.get(1) else {
         panic!("expected a second suppression entry");
     };
@@ -301,6 +329,7 @@ fn the_second_ir_suppression_records_the_enable_as_a_range_close(
     assert_eq!(suppression.kind, SuppressionKind::Range);
     assert_eq!(suppression.codes, vec!["STY".to_owned()]);
     assert_eq!(suppression.range_role, Some(RangeRole::Close));
+    Ok(())
 }
 #[scenario(
     path = "tests/features/markdown_suppression.feature",

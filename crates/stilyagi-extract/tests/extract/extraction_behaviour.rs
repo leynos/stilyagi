@@ -11,27 +11,15 @@ use crate::test_utils::{
 };
 
 #[rstest]
-fn extract_boundary_default_matches_another_default() {
-    assert_eq!(boundary(), boundary());
-}
-
-#[rstest]
-#[expect(
-    clippy::default_constructed_unit_structs,
-    reason = "this test explicitly exercises marker Default implementations"
-)]
-fn extract_boundary_accessors_expose_the_expected_markers() {
+fn extract_boundary_default_exposes_the_expected_markers() {
     let boundary = boundary();
 
-    assert_eq!(
-        boundary.markdown(),
-        &stilyagi_markdown::MarkdownBoundary::default()
-    );
+    assert_eq!(boundary.markdown(), &stilyagi_markdown::MarkdownBoundary);
     assert_eq!(
         boundary.tree_sitter(),
-        &stilyagi_tree_sitter::TreeSitterBoundary::default()
+        &stilyagi_tree_sitter::TreeSitterBoundary
     );
-    assert_eq!(boundary.ir(), &stilyagi_ir::IrBoundary::default());
+    assert_eq!(boundary.ir(), &stilyagi_ir::IrBoundary);
 }
 
 #[rstest]

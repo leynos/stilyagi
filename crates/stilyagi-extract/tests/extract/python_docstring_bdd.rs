@@ -29,12 +29,12 @@ const fn find_extracted_ir(
     document.ir()
 }
 
-#[track_caller]
-fn extracted_ir(python_docstring_state: &PythonDocstringState) -> &stilyagi_ir::IrDocument {
-    let Some(ir) = find_extracted_ir(python_docstring_state) else {
-        panic!("expected an extracted Python IR payload; did the extraction step run?");
-    };
-    ir
+/// Return the extracted Python IR or report the missing extraction step.
+fn extracted_ir(
+    python_docstring_state: &PythonDocstringState,
+) -> Result<&stilyagi_ir::IrDocument, &'static str> {
+    find_extracted_ir(python_docstring_state)
+        .ok_or("expected an extracted Python IR payload; did the extraction step run?")
 }
 
 fn python_docstring_regions(ir: &stilyagi_ir::IrDocument) -> Vec<&IrRegion> {
@@ -42,6 +42,16 @@ fn python_docstring_regions(ir: &stilyagi_ir::IrDocument) -> Vec<&IrRegion> {
         .iter()
         .filter(|region| region.kind == "python_docstring")
         .collect()
+}
+
+/// Missing BDD extraction state is reported without panicking.
+#[test]
+fn missing_extraction_state_returns_an_error() {
+    let state = PythonDocstringState::default();
+    assert_eq!(
+        extracted_ir(&state).expect_err("missing extraction should return an error"),
+        "expected an extracted Python IR payload; did the extraction step run?"
+    );
 }
 
 #[given("a Python source file with module, class, and function docstrings")]
@@ -75,8 +85,10 @@ fn the_extractor_runs_for_the_python_docstring_syntax(
 }
 
 #[then("each docstring region records its prose text")]
-fn each_docstring_region_records_its_prose_text(python_docstring_state: &PythonDocstringState) {
-    let ir = extracted_ir(python_docstring_state);
+fn each_docstring_region_records_its_prose_text(
+    python_docstring_state: &PythonDocstringState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(python_docstring_state)?;
     let texts = python_docstring_regions(ir)
         .into_iter()
         .map(|region| region.text.as_str())
@@ -91,13 +103,14 @@ fn each_docstring_region_records_its_prose_text(python_docstring_state: &PythonD
             "Use a function docstring for later Python extraction slices.",
         ],
     );
+    Ok(())
 }
 
 #[then("each docstring region records its owning symbol kind and qualified name")]
 fn each_docstring_region_records_its_owning_symbol_kind_and_qualified_name(
     python_docstring_state: &PythonDocstringState,
-) {
-    let ir = extracted_ir(python_docstring_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(python_docstring_state)?;
     let maybe_owners = python_docstring_regions(ir)
         .into_iter()
         .map(|region| {
@@ -127,11 +140,14 @@ fn each_docstring_region_records_its_owning_symbol_kind_and_qualified_name(
             ),
         ],
     );
+    Ok(())
 }
 
 #[then("the module docstring is still extracted")]
-fn the_module_docstring_is_still_extracted(python_docstring_state: &PythonDocstringState) {
-    let ir = extracted_ir(python_docstring_state);
+fn the_module_docstring_is_still_extracted(
+    python_docstring_state: &PythonDocstringState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(python_docstring_state)?;
     let regions = python_docstring_regions(ir);
 
     assert_eq!(regions.len(), 1);
@@ -148,11 +164,14 @@ fn the_module_docstring_is_still_extracted(python_docstring_state: &PythonDocstr
     assert_eq!(owner.kind, "module");
     assert_eq!(owner.name, None);
     assert_eq!(owner.qualname, None);
+    Ok(())
 }
 
 #[then("a recoverable parse error is recorded")]
-fn a_recoverable_parse_error_is_recorded(python_docstring_state: &PythonDocstringState) {
-    let ir = extracted_ir(python_docstring_state);
+fn a_recoverable_parse_error_is_recorded(
+    python_docstring_state: &PythonDocstringState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(python_docstring_state)?;
 
     assert_ne!(ir.errors, []);
     assert!(
@@ -160,6 +179,7 @@ fn a_recoverable_parse_error_is_recorded(python_docstring_state: &PythonDocstrin
             .iter()
             .any(|error| error.code == "python-parse-recovery")
     );
+    Ok(())
 }
 
 #[scenario(

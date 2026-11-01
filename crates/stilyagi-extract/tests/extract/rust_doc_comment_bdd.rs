@@ -28,12 +28,12 @@ const fn find_extracted_ir(
     document.ir()
 }
 
-#[track_caller]
-fn extracted_ir(rust_doc_comment_state: &RustDocCommentState) -> &stilyagi_ir::IrDocument {
-    let Some(ir) = find_extracted_ir(rust_doc_comment_state) else {
-        panic!("expected an extracted Rust IR payload; did the extraction step run?");
-    };
-    ir
+/// Return the extracted Rust IR or report the missing extraction step.
+fn extracted_ir(
+    rust_doc_comment_state: &RustDocCommentState,
+) -> Result<&stilyagi_ir::IrDocument, &'static str> {
+    find_extracted_ir(rust_doc_comment_state)
+        .ok_or("expected an extracted Rust IR payload; did the extraction step run?")
 }
 
 fn rust_doc_comment_regions(ir: &stilyagi_ir::IrDocument) -> Vec<&IrRegion> {
@@ -41,6 +41,16 @@ fn rust_doc_comment_regions(ir: &stilyagi_ir::IrDocument) -> Vec<&IrRegion> {
         .iter()
         .filter(|region| region.kind == "rust_doc_comment")
         .collect()
+}
+
+/// Missing BDD extraction state is reported without panicking.
+#[test]
+fn missing_extraction_state_returns_an_error() {
+    let state = RustDocCommentState::default();
+    assert_eq!(
+        extracted_ir(&state).expect_err("missing extraction should return an error"),
+        "expected an extracted Rust IR payload; did the extraction step run?"
+    );
 }
 
 #[given("a Rust source file with crate, type, and function doc comments")]
@@ -74,8 +84,10 @@ fn the_extractor_runs_for_the_rust_doc_comment_syntax(
 }
 
 #[then("each doc-comment region records its prose text")]
-fn each_doc_comment_region_records_its_prose_text(rust_doc_comment_state: &RustDocCommentState) {
-    let ir = extracted_ir(rust_doc_comment_state);
+fn each_doc_comment_region_records_its_prose_text(
+    rust_doc_comment_state: &RustDocCommentState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(rust_doc_comment_state)?;
     let texts = rust_doc_comment_regions(ir)
         .into_iter()
         .map(|region| region.text.as_str())
@@ -90,13 +102,14 @@ fn each_doc_comment_region_records_its_prose_text(rust_doc_comment_state: &RustD
             " Function documentation comment after a suppression marker.",
         ],
     );
+    Ok(())
 }
 
 #[then("each doc-comment region records its owning item kind and qualified name")]
 fn each_doc_comment_region_records_its_owning_item_kind_and_qualified_name(
     rust_doc_comment_state: &RustDocCommentState,
-) {
-    let ir = extracted_ir(rust_doc_comment_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(rust_doc_comment_state)?;
     let maybe_owners = rust_doc_comment_regions(ir)
         .into_iter()
         .map(|region| {
@@ -130,13 +143,14 @@ fn each_doc_comment_region_records_its_owning_item_kind_and_qualified_name(
             ),
         ],
     );
+    Ok(())
 }
 
 #[then("the crate documentation comment is still extracted")]
 fn the_crate_documentation_comment_is_still_extracted(
     rust_doc_comment_state: &RustDocCommentState,
-) {
-    let ir = extracted_ir(rust_doc_comment_state);
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(rust_doc_comment_state)?;
     let regions = rust_doc_comment_regions(ir);
 
     assert_eq!(regions.len(), 1);
@@ -153,11 +167,14 @@ fn the_crate_documentation_comment_is_still_extracted(
     assert_eq!(owner.kind, "module");
     assert_eq!(owner.name, None);
     assert_eq!(owner.qualname, None);
+    Ok(())
 }
 
 #[then("a recoverable Rust parse error is recorded")]
-fn a_recoverable_rust_parse_error_is_recorded(rust_doc_comment_state: &RustDocCommentState) {
-    let ir = extracted_ir(rust_doc_comment_state);
+fn a_recoverable_rust_parse_error_is_recorded(
+    rust_doc_comment_state: &RustDocCommentState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(rust_doc_comment_state)?;
 
     assert_ne!(ir.errors, []);
     assert!(
@@ -165,6 +182,7 @@ fn a_recoverable_rust_parse_error_is_recorded(rust_doc_comment_state: &RustDocCo
             .iter()
             .any(|error| error.code == "rust-parse-recovery")
     );
+    Ok(())
 }
 
 #[scenario(
