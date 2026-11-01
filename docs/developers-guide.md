@@ -2163,6 +2163,16 @@ generates ratcheted coverage, and it uploads with `mode: upload`. No workflow
 serving pull requests names a CodeScene action, invokes `cs-coverage`, or puts
 `CS_ACCESS_TOKEN` in reach of any process.
 
+**The environment is a deployment boundary, not a naming convention.** The
+publisher job declares `environment: codescene`, and that environment carries a
+`branch_policy` protection rule whose only custom branch policy is `main`.
+GitHub refuses a run of that job on any other ref before its first step, so a
+dispatch aimed at a feature branch is stopped there rather than merely finding
+the secret absent. No pull-request-reachable workflow declares the environment,
+transitively through `workflow_call`. `tests/test_cv005_publisher_contract.py`
+holds both halves: exactly one job in the tree declares it, that job is the
+publisher, and the publisher serves no pull request.
+
 This is the estate rule `main-owned-codescene-coverage`, and it is a policy
 rather than a gap. A pull request from a fork cannot read the repository's
 secrets, so a changed-line check on that lane was a silent skip for exactly the
@@ -2184,6 +2194,19 @@ two builds rather than between two commits, and it does so silently.
 `publish-artefact` is the deliberate exception: the pull-request lane sets it to
 `'false'` because the publisher owns the artefact, and two uploads of one name
 from two lanes race.
+
+**The runner is part of that selection.** Both lanes pin the same
+`generate-coverage` action commit, and at shared-actions `6cec89ba` that
+action's `scripts/install_cargo_nextest.py` declares
+`CARGO_NEXTEST_VERSION = "0.9.145"` and reuses a preinstalled `cargo-nextest`
+rather than installing its own. `smoke.yml` therefore preinstalls exactly
+`cargo-nextest@0.9.145`, and `coverage-main.yml` preinstalls none so the action
+installs the same version for the baseline. These are one rule, not two: a lane
+on `0.9.138` and a baseline on `0.9.145` run different test binaries, and the
+ratchet then compares two builds. Re-read the action's constant whenever the
+shared-actions pin moves. `tests/test_cv005_publisher_contract.py` records the
+expected version beside the pin and fails when the lane preinstall disagrees,
+so a bump that changes the constant has to update both deliberately.
 
 **No checksum input.** `installer-checksum` is rejected outright when non-empty
 from the pinned action onwards, and `archive-checksum` is not a rename of it:
@@ -2208,13 +2231,13 @@ The shared contract library holds that guard as one `&&` term and refuses any
 `||`, because a substring match passes `... && ref == main || dispatch`, which
 makes every conjunct optional so a dispatch from any branch uploads.
 
-**The token stays out of every `env`.** A `Check CodeScene token availability`
-step (id `codescene_token`) runs exactly
+**The token stays out of every `env`.** A `Check CodeScene token` step (id
+`codescene-token`) runs exactly
 `echo "available=${{ secrets.CS_ACCESS_TOKEN != '' }}" >> "$GITHUB_OUTPUT"`,
 with no `if:` and no `env`. GitHub evaluates the expression before the shell
 starts, so the command writes a literal `true` or `false` and the token enters
 no process. The upload's condition reads
-`steps.codescene_token.outputs.available == 'true'` beside the ref guard, and
+`steps.codescene-token.outputs.available == 'true'` beside the ref guard, and
 the upload takes `access-token: ${{ secrets.CS_ACCESS_TOKEN }}` directly. The
 upload is a composite action, and a composite action's nested steps inherit the
 calling step's environment, so a token bound in the step's `env` reached every
@@ -2223,11 +2246,48 @@ to be named exactly in the check's command and the upload's input, because
 deleting the token would otherwise pass for keeping it out of an `env` while
 the upload skipped forever.
 
+**Those names are canonical.** The shared checker finds the check step through
+whatever id the upload guard reads, so it accepts an older spelling such as
+`codescene_token`. This repository keeps one spelling, name
+`Check CodeScene token` and id `codescene-token`, because the guard, this
+document and any future audit then all name the same thing.
+`tests/test_cv005_publisher_contract.py` holds the exact name, id and command,
+and requires the check step to declare nothing but `name`, `id` and `run`, so
+an added `env:` or `if:` fails rather than slipping past a substring match.
+
 **And it runs one at a time.** The baseline is a single value with a single
 writer, so two publisher runs racing would decide it by which finished last.
-The concurrency group queues a superseded run rather than cancelling it: a
+The workflow declares the estate's canonical concurrency block:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+```
+
+Keying on the ref alone keeps every run for main in one queue, and naming the
+group after the workflow keeps a rename from needing a matching edit here. A
+job-level `concurrency` block would be a second queue governing the same
+upload, so no job declares one. `cancel-in-progress` is the literal `false`: a
 cancelled run abandons both its upload and its baseline write, while a queued
 one publishes later and the later push still wins because it runs last.
+
+That queue is ordered by when runs reach it, not by commit time. It does not
+make a manual dispatch of an older commit monotonic: dispatch that commit after
+a newer one has published and the older coverage becomes the baseline. The
+guarantee is that concurrently triggered runs for main serialize, not that the
+baseline can never move backwards through history.
+
+**What the baseline means until the token is present.** The token step publishes
+`available=false` when no secret is configured, and the upload is skipped, but
+`generate-coverage` still ran with `with-ratchet: 'true'`: the comparison
+against the baseline is still enforced, and a regression still fails the run.
+The ratchet is the gate; the upload is the record. The first eligible `main`
+push after this shape merges, whether a push or a dispatch aimed at main and
+with the secret present, is the first real upload and baseline write under the
+corrected guard. No pre-merge test establishes that runtime behaviour; it is
+observable only in that run. A run made while the secret or the environment was
+still being provisioned skipped the upload, not the ratchet.
 
 `make test-workflow-contracts` holds all of this by running
 `cv005-contracts check`, the shared contract library in `leynos/shared-actions`
@@ -3110,7 +3170,7 @@ rather than the reader. The grammar was measured against humantime 2.3.0, which
 is what the lockfile of the pinned cargo-nextest release resolves, by compiling
 that parser and running the cases through it. Naming the version matters: an
 earlier note here cited 2.4.0, which is the newest release rather than the one
-`cargo-nextest@0.9.138` pins. A value may carry a fractional part, and
+`cargo-nextest@0.9.145` pins. A value may carry a fractional part, and
 whitespace is tolerated around the point, so `1.5m` and `1 . 5 m` are both
 ninety seconds. Whitespace inside the number is ignored too, so `1 0s` is ten
 seconds and `1 2 . 3 4 s` is 12.34. The short spellings `wk`, `wks`, `yr` and
