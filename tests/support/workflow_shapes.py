@@ -173,23 +173,25 @@ def numeric_field(value: object, *, workflow: str, job: str, field: str) -> floa
             )
 
 
-class WorkflowStep(typ.TypedDict, total=False):
-    """One step of a workflow job, as this contract reads it.
-
-    Only the keys consumed here are modelled, and all are optional: a
-    step that neither uses an action nor sets an environment has
-    neither.
-
-    Attributes
-    ----------
-    uses : str
-        The action the step invokes, when it invokes one.
-    env : dict[str, object]
-        The step-level environment.
-    """
-
-    uses: str
-    env: dict[str, object]
+#: One step of a workflow job, as this contract reads it.
+#:
+#: Written in the functional form because ``if`` and ``with`` are Python
+#: keywords and cannot be class attributes. Only the keys a contract
+#: consumes are modelled, and all are optional: a step that neither uses
+#: an action nor sets an environment has neither.
+WorkflowStep = typ.TypedDict(
+    "WorkflowStep",
+    {
+        "uses": str,
+        "env": dict[str, object],
+        "name": str,
+        "id": str,
+        "run": str,
+        "if": str,
+        "with": dict[str, object],
+    },
+    total=False,
+)
 
 
 #: One job of a workflow. Written in the functional form because
@@ -200,6 +202,7 @@ WorkflowJob = typ.TypedDict(
     {
         "timeout-minutes": float,
         "env": dict[str, object],
+        "environment": str | dict[str, object],
         "steps": list[WorkflowStep],
     },
     total=False,
@@ -214,9 +217,13 @@ class WorkflowDocument(typ.TypedDict, total=False):
     env : dict[str, object]
         The workflow-level environment, where both workflows here set
         the watchdog.
+    concurrency : dict[str, object]
+        The workflow-level concurrency block, where one workflow here
+        serialises its publisher.
     jobs : dict[str, WorkflowJob]
         The workflow's jobs, keyed by identifier.
     """
 
     env: dict[str, object]
+    concurrency: dict[str, object]
     jobs: dict[str, WorkflowJob]

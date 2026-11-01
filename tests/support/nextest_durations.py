@@ -74,7 +74,7 @@ _SPACED_DIGITS: typ.Final[str] = rf"[0-9](?:[{_WHITESPACE}]*[0-9])*"
 
 #: The grammar was measured against humantime 2.3.0, which is what the
 #: lockfile of the pinned cargo-nextest release resolves (this
-#: repository pins ``cargo-nextest@0.9.138``), by compiling that parser
+#: repository pins ``cargo-nextest@0.9.145``), by compiling that parser
 #: and running the cases through it. The fractional part is optional and
 #: humantime tolerates whitespace around the point, so ``"1.5m"`` and
 #: ``"1 . 5 m"`` are both ninety seconds. A leading point, a missing

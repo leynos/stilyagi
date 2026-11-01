@@ -35,7 +35,10 @@ on:
 # baseline write; a queued one publishes later, and the later push's
 # baseline still wins because it runs last.
 concurrency:
-  group: coverage-main-${{ github.ref }}
+  # The estate's canonical workflow-and-ref group. Keying on the ref alone
+  # keeps every run for main in one queue, while naming the group after the
+  # workflow keeps a rename from needing a matching edit here.
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -141,8 +144,8 @@ jobs:
       # step's environment, so a token bound there reaches every one of
       # them. GitHub evaluates the expression before the shell starts, so
       # the token enters no process.
-      - name: Check CodeScene token availability
-        id: codescene_token
+      - name: Check CodeScene token
+        id: codescene-token
         run: echo "available=${{ secrets.CS_ACCESS_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
 
       - name: Upload coverage data to CodeScene
@@ -153,7 +156,7 @@ jobs:
         # branch's coverage as the trunk's, and every pull request then
         # ratchets against it. CodeScene has no way to tell it was not
         # main, because the upload does not carry the ref.
-        if: steps.codescene_token.outputs.available == 'true' && github.ref == 'refs/heads/main'
+        if: steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main'
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@6cec89bac47a21cf756d68d638a9a510998e57f8
         with:
           format: cobertura
