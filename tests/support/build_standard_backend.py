@@ -51,6 +51,25 @@ def is_adopted(config: dict[str, object]) -> bool:
     return isinstance(dev, dict) and dev.get("codegen-backend") == "cranelift"
 
 
+def _heading_parts(line: str) -> tuple[int, str] | None:
+    """Return a heading line's level and text, or None for a body line."""
+    match = _HEADING.match(line)
+    if match is None:
+        return None
+    return len(match.group(1)), match.group(2)
+
+
+def _section_body(lines: list[str], start: int, level: int) -> list[str]:
+    """Return the heading at `start` and every line under it."""
+    body = [lines[start]]
+    for later in lines[start + 1 :]:
+        heading = _heading_parts(later)
+        if heading is not None and heading[0] <= level:
+            break
+        body.append(later)
+    return body
+
+
 def cranelift_section(guide: str) -> str | None:
     """Return the guide section whose heading names Cranelift, if any.
 
@@ -62,16 +81,10 @@ def cranelift_section(guide: str) -> str | None:
     """
     lines = guide.splitlines()
     for start, line in enumerate(lines):
-        match = _HEADING.match(line)
-        if match and "cranelift" in match.group(2).lower():
-            level = len(match.group(1))
-            body = [line]
-            for later in lines[start + 1 :]:
-                other = _HEADING.match(later)
-                if other and len(other.group(1)) <= level:
-                    break
-                body.append(later)
-            return "\n".join(body)
+        heading = _heading_parts(line)
+        if heading is None or "cranelift" not in heading[1].lower():
+            continue
+        return "\n".join(_section_body(lines, start, heading[0]))
     return None
 
 

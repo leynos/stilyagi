@@ -167,6 +167,30 @@ def component_present(name: str, installed: cabc.Iterable[str]) -> bool:
     return any(pattern.match(entry) for entry in installed)
 
 
+def _matching_digests(rows: list[str], name: str) -> list[str]:
+    """Return the digest column of every two-field row naming `name`."""
+    fields = (row.split() for row in rows)
+    return [
+        parts[0]
+        for parts in fields
+        if len(parts) == _DIGEST_ROW_FIELDS and parts[1] == name
+    ]
+
+
+def _unique_digest(digests: list[str], name: str, sums_file: pathlib.Path) -> str:
+    """Return the one digest for `name`, refusing an absent or repeated row."""
+    if not digests:
+        message = f"no checksum recorded for {name} in {sums_file}"
+        raise BuildToolsError(message)
+    if len(digests) > 1:
+        message = (
+            f"{len(digests)} checksums recorded for {name} in {sums_file}; "
+            "refusing to guess"
+        )
+        raise BuildToolsError(message)
+    return digests[0]
+
+
 def expected_checksum(sums_file: pathlib.Path, name: str) -> str:
     """Read the unique SHA-256 digest recorded for an archive name.
 
@@ -203,22 +227,7 @@ def expected_checksum(sums_file: pathlib.Path, name: str) -> str:
     except OSError:
         message = f"missing checksum file: {sums_file}"
         raise BuildToolsError(message) from None
-    split_rows = (row.split() for row in rows)
-    digests = [
-        fields[0]
-        for fields in split_rows
-        if len(fields) == _DIGEST_ROW_FIELDS and fields[1] == name
-    ]
-    if not digests:
-        message = f"no checksum recorded for {name} in {sums_file}"
-        raise BuildToolsError(message)
-    if len(digests) > 1:
-        message = (
-            f"{len(digests)} checksums recorded for {name} in {sums_file}; "
-            "refusing to guess"
-        )
-        raise BuildToolsError(message)
-    return digests[0]
+    return _unique_digest(_matching_digests(rows, name), name, sums_file)
 
 
 def verify_archive(archive: pathlib.Path, expected: str) -> None:

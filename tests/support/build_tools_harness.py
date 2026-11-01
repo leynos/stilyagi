@@ -8,6 +8,7 @@ real `mold` on the machine cannot make a missing-tool case pass for the wrong
 reason, and they read the journal to prove what was, and was not, run.
 """
 
+import dataclasses as dc
 import hashlib
 import importlib.util
 import io
@@ -69,7 +70,21 @@ def mold_archive() -> bytes:
     return buffer.getvalue()
 
 
-def write_pins(tmp_path: pathlib.Path) -> dict[str, pathlib.Path]:
+@dc.dataclass(frozen=True, slots=True)
+class PinWorkspace:
+    """A temporary root and the pin files written beneath it.
+
+    The pins travel together because the script is always invoked with all
+    three: a case that wants to corrupt one still needs the other two.
+    """
+
+    root: pathlib.Path
+    toolchain: pathlib.Path
+    version: pathlib.Path
+    sums: pathlib.Path
+
+
+def write_pins(tmp_path: pathlib.Path) -> PinWorkspace:
     """Write fixture pin files naming the pinned channel and mold release."""
     toolchain = tmp_path / "rust-toolchain.toml"
     components = ", ".join(f'"{name}"' for name in COMPONENTS)
@@ -82,7 +97,7 @@ def write_pins(tmp_path: pathlib.Path) -> dict[str, pathlib.Path]:
     sums = tmp_path / "SHA256SUMS"
     digest = hashlib.sha256(mold_archive()).hexdigest()
     sums.write_text(f"{digest}  {MOLD_ARCHIVE}\n", encoding="utf-8")
-    return {"toolchain": toolchain, "version": version, "sums": sums}
+    return PinWorkspace(tmp_path, toolchain, version, sums)
 
 
 def rustup_replies(*, installed_components: tuple[str, ...] = COMPONENTS) -> Handler:
@@ -125,8 +140,7 @@ def support_bin(tmp_path: pathlib.Path) -> pathlib.Path:
 def run_script(
     cmd_mox: CmdMox,
     command: str,
-    pins: dict[str, pathlib.Path],
-    tmp_path: pathlib.Path,
+    workspace: PinWorkspace,
     *extra: str,
 ) -> subprocess.CompletedProcess[str]:
     """Run `build_tools.py <command>` with only the shims on `PATH`."""
@@ -136,8 +150,8 @@ def run_script(
         raise ReadingError(message, reader="run_script")
     env = {
         **os.environ,
-        "PATH": f"{shim_dir}{os.pathsep}{support_bin(tmp_path)}",
-        "HOME": str(tmp_path / "home"),
+        "PATH": f"{shim_dir}{os.pathsep}{support_bin(workspace.root)}",
+        "HOME": str(workspace.root / "home"),
     }
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv: this interpreter and this repository's script.
         [
@@ -145,13 +159,13 @@ def run_script(
             str(SCRIPT),
             command,
             "--toolchain-file",
-            str(pins["toolchain"]),
+            str(workspace.toolchain),
             "--mold-version-file",
-            str(pins["version"]),
+            str(workspace.version),
             "--mold-sha256sums-file",
-            str(pins["sums"]),
+            str(workspace.sums),
             "--prefix",
-            str(tmp_path / "prefix"),
+            str(workspace.root / "prefix"),
             "--release-base-url",
             DOWNLOAD_URL,
             *extra,

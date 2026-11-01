@@ -238,25 +238,37 @@ def _install_faults(step: dict[str, object]) -> list[str]:
     return faults
 
 
+def _steps(job: dict[str, object]) -> list[dict[str, object]]:
+    """Return a job's step mappings, ignoring malformed entries."""
+    return [step for step in _as_list(job.get("steps")) if isinstance(step, dict)]
+
+
+def _wiring_faults(
+    steps: list[dict[str, object]],
+    reaching: tuple[int, ...],
+    installs: tuple[int, ...],
+) -> tuple[str, ...]:
+    """Return why the install does not run before the first reaching step."""
+    if not installs:
+        return ("no step runs `make install-build-tools`",)
+    before = [index for index in installs if index < reaching[0]]
+    if not before:
+        return ("the install runs after the first step that reaches it",)
+    return tuple(fault for index in before for fault in _install_faults(steps[index]))
+
+
 def read_job(
     workflow: str, name: str, job: dict[str, object], reach: MakeReach
 ) -> JobReading | None:
     """Return a job's reading, or None when it is not a Linux suite job."""
-    steps = [s for s in _as_list(job.get("steps")) if isinstance(s, dict)]
+    steps = _steps(job)
     reaching = tuple(i for i, step in enumerate(steps) if _step_reaches(step, reach))
     if not reaching or not is_linux_capable(job):
         return None
     installs = tuple(i for i, step in enumerate(steps) if _is_install_step(step))
-    faults: list[str] = []
-    if not installs:
-        faults.append("no step runs `make install-build-tools`")
-    else:
-        before = [i for i in installs if i < reaching[0]]
-        if not before:
-            faults.append("the install runs after the first step that reaches it")
-        for index in before:
-            faults.extend(_install_faults(steps[index]))
-    return JobReading(workflow, name, reaching, installs, tuple(faults))
+    return JobReading(
+        workflow, name, reaching, installs, _wiring_faults(steps, reaching, installs)
+    )
 
 
 def suite_job_readings(
