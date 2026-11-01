@@ -3,9 +3,7 @@
 use std::collections::BTreeSet;
 
 use proptest::prelude::*;
-use proptest::string::string_regex;
 use rstest::rstest;
-use stilyagi_test_fixtures::ExpectValid;
 
 use super::assert_json_round_trip;
 use crate::suppression::{
@@ -317,23 +315,23 @@ fn directive_codes_and_padding() -> impl Strategy<Value = (Vec<String>, Vec<Stri
 }
 
 fn code_token_strategy() -> impl Strategy<Value = String> {
-    regex_strategy("[A-Z][A-Z0-9]{0,7}")
+    (
+        b'A'..=b'Z',
+        prop::collection::vec(prop_oneof![b'A'..=b'Z', b'0'..=b'9'], 0..8),
+    )
+        .prop_map(|(first, rest)| std::iter::once(first).chain(rest).map(char::from).collect())
 }
 
+/// Generate optional leading or trailing whitespace around a directive.
 fn whitespace_strategy() -> impl Strategy<Value = String> {
-    regex_strategy("[ \t]{0,3}")
+    prop::collection::vec(prop::sample::select(vec![' ', '\t']), 0..4)
+        .prop_map(|characters| characters.into_iter().collect())
 }
 
+/// Generate optional padding after commas in a directive code list.
 fn space_padding_strategy() -> impl Strategy<Value = String> {
-    regex_strategy("[ \t]{0,2}")
-}
-
-/// Build a string strategy from `pattern`.
-///
-/// `string_regex` is fallible but a strategy pipeline has no error channel, so
-/// this funnels through the workspace's documented fixture panic boundary.
-fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
-    string_regex(pattern).expect_valid(pattern)
+    prop::collection::vec(prop::sample::select(vec![' ', '\t']), 0..3)
+        .prop_map(|characters| characters.into_iter().collect())
 }
 
 #[rstest]

@@ -2,7 +2,6 @@
 
 use markdown::mdast::Node;
 use proptest::prelude::*;
-use proptest::string::string_regex;
 use stilyagi_ir::SuppressionKind;
 
 /// Return the canonical suppression kind for a directive token, or `None` when
@@ -29,33 +28,23 @@ pub(super) fn directive_codes_and_padding() -> impl Strategy<Value = (Vec<String
 
 /// Generate a comment code token.
 pub(super) fn code_token_strategy() -> impl Strategy<Value = String> {
-    regex_strategy("[A-Z][A-Z0-9]{0,7}")
+    (
+        b'A'..=b'Z',
+        prop::collection::vec(prop_oneof![b'A'..=b'Z', b'0'..=b'9'], 0..8),
+    )
+        .prop_map(|(first, rest)| std::iter::once(first).chain(rest).map(char::from).collect())
 }
 
 /// Generate optional leading or trailing whitespace around a directive.
 pub(super) fn whitespace_strategy() -> impl Strategy<Value = String> {
-    regex_strategy("[ \t]{0,3}")
+    prop::collection::vec(prop::sample::select(vec![' ', '\t']), 0..4)
+        .prop_map(|characters| characters.into_iter().collect())
 }
 
 /// Generate optional padding after commas in a directive code list.
 pub(super) fn space_padding_strategy() -> impl Strategy<Value = String> {
-    regex_strategy("[ \t]{0,2}")
-}
-
-/// Compile a fixture regex pattern into a proptest strategy.
-///
-/// # Panics
-///
-/// This is a deliberate panic boundary: proptest's strategy pipeline requires
-/// an infallible `impl Strategy` in argument position, so a fallible variant
-/// could not be threaded through the generators below. Every caller passes a
-/// `&'static str` compile-time constant, so an invalid pattern is a defect in
-/// this module rather than a runtime condition.
-fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
-    let Ok(strategy) = string_regex(pattern) else {
-        panic!("fixture regex pattern {pattern:?} must compile");
-    };
-    strategy
+    prop::collection::vec(prop::sample::select(vec![' ', '\t']), 0..3)
+        .prop_map(|characters| characters.into_iter().collect())
 }
 
 /// Collect the IR node identifiers that correspond to HTML comments.
