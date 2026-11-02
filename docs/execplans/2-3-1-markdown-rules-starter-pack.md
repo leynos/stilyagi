@@ -351,6 +351,16 @@ with error exit 1. An invalid `TERM001` option exits 2.
   Local Python coverage rose from 90.00% to 91.20%, which restores the hosted
   margin. `origin/main` then advanced to `58f82d73`; the branch replayed 22
   commits with no conflicts and `range-diff` shows every commit unchanged.
+- [x] (2026-11-02) Split the tolerance tests and gate the published head
+  `e15c0671`. The new coverage tests pushed two modules past the 400-line
+  limit, so the malformed-IR and source-coordinate tolerance cases moved to
+  `tests/test_rule_boundary_tolerance.py`; the two originals are now 337 and
+  317 lines. The full sequential gate run on `e15c0671` passes: `check-fmt`,
+  `typecheck`, `lint` (9 reasoned duplication exceptions), `markdownlint` (77
+  files, 0 issues), and `nixie`; `make test` passes with 363 nextest tests,
+  pytest 1031 passed with 19 snapshots, the doctest lane 120 passed with 3
+  skipped, and `make duplication-test` 154 passed. The head was force-pushed
+  with a lease bound to the previous remote head `633ebded`.
 
 ## Surprises & discoveries
 
@@ -622,8 +632,13 @@ drops, so the branch had to rise rather than wait for the baseline to move.
 Focused tests for the malformed-IR tolerance paths, the suppression resolver's
 ignored-directive cases, the line-index fallback, and the pack inventory and
 selection seams raised local Python coverage from 90.00% to 91.20%. The branch
-is now rebased onto `58f82d73`; the published head and its gate results are
-recorded in the delivery ledger and the Progress section.
+is now rebased onto `58f82d73`, and the published head is `e15c0671`, which
+splits the tolerance tests into their own module to keep every file under the
+400-line limit. On that head the deterministic gates `check-fmt`, `typecheck`,
+`lint`, `markdownlint`, and `nixie` pass, and `make test` passes with 363
+nextest tests, pytest 1031 passed with 19 snapshots, the doctest lane 120
+passed with 3 skipped, and `make duplication-test` 154 passed. Hosted results
+for `e15c0671` are recorded in the delivery ledger once they complete.
 
 The lasting lesson from the rebase is that changing a seam and a rendered
 payload in the same slice makes every test that stubs the seam a manual-merge
