@@ -341,6 +341,16 @@ with error exit 1. An invalid `TERM001` option exits 2.
   `make duplication-test` 154 passed with 4 snapshots. The third hosted
   reassessment confirmed the V-2 repair and found no remaining in-scope
   production defect.
+- [x] (2026-11-02) Repair the hosted coverage ratchet and rebase onto
+  `58f82d73`. The hosted `lint-test` job failed on the Python coverage ratchet:
+  the branch measured 91.66% against a 92.88% baseline with a 1.00-point
+  tolerance. The baseline is a maximum ratchet, so it does not fall when main
+  itself drops. Focused tests now exercise the malformed-IR tolerance paths in
+  the projection and span helpers, the suppression resolver's ignored-directive
+  cases, the line-index fallback, and the pack inventory and selection seams.
+  Local Python coverage rose from 90.00% to 91.20%, which restores the hosted
+  margin. `origin/main` then advanced to `58f82d73`; the branch replayed 22
+  commits with no conflicts and `range-diff` shows every commit unchanged.
 
 ## Surprises & discoveries
 
@@ -604,6 +614,16 @@ with 3 skipped; and `make duplication-test` 154 passed with 4 snapshots. These
 counts come from the local gate run on `633ebded`. Hosted results for that head
 are recorded separately once they complete, and the `e507547c` results above
 remain the record for that candidate.
+
+The hosted `lint-test` job then failed on the Python coverage ratchet: the
+branch measured 91.66% against a 92.88% baseline with a 1.00-point tolerance.
+Because the baseline is a maximum ratchet, it does not fall when main itself
+drops, so the branch had to rise rather than wait for the baseline to move.
+Focused tests for the malformed-IR tolerance paths, the suppression resolver's
+ignored-directive cases, the line-index fallback, and the pack inventory and
+selection seams raised local Python coverage from 90.00% to 91.20%. The branch
+is now rebased onto `58f82d73`; the published head and its gate results are
+recorded in the delivery ledger and the Progress section.
 
 The lasting lesson from the rebase is that changing a seam and a rendered
 payload in the same slice makes every test that stubs the seam a manual-merge
