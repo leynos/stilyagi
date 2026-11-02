@@ -330,6 +330,17 @@ with error exit 1. An invalid `TERM001` option exits 2.
   build-standard ADR keeps 0011 and this branch's contract ADR became 0012,
   with its file, heading, and every reference updated. `range-diff` shows the
   other 18 commits unchanged.
+- [x] (2026-11-02) Rebase onto `d7adfe47` and final gate run on `633ebded`.
+  `origin/main` advanced again while the first post-rebase gate run was in
+  flight; the branch replayed 20 commits with no conflicts, and `range-diff`
+  shows every commit unchanged. The full sequential gate run on `633ebded`
+  passes: `check-fmt`, `typecheck`, `lint` (9 reasoned duplication exceptions),
+  `markdownlint`, and `nixie`; `make test` passes in full with 362 of 362
+  nextest tests, including both trybuild UI tests, pytest 1008 passed with 19
+  snapshots, the doctest lane 120 passed with 3 skipped, and
+  `make duplication-test` 154 passed with 4 snapshots. The third hosted
+  reassessment confirmed the V-2 repair and found no remaining in-scope
+  production defect.
 
 ## Surprises & discoveries
 
@@ -580,6 +591,19 @@ filtered on its own outcome and could not express two directives before one
 unit. Removing the filter, widening the generator, and aligning the replay with
 the resolver's independent binding closed it; named witnesses keep the
 now-unfiltered property non-vacuous.
+
+A third hosted reassessment confirmed that repair and found no remaining
+in-scope production defect. It also noted that this retrospective still named
+`e507547c` as the final candidate, so the current candidate is recorded here.
+The branch is rebased onto `d7adfe47` and the published head is `633ebded`. On
+that head the deterministic gates `check-fmt`, `typecheck`, `lint`,
+`markdownlint`, and `nixie` pass, and `make test` passes in full: 362 of 362
+nextest tests, including both trybuild UI tests that timed out on the earlier
+candidate; pytest 1008 passed with 19 snapshots; the doctest lane 120 passed
+with 3 skipped; and `make duplication-test` 154 passed with 4 snapshots. These
+counts come from the local gate run on `633ebded`. Hosted results for that head
+are recorded separately once they complete, and the `e507547c` results above
+remain the record for that candidate.
 
 The lasting lesson from the rebase is that changing a seam and a rendered
 payload in the same slice makes every test that stubs the seam a manual-merge
