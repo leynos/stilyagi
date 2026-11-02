@@ -11,6 +11,7 @@ import pytest
 from stilyagi import model
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.suppression import (
+    IgnoreDirective,
     SuppressionPlan,
     expand_prefixes,
     resolve_suppressions,
@@ -313,6 +314,56 @@ class TestSuppressionPlumbing:
         )
         assert not plan.suppresses("STY002", None), (
             "expected a file directive for another code not to apply"
+        )
+
+    def test_a_non_string_kind_is_ignored(self) -> None:
+        """A directive whose kind is not a string cannot be interpreted."""
+        plan = self._plan([{"kind": 3, "codes": ["STY001"]}])
+
+        assert not plan.suppresses("STY001", SourceSpan(0, 1)), (
+            "expected a non-string kind to be ignored"
+        )
+
+    def test_codes_that_expand_to_nothing_are_ignored(self) -> None:
+        """A directive naming no known code suppresses nothing."""
+        plan = self._plan([{"kind": "file", "codes": ["NOPE"]}])
+
+        assert not plan.suppresses("STY001", None), (
+            "expected an unknown code to expand to nothing"
+        )
+
+    def test_a_range_event_without_a_span_is_ignored(self) -> None:
+        """A range event with no position cannot open or close a range."""
+        plan = self._plan([
+            {"kind": "range", "range_role": "open", "codes": ["STY001"]},
+        ])
+
+        assert not plan.suppresses("STY001", SourceSpan(0, 1)), (
+            "expected a spanless range event to be ignored"
+        )
+
+    def test_a_malformed_span_is_ignored(self) -> None:
+        """A reversed span is dropped rather than raising."""
+        plan = self._plan([
+            {
+                "kind": "range",
+                "range_role": "open",
+                "codes": ["STY001"],
+                "span": {"byte_start": 4, "byte_end": 1},
+            },
+        ])
+
+        assert not plan.suppresses("STY001", SourceSpan(0, 1)), (
+            "expected a malformed span to be ignored"
+        )
+
+    def test_ignore_directive_covers_only_its_codes(self) -> None:
+        """The directive's own predicate is a plain membership test."""
+        directive = IgnoreDirective(("STY001",), None, "file", None)
+
+        assert directive.covers("STY001"), "expected the directive to cover its code"
+        assert not directive.covers("STY002"), (
+            "expected the directive not to cover another code"
         )
 
 

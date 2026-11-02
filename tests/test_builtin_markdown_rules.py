@@ -10,6 +10,9 @@ word, and only an exclusion test can tell the difference.
 import pytest
 from stilyagi import model
 from stilyagi.fixes import Applicability
+from stilyagi.model.region import RegionSegment
+from stilyagi.rules.builtin import enabled_codes
+from stilyagi.rules.builtin.text import Token, token_span, utf8_offsets
 
 from tests.support.rule_fixtures import LintSetup, spans_of
 
@@ -318,3 +321,88 @@ class TestSourceVerification:
         assert LintSetup().run_document(document, source) == [], (
             "expected a mismatched span to produce no finding"
         )
+
+
+class TestBuiltinPack:
+    """The pack reports its inventory and honours an explicit selection."""
+
+    def test_enabled_codes_lists_the_starter_pack(self) -> None:
+        """The pack's inventory is the three starter rules in order."""
+        assert enabled_codes() == ("MD001", "STY001", "TERM001"), (
+            "expected the starter pack to list its three rules"
+        )
+
+    def test_an_unselected_rule_does_not_run(self) -> None:
+        """A rule outside the selected prefixes is skipped entirely."""
+        result = LintSetup(select=("MD",)).run("the the.\n")
+
+        assert result == [], "expected the unselected STY001 rule not to run"
+
+
+def _heading_region_without_depth() -> dict[str, object]:
+    """Build one heading region whose attrs carry no depth."""
+    return {
+        "id": "r1",
+        "kind": "heading",
+        "syntax": "markdown",
+        "scope": ["markdown", "heading"],
+        "attrs": {},
+        "segments": [{"text": "Two", "synthetic": "placeholder"}],
+    }
+
+
+def test_token_span_requires_a_source_backed_segment() -> None:
+    """A synthetic segment has no bytes to address, so mapping it is an error."""
+    segment = RegionSegment(None, "aé")
+
+    with pytest.raises(ValueError, match="source-backed"):
+        token_span(segment, utf8_offsets("aé"), Token("aé", 0, 2))
+
+
+def test_a_heading_without_a_depth_is_skipped() -> None:
+    """A depth-less heading cannot become the depth the next heading compares to."""
+    source = b"# One\n### Three\n"
+    document = model.Document(
+        syntax=model.Syntax.MARKDOWN,
+        ir={
+            "nodes": [
+                {
+                    "id": "n1",
+                    "kind": "heading",
+                    "span": {"byte_start": 0, "byte_end": 6},
+                },
+                {
+                    "id": "n3",
+                    "kind": "heading",
+                    "span": {"byte_start": 6, "byte_end": 16},
+                },
+            ],
+            "regions": [
+                {
+                    "id": "r0",
+                    "kind": "heading",
+                    "syntax": "markdown",
+                    "scope": ["markdown", "heading", "h1"],
+                    "attrs": {"depth": 1},
+                    "segments": [{"text": "One", "synthetic": "placeholder"}],
+                    "origin_nodes": ["n1"],
+                },
+                _heading_region_without_depth(),
+                {
+                    "id": "r2",
+                    "kind": "heading",
+                    "syntax": "markdown",
+                    "scope": ["markdown", "heading", "h3"],
+                    "attrs": {"depth": 3},
+                    "segments": [{"text": "Three", "synthetic": "placeholder"}],
+                    "origin_nodes": ["n3"],
+                },
+            ],
+        },
+    )
+
+    result = LintSetup().run_document(document, source)
+
+    assert spans_of(result) == ((6, 16),), (
+        "expected the h3 jump from the retained h1 baseline to report"
+    )
