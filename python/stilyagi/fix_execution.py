@@ -38,6 +38,7 @@ __all__ = [
     "WriteAttempt",
     "apply_planned_fixes",
     "deferred_plans",
+    "summarise_fix_errors",
     "summarize_fix_errors",
 ]
 
@@ -371,6 +372,14 @@ def summarize_fix_errors(
             )
         )
     return tuple(collapsed)
+
+
+#: Deprecated alias for :func:`summarize_fix_errors`.
+#:
+#: The Oxford rename changed a name this module declares in ``__all__``, so the
+#: pre-Oxford spelling stays importable until the next minor release rather
+#: than breaking an existing ``from stilyagi.fix_execution import ...``.
+summarise_fix_errors = summarize_fix_errors
 
 
 def _detail_for(fix_error: diagnostics.FixError) -> str:

@@ -27,6 +27,9 @@ ignore = [
   '6cec89ba',
   # Latin-1 fixture bytes in a Python string literal, not the word `café`.
   'caf\\xe9',
+  # Deprecated compatibility alias for the public `summarize_fix_errors`
+  # export; the identifier must keep its pre-Oxford spelling to stay importable.
+  '\bsummarise_fix_errors\b',
 ]
 
 [files]

@@ -313,8 +313,7 @@ def test_makefile_markdownlint_target_enforces_spelling(
     assert "spelling" in markdown_header, "expected 'spelling' in markdown_header"
     _spelling_header, spelling_recipe = _make_target(makefile_text, "spelling")
     check(
-        spelling_recipe
-        == ("$(TYPOS_CONFIG_BUILDER) gate --repository . --scope all",),
+        spelling_recipe == ("$(TYPOS_CONFIG_BUILDER) gate --repository . --scope all",),
         "expected spelling_recipe == ('$(TYPOS_CONFIG_BUILDER) ...",
     )
     check(

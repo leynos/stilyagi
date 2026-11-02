@@ -49,6 +49,7 @@ extend-ignore-re = [
     "\\bartifact-(?:name|server-path)\\b",
     "\\bcolor-(?:mix|contrast)\\b",
     "\\brust-analyzer\\b",
+    "\\bsummarise_fix_errors\\b",
     "\\{COLOR\\}",
     "\\{color\\}",
     "`color`",

@@ -839,6 +839,13 @@ identifier, unioning the codes and recording a count in the message. One line
 saying "3 refused edits, file left unmodified" is auditable where one line per
 paragraph is not.
 
+The Oxford rename changed a name `fix_execution.__all__` declares as a public
+export, so the pre-Oxford `summarise_fix_errors` remains importable as a
+deprecated alias until the next minor release. No other renamed name was a
+declared export: the `config.schema` helpers are internal to their package, and
+the performance-probe helpers belong to the test tree rather than the installed
+package.
+
 `cli_fix.py` owns the reporting half and computes no exit status and touches no
 file: a reporter that could write would be a second mutation path beside the
 executor, and an exit code decided there would be a second answer to a question
@@ -2039,8 +2046,8 @@ Run `make spelling` to enforce en-GB-oxendict (Oxford) spelling over every
 tracked file: source, configuration, workflows and Markdown prose alike, as
 required by the [documentation style guide](documentation-style-guide.md). The
 gate uses `--scope all` rather than the builder's Markdown-only default, so
-identifiers, comments and code documentation are checked together with prose;
-a Markdown-only scope would leave the code symbols this repository's style
+identifiers, comments and code documentation are checked together with prose; a
+Markdown-only scope would leave the code symbols this repository's style
 requires unchecked. `make markdownlint` depends on the target, and CI runs
 `make spelling` directly. The single gate command regenerates `typos.toml`,
 runs the pinned [`typos`](https://github.com/crate-ci/typos) binary, and
@@ -2059,12 +2066,12 @@ in three layers:
    the locale, which already enforces them.
 3. `typos.local.toml` adds only Stilyagi-specific accepted words and narrow
    exemptions. External names keep their upstream spelling (`mold`, the pinned
-   linker; `CARGO_TERM_COLOR`; GitHub's `labeled` event), a workflow comment
-   quotes a commit SHA, and a test fixture contains Latin-1 bytes rather than
-   prose. `tests/fixtures` holds deliberately malformed input, and
-   `docs/execplans` holds dated records that quote the misspellings,
-   identifiers and commit SHAs under discussion; both are excluded rather than
-   rewritten.
+   linker; `CARGO_TERM_COLOR`; a GitHub event name inside a workflow's `types`
+   list), a workflow comment quotes a commit SHA, and a test fixture contains
+   Latin-1 bytes rather than prose. `tests/fixtures` holds deliberately
+   malformed input, and `docs/execplans` holds dated records that quote the
+   misspellings, identifiers and commit SHAs under discussion; both are
+   excluded rather than rewritten.
 
 Because `typos.toml` is rewritten from the live shared dictionary and the local
 overlay on every run, never edit its entries by hand and never check it for
@@ -2116,9 +2123,9 @@ Spelling policy has two maintainer-facing homes:
 
 The phrase pass enforces shared multi-word corrections that `typos` cannot
 represent after tokenizing a hyphenated phrase. Fix its findings by hand; the
-gate reports the file, line, and replacement. Review any
-automated rewrite before committing, because spelling corrections must not
-touch code samples, API names, or quoted material.
+gate reports the file, line, and replacement. Review any automated rewrite
+before committing, because spelling corrections must not touch code samples,
+API names, or quoted material.
 
 The gate ships as the `typos-config-builder` command, pinned by the Makefile's
 `TYPOS_CONFIG_BUILDER_VERSION` variable and run in an isolated Python 3.14

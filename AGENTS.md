@@ -138,14 +138,14 @@
   versions. Ruff and Interrogate are pinned in the `pyproject.toml` `dev`
   dependency group and resolved from `uv.lock`; the spelling gate is pinned by
   the Makefile `TYPOS_CONFIG_BUILDER_VERSION` variable. The `nose` duplication
-  detector is pinned by the
-  Makefile `NOSE_VERSION` variable, the workflow-level `NOSE_VERSION`, and
-  `[tool.nose] version`, with `tests/test_toolchain_contract.py` asserting the
-  three agree. Bump the pin at its single source of truth rather than
-  installing a different version ad hoc, and never add a separate tool-install
-  step to CI for a tool the Makefile already provides. Do not relax the
-  detector's `--disable-strategies compile,quick-install` prohibition to make a
-  missing binary build: fix provisioning instead.
+  detector is pinned by the Makefile `NOSE_VERSION` variable, the workflow-level
+  `NOSE_VERSION`, and `[tool.nose] version`, with
+  `tests/test_toolchain_contract.py` asserting the three agree. Bump the pin at
+  its single source of truth rather than installing a different version ad hoc,
+  and never add a separate tool-install step to CI for a tool the Makefile
+  already provides. Do not relax the detector's
+  `--disable-strategies compile,quick-install` prohibition to make a missing
+  binary build: fix provisioning instead.
 
 ## Refactoring heuristics and workflow
 
