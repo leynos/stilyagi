@@ -2035,27 +2035,36 @@ caller-tracked assertion.
 
 ### 6d. Spelling gate
 
-Run `make spelling` to enforce en-GB-oxendict (Oxford) spelling over the
-repository's Markdown prose, as required by the
-[documentation style guide](documentation-style-guide.md). `make markdownlint`
-depends on it, so the Markdown gate covers spelling as well. The single gate
-command regenerates `typos.toml`, runs the pinned
-[`typos`](https://github.com/crate-ci/typos) binary, and enforces the shared
-phrase corrections that `typos` cannot express.
+Run `make spelling` to enforce en-GB-oxendict (Oxford) spelling over every
+tracked file: source, configuration, workflows and Markdown prose alike, as
+required by the [documentation style guide](documentation-style-guide.md). The
+gate uses `--scope all` rather than the builder's Markdown-only default, so
+identifiers, comments and code documentation are checked together with prose;
+a Markdown-only scope would leave the code symbols this repository's style
+requires unchecked. `make markdownlint` depends on the target, and CI runs
+`make spelling` directly. The single gate command regenerates `typos.toml`,
+runs the pinned [`typos`](https://github.com/crate-ci/typos) binary, and
+enforces the shared phrase corrections that `typos` cannot express.
 
 The generated configuration lives in the repository-root `typos.toml` and works
 in three layers:
 
-1. The `en-gb` locale corrects American spellings (`color` to `colour`,
-   `behavior` to `behaviour`, `analyzed` to `analysed`).
+1. The `en-gb` locale corrects American spellings of common words, preferring
+   British forms such as *colour* and *behaviour*.
 2. The estate-wide shared dictionary published by
    `leynos/typos-config-builder` restores Oxford spelling, which the locale
    alone would not enforce. Identity entries accept `-ize` inflections that the
    locale would otherwise "correct" to `-ise`, while `-ise` entries are
    corrected to `-ize`. Stems taking `-yse` (`analyse`, `paralyse`) remain with
    the locale, which already enforces them.
-3. `typos.local.toml` adds only Stilyagi-specific accepted words, quoted
-   upstream names, and excluded fixtures.
+3. `typos.local.toml` adds only Stilyagi-specific accepted words and narrow
+   exemptions. External names keep their upstream spelling (`mold`, the pinned
+   linker; `CARGO_TERM_COLOR`; GitHub's `labeled` event), a workflow comment
+   quotes a commit SHA, and a test fixture contains Latin-1 bytes rather than
+   prose. `tests/fixtures` holds deliberately malformed input, and
+   `docs/execplans` holds dated records that quote the misspellings,
+   identifiers and commit SHAs under discussion; both are excluded rather than
+   rewritten.
 
 Because `typos.toml` is rewritten from the live shared dictionary and the local
 overlay on every run, never edit its entries by hand and never check it for
@@ -2105,9 +2114,9 @@ Spelling policy has two maintainer-facing homes:
   spelling and should normally be put in backticks rather than added as
   word-level exceptions.
 
-The phrase pass enforces corrections such as `hand-written` to `handwritten`,
-which `typos` cannot represent after tokenizing a hyphenated phrase. Fix its
-findings by hand; the gate reports the file, line, and replacement. Review any
+The phrase pass enforces shared multi-word corrections that `typos` cannot
+represent after tokenizing a hyphenated phrase. Fix its findings by hand; the
+gate reports the file, line, and replacement. Review any
 automated rewrite before committing, because spelling corrections must not
 touch code samples, API names, or quoted material.
 

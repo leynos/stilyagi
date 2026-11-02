@@ -305,15 +305,16 @@ def test_makefile_markdownlint_target_enforces_spelling(
     """Markdownlint must depend on the complete spelling gate.
 
     The gate is a single ``typos-config-builder gate`` invocation that
-    regenerates ``typos.toml``, runs the pinned ``typos`` binary, and enforces
-    the shared phrase corrections, so the contract asserts the pinned command
-    rather than individual spelling steps.
+    regenerates ``typos.toml``, runs the pinned ``typos`` binary over every
+    tracked file, and enforces the shared phrase corrections, so the contract
+    asserts the pinned command rather than individual spelling steps.
     """
     markdown_header, _markdown_recipe = _make_target(makefile_text, "markdownlint")
     assert "spelling" in markdown_header, "expected 'spelling' in markdown_header"
     _spelling_header, spelling_recipe = _make_target(makefile_text, "spelling")
     check(
-        spelling_recipe == ("$(TYPOS_CONFIG_BUILDER) gate --repository .",),
+        spelling_recipe
+        == ("$(TYPOS_CONFIG_BUILDER) gate --repository . --scope all",),
         "expected spelling_recipe == ('$(TYPOS_CONFIG_BUILDER) ...",
     )
     check(

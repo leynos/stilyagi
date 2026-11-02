@@ -150,8 +150,8 @@ jobs:
           globs: '**/*.md'
 
       - name: Spelling
-        # The action above covers the lint half of `make markdownlint`; this
-        # step keeps its en-GB-oxendict spelling half in CI.
+        # The action above only lints Markdown. This step runs the
+        # repository-wide spelling gate over every tracked file.
         run: make spelling
 
       - name: Mermaid lint

@@ -361,8 +361,8 @@ markdownlint: tools-docs spelling ## Lint Markdown files and enforce en-GB-oxend
 	$(call ensure_tool,$(MDLINT))
 	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
 
-spelling: ## Enforce en-GB-oxendict spelling
-	$(TYPOS_CONFIG_BUILDER) gate --repository .
+spelling: ## Enforce en-GB-oxendict spelling in every tracked file
+	$(TYPOS_CONFIG_BUILDER) gate --repository . --scope all
 
 nixie: tools-docs ## Validate Mermaid diagrams
 	$(MD_FILES_FIND) | xargs -0 $(NIXIE) --no-sandbox

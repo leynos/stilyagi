@@ -17,9 +17,9 @@
   what was changed and why.
 - **Use consistent spelling and grammar.** Comments must use en-GB-oxendict
   ("-ize" / "-yse" / "-our") spelling and grammar, with the exception of
-  references to external APIs. Markdown prose is enforced mechanically by the
-  `typos` spelling gate inside `make markdownlint`; see the Markdown guidance
-  section below for how to maintain its configuration.
+  references to external APIs. Prose and code are enforced mechanically by the
+  repository spelling gate; see the Spelling section below for how to maintain
+  its configuration.
 - **Illustrate with clear examples.** Function documentation must include clear
   examples demonstrating usage and outcome. Test documentation should omit
   examples that only restate the test logic.
@@ -121,8 +121,8 @@
     `make fmt` to apply fixes).
 - **Markdown files (`.md` only):**
   - **Linting:** Passes markdown lint checks (`make markdownlint`).
-  - **Spelling:** Passes the en-GB-oxendict `typos` gate, which runs as part
-    of `make markdownlint`.
+  - **Spelling:** Passes the repository spelling gate; see the Spelling
+    section below.
   - **Mermaid diagrams:** Passes validation using nixie (`make nixie`).
 - **Committing:**
   - Only changes that meet all quality gates should be committed.
@@ -137,8 +137,8 @@
 - **Tool versions:** The Makefile and CI must use identical lint tool
   versions. Ruff and Interrogate are pinned in the `pyproject.toml` `dev`
   dependency group and resolved from `uv.lock`; the spelling gate is pinned by
-  the Makefile `TYPOS_CONFIG_BUILDER_VERSION` variable, which also fixes the
-  `typos` version it runs. The `nose` duplication detector is pinned by the
+  the Makefile `TYPOS_CONFIG_BUILDER_VERSION` variable. The `nose` duplication
+  detector is pinned by the
   Makefile `NOSE_VERSION` variable, the workflow-level `NOSE_VERSION`, and
   `[tool.nose] version`, with `tests/test_toolchain_contract.py` asserting the
   three agree. Bump the pin at its single source of truth rather than
@@ -395,13 +395,13 @@ project:
 
 ## Markdown guidance
 
-- Validate Markdown files using `make markdownlint`. This target also
-  enforces en-GB-oxendict spelling by depending on `make spelling`, which runs
-  the gate pinned by the Makefile `TYPOS_CONFIG_BUILDER_VERSION` variable, so
-  local runs and CI use the same version.
-- Quoted APIs and identifiers keep their upstream spelling; put them in
-  backticks or fenced code blocks, which the spelling gate ignores, rather than
-  adding word-level exceptions.
+- Validate Markdown files using `make markdownlint`. It also runs the
+  repository spelling gate, so a Markdown-only change is checked for spelling
+  both locally and in CI.
+- Quoted APIs and identifiers keep their upstream spelling. Fenced code blocks
+  are outside the spelling gate's scope, so put examples there; for a quoted
+  name inline, add a narrow pattern to `typos.local.toml` only when the gate
+  still reports it.
 - Run `make fmt` after documentation changes to format Markdown and fix table
   markup.
 - Validate Mermaid diagrams in Markdown by running `make nixie`.
