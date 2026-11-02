@@ -1,0 +1,25 @@
+---
+source: crates/stilyagi-pyext/src/tests/rust_doc_comment.rs
+expression: document_payload(document_dict)
+---
+{
+  "regions": [
+    {
+      "kind": "rust_doc_comment",
+      "text": " Crate-level documentation comment for the shared Stilyagi corpus."
+    },
+    {
+      "kind": "rust_doc_comment",
+      "text": " Item-level documentation comment used by later Rust extraction slices."
+    },
+    {
+      "kind": "rust_doc_comment",
+      "text": " Method documentation comment with extractable prose."
+    },
+    {
+      "kind": "rust_doc_comment",
+      "text": " Function documentation comment after a suppression marker."
+    }
+  ],
+  "syntax": "rust_doc_comment"
+}

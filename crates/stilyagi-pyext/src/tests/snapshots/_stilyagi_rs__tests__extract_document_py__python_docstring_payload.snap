@@ -1,0 +1,17 @@
+---
+source: crates/stilyagi-pyext/src/tests/mod.rs
+expression: document_payload(document_dict)
+---
+{
+  "regions": [
+    {
+      "kind": "python_docstring",
+      "text": "Module docs."
+    },
+    {
+      "kind": "python_docstring",
+      "text": "Function docs."
+    }
+  ],
+  "syntax": "python_docstring"
+}
