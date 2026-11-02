@@ -53,6 +53,22 @@ class ToolchainPin:
     components: tuple[str, ...]
 
 
+def _pin_value(text: str, path: pathlib.Path) -> str:
+    """Return the one non-blank, whitespace-free line in `text`."""
+    lines = text.splitlines()
+    if len(lines) > 1:
+        message = f"expected one line in version pin: {path}, found {len(lines)}"
+        raise BuildToolsError(message)
+    value = text.strip()
+    if not value:
+        message = f"empty version pin: {path}"
+        raise BuildToolsError(message)
+    if re.search(r"\s", value):
+        message = f"version pin contains whitespace: {path}"
+        raise BuildToolsError(message)
+    return value
+
+
 def read_pin(path: pathlib.Path) -> str:
     """Read one version pin and trim surrounding whitespace.
 
@@ -85,18 +101,16 @@ def read_pin(path: pathlib.Path) -> str:
     except OSError:
         message = f"missing version pin: {path}"
         raise BuildToolsError(message) from None
-    lines = text.splitlines()
-    if len(lines) > 1:
-        message = f"expected one line in version pin: {path}, found {len(lines)}"
+    return _pin_value(text, path)
+
+
+def _channel(table: object, path: pathlib.Path) -> str:
+    """Return the non-empty channel from a parsed toolchain table."""
+    channel = table.get("channel") if isinstance(table, dict) else None
+    if not isinstance(channel, str) or not channel:
+        message = f"no channel found in: {path}"
         raise BuildToolsError(message)
-    value = text.strip()
-    if not value:
-        message = f"empty version pin: {path}"
-        raise BuildToolsError(message)
-    if re.search(r"\s", value):
-        message = f"version pin contains whitespace: {path}"
-        raise BuildToolsError(message)
-    return value
+    return channel
 
 
 def read_toolchain(path: pathlib.Path) -> ToolchainPin:
@@ -130,10 +144,7 @@ def read_toolchain(path: pathlib.Path) -> ToolchainPin:
         message = f"missing or unreadable toolchain pin: {path}"
         raise BuildToolsError(message) from None
     table = document.get("toolchain", {})
-    channel = table.get("channel") if isinstance(table, dict) else None
-    if not isinstance(channel, str) or not channel:
-        message = f"no channel found in: {path}"
-        raise BuildToolsError(message)
+    channel = _channel(table, path)
     components = tuple(str(name) for name in table.get("components", ()))
     return ToolchainPin(channel=channel, components=components)
 
