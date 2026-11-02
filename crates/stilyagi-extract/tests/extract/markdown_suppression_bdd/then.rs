@@ -58,6 +58,34 @@ fn assert_span_re_slices_to(
     )
 }
 
+/// Assert the suppression at `index` re-slices to `expected` source text.
+fn assert_suppression_text(
+    markdown_suppression_state: &MarkdownSuppressionState,
+    index: usize,
+    expected: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let source = configured_source(markdown_suppression_state)?;
+    let ir = extracted_ir(markdown_suppression_state)?;
+    assert_span_re_slices_to(source, suppression_at(ir, index)?, expected)
+}
+
+/// Assert the suppression at `index` carries `role` as its range polarity.
+fn assert_range_polarity(
+    markdown_suppression_state: &MarkdownSuppressionState,
+    index: usize,
+    role: RangeRole,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ir = extracted_ir(markdown_suppression_state)?;
+    assert_suppression_count(ir, 2)?;
+    let suppression = suppression_at(ir, index)?;
+    assert_suppression_names(suppression, SuppressionKind::Range, "STY")?;
+    ensure_eq(
+        &suppression.range_role,
+        &Some(role),
+        "range polarity did not match the scenario",
+    )
+}
+
 #[then("the IR suppressions contain one inline entry naming PUN201")]
 fn the_ir_suppressions_contain_one_inline_entry_naming_pun201(
     markdown_suppression_state: &MarkdownSuppressionState,
@@ -71,12 +99,11 @@ fn the_ir_suppressions_contain_one_inline_entry_naming_pun201(
 fn the_suppression_span_re_slices_to_the_directive_comment(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let source = configured_source(markdown_suppression_state)?;
     let ir = extracted_ir(markdown_suppression_state)?;
     assert_suppression_count(ir, 1)?;
-    assert_span_re_slices_to(
-        source,
-        suppression_at(ir, 0)?,
+    assert_suppression_text(
+        markdown_suppression_state,
+        0,
         "<!-- stilyagi: ignore-next PUN201 -->",
     )
 }
@@ -157,11 +184,9 @@ fn the_ir_suppressions_contain_one_range_entry_naming_sty(
 fn the_suppression_span_re_slices_to_the_first_coalesced_comment(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let source = configured_source(markdown_suppression_state)?;
-    let ir = extracted_ir(markdown_suppression_state)?;
-    assert_span_re_slices_to(
-        source,
-        suppression_at(ir, 0)?,
+    assert_suppression_text(
+        markdown_suppression_state,
+        0,
         "<!-- stilyagi: disable STY -->",
     )
 }
@@ -178,28 +203,12 @@ fn the_ir_errors_contain_a_blanket_forbidden_entry(
 fn the_first_ir_suppression_records_the_disable_as_a_range_open(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let ir = extracted_ir(markdown_suppression_state)?;
-    assert_suppression_count(ir, 2)?;
-    let suppression = suppression_at(ir, 0)?;
-    assert_suppression_names(suppression, SuppressionKind::Range, "STY")?;
-    ensure_eq(
-        &suppression.range_role,
-        &Some(RangeRole::Open),
-        "expected the first suppression to open the range",
-    )
+    assert_range_polarity(markdown_suppression_state, 0, RangeRole::Open)
 }
 
 #[then("the second IR suppression records the enable as a range close")]
 fn the_second_ir_suppression_records_the_enable_as_a_range_close(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let ir = extracted_ir(markdown_suppression_state)?;
-    assert_suppression_count(ir, 2)?;
-    let suppression = suppression_at(ir, 1)?;
-    assert_suppression_names(suppression, SuppressionKind::Range, "STY")?;
-    ensure_eq(
-        &suppression.range_role,
-        &Some(RangeRole::Close),
-        "expected the second suppression to close the range",
-    )
+    assert_range_polarity(markdown_suppression_state, 1, RangeRole::Close)
 }
