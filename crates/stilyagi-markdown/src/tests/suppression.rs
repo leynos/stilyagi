@@ -260,4 +260,5 @@ fn validate_ir_consistency_rejects_invalid_suppression_spans() {
     assert_eq!(error.rule_id.as_ref(), "ir-suppression-source-mismatch");
 }
 
+#[path = "suppression_proptest.rs"]
 mod suppression_proptest;

@@ -1,13 +1,14 @@
 //! Internal builder for Rust documentation-comment extraction.
 
+#[path = "builder_emission.rs"]
+mod emission;
+
 use std::collections::{BTreeMap, HashMap};
 
-use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags, RegionKind};
+use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags};
 use tree_sitter::Node;
 
-use super::builder_state::{
-    DocCommentEntry, DocCommentGroup, DocCommentRegionParts, NonDocCommentState, push_group,
-};
+use super::builder_state::{DocCommentEntry, DocCommentGroup, NonDocCommentState, push_group};
 use super::helpers::{
     classify_doc_comment, collect_recovery_nodes, current_owner_node_id, doc_comment_content,
     doc_comment_content_span, is_recovery_node, item_body, module_body_has_leading_inner_docs,
@@ -203,63 +204,6 @@ impl<'source> RustIrBuilder<'source> {
         }
     }
 
-    fn push_doc_comment_group(
-        &mut self,
-        group: &DocCommentGroup<'source>,
-        owner_node_id: &NodeId,
-        owner: stilyagi_ir::IrOwner,
-    ) {
-        let mut text = String::new();
-        let mut segments = Vec::new();
-        let mut origin_nodes = Vec::new();
-        let mut region = DocCommentRegionParts {
-            text: &mut text,
-            segments: &mut segments,
-        };
-
-        for (index, entry) in group.entries.iter().enumerate() {
-            let entry_node_id = self.next_node_id();
-            let entry_node_id_string = entry_node_id.to_string();
-            self.push_node(IrNode {
-                id: entry_node_id_string.clone(),
-                tree: TREE_ID.to_owned(),
-                kind: entry.node.kind().to_owned(),
-                parent: Some(owner_node_id.clone().into()),
-                children: Vec::new(),
-                fields: BTreeMap::new(),
-                props: BTreeMap::new(),
-                span: source_span(entry.node),
-                flags: node_flags(entry.node),
-            });
-            self.push_child(owner_node_id, &entry_node_id);
-            origin_nodes.push(entry_node_id_string);
-
-            if index > 0 {
-                region.push_synthetic_segment(" ");
-            }
-            region.push_source_segment(&entry.content, entry.content_span, entry_node_id);
-        }
-
-        let region_id = self.next_region_id();
-        self.regions.push(IrRegion {
-            id: region_id,
-            kind: RegionKind::RustDocComment.as_str().to_owned(),
-            scope: vec![
-                "rust".to_owned(),
-                "doc_comment".to_owned(),
-                owner.kind.clone(),
-            ],
-            syntax: "rust".to_owned(),
-            natural_language: None,
-            text,
-            segments,
-            origin_nodes,
-            owner: Some(owner),
-            attrs: BTreeMap::new(),
-            parent_region: None,
-        });
-    }
-
     pub(super) fn push_owner_node(
         &mut self,
         node: Node<'source>,
@@ -365,12 +309,6 @@ impl<'source> RustIrBuilder<'source> {
     pub(super) fn next_node_id(&mut self) -> NodeId {
         let id = NodeId(format!("n{}", self.next_node));
         self.next_node += 1;
-        id
-    }
-
-    fn next_region_id(&mut self) -> String {
-        let id = format!("r{}", self.next_region);
-        self.next_region += 1;
         id
     }
 }

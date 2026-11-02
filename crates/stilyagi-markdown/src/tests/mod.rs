@@ -1,12 +1,8 @@
 //! Unit tests for Markdown parsing and IR envelope construction.
 //!
-//! The fixture round-trip tests stay in this module root so their `insta`
-//! snapshots remain anchored to `src/snapshots/`. Other test categories live
+//! Fixture round-trip snapshots explicitly use `src/snapshots/` so module
+//! layout changes preserve their golden files. Other test categories live
 //! in focused sibling modules to keep each file within the size budget.
-#![expect(
-    clippy::self_named_module_files,
-    reason = "tests.rs keeps the inline Markdown test harness colocated with lib.rs"
-)]
 
 use std::path::Path;
 
@@ -19,26 +15,16 @@ impl<'a> From<&'a str> for ExpectedText<'a> {
     }
 }
 
-#[path = "tests/coverage.rs"]
 mod coverage;
-#[path = "tests/ir_consistency.rs"]
 mod ir_consistency;
-#[path = "tests/malformed.rs"]
 mod malformed;
-#[path = "tests/markers.rs"]
 mod markers;
-#[path = "tests/parser.rs"]
 mod parser;
-#[path = "tests/properties.rs"]
 mod properties;
-#[path = "tests/segment_validation.rs"]
 mod segment_validation;
-#[path = "tests/suppression.rs"]
 mod suppression;
 mod suppression_range_role;
-#[path = "tests/suppression_support.rs"]
 mod suppression_support;
-#[path = "tests/validation_support.rs"]
 mod validation_support;
 
 use rstest::rstest;
@@ -129,7 +115,9 @@ fn hardening_fixture_ir_json_round_trips_without_span_drift(
     assert!(source_backed_segments_match_source(&document, &source));
     assert!(synthetic_segments_use_known_reasons(&document));
     assert_region_text_present(&document, expected_paragraph);
-    insta::assert_snapshot!(snapshot_name, json);
+    insta::with_settings!({snapshot_path => "../snapshots"}, {
+        insta::assert_snapshot!(snapshot_name, json);
+    });
 }
 
 #[rstest]
@@ -170,7 +158,9 @@ fn shared_markdown_ir_json_round_trips_without_span_drift() {
             .all(stilyagi_ir::IrRegion::segments_reconstruct_text)
     );
     assert!(source_backed_segments_match_source(&document, &source));
-    insta::assert_snapshot!(json);
+    insta::with_settings!({snapshot_path => "../snapshots"}, {
+        insta::assert_snapshot!(json);
+    });
 }
 
 /// Assert that `document` survives a canonical JSON round trip unchanged and
