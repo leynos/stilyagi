@@ -73,9 +73,17 @@ jobs:
       - name: Check the CV-005 contracts
         run: make test-workflow-contracts
       - name: Install test runner
+        # The generate-coverage action below reuses a preinstalled
+        # cargo-nextest rather than installing its own; at shared-actions
+        # 6cec89ba it pins CARGO_NEXTEST_VERSION = "0.9.145". This version
+        # must equal that constant, or this lane and the main baseline run
+        # different test runners and the ratchet compares two builds rather
+        # than two commits. Re-read the constant when the shared-actions pin
+        # moves; tests/test_cv005_publisher_contract.py fails when they
+        # disagree.
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: cargo binstall --no-confirm cargo-nextest@0.9.138
+        run: cargo binstall --no-confirm cargo-nextest@0.9.145
 
       - name: Install the build standard
         # The checksum-verified mold release and the pinned nightly with its
