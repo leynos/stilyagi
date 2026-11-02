@@ -39,7 +39,7 @@ __all__ = [
     "log_fix_summary",
     "print_mutation_report",
     "print_unmodified_report",
-    "summarises_on_the_report",
+    "summarizes_on_the_report",
     "warn_if_unsafe_withheld",
 ]
 
@@ -69,7 +69,7 @@ class MutationReport:
     destination: typ.TextIO
 
 
-def summarises_on_the_report(output_format: str) -> bool:
+def summarizes_on_the_report(output_format: str) -> bool:
     """Say whether a run's summary sentence belongs on the report stream.
 
     It does for text. It must not for JSON, because that stream is a document
@@ -89,9 +89,9 @@ def summarises_on_the_report(output_format: str) -> bool:
 
     Examples
     --------
-    >>> summarises_on_the_report("text")
+    >>> summarizes_on_the_report("text")
     True
-    >>> summarises_on_the_report("json")
+    >>> summarizes_on_the_report("json")
     False
     """
     return output_format != "json"
@@ -195,7 +195,7 @@ def fix_summary_line(outcome: FixOutcome) -> str:
     The same sentence is logged at INFO, but a log line is invisible without
     `--verbose` and the console default is WARNING. This returns the copy the
     command boundary prints for text-format reports; both reporters ask
-    `summarises_on_the_report` first, and for JSON the sentence is dropped
+    `summarizes_on_the_report` first, and for JSON the sentence is dropped
     rather than appended to the document.
 
     Returns
@@ -244,7 +244,7 @@ def print_unmodified_report(report: MutationReport) -> None:
         fix_errors=report.outcome.fix_errors,
     )
     print(rendered, end="", file=report.destination)
-    if summarises_on_the_report(report.options.output_format):
+    if summarizes_on_the_report(report.options.output_format):
         print(fix_summary_line(report.outcome), file=report.destination)
 
 
@@ -265,7 +265,7 @@ def print_mutation_report(report: MutationReport) -> None:
 
     The summary line goes on the report as well as the log for text output,
     because the log's copy is reached only through `--verbose`. JSON is the
-    exception, for the reason `summarises_on_the_report` gives. The stream is
+    exception, for the reason `summarizes_on_the_report` gives. The stream is
     fixed rather than taken from `report.destination`: a run that wrote files
     already owns that stream with the diagnostics this one supersedes.
     """
@@ -276,7 +276,7 @@ def print_mutation_report(report: MutationReport) -> None:
         fix_errors=report.outcome.fix_errors,
     )
     print(rendered, end="", file=sys.stderr)
-    if summarises_on_the_report(report.options.output_format):
+    if summarizes_on_the_report(report.options.output_format):
         print(fix_summary_line(report.outcome), file=sys.stderr)
 
 
@@ -320,7 +320,7 @@ def log_fix_summary(
     do, and the user has no way to tell which happened.
 
     Every per-edit refusal is logged before the outcome's collapsed copy is
-    reported. `summarise_fix_errors` reduces a rule that emitted one bad edit
+    reported. `summarize_fix_errors` reduces a rule that emitted one bad edit
     per paragraph to a single line, which is the right report and the wrong
     record: the count says how many were dropped and never which spans were
     involved. The detail goes to the log, where volume is tolerable, and the

@@ -9,7 +9,7 @@ Verdict: **REVISE** — not implementable/design-conformant as written.
 ## Blocking defects
 
 1. **`make all` does not run the gates.** On current `origin/main`,
-   `make all` → `release` → `release-artifact` + `smoke-release`
+   `make all` → `release` → `release-artefact` + `smoke-release`
    (`Makefile:38,48,50,60`). That only builds the release wheel and runs
    `python -m stilyagi.smoke`; it does **not** run `lint`, `typecheck`
    (`ty check`), or `test` (pytest/BDD/e2e), which are separate, unchained

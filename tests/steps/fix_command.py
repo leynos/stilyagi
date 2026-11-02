@@ -290,7 +290,7 @@ def standard_error_holds_the_diagnostic_summary(
     """Assert diagnostics stay off the stream the patch owns."""
     assert_with_context(
         "PUN201" in fix_command_state["stderr"],
-        "expected the diagnostic to be summarised on standard error",
+        "expected the diagnostic to be summarized on standard error",
     )
     assert_with_context(
         "git apply" not in fix_command_state["stderr"],
@@ -382,7 +382,7 @@ def the_text_output_states_the_file_was_not_modified(
 def the_markdown_file_on_disk_still_uses_crlf(
     fix_command_state: FixCommandState,
 ) -> None:
-    """Assert the write did not normalise the file's line endings."""
+    """Assert the write did not normalize the file's line endings."""
     on_disk = fix_command_state["target"].read_bytes()
     assert_with_context(
         on_disk.endswith(b"\r\n") and b"\n\n" not in on_disk.removesuffix(b"\r\n"),

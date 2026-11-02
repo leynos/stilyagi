@@ -3093,7 +3093,7 @@ Two Stage C requirements were checked rather than assumed, because a mechanism
 that exists but is never reached is indistinguishable from one that does not:
 
 - **Fix-error collapsing** is implemented in
-  `fix_execution.summarise_fix_errors` and is wired -- `FixOutcome.fix_errors`
+  `fix_execution.summarize_fix_errors` and is wired -- `FixOutcome.fix_errors`
   is built from it at `fix_execution.py:191`, so the renderer only ever sees
   one entry per `(path, identifier)` with a count in the message.
 - **The symlink policy** is on both sides. `discovery.py` refuses to follow a
@@ -3425,7 +3425,7 @@ make: *** [Makefile:189: spelling] Error 2
 `typos.toml` carries an explicit map from the `-ise` to the `-ize` form for
 this stem, so `synthesized` is a hard requirement even though the project
 otherwise writes en-GB-oxendict. The permitted `-ise` stems -- `analyse`,
-`behaviour`, `normalisation` -- are unaffected, which is why a plain grep for
+`behaviour`, `normalization` -- are unaffected, which is why a plain grep for
 `-ise` in `docs/` returns many survivors and is not a usable check. Fixed both
 occurrences; re-confirmed with `make markdownlint`.
 
@@ -4339,7 +4339,7 @@ document", and a consumer parses the stream it is handed, not a substring of
 it. This is the same defect class as the rest of this execplan's gate history
 -- a claim about output that was only ever checked by substring assertion.
 
-The repair is one predicate, `summarises_on_the_report`, called from both
+The repair is one predicate, `summarizes_on_the_report`, called from both
 reporters. The summary is text-format output; the JSON document is not
 augmented with it. Nothing is lost, because `apply_fixes` already calls
 `log_fix_summary`, which logs the identical sentence at INFO -- the level
@@ -4478,7 +4478,7 @@ were verified against the tree first:
    helper now states this and names the assertion that actually detects the
    regression. This was a claim about detection written into the detector.
 2. `fix_summary_line` said the command boundary prints it "unconditionally".
-   Both reporters ask `summarises_on_the_report` first, so it prints for
+   Both reporters ask `summarizes_on_the_report` first, so it prints for
    text-format reports. Corrected.
 3. The developer guide stated the JSON stream is a document a consumer parses
    whole. True only for a run that changes nothing; a mutating run shares

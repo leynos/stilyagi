@@ -1,11 +1,11 @@
-"""Helpers for materialising the malformed Markdown corpus in tests.
+"""Helpers for materializing the malformed Markdown corpus in tests.
 
 Every malformed Markdown fixture is stored with a ``.md.fixture`` suffix so
 repository-wide Markdown formatting and lint sweeps skip it. Because
 ``stilyagi check`` only discovers ``.md`` and ``.markdown`` files, tests that
 exercise discovery must strip the trailing ``.fixture`` suffix when copying
 fixtures into a temporary tree; otherwise the fixtures are silently invisible to
-discovery and the test passes vacuously. These helpers centralise that
+discovery and the test passes vacuously. These helpers centralize that
 suffix-stripping copy so every discovery-facing test exercises the whole corpus.
 """
 

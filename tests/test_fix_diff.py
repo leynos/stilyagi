@@ -62,7 +62,7 @@ def test_unified_diff_keeps_non_lf_separators_inside_their_line(
 ) -> None:
     """Keep characters Git does not treat as line endings within one diff line.
 
-    ``str.splitlines`` breaks on these separators, but Git recognises only LF.
+    ``str.splitlines`` breaks on these separators, but Git recognizes only LF.
     Splitting there produces a diff line without a terminator, so the
     missing-newline marker lands inside the hunk and Git rejects the patch.
     """

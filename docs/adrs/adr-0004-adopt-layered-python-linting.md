@@ -271,7 +271,7 @@ The disable had a cost the original decision understated: a module the PyPy
 runtime could not parse produced no messages at all, so it was never linted,
 and the pass still reported success. On the PyPy 3.11 runtime thirteen modules
 were skipped. PyPy 8 (Python 3.12) closes most of that gap, but the test suite
-uses Python 3.14 syntax, PEP 758 unparenthesised `except` lists, that no
+uses Python 3.14 syntax, PEP 758 unparenthesized `except` lists, that no
 managed PyPy parses. The pass therefore runs a pinned
 `pylint==$(PYLINT_VERSION)` on CPython 3.14, the project baseline, where every
 module parses and a parse failure fails the lint. The findings the newly linted

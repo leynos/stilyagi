@@ -209,7 +209,7 @@ fn extract_document_py_rejects_invalid_syntaxes(
 }
 
 /// Keep the `UnknownSyntax` arm of `map_extract_error` wired to a
-/// `PyValueError` so Python callers receive a `ValueError` for unrecognised
+/// `PyValueError` so Python callers receive a `ValueError` for unrecognized
 /// syntax strings.
 #[rstest]
 fn bridge_extract_document_rejects_unknown_syntaxes() {

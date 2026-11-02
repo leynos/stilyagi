@@ -673,7 +673,7 @@ COMMIT_MSG_DIR="$(mktemp -d)"
 cat > "$COMMIT_MSG_DIR/COMMIT_MSG.md" << 'ENDOFMSG'
 Add Markdown region-kind golden fixture coverage (2.1.2)
 
-Summarise the milestone specifics here.
+Summarize the milestone specifics here.
 ENDOFMSG
 git commit -F "$COMMIT_MSG_DIR/COMMIT_MSG.md"
 rm -rf "$COMMIT_MSG_DIR"

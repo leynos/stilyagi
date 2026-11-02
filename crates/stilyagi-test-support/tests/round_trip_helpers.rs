@@ -164,11 +164,11 @@ fn round_trip_edits_accept_empty_edit_sets_as_noops() {
 fn round_trip_edits_preserve_untouched_ranges() {
     let result = apply_round_trip_edits(
         "before middle after",
-        &[RoundTripEdit::source(7, 13, "CENTER")],
+        &[RoundTripEdit::source(7, 13, "CENTRE")],
     )
     .expect("expected edit to apply");
 
-    assert_eq!(result.after, "before CENTER after");
+    assert_eq!(result.after, "before CENTRE after");
 }
 
 #[rstest]

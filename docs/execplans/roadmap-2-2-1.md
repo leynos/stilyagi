@@ -376,7 +376,7 @@ escalation, not a workaround.
 - Observation (round 5): the worktree Makefile has advanced since round 2. `all`
   is now `all: ## Run commit gates` chaining `check-fmt`, `typecheck`, `lint`,
   `test`, `markdownlint`, and `nixie` (`Makefile:38-44`), and
-  `release: release-artifact smoke-release` (`Makefile:54`) is what
+  `release: release-artefact smoke-release` (`Makefile:54`) is what
   builds/smoke-tests the wheel — the opposite of the round-2 `all: release`
   finding this plan carried forward. AGENTS.md §"Rust specific guidance" (lines
   156-186) confirms the four gate targets are distinct and that
@@ -508,7 +508,7 @@ escalation, not a workaround.
   `origin/main` Makefile. On the current worktree branch the Makefile has
   advanced — `all: ## Run commit gates` (`Makefile:38`) chains `check-fmt`,
   `typecheck`, `lint`, `test`, `markdownlint`, and `nixie`, and
-  `release: release-artifact smoke-release` (`Makefile:54`) is what builds and
+  `release: release-artefact smoke-release` (`Makefile:54`) is what builds and
   smoke-tests the wheel. AGENTS.md §"Rust specific guidance" (lines 156-186) is
   authoritative: the four gate targets are **distinct**, and `make check-fmt`
   (not `make lint`) runs the formatting check (`ruff format --check` +
@@ -1074,7 +1074,7 @@ and e2e tests Red→Green; the deterministic commit gates `make check-fmt`,
 `make lint` runs `ruff check`, `pylint`, `clippy`, and Whitaker; `make test`
 runs the pytest/BDD/e2e suites — AGENTS.md §"Rust specific guidance" and the
 Validation section). Separately, `make release`
-(`release: release-artifact smoke-release`, `Makefile:54`) must still succeed:
+(`release: release-artefact smoke-release`, `Makefile:54`) must still succeed:
 it builds the release wheel and runs `python -m stilyagi.smoke`, confirming the
 new `[project.scripts]` console entry point and the wheel build survive.
 `make release` does **not** run lint, typecheck, or the test suites, so it is
@@ -1210,7 +1210,7 @@ target-by-target.)
 
 Separately run `make release` to confirm the release wheel and the new console
 entry point still build and smoke-test (build integrity only —
-`release: release-artifact smoke-release`, `Makefile:54`; it runs no
+`release: release-artefact smoke-release`, `Makefile:54`; it runs no
 lint/typecheck/test gate):
 
 ```bash
@@ -1297,7 +1297,7 @@ Round 2 (2026-07-04) — resolves the design reviewer's two blocking points:
 
 1. **`make all` does not run the gates.** Verified against the worktree
    Makefile: `all: release` (`Makefile:38`) and
-   `release: release-artifact smoke-release` (`Makefile:48`) — `make all` only
+   `release: release-artefact smoke-release` (`Makefile:48`) — `make all` only
    builds the release wheel and runs `python -m stilyagi.smoke`; it never
    invokes `lint`, `typecheck`, or `test` (separate targets at
    `Makefile:112,120,131`). Every assertion that `make all` runs the gates was
@@ -1395,7 +1395,7 @@ the worktree Makefile and AGENTS.md; no work-item mechanism changed:
    ran no gates. The worktree Makefile has since advanced:
    `all: ## Run commit gates` (`Makefile:38-44`) chains `check-fmt`,
    `typecheck`, `lint`, `test`, `markdownlint`, and `nixie`; the wheel is built
-   by `release: release-artifact smoke-release` (`Makefile:54`). Every sentence
+   by `release: release-artefact smoke-release` (`Makefile:54`). Every sentence
    that conflated `make all` with the wheel build was corrected, and the
    wheel/console build-integrity check now invokes `make release`, not
    `make all`.

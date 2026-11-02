@@ -38,7 +38,7 @@ __all__ = [
     "WriteAttempt",
     "apply_planned_fixes",
     "deferred_plans",
-    "summarise_fix_errors",
+    "summarize_fix_errors",
 ]
 
 _LOGGER = logging.getLogger(__name__)
@@ -202,7 +202,7 @@ def apply_planned_fixes(
         write_failed = write_failed or attempt.operational_error
     return FixOutcome(
         applied=tuple(applied),
-        fix_errors=summarise_fix_errors(fix_errors),
+        fix_errors=summarize_fix_errors(fix_errors),
         files_written=len(applied),
         files_aborted_on_conflict=aborted,
         refused_edits=len(fix_errors),
@@ -331,7 +331,7 @@ def _changed_on_disk_error(plan: PlannedFile) -> diagnostics.FixError:
     )
 
 
-def summarise_fix_errors(
+def summarize_fix_errors(
     fix_errors: cabc.Iterable[diagnostics.FixError],
 ) -> tuple[diagnostics.FixError, ...]:
     """Collapse refusals to one report per file per identifier with a count.

@@ -210,7 +210,7 @@ def test_the_config_ignores_the_git_directory() -> None:
 
     CI lints `**/*.md` from the repository root, and the checkout has a
     real `.git` directory for the glob to walk. A remote branch whose
-    name ends in `.md` is materialised there as
+    name ends in `.md` is materialized there as
     `refs/remotes/origin/<branch>` -- and the branch
     `3-2-2-add-builtin-docstring-rules.md` is exactly that. The linter
     then reads the ref's hex object name as Markdown and fails the

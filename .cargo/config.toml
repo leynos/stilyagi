@@ -16,7 +16,7 @@
 #
 # - The Makefile's gate recipes assign `RUSTFLAGS`, which displaces both
 #   sources, so each restates the standard (see `STANDARD_RUSTFLAGS`).
-# - `make release-artifact` and the maturin release build in
+# - `make release-artefact` and the maturin release build in
 #   tests/test_maturin_build.py assign `RUSTFLAGS` without the standard, so the
 #   published wheel takes no development flags.
 # - Coverage runs under CI's exported `RUSTFLAGS=-D warnings`, which displaces

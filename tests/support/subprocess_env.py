@@ -2,7 +2,7 @@
 
 Both the stdin and end-to-end CLI tests spawn ``python -m stilyagi`` in a
 temporary working directory and need the repository's ``python/`` source tree
-on ``PYTHONPATH``. Centralising the environment build keeps that setup in one
+on ``PYTHONPATH``. Centralizing the environment build keeps that setup in one
 place instead of duplicating it per test module.
 """
 

@@ -655,7 +655,7 @@ install or replace it.
   `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
   `ConfigError` base class, with `InvalidCacheDirError` and
   `InvalidConfigError` as typed subclasses.
-- `config/schema.py` `normalise_path_value(value)` normalizes a cache-directory
+- `config/schema.py` `normalize_path_value(value)` normalizes a cache-directory
   value to a `pathlib.Path`: it returns a `pathlib.Path` argument unchanged and
   wraps a `str` argument, raising `TypeError` for any other type. The message
   names no field, so each caller adds the context its own contract requires:
@@ -834,7 +834,7 @@ plan was derived from, and reports every refusal it produced.
 `FixOutcome` carries what the run did and declined to do, and its
 `files_aborted_on_conflict` counter is the one that matters most: without it, a
 run that refused every edit looks identical to one that found nothing to do.
-`summarise_fix_errors` collapses refusals to one report per file per
+`summarize_fix_errors` collapses refusals to one report per file per
 identifier, unioning the codes and recording a count in the message. One line
 saying "3 refused edits, file left unmodified" is auditable where one line per
 paragraph is not.
@@ -849,7 +849,7 @@ otherwise report an empty refusal channel for a run that refused edits.
 `emit_fixed_document` prints a stream input's replacement and nothing else, with
 `end=""` so no byte the user did not pipe in is added.
 
-Both reporters append the run-level summary through `summarises_on_the_report`,
+Both reporters append the run-level summary through `summarizes_on_the_report`,
 which is where the format rule lives: the sentence belongs on the stream for
 text and must not be for JSON, because a trailing sentence makes `json.loads`
 raise on the document. The reference to the rule sits at both call sites rather
@@ -1474,7 +1474,7 @@ excludes it from its compiler flags.
 
 | Route                   | How it excludes the standard                                                                   |
 | ----------------------- | ---------------------------------------------------------------------------------------------- |
-| `make release-artifact` | `RUSTFLAGS="${RUSTFLAGS-}"` assigns the caller's flags alone; it skips the preflight.          |
+| `make release-artefact` | `RUSTFLAGS="${RUSTFLAGS-}"` assigns the caller's flags alone; it skips the preflight.          |
 | Wheel in pytest         | `tests/test_maturin_build.py` assigns `RUSTFLAGS` to its `maturin build --release` subprocess. |
 | Coverage                | The coverage step assigns `RUSTFLAGS: -D warnings`; instrumentation stays.                     |
 | Whitaker                | `RUSTFLAGS="$(WHITAKER_RUST_FLAGS)"` is `-D warnings` alone.                                   |
@@ -1515,7 +1515,7 @@ of `.venv`. `uv sync` installs the project through maturin's editable build,
 which is a compile under the release profile (verified with
 `cargo rustc --profile release`) but takes the development flags like any other
 environment step, because `build` replaces it with a dev-profile
-`maturin develop` straight afterwards. `release-artifact` does not reach the
+`maturin develop` straight afterwards. `release-artefact` does not reach the
 preflight.
 
 ### CI wiring
@@ -1526,7 +1526,7 @@ the `lint-test` job in `smoke.yml` and the `coverage-upload` job in
 `coverage-main.yml`. The coverage publisher excludes `mold` from its compiler
 flags, but the suite it runs still drives Make targets that run the preflight,
 so it installs the tools itself. `release-smoke` installs them too: its wheel
-comes from `release-artifact`, which takes the release flags, but
+comes from `release-artefact`, which takes the release flags, but
 `smoke-release` takes its base interpreter from `.venv`, so `make release`
 reaches the preflight there. Only the mutation workflow reaches none, and
 installs nothing.
@@ -1558,7 +1558,7 @@ the `cdylib`, which lists `mold`, and then the release wheel's, which does not:
 ```bash
 make build
 readelf -p .comment python/stilyagi/_stilyagi_rs*.so
-make release-artifact
+make release-artefact
 unzip -o -j -d /tmp/wheel-check dist/*.whl 'stilyagi/*.so'
 readelf -p .comment /tmp/wheel-check/_stilyagi_rs*.so
 ```

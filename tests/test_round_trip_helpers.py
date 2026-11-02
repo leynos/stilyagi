@@ -61,7 +61,7 @@ def replace_the_editable_middle_span(round_trip_state: dict[str, object]) -> Non
     assert isinstance(source, str), "expected isinstance(source, str)"
     round_trip_state["result"] = apply_round_trip_edits(
         source,
-        (SourceEdit(7, 13, "CENTER"),),
+        (SourceEdit(7, 13, "CENTRE"),),
     )
 
 
@@ -75,7 +75,7 @@ def round_trip_helper_preserves_surrounding_text(
         result
         == apply_round_trip_edits(
             "before middle after",
-            (SourceEdit(7, 13, "CENTER"),),
+            (SourceEdit(7, 13, "CENTRE"),),
         ),
         "expected result == apply_round_trip_edits('before mi...",
     )
@@ -224,7 +224,7 @@ def test_round_trip_edits_preserve_untouched_ranges() -> None:
     """Source text outside edited ranges remains byte-for-byte identical."""
     result = apply_round_trip_edits(
         "before middle after",
-        (SourceEdit(7, 13, "CENTER"),),
+        (SourceEdit(7, 13, "CENTRE"),),
     )
 
     assert_with_context(
@@ -232,11 +232,11 @@ def test_round_trip_edits_preserve_untouched_ranges() -> None:
         "expected result.before == 'before middle after'",
     )
     assert_with_context(
-        result.after == "before CENTER after",
-        "expected result.after == 'before CENTER after'",
+        result.after == "before CENTRE after",
+        "expected result.after == 'before CENTRE after'",
     )
     assert_with_context(
-        result.applied_edits == (SourceEdit(7, 13, "CENTER"),),
+        result.applied_edits == (SourceEdit(7, 13, "CENTRE"),),
         "expected result.applied_edits == (SourceEdit(7, 13, ...",
     )
 

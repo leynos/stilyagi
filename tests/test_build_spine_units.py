@@ -41,7 +41,7 @@ def _make_target(makefile: str, target: str) -> tuple[str, tuple[str, ...]]:
     raise AssertionError(msg)
 
 
-def _normalised_lines(contents: str) -> set[str]:
+def _normalized_lines(contents: str) -> set[str]:
     """Return stripped non-empty lines for structure-oriented file assertions."""
     return {line.strip() for line in contents.splitlines() if line.strip()}
 
@@ -240,7 +240,7 @@ def test_makefile_smoke_release_target_uses_isolated_venv_and_temp_directory(
 ) -> None:
     """smoke-release must isolate the wheel install and avoid hard-coding /tmp."""
     header, recipe = _make_target(makefile_text, "smoke-release")
-    assert "release-artifact" in header, "expected 'release-artifact' in header"
+    assert "release-artefact" in header, "expected 'release-artefact' in header"
     assert ".venv" in header, "expected '.venv' in header"
     check(
         any(re.search(r"-m\s+venv\b", line) for line in recipe),
@@ -295,7 +295,7 @@ def test_makefile_markdownlint_target_excludes_release_smoke_venv(
     ):
         check(
             f"-not -path '{excluded}'" in md_find_definitions[0],
-            "expected f\"-not -path '<excluded>'\" in md_find_defin...",
+            "expected the -not -path exclusion in md_find_definitions",
         )
 
 

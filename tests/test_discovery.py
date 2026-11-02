@@ -177,7 +177,7 @@ def test_directory_recursion_skips_noise_and_symlinked_directories(
 
     files = discovery.discover_files([root], config.StilyagiConfig())
 
-    normalised_files = [
+    normalized_files = [
         {
             "reported_path": pathlib
             .Path(file.reported_path)
@@ -188,8 +188,8 @@ def test_directory_recursion_skips_noise_and_symlinked_directories(
         for file in files
     ]
     assert_with_context(
-        normalised_files == snapshot(extension_class=JSONSnapshotExtension),
-        "expected deterministic discovery paths without ignor...",
+        normalized_files == snapshot(extension_class=JSONSnapshotExtension),
+        "expected deterministic discovery paths with no ignored entries",
     )
     assert_with_context(
         all(isinstance(file, discovery.DiscoveredFile) for file in files),
@@ -377,7 +377,7 @@ def test_mixed_sources_carry_their_registered_syntaxes(
         ],
         "expected the registered final suffixes to select Markdown, Python, and Rust",
     )
-    normalised_files = [
+    normalized_files = [
         {
             "reported_path": pathlib
             .Path(file.reported_path)
@@ -389,6 +389,6 @@ def test_mixed_sources_carry_their_registered_syntaxes(
         for file in files
     ]
     assert_with_context(
-        normalised_files == snapshot(extension_class=JSONSnapshotExtension),
+        normalized_files == snapshot(extension_class=JSONSnapshotExtension),
         "expected the mixed-source path and syntax contract snapshot",
     )

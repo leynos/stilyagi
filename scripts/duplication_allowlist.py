@@ -300,7 +300,7 @@ def append_allow_entry(
             document = tomlkit.parse(text)
         except tomlkit.exceptions.ParseError as error:
             # tomlkit raises a ValueError subclass, which the gate's own
-            # vocabulary does not catch, so an unparseable manifest would
+            # vocabulary does not catch, so an unparsable manifest would
             # otherwise escape as a traceback rather than a reported
             # configuration error.
             msg = f"cannot parse {pyproject_path}: {error}"

@@ -58,7 +58,7 @@ The implementer should keep these documents open while executing the plan:
   verification, and internal boundary guidance that must reflect any new smoke
   target or CI practice.
 - [docs/users-guide.md](../users-guide.md) for any user-visible change to the
-  supported install or release-artifact smoke behaviour.
+  supported install or release-artefact smoke behaviour.
 - [docs/local-validation-of-github-actions-with-act-and-pytest.md](
   ../local-validation-of-github-actions-with-act-and-pytest.md) for local CI
   workflow validation expectations if the new GitHub Actions workflow can be
@@ -83,7 +83,7 @@ The relevant skills for the implementer are:
 - `rust-router`, then `arch-crate-design`, if Makefile or CI failures expose a
   Rust crate-boundary problem.
 - `rust-errors` if the smoke helper has to classify failures from the bridge or
-  release-artifact import path.
+  release-artefact import path.
 - `domain-cli-and-daemons` if the work touches CLI invocation behaviour rather
   than only package import and extraction smoke tests.
 
@@ -349,7 +349,7 @@ the shared PyO3 boundary.
   `ImportError: cannot import name 'smoke' from 'stilyagi'`, proving the
   missing shared helper.
 - [x] 2026-04-24: Added `python -m stilyagi.smoke`, wired `make build` to
-  `make smoke`, split release artefact construction into `release-artifact`,
+  `make smoke`, split release artefact construction into `release-artefact`,
   and wired `make release` to `smoke-release`.
 - [x] 2026-04-24: Added `.github/workflows/smoke.yml` as a bounded GitHub
   Actions workflow that calls `make check-fmt`, `make lint`, and `make test` on

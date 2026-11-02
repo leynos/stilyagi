@@ -22,7 +22,7 @@ def extract_document(_source: str, _syntax: str, /) -> ExtractDocumentPayload:
     and optional canonical IR JSON in ``ir_json``.
 
     Raises ``ValueError`` when *syntax* is invalid, ``NotImplementedError``
-    when it is recognised but unavailable, and ``TypeError`` for invalid
+    when it is recognized but unavailable, and ``TypeError`` for invalid
     argument types.
     """
 

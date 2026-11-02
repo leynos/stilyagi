@@ -6,7 +6,7 @@ interpreter pin, which decides the grammar Pylint parses with, and the
 `syntax-error` message, which decides whether a module that grammar cannot
 parse fails the lint or is skipped without a word. Both regressed silently
 before: a bare `pypy` moved to a newer PyPy with no commit here, and a
-disabled `syntax-error` let unparseable modules go unlinted.
+disabled `syntax-error` let unparsable modules go unlinted.
 """
 
 import re
@@ -65,7 +65,7 @@ def test_pylint_tier_runs_the_pinned_release_on_managed_python() -> None:
         assert fragment in command, f"PYLINT must contain {fragment!r}: {command}"
 
 
-def test_pylint_reports_unparseable_modules() -> None:
+def test_pylint_reports_unparsable_modules() -> None:
     """The Pylint policy must not disable `syntax-error`."""
     config = tomllib.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     disabled = config["tool"]["pylint"]["messages control"]["disable"]
@@ -130,7 +130,7 @@ def _run_configured_pylint(target: Path) -> subprocess.CompletedProcess[str]:
     reason="the end-to-end check needs make and uv",
 )
 @pytest.mark.timeout(620)
-def test_configured_pylint_fails_on_an_unparseable_module(tmp_path: Path) -> None:
+def test_configured_pylint_fails_on_an_unparsable_module(tmp_path: Path) -> None:
     """The configured tier must fail on a parse error and pass a clean module.
 
     This drives the real `$(PYLINT)` command, so it catches a disabled

@@ -113,7 +113,7 @@ class TestValidateKey:
             # of one segment.
             "**/*/*",
             "python/stilyagi/**",
-            # These look like recursive catch-alls but are not: every one
+            # These look like recursive catch-all patterns but are not: every one
             # demands at least one named segment below the recursion, so none
             # of them covers a single-segment path such as `Makefile`. See
             # ``test_recursive_prefix_patterns_are_scoped_not_catch_all``.
@@ -152,7 +152,7 @@ class TestValidateKey:
     def test_recursive_prefix_patterns_are_scoped_not_catch_all(self, key: str) -> None:
         """Recursive patterns are refused only when they truly cover all paths.
 
-        ``*/**`` and ``**/*/**`` read like catch-alls, but both behave
+        ``*/**`` and ``**/*/**`` read like catch-all patterns, but both behave
         identically to ``**/*/*`` under ``PurePosixPath.full_match``: each
         requires at least one named segment below the recursion, so none of
         them matches a single-segment repository path such as ``Makefile``.

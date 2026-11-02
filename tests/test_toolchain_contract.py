@@ -120,7 +120,7 @@ def _nose_installation_step() -> str:
     Returns
     -------
     str
-        The installation recipe, with the release URLs and digest normalised.
+        The installation recipe, with the release URLs and digest normalized.
 
     Raises
     ------

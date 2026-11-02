@@ -76,7 +76,7 @@ def test_the_trigger_reader_handles_every_spelling(
         pytest.param("name: x\n", False, id="no-triggers"),
     ],
 )
-def test_a_pull_request_workflow_is_recognised_in_every_spelling(
+def test_a_pull_request_workflow_is_recognized_in_every_spelling(
     document: str, *, expected: bool
 ) -> None:
     """A workflow serves pull requests when any spelling of its triggers says so.

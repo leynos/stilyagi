@@ -39,7 +39,7 @@ def line_column_from_offset(
     if line_index is None or offset is None:
         return (1, 1)
 
-    starts = _normalised_line_starts(line_index)
+    starts = _normalized_line_starts(line_index)
     if starts is None:
         return (1, 1)
 
@@ -48,7 +48,7 @@ def line_column_from_offset(
     return (line_number + 1, position - starts[line_number] + 1)
 
 
-def _normalised_line_starts(
+def _normalized_line_starts(
     line_index: cabc.Sequence[int],
 ) -> tuple[int, ...] | None:
     """Return validated line starts anchored at offset zero.
@@ -56,18 +56,18 @@ def _normalised_line_starts(
     Returns
     -------
     tuple[int, ...] | None
-        Normalised line starts, or ``None`` when the input is empty or invalid.
+        Normalized line starts, or ``None`` when the input is empty or invalid.
 
     Examples
     --------
-    >>> _normalised_line_starts((6, 12))
+    >>> _normalized_line_starts((6, 12))
     (0, 6, 12)
-    >>> _normalised_line_starts(()) is None
+    >>> _normalized_line_starts(()) is None
     True
     """
     try:
         starts = tuple(int(start) for start in line_index)
-    # Parenthesise the exception tuple for clarity and pre-3.14 portability;
+    # Parenthesize the exception tuple for clarity and pre-3.14 portability;
     # ruff format would otherwise strip the parentheses under the 3.14 target.
     except (TypeError, ValueError):  # fmt: skip
         return None

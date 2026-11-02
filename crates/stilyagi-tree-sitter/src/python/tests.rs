@@ -255,7 +255,7 @@ fn malformed_fixture_yields_partial_ir_and_errors() {
 
 #[rstest]
 fn deeply_nested_source_stops_at_the_depth_limit_without_overflowing() {
-    // Deeply nested parenthesised expressions build a tree far beyond the
+    // Deeply nested parenthesized expressions build a tree far beyond the
     // traversal cap without needing quadratic source size. Extraction must
     // return partial IR with a recoverable depth-limit error instead of
     // overflowing the stack.

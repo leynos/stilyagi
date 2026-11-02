@@ -158,49 +158,49 @@ def test_discovers_markdown_structural_fixture() -> None:
         (REPOSITORY_ROOT / "build" / "performance", "build/performance"),
     ],
 )
-def test_normalises_repository_paths(path: pathlib.Path, expected: str) -> None:
-    """Normalise repository-local paths for portable JSON reports."""
+def test_normalizes_repository_paths(path: pathlib.Path, expected: str) -> None:
+    """Normalize repository-local paths for portable JSON reports."""
     assert_with_context(
-        (structural_probe.normalise_repository_path(path, REPOSITORY_ROOT) == expected),
-        "expected structural_probe.normalise_repository_path(...",
+        (structural_probe.normalize_repository_path(path, REPOSITORY_ROOT) == expected),
+        "expected structural_probe.normalize_repository_path(...",
     )
 
 
 def test_rejects_paths_outside_repository(tmp_path: pathlib.Path) -> None:
     """Reject non-repository paths instead of leaking machine-local paths."""
     with pytest.raises(ValueError, match="is not under repository root"):
-        structural_probe.normalise_repository_path(tmp_path, REPOSITORY_ROOT)
+        structural_probe.normalize_repository_path(tmp_path, REPOSITORY_ROOT)
 
 
-def test_summarises_odd_and_even_duration_sets() -> None:
-    """Summarise duration lists with deterministic integer medians."""
+def test_summarizes_odd_and_even_duration_sets() -> None:
+    """Summarize duration lists with deterministic integer medians."""
     assert_with_context(
-        structural_probe.summarise_durations([9, 1, 5])
+        structural_probe.summarize_durations([9, 1, 5])
         == {
             "min": 1,
             "median": 5,
             "max": 9,
         },
-        "expected structural_probe.summarise_durations([9, 1,...",
+        "expected structural_probe.summarize_durations([9, 1,...",
     )
     assert_with_context(
-        structural_probe.summarise_durations([10, 2, 4, 20])
+        structural_probe.summarize_durations([10, 2, 4, 20])
         == {
             "min": 2,
             "median": 7,
             "max": 20,
         },
-        "expected structural_probe.summarise_durations([10, 2...",
+        "expected structural_probe.summarize_durations([10, 2...",
     )
 
 
-def test_summarise_durations_rejects_empty_sequence() -> None:
+def test_summarize_durations_rejects_empty_sequence() -> None:
     """Reject empty duration sequences with a clear failure."""
     with pytest.raises(
         ValueError,
-        match="cannot summarise an empty duration sequence",
+        match="cannot summarize an empty duration sequence",
     ):
-        structural_probe.summarise_durations([])
+        structural_probe.summarize_durations([])
 
 
 def test_builds_structural_report_shape() -> None:
@@ -304,7 +304,7 @@ def test_redacted_report_contains_no_integer_timings() -> None:
         )
         assert_with_context(
             all(v == "<redacted>" for v in run["summary_ns"].values()),
-            "expected all((v == '<redacted>' for v in run['summar...",
+            "expected every summary value to be redacted",
         )
     assert_with_context(
         redacted["environment"]["platform"] == "<redacted>",
@@ -374,7 +374,7 @@ def test_argument_parser_defaults() -> None:
 
 
 def test_argument_parser_rejects_unknown_mode() -> None:
-    """Reject an unrecognised --mode value."""
+    """Reject an unrecognized --mode value."""
     parser = structural_probe._argument_parser()
     with pytest.raises(SystemExit) as exc_info:
         parser.parse_args(["--mode", "unknown"])

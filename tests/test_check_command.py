@@ -38,7 +38,7 @@ def test_main_returns_zero_for_a_clean_tree(
     assert not captured.err, "expected not captured.err"
 
 
-def test_main_summarises_an_empty_directory(
+def test_main_summarizes_an_empty_directory(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -184,7 +184,7 @@ def test_check_pipeline_emits_stage_boundary_logs(
     }
     assert_with_context(
         observed_stages == snapshot(extension_class=JSONSnapshotExtension),
-        "expected every check-pipeline stage to be represente...",
+        "expected every check-pipeline stage to be represented",
     )
 
 
