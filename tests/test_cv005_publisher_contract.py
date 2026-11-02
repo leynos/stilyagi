@@ -209,6 +209,24 @@ def _canonical_upload_step(job: WorkflowJob) -> WorkflowStep:
     return upload
 
 
+def _assert_token_inputs(inputs: dict[str, object]) -> None:
+    """Assert the token is bound only by the uploader's token input."""
+    assert inputs.get("access-token") == TOKEN_INPUT, inputs.get("access-token")
+    token_inputs = {
+        key
+        for key, value in inputs.items()
+        if any("CS_ACCESS_TOKEN" in text for text in _strings(value))
+    }
+    assert token_inputs == {"access-token"}, token_inputs
+
+
+def _assert_no_token_in_environment(
+    environment: dict[str, object], message: str
+) -> None:
+    """Assert an environment mapping does not bind the token."""
+    assert not any("CS_ACCESS_TOKEN" in text for text in _strings(environment)), message
+
+
 def _assert_token_scoped(
     document: WorkflowDocument, job: WorkflowJob, upload: WorkflowStep
 ) -> None:
@@ -219,25 +237,17 @@ def _assert_token_scoped(
     entry would, and a composite action's nested steps inherit the calling
     step's environment, so the token may not sit in one at any level.
     """
-    inputs = upload.get("with") or {}
-    assert inputs.get("access-token") == TOKEN_INPUT, inputs.get("access-token")
-    token_inputs = {
-        key
-        for key, value in inputs.items()
-        if any("CS_ACCESS_TOKEN" in text for text in _strings(value))
-    }
-    assert token_inputs == {"access-token"}, token_inputs
-
-    workflow_env = document.get("env") or {}
-    job_env = job.get("env") or {}
-    for scope, environment in (("workflow", workflow_env), ("job", job_env)):
-        assert not any("CS_ACCESS_TOKEN" in text for text in _strings(environment)), (
-            f"the token must not sit in the {scope} environment"
-        )
+    _assert_token_inputs(upload.get("with") or {})
+    _assert_no_token_in_environment(
+        document.get("env") or {}, "the token must not sit in the workflow environment"
+    )
+    _assert_no_token_in_environment(
+        job.get("env") or {}, "the token must not sit in the job environment"
+    )
     for step in _steps(job):
-        step_env = step.get("env") or {}
-        assert not any("CS_ACCESS_TOKEN" in text for text in _strings(step_env)), (
-            f"the token must not sit in an environment: {step.get('name')!r}"
+        _assert_no_token_in_environment(
+            step.get("env") or {},
+            f"the token must not sit in an environment: {step.get('name')!r}",
         )
 
 
