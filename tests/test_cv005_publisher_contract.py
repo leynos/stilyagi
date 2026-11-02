@@ -94,7 +94,7 @@ def _jobs(document: WorkflowDocument) -> dict[str, WorkflowJob]:
     jobs = document.get("jobs")
     if not isinstance(jobs, dict):
         return {}
-    return typ.cast("dict[str, WorkflowJob]", jobs)
+    return jobs
 
 
 def _steps(job: WorkflowJob) -> list[WorkflowStep]:
