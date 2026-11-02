@@ -42,6 +42,45 @@ fn name_text<'source>(source: &'source str, item: Node<'_>) -> Option<&'source s
     text_for_node(source, name).ok()
 }
 
+/// Assert the root kind and the crate-level doc comment's text.
+fn assert_crate_comment(root: Node<'_>, text: &str) {
+    assert_eq!(root.kind(), "source_file");
+    assert!(text.starts_with("//!"));
+    assert_eq!(
+        text.strip_prefix("//!")
+            .expect("crate doc should use the inner doc marker")
+            .trim_end_matches(['\r', '\n']),
+        " Crate-level documentation comment for the shared Stilyagi corpus."
+    );
+}
+
+/// Assert the documented items and the suppression marker's shape.
+fn assert_documented_items(
+    struct_item: Node<'_>,
+    struct_name: &str,
+    method_item: Node<'_>,
+    method_name: &str,
+    suppressed_text: &str,
+) {
+    let actual = (
+        struct_item.kind(),
+        struct_name,
+        method_item.kind(),
+        method_name,
+        suppressed_text.starts_with("//"),
+        suppressed_text.starts_with("///"),
+    );
+    let expected = (
+        "struct_item",
+        "FixtureExample",
+        "function_item",
+        "documented_value",
+        true,
+        false,
+    );
+    assert_eq!(actual, expected);
+}
+
 #[rstest]
 fn shared_fixture_exposes_doc_comment_nodes_and_siblings() {
     let source =
@@ -66,21 +105,14 @@ fn shared_fixture_exposes_doc_comment_nodes_and_siblings() {
     let suppressed_text = text_for_node(&source, suppressed_comment)
         .expect("suppression marker should be valid UTF-8");
 
-    assert_eq!(root.kind(), "source_file");
-    assert!(crate_comment_text.starts_with("//!"));
-    assert_eq!(
-        crate_comment_text
-            .strip_prefix("//!")
-            .expect("crate doc should use the inner doc marker")
-            .trim_end_matches(['\r', '\n']),
-        " Crate-level documentation comment for the shared Stilyagi corpus."
+    assert_crate_comment(root, crate_comment_text);
+    assert_documented_items(
+        struct_item,
+        struct_name,
+        method_item,
+        method_name,
+        suppressed_text,
     );
-    assert_eq!(struct_item.kind(), "struct_item");
-    assert_eq!(struct_name, "FixtureExample");
-    assert_eq!(method_item.kind(), "function_item");
-    assert_eq!(method_name, "documented_value");
-    assert!(suppressed_text.starts_with("//"));
-    assert!(!suppressed_text.starts_with("///"));
 }
 
 #[rstest]
@@ -201,43 +233,48 @@ fn multiline_fixture_merges_three_line_comments_and_block_comment() {
 fn nested_fixture_uses_rust_qualname_semantics() {
     let document = rust_fixture_document(NESTED_RUST_FIXTURE).expect("expected nested fixture IR");
     let owners = region_owners(&document).expect("expected owner metadata");
+    let expected = [
+        (
+            " Outer module documentation comment for nested Rust extraction.",
+            "module",
+            Some("outer"),
+            Some("outer"),
+        ),
+        (
+            " Inner module documentation comment for the outer module.",
+            "module",
+            Some("outer"),
+            Some("outer"),
+        ),
+        (
+            " Documented struct in a nested module.",
+            "struct",
+            Some("FixtureExample"),
+            Some("outer::inner::FixtureExample"),
+        ),
+        (
+            " Documented associated const in a trait impl.",
+            "const",
+            Some("VALUE"),
+            Some("outer::inner::FixtureExample::VALUE"),
+        ),
+        (
+            " Documented associated type in a trait impl.",
+            "type",
+            Some("Alias"),
+            Some("outer::inner::FixtureExample::Alias"),
+        ),
+        (
+            " Documented method in a trait impl.",
+            "function",
+            Some("documented_value"),
+            Some("outer::inner::FixtureExample::documented_value"),
+        ),
+    ];
 
-    assert!(owners.contains(&(
-        " Outer module documentation comment for nested Rust extraction.",
-        "module",
-        Some("outer"),
-        Some("outer"),
-    )));
-    assert!(owners.contains(&(
-        " Inner module documentation comment for the outer module.",
-        "module",
-        Some("outer"),
-        Some("outer"),
-    )));
-    assert!(owners.contains(&(
-        " Documented struct in a nested module.",
-        "struct",
-        Some("FixtureExample"),
-        Some("outer::inner::FixtureExample"),
-    )));
-    assert!(owners.contains(&(
-        " Documented associated const in a trait impl.",
-        "const",
-        Some("VALUE"),
-        Some("outer::inner::FixtureExample::VALUE"),
-    )));
-    assert!(owners.contains(&(
-        " Documented associated type in a trait impl.",
-        "type",
-        Some("Alias"),
-        Some("outer::inner::FixtureExample::Alias"),
-    )));
-    assert!(owners.contains(&(
-        " Documented method in a trait impl.",
-        "function",
-        Some("documented_value"),
-        Some("outer::inner::FixtureExample::documented_value"),
-    )));
+    for entry in expected {
+        assert!(owners.contains(&entry), "missing owner metadata: {entry:?}");
+    }
 }
 
 #[rstest]
