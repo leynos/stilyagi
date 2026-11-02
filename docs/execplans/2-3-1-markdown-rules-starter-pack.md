@@ -323,6 +323,13 @@ with error exit 1. An invalid `TERM001` option exits 2.
   binds each directive to its own next unit. Named witnesses pin an empty
   history, an active/inactive transition, a consumed next unit, two directives
   before one unit, and an orphan directive. Focused module: 2 passed.
+- [x] (2026-11-02) Rebase onto `3f0de60d`. `origin/main` advanced four commits
+  after the previous rebase, and the pull request reported a conflict. The
+  branch replayed 19 commits onto the new base; one conflict, in
+  `docs/contents.md`, arose because both sides added an ADR 0011 entry. Main's
+  build-standard ADR keeps 0011 and this branch's contract ADR became 0012,
+  with its file, heading, and every reference updated. `range-diff` shows the
+  other 18 commits unchanged.
 
 ## Surprises & discoveries
 
@@ -414,6 +421,12 @@ with error exit 1. An invalid `TERM001` option exits 2.
   so the two algorithms could only agree while the generator placed at most one
   directive per gap. Impact: the replay now binds each directive on its own,
   and the generator draws directives independently of unit starts.
+- Observation: the host selects Weave for `*.py` and `*.rs` through a global
+  attributes block, not through any tracked `.gitattributes`. Evidence:
+  `git check-attr merge -- python/stilyagi/rules/suppression.py` reports
+  `weave` while the repository has no `.gitattributes`. Impact: the unattended
+  rebase bypassed the driver with `-c core.attributesFile=/dev/null` and
+  `zdiff3`, as the merge policy requires for ambient selection.
 
 ## Decision log
 
@@ -523,6 +536,10 @@ with error exit 1. An invalid `TERM001` option exits 2.
   built from the same helper the rule uses, or from the resolver's own folding,
   can satisfy both sides of its own comparison. Rationale: the two checks must
   be able to disagree. Date/author: 2026-10-31, implementation agent.
+- Rebase: the branch's contract ADR is renumbered from 0011 to 0012 because
+  main landed `adr-0011-pinned-nightly-and-build-standard.md` first. Rationale:
+  ADR numbers form one sequence, and two records sharing 0011 would make every
+  later reference ambiguous. Date/author: 2026-11-02, implementation agent.
 
 ## Outcomes & retrospective
 
