@@ -1,7 +1,7 @@
 //! Then steps that assert the extracted Markdown suppression IR.
 
 use rstest_bdd_macros::then;
-use stilyagi_ir::{RangeRole, SuppressionKind};
+use stilyagi_ir::{IrDocument, IrSuppression, RangeRole, SuppressionKind};
 
 use super::{
     MarkdownSuppressionState, assert_blanket_error_re_slices_to_the_blanket_comment,
@@ -9,30 +9,62 @@ use super::{
 };
 use crate::test_utils::{ensure, ensure_eq};
 
+/// Return the suppression at `index`, or an error naming the missing entry.
+fn suppression_at(ir: &IrDocument, index: usize) -> Result<&IrSuppression, &'static str> {
+    ir.suppressions
+        .get(index)
+        .ok_or("expected a suppression entry at the requested index")
+}
+
+/// Assert the IR carries exactly `count` suppressions.
+fn assert_suppression_count(
+    ir: &IrDocument,
+    count: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    ensure_eq(
+        &ir.suppressions.len(),
+        &count,
+        "suppression count did not match the scenario",
+    )
+}
+
+/// Assert `suppression` has `kind` and names only the `code` directive.
+fn assert_suppression_names(
+    suppression: &IrSuppression,
+    kind: SuppressionKind,
+    code: &'static str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    ensure(
+        suppression.kind == kind,
+        "suppression kind did not match the scenario",
+    )?;
+    ensure_eq(
+        &suppression.codes,
+        &vec![code.to_owned()],
+        "suppression codes did not match the scenario",
+    )
+}
+
+/// Assert the suppression's span re-slices to `expected`.
+fn assert_span_re_slices_to(
+    source: &str,
+    suppression: &IrSuppression,
+    expected: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    ensure_eq(
+        &source.get(suppression.span.byte_start..suppression.span.byte_end),
+        &Some(expected),
+        "suppression span did not re-slice to the expected comment",
+    )
+}
+
 #[then("the IR suppressions contain one inline entry naming PUN201")]
 fn the_ir_suppressions_contain_one_inline_entry_naming_pun201(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ir = extracted_ir(markdown_suppression_state)?;
-
-    ensure_eq(
-        &ir.suppressions.len(),
-        &1,
-        "expected exactly one suppression entry",
-    )?;
-    let suppression = ir
-        .suppressions
-        .first()
-        .ok_or("expected a suppression entry")?;
-    ensure(
-        suppression.kind == SuppressionKind::Inline,
-        "expected the suppression to be inline",
-    )?;
-    ensure_eq(
-        &suppression.codes,
-        &vec!["PUN201".to_owned()],
-        "expected the suppression to name PUN201",
-    )
+    assert_suppression_count(ir, 1)?;
+    assert_suppression_names(suppression_at(ir, 0)?, SuppressionKind::Inline, "PUN201")
 }
 
 #[then("the suppression span re-slices to the directive comment")]
@@ -41,20 +73,11 @@ fn the_suppression_span_re_slices_to_the_directive_comment(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let source = configured_source(markdown_suppression_state)?;
     let ir = extracted_ir(markdown_suppression_state)?;
-
-    ensure_eq(
-        &ir.suppressions.len(),
-        &1,
-        "expected exactly one suppression entry",
-    )?;
-    let suppression = ir
-        .suppressions
-        .first()
-        .ok_or("expected a suppression entry")?;
-    ensure_eq(
-        &source.get(suppression.span.byte_start..suppression.span.byte_end),
-        &Some("<!-- stilyagi: ignore-next PUN201 -->"),
-        "suppression span should re-slice to the directive comment",
+    assert_suppression_count(ir, 1)?;
+    assert_span_re_slices_to(
+        source,
+        suppression_at(ir, 0)?,
+        "<!-- stilyagi: ignore-next PUN201 -->",
     )
 }
 
@@ -63,7 +86,6 @@ fn the_ir_suppressions_are_empty(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ir = extracted_ir(markdown_suppression_state)?;
-
     ensure(
         ir.suppressions.is_empty(),
         "expected no suppression entries",
@@ -75,23 +97,10 @@ fn the_ir_suppressions_contain_two_range_entries_naming_sty(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ir = extracted_ir(markdown_suppression_state)?;
-
     ensure(ir.errors.is_empty(), "expected no extraction errors")?;
-    ensure_eq(
-        &ir.suppressions.len(),
-        &2,
-        "expected exactly two suppression entries",
-    )?;
+    assert_suppression_count(ir, 2)?;
     for suppression in &ir.suppressions {
-        ensure(
-            suppression.kind == SuppressionKind::Range,
-            "expected each suppression to be a range",
-        )?;
-        ensure_eq(
-            &suppression.codes,
-            &vec!["STY".to_owned()],
-            "expected each suppression to name STY",
-        )?;
+        assert_suppression_names(suppression, SuppressionKind::Range, "STY")?;
     }
     Ok(())
 }
@@ -118,23 +127,14 @@ fn the_suppression_spans_re_slice_to_the_coalesced_comments(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let source = configured_source(markdown_suppression_state)?;
     let ir = extracted_ir(markdown_suppression_state)?;
-
-    ensure_eq(
-        &ir.suppressions.len(),
-        &2,
-        "expected exactly two suppression entries",
-    )?;
     let expected_comments = [
         "<!-- stilyagi: disable STY -->",
         "<!-- stilyagi: enable STY -->",
     ];
 
+    assert_suppression_count(ir, 2)?;
     for (suppression, expected_comment) in ir.suppressions.iter().zip(expected_comments) {
-        ensure_eq(
-            &source.get(suppression.span.byte_start..suppression.span.byte_end),
-            &Some(expected_comment),
-            "suppression span should re-slice to the coalesced comment",
-        )?;
+        assert_span_re_slices_to(source, suppression, expected_comment)?;
     }
     Ok(())
 }
@@ -144,30 +144,13 @@ fn the_ir_suppressions_contain_one_range_entry_naming_sty(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ir = extracted_ir(markdown_suppression_state)?;
-
     ensure_eq(
         &ir.errors.len(),
         &1,
         "expected exactly one extraction error",
     )?;
-    ensure_eq(
-        &ir.suppressions.len(),
-        &1,
-        "expected exactly one suppression entry",
-    )?;
-    let suppression = ir
-        .suppressions
-        .first()
-        .ok_or("expected a suppression entry")?;
-    ensure(
-        suppression.kind == SuppressionKind::Range,
-        "expected the suppression to be a range",
-    )?;
-    ensure_eq(
-        &suppression.codes,
-        &vec!["STY".to_owned()],
-        "expected the suppression to name STY",
-    )
+    assert_suppression_count(ir, 1)?;
+    assert_suppression_names(suppression_at(ir, 0)?, SuppressionKind::Range, "STY")
 }
 
 #[then("the suppression span re-slices to the first coalesced comment")]
@@ -176,15 +159,10 @@ fn the_suppression_span_re_slices_to_the_first_coalesced_comment(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let source = configured_source(markdown_suppression_state)?;
     let ir = extracted_ir(markdown_suppression_state)?;
-    let suppression = ir
-        .suppressions
-        .first()
-        .ok_or("expected a suppression entry")?;
-
-    ensure_eq(
-        &source.get(suppression.span.byte_start..suppression.span.byte_end),
-        &Some("<!-- stilyagi: disable STY -->"),
-        "suppression span should re-slice to the first coalesced comment",
+    assert_span_re_slices_to(
+        source,
+        suppression_at(ir, 0)?,
+        "<!-- stilyagi: disable STY -->",
     )
 }
 
@@ -201,25 +179,9 @@ fn the_first_ir_suppression_records_the_disable_as_a_range_open(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ir = extracted_ir(markdown_suppression_state)?;
-    let suppression = ir
-        .suppressions
-        .first()
-        .ok_or("expected a suppression entry")?;
-
-    ensure_eq(
-        &ir.suppressions.len(),
-        &2,
-        "expected exactly two suppression entries",
-    )?;
-    ensure(
-        suppression.kind == SuppressionKind::Range,
-        "expected the suppression to be a range",
-    )?;
-    ensure_eq(
-        &suppression.codes,
-        &vec!["STY".to_owned()],
-        "expected the suppression to name STY",
-    )?;
+    assert_suppression_count(ir, 2)?;
+    let suppression = suppression_at(ir, 0)?;
+    assert_suppression_names(suppression, SuppressionKind::Range, "STY")?;
     ensure_eq(
         &suppression.range_role,
         &Some(RangeRole::Open),
@@ -232,25 +194,9 @@ fn the_second_ir_suppression_records_the_enable_as_a_range_close(
     markdown_suppression_state: &MarkdownSuppressionState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ir = extracted_ir(markdown_suppression_state)?;
-    let suppression = ir
-        .suppressions
-        .get(1)
-        .ok_or("expected a second suppression entry")?;
-
-    ensure_eq(
-        &ir.suppressions.len(),
-        &2,
-        "expected exactly two suppression entries",
-    )?;
-    ensure(
-        suppression.kind == SuppressionKind::Range,
-        "expected the suppression to be a range",
-    )?;
-    ensure_eq(
-        &suppression.codes,
-        &vec!["STY".to_owned()],
-        "expected the suppression to name STY",
-    )?;
+    assert_suppression_count(ir, 2)?;
+    let suppression = suppression_at(ir, 1)?;
+    assert_suppression_names(suppression, SuppressionKind::Range, "STY")?;
     ensure_eq(
         &suppression.range_role,
         &Some(RangeRole::Close),
