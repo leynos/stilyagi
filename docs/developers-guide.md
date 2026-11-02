@@ -42,13 +42,29 @@ tests.
 The minimum local setup is:
 
 - Python 3.14 available to `uv`
-- Rust toolchain with `cargo`, `rustfmt`, and `clippy`
+- `rustup`, which selects the dated nightly pinned in `rust-toolchain.toml`
+  and installs its components (`clippy`, `rustfmt`, `rust-analyzer`,
+  `llvm-tools-preview`, and `rustc-codegen-cranelift-preview`)
+- the pinned `mold` linker on Linux, installed by `make install-build-tools`
 - `uv`
 - `pyproject.toml` hard-pins maturin as
-  `build-system.requires = ["maturin==1.13.3"]`
-- `whitaker`
+  `build-system.requires = ["maturin==1.14.1"]`
+- `whitaker`, installed with `whitaker-installer --cranelift` (see section
+  6f-bis for why the flag is there)
 - `markdownlint-cli2`
 - `nixie`
+
+On a new machine run the build-tools installer once, before the first build:
+
+```bash
+make install-build-tools
+```
+
+It downloads the `mold` release pinned in `tools/mold/VERSION`, verifies it
+against `tools/mold/SHA256SUMS`, unpacks it under `$(BUILD_TOOLS_PREFIX)`
+(default `~/.local`), and runs `rustup toolchain install` for the pinned
+nightly with its components. `make check-build-tools` verifies the result and
+is the preflight every compiling route runs first (section 5a).
 
 The repository-local virtual environment and dev dependencies are created by
 the standard build target:
@@ -1197,15 +1213,27 @@ Inspect the updated `.stderr` files before committing to confirm that the fail
 test still represents a genuine PyO3 contract violation.
 
 The `.stderr` files record rustc's exact wording, so they are tied to the
-compiler release that produced them. `rust-toolchain.toml` pins Rust `1.99.0`,
-so local builds and CI use the compiler the snapshots were recorded with, and
-`pymodule_three_args.stderr` matches rustc 1.99, which prints the suggested
-argument type as `&Bound<..>` rather than the `&pyo3::Bound<..>` that earlier
-releases printed. A compiler older than 1.99 (including the declared minimum
-supported Rust version, if run by hand with `cargo +<version>`) therefore fails
-`compile_time_ui` although the code compiles. Dependabot's `rust-toolchain`
-entry proposes each new release as a pull request; re-record the snapshots in
-that pull request when the wording changes.
+compiler that produced them. `rust-toolchain.toml` pins a dated nightly
+(`nightly-2026-10-18` at the time of writing, rustc 1.101), so local builds and
+CI use the compiler the snapshots were recorded with, and any other compiler
+(`cargo +<toolchain>` run by hand) can fail `compile_time_ui` although the code
+compiles. The repository declares no minimum supported Rust version, so no
+older compiler is expected to pass.
+
+Dependabot's `rust-toolchain` entry proposes each newer nightly as a pull
+request on its daily run, with no cooldown (matching concordat), so wording can
+change as often as daily. Re-record the snapshots in the bump pull request with
+the `TRYBUILD=overwrite` command above, inspect the diff to confirm each fail
+test still represents a genuine PyO3 contract violation, and fix any new Clippy
+lint the strict workspace lint set raises in the same pull request. The
+exception in "Why Cranelift is not part of the standard" (section 5a) names the
+pinned channel and is re-evaluated on the same occasion.
+
+The workspace declares a `1.0.122` caret minimum for `trybuild`. Earlier
+releases copy every root workspace dependency into the generated UI-test
+workspace, although that synthetic workspace inherits only some of them, so the
+nightly compiler's unused-dependency lint reports the rest. `1.0.122` contains
+the upstream fix and leaves the expected `.stderr` output unchanged.
 
 ### 4.2 Current mixed-package skeleton
 
@@ -1303,17 +1331,21 @@ make build
 make release
 ```
 
-`make build` is the development path. It recreates the virtual environment,
-installs the editable Python package plus the compiled extension, and leaves
-the repository ready for local linting and tests. It finishes by running
-`make smoke`, which calls `python -m stilyagi.smoke` through `.venv/bin/python`
-and verifies that the public Python engine API crosses into the embedded Rust
-extension.
+`make build` is the development path. It runs the build-tools preflight,
+recreates the virtual environment, installs the editable Python package plus
+the compiled extension, and leaves the repository ready for local linting and
+tests. It finishes by running `make smoke`, which calls
+`python -m stilyagi.smoke` through `.venv/bin/python` and verifies that the
+public Python engine API crosses into the embedded Rust extension. Section 5a
+explains which compiler flags each step takes.
 
-`make release` is the release artefact path. It first runs:
+`make release` is the release artefact path. The artefact build takes none of
+the development flags and does not run the build-tools preflight; the smoke
+step that follows does, through `.venv` (section 5a). It first runs:
 
 ```bash
-uv run --group dev maturin build --release --manifest-path crates/stilyagi-pyext/Cargo.toml --out dist
+RUSTFLAGS="${RUSTFLAGS-}" uv run --group dev maturin build --release \
+  --manifest-path crates/stilyagi-pyext/Cargo.toml --out dist
 ```
 
 That command produces Python wheel artefacts in `dist/`, which is the expected
@@ -1327,13 +1359,13 @@ behaviourally identical to `release`.
 
 The `.github/workflows/smoke.yml` workflow is the bounded CI smoke path for
 this repository. Its `lint-test` job (on an Ubicloud runner, with a hosted
-fallback for a fork's pull request) installs Python, Rust, `uv`, and the
-support tools required by the checked targets, then runs `make check-fmt`,
-`make markdownlint`, `make nixie`, `make typecheck`, `make lint`, and
-`make test-doc`. Its `release-smoke` matrix builds and smoke-tests release
-wheels on Ubuntu, macOS, and Windows. The workflow is not release publishing
-automation; it proves that local development installs and release wheels
-exercise the same PyO3 boundary.
+fallback for a fork's pull request) installs Python, Rust, `uv`, the pinned
+build tools (`make install-build-tools`), and the support tools required by the
+checked targets, then runs `make check-fmt`, `make markdownlint`, `make nixie`,
+`make typecheck`, `make lint`, and `make test-doc`. Its `release-smoke` matrix
+builds and smoke-tests release wheels on Ubuntu, macOS, and Windows. The
+workflow is not release publishing automation; it proves that local development
+installs and release wheels exercise the same PyO3 boundary.
 
 CI runs `make test-doc` rather than `make test` because every other part of
 `make test` already runs once per event. The coverage step in `smoke.yml` on a
@@ -1346,11 +1378,209 @@ same job, run the format check and Clippy. No crate declares features, so
 including the absence of features, whether declared in a `[features]` table or
 implied by an optional dependency. A crate that gains a feature fails it,
 because `--all-features` would then select tests that coverage does not run. It
-also requires `build` to be `test-doc`'s only prerequisite, since any other
-would run before the recipe. `tests/test_make_test_doc_execution.py` runs the
-target against command shims and checks the journal. Both doctest passes run,
-neither unit suite does, and a failing Rust doctest ends the target before the
-Python pass.
+also requires the build-tools preflight and `build` to be `test-doc`'s only
+prerequisites, since any other would run before the recipe.
+`tests/test_make_test_doc_execution.py` runs the target against command shims
+and checks the journal. Both doctest passes run, neither unit suite does, and a
+failing Rust doctest ends the target before the Python pass.
+
+## 5a. Development build standard
+
+`rust-toolchain.toml` pins a dated nightly, and `.cargo/config.toml` applies
+the development build standard to it.
+[ADR 0011](adrs/adr-0011-pinned-nightly-and-build-standard.md) records the
+decision; this section explains how it works and where it does not apply. Bare
+Cargo behaviour, Make's restatement of the flags, the installed components, and
+the explicit non-development routes are separate facts, and the sections below
+keep them apart.
+
+### What a bare `cargo` run does
+
+Any `cargo build`, `test`, `check`, or `clippy` run from inside the repository
+tree discovers `.cargo/config.toml` and gets:
+
+- `-Zthreads=8`, the parallel `rustc` frontend, on every platform; and
+- `-Clink-arg=-fuse-ld=mold`, the `mold` linker, on Linux only
+  (`[target.'cfg(target_os = "linux")']`). No flag is named for macOS or
+  Windows.
+
+Cargo selects exactly one `rustflags` source and never merges them, so the
+Linux table repeats `-Zthreads=8` instead of inheriting it from `[build]`.
+Every Make recipe and every `trybuild` scratch crate under `target/` runs
+inside the tree, so the file is discoverable from each of them, including
+invocations that pass `--manifest-path`.
+
+### What Make restates
+
+Any `RUSTFLAGS` in the environment displaces the configuration's `rustflags`
+outright. CI exports `RUSTFLAGS=-D warnings`, and the gate recipes assign their
+own, so each restates the standard rather than relying on the file:
+
+| Variable             | Value                                     | Used by                                                    |
+| -------------------- | ----------------------------------------- | ---------------------------------------------------------- |
+| `STANDARD_RUSTFLAGS` | `-Zthreads=8`, plus `mold` on Linux hosts | The two below                                              |
+| `RUST_FLAGS`         | `-D warnings $(STANDARD_RUSTFLAGS)`       | `typecheck`, `lint` (rustdoc, Clippy), `test*`, `test-doc` |
+| `DEBUG_RUST_FLAGS`   | `$(STANDARD_RUSTFLAGS)`                   | `build` (`maturin develop`), `.venv` (`uv sync`)           |
+
+*Table 3: The development flags Make restates.*
+
+Extend the gate flags with `RUST_FLAGS_EXTRA` or `RUSTDOC_FLAGS_EXTRA`;
+overriding `RUST_FLAGS` itself replaces the whole set, standard included. Every
+Cargo invocation goes through `$(CARGO)`, so tests can inject a probe.
+`tests/test_build_standard_config.py` holds `STANDARD_RUSTFLAGS` equal to the
+configuration, and `tests/test_build_standard_make_routes.py` evaluates every
+Cargo and maturin line separately, including both branches of the nextest
+fallback.
+
+### Installed components are not active everywhere
+
+`rust-toolchain.toml` installs `clippy`, `rustfmt`, `rust-analyzer`,
+`llvm-tools-preview` (coverage), and `rustc-codegen-cranelift-preview`. Having
+a component installed does not mean a route uses it: the Cranelift component is
+installed, but no route selects the backend (see below), and `mold` is
+installed in every job that reaches the preflight although the coverage job
+excludes it from its compiler flags.
+
+### Routes that exclude the standard
+
+| Route                   | How it excludes the standard                                                                   |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `make release-artifact` | `RUSTFLAGS="${RUSTFLAGS-}"` assigns the caller's flags alone; it skips the preflight.          |
+| Wheel in pytest         | `tests/test_maturin_build.py` assigns `RUSTFLAGS` to its `maturin build --release` subprocess. |
+| Coverage                | The coverage step assigns `RUSTFLAGS: -D warnings`; instrumentation stays.                     |
+| Whitaker                | `RUSTFLAGS="$(WHITAKER_RUST_FLAGS)"` is `-D warnings` alone.                                   |
+| Mutation testing        | The shared workflow's setup-rust exports `-D warnings`; no Make goal is reached.               |
+
+*Table 4: Routes that do not take the development standard.*
+
+`tests/test_build_standard_exclusions.py` holds the workflow half, and the
+Make-route contracts hold the release and Whitaker halves, each with a negative
+control so a change that lets a route inherit the flags fails.
+
+### Build tools: install and check
+
+`scripts/build_tools.py` is a Cyclopts CLI (with `cuprum` running the four
+catalogued programs `curl`, `tar`, `rustup`, and `mold`) behind two targets:
+
+The CLI keeps verified installation orchestration in `build_tools.py`.
+`build_tools_environment.py` owns its layout, catalogued command execution, and
+host capability checks; `build_tools_pins.py` owns pure pin and checksum
+readers. These internal siblings serve this entrypoint, rather than a general
+command-runner abstraction.
+
+- `make install-build-tools` downloads the pinned `mold`, verifies it against
+  exactly one row of `tools/mold/SHA256SUMS`, unpacks it under
+  `$(BUILD_TOOLS_PREFIX)`, and runs `rustup toolchain install` for the pinned
+  nightly with its components. Off Linux, the `mold` half is a no-op.
+- `make check-build-tools` verifies the `mold` version against the pin and
+  that the toolchain and every pinned component are installed, reporting every
+  problem in one pass with `build-tools:` messages and an install hint.
+
+Both are overridable (`INSTALL_BUILD_TOOLS`, `CHECK_BUILD_TOOLS`) so tests can
+shim them. `$(BUILD_TOOLS_PREFIX)/bin` leads `PATH` inside Make, so the pinned
+`mold` is the one `-fuse-ld=mold` resolves.
+
+`check-build-tools` is the first prerequisite of `build`, `typecheck`, `lint`,
+`test`, `test-doc`, `test-ci`, and `test-quick`, and an order-only prerequisite
+of `.venv`. `uv sync` installs the project through maturin's editable build,
+which is a compile under the release profile (verified with
+`cargo rustc --profile release`) but takes the development flags like any other
+environment step, because `build` replaces it with a dev-profile
+`maturin develop` straight afterwards. `release-artifact` does not reach the
+preflight.
+
+### CI wiring
+
+Every Linux job that reaches the suite or the preflight installs the pinned
+tools in its own unconditional step, ahead of the first step that reaches them:
+the `lint-test` job in `smoke.yml` and the `coverage-upload` job in
+`coverage-main.yml`. The coverage publisher excludes `mold` from its compiler
+flags, but the suite it runs still drives Make targets that run the preflight,
+so it installs the tools itself. `release-smoke` installs them too: its wheel
+comes from `release-artifact`, which takes the release flags, but
+`smoke-release` takes its base interpreter from `.venv`, so `make release`
+reaches the preflight there. Only the mutation workflow reaches none, and
+installs nothing.
+
+`tests/test_build_tools_wiring.py` derives the job set from reachability: a
+step reaches the suite through the coverage action, a direct
+`cargo nextest run` or `pytest`, or a Make goal whose evaluated recipe reaches
+either or the preflight. It reads `runs-on` in scalar, list, `{labels:}`,
+expression, and matrix forms, refuses a runner it cannot place, fails when it
+finds no suite job, and requires each reusable-workflow call to be classified
+by a person.
+
+### Verifying empirically
+
+Make text does not prove compiler behaviour. To see the flags, touch a source
+file and read the verbose rustc line:
+
+```bash
+touch crates/stilyagi-core/src/lib.rs
+cargo build -p stilyagi-core -v 2>&1 | grep -o -e '-Zthreads=8' -e 'link-arg=-fuse-ld=mold'
+```
+
+It prints both flags. Run it again with `RUSTFLAGS="-D warnings"` (CI's export)
+or `RUSTFLAGS=""` (the release recipes' no-caller case) and it prints neither:
+an assigned `RUSTFLAGS`, even an empty one, displaces the configuration. To see
+the linker, build the development extension and read the `.comment` section of
+the `cdylib`, which lists `mold`, and then the release wheel's, which does not:
+
+```bash
+make build
+readelf -p .comment python/stilyagi/_stilyagi_rs*.so
+make release-artifact
+unzip -o -j -d /tmp/wheel-check dist/*.whl 'stilyagi/*.so'
+readelf -p .comment /tmp/wheel-check/_stilyagi_rs*.so
+```
+
+The wheel's section names rustc's default LLD linker instead. To check the
+coverage route, run
+`RUSTFLAGS="-D warnings" CARGO_TERM_VERBOSE=true cargo
+llvm-cov nextest -p stilyagi-ir --lib`
+with the `cargo-llvm-cov` the shared action installs (0.9.0 at the pinned
+action revision; older releases cannot read this nightly's build layout) and
+confirm `-C instrument-coverage` appears without `-Zthreads=8`, `mold`, or a
+`codegen-backend` argument.
+
+### Why Cranelift is not part of the standard
+
+The Cranelift codegen backend is the estate default for development builds
+where the full suite passes under it. This repository has a reproduced
+incompatibility on the pinned channel, `nightly-2026-10-18`, so the dev profile
+keeps the default LLVM backend and `.cargo/config.toml` carries no
+`codegen-backend` key.
+
+The reproduction, on the pinned channel with the two backend keys added:
+
+- `cargo nextest run -p stilyagi-pyext --test unwind_probe`
+  (`crates/stilyagi-pyext/tests/unwind_probe.rs`) fails four of five cases.
+  `catch_unwind` does not catch; a `#[pyfunction]` panic escapes PyO3's wrapper
+  instead of becoming `PanicException`; and the two spawned-thread cases abort
+  the process with
+  `fatal runtime error: failed to initiate panic, error 5, aborting`. Only
+  `#[should_panic]` passes.
+- The full workspace also fails three existing tests that rely on contained
+  panics: `stilyagi-markdown`
+  `tests::parser::markdown_parser_panics_are_contained_as_messages`, and
+  `stilyagi-test-fixtures`
+  `expect_valid::tests::option_failure_reports_the_fixture_call_site` and
+  `expect_valid::tests::shared_helper_attributes_the_panic_to_the_calling_test`.
+- With the default LLVM backend, all of them pass.
+
+In a Cranelift-built development extension a panic would abort the Python
+interpreter, or escape PyO3's wrapper, instead of raising `PanicException`.
+
+The exception is scoped to `nightly-2026-10-18`, to `x86_64-unknown-linux-gnu`
+(the only platform measured), and to the dev and test profiles. It goes stale
+on every pin move: a bump that wants to retire it adds
+`[unstable] codegen-backend = true` and
+`[profile.dev] codegen-backend = "cranelift"` to `.cargo/config.toml`, runs
+`cargo nextest run -p stilyagi-pyext --test unwind_probe` (each case runs in
+its own process, so an abort fails one case), runs the full suite, and replaces
+this section if everything passes. `tests/test_build_standard_config.py`
+requires this section to name the pinned channel, so a bump that does not
+re-evaluate it fails.
 
 ## 6. Lint, typecheck, and test workflow
 
@@ -1417,8 +1647,10 @@ Their responsibilities are:
     stamp, so the checker can resolve the imports of `scripts/duplication_gate.py`.
   - It runs `cargo check` for all workspace crates, targets, and features with
     warnings denied.
-  - It runs the pinned `ty` 0.0.74 release through `uv tool run`, checking
-    `python/stilyagi`, `tests`, `scripts`, and `.github` — the same roots
+  - It runs the pinned `ty` 0.0.74 release through `uv tool run` with
+    `--python .venv`, so third-party imports resolve against the project
+    environment. It checks `python/stilyagi`, `tests`, `scripts`, and `.github`
+    — the same roots
     `make lint` covers, plus the workflow and action YAML that drives them.
 - `make test`
   - verify Rust formatting
@@ -1908,6 +2140,15 @@ installer version (0.2.9 or later), the digest-verified download, the cache and
 the `--no-source-fallback` rule, so the workflow carries no install script and
 no `WHITAKER_INSTALLER_VERSION` variable. The local requirement is unchanged:
 `make lint` still expects `whitaker` on `PATH` and runs it as before.
+
+The `cranelift: true` input predates the development build standard. The
+repository's configuration selects no codegen backend (see "Why Cranelift is
+not part of the standard" in section 5a), so the build standard does not
+require the input; it stays as the Whitaker provisioning policy has it. The
+`make lint` recipe gives Whitaker `RUSTFLAGS="-D warnings"`
+(`WHITAKER_RUST_FLAGS`) alone, a known boundary with none of the development
+flags, and Whitaker's installer-managed toolchain is independent of the pin in
+`rust-toolchain.toml`.
 
 `tests/test_ci_workflow_units.py` asserts the step uses the action at a full
 commit hash with no script and only the `cranelift` input. The concordat QG-002
@@ -2715,7 +2956,8 @@ cross-language regressions that isolated commands can miss.
 Release work should assume wheel artefacts are the primary distributable output
 of the mixed package.
 
-- Use `make release` for release builds.
+- Use `make release` for release builds. It assigns `RUSTFLAGS` from the
+  caller alone, so the development flags never reach the wheel.
 - Use `make smoke-release` when you need to rerun only the release-wheel smoke
   proof after a release artefact has been built.
 - Keep the Python package metadata and the Rust extension build path in sync.

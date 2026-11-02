@@ -18,6 +18,8 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 
 ```plaintext
 .
+├── .cargo/
+│   └── config.toml
 ├── .config/
 │   └── common-acronyms/
 ├── .github/
@@ -45,10 +47,13 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 │   ├── fixtures/
 │   ├── performance/
 │   └── support/
+├── tools/
+│   └── mold/
 ├── AGENTS.md
 ├── Cargo.toml
 ├── Makefile
 ├── pyproject.toml
+├── rust-toolchain.toml
 ├── typos.local.toml
 ├── typos.toml
 └── uv.lock
@@ -64,6 +69,17 @@ new maintainer needs to recognize quickly and omits transient cache contents.
     and release workflows.
 - `Cargo.toml`
   - Root Cargo workspace manifest for the Rust crate graph under `crates/`.
+    It declares no minimum supported Rust version.
+- `rust-toolchain.toml`
+  - The pinned dated nightly and its components (Clippy, rustfmt,
+    rust-analyzer, `llvm-tools-preview`, and
+    `rustc-codegen-cranelift-preview`). Dependabot's `rust-toolchain` entry
+    moves the pin.
+- `.cargo/config.toml`
+  - The development build standard that every bare `cargo` run discovers: the
+    parallel frontend and the `mold` linker on Linux. It selects no codegen
+    backend (a recorded Cranelift exception). Release, coverage, and Whitaker
+    routes exclude it; see the developer's guide, section 5a.
 - `pyproject.toml`
   - Python package metadata, Ruff configuration, `ty` configuration, pytest
     settings, `uv` package behaviour, and `maturin` mixed-package settings.
@@ -168,7 +184,11 @@ there rather than embedded ad hoc in unrelated modules.
   - Continuous integration and automation workflow definitions.
 - `scripts/`
   - Maintainer scripts following the scripting standards, including the
-    code-duplication gate. Shared configuration generation remains in the
+    code-duplication gate and `build_tools.py`, the CLI behind
+    `make install-build-tools` and `make check-build-tools`. Its internal
+    `build_tools_environment.py` sibling owns host configuration and preflight;
+    `build_tools_pins.py` owns pure pin and checksum readers. Shared
+    configuration generation remains in the
     pinned `typos-config-builder` CLI.
 - `scripts/tests/`
   - Tests for the maintainer scripts, following the `scripts/tests/` layout in
@@ -176,6 +196,9 @@ there rather than embedded ad hoc in unrelated modules.
     gate's PEP 723 dependencies rather than the application's `dev` group, so
     `make duplication-test` runs them and `testpaths` keeps a bare `pytest` run
     out of this directory.
+- `tools/mold/`
+  - The pinned `mold` release (`VERSION`) and the SHA-256 checksums its
+    installer verifies (`SHA256SUMS`).
 
 ## 7. Generated and transient paths
 

@@ -1,6 +1,6 @@
 //! Lintable prose region, segment, and owner types for the IR.
 
-use std::{collections::BTreeMap, fmt};
+use std::{collections::BTreeMap, fmt, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
@@ -96,10 +96,10 @@ impl fmt::Display for InvalidRegionKind {
 
 impl std::error::Error for InvalidRegionKind {}
 
-impl TryFrom<&str> for RegionKind {
-    type Error = InvalidRegionKind;
+impl FromStr for RegionKind {
+    type Err = InvalidRegionKind;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "heading" => Ok(Self::Heading),
             "paragraph" => Ok(Self::Paragraph),
@@ -116,6 +116,16 @@ impl TryFrom<&str> for RegionKind {
                 value: value.to_owned(),
             }),
         }
+    }
+}
+
+// Kept beside `FromStr` so existing `RegionKind::try_from(&str)` callers keep
+// compiling; both routes share one vocabulary table.
+impl TryFrom<&str> for RegionKind {
+    type Error = InvalidRegionKind;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 

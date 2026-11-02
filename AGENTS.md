@@ -208,6 +208,16 @@ This repository is written in Rust and uses Cargo for building and dependency
 management. Contributors should follow these best practices when working on the
 project:
 
+- The toolchain is a dated nightly pinned in `rust-toolchain.toml`, with no
+  declared minimum supported Rust version. `.cargo/config.toml` applies the
+  development build standard to every bare `cargo` run: the parallel frontend
+  (`-Zthreads=8`) and, on Linux, the `mold` linker. It selects no codegen
+  backend: the Cranelift exception is recorded in the developer's guide. Make
+  recipes that assign `RUSTFLAGS` restate the flags, because an assignment
+  displaces the configuration's `rustflags`. Release, coverage, and Whitaker
+  routes exclude them. Run `make install-build-tools` once on a new machine;
+  build, test, lint, and typecheck routes run `make check-build-tools` first.
+  See the developer's guide, section 5a (Development build standard).
 - Run `make check-fmt`, `make lint`, and `make test` before committing. These
   targets wrap the following commands, so contributors understand the exact
   behaviour and policy enforced:
@@ -228,21 +238,25 @@ project:
     $(PYLINT) $(PYLINT_TARGETS)
     $(DF12_PYLINT) $(PYLINT_TARGETS)
     $(AMBRLEAKS) tests
-    $(CARGO_BUILD_ENV) $(CARGO) doc --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features --no-deps
-    $(CARGO_BUILD_ENV) $(CARGO) clippy --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets -- -D warnings
-    RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
+    RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
+    RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
+    RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
     ```
 
-    running Ruff, docstring coverage, the focused Pylint pass, all df12
-    Pylint messages under CPython 3.14, ambrleaks, Rustdoc, Rust Clippy across
-    workspace targets, and Whitaker linting for the PyO3 extension crate.
+    after `make check-build-tools`, running Ruff, docstring coverage, the
+    focused Pylint pass, all df12 Pylint messages under CPython 3.14,
+    ambrleaks, Rustdoc, Rust Clippy across workspace targets, and Whitaker
+    linting for the PyO3 extension crate. `RUST_FLAGS` is `-D warnings` plus
+    the development standard; `WHITAKER_RUST_FLAGS` is `-D warnings` alone.
   - `make test` executes:
 
     ```sh
-    cargo test --workspace
+    RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass $(TEST_FLAGS)
     ```
 
-    running the full workspace test suite. Use `make fmt`
+    (or `cargo test` when nextest is absent, then the same `RUSTFLAGS` over
+    `cargo test --doc`) after `make check-build-tools`, running the full
+    workspace test suite. Use `make fmt`
     (`cargo fmt --workspace`) to apply formatting fixes reported by the
     formatter check.
 - Clippy warnings MUST be disallowed.

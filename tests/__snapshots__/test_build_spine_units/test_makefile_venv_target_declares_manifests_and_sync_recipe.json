@@ -1,7 +1,7 @@
 {
-  "header": ".venv: pyproject.toml uv.lock $(WORKSPACE_MANIFEST) Cargo.lock",
+  "header": ".venv: pyproject.toml uv.lock $(WORKSPACE_MANIFEST) Cargo.lock | check-build-tools",
   "recipe": [
     "UV_VENV_CLEAR=1 $(UV_ENV) $(UV) venv",
-    "$(CARGO_BUILD_ENV) $(UV_ENV) $(UV) sync --group dev"
+    "RUSTFLAGS=\"$(DEBUG_RUST_FLAGS)\" $(CARGO_BUILD_ENV) $(UV_ENV) $(UV) sync --group dev"
   ]
 }

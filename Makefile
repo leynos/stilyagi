@@ -10,16 +10,45 @@ MDTABLEFIX_RULES = --wrap --renumber --breaks --ellipsis --fences
 NIXIE ?= nixie
 CARGO ?= cargo
 WHITAKER ?= whitaker
-export PATH := $(HOME)/.cargo/bin:$(HOME)/.local/bin:$(HOME)/.bun/bin:$(PATH)
+# `install-build-tools` unpacks the pinned mold under this prefix. Its `bin/`
+# leads PATH for every target, so the pinned release beats a distribution one
+# when `-fuse-ld=mold` resolves the linker, and `check-build-tools` reports the
+# same binary the link step will use.
+BUILD_TOOLS_PREFIX ?= $(HOME)/.local
+export BUILD_TOOLS_PREFIX
+export PATH := $(BUILD_TOOLS_PREFIX)/bin:$(HOME)/.cargo/bin:$(HOME)/.local/bin:$(HOME)/.bun/bin:$(PATH)
 WORKSPACE_MANIFEST ?= Cargo.toml
 PYEXT_MANIFEST ?= crates/stilyagi-pyext/Cargo.toml
 BUILD_JOBS ?=
-RUST_FLAGS ?=
-RUST_FLAGS := -D warnings $(RUST_FLAGS)
-RUSTDOC_FLAGS ?=
-RUSTDOC_FLAGS := -D warnings $(RUSTDOC_FLAGS)
+
+# The development build standard: the parallel rustc frontend and, on Linux,
+# the mold linker. `.cargo/config.toml` supplies both to a bare `cargo`, but
+# any `RUSTFLAGS` in the environment displaces that file's `rustflags` outright
+# (Cargo selects one source and never merges them), so every recipe that
+# assigns `RUSTFLAGS` restates the standard. A recipe that assigned only
+# `-D warnings` would stay green while silently building without it.
+# tests/test_build_standard_config.py holds these values equal to the file's.
+STANDARD_THREADS_FLAG ?= -Zthreads=8
+STANDARD_MOLD_FLAG ?= -Clink-arg=-fuse-ld=mold
+BUILD_HOST_OS := $(shell uname -s)
+STANDARD_RUSTFLAGS = $(STANDARD_THREADS_FLAG)$(if $(filter Linux,$(BUILD_HOST_OS)), $(STANDARD_MOLD_FLAG))
+# Gate routes (check, clippy, doc, test): the warnings policy plus the standard.
+# Extend with RUST_FLAGS_EXTRA; overriding RUST_FLAGS replaces the whole set.
+RUST_FLAGS_EXTRA ?=
+RUST_FLAGS ?= -D warnings $(STANDARD_RUSTFLAGS) $(RUST_FLAGS_EXTRA)
+RUSTDOC_FLAGS_EXTRA ?=
+RUSTDOC_FLAGS ?= -D warnings $(RUSTDOC_FLAGS_EXTRA)
+# Development builds without a warnings policy (`maturin develop`).
+DEBUG_RUST_FLAGS ?= $(STANDARD_RUSTFLAGS)
+# Release and packaging routes name `RUSTFLAGS` so the configuration's
+# development flags are displaced, and keep whatever the caller exported (CI's
+# `-D warnings`).
+RELEASE_RUST_FLAGS = $${RUSTFLAGS-}
+# Whitaker/Dylint runs on its installer-managed toolchain and takes none of the
+# development flags.
+WHITAKER_RUST_FLAGS ?= -D warnings
 CARGO_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets --all-features
-CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
+CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- -D warnings
 DOC_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features --no-deps
 UV ?= $(shell command -v uv 2>/dev/null || printf '%s/.local/bin/uv' "$$HOME")
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
@@ -131,8 +160,8 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
         markdownlint nixie spelling test test-ci test-doc test-quick \
         typecheck tools skylos-allow \
         install-nose duplication duplication-test duplication-allow \
-        tools-check tools-docs tools-lint release release-artifact smoke \
-        smoke-release test-workflow-contracts
+        tools-check tools-docs tools-lint install-build-tools check-build-tools \
+        release release-artifact smoke smoke-release test-workflow-contracts
 
 .DEFAULT_GOAL := all
 
@@ -147,19 +176,27 @@ all: test-workflow-contracts ## Run commit gates
 	$(MAKE) markdownlint
 	$(MAKE) nixie
 
-.venv: pyproject.toml uv.lock $(WORKSPACE_MANIFEST) Cargo.lock
+# `uv sync` installs the project through maturin's PEP 517 editable build, a
+# compile like any other under the standard, so it restates the development
+# flags and runs after the preflight (order-only: a stale preflight never forces
+# a rebuild). `build` then replaces the install with a dev-profile
+# `maturin develop`. `smoke-release` depends on this target for its base
+# interpreter, so `make release` reaches the preflight through it, and the CI
+# job that runs it installs the build tools; the wheel itself is built by
+# `release-artifact`, which takes the release flags.
+.venv: pyproject.toml uv.lock $(WORKSPACE_MANIFEST) Cargo.lock | check-build-tools
 	UV_VENV_CLEAR=1 $(UV_ENV) $(UV) venv
-	$(CARGO_BUILD_ENV) $(UV_ENV) $(UV) sync --group dev
+	RUSTFLAGS="$(DEBUG_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(UV_ENV) $(UV) sync --group dev
 
-build: .venv ## Build dev artifact and install into venv
-	$(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(PYEXT_MANIFEST)
+build: check-build-tools .venv ## Build dev artifact and install into venv
+	RUSTFLAGS="$(DEBUG_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(PYEXT_MANIFEST)
 	$(MAKE) smoke
 
 release: release-artifact smoke-release ## Build and smoke-test the release artifact
 
 release-artifact: ## Build the release artifact
 	rm -rf dist
-	$(CARGO_BUILD_ENV) $(UV_RUN) maturin build --release --manifest-path $(PYEXT_MANIFEST) --out dist
+	RUSTFLAGS="$(RELEASE_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(UV_RUN) maturin build --release --manifest-path $(PYEXT_MANIFEST) --out dist
 
 build-release: release ## Backward-compatible alias for release
 
@@ -209,6 +246,25 @@ tools-docs:
 tools-lint: tools-check
 	$(call ensure_tool,$(WHITAKER))
 
+# The preflight for every route that compiles under the development standard.
+# It fails with an installation hint instead of an opaque linker error, and it
+# is an explicit prerequisite of `build`, `typecheck`, `lint`, `test`,
+# `test-doc`, `test-ci` and `test-quick`. Release and packaging routes do not
+# reach it: they displace the standard and need neither tool. A job that runs
+# the suite through a route that reaches it must run `install-build-tools`
+# first, whether or not its own compiler flags use mold (coverage excludes
+# mold but still executes tests that drive these targets); see
+# tests/test_build_tools_wiring.py. Injectable so tests can shim it.
+BUILD_TOOLS_SCRIPT ?= scripts/build_tools.py
+INSTALL_BUILD_TOOLS ?= $(UV_ENV) $(UV) run --script $(BUILD_TOOLS_SCRIPT) install
+CHECK_BUILD_TOOLS ?= $(UV_ENV) $(UV) run --script $(BUILD_TOOLS_SCRIPT) check
+
+install-build-tools: ## Install the pinned mold and nightly toolchain
+	$(INSTALL_BUILD_TOOLS)
+
+check-build-tools: ## Verify the pinned mold and nightly toolchain are usable
+	$(CHECK_BUILD_TOOLS)
+
 fmt: tools ## Format sources
 	$(RUFF) format
 	$(RUFF) check --select I --fix
@@ -221,15 +277,15 @@ check-fmt: tools-check ## Verify formatting
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
 	$(MDTABLEFIX) --check $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
 
-lint: tools-lint install-nose ## Run linters, including the Whitaker Dylint suite
+lint: check-build-tools tools-lint install-nose ## Run linters, including the Whitaker Dylint suite
 	$(RUFF) check
 	$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
 	$(DF12_PYLINT) $(PYLINT_TARGETS)
 	$(AMBRLEAKS) $(AMBRLEAKS_TARGETS)
-	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
-	$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
-	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
+	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
+	RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
 	$(SKYLOS) $(SKYLOS_PRODUCTION_TARGETS) --exclude $(SKYLOS_EXCLUDE_FOLDERS) --category dead_code --gate --format concise --no-upload --no-provenance --no-grep-verify
 	$(DUPLICATION_GATE) check
 
@@ -296,10 +352,10 @@ skylos-allow: ## Document one named Skylos exception, not an entry point
 	@case "$${SKYLOS_REASON}" in *[![:space:]]*) ;; *) printf "Error: REASON is required for a named whitelist exception\\n" >&2; exit 2;; esac
 	$(SKYLOS_CLI) whitelist "$${SKYLOS_SYMBOL}" --reason "$${SKYLOS_REASON}"
 
-typecheck: build tools-check $(TY_GATE_DEPS) ## Run typechecking
+typecheck: check-build-tools build tools-check $(TY_GATE_DEPS) ## Run typechecking
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)
 	$(TY) --version
-	$(TY) check $(TY_EXTRA_PATHS)
+	$(TY) check --python .venv $(TY_EXTRA_PATHS)
 
 markdownlint: tools-docs spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
 	$(call ensure_tool,$(MDLINT))
@@ -311,9 +367,9 @@ spelling: ## Enforce en-GB-oxendict spelling
 nixie: tools-docs ## Validate Mermaid diagrams
 	$(MD_FILES_FIND) | xargs -0 $(NIXIE) --no-sandbox
 
-test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
+test: check-build-tools build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
-	$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
 	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS); \
 	else \
@@ -336,16 +392,16 @@ test: build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 # selection, and `check-fmt` and `lint` already run the format check and
 # Clippy, so the doctests are the only part of `test` nothing else runs. See
 # tests/test_suite_runs_once.py.
-test-doc: build ## Run the Rust and Python docstring examples
+test-doc: check-build-tools build ## Run the Rust and Python docstring examples
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)
 	$(RESOLVE_VENV_PYTHON); \
 	"$$VENV_PYTHON" -m pytest -v --doctest-modules $(PY_DOCTEST_PATHS)
 
-test-ci: build tools-lint ## Run Rust tests with the CI nextest profile
+test-ci: check-build-tools build tools-lint ## Run Rust tests with the CI nextest profile
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile ci --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS)
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)
 
-test-quick: build tools-lint ## Run Rust library tests only with nextest
+test-quick: check-build-tools build tools-lint ## Run Rust library tests only with nextest
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass --lib $(TEST_FLAGS) $(BUILD_JOBS)
 
 help: ## Show available targets

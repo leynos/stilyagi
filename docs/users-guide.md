@@ -21,6 +21,10 @@ For users, that means:
 - normal execution does not depend on launching a helper process for every
   extraction call.
 
+Building from a source checkout needs `uv`, `rustup`, and, on Linux, the pinned
+`mold` linker. The [README quick start](../README.md#quick-start) lists the
+genuine prerequisites and the one command that installs them.
+
 In editable development installs, the embedded extension now lives under the
 package as `stilyagi._stilyagi_rs` rather than as a separate top-level module.
 That relocation is an internal packaging detail. User code should still import

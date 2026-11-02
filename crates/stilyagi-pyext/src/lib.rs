@@ -175,8 +175,12 @@ fn map_extract_error(error: &ExtractError) -> PyErr {
 }
 
 /// Initialize the `_stilyagi_rs` Python module and register exported functions.
-#[pymodule]
-fn _stilyagi_rs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+///
+/// The Rust item avoids the leading underscore the Python module name carries,
+/// so the `used_underscore_items` lint has no item to flag inside the macro
+/// expansion; `name` keeps the exported `PyInit__stilyagi_rs` symbol.
+#[pymodule(name = "_stilyagi_rs")]
+fn stilyagi_rs_module(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(check_metrics::reset_check_metrics, m)?)?;
     m.add_function(wrap_pyfunction!(check_metrics::record_check_run, m)?)?;
     m.add_function(wrap_pyfunction!(check_metrics::record_checked_file, m)?)?;
