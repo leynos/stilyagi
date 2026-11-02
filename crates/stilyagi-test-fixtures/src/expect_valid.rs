@@ -28,16 +28,26 @@
 //! that both `stilyagi-ir` and the extraction crates can use it without
 //! forming a dependency cycle through `stilyagi-test-support`.
 //!
+//! # Current call sites
+//!
+//! There are none. The suppression generators build their strategies from
+//! character ranges and bounded vectors, and the fixture readers return
+//! `Result`, so the last call sites disappeared with those changes. The trait
+//! is retained deliberately: it is the only sanctioned shape for the next
+//! context that genuinely cannot propagate, and deleting it would leave that
+//! site with an anonymous panic that Whitaker's `no_expect_outside_tests`
+//! rejects. Do not read its presence as an invitation to use it where a
+//! `Result` would do; the scope policy above governs.
+//!
 //! # Relationship to the `must_ok!` and `must_some!` macros
 //!
-//! `crates/stilyagi-markdown/src/tests.rs` and
-//! `crates/stilyagi-pyext/src/bridge_bdd.rs` each define `must_ok!` and
-//! `must_some!`. Those remain the right tool inside a test body, where a macro
-//! expands in place and clippy's `allow-expect-in-tests` already applies.
-//! [`ExpectValid`] covers the case they cannot: helper and fixture code that
-//! sits *outside* a test body, which the Whitaker suite treats as production.
-//! Both spellings report the caller's line — the macros because they expand
-//! there, this trait because its methods are `#[track_caller]`.
+//! `crates/stilyagi-pyext/src/bridge_bdd.rs` defines `must_ok!` and
+//! `must_some!` for its `then` steps, where a macro expands in place and the
+//! panic is the test verdict. [`ExpectValid`] covers the case they cannot:
+//! helper and fixture code that sits *outside* a test body, which the Whitaker
+//! suite treats as production. Both spellings report the caller's line: the
+//! macros because they expand there, this trait because its methods are
+//! `#[track_caller]`.
 //!
 //! # Examples
 //!

@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 use proptest::prelude::*;
 use rstest::rstest;
-use stilyagi_test_fixtures::ExpectValid;
 
 use crate::{IrRegion, IrSegment, SegmentOrigin, SourceSpan, SyntheticReason};
 
@@ -26,7 +25,8 @@ proptest! {
     fn generated_segments_preserve_layout_and_source_invariants(
         specs in prop::collection::vec(segment_spec(), 1..12),
     ) {
-        let (region, source) = region_from_specs(&specs);
+        let (region, source) = region_from_specs(&specs)
+            .expect("generated source spans should have ordered offsets");
 
         prop_assert!(region.segments_reconstruct_text());
         prop_assert!(segments_are_contiguous(&region));
@@ -37,7 +37,8 @@ proptest! {
 
 #[rstest]
 fn segments_reconstruct_text_rejects_gapped_ranges() {
-    let (mut region, _source) = region_from_specs(&[SegmentSpec::Source("alpha".to_owned())]);
+    let (mut region, _source) = region_from_specs(&[SegmentSpec::Source("alpha".to_owned())])
+        .expect("fixed source span should have ordered offsets");
     let segment = region
         .segments
         .first_mut()
@@ -48,7 +49,7 @@ fn segments_reconstruct_text_rejects_gapped_ranges() {
     assert!(!region.segments_reconstruct_text());
 }
 
-fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
+fn region_from_specs(specs: &[SegmentSpec]) -> Result<(IrRegion, String), &'static str> {
     let mut source = String::new();
     let mut region_text = String::new();
     let mut segments = Vec::new();
@@ -60,7 +61,7 @@ fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
                 source.push_str(text);
                 region_text.push_str(text);
                 let span = SourceSpan::new(source_start, source.len())
-                    .expect_valid("generated region source span");
+                    .ok_or("generated region source span has reversed offsets")?;
                 segments.push(IrSegment::new(
                     text_start,
                     text.clone(),
@@ -81,7 +82,7 @@ fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
             }
         }
     }
-    (
+    Ok((
         IrRegion {
             id: "r1".to_owned(),
             kind: "paragraph".to_owned(),
@@ -96,7 +97,7 @@ fn region_from_specs(specs: &[SegmentSpec]) -> (IrRegion, String) {
             parent_region: None,
         },
         source,
-    )
+    ))
 }
 
 fn segments_are_contiguous(region: &IrRegion) -> bool {

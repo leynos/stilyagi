@@ -2,17 +2,16 @@
 
 use markdown::mdast::Node;
 use proptest::prelude::*;
-use proptest::string::string_regex;
 use stilyagi_ir::SuppressionKind;
-use stilyagi_test_fixtures::ExpectValid;
 
-/// Return the canonical suppression kind for a directive token.
-pub(super) fn expected_kind_from_token(token: &str) -> SuppressionKind {
+/// Return the canonical suppression kind for a directive token, or `None` when
+/// the token is not a known directive verb.
+pub(super) fn expected_kind_from_token(token: &str) -> Option<SuppressionKind> {
     match token {
-        "ignore-next" => SuppressionKind::Inline,
-        "disable" | "enable" => SuppressionKind::Range,
-        "ignore-file" => SuppressionKind::File,
-        other => panic!("unexpected verb token {other:?}"),
+        "ignore-next" => Some(SuppressionKind::Inline),
+        "disable" | "enable" => Some(SuppressionKind::Range),
+        "ignore-file" => Some(SuppressionKind::File),
+        _ => None,
     }
 }
 
@@ -29,27 +28,23 @@ pub(super) fn directive_codes_and_padding() -> impl Strategy<Value = (Vec<String
 
 /// Generate a comment code token.
 pub(super) fn code_token_strategy() -> impl Strategy<Value = String> {
-    regex_strategy("[A-Z][A-Z0-9]{0,7}")
+    (
+        b'A'..=b'Z',
+        prop::collection::vec(prop_oneof![b'A'..=b'Z', b'0'..=b'9'], 0..8),
+    )
+        .prop_map(|(first, rest)| std::iter::once(first).chain(rest).map(char::from).collect())
 }
 
 /// Generate optional leading or trailing whitespace around a directive.
 pub(super) fn whitespace_strategy() -> impl Strategy<Value = String> {
-    regex_strategy("[ \t]{0,3}")
+    prop::collection::vec(prop::sample::select(vec![' ', '\t']), 0..4)
+        .prop_map(|characters| characters.into_iter().collect())
 }
 
 /// Generate optional padding after commas in a directive code list.
 pub(super) fn space_padding_strategy() -> impl Strategy<Value = String> {
-    regex_strategy("[ \t]{0,2}")
-}
-
-/// Compile a fixture regex pattern into a proptest strategy, panicking on
-/// invalid patterns since callers pass compile-time constants.
-/// Build a string strategy from `pattern`.
-///
-/// `string_regex` is fallible but a strategy pipeline has no error channel, so
-/// this funnels through the workspace's documented fixture panic boundary.
-fn regex_strategy(pattern: &'static str) -> impl Strategy<Value = String> {
-    string_regex(pattern).expect_valid(pattern)
+    prop::collection::vec(prop::sample::select(vec![' ', '\t']), 0..3)
+        .prop_map(|characters| characters.into_iter().collect())
 }
 
 /// Collect the IR node identifiers that correspond to HTML comments.

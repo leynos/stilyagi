@@ -15,7 +15,7 @@ use crate::fixture_paths::{FixturePathError, normalize_repository_path};
 /// Failure raised when reading a corpus fixture.
 #[derive(Debug)]
 pub enum FixtureReadError {
-    /// The requested repository-relative path was invalid.
+    /// The requested path or fixture crate layout was invalid.
     InvalidPath(FixturePathError),
     /// The fixture could not be read from disk.
     Io(std::io::Error),
@@ -51,6 +51,12 @@ impl From<std::io::Error> for FixtureReadError {
     }
 }
 
+/// Open the repository root as a capability-scoped directory.
+fn repository_dir() -> Result<Dir, FixtureReadError> {
+    let root = crate::fixture_paths::repository_root()?;
+    Dir::open_ambient_dir(root, ambient_authority()).map_err(FixtureReadError::from)
+}
+
 /// Read a repository-relative corpus fixture as UTF-8 text.
 ///
 /// # Errors
@@ -58,8 +64,7 @@ impl From<std::io::Error> for FixtureReadError {
 /// Returns an error if the fixture path is invalid or cannot be read.
 pub fn read_corpus_fixture(relative_path: impl AsRef<Path>) -> Result<String, FixtureReadError> {
     let path = normalize_repository_path(relative_path)?;
-    let repository =
-        Dir::open_ambient_dir(crate::fixture_paths::repository_root(), ambient_authority())?;
+    let repository = repository_dir()?;
     Ok(repository.read_to_string(path)?)
 }
 
@@ -72,8 +77,7 @@ pub fn read_corpus_fixture_bytes(
     relative_path: impl AsRef<Path>,
 ) -> Result<Vec<u8>, FixtureReadError> {
     let path = normalize_repository_path(relative_path)?;
-    let repository =
-        Dir::open_ambient_dir(crate::fixture_paths::repository_root(), ambient_authority())?;
+    let repository = repository_dir()?;
     Ok(repository.read(path)?)
 }
 
@@ -84,8 +88,7 @@ pub fn read_corpus_fixture_bytes(
 /// Returns an error if the directory path is invalid or cannot be read.
 pub fn fixture_paths_in(relative_dir: impl AsRef<Path>) -> Result<Vec<String>, FixtureReadError> {
     let directory = normalize_repository_path(relative_dir)?;
-    let repository =
-        Dir::open_ambient_dir(crate::fixture_paths::repository_root(), ambient_authority())?;
+    let repository = repository_dir()?;
     let mut paths = Vec::new();
     for entry_result in repository.read_dir(&directory)? {
         let entry = entry_result?;

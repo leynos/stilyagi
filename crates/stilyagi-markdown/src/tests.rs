@@ -8,24 +8,6 @@
     reason = "tests.rs keeps the inline Markdown test harness colocated with lib.rs"
 )]
 
-macro_rules! must_ok {
-    ($expression:expr, $($message:tt)+) => {
-        match $expression {
-            Ok(value) => value,
-            Err(error) => panic!("{}: {error}", format_args!($($message)+)),
-        }
-    };
-}
-
-macro_rules! must_some {
-    ($expression:expr, $($message:tt)+) => {
-        match $expression {
-            Some(value) => value,
-            None => panic!("{}", format_args!($($message)+)),
-        }
-    };
-}
-
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy)]
@@ -56,6 +38,8 @@ mod suppression;
 mod suppression_range_role;
 #[path = "tests/suppression_support.rs"]
 mod suppression_support;
+#[path = "tests/validation_support.rs"]
+mod validation_support;
 
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, SourceIdentity, SourceSpan, SyntheticReason};
@@ -136,35 +120,24 @@ fn hardening_fixture_ir_json_round_trips_without_span_drift(
     #[case] expected_paragraph: ExpectedText<'_>,
 ) {
     let relative_path_str = relative_path.to_str().expect("UTF-8 path");
-    let source = must_ok!(
-        read_corpus_fixture(relative_path_str),
-        "expected Markdown hardening fixture"
-    );
-    let document = must_ok!(
-        markdown_ir_document(&source, source_identity(relative_path)),
-        "expected Markdown IR document"
-    );
-    let json = must_ok!(document.to_canonical_json(), "expected canonical JSON");
-    let parsed = must_ok!(
-        serde_json::from_str::<IrDocument>(&json),
-        "expected IR JSON round-trip"
-    );
+    let source =
+        read_corpus_fixture(relative_path_str).expect("expected Markdown hardening fixture");
+    let document = markdown_ir_document(&source, source_identity(relative_path))
+        .expect("expected Markdown IR document");
+    let json = assert_canonical_json_round_trip(&document);
 
-    assert_eq!(parsed, document);
-    assert!(source_backed_segments_match_source(&parsed, &source));
-    assert!(synthetic_segments_use_known_reasons(&parsed));
-    assert_region_text_present(&parsed, expected_paragraph);
+    assert!(source_backed_segments_match_source(&document, &source));
+    assert!(synthetic_segments_use_known_reasons(&document));
+    assert_region_text_present(&document, expected_paragraph);
     insta::assert_snapshot!(snapshot_name, json);
 }
 
 #[rstest]
 fn crlf_soft_break_fixture_contains_literal_crlf_bytes() {
-    let bytes = must_ok!(
-        read_corpus_fixture_bytes(
-            "tests/fixtures/corpus/markdown/valid/paragraph-soft-break-crlf.md.fixture",
-        ),
-        "expected readable CRLF fixture bytes"
-    );
+    let bytes = read_corpus_fixture_bytes(
+        "tests/fixtures/corpus/markdown/valid/paragraph-soft-break-crlf.md.fixture",
+    )
+    .expect("expected readable CRLF fixture bytes");
 
     assert!(bytes.windows(2).any(|pair| pair == b"\r\n"));
 }
@@ -172,46 +145,50 @@ fn crlf_soft_break_fixture_contains_literal_crlf_bytes() {
 #[rstest]
 fn yaml_frontmatter_fixture_records_a_yaml_node() {
     let relative_path = "tests/fixtures/corpus/markdown/valid/yaml-frontmatter.md.fixture";
-    let source = must_ok!(
-        read_corpus_fixture(relative_path),
-        "expected YAML frontmatter fixture"
-    );
-    let document = must_ok!(
-        markdown_ir_document(&source, source_identity(Path::new(relative_path))),
-        "expected Markdown IR document"
-    );
+    let source = read_corpus_fixture(relative_path).expect("expected YAML frontmatter fixture");
+    let document = markdown_ir_document(&source, source_identity(Path::new(relative_path)))
+        .expect("expected Markdown IR document");
 
     assert!(document.nodes.iter().any(|node| node.kind == "yaml"));
 }
 
 #[rstest]
 fn shared_markdown_ir_json_round_trips_without_span_drift() {
-    let source = must_ok!(
-        read_corpus_fixture(SHARED_MARKDOWN_FIXTURE_PATH),
-        "expected shared Markdown fixture"
-    );
-    let document = must_ok!(
-        markdown_ir_document(
-            &source,
-            source_identity(Path::new(SHARED_MARKDOWN_FIXTURE_PATH)),
-        ),
-        "expected shared Markdown IR document"
-    );
-    let json = must_ok!(document.to_canonical_json(), "expected canonical JSON");
-    let parsed = must_ok!(
-        serde_json::from_str::<IrDocument>(&json),
-        "expected IR JSON round-trip"
-    );
+    let source = read_corpus_fixture(SHARED_MARKDOWN_FIXTURE_PATH)
+        .expect("expected shared Markdown fixture");
+    let document = markdown_ir_document(
+        &source,
+        source_identity(Path::new(SHARED_MARKDOWN_FIXTURE_PATH)),
+    )
+    .expect("expected shared Markdown IR document");
+    let json = assert_canonical_json_round_trip(&document);
 
-    assert_eq!(parsed, document);
     assert!(
-        parsed
+        document
             .regions
             .iter()
             .all(stilyagi_ir::IrRegion::segments_reconstruct_text)
     );
-    assert!(source_backed_segments_match_source(&parsed, &source));
+    assert!(source_backed_segments_match_source(&document, &source));
     insta::assert_snapshot!(json);
+}
+
+/// Assert that `document` survives a canonical JSON round trip unchanged and
+/// return the JSON for snapshotting.
+///
+/// Failures panic through `match` rather than `.expect()` so this shared
+/// non-test helper stays within the no-`expect`-outside-tests policy.
+#[track_caller]
+pub(super) fn assert_canonical_json_round_trip(document: &IrDocument) -> String {
+    let json = match document.to_canonical_json() {
+        Ok(json) => json,
+        Err(error) => panic!("expected canonical JSON: {error}"),
+    };
+    match serde_json::from_str::<IrDocument>(&json) {
+        Ok(parsed) => assert_eq!(&parsed, document),
+        Err(error) => panic!("expected IR JSON round-trip: {error}"),
+    }
+    json
 }
 
 pub(super) fn source_backed_segments_match_source(document: &IrDocument, source: &str) -> bool {

@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use pyo3::{
-    exceptions::{PyAssertionError, PyRuntimeError},
+    exceptions::PyRuntimeError,
     prelude::*,
     types::{PyDict, PyTuple},
 };
@@ -12,6 +12,8 @@ use rstest::rstest;
 use stilyagi_extract::{
     ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError, RustExtractError,
 };
+
+use crate::tests::payload::{dict_dict, dict_item};
 
 use super::{
     CHECK_METRICS_TEST_LOCK, EXTRACTION_RECOVERY_ERRORS, check_metrics_snapshot, record_check_run,
@@ -86,38 +88,35 @@ fn populated_snapshot() -> PyResult<Py<PyDict>> {
 }
 
 fn dictionary<'py>(snapshot: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound<'py, PyDict>> {
-    Ok(snapshot
-        .get_item(key)?
-        .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(key.to_owned()))?
-        .cast_into::<PyDict>()?)
+    dict_dict(snapshot, key)
 }
 
 fn integer(snapshot: &Bound<'_, PyDict>, key: &str) -> PyResult<u64> {
-    snapshot
-        .get_item(key)?
-        .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(key.to_owned()))?
-        .extract()
+    dict_item(snapshot, key)?.extract()
 }
 
-fn assert_metric_values(metrics: &Bound<'_, PyDict>, expected: &[(&str, u64)]) -> PyResult<()> {
-    for (name, expected_value) in expected {
-        let actual_value = integer(metrics, name)?;
-        if actual_value != *expected_value {
-            return Err(PyAssertionError::new_err(format!(
-                "metric counter `{name}`: expected {expected_value}, got {actual_value}"
-            )));
-        }
-    }
-    Ok(())
+/// Read the current value of each named counter, in the order requested.
+fn metric_values<'name>(
+    metrics: &Bound<'_, PyDict>,
+    names: &[(&'name str, u64)],
+) -> PyResult<Vec<(&'name str, u64)>> {
+    names
+        .iter()
+        .map(|(name, _)| integer(metrics, name).map(|value| (*name, value)))
+        .collect()
 }
 
-fn assert_metric_categories(
-    snapshot: &Bound<'_, PyDict>,
-    category: &str,
-    expected: &[(&str, u64)],
-) -> PyResult<()> {
-    let metrics = dictionary(snapshot, category)?;
-    assert_metric_values(&metrics, expected)
+/// Assert that each named counter holds its expected value.
+///
+/// A failed lookup panics here rather than being returned, so the failure
+/// is reported against the caller's line.
+#[track_caller]
+fn assert_metric_values(metrics: &Bound<'_, PyDict>, expected: &[(&str, u64)]) {
+    let actual = match metric_values(metrics, expected) {
+        Ok(actual) => actual,
+        Err(error) => panic!("metric counter lookup failed: {error}"),
+    };
+    assert_eq!(actual, expected, "metric counters");
 }
 
 fn bridge_recovery_count(
@@ -199,20 +198,17 @@ fn serializes_run_file_skip_and_operational_totals() {
         let bound_snapshot = snapshot.bind(py);
         let runs = dictionary(bound_snapshot, "stilyagi_check_runs_total")
             .expect("run outcomes are present");
-        assert_eq!(
-            integer(&runs, "success").expect("success count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&runs, "diagnostic_error").expect("diagnostic count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&runs, "operational_error").expect("operational count is an integer"),
-            1
+        assert_metric_values(
+            &runs,
+            &[
+                ("success", 1),
+                ("diagnostic_error", 1),
+                ("operational_error", 1),
+            ],
         );
     });
 }
+
 #[rstest]
 fn serializes_syntax_skip_and_diagnostic_categories() {
     let snapshot = populated_snapshot().expect("bounded metrics serialize");
@@ -220,39 +216,20 @@ fn serializes_syntax_skip_and_diagnostic_categories() {
         let bound_snapshot = snapshot.bind(py);
         let files = dictionary(bound_snapshot, "stilyagi_check_files_total")
             .expect("syntax counts are present");
-        assert_eq!(
-            integer(&files, "markdown").expect("Markdown count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&files, "python").expect("Python count is an integer"),
-            1
-        );
-        assert_eq!(
-            integer(&files, "rust").expect("Rust count is an integer"),
-            1
-        );
+        assert_metric_values(&files, &[("markdown", 1), ("python", 1), ("rust", 1)]);
         let skipped = dictionary(bound_snapshot, "stilyagi_check_skipped_candidates_total")
             .expect("skip reasons are present");
-        assert_eq!(
-            integer(&skipped, "unregistered_candidate").expect("skip count is an integer"),
-            2
+        assert_metric_values(
+            &skipped,
+            &[
+                ("unregistered_candidate", 2),
+                ("symlinked_directory_target", 2),
+                ("unsupported_candidate_type", 2),
+            ],
         );
-        assert_eq!(
-            integer(&skipped, "symlinked_directory_target").expect("symlink count is an integer"),
-            2
-        );
-        assert_eq!(
-            integer(&skipped, "unsupported_candidate_type")
-                .expect("unsupported candidate count is an integer"),
-            2
-        );
-        assert_metric_categories(
-            bound_snapshot,
-            "stilyagi_check_diagnostics_total",
-            &[("error", 2), ("warning", 3)],
-        )
-        .expect("diagnostic counts contain only fixed severity categories");
+        let diagnostics = dictionary(bound_snapshot, "stilyagi_check_diagnostics_total")
+            .expect("diagnostic severities are present");
+        assert_metric_values(&diagnostics, &[("error", 2), ("warning", 3)]);
     });
 }
 
@@ -292,14 +269,14 @@ fn serializes_unreadable_and_operational_failure_totals() {
     let snapshot = populated_snapshot().expect("bounded metrics serialize");
     Python::attach(|py| {
         let bound_snapshot = snapshot.bind(py);
-        assert_eq!(
-            integer(bound_snapshot, "stilyagi_check_unreadable_files_total")
-                .expect("unreadable count is an integer"),
-            1
-        );
-        assert_metric_categories(
+        assert_metric_values(
             bound_snapshot,
-            "stilyagi_check_operational_failures_total",
+            &[("stilyagi_check_unreadable_files_total", 1)],
+        );
+        let failures = dictionary(bound_snapshot, "stilyagi_check_operational_failures_total")
+            .expect("operational failure categories are present");
+        assert_metric_values(
+            &failures,
             &[
                 ("discovery", 1),
                 ("read", 1),
@@ -308,8 +285,7 @@ fn serializes_unreadable_and_operational_failure_totals() {
                 ("rules", 1),
                 ("render", 1),
             ],
-        )
-        .expect("operational failure counts match their categories");
+        );
     });
 }
 
@@ -326,8 +302,7 @@ fn serializes_extraction_document_and_recovery_counts() {
                 ("stilyagi_python_extraction_recovery_errors_total", 2),
                 ("stilyagi_rust_extraction_recovery_errors_total", 2),
             ],
-        )
-        .expect("document and recovery counts match each extraction syntax");
+        );
     });
 }
 
@@ -346,9 +321,7 @@ fn serializes_fatal_extraction_error_categories() {
             "stilyagi_rust_extraction_fatal_errors_total",
         )
         .expect("Rust fatal errors are present");
-        assert_metric_values(&python, &[("grammar_load", 1), ("no_parse_tree", 1)])
-            .expect("Python fatal error counts match their categories");
-        assert_metric_values(&rust, &[("grammar_load", 1), ("no_parse_tree", 1)])
-            .expect("Rust fatal error counts match their categories");
+        assert_metric_values(&python, &[("grammar_load", 1), ("no_parse_tree", 1)]);
+        assert_metric_values(&rust, &[("grammar_load", 1), ("no_parse_tree", 1)]);
     });
 }

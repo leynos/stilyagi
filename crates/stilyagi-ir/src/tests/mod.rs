@@ -13,14 +13,25 @@ use super::{
 mod segment_properties;
 mod suppression;
 
-/// Keep the marker type default stable and comparable.
-#[test]
-#[expect(
-    clippy::default_constructed_unit_structs,
-    reason = "this test explicitly exercises the Default implementation"
-)]
-fn ir_boundary_default_matches_the_marker_value() {
-    assert_eq!(IrBoundary::default(), IrBoundary);
+/// Assert that `value` serializes to `expected_json` and deserializes back to
+/// an equal value.
+///
+/// Failures panic through `match` rather than `.expect()` so that this shared,
+/// non-test helper stays within the no-`expect`-outside-tests policy.
+#[track_caller]
+fn assert_json_round_trip<T>(value: &T, expected_json: &serde_json::Value)
+where
+    T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+{
+    let json = match serde_json::to_value(value) {
+        Ok(json) => json,
+        Err(error) => panic!("expected {value:?} to serialize to JSON: {error}"),
+    };
+    assert_eq!(&json, expected_json);
+    match serde_json::from_value::<T>(json) {
+        Ok(round_tripped) => assert_eq!(&round_tripped, value),
+        Err(error) => panic!("expected JSON for {value:?} to deserialize: {error}"),
+    }
 }
 
 /// Keep the marker type clone semantics trivial.

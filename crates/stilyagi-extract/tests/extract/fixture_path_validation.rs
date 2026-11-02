@@ -1,17 +1,6 @@
 //! Integration tests for corpus fixture path rejection.
 
-#[rstest::rstest]
-fn corpus_fixture_path_rejects_absolute_path() {
-    let path = "/etc/passwd";
-    let Err(error) = stilyagi_test_support::corpus_fixture_path(path) else {
-        panic!("expected absolute path rejection");
-    };
-    assert_eq!(
-        error.kind,
-        stilyagi_test_support::FixturePathErrorKind::Absolute,
-    );
-}
-
+#[track_caller]
 fn assert_corpus_fixture_path_rejects(
     path: impl AsRef<std::path::Path>,
     expected_kind: stilyagi_test_support::FixturePathErrorKind,
@@ -20,6 +9,14 @@ fn assert_corpus_fixture_path_rejects(
         panic!("expected a FixturePathError with kind {expected_kind:?}");
     };
     assert_eq!(error.kind, expected_kind);
+}
+
+#[rstest::rstest]
+fn corpus_fixture_path_rejects_absolute_path() {
+    assert_corpus_fixture_path_rejects(
+        "/etc/passwd",
+        stilyagi_test_support::FixturePathErrorKind::Absolute,
+    );
 }
 
 #[rstest::rstest]

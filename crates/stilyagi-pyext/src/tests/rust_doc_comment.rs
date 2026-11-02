@@ -2,11 +2,12 @@
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::Python;
-use pyo3::types::{PyAnyMethods, PyDictMethods, PyList, PyListMethods};
+use pyo3::types::PyListMethods;
 
+use super::payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text};
 use super::{
     ExtractError, ExtractSyntax, RustExtractError, assert_ir_json_contract,
-    bridge_extract_document, map_extract_error, region_at,
+    bridge_extract_document, map_extract_error,
 };
 
 #[rstest::rstest]
@@ -19,51 +20,23 @@ fn extract_document_py_exposes_rust_doc_comments() {
 
     Python::attach(|py| {
         let document_dict = document.bind(py);
-        let regions_any = document_dict
-            .get_item("regions")
-            .expect("missing regions payload");
-        let regions_value = regions_any.expect("missing regions value");
-        let regions = regions_value
-            .cast::<PyList>()
-            .expect("Rust regions payload should be a PyList");
-        let first_region = region_at(regions, 0);
+        let regions = dict_list(document_dict, "regions").expect("Rust regions should be a list");
+        let first_region = list_dict_at(&regions, 0).expect("first Rust region should be a dict");
 
         assert_eq!(
-            document_dict
-                .get_item("syntax")
-                .expect("missing syntax payload")
-                .expect("missing syntax value")
-                .extract::<&str>()
-                .expect("expected syntax string"),
+            dict_string(document_dict, "syntax").expect("syntax payload should be a string"),
             ExtractSyntax::RustDocComment.as_str(),
         );
         assert_eq!(regions.len(), 4);
         assert_eq!(
-            first_region
-                .get_item("kind")
-                .expect("missing kind payload")
-                .expect("missing kind value")
-                .extract::<&str>()
-                .expect("expected kind string"),
-            "rust_doc_comment",
+            region_kind_and_text(&first_region).expect("region should carry kind and text"),
+            (
+                "rust_doc_comment".to_owned(),
+                " Crate-level documentation comment for the shared Stilyagi corpus.".to_owned(),
+            ),
         );
-        assert_eq!(
-            first_region
-                .get_item("text")
-                .expect("missing text payload")
-                .expect("missing text value")
-                .extract::<&str>()
-                .expect("expected text string"),
-            " Crate-level documentation comment for the shared Stilyagi corpus.",
-        );
-        let ir_json = document_dict
-            .get_item("ir_json")
-            .expect("missing IR payload")
-            .expect("missing IR value")
-            .extract::<String>()
-            .expect("expected IR JSON string");
-        let parsed_ir: serde_json::Value =
-            serde_json::from_str(&ir_json).expect("expected parseable IR JSON");
+        let ir_json = dict_string(document_dict, "ir_json").expect("IR payload should be a string");
+        let parsed_ir = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
         let first_ir_region = parsed_ir
             .get("regions")
             .and_then(serde_json::Value::as_array)
@@ -77,7 +50,7 @@ fn extract_document_py_exposes_rust_doc_comments() {
         assert_eq!(owner.get("kind"), Some(&serde_json::json!("module")));
         assert_eq!(owner.get("name"), Some(&serde_json::Value::Null));
         assert_eq!(owner.get("qualname"), Some(&serde_json::Value::Null));
-        assert_ir_json_contract(&ir_json);
+        assert_ir_json_contract(&parsed_ir);
     });
 }
 

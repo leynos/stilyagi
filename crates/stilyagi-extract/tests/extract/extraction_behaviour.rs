@@ -1,36 +1,25 @@
 //! Integration tests for extraction behaviour and region contracts.
 
 use rstest::rstest;
-use stilyagi_extract::ExtractSyntax;
+use stilyagi_extract::{ExtractDocument, ExtractError, ExtractSyntax};
 use stilyagi_test_support::read_corpus_fixture;
 
 use crate::test_utils::{
-    boundary, extracted_blank_markdown_documents, extracted_markdown, extracted_unicode_markdown,
-    must_reject_syntax_name, shared_markdown_source, shared_python_source, shared_rust_source,
+    FixtureSource, boundary, extracted_blank_markdown_documents, extracted_markdown,
+    extracted_unicode_markdown, shared_markdown_source, shared_python_source, shared_rust_source,
+    syntax_name_rejection,
 };
 
 #[rstest]
-fn extract_boundary_default_matches_another_default() {
-    assert_eq!(boundary(), boundary());
-}
-
-#[rstest]
-#[expect(
-    clippy::default_constructed_unit_structs,
-    reason = "this test explicitly exercises marker Default implementations"
-)]
-fn extract_boundary_accessors_expose_the_expected_markers() {
+fn extract_boundary_default_exposes_the_expected_markers() {
     let boundary = boundary();
 
-    assert_eq!(
-        boundary.markdown(),
-        &stilyagi_markdown::MarkdownBoundary::default()
-    );
+    assert_eq!(boundary.markdown(), &stilyagi_markdown::MarkdownBoundary);
     assert_eq!(
         boundary.tree_sitter(),
-        &stilyagi_tree_sitter::TreeSitterBoundary::default()
+        &stilyagi_tree_sitter::TreeSitterBoundary
     );
-    assert_eq!(boundary.ir(), &stilyagi_ir::IrBoundary::default());
+    assert_eq!(boundary.ir(), &stilyagi_ir::IrBoundary);
 }
 
 #[rstest]
@@ -52,18 +41,20 @@ fn extract_boundary_debug_output_mentions_the_type_name() {
 
 #[rstest]
 fn markdown_extraction_reports_markdown_syntax(
-    extracted_markdown: stilyagi_extract::ExtractDocument,
+    extracted_markdown: Result<ExtractDocument, ExtractError>,
 ) {
-    assert_eq!(extracted_markdown.syntax(), ExtractSyntax::Markdown);
+    let document = extracted_markdown.expect("extracted_markdown fixture should extract");
+
+    assert_eq!(document.syntax(), ExtractSyntax::Markdown);
 }
 
 #[rstest]
 fn empty_markdown_extraction_yields_no_regions(
-    extracted_blank_markdown_documents: Vec<stilyagi_extract::ExtractDocument>,
+    extracted_blank_markdown_documents: Result<Vec<ExtractDocument>, ExtractError>,
 ) {
-    let document = extracted_blank_markdown_documents
-        .first()
-        .expect("expected empty Markdown fixture");
+    let documents = extracted_blank_markdown_documents
+        .expect("extracted_blank_markdown_documents fixture should extract");
+    let document = documents.first().expect("expected empty Markdown fixture");
 
     assert_eq!(document.regions(), []);
     assert!(document.ir().is_some());
@@ -71,9 +62,11 @@ fn empty_markdown_extraction_yields_no_regions(
 
 #[rstest]
 fn whitespace_markdown_extraction_yields_no_regions(
-    extracted_blank_markdown_documents: Vec<stilyagi_extract::ExtractDocument>,
+    extracted_blank_markdown_documents: Result<Vec<ExtractDocument>, ExtractError>,
 ) {
-    let document = extracted_blank_markdown_documents
+    let documents = extracted_blank_markdown_documents
+        .expect("extracted_blank_markdown_documents fixture should extract");
+    let document = documents
         .get(1)
         .expect("expected whitespace Markdown fixture");
 
@@ -83,11 +76,11 @@ fn whitespace_markdown_extraction_yields_no_regions(
 
 #[rstest]
 fn non_blank_markdown_extraction_yields_one_document_region(
-    extracted_markdown: stilyagi_extract::ExtractDocument,
+    extracted_markdown: Result<ExtractDocument, ExtractError>,
 ) {
-    assert_eq!(extracted_markdown.regions().len(), 1);
-    let first_region = extracted_markdown.regions().first();
-
+    let document = extracted_markdown.expect("extracted_markdown fixture should extract");
+    assert_eq!(document.regions().len(), 1);
+    let first_region = document.regions().first();
     assert_eq!(
         first_region.and_then(stilyagi_extract::ExtractRegion::region_kind),
         Some(stilyagi_extract::RegionKind::Document)
@@ -104,9 +97,11 @@ fn non_blank_markdown_extraction_yields_one_document_region(
 
 #[rstest]
 fn markdown_extraction_preserves_unicode_text(
-    extracted_unicode_markdown: stilyagi_extract::ExtractDocument,
+    extracted_unicode_markdown: Result<ExtractDocument, ExtractError>,
 ) {
-    let first_region = extracted_unicode_markdown.regions().first();
+    let document =
+        extracted_unicode_markdown.expect("extracted_unicode_markdown fixture should extract");
+    let first_region = document.regions().first();
 
     assert_eq!(
         first_region.map(stilyagi_extract::ExtractRegion::text),
@@ -123,11 +118,11 @@ struct ExtractionExpectation<'a> {
     text: &'a str,
 }
 
-fn assert_shared_fixture_extraction(source: &str, expected: ExtractionExpectation<'_>) {
-    let document = match stilyagi_extract::extract_document(source, expected.syntax) {
-        Ok(document) => document,
-        Err(error) => panic!("expected shared fixture extraction: {error}"),
-    };
+#[track_caller]
+fn assert_shared_fixture_extraction(
+    document: &ExtractDocument,
+    expected: ExtractionExpectation<'_>,
+) {
     let first_region = document.regions().first();
 
     assert_eq!(document.syntax(), expected.syntax);
@@ -149,23 +144,33 @@ fn assert_shared_fixture_extraction(source: &str, expected: ExtractionExpectatio
 }
 
 #[rstest]
-fn markdown_extraction_preserves_the_shared_markdown_fixture(shared_markdown_source: String) {
+fn markdown_extraction_preserves_the_shared_markdown_fixture(
+    shared_markdown_source: FixtureSource,
+) {
+    let source = shared_markdown_source.expect("shared Markdown corpus fixture should be readable");
+    let document = stilyagi_extract::extract_document(&source, ExtractSyntax::Markdown)
+        .expect("shared Markdown fixture should extract");
+
     assert_shared_fixture_extraction(
-        shared_markdown_source.as_str(),
+        &document,
         ExtractionExpectation {
             syntax: ExtractSyntax::Markdown,
             region_count: None,
             region_kind: stilyagi_extract::RegionKind::Document,
             kind_str: "document",
-            text: shared_markdown_source.as_str(),
+            text: source.as_str(),
         },
     );
 }
 
 #[rstest]
-fn python_extraction_preserves_shared_fixture_docstrings(shared_python_source: String) {
+fn python_extraction_preserves_shared_fixture_docstrings(shared_python_source: FixtureSource) {
+    let source = shared_python_source.expect("shared Python corpus fixture should be readable");
+    let document = stilyagi_extract::extract_document(&source, ExtractSyntax::PythonDocstring)
+        .expect("shared Python fixture should extract");
+
     assert_shared_fixture_extraction(
-        &shared_python_source,
+        &document,
         ExtractionExpectation {
             syntax: ExtractSyntax::PythonDocstring,
             region_count: Some(4),
@@ -177,9 +182,13 @@ fn python_extraction_preserves_shared_fixture_docstrings(shared_python_source: S
 }
 
 #[rstest]
-fn rust_extraction_preserves_shared_fixture_doc_comments(shared_rust_source: String) {
+fn rust_extraction_preserves_shared_fixture_doc_comments(shared_rust_source: FixtureSource) {
+    let source = shared_rust_source.expect("shared Rust corpus fixture should be readable");
+    let document = stilyagi_extract::extract_document(&source, ExtractSyntax::RustDocComment)
+        .expect("shared Rust fixture should extract");
+
     assert_shared_fixture_extraction(
-        &shared_rust_source,
+        &document,
         ExtractionExpectation {
             syntax: ExtractSyntax::RustDocComment,
             region_count: Some(4),
@@ -218,7 +227,7 @@ fn rust_doc_comment_syntax_is_supported() {
 #[case("")]
 #[case("MARKDOWN")]
 fn try_from_str_rejects_unknown_syntax(#[case] input: &str) {
-    let error = must_reject_syntax_name(input);
+    let error = syntax_name_rejection(input).expect("unknown syntax name should be rejected");
     assert!(matches!(
         error,
         stilyagi_extract::ExtractError::UnknownSyntax(_)

@@ -1,14 +1,18 @@
 //! Tests for the Python extension bridge payload and error mapping.
 
+pub(crate) mod payload;
 mod rust_doc_comment;
 
 use super::{
     authored_directive_error_codes_py, extract_document_function, extract_document_py, hello,
     map_extract_error, supported_region_kinds_py, supported_syntaxes_py,
 };
+use payload::{
+    dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text, tuple_strings,
+};
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
-use pyo3::prelude::{Py, PyErr, PyResult, Python};
-use pyo3::types::{PyAnyMethods, PyDict, PyList, PyTuple};
+use pyo3::prelude::{Py, PyResult, Python};
+use pyo3::types::{PyAnyMethods, PyDict, PyListMethods, PyTuple};
 use rstest::rstest;
 use stilyagi_extract::{
     ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError, RustExtractError,
@@ -22,73 +26,43 @@ fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
     })
 }
 
-fn invalid_syntax_error(syntax: &str) -> PyErr {
-    bridge_extract_document("Example", syntax)
-        .expect_err(&format!("expected an error for syntax {syntax:?}"))
-}
-
-fn assert_ir_json_contract(ir_json: &str) {
-    let parsed = match serde_json::from_str::<serde_json::Value>(ir_json) {
-        Ok(parsed) => parsed,
-        Err(error) => panic!("expected parseable IR JSON: {error}"),
-    };
-
-    assert_eq!(
-        parsed.get("schema_version"),
-        Some(&serde_json::json!("1.1.0"))
-    );
-    assert!(
-        parsed
-            .get("document")
-            .is_some_and(serde_json::Value::is_object)
-    );
-
-    let Some(line_index) = parsed
+/// Name every violated clause of the canonical IR JSON envelope contract.
+fn ir_contract_violations(parsed: &serde_json::Value) -> Vec<&'static str> {
+    let has_schema_version = parsed.get("schema_version") == Some(&serde_json::json!("1.1.0"));
+    let has_document_object = parsed
+        .get("document")
+        .is_some_and(serde_json::Value::is_object);
+    let line_index_starts_at_zero = parsed
         .get("line_index")
         .and_then(serde_json::Value::as_array)
-    else {
-        panic!("expected line_index array");
-    };
-    assert_eq!(line_index.first(), Some(&serde_json::json!(0)));
+        .and_then(|line_index| line_index.first())
+        == Some(&serde_json::json!(0));
+    let has_regions_array = parsed
+        .get("regions")
+        .is_some_and(serde_json::Value::is_array);
 
-    assert!(
-        parsed
-            .get("regions")
-            .is_some_and(serde_json::Value::is_array)
+    [
+        (has_schema_version, "schema_version must be 1.1.0"),
+        (has_document_object, "document must be an object"),
+        (line_index_starts_at_zero, "line_index must start at 0"),
+        (has_regions_array, "regions must be an array"),
+    ]
+    .into_iter()
+    .filter_map(|(is_satisfied, clause)| (!is_satisfied).then_some(clause))
+    .collect()
+}
+
+#[track_caller]
+fn assert_ir_json_contract(parsed: &serde_json::Value) {
+    assert_eq!(
+        ir_contract_violations(parsed),
+        [] as [&str; 0],
+        "IR JSON contract"
     );
 }
 
-fn assert_supported_tuple_matches(
-    py: Python<'_>,
-    tuple_result: PyResult<Py<PyTuple>>,
-    expected: &[String],
-    failure_context: &str,
-) {
-    let supported_values = match tuple_result {
-        Ok(tuple) => tuple,
-        Err(error) => panic!("unexpected {failure_context} failure: {error}"),
-    };
-    let supported_tuple = supported_values.bind(py);
-    let tuple_len = match supported_tuple.len() {
-        Ok(len) => len,
-        Err(error) => panic!("expected tuple length: {error}"),
-    };
-
-    assert_eq!(tuple_len, expected.len());
-    let actual = (0..tuple_len)
-        .map(|index| {
-            let item = match supported_tuple.get_item(index) {
-                Ok(item) => item,
-                Err(error) => panic!("missing tuple item: {error}"),
-            };
-            match item.extract::<String>() {
-                Ok(value) => value,
-                Err(error) => panic!("expected tuple string: {error}"),
-            }
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(actual, expected);
+fn expected_strings<'a>(values: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+    values.into_iter().map(str::to_owned).collect()
 }
 
 #[rstest]
@@ -105,55 +79,39 @@ fn hello_is_not_the_legacy_python_fallback(#[case] legacy_fallback: &str) {
 #[rstest]
 fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
     Python::attach(|py| {
-        let expected = ExtractSyntax::ALL
-            .iter()
-            .copied()
-            .map(ExtractSyntax::as_str)
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
-
-        assert_supported_tuple_matches(
-            py,
-            supported_syntaxes_py(py),
-            &expected,
-            "supported_syntaxes",
+        let expected = expected_strings(
+            ExtractSyntax::ALL
+                .iter()
+                .copied()
+                .map(ExtractSyntax::as_str),
         );
+        let actual = tuple_strings(py, supported_syntaxes_py(py))
+            .expect("supported_syntaxes should return a tuple of strings");
+
+        assert_eq!(actual, expected);
     });
 }
 
 #[rstest]
 fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
     Python::attach(|py| {
-        let expected = IrRegionKind::ALL
-            .iter()
-            .copied()
-            .map(IrRegionKind::as_str)
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
+        let expected =
+            expected_strings(IrRegionKind::ALL.iter().copied().map(IrRegionKind::as_str));
+        let actual = tuple_strings(py, supported_region_kinds_py(py))
+            .expect("supported_region_kinds should return a tuple of strings");
 
-        assert_supported_tuple_matches(
-            py,
-            supported_region_kinds_py(py),
-            &expected,
-            "supported_region_kinds",
-        );
+        assert_eq!(actual, expected);
     });
 }
 
 #[rstest]
 fn authored_directive_error_codes_follow_the_rust_ir_vocabulary() {
     Python::attach(|py| {
-        let expected = AUTHORED_DIRECTIVE_ERROR_CODES
-            .iter()
-            .map(|code| (*code).to_owned())
-            .collect::<Vec<_>>();
+        let expected = expected_strings(AUTHORED_DIRECTIVE_ERROR_CODES.iter().copied());
+        let actual = tuple_strings(py, authored_directive_error_codes_py(py))
+            .expect("authored_directive_error_codes should return a tuple of strings");
 
-        assert_supported_tuple_matches(
-            py,
-            authored_directive_error_codes_py(py),
-            &expected,
-            "authored_directive_error_codes",
-        );
+        assert_eq!(actual, expected);
     });
 }
 
@@ -179,86 +137,25 @@ fn extract_document_function_rejects_unexpected_kwargs() {
 fn extract_document_py_exposes_markdown_document() {
     Python::attach(|py| {
         let args = PyTuple::new(py, ["# Heading", "markdown"]).expect("expected argument tuple");
-        let document_result = extract_document_py(py, &args);
-
-        assert!(document_result.is_ok());
-        let extracted_document = match document_result {
-            Ok(document) => document,
-            Err(error) => panic!("unexpected extraction failure: {error}"),
-        };
-        let extracted_document_bound = extracted_document.bind(py);
-        let extracted_document_dict = extracted_document_bound
-            .cast::<PyDict>()
-            .expect("extracted Markdown document should be a PyDict");
-        let regions_any = extracted_document_dict
-            .get_item("regions")
-            .expect("missing regions payload");
-        let ir_json_any = extracted_document_dict
-            .get_item("ir_json")
-            .expect("missing IR payload");
-        let regions = regions_any
-            .cast::<PyList>()
-            .expect("Markdown regions payload should be a PyList");
-        let first_region_any = regions.get_item(0).expect("missing first region");
-        let first_region = first_region_any
-            .cast::<PyDict>()
-            .expect("first Markdown region should be a PyDict");
+        let extracted = extract_document_py(py, &args).expect("Markdown extraction should succeed");
+        let document = extracted.bind(py);
+        let regions = dict_list(document, "regions").expect("Markdown regions should be a list");
+        let first_region =
+            list_dict_at(&regions, 0).expect("first Markdown region should be a dict");
 
         assert_eq!(
-            extracted_document_dict
-                .get_item("syntax")
-                .expect("missing syntax payload")
-                .extract::<&str>()
-                .expect("expected syntax string"),
+            dict_string(document, "syntax").expect("syntax payload should be a string"),
             ExtractSyntax::Markdown.as_str(),
         );
-        assert_eq!(regions.len().expect("expected list length"), 1,);
+        assert_eq!(regions.len(), 1);
         assert_eq!(
-            first_region
-                .get_item("kind")
-                .expect("missing kind payload")
-                .extract::<&str>()
-                .expect("expected kind string"),
-            "heading",
+            region_kind_and_text(&first_region).expect("region should carry kind and text"),
+            ("heading".to_owned(), "Heading".to_owned()),
         );
-        assert_eq!(
-            first_region
-                .get_item("text")
-                .expect("missing text payload")
-                .extract::<&str>()
-                .expect("expected text string"),
-            "Heading",
-        );
-        let ir_json = ir_json_any
-            .extract::<&str>()
-            .expect("expected IR JSON string");
-        assert_ir_json_contract(ir_json);
+        let ir_json = dict_string(document, "ir_json").expect("IR payload should be a string");
+        let parsed = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
+        assert_ir_json_contract(&parsed);
     });
-}
-
-fn region_at<'py>(regions: &pyo3::Bound<'py, PyList>, index: usize) -> pyo3::Bound<'py, PyDict> {
-    let item = match regions.get_item(index) {
-        Ok(region) => region,
-        Err(error) => panic!("missing region at index {index}: {error}"),
-    };
-    match item.cast::<PyDict>() {
-        Ok(dict) => dict.clone(),
-        Err(error) => panic!("expected PyDict but got {error}"),
-    }
-}
-
-fn assert_region(region: &pyo3::Bound<'_, PyDict>, expected_kind: &str, expected_text: &str) {
-    for (key, expected) in [("kind", expected_kind), ("text", expected_text)] {
-        let value = match region.get_item(key) {
-            Ok(payload) => payload,
-            Err(error) => panic!("missing {key} payload: {error}"),
-        };
-        let actual = match value.extract::<String>() {
-            Ok(text) => text,
-            Err(error) => panic!("expected {key} string: {error}"),
-        };
-        assert_eq!(actual, expected, "unexpected {key}");
-    }
 }
 
 #[rstest]
@@ -269,31 +166,29 @@ fn extract_document_py_exposes_python_docstrings() {
 
     Python::attach(|py| {
         let document_dict = document.bind(py);
-        let regions_any = document_dict
-            .get_item("regions")
-            .expect("missing regions payload");
-        let regions = regions_any
-            .cast::<PyList>()
-            .expect("Python regions payload should be a PyList");
+        let regions = dict_list(document_dict, "regions").expect("Python regions should be a list");
+        let region_summaries = (0..regions.len())
+            .map(|index| {
+                let region = list_dict_at(&regions, index).expect("region should be a dict");
+                region_kind_and_text(&region).expect("region should carry kind and text")
+            })
+            .collect::<Vec<_>>();
 
         assert_eq!(
-            document_dict
-                .get_item("syntax")
-                .expect("missing syntax payload")
-                .extract::<&str>()
-                .expect("expected syntax string"),
+            dict_string(document_dict, "syntax").expect("syntax payload should be a string"),
             ExtractSyntax::PythonDocstring.as_str(),
         );
-        assert_eq!(regions.len().expect("expected list length"), 2);
-        assert_region(&region_at(regions, 0), "python_docstring", "Module docs.");
-        assert_region(&region_at(regions, 1), "python_docstring", "Function docs.");
+        assert_eq!(
+            region_summaries,
+            [
+                ("python_docstring".to_owned(), "Module docs.".to_owned()),
+                ("python_docstring".to_owned(), "Function docs.".to_owned()),
+            ],
+        );
 
-        let ir_json = document_dict
-            .get_item("ir_json")
-            .expect("missing IR payload")
-            .extract::<String>()
-            .expect("expected IR JSON string");
-        assert_ir_json_contract(&ir_json);
+        let ir_json = dict_string(document_dict, "ir_json").expect("IR payload should be a string");
+        let parsed = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
+        assert_ir_json_contract(&parsed);
     });
 }
 
@@ -305,7 +200,8 @@ fn extract_document_py_rejects_invalid_syntaxes(
     #[case] syntax: &str,
     #[case] expected_fragment: &str,
 ) {
-    let err = invalid_syntax_error(syntax);
+    let err = bridge_extract_document("Example", syntax)
+        .expect_err(&format!("expected an error for syntax {syntax:?}"));
     assert!(
         err.to_string().contains(expected_fragment),
         "error message {err:?} did not contain {expected_fragment:?}"
@@ -317,13 +213,9 @@ fn extract_document_py_rejects_invalid_syntaxes(
 /// syntax strings.
 #[rstest]
 fn bridge_extract_document_rejects_unknown_syntaxes() {
-    let error_result = bridge_extract_document("example", "not_a_real_syntax");
+    let error = bridge_extract_document("example", "not_a_real_syntax")
+        .expect_err("expected unknown syntax error");
 
-    assert!(error_result.is_err());
-    let error = match error_result {
-        Ok(document) => panic!("expected unknown syntax error, got {document:?}"),
-        Err(error) => error,
-    };
     Python::attach(|py| {
         assert!(error.is_instance_of::<PyValueError>(py));
     });

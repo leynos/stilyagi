@@ -1,16 +1,9 @@
 //! Tests for Rust suppression extraction.
 
 use rstest::rstest;
-use stilyagi_ir::{SourceIdentity, SuppressionKind};
+use stilyagi_ir::SuppressionKind;
 
-use super::rust_doc_comment_ir_document;
-
-fn extract_rust(source: &str) -> stilyagi_ir::IrDocument {
-    match rust_doc_comment_ir_document(source, SourceIdentity::anonymous()) {
-        Ok(document) => document,
-        Err(error) => panic!("expected Rust extraction: {error:?}"),
-    }
-}
+use crate::test_support::extract_rust;
 
 fn node_ids(document: &stilyagi_ir::IrDocument) -> Vec<&str> {
     document.nodes.iter().map(|node| node.id.as_str()).collect()
@@ -50,7 +43,7 @@ fn directive_comments_emit_expected_suppressions(
     #[case] expected_kind: SuppressionKind,
     #[case] expected_codes: Vec<&str>,
 ) {
-    let document = extract_rust(source);
+    let document = extract_rust(source).expect("expected Rust extraction");
     let suppression = document
         .suppressions
         .first()
@@ -82,7 +75,8 @@ fn blanket_directives_emit_errors_without_suppressions() {
         "pub fn blanket() {\n",
         "    // stilyagi: disable\n",
         "}\n",
-    ));
+    ))
+    .expect("expected Rust extraction");
 
     assert_eq!(document.suppressions, []);
     assert!(
@@ -107,7 +101,8 @@ fn unknown_directive_verbs_emit_errors_without_suppressions() {
         "pub fn unknown_verb() {\n",
         "    // stilyagi: invalid-verb RUST210\n",
         "}\n",
-    ));
+    ))
+    .expect("expected Rust extraction");
 
     assert_eq!(document.suppressions, []);
     assert_eq!(document.errors.len(), 1);
@@ -127,11 +122,13 @@ fn non_marker_comments_do_not_allocate_nodes_or_suppressions() {
         "/// Documented function.\n",
         "pub fn documented() {}\n",
         "// stilyagi-disable-next-line RUST210\n",
-    ));
+    ))
+    .expect("expected Rust extraction");
     let without_comment = extract_rust(concat!(
         "/// Documented function.\n",
         "pub fn documented() {}\n",
-    ));
+    ))
+    .expect("expected Rust extraction");
 
     assert_eq!(with_comment.suppressions, []);
     assert_eq!(node_ids(&with_comment), node_ids(&without_comment));
@@ -148,7 +145,8 @@ fn directives_inside_nested_and_recovered_subtrees_are_collected() {
         "pub fn broken() {\n",
         "    let value = \"unterminated;\n",
         "    // stilyagi: ignore-file\n",
-    ));
+    ))
+    .expect("expected Rust extraction");
 
     assert!(
         document

@@ -8,9 +8,9 @@ use stilyagi_ir::{IrDocument, RegionKind};
 use stilyagi_test_support::{read_corpus_fixture, read_corpus_fixture_bytes};
 
 use super::{
-    parent_regions_reference_earlier_regions, region_segments_are_contiguous,
-    regions_reconstruct_text, source_backed_segments_match_source, source_identity,
-    synthetic_segments_use_known_reasons,
+    assert_canonical_json_round_trip, parent_regions_reference_earlier_regions,
+    region_segments_are_contiguous, regions_reconstruct_text, source_backed_segments_match_source,
+    source_identity, synthetic_segments_use_known_reasons,
 };
 use crate::markdown_ir_document;
 
@@ -33,13 +33,8 @@ fn malformed_markdown_recovers_to_reviewed_degraded_regions(
 ) {
     let source = read_corpus_fixture(relative_path).expect("expected malformed Markdown fixture");
     let document = document_for(relative_path, &source).expect("expected Markdown IR document");
-    let json = document
-        .to_canonical_json()
-        .expect("expected canonical JSON");
-    let parsed =
-        serde_json::from_str::<IrDocument>(&json).expect("expected canonical JSON round-trip");
+    assert_canonical_json_round_trip(&document);
 
-    assert_eq!(parsed, document);
     assert!(regions_reconstruct_text(&document));
     assert!(region_segments_are_contiguous(&document));
     assert!(source_backed_segments_match_source(&document, &source));
@@ -102,10 +97,7 @@ fn empty_list_item_does_not_emit_empty_garbage_text_region() {
     );
 }
 
-/// Build the IR document for one corpus fixture.
-///
-/// Arrangement is fallible, so this propagates instead of panicking; callers
-/// unwrap in the test body, where a failure is the test verdict.
+/// Build the Markdown IR document for a fixture, propagating parse failures.
 fn document_for(relative_path: &str, source: &str) -> Result<IrDocument, Message> {
     markdown_ir_document(source, source_identity(Path::new(relative_path)))
 }
