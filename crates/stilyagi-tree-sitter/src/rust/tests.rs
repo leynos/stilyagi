@@ -56,17 +56,16 @@ fn assert_crate_comment(root: Node<'_>, text: &str) {
 
 /// Assert the documented items and the suppression marker's shape.
 fn assert_documented_items(
+    source: &str,
     struct_item: Node<'_>,
-    struct_name: &str,
     method_item: Node<'_>,
-    method_name: &str,
     suppressed_text: &str,
 ) {
     let actual = (
         struct_item.kind(),
-        struct_name,
+        name_text(source, struct_item).expect("struct item should expose its name field"),
         method_item.kind(),
-        method_name,
+        name_text(source, method_item).expect("function item should expose its name field"),
         suppressed_text.starts_with("//"),
         suppressed_text.starts_with("///"),
     );
@@ -92,27 +91,17 @@ fn shared_fixture_exposes_doc_comment_nodes_and_siblings() {
         text_for_node(&source, crate_comment).expect("crate doc comment should be valid UTF-8");
     let struct_item = documented_item(&source, root, "/// Item-level")
         .expect("struct doc comment should have a sibling item");
-    let struct_name =
-        name_text(&source, struct_item).expect("struct item should expose its name field");
     let impl_item =
         direct_named_child_with_kind(root, "impl_item").expect("fixture should contain an impl");
     let method_item = documented_item(&source, impl_item, "/// Method")
         .expect("method doc comment should have a sibling item");
-    let method_name =
-        name_text(&source, method_item).expect("function item should expose its name field");
     let suppressed_comment = line_comment_starting_with(&source, root, "// stilyagi: ignore-next")
         .expect("expected suppression marker");
     let suppressed_text = text_for_node(&source, suppressed_comment)
         .expect("suppression marker should be valid UTF-8");
 
     assert_crate_comment(root, crate_comment_text);
-    assert_documented_items(
-        struct_item,
-        struct_name,
-        method_item,
-        method_name,
-        suppressed_text,
-    );
+    assert_documented_items(&source, struct_item, method_item, suppressed_text);
 }
 
 #[rstest]
