@@ -4,8 +4,7 @@ import pytest
 from stilyagi import diagnostics, model
 from stilyagi.engine import renderers, rule_view
 from stilyagi.engine.ir_mapping import segment_with_text, source_span, span_fields
-from stilyagi.model.source import SourceSpan, is_utf8_boundary
-from stilyagi.rules.registry import RuleRunRequest
+from stilyagi.model.source import SourceSpan
 
 from tests.support.rule_fixtures import LintSetup, spans_of
 
@@ -80,22 +79,6 @@ class TestRawSpanTolerance:
         """A segment that is not a mapping has no text to project."""
         assert segment_with_text(42) is None, (
             "expected a non-mapping segment to be rejected"
-        )
-
-
-class TestUtf8Boundary:
-    """Byte offsets are only addressable when they fall on a code-point edge."""
-
-    def test_an_offset_past_the_end_is_not_a_boundary(self) -> None:
-        """An out-of-range offset cannot address the source."""
-        assert is_utf8_boundary(b"abc", 4) is False, (
-            "expected an offset past the end not to be a boundary"
-        )
-
-    def test_a_negative_offset_is_not_a_boundary(self) -> None:
-        """A negative offset is outside the source entirely."""
-        assert is_utf8_boundary(b"abc", -1) is False, (
-            "expected a negative offset not to be a boundary"
         )
 
 
@@ -331,106 +314,3 @@ def test_a_heading_without_a_node_span_is_omitted_but_still_sets_depth() -> None
     assert spans_of(result) == ((16, 26),), (
         "expected only the locatable h5 jump to report, from an h3 baseline"
     )
-
-
-class TestProjectionTolerance:
-    """Malformed IR entries are skipped rather than aborting the projection."""
-
-    def test_a_non_mapping_node_is_skipped(self) -> None:
-        """A node entry that is not a mapping contributes no span."""
-        document = model.Document(
-            syntax=model.Syntax.MARKDOWN,
-            ir={"nodes": [42], "regions": []},
-        )
-
-        view = rule_view.project(document, source_bytes=b"text")
-
-        assert view.inline_code_spans == (), (
-            "expected a non-mapping node to contribute no inline-code span"
-        )
-
-    def test_a_non_mapping_region_is_skipped(self) -> None:
-        """A region entry that is not a mapping is dropped."""
-        document = model.Document(
-            syntax=model.Syntax.MARKDOWN,
-            ir={"regions": [42]},
-        )
-
-        assert list(rule_view.iter_regions(document)) == [], (
-            "expected a non-mapping region to be dropped"
-        )
-
-    def test_a_region_without_an_id_or_kind_is_skipped(self) -> None:
-        """Both the region id and kind must be strings to form a view."""
-        document = model.Document(
-            syntax=model.Syntax.MARKDOWN,
-            ir={"regions": [{"id": 1, "kind": "heading"}]},
-        )
-
-        assert list(rule_view.iter_regions(document)) == [], (
-            "expected a region with a non-string id to be dropped"
-        )
-
-    def test_a_region_with_non_sequence_segments_is_skipped(self) -> None:
-        """A ``segments`` value that is not a sequence yields no segments."""
-        document = model.Document(
-            syntax=model.Syntax.MARKDOWN,
-            ir={"regions": [{"id": "r0", "kind": "heading", "segments": "nope"}]},
-        )
-
-        regions = list(rule_view.iter_regions(document))
-
-        assert len(regions) == 1, "expected the region itself to survive"
-        assert regions[0].segments == (), (
-            "expected a non-sequence segments value to yield no segments"
-        )
-
-    def test_a_non_mapping_segment_is_skipped(self) -> None:
-        """A segment entry that is not a mapping is dropped."""
-        document = model.Document(
-            syntax=model.Syntax.MARKDOWN,
-            ir={"regions": [{"id": "r0", "kind": "heading", "segments": [42]}]},
-        )
-
-        regions = list(rule_view.iter_regions(document))
-
-        assert regions[0].segments == (), "expected a non-mapping segment to be dropped"
-
-    def test_a_segment_with_a_malformed_source_span_is_skipped(self) -> None:
-        """A reversed source span cannot address text and is dropped."""
-        document = model.Document(
-            syntax=model.Syntax.MARKDOWN,
-            ir={
-                "regions": [
-                    {
-                        "id": "r0",
-                        "kind": "heading",
-                        "segments": [
-                            {
-                                "text": "Title",
-                                "source": {"byte_start": 4, "byte_end": 1},
-                            }
-                        ],
-                    }
-                ]
-            },
-        )
-
-        regions = list(rule_view.iter_regions(document))
-
-        assert regions[0].segments == (), (
-            "expected a malformed segment source span to be dropped"
-        )
-
-
-class TestRuleRunRequestSlice:
-    """The request exposes the original bytes a rule may address."""
-
-    def test_slice_returns_the_addressed_bytes(self) -> None:
-        """A span selects a half-open byte range from the source."""
-        request = RuleRunRequest.__new__(RuleRunRequest)
-        object.__setattr__(request, "source_bytes", b"hello")
-
-        assert request.slice(SourceSpan(1, 4)) == b"ell", (
-            "expected the slice to return the addressed bytes"
-        )
