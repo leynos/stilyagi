@@ -348,9 +348,10 @@ with error exit 1. An invalid `TERM001` option exits 2.
   itself drops. Focused tests now exercise the malformed-IR tolerance paths in
   the projection and span helpers, the suppression resolver's ignored-directive
   cases, the line-index fallback, and the pack inventory and selection seams.
-  Local Python coverage rose from 90.00% to 91.20%, which restores the hosted
-  margin. `origin/main` then advanced to `58f82d73`; the branch replayed 22
-  commits with no conflicts and `range-diff` shows every commit unchanged.
+  Local Python coverage rose from 90.00% to 91.20%, which was not enough to
+  restore the hosted margin. `origin/main` then advanced to `58f82d73`; the
+  branch replayed 22 commits with no conflicts and `range-diff` shows every
+  commit unchanged.
 - [x] (2026-11-02) Split the tolerance tests and gate the published head
   `e15c0671`. The new coverage tests pushed two modules past the 400-line
   limit, so the malformed-IR and source-coordinate tolerance cases moved to
@@ -361,6 +362,15 @@ with error exit 1. An invalid `TERM001` option exits 2.
   pytest 1031 passed with 19 snapshots, the doctest lane 120 passed with 3
   skipped, and `make duplication-test` 154 passed. The head was force-pushed
   with a lease bound to the previous remote head `633ebded`.
+- [x] (2026-11-02) Close the hosted coverage shortfall. Hosted `lint-test` on
+  `e15c0671` measured 91.69% against the 92.88% maximum baseline, so with the
+  1.00-point tolerance the gate required 91.88% and failed by 0.19 points. The
+  bridge adapter and the config schema retained coverable error branches that
+  no test reached, so `tests/test_extraction_payload_validation.py` now injects
+  malformed payloads at the `_extract_bridge_payload` seam and
+  `tests/test_config_schema_validation.py` exercises each validator's rejection
+  path. Local Python coverage rose from 91.20% to 92.39% (224 missed of 2944
+  statements), roughly 0.5 points above the hosted requirement.
 
 ## Surprises & discoveries
 
@@ -631,14 +641,18 @@ Because the baseline is a maximum ratchet, it does not fall when main itself
 drops, so the branch had to rise rather than wait for the baseline to move.
 Focused tests for the malformed-IR tolerance paths, the suppression resolver's
 ignored-directive cases, the line-index fallback, and the pack inventory and
-selection seams raised local Python coverage from 90.00% to 91.20%. The branch
-is now rebased onto `58f82d73`, and the published head is `e15c0671`, which
-splits the tolerance tests into their own module to keep every file under the
-400-line limit. On that head the deterministic gates `check-fmt`, `typecheck`,
-`lint`, `markdownlint`, and `nixie` pass, and `make test` passes with 363
-nextest tests, pytest 1031 passed with 19 snapshots, the doctest lane 120
-passed with 3 skipped, and `make duplication-test` 154 passed. Hosted results
-for `e15c0671` are recorded in the delivery ledger once they complete.
+selection seams raised local Python coverage from 90.00% to 91.20%, which
+proved insufficient: hosted `lint-test` on `e15c0671` measured 91.69% and
+failed by 0.19 points. A second repair added contract tests for the Rust bridge
+payload adapter and for each config-schema validator, raising local coverage to
+92.39%. The branch is rebased onto `58f82d73`; `e15c0671` split the tolerance
+tests into their own module to keep every file under the 400-line limit. On
+that head the deterministic gates `check-fmt`, `typecheck`, `lint`,
+`markdownlint`, and `nixie` pass, and `make test` passes with 363 nextest
+tests, pytest 1031 passed with 19 snapshots, the doctest lane 120 passed with 3
+skipped, and `make duplication-test` 154 passed. Hosted results for `e15c0671`
+and the second repair head are recorded in the delivery ledger once they
+complete.
 
 The lasting lesson from the rebase is that changing a seam and a rendered
 payload in the same slice makes every test that stubs the seam a manual-merge
