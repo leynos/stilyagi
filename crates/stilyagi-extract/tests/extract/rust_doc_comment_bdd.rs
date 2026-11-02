@@ -8,6 +8,8 @@ use stilyagi_test_support::{
     FixtureReadError, MALFORMED_RUST_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH, read_corpus_fixture,
 };
 
+use crate::test_utils::{ensure, ensure_eq};
+
 #[derive(Default)]
 struct RustDocCommentState {
     source: Option<String>,
@@ -93,16 +95,16 @@ fn each_doc_comment_region_records_its_prose_text(
         .map(|region| region.text.as_str())
         .collect::<Vec<_>>();
 
-    assert_eq!(
-        texts,
-        vec![
+    ensure_eq(
+        &texts,
+        &vec![
             " Crate-level documentation comment for the shared Stilyagi corpus.",
             " Item-level documentation comment used by later Rust extraction slices.",
             " Method documentation comment with extractable prose.",
             " Function documentation comment after a suppression marker.",
         ],
-    );
-    Ok(())
+        "doc-comment prose texts did not match the shared fixture",
+    )
 }
 
 #[then("each doc-comment region records its owning item kind and qualified name")]
@@ -122,13 +124,11 @@ fn each_doc_comment_region_records_its_owning_item_kind_and_qualified_name(
             })
         })
         .collect::<Option<Vec<_>>>();
-    let Some(owners) = maybe_owners else {
-        panic!("expected every Rust region to record owner metadata");
-    };
+    let owners = maybe_owners.ok_or("expected every Rust region to record owner metadata")?;
 
-    assert_eq!(
-        owners,
-        vec![
+    ensure_eq(
+        &owners,
+        &vec![
             ("module", None, None),
             ("struct", Some("FixtureExample"), Some("FixtureExample")),
             (
@@ -142,8 +142,8 @@ fn each_doc_comment_region_records_its_owning_item_kind_and_qualified_name(
                 Some("fixture_function"),
             ),
         ],
-    );
-    Ok(())
+        "Rust owner metadata did not match the shared fixture",
+    )
 }
 
 #[then("the crate documentation comment is still extracted")]
@@ -153,21 +153,28 @@ fn the_crate_documentation_comment_is_still_extracted(
     let ir = extracted_ir(rust_doc_comment_state)?;
     let regions = rust_doc_comment_regions(ir);
 
-    assert_eq!(regions.len(), 1);
-    let Some(region) = regions.first() else {
-        panic!("expected malformed Rust crate doc-comment");
-    };
-    assert_eq!(
-        region.text,
-        " Crate-level documentation before malformed Rust source."
-    );
-    let Some(owner) = region.owner.as_ref() else {
-        panic!("expected module owner metadata");
-    };
-    assert_eq!(owner.kind, "module");
-    assert_eq!(owner.name, None);
-    assert_eq!(owner.qualname, None);
-    Ok(())
+    ensure_eq(&regions.len(), &1, "expected one Rust doc-comment region")?;
+    let region = regions
+        .first()
+        .ok_or("expected malformed Rust crate doc-comment")?;
+    ensure_eq(
+        &region.text.as_str(),
+        &" Crate-level documentation before malformed Rust source.",
+        "crate doc-comment text did not match the malformed fixture",
+    )?;
+    let owner = region
+        .owner
+        .as_ref()
+        .ok_or("expected module owner metadata")?;
+    ensure(owner.kind == "module", "expected the owner to be a module")?;
+    ensure(
+        owner.name.is_none(),
+        "expected the module owner to be unnamed",
+    )?;
+    ensure(
+        owner.qualname.is_none(),
+        "expected the module owner to be unqualified",
+    )
 }
 
 #[then("a recoverable Rust parse error is recorded")]
@@ -176,13 +183,16 @@ fn a_recoverable_rust_parse_error_is_recorded(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ir = extracted_ir(rust_doc_comment_state)?;
 
-    assert_ne!(ir.errors, []);
-    assert!(
+    ensure(
+        !ir.errors.is_empty(),
+        "expected at least one Rust extraction error",
+    )?;
+    ensure(
         ir.errors
             .iter()
-            .any(|error| error.code == "rust-parse-recovery")
-    );
-    Ok(())
+            .any(|error| error.code == "rust-parse-recovery"),
+        "expected a rust-parse-recovery error",
+    )
 }
 
 #[scenario(

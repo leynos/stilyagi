@@ -16,6 +16,41 @@ use stilyagi_test_support::{
 /// Outcome of reading a corpus fixture, handed to tests as a fixture value.
 pub(crate) type FixtureSource = Result<String, FixtureReadError>;
 
+/// Return an error carrying `message` when `condition` is false.
+///
+/// BDD step functions return `Result`, so an expectation they express must
+/// become an error rather than a panic; clippy's `panic_in_result_fn` enforces
+/// that boundary across the extraction step modules.
+pub(crate) fn ensure(
+    condition: bool,
+    message: &'static str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if condition {
+        Ok(())
+    } else {
+        Err(message.into())
+    }
+}
+
+/// Return an error describing a mismatch between `actual` and `expected`.
+///
+/// The error carries both values so a failing scenario names the observed
+/// shape rather than only the step that expected it.
+pub(crate) fn ensure_eq<T>(
+    actual: &T,
+    expected: &T,
+    context: &'static str,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    T: PartialEq + std::fmt::Debug + ?Sized,
+{
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(format!("{context}: expected {expected:?}, got {actual:?}").into())
+    }
+}
+
 pub(crate) fn boundary() -> stilyagi_extract::ExtractBoundary {
     stilyagi_extract::ExtractBoundary::default()
 }

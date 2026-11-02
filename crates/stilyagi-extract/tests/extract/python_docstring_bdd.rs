@@ -9,6 +9,8 @@ use stilyagi_test_support::{
     read_corpus_fixture,
 };
 
+use crate::test_utils::{ensure, ensure_eq};
+
 #[derive(Default)]
 struct PythonDocstringState {
     source: Option<String>,
@@ -94,16 +96,16 @@ fn each_docstring_region_records_its_prose_text(
         .map(|region| region.text.as_str())
         .collect::<Vec<_>>();
 
-    assert_eq!(
-        texts,
-        vec![
+    ensure_eq(
+        &texts,
+        &vec![
             "Module docstring for the shared Stilyagi corpus.",
             "Class docstring with prose for extraction tests.",
             "Return a documented value from a method docstring.",
             "Use a function docstring for later Python extraction slices.",
         ],
-    );
-    Ok(())
+        "docstring prose texts did not match the shared fixture",
+    )
 }
 
 #[then("each docstring region records its owning symbol kind and qualified name")]
@@ -123,13 +125,11 @@ fn each_docstring_region_records_its_owning_symbol_kind_and_qualified_name(
             })
         })
         .collect::<Option<Vec<_>>>();
-    let Some(owners) = maybe_owners else {
-        panic!("expected every Python region to record owner metadata");
-    };
+    let owners = maybe_owners.ok_or("expected every Python region to record owner metadata")?;
 
-    assert_eq!(
-        owners,
-        vec![
+    ensure_eq(
+        &owners,
+        &vec![
             ("module", None, None),
             ("class", Some("FixtureExample"), Some("FixtureExample")),
             ("function", Some("method"), Some("FixtureExample.method")),
@@ -139,8 +139,8 @@ fn each_docstring_region_records_its_owning_symbol_kind_and_qualified_name(
                 Some("fixture_function"),
             ),
         ],
-    );
-    Ok(())
+        "Python owner metadata did not match the shared fixture",
+    )
 }
 
 #[then("the module docstring is still extracted")]
@@ -150,21 +150,28 @@ fn the_module_docstring_is_still_extracted(
     let ir = extracted_ir(python_docstring_state)?;
     let regions = python_docstring_regions(ir);
 
-    assert_eq!(regions.len(), 1);
-    let Some(region) = regions.first() else {
-        panic!("expected malformed Python module docstring");
-    };
-    assert_eq!(
-        region.text,
-        "Module docstring before malformed Python source."
-    );
-    let Some(owner) = region.owner.as_ref() else {
-        panic!("expected module owner metadata");
-    };
-    assert_eq!(owner.kind, "module");
-    assert_eq!(owner.name, None);
-    assert_eq!(owner.qualname, None);
-    Ok(())
+    ensure_eq(&regions.len(), &1, "expected one Python docstring region")?;
+    let region = regions
+        .first()
+        .ok_or("expected malformed Python module docstring")?;
+    ensure_eq(
+        &region.text.as_str(),
+        &"Module docstring before malformed Python source.",
+        "module docstring text did not match the malformed fixture",
+    )?;
+    let owner = region
+        .owner
+        .as_ref()
+        .ok_or("expected module owner metadata")?;
+    ensure(owner.kind == "module", "expected the owner to be a module")?;
+    ensure(
+        owner.name.is_none(),
+        "expected the module owner to be unnamed",
+    )?;
+    ensure(
+        owner.qualname.is_none(),
+        "expected the module owner to be unqualified",
+    )
 }
 
 #[then("a recoverable parse error is recorded")]
@@ -173,13 +180,16 @@ fn a_recoverable_parse_error_is_recorded(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ir = extracted_ir(python_docstring_state)?;
 
-    assert_ne!(ir.errors, []);
-    assert!(
+    ensure(
+        !ir.errors.is_empty(),
+        "expected at least one Python extraction error",
+    )?;
+    ensure(
         ir.errors
             .iter()
-            .any(|error| error.code == "python-parse-recovery")
-    );
-    Ok(())
+            .any(|error| error.code == "python-parse-recovery"),
+        "expected a python-parse-recovery error",
+    )
 }
 
 #[scenario(
