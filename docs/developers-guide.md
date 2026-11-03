@@ -1485,7 +1485,7 @@ own, so each restates the standard rather than relying on the file:
 | `RUST_FLAGS`         | `-D warnings $(STANDARD_RUSTFLAGS)`       | `typecheck`, `lint` (rustdoc, Clippy), `test*`, `test-doc` |
 | `DEBUG_RUST_FLAGS`   | `$(STANDARD_RUSTFLAGS)`                   | `build` (`maturin develop`), `.venv` (`uv sync`)           |
 
-*Table 3: The development flags Make restates.*
+_Table 3: The development flags Make restates._
 
 Extend the gate flags with `RUST_FLAGS_EXTRA` or `RUSTDOC_FLAGS_EXTRA`;
 overriding `RUST_FLAGS` itself replaces the whole set, standard included. Every
@@ -1514,7 +1514,7 @@ excludes it from its compiler flags.
 | Whitaker                | `RUSTFLAGS="$(WHITAKER_RUST_FLAGS)"` is `-D warnings` alone.                                   |
 | Mutation testing        | The shared workflow's setup-rust exports `-D warnings`; no Make goal is reached.               |
 
-*Table 4: Routes that do not take the development standard.*
+_Table 4: Routes that do not take the development standard._
 
 `tests/test_build_standard_exclusions.py` holds the workflow half, and the
 Make-route contracts hold the release and Whitaker halves, each with a negative
