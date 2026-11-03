@@ -415,9 +415,9 @@ with error exit 1. An invalid `TERM001` option exits 2.
   baseline that scans every tracked file and prefers `-ize`, and a split of
   oversized modules into focused siblings. The replay used Git's built-in merge
   with `zdiff3`, because Weave is selected only by the global attributes file
-  and the repository tracks no `.gitattributes`. Two conflicts, both from main's
-  spelling rename meeting branch restructuring, were resolved in favour of the
-  branch's structure with main's `-ize` prose: `config/tables.py` keeps
+  and the repository tracks no `.gitattributes`. Two conflicts, both from
+  main's spelling rename meeting branch restructuring, were resolved in favour
+  of the branch's structure with main's `-ize` prose: `config/tables.py` keeps
   `normalize_extend_values`, and `diagnostics_location.py` keeps
   `validated_line_starts`. All 27 commits replayed, and `range-diff` against
   `58f82d73..42c1ee3f` reports every replayed commit equal. The rebased tip is
