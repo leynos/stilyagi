@@ -568,6 +568,17 @@ The acceptance evidence is:
   after the exclusive cache lock clears, preserving the configured timeout and
   shared default cache. A focused `CARGO_NET_OFFLINE=true cargo metadata`
   experiment hit the same lock, so offline mode is not a mitigation.
+- [x] 2026-11-03: Rebased onto `origin/main` at `58f82d73`, which brought the
+  pinned nightly and build standard (PR #249) and the fallible shared Rust test
+  helpers (PR #252). The only conflict was the developers' guide's `must_ok!`
+  paragraph; main's newer text was kept and its emphasis normalized. The
+  rebased head `1915f902` passed `make check-fmt`, `make lint` (about two hours
+  under compile-admission contention), `make typecheck`, `make markdownlint`,
+  and `make nixie`. The Markdown gate first rejected two new asterisk table
+  captions main had added; both were converted to underscore in `a95a7b6a`.
+  This closes the two 2026-10-20 entries: the typecheck defect is fixed, and
+  the full test gate is rerun on the final tip with the configured timeouts and
+  the shared default cache.
 
 ## Outcomes & Retrospective
 
