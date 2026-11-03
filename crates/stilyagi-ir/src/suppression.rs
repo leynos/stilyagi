@@ -27,7 +27,7 @@ pub struct SuppressionCandidate {
     pub body: String,
 }
 
-/// Canonical suppression directive verbs recognised in comment bodies.
+/// Canonical suppression directive verbs recognized in comment bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DirectiveVerb {
     /// Inline suppression for the next lintable unit.
@@ -54,7 +54,7 @@ pub struct ParsedDirective {
 pub enum DirectiveOutcome {
     /// The comment body is not a Stilyagi directive.
     NotADirective,
-    /// The comment body is a recognised directive and has valid syntax.
+    /// The comment body is a recognized directive and has valid syntax.
     Parsed(ParsedDirective),
     /// The comment body matches the canonical marker but violates a rule.
     Rejected(DirectiveError),
@@ -65,7 +65,7 @@ pub enum DirectiveOutcome {
 pub enum DirectiveError {
     /// Inline or range directives named no code.
     BlanketForbidden,
-    /// The verb token is not one of the recognised canonical verbs.
+    /// The verb token is not one of the recognized canonical verbs.
     UnknownVerb,
 }
 
@@ -230,7 +230,7 @@ pub fn suppressions_from_candidates(
             DirectiveOutcome::Rejected(DirectiveError::UnknownVerb) => {
                 errors.push(IrError {
                     code: unknown_verb_code.to_owned(),
-                    message: "suppression directive verb is not recognised".to_owned(),
+                    message: "suppression directive verb is not recognized".to_owned(),
                     span: Some(candidate.span),
                 });
             }

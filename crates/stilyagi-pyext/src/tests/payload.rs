@@ -1,6 +1,6 @@
 //! Fallible lookups over the Python payloads that the bridge tests inspect.
 //!
-//! Every helper propagates failure as a `PyErr` so recognised test bodies can
+//! Every helper propagates failure as a `PyErr` so recognized test bodies can
 //! attach context with `.expect(...)` and BDD `then` steps can panic at the
 //! call site. Shared by the unit tests, the BDD steps, and the metrics
 //! snapshot tests to keep payload navigation in one place.

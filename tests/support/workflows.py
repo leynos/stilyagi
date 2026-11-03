@@ -206,7 +206,7 @@ def _names(value: object) -> list[str]:
 def pushes_to_main(document: WorkflowDocument) -> bool:
     """Return whether a workflow runs on a push to the main branch.
 
-    Every filter form GitHub accepts is answered, and an unrecognised
+    Every filter form GitHub accepts is answered, and an unrecognized
     one is answered `False` rather than `True`. Failing closed is the
     safe direction here: this reading decides which workflow is allowed
     to publish coverage, so a shape it cannot understand must not be

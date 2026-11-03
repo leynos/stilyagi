@@ -21,8 +21,8 @@ def _empty_rule_mapping() -> dict[str, dict[str, object]]:
     return {}
 
 
-def normalise_path_value(value: object) -> pathlib.Path:
-    """Normalise a cache-directory value to a path object.
+def normalize_path_value(value: object) -> pathlib.Path:
+    """Normalize a cache-directory value to a path object.
 
     Parameters
     ----------
@@ -33,7 +33,7 @@ def normalise_path_value(value: object) -> pathlib.Path:
     Returns
     -------
     pathlib.Path
-        The normalised path.
+        The normalized path.
 
     Raises
     ------
@@ -54,16 +54,16 @@ def normalise_path_value(value: object) -> pathlib.Path:
 
 
 def _coerce_path(value: object, *, field_name: str) -> pathlib.Path:
-    """Normalise a cache-directory value, naming the field on rejection."""
+    """Normalize a cache-directory value, naming the field on rejection."""
     try:
-        return normalise_path_value(value)
+        return normalize_path_value(value)
     except TypeError as error:
         message = f"{field_name} {error}"
         raise TypeError(message) from error
 
 
 def _coerce_string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
-    """Normalise a sequence field to an immutable tuple of strings."""
+    """Normalize a sequence field to an immutable tuple of strings."""
     if isinstance(value, str) or not isinstance(value, cabc.Iterable):
         message = f"{field_name} must be a sequence of strings"
         raise TypeError(message)
@@ -80,7 +80,7 @@ def _coerce_string_to_string_tuple_map(
     *,
     field_name: str,
 ) -> dict[str, tuple[str, ...]]:
-    """Normalise a mapping of string lists into string tuples."""
+    """Normalize a mapping of string lists into string tuples."""
     if not isinstance(value, cabc.Mapping):
         message = f"{field_name} must be a mapping"
         raise TypeError(message)
@@ -191,7 +191,7 @@ class LintConfig:
     reserved: dict[str, object] = dc.field(default_factory=_empty_string_object_mapping)
 
     def __post_init__(self) -> None:
-        """Normalise the sequence and mapping fields."""
+        """Normalize the sequence and mapping fields."""
         object.__setattr__(
             self, "select", _coerce_string_tuple(self.select, field_name="select")
         )
@@ -264,7 +264,7 @@ class NlpConfig:
     reserved: dict[str, object] = dc.field(default_factory=_empty_string_object_mapping)
 
     def __post_init__(self) -> None:
-        """Validate and normalise the preserved values."""
+        """Validate and normalize the preserved values."""
         _require_instance(self.model, str, field_name="model")
         _require_instance(self.sentence_provider, str, field_name="sentence_provider")
         object.__setattr__(
@@ -309,7 +309,7 @@ class StilyagiConfig:
     reserved: dict[str, object] = dc.field(default_factory=_empty_string_object_mapping)
 
     def __post_init__(self) -> None:
-        """Normalise and validate the config boundary values."""
+        """Normalize and validate the config boundary values."""
         object.__setattr__(
             self, "cache_dir", _coerce_path(self.cache_dir, field_name="cache_dir")
         )

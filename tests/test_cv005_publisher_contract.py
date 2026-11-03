@@ -173,7 +173,7 @@ def test_the_publisher_never_cancels_a_superseded_run() -> None:
     """The publisher waits for a run it cannot cancel.
 
     A cancelled run abandons both its upload and its baseline write. The
-    canonical group is the workflow-and-ref form the estate standardises
+    canonical group is the workflow-and-ref form the estate standardizes
     on, keyed on the ref alone so every main run shares one queue; a job
     declaring its own group would be a second queue governing the same
     upload.

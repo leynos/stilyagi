@@ -40,7 +40,7 @@ def _git_lines(text: str) -> list[str]:
     r"""Split text on LF only, keeping terminators, as Git does.
 
     ``str.splitlines`` breaks on ``\r``, ``\v``, ``\f``, ``\x1c``-``\x1e``,
-    ``\x85``, ``U+2028``, and ``U+2029``. Git recognises only ``\n``, so a
+    ``\x85``, ``U+2028``, and ``U+2029``. Git recognizes only ``\n``, so a
     Markdown line holding one of those characters would become two diff lines
     whose first element lacks a terminator. ``_terminated_diff_line`` would then
     insert a no-newline marker inside the hunk and corrupt the patch.

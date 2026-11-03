@@ -63,7 +63,7 @@ CV005_CONTRACTS = $(UV_ENV) $(UV) tool run --python 3.13 \
 
 UV_RUN = $(UV_ENV) $(UV) run --group dev
 # Pylint runs on CPython at the project's 3.14 baseline: the source uses 3.14
-# syntax (PEP 758 unparenthesised `except` lists) that no managed PyPy parses.
+# syntax (PEP 758 unparenthesized `except` lists) that no managed PyPy parses.
 PYLINT_PYTHON ?= 3.14
 PYLINT_VERSION ?= 4.0.9
 # The gateway covers every Python tree the repository runs, not just the
@@ -161,7 +161,7 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
         typecheck tools skylos-allow \
         install-nose duplication duplication-test duplication-allow \
         tools-check tools-docs tools-lint install-build-tools check-build-tools \
-        release release-artifact smoke smoke-release test-workflow-contracts
+        release release-artefact smoke smoke-release test-workflow-contracts
 
 .DEFAULT_GOAL := all
 
@@ -183,18 +183,18 @@ all: test-workflow-contracts ## Run commit gates
 # `maturin develop`. `smoke-release` depends on this target for its base
 # interpreter, so `make release` reaches the preflight through it, and the CI
 # job that runs it installs the build tools; the wheel itself is built by
-# `release-artifact`, which takes the release flags.
+# `release-artefact`, which takes the release flags.
 .venv: pyproject.toml uv.lock $(WORKSPACE_MANIFEST) Cargo.lock | check-build-tools
 	UV_VENV_CLEAR=1 $(UV_ENV) $(UV) venv
 	RUSTFLAGS="$(DEBUG_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(UV_ENV) $(UV) sync --group dev
 
-build: check-build-tools .venv ## Build dev artifact and install into venv
+build: check-build-tools .venv ## Build dev artefact and install into venv
 	RUSTFLAGS="$(DEBUG_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(UV_RUN) maturin develop --manifest-path $(PYEXT_MANIFEST)
 	$(MAKE) smoke
 
-release: release-artifact smoke-release ## Build and smoke-test the release artifact
+release: release-artefact smoke-release ## Build and smoke-test the release artefact
 
-release-artifact: ## Build the release artifact
+release-artefact: ## Build the release artefact
 	rm -rf dist
 	RUSTFLAGS="$(RELEASE_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(UV_RUN) maturin build --release --manifest-path $(PYEXT_MANIFEST) --out dist
 
@@ -204,7 +204,7 @@ smoke: .venv ## Smoke-test the development install through the Rust bridge
 	$(RESOLVE_VENV_PYTHON); \
 	"$$VENV_PYTHON" -m stilyagi.smoke
 
-smoke-release: .venv release-artifact ## Smoke-test the release wheel through the Rust bridge
+smoke-release: .venv release-artefact ## Smoke-test the release wheel through the Rust bridge
 	rm -rf .venv-release-smoke
 	$(RESOLVE_VENV_PYTHON); \
 	"$$VENV_PYTHON" -m venv .venv-release-smoke
@@ -216,7 +216,7 @@ smoke-release: .venv release-artifact ## Smoke-test the release wheel through th
 	release_tmp="$$("$$release_python" -c 'import pathlib, tempfile; print(pathlib.Path(tempfile.gettempdir()).as_posix())')"; \
 	cd "$$release_tmp" && "$$release_python" -m stilyagi.smoke
 
-clean: ## Remove build artifacts
+clean: ## Remove build artefacts
 	$(CARGO) clean --manifest-path $(WORKSPACE_MANIFEST)
 	rm -rf build dist *.egg-info \
 	  .mypy_cache .pytest_cache .coverage coverage.* \
@@ -361,8 +361,8 @@ markdownlint: tools-docs spelling ## Lint Markdown files and enforce en-GB-oxend
 	$(call ensure_tool,$(MDLINT))
 	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
 
-spelling: ## Enforce en-GB-oxendict spelling
-	$(TYPOS_CONFIG_BUILDER) gate --repository .
+spelling: ## Enforce en-GB-oxendict spelling in every tracked file
+	$(TYPOS_CONFIG_BUILDER) gate --repository . --scope all
 
 nixie: tools-docs ## Validate Mermaid diagrams
 	$(MD_FILES_FIND) | xargs -0 $(NIXIE) --no-sandbox

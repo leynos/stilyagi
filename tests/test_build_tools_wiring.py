@@ -259,12 +259,12 @@ def test_the_real_suite_jobs_are_found_and_wired(reach: MakeReach) -> None:
     assert not faults, faults
 
 
-def test_release_artifact_skips_the_preflight_but_release_reaches_it(
+def test_release_artefact_skips_the_preflight_but_release_reaches_it(
     reach: MakeReach,
 ) -> None:
     """The wheel build needs no tools; `make release` reaches them through `.venv`."""
-    assert not reach.reaches_preflight("release-artifact"), (
-        "expected not reach.reaches_preflight('release-artifact')"
+    assert not reach.reaches_preflight("release-artefact"), (
+        "expected not reach.reaches_preflight('release-artefact')"
     )
     assert reach.reaches_preflight("release"), (
         "expected reach.reaches_preflight('release')"

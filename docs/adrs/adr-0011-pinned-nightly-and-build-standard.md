@@ -133,7 +133,7 @@ installation hint.
 
 | Route            | Mechanism                                                                                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Release wheel    | `make release-artifact` and the maturin build in `tests/test_maturin_build.py` assign `RUSTFLAGS` from the caller alone, displacing the configuration. |
+| Release wheel    | `make release-artefact` and the maturin build in `tests/test_maturin_build.py` assign `RUSTFLAGS` from the caller alone, displacing the configuration. |
 | Coverage         | The coverage step assigns `RUSTFLAGS: -D warnings`, displacing the flags and keeping instrumentation; the shared action selects LLVM itself.           |
 | Whitaker         | `WHITAKER_RUST_FLAGS` is `-D warnings` alone; the installer-managed toolchain and `cranelift: true` input are unchanged.                               |
 | Mutation testing | The shared workflow's setup-rust exports `-D warnings`, which displaces the flags; `cargo-mutants` reaches no Make goal.                               |
@@ -144,7 +144,7 @@ _Table 2: Routes that exclude the development standard, and how._
 takes its base interpreter from `.venv`, whose `uv sync` is a compile (a
 release-profile editable build, verified with `cargo rustc --profile release`)
 that restates the development flags and runs after the preflight. The wheel it
-smoke-tests still comes from `release-artifact`, which excludes them, and the
+smoke-tests still comes from `release-artefact`, which excludes them, and the
 `release-smoke` job installs the pinned tools because it reaches the preflight.
 
 ### Cranelift: a recorded exception

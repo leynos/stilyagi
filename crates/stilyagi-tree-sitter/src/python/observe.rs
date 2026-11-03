@@ -21,7 +21,7 @@ pub(super) fn record_fatal_error(error: PythonExtractError) {
     );
 }
 
-/// Emit logs and metrics summarising a completed extraction, including any
+/// Emit logs and metrics summarizing a completed extraction, including any
 /// recoverable parse anomalies surfaced through the IR `errors` list.
 pub(super) fn record_extraction_outcome(document: &IrDocument) {
     let recovery_error_count = recovery_error_count(&document.errors);

@@ -16,14 +16,26 @@ accepted = [
 
 [patterns]
 ignore = [
-  'rust-analyzer',
-  'release-artifact',
-  '## Artifacts and notes',
-  # Inline code spans are masked; the shared dictionary does not mask them yet.
-  '`[^`\n]+`',
+  # `mold` names the pinned external linker (rui314/mold), and `MOLD_*`
+  # names the constants and fixtures built around it.
+  '(?i)(\bmold\b|\bmold_|_mold\b|_mold_)',
+  # Cargo's environment variable name; `COLOR` inside it is not prose.
+  '\bCARGO_TERM_COLOR\b',
+  # GitHub's `pull_request_target` event type.
+  'types: \[opened, reopened, synchronize, labeled, ready_for_review\]',
+  # A commit SHA in a workflow comment, not the word `ba`.
+  '6cec89ba',
+  # Latin-1 fixture bytes in a Python string literal, not the word `café`.
+  'caf\\xe9',
+  # Deprecated compatibility alias for the public `summarize_fix_errors`
+  # export; the identifier must keep its pre-Oxford spelling to stay importable.
+  '\bsummarise_fix_errors\b',
 ]
 
 [files]
 exclude = [
   "tests/fixtures",
+  # Dated records that quote the misspellings, identifiers and commit SHAs
+  # under discussion; policing them would rewrite history.
+  "docs/execplans",
 ]

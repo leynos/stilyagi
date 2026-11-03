@@ -21,12 +21,11 @@ consistent, and easy to maintain across projects.
   - and so forth.
 - The words **"outwith"** and **"caveat"** are acceptable.
 - Keep United States (US) spelling when used in an API, for example, `color`.
-  Wrap such API names in backticks: the spelling gate ignores backticked spans,
-  so quoting an identifier both documents its origin and exempts it from the
-  Oxford-spelling check.
+  Wrap such API names in backticks to document their origin; when the spelling
+  gate still reports a quoted name, add a narrow pattern to `typos.local.toml`.
 - The project uses the filename `LICENSE` for community consistency.
-- Markdown prose is checked against this spelling policy with
-  [`typos`](https://github.com/crate-ci/typos).
+- Every tracked file's prose and code is checked against this spelling policy
+  with [`typos`](https://github.com/crate-ci/typos).
 
 ## Punctuation and grammar
 

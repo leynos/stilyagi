@@ -88,8 +88,8 @@ def make_release_runs_the_release_artefact_smoke_check(
 ) -> None:
     """Confirm the release path smokes the built wheel."""
     assert_with_context(
-        "release: release-artifact smoke-release" in build_spine_state["makefile"],
-        "expected 'release: release-artifact smoke-release' i...",
+        "release: release-artefact smoke-release" in build_spine_state["makefile"],
+        "expected 'release: release-artefact smoke-release' i...",
     )
     assert_with_context(
         ".venv-release-smoke" in build_spine_state["makefile"],

@@ -14,7 +14,7 @@ use crate::suppression::{
 use crate::{IrSuppression, RangeRole, SourceSpan, SuppressionKind};
 
 #[rstest]
-fn suppression_serialises_and_deserialises_with_the_rfc_shape() {
+fn suppression_serializes_and_deserializes_with_the_rfc_shape() {
     let suppression = IrSuppression {
         id: "s0".to_owned(),
         kind: SuppressionKind::Inline,
@@ -337,7 +337,7 @@ fn space_padding_strategy() -> impl Strategy<Value = String> {
 #[rstest]
 #[case(RangeRole::Open, "open")]
 #[case(RangeRole::Close, "close")]
-fn range_suppression_serialises_with_its_role(
+fn range_suppression_serializes_with_its_role(
     #[case] range_role: RangeRole,
     #[case] expected_role: &str,
 ) {

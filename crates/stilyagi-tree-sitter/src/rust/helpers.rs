@@ -8,14 +8,14 @@ use super::types::NodeId;
 
 /// Rust documentation-comment flavour derived from leading source bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum DocCommentFlavor {
+pub(super) enum DocCommentFlavour {
     OuterLine,
     InnerLine,
     OuterBlock,
     InnerBlock,
 }
 
-impl DocCommentFlavor {
+impl DocCommentFlavour {
     /// Return whether this flavour is a line comment.
     pub(super) const fn is_line(self) -> bool {
         matches!(self, Self::OuterLine | Self::InnerLine)
@@ -28,35 +28,35 @@ impl DocCommentFlavor {
 }
 
 /// Classify a comment node into a Rust documentation-comment flavour.
-pub(super) fn classify_doc_comment(source: &str, node: Node<'_>) -> Option<DocCommentFlavor> {
+pub(super) fn classify_doc_comment(source: &str, node: Node<'_>) -> Option<DocCommentFlavour> {
     let text = source.get(node.start_byte()..node.end_byte())?;
     if let Some(rest) = text.strip_prefix("///") {
-        return (!rest.starts_with('/')).then_some(DocCommentFlavor::OuterLine);
+        return (!rest.starts_with('/')).then_some(DocCommentFlavour::OuterLine);
     }
     if text.starts_with("//!") {
-        return Some(DocCommentFlavor::InnerLine);
+        return Some(DocCommentFlavour::InnerLine);
     }
     if let Some(rest) = text.strip_prefix("/**") {
         return (!matches!(rest.chars().next(), Some('*' | '/')))
-            .then_some(DocCommentFlavor::OuterBlock);
+            .then_some(DocCommentFlavour::OuterBlock);
     }
     text.strip_prefix("/*!")
-        .map(|_| DocCommentFlavor::InnerBlock)
+        .map(|_| DocCommentFlavour::InnerBlock)
 }
 
 /// Return the content span for a documentation comment.
 pub(super) fn doc_comment_content_span(
     source: &str,
     node: Node<'_>,
-    flavor: DocCommentFlavor,
+    flavour: DocCommentFlavour,
 ) -> Option<SourceSpan> {
     let start = node.start_byte();
     let end = node.end_byte();
-    match flavor {
-        DocCommentFlavor::OuterLine | DocCommentFlavor::InnerLine => {
+    match flavour {
+        DocCommentFlavour::OuterLine | DocCommentFlavour::InnerLine => {
             SourceSpan::new(start + 3, line_comment_content_end(source, node))
         }
-        DocCommentFlavor::OuterBlock | DocCommentFlavor::InnerBlock => {
+        DocCommentFlavour::OuterBlock | DocCommentFlavour::InnerBlock => {
             let content = source.get(start..end)?;
             let content_end = content.len().saturating_sub(2);
             SourceSpan::new(start + 3, start + content_end)
@@ -144,7 +144,7 @@ pub(super) fn module_body_has_leading_inner_docs(source: &str, node: Node<'_>) -
         ) {
             continue;
         }
-        return classify_doc_comment(source, child).is_some_and(DocCommentFlavor::is_inner);
+        return classify_doc_comment(source, child).is_some_and(DocCommentFlavour::is_inner);
     }
 
     false
@@ -177,15 +177,15 @@ pub(super) fn line_comment_content_end(source: &str, node: Node<'_>) -> usize {
 pub(super) fn doc_comment_content(
     source: &str,
     node: Node<'_>,
-    flavor: DocCommentFlavor,
+    flavour: DocCommentFlavour,
 ) -> String {
     let start = node.start_byte();
-    match flavor {
-        DocCommentFlavor::OuterLine | DocCommentFlavor::InnerLine => {
+    match flavour {
+        DocCommentFlavour::OuterLine | DocCommentFlavour::InnerLine => {
             let end = line_comment_content_end(source, node);
             source.get(start + 3..end).unwrap_or_default().to_owned()
         }
-        DocCommentFlavor::OuterBlock | DocCommentFlavor::InnerBlock => {
+        DocCommentFlavour::OuterBlock | DocCommentFlavour::InnerBlock => {
             let end = node.end_byte();
             source
                 .get(start + 3..end.saturating_sub(2))

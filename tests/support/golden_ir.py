@@ -2,7 +2,7 @@
 
 This module builds Python-side snapshot payloads from repository fixtures,
 mirroring the Rust `stilyagi-ir` test contract closely enough for canonical
-JSON comparisons. It centralises fixture paths, line indexing, and the minimal
+JSON comparisons. It centralizes fixture paths, line indexing, and the minimal
 document shape used by Python snapshot and round-trip tests.
 """
 

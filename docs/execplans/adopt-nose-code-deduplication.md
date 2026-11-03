@@ -236,7 +236,7 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
             `duplication_manifest.py` names a malformed parent table; the
             gate's two configuration-error paths both print a diagnostic and
             exit 2; the 506-line and 631-line test modules are split; and
-            `normalise_path_value` plus `_pyproject_stilyagi_table` are
+            `normalize_path_value` plus `_pyproject_stilyagi_table` are
             documented in the developer's guide. No further edit needed.
       - [x] Adopt the episodic Python gateway: Pylint and df12-python-lints
             run on CPython 3.14 over `python/stilyagi tests scripts`, and
@@ -462,14 +462,14 @@ immutable revision `d9e5ac0d254f375e2986f52d91a3b88c117c833b`.
       `change_assessment_commit` and `final_review_risk` coverage both still
       name `cfc6a67`. The pre-merge table is unchanged at **one error and one
       warning**: Unit Architecture (allowlist boundary handling) and
-      Developer Documentation (`normalise_path_value` /
+      Developer Documentation (`normalize_path_value` /
       `_pyproject_stilyagi_table`). Both remain in scope regardless of the
       pause, because `pre_merge_checks.ignore_useless_reviews` is on and the
       pause gates only re-review, not whether the rows need a disposition.
 - [x] Verified the Developer Documentation warning's subject matter directly,
       since no verifier was assigned to it. `docs/developers-guide.md:413-418`
       documents `_pyproject_stilyagi_table` as the shared `tool` → `stilyagi`
-      walk, and `:451-457` documents `normalise_path_value(value)` with its
+      walk, and `:451-457` documents `normalize_path_value(value)` with its
       accepted types, return value, `TypeError` contract, and both callers'
       added context (`schema._coerce_path` field prefix,
       `parse._parse_cache_dir` file-and-key reporting). That is every element
@@ -1041,7 +1041,7 @@ as code improvements, not to satisfy the detector:
   value. `schema.py`'s `_coerce_path` raises `TypeError` for a dataclass
   `__post_init__`; `parse.py`'s inlined copy raised `InvalidConfigError` naming
   the offending file and key. The shared normalization is now
-  `normalise_path_value`, which raises `TypeError` with a field-less message;
+  `normalize_path_value`, which raises `TypeError` with a field-less message;
   `_coerce_path` wraps it to add a dataclass field name, and `_parse_cache_dir`
   wraps it to add the file and key. Each caller keeps the richer error its own
   contract requires, and the duplicated branch is gone.
@@ -1650,7 +1650,7 @@ review, since a renumbering would have been invisible:
   as an ATX heading and failed MD022 and MD025 — a document gaining a spurious
   top-level heading from a line break. Reworded to list the numbers after the
   sentence rather than at the start of a line.
-- `materialises` is the spelling the `typos` gate rejects; the house style is
+- `materializes` is the spelling the `typos` gate rejects; the house style is
   `-ize`, so both occurrences are `materializes`. The gate is right and the
   prose was wrong, per the `-ize`/`-yse`/`-our` rule in `AGENTS.md`.
 

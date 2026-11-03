@@ -59,7 +59,7 @@ class ReportPayload(typ.TypedDict):
 type Report = ReportPayload
 
 
-def normalise_repository_path(path: pathlib.Path, root: pathlib.Path) -> str:
+def normalize_repository_path(path: pathlib.Path, root: pathlib.Path) -> str:
     """Return a portable repository-relative path with POSIX separators."""
     try:
         relative = path.resolve().relative_to(root.resolve())
@@ -69,10 +69,10 @@ def normalise_repository_path(path: pathlib.Path, root: pathlib.Path) -> str:
     return relative.as_posix()
 
 
-def summarise_durations(durations_ns: cabc.Sequence[int]) -> SummaryNs:
-    """Summarise nanosecond durations with deterministic integer values."""
+def summarize_durations(durations_ns: cabc.Sequence[int]) -> SummaryNs:
+    """Summarize nanosecond durations with deterministic integer values."""
     if not durations_ns:
-        msg = "cannot summarise an empty duration sequence"
+        msg = "cannot summarize an empty duration sequence"
         raise ValueError(msg)
     ordered = sorted(durations_ns)
     return SummaryNs(

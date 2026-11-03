@@ -100,8 +100,8 @@ ROUTES: typ.Final[tuple[Route, ...]] = (
     Route("make_build_maturin_develop", "build", "dev", PROBE_UV, (), "develop"),
     Route("make_venv_uv_sync", ".venv", "dev", PROBE_UV, ("sync",)),
     Route(
-        "make_release_artifact_maturin_build",
-        "release-artifact",
+        "make_release_artefact_maturin_build",
+        "release-artefact",
         "release",
         PROBE_UV,
         (),
@@ -167,7 +167,7 @@ def test_each_route_carries_its_flag_policy(
 
 
 @pytest.mark.parametrize(
-    "target", [*GATE_TARGETS, "build", "release-artifact", ".venv"]
+    "target", [*GATE_TARGETS, "build", "release-artefact", ".venv"]
 )
 def test_no_compiling_invocation_escapes_the_route_table(
     target: str, probe_dir: pathlib.Path
@@ -181,7 +181,7 @@ def test_no_compiling_invocation_escapes_the_route_table(
     assert not unlisted, f"{target}: unrouted invocations {unlisted}"
 
 
-@pytest.mark.parametrize("target", [*GATE_TARGETS, "build", "release-artifact"])
+@pytest.mark.parametrize("target", [*GATE_TARGETS, "build", "release-artefact"])
 def test_executable_substitution_is_honoured(
     target: str, probe_dir: pathlib.Path
 ) -> None:
@@ -259,7 +259,7 @@ def test_executed_release_route_displaces_the_standard_and_skips_the_preflight(
     ambient: str | None, recording: RecordingTree
 ) -> None:
     """The release wheel and the editable install take the caller's flags only."""
-    run = run_recorded("release-artifact", recording, ambient_rustflags=ambient)
+    run = run_recorded("release-artefact", recording, ambient_rustflags=ambient)
     assert run.returncode == 0, run.stderr
     assert not [r for r in run.records if r.program == PROBE_CHECK], (
         "expected not [r for r in run.records if r.program == PROBE_CHECK]"

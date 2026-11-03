@@ -38,7 +38,7 @@ suppression state for Markdown.
    and `make typecheck` (AGENTS.md:156; Makefile targets `check-fmt`, `lint`,
    `test`, `typecheck`). Note: `make all` builds and smoke-tests the release
    wheel (Makefile:38 `all: release`; Makefile:48
-   `release: release-artifact smoke-release`) and does NOT run the test suite,
+   `release: release-artefact smoke-release`) and does NOT run the test suite,
    Clippy, fmt-check, or `ty` typecheck — so it is not the validation gate here.
 2. In `crates/stilyagi-markdown`, a new fixture round-trip snapshot shows a
    populated `"suppressions"` array for a document containing canonical
@@ -474,7 +474,7 @@ pub(crate) enum DirectiveOutcome {
     NotADirective,
     /// A well-formed directive.
     Parsed(ParsedDirective),
-    /// A recognised directive that violates a rule (for example blanket).
+    /// A recognized directive that violates a rule (for example blanket).
     Rejected(DirectiveError),
 }
 
@@ -843,8 +843,8 @@ Revision 2 (2026-07-04). Design-review round 2: corrected the validation gate
 throughout. The plan previously named `make all` as the authoritative gate in
 every work item, in Concrete Steps step 4, and in Validation & Acceptance.
 Verified against the worktree `Makefile`: `.DEFAULT_GOAL := all`,
-`all: release` (Makefile:38), `release: release-artifact smoke-release`
-(Makefile:48), where `release-artifact` runs only `maturin build --release`
+`all: release` (Makefile:38), `release: release-artefact smoke-release`
+(Makefile:48), where `release-artefact` runs only `maturin build --release`
 (Makefile:50-52) and `smoke-release` builds a wheel and runs `stilyagi.smoke`
 (Makefile:60-70). Thus `make all` compiles and smoke-tests the release wheel
 but never runs the workspace test suite, Clippy, `ty` typecheck, or fmt-check.

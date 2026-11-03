@@ -95,7 +95,7 @@ def temporary_tree_with_markdown_files_in_unsorted_order(
 def temporary_tree_containing_malformed_markdown(
     tmp_path: pathlib.Path,
 ) -> CheckCommandState:
-    """Materialise the real malformed Markdown corpus as discoverable files."""
+    """Materialize the real malformed Markdown corpus as discoverable files."""
     materialize_malformed_corpus(tmp_path / "docs")
     return {"root": tmp_path}
 

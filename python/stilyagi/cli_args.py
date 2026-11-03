@@ -155,7 +155,7 @@ def _add_rule_code_argument(
     as. argparse's ``append`` action copies the default and then appends to the
     copy, and copying a tuple still yields a tuple, so a tuple default raises
     ``AttributeError`` the first time the flag is actually used.
-    `_flatten_rule_codes` normalises the collected list back to a tuple.
+    `_flatten_rule_codes` normalizes the collected list back to a tuple.
     """
     parser.add_argument(
         name,
@@ -191,7 +191,7 @@ def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
         # A list, for the reason `_add_rule_code_argument` documents: `append`
         # copies the default and appends to the copy, so a tuple default raises
         # `AttributeError: 'tuple' object has no attribute 'append'` the first
-        # time the flag is used. The parsed list is normalised to a tuple by
+        # time the flag is used. The parsed list is normalized to a tuple by
         # `options_from_args`.
         default=[],
         metavar="VALUE",

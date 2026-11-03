@@ -22,7 +22,7 @@ class TestRunDetectorExecution:
         monkeypatch.setenv("NOSE_BIN", "/stub/nose")
 
         def runner(command: cabc.Sequence[str]) -> str:
-            """Answer the version probe, then emit unparseable output."""
+            """Answer the version probe, then emit unparsable output."""
             return "nose 0.20.0\n" if "--version" in command else "not json"
 
         with pytest.raises(detector.GateExecutionError, match="not valid JSON"):

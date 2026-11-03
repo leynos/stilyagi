@@ -70,7 +70,7 @@ def test_config_resolver_caches_within_a_run_and_a_fresh_resolver_sees_edits(
     refreshed = config.ConfigResolver()
     assert_with_context(
         _resolve_discovered(refreshed, target).cache_dir == pathlib.Path(".second"),
-        "expected _resolve_discovered(refreshed, target).cach...",
+        "expected the refreshed resolver to reuse its cache directory",
     )
 
 

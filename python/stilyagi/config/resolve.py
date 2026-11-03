@@ -57,12 +57,12 @@ def _merge_config_tables(
     return merged
 
 
-def _normalise_extend_values(
+def _normalize_extend_values(
     value: object,
     *,
     path: pathlib.Path,
 ) -> tuple[str, ...]:
-    """Normalise the raw `extend` value to an ordered tuple of strings."""
+    """Normalize the raw `extend` value to an ordered tuple of strings."""
     if value is None:
         return ()
     validated = ensure_extend_value(value, path=path, key="extend")
@@ -250,7 +250,7 @@ class ConfigResolver:
         self._cache_stats["resolved_table_misses"] += 1
 
         config_table = dict(self._raw_config_table(resolved_path))
-        extend_values = _normalise_extend_values(
+        extend_values = _normalize_extend_values(
             config_table.get("extend"), path=resolved_path
         )
 

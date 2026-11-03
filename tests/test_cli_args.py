@@ -93,7 +93,7 @@ def test_check_parser_collects_repeated_explicit_config_arguments() -> None:
     restated at the site that needs it.
 
     The value is a tuple on the options object even though the parser collects
-    a list, because `options_from_args` normalises it. Both are pinned here.
+    a list, because `options_from_args` normalizes it. Both are pinned here.
     """
     parsed = cli.build_parser().parse_args([
         "check",

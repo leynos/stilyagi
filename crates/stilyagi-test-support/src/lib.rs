@@ -1,4 +1,4 @@
-//! Dev-only helpers providing centralised repository-relative fixture access for
+//! Dev-only helpers providing centralized repository-relative fixture access for
 //! `stilyagi-extract` and `stilyagi-pyext` tests via [`repository_root`],
 //! [`corpus_fixture_path`], [`read_corpus_fixture`], [`fixture_paths_in`],
 //! [`golden_markdown_ir_fixture`], [`golden_python_ir_fixture`],

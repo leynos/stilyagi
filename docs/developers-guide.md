@@ -655,7 +655,7 @@ install or replace it.
   `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
   `ConfigError` base class, with `InvalidCacheDirError` and
   `InvalidConfigError` as typed subclasses.
-- `config/schema.py` `normalise_path_value(value)` normalizes a cache-directory
+- `config/schema.py` `normalize_path_value(value)` normalizes a cache-directory
   value to a `pathlib.Path`: it returns a `pathlib.Path` argument unchanged and
   wraps a `str` argument, raising `TypeError` for any other type. The message
   names no field, so each caller adds the context its own contract requires:
@@ -834,10 +834,17 @@ plan was derived from, and reports every refusal it produced.
 `FixOutcome` carries what the run did and declined to do, and its
 `files_aborted_on_conflict` counter is the one that matters most: without it, a
 run that refused every edit looks identical to one that found nothing to do.
-`summarise_fix_errors` collapses refusals to one report per file per
+`summarize_fix_errors` collapses refusals to one report per file per
 identifier, unioning the codes and recording a count in the message. One line
 saying "3 refused edits, file left unmodified" is auditable where one line per
 paragraph is not.
+
+The Oxford rename changed a name `fix_execution.__all__` declares as a public
+export, so the pre-Oxford `summarise_fix_errors` remains importable as a
+deprecated alias until the next minor release. No other renamed name was a
+declared export: the `config.schema` helpers are internal to their package, and
+the performance-probe helpers belong to the test tree rather than the installed
+package.
 
 `cli_fix.py` owns the reporting half and computes no exit status and touches no
 file: a reporter that could write would be a second mutation path beside the
@@ -849,7 +856,7 @@ otherwise report an empty refusal channel for a run that refused edits.
 `emit_fixed_document` prints a stream input's replacement and nothing else, with
 `end=""` so no byte the user did not pipe in is added.
 
-Both reporters append the run-level summary through `summarises_on_the_report`,
+Both reporters append the run-level summary through `summarizes_on_the_report`,
 which is where the format rule lives: the sentence belongs on the stream for
 text and must not be for JSON, because a trailing sentence makes `json.loads`
 raise on the document. The reference to the rule sits at both call sites rather
@@ -1474,7 +1481,7 @@ excludes it from its compiler flags.
 
 | Route                   | How it excludes the standard                                                                   |
 | ----------------------- | ---------------------------------------------------------------------------------------------- |
-| `make release-artifact` | `RUSTFLAGS="${RUSTFLAGS-}"` assigns the caller's flags alone; it skips the preflight.          |
+| `make release-artefact` | `RUSTFLAGS="${RUSTFLAGS-}"` assigns the caller's flags alone; it skips the preflight.          |
 | Wheel in pytest         | `tests/test_maturin_build.py` assigns `RUSTFLAGS` to its `maturin build --release` subprocess. |
 | Coverage                | The coverage step assigns `RUSTFLAGS: -D warnings`; instrumentation stays.                     |
 | Whitaker                | `RUSTFLAGS="$(WHITAKER_RUST_FLAGS)"` is `-D warnings` alone.                                   |
@@ -1515,7 +1522,7 @@ of `.venv`. `uv sync` installs the project through maturin's editable build,
 which is a compile under the release profile (verified with
 `cargo rustc --profile release`) but takes the development flags like any other
 environment step, because `build` replaces it with a dev-profile
-`maturin develop` straight afterwards. `release-artifact` does not reach the
+`maturin develop` straight afterwards. `release-artefact` does not reach the
 preflight.
 
 ### CI wiring
@@ -1526,7 +1533,7 @@ the `lint-test` job in `smoke.yml` and the `coverage-upload` job in
 `coverage-main.yml`. The coverage publisher excludes `mold` from its compiler
 flags, but the suite it runs still drives Make targets that run the preflight,
 so it installs the tools itself. `release-smoke` installs them too: its wheel
-comes from `release-artifact`, which takes the release flags, but
+comes from `release-artefact`, which takes the release flags, but
 `smoke-release` takes its base interpreter from `.venv`, so `make release`
 reaches the preflight there. Only the mutation workflow reaches none, and
 installs nothing.
@@ -1558,7 +1565,7 @@ the `cdylib`, which lists `mold`, and then the release wheel's, which does not:
 ```bash
 make build
 readelf -p .comment python/stilyagi/_stilyagi_rs*.so
-make release-artifact
+make release-artefact
 unzip -o -j -d /tmp/wheel-check dist/*.whl 'stilyagi/*.so'
 readelf -p .comment /tmp/wheel-check/_stilyagi_rs*.so
 ```
@@ -2035,27 +2042,36 @@ caller-tracked assertion.
 
 ### 6d. Spelling gate
 
-Run `make spelling` to enforce en-GB-oxendict (Oxford) spelling over the
-repository's Markdown prose, as required by the
-[documentation style guide](documentation-style-guide.md). `make markdownlint`
-depends on it, so the Markdown gate covers spelling as well. The single gate
-command regenerates `typos.toml`, runs the pinned
-[`typos`](https://github.com/crate-ci/typos) binary, and enforces the shared
-phrase corrections that `typos` cannot express.
+Run `make spelling` to enforce en-GB-oxendict (Oxford) spelling over every
+tracked file: source, configuration, workflows and Markdown prose alike, as
+required by the [documentation style guide](documentation-style-guide.md). The
+gate uses `--scope all` rather than the builder's Markdown-only default, so
+identifiers, comments and code documentation are checked together with prose; a
+Markdown-only scope would leave the code symbols this repository's style
+requires unchecked. `make markdownlint` depends on the target, and CI runs
+`make spelling` directly. The single gate command regenerates `typos.toml`,
+runs the pinned [`typos`](https://github.com/crate-ci/typos) binary, and
+enforces the shared phrase corrections that `typos` cannot express.
 
 The generated configuration lives in the repository-root `typos.toml` and works
 in three layers:
 
-1. The `en-gb` locale corrects American spellings (`color` to `colour`,
-   `behavior` to `behaviour`, `analyzed` to `analysed`).
+1. The `en-gb` locale corrects American spellings of common words, preferring
+   British forms such as *colour* and *behaviour*.
 2. The estate-wide shared dictionary published by
    `leynos/typos-config-builder` restores Oxford spelling, which the locale
    alone would not enforce. Identity entries accept `-ize` inflections that the
    locale would otherwise "correct" to `-ise`, while `-ise` entries are
    corrected to `-ize`. Stems taking `-yse` (`analyse`, `paralyse`) remain with
    the locale, which already enforces them.
-3. `typos.local.toml` adds only Stilyagi-specific accepted words, quoted
-   upstream names, and excluded fixtures.
+3. `typos.local.toml` adds only Stilyagi-specific accepted words and narrow
+   exemptions. External names keep their upstream spelling (`mold`, the pinned
+   linker; `CARGO_TERM_COLOR`; a GitHub event name inside a workflow's `types`
+   list), a workflow comment quotes a commit SHA, and a test fixture contains
+   Latin-1 bytes rather than prose. `tests/fixtures` holds deliberately
+   malformed input, and `docs/execplans` holds dated records that quote the
+   misspellings, identifiers and commit SHAs under discussion; both are
+   excluded rather than rewritten.
 
 Because `typos.toml` is rewritten from the live shared dictionary and the local
 overlay on every run, never edit its entries by hand and never check it for
@@ -2105,11 +2121,11 @@ Spelling policy has two maintainer-facing homes:
   spelling and should normally be put in backticks rather than added as
   word-level exceptions.
 
-The phrase pass enforces corrections such as `hand-written` to `handwritten`,
-which `typos` cannot represent after tokenizing a hyphenated phrase. Fix its
-findings by hand; the gate reports the file, line, and replacement. Review any
-automated rewrite before committing, because spelling corrections must not
-touch code samples, API names, or quoted material.
+The phrase pass enforces shared multi-word corrections that `typos` cannot
+represent after tokenizing a hyphenated phrase. Fix its findings by hand; the
+gate reports the file, line, and replacement. Review any automated rewrite
+before committing, because spelling corrections must not touch code samples,
+API names, or quoted material.
 
 The gate ships as the `typos-config-builder` command, pinned by the Makefile's
 `TYPOS_CONFIG_BUILDER_VERSION` variable and run in an isolated Python 3.14

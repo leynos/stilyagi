@@ -219,7 +219,7 @@ class WorkflowDocument(typ.TypedDict, total=False):
         the watchdog.
     concurrency : dict[str, object]
         The workflow-level concurrency block, where one workflow here
-        serialises its publisher.
+        serializes its publisher.
     jobs : dict[str, WorkflowJob]
         The workflow's jobs, keyed by identifier.
     """

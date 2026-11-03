@@ -98,7 +98,7 @@ def test_diff_routes_a_json_refusal_to_stderr_with_an_empty_stdout(
     """Keep the patch stream clean while carrying the refusal in JSON.
 
     The renderer's own test builds `FixError` values directly, which pins the
-    serialisation and says nothing about where a real run puts them. Under
+    serialization and says nothing about where a real run puts them. Under
     `--diff` that routing is the contract: an editor consuming `--diff` reads
     standard output as a patch, so a JSON refusal written there would be
     parsed as part of the patch. The refusal has to reach standard error while

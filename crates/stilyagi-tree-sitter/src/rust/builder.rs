@@ -106,7 +106,7 @@ impl<'source> RustIrBuilder<'source> {
                 continue;
             }
 
-            let Some(flavor) = classify_doc_comment(self.source, child) else {
+            let Some(flavour) = classify_doc_comment(self.source, child) else {
                 self.flush_pending_groups(stack, &mut pending_inner, None);
                 let mut state = NonDocCommentState {
                     stack,
@@ -118,17 +118,17 @@ impl<'source> RustIrBuilder<'source> {
                 continue;
             };
 
-            let Some(content_span) = doc_comment_content_span(self.source, child, flavor) else {
+            let Some(content_span) = doc_comment_content_span(self.source, child, flavour) else {
                 self.record_doc_comment_span_error(child);
                 continue;
             };
             let entry = DocCommentEntry {
                 node: child,
-                flavor,
-                content: doc_comment_content(self.source, child, flavor),
+                flavour,
+                content: doc_comment_content(self.source, child, flavour),
                 content_span,
             };
-            if flavor.is_inner() {
+            if flavour.is_inner() {
                 push_group(self.source, &mut pending_inner, entry);
             } else {
                 push_group(self.source, &mut pending_outer, entry);

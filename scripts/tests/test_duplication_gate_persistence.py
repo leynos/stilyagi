@@ -115,10 +115,10 @@ class TestAppendAllowEntry:
             "Appending must preserve existing TOML content."
         )
 
-    def test_unparseable_document_raises_a_configuration_error(
+    def test_unparsable_document_raises_a_configuration_error(
         self, tmp_path: Path
     ) -> None:
-        """An unparseable manifest is a configuration error, not a traceback."""
+        """An unparsable manifest is a configuration error, not a traceback."""
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text("this is not = = valid toml\n", encoding="utf-8")
 

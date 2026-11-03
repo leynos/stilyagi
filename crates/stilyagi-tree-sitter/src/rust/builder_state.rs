@@ -3,7 +3,7 @@
 use stilyagi_ir::{IrSegment, SegmentOrigin, SyntheticReason};
 use tree_sitter::Node;
 
-use super::helpers::DocCommentFlavor;
+use super::helpers::DocCommentFlavour;
 use super::owner::OwnerFrame;
 use super::types::NodeId;
 
@@ -11,7 +11,7 @@ use super::types::NodeId;
 #[derive(Debug)]
 pub(super) struct DocCommentEntry<'source> {
     pub(super) node: Node<'source>,
-    pub(super) flavor: DocCommentFlavor,
+    pub(super) flavour: DocCommentFlavour,
     pub(super) content: String,
     pub(super) content_span: stilyagi_ir::SourceSpan,
 }
@@ -36,7 +36,7 @@ impl<'source> DocCommentGroup<'source> {
     pub(super) fn is_line(&self) -> bool {
         self.entries
             .first()
-            .is_some_and(|entry| entry.flavor.is_line())
+            .is_some_and(|entry| entry.flavour.is_line())
     }
 }
 
@@ -91,7 +91,7 @@ pub(super) fn push_group<'source>(
 ) {
     let should_merge = groups.last_mut().is_some_and(|last| {
         last.is_line()
-            && entry.flavor.is_line()
+            && entry.flavour.is_line()
             && last.entries.last().is_some_and(|last_entry| {
                 super::helpers::line_comments_can_merge(
                     source,

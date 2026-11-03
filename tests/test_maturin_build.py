@@ -1,6 +1,6 @@
 """Compatibility tests for maturin-built PyO3 wheels.
 
-Build with :func:`_build_native_wheel_artifact`, snapshot through
+Build with :func:`_build_native_wheel_artefact`, snapshot through
 :func:`test_maturin_wheel_build_snapshot`, and import-smoke through
 :func:`test_maturin_wheel_executes_correctly`. Run with
 ``python -m pytest tests/test_maturin_build.py -v``. Refresh this file's
@@ -92,7 +92,7 @@ def _release_build_env() -> dict[str, str]:
     frontend and, on Linux, mold) to every bare Cargo run, and an assigned
     `RUSTFLAGS` displaces it. Assigning the caller's own value, or an empty
     one, keeps development flags out of the wheel under test, as
-    `make release-artifact` does.
+    `make release-artefact` does.
 
     Returns
     -------
@@ -102,10 +102,10 @@ def _release_build_env() -> dict[str, str]:
     return {**os.environ, "RUSTFLAGS": os.environ.get("RUSTFLAGS", "")}
 
 
-def _build_native_wheel_artifact(
+def _build_native_wheel_artefact(
     root: pathlib.Path, out_dir: pathlib.Path
 ) -> pathlib.Path:
-    """Build a native maturin wheel and return the resulting wheel artifact path."""
+    """Build a native maturin wheel and return the resulting wheel artefact path."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for stale_wheel in out_dir.glob("*.whl"):
         stale_wheel.unlink()
@@ -281,7 +281,7 @@ def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
     if (installed_maturin := _installed_maturin_version()) != expected_maturin:
         pytest.skip(f"maturin pin {expected_maturin} != active {installed_maturin!r}.")
     wheelhouse = tmp_path_factory.mktemp("wheelhouse")
-    return _build_native_wheel_artifact(REPOSITORY_ROOT, wheelhouse)
+    return _build_native_wheel_artefact(REPOSITORY_ROOT, wheelhouse)
 
 
 @pytest.mark.parametrize("ambient", [None, "-D warnings"], ids=["unset", "ci"])
@@ -294,7 +294,7 @@ def test_the_release_build_displaces_the_development_standard(
 
     Without the assignment the configuration's `-Zthreads=8` (and mold, on
     Linux) would reach the release wheel, and the wheel built here would no
-    longer be the one `make release-artifact` produces.
+    longer be the one `make release-artefact` produces.
     """
     if ambient is None:
         monkeypatch.delenv("RUSTFLAGS", raising=False)
@@ -309,7 +309,7 @@ def test_the_release_build_displaces_the_development_standard(
     monkeypatch.setattr(subprocess, "run", record)
 
     with pytest.raises(AssertionError, match="Expected exactly one wheel"):
-        _build_native_wheel_artifact(REPOSITORY_ROOT, tmp_path)
+        _build_native_wheel_artefact(REPOSITORY_ROOT, tmp_path)
 
     assert seen["env"]["RUSTFLAGS"] == (ambient or ""), (
         "expected seen['env']['RUSTFLAGS'] == (ambient or '')"

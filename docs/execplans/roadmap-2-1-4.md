@@ -98,7 +98,7 @@ three ways:
 - Risk: `serde` `skip_serializing_if` is mis-applied and a `null` `range_role`
   leaks into non-range suppressions, breaking the RFC-shape round-trip test.
   Severity: medium. Likelihood: low. Mitigation: the existing test
-  `suppression_serialises_and_deserialises_with_the_rfc_shape` acts as a guard;
+  `suppression_serializes_and_deserializes_with_the_rfc_shape` acts as a guard;
   a new test asserts the field is *absent* (not `null`) for inline suppressions.
 - Risk: A future consumer treats a missing `range_role` on a `range`
   suppression as valid. Severity: low. Likelihood: low. Mitigation: the
@@ -349,7 +349,7 @@ Implements RFC 0001 §8 (adds a field to the suppression record) and §9
 (minor-version bump for an additive optional field).
 
 1. Stage B (red). In `crates/stilyagi-ir/src/tests/suppression.rs`, add tests:
-   - `range_role_serialises_open_and_close`: build an `IrSuppression` with
+   - `range_role_serializes_open_and_close`: build an `IrSuppression` with
      `kind: SuppressionKind::Range` and `range_role: Some(RangeRole::Open)`;
      assert the JSON contains `"range_role": "open"` and round-trips; repeat for
      `Close` → `"close"`.
@@ -405,7 +405,7 @@ Implements RFC 0001 §8 (adds a field to the suppression record) and §9
 
 Tests this work item adds/updates:
 
-- Unit (serde): `range_role_serialises_open_and_close` and the amended
+- Unit (serde): `range_role_serializes_open_and_close` and the amended
   inline-shape assertion in `crates/stilyagi-ir/src/tests/suppression.rs`.
 - Version assertions updated in `crates/stilyagi-ir/src/tests/mod.rs`,
   `crates/stilyagi-markdown/src/tests/ir_consistency.rs`,
@@ -558,7 +558,7 @@ Run everything from the worktree root
 Red/green loop for a focused Rust test (example, work item 1):
 
 ```sh
-cargo test -p stilyagi-ir range_role_serialises_open_and_close
+cargo test -p stilyagi-ir range_role_serializes_open_and_close
 ```
 
 Expected before Stage C: compile error `cannot find type RangeRole` /

@@ -13,8 +13,8 @@ from tests.performance.structural_probe_reporting import (
     EnvironmentPayload,
     ReportPayload,
     RunPayload,
-    normalise_repository_path,
-    summarise_durations,
+    normalize_repository_path,
+    summarize_durations,
 )
 
 if typ.TYPE_CHECKING:
@@ -135,7 +135,7 @@ def build_report(
     Parameters
     ----------
     repository_root:
-        The root used to normalise fixture paths to repository-relative POSIX
+        The root used to normalize fixture paths to repository-relative POSIX
         form; every fixture must live beneath it.
     fixtures:
         Existing fixture files beneath ``repository_root``. Their byte sizes
@@ -160,8 +160,8 @@ def build_report(
     >>> (report["probe"], report["corpus"]["file_count"], report["runs"])
     ('structural-syntax', 3, [])
     """
-    normalised_fixtures = [
-        normalise_repository_path(fixture.path, repository_root) for fixture in fixtures
+    normalized_fixtures = [
+        normalize_repository_path(fixture.path, repository_root) for fixture in fixtures
     ]
     per_syntax = {
         fixture.syntax.value: {
@@ -179,8 +179,8 @@ def build_report(
             python=platform.python_version(),
         ),
         corpus=CorpusPayload(
-            fixture_paths=normalised_fixtures,
-            file_count=len(normalised_fixtures),
+            fixture_paths=normalized_fixtures,
+            file_count=len(normalized_fixtures),
             total_bytes=sum(fixture.path.stat().st_size for fixture in fixtures),
             per_syntax=per_syntax,
         ),
@@ -268,7 +268,7 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
 
 def _run_payload(run: ProbeRun) -> RunPayload:
     """Return one JSON-compatible run payload."""
-    median_ns_per_file = summarise_durations(run.durations_ns)["median"]
+    median_ns_per_file = summarize_durations(run.durations_ns)["median"]
     seconds_per_file = median_ns_per_file / 1_000_000_000
     throughput_mib_per_s = (
         0.0 if seconds_per_file == 0 else run.byte_count / (1024**2) / seconds_per_file
@@ -279,7 +279,7 @@ def _run_payload(run: ProbeRun) -> RunPayload:
         byte_count=run.byte_count,
         iterations=len(run.durations_ns),
         durations_ns=list(run.durations_ns),
-        summary_ns=summarise_durations(run.durations_ns),
+        summary_ns=summarize_durations(run.durations_ns),
         median_ns_per_file=median_ns_per_file,
         throughput_mib_per_s=throughput_mib_per_s,
     )
@@ -288,7 +288,7 @@ def _run_payload(run: ProbeRun) -> RunPayload:
 def _display_output_path(output_path: pathlib.Path, root: pathlib.Path) -> str:
     """Return a non-absolute output path for command feedback."""
     try:
-        return normalise_repository_path(output_path, root)
+        return normalize_repository_path(output_path, root)
     except ValueError:
         return output_path.name
 

@@ -1,4 +1,4 @@
-"""Helpers for normalising canonical IR snapshots."""
+"""Helpers for normalizing canonical IR snapshots."""
 
 import json
 import typing as typ
@@ -27,7 +27,7 @@ def normalize_ir_identity(
     producer_name: str,
     producer_version_placeholder: str,
 ) -> dict[str, JSONType]:
-    """Normalise volatile producer and source-identity fields for snapshots."""
+    """Normalize volatile producer and source-identity fields for snapshots."""
     normalized = json.loads(json.dumps(ir))
     if not isinstance(normalized, dict):
         raise TypeError

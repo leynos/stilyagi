@@ -85,7 +85,7 @@ def find_unclaimed_span(document: model.Document) -> SourceSpan:
     A synthetic span cannot be invented: it has to be a real offset the IR
     genuinely does not cover, or the admissibility check accepts it and the
     scenario passes for the wrong reason. The gap between two source-backed
-    spans -- the soft line break the extractor normalised away -- is exactly
+    spans -- the soft line break the extractor normalized away -- is exactly
     such a range, so it is found by measuring rather than by guessing an offset.
 
     The search is bounded by the furthest byte the IR does claim, so the result

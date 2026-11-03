@@ -11,7 +11,7 @@ from .schema import (
     MarkdownExtractConfig,
     NlpConfig,
     StilyagiConfig,
-    normalise_path_value,
+    normalize_path_value,
 )
 from .validate import (
     ensure_bool,
@@ -255,10 +255,10 @@ def _parse_cache_dir(
     """Parse the `cache-dir` value into a path object."""
     value = table.get("cache-dir", pathlib.Path(".stilyagi_cache"))
     try:
-        return normalise_path_value(value)
+        return normalize_path_value(value)
     except TypeError as error:
         # Report the offending file and key rather than the bare field-less
-        # rejection the shared normaliser raises.
+        # rejection the shared normalizer raises.
         raise InvalidConfigError(path, "cache-dir", str(error)) from error
 
 

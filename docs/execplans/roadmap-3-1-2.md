@@ -1318,7 +1318,7 @@ so the plan stays implementable. Remaining work: all stages (0–6).
 Round 2 revision (2026-07-04): corrected the gate strategy. The prior draft
 wrongly asserted that `make all` runs the formatting check, typecheck, lint,
 and test suites; the Makefile actually defines `all: release`
-(`release: release-artifact smoke-release`), which only builds the maturin
+(`release: release-artefact smoke-release`), which only builds the maturin
 release wheel and runs `python -m stilyagi.smoke`, so it executes none of the
 commit gates. Every stage gate invocation and the two false prose claims
 (former lines 488 and 1016) now use the authoritative AGENTS.md commit-gate
