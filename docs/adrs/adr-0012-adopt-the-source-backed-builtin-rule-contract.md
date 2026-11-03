@@ -3,10 +3,12 @@
 ## Status
 
 Accepted. The first builtin Markdown pack runs inside one per-document
-projection whose source-backed spans are verified against the original bytes,
-tokenizes each eligible segment once, and reports findings under a policy layer
-that decides selection, per-file exclusion, and suppression before any rule
-sees a region.
+projection whose source-backed spans are verified against the original bytes
+and tokenizes each eligible segment once. Selection and per-file exclusion are
+decided before any rule runs; suppression directives are resolved into the same
+per-document policy, but their findings are filtered only after every rule has
+updated its state, so a suppressed heading still advances the heading-depth
+comparison.
 
 ## Date
 
@@ -48,8 +50,10 @@ findings. Deciding these inside each rule would guarantee they diverge.
 - **One document, one index.** Adding a rule should add only its own matching
   cost, not another traversal of the IR or another tokenization of the prose.
 - **Policy is not a rule concern.** Selection, exclusion, and suppression are
-  decided once, before rules run, so every rule — builtin or third-party —
-  observes the same world.
+  decided once per document. Selection and exclusion are settled before a rule
+  runs; suppression is resolved into a plan whose findings are dropped after
+  rule state updates, so every rule — builtin or third-party — observes the
+  same world while a stateful rule still sees every unit.
 - **Deterministic, inspectable rules.** The starter pack must not import NLP
   components, download models, or make locale claims.
 - **Reuse over new surface.** The projection and token model are private

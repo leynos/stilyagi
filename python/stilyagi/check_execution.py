@@ -28,7 +28,6 @@ the same call.
 
 import dataclasses as dc
 import logging
-import os
 import pathlib
 import typing as typ
 
@@ -39,6 +38,7 @@ from stilyagi.check_inputs import (
 )
 from stilyagi.cli_config import resolve_target_config
 from stilyagi.cli_io import SourcedInput, SourceReadError, read_source
+from stilyagi.config.paths import config_relative_path
 from stilyagi.engine.checker import map_ir_errors
 from stilyagi.engine.fix_pipeline import (
     FixRequest,
@@ -131,44 +131,10 @@ def _rule_request(
         source_bytes=sourced_input.source_bytes,
         reported_path=sourced_input.reported_path,
         document=document,
-        config_relative_path=_config_relative_path(
+        config_relative_path=config_relative_path(
             sourced_input.resolved_path, config_file
         ),
     )
-
-
-def _config_relative_path(
-    target: pathlib.Path,
-    config_file: pathlib.Path | None,
-) -> str:
-    """Return the POSIX target path per-file ignore globs are matched against.
-
-    Globs are config-relative, anchored at the governing config file's parent,
-    or at the invocation working directory when no config file governs the
-    target. ``os.path.relpath`` is used rather than ``Path.relative_to`` so a
-    target outside the config tree still yields a stable relative spelling
-    instead of failing the check.
-
-    Parameters
-    ----------
-    target:
-        The resolved path of the file being checked.
-    config_file:
-        The governing config file, or ``None`` when configuration is inline
-        only or absent.
-
-    Returns
-    -------
-    str
-        The target path as POSIX text, relative to the glob anchor.
-    """
-    anchor = (
-        config_file.expanduser().resolve().parent
-        if config_file is not None
-        else pathlib.Path.cwd()
-    )
-    relative = os.path.relpath(target.expanduser().resolve(), anchor)
-    return pathlib.PurePath(relative).as_posix()
 
 
 def _wants_a_plan(run: CheckRun) -> bool:

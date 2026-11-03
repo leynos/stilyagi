@@ -416,7 +416,13 @@ non-alphabetic term is a configuration error (exit code `2`). Comparison folds
 Unicode case by default; `case_sensitive = true` requires the configured
 spelling. The rule reports the original token span and never offers a fix.
 
+The tables below configure a standalone `.stilyagi.toml` or `stilyagi.toml`.
+Stilyagi discovers those files, or `pyproject.toml`, in the target's directory
+and then its ancestors; inside `pyproject.toml` every table gains a
+`tool.stilyagi` prefix.
+
 ```toml
+# .stilyagi.toml or stilyagi.toml
 [lint]
 select = ["MD", "STY", "TERM"]
 ignore = ["STY001"]
@@ -425,6 +431,20 @@ ignore = ["STY001"]
 "docs/generated/*.md" = ["MD"]
 
 [rule.TERM001]
+terms = ["obviously", "clearly"]
+case_sensitive = false
+```
+
+```toml
+# pyproject.toml
+[tool.stilyagi.lint]
+select = ["MD", "STY", "TERM"]
+ignore = ["STY001"]
+
+[tool.stilyagi.lint.per-file-ignores]
+"docs/generated/*.md" = ["MD"]
+
+[tool.stilyagi.rule.TERM001]
 terms = ["obviously", "clearly"]
 case_sensitive = false
 ```
@@ -463,10 +483,12 @@ consumes the next nonempty heading, paragraph, or table-cell unit, so a blank
 line between the directive and the text it protects is allowed.
 
 JSON output carries the byte contract directly. Each diagnostic has a `span`
-object with `byte_start` and `byte_end` offsets into the original file (or
-`null` when the finding has no source location), and `fix_applicable` says
-whether the rule offered a fix at all. `fix.applicability` distinguishes a
-`manual` fix from an `unsafe` one.
+object with `byte_start` and `byte_end` offsets into the original file, or
+`null` when no byte span is attached. A `null` span does not mean the location
+is unknown: a diagnostic mapped from an extractor error can still carry
+`location.line` and `location.column`, and consumers should keep those
+coordinates. `fix_applicable` says whether the rule offered a fix at all.
+`fix.applicability` distinguishes a `manual` fix from an `unsafe` one.
 
 #### Standard input
 

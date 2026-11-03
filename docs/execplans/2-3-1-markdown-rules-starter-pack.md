@@ -199,7 +199,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
 - [x] (2026-10-30) EP-M3 documentation: user's guide rule catalogue, policy,
   and suppression; developer's guide rule-execution map; design §7.2
   starter-pack note;
-  [ADR 0012](adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md);
+  [ADR 0012](../adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md);
   contents index entry.
 - [x] (2026-10-31) Post-rebase remediation. The first full `make test` reached
   `pytest` with 13 failures, all consequences of the new typed runner boundary
@@ -371,6 +371,45 @@ with error exit 1. An invalid `TERM001` option exits 2.
   `tests/test_config_schema_validation.py` exercises each validator's rejection
   path. Local Python coverage rose from 91.20% to 92.39% (224 missed of 2944
   statements), roughly 0.5 points above the hosted requirement.
+- [x] (2026-11-03) Reconcile the formal review on `4486f232`. CodeRabbit
+  requested changes with five findings and the Codex review raised one; all six
+  were verified against the head and upheld, so each is repaired rather than
+  rebutted.
+  - `SuppressionPlan.suppresses` scanned every interval and inline directive for
+    every finding, giving `O(findings × directives)`. The plan now builds a
+    per-code span index (`python/stilyagi/rules/suppression_index.py`) whose
+    running maximum of span ends keeps one bisection correct even where spans
+    overlap.
+  - `_config_relative_path` used `os.path.relpath`, which raises `ValueError`
+    when target and anchor are on different Windows drives. The helper moved to
+    `python/stilyagi/config/paths.py` as `config_relative_path`, uses
+    `relative_to(..., walk_up=True)`, and falls back to the absolute POSIX
+    spelling; the move also keeps `check_execution.py` within the 400-line
+    limit.
+  - The ADR 0012 status paragraph, its "Policy is not a rule concern" driver,
+    and the design starter-pack bullet said suppression is decided before rules
+    run. `run_rules` executes the rules and only then calls
+    `filter_diagnostics`, so the prose now matches the ADR's own requirement and
+    the code.
+  - Both ADR 0012 links in this plan pointed at `docs/execplans/adrs/`; they now
+    use `../adrs/`.
+  - The user's guide's `[lint]` example did not name its file, so a reader
+    copying it into `pyproject.toml` would configure nothing. It now labels the
+    standalone file and shows the `[tool.stilyagi.*]` equivalents.
+  - The guide said `span` is `null` only when a finding has no source location.
+    Diagnostics mapped from extractor errors carry line and column with no span,
+    so the text now keeps those coordinates and distinguishes a missing byte
+    span from a missing location.
+- [x] (2026-11-03) Clear the first gate run on those review repairs. Three
+  gates failed, each on a mechanical consequence of the same work:
+  - `mdtablefix` wanted the reworded ADR 0012 status paragraph rewrapped.
+  - Interrogate measured 99.9% because the new `raiser` stub and the
+    previously masked `_spy.wrapper` nested helper had no docstring. Both now
+    carry one-line docstrings and interrogate measures 100.0%.
+  - The `maturin` wheel-layout snapshot predated the two new modules. The
+    documented refresh command added `stilyagi/config/paths.py` and
+    `stilyagi/rules/suppression_index.py` to the captured entry list and
+    changed nothing else.
 
 ## Surprises & discoveries
 
@@ -561,7 +600,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
   fields this pack needs, with no extractor change. Date/author: 2026-10-28,
   implementation agent.
 - Implementation: the private rule contract is recorded as
-  [ADR 0012](adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md),
+  [ADR 0012](../adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md),
   covering the per-document projection, span verification, one-time
   tokenization, policy resolution order, and the three shipped rules.
   Rationale: these decisions bind every later builtin and third-party pack, and

@@ -975,8 +975,9 @@ freezing a public rule-authoring API. The shape is:
 - one per-document projection that verifies every advertised segment span
   against the source bytes and demotes a mismatch to synthetic text;
 - one tokenization per eligible segment, shared by every selected text rule;
-- one policy resolution that applies `select`, `ignore`, per-file globs, the
-  `plugins` gate, and suppression directives before any rule runs.
+- one policy resolution that applies `select`, `ignore`, per-file globs, and
+  the `plugins` gate before any rule runs, and resolves suppression directives
+  into a plan whose findings are dropped after rule state updates.
 
 The pack itself is `MD001` heading depth, `STY001` repeated word, and opt-in
 `TERM001` banned term. Only `STY001` proposes an edit, and only as an unsafe

@@ -11,6 +11,7 @@ import typing as typ
 from stilyagi.engine import rule_view
 from stilyagi.engine.ir_mapping import span_fields, string_tuple
 from stilyagi.model.source import SourceSpan
+from stilyagi.rules.suppression_index import SuppressionIndex
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -168,6 +169,13 @@ class SuppressionPlan:
     intervals: tuple[RuleInterval, ...]
     inline: tuple[InlineSuppression, ...]
     directives: tuple[IgnoreDirective, ...] = ()
+    _index: SuppressionIndex = dc.field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        """Build the per-code index once, since plans are immutable."""
+        object.__setattr__(
+            self, "_index", SuppressionIndex.build(self.intervals, self.inline)
+        )
 
     def suppresses(self, code: str, span: SourceSpan | None) -> bool:
         """Return whether the plan suppresses a finding.
@@ -200,15 +208,7 @@ class SuppressionPlan:
             return True
         if span is None:
             return False
-        start = span.byte_start
-        return any(
-            interval.code == code and interval.covers(start)
-            for interval in self.intervals
-        ) or any(
-            code in suppression.codes
-            and suppression.unit.byte_start <= start < suppression.unit.byte_end
-            for suppression in self.inline
-        )
+        return self._index.covers(code, span.byte_start)
 
 
 def resolve_suppressions(

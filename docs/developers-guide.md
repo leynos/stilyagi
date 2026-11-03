@@ -746,6 +746,12 @@ passes the projection's prose units into suppression resolution.
 `filter_diagnostics` drops findings whose primary span start falls in a
 suppressed interval; the runner filters only after every rule has reported, so
 stateful rules such as `MD001` still see the headings they suppress.
+`SuppressionPlan` indexes the intervals and inline units per code in
+`rules/suppression_index.py`, so a lookup is one bisection rather than a scan
+over every directive. `config/paths.py` owns the config-relative spelling those
+globs match: it walks up from the anchor with
+`Path.relative_to(..., walk_up=True)` and falls back to the absolute POSIX path
+when no relative spelling exists, as on a different Windows drive.
 
 The pack itself is `rules/builtin/{heading_depth,repeated_word,banned_term}.py`
 with shared text helpers in `rules/builtin/text.py`. `MD001` is manual-only,

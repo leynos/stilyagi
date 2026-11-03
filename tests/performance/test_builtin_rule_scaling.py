@@ -175,6 +175,7 @@ def _spy(
     original = getattr(module, name)
 
     def wrapper(*args: object, **kwargs: object) -> object:
+        """Count one call under its label, then delegate to the original."""
         calls[label or name] += 1
         return original(*args, **kwargs)
 
