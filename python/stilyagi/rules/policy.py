@@ -198,7 +198,7 @@ def _glob_matches(pattern: str, relative_path: str) -> bool:
     Returns
     -------
     bool
-        ``True`` when ``pattern`` matches the normalised relative path.
+        ``True`` when ``pattern`` matches the normalized relative path.
 
     Examples
     --------

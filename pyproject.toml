@@ -452,7 +452,7 @@ members = ["python/stilyagi/cli_fix.py", "python/stilyagi/engine/fix_pipeline.py
 reason = "Type-only import blocks declare each module's own dependency boundary; importing is a per-module declaration, so there is no shared logic to extract and a common import module would re-export names and couple unrelated modules."
 [[tool.duplication_gate.allow]]
 members = ["python/stilyagi/config/tables.py", "python/stilyagi/engine/extraction.py"]
-reason = "The shared shape is only the generic guard 'if value is None: return ()'. The two functions discharge different contracts: an absent 'extend' value normalises to an empty tuple, while an absent IR payload means no regions to report. A shared helper would couple configuration resolution to the extractor's IR payload."
+reason = "The shared shape is only the generic guard 'if value is None: return ()'. The two functions discharge different contracts: an absent 'extend' value normalizes to an empty tuple, while an absent IR payload means no regions to report. A shared helper would couple configuration resolution to the extractor's IR payload."
 [tool.ty.environment]
 python-version = "3.14"
 
