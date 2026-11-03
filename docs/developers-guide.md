@@ -1358,6 +1358,21 @@ This is a visible shotgun-surgery boundary. Do not paper over it with an
 unreviewed shortcut: the list makes each ownership boundary explicit until a
 future extractor-registration design can reduce the coordination cost.
 
+### 4.4 Private builder modules and test-module layout
+
+The Rust builders may keep a cohesive traversal or emission implementation in a
+private child module while the builder's state fields stay in the parent
+module. The children share the existing builder contract; they are not reusable
+extraction interfaces. Give a method the narrowest visibility the parent needs
+and keep node allocation, ordering and error semantics unchanged. Wiring a
+child through an explicit path keeps it from becoming a self-named module pair
+that the structural lint rejects.
+
+The Markdown crate's root tests live in
+`crates/stilyagi-markdown/src/tests/mod.rs`. Their snapshot assertions resolve
+`../snapshots` explicitly, so moving the test module under `tests/` keeps the
+existing `src/snapshots` goldens in place instead of regenerating them.
+
 ## 5. Build workflow
 
 The standard development and release workflows are:
