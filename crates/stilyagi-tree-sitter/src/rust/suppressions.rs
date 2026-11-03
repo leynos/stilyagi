@@ -53,6 +53,7 @@ pub(super) fn collect_comment_suppressions(
     suppressions_from_candidates(candidates)
 }
 
+/// Collect non-doc line comments beneath `node` in source order.
 fn collect_comment_nodes<'tree>(source: &str, node: Node<'tree>, comments: &mut Vec<Node<'tree>>) {
     let mut pending = vec![node];
     while let Some(current) = pending.pop() {
@@ -67,6 +68,7 @@ fn collect_comment_nodes<'tree>(source: &str, node: Node<'tree>, comments: &mut 
     }
 }
 
+/// Return the text after the leading `//` marker, if present.
 fn comment_body(source: &str, comment: Node<'_>) -> Option<String> {
     text_for_node(source, comment)?
         .strip_prefix("//")

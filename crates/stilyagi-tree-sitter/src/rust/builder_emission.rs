@@ -13,6 +13,7 @@ use super::super::types::NodeId;
 use super::{RustIrBuilder, TREE_ID};
 
 impl<'source> RustIrBuilder<'source> {
+    /// Emit a doc-comment group as child nodes and one owned IR region.
     pub(super) fn push_doc_comment_group(
         &mut self,
         group: &DocCommentGroup<'source>,
@@ -70,6 +71,7 @@ impl<'source> RustIrBuilder<'source> {
         });
     }
 
+    /// Allocate the next region identifier, formatted as `r{n}`.
     fn next_region_id(&mut self) -> String {
         let id = format!("r{}", self.next_region);
         self.next_region += 1;

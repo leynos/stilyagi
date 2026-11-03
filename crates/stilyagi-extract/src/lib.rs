@@ -72,8 +72,11 @@ impl TryFrom<&str> for ExtractSyntax {
 /// Partial document payload returned by the first extraction slice.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractDocument {
+    /// Syntax family the document was extracted from.
     syntax: ExtractSyntax,
+    /// Extracted regions in document order.
     regions: Vec<ExtractRegion>,
+    /// Full IR document, once the syntax produces one.
     ir: Option<IrDocument>,
 }
 

@@ -15,6 +15,7 @@ use super::{
     SYNTAXES, checked_label, increment_counter,
 };
 
+/// Record one completed check run under a validated outcome label.
 #[pyfunction]
 pub(crate) fn record_check_run(outcome: &str) -> PyResult<()> {
     let checked_outcome = checked_label(outcome, &RUN_OUTCOMES, "run outcome")?;
@@ -23,6 +24,7 @@ pub(crate) fn record_check_run(outcome: &str) -> PyResult<()> {
     Ok(())
 }
 
+/// Record one checked file under a validated syntax label.
 #[pyfunction]
 pub(crate) fn record_checked_file(syntax: &str) -> PyResult<()> {
     let checked_syntax = checked_label(syntax, &SYNTAXES, "syntax")?;
@@ -31,6 +33,7 @@ pub(crate) fn record_checked_file(syntax: &str) -> PyResult<()> {
     Ok(())
 }
 
+/// Add `count` diagnostics under a validated severity label.
 #[pyfunction]
 pub(crate) fn record_diagnostic_severity(severity: &str, count: u64) -> PyResult<()> {
     let checked_severity = checked_label(severity, &DIAGNOSTIC_SEVERITIES, "diagnostic severity")?;
@@ -45,6 +48,7 @@ pub(crate) fn record_diagnostic_severity(severity: &str, count: u64) -> PyResult
     Ok(())
 }
 
+/// Add `count` skipped candidates under a validated reason label.
 #[pyfunction]
 pub(crate) fn record_skipped_candidates(reason: &str, count: u64) -> PyResult<()> {
     let checked_reason = checked_label(reason, &SKIP_REASONS, "skip reason")?;
@@ -54,6 +58,7 @@ pub(crate) fn record_skipped_candidates(reason: &str, count: u64) -> PyResult<()
     Ok(())
 }
 
+/// Record one operational failure under a validated kind label.
 #[pyfunction]
 pub(crate) fn record_operational_failure(kind: &str) -> PyResult<()> {
     let checked_kind = checked_label(kind, &FAILURE_KINDS, "failure kind")?;
@@ -63,6 +68,7 @@ pub(crate) fn record_operational_failure(kind: &str) -> PyResult<()> {
     Ok(())
 }
 
+/// Record one phase duration, in nanoseconds, under a validated phase label.
 #[pyfunction]
 pub(crate) fn record_phase_duration(phase: &str, duration_nanoseconds: u64) -> PyResult<()> {
     let checked_phase = checked_label(phase, &PHASES, "phase")?;

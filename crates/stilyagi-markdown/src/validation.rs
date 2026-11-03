@@ -10,6 +10,11 @@ use stilyagi_ir::{
 
 use crate::{MarkdownDiagnosticContext, stilyagi_markdown_message};
 
+/// Validates a built IR document against its source and diagnostic context.
+///
+/// Checks document metadata, unique node and region ids, per-region
+/// consistency, and suppression origins, returning the first failure as a
+/// diagnostic message.
 pub(crate) fn validate_ir_consistency(
     document: &IrDocument,
     source: &str,
@@ -62,11 +67,13 @@ pub(crate) fn validate_ir_consistency(
     Ok(())
 }
 
+/// Returns the first id that appears more than once, if any.
 fn first_duplicate_id<'id>(ids: impl IntoIterator<Item = &'id str>) -> Option<&'id str> {
     let mut seen = BTreeSet::new();
     ids.into_iter().find(|id| !seen.insert(*id))
 }
 
+/// Checks that the document's content hash and line index match `source`.
 fn validate_document_metadata(
     document: &IrDocument,
     source: &str,
@@ -99,13 +106,19 @@ fn validate_document_metadata(
     Ok(())
 }
 
+/// Shared lookup context for validating regions and suppressions.
 struct IrValidationRefs<'a, 'context> {
+    /// The raw Markdown source the document was built from.
     source: &'a str,
+    /// Diagnostic context used to build error messages.
     context: &'a MarkdownDiagnosticContext<'context>,
+    /// Ids of all nodes declared by the document.
     node_ids: &'a BTreeSet<&'a str>,
+    /// Ids of all regions declared by the document.
     region_ids: &'a BTreeSet<&'a str>,
 }
 
+/// Runs every per-region consistency check, returning the first failure.
 fn validate_region_consistency(
     region: &IrRegion,
     refs: &IrValidationRefs<'_, '_>,
@@ -117,6 +130,7 @@ fn validate_region_consistency(
     Ok(())
 }
 
+/// Validates suppression origins, mapping failures to diagnostic messages.
 fn validate_suppressions(
     document: &IrDocument,
     refs: &IrValidationRefs<'_, '_>,
@@ -125,6 +139,7 @@ fn validate_suppressions(
         .map_err(|error| suppression_validation_message(refs.context, error))
 }
 
+/// Checks that the region's segments reconstruct its declared text.
 fn validate_region_text(
     region: &IrRegion,
     context: &MarkdownDiagnosticContext<'_>,
@@ -144,6 +159,7 @@ fn validate_region_text(
     ))
 }
 
+/// Checks that any declared parent region id resolves to a known region.
 fn validate_parent_region(
     region: &IrRegion,
     context: &MarkdownDiagnosticContext<'_>,
@@ -167,6 +183,7 @@ fn validate_parent_region(
     ))
 }
 
+/// Checks that a region has origin nodes and that all of them are known.
 fn validate_origin_nodes(
     region: &IrRegion,
     context: &MarkdownDiagnosticContext<'_>,
@@ -194,6 +211,7 @@ fn validate_origin_nodes(
     Ok(())
 }
 
+/// Validates each segment's origin and, for source segments, its span text.
 fn validate_source_segments(
     region: &IrRegion,
     refs: &IrValidationRefs<'_, '_>,
@@ -207,6 +225,7 @@ fn validate_source_segments(
     Ok(())
 }
 
+/// Checks that exactly one of a segment's source or synthetic origin is set.
 fn validate_segment_origin(
     region: &IrRegion,
     segment: &IrSegment,
@@ -228,6 +247,7 @@ fn validate_segment_origin(
     ))
 }
 
+/// Checks that the source text at the segment's span equals its text.
 fn validate_source_segment(
     region: &IrRegion,
     segment: &IrSegment,
@@ -248,6 +268,7 @@ fn validate_source_segment(
     ))
 }
 
+/// Converts a suppression validation error into a diagnostic message.
 fn suppression_validation_message(
     context: &MarkdownDiagnosticContext<'_>,
     error: SuppressionValidationError,

@@ -56,6 +56,8 @@ where
     )
 }
 
+/// Parses Markdown, converting a parser panic into a structured diagnostic
+/// message.
 fn parse_markdown_ast_with_context<F>(
     source: &str,
     context: &MarkdownDiagnosticContext<'_>,
@@ -68,18 +70,25 @@ where
         .unwrap_or_else(|payload| Err(parser_panic_message(payload.as_ref(), context)))
 }
 
+/// Returns the parser options used for all Markdown parsing: GFM plus
+/// frontmatter.
 fn markdown_parse_options() -> ParseOptions {
     let mut options = ParseOptions::gfm();
     options.constructs.frontmatter = true;
     options
 }
 
+/// Diagnostic fields attached to parser and validation messages.
 struct MarkdownDiagnosticContext<'a> {
+    /// Pipeline phase the message originates from.
     phase: &'a str,
+    /// Source path reported in messages.
     path: &'a str,
+    /// Source URI reported in messages.
     uri: &'a str,
 }
 
+/// Builds a structured parser message carrying the diagnostic context.
 fn stilyagi_markdown_message(
     context: &MarkdownDiagnosticContext<'_>,
     rule_id: &'static str,
@@ -99,6 +108,7 @@ fn stilyagi_markdown_message(
     }
 }
 
+/// Converts a caught panic payload into a structured parser message.
 fn parser_panic_message(
     payload: &(dyn Any + Send),
     context: &MarkdownDiagnosticContext<'_>,
@@ -152,6 +162,7 @@ pub fn markdown_ir_document(source: &str, identity: SourceIdentity) -> Result<Ir
     markdown_ir_document_with_context(source, context, &parse_context, &validation_context)
 }
 
+/// Builds and validates an IR document using the supplied diagnostic contexts.
 fn markdown_ir_document_with_context(
     source: &str,
     context: IrBuildContext,
@@ -192,6 +203,7 @@ fn markdown_ir_document_with_context(
 /// Update both together when the parser is upgraded.
 const MARKDOWN_RS_VERSION: &str = "1.0.0";
 
+/// Returns the producer metadata describing the Markdown parser and options.
 fn markdown_producer() -> ProducerMetadata {
     let mut options = BTreeMap::new();
     options.insert("gfm".to_owned(), serde_json::json!(true));
@@ -204,6 +216,8 @@ fn markdown_producer() -> ProducerMetadata {
     }
 }
 
+/// Returns the source span of a node, or a diagnostic when it is missing or
+/// invalid.
 fn source_span(
     node: &Node,
     context: &MarkdownDiagnosticContext<'_>,

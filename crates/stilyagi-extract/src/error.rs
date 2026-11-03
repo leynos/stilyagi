@@ -22,8 +22,15 @@ pub enum ExtractError {
     RustIr(RustExtractError),
 }
 
+/// Upper bound on the size of [`ExtractError`], in bytes.
 const EXTRACT_ERROR_SIZE_LIMIT_BYTES: usize = 128;
-const _: () = assert!(core::mem::size_of::<ExtractError>() <= EXTRACT_ERROR_SIZE_LIMIT_BYTES);
+
+/// Compile-time guard that the error stays cheap to move across the
+/// extraction boundary.
+const _: () = assert!(
+    core::mem::size_of::<ExtractError>() <= EXTRACT_ERROR_SIZE_LIMIT_BYTES,
+    "ExtractError exceeded its declared size budget"
+);
 
 /// Structured Markdown IR diagnostic preserved across extraction boundaries.
 #[derive(Debug, Clone, PartialEq, Eq)]

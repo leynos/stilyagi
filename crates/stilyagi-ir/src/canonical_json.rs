@@ -49,7 +49,7 @@ fn to_lower_hex(bytes: &[u8]) -> String {
 /// Map a `0..=15` nibble to its lowercase hexadecimal ASCII digit.
 #[must_use]
 fn digit_for_nibble(nibble: u8) -> char {
-    debug_assert!(nibble <= 0x0f);
+    debug_assert!(nibble <= 0x0f, "nibble {nibble} exceeds the four-bit range");
 
     char::from(if nibble < 10 {
         b'0' + nibble

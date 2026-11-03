@@ -11,6 +11,8 @@ use super::owner::OwnerFrame;
 use super::{MAX_TRAVERSAL_DEPTH, PythonIrBuilder, WalkContext};
 
 impl PythonIrBuilder<'_> {
+    /// Walk the named children of `node`, recording a recoverable error when
+    /// the depth limit is reached.
     pub(super) fn visit_children(&mut self, node: Node<'_>, context: &mut WalkContext<'_>) {
         if context.depth >= MAX_TRAVERSAL_DEPTH {
             self.record_depth_limit(node);
@@ -24,6 +26,7 @@ impl PythonIrBuilder<'_> {
         }
     }
 
+    /// Dispatch a node to definition handling or recurse into its children.
     fn visit_node(&mut self, node: Node<'_>, context: &mut WalkContext<'_>) {
         if let Some((kind, name)) = owner_frame_for_definition(self.source, node) {
             self.visit_definition(node, context, OwnerFrame::new(kind, name));
@@ -32,6 +35,8 @@ impl PythonIrBuilder<'_> {
         }
     }
 
+    /// Push an owner frame, emit its docstring region when present, then walk
+    /// the body.
     fn visit_definition(
         &mut self,
         node: Node<'_>,

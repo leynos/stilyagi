@@ -138,8 +138,11 @@ fn extract_document_function(py: Python<'_>) -> PyResult<Bound<'_, PyCFunction>>
     )
 }
 
+/// Validated positional arguments for the `extract_document` binding.
 struct ExtractDocumentRequest {
+    /// Source text to extract.
     source: String,
+    /// Syntax name supplied by the caller, validated later by `ExtractSyntax`.
     syntax: String,
 }
 

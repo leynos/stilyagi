@@ -111,7 +111,9 @@ impl RegionKind {
 /// Minimal source-backed prose region for the first extraction bridge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractRegion {
+    /// Stable region kind name shared with the IR vocabulary.
     kind: String,
+    /// Source text covered by the region.
     text: String,
 }
 

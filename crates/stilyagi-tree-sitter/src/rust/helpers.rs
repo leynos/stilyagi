@@ -9,9 +9,13 @@ use super::types::NodeId;
 /// Rust documentation-comment flavour derived from leading source bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum DocCommentFlavour {
+    /// Outer line doc comment, written with `///`.
     OuterLine,
+    /// Inner line doc comment, written with `//!`.
     InnerLine,
+    /// Outer block doc comment, written with `/** ... */`.
     OuterBlock,
+    /// Inner block doc comment, written with `/*! ... */`.
     InnerBlock,
 }
 
@@ -241,6 +245,7 @@ pub(super) fn recovery_doc_comment_count(source: &str, node: Node<'_>) -> usize 
         .max(recovery_doc_comment_marker_count(source, node))
 }
 
+/// Count doc-comment markers in a recovery node's source text.
 fn recovery_doc_comment_marker_count(source: &str, node: Node<'_>) -> usize {
     source
         .get(node.start_byte()..node.end_byte())

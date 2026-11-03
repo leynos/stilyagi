@@ -7,6 +7,7 @@ use tree_sitter::Parser;
 
 use super::RustExtractError;
 
+/// Version of the vendored `tree-sitter-rust` grammar.
 const RUST_GRAMMAR_VERSION: &str = "0.24.2";
 
 /// Parse UTF-8 Rust source with the vendored tree-sitter grammar.
@@ -44,26 +45,36 @@ pub(super) fn rust_producer() -> ProducerMetadata {
 
 /// Validate Rust IR consistency in debug builds.
 pub(super) fn validate_ir_consistency(document: &IrDocument, source: &str) {
-    debug_assert!(document_metadata_matches_source(document, source));
-    debug_assert!(regions_reconstruct_text(document));
+    debug_assert!(
+        document_metadata_matches_source(document, source),
+        "document metadata should match the source"
+    );
+    debug_assert!(
+        regions_reconstruct_text(document),
+        "region segments should reconstruct region text"
+    );
     let node_ids = document
         .nodes
         .iter()
         .map(|node| node.id.as_str())
         .collect::<BTreeSet<_>>();
-    debug_assert!(suppressions_remain_valid(
-        &document.suppressions,
-        source,
-        &node_ids
-    ));
-    debug_assert!(segments_match_source(document, source));
+    debug_assert!(
+        suppressions_remain_valid(&document.suppressions, source, &node_ids),
+        "suppressions should remain valid"
+    );
+    debug_assert!(
+        segments_match_source(document, source),
+        "source segments should match the source text"
+    );
 }
 
+/// Return whether the document's content hash and line index match `source`.
 fn document_metadata_matches_source(document: &IrDocument, source: &str) -> bool {
     document.document.content_hash == stilyagi_ir::content_hash_for(source)
         && document.line_index == stilyagi_ir::line_index_for(source)
 }
 
+/// Return whether every region's segments reconstruct its text.
 fn regions_reconstruct_text(document: &IrDocument) -> bool {
     document
         .regions
@@ -71,6 +82,8 @@ fn regions_reconstruct_text(document: &IrDocument) -> bool {
         .all(IrRegion::segments_reconstruct_text)
 }
 
+/// Return whether all suppressions still validate against `source` and
+/// `node_ids`.
 fn suppressions_remain_valid(
     suppressions: &[stilyagi_ir::IrSuppression],
     source: &str,
@@ -79,6 +92,7 @@ fn suppressions_remain_valid(
     validate_suppressions(suppressions, source, node_ids).is_ok()
 }
 
+/// Return whether every source-backed segment matches its span in `source`.
 fn segments_match_source(document: &IrDocument, source: &str) -> bool {
     document.regions.iter().all(|region| {
         region.segments.iter().all(|segment| {
