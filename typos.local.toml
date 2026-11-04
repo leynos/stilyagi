@@ -30,6 +30,9 @@ ignore = [
   # Deprecated compatibility alias for the public `summarize_fix_errors`
   # export; the identifier must keep its pre-Oxford spelling to stay importable.
   '\bsummarise_fix_errors\b',
+  # GitHub's own action identifiers; the `uses:` reference must match the
+  # publisher's spelling exactly, so `artifact` is not prose here.
+  '\bactions/(upload|download)-artifact@',
 ]
 
 [files]

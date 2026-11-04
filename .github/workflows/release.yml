@@ -108,11 +108,21 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Download the built artefacts
+      # The wheels and the sdist are uploaded under different names: the wheels
+      # per platform as `wheels-*`, the one source distribution as `sdist`.
+      # Both downloads are required, or the cardinality guard below finds no
+      # archive and every tag fails before anything is attested.
+      - name: Download the native wheels
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           pattern: wheels-*
           path: dist
+
+      - name: Download the source distribution
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: sdist
+          path: dist/sdist
 
       - name: Collect release artefacts
         id: collect

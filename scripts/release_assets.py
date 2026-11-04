@@ -58,6 +58,44 @@ class Plan:
     github_uploads: frozenset[str]
 
 
+def canonical_source(
+    name: str,
+    on_pypi: cabc.Collection[str],
+    on_github: cabc.Collection[str],
+) -> Source:
+    """Return the destination whose bytes are canonical for ``name``.
+
+    PyPI outranks the GitHub Release, and the Release outranks this run's
+    rebuilt file, because a published name's bytes can never be replaced.
+
+    Parameters
+    ----------
+    name
+        The artefact name to decide.
+    on_pypi
+        Names PyPI already holds.
+    on_github
+        Names the tag's GitHub Release already holds.
+
+    Returns
+    -------
+    Source
+        The first destination in precedence order that holds ``name``.
+
+    Examples
+    --------
+    >>> canonical_source("a.whl", {"a.whl"}, {"a.whl"})
+    <Source.PYPI: 'pypi'>
+    >>> canonical_source("b.whl", set(), set())
+    <Source.LOCAL: 'local'>
+    """
+    if name in on_pypi:
+        return Source.PYPI
+    if name in on_github:
+        return Source.GITHUB
+    return Source.LOCAL
+
+
 def plan(
     local: cabc.Iterable[str],
     on_pypi: cabc.Collection[str],
@@ -86,14 +124,7 @@ def plan(
     <Source.GITHUB: 'github'>
     """
     names = frozenset(local)
-    canonical = {
-        name: Source.PYPI
-        if name in on_pypi
-        else Source.GITHUB
-        if name in on_github
-        else Source.LOCAL
-        for name in names
-    }
+    canonical = {name: canonical_source(name, on_pypi, on_github) for name in names}
     return Plan(
         canonical=canonical,
         pypi_uploads=frozenset(name for name in names if name not in on_pypi),
