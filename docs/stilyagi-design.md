@@ -963,6 +963,23 @@ V1 sufficiency:
 - The current rule API is directionally good, but it needs narrowing and
   stronger performance semantics before implementation.
 
+#### Proposed 3.2.2 documentation rules
+
+Subject to delivery of prerequisite 2.3.1, add three opt-in, diagnostic-only
+rules through the shared `RegionTarget` and policy-targeting model. Keep their
+analysis structural and use the extracted owner metadata:
+
+- `DOC001` checks summary separation in Python docstrings.
+- `DOC002` checks plain-summary punctuation in Python docstrings and Rust
+  documentation comments.
+- `DOC003` warns when a Python or Rust summary only repeats its documented
+  owner's name.
+
+These rules exclude Markdown and arbitrary non-documentation comments. This is
+a proposal, not an implementation claim: prerequisite 2.3.1 is not yet
+available. The [3.2.2 ExecPlan](execplans/3-2-2-add-builtin-docstring-rules.md)
+holds the detailed rule contracts, prerequisite gate, and validation plan.
+
 #### Grammar-capability extension
 
 Strong points in RFC 0005:
