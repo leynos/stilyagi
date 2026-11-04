@@ -131,12 +131,13 @@ installation hint.
 
 ### Excluded routes
 
-| Route            | Mechanism                                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Release wheel    | `make release-artefact` and the maturin build in `tests/test_maturin_build.py` assign `RUSTFLAGS` from the caller alone, displacing the configuration. |
-| Coverage         | The coverage step assigns `RUSTFLAGS: -D warnings`, displacing the flags and keeping instrumentation; the shared action selects LLVM itself.           |
-| Whitaker         | `WHITAKER_RUST_FLAGS` is `-D warnings` alone; the installer-managed toolchain and `cranelift: true` input are unchanged.                               |
-| Mutation testing | The shared workflow's setup-rust exports `-D warnings`, which displaces the flags; `cargo-mutants` reaches no Make goal.                               |
+| Route            | Mechanism                                                                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Release wheel    | `make release-artefact` and the maturin build in `tests/test_maturin_build.py` assign `RUSTFLAGS` from the caller alone, displacing the configuration.                                                 |
+| Wheel workflow   | Every `maturin-action` step in `build-wheels.yml` assigns `RUSTFLAGS: ""`. A manylinux container is the host's own target triple, so no `cfg()` selector can exclude it, and the images carry no mold. |
+| Coverage         | The coverage step assigns `RUSTFLAGS: -D warnings`, displacing the flags and keeping instrumentation; the shared action selects LLVM itself.                                                           |
+| Whitaker         | `WHITAKER_RUST_FLAGS` is `-D warnings` alone; the installer-managed toolchain and `cranelift: true` input are unchanged.                                                                               |
+| Mutation testing | The shared workflow's setup-rust exports `-D warnings`, which displaces the flags; `cargo-mutants` reaches no Make goal.                                                                               |
 
 _Table 2: Routes that exclude the development standard, and how._
 
