@@ -290,6 +290,17 @@ Suppression generators construct token and whitespace strategies directly from
 character ranges and bounded vectors. This preserves their accepted alphabets
 and lengths without a fallible regex-construction helper inside strategy setup.
 
+#### rstest fixtures and the formatter
+
+The workspace formatter enables `fn_single_line`, which collapses a
+single-expression function body onto one line. `rstest`'s `#[fixture]`
+attribute re-emits the fixture body inside an extra block, so a collapsed body
+becomes a one-line braced tail expression and rustc reports `unused_braces` in
+the expansion. Keep a fixture body multi-line when it holds a single
+expression; an explanatory comment inside the body is enough, because the
+formatter does not collapse a body that contains a comment. The three BDD state
+fixtures in `stilyagi-extract` carry that comment and the reason.
+
 #### stilyagi-test-support API reference
 
 The `stilyagi-test-support` crate (at `crates/stilyagi-test-support/`) provides
