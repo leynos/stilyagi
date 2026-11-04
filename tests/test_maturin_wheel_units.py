@@ -25,6 +25,9 @@ import zipfile
 
 import pytest
 
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
 from tests.test_maturin_build import (
     _DIST_INFO_SUFFIXES,
     _extract_wheel_line_fields,
@@ -199,12 +202,15 @@ def test_a_header_is_read_from_the_first_occurrence() -> None:
     assert first == "first", first
 
 
-def _headers(lines: list[str]) -> dict[str, list[str]]:
+def _headers(lines: cabc.Sequence[str]) -> dict[str, list[str]]:
     """Reproduce the header scan `_parse_metadata` performs, for one question.
 
     `_parse_metadata` returns only the reviewed headers, and the folding and
     the end-of-headers rule are not visible through them, so the scan is
     repeated here over a document that keeps a header the snapshot drops.
+
+    The parameter is a sequence rather than a list because `str.splitlines`
+    answers with literal strings, and a `list` parameter would reject them.
 
     Parameters
     ----------
