@@ -83,8 +83,18 @@ jobs:
       - name: Build manylinux wheel (Linux x86_64)
         # The container's interpreter is named directly: this leg can execute
         # it, so maturin builds against the exact CPython it was given.
+        #
+        # `RUSTFLAGS` is named, and empty, so the assignment displaces
+        # `.cargo/config.toml`: the repository's Linux table selects mold, and
+        # a manylinux image has no mold to select (`cc` reports `cannot find
+        # 'ld'`). The action forwards it into the container because it is on
+        # the `RUST` prefix allow-list, and the published wheel is meant to
+        # carry the release build's flags rather than the development
+        # standard's.
         if: matrix.arch == 'x86_64'
         uses: messense/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b  # v1.51.0
+        env:
+          RUSTFLAGS: ""
         with:
           maturin-version: ${{ env.MATURIN_VERSION }}
           target: ${{ matrix.target }}
@@ -98,8 +108,15 @@ jobs:
       - name: Build manylinux wheel (Linux aarch64)
         # The aarch64 leg is cross-compiled, so the container's Python cannot
         # be executed to select a tag; maturin is given the version instead.
+        #
+        # `RUSTFLAGS` is named for the same reason as the x86_64 leg, and the
+        # cross gcc makes the omission louder: it rejects the repository's
+        # mold flag outright (`unrecognized command line option
+        # '-fuse-ld=mold'`) before it looks for a linker at all.
         if: matrix.arch == 'aarch64'
         uses: messense/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b  # v1.51.0
+        env:
+          RUSTFLAGS: ""
         with:
           maturin-version: ${{ env.MATURIN_VERSION }}
           target: ${{ matrix.target }}
@@ -221,7 +238,15 @@ jobs:
             stilyagi-wheel-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.target }}-${{ env.MATURIN_VERSION }}-
 
       - name: Build wheel
+        # `RUSTFLAGS` is named, and empty, for the same reason as the Linux
+        # legs: the release build takes no development flags, and only an
+        # assignment displaces what `.cargo/config.toml` would otherwise add.
+        # These legs do not use the mold table, so the omission would not fail
+        # here, which is exactly why it is held by contract rather than by the
+        # build.
         uses: messense/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b  # v1.51.0
+        env:
+          RUSTFLAGS: ""
         with:
           maturin-version: ${{ env.MATURIN_VERSION }}
           target: ${{ matrix.target }}

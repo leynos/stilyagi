@@ -1494,6 +1494,7 @@ excludes it from its compiler flags.
 | ----------------------- | ---------------------------------------------------------------------------------------------- |
 | `make release-artefact` | `RUSTFLAGS="${RUSTFLAGS-}"` assigns the caller's flags alone; it skips the preflight.          |
 | Wheel in pytest         | `tests/test_maturin_build.py` assigns `RUSTFLAGS` to its `maturin build --release` subprocess. |
+| Wheel workflow          | Every `maturin-action` step in `build-wheels.yml` assigns `RUSTFLAGS: ""`.                     |
 | Coverage                | The coverage step assigns `RUSTFLAGS: -D warnings`; instrumentation stays.                     |
 | Whitaker                | `RUSTFLAGS="$(WHITAKER_RUST_FLAGS)"` is `-D warnings` alone.                                   |
 | Mutation testing        | The shared workflow's setup-rust exports `-D warnings`; no Make goal is reached.               |
@@ -1502,7 +1503,11 @@ excludes it from its compiler flags.
 
 `tests/test_build_standard_exclusions.py` holds the workflow half, and the
 Make-route contracts hold the release and Whitaker halves, each with a negative
-control so a change that lets a route inherit the flags fails.
+control so a change that lets a route inherit the flags fails. The wheel
+workflow is the one lane held only by contract: its Linux legs fail visibly
+without the assignment because the manylinux image has no mold, while its macOS
+and Windows legs link fine and would quietly publish a wheel carrying
+`-Zthreads=8`.
 
 ### Build tools: install and check
 
