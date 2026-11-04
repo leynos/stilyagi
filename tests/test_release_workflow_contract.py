@@ -20,10 +20,12 @@ import typing as typ
 import pytest
 
 from tests.support.release_workflow import (
+    BUILD_WHEELS_WORKFLOW,
     READER,
     RELEASE_WORKFLOW,
     outputs,
     step,
+    step_mappings,
     step_script,
     workflow_job,
 )
@@ -213,6 +215,74 @@ def test_every_action_is_pinned_to_a_full_commit_sha() -> None:
             if not uses or str(uses).startswith("./"):
                 continue
             assert pattern.search(str(uses)), (job, uses)
+
+
+def _artefact_name(entry: dict[str, object], key: str) -> str | None:
+    """Return one upload or download step's `name` input, or None when it has none."""
+    declared = entry.get("with") or {}
+    inputs: dict[str, object] = declared if isinstance(declared, dict) else {}
+    name = inputs.get(key)
+    return None if name is None else str(name)
+
+
+def _uploaded_names(document: WorkflowDocument) -> set[str]:
+    """Return every artefact name `document` uploads, as written."""
+    jobs = document["jobs"]
+    assert isinstance(jobs, dict), "jobs must be a mapping"
+    names = {
+        found
+        for body in jobs.values()
+        if isinstance(body, dict)
+        for entry in step_mappings(body)
+        if str(entry.get("uses", "")).startswith("actions/upload-artifact@")
+        if (found := _artefact_name(entry, "name")) is not None
+    }
+    assert names, "the build workflow uploads no artefacts"
+    return names
+
+
+def _downloads_covering(name: str, patterns: set[str]) -> bool:
+    """Return whether a download pattern reaches `name`.
+
+    A `pattern` input is a glob matched against the upload's name, while a
+    `name` input must equal it. GitHub matches the glob against the whole
+    name, so only a trailing `*` is treated as a prefix here; anything richer
+    would be guessed at rather than read.
+
+    Returns
+    -------
+    bool
+        Whether any of `patterns` reaches `name`.
+    """
+    return any(
+        name == pattern or (pattern.endswith("*") and name.startswith(pattern[:-1]))
+        for pattern in patterns
+    )
+
+
+def test_attest_downloads_every_artefact_the_build_uploads() -> None:
+    """A name uploaded but never downloaded silently loses its bytes.
+
+    The sdist is uploaded under its own name, not under ``wheels-*``. Download
+    only the wheels and the cardinality guard finds no archive, so every tag
+    aborts before anything is attested or published.
+    """
+    build = load_workflow(
+        (WORKFLOWS_DIRECTORY / BUILD_WHEELS_WORKFLOW).read_text(encoding="utf-8")
+    )
+    downloads = {
+        found
+        for entry in step_mappings(workflow_job(DOCUMENT, "attest"))
+        if str(entry.get("uses", "")).startswith("actions/download-artifact@")
+        if (found := _artefact_name(entry, "pattern") or _artefact_name(entry, "name"))
+        is not None
+    }
+    missing = [
+        name
+        for name in sorted(_uploaded_names(build))
+        if not _downloads_covering(name, downloads)
+    ]
+    assert not missing, f"attest never downloads {missing}; it downloads {downloads}"
 
 
 def test_the_pypi_job_publishes_from_an_environment() -> None:

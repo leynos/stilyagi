@@ -123,6 +123,24 @@ def step_script(job: dict[str, object], name: str) -> str:
     return script
 
 
+def step_mappings(job: dict[str, object]) -> list[dict[str, object]]:
+    """Return a job's steps as mappings, ignoring any entry that is not one.
+
+    Parameters
+    ----------
+    job
+        A parsed job mapping.
+
+    Returns
+    -------
+    list[dict[str, object]]
+        The step mappings; empty when the job declares none.
+    """
+    declared = job.get("steps") or []
+    entries: list[object] = list(declared) if isinstance(declared, list) else []
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
 def step_ids(job: dict[str, object]) -> set[str]:
     """Return every ``id`` a job's steps declare.
 
@@ -136,11 +154,7 @@ def step_ids(job: dict[str, object]) -> set[str]:
     set[str]
         The declared step identifiers; empty when none are declared.
     """
-    declared = job.get("steps") or []
-    steps: list[object] = list(declared) if isinstance(declared, list) else []
-    return {
-        str(step["id"]) for step in steps if isinstance(step, dict) and "id" in step
-    }
+    return {str(entry["id"]) for entry in step_mappings(job) if "id" in entry}
 
 
 def outputs(job: dict[str, object]) -> dict[str, str]:
