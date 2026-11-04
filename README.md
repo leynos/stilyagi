@@ -12,9 +12,10 @@ the parsing and keeps byte-exact source maps; Python runs the rules.
 
 > **Status: pre-release; no release has been published.** Package metadata
 > currently carries version `0.1.0`, but that does not indicate a published
-> release. The extraction engine works. No rules ship yet, so `stilyagi check`
-> runs and finds nothing. Come for the architecture, not for the linting — see
-> the [roadmap](docs/roadmap.md) for what has landed.
+> release. The extraction engine works, and three builtin rules ship: `MD001`
+> (heading depth), `STY001` (adjacent repeated words), and the opt-in `TERM001`
+> (configured banned terms). See the [users' guide](docs/users-guide.md) for
+> their options and the [roadmap](docs/roadmap.md) for what has landed.
 
 Website: <https://df12.studio/stilyagi>
 
@@ -67,20 +68,24 @@ toolchain before `make build`. See the
 [developer's guide](docs/developers-guide.md) for what each tool does and for
 building without `make`.
 
-Then point it at some Markdown:
+Then point it at some Markdown, or pipe prose in on standard input:
 
 ```shell
-$ uv run stilyagi check docs/
-checked 59 files (2 skipped, 0 unreadable); 0 errors, 0 warnings
+$ printf '# Release notes\n\nThis is is a repeated word.\n' \
+    | uv run stilyagi check - --stdin-filename docs/release-notes.md
+docs/release-notes.md:3:9: warning STY001 Repeated word 'is'
+checked 1 files (0 skipped, 0 unreadable); 0 errors, 1 warnings; 0 safe fixes, 1 unsafe fix
 ```
 
-Zero is the honest answer today: extraction runs over every file, and there are
-no rules yet to have an opinion about what it found. Ask for machine output, or
-pipe prose in on standard input:
+`MD001` reports a heading whose level jumps by more than one, `STY001` reports
+an adjacent repeated word, and `TERM001` reports a configured banned term when
+the configuration opts in. The [users' guide](docs/users-guide.md) documents
+their options, suppression, and fixability. Ask for machine output, or check a
+directory:
 
 ```shell
 uv run stilyagi check docs/ --output-format json
-echo '# A heading' | uv run stilyagi check - --stdin-filename docs/guide.md
+uv run stilyagi check docs/
 ```
 
 ______________________________________________________________________
@@ -97,6 +102,9 @@ Working today:
   line, or a range.
 - `stilyagi check` over Markdown, Python, and Rust sources, with configuration
   discovery, text and JSON output, run summaries, and standard input.
+- Three builtin Markdown rules — `MD001` heading depth, `STY001` adjacent
+  repeated words, and opt-in `TERM001` banned terms — with selection, ignore,
+  per-file ignores, and suppression.
 - Wheels that build and smoke-test on Linux, macOS, and Windows.
 
 The [developers' guide](docs/developers-guide.md) covers the intermediate
@@ -104,7 +112,7 @@ representation these rest on.
 
 Designed, not yet built:
 
-- Built-in rules. The catalogue described on the website is the v1 target.
+- The rest of the v1 rule catalogue described on the website.
 - Safe-fix planning, `--fix`, and `--diff`.
 - The `dump-ir`, `config`, `clean`, `rules`, and `rule` commands.
 - Grammar and spelling providers behind the capability planner.

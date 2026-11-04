@@ -9,8 +9,9 @@ use pyo3::types::PyDict;
 use super::{
     BUCKET_LABELS, CHECK_RUNS, CHECKED_FILES, DIAGNOSTIC_COUNTS, DIAGNOSTIC_SEVERITIES,
     DurationHistogram, EXTRACTION_DOCUMENTS, EXTRACTION_FATAL_ERRORS, EXTRACTION_RECOVERY_ERRORS,
-    FAILURE_KINDS, OPERATIONAL_FAILURES, PHASE_DURATIONS, PHASES, RUN_OUTCOMES, SKIP_REASONS,
-    SKIPPED_CANDIDATES, SYNTAXES, UNREADABLE_FILES,
+    FAILURE_KINDS, OPERATIONAL_FAILURES, PHASE_DURATIONS, PHASES, PROJECTION_ANOMALIES,
+    PROJECTION_ANOMALY_KINDS, RUN_OUTCOMES, SKIP_REASONS, SKIPPED_CANDIDATES, SYNTAXES,
+    UNREADABLE_FILES,
 };
 
 /// Build a Python dict mapping each category name to its counter value.
@@ -104,6 +105,13 @@ fn set_check_counters<'py>(py: Python<'py>, snapshot: &Bound<'py, PyDict>) -> Py
         category_snapshot(
             py,
             &counter_categories(&FAILURE_KINDS, &OPERATIONAL_FAILURES, 0),
+        )?,
+    )?;
+    snapshot.set_item(
+        "stilyagi_check_projection_anomalies_total",
+        category_snapshot(
+            py,
+            &counter_categories(&PROJECTION_ANOMALY_KINDS, &PROJECTION_ANOMALIES, 0),
         )?,
     )?;
     Ok(())

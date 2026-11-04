@@ -53,6 +53,7 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
     from stilyagi.cli_args import CheckOptions
+    from stilyagi.config import ResolvedTargetConfig
     from stilyagi.rules import registry as rules_registry
 
 __all__ = [
@@ -95,14 +96,16 @@ def _rule_request(
     *,
     sourced_input: SourcedInput,
     document: model.Document,
-    resolved_config: config.StilyagiConfig,
-    run: CheckRun,
+    resolved_target: ResolvedTargetConfig,
 ) -> RuleRunRequest:
     """Build the per-document rule request from the values already in hand.
 
     The check pipeline already holds the original bytes, the reported path and
     the resolved configuration here, so rules can be handed byte-exact source
     without a second read and without reaching for the filesystem themselves.
+    The config file travels with the configuration because both describe the
+    same resolution; re-deriving it here would let the origin a diagnostic
+    names drift from the configuration it was produced under.
 
     Parameters
     ----------
@@ -110,23 +113,18 @@ def _rule_request(
         The read result carrying both the original bytes and decoded text.
     document:
         The extracted document with its canonical IR envelope.
-    resolved_config:
-        The effective configuration for this target.
-    run:
-        The collaborators and options fixed for this invocation.
+    resolved_target:
+        The effective configuration for this target and the config file that
+        supplied it.
 
     Returns
     -------
     RuleRunRequest
         The frozen request a rule runner receives.
     """
-    config_file = run.resolver.config_file_for_path(
-        sourced_input.resolved_path,
-        explicit_config=run.options.explicit_config or None,
-        isolated=run.options.isolated,
-    )
+    config_file = resolved_target.config_file
     return RuleRunRequest(
-        config=resolved_config,
+        config=resolved_target.config,
         config_path=str(config_file) if config_file is not None else None,
         source_bytes=sourced_input.source_bytes,
         reported_path=sourced_input.reported_path,
@@ -297,7 +295,7 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
     _LOGGER.debug("resolving config for %s", sourced_input.reported_path)
     try:
         with check_metrics._measure_phase("config"):
-            resolved_config = resolve_target_config(
+            resolved_target = resolve_target_config(
                 sourced_input.resolved_path, run.options, run.resolver
             )
     except (
@@ -307,7 +305,7 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
         return _report_phase_failure(sourced_input, run, exc, "config")
 
     diagnostics_list = _collect_diagnostics(
-        sourced_input, document, resolved_config, run
+        sourced_input, document, resolved_target, run
     )
     return FileCheckResult(
         diagnostics=diagnostics_list,
@@ -318,7 +316,7 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
                 sourced_input=sourced_input,
                 document=document,
                 diagnostics_list=diagnostics_list,
-                resolved_config=resolved_config,
+                resolved_config=resolved_target.config,
                 run=run,
             )
         ),
@@ -328,7 +326,7 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
 def _collect_diagnostics(
     sourced_input: SourcedInput,
     document: model.Document,
-    resolved_config: config.StilyagiConfig,
+    resolved_target: ResolvedTargetConfig,
     run: CheckRun,
 ) -> list[diagnostics.Diagnostic]:
     """Return the file's IR-error and rule diagnostics for the rules phase."""
@@ -340,8 +338,7 @@ def _collect_diagnostics(
                     _rule_request(
                         sourced_input=sourced_input,
                         document=document,
-                        resolved_config=resolved_config,
-                        run=run,
+                        resolved_target=resolved_target,
                     )
                 ),
             ]

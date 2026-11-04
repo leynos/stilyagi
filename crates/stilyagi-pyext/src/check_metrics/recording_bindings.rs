@@ -11,8 +11,8 @@ use pyo3::prelude::*;
 
 use super::{
     CHECK_RUNS, CHECKED_FILES, DIAGNOSTIC_COUNTS, DIAGNOSTIC_SEVERITIES, FAILURE_KINDS,
-    OPERATIONAL_FAILURES, PHASE_DURATIONS, PHASES, RUN_OUTCOMES, SKIP_REASONS, SKIPPED_CANDIDATES,
-    SYNTAXES, checked_label, increment_counter,
+    OPERATIONAL_FAILURES, PHASE_DURATIONS, PHASES, PROJECTION_ANOMALIES, PROJECTION_ANOMALY_KINDS,
+    RUN_OUTCOMES, SKIP_REASONS, SKIPPED_CANDIDATES, SYNTAXES, checked_label, increment_counter,
 };
 
 /// Record one completed check run under a validated outcome label.
@@ -65,6 +65,21 @@ pub(crate) fn record_operational_failure(kind: &str) -> PyResult<()> {
     increment_counter(&OPERATIONAL_FAILURES, &FAILURE_KINDS, checked_kind, 1);
     metrics::counter!("stilyagi_check_operational_failures_total", "kind" => checked_kind)
         .increment(1);
+    Ok(())
+}
+
+/// Record recovered IR anomalies under a validated projection-anomaly label.
+#[pyfunction]
+pub(crate) fn record_projection_anomaly(kind: &str, count: u64) -> PyResult<()> {
+    let checked_kind = checked_label(kind, &PROJECTION_ANOMALY_KINDS, "projection anomaly")?;
+    increment_counter(
+        &PROJECTION_ANOMALIES,
+        &PROJECTION_ANOMALY_KINDS,
+        checked_kind,
+        count,
+    );
+    metrics::counter!("stilyagi_check_projection_anomalies_total", "kind" => checked_kind)
+        .increment(count);
     Ok(())
 }
 

@@ -14,6 +14,7 @@ from stilyagi._stilyagi_rs import (
     record_diagnostic_severity,
     record_operational_failure,
     record_phase_duration,
+    record_projection_anomaly,
     record_skipped_candidates,
     record_unreadable_file,
     reset_check_metrics,
@@ -81,6 +82,12 @@ def _record_skips(
     """Record discovery's fixed skip-reason totals without path labels."""
     for skipped_count in skipped_by_reason:
         record_skipped_candidates(skipped_count.reason, skipped_count.count)
+
+
+def _record_projection_anomalies(anomalies: cabc.Mapping[str, int]) -> None:
+    """Record projection anomaly totals under their fixed category labels."""
+    for kind, count in anomalies.items():
+        record_projection_anomaly(kind, count)
 
 
 def _finish_check(

@@ -4,7 +4,7 @@ mod recording_bindings;
 mod snapshot;
 pub(super) use recording_bindings::{
     record_check_run, record_checked_file, record_diagnostic_severity, record_operational_failure,
-    record_phase_duration, record_skipped_candidates,
+    record_phase_duration, record_projection_anomaly, record_skipped_candidates,
 };
 pub(super) use snapshot::check_metrics_snapshot;
 
@@ -35,6 +35,15 @@ static SKIPPED_CANDIDATES: [AtomicU64; 3] =
 static UNREADABLE_FILES: AtomicU64 = AtomicU64::new(0);
 /// Per-kind operational failure counts, indexed by `FAILURE_KINDS`.
 static OPERATIONAL_FAILURES: [AtomicU64; 6] = [
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+    AtomicU64::new(0),
+];
+/// Per-kind recoverable IR anomaly counts, indexed by `PROJECTION_ANOMALY_KINDS`.
+static PROJECTION_ANOMALIES: [AtomicU64; 6] = [
     AtomicU64::new(0),
     AtomicU64::new(0),
     AtomicU64::new(0),
@@ -80,6 +89,15 @@ const SKIP_REASONS: [&str; 3] = [
 /// Labels for `OPERATIONAL_FAILURES`; the array index gives each counter
 /// meaning.
 const FAILURE_KINDS: [&str; 6] = ["discovery", "read", "extract", "config", "rules", "render"];
+/// Recoverable IR anomalies the rule projection tolerates, in label order.
+const PROJECTION_ANOMALY_KINDS: [&str; 6] = [
+    "malformed_node",
+    "invalid_node_span",
+    "malformed_region",
+    "malformed_segment",
+    "invalid_segment_span",
+    "source_mismatch",
+];
 /// Labels for `PHASE_DURATIONS`; the array index gives each histogram meaning.
 const PHASES: [&str; 7] = [
     "discovery",
@@ -240,6 +258,7 @@ fn reset_metrics() {
         .chain(DIAGNOSTIC_COUNTS.iter())
         .chain(SKIPPED_CANDIDATES.iter())
         .chain(OPERATIONAL_FAILURES.iter())
+        .chain(PROJECTION_ANOMALIES.iter())
         .chain(EXTRACTION_DOCUMENTS.iter())
         .chain(EXTRACTION_RECOVERY_ERRORS.iter())
         .chain(EXTRACTION_FATAL_ERRORS.iter())

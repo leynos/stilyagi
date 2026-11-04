@@ -5,8 +5,9 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 `Progress`, `Surprises & discoveries`, `Decision log`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan`.
 
-Status: APPROVED — user approved implementation on 2026-10-28; milestones M1–M3
-are authorized within the stated constraints and tolerances.
+Status: COMPLETE — implementation, validation, and review reconciliation
+finished on 2026-11-04. Milestones M1–M3 were approved on 2026-10-28 and are
+delivered within the stated constraints and tolerances.
 
 Roadmap item: 2.3.1. Prerequisites 2.1.2 (Markdown IR coverage) and 2.2.1
 (`stilyagi check`) are complete. Safe-fix planning, 2.2.2, is also complete.
@@ -475,6 +476,94 @@ with error exit 1. An invalid `TERM001` option exits 2.
   `test_suppression_sequences`, `test_rule_policy`,
   `test_rule_option_validation`, and `test_doctest_collection` report 50 passed.
 
+- [x] (2026-11-04) Pre-merge reconciliation. The `CodeRabbit` pre-merge table
+  reported one error and four warnings against the review of `eb217fa2`.
+  - Unit architecture (error): a target's configuration and its provenance
+    were resolved twice, and only the first lookup ran inside the configuration
+    phase. The second, in `_rule_request`, ran under the rules phase, so a
+    configuration I/O failure from it was reported as a rule-run failure. They
+    are now one record. `config.resolved`
+    defines `ResolvedTargetConfig`, pairing the effective `StilyagiConfig` with
+    the config file the resolver discovered; `cli_config.resolve_target_config`
+    returns it, and `check_execution._rule_request` consumes it instead of
+    re-running `ConfigResolver.config_file_for_path`. The resolver's discovery
+    cache still makes the second lookup cheap, but cheapness was never the
+    concern: one target now has one resolution, made inside the phase that
+    reports configuration failures. `tests/test_cli_config.py` pins both halves
+    of the pair, including the inline-only case where no file governs the
+    target.
+  - Developer documentation (warning): this entry, the `COMPLETE` status, the
+    final-state paragraph in the retrospective, and a new "Configuration
+    resolution" subsection in the developer's guide covering the record and the
+    `config/rules.py` builtin-table boundary.
+  - User-facing documentation (warning): the valid half is fixed and the
+    migration-guide half is declined on precedent. The README claimed no rules
+    ship, showed `stilyagi check docs/` finding zero, and listed built-in rules
+    as unbuilt; all three now describe the shipped rules and show a real
+    `STY001` finding. No `v0-2-0` migration guide is added. The style guide
+    scopes a migration guide to "a release that changes observable behaviour"
+    and to "the previous release to the named release"; `gh release list` is
+    empty and the `v0.1.0` tag is not a published release, so neither endpoint
+    exists. The sibling plan `3-2-1` reached the same conclusion and withdrew
+    its version-specific guide for the same reason. `docs/users-guide.md`
+    carries the version-neutral account of the three rules.
+  - Domain architecture (warning): no change. The reviewer asked for the IR to
+    domain translation to move to an adapter and for `resolve_suppressions` to
+    receive typed directives. `stilyagi.engine.rule_view` is the recorded
+    façade the rest of the engine imports (ADR-0012, "It remains the façade the
+    rest of the engine imports"), and `rules/suppression.py` already consumes
+    it. Moving the translation behind a second adapter would give the engine two
+    translation boundaries to keep in agreement, which is the coupling the
+    façade exists to prevent.
+  - Observability (warning): implemented. `engine.rule_projection.py` now
+    tallies six fixed anomaly categories (`malformed_node`, `invalid_node_span`,
+    `malformed_region`, `malformed_segment`, `invalid_segment_span`,
+    `source_mismatch`) and reports them once per document: the counts reach
+    `stilyagi_check_projection_anomalies_total` through a new PyO3
+    `record_projection_anomaly`, and one aggregated debug line carries the
+    counts without IR, segment text, or a path. `project(…,
+    should_report=False)` keeps suppression resolution's re-projection from
+    counting one document twice. The drop and synthetic-demotion paths are
+    unchanged; `tests/test_rule_projection_observability.py` pins both the
+    counters and the safe-skip behaviour.
+  - Gate evidence for this repair round: `check-fmt`, `markdownlint`, `nixie`,
+    `typecheck`, and `lint` passed on the revised tree. `lint` forced one
+    further structural change: once the reporting was inlined,
+    `engine.rule_projection.py` reached 410 lines against Pylint's 400-line
+    `C0302` ceiling, so the fixed anomaly vocabulary and its single reporting
+    entry point moved to `engine/projection_anomalies.py` (58 lines). The
+    projection imports them and passes its tally, which keeps one home for the
+    labels and brings the projection back to 379 lines. `make test`'s nextest
+    lane then ran 364 tests with 363 passing; `stilyagi-pyext`
+    `compile_tests` hit the 600 s `terminate-after` again while the shared
+    compile-admission queue held 46–82 foreign crates. Re-run alone on the
+    rebased tree under an 1800 s per-test budget it passed in 1102 s
+    (`PASS [1102.099s] stilyagi-pyext::compile_tests compile_time_ui`), so the
+    timeout is the already recorded admission-contention artefact rather than a
+    behavioural failure. The rerun compiled from cold behind the same queue:
+    the test profile took 5 m 14 s to build before the binary ran.
+  - `make test` aborts at that nextest failure, so the Python lanes it runs
+    afterwards needed running directly. The venv had been recreated without its
+    `dev` dependency group, which is why the first attempt reported "No module
+    named pytest"; `uv sync --group dev` restored the group and `make build`
+    reinstalled the development extension. The main lane then failed one
+    snapshot, and the failure was real: the new `engine/projection_anomalies.py`
+    ships in the wheel, so `tests/__snapshots__/test_maturin_build.ambr` gained
+    that single file-list line and nothing else. With the snapshot accepted the
+    main lane passed 1077 tests, the doctest lane passed 135 with 3 skipped, and
+    `make duplication-test` passed its 154 helper tests.
+  - The `compile_tests` rerun is bounded by a harness limit, not by nextest:
+    a background command is stopped after its allotted time, and each restart
+    truncates its log, so a lane that needs longer is re-run detached and
+    polled. The first long Python run looked stuck at 62 % for that reason, not
+    because of a hung test; the same suite finished in 162 s once it was allowed
+    to complete.
+  - The sequence was re-run once more on the exact tree that was pushed, after
+    the doc-comment realignment, the seed-helper extraction and the snapshot
+    update: `check-fmt`, `markdownlint` (spelling gate included) and `lint` all
+    exited 0. Within `lint`, Interrogate and both Pylint passes reported 100 %
+    and 10.00/10, and the duplication gate passed with 9 reasoned exceptions.
+
 ## Surprises & discoveries
 
 - Observation: the rule runner is an intentionally empty seam, and the model
@@ -801,6 +890,16 @@ everything, and its generator could not place two directives before one unit.
 Removing the filter and widening the generator exposed a disagreement between
 the replay's shared cursor and the resolver's independent binding; named
 witnesses now keep the unfiltered property non-vacuous.
+
+Final state. The rebased candidate `79511e35` passed every required hosted job
+in run `41897978130`: `lint-test` with the Python coverage ratchet at 92.13%
+against a 92.88% baseline and Rust at 91.08% against 91.48% (both inside the
+1.00-point tolerance), all three `release-smoke` platforms, CodeScene, and
+Gecko. The macOS job first sat unassigned and was cancelled without running a
+step; the rerun passed. The deterministic gates ran sequentially on the same
+tree with no tracked edit between them. The reconciliation commit that follows
+closes the pre-merge table's outstanding rows; it changes no rule behaviour,
+and its own gate run is the evidence for that tip rather than this head's.
 
 Shipped:
 
@@ -1548,3 +1647,6 @@ these deliberate boundaries and case-fold expansion.
   incorporated; user approval remains outstanding.
 - 2026-10-28: User approved the plan; Status moved from DRAFT to APPROVED and
   implementation milestones M1–M3 are authorized.
+- 2026-11-04: Status moved to COMPLETE. Recorded the final hosted evidence for
+  `79511e35`, the pre-merge table disposition, and the resolved-configuration
+  record that replaced the duplicated provenance lookup.

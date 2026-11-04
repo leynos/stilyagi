@@ -25,6 +25,33 @@ if typ.TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+@dc.dataclass(frozen=True, slots=True)
+class ResolvedTargetConfig:
+    """One target's effective config together with the file that supplied it.
+
+    Rule execution needs both halves together: the configuration itself, and
+    the provenance a diagnostic reports. Resolving them once, in one pass,
+    stops a caller from re-deriving one half and disagreeing with the other.
+
+    Attributes
+    ----------
+    config:
+        The configuration in force for the target, with command-line overrides
+        applied over whatever the discovered config files provide.
+    config_file:
+        The config file that governs the target, or ``None`` when only inline
+        configuration and built-in defaults apply.
+
+    Examples
+    --------
+    >>> ResolvedTargetConfig(StilyagiConfig(), None).config_file is None
+    True
+    """
+
+    config: StilyagiConfig
+    config_file: pathlib.Path | None
+
+
 def _empty_discovery_cache() -> dict[pathlib.Path, pathlib.Path | None]:
     """Create an independently mutable discovery cache."""
     return {}

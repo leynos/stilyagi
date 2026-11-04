@@ -466,6 +466,28 @@ capturing the object at import time. That keeps a module-level default
 substitutable: a test that monkeypatches `rules_registry.run_rules` still
 influences the default, exactly as the previous call-time lookup did.
 
+### Configuration resolution
+
+`cli_config.resolve_target_config` is the one place a target's configuration
+and its provenance are resolved together. It returns a frozen
+`config.ResolvedTargetConfig`, pairing the effective `StilyagiConfig` with the
+config file that governs the target, or `None` when only inline configuration
+and built-in defaults apply. `check_execution._rule_request` consumes that
+record rather than calling `ConfigResolver.config_file_for_path` itself:
+re-deriving provenance would let the file a diagnostic names drift from the
+configuration the diagnostic was produced under. The per-file pipeline keeps
+`resolve_discovery_config` for the run-level sweep, which discards the file and
+returns the configuration alone because discovery is not attributed to a file.
+
+Builtin rule tables are validated at this boundary, not when a rule runs.
+`config/rules.py` owns the parsers for `[tool.stilyagi.rule.<CODE>]` tables and
+`validate_builtin_tables` walks every recognized builtin table, selected or
+not. A malformed option is therefore reported whether or not its rule is
+enabled, and `InvalidConfigError` names the governing config file when there is
+one and the target path otherwise. Tables belonging to other rule families are
+preserved untouched for future slices; the module never rejects configuration
+it does not yet understand.
+
 ### Discovery
 
 `run_check` delegates target collection to `check_targets.discover_targets`.
@@ -612,12 +634,26 @@ also has the bounded `total` label. `total` measures one complete `run_check`
 invocation with the monotonic `time.perf_counter_ns()` clock. It is recorded
 once before the verbose snapshot on normal returns, handled operational
 returns, and propagated exceptions. Counters use only bounded run-outcome,
-syntax, skip-reason, failure-kind, and diagnostic-severity (`error`/`warning`)
-labels. Python and Rust extraction counters are recorded at the PyO3 boundary.
-No paths or raw error strings become labels, keeping metric cardinality
-independent of repository contents and failure text. Metrics-facade
-observations continue to reach a host-installed recorder; Stilyagi does not
-install or replace it.
+syntax, skip-reason, failure-kind, diagnostic-severity (`error`/`warning`), and
+projection-anomaly labels. Python and Rust extraction counters are recorded at
+the PyO3 boundary. No paths or raw error strings become labels, keeping metric
+cardinality independent of repository contents and failure text.
+
+`python/stilyagi/engine/rule_projection.py` is the rules boundary that converts
+the extractor's untyped IR into the typed facts rules consume. It recovers from
+malformed IR by dropping the offending entry or demoting a mismatched segment
+to synthetic, and it reports that recovery rather than hiding it:
+`stilyagi_check_projection_anomalies_total` counts each fixed category
+(`malformed_node`, `invalid_node_span`, `malformed_region`, `malformed_segment`,
+`invalid_segment_span`, `source_mismatch`), and one aggregated debug line per
+document carries the counts. The vocabulary and that reporting live in
+`python/stilyagi/engine/projection_anomalies.py`, so a new recovery path adds a
+label to one list rather than inventing a metric name at its drop site. Neither
+the metric nor the log carries IR, segment text, or a path.
+`project(..., should_report=False)` exists for a caller that re-projects a
+document already reported, so one document's anomalies are never counted twice.
+Metrics-facade observations continue to reach a host-installed recorder;
+Stilyagi does not install or replace it.
 
 ### Configuration loading and resolution
 

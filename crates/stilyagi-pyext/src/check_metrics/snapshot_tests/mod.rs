@@ -19,7 +19,8 @@ use super::{
     CHECK_METRICS_TEST_LOCK, EXTRACTION_RECOVERY_ERRORS, check_metrics_snapshot, record_check_run,
     record_checked_file, record_diagnostic_severity, record_extraction_attempt,
     record_extraction_failure, record_extraction_outcome, record_operational_failure,
-    record_phase_duration, record_skipped_candidates, record_unreadable_file, reset_metrics,
+    record_phase_duration, record_projection_anomaly, record_skipped_candidates,
+    record_unreadable_file, reset_metrics,
 };
 
 mod duration_tests;
@@ -29,7 +30,14 @@ fn populated_snapshot() -> PyResult<Py<PyDict>> {
         .lock()
         .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
     reset_metrics();
+    seed_check_counters()?;
+    seed_extraction_counters();
+    seed_phase_durations()?;
+    Python::attach(check_metrics_snapshot)
+}
 
+/// Record one of every check counter a populated snapshot carries.
+fn seed_check_counters() -> PyResult<()> {
     for outcome in ["success", "diagnostic_error", "operational_error"] {
         record_check_run(outcome)?;
     }
@@ -49,7 +57,21 @@ fn populated_snapshot() -> PyResult<Py<PyDict>> {
     for kind in ["discovery", "read", "extract", "config", "rules", "render"] {
         record_operational_failure(kind)?;
     }
+    for kind in [
+        "malformed_node",
+        "invalid_node_span",
+        "malformed_region",
+        "malformed_segment",
+        "invalid_segment_span",
+        "source_mismatch",
+    ] {
+        record_projection_anomaly(kind, 1)?;
+    }
+    Ok(())
+}
 
+/// Record one of every extraction counter a populated snapshot carries.
+fn seed_extraction_counters() {
     for syntax in [
         ExtractSyntax::Markdown,
         ExtractSyntax::PythonDocstring,
@@ -69,7 +91,10 @@ fn populated_snapshot() -> PyResult<Py<PyDict>> {
     ] {
         record_extraction_failure(&error);
     }
+}
 
+/// Record one sample for every phase histogram a populated snapshot carries.
+fn seed_phase_durations() -> PyResult<()> {
     for (phase, duration) in [
         ("discovery", Duration::from_micros(500)),
         ("read", Duration::from_millis(5)),
@@ -83,8 +108,7 @@ fn populated_snapshot() -> PyResult<Py<PyDict>> {
             .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
         record_phase_duration(phase, nanoseconds)?;
     }
-
-    Python::attach(check_metrics_snapshot)
+    Ok(())
 }
 
 fn dictionary<'py>(snapshot: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound<'py, PyDict>> {
@@ -323,5 +347,26 @@ fn serializes_fatal_extraction_error_categories() {
         .expect("Rust fatal errors are present");
         assert_metric_values(&python, &[("grammar_load", 1), ("no_parse_tree", 1)]);
         assert_metric_values(&rust, &[("grammar_load", 1), ("no_parse_tree", 1)]);
+    });
+}
+
+#[rstest]
+fn serializes_projection_anomaly_categories() {
+    let snapshot = populated_snapshot().expect("bounded metrics serialize");
+    Python::attach(|py| {
+        let bound_snapshot = snapshot.bind(py);
+        let anomalies = dictionary(bound_snapshot, "stilyagi_check_projection_anomalies_total")
+            .expect("projection anomalies are present");
+        assert_metric_values(
+            &anomalies,
+            &[
+                ("malformed_node", 1),
+                ("invalid_node_span", 1),
+                ("malformed_region", 1),
+                ("malformed_segment", 1),
+                ("invalid_segment_span", 1),
+                ("source_mismatch", 1),
+            ],
+        );
     });
 }

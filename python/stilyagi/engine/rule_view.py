@@ -131,7 +131,7 @@ def ignore_next_units(document: model.Document) -> tuple[SourceSpan, ...]:
     >>> ignore_next_units(model.Document(syntax=model.Syntax.MARKDOWN))
     ()
     """
-    return project(document).prose_units
+    return project(document, should_report=False).prose_units
 
 
 def inline_code_spans(document: model.Document) -> tuple[SourceSpan, ...]:

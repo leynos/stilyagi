@@ -9,6 +9,11 @@ selected.
 A segment's advertised source span is trusted only when the source slice
 decodes to exactly the segment text. A stale or malformed span is demoted to a
 synthetic segment, so a byte-exact finding can never point at other bytes.
+
+Recovering from malformed IR is not silent. Every dropped node, region, or
+segment is counted under one of six fixed labels and reported once per document,
+so a projection that suppresses a finding can be told apart from a document that
+genuinely had none.
 """
 
 import dataclasses as dc
@@ -23,6 +28,7 @@ from stilyagi.engine.ir_mapping import (
     source_span,
     string_tuple,
 )
+from stilyagi.engine.projection_anomalies import AnomalyTally, report_anomalies
 from stilyagi.model.region import RegionSegment, RegionView
 from stilyagi.model.source import SourceSpan, is_utf8_boundary
 
@@ -92,6 +98,7 @@ def project(
     document: model.Document,
     *,
     source_bytes: bytes | None = None,
+    should_report: bool = True,
 ) -> DocumentRegionView:
     """Build the per-document region projection.
 
@@ -102,6 +109,10 @@ def project(
     source_bytes:
         Original file bytes. When supplied, each segment's advertised span is
         kept only if that slice decodes to exactly the segment text.
+    should_report:
+        Whether this projection records its recovered anomalies. Suppression
+        resolution re-projects the same document to collect prose units, so it
+        passes ``False`` rather than count one document's anomalies twice.
 
     Returns
     -------
@@ -114,12 +125,16 @@ def project(
     >>> project(model.Document(syntax=model.Syntax.MARKDOWN)).regions
     ()
     """
-    nodes, inline_spans = _node_facts(document, source_bytes)
+    anomalies = AnomalyTally()
+    nodes, inline_spans = _node_facts(document, source_bytes, anomalies)
     regions = tuple(
         region
         for raw_region in ir_sequence(document, "regions")
-        if (region := _region_view(raw_region, nodes, source_bytes)) is not None
+        if (region := _region_view(raw_region, nodes, source_bytes, anomalies))
+        is not None
     )
+    if should_report:
+        report_anomalies(anomalies)
     return DocumentRegionView(
         regions=regions,
         inline_code_spans=merge_touching_spans(sorted(inline_spans)),
@@ -163,6 +178,7 @@ def select_regions(
 def _node_facts(
     document: model.Document,
     source_bytes: bytes | None,
+    anomalies: AnomalyTally,
 ) -> tuple[dict[str, SourceSpan], list[SourceSpan]]:
     """Return the node-id index and inline-code spans in one node pass.
 
@@ -182,9 +198,11 @@ def _node_facts(
     for raw_node in ir_sequence(document, "nodes"):
         node = ir_mapping(raw_node)
         if node is None:
+            anomalies["malformed_node"] += 1
             continue
         span = source_span(node.get("span"))
         if span is None or not _addresses_source(span, source_bytes):
+            anomalies["invalid_node_span"] += 1
             continue
         node_id = node.get("id")
         if isinstance(node_id, str):
@@ -219,16 +237,19 @@ def _region_view(
     raw_region: object,
     nodes: cabc.Mapping[str, SourceSpan],
     source_bytes: bytes | None,
+    anomalies: AnomalyTally,
 ) -> RegionView | None:
     """Convert one raw region mapping into a safe typed view."""
     region = ir_mapping(raw_region)
     if region is None:
+        anomalies["malformed_region"] += 1
         return None
     region_id = region.get("id")
     kind = region.get("kind")
     if not isinstance(region_id, str) or not isinstance(kind, str):
+        anomalies["malformed_region"] += 1
         return None
-    segments = tuple(_region_segments(region, source_bytes))
+    segments = tuple(_region_segments(region, source_bytes, anomalies))
     node_span = _origin_span(region, nodes)
     return RegionView(
         region_id=region_id,
@@ -278,13 +299,15 @@ def _bounding_span(spans: cabc.Iterable[SourceSpan]) -> SourceSpan | None:
 def _region_segments(
     region: cabc.Mapping[str, object],
     source_bytes: bytes | None,
+    anomalies: AnomalyTally,
 ) -> cabc.Iterator[RegionSegment]:
     """Yield well-formed segments from one raw region mapping."""
     raw_segments = region.get("segments")
     if not is_sequence(raw_segments):
+        anomalies["malformed_region"] += 1
         return
     for raw_segment in typ.cast("cabc.Sequence[object]", raw_segments):
-        segment = _segment_view(raw_segment, source_bytes)
+        segment = _segment_view(raw_segment, source_bytes, anomalies)
         if segment is not None:
             yield segment
 
@@ -292,10 +315,12 @@ def _region_segments(
 def _segment_view(
     raw_segment: object,
     source_bytes: bytes | None,
+    anomalies: AnomalyTally,
 ) -> RegionSegment | None:
     """Convert one raw segment mapping into a safe typed view."""
     typed = segment_with_text(raw_segment)
     if typed is None:
+        anomalies["malformed_segment"] += 1
         return None
     segment, text = typed
     node = segment.get("node")
@@ -311,10 +336,12 @@ def _segment_view(
         )
     span = source_span(source)
     if span is None:
+        anomalies["invalid_segment_span"] += 1
         return None
     if source_bytes is not None and not _slice_matches(source_bytes, span, text):
         # The advertised span does not address this text. Treat the segment as
         # synthetic rather than let a byte-exact finding point at other bytes.
+        anomalies["source_mismatch"] += 1
         return RegionSegment(
             span=None, text=text, node=owner, synthetic_reason="source_mismatch"
         )

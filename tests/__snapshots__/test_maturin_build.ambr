@@ -55,6 +55,7 @@
       'stilyagi/engine/ir_mapping.py',
       'stilyagi/engine/ir_view.py',
       'stilyagi/engine/planner.py',
+      'stilyagi/engine/projection_anomalies.py',
       'stilyagi/engine/renderers.py',
       'stilyagi/engine/rule_projection.py',
       'stilyagi/engine/rule_view.py',

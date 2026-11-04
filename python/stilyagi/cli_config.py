@@ -10,6 +10,7 @@ on this module, and neither depends on the other.
 import pathlib
 import typing as typ
 
+from stilyagi.config import ResolvedTargetConfig
 from stilyagi.config import rules as rule_options
 
 __all__ = [
@@ -65,7 +66,7 @@ def resolve_target_config(
     target: pathlib.Path,
     options: CheckOptions,
     resolver: config.ConfigResolver,
-) -> config.StilyagiConfig:
+) -> ResolvedTargetConfig:
     """Resolve and validate the effective config for one target path.
 
     Per-rule tables are validated here rather than only when a rule runs, so a
@@ -73,6 +74,11 @@ def resolve_target_config(
     selected. A malformed table raises :class:`config.InvalidConfigError`; the
     error names the config file that governs the target when one does, and
     falls back to the target path for an inline-only configuration.
+
+    The config file is returned alongside the configuration because the rules
+    phase reports it as a diagnostic's origin. Deriving it here, from the same
+    resolver state used to resolve the configuration, is what keeps the two
+    answers about one target consistent.
 
     Parameters
     ----------
@@ -85,9 +91,9 @@ def resolve_target_config(
 
     Returns
     -------
-    config.StilyagiConfig
+    ResolvedTargetConfig
         The configuration in force for ``target``, with the command-line
-        overrides applied over whatever the discovered config files provide.
+        overrides applied, and the config file that supplied it.
     """
     resolved = resolver.resolve_config_for_path(
         target,
@@ -101,7 +107,7 @@ def resolve_target_config(
         isolated=options.isolated,
     )
     rule_options.validate_builtin_tables(resolved, path=config_file or target)
-    return resolved
+    return ResolvedTargetConfig(config=resolved, config_file=config_file)
 
 
 def resolve_discovery_config(
@@ -120,4 +126,4 @@ def resolve_discovery_config(
     config.StilyagiConfig
         The configuration used to discover Markdown inputs.
     """
-    return resolve_target_config(pathlib.Path(), options, resolver)
+    return resolve_target_config(pathlib.Path(), options, resolver).config

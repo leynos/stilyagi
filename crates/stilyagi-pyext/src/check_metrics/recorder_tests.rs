@@ -9,9 +9,10 @@ use rstest::rstest;
 
 use super::{
     CHECK_METRICS_TEST_LOCK, CHECK_RUNS, CHECKED_FILES, DIAGNOSTIC_COUNTS, OPERATIONAL_FAILURES,
-    PHASE_DURATIONS, SKIPPED_CANDIDATES, UNREADABLE_FILES, record_check_run, record_checked_file,
-    record_diagnostic_severity, record_operational_failure, record_phase_duration,
-    record_skipped_candidates, record_unreadable_file, reset_metrics,
+    PHASE_DURATIONS, PROJECTION_ANOMALIES, SKIPPED_CANDIDATES, UNREADABLE_FILES, record_check_run,
+    record_checked_file, record_diagnostic_severity, record_operational_failure,
+    record_phase_duration, record_projection_anomaly, record_skipped_candidates,
+    record_unreadable_file, reset_metrics,
 };
 
 static HOST_METRIC: AtomicU64 = AtomicU64::new(0);
@@ -114,6 +115,7 @@ fn records_bounded_check_metrics_and_rejects_unbounded_labels() {
     record_skipped_candidates("unregistered_candidate", 2).expect("skip reason is fixed");
     record_unreadable_file();
     record_operational_failure("read").expect("read is a fixed failure kind");
+    record_projection_anomaly("source_mismatch", 3).expect("anomaly kind is fixed");
     record_phase_duration("extract", 5_000_000).expect("extract is a fixed phase");
     assert_eq!(
         CHECK_RUNS
@@ -152,8 +154,19 @@ fn records_bounded_check_metrics_and_rejects_unbounded_labels() {
             .map(|histogram| histogram.count.load(Ordering::Relaxed)),
         Some(1)
     );
+    assert_eq!(
+        PROJECTION_ANOMALIES
+            .get(5)
+            .map(|counter| counter.load(Ordering::Relaxed)),
+        Some(3)
+    );
     assert!(record_check_run("/tmp/private-source.py").is_err());
     assert!(record_diagnostic_severity("/tmp/private-source.py", 1).is_err());
+    assert!(record_projection_anomaly("/tmp/private-source.py", 1).is_err());
+    assert!(
+        record_projection_anomaly("malformed_node", 1).is_ok(),
+        "every documented anomaly category is a fixed label"
+    );
 }
 
 #[rstest]
