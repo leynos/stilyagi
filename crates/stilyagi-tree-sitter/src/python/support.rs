@@ -8,6 +8,8 @@ use tree_sitter::Parser;
 
 use super::PythonExtractError;
 
+/// Version of the vendored `tree-sitter-python` grammar, kept in step with the
+/// workspace dependency.
 const PYTHON_GRAMMAR_VERSION: &str = "0.25.0";
 
 /// Parse UTF-8 Python source with the vendored tree-sitter grammar.
@@ -55,14 +57,20 @@ pub(super) fn python_producer() -> ProducerMetadata {
 pub(super) fn validate_ir_consistency(document: &IrDocument, source: &str) {
     debug_assert_eq!(
         document.document.content_hash,
-        stilyagi_ir::content_hash_for(source)
+        stilyagi_ir::content_hash_for(source),
+        "document content hash must match the source"
     );
-    debug_assert_eq!(document.line_index, stilyagi_ir::line_index_for(source));
+    debug_assert_eq!(
+        document.line_index,
+        stilyagi_ir::line_index_for(source),
+        "document line index must match the source"
+    );
     debug_assert!(
         document
             .regions
             .iter()
-            .all(IrRegion::segments_reconstruct_text)
+            .all(IrRegion::segments_reconstruct_text),
+        "region segments must reconstruct the extracted text"
     );
     let node_ids = document
         .nodes

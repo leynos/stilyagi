@@ -8,13 +8,20 @@ use stilyagi_ir::{IrRegion, IrSegment, RegionKind, SegmentOrigin, SourceSpan, Sy
 use crate::builder::{ListContext, MarkdownIrBuilder, StructuralParent};
 use crate::flatten::{SourceNodeId, flatten_region};
 
+/// Identity shared by the region constructors: the allocated region id, its
+/// kind, and the originating AST node id.
 struct RegionIdentity<'node> {
+    /// Allocated region identifier, unique within the document.
     id: String,
+    /// Region kind that determines the emitted `kind` and scope prefix.
     kind: RegionKind,
+    /// Identifier of the AST node that produced the region.
     node_id: &'node str,
 }
 
 impl MarkdownIrBuilder<'_> {
+    /// Emits the thin structural region for a list item or blockquote before
+    /// its children are visited, returning the parent to track while they are.
     pub(super) fn push_preorder_region_for_node(
         &mut self,
         node: &Node,
@@ -60,6 +67,8 @@ impl MarkdownIrBuilder<'_> {
         }
     }
 
+    /// Emits the region for a node after its children, and unwinds the
+    /// blockquote depth; list items are skipped as preorder-only.
     pub(super) fn push_postorder_region_for_node(&mut self, node: &Node, node_id: &str) {
         if matches!(node, Node::ListItem(_)) {
             return;
@@ -92,6 +101,8 @@ impl MarkdownIrBuilder<'_> {
         }
     }
 
+    /// Dispatches to the constructor for the node's region kind, falling back
+    /// to flattened inline emission.
     fn postorder_region(&self, identity: RegionIdentity<'_>, node: &Node) -> Option<IrRegion> {
         match node {
             Node::Yaml(_) => self.frontmatter_region(identity, "yaml", node),
@@ -108,6 +119,8 @@ impl MarkdownIrBuilder<'_> {
         }
     }
 
+    /// Builds a region from the node's flattened inline text and segments,
+    /// adding heading depth and table header attributes where relevant.
     fn flattened_region(&self, identity: RegionIdentity<'_>, node: &Node) -> IrRegion {
         let kind_name = identity.kind.as_str();
         let flattened = flatten_region(node, SourceNodeId::new(identity.node_id), self.source);
@@ -137,6 +150,8 @@ impl MarkdownIrBuilder<'_> {
         }
     }
 
+    /// Builds a structural region with no text or segments, used for list
+    /// items and blockquotes whose content is emitted by descendant regions.
     fn thin_region(
         &self,
         identity: RegionIdentity<'_>,
@@ -158,6 +173,10 @@ impl MarkdownIrBuilder<'_> {
         }
     }
 
+    /// Builds a source-backed region for YAML or TOML frontmatter.
+    ///
+    /// Returns `None` when the node has no position or its span falls outside
+    /// the source.
     fn frontmatter_region(
         &self,
         identity: RegionIdentity<'_>,
@@ -195,6 +214,7 @@ impl MarkdownIrBuilder<'_> {
         })
     }
 
+    /// Builds a region for decoded text (alt text, link titles); empty yields none.
     fn decoded_text_region(
         &self,
         identity: RegionIdentity<'_>,
@@ -227,6 +247,8 @@ impl MarkdownIrBuilder<'_> {
         }
     }
 
+    /// Builds the scope for decoded text: the Markdown root, the region kind,
+    /// `decoded`, then the enclosing structural scope tags.
     fn decoded_text_scope(&self, kind: &str) -> Vec<String> {
         let mut scope = vec!["markdown".to_owned(), kind.to_owned(), "decoded".to_owned()];
         for parent in &self.parent_regions {
@@ -235,6 +257,8 @@ impl MarkdownIrBuilder<'_> {
         scope
     }
 
+    /// Builds the scope for a flattened region, adding heading depth or table
+    /// header/body position and the enclosing structural scope tags.
     fn scope_for(&self, kind: &str, node: &Node) -> Vec<String> {
         let mut scope = vec!["markdown".to_owned(), kind.to_owned()];
         if let Node::Heading(heading) = node {
@@ -258,6 +282,7 @@ impl MarkdownIrBuilder<'_> {
         scope
     }
 
+    /// Returns the id of the innermost structural parent region, if any.
     fn current_parent_region_id(&self) -> Option<String> {
         self.parent_regions
             .last()
@@ -265,6 +290,8 @@ impl MarkdownIrBuilder<'_> {
     }
 }
 
+/// Builds the scope for a list item, recording whether its list is ordered
+/// and whether the item is a task.
 fn list_item_scope(
     kind: &str,
     list_item: &markdown::mdast::ListItem,
@@ -283,6 +310,8 @@ fn list_item_scope(
     scope
 }
 
+/// Builds the attributes for a list item: ordering, spread, optional start
+/// index, and checked state for task items.
 fn list_item_attrs(
     list_item: &markdown::mdast::ListItem,
     list_context: Option<&ListContext>,
@@ -300,6 +329,7 @@ fn list_item_attrs(
     attrs
 }
 
+/// Builds the scope for a blockquote, encoding its nesting depth as `depthN`.
 fn blockquote_scope(kind: &str, depth: usize) -> Vec<String> {
     vec![
         "markdown".to_owned(),
@@ -308,12 +338,15 @@ fn blockquote_scope(kind: &str, depth: usize) -> Vec<String> {
     ]
 }
 
+/// Builds the attributes for a blockquote, recording its nesting depth.
 fn blockquote_attrs(depth: usize) -> BTreeMap<String, serde_json::Value> {
     let mut attrs = BTreeMap::new();
     attrs.insert("depth".to_owned(), serde_json::json!(depth));
     attrs
 }
 
+/// Builds the attributes for an image region: URL, title, and a
+/// `source_backed` flag of `false` because the alt text is decoded.
 fn image_attrs(image: &markdown::mdast::Image) -> BTreeMap<String, serde_json::Value> {
     let mut attrs = BTreeMap::new();
     attrs.insert("url".to_owned(), serde_json::json!(image.url));
@@ -324,6 +357,8 @@ fn image_attrs(image: &markdown::mdast::Image) -> BTreeMap<String, serde_json::V
     attrs
 }
 
+/// Builds the attributes for a link title region: URL, title, and a
+/// `source_backed` flag of `false` because the title is decoded.
 fn link_attrs(link: &markdown::mdast::Link) -> BTreeMap<String, serde_json::Value> {
     let mut attrs = BTreeMap::new();
     attrs.insert("url".to_owned(), serde_json::json!(link.url));
@@ -334,6 +369,7 @@ fn link_attrs(link: &markdown::mdast::Link) -> BTreeMap<String, serde_json::Valu
     attrs
 }
 
+/// Returns the span of a positioned node, or `None` when it is unusable.
 fn span_from_positioned_node(node: &Node) -> Option<SourceSpan> {
     let position = node.position()?;
     SourceSpan::new(position.start.offset, position.end.offset)

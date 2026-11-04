@@ -2,6 +2,7 @@
 
 use markdown::mdast::Node;
 
+/// Returns the IR spelling for a Markdown AST node kind.
 pub(super) const fn node_kind(node: &Node) -> &'static str {
     match node {
         Node::Root(_) => "root",

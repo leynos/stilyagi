@@ -16,6 +16,7 @@ use observe::{record_extraction_outcome, record_fatal_error};
 use support::{parse_rust, rust_producer, validate_ir_consistency};
 use suppressions::collect_comment_suppressions;
 
+/// Identifier of the single IR tree emitted for a Rust source file.
 const TREE_ID: &str = "t0";
 
 /// Maximum concrete-syntax-tree depth walked during doc-comment extraction.
@@ -99,6 +100,7 @@ pub fn rust_doc_comment_ir_document(
     Ok(document)
 }
 
+/// Return the stable identifier of the module root node.
 fn root_node_id() -> types::NodeId {
     types::NodeId("n0".to_owned())
 }

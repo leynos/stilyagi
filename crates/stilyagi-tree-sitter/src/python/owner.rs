@@ -4,12 +4,16 @@ use stilyagi_ir::IrOwner;
 
 use super::types::NodeId;
 
+/// Python's `<locals>` marker inserted into qualified names for definitions
+/// nested inside functions.
 const LOCAL_MARKER: &str = "<locals>";
 
 /// Type of code entity that can own a Python docstring.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OwnerKind {
+    /// A class definition.
     Class,
+    /// A function or method definition.
     Function,
 }
 

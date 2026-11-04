@@ -17,20 +17,29 @@ use super::helpers::{
 use super::owner::{OwnerFrame, owner_for};
 use super::types::{NodeId, NodeKind};
 
+/// Identifier of the single IR tree emitted for a Rust source file.
 const TREE_ID: &str = "t0";
 
 /// Stateful builder for owner-aware Rust doc-comment IR.
 pub(super) struct RustIrBuilder<'source> {
+    /// Source text the builder indexes spans and comments against.
     pub(super) source: &'source str,
+    /// Next numeric suffix to allocate for a node identifier.
     next_node: usize,
+    /// Next numeric suffix to allocate for a region identifier.
     next_region: usize,
+    /// Emitted IR nodes in insertion order.
     nodes: Vec<IrNode>,
+    /// Maps each emitted node id to its index in `nodes`.
     node_positions: HashMap<String, usize>,
+    /// Emitted doc-comment regions in insertion order.
     regions: Vec<IrRegion>,
+    /// Recoverable extraction errors accumulated during traversal.
     errors: Vec<IrError>,
 }
 
 impl<'source> RustIrBuilder<'source> {
+    /// Create an empty builder over `source`.
     pub(super) fn new(source: &'source str) -> Self {
         Self {
             source,
@@ -43,13 +52,19 @@ impl<'source> RustIrBuilder<'source> {
         }
     }
 
+    /// Consume the builder, returning its nodes, regions, and errors.
     pub(super) fn into_ir(self) -> (Vec<IrNode>, Vec<IrRegion>, Vec<IrError>) {
         (self.nodes, self.regions, self.errors)
     }
 
+    /// Emit the module root node, which must receive the first node id.
     pub(super) fn push_module_root(&mut self, root: Node<'_>) {
         let node_id = self.next_node_id();
-        debug_assert_eq!(node_id.as_str(), super::root_node_id().as_str());
+        debug_assert_eq!(
+            node_id.as_str(),
+            super::root_node_id().as_str(),
+            "module root must receive the first node id"
+        );
         self.push_node(IrNode {
             id: node_id.into(),
             tree: TREE_ID.to_owned(),
@@ -63,6 +78,8 @@ impl<'source> RustIrBuilder<'source> {
         });
     }
 
+    /// Record a parse-recovery error for each recovered node in source order,
+    /// including any doc comments absorbed into the broken subtree.
     pub(super) fn push_recovery_errors(&mut self, root: Node<'_>) {
         let mut nodes = Vec::new();
         collect_recovery_nodes(root, &mut nodes);
@@ -86,6 +103,8 @@ impl<'source> RustIrBuilder<'source> {
         }
     }
 
+    /// Walk a container's named children, grouping doc comments and
+    /// descending into owner items until the traversal depth limit is reached.
     pub(super) fn visit_container(
         &mut self,
         node: Node<'source>,
@@ -139,6 +158,8 @@ impl<'source> RustIrBuilder<'source> {
         self.flush_pending_groups(stack, &mut pending_inner, None);
     }
 
+    /// Push an owner frame, emit its node when it owns docs, and visit its
+    /// body.
     fn visit_owner_item(
         &mut self,
         child: Node<'source>,
@@ -160,6 +181,7 @@ impl<'source> RustIrBuilder<'source> {
         let _ = state.stack.pop();
     }
 
+    /// Skip attributes and comments, or visit the child as an owner item.
     fn handle_non_doc_child(
         &mut self,
         child: Node<'source>,
@@ -181,12 +203,14 @@ impl<'source> RustIrBuilder<'source> {
         self.visit_owner_item(child, frame, state);
     }
 
+    /// Visit the body of an item when it has one.
     fn visit_item_body(&mut self, node: Node<'source>, stack: &mut Vec<OwnerFrame>, depth: usize) {
         if let Some(body) = item_body(node) {
             self.visit_container(body, stack, depth);
         }
     }
 
+    /// Emit queued doc-comment groups against the given or current owner.
     fn flush_pending_groups(
         &mut self,
         stack: &[OwnerFrame],
@@ -204,6 +228,8 @@ impl<'source> RustIrBuilder<'source> {
         }
     }
 
+    /// Emit or reuse the IR node for the current owner frame and return its
+    /// id.
     pub(super) fn push_owner_node(
         &mut self,
         node: Node<'source>,
@@ -247,6 +273,8 @@ impl<'source> RustIrBuilder<'source> {
         node_id
     }
 
+    /// Record a traversal-depth-limit error and warn about the truncated
+    /// subtree.
     fn record_depth_limit(&mut self, node: Node<'source>) {
         let span = source_span(node);
         tracing::warn!(
@@ -268,6 +296,8 @@ impl<'source> RustIrBuilder<'source> {
         });
     }
 
+    /// Record an error for a doc comment whose content span could not be
+    /// derived.
     fn record_doc_comment_span_error(&mut self, node: Node<'source>) {
         let span = source_span(node);
         self.errors.push(IrError {
@@ -277,6 +307,8 @@ impl<'source> RustIrBuilder<'source> {
         });
     }
 
+    /// Record an error when a recovered subtree absorbed one or more doc
+    /// comments.
     fn record_recovery_doc_comment_drop(&mut self, node: Node<'_>, count: usize) {
         if count == 0 {
             return;
@@ -290,12 +322,14 @@ impl<'source> RustIrBuilder<'source> {
         });
     }
 
+    /// Append a node and index its id for later child attachment.
     pub(super) fn push_node(&mut self, node: IrNode) {
         let index = self.nodes.len();
         self.node_positions.insert(node.id.clone(), index);
         self.nodes.push(node);
     }
 
+    /// Attach `child_id` to `parent_id` when the parent has been emitted.
     pub(super) fn push_child(&mut self, parent_id: &NodeId, child_id: &NodeId) {
         if let Some(parent) = self
             .node_positions
@@ -306,6 +340,7 @@ impl<'source> RustIrBuilder<'source> {
         }
     }
 
+    /// Allocate the next node identifier, formatted as `n{n}`.
     pub(super) fn next_node_id(&mut self) -> NodeId {
         let id = NodeId(format!("n{}", self.next_node));
         self.next_node += 1;

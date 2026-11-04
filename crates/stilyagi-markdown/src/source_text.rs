@@ -2,12 +2,20 @@
 
 use stilyagi_ir::SourceSpan;
 
+/// Classification of the next unit at a byte offset in decoded text.
 pub(super) enum SourceTextEvent {
+    /// A line ending of the given byte length: one for `\n`, two for `\r\n`.
     LineEnding(usize),
+    /// A non-line-ending character of the given UTF-8 byte length.
     Character(usize),
+    /// The offset is out of range or not on a character boundary.
     InvalidOffset,
 }
 
+/// Classifies the next unit at `byte_offset` in `value`.
+///
+/// Returns [`SourceTextEvent::InvalidOffset`] when the offset is out of range
+/// or not on a character boundary.
 pub(super) fn source_text_event(value: &str, byte_offset: usize) -> SourceTextEvent {
     let Some(tail) = value.get(byte_offset..) else {
         return SourceTextEvent::InvalidOffset;
@@ -25,6 +33,8 @@ pub(super) fn source_text_event(value: &str, byte_offset: usize) -> SourceTextEv
     }
 }
 
+/// Returns the byte length of the line ending at `offset`, bounded by
+/// `span_end`, or `None` when the text there is not a line ending.
 pub(super) fn source_line_ending_len(
     source: &str,
     offset: usize,
@@ -40,14 +50,19 @@ pub(super) fn source_line_ending_len(
     }
 }
 
+/// A source slice and byte bounds used to match a decoded text chunk.
 #[derive(Debug, Clone, Copy)]
 struct SourceMatchWindow<'a> {
+    /// The full source text being matched against.
     source: &'a str,
+    /// Byte offset at which the chunk must begin.
     start: usize,
+    /// Exclusive byte bound that the chunk must not exceed.
     span_end: usize,
 }
 
 impl<'a> SourceMatchWindow<'a> {
+    /// Creates a match window over `source` from `start` up to `span_end`.
     const fn new(source: &'a str, start: usize, span_end: usize) -> Self {
         Self {
             source,
@@ -57,6 +72,10 @@ impl<'a> SourceMatchWindow<'a> {
     }
 }
 
+/// Reports whether decoded `value` maps onto `source` within `span`.
+///
+/// Line endings in `value` are matched against the source's own line endings,
+/// so decoded text may differ from the raw source only in line-ending form.
 pub(super) fn decoded_text_maps_to_source(source: &str, span: SourceSpan, value: &str) -> bool {
     let mut chunk_start = 0;
     let mut source_cursor = span.byte_start;
@@ -94,6 +113,8 @@ pub(super) fn decoded_text_maps_to_source(source: &str, span: SourceSpan, value:
     )
 }
 
+/// Reports whether `value[range]` equals the source text at the window's
+/// start, without running past its end.
 fn source_chunk_matches(
     value: &str,
     range: std::ops::Range<usize>,
@@ -111,6 +132,8 @@ fn source_chunk_matches(
     window.source.get(window.start..source_end) == Some(chunk)
 }
 
+/// Returns the byte offset of the first occurrence of `value` within `span`,
+/// falling back to the span start when it is absent or the span is invalid.
 pub(super) fn source_value_start(source: &str, span: SourceSpan, value: &str) -> usize {
     source
         .get(span.byte_start..span.byte_end)

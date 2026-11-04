@@ -307,6 +307,7 @@ pub const fn verb_range_role(verb: DirectiveVerb) -> Option<crate::RangeRole> {
     }
 }
 
+/// Split a comma-separated code list, discarding blank entries.
 fn parse_codes(remainder: &str) -> Vec<String> {
     remainder
         .split(',')
@@ -316,6 +317,7 @@ fn parse_codes(remainder: &str) -> Vec<String> {
         .collect()
 }
 
+/// Check that a suppression's origin names a node in the document.
 fn validate_suppression_origin(
     suppression: &IrSuppression,
     node_ids: &BTreeSet<&str>,
@@ -329,6 +331,8 @@ fn validate_suppression_origin(
     })
 }
 
+/// Check that a suppression's byte span is in bounds and on character
+/// boundaries.
 fn validate_suppression_span(
     suppression: &IrSuppression,
     source: &str,

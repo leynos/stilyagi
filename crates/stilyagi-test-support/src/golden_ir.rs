@@ -158,6 +158,7 @@ impl GoldenDocument {
     }
 }
 
+/// Serialize a golden document to canonical pretty JSON.
 fn document_to_json(document: &GoldenDocument) -> String {
     let mut json = String::new();
     push_json_object(&mut json, 0, |object_json, indent| {
@@ -174,17 +175,22 @@ fn document_to_json(document: &GoldenDocument) -> String {
     json
 }
 
+/// One `name: value` pair in a JSON object being written.
 struct JsonField<'a> {
+    /// Field name, written verbatim without escaping.
     name: &'a str,
+    /// Pre-serialized JSON value text.
     value: String,
 }
 
 impl<'a> JsonField<'a> {
+    /// Pair a field name with its pre-serialized JSON value.
     const fn new(name: &'a str, value: String) -> Self {
         Self { name, value }
     }
 }
 
+/// Write a JSON object, delegating its fields to `write_fields`.
 fn push_json_object<F>(json: &mut String, indent: usize, write_fields: F)
 where
     F: FnOnce(&mut String, usize),
@@ -195,6 +201,7 @@ where
     json.push('}');
 }
 
+/// Write each field as an indented `"name": value` line, comma-separated.
 fn push_json_fields(json: &mut String, indent: usize, fields: &[JsonField<'_>]) {
     for (index, field) in fields.iter().enumerate() {
         push_indent(json, indent);
@@ -209,12 +216,14 @@ fn push_json_fields(json: &mut String, indent: usize, fields: &[JsonField<'_>]) 
     }
 }
 
+/// Append two spaces per indent level to `json`.
 fn push_indent(json: &mut String, indent: usize) {
     for _ in 0..indent {
         json.push_str("  ");
     }
 }
 
+/// Serialize `values` as a single-line JSON array using `serialize` per item.
 fn array_json<T, F>(values: &[T], serialize: F) -> String
 where
     F: Fn(&T) -> String,
@@ -230,14 +239,17 @@ where
     json
 }
 
+/// Serialize byte offsets as a single-line JSON array of numbers.
 fn usize_array_json(values: &[usize]) -> String {
     array_json(values, ToString::to_string)
 }
 
+/// Serialize strings as a single-line JSON array of JSON string literals.
 fn string_array_json(values: &[String]) -> String {
     array_json(values, |value| json_string(value))
 }
 
+/// Serialize regions as a multi-line JSON array, or `[]` when empty.
 fn regions_json(regions: &[GoldenRegion]) -> String {
     if regions.is_empty() {
         return "[]".to_owned();
@@ -264,6 +276,7 @@ fn regions_json(regions: &[GoldenRegion]) -> String {
     json
 }
 
+/// Serialize segments as a multi-line JSON array, or `[]` when empty.
 fn segments_json(segments: &[Segment]) -> String {
     if segments.is_empty() {
         return "[]".to_owned();
@@ -300,6 +313,7 @@ fn segments_json(segments: &[Segment]) -> String {
     json
 }
 
+/// Quote and escape `value` as a JSON string literal.
 fn json_string(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len() + 2);
     escaped.push('"');
@@ -320,6 +334,7 @@ fn json_string(value: &str) -> String {
     escaped
 }
 
+/// Append a `\uXXXX` escape for a control character.
 #[expect(
     clippy::let_underscore_must_use,
     reason = "fmt::Write for String is infallible"

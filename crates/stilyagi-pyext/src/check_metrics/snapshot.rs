@@ -13,6 +13,7 @@ use super::{
     SKIPPED_CANDIDATES, SYNTAXES, UNREADABLE_FILES,
 };
 
+/// Build a Python dict mapping each category name to its counter value.
 fn category_snapshot<'py>(
     py: Python<'py>,
     categories: &[(&str, &std::sync::atomic::AtomicU64)],
@@ -24,12 +25,14 @@ fn category_snapshot<'py>(
     Ok(result)
 }
 
+/// Load the counter at `index`, returning zero when the index is out of range.
 fn counter_value(counters: &[std::sync::atomic::AtomicU64], index: usize) -> u64 {
     counters
         .get(index)
         .map_or(0, |counter| counter.load(Ordering::Relaxed))
 }
 
+/// Pair labels with counters starting at `offset`, for snapshot serialization.
 fn counter_categories<'a>(
     labels: &'a [&'a str],
     counters: &'a [std::sync::atomic::AtomicU64],
@@ -42,6 +45,7 @@ fn counter_categories<'a>(
         .collect()
 }
 
+/// Build a Python dict of per-phase count, sum, and cumulative bucket values.
 fn phase_snapshot<'py>(
     py: Python<'py>,
     phases: &[(&str, &DurationHistogram)],
@@ -67,6 +71,7 @@ fn phase_snapshot<'py>(
     Ok(phase_metrics)
 }
 
+/// Insert the check-level counters into `snapshot`.
 fn set_check_counters<'py>(py: Python<'py>, snapshot: &Bound<'py, PyDict>) -> PyResult<()> {
     snapshot.set_item(
         "stilyagi_check_runs_total",
@@ -104,6 +109,7 @@ fn set_check_counters<'py>(py: Python<'py>, snapshot: &Bound<'py, PyDict>) -> Py
     Ok(())
 }
 
+/// Insert the extraction counters into `snapshot`.
 fn set_extraction_counters<'py>(py: Python<'py>, snapshot: &Bound<'py, PyDict>) -> PyResult<()> {
     snapshot.set_item(
         "stilyagi_python_extraction_documents_total",
@@ -146,6 +152,7 @@ fn set_extraction_counters<'py>(py: Python<'py>, snapshot: &Bound<'py, PyDict>) 
     Ok(())
 }
 
+/// Insert the per-phase duration histograms into `snapshot`.
 fn set_phase_durations<'py>(py: Python<'py>, snapshot: &Bound<'py, PyDict>) -> PyResult<()> {
     let phases = PHASES
         .iter()
@@ -159,6 +166,7 @@ fn set_phase_durations<'py>(py: Python<'py>, snapshot: &Bound<'py, PyDict>) -> P
     Ok(())
 }
 
+/// Python binding returning a snapshot of all check metrics as a dict.
 #[pyfunction]
 pub(crate) fn check_metrics_snapshot(py: Python<'_>) -> PyResult<Py<PyDict>> {
     let snapshot = PyDict::new(py);

@@ -26,6 +26,7 @@ use support::{parse_python, python_producer, validate_ir_consistency};
 use suppressions::collect_comment_suppressions;
 use types::{NodeId, NodeKind};
 
+/// Stable identifier for the single tree-sitter parse tree in the emitted IR.
 const TREE_ID: &str = "t0";
 
 /// Maximum concrete-syntax-tree depth walked during docstring extraction.
@@ -116,23 +117,34 @@ pub fn python_docstring_ir_document(
 /// Mutable state threaded through the recursive descent: the owner-frame stack
 /// and the current concrete-syntax-tree depth used to bound recursion.
 struct WalkContext<'frames> {
+    /// Owner frames for the definitions currently being traversed, innermost
+    /// last.
     stack: &'frames mut Vec<OwnerFrame>,
+    /// Current concrete-syntax-tree depth, used to bound recursion.
     depth: usize,
 }
 
+/// Accumulates IR nodes, regions, and errors while walking a Python parse tree.
 struct PythonIrBuilder<'source> {
+    /// Python source text the parse tree was built from.
     source: &'source str,
+    /// Counter for the next generated node identifier.
     next_node: usize,
+    /// Counter for the next generated region identifier.
     next_region: usize,
+    /// IR nodes emitted so far, in emission order.
     nodes: Vec<IrNode>,
-    // Node id -> index into `nodes` for O(1) parent lookup during child
-    // attachment, avoiding a linear scan of `nodes` on every emit.
+    /// Index from emitted node id to its position in `nodes`, giving O(1)
+    /// parent lookup during child attachment instead of a linear scan.
     node_positions: HashMap<String, usize>,
+    /// IR regions emitted so far, in emission order.
     regions: Vec<IrRegion>,
+    /// Recoverable extraction errors recorded during the walk.
     errors: Vec<IrError>,
 }
 
 impl<'source> PythonIrBuilder<'source> {
+    /// Create a builder for `source` with empty node, region, and error stores.
     fn new(source: &'source str) -> Self {
         Self {
             source,
@@ -145,9 +157,14 @@ impl<'source> PythonIrBuilder<'source> {
         }
     }
 
+    /// Emit the module root node, which always receives the first node id.
     fn push_module_root(&mut self, root: Node<'_>) {
         let node_id = self.next_node_id();
-        debug_assert_eq!(node_id.as_str(), root_node_id().as_str());
+        debug_assert_eq!(
+            node_id.as_str(),
+            root_node_id().as_str(),
+            "module root must receive the first node id"
+        );
         self.push_node(IrNode {
             id: node_id.into(),
             tree: TREE_ID.to_owned(),
@@ -161,6 +178,8 @@ impl<'source> PythonIrBuilder<'source> {
         });
     }
 
+    /// Record a recoverable error for each error or missing node in the parse
+    /// tree.
     fn push_recovery_errors(&mut self, root: Node<'_>) {
         let mut errors = Vec::new();
         collect_error_nodes(root, &mut errors);
@@ -180,6 +199,8 @@ impl<'source> PythonIrBuilder<'source> {
         }
     }
 
+    /// Emit the module docstring and walk the module body, returning collected
+    /// suppressions and suppression errors.
     fn visit_module(&mut self, root: Node<'_>) -> (Vec<stilyagi_ir::IrSuppression>, Vec<IrError>) {
         let mut stack = Vec::new();
         if let Some(docstring) = module_docstring(self.source, root) {
@@ -193,6 +214,8 @@ impl<'source> PythonIrBuilder<'source> {
         collect_comment_suppressions(self, root)
     }
 
+    /// Emit an IR node for a definition the first time it is visited, reusing
+    /// the frame's node id on later visits.
     fn push_owner_node(&mut self, node: Node<'_>, stack: &mut [OwnerFrame]) -> NodeId {
         let current_index = stack.len().saturating_sub(1);
         if let Some(node_id) = stack
@@ -228,6 +251,8 @@ impl<'source> PythonIrBuilder<'source> {
         node_id
     }
 
+    /// Emit a string node and a docstring region for a module or definition
+    /// docstring.
     fn push_docstring_region(
         &mut self,
         string: Node<'_>,
@@ -283,12 +308,14 @@ impl<'source> PythonIrBuilder<'source> {
         });
     }
 
+    /// Append an IR node and record its position for child attachment.
     fn push_node(&mut self, node: IrNode) {
         let index = self.nodes.len();
         self.node_positions.insert(node.id.clone(), index);
         self.nodes.push(node);
     }
 
+    /// Attach `child_id` to `parent_id` when the parent has been emitted.
     fn push_child(&mut self, parent_id: &NodeId, child_id: &NodeId) {
         if let Some(parent) = self
             .node_positions
@@ -299,12 +326,14 @@ impl<'source> PythonIrBuilder<'source> {
         }
     }
 
+    /// Allocate the next sequential node identifier.
     fn next_node_id(&mut self) -> NodeId {
         let id = NodeId(format!("n{}", self.next_node));
         self.next_node += 1;
         id
     }
 
+    /// Allocate the next sequential region identifier.
     fn next_region_id(&mut self) -> String {
         let id = format!("r{}", self.next_region);
         self.next_region += 1;
@@ -312,6 +341,7 @@ impl<'source> PythonIrBuilder<'source> {
     }
 }
 
+/// Return the fixed identifier of the module root node.
 fn root_node_id() -> NodeId {
     NodeId("n0".to_owned())
 }

@@ -7,17 +7,29 @@ use super::types::NodeId;
 /// Type of code entity that can own a Rust documentation comment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OwnerKind {
+    /// A `mod` item.
     Module,
+    /// An `impl` block.
     Impl,
+    /// A `struct` item.
     Struct,
+    /// An `enum` item.
     Enum,
+    /// A `union` item.
     Union,
+    /// A `trait` item.
     Trait,
+    /// A `fn` item.
     Function,
+    /// A `const` item.
     Const,
+    /// A `static` item.
     Static,
+    /// A `type` alias item.
     Type,
+    /// A `macro_rules!` definition.
     Macro,
+    /// Any other `_item` node not covered above.
     Item,
 }
 

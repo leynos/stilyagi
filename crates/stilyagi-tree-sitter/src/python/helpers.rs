@@ -6,6 +6,8 @@ use tree_sitter::Node;
 use super::owner::{OwnerFrame, OwnerKind};
 use super::types::{NodeId, NodeKind};
 
+/// Return the IR node id of the nearest enclosing owner that has already
+/// emitted a node, ignoring the innermost frame.
 pub(super) fn nearest_emitted_owner(stack: &[OwnerFrame]) -> Option<NodeId> {
     stack
         .iter()
@@ -14,6 +16,8 @@ pub(super) fn nearest_emitted_owner(stack: &[OwnerFrame]) -> Option<NodeId> {
         .find_map(|frame| frame.emitted_node_id.clone())
 }
 
+/// Derive the owner kind and source name for a class or function definition,
+/// or `None` for any other node.
 pub(super) fn owner_frame_for_definition(
     source: &str,
     node: Node<'_>,
@@ -27,6 +31,8 @@ pub(super) fn owner_frame_for_definition(
     Some((kind, text_for_node(source, name)?))
 }
 
+/// Return the module docstring node, recovering one statement when malformed
+/// top-level syntax wraps it in an `ERROR` node.
 pub(super) fn module_docstring<'tree>(source: &str, root: Node<'tree>) -> Option<Node<'tree>> {
     let first = root.named_child(0)?;
     if let Some(docstring) = docstring_from_statement(source, first) {
@@ -41,11 +47,14 @@ pub(super) fn module_docstring<'tree>(source: &str, root: Node<'tree>) -> Option
     None
 }
 
+/// Return the docstring node from the first statement of a definition's body.
 pub(super) fn definition_docstring<'tree>(source: &str, node: Node<'tree>) -> Option<Node<'tree>> {
     let body = node.child_by_field_name("body")?;
     docstring_from_statement(source, body.named_child(0)?)
 }
 
+/// Return the string node when a statement is a single plain string
+/// expression.
 fn docstring_from_statement<'tree>(source: &str, statement: Node<'tree>) -> Option<Node<'tree>> {
     if statement.kind() != "expression_statement" || statement.named_child_count() != 1 {
         return None;
@@ -54,6 +63,7 @@ fn docstring_from_statement<'tree>(source: &str, statement: Node<'tree>) -> Opti
     is_plain_string_docstring(source, string).then_some(string)
 }
 
+/// Find the first `expression_statement` descendant in document order.
 fn first_statement_descendant(node: Node<'_>) -> Option<Node<'_>> {
     let mut cursor = node.walk();
     let mut pending = node.named_children(&mut cursor).collect::<Vec<_>>();
@@ -110,6 +120,8 @@ fn string_start_has_disallowed_prefix(source: &str, string: Node<'_>) -> bool {
     prefix.contains('f') || prefix.contains('b')
 }
 
+/// Return whether any named descendant of `node` has the given tree-sitter
+/// kind.
 fn has_descendant_kind(node: Node<'_>, kind: NodeKind) -> bool {
     let mut pending = vec![node];
     while let Some(current) = pending.pop() {
@@ -124,6 +136,7 @@ fn has_descendant_kind(node: Node<'_>, kind: NodeKind) -> bool {
     false
 }
 
+/// Collect error and missing nodes beneath `node` in document order.
 pub(super) fn collect_error_nodes<'tree>(node: Node<'tree>, errors: &mut Vec<Node<'tree>>) {
     // Iterative pre-order walk over an explicit stack so deeply nested or
     // adversarial malformed files cannot overflow the call stack. Children are
@@ -163,16 +176,21 @@ pub(super) fn comment_body(source: &str, comment: Node<'_>) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+/// Return the first direct named child with the given tree-sitter kind.
 fn direct_named_child_with_kind(node: Node<'_>, kind: NodeKind) -> Option<Node<'_>> {
     let mut cursor = node.walk();
     node.named_children(&mut cursor)
         .find(|child| child.kind() == kind.as_str())
 }
 
+/// Return the UTF-8 source text covered by `node`, or `None` when the span is
+/// not valid UTF-8.
 pub(super) fn text_for_node(source: &str, node: Node<'_>) -> Option<String> {
     node.utf8_text(source.as_bytes()).ok().map(str::to_owned)
 }
 
+/// Build a source span from a node's byte offsets, falling back to an empty
+/// span at the start byte when the range is invalid.
 pub(super) fn source_span(node: Node<'_>) -> SourceSpan {
     let start = node.start_byte();
     let end = node.end_byte();
@@ -185,6 +203,8 @@ pub(super) fn source_span(node: Node<'_>) -> SourceSpan {
     })
 }
 
+/// Build IR node flags from a tree-sitter node, marking the node as not
+/// synthetic.
 pub(super) fn node_flags(node: Node<'_>) -> NodeFlags {
     NodeFlags {
         named: node.is_named(),

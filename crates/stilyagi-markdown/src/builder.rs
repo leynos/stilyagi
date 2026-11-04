@@ -10,37 +10,58 @@ use stilyagi_ir::{
 
 use crate::{MarkdownDiagnosticContext, node_kind::node_kind, source_span};
 
+/// Accumulates IR nodes and regions while walking a Markdown AST.
 pub(super) struct MarkdownIrBuilder<'source> {
+    /// The Markdown source text that node spans index into.
     pub(super) source: &'source str,
+    /// Counter used to allocate the next node identifier.
     pub(super) next_node: usize,
+    /// Counter used to allocate the next region identifier.
     pub(super) next_region: usize,
+    /// IR nodes emitted so far, in pre-order traversal order.
     pub(super) nodes: Vec<IrNode>,
+    /// IR regions emitted so far, in emission order.
     pub(super) regions: Vec<IrRegion>,
+    /// Suppression comments discovered in HTML nodes.
     pub(super) suppression_candidates: Vec<SuppressionCandidate>,
+    /// Stack of structural regions enclosing the node being visited.
     pub(super) parent_regions: Vec<StructuralParent>,
+    /// Stack of enclosing list contexts, innermost last.
     pub(super) list_contexts: Vec<ListContext>,
+    /// Stack of enclosing table-row contexts, innermost last.
     pub(super) table_row_contexts: Vec<TableRowContext>,
+    /// Current blockquote nesting depth.
     pub(super) blockquote_depth: usize,
 }
 
+/// A structural region that encloses the nodes currently being visited.
 #[derive(Debug, Clone)]
 pub(super) struct StructuralParent {
+    /// Identifier of the enclosing region.
     pub(super) region_id: String,
+    /// Scope segment appended to descendant region scopes.
     pub(super) scope_tag: &'static str,
 }
 
+/// List metadata inherited by the list items currently being visited.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct ListContext {
+    /// Whether the enclosing list is ordered.
     pub(super) ordered: bool,
+    /// Starting number of an ordered list, when the parser reports one.
     pub(super) start: Option<u32>,
 }
 
+/// Table-row metadata inherited by the cells currently being visited.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct TableRowContext {
+    /// Whether the enclosing row is the table header row.
     pub(super) is_header: bool,
 }
 
 impl<'source> MarkdownIrBuilder<'source> {
+    /// Creates an empty builder over `source` with all counters and stacks
+    /// reset.
     pub(super) const fn new(source: &'source str) -> Self {
         Self {
             source,
@@ -56,6 +77,8 @@ impl<'source> MarkdownIrBuilder<'source> {
         }
     }
 
+    /// Recursively emits the IR node for `node` and its descendants, returning
+    /// its identifier.
     pub(super) fn push_node(
         &mut self,
         node: &Node,
@@ -99,6 +122,8 @@ impl<'source> MarkdownIrBuilder<'source> {
         Ok(node_id)
     }
 
+    /// Emits child nodes, tracking list and table-row context for list and
+    /// table nodes.
     fn child_node_ids(
         &mut self,
         node: &Node,
@@ -131,6 +156,7 @@ impl<'source> MarkdownIrBuilder<'source> {
         Ok(child_ids)
     }
 
+    /// Emits the children of a node that needs no special context tracking.
     fn regular_child_node_ids(
         &mut self,
         node: &Node,
@@ -147,12 +173,14 @@ impl<'source> MarkdownIrBuilder<'source> {
         Ok(child_ids)
     }
 
+    /// Allocates the next region identifier, formatted as `r{n}`.
     pub(super) fn next_region_id(&mut self) -> String {
         let id = format!("r{}", self.next_region);
         self.next_region += 1;
         id
     }
 
+    /// Records suppression comments found in the source span of an HTML node.
     fn push_suppression_candidates_for_html(&mut self, node_id: &str, span: SourceSpan) {
         let Some(source_slice) = self.source.get(span.byte_start..span.byte_end) else {
             return;
@@ -170,6 +198,7 @@ impl<'source> MarkdownIrBuilder<'source> {
         }
     }
 
+    /// Allocates the next node identifier, formatted as `n{n}`.
     fn next_node_id(&mut self) -> String {
         let id = format!("n{}", self.next_node);
         self.next_node += 1;
@@ -177,6 +206,7 @@ impl<'source> MarkdownIrBuilder<'source> {
     }
 }
 
+/// Builds the node properties recorded in IR metadata, such as heading depth.
 fn node_props(node: &Node) -> BTreeMap<String, serde_json::Value> {
     let mut props = BTreeMap::new();
     if let Node::Heading(heading) = node {

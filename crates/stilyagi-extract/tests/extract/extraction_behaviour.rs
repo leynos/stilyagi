@@ -125,21 +125,32 @@ fn assert_shared_fixture_extraction(
 ) {
     let first_region = document.regions().first();
 
-    assert_eq!(document.syntax(), expected.syntax);
+    assert_eq!(
+        document.syntax(),
+        expected.syntax,
+        "document syntax should match the fixture expectation"
+    );
     if let Some(count) = expected.region_count {
-        assert_eq!(document.regions().len(), count);
+        assert_eq!(
+            document.regions().len(),
+            count,
+            "region count should match the fixture expectation"
+        );
     }
     assert_eq!(
         first_region.and_then(stilyagi_extract::ExtractRegion::region_kind),
-        Some(expected.region_kind)
+        Some(expected.region_kind),
+        "first region kind should match the fixture expectation"
     );
     assert_eq!(
         first_region.map(stilyagi_extract::ExtractRegion::kind),
-        Some(expected.kind_str)
+        Some(expected.kind_str),
+        "first region kind name should match the fixture expectation"
     );
     assert_eq!(
         first_region.map(stilyagi_extract::ExtractRegion::text),
-        Some(expected.text)
+        Some(expected.text),
+        "first region text should match the fixture expectation"
     );
 }
 

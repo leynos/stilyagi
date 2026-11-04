@@ -169,6 +169,7 @@ pub fn golden_rust_ir_fixture(
     )?)
 }
 
+/// Wrap non-blank Markdown source as one whole-file document region.
 fn markdown_regions(source: &str) -> Vec<GoldenRegion> {
     if source.trim().is_empty() {
         Vec::new()

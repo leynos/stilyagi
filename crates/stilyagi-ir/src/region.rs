@@ -77,6 +77,7 @@ impl fmt::Display for RegionKind {
 /// Error returned when a string is not a known IR region kind.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidRegionKind {
+    /// The rejected spelling, kept verbatim so callers can echo it back.
     value: String,
 }
 

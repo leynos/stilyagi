@@ -144,6 +144,7 @@ pub fn apply_round_trip_edits(
     })
 }
 
+/// Validate edits, reject synthetic ones, and sort source edits by span.
 fn sorted_source_edits(
     source: &str,
     edits: &[RoundTripEdit],
@@ -166,6 +167,7 @@ fn sorted_source_edits(
     Ok(source_edits)
 }
 
+/// Rebuild the source text by splicing replacements into the sorted spans.
 fn apply_source_edits(
     source: &str,
     source_edits: &[(ByteSpan, String)],
@@ -181,6 +183,7 @@ fn apply_source_edits(
     Ok(after)
 }
 
+/// Convert validated span/replacement pairs back into source edits.
 fn round_trip_edits(source_edits: Vec<(ByteSpan, String)>) -> Vec<RoundTripEdit> {
     source_edits
         .into_iter()
@@ -188,6 +191,7 @@ fn round_trip_edits(source_edits: Vec<(ByteSpan, String)>) -> Vec<RoundTripEdit>
         .collect()
 }
 
+/// Borrow `source[start..end]`, rejecting non-UTF-8 boundaries.
 fn utf8_slice(source: &str, start: usize, end: usize) -> Result<&str, RoundTripEditError> {
     let span = ByteSpan::new_unchecked(start, end);
     source
@@ -195,6 +199,7 @@ fn utf8_slice(source: &str, start: usize, end: usize) -> Result<&str, RoundTripE
         .ok_or(RoundTripEditError::NonUtf8Boundary { span })
 }
 
+/// Check that a span is ordered, in bounds, and UTF-8 aligned.
 const fn validate_source_span(source: &str, span: ByteSpan) -> Result<(), RoundTripEditError> {
     if span.start() > span.end() || span.end() > source.len() {
         return Err(RoundTripEditError::InvalidSpan {
@@ -208,6 +213,7 @@ const fn validate_source_span(source: &str, span: ByteSpan) -> Result<(), RoundT
     Ok(())
 }
 
+/// Reject adjacent sorted edits whose spans overlap.
 fn reject_overlaps(edits: &[(ByteSpan, String)]) -> Result<(), RoundTripEditError> {
     for pair in edits.windows(2) {
         let Some((previous, current)) = pair.first().zip(pair.get(1)) else {

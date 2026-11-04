@@ -8,7 +8,10 @@ fn assert_corpus_fixture_path_rejects(
     let Err(error) = stilyagi_test_support::corpus_fixture_path(path) else {
         panic!("expected a FixturePathError with kind {expected_kind:?}");
     };
-    assert_eq!(error.kind, expected_kind);
+    assert_eq!(
+        error.kind, expected_kind,
+        "rejected fixture path should report the expected error kind"
+    );
 }
 
 #[rstest::rstest]

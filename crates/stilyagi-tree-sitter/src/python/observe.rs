@@ -40,6 +40,7 @@ pub(super) fn record_extraction_outcome(document: &IrDocument) {
     );
 }
 
+/// Count extraction errors excluding authored-directive diagnostics.
 fn recovery_error_count(errors: &[IrError]) -> usize {
     errors
         .iter()
