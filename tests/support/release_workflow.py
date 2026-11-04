@@ -64,6 +64,31 @@ def workflow_job(document: WorkflowDocument, job: str) -> dict[str, object]:
     return found
 
 
+def step_mappings(job: dict[str, object]) -> list[dict[str, object]]:
+    """Return a job's steps as mappings, ignoring any entry that is not one.
+
+    Parameters
+    ----------
+    job
+        A parsed job mapping.
+
+    Returns
+    -------
+    list[dict[str, object]]
+        The step mappings; empty when the job declares none.
+
+    Raises
+    ------
+    ReadingError
+        If ``steps`` is not a list.
+    """
+    steps = job.get("steps") or []
+    if not isinstance(steps, list):
+        msg = f"a job's steps must be a list, not {type(steps).__name__}"
+        raise ReadingError(msg, reader=READER, path=RELEASE_WORKFLOW)
+    return [candidate for candidate in steps if isinstance(candidate, dict)]
+
+
 def step(job: dict[str, object], name: str) -> dict[str, object]:
     """Return the step with `name` from a job.
 
@@ -82,18 +107,30 @@ def step(job: dict[str, object], name: str) -> dict[str, object]:
     Raises
     ------
     ReadingError
-        If the job declares no such step.
+        If ``steps`` is not a list, or the job declares no such step.
     """
-    steps = job.get("steps") or []
-    if not isinstance(steps, list):
-        msg = f"a job's steps must be a list, not {type(steps).__name__}"
-        raise ReadingError(msg, reader=READER, path=RELEASE_WORKFLOW)
-    for candidate in steps:
-        if isinstance(candidate, dict) and candidate.get("name") == name:
-            return candidate
-    available = [s.get("name") for s in steps if isinstance(s, dict)]
-    msg = f"no step named {name!r}; available steps: {available!r}"
-    raise ReadingError(msg, reader=READER, path=RELEASE_WORKFLOW)
+    steps = step_mappings(job)
+    found = _named_step(steps, name)
+    if found is None:
+        raise ReadingError(
+            _missing_step_message(steps, name),
+            reader=READER,
+            path=RELEASE_WORKFLOW,
+        )
+    return found
+
+
+def _named_step(steps: list[dict[str, object]], name: str) -> dict[str, object] | None:
+    """Return the first step named `name`, or `None` when none is."""
+    return next(
+        (candidate for candidate in steps if candidate.get("name") == name), None
+    )
+
+
+def _missing_step_message(steps: list[dict[str, object]], name: str) -> str:
+    """Name the missing step and the names the job does declare."""
+    available = [candidate.get("name") for candidate in steps]
+    return f"no step named {name!r}; available steps: {available!r}"
 
 
 def step_script(job: dict[str, object], name: str) -> str:
@@ -121,40 +158,6 @@ def step_script(job: dict[str, object], name: str) -> str:
         msg = f"step {name!r} carries no run script"
         raise ReadingError(msg, reader=READER, path=RELEASE_WORKFLOW)
     return script
-
-
-def step_mappings(job: dict[str, object]) -> list[dict[str, object]]:
-    """Return a job's steps as mappings, ignoring any entry that is not one.
-
-    Parameters
-    ----------
-    job
-        A parsed job mapping.
-
-    Returns
-    -------
-    list[dict[str, object]]
-        The step mappings; empty when the job declares none.
-    """
-    declared = job.get("steps") or []
-    entries: list[object] = list(declared) if isinstance(declared, list) else []
-    return [entry for entry in entries if isinstance(entry, dict)]
-
-
-def step_ids(job: dict[str, object]) -> set[str]:
-    """Return every ``id`` a job's steps declare.
-
-    Parameters
-    ----------
-    job
-        A parsed job mapping.
-
-    Returns
-    -------
-    set[str]
-        The declared step identifiers; empty when none are declared.
-    """
-    return {str(entry["id"]) for entry in step_mappings(job) if "id" in entry}
 
 
 def outputs(job: dict[str, object]) -> dict[str, str]:
