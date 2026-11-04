@@ -214,8 +214,7 @@ impl MarkdownIrBuilder<'_> {
         })
     }
 
-    /// Builds a region for decoded text such as image alt text or a link
-    /// title, recording it as a synthetic segment; empty text yields none.
+    /// Builds a region for decoded text (alt text, link titles); empty yields none.
     fn decoded_text_region(
         &self,
         identity: RegionIdentity<'_>,
@@ -370,8 +369,7 @@ fn link_attrs(link: &markdown::mdast::Link) -> BTreeMap<String, serde_json::Valu
     attrs
 }
 
-/// Returns the source span of a positioned node, or `None` when it has no
-/// position or its offsets are invalid.
+/// Returns the span of a positioned node, or `None` when it is unusable.
 fn span_from_positioned_node(node: &Node) -> Option<SourceSpan> {
     let position = node.position()?;
     SourceSpan::new(position.start.offset, position.end.offset)

@@ -130,7 +130,7 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "assertion failed: suppressions_remain_valid")]
+    #[should_panic(expected = "suppressions should remain valid")]
     fn validate_ir_consistency_checks_suppressions_in_debug_builds() {
         let source = "";
         let mut document = IrDocument::empty(
