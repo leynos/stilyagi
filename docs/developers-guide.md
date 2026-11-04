@@ -1915,17 +1915,38 @@ directory to the checker's search path (`make typecheck` depends on the stamp
 that builds it). Widen the staging rather than the application environment: a
 dependency only a gate script uses does not belong in `pyproject.toml`.
 
-`make lint` then continues into the Rust lint tiers owned by the repository:
+`make lint` composes two stages. `make lint-clippy` runs the Python tiers above
+and then the Rust lint tiers owned by the repository:
 
 1. `cargo doc --workspace --all-features --no-deps` with `RUSTDOCFLAGS` set
    from `RUSTDOC_FLAGS`. That variable defaults to `--cfg docsrs -D warnings`
    and appends `RUSTDOC_FLAGS_EXTRA`; an environment `RUSTDOC_FLAGS` replaces
    the default outright.
 2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-3. `whitaker --all -- --workspace --all-targets --all-features` with
-   `RUSTFLAGS=-D warnings`
-4. Skylos runs last through its pinned CPython 3.14 tool environment, scanning
-   production dead code strictly.
+3. Skylos through its pinned CPython 3.14 tool environment, scanning production
+   dead code strictly
+4. the blocking `nose` duplication gate
+
+`make lint-whitaker` then runs
+`whitaker $(WHITAKER_PACKAGES) -- --workspace --all-targets --all-features`
+with `RUSTFLAGS=-D warnings`.
+
+`lint-whitaker: lint-clippy` is the sequencing guarantee. The prerequisite
+makes Make build the Clippy stage before it schedules Whitaker, so even
+`make -j lint` cannot start Whitaker while Clippy is still running; the order
+does not rely on `.NOTPARALLEL` or on recipe line order. `WHITAKER_PACKAGES`
+defaults to `--all` and names the workspace packages the suite checks. A crate
+that needs `rustc_private` has to be scoped there, and in this guide, rather
+than widening the suite.
+
+The gate is binding. Whitaker's exit status is the recipe's exit status: there
+is no `|| true`, no `-` error prefix, no existence guard, and no masking
+pipeline. A Whitaker finding therefore fails `make lint-whitaker`, fails
+`make lint`, and fails the CI step that runs `make lint`.
+`tests/test_build_standard_make_routes.py` proves the propagation with a
+controlled failing executable probe, which makes the target exit non-zero.
+`WHITAKER_RUST_FLAGS` stays `-D warnings` alone, so the suite still takes none
+of the development flags.
 
 The repository root `clippy.toml` owns the Clippy thresholds used by the
 workspace, including the four-argument maximum and the low complexity and
@@ -2301,20 +2322,24 @@ as a test assertion on the SHA string.
 ### 6f-bis. Whitaker in continuous integration
 
 `.github/workflows/smoke.yml` provisions Whitaker through the shared
-`leynos/shared-actions/.github/actions/install-whitaker` action, pinned to a
-full commit hash and passing only `cranelift: true`. The action owns the
-installer version (0.2.9 or later), the digest-verified download, the cache and
-the `--no-source-fallback` rule, so the workflow carries no install script and
-no `WHITAKER_INSTALLER_VERSION` variable. The local requirement is unchanged:
-`make lint` still expects `whitaker` on `PATH` and runs it as before.
+`leynos/shared-actions/.github/actions/install-whitaker` action, pinned to full
+SHA `5a99aed78ce68dcebd3052b75c31e6f173162b1e` (shared-actions commit
+`5a99aed7`, which pins whitaker-installer 0.2.11), and passing only
+`cranelift: true`. The action owns the installer version, the digest-verified
+download, the cache and the `--no-source-fallback` rule, so the workflow
+carries no install script, no suite pin, no source-build fallback and no
+`WHITAKER_INSTALLER_VERSION` variable. The local requirement is unchanged:
+`make lint` still expects `whitaker` on `PATH` and reaches it through the
+`lint-whitaker` stage.
 
 The `cranelift: true` input predates the development build standard. The
 repository's configuration selects no codegen backend (see "Why Cranelift is
 not part of the standard" in section 5a), so the build standard does not
 require the input; it stays as the Whitaker provisioning policy has it. The
-`make lint` recipe gives Whitaker `RUSTFLAGS="-D warnings"`
+`make lint-whitaker` recipe gives Whitaker `RUSTFLAGS="-D warnings"`
 (`WHITAKER_RUST_FLAGS`) alone, a known boundary with none of the development
-flags, and Whitaker's installer-managed toolchain is independent of the pin in
+flags; `WHITAKER_PACKAGES` selects the checked packages. Whitaker's
+installer-managed toolchain is independent of the pin in
 `rust-toolchain.toml`.
 
 `tests/test_ci_workflow_units.py` asserts the step uses the action at a full

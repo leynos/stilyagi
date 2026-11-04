@@ -123,7 +123,7 @@ def makefile_text() -> str:
         ),
         pytest.param(
             MakefileTargetCase(
-                target="lint",
+                target="lint-clippy",
                 expected_header_fragments=("check-build-tools", "tools-lint"),
                 expected_recipe_fragments=(
                     "$(RUFF) check",
@@ -139,14 +139,25 @@ def makefile_text() -> str:
                         'RUSTFLAGS="$(RUST_FLAGS)" '
                         "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)"
                     ),
+                ),
+                should_include_pytest=False,
+            ),
+            id="lint-clippy",
+        ),
+        pytest.param(
+            MakefileTargetCase(
+                target="lint-whitaker",
+                expected_header_fragments=("lint-clippy",),
+                expected_recipe_fragments=(
                     (
                         'RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" '
-                        "$(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)"
+                        "$(CARGO_BUILD_ENV) $(WHITAKER) $(WHITAKER_PACKAGES) "
+                        "-- $(CARGO_FLAGS)"
                     ),
                 ),
                 should_include_pytest=False,
             ),
-            id="lint",
+            id="lint-whitaker",
         ),
         pytest.param(
             MakefileTargetCase(
@@ -244,7 +255,7 @@ def test_makefile_targets_run_expected_recipes(
 
 def test_lint_recipe_runs_df12_tools_before_rust_checks(makefile_text: str) -> None:
     """Keep the layered Python lint tools ahead of the Rust lint commands."""
-    _header, recipe = _make_target(makefile_text, "lint")
+    _header, recipe = _make_target(makefile_text, "lint-clippy")
     df12_pylint = "$(DF12_PYLINT) $(PYLINT_TARGETS)"
     ambrleaks = "$(AMBRLEAKS) $(AMBRLEAKS_TARGETS)"
     rustdoc = (
