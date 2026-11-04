@@ -12,7 +12,7 @@ import typing as typ
 
 from stilyagi.model.source import SourceSpan
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from stilyagi import model
 
 __all__ = [

@@ -18,7 +18,7 @@ import typing as typ
 
 from .schema import InvalidConfigError
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from .schema import StilyagiConfig
 
 type RuleOptionParser = cabc.Callable[

@@ -26,7 +26,7 @@ from stilyagi.engine.ir_mapping import (
 from stilyagi.model.region import RegionSegment, RegionView
 from stilyagi.model.source import SourceSpan, is_utf8_boundary
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
     from stilyagi import model

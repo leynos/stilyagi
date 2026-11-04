@@ -21,7 +21,7 @@ from stilyagi.engine.rule_projection import (
 )
 from stilyagi.model.region import RegionSegment, RegionView
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
     from stilyagi import model

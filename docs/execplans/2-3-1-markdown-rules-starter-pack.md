@@ -435,6 +435,45 @@ with error exit 1. An invalid `TERM001` option exits 2.
   on the `maturin build --release` fixture's 600 s subprocess cap; warming that
   build with the fixture's own `RUSTFLAGS=""` environment let the lane pass in
   full. No gate assertion failed on this tip.
+- [x] (2026-11-03) Restore the hosted Python coverage ratchet. The new
+  `lint-test` run failed only at `ratchet_coverage.py`: Python measured 91.84%
+  against a 92.88% baseline with a 1.00 pp tolerance, so the threshold is
+  91.88% and the branch missed it by 0.04 pp. Rust measured 91.07% against
+  91.48% and passed. The measurement was reproduced exactly off-branch: a
+  sequential `slipcover --branch` run of the same pytest lane reported 1061
+  passed and 91.8379% over the cobertura XML, matching CI's 91.84%. The cause
+  was structural rather than missing tests: the branch adds many modules, and
+  each carries an `if TYPE_CHECKING:` guard whose lines can never execute. The
+  guard in all 17 new modules now carries `# pragma: no cover - typing only`,
+  the convention `tests/conftest.py` already uses, and
+  `tests/test_rule_option_validation.py` covers the untested `config/rules.py`
+  rejection branches directly. The re-measured report is 92.13% (17239 of 18712
+  lines) after 1066 tests pass, 0.25 pp clear of the threshold. The convention
+  and its rationale are recorded in the developer's guide §6g.
+- [x] (2026-11-04) Review repair 5 — the three findings from the formal
+  CodeRabbit review of `eb217fa2`:
+  - The public helpers in `config/tables.py` had summary-only docstrings. All
+    seven now carry NumPy-style Parameters/Returns/Examples sections, and the
+    two that propagate `InvalidConfigError` from a helper say so in prose
+    rather than in a `Raises` section, because ruff correctly rejects a
+    `Raises` entry for an exception the function never raises itself.
+  - `RuleInterval` and `InlineSuppression` had the same gap. Only
+    `RuleInterval` moved, to `rules/suppression_records.py`, because
+    `InlineSuppression` annotates a `SourceSpan`, which `suppression.py`
+    imports for runtime use and the new record module would need only for
+    typing. Neither escape hatch is available: the df12 lint forbids
+    `from __future__ import annotations` on the 3.14 baseline, and ruff rejects
+    a type-checking-only import of a name an eager annotation evaluates. The
+    move leaves `suppression.py` at 383 lines, down from 392, and
+    `suppression.py` still re-exports `RuleInterval`, so existing import sites
+    and doctests are unchanged.
+  - Binding each `ignore-next` directive to the next prose unit was
+    `O(directives x units)`. The units are now sorted once per document and one
+    `bisect.bisect_left` per directive selects the consumer, so the cost is
+    `O(units log units + directives log units)`.
+  Focused validation: the changed modules' doctests, `test_suppression_index`,
+  `test_suppression_sequences`, `test_rule_policy`,
+  `test_rule_option_validation`, and `test_doctest_collection` report 50 passed.
 
 ## Surprises & discoveries
 
@@ -532,6 +571,14 @@ with error exit 1. An invalid `TERM001` option exits 2.
   `weave` while the repository has no `.gitattributes`. Impact: the unattended
   rebase bypassed the driver with `-c core.attributesFile=/dev/null` and
   `zdiff3`, as the merge policy requires for ambient selection.
+- Observation: the coverage ratchet counts every line slipcover instruments,
+  including an `if TYPE_CHECKING:` guard and the imports under it, which no run
+  can execute. Evidence: the baseline report marks those lines as a permanent
+  miss, and 45 of the 67 missed lines in the branch's new modules were such
+  guard lines. Impact: the guard now carries
+  `# pragma: no cover - typing only`, the convention `tests/conftest.py`
+  already used, and the developer's guide records why the pragma belongs to the
+  guard and not to untested code.
 
 ## Decision log
 

@@ -17,7 +17,7 @@ from stilyagi.rules.suppression import (
     resolve_suppressions,
 )
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from stilyagi.config import StilyagiConfig
     from stilyagi.diagnostics import Diagnostic
     from stilyagi.engine.rule_projection import DocumentRegionView

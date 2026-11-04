@@ -12,10 +12,11 @@ import dataclasses as dc
 import itertools
 import typing as typ
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
-    from stilyagi.rules.suppression import InlineSuppression, RuleInterval
+    from stilyagi.rules.suppression import InlineSuppression
+    from stilyagi.rules.suppression_records import RuleInterval
 
 __all__ = ["SuppressionIndex"]
 

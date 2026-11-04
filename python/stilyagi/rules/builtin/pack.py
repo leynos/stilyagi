@@ -22,7 +22,7 @@ from stilyagi.rules.base import RegionTarget, RuleContext, RuleMetadata
 from stilyagi.rules.builtin import banned_term, heading_depth, repeated_word, text
 from stilyagi.rules.inline_code import InlineCodeIndex
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
     from stilyagi import diagnostics, model

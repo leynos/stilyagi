@@ -9,7 +9,7 @@ builtin package, which imports the context in turn.
 import dataclasses as dc
 import typing as typ
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from stilyagi.model.region import RegionSegment, RegionView
 
 __all__ = [

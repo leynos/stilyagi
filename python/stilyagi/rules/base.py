@@ -13,7 +13,7 @@ import typing as typ
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.inline_code import InlineCodeIndex
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from stilyagi import model
     from stilyagi.model.region import RegionView
     from stilyagi.rules.tokens import TokenizedSegment

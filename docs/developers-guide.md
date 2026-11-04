@@ -748,10 +748,13 @@ suppressed interval; the runner filters only after every rule has reported, so
 stateful rules such as `MD001` still see the headings they suppress.
 `SuppressionPlan` indexes the intervals and inline units per code in
 `rules/suppression_index.py`, so a lookup is one bisection rather than a scan
-over every directive. `config/paths.py` owns the config-relative spelling those
-globs match: it walks up from the anchor with
-`Path.relative_to(..., walk_up=True)` and falls back to the absolute POSIX path
-when no relative spelling exists, as on a different Windows drive.
+over every directive. The `RuleInterval` record it consumes lives in
+`rules/suppression_records.py`; `rules/suppression.py` re-exports it alongside
+`InlineSuppression`, so existing import sites are unchanged. `config/paths.py`
+owns the config-relative spelling those globs match: it walks up from the
+anchor with `Path.relative_to(..., walk_up=True)` and falls back to the
+absolute POSIX path when no relative spelling exists, as on a different Windows
+drive.
 
 The pack itself is `rules/builtin/{heading_depth,repeated_word,banned_term}.py`
 with shared text helpers in `rules/builtin/text.py`. `MD001` is manual-only,
@@ -2352,6 +2355,19 @@ ratchet then compares two builds. Re-read the action's constant whenever the
 shared-actions pin moves. `tests/test_cv005_publisher_contract.py` records the
 expected version beside the pin and fails when the lane preinstall disagrees,
 so a bump that changes the constant has to update both deliberately.
+
+**Type-only blocks are not part of the denominator.** slipcover runs with
+`--branch`, so it records a line for every executable line it instruments. An
+`if TYPE_CHECKING:` guard and the imports beneath it never run, so those lines
+are a permanent miss in every module that follows the typing convention. A
+change that adds many modules accumulates those misses faster than tests can
+cover real code, and the ratchet then fails on lines no test can reach. Mark
+the guard `# pragma: no cover - typing only`, as `tests/conftest.py` does;
+slipcover honours the pragma on an `if` line by excluding the whole block from
+the report. The pragma states that the block is unreachable by construction,
+which is why it is applied only to the guard and never to ordinary code that
+merely happens to be untested. Adding real tests is the remedy for a genuine
+gap; the pragma is not a substitute for one.
 
 **No checksum input.** `installer-checksum` is rejected outright when non-empty
 from the pinned action onwards, and `archive-checksum` is not a rename of it:

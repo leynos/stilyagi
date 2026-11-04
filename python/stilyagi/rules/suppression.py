@@ -5,6 +5,7 @@ The plan is computed before rule selection so that changing ``select`` or
 can be evaluated in full before its findings are filtered.
 """
 
+import bisect
 import dataclasses as dc
 import typing as typ
 
@@ -12,8 +13,9 @@ from stilyagi.engine import rule_view
 from stilyagi.engine.ir_mapping import span_fields, string_tuple
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.suppression_index import SuppressionIndex
+from stilyagi.rules.suppression_records import RuleInterval
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
     from stilyagi import model
@@ -111,39 +113,25 @@ class IgnoreDirective:
 
 
 @dc.dataclass(frozen=True, slots=True)
-class RuleInterval:
-    """A half-open byte range over which one code is suppressed."""
-
-    code: str
-    byte_start: int
-    byte_end: int
-
-    def covers(self, byte_start: int) -> bool:
-        """Return whether the interval covers a finding start.
-
-        Parameters
-        ----------
-        byte_start:
-            The finding's primary span start.
-
-        Returns
-        -------
-        bool
-            ``True`` when the start falls inside the interval.
-
-        Examples
-        --------
-        >>> RuleInterval("STY001", 10, 20).covers(10)
-        True
-        >>> RuleInterval("STY001", 10, 20).covers(20)
-        False
-        """
-        return self.byte_start <= byte_start < self.byte_end
-
-
-@dc.dataclass(frozen=True, slots=True)
 class InlineSuppression:
-    """An ``ignore-next`` directive bound to one eligible prose unit."""
+    """An ``ignore-next`` directive bound to one eligible prose unit.
+
+    Attributes
+    ----------
+    codes:
+        Concrete builtin rule codes the directive suppresses.
+    unit:
+        The prose unit the directive consumes. Its start is at or after the
+        directive's end, in source order.
+
+    Examples
+    --------
+    >>> bound = InlineSuppression(("STY001",), SourceSpan(8, 14))
+    >>> bound.unit.byte_start
+    8
+    >>> bound.codes
+    ('STY001',)
+    """
 
     codes: tuple[str, ...]
     unit: SourceSpan
@@ -354,26 +342,29 @@ def _inline_suppressions(
     prose_units: cabc.Sequence[SourceSpan] | None,
 ) -> tuple[InlineSuppression, ...]:
     """Bind each ``ignore-next`` directive to the next nonempty prose unit."""
+    units = _units_in_source_order(document, prose_units)
+    starts = [unit.byte_start for unit in units]
+    bound: list[InlineSuppression] = []
+    for directive in directives:
+        if directive.kind != "inline" or directive.span is None:
+            continue
+        index = bisect.bisect_left(starts, directive.span.byte_end)
+        if index < len(units):
+            bound.append(InlineSuppression(directive.codes, units[index]))
+    return tuple(bound)
+
+
+def _units_in_source_order(
+    document: model.Document,
+    prose_units: cabc.Sequence[SourceSpan] | None,
+) -> tuple[SourceSpan, ...]:
+    """Return the prose units ordered by start so one bisection suffices."""
     units = (
         rule_view.ignore_next_units(document)
         if prose_units is None
         else tuple(prose_units)
     )
-    bound: list[InlineSuppression] = []
-    for directive in directives:
-        if directive.kind != "inline" or directive.span is None:
-            continue
-        unit = next(
-            (
-                candidate
-                for candidate in units
-                if candidate.byte_start >= directive.span.byte_end
-            ),
-            None,
-        )
-        if unit is not None:
-            bound.append(InlineSuppression(directive.codes, unit))
-    return tuple(bound)
+    return tuple(sorted(units, key=lambda unit: unit.byte_start))
 
 
 def _span(value: object) -> SourceSpan | None:

@@ -11,7 +11,7 @@ import dataclasses as dc
 import typing as typ
 from bisect import bisect_right
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
     from stilyagi.model.source import SourceSpan

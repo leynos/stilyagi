@@ -8,7 +8,7 @@ format can be read and changed without reading past the JSON payloads.
 
 import typing as typ
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from stilyagi import diagnostics
     from stilyagi.engine.renderers import RunSummary
 

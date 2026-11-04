@@ -12,7 +12,7 @@ from stilyagi import diagnostics
 from stilyagi.fixes import Applicability, Fix
 from stilyagi.rules.builtin import text
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from stilyagi.config.rules import Md001Config
     from stilyagi.model.region import RegionView
     from stilyagi.rules.base import RuleContext

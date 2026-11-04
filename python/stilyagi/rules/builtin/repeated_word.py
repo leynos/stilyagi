@@ -11,7 +11,7 @@ from stilyagi import diagnostics
 from stilyagi.fixes import Applicability, Fix, TextEdit
 from stilyagi.rules.builtin import text
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
     from stilyagi.config.rules import Sty001Config

@@ -85,6 +85,7 @@
       'stilyagi/rules/registry.py',
       'stilyagi/rules/suppression.py',
       'stilyagi/rules/suppression_index.py',
+      'stilyagi/rules/suppression_records.py',
       'stilyagi/rules/tokens.py',
       'stilyagi/smoke.py',
     ]),

@@ -15,7 +15,7 @@ from stilyagi.diagnostics_location import line_column_from_validated_starts
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.tokens import Token, TokenizedSegment
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
     from stilyagi.model.region import RegionSegment, RegionView
