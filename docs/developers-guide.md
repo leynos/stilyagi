@@ -1220,6 +1220,18 @@ test binaries.[^3] Because this now relies on the packaging backend exporting
 `PYO3_BUILD_EXTENSION_MODULE`, the repository pins maturin in both the
 build-system and dev-tooling dependencies.
 
+`pyo3/auto-initialize` is scoped the same way, and for the same reason: a
+feature the wheel build does not need is a liability inside the manylinux
+container. The workspace dependency declares PyO3 without it, and
+`crates/stilyagi-pyext` re-enables it on its **dev**-dependency. Cargo unifies
+a dev-dependency's features only into builds that include dev-dependencies, so
+`cargo test` still gets an initialized interpreter for the unit and BDD tests
+that call `Python::attach`, while a release `--lib` build in the manylinux
+image does not. That matters because `auto-initialize` makes PyO3's build
+script require a Python with a shared library, and the manylinux container's
+interpreter has none; leaving the feature in the shared declaration failed the
+wheel build before any Rust was compiled.
+
 ### 4.1 Maturin and PyO3 compatibility tests
 
 The repository pins maturin in both `pyproject.toml` `[dependency-groups].dev`
@@ -1425,27 +1437,11 @@ this repository. Its `lint-test` job (on an Ubicloud runner, with a hosted
 fallback for a fork's pull request) installs Python, Rust, `uv`, the pinned
 build tools (`make install-build-tools`), and the support tools required by the
 checked targets, then runs `make check-fmt`, `make markdownlint`, `make nixie`,
-`make typecheck`, `make lint`, and `make test-doc`. Its `release-smoke` matrix
-builds and smoke-tests release wheels on Ubuntu, macOS, and Windows. The
-workflow is not release publishing automation; it proves that local development
-installs and release wheels exercise the same PyO3 boundary.
-
-CI runs `make test-doc` rather than `make test` because every other part of
-`make test` already runs once per event. The coverage step in `smoke.yml` on a
-pull request, and `coverage-main.yml` on a push, run nextest over the workspace
-and the whole pytest suite. `make check-fmt` and `make lint`, earlier in the
-same job, run the format check and Clippy. No crate declares features, so
-`make test`'s `--all-features` selects the same tests as coverage's default.
-`make test-doc` runs what is left: the Rust doctests and the Python
-`--doctest-modules` pass. `tests/test_suite_runs_once.py` holds these premises,
-including the absence of features, whether declared in a `[features]` table or
-implied by an optional dependency. A crate that gains a feature fails it,
-because `--all-features` would then select tests that coverage does not run. It
-also requires the build-tools preflight and `build` to be `test-doc`'s only
-prerequisites, since any other would run before the recipe.
-`tests/test_make_test_doc_execution.py` runs the target against command shims
-and checks the journal. Both doctest passes run, neither unit suite does, and a
-failing Rust doctest ends the target before the Python pass.
+`make typecheck`, `make lint`, and `make test-doc`. Its `release-smoke` job
+delegates to `.github/workflows/build-wheels.yml`, the same reusable workflow a
+tag's release builds with, so the smoke path and the release path cannot
+diverge. The workflow is not release publishing automation; it proves that
+local development installs and release wheels exercise the same PyO3 boundary.
 
 ## 5a. Development build standard
 
@@ -1510,6 +1506,7 @@ excludes it from its compiler flags.
 | ----------------------- | ---------------------------------------------------------------------------------------------- |
 | `make release-artefact` | `RUSTFLAGS="${RUSTFLAGS-}"` assigns the caller's flags alone; it skips the preflight.          |
 | Wheel in pytest         | `tests/test_maturin_build.py` assigns `RUSTFLAGS` to its `maturin build --release` subprocess. |
+| Wheel workflow          | Every `maturin-action` step in `build-wheels.yml` assigns `RUSTFLAGS: ""`.                     |
 | Coverage                | The coverage step assigns `RUSTFLAGS: -D warnings`; instrumentation stays.                     |
 | Whitaker                | `RUSTFLAGS="$(WHITAKER_RUST_FLAGS)"` is `-D warnings` alone.                                   |
 | Mutation testing        | The shared workflow's setup-rust exports `-D warnings`; no Make goal is reached.               |
@@ -1518,7 +1515,11 @@ excludes it from its compiler flags.
 
 `tests/test_build_standard_exclusions.py` holds the workflow half, and the
 Make-route contracts hold the release and Whitaker halves, each with a negative
-control so a change that lets a route inherit the flags fails.
+control so a change that lets a route inherit the flags fails. The wheel
+workflow is the one lane held only by contract: its Linux legs fail visibly
+without the assignment because the manylinux image has no mold, while its macOS
+and Windows legs link fine and would quietly publish a wheel carrying
+`-Zthreads=8`.
 
 ### Build tools: install and check
 
@@ -1645,7 +1646,132 @@ this section if everything passes. `tests/test_build_standard_config.py`
 requires this section to name the pinned channel, so a bump that does not
 re-evaluate it fails.
 
+## 5b. Release pipeline
+
+[ADR 0012](adrs/adr-0012-release-pipeline.md) records the decisions; this
+section is the maintainer's view of what runs.
+
+`.github/workflows/build-wheels.yml` is a `workflow_call` workflow. It builds
+`x86_64` and `aarch64` Linux wheels (the `aarch64` leg under QEMU), macOS
+`arm64` and `x86_64` wheels, and a Windows wheel, all with maturin 1.14.1. The
+`x86_64` Linux leg also builds the one source distribution with
+`uv build --sdist`; `verify-wheel-install` asserts that exactly one sdist
+exists, that the wheel installs, and that a wheel can be rebuilt from the
+sdist. The sdist is platform-independent, so building it on one leg is what
+keeps a run to one sdist.
+
+`.github/workflows/release.yml` runs on `v*.*.*` tags with
+`cancel-in-progress: false`, so a re-pushed tag queues rather than interrupting
+an upload. `check-version` compares the tag against
+`crates/stilyagi-pyext/Cargo.toml` and `pyproject.toml` and derives the
+pre-release flag from the PEP 440 label; `attest` signs exactly the run's
+artefacts with `actions/attest-build-provenance` and stages the bundle under a
+run-unique name; `draft-release` creates or reuses the tag's draft;
+`publish-pypi` uploads under Trusted Publishing with `skip-existing: true`; and
+`publish-release` fills the release's gaps from PyPI's bytes, verifies both
+destinations hold identical digests, and only then un-drafts the release.
+
+The reconciliation logic lives in `scripts/release_assets.py`, wrapped for the
+workflow by `scripts/release_assets_cli.py`. It resolves no third-party code,
+because it runs in the job that holds the PyPI token, and it makes no network
+call: the steps' `curl` and `gh` invocations do that. The module's tests are
+`tests/test_release_assets.py` and `tests/test_release_assets_staging.py`; the
+steps' own behaviour is specified by `tests/test_release_publish_steps.py`,
+`tests/test_release_github_steps.py`, and
+`tests/test_release_workflow_contract.py`, which execute the checked-in scripts
+against a scripted PyPI and GitHub Release.
+
+A release is repaired by re-running the same tag, never by cutting a new
+version. Each filename's canonical bytes are PyPI's if it holds the name, the
+release's if it does not, and this run's rebuild only when neither does; each
+destination receives only the names it lacks, and nothing is overwritten. A
+re-run of a healthy tag uploads nothing to PyPI and nothing to the release
+except that run's new provenance bundle.
+
+### Publishing a release
+
+1. Raise the version in `pyproject.toml` and the workspace `Cargo.toml`, and
+   the literal `stilyagi-test-fixtures` requirements in the `stilyagi-ir` and
+   `stilyagi-markdown` manifests, to the version being released. Regenerate
+   `Cargo.lock`, `uv.lock`, and the maturin wheel-metadata snapshot.
+   `tests/test_version_sync.py` fails if any of these disagree.
+2. Confirm `make check-fmt`, `make lint`, and `make test` pass on the commit
+   that will be tagged. `check-version` refuses a tag whose manifests disagree,
+   but it cannot see a broken test suite, and a tag that fails after PyPI has
+   taken the artefacts still has to be repaired by re-running it.
+3. Create and push the tag. Both the annotation and the push go over SSH:
+
+   ```shell
+   git tag -a v0.2.0 -m "Release 0.2.0"
+   git push git@github.com:leynos/stilyagi.git v0.2.0
+   ```
+
+   A pre-release label such as `v0.2.0-beta1` is a valid tag; the release is
+   flagged as a pre-release from the PEP 440 label, and PyPI files the upload
+   under that version.
+4. Watch the run. It creates the GitHub Release as a draft, publishes to PyPI,
+   then verifies both destinations hold identical digests before the release
+   becomes public. A run that stops before that leaves a draft, which is
+   visible only to a token allowed to write contents.
+5. If the run fails, read the failing job, fix the workflow or the scripts on
+   `main`, and re-run the tag. Do not delete the tag and re-create it under a
+   new version unless the published bytes are genuinely wrong: the existing
+   ones are canonical, and a new version leaves them on PyPI forever.
+
+The PyPI project page for a version may lag the workflow by a minute or two
+after the release job succeeds; that is the index cache, not a failed upload.
+`curl https://pypi.org/pypi/stilyagi/json` reports what the index actually
+holds.
+
+### Settings this pipeline requires
+
+These are one-off repository and PyPI settings. They are not expressed in the
+workflow files, so a from-scratch fork must set them up before its first tag.
+
+- **PyPI Trusted Publisher.** On the `stilyagi` project at
+  <https://pypi.org/manage/project/stilyagi/settings/publishing/>, add a GitHub
+  publisher with owner `leynos`, repository `stilyagi`, workflow `release.yml`,
+  and environment `pypi`. The environment name must match the workflow's; a
+  mismatch fails the upload with a Trusted Publishing error rather than a
+  permission error.
+- **GitHub `pypi` environment.** Under repository settings → Environments,
+  create `pypi`. Restrict it to the `v*.*.*` tag pattern so an arbitrary branch
+  cannot reach the publisher, and add required reviewers if a human gate before
+  publishing is wanted. The `publish-pypi` job declares the environment;
+  without it, Trusted Publishing rejects the OIDC exchange.
+- **Workflow permissions.** The repository must allow GitHub Actions to create
+  a token with `id-token: write`, which it does by default unless the
+  organization has disabled OIDC. `publish-pypi` is the only job that asks for
+  it.
+- **Attestations.** `attest` uses `actions/attest-build-provenance`, which
+  needs no secret: it signs through the run's OIDC token and writes a Sigstore
+  bundle. That bundle travels inside `release-dist` and is attached to the
+  release as an asset, so the proof of which commit and run produced a file
+  survives even if the repository's attestation store is pruned.
+
+This repository does not adopt cuprum's `release-telemetry` action. Stilyagi
+has no telemetry sink of its own, so the release run reports through the
+workflow run and its logs, and the provenance bundle is the durable record of
+what was published.
+
 ## 6. Lint, typecheck, and test workflow
+
+CI runs `make test-doc` rather than `make test` because every other part of
+`make test` already runs once per event. The coverage step in `smoke.yml` on a
+pull request, and `coverage-main.yml` on a push, run nextest over the workspace
+and the whole pytest suite. `make check-fmt` and `make lint`, earlier in the
+same job, run the format check and Clippy. No crate declares features, so
+`make test`'s `--all-features` selects the same tests as coverage's default.
+`make test-doc` runs what is left: the Rust doctests and the Python
+`--doctest-modules` pass. `tests/test_suite_runs_once.py` holds these premises,
+including the absence of features, whether declared in a `[features]` table or
+implied by an optional dependency. A crate that gains a feature fails it,
+because `--all-features` would then select tests that coverage does not run. It
+also requires the build-tools preflight and `build` to be `test-doc`'s only
+prerequisites, since any other would run before the recipe.
+`tests/test_make_test_doc_execution.py` runs the target against command shims
+and checks the journal. Both doctest passes run, neither unit suite does, and a
+failing Rust doctest ends the target before the Python pass.
 
 The Makefile is the canonical workflow entrypoint. `make all` runs the local
 commit gates in sequence and is the default target. The current checks are:
@@ -3098,8 +3224,10 @@ cross-language regressions that isolated commands can miss.
 
 ## 11. Release expectations
 
-Release work should assume wheel artefacts are the primary distributable output
-of the mixed package.
+Release work should assume every artefact the reusable build produces — the
+native wheels and the one source distribution — is a distributable output of
+the mixed package, and that the two must reach PyPI and the tag's GitHub
+Release together.
 
 - Use `make release` for release builds. It assigns `RUSTFLAGS` from the
   caller alone, so the development flags never reach the wheel.
@@ -3109,6 +3237,9 @@ of the mixed package.
 - Treat release-affecting changes to the Makefile, `pyproject.toml`, or
   `crates/stilyagi-pyext/Cargo.toml` as coupled changes that need end-to-end
   verification.
+- A release is cut by pushing a `v*.*.*` tag; nothing is uploaded from a
+  workstation. A failed release is repaired by re-running the same tag — see
+  section 5b and [ADR 0012](adrs/adr-0012-release-pipeline.md).
 
 If release packaging changes, this guide, the design document, and the relevant
 RFCs should be reviewed together so the documented contract remains accurate.

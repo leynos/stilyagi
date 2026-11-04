@@ -77,7 +77,7 @@
       'requires_dist': list([
       ]),
       'requires_python': '>=3.14',
-      'version': '0.1.0',
+      'version': '0.2.0',
     }),
     'wheel': dict({
       'root_is_purelib': 'false',

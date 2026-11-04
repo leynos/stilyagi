@@ -1,0 +1,397 @@
+---
+# The one build of the release's artefacts, called by both the pull-request
+# smoke workflow and the tag-only release workflow.
+#
+# Every native wheel and the one source distribution are built here and
+# nowhere else, so the bytes a pull request smokes are the bytes the release
+# attests and publishes. A pull-request caller therefore fails on a missing,
+# duplicated or uninstallable sdist before a tag is ever cut.
+#
+# This workflow is `workflow_call` only. It has no concurrency block: the
+# caller owns the queue, and a called workflow inherits the caller's run, so a
+# group here would either duplicate the caller's or cancel a build a release
+# is waiting on.
+name: Build Wheels
+
+on:
+  workflow_call:
+
+permissions: {}
+
+env:
+  # Keep in sync with [build-system].requires in pyproject.toml,
+  # tests/test_maturin_build.py's snapshot and the release development guide.
+  MATURIN_VERSION: "1.14.1"
+  # The aarch64 cross container is a release image, so it is pinned by digest
+  # rather than by tag: ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
+  MANYLINUX_AARCH64_CONTAINER: >- # ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
+    ghcr.io/rust-cross/manylinux_2_28-cross@sha256:4864c3e931d790def6dba05cbf133b236b242d0c732f77546c68663c7923116e
+  # The extension targets CPython 3.14's ABI rather than the stable ABI, so a
+  # wheel built against one interpreter does not load in another and every
+  # maturin invocation is told which interpreter to build for. A forward
+  # compatibility opt-out makes a genuine mismatch fail the build rather than
+  # produce a wheel that will not import.
+  PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "0"
+
+jobs:
+  build-linux:
+    # A called workflow inherits its caller's `github` context, so this reads
+    # the caller's event: a fork's pull request falls back to the hosted pool,
+    # because a fork cannot obtain an Ubicloud runner, and every other run
+    # selects the Ubicloud class. tests/test_runner_placement_contract.py
+    # inventories this lane.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
+    # Above the matrix's slowest leg plus the aarch64 emulation the QEMU leg
+    # pays for. A ceiling is stated because an Ubicloud runner is a
+    # self-hosted just-in-time runner that GitHub's hosted six-hour cap does
+    # not bound.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            target: x86_64-unknown-linux-gnu
+          # aarch64 wheels are built under QEMU emulation by maturin-action.
+          - arch: aarch64
+            target: aarch64-unknown-linux-gnu
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Cache Linux wheel build dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: stilyagi-wheel-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.target }}-${{ env.MATURIN_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            stilyagi-wheel-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.target }}-${{ env.MATURIN_VERSION }}-
+
+      - name: Set up QEMU (Linux aarch64)
+        if: matrix.arch == 'aarch64'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
+        with:
+          platforms: arm64
+
+      - name: Build manylinux wheel (Linux x86_64)
+        # The container's interpreter is named directly: this leg can execute
+        # it, so maturin builds against the exact CPython it was given.
+        #
+        # `RUSTFLAGS` is named, and empty, so the assignment displaces
+        # `.cargo/config.toml`: the repository's Linux table selects mold, and
+        # a manylinux image has no mold to select (`cc` reports `cannot find
+        # 'ld'`). The action forwards it into the container because it is on
+        # the `RUST` prefix allow-list, and the published wheel is meant to
+        # carry the release build's flags rather than the development
+        # standard's.
+        if: matrix.arch == 'x86_64'
+        uses: messense/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b  # v1.51.0
+        env:
+          RUSTFLAGS: ""
+        with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
+          target: ${{ matrix.target }}
+          manylinux: 2_28
+          command: build
+          args: >-
+            --release --out dist
+            --manifest-path crates/stilyagi-pyext/Cargo.toml
+            -i /opt/python/cp314-cp314/bin/python
+
+      - name: Build manylinux wheel (Linux aarch64)
+        # The aarch64 leg is cross-compiled, so the container's Python cannot
+        # be executed to select a tag; maturin is given the version instead.
+        #
+        # `RUSTFLAGS` is named for the same reason as the x86_64 leg, and the
+        # cross gcc makes the omission louder: it rejects the repository's
+        # mold flag outright (`unrecognized command line option
+        # '-fuse-ld=mold'`) before it looks for a linker at all.
+        if: matrix.arch == 'aarch64'
+        uses: messense/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b  # v1.51.0
+        env:
+          RUSTFLAGS: ""
+        with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
+          target: ${{ matrix.target }}
+          manylinux: 2_28
+          container: ${{ env.MANYLINUX_AARCH64_CONTAINER }}
+          command: build
+          args: >-
+            --release --out dist
+            --manifest-path crates/stilyagi-pyext/Cargo.toml
+            -i 3.14
+
+      - name: Upload native wheel
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: wheels-native-linux-${{ matrix.arch }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+      # One leg builds the sdist, and it must be the x86_64 leg: the archive is
+      # platform-independent, so a second copy would be a duplicate for the
+      # release to reconcile and a mismatch the moment the two differ.
+      - name: Install uv
+        if: matrix.arch == 'x86_64'
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+
+      - name: Install Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v6.3.0
+        with:
+          python-version: "3.14"
+
+      - name: Build source distribution
+        if: matrix.arch == 'x86_64'
+        run: |
+          set -euo pipefail
+          uv build --sdist --out-dir sdist
+
+      - name: Upload source distribution
+        if: matrix.arch == 'x86_64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: sdist
+          path: sdist/*.tar.gz
+          if-no-files-found: error
+
+      - name: Smoke-test the built wheel
+        # Only the x86_64 leg can run its own wheel here: the aarch64 wheel is
+        # cross-built and needs emulation to import. verify-wheel-install runs
+        # the aarch64 cardinality check, and the release publishes that artefact
+        # only after it has been attested beside the wheel this step proved.
+        if: matrix.arch == 'x86_64'
+        shell: bash
+        env:
+          WHEEL_DIR: dist
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=("${WHEEL_DIR}"/*.whl)
+          if [ "${#wheels[@]}" -ne 1 ]; then
+            echo "Expected exactly one wheel, found ${#wheels[@]}." >&2
+            ls -al "${WHEEL_DIR}" >&2 || true
+            exit 1
+          fi
+          python -m venv "${RUNNER_TEMP}/smoke-venv"
+          smoke_python="${RUNNER_TEMP}/smoke-venv/bin/python"
+          "${smoke_python}" -m pip install --no-index "${wheels[0]}"
+          # Run outside the checkout: an import that finds the source tree
+          # would prove nothing about the installed wheel.
+          cd "${RUNNER_TEMP}"
+          "${smoke_python}" -m stilyagi.smoke
+
+  build-hosted:
+    # macOS and Windows wheels. GitHub spells matrix values into the check
+    # name, so each leg is named explicitly rather than derived.
+    runs-on: ${{ matrix.os }}
+    # Measured legs finish in minutes; the ceiling covers a cold Rust build on
+    # a hosted runner with no compiler cache shared with the Linux legs.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            arch: arm64
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            arch: x86_64
+            target: x86_64-apple-darwin
+          - os: windows-2022
+            arch: x86_64
+            target: x86_64-pc-windows-msvc
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v6.3.0
+        with:
+          python-version: "3.14"
+
+      - name: Setup Rust
+        uses: leynos/shared-actions/.github/actions/setup-rust@2f47859bcf82ae8b5bc10b457683fbd589ca2e41  # v1.0.0
+
+      - name: Cache wheel build dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: stilyagi-wheel-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.target }}-${{ env.MATURIN_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            stilyagi-wheel-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.target }}-${{ env.MATURIN_VERSION }}-
+
+      - name: Build wheel
+        # `RUSTFLAGS` is named, and empty, for the same reason as the Linux
+        # legs: the release build takes no development flags, and only an
+        # assignment displaces what `.cargo/config.toml` would otherwise add.
+        # These legs do not use the mold table, so the omission would not fail
+        # here, which is exactly why it is held by contract rather than by the
+        # build.
+        uses: messense/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b  # v1.51.0
+        env:
+          RUSTFLAGS: ""
+        with:
+          maturin-version: ${{ env.MATURIN_VERSION }}
+          target: ${{ matrix.target }}
+          command: build
+          args: >-
+            --release --out dist
+            --manifest-path crates/stilyagi-pyext/Cargo.toml
+            -i 3.14
+
+      - name: Upload native wheel
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: wheels-native-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+      # Each leg smokes the wheel it just built, on the interpreter that built
+      # it. A wheel that imports only after a rebuild is not the release's.
+      - name: Smoke-test the built wheel
+        env:
+          WHEEL_DIR: dist
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=("${WHEEL_DIR}"/*.whl)
+          if [ "${#wheels[@]}" -ne 1 ]; then
+            echo "Expected exactly one wheel, found ${#wheels[@]}." >&2
+            ls -al "${WHEEL_DIR}" >&2 || true
+            exit 1
+          fi
+          python -m venv "${RUNNER_TEMP}/smoke-venv"
+          smoke_python="${RUNNER_TEMP}/smoke-venv/bin/python"
+          if [ ! -x "${smoke_python}" ]; then
+            smoke_python="${RUNNER_TEMP}/smoke-venv/Scripts/python.exe"
+          fi
+          "${smoke_python}" -m pip install --no-index "${wheels[0]}"
+          cd "${RUNNER_TEMP}"
+          "${smoke_python}" -m stilyagi.smoke
+
+  verify-wheel-install:
+    # The cardinality and rebuild proof, run once over every built artefact.
+    # Reached from a pull request, forks included, and from a tag; the
+    # expression reads the caller's event for the same reason build-linux's
+    # does.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    needs:
+      - build-linux
+      - build-hosted
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v6.3.0
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+
+      - name: Setup Rust
+        uses: leynos/shared-actions/.github/actions/setup-rust@2f47859bcf82ae8b5bc10b457683fbd589ca2e41  # v1.0.0
+
+      - name: Download the built artefacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          path: dist
+          pattern: wheels-native-*
+          merge-multiple: true
+
+      - name: Download the source distribution
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: sdist
+          path: dist
+
+      - name: Require exactly one sdist
+        env:
+          DIST_DIR: dist
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          sdists=("${DIST_DIR}"/*.tar.gz)
+          if [ "${#sdists[@]}" -ne 1 ]; then
+            echo "Expected exactly one source distribution." >&2
+            echo "Matched: ${sdists[*]:-<none>}" >&2
+            ls -al "${DIST_DIR}" >&2 || true
+            exit 1
+          fi
+
+      - name: Install and smoke-test the Linux wheel
+        env:
+          DIST_DIR: dist
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          arch="$(uname -m)"
+          wheels=("${DIST_DIR}"/*-cp314-cp314-manylinux*"${arch}"*.whl)
+          if [ "${#wheels[@]}" -ne 1 ]; then
+            echo "Expected exactly one native wheel for ${arch}." >&2
+            echo "Matched: ${wheels[*]:-<none>}" >&2
+            ls -al "${DIST_DIR}" >&2 || true
+            exit 1
+          fi
+          python -m venv "${RUNNER_TEMP}/wheel-venv"
+          smoke_python="${RUNNER_TEMP}/wheel-venv/bin/python"
+          "${smoke_python}" -m pip install --no-index "${wheels[0]}"
+          cd "${RUNNER_TEMP}"
+          "${smoke_python}" -m stilyagi.smoke
+
+      - name: Rebuild a wheel from the sdist
+        # The archive is unpacked outside the checkout and built there, so the
+        # sdist must carry everything its own build reads; a wheel built from
+        # the repository would hide whatever the archive omits.
+        env:
+          DIST_DIR: dist
+          REBUILD_DIR: ${{ runner.temp }}/sdist-rebuild
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          sdists=("${DIST_DIR}"/*.tar.gz)
+          mkdir -p "${REBUILD_DIR}/src" "${REBUILD_DIR}/dist"
+          tar -xzf "${sdists[0]}" -C "${REBUILD_DIR}/src" --strip-components=1
+          cd "${REBUILD_DIR}/src"
+          uv build --wheel --out-dir "${REBUILD_DIR}/dist"
+
+      - name: Install and smoke-test the rebuilt wheel
+        env:
+          REBUILD_DIR: ${{ runner.temp }}/sdist-rebuild
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=("${REBUILD_DIR}"/dist/*.whl)
+          if [ "${#wheels[@]}" -ne 1 ]; then
+            echo "Expected exactly one rebuilt wheel, found ${#wheels[@]}." >&2
+            ls -al "${REBUILD_DIR}/dist" >&2 || true
+            exit 1
+          fi
+          python -m venv "${RUNNER_TEMP}/rebuilt-venv"
+          smoke_python="${RUNNER_TEMP}/rebuilt-venv/bin/python"
+          "${smoke_python}" -m pip install --no-index "${wheels[0]}"
+          cd "${RUNNER_TEMP}"
+          "${smoke_python}" -m stilyagi.smoke

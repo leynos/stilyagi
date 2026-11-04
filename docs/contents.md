@@ -141,6 +141,12 @@
     records the dated-nightly decision, the removed `rust-version`, the
     `mold` and parallel-frontend build standard, the Cranelift verdict, and
     the routes that exclude the standard.
+  - [ADR 0012: Publish the sdist and make releases idempotent](
+    adrs/adr-0012-release-pipeline.md)
+    records the tag-triggered release pipeline: one sdist beside the native
+    wheels, attestation of every artefact, canonical bytes chosen from the
+    destinations rather than the build, and the draft-then-publish GitHub
+    Release that makes a re-run converge.
 
 ## Requests for comments (RFCs)
 
