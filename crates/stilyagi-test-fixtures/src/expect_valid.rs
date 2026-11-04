@@ -72,8 +72,7 @@
 //! The error-bearing branch preserves both the fixture context and the source
 //! error:
 //!
-//! ```should_panic(expected = "invalid test fixture: segment offset: invalid digit found in
-//! string")
+//! ```should_panic(expected = "segment offset: invalid digit found in string")
 //! use stilyagi_test_fixtures::ExpectValid;
 //!
 //! let malformed: Result<u32, _> = "not a number".parse();
