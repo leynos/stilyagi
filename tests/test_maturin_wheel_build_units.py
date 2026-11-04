@@ -101,7 +101,9 @@ def test_the_installed_maturin_version_is_absent_without_the_module(
         "tests.test_maturin_build._maturin_module_available", lambda: False
     )
 
-    assert _installed_maturin_version() is None
+    version = _installed_maturin_version()
+
+    assert version is None, version
 
 
 def test_a_package_lookup_that_finds_nothing_is_an_absence(
@@ -119,7 +121,9 @@ def test_a_package_lookup_that_finds_nothing_is_an_absence(
     )
     monkeypatch.setattr("tests.test_maturin_build.im.version", absent)
 
-    assert _installed_maturin_version() is None
+    version = _installed_maturin_version()
+
+    assert version is None, version
 
 
 def test_a_module_lookup_that_raises_is_answered_with_no(
@@ -133,7 +137,9 @@ def test_a_module_lookup_that_raises_is_answered_with_no(
 
     monkeypatch.setattr(importlib.util, "find_spec", broken)
 
-    assert _maturin_module_available() is False
+    available = _maturin_module_available()
+
+    assert available is False, available
 
 
 def test_uv_is_resolved_from_the_environment(
@@ -145,7 +151,9 @@ def test_uv_is_resolved_from_the_environment(
         lambda candidate: "/usr/bin/uv" if candidate == "uv" else None,
     )
 
-    assert _resolve_uv(tmp_path) == "/usr/bin/uv"
+    resolved = _resolve_uv(tmp_path)
+
+    assert resolved == "/usr/bin/uv", resolved
 
 
 def test_a_host_without_uv_resolves_to_nothing(

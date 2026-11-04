@@ -61,11 +61,13 @@ def test_the_release_prefix_is_stripped_from_every_member(
         ["Cargo.toml", "Cargo.lock", "python/stilyagi/__init__.py"],
     )
 
-    assert _members(archive) == {
+    members = _members(archive)
+
+    assert members == {
         "Cargo.toml",
         "Cargo.lock",
         "python/stilyagi/__init__.py",
-    }
+    }, members
 
 
 def test_a_member_at_the_archive_root_is_dropped(tmp_path: pathlib.Path) -> None:
@@ -86,7 +88,9 @@ def test_only_the_first_separator_is_removed(tmp_path: pathlib.Path) -> None:
         tmp_path / "stilyagi-0.2.0.tar.gz", ["crates/stilyagi-ir/Cargo.toml"]
     )
 
-    assert _members(archive) == {"crates/stilyagi-ir/Cargo.toml"}
+    members = _members(archive)
+
+    assert members == {"crates/stilyagi-ir/Cargo.toml"}, members
 
 
 # -- declared_version --------------------------------------------------------
@@ -98,7 +102,9 @@ def test_the_version_is_read_from_the_project_table(tmp_path: pathlib.Path) -> N
         '[project]\nname = "stilyagi"\nversion = "9.8.7"\n', encoding="utf-8"
     )
 
-    assert declared_version(tmp_path) == "9.8.7"
+    version = declared_version(tmp_path)
+
+    assert version == "9.8.7", version
 
 
 def test_the_repository_declares_the_version_its_manifest_names() -> None:
