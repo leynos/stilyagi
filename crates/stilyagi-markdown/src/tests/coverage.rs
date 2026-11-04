@@ -1,9 +1,11 @@
 //! Coverage tests for the promised Markdown IR region vocabulary.
 
-use std::collections::BTreeSet;
-use std::ffi::OsStr;
-use std::fmt;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeSet,
+    ffi::OsStr,
+    fmt,
+    path::{Path, PathBuf},
+};
 
 use markdown::message::Message;
 use rstest::rstest;
@@ -32,15 +34,11 @@ impl fmt::Display for FixtureError {
 }
 
 impl From<FixtureReadError> for FixtureError {
-    fn from(error: FixtureReadError) -> Self {
-        Self::Read(error)
-    }
+    fn from(error: FixtureReadError) -> Self { Self::Read(error) }
 }
 
 impl From<Message> for FixtureError {
-    fn from(error: Message) -> Self {
-        Self::Parse(Box::new(error))
-    }
+    fn from(error: Message) -> Self { Self::Parse(Box::new(error)) }
 }
 
 /// Assert that every region in `regions` is a thin structural parent.

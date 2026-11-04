@@ -5,7 +5,10 @@ use rstest_bdd_macros::{given, scenario, then, when};
 use stilyagi_extract::{ExtractDocument, ExtractSyntax, extract_document};
 use stilyagi_ir::IrRegion;
 use stilyagi_test_support::{
-    FixtureReadError, MALFORMED_RUST_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH, read_corpus_fixture,
+    FixtureReadError,
+    MALFORMED_RUST_FIXTURE_PATH,
+    SHARED_RUST_FIXTURE_PATH,
+    read_corpus_fixture,
 };
 
 use crate::test_utils::{ensure, ensure_eq};

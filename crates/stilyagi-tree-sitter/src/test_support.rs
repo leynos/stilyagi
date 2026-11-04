@@ -10,16 +10,16 @@ use stilyagi_ir::{IrDocument, IrRegion, SourceIdentity};
 use stilyagi_test_fixtures::read_corpus_fixture;
 use tree_sitter::{Language, Node, Parser, Tree};
 
-use crate::python::types::NodeKind;
 use crate::{
-    PythonExtractError, RustExtractError, python_docstring_ir_document,
+    PythonExtractError,
+    RustExtractError,
+    python::types::NodeKind,
+    python_docstring_ir_document,
     rust_doc_comment_ir_document,
 };
 
 impl From<&'static str> for NodeKind {
-    fn from(kind: &'static str) -> Self {
-        Self(kind)
-    }
+    fn from(kind: &'static str) -> Self { Self(kind) }
 }
 
 /// Parse Rust source with the vendored `tree-sitter-rust` grammar.
@@ -47,9 +47,7 @@ fn parse_source(language: &Language, source: &str, grammar: &str) -> Result<Tree
 }
 
 /// Return the first named child of `node`, if it has one.
-pub(crate) fn first_named_child(node: Node<'_>) -> Option<Node<'_>> {
-    node.named_child(0)
-}
+pub(crate) fn first_named_child(node: Node<'_>) -> Option<Node<'_>> { node.named_child(0) }
 
 /// Return the first direct named child of `node` whose kind is `kind`.
 pub(crate) fn direct_named_child_with_kind(

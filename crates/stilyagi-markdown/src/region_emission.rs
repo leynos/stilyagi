@@ -5,8 +5,10 @@ use std::collections::BTreeMap;
 use markdown::mdast::Node;
 use stilyagi_ir::{IrRegion, IrSegment, RegionKind, SegmentOrigin, SourceSpan, SyntheticReason};
 
-use crate::builder::{ListContext, MarkdownIrBuilder, StructuralParent};
-use crate::flatten::{SourceNodeId, flatten_region};
+use crate::{
+    builder::{ListContext, MarkdownIrBuilder, StructuralParent},
+    flatten::{SourceNodeId, flatten_region},
+};
 
 /// Identity shared by the region constructors: the allocated region id, its
 /// kind, and the originating AST node id.

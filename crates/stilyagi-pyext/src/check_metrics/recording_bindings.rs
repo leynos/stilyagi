@@ -10,9 +10,20 @@ use std::time::Duration;
 use pyo3::prelude::*;
 
 use super::{
-    CHECK_RUNS, CHECKED_FILES, DIAGNOSTIC_COUNTS, DIAGNOSTIC_SEVERITIES, FAILURE_KINDS,
-    OPERATIONAL_FAILURES, PHASE_DURATIONS, PHASES, RUN_OUTCOMES, SKIP_REASONS, SKIPPED_CANDIDATES,
-    SYNTAXES, checked_label, increment_counter,
+    CHECK_RUNS,
+    CHECKED_FILES,
+    DIAGNOSTIC_COUNTS,
+    DIAGNOSTIC_SEVERITIES,
+    FAILURE_KINDS,
+    OPERATIONAL_FAILURES,
+    PHASE_DURATIONS,
+    PHASES,
+    RUN_OUTCOMES,
+    SKIP_REASONS,
+    SKIPPED_CANDIDATES,
+    SYNTAXES,
+    checked_label,
+    increment_counter,
 };
 
 /// Record one completed check run under a validated outcome label.

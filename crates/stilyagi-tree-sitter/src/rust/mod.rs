@@ -9,10 +9,9 @@ mod support;
 mod suppressions;
 pub(super) mod types;
 
-use stilyagi_ir::{DocumentMetadata, IrDocument, IrTree, SourceIdentity};
-
 use builder::RustIrBuilder;
 use observe::{record_extraction_outcome, record_fatal_error};
+use stilyagi_ir::{DocumentMetadata, IrDocument, IrTree, SourceIdentity};
 use support::{parse_rust, rust_producer, validate_ir_consistency};
 use suppressions::collect_comment_suppressions;
 
@@ -101,9 +100,7 @@ pub fn rust_doc_comment_ir_document(
 }
 
 /// Return the stable identifier of the module root node.
-fn root_node_id() -> types::NodeId {
-    types::NodeId("n0".to_owned())
-}
+fn root_node_id() -> types::NodeId { types::NodeId("n0".to_owned()) }
 
 #[cfg(test)]
 mod addendum_tests;

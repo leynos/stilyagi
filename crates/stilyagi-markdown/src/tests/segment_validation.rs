@@ -5,8 +5,10 @@ use std::path::Path;
 use rstest::rstest;
 use stilyagi_ir::{IrSegment, SourceSpan};
 
-use super::source_identity;
-use super::validation_support::{assert_validation_reports, validation_failure_for_first_segment};
+use super::{
+    source_identity,
+    validation_support::{assert_validation_reports, validation_failure_for_first_segment},
+};
 use crate::markdown_ir_document;
 
 /// Give a source-backed segment a synthetic reason as well, so it claims both
@@ -17,9 +19,7 @@ fn claim_both_origins(segment: &mut IrSegment) {
 
 /// Strip the source span from a segment that has no synthetic reason, so it
 /// claims no origin at all.
-fn claim_no_origin(segment: &mut IrSegment) {
-    segment.source = None;
-}
+fn claim_no_origin(segment: &mut IrSegment) { segment.source = None; }
 
 #[rstest]
 #[case::both_origins(

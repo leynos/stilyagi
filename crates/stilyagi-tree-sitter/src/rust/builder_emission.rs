@@ -7,10 +7,15 @@ use std::collections::BTreeMap;
 
 use stilyagi_ir::{IrNode, IrRegion, RegionKind};
 
-use super::super::builder_state::{DocCommentGroup, DocCommentRegionParts};
-use super::super::helpers::{node_flags, source_span};
-use super::super::types::NodeId;
-use super::{RustIrBuilder, TREE_ID};
+use super::{
+    super::{
+        builder_state::{DocCommentGroup, DocCommentRegionParts},
+        helpers::{node_flags, source_span},
+        types::NodeId,
+    },
+    RustIrBuilder,
+    TREE_ID,
+};
 
 impl<'source> RustIrBuilder<'source> {
     /// Emit a doc-comment group as child nodes and one owned IR region.

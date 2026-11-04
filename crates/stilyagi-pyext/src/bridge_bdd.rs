@@ -1,16 +1,20 @@
 //! BDD fixtures that exercise `extract_document_py` and `hello` through `PyO3`.
 
-use super::tests::payload::{
-    dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text,
+use pyo3::{
+    exceptions::PyKeyError,
+    prelude::*,
+    types::{PyDict, PyTuple},
 };
-use super::{extract_document_py, hello};
-use pyo3::exceptions::PyKeyError;
-use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyTuple};
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serde_json::Value;
 use stilyagi_test_support::{SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture};
+
+use super::{
+    extract_document_py,
+    hello,
+    tests::payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text},
+};
 
 /// Unwrap an `Ok` inside a `then` step or assertion helper, panicking with
 /// the caller's location. Not for `given`/`when` steps, which return `Err`.

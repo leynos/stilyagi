@@ -15,10 +15,10 @@
 //! Use [`ExpectValid`] **only** where an error genuinely cannot be propagated:
 //!
 //! - `proptest` strategy constructors and `prop_map` closures;
-//! - fixture builders used by `proptest!` bodies (including helpers also
-//!   exercised by deterministic tests);
-//! - shared assertion helpers with no `Result`-compatible contract. Mark the
-//!   helper `#[track_caller]` so failures name the calling test.
+//! - fixture builders used by `proptest!` bodies (including helpers also exercised by deterministic
+//!   tests);
+//! - shared assertion helpers with no `Result`-compatible contract. Mark the helper
+//!   `#[track_caller]` so failures name the calling test.
 //!
 //! Do not use it to avoid threading a `Result` through an ordinary fixture. If
 //! the helper can return `Result`, it must: callers unwrap in the test body,
@@ -72,7 +72,8 @@
 //! The error-bearing branch preserves both the fixture context and the source
 //! error:
 //!
-//! ```should_panic(expected = "invalid test fixture: segment offset: invalid digit found in string")
+//! ```should_panic(expected = "invalid test fixture: segment offset: invalid digit found in
+//! string")
 //! use stilyagi_test_fixtures::ExpectValid;
 //!
 //! let malformed: Result<u32, _> = "not a number".parse();
@@ -140,8 +141,10 @@ impl<T> ExpectValid for Option<T> {
 mod tests {
     //! Tests for panic diagnostics emitted by [`super::ExpectValid`].
 
-    use std::panic::{self, AssertUnwindSafe};
-    use std::sync::{Arc, LazyLock, Mutex};
+    use std::{
+        panic::{self, AssertUnwindSafe},
+        sync::{Arc, LazyLock, Mutex},
+    };
 
     use super::ExpectValid;
 

@@ -1,16 +1,28 @@
 //! Python snapshot serialization for the bounded check metrics recorder.
 
-use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::{sync::atomic::Ordering, time::Duration};
 
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::{prelude::*, types::PyDict};
 
 use super::{
-    BUCKET_LABELS, CHECK_RUNS, CHECKED_FILES, DIAGNOSTIC_COUNTS, DIAGNOSTIC_SEVERITIES,
-    DurationHistogram, EXTRACTION_DOCUMENTS, EXTRACTION_FATAL_ERRORS, EXTRACTION_RECOVERY_ERRORS,
-    FAILURE_KINDS, OPERATIONAL_FAILURES, PHASE_DURATIONS, PHASES, RUN_OUTCOMES, SKIP_REASONS,
-    SKIPPED_CANDIDATES, SYNTAXES, UNREADABLE_FILES,
+    BUCKET_LABELS,
+    CHECK_RUNS,
+    CHECKED_FILES,
+    DIAGNOSTIC_COUNTS,
+    DIAGNOSTIC_SEVERITIES,
+    DurationHistogram,
+    EXTRACTION_DOCUMENTS,
+    EXTRACTION_FATAL_ERRORS,
+    EXTRACTION_RECOVERY_ERRORS,
+    FAILURE_KINDS,
+    OPERATIONAL_FAILURES,
+    PHASE_DURATIONS,
+    PHASES,
+    RUN_OUTCOMES,
+    SKIP_REASONS,
+    SKIPPED_CANDIDATES,
+    SYNTAXES,
+    UNREADABLE_FILES,
 };
 
 /// Build a Python dict mapping each category name to its counter value.

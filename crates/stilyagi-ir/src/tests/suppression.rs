@@ -6,12 +6,23 @@ use proptest::prelude::*;
 use rstest::rstest;
 
 use super::assert_json_round_trip;
-use crate::suppression::{
-    DirectiveError, DirectiveOutcome, DirectiveVerb, SuppressionCandidate,
-    SuppressionValidationError, parse_comment_directive, suppressions_from_candidates,
-    validate_suppressions, verb_kind,
+use crate::{
+    IrSuppression,
+    RangeRole,
+    SourceSpan,
+    SuppressionKind,
+    suppression::{
+        DirectiveError,
+        DirectiveOutcome,
+        DirectiveVerb,
+        SuppressionCandidate,
+        SuppressionValidationError,
+        parse_comment_directive,
+        suppressions_from_candidates,
+        validate_suppressions,
+        verb_kind,
+    },
 };
-use crate::{IrSuppression, RangeRole, SourceSpan, SuppressionKind};
 
 #[rstest]
 fn suppression_serializes_and_deserializes_with_the_rfc_shape() {

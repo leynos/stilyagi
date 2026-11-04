@@ -1,7 +1,6 @@
 //! Integration tests for stable spelling and display contracts.
 
 use rstest::rstest;
-
 use stilyagi_extract::{ExtractError, ExtractSyntax, RegionKind};
 
 /// Names the closed set of stable string spellings under test.

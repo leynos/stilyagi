@@ -3,7 +3,9 @@
 use rstest::rstest;
 use stilyagi_ir::SuppressionKind;
 use stilyagi_test_fixtures::{
-    EDGE_CASE_PYTHON_FIXTURE_PATH, MALFORMED_PYTHON_FIXTURE_PATH, NESTED_PYTHON_FIXTURE_PATH,
+    EDGE_CASE_PYTHON_FIXTURE_PATH,
+    MALFORMED_PYTHON_FIXTURE_PATH,
+    NESTED_PYTHON_FIXTURE_PATH,
     SHARED_PYTHON_FIXTURE_PATH,
 };
 use tree_sitter::Node;

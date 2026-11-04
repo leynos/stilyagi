@@ -11,10 +11,15 @@ use std::{any::Any, collections::BTreeMap, panic::catch_unwind};
 
 use builder::MarkdownIrBuilder;
 use markdown::{ParseOptions, mdast::Node, message::Message, to_mdast};
-use stilyagi_ir::suppression::suppressions_from_candidates;
 use stilyagi_ir::{
-    DocumentMetadata, IrBuildContext, IrDocument, IrTree, ProducerMetadata, SourceIdentity,
+    DocumentMetadata,
+    IrBuildContext,
+    IrDocument,
+    IrTree,
+    ProducerMetadata,
+    SourceIdentity,
     SourceSpan,
+    suppression::suppressions_from_candidates,
 };
 pub(crate) use validation::validate_ir_consistency;
 

@@ -8,9 +8,13 @@ use stilyagi_ir::{IrDocument, RegionKind};
 use stilyagi_test_support::{read_corpus_fixture, read_corpus_fixture_bytes};
 
 use super::{
-    assert_canonical_json_round_trip, parent_regions_reference_earlier_regions,
-    region_segments_are_contiguous, regions_reconstruct_text, source_backed_segments_match_source,
-    source_identity, synthetic_segments_use_known_reasons,
+    assert_canonical_json_round_trip,
+    parent_regions_reference_earlier_regions,
+    region_segments_are_contiguous,
+    regions_reconstruct_text,
+    source_backed_segments_match_source,
+    source_identity,
+    synthetic_segments_use_known_reasons,
 };
 use crate::markdown_ir_document;
 

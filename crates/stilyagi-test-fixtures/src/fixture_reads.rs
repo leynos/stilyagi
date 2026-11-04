@@ -40,15 +40,11 @@ impl std::error::Error for FixtureReadError {
 }
 
 impl From<FixturePathError> for FixtureReadError {
-    fn from(error: FixturePathError) -> Self {
-        Self::InvalidPath(error)
-    }
+    fn from(error: FixturePathError) -> Self { Self::InvalidPath(error) }
 }
 
 impl From<std::io::Error> for FixtureReadError {
-    fn from(error: std::io::Error) -> Self {
-        Self::Io(error)
-    }
+    fn from(error: std::io::Error) -> Self { Self::Io(error) }
 }
 
 /// Open the repository root as a capability-scoped directory.

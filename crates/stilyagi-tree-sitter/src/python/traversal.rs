@@ -6,9 +6,13 @@
 use stilyagi_ir::IrError;
 use tree_sitter::Node;
 
-use super::helpers::{definition_docstring, owner_frame_for_definition, source_span};
-use super::owner::OwnerFrame;
-use super::{MAX_TRAVERSAL_DEPTH, PythonIrBuilder, WalkContext};
+use super::{
+    MAX_TRAVERSAL_DEPTH,
+    PythonIrBuilder,
+    WalkContext,
+    helpers::{definition_docstring, owner_frame_for_definition, source_span},
+    owner::OwnerFrame,
+};
 
 impl PythonIrBuilder<'_> {
     /// Walk the named children of `node`, recording a recoverable error when
@@ -70,8 +74,8 @@ impl PythonIrBuilder<'_> {
         self.errors.push(IrError {
             code: "python-traversal-depth-limit".to_owned(),
             message: format!(
-                "stopped Python docstring traversal at the maximum depth of \
-                 {MAX_TRAVERSAL_DEPTH} at bytes {}..{}",
+                "stopped Python docstring traversal at the maximum depth of {MAX_TRAVERSAL_DEPTH} \
+                 at bytes {}..{}",
                 span.byte_start, span.byte_end
             ),
             span: Some(span),

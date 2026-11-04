@@ -5,9 +5,11 @@
 //! call site. Shared by the unit tests, the BDD steps, and the metrics
 //! snapshot tests to keep payload navigation in one place.
 
-use pyo3::exceptions::{PyKeyError, PyRuntimeError};
-use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyTuple};
+use pyo3::{
+    exceptions::{PyKeyError, PyRuntimeError},
+    prelude::*,
+    types::{PyDict, PyList, PyTuple},
+};
 
 /// Parse the canonical IR JSON string carried in an extracted payload.
 pub(crate) fn parse_ir_json(ir_json: &str) -> PyResult<serde_json::Value> {

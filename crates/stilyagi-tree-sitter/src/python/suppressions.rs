@@ -1,12 +1,22 @@
 //! Comment-based suppression extraction for Python sources.
 
 use std::collections::BTreeMap;
-use stilyagi_ir::suppression::{SuppressionCandidate, suppressions_from_candidates};
-use stilyagi_ir::{IrError, IrNode, IrSuppression, is_directive_marker};
+
+use stilyagi_ir::{
+    IrError,
+    IrNode,
+    IrSuppression,
+    is_directive_marker,
+    suppression::{SuppressionCandidate, suppressions_from_candidates},
+};
 use tree_sitter::Node;
 
-use super::helpers::{collect_comment_nodes, comment_body, node_flags, source_span};
-use super::{PythonIrBuilder, TREE_ID, root_node_id};
+use super::{
+    PythonIrBuilder,
+    TREE_ID,
+    helpers::{collect_comment_nodes, comment_body, node_flags, source_span},
+    root_node_id,
+};
 
 /// Collect Python `# stilyagi:` directives and emit source-backed comment nodes.
 pub(super) fn collect_comment_suppressions(

@@ -5,8 +5,10 @@ use std::path::Path;
 use rstest::rstest;
 use stilyagi_ir::{SourceSpan, SuppressionKind};
 
-use super::source_identity;
-use super::suppression_support::{find_html_node, html_node_ids, html_nodes};
+use super::{
+    source_identity,
+    suppression_support::{find_html_node, html_node_ids, html_nodes},
+};
 use crate::{markdown_ir_document, parse_markdown_ast, validate_ir_consistency};
 
 #[rstest]

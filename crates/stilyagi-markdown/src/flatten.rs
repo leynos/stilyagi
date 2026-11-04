@@ -4,7 +4,10 @@ use markdown::mdast::Node;
 use stilyagi_ir::{IrSegment, SegmentOrigin, SourceSpan, SyntheticReason};
 
 use crate::source_text::{
-    SourceTextEvent, decoded_text_maps_to_source, source_line_ending_len, source_text_event,
+    SourceTextEvent,
+    decoded_text_maps_to_source,
+    source_line_ending_len,
+    source_text_event,
     source_value_start,
 };
 
@@ -105,14 +108,10 @@ pub(crate) struct SourceNodeId<'a>(&'a str);
 
 impl<'a> SourceNodeId<'a> {
     /// Wraps a node identifier string.
-    pub(crate) const fn new(value: &'a str) -> Self {
-        Self(value)
-    }
+    pub(crate) const fn new(value: &'a str) -> Self { Self(value) }
 
     /// Returns the wrapped node identifier.
-    const fn as_str(self) -> &'a str {
-        self.0
-    }
+    const fn as_str(self) -> &'a str { self.0 }
 }
 
 impl FlattenedRegion<'_> {

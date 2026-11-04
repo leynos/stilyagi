@@ -2,8 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use stilyagi_ir::suppression::validate_suppressions;
-use stilyagi_ir::{IrDocument, IrRegion, ProducerMetadata};
+use stilyagi_ir::{IrDocument, IrRegion, ProducerMetadata, suppression::validate_suppressions};
 use tree_sitter::Parser;
 
 use super::PythonExtractError;

@@ -4,7 +4,11 @@ use proptest::prelude::*;
 
 use super::{directive_codes_and_padding, expected_kind_from_token, whitespace_strategy};
 use crate::suppression::{
-    DirectiveError, DirectiveOutcome, DirectiveVerb, is_directive_marker, parse_comment_directive,
+    DirectiveError,
+    DirectiveOutcome,
+    DirectiveVerb,
+    is_directive_marker,
+    parse_comment_directive,
     verb_kind,
 };
 

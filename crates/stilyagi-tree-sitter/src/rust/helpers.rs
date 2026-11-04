@@ -3,8 +3,10 @@
 use stilyagi_ir::{NodeFlags, SourceSpan};
 use tree_sitter::Node;
 
-use super::owner::{OwnerFrame, OwnerKind};
-use super::types::NodeId;
+use super::{
+    owner::{OwnerFrame, OwnerKind},
+    types::NodeId,
+};
 
 /// Rust documentation-comment flavour derived from leading source bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,9 +23,7 @@ pub(super) enum DocCommentFlavour {
 
 impl DocCommentFlavour {
     /// Return whether this flavour is a line comment.
-    pub(super) const fn is_line(self) -> bool {
-        matches!(self, Self::OuterLine | Self::InnerLine)
-    }
+    pub(super) const fn is_line(self) -> bool { matches!(self, Self::OuterLine | Self::InnerLine) }
 
     /// Return whether this flavour is inner documentation.
     pub(super) const fn is_inner(self) -> bool {
@@ -130,9 +130,7 @@ pub(super) fn owner_name(source: &str, node: Node<'_>) -> Option<String> {
 }
 
 /// Return the body node for a Rust owner-bearing item, if one exists.
-pub(super) fn item_body(node: Node<'_>) -> Option<Node<'_>> {
-    node.child_by_field_name("body")
-}
+pub(super) fn item_body(node: Node<'_>) -> Option<Node<'_>> { node.child_by_field_name("body") }
 
 /// Return whether a module item starts with inner doc comments.
 pub(super) fn module_body_has_leading_inner_docs(source: &str, node: Node<'_>) -> bool {
@@ -200,9 +198,7 @@ pub(super) fn doc_comment_content(
 }
 
 /// Return whether a node should be counted as a recovery anomaly.
-pub(super) fn is_recovery_node(node: Node<'_>) -> bool {
-    node.is_error() || node.is_missing()
-}
+pub(super) fn is_recovery_node(node: Node<'_>) -> bool { node.is_error() || node.is_missing() }
 
 /// Collect top-level recovery nodes in source order without descending into
 /// broken subtrees.
@@ -272,6 +268,4 @@ pub(super) fn current_owner_node_id(stack: &[OwnerFrame]) -> NodeId {
 }
 
 /// Return the stable root node identifier.
-pub(super) fn root_node_id() -> NodeId {
-    NodeId("n0".to_owned())
-}
+pub(super) fn root_node_id() -> NodeId { NodeId("n0".to_owned()) }

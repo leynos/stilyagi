@@ -3,8 +3,12 @@
 mod recording_bindings;
 mod snapshot;
 pub(super) use recording_bindings::{
-    record_check_run, record_checked_file, record_diagnostic_severity, record_operational_failure,
-    record_phase_duration, record_skipped_candidates,
+    record_check_run,
+    record_checked_file,
+    record_diagnostic_severity,
+    record_operational_failure,
+    record_phase_duration,
+    record_skipped_candidates,
 };
 pub(super) use snapshot::check_metrics_snapshot;
 
@@ -14,11 +18,12 @@ static CHECK_METRICS_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(())
 #[cfg(test)]
 mod snapshot_tests;
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
+};
 
-use pyo3::exceptions::PyValueError;
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyValueError, prelude::*};
 use stilyagi_extract::{ExtractError, ExtractSyntax, PythonExtractError, RustExtractError};
 use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, IrError};
 
@@ -254,9 +259,7 @@ fn reset_metrics() {
 
 /// Python binding that resets all check metrics to zero.
 #[pyfunction]
-pub(super) fn reset_check_metrics() {
-    reset_metrics();
-}
+pub(super) fn reset_check_metrics() { reset_metrics(); }
 
 /// Python binding that counts one unreadable candidate file.
 #[pyfunction]

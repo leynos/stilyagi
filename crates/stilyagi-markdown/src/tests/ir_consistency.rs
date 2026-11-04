@@ -1,23 +1,28 @@
 //! Tests for Markdown IR envelope construction and consistency validation.
 
-use std::collections::BTreeSet;
-use std::path::Path;
+use std::{collections::BTreeSet, path::Path};
 
 use markdown::mdast::Node;
 use rstest::rstest;
 use stilyagi_ir::SourceSpan;
 
-use super::source_identity;
-use super::validation_support::{
-    assert_validation_reports, diagnostic_context, validation_failure_for,
-    validation_failure_for_first_region, validation_failure_for_first_segment,
+use super::{
+    source_identity,
+    validation_support::{
+        assert_validation_reports,
+        diagnostic_context,
+        validation_failure_for,
+        validation_failure_for_first_region,
+        validation_failure_for_first_segment,
+    },
 };
-use crate::source_text::decoded_text_maps_to_source;
-use crate::{markdown_ir_document, source_span};
+use crate::{markdown_ir_document, source_span, source_text::decoded_text_maps_to_source};
 
 #[rstest]
 fn markdown_ir_document_emits_envelope_nodes_and_regions() {
-    let source = "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi design](../../../../../docs/stilyagi-design.md).\n\n| Term | Meaning |\n| ---- | ------- |\n| IR   | Intermediate representation |\n";
+    let source = "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi \
+                  design](../../../../../docs/stilyagi-design.md).\n\n| Term | Meaning |\n| ---- \
+                  | ------- |\n| IR   | Intermediate representation |\n";
     let document = markdown_ir_document(
         source,
         source_identity(Path::new("tests/fixtures/corpus/markdown/valid/example.md")),
@@ -208,8 +213,7 @@ fn markdown_ir_document_uses_synthetic_segment_for_decoded_text() {
 
 #[rstest]
 fn markdown_ir_document_uses_synthetic_segment_for_normalized_multiline_code_span() {
-    use markdown::mdast::InlineCode;
-    use markdown::unist::Position;
+    use markdown::{mdast::InlineCode, unist::Position};
 
     use crate::flatten::{SourceNodeId, flatten_region};
 
@@ -249,8 +253,7 @@ fn decoded_text_mapping_rejects_split_crlf_spans() {
 
 #[rstest]
 fn flatten_inline_code_with_inverted_span_falls_back_to_decoded_text() {
-    use markdown::mdast::InlineCode;
-    use markdown::unist::Position;
+    use markdown::{mdast::InlineCode, unist::Position};
 
     use crate::flatten::{SourceNodeId, flatten_region};
 

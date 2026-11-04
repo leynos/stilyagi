@@ -108,9 +108,9 @@ mod tests {
     //! Regression guard keeping the grammar version metadata pinned in step
     //! with the `tree-sitter-rust` dependency.
 
-    use super::RUST_GRAMMAR_VERSION;
-    use super::{rust_producer, validate_ir_consistency};
     use stilyagi_ir::{DocumentMetadata, IrDocument, IrSuppression, SourceSpan, SuppressionKind};
+
+    use super::{RUST_GRAMMAR_VERSION, rust_producer, validate_ir_consistency};
 
     #[test]
     fn rust_grammar_version_matches_the_pinned_dependency() {
