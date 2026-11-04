@@ -86,9 +86,9 @@ def _cargo(case_id: str, target: str, *prefix: str, **kwargs: str) -> Route:
 #: estate playbook makes a shared id a silently missing case.
 ROUTES: typ.Final[tuple[Route, ...]] = (
     _cargo("make_typecheck_check", "typecheck", "check"),
-    _cargo("make_lint_doc", "lint", "doc"),
-    _cargo("make_lint_clippy", "lint", "clippy"),
-    Route("make_lint_whitaker", "lint", "whitaker", PROBE_WHITAKER, ()),
+    _cargo("make_lint_doc", "lint-clippy", "doc"),
+    _cargo("make_lint_clippy", "lint-clippy", "clippy"),
+    Route("make_lint_whitaker", "lint-whitaker", "whitaker", PROBE_WHITAKER, ()),
     _cargo("make_test_clippy", "test", "clippy"),
     _cargo("make_test_nextest", "test", "nextest", "run"),
     _cargo("make_test_cargo_test_fallback", "test", "test", forbidden_arg="--doc"),
@@ -252,6 +252,61 @@ def test_executed_whitaker_route_takes_no_development_flags(
     whitaker = [r for r in run.records if r.program == PROBE_WHITAKER]
     assert len(whitaker) == 1, "expected len(whitaker) == 1"
     _assert_kind("whitaker", whitaker[0], "lint: whitaker")
+
+
+def test_parallel_lint_sequences_whitaker_after_clippy(
+    recording: RecordingTree,
+) -> None:
+    """`make -j4 lint` cannot start Whitaker before the Clippy stage finishes."""
+    run = run_recorded(
+        "lint",
+        recording,
+        ambient_rustflags=None,
+        make_arguments=("-j4",),
+    )
+    assert run.returncode == 0, run.stderr
+    clippy = next(
+        index
+        for index, record in enumerate(run.records)
+        if record.program == PROBE_CARGO and record.has_args("clippy")
+    )
+    whitaker = next(
+        index
+        for index, record in enumerate(run.records)
+        if record.program == PROBE_WHITAKER
+    )
+    assert clippy < whitaker, (
+        f"expected cargo clippy before Whitaker: clippy at {clippy}, "
+        f"whitaker at {whitaker}"
+    )
+
+
+@pytest.mark.parametrize("target", ["lint-whitaker", "lint"])
+@pytest.mark.parametrize(
+    ("fail", "should_pass"),
+    [("", True), ("whitaker", False)],
+    ids=["whitaker_passes", "whitaker_fails"],
+)
+def test_a_whitaker_failure_fails_the_gate(
+    target: str,
+    fail: str,
+    should_pass: bool,
+    recording: RecordingTree,
+) -> None:
+    """The Whitaker exit status reaches Make, and so CI, without being masked."""
+    run = run_recorded(
+        target,
+        recording,
+        ambient_rustflags=None,
+        fail=fail,
+    )
+    if should_pass:
+        assert run.returncode == 0, run.stderr
+    else:
+        assert run.returncode != 0, "expected run.returncode != 0"
+        assert [r for r in run.records if r.program == PROBE_WHITAKER], (
+            "expected the Whitaker probe to have run"
+        )
 
 
 @pytest.mark.parametrize("ambient", AMBIENT)

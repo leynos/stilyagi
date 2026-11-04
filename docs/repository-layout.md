@@ -66,7 +66,9 @@ new maintainer needs to recognize quickly and omits transient cache contents.
     changes anywhere in the tree.
 - `Makefile`
   - Canonical maintainer entrypoint for build, format, lint, typecheck, test,
-    and release workflows.
+    and release workflows. `make lint` composes `lint-clippy` and
+    `lint-whitaker`; the latter runs after the former and checks the packages
+    selected by `WHITAKER_PACKAGES`.
 - `Cargo.toml`
   - Root Cargo workspace manifest for the Rust crate graph under `crates/`,
     including the workspace lint tables inherited by every member. It declares

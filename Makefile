@@ -10,6 +10,10 @@ MDTABLEFIX_RULES = --wrap --renumber --breaks --ellipsis --fences
 NIXIE ?= nixie
 CARGO ?= cargo
 WHITAKER ?= whitaker
+# The workspace packages the Whitaker Dylint suite checks. A crate that needs
+# `rustc_private` has to be scoped here, and in the documentation, rather than
+# widening the suite.
+WHITAKER_PACKAGES ?= --all
 # `install-build-tools` unpacks the pinned mold under this prefix. Its `bin/`
 # leads PATH for every target, so the pinned release beats a distribution one
 # when `-fuse-ld=mold` resolves the linker, and `check-build-tools` reports the
@@ -156,7 +160,7 @@ TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
 PY_DOCTEST_PATHS ?= python/stilyagi tests/support
 RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" ]; then VENV_PYTHON=".venv/Scripts/python.exe"; fi
 
-.PHONY: help all clean build build-release lint fmt check-fmt \
+.PHONY: help all clean build build-release lint lint-clippy lint-whitaker fmt check-fmt \
         markdownlint nixie spelling test test-ci test-doc test-quick \
         typecheck tools skylos-allow \
         install-nose duplication duplication-test duplication-allow \
@@ -277,7 +281,9 @@ check-fmt: tools-check ## Verify formatting
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
 	$(MDTABLEFIX) --check $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
 
-lint: check-build-tools tools-lint install-nose ## Run linters, including the Whitaker Dylint suite
+lint: lint-clippy lint-whitaker ## Run linters, including the Whitaker Dylint suite
+
+lint-clippy: check-build-tools tools-lint install-nose ## Run the Python and Cargo lint stages
 	$(RUFF) check
 	$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
@@ -285,9 +291,11 @@ lint: check-build-tools tools-lint install-nose ## Run linters, including the Wh
 	$(AMBRLEAKS) $(AMBRLEAKS_TARGETS)
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
-	RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
 	$(SKYLOS) $(SKYLOS_PRODUCTION_TARGETS) --exclude $(SKYLOS_EXCLUDE_FOLDERS) --category dead_code --gate --format concise --no-upload --no-provenance --no-grep-verify
 	$(DUPLICATION_GATE) check
+
+lint-whitaker: lint-clippy ## Run the Whitaker Dylint suite after the Clippy stage
+	RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) $(WHITAKER_PACKAGES) -- $(CARGO_FLAGS)
 
 install-nose: ## Install the pinned nose duplication detector
 	@if [ "$$($(NOSE_BIN) --version 2>/dev/null)" = "nose $(NOSE_VERSION)" ]; then \

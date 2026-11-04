@@ -118,6 +118,7 @@ def run_recorded(
     *,
     ambient_rustflags: str | None,
     fail: str = "",
+    make_arguments: tuple[str, ...] = (),
 ) -> RecordedRun:
     """Run `make <target>` in a staged tree and return what the probes saw.
 
@@ -132,6 +133,9 @@ def run_recorded(
         None for a caller exporting none.
     fail
         A substring of `<probe> <args>` that makes the probe exit 1.
+    make_arguments
+        Extra Make options placed before the target, such as `("-j4",)` for
+        a parallel run.
 
     Returns
     -------
@@ -149,7 +153,9 @@ def run_recorded(
     if ambient_rustflags is not None:
         env["RUSTFLAGS"] = ambient_rustflags
     result = run_make(
-        ["--no-print-directory", *MAKE_OVERRIDES, target], env, tree.workdir
+        [*make_arguments, "--no-print-directory", *MAKE_OVERRIDES, target],
+        env,
+        tree.workdir,
     )
     lines = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
     records = tuple(_record(json.loads(line)) for line in lines)
