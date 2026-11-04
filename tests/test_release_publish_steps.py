@@ -131,7 +131,7 @@ def _seed_release(
 
 
 @pytest.mark.usefixtures("workspace")
-def test_the_publishing_steps_name_this_repositorys_scripts() -> None:
+def test_the_publishing_steps_name_this_repository_scripts() -> None:
     """The steps run the checked-in modules, not an inline copy."""
     for job, step in (
         ("draft-release", "Snapshot the release assets"),

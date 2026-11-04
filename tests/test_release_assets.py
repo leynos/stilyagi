@@ -58,15 +58,20 @@ def test_every_name_takes_the_earliest_destination_that_holds_it(
 ) -> None:
     """PyPI outranks GitHub, and GitHub outranks this run's rebuilt bytes."""
     decided = plan(local, set(on_pypi), set(on_github))
+    # The destinations are written out in precedence order here rather than
+    # called from the module, so a change in that order fails the contract
+    # instead of being echoed back by it.
+    destinations = (
+        (Source.PYPI, set(on_pypi)),
+        (Source.GITHUB, set(on_github)),
+    )
     for name in local:
-        expected = (
-            Source.PYPI
-            if name in on_pypi
-            else Source.GITHUB
-            if name in on_github
-            else Source.LOCAL
+        held = [source for source, names in destinations if name in names]
+        assert decided.canonical[name] is (held[0] if held else Source.LOCAL), (
+            name,
+            on_pypi,
+            on_github,
         )
-        assert decided.canonical[name] is expected, (name, on_pypi, on_github)
 
 
 @settings(max_examples=60, deadline=None)
@@ -116,14 +121,15 @@ def test_a_name_held_only_by_the_release_is_still_sent_to_pypi() -> None:
 
 
 def test_the_plan_is_immutable() -> None:
-    """A plan is a value handed between steps, never a structure to mutate."""
-    decided = Plan(
-        canonical={"c.whl": Source.LOCAL},
-        pypi_uploads=frozenset(),
-        github_uploads=frozenset(),
-    )
-    with pytest.raises(AttributeError):
-        decided.canonical = {}
+    """A plan is a value handed between steps, never a structure to mutate.
+
+    The declaration is read rather than asserted by assigning to a field: a
+    frozen, slotted class refuses that assignment at runtime, and a type
+    checker sees the refusal too, so the contract is checked where the plan
+    declares it instead of in a statement no checker would let through.
+    """
+    assert Plan.__dataclass_params__.frozen, "a plan must be frozen"
+    assert "__slots__" in vars(Plan), "a plan must declare slots"
 
 
 # -- the comparison properties -----------------------------------------------

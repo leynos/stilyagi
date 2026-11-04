@@ -129,7 +129,7 @@ def write_assets(
 
 
 def _write_document(path: pathlib.Path, document: object) -> pathlib.Path:
-    """Serialise `document` as JSON to `path`, creating its directory."""
+    """Serialize `document` as JSON to `path`, creating its directory."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(document), encoding="utf-8")
     return path

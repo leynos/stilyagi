@@ -166,7 +166,7 @@ def test_a_differing_version_is_reported(
     """A version that is not the same exact string is a fault.
 
     Equality as versions is not enough: the release process publishes under
-    the declared string, so a spelling that PyPI would normalise differently
+    the declared string, so a spelling that PyPI would normalize differently
     must be caught before anything is built.
     """
     faults = version_faults(
@@ -192,6 +192,35 @@ def test_crates_inherit_the_workspace_version(manifest: Path) -> None:
     inherited = package.get("version")
     assert inherited == {"workspace": True}, (
         f"{manifest} must inherit the workspace version, found {inherited!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "manifest", INHERITING_MANIFESTS[1:], ids=lambda p: p.parent.name
+)
+def test_the_test_fixtures_requirement_matches_the_workspace_version(
+    manifest: Path,
+) -> None:
+    """A path requirement carrying a stale version is a publish-time surprise.
+
+    `stilyagi-test-fixtures` is required with both a `path` and a `version`, so
+    the literal is checked against the workspace rather than left to Cargo,
+    which resolves the path locally and would never notice the drift until a
+    release tried to resolve the version from a registry.
+    """
+    workspace = _table(
+        _parse(WORKSPACE_MANIFEST), ("workspace", "package"), source="Cargo.toml"
+    )
+    expected = _string(workspace, "version", source="[workspace.package]")
+    dependencies = _table(_parse(manifest), ("dev-dependencies",), source=str(manifest))
+    required = dependencies.get("stilyagi-test-fixtures")
+    assert isinstance(required, dict), (
+        f"{manifest} must require stilyagi-test-fixtures, found {required!r}"
+    )
+    declared = typ.cast("dict[str, object]", required).get("version")
+    assert declared == expected, (
+        f"{manifest} requires stilyagi-test-fixtures {declared!r},"
+        f" but the workspace is {expected!r}"
     )
 
 
