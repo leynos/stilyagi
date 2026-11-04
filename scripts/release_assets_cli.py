@@ -10,11 +10,11 @@ the workspace root as ``python -m release_assets_cli``, with the runner's
 preinstalled ``python3`` and the standard library alone: it executes inside the
 job that holds the PyPI publishing token, so it resolves no third-party code
 (Cyclopts or Cuprum) at release time, and every network call stays in the
-workflow's ``curl`` and ``gh`` steps. That is the documented exception to the scripting
-standards' Cyclopts, Cuprum, and Python 3.13 defaults. Each subcommand is one
-step of ``release.yml``: ``carryover`` (``draft-release``), ``stage-pypi``
-(``publish-pypi``), then ``stage-github``, ``check-fetched``, and ``verify``
-(``publish-release``). The reconciliation logic itself lives in
+workflow's ``curl`` and ``gh`` steps. That is the documented exception to the
+scripting standards' Cyclopts, Cuprum, and Python 3.14 defaults. Each subcommand
+is one step of ``release.yml``: ``carryover`` (``draft-release``),
+``stage-pypi`` (``publish-pypi``), then ``stage-github``, ``check-fetched``,
+and ``verify`` (``publish-release``). The reconciliation logic itself lives in
 ``scripts/release_assets.py``; this module only wires it to ``argparse`` and
 the workflow's ``GITHUB_OUTPUT`` protocol.
 """
