@@ -26,6 +26,8 @@ FORK_CONDITION: typ.Final = "github.event.pull_request.head.repo.fork"
 #: ceiling it states in minutes. The inventory is exact, so a new Ubicloud lane
 #: without a ceiling, or a class or ceiling changed, fails until reviewed.
 PLACEMENTS: typ.Final = (
+    ("build-wheels.yml", "build-linux", "ubicloud-standard-4", "60"),
+    ("build-wheels.yml", "verify-wheel-install", "ubicloud-standard-4", "60"),
     ("coverage-main.yml", "coverage-upload", "ubicloud-standard-4", "60"),
     ("smoke.yml", "lint-test", "ubicloud-standard-4", "60"),
 )
