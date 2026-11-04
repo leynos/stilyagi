@@ -1417,11 +1417,11 @@ checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
 
 [[package]]
 name = "stilyagi-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "stilyagi-extract"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "insta",
  "markdown",
@@ -1436,7 +1436,7 @@ dependencies = [
 
 [[package]]
 name = "stilyagi-ir"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proptest",
  "rstest",
@@ -1449,7 +1449,7 @@ dependencies = [
 
 [[package]]
 name = "stilyagi-markdown"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "insta",
  "markdown",
@@ -1463,7 +1463,7 @@ dependencies = [
 
 [[package]]
 name = "stilyagi-pyext"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "metrics",
  "pyo3",
@@ -1480,14 +1480,14 @@ dependencies = [
 
 [[package]]
 name = "stilyagi-test-fixtures"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cap-std 4.0.3",
 ]
 
 [[package]]
 name = "stilyagi-test-support"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "insta",
  "proptest",
@@ -1499,7 +1499,7 @@ dependencies = [
 
 [[package]]
 name = "stilyagi-tree-sitter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "insta",
  "metrics",

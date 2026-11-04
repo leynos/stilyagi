@@ -97,11 +97,17 @@ def make_release_runs_the_release_artefact_smoke_check(
     )
 
 
-@then("CI uses the canonical Makefile smoke path")
-def ci_uses_the_canonical_makefile_smoke_path(
+@then("CI delegates the release smoke to the reusable wheel build")
+def ci_delegates_the_release_smoke_to_the_reusable_wheel_build(
     build_spine_state: BuildSpineState,
 ) -> None:
-    """Confirm CI runs lint/test targets and release wheel smoke coverage."""
+    """Confirm CI runs the Makefile suite and delegates the release build.
+
+    The release job used to run `make release` itself, which built a second
+    wheel beside the one the release would publish. It now calls the one
+    reusable build, so the asserted contract is the delegation: a wheel
+    proven by a caller's own rebuild is not evidence about the release's.
+    """
     assert_with_context(
         "run: make test" in build_spine_state["workflow"],
         "expected 'run: make test' in build_spine_state['work...",
@@ -111,8 +117,12 @@ def ci_uses_the_canonical_makefile_smoke_path(
         "expected 'release-smoke:' in build_spine_state['work...",
     )
     assert_with_context(
-        "run: make release" in build_spine_state["workflow"],
-        "expected 'run: make release' in build_spine_state['w...",
+        "uses: ./.github/workflows/build-wheels.yml" in build_spine_state["workflow"],
+        "expected release-smoke to call the reusable build-wheels workflow",
+    )
+    assert_with_context(
+        "run: make release" not in build_spine_state["workflow"],
+        "the release smoke must not rebuild a wheel the release never sees",
     )
     assert_with_context(
         (
