@@ -153,16 +153,24 @@ def test_the_snapshot_metadata_is_reduced_to_the_reviewed_headers() -> None:
     """Unreviewed headers are dropped, and the reviewed ones are sorted."""
     parsed = _parse_metadata(_METADATA)
 
-    assert parsed == {
-        "name": "stilyagi",
-        "version": "0.2.0",
-        "requires_python": ">=3.14",
-        "requires_dist": ["annotated-doc", "typing-extensions"],
-        "classifiers": [
-            "Programming Language :: Python :: 3.14",
-            "Programming Language :: Rust",
-        ],
-    }, parsed
+    assert sorted(parsed) == [
+        "classifiers",
+        "name",
+        "requires_dist",
+        "requires_python",
+        "version",
+    ], sorted(parsed)
+    assert parsed["name"] == "stilyagi", parsed["name"]
+    assert parsed["version"] == "0.2.0", parsed["version"]
+    assert parsed["requires_python"] == ">=3.14", parsed["requires_python"]
+    assert parsed["requires_dist"] == [
+        "annotated-doc",
+        "typing-extensions",
+    ], parsed["requires_dist"]
+    assert parsed["classifiers"] == [
+        "Programming Language :: Python :: 3.14",
+        "Programming Language :: Rust",
+    ], parsed["classifiers"]
 
 
 def test_a_folded_header_continues_the_line_before_it() -> None:
@@ -186,7 +194,9 @@ def test_a_header_that_is_absent_reads_as_nothing() -> None:
 
 def test_a_header_is_read_from_the_first_occurrence() -> None:
     """A repeated header contributes its first value, not its last."""
-    assert _header_value({"Name": ["first", "second"]}, "Name") == "first"
+    first = _header_value({"Name": ["first", "second"]}, "Name")
+
+    assert first == "first", first
 
 
 def _headers(lines: list[str]) -> dict[str, list[str]]:
@@ -245,12 +255,16 @@ def test_a_version_or_platform_specific_entry_is_generalized(
     entry: str, expected: str
 ) -> None:
     """Every entry whose name carries a build-specific token is normalized."""
-    assert _normalize_wheel_entry(entry) == expected
+    normalized = _normalize_wheel_entry(entry)
+
+    assert normalized == expected, normalized
 
 
 def test_an_entry_the_snapshot_names_verbatim_is_left_alone() -> None:
     """A source file must keep its name: the snapshot is the file list."""
-    assert _normalize_wheel_entry("stilyagi/__init__.py") == "stilyagi/__init__.py"
+    normalized = _normalize_wheel_entry("stilyagi/__init__.py")
+
+    assert normalized == "stilyagi/__init__.py", normalized
 
 
 @pytest.mark.parametrize("suffix", sorted(_DIST_INFO_SUFFIXES))
@@ -258,20 +272,23 @@ def test_each_dist_info_member_is_normalized_through_its_suffix(suffix: str) -> 
     """The suffix table is the only place a dist-info name is written down."""
     entry = f"stilyagi-0.2.0{suffix}"
 
-    assert _normalize_wheel_entry(entry) == _DIST_INFO_SUFFIXES[suffix]
+    normalized = _normalize_wheel_entry(entry)
+
+    assert normalized == _DIST_INFO_SUFFIXES[suffix], normalized
 
 
 def test_a_wheel_tag_loses_only_its_platform() -> None:
     """The Python and ABI tags stay: they are the wheel's compatibility."""
-    assert (
-        _normalize_wheel_tag("cp314-cp314-manylinux_2_28_x86_64")
-        == "cp314-cp314-<platform>"
-    )
+    tag = _normalize_wheel_tag("cp314-cp314-manylinux_2_28_x86_64")
+
+    assert tag == "cp314-cp314-<platform>", tag
 
 
 def test_a_tag_with_a_platform_containing_hyphens_keeps_none_of_them() -> None:
     """Only the first two components are read; the rest is one platform."""
-    assert _normalize_wheel_tag("py3-none-any-extra") == "py3-none-<platform>"
+    tag = _normalize_wheel_tag("py3-none-any-extra")
+
+    assert tag == "py3-none-<platform>", tag
 
 
 # -- WHEEL parsing -----------------------------------------------------------
@@ -316,7 +333,9 @@ def test_the_dist_info_wheel_entry_is_located_by_its_suffix() -> None:
     """The one ``.dist-info/WHEEL`` member is returned from the archive."""
     names = ["stilyagi/__init__.py", "stilyagi-0.2.0.dist-info/WHEEL"]
 
-    assert _locate_dist_info_wheel(names) == "stilyagi-0.2.0.dist-info/WHEEL"
+    located = _locate_dist_info_wheel(names)
+
+    assert located == "stilyagi-0.2.0.dist-info/WHEEL", located
 
 
 def test_a_wheel_archive_without_a_wheel_entry_is_refused() -> None:
