@@ -18,6 +18,12 @@ stilyagi-extract = { path = "../stilyagi-extract" }
 stilyagi-ir = { path = "../stilyagi-ir" }
 
 [dev-dependencies]
+# The unit and BDD tests drive `Python::attach` themselves, which needs the
+# interpreter initialized for them. A dev-dependency feature is unified only
+# into builds that include dev-dependencies, so a release wheel build — which
+# builds `--lib` in a container whose Python has no shared library — is
+# unaffected, and pyo3's build script no longer refuses that interpreter.
+pyo3 = { workspace = true, features = ["auto-initialize"] }
 rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true

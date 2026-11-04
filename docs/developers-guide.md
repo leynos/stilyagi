@@ -1449,6 +1449,18 @@ test binaries.[^3] Because this now relies on the packaging backend exporting
 `PYO3_BUILD_EXTENSION_MODULE`, the repository pins maturin in both the
 build-system and dev-tooling dependencies.
 
+`pyo3/auto-initialize` is scoped the same way, and for the same reason: a
+feature the wheel build does not need is a liability inside the manylinux
+container. The workspace dependency declares PyO3 without it, and
+`crates/stilyagi-pyext` re-enables it on its **dev**-dependency. Cargo unifies
+a dev-dependency's features only into builds that include dev-dependencies, so
+`cargo test` still gets an initialized interpreter for the unit and BDD tests
+that call `Python::attach`, while a release `--lib` build in the manylinux
+image does not. That matters because `auto-initialize` makes PyO3's build
+script require a Python with a shared library, and the manylinux container's
+interpreter has none; leaving the feature in the shared declaration failed the
+wheel build before any Rust was compiled.
+
 ### 4.1 Maturin and PyO3 compatibility tests
 
 The repository pins maturin in both `pyproject.toml` `[dependency-groups].dev`
