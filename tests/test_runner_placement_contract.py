@@ -34,6 +34,8 @@ FORK_OR_DEPENDABOT_CONDITION: typ.Final = (
 #: ceiling it states in minutes. The inventory is exact, so a new Ubicloud lane
 #: without a ceiling, or a class or ceiling changed, fails until reviewed.
 PLACEMENTS: typ.Final = (
+    ("build-wheels.yml", "build-linux", "ubicloud-standard-4", "60"),
+    ("build-wheels.yml", "verify-wheel-install", "ubicloud-standard-4", "60"),
     ("coverage-main.yml", "coverage-baseline", "ubicloud-standard-2", "15"),
     ("coverage-main.yml", "coverage-warmup", "ubicloud-standard-4", "100"),
     ("smoke.yml", "lint-test", "ubicloud-standard-4", "100"),

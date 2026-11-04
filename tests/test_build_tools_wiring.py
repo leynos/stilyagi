@@ -44,6 +44,16 @@ CLASSIFIED_EXTERNAL_CALLS: typ.Final = {
         "workflow's setup-rust exports -D warnings, which displaces mold, and "
         "the Cranelift component comes from rust-toolchain.toml"
     ),
+    "smoke.yml:release-smoke": (
+        "delegates to build-wheels.yml in this repository; that file's own "
+        "jobs run maturin and `uv build`, and reach neither the suite nor a "
+        "Make goal, which is why no reading here needs an install step"
+    ),
+    "release.yml:build-wheels": (
+        "delegates to build-wheels.yml in this repository; that file's own "
+        "jobs run maturin and `uv build`, and reach neither the suite nor a "
+        "Make goal, which is why no reading here needs an install step"
+    ),
 }
 
 
