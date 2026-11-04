@@ -111,7 +111,11 @@ impl RegionKind {
 /// Minimal source-backed prose region for the first extraction bridge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractRegion {
-    /// Stable region kind name shared with the IR vocabulary.
+    /// Stable region kind name.
+    ///
+    /// Built-in kinds that have an IR equivalent use the IR vocabulary's
+    /// spelling. Bridge-only kinds such as `document`, and any custom name
+    /// accepted by [`ExtractRegion::new`], are not required to match it.
     kind: String,
     /// Source text covered by the region.
     text: String,
