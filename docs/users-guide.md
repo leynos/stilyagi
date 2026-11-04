@@ -29,8 +29,9 @@ from the sdist and needs a Rust toolchain. Python 3.14 or newer is required
 either way.[^5]
 
 Building from a source checkout needs `uv`, `rustup`, and, on Linux, the pinned
-`mold` linker. The [README quick start](../README.md#building-from-source)
-lists the genuine prerequisites and the one command that installs them.
+`mold` linker. The
+[README section on building from source](../README.md#building-from-source)
+lists the prerequisites and the commands that install them.
 
 In editable development installs, the embedded extension now lives under the
 package as `stilyagi._stilyagi_rs` rather than as a separate top-level module.
