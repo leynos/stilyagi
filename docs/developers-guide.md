@@ -2037,7 +2037,7 @@ from the ones that only read files. Most readers take a path and default to the
 repository's file: `workspace_lints`, `clippy_restrictions`,
 `rustdoc_default_lines`, and `rustdoc_default` (the validated single
 `RUSTDOC_FLAGS` assignment). Two do not fit that shape:
-`member_inherits_workspace_lints` requires the member manifest path, because no
+`member_inherits_workspace_lints` requires the member manifest path because no
 single member is the obvious default, and `lint_level` takes one lint entry
 rather than a path. All file access goes through `_read_text` and `_read_toml`,
 so an unreadable, undecodable or malformed file, and a structural surprise such
