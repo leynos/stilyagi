@@ -19,6 +19,7 @@ from tests.support.errors import ReadingError
 from tests.support.lint_policy import (
     clippy_restrictions,
     member_manifests,
+    rustdoc_default,
     rustdoc_default_lines,
     workspace_lints,
 )
@@ -33,6 +34,18 @@ def _write(path: pathlib.Path, text: str) -> pathlib.Path:
     return path
 
 
+def _assert_names_reader_and_path(
+    raised: pytest.ExceptionInfo[ReadingError], path: pathlib.Path
+) -> None:
+    """Assert the failure names the lint-policy reader and the requested path."""
+    assert raised.value.reader == "lint_policy", (
+        f"expected the lint_policy reader, got {raised.value.reader!r}"
+    )
+    assert raised.value.path == str(path), (
+        f"expected the requested path {str(path)!r}, got {raised.value.path!r}"
+    )
+
+
 @pytest.mark.parametrize(
     "document",
     [
@@ -45,28 +58,34 @@ def test_malformed_toml_is_a_reading_error(
     tmp_path: pathlib.Path, document: str
 ) -> None:
     """Invalid TOML surfaces as a policy finding, not a parser traceback."""
-    with pytest.raises(ReadingError):
-        workspace_lints(_write(tmp_path / "Cargo.toml", document))
+    path = _write(tmp_path / "Cargo.toml", document)
+    with pytest.raises(ReadingError) as raised:
+        workspace_lints(path)
+    _assert_names_reader_and_path(raised, path)
 
 
 def test_undecodable_file_is_a_reading_error(tmp_path: pathlib.Path) -> None:
     """Bytes that are not UTF-8 cannot be interpreted as policy."""
     path = tmp_path / "Cargo.toml"
     path.write_bytes(b"[workspace]\nmembers = ['\xff']\n")
-    with pytest.raises(ReadingError):
+    with pytest.raises(ReadingError, match="policy file") as raised:
         workspace_lints(path)
+    _assert_names_reader_and_path(raised, path)
 
 
 def test_missing_file_is_a_reading_error(tmp_path: pathlib.Path) -> None:
     """A policy file that does not exist names the path it looked for."""
-    with pytest.raises(ReadingError, match="policy file"):
-        workspace_lints(tmp_path / "absent.toml")
+    path = tmp_path / "absent.toml"
+    with pytest.raises(ReadingError, match="policy file") as raised:
+        workspace_lints(path)
+    _assert_names_reader_and_path(raised, path)
 
 
 def test_unreadable_path_is_a_reading_error(tmp_path: pathlib.Path) -> None:
     """A directory where a file is expected is reported, not raised raw."""
-    with pytest.raises(ReadingError, match="policy file"):
+    with pytest.raises(ReadingError, match="policy file") as raised:
         clippy_restrictions(tmp_path)
+    _assert_names_reader_and_path(raised, tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -81,8 +100,10 @@ def test_structural_surprises_are_reading_errors(
     tmp_path: pathlib.Path, document: str
 ) -> None:
     """A manifest with an unexpected shape is rejected, not partially read."""
-    with pytest.raises(ReadingError):
-        workspace_lints(_write(tmp_path / "Cargo.toml", document))
+    path = _write(tmp_path / "Cargo.toml", document)
+    with pytest.raises(ReadingError) as raised:
+        workspace_lints(path)
+    _assert_names_reader_and_path(raised, path)
 
 
 @pytest.mark.parametrize(
@@ -96,8 +117,10 @@ def test_member_list_failures_are_reading_errors(
     tmp_path: pathlib.Path, document: str
 ) -> None:
     """An unusable member list is a finding rather than a skipped pattern."""
-    with pytest.raises(ReadingError):
-        member_manifests(_write(tmp_path / "Cargo.toml", document))
+    path = _write(tmp_path / "Cargo.toml", document)
+    with pytest.raises(ReadingError) as raised:
+        member_manifests(path)
+    _assert_names_reader_and_path(raised, path)
 
 
 @pytest.mark.parametrize(
@@ -116,8 +139,10 @@ def test_clippy_restriction_failures_are_reading_errors(
     tmp_path: pathlib.Path, document: str
 ) -> None:
     """A malformed restriction list is reported, never silently filtered."""
-    with pytest.raises(ReadingError):
-        clippy_restrictions(_write(tmp_path / "clippy.toml", document))
+    path = _write(tmp_path / "clippy.toml", document)
+    with pytest.raises(ReadingError) as raised:
+        clippy_restrictions(path)
+    _assert_names_reader_and_path(raised, path)
 
 
 def test_rustdoc_reader_accepts_every_assignment_form(
@@ -148,3 +173,32 @@ def test_rustdoc_reader_reports_no_assignment(tmp_path: pathlib.Path) -> None:
     assert rustdoc_default_lines(path) == [], (
         "expected no assignment to be reported for a reference only"
     )
+
+
+def test_rustdoc_default_returns_the_single_assignment(
+    tmp_path: pathlib.Path,
+) -> None:
+    """One assignment is returned as the default, stripped."""
+    path = _write(tmp_path / "Makefile", "  RUSTDOC_FLAGS ?= --cfg docsrs\n")
+    assert rustdoc_default(path) == "RUSTDOC_FLAGS ?= --cfg docsrs", (
+        "expected the one assignment, stripped of surrounding whitespace"
+    )
+
+
+def test_rustdoc_default_rejects_no_assignment(tmp_path: pathlib.Path) -> None:
+    """A route with no assignment is a policy finding, not an unpacking error."""
+    path = _write(tmp_path / "Makefile", "RUSTDOCFLAGS = $(RUSTDOC_FLAGS)\n")
+    with pytest.raises(ReadingError, match="found 0") as raised:
+        rustdoc_default(path)
+    _assert_names_reader_and_path(raised, path)
+
+
+def test_rustdoc_default_rejects_two_assignments(tmp_path: pathlib.Path) -> None:
+    """A second assignment could replace or extend the default, so it is rejected."""
+    path = _write(
+        tmp_path / "Makefile",
+        "RUSTDOC_FLAGS ?= --cfg docsrs\nRUSTDOC_FLAGS += --cfg extra\n",
+    )
+    with pytest.raises(ReadingError, match="found 2") as raised:
+        rustdoc_default(path)
+    _assert_names_reader_and_path(raised, path)

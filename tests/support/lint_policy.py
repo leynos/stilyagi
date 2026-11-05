@@ -140,8 +140,10 @@ def member_manifests(
     Parameters
     ----------
     path
-        The workspace manifest whose `members` patterns are expanded; the
-        default is this repository's.
+        The workspace manifest whose `members` patterns are expanded. The
+        patterns are resolved against the manifest's own directory, not the
+        repository root, so a manifest passed in from a fixture expands the
+        tree it belongs to. The default is this repository's.
 
     Returns
     -------
@@ -165,7 +167,7 @@ def member_manifests(
             raise ReadingError(message, reader="lint_policy", path=str(path))
         manifests.extend(
             directory / "Cargo.toml"
-            for directory in sorted(REPOSITORY_ROOT.glob(pattern))
+            for directory in sorted(path.parent.glob(pattern))
             if directory.is_dir()
         )
     return tuple(manifests)
@@ -234,3 +236,35 @@ def rustdoc_default_lines(path: pathlib.Path = MAKEFILE) -> list[str]:
         for line in _read_text(path).splitlines()
         if _RUSTDOC_ASSIGNMENT.match(line)
     ]
+
+
+def rustdoc_default(path: pathlib.Path = MAKEFILE) -> str:
+    """Return the one Makefile line that assigns `RUSTDOC_FLAGS`.
+
+    A caller that reads the default needs exactly one assignment: none means
+    the route passes no policy, and a second means one assignment silently
+    replaces or extends the default the contract pins. Both are policy
+    findings, so they are raised here rather than left to a caller's
+    unpacking.
+
+    Parameters
+    ----------
+    path
+        The Makefile to read; the default is this repository's.
+
+    Returns
+    -------
+    str
+        The assignment line, stripped of surrounding whitespace.
+
+    Raises
+    ------
+    ReadingError
+        If the file cannot be read or decoded, or the number of assignments
+        is not exactly one.
+    """
+    lines = rustdoc_default_lines(path)
+    if len(lines) != 1:
+        message = f"expected exactly one RUSTDOC_FLAGS assignment, found {len(lines)}"
+        raise ReadingError(message, reader="lint_policy", path=str(path))
+    return lines[0]

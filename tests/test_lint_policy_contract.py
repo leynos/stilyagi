@@ -26,7 +26,7 @@ from tests.support.lint_policy import (
     clippy_restrictions,
     lint_level,
     member_manifests,
-    rustdoc_default_lines,
+    rustdoc_default,
     workspace_lints,
 )
 
@@ -131,16 +131,15 @@ def test_clippy_restricts_every_environment_seam() -> None:
 
 def test_rustdoc_default_enforces_docsrs_and_warnings() -> None:
     """The rustdoc default enables the docsrs cfg and denies warnings."""
-    lines = rustdoc_default_lines()
-    assert lines == [RUSTDOC_DEFAULT], (
-        f"expected the rustdoc default {RUSTDOC_DEFAULT!r}, found {lines}"
+    line = rustdoc_default()
+    assert line == RUSTDOC_DEFAULT, (
+        f"expected the rustdoc default {RUSTDOC_DEFAULT!r}, found {line!r}"
     )
 
 
 def test_rustdoc_default_stays_overridable_and_extensible() -> None:
     """The rustdoc default is conditional and keeps the extension seam last."""
-    (line,) = rustdoc_default_lines()
-    variable, _, value = line.partition("=")
+    variable, _, value = rustdoc_default().partition("=")
     assert variable.endswith("?"), (
         "the default must be `?=` so an environment override wins"
     )
