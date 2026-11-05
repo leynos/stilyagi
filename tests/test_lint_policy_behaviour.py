@@ -63,6 +63,10 @@ UNDOCUMENTED_ROOT: typ.Final = (
     REPOSITORY_ROOT / "target" / "lint-policy-fixtures-undocumented"
 )
 UNDOCUMENTED_NAME: typ.Final = "lint-policy-fixtures-undocumented"
+DENIED_ROOT: typ.Final = REPOSITORY_ROOT / "target" / "lint-policy-fixtures-denied"
+DENIED_NAME: typ.Final = "lint-policy-fixtures-denied"
+WARN_ROOT: typ.Final = REPOSITORY_ROOT / "target" / "lint-policy-fixtures-warn"
+WARN_NAME: typ.Final = "lint-policy-fixtures-warn"
 
 ENVIRONMENT_SEAM_SOURCE: typ.Final = (
     '/// Entry point.\nfn main() {\n    drop(std::env::var("HOME"));\n}\n'
@@ -109,6 +113,15 @@ UNDOCUMENTED_LIBRARY_SOURCE: typ.Final = (
     "//! Probe crate.\n\npub fn undocumented() {}\n"
 )
 
+#: The library in the third and fourth crates. It is fully documented, so the
+#: broken intra-doc link is the only violation. The third crate carries the
+#: full rustdoc table, which denies the link with no flags at all; the fourth
+#: omits that entry, so the lint stays at rustdoc's default `warn` and only
+#: `-D warnings` can escalate it.
+BROKEN_LINK_LIBRARY_SOURCE: typ.Final = (
+    "//! Probe crate.\n\n/// See [Nothing] for details.\npub fn documented() {}\n"
+)
+
 #: A binary whose broken intra-doc link exists only under `--cfg docsrs`.
 DOCSRS_SOURCE: typ.Final = (
     "/// Entry point.\nfn main() {}\n\n"
@@ -144,8 +157,19 @@ def _render_value(value: object) -> str:
             raise TypeError(message)
 
 
-def _manifest(name: str) -> str:
-    """Render a scratch manifest with the workspace lint tables copied in."""
+def _manifest(name: str, *, omit_rustdoc: frozenset[str] = frozenset()) -> str:
+    """Render a scratch manifest copying the workspace lint tables.
+
+    `omit_rustdoc` drops named rustdoc entries. A fixture proving `-D
+    warnings` bites must omit the entry rather than set it to `warn`: an
+    explicit level beats the `warnings` group, so a manifest `warn` survives
+    the flag and would make the case pass for the wrong reason.
+
+    Returns
+    -------
+    str
+        The manifest text to write.
+    """
     lines = [
         "[package]",
         f'name = "{name}"',
@@ -159,10 +183,15 @@ def _manifest(name: str) -> str:
         "",
     ]
     for namespace, entries in workspace_lints().items():
+        rendered = [
+            (lint, value)
+            for lint, value in entries.items()
+            if not (namespace == "rustdoc" and lint in omit_rustdoc)
+        ]
+        if not rendered:
+            continue
         lines.append(f"[lints.{namespace}]")
-        lines.extend(
-            f"{lint} = {_render_value(value)}" for lint, value in entries.items()
-        )
+        lines.extend(f"{lint} = {_render_value(value)}" for lint, value in rendered)
         lines.append("")
     return "\n".join(lines)
 
@@ -188,6 +217,21 @@ def _write_scratch_crate() -> pathlib.Path:
     )
     (UNDOCUMENTED_ROOT / "src" / "lib.rs").write_text(
         UNDOCUMENTED_LIBRARY_SOURCE, encoding="utf-8"
+    )
+
+    (DENIED_ROOT / "src").mkdir(parents=True, exist_ok=True)
+    (DENIED_ROOT / "Cargo.toml").write_text(_manifest(DENIED_NAME), encoding="utf-8")
+    (DENIED_ROOT / "src" / "lib.rs").write_text(
+        BROKEN_LINK_LIBRARY_SOURCE, encoding="utf-8"
+    )
+
+    (WARN_ROOT / "src").mkdir(parents=True, exist_ok=True)
+    (WARN_ROOT / "Cargo.toml").write_text(
+        _manifest(WARN_NAME, omit_rustdoc=frozenset({"broken_intra_doc_links"})),
+        encoding="utf-8",
+    )
+    (WARN_ROOT / "src" / "lib.rs").write_text(
+        BROKEN_LINK_LIBRARY_SOURCE, encoding="utf-8"
     )
     return SCRATCH_ROOT
 
@@ -260,7 +304,7 @@ def test_scratch_crates_carry_the_workspace_tables(
     """Both scratch manifests copy every workspace lint table."""
     missing = [
         f"{crate.name}: {namespace}"
-        for crate in (scratch_crate, UNDOCUMENTED_ROOT)
+        for crate in (scratch_crate, UNDOCUMENTED_ROOT, DENIED_ROOT, WARN_ROOT)
         for namespace in workspace_lints()
         if f"[lints.{namespace}]"
         not in (crate / "Cargo.toml").read_text(encoding="utf-8")
@@ -315,9 +359,33 @@ def test_rustdoc_rejects_a_broken_link_under_the_default_flags(
     )
 
 
-def test_rustdoc_default_is_overridable(scratch_crate: pathlib.Path) -> None:
-    """An empty `RUSTDOCFLAGS` override leaves the gated link unbuilt."""
-    outcome = _run_cargo(
-        scratch_crate, "doc", "--bin", "docsrs_link", "--no-deps", rustdocflags=""
+def test_rustdoc_lint_table_denies_a_broken_link_without_flags(
+    scratch_crate: pathlib.Path,
+) -> None:
+    """The workspace rustdoc table denies a broken link with no flags at all."""
+    outcome = _run_cargo(DENIED_ROOT, "doc", "--lib", "--no-deps", rustdocflags="")
+    assert outcome.returncode != 0, "the table's denial did not bite"
+    assert "rustdoc::broken_intra_doc_links" in outcome.lint_codes, (
+        f"expected a broken intra-doc link, saw {sorted(outcome.lint_codes)}"
     )
+
+
+def test_rustdoc_default_flags_deny_warnings(scratch_crate: pathlib.Path) -> None:
+    """`-D warnings` escalates a warning the manifest does not already deny."""
+    outcome = _run_cargo(
+        WARN_ROOT,
+        "doc",
+        "--lib",
+        "--no-deps",
+        rustdocflags=_rustdoc_default(),
+    )
+    assert outcome.returncode != 0, "the broken link stayed a warning"
+    assert "rustdoc::broken_intra_doc_links" in outcome.lint_codes, (
+        f"expected a broken intra-doc link, saw {sorted(outcome.lint_codes)}"
+    )
+
+
+def test_rustdoc_default_is_overridable(scratch_crate: pathlib.Path) -> None:
+    """An empty `RUSTDOCFLAGS` override leaves the same link a warning."""
+    outcome = _run_cargo(WARN_ROOT, "doc", "--lib", "--no-deps", rustdocflags="")
     assert outcome.returncode == 0, outcome.output
