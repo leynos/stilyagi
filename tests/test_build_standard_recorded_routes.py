@@ -112,8 +112,8 @@ def test_lint_whitaker_defaults_to_every_library_and_scopes_with_cargo_flags(
     invocation = _single_whitaker_invocation(run)
     assert "--" in invocation.args, invocation.args
     separator = invocation.args.index("--")
-    assert invocation.args[:separator] == ("--all",)
-    assert invocation.args[separator + 1 :] == CARGO_SCOPE
+    assert invocation.args[:separator] == ("--all",), invocation.args
+    assert invocation.args[separator + 1 :] == CARGO_SCOPE, invocation.args
 
 
 def test_lint_whitaker_forwards_a_command_line_library_override(
@@ -129,8 +129,8 @@ def test_lint_whitaker_forwards_a_command_line_library_override(
     invocation = _single_whitaker_invocation(run)
     assert "--" in invocation.args, invocation.args
     separator = invocation.args.index("--")
-    assert invocation.args[:separator] == ("--lib-a", "--lib-b")
-    assert invocation.args[separator + 1 :] == CARGO_SCOPE
+    assert invocation.args[:separator] == ("--lib-a", "--lib-b"), invocation.args
+    assert invocation.args[separator + 1 :] == CARGO_SCOPE, invocation.args
 
 
 def test_parallel_lint_cannot_start_whitaker_until_clippy_completes(

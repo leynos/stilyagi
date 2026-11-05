@@ -150,11 +150,11 @@ def test_lint_composes_the_two_stages_and_whitaker_requires_clippy(
 ) -> None:
     """The prerequisite, not the recipe line order, sequences Whitaker."""
     lint_header, lint_recipe = _make_target(makefile_text, "lint")
-    assert _prerequisites(lint_header) == ("lint-clippy", "lint-whitaker")
+    assert _prerequisites(lint_header) == ("lint-clippy", "lint-whitaker"), lint_header
     assert not lint_recipe, "expected lint to hold no recipe of its own"
 
     whitaker_header, _ = _make_target(makefile_text, "lint-whitaker")
-    assert _prerequisites(whitaker_header) == ("lint-clippy",)
+    assert _prerequisites(whitaker_header) == ("lint-clippy",), whitaker_header
 
 
 def test_lint_recipe_runs_df12_tools_before_rust_checks(makefile_text: str) -> None:
