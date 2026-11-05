@@ -34,6 +34,7 @@ from tests.support.build_standard import (
 )
 from tests.support.build_standard_probes import (
     RecordingTree,
+    RunOptions,
     make_recording_tools,
     run_recorded,
     stage_makefile_tree,
@@ -228,7 +229,7 @@ def test_executed_dev_routes_keep_the_standard(
     recording: RecordingTree,
 ) -> None:
     """Under CI's exported `-D warnings`, every compile still gets the standard."""
-    run = run_recorded(target, recording, ambient_rustflags=ambient)
+    run = run_recorded(target, recording, RunOptions(ambient_rustflags=ambient))
     assert run.returncode == 0, run.stderr
     compiling = [
         record
@@ -247,7 +248,7 @@ def test_executed_whitaker_route_takes_no_development_flags(
     ambient: str | None, recording: RecordingTree
 ) -> None:
     """Whitaker's `RUSTFLAGS` is `-D warnings` whatever the caller exports."""
-    run = run_recorded("lint", recording, ambient_rustflags=ambient)
+    run = run_recorded("lint", recording, RunOptions(ambient_rustflags=ambient))
     assert run.returncode == 0, run.stderr
     whitaker = [r for r in run.records if r.program == PROBE_WHITAKER]
     assert len(whitaker) == 1, "expected len(whitaker) == 1"
@@ -261,8 +262,7 @@ def test_parallel_lint_sequences_whitaker_after_clippy(
     run = run_recorded(
         "lint",
         recording,
-        ambient_rustflags=None,
-        make_arguments=("-j4",),
+        RunOptions(make_arguments=("-j4",)),
     )
     assert run.returncode == 0, run.stderr
     clippy = next(
@@ -290,15 +290,15 @@ def test_parallel_lint_sequences_whitaker_after_clippy(
 def test_a_whitaker_failure_fails_the_gate(
     target: str,
     fail: str,
-    should_pass: bool,
     recording: RecordingTree,
+    *,
+    should_pass: bool,
 ) -> None:
     """The Whitaker exit status reaches Make, and so CI, without being masked."""
     run = run_recorded(
         target,
         recording,
-        ambient_rustflags=None,
-        fail=fail,
+        RunOptions(fail=fail),
     )
     if should_pass:
         assert run.returncode == 0, run.stderr
@@ -314,7 +314,9 @@ def test_executed_release_route_displaces_the_standard_and_skips_the_preflight(
     ambient: str | None, recording: RecordingTree
 ) -> None:
     """The release wheel and the editable install take the caller's flags only."""
-    run = run_recorded("release-artefact", recording, ambient_rustflags=ambient)
+    run = run_recorded(
+        "release-artefact", recording, RunOptions(ambient_rustflags=ambient)
+    )
     assert run.returncode == 0, run.stderr
     assert not [r for r in run.records if r.program == PROBE_CHECK], (
         "expected not [r for r in run.records if r.program == PROBE_CHECK]"
@@ -330,7 +332,7 @@ def test_the_preflight_runs_before_any_compilation(
     target: str, recording: RecordingTree
 ) -> None:
     """The first record of each dev or gate route is the build-tools check."""
-    run = run_recorded(target, recording, ambient_rustflags="-D warnings")
+    run = run_recorded(target, recording, RunOptions(ambient_rustflags="-D warnings"))
     assert run.returncode == 0, run.stderr
     first_check = next(
         (i for i, r in enumerate(run.records) if r.program == PROBE_CHECK), None
@@ -345,7 +347,7 @@ def test_a_failing_preflight_stops_the_target_before_compiling(
     target: str, recording: RecordingTree
 ) -> None:
     """A preflight that exits 1 ends the run: nothing compiles after it."""
-    run = run_recorded(target, recording, ambient_rustflags=None, fail=PROBE_CHECK)
+    run = run_recorded(target, recording, RunOptions(fail=PROBE_CHECK))
     assert run.returncode != 0, "expected run.returncode != 0"
     assert not [r for r in run.records if compiles(r)], (
         "expected not [r for r in run.records if compiles(r)]"
@@ -359,8 +361,10 @@ def test_the_cargo_test_fallback_carries_the_standard_when_nextest_is_absent(
     run = run_recorded(
         "test",
         recording,
-        ambient_rustflags="-D warnings",
-        fail=f"{PROBE_CARGO} nextest --version",
+        RunOptions(
+            ambient_rustflags="-D warnings",
+            fail=f"{PROBE_CARGO} nextest --version",
+        ),
     )
     assert run.returncode == 0, run.stderr
     cargo = [r for r in run.records if r.program == PROBE_CARGO]

@@ -112,13 +112,31 @@ class RecordingTree:
     tools: pathlib.Path
 
 
+@dc.dataclass(frozen=True, slots=True)
+class RunOptions:
+    """The environment and invocation controls for one recording run.
+
+    Parameters
+    ----------
+    ambient_rustflags
+        The `RUSTFLAGS` the caller exports (CI exports `-D warnings`), or
+        None for a caller exporting none.
+    fail
+        A substring of `<probe> <args>` that makes the probe exit 1.
+    make_arguments
+        Extra Make options placed before the target, such as `("-j4",)` for
+        a parallel run.
+    """
+
+    ambient_rustflags: str | None = None
+    fail: str = ""
+    make_arguments: tuple[str, ...] = ()
+
+
 def run_recorded(
     target: str,
     tree: RecordingTree,
-    *,
-    ambient_rustflags: str | None,
-    fail: str = "",
-    make_arguments: tuple[str, ...] = (),
+    options: RunOptions,
 ) -> RecordedRun:
     """Run `make <target>` in a staged tree and return what the probes saw.
 
@@ -128,14 +146,9 @@ def run_recorded(
         The Make target.
     tree
         A staged tree from `stage_makefile_tree` with its recording probes.
-    ambient_rustflags
-        The `RUSTFLAGS` the caller exports (CI exports `-D warnings`), or
-        None for a caller exporting none.
-    fail
-        A substring of `<probe> <args>` that makes the probe exit 1.
-    make_arguments
-        Extra Make options placed before the target, such as `("-j4",)` for
-        a parallel run.
+    options
+        The ambient `RUSTFLAGS`, the probe failure selector, and any extra
+        Make options for this run.
 
     Returns
     -------
@@ -148,12 +161,12 @@ def run_recorded(
     env |= {
         "PATH": f"{tree.tools}{os.pathsep}{env['PATH']}",
         "PROBE_LOG": str(log),
-        "PROBE_FAIL": fail,
+        "PROBE_FAIL": options.fail,
     }
-    if ambient_rustflags is not None:
-        env["RUSTFLAGS"] = ambient_rustflags
+    if options.ambient_rustflags is not None:
+        env["RUSTFLAGS"] = options.ambient_rustflags
     result = run_make(
-        [*make_arguments, "--no-print-directory", *MAKE_OVERRIDES, target],
+        [*options.make_arguments, "--no-print-directory", *MAKE_OVERRIDES, target],
         env,
         tree.workdir,
     )
