@@ -1,12 +1,15 @@
 //! Tests for restoring canonical IR through the Python extension boundary.
 
-use super::hydrate_ir_json_function;
-use pyo3::exceptions::PyValueError;
-use pyo3::prelude::{Py, Python};
-use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyTuple};
+use pyo3::{
+    exceptions::PyValueError,
+    prelude::{Py, Python},
+    types::{PyAnyMethods, PyDict, PyDictMethods, PyTuple},
+};
 use rstest::rstest;
 use serde_json::Value;
 use stilyagi_extract::{ExtractSyntax, SourceIdentity, extract_document_with_source_identity};
+
+use super::hydrate_ir_json_function;
 
 #[rstest]
 fn hydration_round_trips_canonical_ir_and_source_identity() {

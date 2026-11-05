@@ -1,10 +1,13 @@
 //! Source identity contracts across the `PyO3` extraction boundary.
 
-use super::{BridgeExtractRequest, bridge_extract_document, extract_document_py};
-use pyo3::prelude::Python;
-use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyTuple};
+use pyo3::{
+    prelude::Python,
+    types::{PyAnyMethods, PyDict, PyDictMethods, PyTuple},
+};
 use rstest::rstest;
 use serde_json::Value;
+
+use super::{BridgeExtractRequest, bridge_extract_document, extract_document_py};
 
 #[rstest]
 #[case("docs/guide.md")]

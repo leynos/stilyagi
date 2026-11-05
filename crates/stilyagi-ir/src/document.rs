@@ -99,14 +99,12 @@ impl IrDocument {
     /// let canonical_json = document
     ///     .to_canonical_json()
     ///     .expect("expected canonical IR JSON");
-    /// let restored = IrDocument::from_json(&canonical_json)
-    ///     .expect("expected typed IR deserialization");
+    /// let restored =
+    ///     IrDocument::from_json(&canonical_json).expect("expected typed IR deserialization");
     ///
     /// assert_eq!(restored, document);
     /// ```
-    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(json)
-    }
+    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> { serde_json::from_str(json) }
 }
 
 /// Metadata about the source document represented by an IR payload.

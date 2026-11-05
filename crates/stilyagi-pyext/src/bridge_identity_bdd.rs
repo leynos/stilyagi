@@ -1,7 +1,9 @@
 //! BDD coverage for caller-supplied source identity across the `PyO3` bridge.
 
-use pyo3::prelude::{Py, Python};
-use pyo3::types::{PyAnyMethods, PyDict, PyTuple};
+use pyo3::{
+    prelude::{Py, Python},
+    types::{PyAnyMethods, PyDict, PyTuple},
+};
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serde_json::Value;

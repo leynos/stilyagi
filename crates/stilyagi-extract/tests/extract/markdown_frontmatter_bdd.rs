@@ -17,6 +17,9 @@ struct MarkdownFrontmatterState {
 
 #[fixture]
 fn markdown_frontmatter_state() -> MarkdownFrontmatterState {
+    // `rstest` re-emits this body inside another block; keeping it multi-line
+    // stops `fn_single_line` from collapsing the body of that inner block, which
+    // rustc reports as `unused_braces` in the expansion.
     MarkdownFrontmatterState::default()
 }
 

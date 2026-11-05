@@ -3,7 +3,11 @@
 use proptest::prelude::*;
 use rstest::rstest;
 use stilyagi_extract::{
-    ExtractDocument, ExtractError, ExtractSyntax, SourceIdentity, extract_document,
+    ExtractDocument,
+    ExtractError,
+    ExtractSyntax,
+    SourceIdentity,
+    extract_document,
 };
 use stilyagi_ir::SuppressionKind;
 use stilyagi_test_support::{
