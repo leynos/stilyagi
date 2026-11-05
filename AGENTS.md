@@ -240,14 +240,18 @@ project:
     $(AMBRLEAKS) tests
     RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
     RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
-    RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) --all -- $(CARGO_FLAGS)
+    RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) $(WHITAKER_LIBRARIES) -- $(CARGO_FLAGS)
     ```
 
     after `make check-build-tools`, running Ruff, docstring coverage, the
     focused Pylint pass, all df12 Pylint messages under CPython 3.14,
     ambrleaks, Rustdoc, Rust Clippy across workspace targets, and Whitaker
-    linting for the PyO3 extension crate. `RUST_FLAGS` is `-D warnings` plus
-    the development standard; `WHITAKER_RUST_FLAGS` is `-D warnings` alone.
+    linting the workspace targets. The recipe lines are split across the
+    `lint-clippy` and `lint-whitaker` stages. `RUST_FLAGS` is `-D warnings`
+    plus the development standard; `WHITAKER_RUST_FLAGS` is `-D warnings`
+    alone, and `WHITAKER_LIBRARIES` defaults to `--all`, which loads every
+    discovered Dylint lint library. The package and target scope is
+    `$(CARGO_FLAGS)` after `--`.
   - `make test` executes:
 
     ```sh
