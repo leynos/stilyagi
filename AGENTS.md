@@ -259,6 +259,17 @@ project:
     workspace test suite. Use `make fmt`
     (`cargo fmt --workspace`) to apply formatting fixes reported by the
     formatter check.
+- The workspace lint tables in `Cargo.toml` and the Clippy configuration in
+  `clippy.toml` are authoritative, and they reach a member by two different
+  mechanisms. Every new member must inherit the tables with
+  `[lints] workspace = true`; Clippy reads `clippy.toml` from the workspace
+  root instead, so it needs no per-member stanza. See the developers' guide,
+  [Rust lint baseline](docs/developers-guide.md#rust-lint-baseline), for the
+  selected estate baseline, consumer additions, and exception rules.
+- Rustdoc defaults to `RUSTDOC_FLAGS = --cfg docsrs -D warnings`, extended
+  through `RUSTDOC_FLAGS_EXTRA`; an environment `RUSTDOC_FLAGS` replaces the
+  default. Preserve the documentation and doctest routes and their workspace
+  and feature coverage.
 - Clippy warnings MUST be disallowed.
 - Fix any warnings emitted during tests in code instead of silencing them.
 - Where a function is too long, extract meaningfully named helper functions

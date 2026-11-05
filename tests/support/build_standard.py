@@ -233,11 +233,30 @@ def run_make(
     )
 
 
-def dry_run(target: str, tools: pathlib.Path, *extra: str) -> str:
+def dry_run(
+    target: str,
+    tools: pathlib.Path,
+    *extra: str,
+    env: dict[str, str | None] | None = None,
+) -> str:
     """Return `make --dry-run --always-make <target>` output with probe tools.
 
     `--always-make` evaluates every file target as out of date, so the result
     does not depend on whether a `.venv` exists on the machine running it.
+
+    Parameters
+    ----------
+    target
+        The Make target to evaluate.
+    tools
+        A directory of probe executables, from `make_available_tools`.
+    *extra
+        Further Make arguments, such as a command-line variable assignment.
+    env
+        Variables to set in the child environment; a `None` value removes the
+        inherited one. This is how a route reads an environment override,
+        which `?=` honours but a command-line assignment would not exercise,
+        and how a test neutralizes an ambient value it does not want to test.
 
     Returns
     -------
@@ -249,6 +268,16 @@ def dry_run(target: str, tools: pathlib.Path, *extra: str) -> str:
     ReadingError
         If Make exits non-zero, carrying its stderr.
     """
+    inherited: dict[str, str] = {
+        **os.environ,
+        "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
+    }
+    overrides: dict[str, str | None] = env if env is not None else {}
+    for name, value in overrides.items():
+        if value is None:
+            inherited.pop(name, None)
+        else:
+            inherited[name] = value
     result = run_make(
         [
             "--no-print-directory",
@@ -258,7 +287,7 @@ def dry_run(target: str, tools: pathlib.Path, *extra: str) -> str:
             *extra,
             target,
         ],
-        {**os.environ, "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}"},
+        inherited,
         REPOSITORY_ROOT,
     )
     if result.returncode != 0:
