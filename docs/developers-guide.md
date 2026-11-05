@@ -1833,9 +1833,11 @@ and feature coverage.
 
 `tests/support/lint_policy.py` is the single read-only boundary for policy
 reads of `Cargo.toml`, `clippy.toml` and the `Makefile`. Every reader takes a
-path and defaults to the repository's file: `workspace_lints`, `lint_level`,
-`member_manifests` (the member set as `cargo metadata --no-deps` resolves it,
-which is wider than the `members` patterns), `clippy_restrictions`,
+path and, except `member_inherits_workspace_lints`, defaults to the
+repository's file: `workspace_lints`, `lint_level`, `member_manifests` (the
+member set as `cargo metadata --no-deps` resolves it, which is wider than the
+`members` patterns), `member_inherits_workspace_lints` (whether a member
+declares `lints.workspace = true`), `clippy_restrictions`,
 `rustdoc_default_lines`, and `rustdoc_default` (the validated single
 `RUSTDOC_FLAGS` assignment). All file access goes through `_read_text` and
 `_read_toml`, so an unreadable, undecodable or malformed file, and a structural
