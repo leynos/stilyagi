@@ -2,8 +2,9 @@
 
 use core::fmt;
 
-use crate::ExtractSyntax;
 use stilyagi_tree_sitter::{PythonExtractError, RustExtractError};
+
+use crate::ExtractSyntax;
 
 /// Extraction failures surfaced by the narrow v1 bridge.
 #[derive(Debug, Clone, PartialEq, Eq)]

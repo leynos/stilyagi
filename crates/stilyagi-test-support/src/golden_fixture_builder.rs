@@ -7,13 +7,17 @@
 use std::path::Path;
 
 use stilyagi_ir::{IrDocument, SourceIdentity, line_index_for};
-use stilyagi_tree_sitter::{
-    PythonExtractError, RustExtractError, python_docstring_ir_document,
-    rust_doc_comment_ir_document,
-};
-
 use stilyagi_test_fixtures::{
-    FixturePathError, FixtureReadError, normalize_repository_path, read_corpus_fixture,
+    FixturePathError,
+    FixtureReadError,
+    normalize_repository_path,
+    read_corpus_fixture,
+};
+use stilyagi_tree_sitter::{
+    PythonExtractError,
+    RustExtractError,
+    python_docstring_ir_document,
+    rust_doc_comment_ir_document,
 };
 
 use crate::golden_ir::{ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, Segment};
@@ -46,21 +50,15 @@ impl std::error::Error for GoldenPythonFixtureError {
 }
 
 impl From<FixtureReadError> for GoldenPythonFixtureError {
-    fn from(error: FixtureReadError) -> Self {
-        Self::Fixture(error)
-    }
+    fn from(error: FixtureReadError) -> Self { Self::Fixture(error) }
 }
 
 impl From<FixturePathError> for GoldenPythonFixtureError {
-    fn from(error: FixturePathError) -> Self {
-        Self::Fixture(FixtureReadError::from(error))
-    }
+    fn from(error: FixturePathError) -> Self { Self::Fixture(FixtureReadError::from(error)) }
 }
 
 impl From<PythonExtractError> for GoldenPythonFixtureError {
-    fn from(error: PythonExtractError) -> Self {
-        Self::Extract(error)
-    }
+    fn from(error: PythonExtractError) -> Self { Self::Extract(error) }
 }
 
 /// Failure raised when building a production Rust golden IR document.
@@ -91,21 +89,15 @@ impl std::error::Error for GoldenRustFixtureError {
 }
 
 impl From<FixtureReadError> for GoldenRustFixtureError {
-    fn from(error: FixtureReadError) -> Self {
-        Self::Fixture(error)
-    }
+    fn from(error: FixtureReadError) -> Self { Self::Fixture(error) }
 }
 
 impl From<FixturePathError> for GoldenRustFixtureError {
-    fn from(error: FixturePathError) -> Self {
-        Self::Fixture(FixtureReadError::from(error))
-    }
+    fn from(error: FixturePathError) -> Self { Self::Fixture(FixtureReadError::from(error)) }
 }
 
 impl From<RustExtractError> for GoldenRustFixtureError {
-    fn from(error: RustExtractError) -> Self {
-        Self::Extract(error)
-    }
+    fn from(error: RustExtractError) -> Self { Self::Extract(error) }
 }
 
 /// Build the private golden IR shape for a supported Markdown corpus fixture.

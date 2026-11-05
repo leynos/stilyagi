@@ -1,11 +1,18 @@
 //! Crate-private tests for extraction error mapping and region vocabulary.
 
-use super::{
-    ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError, RegionKind,
-    RustExtractError, extract_markdown_document_with,
-};
-use rstest::rstest;
 use std::error::Error as _;
+
+use rstest::rstest;
+
+use super::{
+    ExtractError,
+    ExtractSyntax,
+    MarkdownIrFailure,
+    PythonExtractError,
+    RegionKind,
+    RustExtractError,
+    extract_markdown_document_with,
+};
 
 const KNOWN_REGION_KINDS: &[RegionKind] = &[
     RegionKind::Document,

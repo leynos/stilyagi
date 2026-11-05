@@ -5,8 +5,14 @@ use stilyagi_extract::{ExtractDocument, ExtractError, ExtractSyntax};
 use stilyagi_test_support::read_corpus_fixture;
 
 use crate::test_utils::{
-    FixtureSource, boundary, extracted_blank_markdown_documents, extracted_markdown,
-    extracted_unicode_markdown, shared_markdown_source, shared_python_source, shared_rust_source,
+    FixtureSource,
+    boundary,
+    extracted_blank_markdown_documents,
+    extracted_markdown,
+    extracted_unicode_markdown,
+    shared_markdown_source,
+    shared_python_source,
+    shared_rust_source,
     syntax_name_rejection,
 };
 

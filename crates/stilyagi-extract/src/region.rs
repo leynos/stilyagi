@@ -86,9 +86,7 @@ impl FromStr for RegionKind {
 impl TryFrom<&str> for RegionKind {
     type Error = String;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        value.parse()
-    }
+    fn try_from(value: &str) -> Result<Self, Self::Error> { value.parse() }
 }
 
 impl RegionKind {
@@ -170,9 +168,7 @@ impl ExtractRegion {
     /// assert_eq!(region.kind(), "rust_doc_comment");
     /// ```
     #[must_use]
-    pub fn kind(&self) -> &str {
-        &self.kind
-    }
+    pub fn kind(&self) -> &str { &self.kind }
 
     /// Return the typed region kind when it is in the built-in vocabulary.
     ///
@@ -188,9 +184,7 @@ impl ExtractRegion {
     /// assert_eq!(custom.region_kind(), None);
     /// ```
     #[must_use]
-    pub fn region_kind(&self) -> Option<RegionKind> {
-        RegionKind::try_from(self.kind()).ok()
-    }
+    pub fn region_kind(&self) -> Option<RegionKind> { RegionKind::try_from(self.kind()).ok() }
 
     /// Return the extracted region text.
     ///
@@ -204,7 +198,5 @@ impl ExtractRegion {
     /// assert_eq!(region.text(), "Extracted prose.");
     /// ```
     #[must_use]
-    pub fn text(&self) -> &str {
-        &self.text
-    }
+    pub fn text(&self) -> &str { &self.text }
 }

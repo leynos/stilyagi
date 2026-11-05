@@ -8,9 +8,7 @@ pub(super) struct NodeId(pub String);
 
 impl NodeId {
     /// Return the identifier as a borrowed string slice.
-    pub(super) const fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
+    pub(super) const fn as_str(&self) -> &str { self.0.as_str() }
 }
 
 impl fmt::Display for NodeId {
@@ -20,9 +18,7 @@ impl fmt::Display for NodeId {
 }
 
 impl From<NodeId> for String {
-    fn from(node_id: NodeId) -> Self {
-        node_id.0
-    }
+    fn from(node_id: NodeId) -> Self { node_id.0 }
 }
 
 /// tree-sitter node kind discriminator used by Python extraction helpers.
@@ -34,7 +30,5 @@ pub(crate) struct NodeKind(pub &'static str);
 
 impl NodeKind {
     /// Return the tree-sitter kind spelling.
-    pub(crate) const fn as_str(self) -> &'static str {
-        self.0
-    }
+    pub(crate) const fn as_str(self) -> &'static str { self.0 }
 }

@@ -5,12 +5,19 @@
 
 use rstest::fixture;
 use stilyagi_extract::{
-    ExtractDocument, ExtractError, ExtractSyntax, SourceIdentity, extract_document,
+    ExtractDocument,
+    ExtractError,
+    ExtractSyntax,
+    SourceIdentity,
+    extract_document,
     extract_document_with_source_identity,
 };
 use stilyagi_test_support::{
-    FixtureReadError, SHARED_MARKDOWN_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH,
-    SHARED_RUST_FIXTURE_PATH, read_corpus_fixture,
+    FixtureReadError,
+    SHARED_MARKDOWN_FIXTURE_PATH,
+    SHARED_PYTHON_FIXTURE_PATH,
+    SHARED_RUST_FIXTURE_PATH,
+    read_corpus_fixture,
 };
 
 /// Outcome of reading a corpus fixture, handed to tests as a fixture value.

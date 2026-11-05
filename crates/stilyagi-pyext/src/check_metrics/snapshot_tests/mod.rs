@@ -1,7 +1,6 @@
 //! Tests for the Python snapshot boundary of the check metrics recorder.
 
-use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::{sync::atomic::Ordering, time::Duration};
 
 use pyo3::{
     exceptions::PyRuntimeError,
@@ -10,17 +9,30 @@ use pyo3::{
 };
 use rstest::rstest;
 use stilyagi_extract::{
-    ExtractError, ExtractSyntax, MarkdownIrFailure, PythonExtractError, RustExtractError,
+    ExtractError,
+    ExtractSyntax,
+    MarkdownIrFailure,
+    PythonExtractError,
+    RustExtractError,
 };
-
-use crate::tests::payload::{dict_dict, dict_item};
 
 use super::{
-    CHECK_METRICS_TEST_LOCK, EXTRACTION_RECOVERY_ERRORS, check_metrics_snapshot, record_check_run,
-    record_checked_file, record_diagnostic_severity, record_extraction_attempt,
-    record_extraction_failure, record_extraction_outcome, record_operational_failure,
-    record_phase_duration, record_skipped_candidates, record_unreadable_file, reset_metrics,
+    CHECK_METRICS_TEST_LOCK,
+    EXTRACTION_RECOVERY_ERRORS,
+    check_metrics_snapshot,
+    record_check_run,
+    record_checked_file,
+    record_diagnostic_severity,
+    record_extraction_attempt,
+    record_extraction_failure,
+    record_extraction_outcome,
+    record_operational_failure,
+    record_phase_duration,
+    record_skipped_candidates,
+    record_unreadable_file,
+    reset_metrics,
 };
+use crate::tests::payload::{dict_dict, dict_item};
 
 mod duration_tests;
 

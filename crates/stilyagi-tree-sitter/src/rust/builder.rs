@@ -8,14 +8,26 @@ use std::collections::{BTreeMap, HashMap};
 use stilyagi_ir::{IrError, IrNode, IrRegion, NodeFlags};
 use tree_sitter::Node;
 
-use super::builder_state::{DocCommentEntry, DocCommentGroup, NonDocCommentState, push_group};
-use super::helpers::{
-    classify_doc_comment, collect_recovery_nodes, current_owner_node_id, doc_comment_content,
-    doc_comment_content_span, is_recovery_node, item_body, module_body_has_leading_inner_docs,
-    node_flags, owner_frame_for_item, recovery_doc_comment_count, source_span, text_for_field,
+use super::{
+    builder_state::{DocCommentEntry, DocCommentGroup, NonDocCommentState, push_group},
+    helpers::{
+        classify_doc_comment,
+        collect_recovery_nodes,
+        current_owner_node_id,
+        doc_comment_content,
+        doc_comment_content_span,
+        is_recovery_node,
+        item_body,
+        module_body_has_leading_inner_docs,
+        node_flags,
+        owner_frame_for_item,
+        recovery_doc_comment_count,
+        source_span,
+        text_for_field,
+    },
+    owner::{OwnerFrame, owner_for},
+    types::{NodeId, NodeKind},
 };
-use super::owner::{OwnerFrame, owner_for};
-use super::types::{NodeId, NodeKind};
 
 /// Identifier of the single IR tree emitted for a Rust source file.
 const TREE_ID: &str = "t0";
@@ -286,8 +298,7 @@ impl<'source> RustIrBuilder<'source> {
         self.errors.push(IrError {
             code: "rust-traversal-depth-limit".to_owned(),
             message: format!(
-                "stopped Rust doc-comment traversal at the maximum depth of \
-                 {} at bytes {}..{}",
+                "stopped Rust doc-comment traversal at the maximum depth of {} at bytes {}..{}",
                 super::MAX_TRAVERSAL_DEPTH,
                 span.byte_start,
                 span.byte_end

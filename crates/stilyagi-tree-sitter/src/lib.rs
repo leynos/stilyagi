@@ -16,16 +16,26 @@ pub struct TreeSitterBoundary;
 mod tests {
     //! Tests for the placeholder tree-sitter extraction boundary marker.
 
-    use super::TreeSitterBoundary;
-    use crate::python::types::NodeKind;
-    use crate::test_support::{
-        assert_first_named_child_kind, descendants_with_kind, direct_named_child_with_kind,
-        first_named_child, named_children_with_kind, parse_python_source, text_for_node,
-    };
     use stilyagi_test_fixtures::{
-        MALFORMED_PYTHON_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, read_corpus_fixture,
+        MALFORMED_PYTHON_FIXTURE_PATH,
+        SHARED_PYTHON_FIXTURE_PATH,
+        read_corpus_fixture,
     };
     use tree_sitter::Node;
+
+    use super::TreeSitterBoundary;
+    use crate::{
+        python::types::NodeKind,
+        test_support::{
+            assert_first_named_child_kind,
+            descendants_with_kind,
+            direct_named_child_with_kind,
+            first_named_child,
+            named_children_with_kind,
+            parse_python_source,
+            text_for_node,
+        },
+    };
 
     const SHARED_PYTHON_FIXTURE: &str = SHARED_PYTHON_FIXTURE_PATH;
     const MALFORMED_PYTHON_FIXTURE: &str = MALFORMED_PYTHON_FIXTURE_PATH;

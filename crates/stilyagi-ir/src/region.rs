@@ -84,9 +84,7 @@ pub struct InvalidRegionKind {
 impl InvalidRegionKind {
     /// Return the rejected region kind spelling.
     #[must_use]
-    pub fn value(&self) -> &str {
-        &self.value
-    }
+    pub fn value(&self) -> &str { &self.value }
 }
 
 impl fmt::Display for InvalidRegionKind {
@@ -125,9 +123,7 @@ impl FromStr for RegionKind {
 impl TryFrom<&str> for RegionKind {
     type Error = InvalidRegionKind;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        value.parse()
-    }
+    fn try_from(value: &str) -> Result<Self, Self::Error> { value.parse() }
 }
 
 /// Stable reasons for text synthesized during IR extraction.
@@ -284,9 +280,7 @@ impl IrSegment {
 
     /// Return the text represented by this segment.
     #[must_use]
-    pub fn text(&self) -> &str {
-        &self.text
-    }
+    pub fn text(&self) -> &str { &self.text }
 }
 
 /// Owning code entity for a prose region.

@@ -11,7 +11,9 @@ use stilyagi_ir::{IrBoundary, IrDocument};
 use stilyagi_markdown::{MarkdownBoundary, markdown_ir_document};
 pub use stilyagi_tree_sitter::{PythonExtractError, RustExtractError};
 use stilyagi_tree_sitter::{
-    TreeSitterBoundary, python_docstring_ir_document, rust_doc_comment_ir_document,
+    TreeSitterBoundary,
+    python_docstring_ir_document,
+    rust_doc_comment_ir_document,
 };
 
 /// Supported source syntaxes for the initial extraction boundary.
@@ -64,9 +66,7 @@ impl FromStr for ExtractSyntax {
 impl TryFrom<&str> for ExtractSyntax {
     type Error = ExtractError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        value.parse()
-    }
+    fn try_from(value: &str) -> Result<Self, Self::Error> { value.parse() }
 }
 
 /// Partial document payload returned by the first extraction slice.
@@ -100,21 +100,15 @@ impl ExtractDocument {
 
     /// Return the syntax represented by the document.
     #[must_use]
-    pub const fn syntax(&self) -> ExtractSyntax {
-        self.syntax
-    }
+    pub const fn syntax(&self) -> ExtractSyntax { self.syntax }
 
     /// Return the extracted prose regions.
     #[must_use]
-    pub fn regions(&self) -> &[ExtractRegion] {
-        &self.regions
-    }
+    pub fn regions(&self) -> &[ExtractRegion] { &self.regions }
 
     /// Return the full IR document envelope when this syntax provides one.
     #[must_use]
-    pub const fn ir(&self) -> Option<&IrDocument> {
-        self.ir.as_ref()
-    }
+    pub const fn ir(&self) -> Option<&IrDocument> { self.ir.as_ref() }
 }
 
 /// Marker type for the future extraction orchestration boundary.
@@ -131,21 +125,15 @@ pub struct ExtractBoundary {
 impl ExtractBoundary {
     /// Return the placeholder Markdown extraction boundary.
     #[must_use]
-    pub const fn markdown(&self) -> &MarkdownBoundary {
-        &self.markdown
-    }
+    pub const fn markdown(&self) -> &MarkdownBoundary { &self.markdown }
 
     /// Return the placeholder tree-sitter extraction boundary.
     #[must_use]
-    pub const fn tree_sitter(&self) -> &TreeSitterBoundary {
-        &self.tree_sitter
-    }
+    pub const fn tree_sitter(&self) -> &TreeSitterBoundary { &self.tree_sitter }
 
     /// Return the placeholder IR construction boundary.
     #[must_use]
-    pub const fn ir(&self) -> &IrBoundary {
-        &self.ir
-    }
+    pub const fn ir(&self) -> &IrBoundary { &self.ir }
 }
 
 /// Extract a minimal document-shaped payload for the supported syntax.

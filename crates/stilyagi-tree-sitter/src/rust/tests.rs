@@ -2,15 +2,26 @@
 
 use rstest::rstest;
 use stilyagi_test_fixtures::{
-    ATTRIBUTE_RUST_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, MULTILINE_RUST_FIXTURE_PATH,
-    NESTED_RUST_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH, read_corpus_fixture,
+    ATTRIBUTE_RUST_FIXTURE_PATH,
+    MALFORMED_RUST_FIXTURE_PATH,
+    MULTILINE_RUST_FIXTURE_PATH,
+    NESTED_RUST_FIXTURE_PATH,
+    SHARED_RUST_FIXTURE_PATH,
+    read_corpus_fixture,
 };
 use tree_sitter::Node;
 
 use crate::test_support::{
-    assert_first_named_child_kind, descendants_with_kind, direct_named_child_with_kind,
-    extract_rust, first_named_child, owner_triple, parse_rust_source, region_owners,
-    rust_fixture_document, text_for_node,
+    assert_first_named_child_kind,
+    descendants_with_kind,
+    direct_named_child_with_kind,
+    extract_rust,
+    first_named_child,
+    owner_triple,
+    parse_rust_source,
+    region_owners,
+    rust_fixture_document,
+    text_for_node,
 };
 
 const SHARED_RUST_FIXTURE: &str = SHARED_RUST_FIXTURE_PATH;
@@ -200,7 +211,8 @@ fn multiline_fixture_merges_three_line_comments_and_block_comment() {
     assert_eq!(document.regions.len(), 2);
     assert_eq!(
         first_region.text,
-        " First line of a multiline Rust doc comment.  Second line keeps the same owner.  Third line completes the merged region."
+        " First line of a multiline Rust doc comment.  Second line keeps the same owner.  Third \
+         line completes the merged region."
     );
     assert!(first_region.segments_reconstruct_text());
     assert_eq!(

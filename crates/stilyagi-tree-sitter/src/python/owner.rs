@@ -97,9 +97,7 @@ mod tests {
 
     use super::{LOCAL_MARKER, OwnerFrame, OwnerKind, owner_for, qualname_for};
 
-    fn frame(kind: OwnerKind, name: &str) -> OwnerFrame {
-        OwnerFrame::new(kind, name.to_owned())
-    }
+    fn frame(kind: OwnerKind, name: &str) -> OwnerFrame { OwnerFrame::new(kind, name.to_owned()) }
 
     fn expected_parts(stack: &[OwnerFrame]) -> Vec<String> {
         let mut parts = Vec::new();

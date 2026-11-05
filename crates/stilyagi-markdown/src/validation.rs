@@ -4,7 +4,10 @@ use std::collections::BTreeSet;
 
 use markdown::message::Message;
 use stilyagi_ir::{
-    IrDocument, IrRegion, IrSegment, SourceSpan,
+    IrDocument,
+    IrRegion,
+    IrSegment,
+    SourceSpan,
     suppression::{SuppressionValidationError, validate_suppressions as validate_ir_suppressions},
 };
 
@@ -238,7 +241,8 @@ fn validate_segment_origin(
         context,
         "ir-segment-origin-invalid",
         format!(
-            "segment origin invalid region id={} segment text={} source_present={} synthetic_present={}",
+            "segment origin invalid region id={} segment text={} source_present={} \
+             synthetic_present={}",
             region.id,
             segment.text,
             segment.source.is_some(),

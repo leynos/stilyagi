@@ -12,13 +12,13 @@
 //! panic in a spawned thread, a panic in a thread spawned from detached Python
 //! state, and `should_panic`.
 
-use std::ffi::CString;
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::thread;
+use std::{
+    ffi::CString,
+    panic::{AssertUnwindSafe, catch_unwind},
+    thread,
+};
 
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
-use pyo3::wrap_pyfunction;
+use pyo3::{prelude::*, types::PyDict, wrap_pyfunction};
 
 const MARKER: &str = "unwind-probe-marker";
 

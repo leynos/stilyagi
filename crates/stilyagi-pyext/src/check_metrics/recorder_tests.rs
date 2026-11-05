@@ -8,10 +8,22 @@ use std::sync::{
 use rstest::rstest;
 
 use super::{
-    CHECK_METRICS_TEST_LOCK, CHECK_RUNS, CHECKED_FILES, DIAGNOSTIC_COUNTS, OPERATIONAL_FAILURES,
-    PHASE_DURATIONS, SKIPPED_CANDIDATES, UNREADABLE_FILES, record_check_run, record_checked_file,
-    record_diagnostic_severity, record_operational_failure, record_phase_duration,
-    record_skipped_candidates, record_unreadable_file, reset_metrics,
+    CHECK_METRICS_TEST_LOCK,
+    CHECK_RUNS,
+    CHECKED_FILES,
+    DIAGNOSTIC_COUNTS,
+    OPERATIONAL_FAILURES,
+    PHASE_DURATIONS,
+    SKIPPED_CANDIDATES,
+    UNREADABLE_FILES,
+    record_check_run,
+    record_checked_file,
+    record_diagnostic_severity,
+    record_operational_failure,
+    record_phase_duration,
+    record_skipped_candidates,
+    record_unreadable_file,
+    reset_metrics,
 };
 
 static HOST_METRIC: AtomicU64 = AtomicU64::new(0);
@@ -24,18 +36,12 @@ struct HostCounter(&'static AtomicU64);
 struct HostHistogram(&'static AtomicU64);
 
 impl metrics::CounterFn for HostCounter {
-    fn increment(&self, value: u64) {
-        self.0.fetch_add(value, Ordering::Relaxed);
-    }
-    fn absolute(&self, value: u64) {
-        self.0.store(value, Ordering::Relaxed);
-    }
+    fn increment(&self, value: u64) { self.0.fetch_add(value, Ordering::Relaxed); }
+    fn absolute(&self, value: u64) { self.0.store(value, Ordering::Relaxed); }
 }
 
 impl metrics::HistogramFn for HostHistogram {
-    fn record(&self, _value: f64) {
-        self.0.fetch_add(1, Ordering::Relaxed);
-    }
+    fn record(&self, _value: f64) { self.0.fetch_add(1, Ordering::Relaxed); }
 }
 
 impl metrics::Recorder for HostRecorder {
