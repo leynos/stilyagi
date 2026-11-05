@@ -154,7 +154,7 @@ class _GeneratedCacheRun:
         self.corrupted_keys.add(key)
 
     def _clean(self) -> None:
-        """Remove the disposable tree and reset modeled storage state."""
+        """Remove the disposable tree and reset modelled storage state."""
         self.storage_was_removed |= self.cache_store_open
         clean_cache_tree(self.root)
         self.valid_keys.clear()
