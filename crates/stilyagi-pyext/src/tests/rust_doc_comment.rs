@@ -3,6 +3,7 @@
 use pyo3::{exceptions::PyRuntimeError, prelude::Python, types::PyListMethods};
 
 use super::{
+    BridgeExtractRequest,
     ExtractError,
     ExtractSyntax,
     RustExtractError,
@@ -10,11 +11,6 @@ use super::{
     bridge_extract_document,
     map_extract_error,
     payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text},
-    BridgeExtractRequest, ExtractError, ExtractSyntax, RustExtractError, assert_ir_json_contract,
-};
-
-
-//! `PyO3` regression coverage for Rust doc-comment extraction.
 };
 
 #[rstest::rstest]

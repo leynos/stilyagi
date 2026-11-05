@@ -13,15 +13,11 @@ use stilyagi_extract::{
     ExtractError,
     ExtractRegion,
     ExtractSyntax,
-    ExtractDocument, ExtractError, ExtractRegion, ExtractSyntax, SourceIdentity,
+    SourceIdentity,
     extract_document_with_source_identity as extract_document_with_identity_from_rust,
     hydrate_ir_json as hydrate_ir_json_from_rust,
 };
 use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, IrRegion, RegionKind as IrRegionKind};
-
-
-};
-};
 
 /// Return a simple Rust-side greeting for smoke-testing the extension bridge.
 #[pyfunction]

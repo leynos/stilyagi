@@ -1,12 +1,15 @@
 //! Python docstring extraction contracts across the `PyO3` bridge.
 
-use pyo3::prelude::Python;
-use pyo3::types::PyListMethods;
+use pyo3::{prelude::Python, types::PyListMethods};
 use rstest::rstest;
 use stilyagi_extract::ExtractSyntax;
 
-use super::payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text};
-use super::{BridgeExtractRequest, assert_ir_json_contract, bridge_extract_document};
+use super::{
+    BridgeExtractRequest,
+    assert_ir_json_contract,
+    bridge_extract_document,
+    payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text},
+};
 
 #[rstest]
 fn extract_document_py_exposes_python_docstrings() {
