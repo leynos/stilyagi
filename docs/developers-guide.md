@@ -1701,9 +1701,10 @@ Extend the gate flags with `RUST_FLAGS_EXTRA` or `RUSTDOC_FLAGS_EXTRA`;
 overriding `RUST_FLAGS` itself replaces the whole set, standard included. Every
 Cargo invocation goes through `$(CARGO)`, so tests can inject a probe.
 `tests/test_build_standard_config.py` holds `STANDARD_RUSTFLAGS` equal to the
-configuration, and `tests/test_build_standard_make_routes.py` evaluates every
-Cargo and maturin line separately, including both branches of the nextest
-fallback.
+configuration, `tests/test_build_standard_make_routes.py` evaluates every Cargo
+and maturin line separately, including both branches of the nextest fallback,
+and `tests/test_build_standard_recorded_routes.py` runs those routes against
+recording probes to read the flags each tool actually receives.
 
 ### Installed components are not active everywhere
 
@@ -2181,7 +2182,7 @@ The gate is binding. Whitaker's exit status is the recipe's exit status: there
 is no `|| true`, no `-` error prefix, no existence guard, and no masking
 pipeline. A Whitaker finding therefore fails `make lint-whitaker`, fails
 `make lint`, and fails the CI step that runs `make lint`.
-`tests/test_build_standard_make_routes.py` proves the propagation with a
+`tests/test_build_standard_recorded_routes.py` proves the propagation with a
 controlled failing executable probe, which makes the target exit non-zero.
 `WHITAKER_RUST_FLAGS` stays `-D warnings` alone, so the suite still takes none
 of the development flags.

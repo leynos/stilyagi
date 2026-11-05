@@ -1,6 +1,5 @@
 """Direct unit tests for Makefile recipe contracts."""
 
-import dataclasses as dc
 import os
 import pathlib
 import re
@@ -13,6 +12,10 @@ from cmd_mox import Invocation
 from cmd_mox.command_runner import CommandRunner
 
 from tests.support.assertions import assert_with_context
+from tests.support.makefile_target_cases import (
+    MAKEFILE_TARGET_CASES,
+    MakefileTargetCase,
+)
 
 pytest_plugins = ("cmd_mox.pytest_plugin",)
 
@@ -20,16 +23,6 @@ if typ.TYPE_CHECKING:
     from cmd_mox import CmdMox
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
-
-
-@dc.dataclass(frozen=True, slots=True)
-class MakefileTargetCase:
-    """Expected recipe contract for one Makefile target."""
-
-    target: str
-    expected_header_fragments: tuple[str, ...]
-    expected_recipe_fragments: tuple[str, ...]
-    should_include_pytest: bool
 
 
 def _collect_recipe_lines(lines: list[str], start: int) -> tuple[str, ...]:
@@ -108,120 +101,13 @@ def makefile_text() -> str:
     return (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize(
-    "case",
-    [
-        pytest.param(
-            MakefileTargetCase(
-                target="all",
-                expected_header_fragments=("## Run commit gates",),
-                expected_recipe_fragments=(
-                    "$(MAKE) check-fmt",
-                    "$(MAKE) typecheck",
-                    "$(MAKE) lint",
-                    "$(MAKE) test",
-                    "$(MAKE) markdownlint",
-                    "$(MAKE) nixie",
-                ),
-                should_include_pytest=False,
-            ),
-            id="all",
-        ),
-        pytest.param(
-            MakefileTargetCase(
-                target="lint-clippy",
-                expected_header_fragments=("check-build-tools", "tools-lint"),
-                expected_recipe_fragments=(
-                    "$(RUFF) check",
-                    "$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)",
-                    "$(PYLINT) $(PYLINT_TARGETS)",
-                    "$(DF12_PYLINT) $(PYLINT_TARGETS)",
-                    "$(AMBRLEAKS) $(AMBRLEAKS_TARGETS)",
-                    (
-                        'RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" '
-                        "$(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)"
-                    ),
-                    (
-                        'RUSTFLAGS="$(RUST_FLAGS)" '
-                        "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)"
-                    ),
-                ),
-                should_include_pytest=False,
-            ),
-            id="lint-clippy",
-        ),
-        pytest.param(
-            MakefileTargetCase(
-                target="lint-whitaker",
-                expected_header_fragments=("lint-clippy",),
-                expected_recipe_fragments=(
-                    (
-                        'RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" '
-                        "$(CARGO_BUILD_ENV) $(WHITAKER) $(WHITAKER_LIBRARIES) "
-                        "-- $(CARGO_FLAGS)"
-                    ),
-                ),
-                should_include_pytest=False,
-            ),
-            id="lint-whitaker",
-        ),
-        pytest.param(
-            MakefileTargetCase(
-                target="typecheck",
-                expected_header_fragments=("check-build-tools", "build", "tools-check"),
-                expected_recipe_fragments=(
-                    (
-                        'RUSTFLAGS="$(RUST_FLAGS)" '
-                        "$(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)"
-                    ),
-                    "$(TY) --version",
-                    "$(TY) check --python .venv",
-                ),
-                should_include_pytest=False,
-            ),
-            id="typecheck",
-        ),
-        pytest.param(
-            MakefileTargetCase(
-                target="test",
-                expected_header_fragments=(
-                    "check-build-tools",
-                    "build",
-                    "tools-lint",
-                ),
-                expected_recipe_fragments=(
-                    (
-                        "$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) "
-                        "--all -- --check"
-                    ),
-                    (
-                        'RUSTFLAGS="$(RUST_FLAGS)" '
-                        "$(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)"
-                    ),
-                    "nextest run --profile default --no-tests pass",
-                    "cargo-nextest not installed, falling back to cargo test",
-                    "$(CARGO) test $(TEST_FLAGS) $(BUILD_JOBS)",
-                    "$(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)",
-                    '"$$VENV_PYTHON" -m pytest -v',
-                ),
-                should_include_pytest=True,
-            ),
-            id="test",
-        ),
-        pytest.param(
-            MakefileTargetCase(
-                target="test-ci",
-                expected_header_fragments=("check-build-tools", "build", "tools-lint"),
-                expected_recipe_fragments=(
-                    "nextest run --profile ci --no-tests pass",
-                    "$(CARGO) test $(TEST_FLAGS) --doc $(BUILD_JOBS)",
-                ),
-                should_include_pytest=False,
-            ),
-            id="test-ci",
-        ),
-    ],
-)
+#: The reviewed cases, each keeping its own target name as the test id.
+TARGET_CASES: typ.Final = [
+    pytest.param(case, id=case.target) for case in MAKEFILE_TARGET_CASES
+]
+
+
+@pytest.mark.parametrize("case", TARGET_CASES)
 def test_makefile_targets_run_expected_recipes(
     makefile_text: str,
     case: MakefileTargetCase,
@@ -265,7 +151,7 @@ def test_lint_composes_the_two_stages_and_whitaker_requires_clippy(
     """The prerequisite, not the recipe line order, sequences Whitaker."""
     lint_header, lint_recipe = _make_target(makefile_text, "lint")
     assert _prerequisites(lint_header) == ("lint-clippy", "lint-whitaker")
-    assert lint_recipe == (), "expected lint to hold no recipe of its own"
+    assert not lint_recipe, "expected lint to hold no recipe of its own"
 
     whitaker_header, _ = _make_target(makefile_text, "lint-whitaker")
     assert _prerequisites(whitaker_header) == ("lint-clippy",)
