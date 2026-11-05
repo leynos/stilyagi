@@ -259,9 +259,11 @@ project:
     workspace test suite. Use `make fmt`
     (`cargo fmt --workspace`) to apply formatting fixes reported by the
     formatter check.
-- The workspace lint tables in `Cargo.toml` and restrictions in `clippy.toml`
-  are authoritative; every new member must inherit them with
-  `[lints] workspace = true`. See the developers' guide,
+- The workspace lint tables in `Cargo.toml` and the Clippy configuration in
+  `clippy.toml` are authoritative, and they reach a member by two different
+  mechanisms. Every new member must inherit the tables with
+  `[lints] workspace = true`; Clippy reads `clippy.toml` from the workspace
+  root instead, so it needs no per-member stanza. See the developers' guide,
   [Rust lint baseline](docs/developers-guide.md#rust-lint-baseline), for the
   selected estate baseline, consumer additions, and exception rules.
 - Rustdoc defaults to `RUSTDOC_FLAGS = --cfg docsrs -D warnings`, extended

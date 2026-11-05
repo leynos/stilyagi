@@ -1997,12 +1997,15 @@ examples; it does not change the Markdown-example gap above.
 ### Rust lint baseline
 
 The root `Cargo.toml` workspace lint tables and `clippy.toml` are the
-configuration sources of truth. All eight members inherit them through
-`[lints] workspace = true`; every new member must do the same. The selected
-estate baseline is Concordat commit `2a10f37dca005274c18bc5189a8af901ba09441b`,
-with explicit consumer additions `missing_docs_in_private_items` and
-`missing_assert_message`. Consult the configuration files for the full
-inventory.
+configuration sources of truth, and two different mechanisms consume them. All
+eight members inherit the tables through `[lints] workspace = true` in their
+own manifests, and every new member must do the same. Clippy reads
+`clippy.toml` from the workspace root instead, so the environment-method
+restrictions need no per-member stanza and Cargo's lint inheritance does not
+carry them. The selected estate baseline is Concordat commit
+`2a10f37dca005274c18bc5189a8af901ba09441b`, with explicit consumer additions
+`missing_docs_in_private_items` and `missing_assert_message`. Consult the
+configuration files for the full inventory.
 
 Fix findings at source. Never add `#[allow]`; retain `#[expect]` only for a
 verified macro-expansion artefact or genuinely floating-point arithmetic, with
