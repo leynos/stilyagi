@@ -1999,30 +1999,29 @@ examples; it does not change the Markdown-example gap above.
 The root `Cargo.toml` workspace lint tables and `clippy.toml` are the
 configuration sources of truth. All eight members inherit them through
 `[lints] workspace = true`; every new member must do the same. The selected
-estate baseline is Concordat commit
-`2a10f37dca005274c18bc5189a8af901ba09441b`, with explicit consumer additions
-`missing_docs_in_private_items` and `missing_assert_message`. Consult the
-configuration files for the full inventory.
+estate baseline is Concordat commit `2a10f37dca005274c18bc5189a8af901ba09441b`,
+with explicit consumer additions `missing_docs_in_private_items` and
+`missing_assert_message`. Consult the configuration files for the full
+inventory.
 
 Fix findings at source. Never add `#[allow]`; retain `#[expect]` only for a
-verified macro-expansion artefact or genuinely floating-point arithmetic,
-with a narrow scope and a reason. Recognized test bodies may use descriptive
+verified macro-expansion artefact or genuinely floating-point arithmetic, with
+a narrow scope and a reason. Recognized test bodies may use descriptive
 `.expect()` calls. Setup and lookup helpers, including fixtures and BDD setup
 steps, remain fallible. A test-related module alone does not establish that
 recognition.
 
 Clippy limits cognitive complexity to 9, arguments to 4, function lines to 70,
 and nesting to 4. The seven environment-method restrictions in `clippy.toml`
-require injected readers, stub environments in tests, and explicit base
-paths; child-process working directories use `Command::current_dir`.
+require injected readers, stub environments in tests, and explicit base paths;
+child-process working directories use `Command::current_dir`.
 
 `rust-toolchain.toml` pins the nightly and its `clippy`, `rustfmt`,
-`rust-analyzer`, `llvm-tools-preview`, and
-`rustc-codegen-cranelift-preview` components. Section 5a documents the
-frontend and linker flags and the scoped Cranelift exception. Rustdoc uses
-`--cfg docsrs -D warnings` by default through `RUSTDOC_FLAGS`, with additions
-in `RUSTDOC_FLAGS_EXTRA`; the existing documentation and doctest routes
-retain their workspace and feature coverage.
+`rust-analyzer`, `llvm-tools-preview`, and `rustc-codegen-cranelift-preview`
+components. Section 5a documents the frontend and linker flags and the scoped
+Cranelift exception. Rustdoc uses `--cfg docsrs -D warnings` by default through
+`RUSTDOC_FLAGS`, with additions in `RUSTDOC_FLAGS_EXTRA`; the existing
+documentation and doctest routes retain their workspace and feature coverage.
 
 ### Shared workflow parser
 
