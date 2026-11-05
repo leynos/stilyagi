@@ -6,7 +6,8 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan`.
 
 Status: COMPLETE — implementation, validation, and review reconciliation
-finished on 2026-11-04. Milestones M1–M3 were approved on 2026-10-28 and are
+finished on 2026-11-05, when the final candidate `d484dab1` was reconciled
+against the accepted plan. Milestones M1–M3 were approved on 2026-10-28 and are
 delivered within the stated constraints and tolerances.
 
 Roadmap item: 2.3.1. Prerequisites 2.1.2 (Markdown IR coverage) and 2.2.1
@@ -68,7 +69,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
    edits from line and column values.
 4. An edit must pass the existing `engine.fix_planning.admissibility`
    source-backing, bounds, UTF-8-boundary, and source-match checks and the
-   existing conflict planner. Do not widen ADR 009's edit admissibility bound.
+   existing conflict planner. Do not widen ADR 0009's edit admissibility bound.
 5. `MD001` always emits a manual fix with an empty edit list: heading markers
    are not source-backed region text and cannot be edited under the current
    bound. `STY001` edits are unsafe because repeated text can be intentional.
@@ -89,7 +90,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
 ## Tolerances (exception triggers)
 
 - If implementing the typed rule API requires a change to a ratified external
-  contract in RFC 0002, RFC 0003, or ADR 009, stop and propose the smallest
+  contract in RFC 0002, RFC 0003, or ADR 0009, stop and propose the smallest
   document amendment before changing code.
 - If the established configuration schema cannot represent the proposed rule
   options or selection semantics without an incompatible format change, stop
@@ -611,6 +612,22 @@ with error exit 1. An invalid `TERM001` option exits 2.
     `nixie`, `typecheck`, `lint`, and `test` all exited 0. `test` ran nextest
     364/364, pytest 1080 passed, the docstring lane 135 passed with 3 skipped,
     and `duplication-test` 154 passed.
+- [x] (2026-11-05) Reconcile the delivery record with the final candidate
+  `d484dab1`. The preceding entries keep their revision-specific evidence; this
+  entry records what covers the accepted head.
+  - The local gate evidence recorded above belongs to `27fc732e`. The
+    ExecPlan-recording commit `d484dab1` was gated separately on its exact tree:
+    `check-fmt`, `markdownlint`, `nixie`, `typecheck`, `lint`, and `test` all
+    exited 0, with nextest 364/364, pytest 1080 passed, the docstring lane 135
+    passed with 3 skipped, and `duplication-test` 154 passed. Those local
+    results are author-reported here; the hosted run is the independent check.
+  - Hosted [Smoke run
+    `41981901016`](https://github.com/leynos/stilyagi/actions/runs/41981901016)
+    tested `d484dab1` on attempt 1 and passed `lint-test` together with the
+    Ubuntu, macOS, and Windows `release-smoke` jobs. The CodeScene Code Health
+    Review passed with code health improved, and the Gecko security review
+    passed. `Sourcery review` and `automerge` skip on this repository and are
+    not required checks.
 
 ## Surprises & discoveries
 
@@ -939,15 +956,25 @@ Removing the filter and widening the generator exposed a disagreement between
 the replay's shared cursor and the resolver's independent binding; named
 witnesses now keep the unfiltered property non-vacuous.
 
-Final state. The rebased candidate `79511e35` passed every required hosted job
-in run `41897978130`: `lint-test` with the Python coverage ratchet at 92.13%
-against a 92.88% baseline and Rust at 91.08% against 91.48% (both inside the
-1.00-point tolerance), all three `release-smoke` platforms, CodeScene, and
-Gecko. The macOS job first sat unassigned and was cancelled without running a
-step; the rerun passed. The deterministic gates ran sequentially on the same
-tree with no tracked edit between them. The reconciliation commit that follows
-closes the pre-merge table's outstanding rows; it changes no rule behaviour,
-and its own gate run is the evidence for that tip rather than this head's.
+Final state at `79511e35`. The rebased candidate `79511e35` passed every
+required hosted job in run `41897978130`: `lint-test` with the Python coverage
+ratchet at 92.13% against a 92.88% baseline and Rust at 91.08% against 91.48%
+(both inside the 1.00-point tolerance), all three `release-smoke` platforms,
+CodeScene, and Gecko. The macOS job first sat unassigned and was cancelled
+without running a step; the rerun passed. The deterministic gates ran
+sequentially on the same tree with no tracked edit between them. The
+reconciliation commit that follows closes the pre-merge table's outstanding
+rows; it changes no rule behaviour, and its own gate run is the evidence for
+that tip rather than this head's.
+
+Final state at `d484dab1`. Two repair rounds, a replay, and a merge of `main`
+followed `79511e35`. The accepted head therefore has its own evidence: the
+local gate run recorded in the Progress section for that exact tree, and hosted
+Smoke run `41981901016`, which passed `lint-test` and all three `release-smoke`
+jobs on the head itself. Coverage on that run measured 92.10% for Python
+against a 92.88% baseline and 91.31% for Rust against 91.48%, both inside the
+1.00-point tolerance, leaving 0.22 and 0.17 percentage points of margin
+respectively. Preserve coverage in any later change.
 
 Shipped:
 
@@ -1221,7 +1248,7 @@ dependency or correctness oracle.
 
 ### Stage A — confirm contracts before code
 
-Inspect `docs/stilyagi-design.md` §§3–5 and 7.2, RFC 0002, RFC 0003, ADR 009,
+Inspect `docs/stilyagi-design.md` §§3–5 and 7.2, RFC 0002, RFC 0003, ADR 0009,
 `python/stilyagi/rules/registry.py`, `python/stilyagi/engine/ir_view.py`,
 `python/stilyagi/diagnostics.py`, `python/stilyagi/config/`, and the existing
 fix planner and CLI tests. Verify where canonical IR contains region kind,
@@ -1381,7 +1408,7 @@ user rules until M2. Compatibility decision: none.
 Outcome: `MD001`, `STY001`, and opt-in `TERM001` return ordered diagnostics
 with documented spans and fix applicability; policy exclusions work. `MD001` and
 `TERM001` errors exit 1; `STY001` warnings exit 0. Requirements: roadmap
-2.3.1, ADR 009, V-1–V-4.
+2.3.1, ADR 0009, V-1–V-4.
 
 Acceptance evidence: named/parameterized unit tests for each rule, Hypothesis
 properties for source offsets and repeated-run byte preservation, one-time IR
@@ -1413,7 +1440,7 @@ developer docs describe exact supported policy and limitations; full sequential
 gates pass. Inspect `git diff --check`, `git status`, and `git diff --stat`
 before commit.
 
-Conformance check: CLI behaviour matches RFC 0003; fixes pass ADR 009; docs
+Conformance check: CLI behaviour matches RFC 0003; fixes pass ADR 0009; docs
 match observed behaviour; all upstream assumptions and trace links remain
 valid; no unrelated roadmap item is marked complete. Recovery: retain M1/M2
 commits as coherent states or revert M3 docs/test integration. Remaining gaps
@@ -1532,7 +1559,7 @@ Success means all of the following hold on the approved implementation head:
 
 Tests create temporary Markdown fixtures and may be re-run without changing the
 repository. Rule order and outputs are deterministic. A rejected or conflicting
-edit leaves the complete file untouched under ADR 009. If a milestone fails,
+edit leaves the complete file untouched under ADR 0009. If a milestone fails,
 revert only its commit, preserve previous validated plateaus, inspect the gate
 log, then retry after correcting the cause. Never delete shared Cargo caches or
 interrupt other builds. Draft publication is independently repeatable only
@@ -1698,3 +1725,8 @@ these deliberate boundaries and case-fold expansion.
 - 2026-11-04: Status moved to COMPLETE. Recorded the final hosted evidence for
   `79511e35`, the pre-merge table disposition, and the resolved-configuration
   record that replaced the duplicated provenance lookup.
+- 2026-11-05: Reconciled the delivery record with the accepted head
+  `d484dab1`. The status date and the final-state note now name that head, the
+  earlier `27fc732e` gate evidence is labelled as belonging to that merge
+  commit rather than the tip, and hosted run `41981901016` is linked to the
+  head it tested. Shorthand `ADR 009` references are normalized to `ADR 0009`.
