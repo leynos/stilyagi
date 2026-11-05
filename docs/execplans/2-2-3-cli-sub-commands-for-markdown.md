@@ -90,7 +90,18 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       ceilings to 100 minutes, updating their contracts and guide. The rerun
       passed all 374 Nextest tests, including the final UI test in 813 seconds;
       Python pytest then exposed the separate issues recorded below.
-- [ ] (2026-11-05) The timeout-adjusted full gate run passed formatting, lint,
+- [x] (2026-11-05) Repair the failures above: the filesystem property's
+      Hypothesis deadline is disabled, the runner inventory holds 100-minute
+      ceilings, and the Maturin wheel fixture allows 1,200 s.
+- [x] (2026-11-05) Rebase the 22-commit range onto `origin/main` at
+      `1e1e1190` (the workspace formatter profile). All 22 commits map under
+      `range-diff`; two differ only in formatting. Git accepted two textual
+      merges that rustfmt and rustc rejected, repaired in `eba213bd`:
+      duplicated `use` items and stray braces in the PyO3 bridge, and a
+      `#[fixture]` body that `fn_single_line` collapsed into `unused_braces`
+      through `rstest`'s re-emission. `make check-fmt`, `make lint` and
+      `make typecheck` pass on the reconciled tree.
+- [x] (2026-11-05) The timeout-adjusted full gate run passed formatting, lint,
       typecheck, Markdownlint, Nixie, all 374 Rust tests and Rust doc tests.
       Python pytest reported 1,043 passed, 2 failed and 2 errors: a generated
       config property exceeded Hypothesis's 200 ms deadline under host load;
@@ -99,6 +110,19 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       Disable the deadline for the file-system property, pin the two inventory
       ceilings to 100, and give the queued release wheel build a 1,200 s budget
       before rerunning all six gates.
+- [x] (2026-11-05) The repaired rebased candidate passes `make test`: Nextest
+      374/374, pytest 1,047 passed with 24 snapshots, pytest doctests 76
+      passed and 3 skipped, and script tests 154/154 with four snapshots.
+- [x] (2026-11-05) Clear the CodeScene delta that failed the hosted gate on the
+      pre-rebase head. Local `cs delta origin/main` reproduced four new issues,
+      all in files this branch adds: Large Method in
+      `test_os_permission_error_opening_namespace_falls_back_to_extraction`,
+      Complex Method in `CacheStore.__init__`, an over-threshold mean
+      complexity for `cache/storage.py`, and Complex Method in
+      `_corrupt_cache_entry`. `43cb52fe` extracts the namespace adoption path,
+      the IR-mutation helper and the namespace-refusal fault injector. The
+      same-base delta now reports only the two `check_one_file` improvements,
+      with focused cache tests at 28/28 and `make typecheck` passing.
 
 - [x] (2026-10-14) Read repository guidance and requested skills; verify
       baseline
@@ -295,12 +319,16 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       `/tmp/coderabbit-stilyagi-r3-488764a-xZKYrO/coderabbit-r3.out`.
 - [x] (2026-10-25) Complete roadmap item 2.2.3 after full gate, review and
       conformance reconciliation. Roadmap 3.3.1 remains separate.
-- [ ] (2026-11-04) Revalidate the current candidate after replaying the
+- [x] (2026-11-04) Revalidate the current candidate after replaying the
       21-commit implementation range onto `origin/main` at
       `4ec76702a905873663e423a830ba02c5a2219321`. Preserve main's `setup-uv`
       updates alongside this branch's workflow timeout changes, then run the six
       local gates on the final tree. Reconcile PR #226's live assessments,
       review threads and checks before marking delivery complete.
+- [ ] (2026-11-05) Run all six local gates sequentially on the final rebased
+      tip `43cb52fe`, publish it over the pre-rebase remote head `c265e205`,
+      and drive PR #226 through hosted assessment, CI and review to
+      equilibrium.
 
 ## Surprises & discoveries
 
