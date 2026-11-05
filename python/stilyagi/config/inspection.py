@@ -14,6 +14,7 @@ from .provenance import (
     _ConfigTableWithOrigins,
     _merge_config_tables_with_origins,
     _origin_paths,
+    _OriginPath,
 )
 from .schema import StilyagiConfig
 
@@ -23,7 +24,7 @@ class _ConfigInspection:
     """Hold validated effective values and their source ledger."""
 
     values: dict[str, object]
-    origins: dict[str, _ConfigOrigin]
+    origins: dict[_OriginPath, _ConfigOrigin]
 
 
 def _non_finite_float_value(number: float) -> str:
@@ -108,6 +109,6 @@ def _build_config_inspection(
         values,
         origin_for_path=lambda _path: default_origin,
     )
-    for key, origin in value_origins.items():
-        merged.origins.setdefault(key, origin)
+    for path, origin in value_origins.items():
+        merged.origins.setdefault(path, origin)
     return _ConfigInspection(values=values, origins=merged.origins)

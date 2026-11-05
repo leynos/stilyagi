@@ -23,6 +23,12 @@ Feature: Inspect and maintain Markdown CLI state
     When I check it cold, warm, and with cache bypassed
     Then the checks have equal output and report miss, hit, and bypass
 
+  Scenario: Repair Markdown with YAML frontmatter
+    Given an mdc file with YAML frontmatter and a fixable body diagnostic
+    When I apply the body fix
+    Then the body is repaired
+    And the entire frontmatter prefix is byte-identical
+
   Scenario: Frontmatter-only edits refresh cached source coordinates
     Given a project with cached YAML-frontmatter Markdown
     When I extend its frontmatter without changing the body

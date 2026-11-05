@@ -90,7 +90,15 @@ def _canonical_ir(envelope: cabc.Mapping[str, object]) -> str:
         _reject_cache_entry("cache envelope checksum is malformed")
     if not isinstance(canonical_json, str):
         _reject_cache_entry("cache envelope IR is not a string")
-    actual_checksum = hashlib.sha256(canonical_json.encode()).hexdigest()
+    try:
+        encoded_json = canonical_json.encode()
+    except UnicodeEncodeError as error:
+        # `json.loads` accepts an escaped lone surrogate, but the bytes could
+        # never have been written by this package and cannot be checksummed.
+        # Classifying it here keeps a malformed entry a cache miss instead of
+        # letting the error escape the caller's recovery path.
+        _reject_cache_entry("cache envelope IR is not UTF-8 encodable", error)
+    actual_checksum = hashlib.sha256(encoded_json).hexdigest()
     if checksum != actual_checksum:
         _reject_cache_entry("cache envelope IR checksum does not match")
     return canonical_json

@@ -143,6 +143,21 @@ def _decode(content: str | bytes, key: str = "0" * 64) -> object:
         pytest.param(
             _envelope(ir_json="[]"), "Rust rejected cached canonical IR", id="ir-root"
         ),
+        # A JSON document may escape an unpaired surrogate, and `json.loads`
+        # accepts it. Summing the checksum then has to encode it, which UTF-8
+        # refuses. That must classify as a malformed entry so the caller
+        # extracts afresh instead of failing the whole command.
+        pytest.param(
+            # The raw bytes must carry the escape sequence, because the
+            # surrogate cannot be encoded here to build the envelope.
+            b'{"format": 1, "ir_json": "\\ud800", "ir_sha256": "'
+            + b"0" * 64
+            + b'", "key": "'
+            + b"0" * 64
+            + b'"}',
+            "IR is not UTF-8 encodable",
+            id="unpaired-surrogate",
+        ),
     ],
 )
 def test_decode_cache_entry_rejects_invalid_envelopes(

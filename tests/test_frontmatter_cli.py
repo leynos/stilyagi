@@ -1,5 +1,7 @@
 """CLI-level proof that Markdown repairs retain YAML frontmatter bytes."""
 
+import io
+import sys
 import typing as typ
 
 import pytest
@@ -109,6 +111,107 @@ def test_cli_repairs_the_body_and_preserves_frontmatter_bytes(
     assert "1 files fixed, 1 fixes applied" in output.err, (
         "expected the CLI to report its repair"
     )
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        pytest.param(".md", id="md"),
+        pytest.param(".markdown", id="markdown"),
+        pytest.param(".mdc", id="mdc"),
+    ],
+)
+def test_stdin_repair_preserves_frontmatter_and_never_writes_the_named_file(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    suffix: str,
+) -> None:
+    """Emit the repaired stream with its whole prefix and leave disk untouched.
+
+    The exit status is one, and that follows from D-13 rather than contradicting
+    the repair: the status comes from re-linting the files this run *wrote*, and
+    a stream input is never written. Its planning diagnostic therefore still
+    stands even though the emitted document no longer contains the text it
+    names.
+    """
+    monkeypatch.chdir(tmp_path)
+    reported_name = f"notes{suffix}"
+    on_disk = tmp_path / reported_name
+    on_disk.write_bytes(b"# Untouched\n")
+    monkeypatch.setattr(sys, "stdin", io.StringIO(_FRONTMATTER_SOURCE.decode()))
+    monkeypatch.setattr(
+        cli.rules_registry,
+        "run_rules",
+        _body_fix_runner(reported_name, Applicability.SAFE),
+    )
+
+    exit_code = cli.run_check(
+        cli.CheckOptions(
+            targets=("-",),
+            stdin_filename=reported_name,
+            fix=True,
+            no_cache=True,
+        )
+    )
+    captured = capsys.readouterr()
+    prefix_end = _FRONTMATTER_SOURCE.index(b"Paragraph text.")
+
+    assert exit_code == 1, "expected an unwritten stream input to still exit one"
+    assert captured.out.encode().startswith(_FRONTMATTER_SOURCE[:prefix_end]), (
+        "the emitted document must retain every original frontmatter byte"
+    )
+    assert captured.out.encode()[prefix_end:] == b"Section text.\r\n", (
+        "expected only the diagnosed body text to change"
+    )
+    assert on_disk.read_bytes() == b"# Untouched\n", (
+        "--stdin-filename is a reporting identity, not a file to rewrite"
+    )
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        pytest.param(".md", id="md"),
+        pytest.param(".markdown", id="markdown"),
+        pytest.param(".mdc", id="mdc"),
+    ],
+)
+def test_diff_preview_never_touches_the_frontmatter_prefix(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    suffix: str,
+) -> None:
+    """Keep every changed hunk inside the body for a frontmatter document."""
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / f"notes{suffix}"
+    target.write_bytes(_FRONTMATTER_SOURCE)
+    monkeypatch.setattr(
+        cli.rules_registry,
+        "run_rules",
+        _body_fix_runner(target.name, Applicability.SAFE),
+    )
+
+    exit_code = cli.run_check(
+        cli.CheckOptions(targets=(target.name,), diff=True, no_cache=True)
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 1, "expected the previewed finding to still be reported"
+    assert target.read_bytes() == _FRONTMATTER_SOURCE, (
+        "--diff must never write the source it previews"
+    )
+    changed_lines = [
+        line
+        for line in captured.out.splitlines()
+        if line.startswith(("-", "+")) and not line.startswith(("--- ", "+++ "))
+    ]
+    assert "-Paragraph text." in changed_lines, "expected the body line to be removed"
+    assert "+Section text." in changed_lines, "expected the repaired body line"
+    assert all(
+        "title:" not in line and "description:" not in line for line in changed_lines
+    ), "the preview must not propose any frontmatter byte change"
 
 
 def _frontmatter_edit_runner(
