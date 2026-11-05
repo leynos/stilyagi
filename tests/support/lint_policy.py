@@ -15,10 +15,13 @@ The one non-file reading is `member_manifests`, which asks Cargo for the
 resolved member set rather than expanding the manifest's patterns itself: a
 path dependency inside the workspace directory is a member even when no
 pattern matches it, so the patterns alone under-report the set the contract
-must check. `cargo metadata --no-deps` reads manifests and resolves the
-workspace; it compiles nothing.
+must check. `cargo metadata --no-deps --locked --offline` reads manifests and
+resolves the workspace without compiling, writing a lockfile or fetching.
+`member_manifests` takes the invocation through `MetadataRunner`, so reader
+tests inject a fake outcome and one test crosses the real Cargo boundary.
 """
 
+import collections.abc as cabc
 import json
 import pathlib
 import re
@@ -146,8 +149,49 @@ def lint_level(entry: object) -> str:
             )
 
 
+#: The seam `member_manifests` accepts; the default is the real runner.
+type MetadataRunner = cabc.Callable[[pathlib.Path], subprocess.CompletedProcess[str]]
+
+
+def _run_cargo_metadata(path: pathlib.Path) -> subprocess.CompletedProcess[str]:
+    """Run the constrained `cargo metadata` and return its outcome."""
+    cargo = shutil.which("cargo")
+    if cargo is None:
+        message = "cargo is required to resolve workspace members"
+        raise ReadingError(message, reader="lint_policy", path=str(path))
+    try:
+        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv: `cargo metadata` reads manifests only.
+            [
+                cargo,
+                "metadata",
+                "--no-deps",
+                "--locked",
+                "--offline",
+                "--format-version",
+                "1",
+                "--manifest-path",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=CARGO_METADATA_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        message = (
+            "cargo metadata did not finish within "
+            f"{CARGO_METADATA_TIMEOUT_SECONDS:g} seconds"
+        )
+        raise ReadingError(message, reader="lint_policy", path=str(path)) from error
+    except OSError as error:
+        message = f"cargo metadata could not start: {error}"
+        raise ReadingError(message, reader="lint_policy", path=str(path)) from error
+
+
 def member_manifests(
     path: pathlib.Path = WORKSPACE_MANIFEST,
+    *,
+    run_metadata: MetadataRunner = _run_cargo_metadata,
 ) -> tuple[pathlib.Path, ...]:
     """Return every workspace member manifest, as Cargo resolves them.
 
@@ -162,6 +206,9 @@ def member_manifests(
     ----------
     path
         The workspace manifest to resolve; the default is this repository's.
+    run_metadata
+        The metadata runner; the default is the real, constrained
+        `cargo metadata` invocation.
 
     Returns
     -------
@@ -176,7 +223,7 @@ def member_manifests(
         resolve the workspace.
     """
     _require_member_list(path)
-    metadata = _cargo_metadata(path)
+    metadata = _cargo_metadata(path, run_metadata)
     member_ids = metadata.get("workspace_members")
     packages = metadata.get("packages")
     if not isinstance(member_ids, list) or not isinstance(packages, list):
@@ -230,43 +277,15 @@ def _require_member_list(path: pathlib.Path) -> None:
             raise ReadingError(message, reader="lint_policy", path=str(path))
 
 
-def _cargo_metadata(path: pathlib.Path) -> dict[str, object]:
-    """Return `cargo metadata --no-deps` for the given workspace manifest."""
-    result = _run_cargo_metadata(path)
+def _cargo_metadata(
+    path: pathlib.Path, run_metadata: MetadataRunner
+) -> dict[str, object]:
+    """Return the metadata document the runner produced for `path`."""
+    result = run_metadata(path)
     if result.returncode != 0:
         message = f"cargo metadata failed: {result.stderr.strip()}"
         raise ReadingError(message, reader="lint_policy", path=str(path))
     return _metadata_document(result.stdout, path)
-
-
-def _run_cargo_metadata(path: pathlib.Path) -> subprocess.CompletedProcess[str]:
-    """Run `cargo metadata --no-deps` for the given workspace manifest."""
-    cargo = shutil.which("cargo")
-    if cargo is None:
-        message = "cargo is required to resolve workspace members"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
-    try:
-        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv: `cargo metadata` reads manifests only.
-            [
-                cargo,
-                "metadata",
-                "--no-deps",
-                "--format-version",
-                "1",
-                "--manifest-path",
-                str(path),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=CARGO_METADATA_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired as error:
-        message = (
-            "cargo metadata did not finish within "
-            f"{CARGO_METADATA_TIMEOUT_SECONDS:g} seconds"
-        )
-        raise ReadingError(message, reader="lint_policy", path=str(path)) from error
 
 
 def _metadata_document(stdout: str, path: pathlib.Path) -> dict[str, object]:

@@ -11,12 +11,15 @@ They write their own files under `tmp_path` and pass the path in, so none of
 them reads or perturbs the repository's real configuration.
 """
 
+import json
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - builds fake `cargo metadata` outcomes, runs nothing.
 import typing as typ
 
 import pytest
 
 from tests.support.errors import ReadingError
 from tests.support.lint_policy import (
+    MetadataRunner,
     clippy_restrictions,
     member_inherits_workspace_lints,
     member_manifests,
@@ -122,6 +125,67 @@ def test_member_list_failures_are_reading_errors(
     with pytest.raises(ReadingError) as raised:
         member_manifests(path)
     _assert_names_reader_and_path(raised, path)
+
+
+def _completed(
+    stdout: str, *, returncode: int = 0, stderr: str = ""
+) -> subprocess.CompletedProcess[str]:
+    """Return a `cargo metadata` outcome for a fake runner to report."""
+    return subprocess.CompletedProcess(
+        args=["cargo", "metadata"],
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def _returns(result: subprocess.CompletedProcess[str]) -> MetadataRunner:
+    """Return a metadata runner that always reports `result`."""
+    return lambda _path: result
+
+
+def test_member_discovery_reads_the_runner_document(tmp_path: pathlib.Path) -> None:
+    """Members come from the metadata document, not from the patterns."""
+    manifest = _write(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+    member = tmp_path / "crates" / "probe" / "Cargo.toml"
+    outsider = tmp_path / "vendor" / "other" / "Cargo.toml"
+    document = json.dumps({
+        "workspace_members": ["probe 0.1.0 (path+file:///tree/probe)"],
+        "packages": [
+            {
+                "id": "probe 0.1.0 (path+file:///tree/probe)",
+                "manifest_path": str(member),
+            },
+            {
+                "id": "other 0.1.0 (path+file:///tree/other)",
+                "manifest_path": str(outsider),
+            },
+        ],
+    })
+    manifests = member_manifests(manifest, run_metadata=_returns(_completed(document)))
+    assert manifests == (member,), (
+        f"expected only the workspace member, got {manifests}"
+    )
+
+
+def test_member_discovery_reports_a_failed_runner(tmp_path: pathlib.Path) -> None:
+    """A runner that exits non-zero is a finding naming the reader and path."""
+    manifest = _write(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+    failed = _completed("", returncode=101, stderr="error: no network")
+    with pytest.raises(ReadingError) as raised:
+        member_manifests(manifest, run_metadata=_returns(failed))
+    _assert_names_reader_and_path(raised, manifest)
+    assert "no network" in str(raised.value), (
+        f"expected the runner's stderr in {raised.value}"
+    )
+
+
+def test_member_discovery_reports_an_invalid_document(tmp_path: pathlib.Path) -> None:
+    """A runner that returns non-JSON is a finding, not a traceback."""
+    manifest = _write(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+    with pytest.raises(ReadingError) as raised:
+        member_manifests(manifest, run_metadata=_returns(_completed("not json")))
+    _assert_names_reader_and_path(raised, manifest)
 
 
 def test_member_inheritance_reader_accepts_true(tmp_path: pathlib.Path) -> None:

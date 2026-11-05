@@ -91,6 +91,21 @@ def test_workspace_lint_table_enables_the_baseline(
     )
 
 
+def test_cargo_resolves_the_workspace_members() -> None:
+    """The real, constrained Cargo boundary resolves the known member set."""
+    manifests = member_manifests()
+    assert {manifest.parent.name for manifest in manifests} == {
+        "stilyagi-core",
+        "stilyagi-extract",
+        "stilyagi-ir",
+        "stilyagi-markdown",
+        "stilyagi-pyext",
+        "stilyagi-test-fixtures",
+        "stilyagi-test-support",
+        "stilyagi-tree-sitter",
+    }, f"unexpected workspace members: {manifests}"
+
+
 def test_every_workspace_member_inherits_the_lint_tables() -> None:
     """Each member opts into `[workspace.lints]` with `workspace = true`."""
     manifests = member_manifests()
