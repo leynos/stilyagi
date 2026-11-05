@@ -1832,17 +1832,17 @@ and feature coverage.
 ### Lint-policy test architecture
 
 `tests/support/lint_policy.py` is the single read-only boundary for policy
-reads of `Cargo.toml`, `clippy.toml` and the `Makefile`. Every reader takes a
-path and, except `member_inherits_workspace_lints`, defaults to the
-repository's file: `workspace_lints`, `lint_level`, `member_manifests` (the
-member set as `cargo metadata --no-deps` resolves it, which is wider than the
-`members` patterns), `member_inherits_workspace_lints` (whether a member
-declares `lints.workspace = true`), `clippy_restrictions`,
-`rustdoc_default_lines`, and `rustdoc_default` (the validated single
-`RUSTDOC_FLAGS` assignment). All file access goes through `_read_text` and
-`_read_toml`, so an unreadable, undecodable or malformed file, and a structural
-surprise such as a non-table restriction, are `ReadingError`s naming the reader
-and path rather than an `OSError` or parser traceback.
+reads of `Cargo.toml`, `clippy.toml` and the `Makefile`. Most readers take a
+path and default to the repository's file: `workspace_lints`,
+`member_manifests` (the resolved member set, which is wider than the `members`
+patterns), `clippy_restrictions`, `rustdoc_default_lines`, and
+`rustdoc_default` (the validated single `RUSTDOC_FLAGS` assignment). Two do not
+fit that shape: `member_inherits_workspace_lints` requires the member manifest
+path, because no single member is the obvious default, and `lint_level` takes
+one lint entry rather than a path. All file access goes through `_read_text` and
+`_read_toml`, so an unreadable, undecodable or malformed file, and a
+structural surprise such as a non-table restriction, are `ReadingError`s naming
+the reader and path rather than an `OSError` or parser traceback.
 
 Four modules use those readers and prove different things.
 `tests/test_lint_policy_contract.py` fails when an entry this repository relies
