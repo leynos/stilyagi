@@ -174,7 +174,7 @@ def test_rustdoc_default_enforces_docsrs_and_warnings() -> None:
     )
 
 
-def test_rustdoc_default_stays_overrideable_and_extensible() -> None:
+def test_rustdoc_default_stays_overridable_and_extensible() -> None:
     """The rustdoc default is conditional and keeps the extension seam last."""
     (line,) = _rustdoc_default_lines()
     variable, _, value = line.partition("=")
