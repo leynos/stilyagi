@@ -5,8 +5,15 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IrError, IrNode, IrRegion, IrSuppression, IrTree, SCHEMA_VERSION, SourceIdentity,
-    content_hash_for, line_index_for,
+    IrError,
+    IrNode,
+    IrRegion,
+    IrSuppression,
+    IrTree,
+    SCHEMA_VERSION,
+    SourceIdentity,
+    content_hash_for,
+    line_index_for,
 };
 
 /// A complete IR document envelope for one source payload.

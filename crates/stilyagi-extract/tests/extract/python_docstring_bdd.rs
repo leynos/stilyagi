@@ -5,7 +5,9 @@ use rstest_bdd_macros::{given, scenario, then, when};
 use stilyagi_extract::{ExtractDocument, ExtractSyntax, extract_document};
 use stilyagi_ir::IrRegion;
 use stilyagi_test_support::{
-    FixtureReadError, MALFORMED_PYTHON_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH,
+    FixtureReadError,
+    MALFORMED_PYTHON_FIXTURE_PATH,
+    SHARED_PYTHON_FIXTURE_PATH,
     read_corpus_fixture,
 };
 

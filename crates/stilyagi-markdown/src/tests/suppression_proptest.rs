@@ -1,12 +1,18 @@
 //! Proptest coverage for Markdown suppression directive parsing.
 
 use proptest::prelude::*;
+use stilyagi_ir::suppression::{
+    DirectiveError,
+    DirectiveOutcome,
+    DirectiveVerb,
+    parse_comment_directive,
+    verb_kind,
+};
 
 use super::super::suppression_support::{
-    directive_codes_and_padding, expected_kind_from_token, whitespace_strategy,
-};
-use stilyagi_ir::suppression::{
-    DirectiveError, DirectiveOutcome, DirectiveVerb, parse_comment_directive, verb_kind,
+    directive_codes_and_padding,
+    expected_kind_from_token,
+    whitespace_strategy,
 };
 
 proptest! {

@@ -16,13 +16,28 @@ pub use canonical_json::{content_hash_for, line_index_for};
 pub use diagnostics::{IrError, IrSuppression, RangeRole, SuppressionKind};
 pub use document::{DocumentMetadata, IrBuildContext, IrDocument, ProducerMetadata};
 pub use region::{
-    InvalidRegionKind, IrOwner, IrRegion, IrSegment, RegionKind, SegmentOrigin, SyntheticReason,
+    InvalidRegionKind,
+    IrOwner,
+    IrRegion,
+    IrSegment,
+    RegionKind,
+    SegmentOrigin,
+    SyntheticReason,
 };
 pub use source_identity::SourceIdentity;
 pub use suppression::{
-    AUTHORED_DIRECTIVE_ERROR_CODES, DirectiveError, DirectiveOutcome, DirectiveVerb,
-    ParsedDirective, SuppressionCandidate, SuppressionValidationError, is_directive_marker,
-    parse_comment_directive, suppressions_from_candidates, validate_suppressions, verb_kind,
+    AUTHORED_DIRECTIVE_ERROR_CODES,
+    DirectiveError,
+    DirectiveOutcome,
+    DirectiveVerb,
+    ParsedDirective,
+    SuppressionCandidate,
+    SuppressionValidationError,
+    is_directive_marker,
+    parse_comment_directive,
+    suppressions_from_candidates,
+    validate_suppressions,
+    verb_kind,
 };
 pub use tree::{IrNode, IrTree, NodeFlags, SourceSpan};
 

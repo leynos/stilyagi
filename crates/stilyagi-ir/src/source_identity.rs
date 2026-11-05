@@ -21,7 +21,5 @@ impl SourceIdentity {
 
     /// Create source identity from explicit optional components.
     #[must_use]
-    pub const fn new(path: Option<String>, uri: Option<String>) -> Self {
-        Self { path, uri }
-    }
+    pub const fn new(path: Option<String>, uri: Option<String>) -> Self { Self { path, uri } }
 }

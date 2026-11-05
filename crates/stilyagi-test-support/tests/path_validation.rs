@@ -1,7 +1,8 @@
 //! Property tests for corpus fixture path validation.
 
-use proptest::prelude::*;
 use std::path::PathBuf;
+
+use proptest::prelude::*;
 use stilyagi_test_support::{FixturePathErrorKind, corpus_fixture_path};
 
 proptest! {

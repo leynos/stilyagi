@@ -3,8 +3,10 @@
 use stilyagi_ir::{NodeFlags, SourceSpan};
 use tree_sitter::Node;
 
-use super::owner::{OwnerFrame, OwnerKind};
-use super::types::{NodeId, NodeKind};
+use super::{
+    owner::{OwnerFrame, OwnerKind},
+    types::{NodeId, NodeKind},
+};
 
 /// Return the IR node id of the nearest enclosing owner that has already
 /// emitted a node, ignoring the innermost frame.

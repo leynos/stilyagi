@@ -4,7 +4,10 @@ use std::collections::BTreeMap;
 
 use markdown::{mdast::Node, message::Message};
 use stilyagi_ir::{
-    IrNode, IrRegion, NodeFlags, SourceSpan,
+    IrNode,
+    IrRegion,
+    NodeFlags,
+    SourceSpan,
     suppression::{SuppressionCandidate, scan_comment_spans},
 };
 

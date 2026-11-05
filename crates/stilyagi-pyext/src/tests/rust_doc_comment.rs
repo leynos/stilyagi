@@ -1,13 +1,15 @@
 //! `PyO3` regression coverage for Rust doc-comment extraction.
 
-use pyo3::exceptions::PyRuntimeError;
-use pyo3::prelude::Python;
-use pyo3::types::PyListMethods;
+use pyo3::{exceptions::PyRuntimeError, prelude::Python, types::PyListMethods};
 
-use super::payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text};
 use super::{
-    ExtractError, ExtractSyntax, RustExtractError, assert_ir_json_contract,
-    bridge_extract_document, map_extract_error,
+    ExtractError,
+    ExtractSyntax,
+    RustExtractError,
+    assert_ir_json_contract,
+    bridge_extract_document,
+    map_extract_error,
+    payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text},
 };
 
 #[rstest::rstest]

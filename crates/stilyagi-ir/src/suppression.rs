@@ -101,9 +101,7 @@ pub enum SuppressionValidationError {
 
 /// Return whether a comment body uses the canonical suppression marker.
 #[must_use]
-pub fn is_directive_marker(inner: &str) -> bool {
-    inner.trim().starts_with("stilyagi:")
-}
+pub fn is_directive_marker(inner: &str) -> bool { inner.trim().starts_with("stilyagi:") }
 
 /// Return every HTML comment found in a source slice.
 #[must_use]
@@ -177,8 +175,11 @@ pub fn parse_comment_directive(inner: &str) -> DirectiveOutcome {
 /// # Examples
 ///
 /// ```
-/// use stilyagi_ir::suppression::{suppressions_from_candidates, SuppressionCandidate};
-/// use stilyagi_ir::{SourceSpan, SuppressionKind};
+/// use stilyagi_ir::{
+///     SourceSpan,
+///     SuppressionKind,
+///     suppression::{SuppressionCandidate, suppressions_from_candidates},
+/// };
 ///
 /// let (suppressions, errors) = suppressions_from_candidates([SuppressionCandidate {
 ///     origin: "n1".to_owned(),
@@ -247,8 +248,12 @@ pub fn suppressions_from_candidates(
 /// ```
 /// use std::collections::BTreeSet;
 ///
-/// use stilyagi_ir::suppression::{validate_suppressions, SuppressionValidationError};
-/// use stilyagi_ir::{IrSuppression, SourceSpan, SuppressionKind};
+/// use stilyagi_ir::{
+///     IrSuppression,
+///     SourceSpan,
+///     SuppressionKind,
+///     suppression::{SuppressionValidationError, validate_suppressions},
+/// };
 ///
 /// let suppressions = vec![IrSuppression {
 ///     id: "s0".to_owned(),
@@ -261,13 +266,21 @@ pub fn suppressions_from_candidates(
 /// let node_ids = BTreeSet::from(["n0"]);
 ///
 /// assert!(matches!(
-///     validate_suppressions(&suppressions, "<!-- stilyagi: ignore-next PUN201 -->", &node_ids),
+///     validate_suppressions(
+///         &suppressions,
+///         "<!-- stilyagi: ignore-next PUN201 -->",
+///         &node_ids
+///     ),
 ///     Ok(())
 /// ));
 ///
 /// let missing_origin = BTreeSet::from(["n1"]);
 /// assert!(matches!(
-///     validate_suppressions(&suppressions, "<!-- stilyagi: ignore-next PUN201 -->", &missing_origin),
+///     validate_suppressions(
+///         &suppressions,
+///         "<!-- stilyagi: ignore-next PUN201 -->",
+///         &missing_origin
+///     ),
 ///     Err(SuppressionValidationError::OriginUnresolved { .. })
 /// ));
 /// ```

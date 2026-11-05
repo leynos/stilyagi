@@ -2,12 +2,21 @@
 
 use std::collections::BTreeMap;
 
-use stilyagi_ir::suppression::{SuppressionCandidate, suppressions_from_candidates};
-use stilyagi_ir::{IrError, IrNode, IrSuppression, is_directive_marker};
+use stilyagi_ir::{
+    IrError,
+    IrNode,
+    IrSuppression,
+    is_directive_marker,
+    suppression::{SuppressionCandidate, suppressions_from_candidates},
+};
 use tree_sitter::Node;
 
-use super::helpers::{classify_doc_comment, node_flags, source_span, text_for_node};
-use super::{RustIrBuilder, TREE_ID, root_node_id};
+use super::{
+    RustIrBuilder,
+    TREE_ID,
+    helpers::{classify_doc_comment, node_flags, source_span, text_for_node},
+    root_node_id,
+};
 
 /// Collect Rust `// stilyagi:` directives and emit source-backed comment nodes.
 pub(super) fn collect_comment_suppressions(

@@ -4,14 +4,22 @@ use rstest::rstest;
 use stilyagi_extract::{ExtractDocument, ExtractError, ExtractSyntax, SourceIdentity};
 use stilyagi_ir::SuppressionKind;
 use stilyagi_test_support::{
-    MALFORMED_PYTHON_FIXTURE_PATH, MALFORMED_RUST_FIXTURE_PATH, NESTED_RUST_FIXTURE_PATH,
-    SHARED_MARKDOWN_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, SHARED_RUST_FIXTURE_PATH,
+    MALFORMED_PYTHON_FIXTURE_PATH,
+    MALFORMED_RUST_FIXTURE_PATH,
+    NESTED_RUST_FIXTURE_PATH,
+    SHARED_MARKDOWN_FIXTURE_PATH,
+    SHARED_PYTHON_FIXTURE_PATH,
+    SHARED_RUST_FIXTURE_PATH,
     golden_rust_ir_fixture,
 };
 
 use crate::test_utils::{
-    FixtureSource, extracted_markdown, markdown_extraction_with_identity, shared_markdown_source,
-    shared_python_source, shared_rust_source,
+    FixtureSource,
+    extracted_markdown,
+    markdown_extraction_with_identity,
+    shared_markdown_source,
+    shared_python_source,
+    shared_rust_source,
 };
 
 #[rstest]

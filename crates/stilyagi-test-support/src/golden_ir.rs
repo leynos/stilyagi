@@ -38,21 +38,15 @@ impl ByteSpan {
     }
 
     /// Create a byte span without validating the range for error payloads.
-    pub(crate) const fn new_unchecked(start: usize, end: usize) -> Self {
-        Self { start, end }
-    }
+    pub(crate) const fn new_unchecked(start: usize, end: usize) -> Self { Self { start, end } }
 
     /// Return the inclusive start byte offset.
     #[must_use]
-    pub const fn start(&self) -> usize {
-        self.start
-    }
+    pub const fn start(&self) -> usize { self.start }
 
     /// Return the exclusive end byte offset.
     #[must_use]
-    pub const fn end(&self) -> usize {
-        self.end
-    }
+    pub const fn end(&self) -> usize { self.end }
 }
 
 /// One mapping from flattened text back to source or synthetic text.
@@ -84,9 +78,7 @@ impl Segment {
 
     /// Create a synthetic segment.
     #[must_use]
-    pub fn synthetic(text: impl Into<String>) -> Self {
-        Self::Synthetic { text: text.into() }
-    }
+    pub fn synthetic(text: impl Into<String>) -> Self { Self::Synthetic { text: text.into() } }
 }
 
 /// Minimal golden IR region used by internal contract tests.
@@ -153,9 +145,7 @@ impl GoldenDocument {
 
     /// Serialize to stable, pretty JSON for snapshots and golden files.
     #[must_use]
-    pub fn to_canonical_json(&self) -> String {
-        document_to_json(self)
-    }
+    pub fn to_canonical_json(&self) -> String { document_to_json(self) }
 }
 
 /// Serialize a golden document to canonical pretty JSON.
@@ -185,9 +175,7 @@ struct JsonField<'a> {
 
 impl<'a> JsonField<'a> {
     /// Pair a field name with its pre-serialized JSON value.
-    const fn new(name: &'a str, value: String) -> Self {
-        Self { name, value }
-    }
+    const fn new(name: &'a str, value: String) -> Self { Self { name, value } }
 }
 
 /// Write a JSON object, delegating its fields to `write_fields`.
@@ -240,14 +228,10 @@ where
 }
 
 /// Serialize byte offsets as a single-line JSON array of numbers.
-fn usize_array_json(values: &[usize]) -> String {
-    array_json(values, ToString::to_string)
-}
+fn usize_array_json(values: &[usize]) -> String { array_json(values, ToString::to_string) }
 
 /// Serialize strings as a single-line JSON array of JSON string literals.
-fn string_array_json(values: &[String]) -> String {
-    array_json(values, |value| json_string(value))
-}
+fn string_array_json(values: &[String]) -> String { array_json(values, |value| json_string(value)) }
 
 /// Serialize regions as a multi-line JSON array, or `[]` when empty.
 fn regions_json(regions: &[GoldenRegion]) -> String {
@@ -348,7 +332,13 @@ mod tests {
     //! Tests for golden IR fixture construction and serialization helpers.
 
     use super::{
-        ByteSpan, GoldenBody, GoldenDocument, GoldenRegion, Segment, SpanError, json_string,
+        ByteSpan,
+        GoldenBody,
+        GoldenDocument,
+        GoldenRegion,
+        Segment,
+        SpanError,
+        json_string,
     };
 
     /// Keep byte span construction checked for ordered ranges.

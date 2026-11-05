@@ -3,9 +3,17 @@
 use proptest::prelude::*;
 use rstest::rstest;
 use stilyagi_test_support::{
-    ByteSpan, FixturePathError, FixturePathErrorKind, RoundTripEdit, RoundTripEditError,
-    SHARED_MARKDOWN_FIXTURE_PATH, SHARED_PYTHON_FIXTURE_PATH, apply_round_trip_edits,
-    golden_markdown_ir_fixture, golden_python_ir_fixture, normalize_repository_path,
+    ByteSpan,
+    FixturePathError,
+    FixturePathErrorKind,
+    RoundTripEdit,
+    RoundTripEditError,
+    SHARED_MARKDOWN_FIXTURE_PATH,
+    SHARED_PYTHON_FIXTURE_PATH,
+    apply_round_trip_edits,
+    golden_markdown_ir_fixture,
+    golden_python_ir_fixture,
+    normalize_repository_path,
 };
 
 /// Build a `ByteSpan` from literal bounds, panicking at the caller's line.

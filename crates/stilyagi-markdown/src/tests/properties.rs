@@ -4,8 +4,10 @@ use proptest::prelude::*;
 use stilyagi_ir::SourceIdentity;
 
 use super::{
-    parent_regions_reference_earlier_regions, region_segments_are_contiguous,
-    regions_reconstruct_text, source_backed_segments_match_source,
+    parent_regions_reference_earlier_regions,
+    region_segments_are_contiguous,
+    regions_reconstruct_text,
+    source_backed_segments_match_source,
     synthetic_segments_use_known_reasons,
 };
 use crate::markdown_ir_document;

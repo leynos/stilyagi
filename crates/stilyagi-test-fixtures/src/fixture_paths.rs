@@ -5,8 +5,10 @@
 //! normalized repository-relative path or a typed rejection reason, so fixture
 //! readers never silently escape the repository boundary.
 
-use std::ffi::OsStr;
-use std::path::{Component, Path, PathBuf};
+use std::{
+    ffi::OsStr,
+    path::{Component, Path, PathBuf},
+};
 
 /// Repository-relative path to the shared valid Markdown corpus fixture.
 pub const SHARED_MARKDOWN_FIXTURE_PATH: &str =
@@ -268,8 +270,9 @@ pub(crate) fn validate_repository_path(path: &Path) -> Result<(), FixturePathErr
 mod tests {
     //! Verify the fixture manifest-layout boundary independently of Cargo.
 
-    use super::{FixturePathErrorKind, repository_root_from_manifest};
     use std::path::Path;
+
+    use super::{FixturePathErrorKind, repository_root_from_manifest};
 
     #[test]
     fn resolves_repository_from_a_direct_crates_child() {

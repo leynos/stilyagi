@@ -6,8 +6,14 @@ use proptest::prelude::*;
 use rstest::rstest;
 
 use super::{
-    DocumentMetadata, IrBoundary, IrDocument, RegionKind, SourceIdentity, SyntheticReason,
-    content_hash_for, line_index_for,
+    DocumentMetadata,
+    IrBoundary,
+    IrDocument,
+    RegionKind,
+    SourceIdentity,
+    SyntheticReason,
+    content_hash_for,
+    line_index_for,
 };
 
 mod segment_properties;

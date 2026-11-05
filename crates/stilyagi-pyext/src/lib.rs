@@ -2,12 +2,17 @@
 
 mod check_metrics;
 
-use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyTypeError, PyValueError};
-use pyo3::prelude::*;
-use pyo3::types::{PyCFunction, PyDict, PyList, PyModule, PyTuple};
+use pyo3::{
+    exceptions::{PyNotImplementedError, PyRuntimeError, PyTypeError, PyValueError},
+    prelude::*,
+    types::{PyCFunction, PyDict, PyList, PyModule, PyTuple},
+};
 use stilyagi_core::smoke_hello;
 use stilyagi_extract::{
-    ExtractDocument, ExtractError, ExtractRegion, ExtractSyntax,
+    ExtractDocument,
+    ExtractError,
+    ExtractRegion,
+    ExtractSyntax,
     extract_document as extract_document_from_rust,
 };
 use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, IrRegion, RegionKind as IrRegionKind};
@@ -18,9 +23,7 @@ use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, IrRegion, RegionKind as IrRegi
     clippy::missing_const_for_fn,
     reason = "#[pyfunction] requires a normal fn for runtime bindings"
 )]
-fn hello() -> &'static str {
-    smoke_hello()
-}
+fn hello() -> &'static str { smoke_hello() }
 
 /// Return the stable syntax spellings exported by the Rust bridge.
 #[pyfunction(name = "supported_syntaxes")]

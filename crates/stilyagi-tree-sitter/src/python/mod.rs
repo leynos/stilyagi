@@ -10,20 +10,32 @@ pub(super) mod types;
 
 use std::collections::{BTreeMap, HashMap};
 
-use stilyagi_ir::{
-    DocumentMetadata, IrDocument, IrError, IrNode, IrRegion, IrSegment, IrTree, NodeFlags,
-    RegionKind, SegmentOrigin, SourceIdentity,
-};
-use tree_sitter::Node;
-
 use helpers::{
-    collect_error_nodes, docstring_content, module_docstring, nearest_emitted_owner, node_flags,
+    collect_error_nodes,
+    docstring_content,
+    module_docstring,
+    nearest_emitted_owner,
+    node_flags,
     source_span,
 };
 use observe::{record_extraction_outcome, record_fatal_error};
 use owner::{OwnerFrame, owner_for};
+use stilyagi_ir::{
+    DocumentMetadata,
+    IrDocument,
+    IrError,
+    IrNode,
+    IrRegion,
+    IrSegment,
+    IrTree,
+    NodeFlags,
+    RegionKind,
+    SegmentOrigin,
+    SourceIdentity,
+};
 use support::{parse_python, python_producer, validate_ir_consistency};
 use suppressions::collect_comment_suppressions;
+use tree_sitter::Node;
 use types::{NodeId, NodeKind};
 
 /// Stable identifier for the single tree-sitter parse tree in the emitted IR.
@@ -342,9 +354,7 @@ impl<'source> PythonIrBuilder<'source> {
 }
 
 /// Return the fixed identifier of the module root node.
-fn root_node_id() -> NodeId {
-    NodeId("n0".to_owned())
-}
+fn root_node_id() -> NodeId { NodeId("n0".to_owned()) }
 
 #[cfg(test)]
 mod tests;

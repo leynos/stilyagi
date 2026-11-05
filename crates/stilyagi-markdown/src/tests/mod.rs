@@ -10,9 +10,7 @@ use std::path::Path;
 pub(super) struct ExpectedText<'a>(pub &'a str);
 
 impl<'a> From<&'a str> for ExpectedText<'a> {
-    fn from(s: &'a str) -> Self {
-        Self(s)
-    }
+    fn from(s: &'a str) -> Self { Self(s) }
 }
 
 mod coverage;
@@ -30,7 +28,9 @@ mod validation_support;
 use rstest::rstest;
 use stilyagi_ir::{IrDocument, SourceIdentity, SourceSpan, SyntheticReason};
 use stilyagi_test_support::{
-    SHARED_MARKDOWN_FIXTURE_PATH, read_corpus_fixture, read_corpus_fixture_bytes,
+    SHARED_MARKDOWN_FIXTURE_PATH,
+    read_corpus_fixture,
+    read_corpus_fixture_bytes,
 };
 
 use crate::markdown_ir_document;

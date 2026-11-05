@@ -3,9 +3,7 @@
 use stilyagi_ir::{IrSegment, SegmentOrigin, SyntheticReason};
 use tree_sitter::Node;
 
-use super::helpers::DocCommentFlavour;
-use super::owner::OwnerFrame;
-use super::types::NodeId;
+use super::{helpers::DocCommentFlavour, owner::OwnerFrame, types::NodeId};
 
 /// Comment node awaiting emission into an owner-aware doc-comment region.
 #[derive(Debug)]
@@ -36,9 +34,7 @@ impl<'source> DocCommentGroup<'source> {
     }
 
     /// Append an entry to the group.
-    pub(super) fn push(&mut self, entry: DocCommentEntry<'source>) {
-        self.entries.push(entry);
-    }
+    pub(super) fn push(&mut self, entry: DocCommentEntry<'source>) { self.entries.push(entry); }
 
     /// Return whether the group's first entry is a line comment.
     pub(super) fn is_line(&self) -> bool {

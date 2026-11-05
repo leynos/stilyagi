@@ -4,8 +4,10 @@ use rstest_bdd_macros::then;
 use stilyagi_ir::{IrDocument, IrSuppression, RangeRole, SuppressionKind};
 
 use super::{
-    MarkdownSuppressionState, assert_blanket_error_re_slices_to_the_blanket_comment,
-    configured_source, extracted_ir,
+    MarkdownSuppressionState,
+    assert_blanket_error_re_slices_to_the_blanket_comment,
+    configured_source,
+    extracted_ir,
 };
 use crate::test_utils::{ensure, ensure_eq};
 

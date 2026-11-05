@@ -1,13 +1,11 @@
 //! Duration histogram snapshot tests.
 
-use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::{sync::atomic::Ordering, time::Duration};
 
 use pyo3::{prelude::*, types::PyDict};
 use rstest::rstest;
 
-use super::super::DurationHistogram;
-use super::{assert_metric_values, dictionary, populated_snapshot};
+use super::{super::DurationHistogram, assert_metric_values, dictionary, populated_snapshot};
 use crate::tests::payload::dict_item;
 
 #[rstest]

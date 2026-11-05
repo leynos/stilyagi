@@ -6,8 +6,7 @@
 //! extracted diagnostic data; the [`assert_validation_reports`] macro performs
 //! the query half so panic line numbers point at the calling test.
 
-use std::fmt;
-use std::path::Path;
+use std::{fmt, path::Path};
 
 use markdown::message::Message;
 use stilyagi_ir::{IrDocument, IrRegion, IrSegment};
