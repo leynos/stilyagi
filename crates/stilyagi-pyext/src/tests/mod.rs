@@ -1,8 +1,8 @@
 //! Tests for the Python extension bridge payload and error mapping.
 
-pub(crate) mod payload;
 mod hydration;
 mod identity;
+pub(crate) mod payload;
 mod python_docstring;
 mod rust_doc_comment;
 

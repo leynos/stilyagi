@@ -24,7 +24,7 @@ REPOSITORY_ROOT: typ.Final = Path(__file__).resolve().parents[1]
 CONFIG_PATH: typ.Final = REPOSITORY_ROOT / ".config" / "nextest.toml"
 DEFAULT_PER_TEST_SECONDS: typ.Final = 180
 MINIMUM_TRYBUILD_SECONDS: typ.Final = 1500
-MINIMUM_WHOLE_RUN_SECONDS: typ.Final = 33 * 60
+MINIMUM_WHOLE_RUN_SECONDS: typ.Final = 50 * 60
 TRYBUILD_BINARIES: typ.Final = (
     "package(stilyagi-ir) & binary(ui)",
     "package(stilyagi-pyext) & binary(compile_tests)",
@@ -158,10 +158,10 @@ def test_the_trybuild_budget_stays_below_the_whole_run_budget() -> None:
 def test_the_whole_run_budget_covers_the_serial_trybuild_sequence() -> None:
     """Leave time for the second UI build after the first has completed.
 
-    The first UI test passed in 260 s. The second then spent 8 minutes
-    compiling its dev profile and reached its 900 s limit while compiling its
-    first fixture. The global budget must allow the 1,500 s per-test allowance
-    plus that observed prefix and three minutes of suite margin.
+    A rebased run spent 1,137 s on the first UI test, then the 33-minute
+    whole-run timeout cancelled the second after 842 s, despite its 1,500 s
+    per-test allowance. Fifty minutes covers that observed prefix and the full
+    per-test budget, with six minutes left for suite overhead and reporting.
     """
     whole_run = global_timeout(read_config_text(CONFIG_PATH))
     assert whole_run is not None, "the configuration must bound the whole run"

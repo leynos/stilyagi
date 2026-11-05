@@ -15,14 +15,14 @@ if typ.TYPE_CHECKING:
 
 _FRONTMATTER_SOURCE = (
     b"---\r\n"
-    b'title: "Caf\xc3\xa9"\r\n'
-    b"# Preserve this comment\r\n"
-    b"quoted: 'a: b'\r\n"
-    b"description: |\r\n"
-    b"  first line\r\n"
-    b"---\r\n"
-    b"\r\n"
-    b"Paragraph text.\r\n"
+    + 'title: "Café"\r\n'.encode()
+    + b"# Preserve this comment\r\n"
+    + b"quoted: 'a: b'\r\n"
+    + b"description: |\r\n"
+    + b"  first line\r\n"
+    + b"---\r\n"
+    + b"\r\n"
+    + b"Paragraph text.\r\n"
 )
 
 
