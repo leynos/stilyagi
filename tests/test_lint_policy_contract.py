@@ -11,19 +11,24 @@ The two mechanisms are separate, and the tests keep them apart. `[lints]
 workspace = true` in a member manifest inherits the `[workspace.lints]` tables;
 Clippy reads `clippy.toml` from the workspace root and needs no per-member
 stanza, so Cargo's lint inheritance does not carry the restrictions.
+
+These tests read the policy; `tests/test_lint_policy_behaviour.py` compiles
+against it.
 """
 
-import pathlib
 import typing as typ
 
 import pytest
 
 from tests.support.build_standard import read_toml
-
-REPOSITORY_ROOT: typ.Final = pathlib.Path(__file__).resolve().parents[1]
-WORKSPACE_MANIFEST: typ.Final = REPOSITORY_ROOT / "Cargo.toml"
-CLIPPY_CONFIG: typ.Final = REPOSITORY_ROOT / "clippy.toml"
-MAKEFILE: typ.Final = REPOSITORY_ROOT / "Makefile"
+from tests.support.lint_policy import (
+    RUSTDOC_FLAGS_EXTRA,
+    clippy_restrictions,
+    lint_level,
+    member_manifests,
+    rustdoc_default_lines,
+    workspace_lints,
+)
 
 #: Lints this repository enables, by the table that owns them and the level it
 #: sets. A missing or weakened entry is a silent loss of enforcement.
@@ -62,46 +67,14 @@ ENVIRONMENT_SEAMS: typ.Final[tuple[str, ...]] = (
 )
 
 RUSTDOC_DEFAULT: typ.Final = (
-    "RUSTDOC_FLAGS ?= --cfg docsrs -D warnings $(RUSTDOC_FLAGS_EXTRA)"
+    f"RUSTDOC_FLAGS ?= --cfg docsrs -D warnings {RUSTDOC_FLAGS_EXTRA}"
 )
 
 
-def _lint_table(document: dict[str, object], table: str) -> dict[str, object]:
-    """Return one `[workspace.lints.<table>]` mapping."""
-    workspace = document.get("workspace")
-    assert isinstance(workspace, dict), "Cargo.toml declares no [workspace] table"
-    lints = workspace.get("lints")
-    assert isinstance(lints, dict), "Cargo.toml declares no [workspace.lints] tables"
-    entries = lints.get(table)
-    assert isinstance(entries, dict), (
-        f"Cargo.toml declares no [workspace.lints.{table}]"
-    )
-    return entries
-
-
-def _member_manifests() -> tuple[pathlib.Path, ...]:
-    """Return every workspace member manifest."""
-    workspace = read_toml(WORKSPACE_MANIFEST)["workspace"]
-    assert isinstance(workspace, dict), "Cargo.toml declares no [workspace] table"
-    patterns = workspace["members"]
-    assert isinstance(patterns, list), "Cargo.toml declares no member list"
-    manifests: list[pathlib.Path] = []
-    for pattern in patterns:
-        assert isinstance(pattern, str), f"member pattern {pattern!r} is not a string"
-        matches = sorted(REPOSITORY_ROOT.glob(pattern))
-        directories = [path for path in matches if path.is_dir()]
-        manifests.extend(path / "Cargo.toml" for path in directories)
-    return tuple(manifests)
-
-
-def _rustdoc_default_lines() -> list[str]:
-    """Return the Makefile lines that set the `RUSTDOC_FLAGS` default."""
-    text = MAKEFILE.read_text(encoding="utf-8")
-    return [
-        line.rstrip()
-        for line in text.splitlines()
-        if line.startswith("RUSTDOC_FLAGS ?=")
-    ]
+def _inheritance_flag(document: dict[str, object]) -> object:
+    """Return a member manifest's `lints.workspace` value, if any."""
+    lints = document.get("lints")
+    return lints.get("workspace") if isinstance(lints, dict) else None
 
 
 @pytest.mark.parametrize(
@@ -116,8 +89,9 @@ def test_workspace_lint_table_enables_the_baseline(
     table: str, lint: str, level: str
 ) -> None:
     """Every baseline lint keeps its level in the workspace tables."""
-    entries = _lint_table(read_toml(WORKSPACE_MANIFEST), table)
-    enabled = entries.get(lint)
+    entries = workspace_lints()[table]
+    entry = entries.get(lint)
+    enabled = None if entry is None else lint_level(entry)
     assert enabled == level, (
         f"expected [workspace.lints.{table}] {lint} = {level!r}, found {enabled!r}"
     )
@@ -125,10 +99,10 @@ def test_workspace_lint_table_enables_the_baseline(
 
 def test_every_workspace_member_inherits_the_lint_tables() -> None:
     """Each member opts into `[workspace.lints]` with `workspace = true`."""
-    manifests = _member_manifests()
+    manifests = member_manifests()
     assert manifests, "Cargo.toml declares no workspace members"
     without_inheritance = [
-        str(manifest.relative_to(REPOSITORY_ROOT))
+        str(manifest.parent.name)
         for manifest in manifests
         if _inheritance_flag(read_toml(manifest)) is not True
     ]
@@ -137,29 +111,18 @@ def test_every_workspace_member_inherits_the_lint_tables() -> None:
     )
 
 
-def _inheritance_flag(document: dict[str, object]) -> object:
-    """Return a member manifest's `lints.workspace` value, if any."""
-    lints = document.get("lints")
-    return lints.get("workspace") if isinstance(lints, dict) else None
-
-
 def test_clippy_restricts_every_environment_seam() -> None:
     """`clippy.toml` forbids each ambient-environment seam, with a reason."""
-    document = read_toml(CLIPPY_CONFIG)
-    restrictions = document.get("disallowed-methods")
-    assert isinstance(restrictions, list), "clippy.toml declares disallowed-methods"
-    paths = tuple(
-        entry["path"]
-        for entry in restrictions
-        if isinstance(entry, dict) and "path" in entry
-    )
+    restrictions = clippy_restrictions()
+    assert restrictions, "clippy.toml declares no disallowed-methods entries"
+    paths = tuple(entry.get("path") for entry in restrictions)
     assert paths == ENVIRONMENT_SEAMS, (
         f"expected the environment seams {ENVIRONMENT_SEAMS}, found {paths}"
     )
     without_reason = [
-        entry["path"]
+        str(entry["path"])
         for entry in restrictions
-        if isinstance(entry, dict) and not str(entry.get("reason", "")).strip()
+        if not str(entry.get("reason", "")).strip()
     ]
     assert without_reason == [], "restrictions without a reason: " + ", ".join(
         without_reason
@@ -168,7 +131,7 @@ def test_clippy_restricts_every_environment_seam() -> None:
 
 def test_rustdoc_default_enforces_docsrs_and_warnings() -> None:
     """The rustdoc default enables the docsrs cfg and denies warnings."""
-    lines = _rustdoc_default_lines()
+    lines = rustdoc_default_lines()
     assert lines == [RUSTDOC_DEFAULT], (
         f"expected the rustdoc default {RUSTDOC_DEFAULT!r}, found {lines}"
     )
@@ -176,11 +139,11 @@ def test_rustdoc_default_enforces_docsrs_and_warnings() -> None:
 
 def test_rustdoc_default_stays_overridable_and_extensible() -> None:
     """The rustdoc default is conditional and keeps the extension seam last."""
-    (line,) = _rustdoc_default_lines()
+    (line,) = rustdoc_default_lines()
     variable, _, value = line.partition("=")
     assert variable.endswith("?"), (
         "the default must be `?=` so an environment override wins"
     )
-    assert value.split()[-1] == "$(RUSTDOC_FLAGS_EXTRA)", (
+    assert value.split()[-1] == RUSTDOC_FLAGS_EXTRA, (
         "RUSTDOC_FLAGS_EXTRA must stay last so additions append to the policy"
     )
