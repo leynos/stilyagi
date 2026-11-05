@@ -2030,24 +2030,29 @@ and feature coverage.
 
 ### Lint-policy test architecture
 
-`tests/support/lint_policy.py` is the single read-only boundary for policy
-reads of `Cargo.toml`, `clippy.toml` and the `Makefile`. Most readers take a
-path and default to the repository's file: `workspace_lints`,
-`member_manifests` (the resolved member set, which is wider than the `members`
-patterns), `clippy_restrictions`, `rustdoc_default_lines`, and
-`rustdoc_default` (the validated single `RUSTDOC_FLAGS` assignment). Two do not
-fit that shape: `member_inherits_workspace_lints` requires the member manifest
-path, because no single member is the obvious default, and `lint_level` takes
-one lint entry rather than a path. All file access goes through `_read_text` and
-`_read_toml`, so an unreadable, undecodable or malformed file, and a
-structural surprise such as a non-table restriction, are `ReadingError`s naming
-the reader and path rather than an `OSError` or parser traceback.
+`tests/support/lint_policy.py` and `tests/support/cargo_metadata.py` are the
+read-only boundary for policy reads of `Cargo.toml`, `clippy.toml` and the
+`Makefile`. The split keeps the one reader that leaves the filesystem apart
+from the ones that only read files. Most readers take a path and default to the
+repository's file: `workspace_lints`, `clippy_restrictions`,
+`rustdoc_default_lines`, and `rustdoc_default` (the validated single
+`RUSTDOC_FLAGS` assignment). Two do not fit that shape:
+`member_inherits_workspace_lints` requires the member manifest path, because no
+single member is the obvious default, and `lint_level` takes one lint entry
+rather than a path. All file access goes through `_read_text` and `_read_toml`,
+so an unreadable, undecodable or malformed file, and a structural surprise such
+as a non-table restriction, are `ReadingError`s naming the reader and path
+rather than an `OSError` or parser traceback.
 
-`member_manifests` is also the one reader that leaves the filesystem: it asks
-Cargo for the resolved member set through `MetadataRunner`, a narrow callable
-seam whose default runs `cargo metadata --no-deps --locked --offline`, so
-discovery compiles nothing, writes no lockfile and fetches nothing. Reader
-tests inject a fake outcome; one contract test crosses the real boundary.
+`tests/support/cargo_metadata.py` holds `member_manifests`, the resolved member
+set, which is wider than the `members` patterns. It is the one reader that
+leaves the filesystem: it asks Cargo for the set through `MetadataRunner`, a
+narrow callable seam whose default runs
+`cargo metadata --no-deps --locked --offline`, so discovery compiles nothing,
+writes no lockfile and fetches nothing. Reader tests inject a fake outcome; one
+contract test crosses the real boundary. `workspace_table` is public in
+`lint_policy` because member discovery validates the manifest's own shape
+before asking Cargo.
 
 Four modules use those readers and prove different things.
 `tests/test_lint_policy_contract.py` fails when an entry this repository relies

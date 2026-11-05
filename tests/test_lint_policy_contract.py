@@ -21,12 +21,12 @@ import typing as typ
 import pytest
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.cargo_metadata import member_manifests
 from tests.support.lint_policy import (
     RUSTDOC_FLAGS_EXTRA,
     clippy_restrictions,
     lint_level,
     member_inherits_workspace_lints,
-    member_manifests,
     rustdoc_default,
     workspace_lints,
 )
