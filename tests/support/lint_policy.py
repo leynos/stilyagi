@@ -38,6 +38,10 @@ MAKEFILE: typ.Final = REPOSITORY_ROOT / "Makefile"
 #: the policy without editing the default itself.
 RUSTDOC_FLAGS_EXTRA: typ.Final = "$(RUSTDOC_FLAGS_EXTRA)"
 
+#: `cargo metadata --no-deps` reads manifests and resolves the workspace, so
+#: it is quick; the timeout only stops a wedged Cargo from hanging the suite.
+CARGO_METADATA_TIMEOUT_SECONDS: typ.Final = 120.0
+
 #: Every way Make can assign `RUSTDOC_FLAGS`: conditional, simple, immediate,
 #: append and shell. A second assignment using any of them can silently
 #: replace or extend the default, so the reader must see all of them.
@@ -189,6 +193,31 @@ def member_manifests(
     return tuple(sorted(manifests))
 
 
+def member_inherits_workspace_lints(path: pathlib.Path) -> bool:
+    """Return whether a member manifest opts into the workspace lint tables.
+
+    Parameters
+    ----------
+    path
+        The member manifest to read.
+
+    Returns
+    -------
+    bool
+        Whether the manifest declares `lints.workspace = true`.
+
+    Notes
+    -----
+    An unreadable, undecodable or malformed manifest raises `ReadingError`
+    from `_read_toml`; the raise is indirect, so it is described here rather
+    than in a `Raises` section that would claim this function raises it
+    itself.
+    """
+    lints = _read_toml(path).get("lints")
+    workspace = lints.get("workspace") if isinstance(lints, dict) else None
+    return workspace is True
+
+
 def _require_member_list(path: pathlib.Path) -> None:
     """Raise unless the manifest declares a list of string member patterns."""
     patterns = _workspace_table(path).get("members")
@@ -216,20 +245,28 @@ def _run_cargo_metadata(path: pathlib.Path) -> subprocess.CompletedProcess[str]:
     if cargo is None:
         message = "cargo is required to resolve workspace members"
         raise ReadingError(message, reader="lint_policy", path=str(path))
-    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv: `cargo metadata` reads manifests only.
-        [
-            cargo,
-            "metadata",
-            "--no-deps",
-            "--format-version",
-            "1",
-            "--manifest-path",
-            str(path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv: `cargo metadata` reads manifests only.
+            [
+                cargo,
+                "metadata",
+                "--no-deps",
+                "--format-version",
+                "1",
+                "--manifest-path",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=CARGO_METADATA_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        message = (
+            "cargo metadata did not finish within "
+            f"{CARGO_METADATA_TIMEOUT_SECONDS:g} seconds"
+        )
+        raise ReadingError(message, reader="lint_policy", path=str(path)) from error
 
 
 def _metadata_document(stdout: str, path: pathlib.Path) -> dict[str, object]:

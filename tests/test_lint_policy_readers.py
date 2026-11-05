@@ -18,6 +18,7 @@ import pytest
 from tests.support.errors import ReadingError
 from tests.support.lint_policy import (
     clippy_restrictions,
+    member_inherits_workspace_lints,
     member_manifests,
     rustdoc_default,
     rustdoc_default_lines,
@@ -120,6 +121,80 @@ def test_member_list_failures_are_reading_errors(
     path = _write(tmp_path / "Cargo.toml", document)
     with pytest.raises(ReadingError) as raised:
         member_manifests(path)
+    _assert_names_reader_and_path(raised, path)
+
+
+def test_member_inheritance_reader_accepts_true(tmp_path: pathlib.Path) -> None:
+    """A member that opts into the workspace tables reports inheritance."""
+    path = _write(tmp_path / "Cargo.toml", "[lints]\nworkspace = true\n")
+    assert member_inherits_workspace_lints(path) is True, (
+        "expected `workspace = true` to report inheritance"
+    )
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        pytest.param("[package]\nname = 'probe'\n", id="no-lints-table"),
+        pytest.param("[lints]\nworkspace = false\n", id="workspace-false"),
+        pytest.param("[lints]\nworkspace = 'true'\n", id="workspace-not-a-bool"),
+        pytest.param("[lints]\n", id="workspace-absent"),
+    ],
+)
+def test_member_inheritance_reader_rejects_everything_else(
+    tmp_path: pathlib.Path, document: str
+) -> None:
+    """Only a literal `workspace = true` counts as opting in."""
+    path = _write(tmp_path / "Cargo.toml", document)
+    assert member_inherits_workspace_lints(path) is False, (
+        "expected anything other than `workspace = true` to report no inheritance"
+    )
+
+
+def test_member_inheritance_missing_file_is_a_reading_error(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A member manifest that does not exist names the path it looked for."""
+    path = tmp_path / "absent" / "Cargo.toml"
+    with pytest.raises(ReadingError, match="policy file") as raised:
+        member_inherits_workspace_lints(path)
+    _assert_names_reader_and_path(raised, path)
+
+
+def test_member_inheritance_unreadable_path_is_a_reading_error(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A directory where a member manifest is expected is reported, not raised raw."""
+    with pytest.raises(ReadingError, match="policy file") as raised:
+        member_inherits_workspace_lints(tmp_path)
+    _assert_names_reader_and_path(raised, tmp_path)
+
+
+def test_member_inheritance_undecodable_file_is_a_reading_error(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Bytes that are not UTF-8 cannot be interpreted as a member manifest."""
+    path = tmp_path / "Cargo.toml"
+    path.write_bytes(b"[lints]\nworkspace = '\xff'\n")
+    with pytest.raises(ReadingError, match="policy file") as raised:
+        member_inherits_workspace_lints(path)
+    _assert_names_reader_and_path(raised, path)
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        pytest.param("[lints\n", id="truncated"),
+        pytest.param("[lints]\nworkspace = [\n", id="unterminated-array"),
+    ],
+)
+def test_member_inheritance_malformed_file_is_a_reading_error(
+    tmp_path: pathlib.Path, document: str
+) -> None:
+    """Invalid TOML in a member manifest surfaces as a policy finding."""
+    path = _write(tmp_path / "Cargo.toml", document)
+    with pytest.raises(ReadingError) as raised:
+        member_inherits_workspace_lints(path)
     _assert_names_reader_and_path(raised, path)
 
 

@@ -20,11 +20,11 @@ import typing as typ
 
 import pytest
 
-from tests.support.build_standard import read_toml
 from tests.support.lint_policy import (
     RUSTDOC_FLAGS_EXTRA,
     clippy_restrictions,
     lint_level,
+    member_inherits_workspace_lints,
     member_manifests,
     rustdoc_default,
     workspace_lints,
@@ -71,12 +71,6 @@ RUSTDOC_DEFAULT: typ.Final = (
 )
 
 
-def _inheritance_flag(document: dict[str, object]) -> object:
-    """Return a member manifest's `lints.workspace` value, if any."""
-    lints = document.get("lints")
-    return lints.get("workspace") if isinstance(lints, dict) else None
-
-
 @pytest.mark.parametrize(
     ("table", "lint", "level"),
     [
@@ -104,7 +98,7 @@ def test_every_workspace_member_inherits_the_lint_tables() -> None:
     without_inheritance = [
         str(manifest.parent.name)
         for manifest in manifests
-        if _inheritance_flag(read_toml(manifest)) is not True
+        if not member_inherits_workspace_lints(manifest)
     ]
     assert without_inheritance == [], (
         "members without `[lints] workspace = true`: " + ", ".join(without_inheritance)
