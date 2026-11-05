@@ -32,7 +32,7 @@ type BuiltinSignatureFactory = cabc.Callable[[cabc.Mapping[str, object]], str]
 
 
 class _CacheAdapter(typ.Protocol):
-    """Narrow serialized-artifact operations used by the extraction policy."""
+    """Narrow serialized-artefact operations used by the extraction policy."""
 
     def read(self, key: str, /) -> bytes | None:
         """Return one stored envelope or no entry."""

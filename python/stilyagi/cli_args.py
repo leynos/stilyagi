@@ -349,7 +349,7 @@ def _add_config_argument(parser: argparse.ArgumentParser) -> None:
         "--config",
         action="append",
         # argparse copies an append default before adding values, so this must
-        # remain a list; option converters normalize it to a tuple afterward.
+        # remain a list; option converters normalize it to a tuple afterwards.
         default=[],
         metavar="VALUE",
         help="Use one explicit config file or inline TOML fragment.",

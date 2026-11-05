@@ -1,6 +1,7 @@
 //! Python docstring extraction contracts across the `PyO3` bridge.
 
 use pyo3::prelude::Python;
+use pyo3::types::PyListMethods;
 use rstest::rstest;
 use stilyagi_extract::ExtractSyntax;
 

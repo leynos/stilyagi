@@ -1,7 +1,7 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: COMPLETE — the R3 candidate passes all six local gates and its
-committed CodeRabbit review found no remaining issues.
+Status: IMPLEMENTATION COMPLETE — the current-main rebase is under final gate
+validation; PR review reconciliation remains before delivery is complete.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -82,6 +82,23 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
   demonstrated reuse.
 
 ## Progress
+
+- [x] (2026-11-05) Rebased validation passed five of six local gates, but
+      Nextest's 33-minute global timeout cancelled the final serial PyO3 UI
+      test after 842 seconds while 373/374 tests had passed. Raised the global
+      budget to 50 minutes, the Cargo watchdog to 3,900 seconds and workflow
+      ceilings to 100 minutes, updating their contracts and guide. The rerun
+      passed all 374 Nextest tests, including the final UI test in 813 seconds;
+      Python pytest then exposed the separate issues recorded below.
+- [ ] (2026-11-05) The timeout-adjusted full gate run passed formatting, lint,
+      typecheck, Markdownlint, Nixie, all 374 Rust tests and Rust doc tests.
+      Python pytest reported 1,043 passed, 2 failed and 2 errors: a generated
+      config property exceeded Hypothesis's 200 ms deadline under host load;
+      the runner-placement inventory still expected 80-minute ceilings; and
+      both Maturin wheel tests hit the shared fixture's 600 s build timeout.
+      Disable the deadline for the file-system property, pin the two inventory
+      ceilings to 100, and give the queued release wheel build a 1,200 s budget
+      before rerunning all six gates.
 
 - [x] (2026-10-14) Read repository guidance and requested skills; verify
       baseline
@@ -278,6 +295,12 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       `/tmp/coderabbit-stilyagi-r3-488764a-xZKYrO/coderabbit-r3.out`.
 - [x] (2026-10-25) Complete roadmap item 2.2.3 after full gate, review and
       conformance reconciliation. Roadmap 3.3.1 remains separate.
+- [ ] (2026-11-04) Revalidate the current candidate after replaying the
+      21-commit implementation range onto `origin/main` at
+      `4ec76702a905873663e423a830ba02c5a2219321`. Preserve main's `setup-uv`
+      updates alongside this branch's workflow timeout changes, then run the six
+      local gates on the final tree. Reconcile PR #226's live assessments,
+      review threads and checks before marking delivery complete.
 
 ## Surprises & discoveries
 
@@ -337,6 +360,16 @@ Validation sequencing follows the installed scrutineer's fixed order:
 `make check-fmt`, `make lint`, `make typecheck`, `make test`,
 `make markdownlint` and `make nixie`. The gate set and acceptance criteria are
 unchanged; every gate still runs sequentially against one candidate.
+
+On 2026-11-04, the 21 implementation commits were replayed onto the live
+`origin/main` tip `4ec76702a905873663e423a830ba02c5a2219321`. The range-diff
+maps all 21 commits from PR head `c265e205`; four target-sensitive patches
+incorporate upstream path, naming and spelling updates. Main's `setup-uv` pin
+changes were preserved alongside this branch's timeout changes. Seven
+previously reviewed spelling, formatting and test-import corrections were
+restored unchanged after the rebase. The corrected tree still needs the full
+sequential gate run; earlier R3 gate results do not establish validation for
+this candidate.
 
 D1: implement extraction-only caching now, retaining every RFC 0003 key
 dimension. Use explicit inactive signatures for unavailable rule-pack/NLP
@@ -1081,3 +1114,14 @@ Resolution note (2026-10-25): the successful rerun used the existing timeout
 budgets after temporary disk pressure had been relieved. M1 is complete; the
 proposed 1,800-second trybuild allowance and related budget changes were not
 adopted.
+
+Revision note (2026-11-05): on the rebase to current `main`, `make test` ran
+374 Nextest tests. The `stilyagi-ir::ui` test passed in 1,137.168 seconds, but
+the serial `stilyagi-pyext::compile_tests::compile_time_ui` test was cancelled
+after 842.424 seconds when the 33-minute global budget expired; 373 tests had
+passed, and nested trybuild compilation was still progressing. Retain the
+1,500-second per-test allowance and raise the global timeout to 50 minutes, the
+Cargo watchdog to 3,900 seconds and coverage job ceilings to 100 minutes. This
+preserves the timeout ordering while covering the observed first UI test, the
+full second-test budget, cold compilation and job work outside the watchdog.
+Rerun the full sequential gates before delivery.

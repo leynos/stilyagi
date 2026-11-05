@@ -1,4 +1,4 @@
-"""Verify cache storage failures preserve fresh extraction behavior."""
+"""Verify cache storage failures preserve fresh extraction behaviour."""
 
 import errno
 import logging

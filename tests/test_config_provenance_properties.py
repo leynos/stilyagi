@@ -9,7 +9,7 @@ import pathlib
 import tempfile
 import typing as typ
 
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from stilyagi import cli
 
@@ -357,6 +357,7 @@ def _inspect_generated_chain(
     return exit_code, stderr.getvalue(), json.loads(stdout.getvalue())
 
 
+@settings(deadline=None)
 @given(_generated_chain())
 def test_generated_extend_chains_match_independent_layer_fold(
     layers: list[dict[str, object]],

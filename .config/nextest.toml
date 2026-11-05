@@ -4,11 +4,11 @@
 # outlast 180 s on a cold, instrumented runner, get a budget that fits them.
 #
 # The ordering the contract in tests/test_timeout_ordering_contract.py holds:
-# largest per-test budget < global-timeout < the 2,700 s cargo watchdog less
+# largest per-test budget < global-timeout < the 3,900 s cargo watchdog less
 # termination and a cold build.
 [profile.default]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
-global-timeout = "33m"
+global-timeout = "50m"
 
 # The two UI binaries use the same trybuild target-directory build lock.
 [test-groups]
