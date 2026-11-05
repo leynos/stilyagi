@@ -1,17 +1,17 @@
 """Per-file execution for the `stilyagi check` command.
 
 This is the one path a discovered input travels: read it byte-faithfully,
-extract it through the syntax it was discovered under, resolve the
-configuration in force for its path, run the rules, and -- when the run asked
-for one -- plan its fix. Every stage is wrapped in an operational metric span,
-so a run's cost can be attributed to the phase that spent it.
+resolve the configuration in force for its path, extract it through the syntax
+it was discovered under, run the rules, and -- when the run asked for one --
+plan its fix. Every stage is wrapped in an operational metric span, so a run's
+cost can be attributed to the phase that spent it.
 
-Keeping that in one function is what makes the run's accounting honest. A
-second implementation of "check one file" would have to repeat the metric
-recording, the span boundaries, and the failure classification, and the two
-copies would disagree the first time one of them changed. The run-level sweep,
-which flattens these per-file results and reconciles a mutating run's re-lint,
-is `cli_run`'s work and imports this module rather than reimplementing it.
+Keeping these per-file phases on one path makes the run's accounting honest.
+The orchestrator owns their metric spans and failure classification; focused
+helpers perform extraction and rule/fix work without creating a second runner.
+The run-level sweep, which flattens these per-file results and reconciles a
+mutating run's re-lint, is `cli_run`'s work and imports this module rather than
+reimplementing it.
 
 The read lives here rather than entirely in `cli_io`. `cli_io` owns the byte
 *boundary*: how a stream is read without newline translation, and how an
@@ -34,6 +34,7 @@ import pathlib
 import typing as typ
 
 from stilyagi import check_metrics, config, diagnostics, engine, model
+from stilyagi.cache.extraction import CacheExtractionInput
 from stilyagi.check_inputs import (
     CheckInput,
     FileCheckResult,
@@ -52,6 +53,7 @@ from stilyagi.fixes import FixLevel
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
+    from stilyagi.cache.extraction import CacheExtractionService
     from stilyagi.cli_args import CheckOptions
     from stilyagi.rules import registry as rules_registry
 
@@ -89,6 +91,8 @@ class CheckRun:
     resolver: config.ConfigResolver
     rule_runner: rules_registry.RuleRunner
     report: CheckReporter
+    extraction_cache: CacheExtractionService | None = None
+    force_fresh: bool = False
 
 
 def _wants_a_plan(run: CheckRun) -> bool:
@@ -210,6 +214,72 @@ def _report_phase_failure(
     return FileCheckResult(diagnostics=[], had_error=True, was_unreadable=False)
 
 
+def _extract_document(
+    check_input: CheckInput,
+    sourced_input: SourcedInput,
+    resolved_config: config.StilyagiConfig,
+    run: CheckRun,
+) -> model.Document:
+    """Extract one document through the selected fresh or cached path."""
+    if run.extraction_cache is None:
+        return engine.extract_document(
+            sourced_input.source_text,
+            check_input.syntax,
+            source_path=sourced_input.reported_path,
+        )
+    extraction = run.extraction_cache.extract(
+        CacheExtractionInput(
+            source_text=sourced_input.source_text,
+            syntax=check_input.syntax,
+            reported_identity=sourced_input.reported_path,
+            effective_config=resolved_config,
+            cache_dir=resolved_config.cache_dir,
+            from_stdin=sourced_input.from_stdin,
+            force_fresh=run.force_fresh,
+        )
+    )
+    return extraction.document
+
+
+def _run_rules_and_plan(
+    sourced_input: SourcedInput,
+    document: model.Document,
+    resolved_config: config.StilyagiConfig,
+    run: CheckRun,
+) -> FileCheckResult:
+    """Evaluate one extracted document and plan only requested fixes."""
+    try:
+        with check_metrics._measure_phase("rules"):
+            diagnostics_list = [
+                *map_ir_errors(document, sourced_input.reported_path),
+                *run.rule_runner(document, resolved_config),
+            ]
+    except Exception:
+        check_metrics.record_operational_failure("rules")
+        raise
+
+    if not _wants_a_plan(run):
+        return FileCheckResult(
+            diagnostics=diagnostics_list,
+            had_error=False,
+            was_unreadable=False,
+        )
+    return FileCheckResult(
+        diagnostics=diagnostics_list,
+        had_error=False,
+        was_unreadable=False,
+        planned=_plan_fix(
+            _PlannedFileRequest(
+                sourced_input=sourced_input,
+                document=document,
+                diagnostics_list=diagnostics_list,
+                resolved_config=resolved_config,
+                run=run,
+            )
+        ),
+    )
+
+
 def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
     """Check one discovered file or standard-input payload.
 
@@ -235,22 +305,6 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
         check_metrics.record_operational_failure("read")
         return FileCheckResult(diagnostics=[], had_error=True, was_unreadable=True)
 
-    _LOGGER.debug("extracting %s", sourced_input.reported_path)
-    try:
-        with check_metrics._measure_phase("extract"):
-            document = engine.extract_document(
-                sourced_input.source_text, check_input.syntax
-            )
-    except engine.BridgeExtractionError as exc:
-        return _report_phase_failure(sourced_input, run, exc, "extract")
-    except Exception:
-        check_metrics.record_operational_failure("extract")
-        _LOGGER.exception(
-            "unexpected extraction failure for %s",
-            sourced_input.reported_path,
-        )
-        raise
-
     _LOGGER.debug("resolving config for %s", sourced_input.reported_path)
     try:
         with check_metrics._measure_phase("config"):
@@ -263,36 +317,27 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
     ) as exc:
         return _report_phase_failure(sourced_input, run, exc, "config")
 
+    _LOGGER.debug("extracting %s", sourced_input.reported_path)
     try:
-        with check_metrics._measure_phase("rules"):
-            diagnostics_list = [
-                *map_ir_errors(document, sourced_input.reported_path),
-                *run.rule_runner(document, resolved_config),
-            ]
-    except Exception:
-        check_metrics.record_operational_failure("rules")
-        raise
-
-    if not _wants_a_plan(run):
-        # Planning is skipped entirely unless a fix was asked for, so an
-        # ordinary check never pays for it and never reports a plan it did not
-        # make.
-        return FileCheckResult(
-            diagnostics=diagnostics_list,
-            had_error=False,
-            was_unreadable=False,
-        )
-    return FileCheckResult(
-        diagnostics=diagnostics_list,
-        had_error=False,
-        was_unreadable=False,
-        planned=_plan_fix(
-            _PlannedFileRequest(
-                sourced_input=sourced_input,
-                document=document,
-                diagnostics_list=diagnostics_list,
-                resolved_config=resolved_config,
-                run=run,
+        with check_metrics._measure_phase("extract"):
+            document = _extract_document(
+                check_input,
+                sourced_input,
+                resolved_config,
+                run,
             )
-        ),
+    except engine.BridgeExtractionError as exc:
+        return _report_phase_failure(sourced_input, run, exc, "extract")
+    except Exception:
+        check_metrics.record_operational_failure("extract")
+        _LOGGER.exception(
+            "unexpected extraction failure for %s",
+            sourced_input.reported_path,
+        )
+        raise
+    return _run_rules_and_plan(
+        sourced_input,
+        document,
+        resolved_config,
+        run,
     )

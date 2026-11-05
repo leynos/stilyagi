@@ -8,6 +8,7 @@ import typing as typ
 import hypothesis.strategies as st
 from stilyagi import engine, model
 from stilyagi.engine import ir_view
+from stilyagi.engine.fix_planning.frontmatter import yaml_frontmatter
 
 _Value = typ.TypeVar("_Value")
 _CORPUS_ROOT = pathlib.Path(__file__).parents[1] / "fixtures/corpus/markdown"
@@ -80,8 +81,8 @@ def synthetic_straddle_cases() -> tuple[SyntheticStraddleCase, ...]:
 
 @st.composite
 def admissible_edit_cases(draw: _StrategyDrawer) -> CorpusSpanCase:
-    """Draw an edit span wholly inside one source-backed corpus segment."""
-    case = draw(st.sampled_from(corpus_span_cases()))
+    """Draw a writable span wholly inside a non-frontmatter source segment."""
+    case = draw(st.sampled_from(_admissible_corpus_span_cases()))
     boundaries = _character_boundaries(case.source_bytes, case.span)
     start_index = draw(st.integers(min_value=0, max_value=len(boundaries) - 1))
     end_index = draw(st.integers(min_value=start_index, max_value=len(boundaries) - 1))
@@ -89,6 +90,26 @@ def admissible_edit_cases(draw: _StrategyDrawer) -> CorpusSpanCase:
         case.source_bytes,
         case.document,
         ir_view.SourceSpan(boundaries[start_index], boundaries[end_index]),
+    )
+
+
+@functools.cache
+def _admissible_corpus_span_cases() -> tuple[CorpusSpanCase, ...]:
+    """Exclude source-backed segments protected by the YAML frontmatter guard."""
+    return tuple(
+        case for case in corpus_span_cases() if not _is_protected_frontmatter_span(case)
+    )
+
+
+def _is_protected_frontmatter_span(case: CorpusSpanCase) -> bool:
+    """Return whether one corpus span overlaps recognized YAML frontmatter."""
+    frontmatter = yaml_frontmatter(case.document, case.source_bytes)
+    return (
+        frontmatter is not None
+        and frontmatter.span is not None
+        and frontmatter.protected_end is not None
+        and case.span.byte_start < frontmatter.protected_end
+        and case.span.byte_end > frontmatter.span.byte_start
     )
 
 

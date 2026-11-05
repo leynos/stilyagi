@@ -3,6 +3,7 @@
 use pyo3::{exceptions::PyRuntimeError, prelude::Python, types::PyListMethods};
 
 use super::{
+    BridgeExtractRequest,
     ExtractError,
     ExtractSyntax,
     RustExtractError,
@@ -17,8 +18,12 @@ fn extract_document_py_exposes_rust_doc_comments() {
     let source =
         stilyagi_test_support::read_corpus_fixture(stilyagi_test_support::SHARED_RUST_FIXTURE_PATH)
             .expect("expected shared Rust fixture to be readable");
-    let document = bridge_extract_document(&source, "rust_doc_comment")
-        .expect("Rust doc-comment extraction should succeed");
+    let document = bridge_extract_document(&BridgeExtractRequest {
+        source: &source,
+        syntax: "rust_doc_comment",
+        source_path: None,
+    })
+    .expect("Rust doc-comment extraction should succeed");
 
     Python::attach(|py| {
         let document_dict = document.bind(py);
@@ -39,21 +44,26 @@ fn extract_document_py_exposes_rust_doc_comments() {
         );
         let ir_json = dict_string(document_dict, "ir_json").expect("IR payload should be a string");
         let parsed_ir = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
-        let first_ir_region = parsed_ir
-            .get("regions")
-            .and_then(serde_json::Value::as_array)
-            .and_then(|region_entries| region_entries.first())
-            .and_then(serde_json::Value::as_object)
-            .expect("expected first IR region");
-        let owner = first_ir_region
-            .get("owner")
-            .and_then(serde_json::Value::as_object)
-            .expect("expected Rust doc-comment owner");
-        assert_eq!(owner.get("kind"), Some(&serde_json::json!("module")));
-        assert_eq!(owner.get("name"), Some(&serde_json::Value::Null));
-        assert_eq!(owner.get("qualname"), Some(&serde_json::Value::Null));
+        assert_module_owner(&parsed_ir);
         assert_ir_json_contract(&parsed_ir);
     });
+}
+
+fn assert_module_owner(parsed_ir: &serde_json::Value) {
+    let first_ir_region = parsed_ir
+        .get("regions")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|region_entries| region_entries.first())
+        .and_then(serde_json::Value::as_object)
+        .expect("expected first IR region");
+    let owner = first_ir_region
+        .get("owner")
+        .and_then(serde_json::Value::as_object)
+        .expect("expected Rust doc-comment owner");
+
+    assert_eq!(owner.get("kind"), Some(&serde_json::json!("module")));
+    assert_eq!(owner.get("name"), Some(&serde_json::Value::Null));
+    assert_eq!(owner.get("qualname"), Some(&serde_json::Value::Null));
 }
 
 #[rstest::rstest]

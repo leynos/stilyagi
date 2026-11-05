@@ -56,6 +56,10 @@ def load_script_module() -> types.ModuleType:
 
 
 build_tools = load_script_module()
+# Loading the script put `scripts/` on the path; the siblings come back here so
+# the in-process helpers are testable without a second import mechanism.
+build_tools_environment = importlib.import_module("build_tools_environment")
+build_tools_pins = importlib.import_module("build_tools_pins")
 
 
 def mold_archive() -> bytes:
