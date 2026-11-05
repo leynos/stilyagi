@@ -19,6 +19,7 @@ against it.
 import typing as typ
 
 import pytest
+from syrupy.extensions.json import JSONSnapshotExtension
 
 from tests.support.lint_policy import (
     RUSTDOC_FLAGS_EXTRA,
@@ -29,6 +30,9 @@ from tests.support.lint_policy import (
     rustdoc_default,
     workspace_lints,
 )
+
+if typ.TYPE_CHECKING:
+    from syrupy.assertion import SnapshotAssertion
 
 #: Lints this repository enables, by the table that owns them and the level it
 #: sets. A missing or weakened entry is a silent loss of enforcement.
@@ -91,19 +95,22 @@ def test_workspace_lint_table_enables_the_baseline(
     )
 
 
-def test_cargo_resolves_the_workspace_members() -> None:
-    """The real, constrained Cargo boundary resolves the known member set."""
+def test_cargo_resolves_the_workspace_members(
+    snapshot: SnapshotAssertion,
+) -> None:
+    """The real, constrained Cargo boundary resolves the known member set.
+
+    The snapshot is the member *set*, not the manifest paths: a path carries
+    the checkout location, which differs between a developer worktree and CI,
+    while the member names are the policy the contract pins. Adding a member is
+    then a reviewed snapshot change rather than a silently accepted one.
+    """
     manifests = member_manifests()
-    assert {manifest.parent.name for manifest in manifests} == {
-        "stilyagi-core",
-        "stilyagi-extract",
-        "stilyagi-ir",
-        "stilyagi-markdown",
-        "stilyagi-pyext",
-        "stilyagi-test-fixtures",
-        "stilyagi-test-support",
-        "stilyagi-tree-sitter",
-    }, f"unexpected workspace members: {manifests}"
+    assert manifests, "cargo resolved no workspace members"
+    names = sorted(manifest.parent.name for manifest in manifests)
+    assert names == snapshot(extension_class=JSONSnapshotExtension), (
+        "expected the resolved workspace members to match the snapshot"
+    )
 
 
 def test_every_workspace_member_inherits_the_lint_tables() -> None:
