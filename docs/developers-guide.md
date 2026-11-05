@@ -1829,6 +1829,39 @@ Cranelift exception. `RUSTDOC_FLAGS` defaults to `--cfg docsrs -D warnings`,
 with `?=`; the existing documentation and doctest routes retain their workspace
 and feature coverage.
 
+### Lint-policy test architecture
+
+`tests/support/lint_policy.py` is the single read-only boundary for policy
+reads of `Cargo.toml`, `clippy.toml` and the `Makefile`. Every reader takes a
+path and defaults to the repository's file: `workspace_lints`, `lint_level`,
+`member_manifests` (the member set as `cargo metadata --no-deps` resolves it,
+which is wider than the `members` patterns), `clippy_restrictions`,
+`rustdoc_default_lines`, and `rustdoc_default` (the validated single
+`RUSTDOC_FLAGS` assignment). All file access goes through `_read_text` and
+`_read_toml`, so an unreadable, undecodable or malformed file, and a structural
+surprise such as a non-table restriction, are `ReadingError`s naming the reader
+and path rather than an `OSError` or parser traceback.
+
+Four modules use those readers and prove different things.
+`tests/test_lint_policy_contract.py` fails when an entry this repository relies
+on is missing, weakened, or loses its reason, when a member stops inheriting
+the tables, or when the `RUSTDOC_FLAGS` default stops being conditional,
+docsrs-enabled, warning-denying and last-extended.
+`tests/test_lint_policy_behaviour.py` compiles one violating fixture per
+enabled entry in scratch crates under `target/`, so a table naming a lint that
+does not exist cannot pass. `tests/test_lint_policy_make_routes.py` dry-runs
+`make lint` against the recording probes and reads the `RUSTDOCFLAGS` the doc
+recipe evaluates. `tests/test_lint_policy_readers.py` pins the failure modes of
+every reader.
+
+The route tests pass environment overrides through
+`tests.support.build_standard.dry_run(target, tools, *extra, env=...)`. The
+helper starts from the inherited environment with the probe directory leading
+`PATH`, sets each string value in `env`, and removes each variable whose value
+is `None`. The `None` form is not decoration: it neutralizes an ambient
+`RUSTDOC_FLAGS` a developer shell may export, so a case can assert the
+Makefile's own `?=` default without depending on the shell it runs in.
+
 ### Shared workflow parser
 
 Workflow contract tests use `tests/support/workflows.py::load_workflow` to
@@ -1885,7 +1918,7 @@ dependency only a gate script uses does not belong in `pyproject.toml`.
 1. `cargo doc --workspace --all-features --no-deps` with `RUSTDOCFLAGS` set
    from `RUSTDOC_FLAGS`. That variable defaults to `--cfg docsrs -D warnings`
    and appends `RUSTDOC_FLAGS_EXTRA`; an environment `RUSTDOC_FLAGS` replaces
-   the default outright
+   the default outright.
 2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 3. `whitaker --all -- --workspace --all-targets --all-features` with
    `RUSTFLAGS=-D warnings`
