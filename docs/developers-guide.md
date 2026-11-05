@@ -2043,6 +2043,12 @@ one lint entry rather than a path. All file access goes through `_read_text` and
 structural surprise such as a non-table restriction, are `ReadingError`s naming
 the reader and path rather than an `OSError` or parser traceback.
 
+`member_manifests` is also the one reader that leaves the filesystem: it asks
+Cargo for the resolved member set through `MetadataRunner`, a narrow callable
+seam whose default runs `cargo metadata --no-deps --locked --offline`, so
+discovery compiles nothing, writes no lockfile and fetches nothing. Reader
+tests inject a fake outcome; one contract test crosses the real boundary.
+
 Four modules use those readers and prove different things.
 `tests/test_lint_policy_contract.py` fails when an entry this repository relies
 on is missing, weakened, or loses its reason, when a member stops inheriting
