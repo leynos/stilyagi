@@ -203,11 +203,20 @@ def _require_member_list(path: pathlib.Path) -> None:
 
 def _cargo_metadata(path: pathlib.Path) -> dict[str, object]:
     """Return `cargo metadata --no-deps` for the given workspace manifest."""
+    result = _run_cargo_metadata(path)
+    if result.returncode != 0:
+        message = f"cargo metadata failed: {result.stderr.strip()}"
+        raise ReadingError(message, reader="lint_policy", path=str(path))
+    return _metadata_document(result.stdout, path)
+
+
+def _run_cargo_metadata(path: pathlib.Path) -> subprocess.CompletedProcess[str]:
+    """Run `cargo metadata --no-deps` for the given workspace manifest."""
     cargo = shutil.which("cargo")
     if cargo is None:
         message = "cargo is required to resolve workspace members"
         raise ReadingError(message, reader="lint_policy", path=str(path))
-    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv: `cargo metadata` reads manifests only.
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv: `cargo metadata` reads manifests only.
         [
             cargo,
             "metadata",
@@ -221,11 +230,12 @@ def _cargo_metadata(path: pathlib.Path) -> dict[str, object]:
         text=True,
         check=False,
     )
-    if result.returncode != 0:
-        message = f"cargo metadata failed: {result.stderr.strip()}"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
+
+
+def _metadata_document(stdout: str, path: pathlib.Path) -> dict[str, object]:
+    """Parse `cargo metadata` output, rejecting a non-object document."""
     try:
-        document = json.loads(result.stdout)
+        document = json.loads(stdout)
     except json.JSONDecodeError as error:
         message = f"cargo metadata returned invalid JSON: {error}"
         raise ReadingError(message, reader="lint_policy", path=str(path)) from error
