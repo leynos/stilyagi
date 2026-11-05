@@ -1928,16 +1928,16 @@ and then the Rust lint tiers owned by the repository:
 4. the blocking `nose` duplication gate
 
 `make lint-whitaker` then runs
-`whitaker $(WHITAKER_PACKAGES) -- --workspace --all-targets --all-features`
+`whitaker $(WHITAKER_LIBRARIES) -- --workspace --all-targets --all-features`
 with `RUSTFLAGS=-D warnings`.
 
 `lint-whitaker: lint-clippy` is the sequencing guarantee. The prerequisite
 makes Make build the Clippy stage before it schedules Whitaker, so even
 `make -j lint` cannot start Whitaker while Clippy is still running; the order
-does not rely on `.NOTPARALLEL` or on recipe line order. `WHITAKER_PACKAGES`
-defaults to `--all` and names the workspace packages the suite checks. A crate
-that needs `rustc_private` has to be scoped there, and in this guide, rather
-than widening the suite.
+does not rely on `.NOTPARALLEL` or on recipe line order. `WHITAKER_LIBRARIES`
+defaults to `--all`, which loads all discovered Dylint libraries, while the
+package and target scope is the `--workspace --all-targets --all-features`
+passed after `--`.
 
 The gate is binding. Whitaker's exit status is the recipe's exit status: there
 is no `|| true`, no `-` error prefix, no existence guard, and no masking
@@ -2338,9 +2338,10 @@ not part of the standard" in section 5a), so the build standard does not
 require the input; it stays as the Whitaker provisioning policy has it. The
 `make lint-whitaker` recipe gives Whitaker `RUSTFLAGS="-D warnings"`
 (`WHITAKER_RUST_FLAGS`) alone, a known boundary with none of the development
-flags; `WHITAKER_PACKAGES` selects the checked packages. Whitaker's
-installer-managed toolchain is independent of the pin in
-`rust-toolchain.toml`.
+flags; `WHITAKER_LIBRARIES` defaults to `--all`, which loads all discovered
+Dylint libraries, while the package and target scope is the
+`--workspace --all-targets --all-features` passed after `--`. Whitaker's
+installer-managed toolchain is independent of the pin in `rust-toolchain.toml`.
 
 `tests/test_ci_workflow_units.py` asserts the step uses the action at a full
 commit hash with no script and only the `cranelift` input. The concordat QG-002

@@ -151,7 +151,7 @@ def makefile_text() -> str:
                 expected_recipe_fragments=(
                     (
                         'RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" '
-                        "$(CARGO_BUILD_ENV) $(WHITAKER) $(WHITAKER_PACKAGES) "
+                        "$(CARGO_BUILD_ENV) $(WHITAKER) $(WHITAKER_LIBRARIES) "
                         "-- $(CARGO_FLAGS)"
                     ),
                 ),
