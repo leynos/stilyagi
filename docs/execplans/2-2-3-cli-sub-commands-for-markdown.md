@@ -423,6 +423,30 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-2-2-3-cli-sub-commands-for-markdown-cs.out`;
       superseded generations are preserved beside them with `-preedit` and
       `-gen2-stale` suffixes.
+- [x] (2026-11-05) Close the two assessment gaps. The plan's seeded-mutation
+      clauses are now evidenced by four experiments, each with a file backup
+      and a verified restore (`git diff --stat` showed only the intended
+      files, and 37 focused tests passed on the restored tree):
+      reversed precedence in `_merge_config_tables_with_origins` failed 13
+      tests (V1); an identity dictionary omitting `effective_config_sha256`
+      and `source_sha256` failed 4 (V3); following a directory symlink in
+      `_visit_child_directory` failed 1 and genuinely removed the outside
+      tree, reporting `CacheCleanResult(removed_files=2,
+      removed_namespaces=1, …)` (V4); disabling the final candidate check in
+      `plan_fixes` failed 1 (V6); and stripping frontmatter from the lookup
+      hash failed 1, with the test printing two identical digests (V6). The
+      final candidate check is the sole detector for changed frontmatter
+      recognition, which is why the legitimate-body-edit scenario still passes
+      under that mutant. V6's frontmatter-repair scenario named in this plan
+      is now present in `features/markdown_cli_inspection.feature` and bound
+      through the new `tests/steps/markdown_frontmatter_repair.py` (7
+      scenarios green); stdin output and diff preview were added for all three
+      suffixes. The stdin test asserts exit status one, not zero: D-13 derives
+      the status from re-linting the files the run *wrote*, and a stream input
+      is never written, so its planning diagnostic stands. That is the
+      contract `tests/test_check_mutation.py` already records, and this
+      segment's first draft asserted the wrong status until the standing test
+      was read.
 
 ## Surprises & discoveries
 

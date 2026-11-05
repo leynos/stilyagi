@@ -17,6 +17,7 @@ from pytest_bdd import scenarios
 pytest_plugins = (
     "tests.steps.markdown_cli_inspection",
     "tests.steps.markdown_cli_cleanup",
+    "tests.steps.markdown_frontmatter_repair",
 )
 
 scenarios("../features/markdown_cli_inspection.feature")
