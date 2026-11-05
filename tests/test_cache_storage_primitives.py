@@ -5,6 +5,9 @@ import os
 import pathlib
 import typing as typ
 
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
 import pytest
 from stilyagi.cache import storage_primitives as primitives
 from stilyagi.cache.storage_primitives import CacheStorageError
@@ -23,6 +26,35 @@ def _fifo_path(tmp_path: pathlib.Path) -> pathlib.Path:
     fifo = tmp_path / "fifo"
     os.mkfifo(fifo)
     return fifo
+
+
+def _with_descriptor(
+    path: pathlib.Path,
+    flags: int,
+    subject: cabc.Callable[[int], object],
+) -> object:
+    """Run ``subject`` on a descriptor for ``path``, closing it afterwards."""
+    descriptor = os.open(path, flags)
+    try:
+        return subject(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+# The exclusive write target each fault case opens, so the cases cannot drift
+# into opening their target with subtly different flags.
+_WRITE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+
+
+def _expect_storage_error(
+    path: pathlib.Path,
+    flags: int,
+    subject: cabc.Callable[[int], object],
+    match: str,
+) -> None:
+    """Assert ``subject`` classifies its descriptor fault with ``match``."""
+    with pytest.raises(CacheStorageError, match=match):
+        _with_descriptor(path, flags, subject)
 
 
 def test_require_descriptor_support_rejects_missing_operations(
@@ -244,13 +276,11 @@ def test_read_all_classifies_a_read_fault(
     """Report a read that fails after the descriptor was opened."""
     regular = tmp_path / "file"
     regular.write_bytes(b"contents")
-    descriptor = os.open(regular, os.O_RDONLY)
     monkeypatch.setattr(primitives.os, "read", _raise_oserror)
-    try:
-        with pytest.raises(CacheStorageError, match="cannot read cache file"):
-            primitives._read_all(descriptor)
-    finally:
-        os.close(descriptor)
+
+    _expect_storage_error(
+        regular, os.O_RDONLY, primitives._read_all, "cannot read cache file"
+    )
 
 
 def test_read_regular_file_returns_none_for_a_fifo(tmp_path: pathlib.Path) -> None:
@@ -281,14 +311,14 @@ def test_write_all_rejects_a_short_write(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Refuse a write that reports no progress."""
-    target = tmp_path / "file"
-    descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
     monkeypatch.setattr(primitives.os, "write", lambda *_args: 0)
-    try:
-        with pytest.raises(CacheStorageError, match="short write"):
-            primitives._write_all(descriptor, b"contents")
-    finally:
-        os.close(descriptor)
+
+    _expect_storage_error(
+        tmp_path / "file",
+        _WRITE_FLAGS,
+        lambda descriptor: primitives._write_all(descriptor, b"contents"),
+        "short write",
+    )
 
 
 def test_write_all_classifies_a_write_fault(
@@ -296,11 +326,11 @@ def test_write_all_classifies_a_write_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Report a write the filesystem rejects."""
-    target = tmp_path / "file"
-    descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
     monkeypatch.setattr(primitives.os, "write", _raise_oserror)
-    try:
-        with pytest.raises(CacheStorageError, match="cannot write cache file"):
-            primitives._write_all(descriptor, b"contents")
-    finally:
-        os.close(descriptor)
+
+    _expect_storage_error(
+        tmp_path / "file",
+        _WRITE_FLAGS,
+        lambda descriptor: primitives._write_all(descriptor, b"contents"),
+        "cannot write cache file",
+    )

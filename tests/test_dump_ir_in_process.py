@@ -11,14 +11,37 @@ import json
 import pathlib
 import typing as typ
 
+import pytest
 from stilyagi import cli_dump_ir, config, discovery, model
 from stilyagi.check_inputs import CheckInput
 from stilyagi.cli_args import DumpIrOptions
 
-from tests.support.dump_ir_harness import run_dump_ir
+from tests.support.dump_ir_harness import Stdin, run_dump_ir
 
-if typ.TYPE_CHECKING:
-    import pytest
+type _NoticeReason = typ.Literal[
+    "missing_or_unsupported_target",
+    "unregistered_explicit_file",
+]
+
+
+def _report_one_notice(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    reason: _NoticeReason,
+    path: pathlib.Path | None = None,
+) -> None:
+    """Make discovery report one notice instead of walking any target."""
+    result = discovery.DiscoveryResult(
+        files=(),
+        skipped_files=0,
+        failures=(),
+        notices=(discovery.DiscoveryNotice(reason=reason, path=path),),
+    )
+    monkeypatch.setattr(
+        cli_dump_ir.discovery,
+        "discover_files_with_summary",
+        lambda *_args, **_kwargs: result,
+    )
 
 
 def test_dump_ir_emits_one_document_in_process(
@@ -79,8 +102,7 @@ def test_dump_ir_reads_stdin_with_its_reported_name(
         tmp_path,
         monkeypatch,
         "-",
-        stdin_text="# Piped\n",
-        stdin_filename="piped.mdc",
+        stdin=Stdin(text="# Piped\n", filename="piped.mdc"),
     )
 
     assert exit_code == 0, "valid stdin Markdown must extract"
@@ -96,7 +118,7 @@ def test_dump_ir_requires_a_stdin_filename(
 ) -> None:
     """Reject piped bytes that carry no Markdown reporting identity."""
     exit_code, output, error = run_dump_ir(
-        tmp_path, monkeypatch, "-", stdin_text="# Piped\n"
+        tmp_path, monkeypatch, "-", stdin=Stdin(text="# Piped\n")
     )
 
     assert exit_code == 2, "stdin without a filename is an invalid invocation"
@@ -113,8 +135,7 @@ def test_dump_ir_requires_a_markdown_stdin_filename(
         tmp_path,
         monkeypatch,
         "-",
-        stdin_text="print('hi')\n",
-        stdin_filename="module.py",
+        stdin=Stdin(text="print('hi')\n", filename="module.py"),
     )
 
     assert exit_code == 2, "a non-Markdown stdin filename is invalid"
@@ -167,33 +188,53 @@ def test_dump_ir_reports_a_discovery_failure(
     assert "cannot discover" in error, "the error must describe the discovery fault"
 
 
-def test_dump_ir_reports_a_missing_target_notice(
+class _UnusableTarget(typ.NamedTuple):
+    """One notice about a target the command must reject, with its diagnostic."""
+
+    reason: _NoticeReason
+    named: str
+    mention: str
+    message: str
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param(
+            _UnusableTarget(
+                "missing_or_unsupported_target",
+                "missing.md",
+                "target does not exist",
+                "a missing target is an invalid invocation",
+            ),
+            id="missing-target",
+        ),
+        pytest.param(
+            _UnusableTarget(
+                "unregistered_explicit_file",
+                "odd.md",
+                "odd.md",
+                "an unregistered explicit file is invalid",
+            ),
+            id="unregistered-target",
+        ),
+    ],
+)
+def test_dump_ir_reports_an_unusable_explicit_target(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
+    target: _UnusableTarget,
 ) -> None:
-    """Turn a missing explicit target into a command error."""
-    result = discovery.DiscoveryResult(
-        files=(),
-        skipped_files=0,
-        failures=(),
-        notices=(
-            discovery.DiscoveryNotice(
-                reason="missing_or_unsupported_target",
-                path=pathlib.Path("missing.md"),
-            ),
-        ),
-    )
-    monkeypatch.setattr(
-        cli_dump_ir.discovery,
-        "discover_files_with_summary",
-        lambda *_args, **_kwargs: result,
+    """Turn each notice about an unusable explicit target into a command error."""
+    _report_one_notice(
+        monkeypatch, reason=target.reason, path=pathlib.Path(target.named)
     )
 
-    exit_code, output, error = run_dump_ir(tmp_path, monkeypatch, "missing.md")
+    exit_code, output, error = run_dump_ir(tmp_path, monkeypatch, target.named)
 
-    assert exit_code == 2, "a missing target is an invalid invocation"
+    assert exit_code == 2, target.message
     assert not output, "a rejected invocation must emit no JSON"
-    assert "target does not exist" in error, "the error must name the missing target"
+    assert target.mention in error, "the error must name the offending target"
 
 
 def test_dump_ir_reports_a_notice_without_a_path(
@@ -201,17 +242,7 @@ def test_dump_ir_reports_a_notice_without_a_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Report a discovery notice that carries no path to describe."""
-    result = discovery.DiscoveryResult(
-        files=(),
-        skipped_files=0,
-        failures=(),
-        notices=(discovery.DiscoveryNotice(reason="missing_or_unsupported_target"),),
-    )
-    monkeypatch.setattr(
-        cli_dump_ir.discovery,
-        "discover_files_with_summary",
-        lambda *_args, **_kwargs: result,
-    )
+    _report_one_notice(monkeypatch, reason="missing_or_unsupported_target")
 
     exit_code, output, error = run_dump_ir(tmp_path, monkeypatch, ".")
 
@@ -232,35 +263,6 @@ def test_dump_ir_reports_an_unreadable_source(
     assert exit_code == 2, "undecodable source bytes are an operational error"
     assert not output, "an unreadable source must emit no JSON"
     assert "cannot read notes.md" in error, "the error must name the unreadable source"
-
-
-def test_dump_ir_reports_an_unsupported_config_target(
-    tmp_path: pathlib.Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Report an unregistered explicit target notice from discovery."""
-    result = discovery.DiscoveryResult(
-        files=(),
-        skipped_files=0,
-        failures=(),
-        notices=(
-            discovery.DiscoveryNotice(
-                reason="unregistered_explicit_file",
-                path=pathlib.Path("odd.md"),
-            ),
-        ),
-    )
-    monkeypatch.setattr(
-        cli_dump_ir.discovery,
-        "discover_files_with_summary",
-        lambda *_args, **_kwargs: result,
-    )
-
-    exit_code, output, error = run_dump_ir(tmp_path, monkeypatch, ".")
-
-    assert exit_code == 2, "an unregistered explicit file is invalid"
-    assert not output, "a rejected invocation must emit no JSON"
-    assert "odd.md" in error, "the error must name the unregistered target"
 
 
 def test_dump_ir_reports_a_missing_canonical_ir(
@@ -346,7 +348,7 @@ def test_dump_ir_rejects_stdin_mixed_with_a_file_target(
     (tmp_path / "notes.md").write_text("# Heading\n", encoding="utf-8")
 
     exit_code, output, error = run_dump_ir(
-        tmp_path, monkeypatch, "-", "notes.md", stdin_text="# Piped\n"
+        tmp_path, monkeypatch, "-", "notes.md", stdin=Stdin(text="# Piped\n")
     )
 
     assert exit_code == 2, "mixing stdin with a file target is invalid"

@@ -4,6 +4,7 @@ import errno
 import os
 import typing as typ
 
+import pytest
 from stilyagi.cache import clean
 from stilyagi.cache.model import (
     CACHE_NAMESPACE_NAME,
@@ -16,7 +17,63 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
     import pathlib
 
-    import pytest
+
+class _TraversalFault(typ.NamedTuple):
+    """One injected traversal fault and the diagnostic prefix it must produce.
+
+    `spared_calls` lets the root list itself before the fault fires. The root
+    must list once for cleanup to find the namespace at all, so faulting every
+    call would exercise the root case rather than the namespace one.
+    """
+
+    primitive: str
+    location: str
+    spared_calls: int = 0
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        pytest.param(
+            _TraversalFault("_read_marker", "cache/stilyagi-v1/owner.json"),
+            id="marker-read",
+        ),
+        pytest.param(
+            _TraversalFault("_directory_identity", "cache/stilyagi-v1"),
+            id="directory-identity",
+        ),
+        pytest.param(_TraversalFault("_directory_entries", "."), id="root-listing"),
+        pytest.param(
+            _TraversalFault("_directory_entries", "cache", spared_calls=1),
+            id="namespace-listing",
+        ),
+    ],
+)
+def test_clean_reports_a_traversal_fault_and_keeps_the_namespace(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: _TraversalFault,
+) -> None:
+    """Attribute each descriptor fault to its location without deleting anything."""
+    namespace = _marked_cache(tmp_path / "cache")
+    owned_entry = namespace / cache_entry_name("a" * 64)
+    owned_entry.write_bytes(b"owned")
+    _inject_after_support_check(
+        monkeypatch,
+        clean,
+        fault.primitive,
+        _fault_after(fault.spared_calls, getattr(clean, fault.primitive)),
+    )
+
+    result = clean.clean_cache_tree(tmp_path)
+
+    assert any(error.startswith(fault.location) for error in result.errors), (
+        "the fault must be attributed to the path it happened at"
+    )
+    assert namespace.is_dir(), "a namespace with an unreadable part must survive"
+    assert owned_entry.read_bytes() == b"owned", (
+        "an unverifiable namespace must not authorize deleting its entries"
+    )
 
 
 def _marked_cache(parent: pathlib.Path) -> pathlib.Path:
@@ -27,66 +84,55 @@ def _marked_cache(parent: pathlib.Path) -> pathlib.Path:
     return namespace
 
 
-def _fail_with(error: OSError) -> cabc.Callable[..., typ.NoReturn]:
-    """Return a replacement primitive that raises ``error``."""
+def _fault_after(
+    spared_calls: int,
+    call_through: cabc.Callable[..., object],
+) -> cabc.Callable[..., object]:
+    """Return a primitive that serves ``spared_calls`` calls, then raises.
 
-    def fail(*_args: object, **_kwargs: object) -> typ.NoReturn:
-        """Refuse the patched descriptor operation."""
-        raise error
+    A zero count refuses immediately. The counted form exists for primitives
+    whose first call is legitimate — the root must list itself before cleanup
+    can even find the namespace it is meant to fault.
+
+    Returns
+    -------
+    Callable
+        The replacement primitive, ready to be monkeypatched in.
+    """
+    remaining = [spared_calls]
+
+    def fail(*args: object, **kwargs: object) -> object:
+        """Serve the spared calls, then refuse the patched operation."""
+        remaining[0] -= 1
+        if remaining[0] < 0:
+            raise OSError(errno.EIO, "injected")
+        return call_through(*args, **kwargs)
 
     return fail
 
 
-def test_clean_reports_a_marker_read_failure(
-    tmp_path: pathlib.Path,
+def _inject_after_support_check(
     monkeypatch: pytest.MonkeyPatch,
+    target: object,
+    attribute: str,
+    replacement: cabc.Callable[..., object],
 ) -> None:
-    """Report an unreadable owner marker while leaving the namespace in place."""
-    namespace = _marked_cache(tmp_path / "cache")
-    (namespace / cache_entry_name("a" * 64)).write_bytes(b"owned")
+    """Patch one primitive only once native descriptor support was verified.
+
+    Cleanup validates support before it walks anything, so a patch installed
+    too early could be installed before the check that gates traversal. Wrapping
+    the check keeps the production ordering intact while still faulting the
+    traversal itself.
+    """
     original_require = clean._require_safe_cleanup_support
 
     def require_then_patch() -> None:
-        """Validate native support before injecting the marker read fault."""
+        """Validate native support, then install the injected fault."""
         original_require()
-        monkeypatch.setattr(
-            clean, "_read_marker", _fail_with(OSError(errno.EIO, "injected"))
-        )
+        monkeypatch.setattr(target, attribute, replacement)
         monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
 
     monkeypatch.setattr(clean, "_require_safe_cleanup_support", require_then_patch)
-
-    result = clean.clean_cache_tree(tmp_path)
-
-    assert result.errors, "an unreadable marker must be reported"
-    assert namespace.is_dir(), "a namespace with an unreadable marker must survive"
-    assert (namespace / cache_entry_name("a" * 64)).read_bytes() == b"owned", (
-        "unreadable ownership must not authorize deletion"
-    )
-
-
-def test_clean_reports_a_directory_identity_failure(
-    tmp_path: pathlib.Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Report a namespace whose identity cannot be established."""
-    namespace = _marked_cache(tmp_path / "cache")
-    original_require = clean._require_safe_cleanup_support
-
-    def require_then_patch() -> None:
-        """Validate native support before injecting the identity fault."""
-        original_require()
-        monkeypatch.setattr(
-            clean, "_directory_identity", _fail_with(OSError(errno.EIO, "injected"))
-        )
-        monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
-
-    monkeypatch.setattr(clean, "_require_safe_cleanup_support", require_then_patch)
-
-    result = clean.clean_cache_tree(tmp_path)
-
-    assert result.errors, "an unreadable directory identity must be reported"
-    assert namespace.is_dir(), "an unverifiable namespace must survive cleanup"
 
 
 def test_clean_reports_a_non_regular_marker(
@@ -98,15 +144,9 @@ def test_clean_reports_a_non_regular_marker(
     marker = namespace / OWNER_MARKER_NAME
     marker.unlink()
     os.mkfifo(marker)
-    original_require = clean._require_safe_cleanup_support
-
-    def require_then_patch() -> None:
-        """Accept the marker read so identity verification must catch the FIFO."""
-        original_require()
-        monkeypatch.setattr(clean, "_read_marker", lambda _fd: OWNER_MARKER_BYTES)
-        monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
-
-    monkeypatch.setattr(clean, "_require_safe_cleanup_support", require_then_patch)
+    _inject_after_support_check(
+        monkeypatch, clean, "_read_marker", lambda _fd: OWNER_MARKER_BYTES
+    )
 
     result = clean.clean_cache_tree(tmp_path)
 
@@ -114,31 +154,6 @@ def test_clean_reports_a_non_regular_marker(
         "a marker that is no longer a regular file must be reported"
     )
     assert namespace.is_dir(), "a namespace with a FIFO marker must survive cleanup"
-
-
-def test_clean_reports_a_failed_entry_listing(
-    tmp_path: pathlib.Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Report a namespace whose directory entries cannot be read."""
-    namespace = _marked_cache(tmp_path / "cache")
-    (namespace / cache_entry_name("b" * 64)).write_bytes(b"owned")
-    original_require = clean._require_safe_cleanup_support
-
-    def require_then_patch() -> None:
-        """Validate native support before refusing the entry listing."""
-        original_require()
-        monkeypatch.setattr(
-            clean, "_directory_entries", _fail_with(OSError(errno.EIO, "injected"))
-        )
-        monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
-
-    monkeypatch.setattr(clean, "_require_safe_cleanup_support", require_then_patch)
-
-    result = clean.clean_cache_tree(tmp_path)
-
-    assert result.errors, "a failed entry listing must be reported"
-    assert namespace.is_dir(), "an unlistable namespace must survive cleanup"
 
 
 def test_clean_skips_a_directory_named_like_a_cache_entry(
@@ -181,7 +196,6 @@ def test_clean_reports_a_marker_replaced_before_removal(
     namespace = _marked_cache(tmp_path / "cache")
     marker = namespace / OWNER_MARKER_NAME
     original_has_preserved = clean._namespace_has_preserved_entries
-    original_require = clean._require_safe_cleanup_support
     replaced = False
 
     def replace_marker_then_report_empty(owned: clean._OwnedNamespace) -> bool:
@@ -199,15 +213,12 @@ def test_clean_reports_a_marker_replaced_before_removal(
             replaced = True
         return should_stop
 
-    def require_then_patch() -> None:
-        """Validate native support before replacing the marker in place."""
-        original_require()
-        monkeypatch.setattr(
-            clean, "_namespace_has_preserved_entries", replace_marker_then_report_empty
-        )
-        monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
-
-    monkeypatch.setattr(clean, "_require_safe_cleanup_support", require_then_patch)
+    _inject_after_support_check(
+        monkeypatch,
+        clean,
+        "_namespace_has_preserved_entries",
+        replace_marker_then_report_empty,
+    )
 
     result = clean.clean_cache_tree(tmp_path)
 
@@ -230,7 +241,6 @@ def test_clean_reports_a_directory_changed_during_traversal(
     project.mkdir()
     (project / "child").mkdir()
     original_fstat = os.fstat
-    original_require = clean._require_safe_cleanup_support
     swapped = False
 
     def swap_identity(_descriptor: int) -> os.stat_result:
@@ -253,13 +263,7 @@ def test_clean_reports_a_directory_changed_during_traversal(
             ))
         return metadata
 
-    def require_then_patch() -> None:
-        """Validate native support before replacing the identity observation."""
-        original_require()
-        monkeypatch.setattr(clean.os, "fstat", swap_identity)
-        monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
-
-    monkeypatch.setattr(clean, "_require_safe_cleanup_support", require_then_patch)
+    _inject_after_support_check(monkeypatch, clean.os, "fstat", swap_identity)
 
     result = clean.clean_cache_tree(tmp_path)
 
@@ -288,7 +292,6 @@ def test_clean_reports_a_child_directory_open_failure(
     child = project / "child"
     child.mkdir()
     original_open = os.open
-    original_require = clean._require_safe_cleanup_support
 
     def refuse_child(path: str, flags: int, *, dir_fd: int | None = None) -> int:
         """Refuse the directory open after the root has been anchored."""
@@ -296,41 +299,13 @@ def test_clean_reports_a_child_directory_open_failure(
             raise PermissionError(errno.EACCES, "denied")
         return original_open(path, flags, dir_fd=dir_fd)
 
-    def require_then_patch() -> None:
-        """Validate native support before refusing the child open."""
-        original_require()
-        monkeypatch.setattr(clean.os, "open", refuse_child)
-        monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
-
-    monkeypatch.setattr(clean, "_require_safe_cleanup_support", require_then_patch)
+    _inject_after_support_check(monkeypatch, clean.os, "open", refuse_child)
 
     result = clean.clean_cache_tree(tmp_path)
 
     assert any("child" in error for error in result.errors), (
         "an unopenable child directory must be attributed to its path"
     )
-
-
-def test_clean_reports_a_root_listing_failure(
-    tmp_path: pathlib.Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Report a root whose entries cannot be listed."""
-    original_require = clean._require_safe_cleanup_support
-
-    def require_then_patch() -> None:
-        """Validate native support before refusing the root listing."""
-        original_require()
-        monkeypatch.setattr(
-            clean, "_directory_entries", _fail_with(OSError(errno.EIO, "injected"))
-        )
-        monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
-
-    monkeypatch.setattr(clean, "_require_safe_cleanup_support", require_then_patch)
-
-    result = clean.clean_cache_tree(tmp_path)
-
-    assert result.errors, "an unlistable root must be reported"
 
 
 def test_clean_counts_an_unremovable_owned_file(
@@ -342,7 +317,6 @@ def test_clean_counts_an_unremovable_owned_file(
     blocked = cache_entry_name("e" * 64)
     (namespace / blocked).write_bytes(b"owned")
     original_unlink = os.unlink
-    original_require = clean._require_safe_cleanup_support
 
     def refuse_entry(path: str, *, dir_fd: int | None = None) -> None:
         """Refuse the cache leaf while allowing the marker removal."""
@@ -350,13 +324,7 @@ def test_clean_counts_an_unremovable_owned_file(
             raise PermissionError(errno.EACCES, "denied")
         original_unlink(path, dir_fd=dir_fd)
 
-    def require_then_patch() -> None:
-        """Validate native support before refusing the leaf deletion."""
-        original_require()
-        monkeypatch.setattr(clean.os, "unlink", refuse_entry)
-        monkeypatch.setattr(clean, "_require_safe_cleanup_support", original_require)
-
-    monkeypatch.setattr(clean, "_require_safe_cleanup_support", require_then_patch)
+    _inject_after_support_check(monkeypatch, clean.os, "unlink", refuse_entry)
 
     result = clean.clean_cache_tree(tmp_path)
 

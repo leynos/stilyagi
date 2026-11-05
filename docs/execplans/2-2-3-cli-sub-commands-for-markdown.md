@@ -1,7 +1,8 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: IMPLEMENTATION COMPLETE — the current-main rebase is under final gate
-validation; PR review reconciliation remains before delivery is complete.
+Status: IMPLEMENTATION COMPLETE — all six local gates pass on the
+CodeScene-repair tree; PR review reconciliation remains before delivery is
+complete.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
@@ -371,6 +372,58 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       the ad-hoc `coverage.python.xml` left by an exploratory run is deleted,
       not committed.
 
+- [x] (2026-11-05) Clear the second CodeScene delta, introduced by the coverage
+      repair itself. Hosted `CodeScene Code Health Review (main)` failed on
+      `8d555abb` with six new files under 10.00: five `Code Duplication` files
+      (`test_build_tools_commands.py`, `test_cache_clean_failures.py`,
+      `test_cache_owner_marker.py`, `test_cache_storage_primitives.py`,
+      `test_dump_ir_in_process.py`) and one `Excess Number of Function
+      Arguments` on `run_dump_ir` in `tests/support/dump_ir_harness.py`. Local
+      reproduction uses `cs delta origin/main` (working tree) rather than
+      `cs delta origin/main HEAD` (commits), which reports the committed tree
+      and therefore stays stale after edits; a control run against `HEAD` still
+      reported all six, proving the invocation was not inert. All six were
+      fixed by cohesive restructuring, not suppression and not a metric edit:
+      `run_dump_ir`'s stdin text and filename folded into a `Stdin` frozen
+      dataclass (six parameters to four); one `layouts_seen` fixture and one
+      parametrized case over `install`/`check` replacing two near-identical
+      default-layout tests; one `_inject_after_support_check` helper and one
+      parametrized `_TraversalFault` family replacing four similar fault
+      injections; one module-level `_refusing_open` replacing two local
+      refusers; `_with_descriptor`/`_expect_storage_error` helpers plus a shared
+      `_WRITE_FLAGS` replacing three descriptor-scope tests; and a
+      `_report_one_notice` helper with one parametrized `_UnusableTarget` case
+      replacing two notice tests. The same-base delta then reported zero
+      introduced findings.
+- [x] (2026-11-05) Fix a real test defect the restructuring exposed. The old
+      `test_clean_reports_a_failed_entry_listing` replaced `_directory_entries`
+      with an always-raising function, so cleanup failed at the *root* listing
+      and the namespace branch it was named for never ran; it duplicated
+      `test_clean_reports_a_root_listing_failure`. The parameterized family now
+      has a distinct `namespace-listing` case that lets the root list once and
+      refuses the second call. Diagnostics are recorded relative to the
+      configured root, so the four expected prefixes are
+      `cache/stilyagi-v1/owner.json`, `cache/stilyagi-v1`, `.` and `cache` —
+      the namespace diagnostic names its *parent*, which is what
+      `_record_namespace_error` carries.
+- [x] (2026-11-05) Pass all six local gates on the CodeScene-repair tree, run
+      sequentially after the last tracked edit: `make check-fmt` (4 s, Ruff 341
+      files formatted, `cargo fmt` clean, mdtablefix 76 files unchanged),
+      `make lint` (176 s, every stage executed — Ruff, Interrogate 100.0%,
+      Pylint 10.00/10, df12 10.00/10, ambrleaks, rustdoc `-D warnings`,
+      clippy `-D warnings`, Whitaker, Skylos and the duplication gate with 12
+      reasoned exceptions), `make typecheck` (103 s, maturin build plus
+      `ty 0.0.74` clear), `make test` (575 s, Nextest 374/374, pytest 1,251
+      passed with 24 snapshots, doctests 16 passed, helper lane 76 passed /
+      3 skipped, script lane 154 passed), `make markdownlint` (12 s, 77 files,
+      zero issues, `typos.toml` current) and `make nixie` (2 s, 76 files, all
+      diagrams valid). Two lint violations found on the settled tree were
+      fixed first: `R9111` wanted `slots=True` on the `Stdin` dataclass and
+      `R9112` wanted a `type` statement for `_NoticeReason`. Logs are
+      `/tmp/{check-fmt,lint,typecheck,test,markdownlint,nixie}-2-2-3-cli-sub-commands-for-markdown-cs.out`;
+      superseded generations are preserved beside them with `-preedit` and
+      `-gen2-stale` suffixes.
+
 ## Surprises & discoveries
 
 `CheckOptions.no_cache` is already parsed but its help explicitly describes a
@@ -426,6 +479,25 @@ exactly that reason while its subprocess cases passed. That also means the
 correct fix is not more assertions but a second, in-process entry point to the
 same functions — which only works because the modules are importable plain
 Python, not scripts with import-time side effects.
+
+CodeScene's *Excess Number of Function Arguments* threshold applies to test
+functions too, and a `pytest.mark.parametrize` name adds to the count. A case
+that takes `tmp_path`, `monkeypatch`, a parametrized name and three data
+arguments reaches six. Folding the data into a named tuple keeps the case
+readable and brings it back under the limit; adding a fourth and fifth
+parameter would have reintroduced the finding the coverage repair was meant to
+clear.
+
+`cs delta` has two modes and they read different trees. `cs delta BASE HEAD`
+compares commits and therefore reports the committed state, staying stale after
+working-tree edits; `cs delta BASE` analyses the working tree. Reading a
+zero-byte result from the working-tree form is only meaningful alongside a
+control run against `HEAD` that still reports the outstanding findings.
+
+CodeScene's *Code Duplication* rule for these files was shape-based: it named
+whole files, not functions. That pushed the fix towards one shared idiom per
+family — a single fault injector, a single descriptor-scope helper, a single
+notice helper — rather than towards shaving lines from individual tests.
 
 ## Decision log
 
