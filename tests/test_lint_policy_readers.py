@@ -1,7 +1,8 @@
 """Failure modes of the lint-policy readers.
 
-The readers in `tests/support/lint_policy.py` are the only route from a test
-to `Cargo.toml`, `clippy.toml` and the `Makefile`. A reader that let an
+The readers in `tests/support/lint_policy.py` and
+`tests/support/cargo_metadata.py` are the only route from a test to
+`Cargo.toml`, `clippy.toml` and the `Makefile`. A reader that let an
 `OSError`, a decoding failure or a structural surprise escape would report as
 an incidental traceback, which is indistinguishable from a broken test rather
 than a broken policy. These cases pin the contract that every such failure is
@@ -17,12 +18,11 @@ import typing as typ
 
 import pytest
 
+from tests.support.cargo_metadata import MetadataRunner, member_manifests
 from tests.support.errors import ReadingError
 from tests.support.lint_policy import (
-    MetadataRunner,
     clippy_restrictions,
     member_inherits_workspace_lints,
-    member_manifests,
     rustdoc_default,
     rustdoc_default_lines,
     workspace_lints,
