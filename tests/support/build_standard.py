@@ -233,6 +233,30 @@ def run_make(
     )
 
 
+def start_make(
+    arguments: list[str], env: dict[str, str], cwd: pathlib.Path
+) -> subprocess.Popen[str]:
+    """Start `make` with `arguments` and return it without waiting.
+
+    A test that must observe Make while it runs — for example to hold one
+    probe open and prove a later stage has not started — needs the live
+    process; `run_make` would wait for it to exit.
+
+    Returns
+    -------
+    subprocess.Popen[str]
+        The running process, with captured text standard streams.
+    """
+    return subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed argv: the pinned `make` over probe tools.
+        [_make_executable(), *arguments],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=cwd,
+        env=env,
+    )
+
+
 def dry_run(
     target: str,
     tools: pathlib.Path,

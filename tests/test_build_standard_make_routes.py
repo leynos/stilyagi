@@ -33,11 +33,13 @@ from tests.support.build_standard import (
     read_invocations,
 )
 from tests.support.build_standard_probes import (
+    RecordedRun,
     RecordingTree,
     RunOptions,
     make_recording_tools,
     run_recorded,
     stage_makefile_tree,
+    start_recorded,
 )
 
 if typ.TYPE_CHECKING:
@@ -255,24 +257,74 @@ def test_executed_whitaker_route_takes_no_development_flags(
     _assert_kind("whitaker", whitaker[0], "lint: whitaker")
 
 
-def test_parallel_lint_sequences_whitaker_after_clippy(
+#: The package and target scope Whitaker receives after `--`.
+CARGO_SCOPE: typ.Final = (
+    "--manifest-path",
+    "Cargo.toml",
+    "--workspace",
+    "--all-targets",
+    "--all-features",
+)
+
+
+def _single_whitaker_invocation(run: RecordedRun) -> ToolInvocation:
+    """Return the one Whitaker invocation a run recorded."""
+    whitaker = [record for record in run.records if record.program == PROBE_WHITAKER]
+    assert len(whitaker) == 1, f"expected one Whitaker invocation, got {whitaker}"
+    return whitaker[0]
+
+
+def test_lint_whitaker_defaults_to_every_library_and_scopes_with_cargo_flags(
     recording: RecordingTree,
 ) -> None:
-    """`make -j4 lint` cannot start Whitaker before the Clippy stage finishes."""
+    """Whitaker loads `--all` and takes the Cargo scope after `--`."""
+    run = run_recorded("lint-whitaker", recording, RunOptions())
+    assert run.returncode == 0, run.stderr
+    invocation = _single_whitaker_invocation(run)
+    assert "--" in invocation.args, invocation.args
+    separator = invocation.args.index("--")
+    assert invocation.args[:separator] == ("--all",)
+    assert invocation.args[separator + 1 :] == CARGO_SCOPE
+
+
+def test_lint_whitaker_forwards_a_command_line_library_override(
+    recording: RecordingTree,
+) -> None:
+    """A `WHITAKER_LIBRARIES` assignment replaces the `--all` default."""
     run = run_recorded(
-        "lint",
+        "lint-whitaker",
         recording,
-        RunOptions(make_arguments=("-j4",)),
+        RunOptions(make_arguments=("WHITAKER_LIBRARIES=--lib-a --lib-b",)),
     )
     assert run.returncode == 0, run.stderr
+    invocation = _single_whitaker_invocation(run)
+    assert "--" in invocation.args, invocation.args
+    separator = invocation.args.index("--")
+    assert invocation.args[:separator] == ("--lib-a", "--lib-b")
+    assert invocation.args[separator + 1 :] == CARGO_SCOPE
+
+
+def test_parallel_lint_cannot_start_whitaker_until_clippy_completes(
+    recording: RecordingTree,
+) -> None:
+    """`make -j4 lint` holds Whitaker back while a Clippy-stage probe blocks."""
+    options = RunOptions(make_arguments=("-j4",), block=f"{PROBE_CARGO} clippy")
+    with start_recorded("lint", recording, options) as run:
+        run.wait_for_block()
+        assert not [r for r in run.records() if r.program == PROBE_WHITAKER], (
+            "Whitaker started while the Clippy stage was still running"
+        )
+        run.release()
+    finished = run.finish()
+    assert finished.returncode == 0, finished.stderr
     clippy = next(
         index
-        for index, record in enumerate(run.records)
+        for index, record in enumerate(finished.records)
         if record.program == PROBE_CARGO and record.has_args("clippy")
     )
     whitaker = next(
         index
-        for index, record in enumerate(run.records)
+        for index, record in enumerate(finished.records)
         if record.program == PROBE_WHITAKER
     )
     assert clippy < whitaker, (

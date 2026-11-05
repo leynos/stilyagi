@@ -289,6 +289,36 @@ $(UV_ENV) $(UV) tool run --managed-python --python $(PYLINT_PYTHON) \
 The decision and operational notes above record the original PyPy runner; the
 developers' guide describes the current one.
 
+## Addendum — 2026-11-05: the lint gate is two composed stages
+
+This supersedes the final-tier claim in the 2026-08-23 Skylos addendum.
+`make lint` no longer holds a recipe of its own; it is the composition of two
+targets:
+
+1. `lint-clippy` runs the Python tiers, Rustdoc, Clippy, Skylos and the
+   blocking `nose` duplication gate.
+2. `lint-whitaker` runs the Whitaker Dylint suite.
+
+`lint` declares exactly those two prerequisites, and `lint-whitaker` declares
+`lint-clippy` as its own prerequisite. The whole Clippy stage therefore
+completes before Whitaker starts, including under `make -j`; the order does not
+depend on recipe line order or on `.NOTPARALLEL`. Both facts are held by
+contract tests over the Makefile text and by a recording-probe test that blocks
+a Clippy-stage probe under `make -j4` and requires no Whitaker invocation until
+the stage is released.
+
+Whitaker selects its libraries with `WHITAKER_LIBRARIES`, defaulting to
+`--all`, which loads every discovered Dylint library. This is not a package
+selector: package and target scope remains `$(CARGO_FLAGS)` after `--`, that is
+`--manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets --all-features`.
+The suite keeps its own `RUSTFLAGS` of `-D warnings` and takes none of the
+development standard flags.
+
+The gate stays binding. A Whitaker failure fails `make lint-whitaker`, fails
+`make lint` through that prerequisite, and fails the CI step that runs
+`make lint`. Neither target carries `|| true`, an error prefix, an existence
+guard or a masking pipeline.
+
 ## References
 
 [^1]: [ADR 0002: Ratify the packaging boundary](adr-0002-ratify-the-packaging-boundary.md)
