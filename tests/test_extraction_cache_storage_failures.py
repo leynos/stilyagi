@@ -132,6 +132,35 @@ def test_cache_open_failure_warns_and_extracts_without_storage(
     service.close()
 
 
+def _refuse_namespace_creation(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Patch ``os.mkdir`` to refuse the namespace create and record the attempt."""
+    refused: list[str] = []
+    original_mkdir = cache_storage.os.mkdir
+
+    def refuse_namespace(
+        path: str
+        | bytes
+        | cache_storage.os.PathLike[str]
+        | cache_storage.os.PathLike[bytes],
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> None:
+        """Refuse only the namespace create, preserving configured-root setup."""
+        if path == CACHE_NAMESPACE_NAME:
+            refused.append(str(path))
+            raise PermissionError(errno.EACCES, "denied")
+        original_mkdir(path, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(cache_storage.os, "mkdir", refuse_namespace)
+    monkeypatch.setattr(
+        cache_storage.os,
+        "supports_dir_fd",
+        {*cache_storage.os.supports_dir_fd, refuse_namespace},
+    )
+    return refused
+
+
 def test_os_permission_error_opening_namespace_falls_back_to_extraction(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -141,7 +170,6 @@ def test_os_permission_error_opening_namespace_falls_back_to_extraction(
     calls: list[str] = []
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
-    refused: list[str] = []
     storage_attempts = 0
 
     def create_store(
@@ -169,29 +197,7 @@ def test_os_permission_error_opening_namespace_falls_back_to_extraction(
             )
         )
     )
-    original_mkdir = cache_storage.os.mkdir
-
-    def refuse_namespace(
-        path: str
-        | bytes
-        | cache_storage.os.PathLike[str]
-        | cache_storage.os.PathLike[bytes],
-        mode: int = 0o777,
-        *,
-        dir_fd: int | None = None,
-    ) -> None:
-        """Refuse only the namespace create, preserving configured-root setup."""
-        if path == CACHE_NAMESPACE_NAME:
-            refused.append(str(path))
-            raise PermissionError(errno.EACCES, "denied")
-        original_mkdir(path, mode, dir_fd=dir_fd)
-
-    monkeypatch.setattr(cache_storage.os, "mkdir", refuse_namespace)
-    monkeypatch.setattr(
-        cache_storage.os,
-        "supports_dir_fd",
-        {*cache_storage.os.supports_dir_fd, refuse_namespace},
-    )
+    refused = _refuse_namespace_creation(monkeypatch)
     try:
         result = extract_cached_document(
             service,

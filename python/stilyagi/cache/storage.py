@@ -64,21 +64,7 @@ class CacheStore:
         self._namespace_fd = -1
         self._closed = False
         try:
-            self._root_identity = _directory_identity(self._root_fd)
-            self._namespace_fd, created = _open_child_directory(
-                self._root_fd,
-                CACHE_NAMESPACE_NAME,
-            )
-            self._namespace_identity = _directory_identity(self._namespace_fd)
-            marker = _read_marker(self._namespace_fd)
-            if marker is None and created:
-                _write_marker(self._namespace_fd)
-                marker = _read_marker(self._namespace_fd)
-            if marker != OWNER_MARKER_BYTES:
-                _raise_storage_error(
-                    f"cache namespace {CACHE_NAMESPACE_NAME} is not owned by Stilyagi"
-                )
-            self._verify_directories()
+            self._adopt_namespace()
         except OSError as error:
             self.close()
             if isinstance(error, CacheStorageError):
@@ -87,6 +73,28 @@ class CacheStore:
         except Exception:
             self.close()
             raise
+
+    def _adopt_namespace(self) -> None:
+        """Open, mark and verify the namespace this store will operate on."""
+        self._root_identity = _directory_identity(self._root_fd)
+        self._namespace_fd, created = _open_child_directory(
+            self._root_fd,
+            CACHE_NAMESPACE_NAME,
+        )
+        self._namespace_identity = _directory_identity(self._namespace_fd)
+        self._require_owned_marker(created=created)
+        self._verify_directories()
+
+    def _require_owned_marker(self, *, created: bool) -> None:
+        """Write the marker only when this store created the namespace."""
+        marker = _read_marker(self._namespace_fd)
+        if marker is None and created:
+            _write_marker(self._namespace_fd)
+            marker = _read_marker(self._namespace_fd)
+        if marker != OWNER_MARKER_BYTES:
+            _raise_storage_error(
+                f"cache namespace {CACHE_NAMESPACE_NAME} is not owned by Stilyagi"
+            )
 
     def __enter__(self) -> CacheStore:
         """Return this open store as a context manager."""

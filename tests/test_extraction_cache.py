@@ -124,25 +124,33 @@ def _corrupt_cache_entry(entry: pathlib.Path, corruption: str) -> None:
     if corruption == "checksum":
         envelope["ir_json"] = "{}"
     else:
-        payload = json.loads(envelope["ir_json"])
-        if corruption in {"frontmatter-checksum", "frontmatter-structure"}:
-            frontmatter = next(
-                region
-                for region in payload["regions"]
-                if region["kind"] == "frontmatter"
-            )
-            if corruption == "frontmatter-structure":
-                frontmatter.pop("segments")
-            else:
-                frontmatter["attrs"]["format"] = "toml"
-        else:
-            payload["document"]["path"] = "wrong.md"
-        envelope["ir_json"] = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        envelope["ir_json"] = _mutated_ir_json(envelope["ir_json"], corruption)
         if corruption != "frontmatter-checksum":
             envelope["ir_sha256"] = hashlib.sha256(
                 envelope["ir_json"].encode("utf-8")
             ).hexdigest()
     entry.write_text(json.dumps(envelope), encoding="utf-8")
+
+
+def _mutated_ir_json(ir_json: str, corruption: str) -> str:
+    """Return re-serialized IR carrying one chosen semantic mutation."""
+    payload = json.loads(ir_json)
+    if corruption in {"frontmatter-checksum", "frontmatter-structure"}:
+        _mutate_frontmatter(payload, corruption)
+    else:
+        payload["document"]["path"] = "wrong.md"
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def _mutate_frontmatter(payload: dict[str, typ.Any], corruption: str) -> None:
+    """Damage the YAML frontmatter region's structure or its format attribute."""
+    frontmatter = next(
+        region for region in payload["regions"] if region["kind"] == "frontmatter"
+    )
+    if corruption == "frontmatter-structure":
+        frontmatter.pop("segments")
+    else:
+        frontmatter["attrs"]["format"] = "toml"
 
 
 @pytest.mark.parametrize(
