@@ -98,20 +98,29 @@ class _ConfigOrigin:
     cli_overridden: bool
 
 
+type _OriginPath = tuple[str, ...]
+
+
 @dc.dataclass(frozen=True, slots=True)
 class _ConfigTableWithOrigins:
-    """Pair one raw configuration table with origins keyed by dotted path."""
+    """Pair one raw configuration table with its per-leaf origins.
+
+    Origins are keyed by the tuple of key components rather than by a dotted
+    string. A single TOML key may itself contain dots — a `[lint.per-file-ignores]`
+    entry named `"*.md"` is the common case — and joining then splitting on `.`
+    would silently reinterpret that name as a nested table.
+    """
 
     values: dict[str, object]
-    origins: dict[str, _ConfigOrigin]
+    origins: dict[_OriginPath, _ConfigOrigin]
 
 
 @dc.dataclass(slots=True)
 class _OriginMergeState:
     """Carry the origin maps shared by one recursive merge."""
 
-    merged: dict[str, _ConfigOrigin]
-    override: cabc.Mapping[str, _ConfigOrigin]
+    merged: dict[_OriginPath, _ConfigOrigin]
+    override: cabc.Mapping[_OriginPath, _ConfigOrigin]
 
 
 def _merge_config_tables(
@@ -135,11 +144,11 @@ def _merge_config_tables(
 def _origin_paths(
     table: cabc.Mapping[str, object],
     *,
-    origin_for_path: cabc.Callable[[tuple[str, ...]], _ConfigOrigin],
-    prefix: tuple[str, ...] = (),
-) -> dict[str, _ConfigOrigin]:
+    origin_for_path: cabc.Callable[[_OriginPath], _ConfigOrigin],
+    prefix: _OriginPath = (),
+) -> dict[_OriginPath, _ConfigOrigin]:
     """Mark leaves and empty mappings in a nested configuration table."""
-    origins: dict[str, _ConfigOrigin] = {}
+    origins: dict[_OriginPath, _ConfigOrigin] = {}
     for key, value in table.items():
         path = (*prefix, key)
         if isinstance(value, cabc.Mapping) and value:
@@ -151,7 +160,7 @@ def _origin_paths(
                 )
             )
         else:
-            origins[".".join(path)] = origin_for_path(path)
+            origins[path] = origin_for_path(path)
     return origins
 
 
@@ -188,7 +197,7 @@ def _merge_origin_layers(
     override: cabc.Mapping[str, object],
     state: _OriginMergeState,
     *,
-    prefix: tuple[str, ...] = (),
+    prefix: _OriginPath = (),
 ) -> None:
     """Update origins using the same recursive shape as table merging."""
     for key, override_value in override.items():
@@ -200,7 +209,7 @@ def _merge_origin_entry(
     base_value: object,
     override_value: object,
     state: _OriginMergeState,
-    path: tuple[str, ...],
+    path: _OriginPath,
 ) -> None:
     """Merge one origin subtree using the matching table operation."""
     if isinstance(base_value, cabc.Mapping) and isinstance(
@@ -209,49 +218,54 @@ def _merge_origin_entry(
         base_table = typ.cast("cabc.Mapping[str, object]", base_value)
         override_table = typ.cast("cabc.Mapping[str, object]", override_value)
         _merge_origin_layers(base_table, override_table, state, prefix=path)
-        _reconcile_mapping_origin(".".join(path), base_table, override_table, state)
+        _reconcile_mapping_origin(path, base_table, override_table, state)
         return
-    _replace_origin_subtree(".".join(path), state)
+    _replace_origin_subtree(path, state)
 
 
 def _reconcile_mapping_origin(
-    dotted_path: str,
+    path: _OriginPath,
     base: cabc.Mapping[str, object],
     override: cabc.Mapping[str, object],
     state: _OriginMergeState,
 ) -> None:
     """Keep only an origin for an empty mapping after recursive merging."""
     if _merge_config_tables(base, override):
-        state.merged.pop(dotted_path, None)
+        state.merged.pop(path, None)
         return
     if base or override:
         return
-    origin = state.override.get(dotted_path)
+    origin = state.override.get(path)
     if origin is None:
         return
-    state.merged[dotted_path] = origin
+    state.merged[path] = origin
+
+
+def _is_within(path: _OriginPath, ancestor: _OriginPath) -> bool:
+    """Report whether `path` is `ancestor` itself or lies beneath it."""
+    return path[: len(ancestor)] == ancestor
 
 
 def _replace_origin_subtree(
-    dotted_path: str,
+    path: _OriginPath,
     state: _OriginMergeState,
 ) -> None:
     """Replace displaced leaf origins with the overriding subtree."""
-    _discard_origin_subtree(state.merged, dotted_path)
+    _discard_origin_subtree(state.merged, path)
     state.merged.update(
         (origin_path, origin)
         for origin_path, origin in state.override.items()
-        if origin_path == dotted_path or origin_path.startswith(f"{dotted_path}.")
+        if _is_within(origin_path, path)
     )
 
 
 def _discard_origin_subtree(
-    origins: dict[str, _ConfigOrigin],
-    dotted_path: str,
+    origins: dict[_OriginPath, _ConfigOrigin],
+    path: _OriginPath,
 ) -> None:
     """Remove origins replaced by a scalar or a differently shaped table."""
     for existing_path in tuple(origins):
-        if existing_path == dotted_path or existing_path.startswith(f"{dotted_path}."):
+        if _is_within(existing_path, path):
             del origins[existing_path]
 
 
@@ -273,12 +287,12 @@ def _apply_cli_layer(
 
 
 def _cli_origin(
-    origins: cabc.Mapping[str, _ConfigOrigin],
-    path: tuple[str, ...],
+    origins: cabc.Mapping[_OriginPath, _ConfigOrigin],
+    path: _OriginPath,
     kind: typ.Literal["inline", "flag"],
 ) -> _ConfigOrigin:
     """Keep any file origin that the CLI value replaces."""
-    previous = origins.get(".".join(path))
+    previous = origins.get(path)
     return _ConfigOrigin(
         kind=kind,
         source_file=previous.source_file if previous is not None else None,

@@ -579,9 +579,13 @@ Origins distinguish `default`, `file`, `inline`, and `flag` values. File
 origins name the file that defined the value, including inherited values.
 Inline and flag overrides set `cli_overridden` and retain the displaced file
 path when one supplied the previous value. Tables report origins for their
-descendant leaves, while an empty table has its own origin. An unknown key,
-missing target, invalid TOML, or cyclic `extend` returns status 2, writes an
-error to standard error, and leaves standard output empty.
+descendant leaves, while an empty table has its own origin. Key components that
+are not bare keys are quoted, because a component may itself contain dots: a
+`per-file-ignores` glob such as `*.md` is reported as
+`"lint.per-file-ignores.\"*.md\""`. A key printed this way can be passed back
+to the command unchanged and selects the same value. An unknown key, missing
+target, invalid TOML, or cyclic `extend` returns status 2, writes an error to
+standard error, and leaves standard output empty.
 
 #### Standard input
 
