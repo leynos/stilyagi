@@ -325,10 +325,51 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       updates alongside this branch's workflow timeout changes, then run the six
       local gates on the final tree. Reconcile PR #226's live assessments,
       review threads and checks before marking delivery complete.
-- [ ] (2026-11-05) Run all six local gates sequentially on the final rebased
-      tip `43cb52fe`, publish it over the pre-rebase remote head `c265e205`,
-      and drive PR #226 through hosted assessment, CI and review to
-      equilibrium.
+- [x] (2026-11-05) Run all six local gates sequentially on the final rebased
+      tree — `d45fe9c6` plus the coverage repair above. Evidence: `make
+      check-fmt` (Ruff 341 files, `cargo fmt` clean, `mdtablefix` 76 files
+      unchanged), `make lint` (both Pylint lanes 10.00/10, duplication gate
+      green with 12 reasoned exceptions), `make typecheck` (`ty` 0.0.74 clear),
+      `make test` (Nextest 374/374, pytest 1,251 passed, doctests 76 passed /
+      3 skipped, script tests 154/154), `make markdownlint` (77 files, zero
+      issues, spelling gate clean) and `make nixie` (every diagram validated).
+      Logs are `/tmp/{test,markdownlint,nixie}-2-2-3-cli-sub-commands-for-markdown.out`;
+      the earlier three are on the same tree. Publish it over the pre-rebase
+      remote head `c265e205`, then drive PR #226 through hosted assessment, CI
+      and review to equilibrium.
+- [x] (2026-11-05) Recover the hosted coverage ratchet. `lint-test` failed on
+      `d45fe9c6` at the generate-coverage ratchet, not at any test: all 374
+      Nextest tests and all 1,047 pytest tests passed. Rust coverage was
+      91.31% against a 91.48% baseline, inside the ±1.00 pp tolerance. Python
+      coverage was 91.48% against a 92.88% baseline, a 1.40 pp drop, so the
+      gate needs at least 91.88%. Local measurement with the same slipcover
+      invocation reproduces 91.45%, confirming a genuine thin-coverage
+      regression rather than a runner difference. The branch adds 4,380 lines
+      in new files at 87.97% coverage, which is what moved the mean. Add
+      candidate-bound tests for the untested branches in
+      `cache/storage_primitives.py`, `cache/clean.py`, `cache/ir.py`,
+      `engine/bridge_adapter.py`, `engine/fix_planning/frontmatter.py`,
+      `cli_dump_ir.py` and `cli_dump_ir_output.py` rather than excluding code
+      from measurement. Nine candidate-bound modules now do that:
+      `tests/test_cache_storage_primitives.py`,
+      `tests/test_cache_clean_failures.py`,
+      `tests/test_cache_entry_validation.py`,
+      `tests/test_bridge_adapter_validation.py`,
+      `tests/test_fix_frontmatter_recognition.py`,
+      `tests/test_dump_ir_in_process.py`, plus
+      `tests/test_build_tools_helpers.py`,
+      `tests/test_build_tools_preflight.py` and
+      `tests/test_build_tools_commands.py`. The last three are the largest
+      single lever: `scripts/build_tools*.py` is executed as a subprocess by
+      the existing cases, so slipcover — which instruments the *pytest*
+      process — never saw those modules and measured them at 27–44%. Calling
+      the same helpers in-process lifted `scripts/` from 37.64% to 97.79%
+      (6 missed lines) without changing what any subprocess case asserts.
+      Whole-suite result: 1,251 pytest tests pass and the ratchet denominator
+      reports 20,570 of 22,175 lines covered, **92.76% against the 91.88%
+      requirement — 0.88 pp of headroom**. Artifact `/tmp/cov-local5.xml`;
+      the ad-hoc `coverage.python.xml` left by an exploratory run is deleted,
+      not committed.
 
 ## Surprises & discoveries
 
@@ -376,6 +417,15 @@ reproduces new complexity findings in `config/provenance.py`,
 `engine/fix_planning/frontmatter.py`, plus a small `check_execution.py`
 degradation and PyO3 test duplication. M4's planned complexity review must
 resolve these findings without disabling or suppressing the CodeScene rules.
+
+Coverage measurement is per-process, not per-repository. `slipcover`
+instruments the interpreter running pytest, so any repository script a test
+drives through `subprocess.run` is invisible to the ratchet no matter how
+thoroughly the test exercises it. `scripts/build_tools*.py` sat at 27–44% for
+exactly that reason while its subprocess cases passed. That also means the
+correct fix is not more assertions but a second, in-process entry point to the
+same functions — which only works because the modules are importable plain
+Python, not scripts with import-time side effects.
 
 ## Decision log
 
