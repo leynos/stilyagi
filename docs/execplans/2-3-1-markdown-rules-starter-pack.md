@@ -593,6 +593,24 @@ with error exit 1. An invalid `TERM001` option exits 2.
     and `test` all exited 0 on the repaired tree. `test` ran nextest 364/364,
     pytest 1080 passed, the docstring lane 135 passed with 3 skipped, and
     `duplication-test` 154 passed.
+- [x] (2026-11-05) Merge `main` at `1e1e1190` into the branch. `main` gained
+  one commit, "Adopt the workspace formatter profile (#269)", which reformatted
+  the whole Rust workspace. Six files changed on both sides, all in
+  `crates/stilyagi-pyext/src/check_metrics/` plus `lib.rs`; five of them
+  conflicted in their import blocks.
+  - Resolution keeps `main`'s one-item-per-line import formatting and re-adds
+    this branch's `PROJECTION_ANOMALIES`, `PROJECTION_ANOMALY_KINDS`, and
+    `record_projection_anomaly` imports at their sorted positions. No behaviour
+    changed, and `make fmt` left the resolved tree unchanged.
+  - The merge also explains the missing hosted CI. GitHub does not schedule
+    `pull_request` workflows while a pull request has a merge conflict, because
+    it cannot build the `refs/pull/N/merge` ref the workflows run against. The
+    branch had been `DIRTY` since `main` advanced, which is why only the
+    `pull_request_target` automerge run appeared for `84d9bc71`.
+  - Gate evidence on merge commit `27fc732e`: `check-fmt`, `markdownlint`,
+    `nixie`, `typecheck`, `lint`, and `test` all exited 0. `test` ran nextest
+    364/364, pytest 1080 passed, the docstring lane 135 passed with 3 skipped,
+    and `duplication-test` 154 passed.
 
 ## Surprises & discoveries
 
