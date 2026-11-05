@@ -1823,9 +1823,11 @@ child-process working directories use `Command::current_dir`.
 `rust-toolchain.toml` pins the nightly and its `clippy`, `rustfmt`,
 `rust-analyzer`, `llvm-tools-preview`, and `rustc-codegen-cranelift-preview`
 components. Section 5a documents the frontend and linker flags and the scoped
-Cranelift exception. Rustdoc uses `--cfg docsrs -D warnings` by default through
-`RUSTDOC_FLAGS`, with additions in `RUSTDOC_FLAGS_EXTRA`; the existing
-documentation and doctest routes retain their workspace and feature coverage.
+Cranelift exception. `RUSTDOC_FLAGS` defaults to `--cfg docsrs -D warnings`,
+`RUSTDOC_FLAGS_EXTRA` is appended after that default, and an environment
+`RUSTDOC_FLAGS` replaces the default outright because the Makefile assigns it
+with `?=`; the existing documentation and doctest routes retain their workspace
+and feature coverage.
 
 ### Shared workflow parser
 
@@ -1880,8 +1882,10 @@ dependency only a gate script uses does not belong in `pyproject.toml`.
 
 `make lint` then continues into the Rust lint tiers owned by the repository:
 
-1. `cargo doc --workspace --all-features --no-deps` with
-   `RUSTDOCFLAGS=-D warnings`
+1. `cargo doc --workspace --all-features --no-deps` with `RUSTDOCFLAGS` set
+   from `RUSTDOC_FLAGS`. That variable defaults to `--cfg docsrs -D warnings`
+   and appends `RUSTDOC_FLAGS_EXTRA`; an environment `RUSTDOC_FLAGS` replaces
+   the default outright
 2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 3. `whitaker --all -- --workspace --all-targets --all-features` with
    `RUSTFLAGS=-D warnings`

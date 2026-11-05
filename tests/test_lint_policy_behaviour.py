@@ -36,7 +36,7 @@ import pytest
 from tests.support.lint_policy import (
     REPOSITORY_ROOT,
     RUSTDOC_FLAGS_EXTRA,
-    rustdoc_default_lines,
+    rustdoc_default,
     workspace_lints,
 )
 
@@ -287,8 +287,7 @@ def _run_cargo(
 
 def _rustdoc_default() -> str:
     """Return the Makefile's rustdoc default with its extension seam expanded."""
-    (line,) = rustdoc_default_lines()
-    _, _, value = line.partition("=")
+    _, _, value = rustdoc_default().partition("=")
     return value.replace(RUSTDOC_FLAGS_EXTRA, "").strip()
 
 
