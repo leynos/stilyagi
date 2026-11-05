@@ -482,7 +482,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
     were resolved twice, and only the first lookup ran inside the configuration
     phase. The second, in `_rule_request`, ran under the rules phase, so a
     configuration I/O failure from it was reported as a rule-run failure. They
-    are now one record. `config.resolved`
+    are now one record. `config.resolve`
     defines `ResolvedTargetConfig`, pairing the effective `StilyagiConfig` with
     the config file the resolver discovered; `cli_config.resolve_target_config`
     returns it, and `check_execution._rule_request` consumes it instead of
@@ -563,6 +563,36 @@ with error exit 1. An invalid `TERM001` option exits 2.
     update: `check-fmt`, `markdownlint` (spelling gate included) and `lint` all
     exited 0. Within `lint`, Interrogate and both Pylint passes reported 100 %
     and 10.00/10, and the duplication gate passed with 9 reasoned exceptions.
+- [x] (2026-11-05) Second review round. CodeRabbit's review of `b5e7ba8d`
+  posted four inline findings and one outside-diff finding; all five were
+  verified against the current source and repaired.
+  - `rules/builtin/pack.py`: `run_selected` tokenized the document before the
+    rule loop, so a structural-only selection paid for prose tokenization no
+    rule consumed. A new `_text_rules_selected` predicate gates the call on a
+    selected, enabled textual rule. Table validation is unchanged: every
+    recognized builtin table is still parsed before the enabled check, and
+    there is no early return. `tests/performance/test_builtin_rule_scaling.py`
+    pins both the structural-only and ignored-text-rule cases at zero
+    tokenization calls.
+  - `docs/developers-guide.md`: the tokenizer description now says it covers
+    every source-backed segment outside inline code, and records the new
+    selection gate. The Rendering section's clean-run example now matches
+    `render_text`: `checked 0 files (0 skipped, 0 unreadable); 0 errors, 0
+    warnings`, with the fix clause appended only when a fix was handled.
+  - `docs/execplans/2-3-1-markdown-rules-starter-pack.md`: the delivery record
+    now names `config.resolve`, where `ResolvedTargetConfig` is defined.
+  - `README.md`: the stale "Safe-fix planning, `--fix`, and `--diff`" entry is
+    gone from "Designed, not yet built", and the implemented capability is
+    listed under "Working today".
+  - Unit Architecture pre-merge check: `tests/test_check_pipeline_units.py`
+    gains a test that makes `resolve_config_for_path` succeed and
+    `config_file_for_path` raise `InvalidConfigError`, then asserts the result
+    is a configuration failure, the reporter receives that error, and the rule
+    runner is never called.
+  - Gate evidence: `check-fmt`, `markdownlint`, `nixie`, `typecheck`, `lint`,
+    and `test` all exited 0 on the repaired tree. `test` ran nextest 364/364,
+    pytest 1080 passed, the docstring lane 135 passed with 3 skipped, and
+    `duplication-test` 154 passed.
 
 ## Surprises & discoveries
 

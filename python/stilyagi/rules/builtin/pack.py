@@ -169,10 +169,11 @@ def run_selected(
     table, so an option error cannot hide behind selection. A disabled rule's
     hook is never called.
 
-    The document's regions, line starts, inline-code index, and tokenized text
-    segments are built once here and shared by every rule, so selecting a
-    second text rule does not tokenize the document again and a document with
-    many findings does not re-validate its line index for each one.
+    The document's regions, line starts, and inline-code index are built once
+    here and shared by every rule, so a document with many findings does not
+    re-validate its line index for each one. Tokenized text segments are built
+    once too, but only when a selected, enabled textual rule will read them:
+    otherwise every document would pay for prose tokenization no rule consumes.
 
     Parameters
     ----------
@@ -196,7 +197,9 @@ def run_selected(
     )
     line_starts = _validated_line_starts(request.document)
     inline_code = InlineCodeIndex.from_spans(view.inline_code_spans)
-    tokenized = text.tokenize_segments(view.for_target(_TEXT_TARGET), inline_code)
+    tokenized: tuple[text.TokenizedSegment, ...] = ()
+    if _text_rules_selected(codes, request_policy):
+        tokenized = text.tokenize_segments(view.for_target(_TEXT_TARGET), inline_code)
     config_path = pathlib.Path(request.config_path or request.reported_path)
     produced: list[diagnostics.Diagnostic] = []
     for rule in _BUILTIN_RULES:
@@ -221,6 +224,16 @@ def run_selected(
         )
         produced.extend(rule.hook(context))
     return tuple(produced)
+
+
+def _text_rules_selected(codes: frozenset[str], request_policy: RulePolicy) -> bool:
+    """Return whether a selected, enabled builtin rule reads tokenized text."""
+    return any(
+        rule.textual
+        and rule.metadata.code in codes
+        and request_policy.is_enabled(rule.metadata.code)
+        for rule in _BUILTIN_RULES
+    )
 
 
 def _validated_line_starts(

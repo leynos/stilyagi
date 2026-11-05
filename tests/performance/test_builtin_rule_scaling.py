@@ -103,6 +103,32 @@ def test_a_second_text_rule_does_not_retokenize(
     )
 
 
+@pytest.mark.parametrize(
+    "setup",
+    [
+        pytest.param(LintSetup(select=("MD",)), id="structural-only"),
+        pytest.param(
+            LintSetup(select=("MD", "STY"), ignore=("STY",)),
+            id="text-rule-ignored",
+        ),
+    ],
+)
+def test_a_selection_without_an_enabled_text_rule_skips_tokenization(
+    setup: LintSetup,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tokenization is skipped when no selected, enabled rule reads tokens."""
+    calls = {"tokenize_segments": 0}
+    _spy(monkeypatch, (text, "tokenize_segments"), calls)
+
+    result = setup.run(_paragraphs(20))
+
+    assert result == [], "expected no MD001 finding for flat paragraphs"
+    assert calls == {"tokenize_segments": 0}, (
+        "expected an unread token stream not to be built"
+    )
+
+
 @pytest.mark.parametrize("count", [10, 100, 1000])
 def test_line_starts_are_validated_once_and_located_per_finding(
     count: int,

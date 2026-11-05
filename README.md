@@ -100,6 +100,8 @@ Working today:
   each tied to the definition that owns it.
 - Suppression comments honoured in all three syntaxes, for a line, the next
   line, or a range.
+- Safe-fix planning with `--fix` and `--diff`, plus opt-in unsafe fixes through
+  `--unsafe-fixes`.
 - `stilyagi check` over Markdown, Python, and Rust sources, with configuration
   discovery, text and JSON output, run summaries, and standard input.
 - Three builtin Markdown rules — `MD001` heading depth, `STY001` adjacent
@@ -113,7 +115,6 @@ representation these rest on.
 Designed, not yet built:
 
 - The rest of the v1 rule catalogue described on the website.
-- Safe-fix planning, `--fix`, and `--diff`.
 - The `dump-ir`, `config`, `clean`, `rules`, and `rule` commands.
 - Grammar and spelling providers behind the capability planner.
 The [roadmap](docs/roadmap.md) is the reliable record: an item is ticked only

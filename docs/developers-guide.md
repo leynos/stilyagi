@@ -772,8 +772,11 @@ application-level packet the check pipeline constructs.
 
 `engine/rule_view.py` is the façade other modules import. `rules/tokens.py`
 holds the shared `Token` and `TokenizedSegment` records;
-`rules/builtin/text.py` tokenizes every nonempty segment once per document, so
-a second text rule reuses the tokens rather than rescanning the prose.
+`rules/builtin/text.py` tokenizes every source-backed segment outside inline
+code once per document, so a second text rule reuses the tokens rather than
+rescanning the prose. The runner tokenizes only when a selected, enabled
+textual rule will read the tokens, so a structural-only selection pays nothing
+for prose tokenization.
 
 `rules/policy.py` and `rules/suppression.py` decide which findings survive.
 `resolve_policy` expands `select` and `ignore` prefixes against the enabled
@@ -1000,9 +1003,12 @@ not significant for either. The renderer then produces one of:
 - deterministic text: one line per diagnostic formatted as
   `path:line:column: severity code message`, then one line per fix error in the
   distinct non-rule shape `identifier: path: rule_codes: message`, joining
-  several rule codes with commas. A summary line follows, counting the
-  diagnostics and separating their safe from their unsafe fixes, so a clean run
-  ends with `0 diagnostics found (0 safe fixes, 0 unsafe fixes)`
+  several rule codes with commas. A summary line follows, counting the files
+  checked, skipped, and unreadable, then the error and warning totals, so a
+  clean run ends with
+  `checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings`. When a fix
+  was handled, the line gains a trailing `; S safe fix(es), U unsafe fix(es)`
+  clause; a run that handled no fix omits it rather than reporting zeroes
 - a stable JSON document, an object carrying a `schema_version` field
   (currently `"1.0.0"`), a `diagnostics` array, a separate `fix_errors` array,
   and an additive `summary` object carrying checked, skipped, unreadable,

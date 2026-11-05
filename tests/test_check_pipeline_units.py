@@ -19,7 +19,15 @@ or, for this module alone:
 import typing as typ
 
 import pytest
-from stilyagi import check_execution, check_inputs, cli_io, cli_run, config, engine
+from stilyagi import (
+    check_execution,
+    check_inputs,
+    cli_io,
+    cli_run,
+    config,
+    diagnostics,
+    engine,
+)
 
 from tests.support.assertions import assert_with_context
 from tests.support.check_pipeline_fixtures import (
@@ -35,6 +43,8 @@ from tests.support.check_pipeline_fixtures import (
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
     import pathlib
+
+    from stilyagi.rules import registry as rules_registry
 
 
 def _make_directory(root: pathlib.Path) -> pathlib.Path:
@@ -209,6 +219,71 @@ class TestCheckOneFile:
         assert isinstance(
             failures[0][1], (config.InvalidCacheDirError, config.InvalidConfigError)
         ), "expected the configuration error to reach the reporter"
+
+    def test_a_config_provenance_failure_skips_the_rules_phase(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A config-file lookup failure is reported before any rule runs.
+
+        The provenance lookup is the second half of one configuration
+        resolution. When it fails, the file has no trustworthy configuration
+        origin, so the file fails in the configuration phase rather than
+        surfacing later as a rule-run failure.
+        """
+        target = tmp_path / "notes.md"
+        target.write_text("# Notes\n", encoding="utf-8")
+        rule_runs: list[object] = []
+
+        def fake_resolve(
+            _self: config.ConfigResolver,
+            _target: pathlib.Path,
+            *,
+            cli_overrides: cabc.Mapping[str, object] | None,
+            explicit_config: cabc.Iterable[str | pathlib.Path] | None,
+            isolated: bool,
+        ) -> config.StilyagiConfig:
+            """Return a usable configuration, so only provenance can fail."""
+            del cli_overrides, explicit_config, isolated
+            return config.StilyagiConfig()
+
+        def failing_provenance(
+            _self: config.ConfigResolver,
+            resolved_target: pathlib.Path,
+            *,
+            explicit_config: cabc.Iterable[str | pathlib.Path] | None,
+            isolated: bool,
+        ) -> pathlib.Path | None:
+            """Raise the configuration phase's typed failure."""
+            del explicit_config, isolated
+            raise config.InvalidConfigError(
+                resolved_target, "config", "unreadable config provenance"
+            )
+
+        def forbidden_runner(
+            request: rules_registry.RuleRunRequest,
+        ) -> list[diagnostics.Diagnostic]:
+            """Record any rule-phase call that should not have happened."""
+            rule_runs.append(request)
+            return []
+
+        monkeypatch.setattr(
+            config.ConfigResolver, "resolve_config_for_path", fake_resolve
+        )
+        monkeypatch.setattr(
+            config.ConfigResolver, "config_file_for_path", failing_provenance
+        )
+        failures, report = recording_reporter()
+
+        result = check_execution.check_one_file(
+            input_for(target),
+            run_for(forbidden_runner, report),
+        )
+
+        assert result.had_error, "expected the failed provenance to flag the result"
+        assert isinstance(failures[0][1], config.InvalidConfigError), (
+            "expected the configuration error to reach the reporter"
+        )
+        assert not rule_runs, "expected no rule to run after a config failure"
 
 
 class TestAggregateCheckedFiles:
