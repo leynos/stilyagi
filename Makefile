@@ -10,10 +10,9 @@ MDTABLEFIX_RULES = --wrap --renumber --breaks --ellipsis --fences
 NIXIE ?= nixie
 CARGO ?= cargo
 WHITAKER ?= whitaker
-# The workspace packages the Whitaker Dylint suite checks. A crate that needs
-# `rustc_private` has to be scoped here, and in the documentation, rather than
-# widening the suite.
-WHITAKER_PACKAGES ?= --all
+# The Dylint lint libraries Whitaker loads. `--all` loads every discovered
+# library; the package and target scope is `$(CARGO_FLAGS)` after `--`.
+WHITAKER_LIBRARIES ?= --all
 # `install-build-tools` unpacks the pinned mold under this prefix. Its `bin/`
 # leads PATH for every target, so the pinned release beats a distribution one
 # when `-fuse-ld=mold` resolves the linker, and `check-build-tools` reports the
@@ -295,7 +294,7 @@ lint-clippy: check-build-tools tools-lint install-nose ## Run the Python and Car
 	$(DUPLICATION_GATE) check
 
 lint-whitaker: lint-clippy ## Run the Whitaker Dylint suite after the Clippy stage
-	RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) $(WHITAKER_PACKAGES) -- $(CARGO_FLAGS)
+	RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) $(WHITAKER_LIBRARIES) -- $(CARGO_FLAGS)
 
 install-nose: ## Install the pinned nose duplication detector
 	@if [ "$$($(NOSE_BIN) --version 2>/dev/null)" = "nose $(NOSE_VERSION)" ]; then \
