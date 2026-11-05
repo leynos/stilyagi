@@ -19,6 +19,11 @@ from stilyagi.cache.storage_primitives import CacheStorageError
 pytest_plugins = ("tests.support.cache_storage_fixtures",)
 
 
+def _refusing_open(*_args: object, **_kwargs: object) -> typ.NoReturn:
+    """Refuse every marker open, so the create and read paths both fault."""
+    raise PermissionError(errno.EACCES, "denied")
+
+
 def test_read_marker_returns_none_when_the_marker_is_absent(
     namespace_fd: int,
 ) -> None:
@@ -42,13 +47,7 @@ def test_read_marker_classifies_a_denied_open(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Report a marker that exists but cannot be opened safely."""
-
-    def refuse_open(_name: str, _flags: int, *, dir_fd: int) -> int:
-        """Reject the marker open without hiding an absent file."""
-        del dir_fd
-        raise PermissionError(errno.EACCES, "denied")
-
-    monkeypatch.setattr(primitives.os, "open", refuse_open)
+    monkeypatch.setattr(primitives.os, "open", _refusing_open)
 
     with pytest.raises(CacheStorageError, match="cannot safely read cache owner"):
         primitives._read_marker(namespace_fd)
@@ -81,13 +80,7 @@ def test_write_marker_classifies_a_refused_creation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Report a marker the filesystem refuses to create."""
-
-    def refuse_open(_name: str, _flags: int, *, mode: int, dir_fd: int) -> int:
-        """Reject marker creation for a reason other than an existing marker."""
-        del mode, dir_fd
-        raise PermissionError(errno.EACCES, "denied")
-
-    monkeypatch.setattr(primitives.os, "open", refuse_open)
+    monkeypatch.setattr(primitives.os, "open", _refusing_open)
 
     with pytest.raises(CacheStorageError, match="cannot create cache owner marker"):
         primitives._write_marker(namespace_fd)

@@ -25,6 +25,8 @@ from tests.support.build_tools_harness import (
 )
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
     from cuprum.sh import CommandResult
 
 
@@ -99,6 +101,49 @@ def _layout(pins: PinWorkspace, **overrides: object) -> build_tools_environment.
         machine="x86_64",
     )
     return dc.replace(base, **overrides)
+
+
+@pytest.fixture
+def layouts_seen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[build_tools_environment.Layout]:
+    """Record every layout the halves of an orchestration are handed.
+
+    The halves are replaced by recorders, so an implementation that forgot to
+    resolve a layout, or resolved two different ones, is visible as an empty or
+    inconsistent list rather than hiding behind a successful run.
+
+    Returns
+    -------
+    list[Layout]
+        One entry per attempted half, in the order they ran.
+    """
+    seen: list[build_tools_environment.Layout] = []
+    recorder = seen.append
+
+    def record_and_report(layout: build_tools_environment.Layout) -> list[str]:
+        """Record the layout, then report no problems for it."""
+        seen.append(layout)
+        return []
+
+    monkeypatch.setattr(build_tools, "install_mold", recorder)
+    monkeypatch.setattr(build_tools, "install_toolchain", recorder)
+    monkeypatch.setattr(build_tools, "check_mold", record_and_report)
+    monkeypatch.setattr(build_tools, "check_toolchain", record_and_report)
+    return seen
+
+
+@pytest.mark.parametrize("orchestrate", [build_tools.install, build_tools.check])
+def test_orchestrations_default_to_the_standard_layout(
+    orchestrate: cabc.Callable[[build_tools_environment.Layout | None], None],
+    layouts_seen: list[build_tools_environment.Layout],
+) -> None:
+    """Resolve the repository's own pins when the caller names no layout."""
+    orchestrate(None)
+
+    assert [type(item) for item in layouts_seen] == [
+        build_tools_environment.Layout
+    ] * 2, "both halves must be attempted with one real default layout"
 
 
 def test_install_mold_downloads_under_every_bound(
@@ -272,22 +317,6 @@ def test_install_runs_the_linker_before_the_toolchain(
     )
 
 
-def test_install_defaults_to_the_standard_layout(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Use the repository's own pins when the caller names no layout."""
-    seen: list[object] = []
-    monkeypatch.setattr(build_tools, "install_mold", seen.append)
-    monkeypatch.setattr(build_tools, "install_toolchain", seen.append)
-
-    build_tools.install(None)
-
-    assert seen, "both halves must be attempted with a default layout"
-    assert all(isinstance(item, build_tools_environment.Layout) for item in seen), (
-        "a layout-less install must still target a real layout"
-    )
-
-
 def test_check_reports_every_problem_then_fails(
     pins: PinWorkspace,
     monkeypatch: pytest.MonkeyPatch,
@@ -319,21 +348,3 @@ def test_check_is_silent_when_every_prerequisite_is_present(
     monkeypatch.setattr(build_tools, "check_toolchain", lambda _layout: [])
 
     build_tools.check(_layout(pins))
-
-
-def test_check_defaults_to_the_standard_layout(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Check the repository's own pins when the caller names no layout."""
-    seen: list[object] = []
-    monkeypatch.setattr(
-        build_tools, "check_mold", lambda layout: seen.append(layout) or []
-    )
-    monkeypatch.setattr(
-        build_tools, "check_toolchain", lambda layout: seen.append(layout) or []
-    )
-
-    build_tools.check(None)
-
-    assert seen, "both halves must be checked against a default layout"
-    assert all(isinstance(item, build_tools_environment.Layout) for item in seen), (
-        "a layout-less check must still target a real layout"
-    )
