@@ -25,13 +25,13 @@ from stilyagi import (
     cli_io,
     cli_run,
     config,
-    diagnostics,
     engine,
 )
 
 from tests.support.assertions import assert_with_context
 from tests.support.check_pipeline_fixtures import (
     checked_file,
+    forbidden_runner,
     input_for,
     one_diagnostic_runner,
     planned_file,
@@ -43,8 +43,6 @@ from tests.support.check_pipeline_fixtures import (
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
     import pathlib
-
-    from stilyagi.rules import registry as rules_registry
 
 
 def _make_directory(root: pathlib.Path) -> pathlib.Path:
@@ -259,13 +257,6 @@ class TestCheckOneFile:
                 resolved_target, "config", "unreadable config provenance"
             )
 
-        def forbidden_runner(
-            request: rules_registry.RuleRunRequest,
-        ) -> list[diagnostics.Diagnostic]:
-            """Record any rule-phase call that should not have happened."""
-            rule_runs.append(request)
-            return []
-
         monkeypatch.setattr(
             config.ConfigResolver, "resolve_config_for_path", fake_resolve
         )
@@ -276,7 +267,7 @@ class TestCheckOneFile:
 
         result = check_execution.check_one_file(
             input_for(target),
-            run_for(forbidden_runner, report),
+            run_for(forbidden_runner(rule_runs), report),
         )
 
         assert result.had_error, "expected the failed provenance to flag the result"

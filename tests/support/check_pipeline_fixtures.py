@@ -64,6 +64,17 @@ def silent_runner(
     return []
 
 
+def forbidden_runner(rule_runs: list[object]) -> rules_registry.RuleRunner:
+    """Return a rule runner that records any call that should not happen."""
+
+    def runner(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:
+        """Record the rule-phase call and produce nothing."""
+        rule_runs.append(request)
+        return []
+
+    return runner
+
+
 def one_diagnostic_runner(
     _request: RuleRunRequest,
 ) -> list[diagnostics.Diagnostic]:

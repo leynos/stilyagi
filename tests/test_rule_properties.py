@@ -6,9 +6,10 @@ only the repeated suffix while leaving every other byte alone (V-3). Both
 checks are written against an independent tokenizer and byte arithmetic rather
 than against the rule's own helpers, so a shared bug cannot satisfy both.
 
-A third invariant covers the inline-code index the rules query: its binary
-search must answer containment exactly as a scan over every indexed span does,
-for span lists in any order and with any overlap, nesting, or duplication.
+A third invariant covers the segment boundary: a run is found inside one
+source-backed segment, and never across the markup that separates two of them.
+The inline-code index's own containment property lives in
+`tests/test_inline_code_index.py`.
 
 The preservation check splices the rule's production edits and compares the
 result with an independently collapsed paragraph. A mutation control then
@@ -18,7 +19,6 @@ would fail rather than pass.
 """
 
 import itertools
-import re
 import typing as typ
 
 import pytest
@@ -28,13 +28,14 @@ from stilyagi import diagnostics, engine, model
 from stilyagi.engine.fix_planning import admissibility
 from stilyagi.fixes import TextEdit
 from stilyagi.model.source import SourceSpan
-from stilyagi.rules.builtin.text import Token
-from stilyagi.rules.inline_code import InlineCodeIndex
 
 from tests.support.rule_fixtures import LintSetup
+from tests.support.word_run_oracle import collapse_runs, expected_findings
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+
+    from stilyagi.rules.builtin.text import Token
 
 pytest_plugins = ("tests.package_skeleton_support",)
 
@@ -45,8 +46,6 @@ _WORDS = ("the", "The", "a", "é", "Ünïcode", "word")
 _SEPARATORS = (" ", "\t")
 #: A boundary that ends a token without creating a Markdown block.
 _BOUNDARIES = (",", ".", ";", "!", "?", "-", "/", "1", "  ")
-
-_TOKEN_PATTERN = re.compile(r"[^\W\d_]+")
 
 
 @st.composite
@@ -65,78 +64,12 @@ def _prose(draw: st.DrawFn) -> str:
     return "".join(parts) + "\n"
 
 
-def _oracle_tokens(text: str) -> tuple[Token, ...]:
-    """Tokenize with ``re`` instead of the rule's ``isalpha`` scan."""
-    return tuple(
-        Token(match.group(0), match.start(), match.end())
-        for match in _TOKEN_PATTERN.finditer(text)
-    )
-
-
-def _expected_findings(
-    text: str,
-) -> tuple[tuple[Token, SourceSpan, SourceSpan], ...]:
-    """Return each maximal run's second token and the whole suffix edit."""
-    tokens = _oracle_tokens(text)
-    found: list[tuple[Token, SourceSpan, SourceSpan]] = []
-    index = 0
-    while index < len(tokens) - 1:
-        end = index
-        while _extends_run(text, tokens, end, index):
-            end += 1
-        if end > index:
-            found.append((
-                tokens[index + 1],
-                _span(text, tokens[index + 1]),
-                SourceSpan(
-                    _byte_offset(text, tokens[index].char_end),
-                    _byte_offset(text, tokens[end].char_end),
-                ),
-            ))
-            index = end + 1
-            continue
-        index += 1
-    return tuple(found)
-
-
-def _extends_run(
-    text: str,
-    tokens: tuple[Token, ...],
-    end: int,
-    index: int,
-) -> bool:
-    """Whether the token after ``end`` repeats the run's first word."""
-    return (
-        end + 1 < len(tokens)
-        and tokens[end + 1].text == tokens[index].text
-        and _joinable(text[tokens[end].char_end : tokens[end + 1].char_start])
-    )
-
-
-def _joinable(gap: str) -> bool:
-    """Return whether a gap is made only of ASCII spaces and tabs."""
-    return not gap.strip(" \t")
-
-
-def _byte_offset(text: str, index: int) -> int:
-    """Return the byte offset of one character index."""
-    return len(text[:index].encode("utf-8"))
-
-
-def _span(text: str, token: Token) -> SourceSpan:
-    """Return a token's byte span in the original source."""
-    return SourceSpan(
-        _byte_offset(text, token.char_start),
-        _byte_offset(text, token.char_end),
-    )
-
-
 @settings(max_examples=120, deadline=None)
 @given(text=_prose())
 def test_reported_spans_and_edits_match_the_oracle(text: str) -> None:
     """Every finding names the second token and removes the run's suffix."""
     source = text.encode("utf-8")
-    expected = _expected_findings(text)
+    expected = expected_findings(text)
     result = LintSetup().run(source)
 
     assert len(result) == len(expected), "expected one finding per maximal repeated run"
@@ -169,7 +102,7 @@ def test_applying_the_edits_preserves_every_other_byte(text: str) -> None:
     for earlier, later in itertools.pairwise(edits):
         assert earlier.byte_end <= later.byte_start, "edits must be disjoint"
 
-    assert _splice(source, edits) == _collapse_runs(text).encode("utf-8"), (
+    assert _splice(source, edits) == collapse_runs(text).encode("utf-8"), (
         "expected splicing the rule's edits to collapse only repeated runs"
     )
     for span in edits:
@@ -263,71 +196,159 @@ def _is_continuation_byte(value: int) -> bool:
     return value & _HIGH_BITS_MASK == _CONTINUATION_PREFIX
 
 
-def _collapse_runs(text: str) -> str:
-    """Collapse every repeated run in ``text`` to its first token."""
-    tokens = _oracle_tokens(text)
-    pieces: list[str] = []
-    cursor = 0
-    index = 0
-    while index < len(tokens) - 1:
-        end = index
-        while _extends_run(text, tokens, end, index):
-            end += 1
-        if end > index:
-            pieces.append(text[cursor : tokens[index].char_end])
-            cursor = tokens[end].char_end
-            index = end + 1
-            continue
-        index += 1
-    pieces.append(text[cursor:])
-    return "".join(pieces)
-
-
-#: Offsets stay small so generated cases concentrate on overlap and boundary
-#: shapes rather than on large empty gaps.
-_INLINE_OFFSET_LIMIT = 24
-_INLINE_SPAN_LIMIT = 6
+#: A small vocabulary makes a repeat across a segment boundary likely.
+_SEGMENT_WORDS = ("the", "é", "Ünïcode", "a")
 
 
 @st.composite
-def _inline_spans(draw: st.DrawFn) -> tuple[SourceSpan, ...]:
-    """Build an unordered span list that may overlap, nest, or repeat."""
-    count = draw(st.integers(min_value=0, max_value=_INLINE_SPAN_LIMIT))
-    spans: list[SourceSpan] = []
-    for _ in range(count):
-        start = draw(st.integers(min_value=0, max_value=_INLINE_OFFSET_LIMIT))
-        span_end = start + draw(
-            st.integers(min_value=0, max_value=_INLINE_OFFSET_LIMIT)
+def _segment_pieces(draw: st.DrawFn) -> tuple[tuple[bool, str], ...]:
+    """Build alternating plain and emphasized pieces of one paragraph.
+
+    Alternating keeps every plain piece whole: two adjacent plain pieces would
+    merge into one projected segment and make the oracle's bookkeeping wrong.
+
+    Returns
+    -------
+    tuple[tuple[bool, str], ...]
+        One ``(is_emphasized, text)`` pair per piece, in source order.
+    """
+    count = draw(st.integers(min_value=2, max_value=5))
+    starts_emphasized = draw(st.booleans())
+    pieces: list[tuple[bool, str]] = []
+    for index in range(count):
+        token_count = draw(st.integers(min_value=1, max_value=3))
+        text = " ".join(
+            draw(st.sampled_from(_SEGMENT_WORDS)) for _ in range(token_count)
         )
-        spans.append(SourceSpan(start, span_end))
-    return tuple(spans)
+        is_emphasized = starts_emphasized == (index % 2 == 0)
+        pieces.append((is_emphasized, text))
+    return tuple(pieces)
 
 
-@st.composite
-def _inline_candidate(draw: st.DrawFn) -> SourceSpan:
-    """Build one candidate span for a containment query."""
-    start = draw(st.integers(min_value=0, max_value=_INLINE_OFFSET_LIMIT))
-    return SourceSpan(
-        start,
-        start + draw(st.integers(min_value=0, max_value=_INLINE_OFFSET_LIMIT)),
+def _render_segments(
+    pieces: tuple[tuple[bool, str], ...],
+) -> tuple[str, tuple[tuple[str, int], ...]]:
+    """Render the paragraph and return each segment's text and byte start.
+
+    The offsets are derived from the generator that built the source, not from
+    the projection under test. A plain piece keeps the separator spaces the
+    projection attaches to it: the one after the preceding emphasis, and the
+    one before the following emphasis.
+
+    Returns
+    -------
+    tuple[str, tuple[tuple[str, int], ...]]
+        The paragraph with its newline, and each segment's text with the byte
+        offset it starts at.
+    """
+    source = ""
+    segments: list[tuple[str, int]] = []
+    for index, (is_emphasized, text) in enumerate(pieces):
+        follows_emphasis = index > 0 and pieces[index - 1][0] and not is_emphasized
+        if follows_emphasis:
+            source += " "
+        if is_emphasized:
+            source += "*"
+            segments.append((text, len(source.encode("utf-8"))))
+            source += f"{text}*"
+            continue
+        start = len(source.encode("utf-8")) - (1 if follows_emphasis else 0)
+        segment_text = f"{' ' if follows_emphasis else ''}{text}"
+        source += text
+        if index + 1 < len(pieces) and pieces[index + 1][0]:
+            source += " "
+            segment_text += " "
+        segments.append((segment_text, start))
+    return f"{source}\n", tuple(segments)
+
+
+def _shifted_findings(
+    text: str,
+    base: int,
+) -> tuple[tuple[Token, SourceSpan, SourceSpan], ...]:
+    """Return one segment's expected findings shifted into source offsets."""
+    return tuple(
+        (
+            token,
+            SourceSpan(span.byte_start + base, span.byte_end + base),
+            SourceSpan(edit.byte_start + base, edit.byte_end + base),
+        )
+        for token, span, edit in expected_findings(text)
     )
 
 
-@settings(max_examples=200, deadline=None)
-@given(spans=_inline_spans(), candidate=_inline_candidate())
-def test_inline_code_index_contains_agrees_with_a_direct_scan(
-    spans: tuple[SourceSpan, ...],
-    candidate: SourceSpan,
+def _segment_containing(
+    segments: tuple[tuple[str, int], ...],
+    span: SourceSpan,
+) -> int | None:
+    """Return the index of the one segment wholly containing ``span``."""
+    return next(
+        (
+            index
+            for index, (text, base) in enumerate(segments)
+            if base <= span.byte_start
+            and span.byte_end <= base + len(text.encode("utf-8"))
+        ),
+        None,
+    )
+
+
+@settings(max_examples=120, deadline=None)
+@given(pieces=_segment_pieces())
+def test_findings_never_cross_a_segment_boundary(
+    pieces: tuple[tuple[bool, str], ...],
 ) -> None:
-    """The indexed query answers exactly what scanning every span answers.
+    """A repeat is found inside one segment, never across the markup between two.
 
-    ``from_spans`` sorts and folds a running maximum over the span list, so the
-    index is only correct if that fold preserves enclosure under arbitrary
-    order, overlap, nesting, and duplication. The oracle is
-    :meth:`SourceSpan.contains` applied to every span, which shares no code
-    with the indexed search.
+    The generated pieces deliberately reuse a small vocabulary, so the text of
+    two adjacent segments often concatenates into a repeat that the source does
+    not contain. A rule that joined segments would report it; one that scans a
+    segment at a time must not.
     """
-    index = InlineCodeIndex.from_spans(spans)
-    expected = any(span.contains(candidate) for span in spans)
+    text, segments = _render_segments(pieces)
+    source = text.encode("utf-8")
+    expected = [
+        finding
+        for segment_text, base in segments
+        for finding in _shifted_findings(segment_text, base)
+    ]
+    result = LintSetup().run(source)
 
-    assert index.contains(candidate) is expected, (spans, candidate)
+    assert len(result) == len(expected), (
+        f"expected one finding per intra-segment run in {text!r}"
+    )
+    for diagnostic, (token, span, edit_span) in zip(result, expected, strict=True):
+        assert source[span.byte_start : span.byte_end].decode("utf-8") == token.text, (
+            "expected the finding's span to address exactly the repeated token"
+        )
+        assert diagnostic.span == span, (
+            "expected the finding to carry the oracle's byte span"
+        )
+        assert diagnostic.fix is not None, (
+            "expected each finding to carry an unsafe edit"
+        )
+        (edit,) = diagnostic.fix.edits
+        assert (edit.byte_start, edit.byte_end) == (
+            edit_span.byte_start,
+            edit_span.byte_end,
+        ), "expected the edit to remove only the run's suffix"
+        span_segment = _segment_containing(segments, span)
+        edit_segment = _segment_containing(segments, edit_span)
+        assert span_segment is not None, (
+            "expected the finding to lie inside one source-backed segment"
+        )
+        assert edit_segment == span_segment, (
+            "expected the edit to stay inside the segment it reports"
+        )
+
+
+def test_a_repeat_split_by_emphasis_is_not_reported() -> None:
+    """The concatenated segment texts form a repeat that the source does not.
+
+    ``'the '`` and ``'the'`` join to ``'the the'``, so a rule that joined
+    segments would report a repeat across the emphasis marker. Scanning one
+    segment at a time finds nothing.
+    """
+    assert LintSetup().run("the *the*\n") == [], (
+        "expected emphasis to separate two tokens that would otherwise repeat"
+    )

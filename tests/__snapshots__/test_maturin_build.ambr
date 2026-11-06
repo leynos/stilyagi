@@ -16,6 +16,7 @@
       'stilyagi/check_inputs.py',
       'stilyagi/check_metrics.py',
       'stilyagi/check_outcome.py',
+      'stilyagi/check_paths.py',
       'stilyagi/check_targets.py',
       'stilyagi/cli.py',
       'stilyagi/cli_apply.py',

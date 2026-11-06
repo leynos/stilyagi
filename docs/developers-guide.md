@@ -620,6 +620,16 @@ extraction, configuration resolution, and rules for it. The module records
 phase timings around read, extract, config, and rules; `cli.py` owns the
 discovery and render phases around its command orchestration.
 
+`python/stilyagi/check_paths.py` resolves the glob anchor for the file being
+checked and spells the target relative to it. The anchor is the governing
+config file's parent, or the invocation working directory when no config file
+governs the target. Resolving either reads the filesystem, and a deleted
+working directory, an unreadable parent, or a symlink loop can make it fail.
+That work runs inside the recorded `config` phase, so the failure is reported
+against the file being checked and the rest of the run continues. The spelling
+decision itself stays in `python/stilyagi/config/paths.py`, which reads nothing
+and is therefore testable without a filesystem.
+
 The run-level sweep deliberately does not live here.
 `cli_run.collect_checked_files` drives `check_one_file` once per input and
 keeps the per-file results, which a mutating run needs for its planning and

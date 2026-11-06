@@ -741,6 +741,32 @@ with error exit 1. An invalid `TERM001` option exits 2.
     three `release-smoke` jobs on that head, and the CodeScene and Gecko checks
     passed there too.
 
+- [x] (2026-11-06) Repair the Unit Architecture and property-test rows the
+  final approval round raised against `df3c9223`.
+  - Unit Architecture: `config_relative_path` is now a pure spelling function
+    over an already-resolved target and anchor. It reads neither the working
+    directory nor the filesystem, so it cannot fail. The resolving half moved to
+    the new `python/stilyagi/check_paths.py`, which `check_execution` calls
+    inside the recorded `config` phase. A deleted working directory, an
+    unreadable parent, or a symlink loop is therefore reported against the file
+    being checked rather than escaping as an unexplained rules-phase error.
+  - `tests/test_config_relative_paths.py` is rewritten for the pure signature
+    and forbids `cwd`, `resolve`, `expanduser`, `stat`, `exists`, and `is_dir`:
+    a spelling that consulted any of them would fail the test.
+    `tests/test_check_path_failures.py` injects a missing `Path.cwd()` and a
+    looping `Path.resolve()`, and asserts each is reported as a per-file
+    operational failure with no rule run.
+  - Testing (Property / Proof): `tests/test_rule_properties.py` gained a
+    Hypothesis property over generated plain and emphasized segments with
+    Unicode prefixes. Its oracle is derived from the generator, so it shares no
+    offset arithmetic with the projection; it asserts every finding's byte span
+    and edit span and that neither crosses a segment boundary. The fixed case
+    `"the *the*\n"` proves that two segment texts which concatenate to a repeat
+    report nothing. The independent word-run oracle moved to
+    `tests/support/word_run_oracle.py`, and the inline-code containment property
+    moved to `tests/test_inline_code_index.py`, keeping every module under the
+    plan's 400-line limit.
+
 ## Surprises & discoveries
 
 - Observation: the rule runner is an intentionally empty seam, and the model

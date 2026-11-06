@@ -36,9 +36,9 @@ from stilyagi.check_inputs import (
     CheckInput,
     FileCheckResult,
 )
+from stilyagi.check_paths import config_relative_path_for
 from stilyagi.cli_config import resolve_target_config
 from stilyagi.cli_io import SourcedInput, SourceReadError, read_source
-from stilyagi.config.paths import config_relative_path
 from stilyagi.engine.checker import map_ir_errors
 from stilyagi.engine.fix_pipeline import (
     FixRequest,
@@ -92,11 +92,25 @@ class CheckRun:
     report: CheckReporter
 
 
+@dc.dataclass(frozen=True, slots=True)
+class _ConfigOutcome:
+    """The two products of one file's config phase.
+
+    They travel together because a rule needs both: the effective
+    configuration, and the spelling of the target relative to the anchor that
+    configuration was resolved against. Separating them would let a caller
+    pair one file's config with another's spelling.
+    """
+
+    resolved_target: ResolvedTargetConfig
+    relative_path: str
+
+
 def _rule_request(
     *,
     sourced_input: SourcedInput,
     document: model.Document,
-    resolved_target: ResolvedTargetConfig,
+    config_outcome: _ConfigOutcome,
 ) -> RuleRunRequest:
     """Build the per-document rule request from the values already in hand.
 
@@ -113,25 +127,25 @@ def _rule_request(
         The read result carrying both the original bytes and decoded text.
     document:
         The extracted document with its canonical IR envelope.
-    resolved_target:
-        The effective configuration for this target and the config file that
-        supplied it.
+    config_outcome:
+        The effective configuration for this target, the config file that
+        supplied it, and the target's spelling relative to the glob anchor,
+        resolved once in the config phase so a resolution failure is reported
+        there.
 
     Returns
     -------
     RuleRunRequest
         The frozen request a rule runner receives.
     """
-    config_file = resolved_target.config_file
+    config_file = config_outcome.resolved_target.config_file
     return RuleRunRequest(
-        config=resolved_target.config,
+        config=config_outcome.resolved_target.config,
         config_path=str(config_file) if config_file is not None else None,
         source_bytes=sourced_input.source_bytes,
         reported_path=sourced_input.reported_path,
         document=document,
-        config_relative_path=config_relative_path(
-            sourced_input.resolved_path, config_file
-        ),
+        config_relative_path=config_outcome.relative_path,
     )
 
 
@@ -298,14 +312,23 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
             resolved_target = resolve_target_config(
                 sourced_input.resolved_path, run.options, run.resolver
             )
+            relative_path = config_relative_path_for(
+                sourced_input.resolved_path, resolved_target.config_file
+            )
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
+        OSError,
+        RuntimeError,
     ) as exc:
+        # A path that cannot be resolved is this file's operational failure,
+        # not a reason to abandon the run: the remaining files are still
+        # checkable, and the user is told which one was not.
         return _report_phase_failure(sourced_input, run, exc, "config")
 
+    config_outcome = _ConfigOutcome(resolved_target, relative_path)
     diagnostics_list = _collect_diagnostics(
-        sourced_input, document, resolved_target, run
+        sourced_input, document, config_outcome, run
     )
     return FileCheckResult(
         diagnostics=diagnostics_list,
@@ -326,7 +349,7 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
 def _collect_diagnostics(
     sourced_input: SourcedInput,
     document: model.Document,
-    resolved_target: ResolvedTargetConfig,
+    config_outcome: _ConfigOutcome,
     run: CheckRun,
 ) -> list[diagnostics.Diagnostic]:
     """Return the file's IR-error and rule diagnostics for the rules phase."""
@@ -338,7 +361,7 @@ def _collect_diagnostics(
                     _rule_request(
                         sourced_input=sourced_input,
                         document=document,
-                        resolved_target=resolved_target,
+                        config_outcome=config_outcome,
                     )
                 ),
             ]
