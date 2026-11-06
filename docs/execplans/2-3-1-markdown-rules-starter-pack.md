@@ -6,10 +6,10 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan`.
 
 Status: COMPLETE — implementation, validation, and review reconciliation
-finished on 2026-11-06, when the candidate `6cf17fcf` was reconciled against the
-accepted plan. The reconciliation of `0863c378` and the review round that
-followed it are recorded in the Progress section. The earlier reconciliations
-of `9227d62c`, `4a4d107a`, and `d484dab1` are retained as history; the repair
+finished on 2026-11-06, when the candidate `6cf17fcf` was reconciled against
+the accepted plan. The reconciliation of `0863c378` and the review round that
+followed it are recorded in the Progress section. The earlier reconciliations of
+`9227d62c`, `4a4d107a`, and `d484dab1` are retained as history; the repair
 rounds that followed them are recorded in the Progress section. Milestones
 M1–M3 were approved on 2026-10-28 and are delivered within the stated
 constraints and tolerances.
