@@ -630,11 +630,10 @@ checked and spells the target relative to it. The anchor is the governing
 config file's parent, or the invocation working directory when no config file
 governs the target. Resolving either reads the filesystem, and a deleted
 working directory, an unreadable parent, or an unresolved home directory can
-make it fail.
-That work runs inside the recorded `config` phase, so the failure is reported
-against the file being checked and the rest of the run continues. The spelling
-decision itself stays in `python/stilyagi/config/paths.py`, which reads nothing
-and is therefore testable without a filesystem.
+make it fail. That work runs inside the recorded `config` phase, so the failure
+is reported against the file being checked and the rest of the run continues.
+The spelling decision itself stays in `python/stilyagi/config/paths.py`, which
+reads nothing and is therefore testable without a filesystem.
 
 The run-level sweep deliberately does not live here.
 `cli_run.collect_checked_files` drives `check_one_file` once per input and

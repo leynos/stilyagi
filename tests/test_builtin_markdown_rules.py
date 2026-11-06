@@ -171,6 +171,23 @@ class TestRepeatedWord:
             "expected CRLF line endings not to shift the span"
         )
 
+    def test_reports_inside_a_table_cell(self) -> None:
+        """Table cells are prose units, so a repetition inside one reports.
+
+        The cell text sits at a different offset from a paragraph, so the
+        assertion pins the cell's own byte span rather than the row's.
+        """
+        source = "| word | term |\n| --- | --- |\n| the the | obviously |\n"
+
+        result = LintSetup().run(source)
+
+        assert [diagnostic.code for diagnostic in result] == ["STY001"], (
+            "expected a repeated word inside a table cell to report STY001"
+        )
+        assert spans_of(result) == ((36, 39),), (
+            "expected the finding to cover the repeated token inside the cell"
+        )
+
 
 class TestBannedTerm:
     """``TERM001`` is opt-in and matches whole tokens only."""
@@ -221,6 +238,19 @@ class TestBannedTerm:
 
         assert spans_of(result) == ((12, 21),), (
             "expected inline code not to be matched as prose"
+        )
+
+    def test_reports_a_term_inside_a_table_cell(self) -> None:
+        """A table cell is prose, so a configured term inside one reports."""
+        source = "| word | term |\n| --- | --- |\n| the the | obviously |\n"
+
+        result = LintSetup(rules=TERM_ENABLED).run(source)
+
+        assert [diagnostic.code for diagnostic in result] == ["TERM001"], (
+            "expected a banned term inside a table cell to report TERM001"
+        )
+        assert spans_of(result) == ((42, 51),), (
+            "expected the finding to cover the term inside the cell"
         )
 
     @pytest.mark.parametrize(

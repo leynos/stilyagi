@@ -1188,9 +1188,9 @@ anchor is now resolved at the check boundary in `stilyagi/check_paths.py`, so a
 deleted working directory, an unreadable parent, or an unresolved home
 directory is a per-file operational failure reported in the recorded `config`
 phase while the rest of the run continues; `config/paths.py` stays a pure
-spelling function that reads no filesystem. `tests/test_check_path_failures.py` covers both
-failures and `tests/test_config_relative_paths.py` pins the purity. Testing
-(Property / Proof): `tests/test_rule_properties.py` gained a Hypothesis
+spelling function that reads no filesystem. `tests/test_check_path_failures.py`
+covers both failures and `tests/test_config_relative_paths.py` pins the purity.
+Testing (Property / Proof): `tests/test_rule_properties.py` gained a Hypothesis
 property that generates alternating plain and emphasized segments over an ASCII
 and Unicode vocabulary, and checks every finding and edit span against an
 independent byte-level oracle in `tests/support/word_run_oracle.py`, including

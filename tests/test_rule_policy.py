@@ -228,6 +228,36 @@ class TestSuppressionDirectives:
             "expected the empty item to be skipped, not consumed"
         )
 
+    def test_ignore_next_consumes_a_table_cell_and_leaves_a_later_finding(self) -> None:
+        """A table cell is a prose unit, so it can consume the directive.
+
+        The header cells are empty, so the first nonempty unit is the first
+        body cell. Only the second cell's finding may survive.
+        """
+        source = (
+            "<!-- stilyagi: ignore-next STY001 -->\n\n"
+            "|  |  |\n"
+            "| --- | --- |\n"
+            "| the the | the the |\n"
+        )
+
+        assert _reported_words(source) == [b"the"], (
+            "expected the first cell to consume the directive and the second to report"
+        )
+
+    def test_ignore_next_suppresses_a_reporting_table_cell(self) -> None:
+        """The positive control for the table-cell consumer above."""
+        source = (
+            "<!-- stilyagi: ignore-next STY001 -->\n\n"
+            "|  |  |\n"
+            "| --- | --- |\n"
+            "| the the | quiet |\n"
+        )
+
+        assert _reported_words(source) == [], (
+            "expected the reporting table cell to be suppressed"
+        )
+
     def test_ignore_next_binds_a_blockquote_paragraph_not_its_child(self) -> None:
         """A nested paragraph stays distinct from the quote it sits inside."""
         source = "<!-- stilyagi: ignore-next STY001 -->\n\n> outer\n>\n> - the the\n"
