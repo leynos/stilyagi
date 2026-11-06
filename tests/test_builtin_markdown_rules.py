@@ -242,14 +242,16 @@ class TestBannedTerm:
 
     def test_reports_a_term_inside_a_table_cell(self) -> None:
         """A table cell is prose, so a configured term inside one reports."""
-        source = "| word | term |\n| --- | --- |\n| the the | obviously |\n"
+        # The first cell carries no repeated word, so STY001 stays silent and
+        # the only finding is the term, which isolates the behaviour under test.
+        source = "| word | term |\n| --- | --- |\n| loud | obviously |\n"
 
         result = LintSetup(rules=TERM_ENABLED).run(source)
 
         assert [diagnostic.code for diagnostic in result] == ["TERM001"], (
             "expected a banned term inside a table cell to report TERM001"
         )
-        assert spans_of(result) == ((42, 51),), (
+        assert spans_of(result) == ((39, 48),), (
             "expected the finding to cover the term inside the cell"
         )
 
