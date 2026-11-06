@@ -543,8 +543,9 @@ the requested targets.
 - `failures` — structured path-expansion, metadata-lookup, path-resolution, or
   directory-walk failures (`OSError | RuntimeError`), with their path, retained
   alongside any files successfully discovered before or after the failure.
-  Runtime errors include unresolved home directories during expansion and
-  symlink loops during resolution.
+  Runtime errors include unresolved home directories during expansion.
+  Resolution is non-strict, so a symlink loop yields a path rather than an
+  error.
 
 `DiscoveredFile` is a frozen dataclass with three fields:
 

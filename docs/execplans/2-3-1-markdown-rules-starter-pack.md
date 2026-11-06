@@ -6,12 +6,13 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan`.
 
 Status: COMPLETE — implementation, validation, and review reconciliation
-finished on 2026-11-06, when the final candidate `6cf17fcf` was reconciled
-against the accepted plan. The earlier reconciliations of `9227d62c`,
-`4a4d107a`, and `d484dab1` are retained as history; the repair rounds that
-followed them are recorded in the Progress section. Milestones M1–M3 were
-approved on 2026-10-28 and are delivered within the stated constraints and
-tolerances.
+finished on 2026-11-06, when the candidate `6cf17fcf` was reconciled against the
+accepted plan. The reconciliation of `0863c378` and the review round that
+followed it are recorded in the Progress section. The earlier reconciliations
+of `9227d62c`, `4a4d107a`, and `d484dab1` are retained as history; the repair
+rounds that followed them are recorded in the Progress section. Milestones
+M1–M3 were approved on 2026-10-28 and are delivered within the stated
+constraints and tolerances.
 
 Roadmap item: 2.3.1. Prerequisites 2.1.2 (Markdown IR coverage) and 2.2.1
 (`stilyagi check`) are complete. Safe-fix planning, 2.2.2, is also complete.
@@ -763,9 +764,9 @@ with error exit 1. An invalid `TERM001` option exits 2.
   - `tests/test_config_relative_paths.py` is rewritten for the pure signature
     and forbids `cwd`, `resolve`, `expanduser`, `stat`, `exists`, and `is_dir`:
     a spelling that consulted any of them would fail the test.
-    `tests/test_check_path_failures.py` injects a missing `Path.cwd()` and a
-    looping `Path.resolve()`, and asserts each is reported as a per-file
-    operational failure with no rule run.
+    `tests/test_check_path_failures.py` injects a missing `Path.cwd()` and an
+    `expanduser()` that cannot determine the home directory, and asserts each
+    is reported as a per-file operational failure with no rule run.
   - Testing (Property / Proof): `tests/test_rule_properties.py` gained a
     Hypothesis property over generated plain and emphasized segments with
     Unicode prefixes. Its oracle is derived from the generator, so it shares no
@@ -873,6 +874,33 @@ with error exit 1. An invalid `TERM001` option exits 2.
     and `make test` (nextest 364/364, doctests 14, pytest 1107 passed with 19
     snapshots, the `--doctest-modules` lane 140 passed with 3 skips, and
     `make duplication-test` 154 passed).
+
+- [x] (2026-11-07) Close the review round on `0863c378`.
+  - Inline finding: `LintSetup.policy` called `resolve_policy` without a
+    `document_view`, so it exercised the fallback projection rather than the
+    view-passing path `run_rules` uses. The helper now projects with
+    `rule_view.project(request.document, source_bytes=request.source_bytes)` and
+    passes the resulting view, so a policy test sees the same `ignore-next`
+    targets production derives.
+  - Testing (Overall): the one-shot-iterator test asserted an inline setting
+    that overwrote the file's only key, so a merge that dropped the file's layer
+    would still have passed. The fixture file now also sets
+    `respect-gitignore = false`, which the inline fragment does not touch, and
+    the test asserts that file-only setting survives alongside the record of
+    file provenance.
+  - Documentation: the reply to the `expanduser` thread was right that the
+    claim survived elsewhere. Non-strict `Path.resolve` does not raise for a
+    symlink loop on Python 3.14, so the symlink-loop cause is removed from
+    `docs/developers-guide.md`, `python/stilyagi/discovery.py`,
+    `python/stilyagi/discovery_results.py` (two sites), and
+    `python/stilyagi/check_inputs.py`. The line above that said the path-failure
+    tests inject a looping `Path.resolve()` now names the `expanduser()`
+    failure they actually inject.
+  - The remaining pre-merge rows (User-Facing Documentation, Unit Architecture,
+    Domain Architecture, Observability) repeat requests already dispositioned
+    with evidence in the reconciliation comment on this pull request; the
+    Domain Architecture and Observability decisions are recorded in ADR 0012
+    and in the *Decision log* below.
 
 ## Surprises & discoveries
 
@@ -1104,6 +1132,17 @@ with error exit 1. An invalid `TERM001` option exits 2.
   which belongs with extractor work that can produce one. Rationale: a rule
   pack must not silently widen the diagnostics contract or the cross-language
   metric vocabulary. Date/author: 2026-11-06, implementation agent.
+- Review disposition: the Unit Architecture row asking to separate rule
+  evaluation from anomaly reporting is answered by keeping `run_rules` as the
+  single reporting boundary rather than by injecting a third dependency.
+  `report_anomalies` is already a pure function of the projection's immutable
+  `anomaly_counts` snapshot, so the coupling is one call from the only layer
+  that holds both the snapshot and the document's reported path, and the ADR
+  0012 amendment records that duty. Rationale: an injected reporter would add a
+  parameter to the seam every caller must satisfy to preserve a separation the
+  read-only projection already provides. The row's test requirement is met by
+  `tests/test_rule_projection_observability.py`. Date/author: 2026-11-07,
+  implementation agent.
 
 ## Outcomes & retrospective
 

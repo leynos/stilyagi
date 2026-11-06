@@ -11,6 +11,7 @@ import typing as typ
 
 from stilyagi import config, diagnostics, engine, model
 from stilyagi.config.schema import LintConfig
+from stilyagi.engine import rule_view
 from stilyagi.rules.policy import RulePolicy, resolve_policy
 from stilyagi.rules.registry import RuleRunRequest, builtin_metadata, run_rules
 
@@ -132,7 +133,14 @@ class LintSetup:
         >>> setup.policy("the the.\n").is_enabled("STY001")
         False
         """
-        return resolve_policy(self.request_for(source), builtin_metadata())
+        # Project exactly as ``run_rules`` does, so a test of the policy sees
+        # the same ``ignore-next`` targets production derives. Resolving
+        # without a view would silently exercise the fallback path instead.
+        request = self.request_for(source)
+        document_view = rule_view.project(
+            request.document, source_bytes=request.source_bytes
+        )
+        return resolve_policy(request, builtin_metadata(), document_view=document_view)
 
     def run_document(
         self,

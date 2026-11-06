@@ -68,8 +68,7 @@ class DiscoveryFailure(typ.NamedTuple):
         failed.
     error:
         Original ``OSError`` from a filesystem operation, or ``RuntimeError``
-        raised when ``Path.expanduser`` cannot determine the home directory or
-        ``Path.resolve`` detects a symlink loop.
+        raised when ``Path.expanduser`` cannot determine the home directory.
     """
 
     path: pathlib.Path
@@ -120,7 +119,7 @@ class DiscoveryResult:
         Structured path-expansion, metadata, path-resolution or directory-walk
         failures, retained alongside any files discovered before or after each
         failure. Errors are ``OSError`` or ``RuntimeError`` instances; runtime
-        errors include an unresolved home directory or a symlink loop.
+        errors include an unresolved home directory.
     """
 
     files: tuple[DiscoveredFile, ...]

@@ -192,6 +192,7 @@ def test_explicit_config_accepts_a_one_shot_iterator(tmp_path: pathlib.Path) -> 
         named_config,
         """
         cache-dir = ".file"
+        respect-gitignore = false
         """,
     )
     target = _make_markdown_target(tmp_path)
@@ -206,6 +207,12 @@ def test_explicit_config_accepts_a_one_shot_iterator(tmp_path: pathlib.Path) -> 
     assert_with_context(
         resolved.config.cache_dir == pathlib.Path(".inline"),
         "expected the inline fragment after the file to apply",
+    )
+    # The file sets this key and the inline fragment does not, so a merge that
+    # dropped the file's layer would leave the default in place.
+    assert_with_context(
+        resolved.config.respect_gitignore is False,
+        "expected a file-only setting to survive the inline layer",
     )
     assert_with_context(
         resolved.config_file == named_config,
