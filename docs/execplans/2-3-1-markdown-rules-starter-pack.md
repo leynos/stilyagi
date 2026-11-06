@@ -6,11 +6,11 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan`.
 
 Status: COMPLETE — implementation, validation, and review reconciliation
-finished on 2026-11-06, when the final candidate `4a4d107a` was reconciled
-against the accepted plan. The 2026-11-05 reconciliation of `d484dab1` is
-retained as history; the repair round that followed it is recorded in the
-Progress section. Milestones M1–M3 were approved on 2026-10-28 and are
-delivered within the stated constraints and tolerances.
+finished on 2026-11-06, when the final candidate `c5a4bd83` was reconciled
+against the accepted plan. The earlier reconciliations of `4a4d107a` and
+`d484dab1` are retained as history; the repair rounds that followed them are
+recorded in the Progress section. Milestones M1–M3 were approved on 2026-10-28
+and are delivered within the stated constraints and tolerances.
 
 Roadmap item: 2.3.1. Prerequisites 2.1.2 (Markdown IR coverage) and 2.2.1
 (`stilyagi check`) are complete. Safe-fix planning, 2.2.2, is also complete.
@@ -767,6 +767,25 @@ with error exit 1. An invalid `TERM001` option exits 2.
     moved to `tests/test_inline_code_index.py`, keeping every module under the
     plan's 400-line limit.
 
+- [x] (2026-11-06) Gate and record the repair, committed as `c5a4bd83`.
+  Gate logs are under `/tmp`, named `<gate>-final-stilyagi-...out`.
+  - `make check-fmt` passed: 336 Python files formatted, `cargo fmt` clean,
+    76 Markdown files unchanged.
+  - `make typecheck` passed: `cargo check --all-targets --all-features` clean
+    and `ty 0.0.74` reported all checks passed.
+  - `make lint` passed every sub-stage: Ruff, interrogate at 100%, Pylint and
+    the df12 pass both at 10.00/10, Ambrleaks, `cargo doc`, Clippy under
+    `-D warnings`, Whitaker, Skylos, and the duplication gate with 9 reasoned
+    exceptions.
+  - `make markdownlint` passed: the spelling gate reported `typos.toml`
+    current and `markdownlint-cli2` found 0 issues in 77 files.
+  - `make nixie` passed: every diagram validated.
+  - `make test` passed: nextest 364 of 364, the doctest lanes, pytest 1098
+    passed with 19 snapshots, and the application lane 139 passed with 3
+    pre-existing collector skips.
+  - `make duplication-test` passed: 154 passed, 4 snapshots.
+  - The spelling gate did not regenerate the tracked `typos.toml`.
+
 ## Surprises & discoveries
 
 - Observation: the rule runner is an intentionally empty seam, and the model
@@ -1134,6 +1153,27 @@ pytest lane on `4a4d107a` was green. Hosted evidence for the final head is
 Smoke run `42219413204`, which passed `lint-test` and all three `release-smoke`
 jobs on `4a4d107a` itself, plus the CodeScene code-health review and the Gecko
 security review, both successful on the same head.
+
+Final state at `c5a4bd83`. A further approval round on `4a4d107a` raised two
+blocking pre-merge rows, and both were repaired. Unit Architecture: the glob
+anchor is now resolved at the check boundary in `stilyagi/check_paths.py`, so a
+deleted working directory, an unreadable parent, or a symlink loop is a
+per-file operational failure reported in the recorded `config` phase while the
+rest of the run continues; `config/paths.py` stays a pure spelling function
+that reads no filesystem. `tests/test_check_path_failures.py` covers both
+failures and `tests/test_config_relative_paths.py` pins the purity. Testing
+(Property / Proof): `tests/test_rule_properties.py` gained a Hypothesis
+property that generates alternating plain and emphasized segments over an ASCII
+and Unicode vocabulary, and checks every finding and edit span against an
+independent byte-level oracle in `tests/support/word_run_oracle.py`, including
+that no match crosses the markup between two segments.
+
+The seven-gate local run for `c5a4bd83` is green: `make check-fmt`,
+`make typecheck`, `make lint` (interrogate at 100%, pylint and the df12 pass
+both 10.00/10, Clippy under `-D warnings`, Whitaker, Skylos, and the
+duplication gate with 9 reasoned exceptions), `make markdownlint`, `make nixie`,
+`make test` (nextest 364/364, the doctest lanes, pytest 1098 passed with 19
+snapshots), and `make duplication-test` (154 passed).
 
 Shipped:
 
@@ -1894,3 +1934,8 @@ these deliberate boundaries and case-fold expansion.
   `d484dab1` record is retained as history, the local gate evidence is labelled
   by the revision it ran on, and hosted run `42219413204` is recorded against
   the head it tested.
+- 2026-11-06: Reconciled the delivery record with the repaired head `c5a4bd83`,
+  which closes the Unit Architecture and property-testing rows raised against
+  `df3c9223`. The status line and the retrospective name the new head; the
+  `4a4d107a` and `d484dab1` records are retained as history; and the seven-gate
+  local run for `c5a4bd83` is recorded with its sub-stage results.
