@@ -178,6 +178,41 @@ def test_explicit_config_path_and_inline_override_precedence(
     )
 
 
+def test_explicit_config_accepts_a_one_shot_iterator(tmp_path: pathlib.Path) -> None:
+    """A one-shot `--config` iterator is split once, so every entry applies.
+
+    ``explicit_config`` is typed as any iterable, and a generator or other
+    one-shot iterator is exhausted by the first pass. Splitting it twice would
+    leave the merge with nothing to layer while provenance still named the
+    file, so the configuration and the file a diagnostic reports would
+    disagree.
+    """
+    named_config = tmp_path / "named.toml"
+    _write_config(
+        named_config,
+        """
+        cache-dir = ".file"
+        """,
+    )
+    target = _make_markdown_target(tmp_path)
+
+    resolved = config.ConfigResolver().resolve_with_provenance(
+        target,
+        cli_overrides=None,
+        explicit_config=iter([named_config, 'cache-dir = ".inline"']),
+        isolated=True,
+    )
+
+    assert_with_context(
+        resolved.config.cache_dir == pathlib.Path(".inline"),
+        "expected the inline fragment after the file to apply",
+    )
+    assert_with_context(
+        resolved.config_file == named_config,
+        "expected the explicit file to be reported as the provenance",
+    )
+
+
 def test_cli_overrides_win_over_every_config_source(
     tmp_path: pathlib.Path,
 ) -> None:

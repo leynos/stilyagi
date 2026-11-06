@@ -629,7 +629,8 @@ discovery and render phases around its command orchestration.
 checked and spells the target relative to it. The anchor is the governing
 config file's parent, or the invocation working directory when no config file
 governs the target. Resolving either reads the filesystem, and a deleted
-working directory, an unreadable parent, or a symlink loop can make it fail.
+working directory, an unreadable parent, or an unresolved home directory can
+make it fail.
 That work runs inside the recorded `config` phase, so the failure is reported
 against the file being checked and the rest of the run continues. The spelling
 decision itself stays in `python/stilyagi/config/paths.py`, which reads nothing

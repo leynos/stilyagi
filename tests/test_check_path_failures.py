@@ -41,12 +41,12 @@ class _MissingWorkingDirectoryError(FileNotFoundError):
         super().__init__("working directory disappeared")
 
 
-class _UnresolvableTargetError(RuntimeError):
-    """A path whose resolution never terminates."""
+class _UnresolvedHomeDirectoryError(RuntimeError):
+    """A home directory that ``Path.expanduser`` cannot determine."""
 
     def __init__(self) -> None:
-        """Build the failure with its message inside the class."""
-        super().__init__("Symlink loop from 'notes.md'")
+        """Build the failure with the message pathlib itself raises."""
+        super().__init__("Could not determine home directory.")
 
 
 def _stub_config_resolution(
@@ -120,13 +120,15 @@ def test_a_missing_working_directory_is_reported_in_the_config_phase(
     assert not rule_runs, "expected no rule to run after a config failure"
 
 
-def test_an_unresolvable_target_is_reported_in_the_config_phase(
+def test_an_unresolved_home_directory_is_reported_in_the_config_phase(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A symlink loop while resolving the target is a per-file failure.
+    """An unresolved home directory while expanding the target is per-file.
 
-    The config file resolves first, so the replacement fails only for the
-    target. That keeps the test honest: it would fail if target resolution were
+    ``Path.expanduser`` raises ``RuntimeError`` when it cannot determine the
+    home directory, which is the genuine failure the config phase must absorb.
+    The config file expands first, so the replacement fails only for the
+    target. That keeps the test honest: it would fail if target expansion were
     removed, because the config file alone would then succeed.
     """
     target = tmp_path / "notes.md"
@@ -134,18 +136,18 @@ def test_an_unresolvable_target_is_reported_in_the_config_phase(
     _stub_config_resolution(monkeypatch, config_file=tmp_path / "stilyagi.toml")
     rule_runs: list[object] = []
 
-    def looping_resolve(
+    def unresolvable_home(
         self: pathlib.Path, *_args: object, **_kwargs: object
     ) -> pathlib.Path:
-        """Fail the target's resolution and let every other path resolve."""
+        """Fail the target's expansion and let every other path expand."""
         if self == target:
-            raise _UnresolvableTargetError
+            raise _UnresolvedHomeDirectoryError
         return self
 
     check_metrics.reset_check_metrics()
     failures, report = recording_reporter()
     with monkeypatch.context() as patch:
-        patch.setattr(pathlib.Path, "resolve", looping_resolve)
+        patch.setattr(pathlib.Path, "expanduser", unresolvable_home)
         result = check_execution.check_one_file(
             input_for(target),
             run_for(forbidden_runner(rule_runs), report),
@@ -156,7 +158,7 @@ def test_an_unresolvable_target_is_reported_in_the_config_phase(
         "expected the failure to name the file being checked"
     )
     assert isinstance(failures[0][1], RuntimeError), (
-        "expected the resolution failure to reach the reporter"
+        "expected the expansion failure to reach the reporter"
     )
     assert _operational_failures()["config"] == 1, (
         "expected the failure to be counted against the config phase"
@@ -177,12 +179,12 @@ def test_a_later_file_is_still_checked_after_an_earlier_resolution_failure(
     second.write_text("# Second\n", encoding="utf-8")
     _stub_config_resolution(monkeypatch, config_file=tmp_path / "stilyagi.toml")
 
-    def looping_resolve(
+    def unresolvable_home(
         self: pathlib.Path, *_args: object, **_kwargs: object
     ) -> pathlib.Path:
-        """Fail only the first file's resolution."""
+        """Fail only the first file's expansion."""
         if self == first:
-            raise _UnresolvableTargetError
+            raise _UnresolvedHomeDirectoryError
         return self
 
     def reporting_runner(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:
@@ -195,7 +197,7 @@ def test_a_later_file_is_still_checked_after_an_earlier_resolution_failure(
 
     failures, report = recording_reporter()
     with monkeypatch.context() as patch:
-        patch.setattr(pathlib.Path, "resolve", looping_resolve)
+        patch.setattr(pathlib.Path, "expanduser", unresolvable_home)
         checked = cli_run.collect_checked_files(
             [input_for(first), input_for(second)],
             run_for(reporting_runner, report),
@@ -237,7 +239,7 @@ def test_the_command_still_checks_a_later_file_after_a_resolution_failure(
     def failing_first(target: pathlib.Path, config_file: pathlib.Path | None) -> str:
         """Fail the first file's anchor and resolve every other file normally."""
         if target.name == first.name:
-            raise _UnresolvableTargetError
+            raise _UnresolvedHomeDirectoryError
         return resolve_normally(target, config_file)
 
     def reporting_runner(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:

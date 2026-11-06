@@ -4,7 +4,7 @@ Globs in a configuration are relative to the config file that supplies them,
 or to the invocation working directory when no config file governs the target.
 Finding either anchor reads the filesystem and the working directory, and both
 can fail for an environmental reason: a deleted working directory, an
-unreadable parent, or a symlink loop.
+unreadable parent, or an unresolved home directory.
 
 That failure belongs to the file being checked. Resolving here, next to the
 per-file check rather than inside rule execution, lets the check executor

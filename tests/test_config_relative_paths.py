@@ -17,8 +17,6 @@ if typ.TYPE_CHECKING:
 
     import pytest
 
-_DIFFERENT_DRIVES = "different drives"
-
 
 def _forbid_filesystem_access(
     monkeypatch: pytest.MonkeyPatch,
@@ -78,24 +76,16 @@ def test_the_spelling_reads_neither_the_filesystem_nor_the_working_directory(
     )
 
 
-def test_target_without_a_relative_spelling_falls_back_to_absolute(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A target on another Windows drive cannot be related to the anchor."""
-    anchor = pathlib.Path("/work/docs")
-    target = pathlib.Path("C:/elsewhere/e.md")
+def test_target_without_a_relative_spelling_falls_back_to_absolute() -> None:
+    """A target on another Windows drive cannot be related to the anchor.
 
-    def raiser(
-        self: pathlib.Path,
-        other: pathlib.Path,
-        *,
-        walk_up: bool = False,
-    ) -> pathlib.Path:
-        """Match the builtin that pathlib raises for unrelated roots."""
-        del self, other, walk_up
-        raise ValueError(_DIFFERENT_DRIVES)
-
-    monkeypatch.setattr(pathlib.Path, "relative_to", raiser)
+    Pure Windows paths exercise the real ``ValueError`` that ``relative_to``
+    raises for unrelated roots, on every platform. Mocking the method would
+    only prove that the ``except`` clause is reachable, not that a different
+    drive actually takes it.
+    """
+    anchor = pathlib.PureWindowsPath("D:/work/docs")
+    target = pathlib.PureWindowsPath("C:/elsewhere/e.md")
 
     assert config_relative_path(target, anchor) == "C:/elsewhere/e.md", (
         "expected an unrelated anchor to fall back to the absolute POSIX path"

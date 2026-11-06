@@ -756,8 +756,9 @@ with error exit 1. An invalid `TERM001` option exits 2.
     directory nor the filesystem, so it cannot fail. The resolving half moved to
     the new `python/stilyagi/check_paths.py`, which `check_execution` calls
     inside the recorded `config` phase. A deleted working directory, an
-    unreadable parent, or a symlink loop is therefore reported against the file
-    being checked rather than escaping as an unexplained rules-phase error.
+    unreadable parent, or an unresolved home directory is therefore reported
+    against the file being checked rather than escaping as an unexplained
+    rules-phase error.
   - `tests/test_config_relative_paths.py` is rewritten for the pure signature
     and forbids `cwd`, `resolve`, `expanduser`, `stat`, `exists`, and `is_dir`:
     a spelling that consulted any of them would fail the test.
@@ -1184,10 +1185,10 @@ security review, both successful on the same head.
 Final state at `9227d62c`. A further approval round on `4a4d107a` raised two
 blocking pre-merge rows, and both were repaired. Unit Architecture: the glob
 anchor is now resolved at the check boundary in `stilyagi/check_paths.py`, so a
-deleted working directory, an unreadable parent, or a symlink loop is a
-per-file operational failure reported in the recorded `config` phase while the
-rest of the run continues; `config/paths.py` stays a pure spelling function
-that reads no filesystem. `tests/test_check_path_failures.py` covers both
+deleted working directory, an unreadable parent, or an unresolved home
+directory is a per-file operational failure reported in the recorded `config`
+phase while the rest of the run continues; `config/paths.py` stays a pure
+spelling function that reads no filesystem. `tests/test_check_path_failures.py` covers both
 failures and `tests/test_config_relative_paths.py` pins the purity. Testing
 (Property / Proof): `tests/test_rule_properties.py` gained a Hypothesis
 property that generates alternating plain and emphasized segments over an ASCII

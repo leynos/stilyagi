@@ -3,9 +3,9 @@
 This module decides only how a target is spelled once its resolved form and
 the glob anchor are known. Resolving a path reads the filesystem and the
 working directory, and either can fail for an environmental reason: a deleted
-working directory, an unreadable parent, or a symlink loop. That work belongs
-to :mod:`stilyagi.check_paths`, at the check boundary, which knows the file
-being checked and can report the failure against it.
+working directory, an unreadable parent, or an unresolved home directory. That
+work belongs to :mod:`stilyagi.check_paths`, at the check boundary, which knows
+the file being checked and can report the failure against it.
 
 Keeping the spelling decision here also keeps it testable without a
 filesystem.
@@ -19,7 +19,7 @@ if typ.TYPE_CHECKING:
 __all__ = ["config_relative_path"]
 
 
-def config_relative_path(target: pathlib.Path, anchor: pathlib.Path) -> str:
+def config_relative_path(target: pathlib.PurePath, anchor: pathlib.PurePath) -> str:
     """Return the POSIX spelling of a resolved target relative to its anchor.
 
     Globs are config-relative, anchored at the governing config file's parent,

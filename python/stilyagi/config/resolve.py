@@ -199,7 +199,9 @@ class ConfigResolver:
         >>> resolved.config_file is None
         True
         """
-        explicit_paths, _ = split_explicit_config(explicit_config)
+        # Split once: ``explicit_config`` is any iterable, and a one-shot
+        # iterator would be exhausted before the merge could read it.
+        explicit_paths, explicit_inline = split_explicit_config(explicit_config)
         discovered_path: pathlib.Path | None = None
         resolved_table: dict[str, object] = {}
 
@@ -209,7 +211,10 @@ class ConfigResolver:
                 resolved_table = self._resolve_config_table(discovered_path)
 
         resolved_table = self._merge_explicit_configs(
-            resolved_table, explicit_config, target=target
+            resolved_table,
+            explicit_paths,
+            explicit_inline,
+            target=target,
         )
 
         if cli_overrides:
@@ -293,13 +298,12 @@ class ConfigResolver:
     def _merge_explicit_configs(
         self,
         resolved_table: dict[str, object],
-        explicit_config: cabc.Iterable[str | pathlib.Path] | None,
+        explicit_paths: cabc.Iterable[pathlib.Path],
+        explicit_inline: cabc.Iterable[str],
         *,
         target: pathlib.Path,
     ) -> dict[str, object]:
         """Layer explicit config files, then inline fragments, over one table."""
-        explicit_paths, explicit_inline = split_explicit_config(explicit_config)
-
         for config_path in explicit_paths:
             resolved_table = merge_config_tables(
                 resolved_table, self._resolve_config_table(config_path)
