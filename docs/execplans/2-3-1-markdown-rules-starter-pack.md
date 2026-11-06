@@ -641,6 +641,11 @@ with error exit 1. An invalid `TERM001` option exits 2.
     group moved verbatim to `tests/test_suppression_plumbing.py`: it resolves
     plans from handwritten IR and made no policy-level claim, so the split has
     its own boundary rather than being a line-count shuffle.
+  - The hosted CodeScene review then failed that module for Code Duplication
+    between its two range tests, which shared a body. They are now one
+    parameterised case over a `_ToggleCase` table: four rows state code
+    granularity and boundary exclusivity instead of two near-identical bodies.
+    Local `cs check` reports 10.00 for the module.
   - `tests/test_suppression_sequences.py` gained
     `test_ignore_next_binds_the_first_unit_and_not_the_second`, which pins the
     resolved plan for a directive followed by two prose units.

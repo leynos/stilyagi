@@ -8,6 +8,9 @@ truth tables live in :mod:`tests.test_rule_policy`; the generated sequences
 live in :mod:`tests.test_suppression_sequences`.
 """
 
+import dataclasses as dc
+
+import pytest
 from stilyagi import model
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.suppression import (
@@ -15,6 +18,42 @@ from stilyagi.rules.suppression import (
     SuppressionPlan,
     resolve_suppressions,
 )
+
+_OPEN_AT = (0, 5)
+_CLOSE_AT = (10, 15)
+
+
+def _span(start: int, end: int) -> dict[str, int]:
+    """Return the IR mapping for one byte span."""
+    return {"byte_start": start, "byte_end": end}
+
+
+def _range(
+    role: str,
+    codes: list[str],
+    span: tuple[int, int] | None,
+) -> dict[str, object]:
+    """Return one range-directive IR entry."""
+    entry: dict[str, object] = {"kind": "range", "range_role": role, "codes": codes}
+    if span is not None:
+        entry["span"] = _span(*span)
+    return entry
+
+
+def _file(codes: list[str]) -> dict[str, object]:
+    """Return one file-directive IR entry."""
+    return {"kind": "file", "codes": codes, "span": None}
+
+
+@dc.dataclass(frozen=True, slots=True)
+class _ToggleCase:
+    """One open/close pair, and the query it is expected to answer."""
+
+    open_codes: tuple[str, ...]
+    close_codes: tuple[str, ...]
+    code: str
+    span: tuple[int, int]
+    is_suppressed: bool
 
 
 class TestSuppressionPlumbing:
@@ -38,57 +77,58 @@ class TestSuppressionPlumbing:
             source_length=source_length,
         )
 
-    def test_sibling_codes_toggle_independently(self) -> None:
-        """``disable STY`` then ``enable STY001`` leaves STY002 suppressed."""
+    @pytest.mark.parametrize(
+        "case",
+        [
+            pytest.param(
+                _ToggleCase(
+                    ("STY",), ("STY001",), "STY002", (20, 21), is_suppressed=True
+                ),
+                id="sibling-stays",
+            ),
+            pytest.param(
+                _ToggleCase(
+                    ("STY",), ("STY001",), "STY001", (20, 21), is_suppressed=False
+                ),
+                id="re-enabled-live",
+            ),
+            pytest.param(
+                _ToggleCase(
+                    ("STY001",), ("STY001",), "STY001", (9, 12), is_suppressed=True
+                ),
+                id="inside-range",
+            ),
+            pytest.param(
+                _ToggleCase(
+                    ("STY001",), ("STY001",), "STY001", (10, 12), is_suppressed=False
+                ),
+                id="at-boundary",
+            ),
+        ],
+    )
+    def test_an_open_close_pair_toggles_by_code_and_position(
+        self, case: _ToggleCase
+    ) -> None:
+        """A close event ends its own codes at its start, and no others.
+
+        The first two cases pin code granularity: ``disable STY`` followed by
+        ``enable STY001`` reopens one code and leaves its sibling suppressed.
+        The last two pin position granularity: the close boundary is exclusive,
+        so a finding that starts there is live while one that starts earlier is
+        not.
+        """
         plan = self._plan([
-            {
-                "kind": "range",
-                "range_role": "open",
-                "codes": ["STY"],
-                "span": {"byte_start": 0, "byte_end": 5},
-            },
-            {
-                "kind": "range",
-                "range_role": "close",
-                "codes": ["STY001"],
-                "span": {"byte_start": 10, "byte_end": 15},
-            },
+            _range("open", list(case.open_codes), _OPEN_AT),
+            _range("close", list(case.close_codes), _CLOSE_AT),
         ])
 
-        assert plan.suppresses("STY002", SourceSpan(20, 21)), (
-            "expected a sibling code to stay suppressed"
-        )
-        assert not plan.suppresses("STY001", SourceSpan(20, 21)), (
-            "expected the re-enabled code not to be suppressed"
-        )
-
-    def test_range_end_is_exclusive(self) -> None:
-        """A finding starting at the close boundary is not suppressed."""
-        plan = self._plan([
-            {
-                "kind": "range",
-                "range_role": "open",
-                "codes": ["STY001"],
-                "span": {"byte_start": 0, "byte_end": 5},
-            },
-            {
-                "kind": "range",
-                "range_role": "close",
-                "codes": ["STY001"],
-                "span": {"byte_start": 10, "byte_end": 15},
-            },
-        ])
-
-        assert plan.suppresses("STY001", SourceSpan(9, 12)), (
-            "expected a finding inside the range to be suppressed"
-        )
-        assert not plan.suppresses("STY001", SourceSpan(10, 12)), (
-            "expected the exclusive boundary to stop suppression"
-        )
+        assert (
+            plan.suppresses(case.code, SourceSpan(*case.span)) is case.is_suppressed
+        ), f"expected {case.code} at {case.span} to be suppressed={case.is_suppressed}"
 
     def test_a_finding_without_a_span_escapes_located_directives(self) -> None:
         """Only file suppression can hide an unlocated finding."""
-        plan = self._plan([{"kind": "file", "codes": ["STY001"], "span": None}])
+        plan = self._plan([_file(["STY001"])])
 
         assert plan.suppresses("STY001", None), (
             "expected file suppression to hide an unlocated finding"
@@ -107,7 +147,7 @@ class TestSuppressionPlumbing:
 
     def test_codes_that_expand_to_nothing_are_ignored(self) -> None:
         """A directive naming no known code suppresses nothing."""
-        plan = self._plan([{"kind": "file", "codes": ["NOPE"]}])
+        plan = self._plan([_file(["NOPE"])])
 
         assert not plan.suppresses("STY001", None), (
             "expected an unknown code to expand to nothing"
@@ -115,9 +155,7 @@ class TestSuppressionPlumbing:
 
     def test_a_range_event_without_a_span_is_ignored(self) -> None:
         """A range event with no position cannot open or close a range."""
-        plan = self._plan([
-            {"kind": "range", "range_role": "open", "codes": ["STY001"]},
-        ])
+        plan = self._plan([_range("open", ["STY001"], None)])
 
         assert not plan.suppresses("STY001", SourceSpan(0, 1)), (
             "expected a spanless range event to be ignored"
@@ -125,14 +163,7 @@ class TestSuppressionPlumbing:
 
     def test_a_malformed_span_is_ignored(self) -> None:
         """A reversed span is dropped rather than raising."""
-        plan = self._plan([
-            {
-                "kind": "range",
-                "range_role": "open",
-                "codes": ["STY001"],
-                "span": {"byte_start": 4, "byte_end": 1},
-            },
-        ])
+        plan = self._plan([_range("open", ["STY001"], (4, 1))])
 
         assert not plan.suppresses("STY001", SourceSpan(0, 1)), (
             "expected a malformed span to be ignored"
