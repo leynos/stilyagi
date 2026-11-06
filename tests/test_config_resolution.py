@@ -220,6 +220,46 @@ def test_explicit_config_accepts_a_one_shot_iterator(tmp_path: pathlib.Path) -> 
     )
 
 
+def test_one_shot_iterator_with_only_a_file_still_applies_it(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A one-shot iterator holding only a file path still applies that file.
+
+    This is the other half of the split-once contract: with no inline fragment,
+    the file list and the empty fragment list must both survive the split, so
+    the file's settings reach the merge and its provenance is recorded.
+    """
+    named_config = tmp_path / "named.toml"
+    _write_config(
+        named_config,
+        """
+        cache-dir = ".file"
+        respect-gitignore = false
+        """,
+    )
+    target = _make_markdown_target(tmp_path)
+
+    resolved = config.ConfigResolver().resolve_with_provenance(
+        target,
+        cli_overrides=None,
+        explicit_config=iter([named_config]),
+        isolated=True,
+    )
+
+    assert_with_context(
+        resolved.config.cache_dir == pathlib.Path(".file"),
+        "expected the file-only iterator's setting to apply",
+    )
+    assert_with_context(
+        resolved.config.respect_gitignore is False,
+        "expected the file-only iterator's second setting to apply",
+    )
+    assert_with_context(
+        resolved.config_file == named_config,
+        "expected the file-only iterator's file to be the provenance",
+    )
+
+
 def test_cli_overrides_win_over_every_config_source(
     tmp_path: pathlib.Path,
 ) -> None:
