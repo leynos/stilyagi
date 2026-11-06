@@ -10,7 +10,14 @@ abandon the files that follow it.
 import pathlib
 import typing as typ
 
-from stilyagi import check_execution, check_metrics, cli_run, config, diagnostics
+from stilyagi import (
+    check_execution,
+    check_metrics,
+    cli,
+    cli_run,
+    config,
+    diagnostics,
+)
 
 from tests.support.check_pipeline_fixtures import (
     forbidden_runner,
@@ -204,4 +211,52 @@ def test_a_later_file_is_still_checked_after_an_earlier_resolution_failure(
     assert not checked[1].result.had_error, "expected the later file to succeed"
     assert [path for path, _ in failures] == [pathlib.Path("first.md")], (
         "expected only the first file to be reported"
+    )
+
+
+def test_the_command_still_checks_a_later_file_after_a_resolution_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The command's own loop must not abandon the files after a failure.
+
+    The helper-level cases above drive `collect_checked_files` directly. This
+    one goes through `cli.main` so the command boundary is covered too: the
+    command delegates its per-file loop to that helper, and a regression that
+    reintroduced a second loop which stopped early would otherwise stay
+    invisible.
+    """
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("# First\n", encoding="utf-8")
+    second.write_text("# Second\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    resolve_normally = check_execution.config_relative_path_for
+
+    def failing_first(target: pathlib.Path, config_file: pathlib.Path | None) -> str:
+        """Fail the first file's anchor and resolve every other file normally."""
+        if target.name == first.name:
+            raise _UnresolvableTargetError
+        return resolve_normally(target, config_file)
+
+    def reporting_runner(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:
+        """Return one diagnostic naming the file the rules phase saw."""
+        return [
+            diagnostics.Diagnostic(
+                path=request.reported_path, code="PUN201", message="x"
+            )
+        ]
+
+    monkeypatch.setattr(check_execution, "config_relative_path_for", failing_first)
+    monkeypatch.setattr("stilyagi.rules.registry.run_rules", reporting_runner)
+    check_metrics.reset_check_metrics()
+
+    exit_code = cli.main(["check", "."])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2, "expected the failed file to make the run an error"
+    assert "second.md" in captured.out, "expected the later file to keep its diagnostic"
+    assert "first.md" in captured.err, (
+        "expected the failure to name the file being checked"
     )
