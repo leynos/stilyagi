@@ -6,7 +6,7 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan`.
 
 Status: COMPLETE — implementation, validation, and review reconciliation
-finished on 2026-11-06, when the final candidate `c5a4bd83` was reconciled
+finished on 2026-11-06, when the final candidate `9227d62c` was reconciled
 against the accepted plan. The earlier reconciliations of `4a4d107a` and
 `d484dab1` are retained as history; the repair rounds that followed them are
 recorded in the Progress section. Milestones M1–M3 were approved on 2026-10-28
@@ -786,6 +786,25 @@ with error exit 1. An invalid `TERM001` option exits 2.
   - `make duplication-test` passed: 154 passed, 4 snapshots.
   - The spelling gate did not regenerate the tracked `typos.toml`.
 
+- [x] (2026-11-06) Repair the target-resolution test-coverage gap and
+  revalidate, committed as `9227d62c`.
+  - Review finding: `looping_resolve` in `tests/test_check_path_failures.py`
+    made every `Path.resolve()` call fail. The config file resolves before the
+    target, so the config file failed first and the target-resolution path was
+    never exercised; the test would have passed with target resolution
+    removed.
+  - Repair: the replacement fails only the target, so the config file resolves
+    normally. The test now also asserts the reported path and that the failure
+    is counted against the `config` phase with nothing recorded for `rules`.
+  - Added a multi-file regression driving `cli_run.collect_checked_files`: the
+    first file's resolution fails and the second still produces its
+    diagnostic, with only the first file reported.
+  - Gate logs are under `/tmp`, named `<gate>-repair2-stilyagi-...out`. All
+    seven gates passed: `make check-fmt`, `make typecheck`, `make lint`,
+    `make markdownlint`, `make nixie`, `make test` (nextest 364/364, pytest
+    1099 passed with 19 snapshots, doctests 139 passed with 3 skips), and
+    `make duplication-test` (154 passed).
+
 ## Surprises & discoveries
 
 - Observation: the rule runner is an intentionally empty seam, and the model
@@ -1154,7 +1173,7 @@ Smoke run `42219413204`, which passed `lint-test` and all three `release-smoke`
 jobs on `4a4d107a` itself, plus the CodeScene code-health review and the Gecko
 security review, both successful on the same head.
 
-Final state at `c5a4bd83`. A further approval round on `4a4d107a` raised two
+Final state at `9227d62c`. A further approval round on `4a4d107a` raised two
 blocking pre-merge rows, and both were repaired. Unit Architecture: the glob
 anchor is now resolved at the check boundary in `stilyagi/check_paths.py`, so a
 deleted working directory, an unreadable parent, or a symlink loop is a
@@ -1166,13 +1185,18 @@ failures and `tests/test_config_relative_paths.py` pins the purity. Testing
 property that generates alternating plain and emphasized segments over an ASCII
 and Unicode vocabulary, and checks every finding and edit span against an
 independent byte-level oracle in `tests/support/word_run_oracle.py`, including
-that no match crosses the markup between two segments.
+that no match crosses the markup between two segments. A later review round
+then raised one test-coverage row: the unresolvable-target test failed every
+`Path.resolve()` call, so the config file failed before the target was reached.
+That test now fails only the target, asserts the reported path and the
+`config`-phase attribution, and a new multi-file regression proves a later file
+still produces its diagnostic after an earlier file's resolution failure.
 
-The seven-gate local run for `c5a4bd83` is green: `make check-fmt`,
+The seven-gate local run for `9227d62c` is green: `make check-fmt`,
 `make typecheck`, `make lint` (interrogate at 100%, pylint and the df12 pass
 both 10.00/10, Clippy under `-D warnings`, Whitaker, Skylos, and the
 duplication gate with 9 reasoned exceptions), `make markdownlint`, `make nixie`,
-`make test` (nextest 364/364, the doctest lanes, pytest 1098 passed with 19
+`make test` (nextest 364/364, the doctest lanes, pytest 1099 passed with 19
 snapshots), and `make duplication-test` (154 passed).
 
 Shipped:
@@ -1939,3 +1963,9 @@ these deliberate boundaries and case-fold expansion.
   `df3c9223`. The status line and the retrospective name the new head; the
   `4a4d107a` and `d484dab1` records are retained as history; and the seven-gate
   local run for `c5a4bd83` is recorded with its sub-stage results.
+- 2026-11-06: Reconciled the delivery record with the repaired head `9227d62c`,
+  which closes the test-coverage row raised against `a9589609`. The status line
+  and the retrospective name the new head; the `c5a4bd83`, `4a4d107a`, and
+  `d484dab1` records are retained as history; and the seven-gate local run for
+  `9227d62c` is recorded with its sub-stage results, including pytest at 1099
+  passed.
