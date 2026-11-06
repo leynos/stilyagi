@@ -76,9 +76,9 @@ def resolve_target_config(
     falls back to the target path for an inline-only configuration.
 
     The config file is returned alongside the configuration because the rules
-    phase reports it as a diagnostic's origin. Deriving it here, from the same
-    resolver state used to resolve the configuration, is what keeps the two
-    answers about one target consistent.
+    phase reports it as a diagnostic's origin. Both come back from a single
+    resolution, so the file a diagnostic names cannot drift from the
+    configuration the diagnostic was produced under.
 
     Parameters
     ----------
@@ -95,19 +95,16 @@ def resolve_target_config(
         The configuration in force for ``target``, with the command-line
         overrides applied, and the config file that supplied it.
     """
-    resolved = resolver.resolve_config_for_path(
+    resolved_target = resolver.resolve_with_provenance(
         target,
         cli_overrides=build_cli_overrides(options) or None,
         explicit_config=options.explicit_config or None,
         isolated=options.isolated,
     )
-    config_file = resolver.config_file_for_path(
-        target,
-        explicit_config=options.explicit_config or None,
-        isolated=options.isolated,
+    rule_options.validate_builtin_tables(
+        resolved_target.config, path=resolved_target.config_file or target
     )
-    rule_options.validate_builtin_tables(resolved, path=config_file or target)
-    return ResolvedTargetConfig(config=resolved, config_file=config_file)
+    return resolved_target
 
 
 def resolve_discovery_config(

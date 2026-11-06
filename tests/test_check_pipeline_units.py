@@ -218,50 +218,35 @@ class TestCheckOneFile:
             failures[0][1], (config.InvalidCacheDirError, config.InvalidConfigError)
         ), "expected the configuration error to reach the reporter"
 
-    def test_a_config_provenance_failure_skips_the_rules_phase(
+    def test_a_config_resolution_failure_skips_the_rules_phase(
         self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A config-file lookup failure is reported before any rule runs.
+        """A failed configuration resolution is reported before any rule runs.
 
-        The provenance lookup is the second half of one configuration
-        resolution. When it fails, the file has no trustworthy configuration
-        origin, so the file fails in the configuration phase rather than
-        surfacing later as a rule-run failure.
+        Configuration and provenance come back from one resolution, so a
+        failure there leaves the file with neither. The file fails in the
+        configuration phase rather than surfacing later as a rule-run failure.
         """
         target = tmp_path / "notes.md"
         target.write_text("# Notes\n", encoding="utf-8")
         rule_runs: list[object] = []
 
-        def fake_resolve(
+        def failing_resolution(
             _self: config.ConfigResolver,
-            _target: pathlib.Path,
+            resolved_target: pathlib.Path,
             *,
             cli_overrides: cabc.Mapping[str, object] | None,
             explicit_config: cabc.Iterable[str | pathlib.Path] | None,
             isolated: bool,
-        ) -> config.StilyagiConfig:
-            """Return a usable configuration, so only provenance can fail."""
-            del cli_overrides, explicit_config, isolated
-            return config.StilyagiConfig()
-
-        def failing_provenance(
-            _self: config.ConfigResolver,
-            resolved_target: pathlib.Path,
-            *,
-            explicit_config: cabc.Iterable[str | pathlib.Path] | None,
-            isolated: bool,
-        ) -> pathlib.Path | None:
+        ) -> config.ResolvedTargetConfig:
             """Raise the configuration phase's typed failure."""
-            del explicit_config, isolated
+            del cli_overrides, explicit_config, isolated
             raise config.InvalidConfigError(
                 resolved_target, "config", "unreadable config provenance"
             )
 
         monkeypatch.setattr(
-            config.ConfigResolver, "resolve_config_for_path", fake_resolve
-        )
-        monkeypatch.setattr(
-            config.ConfigResolver, "config_file_for_path", failing_provenance
+            config.ConfigResolver, "resolve_with_provenance", failing_resolution
         )
         failures, report = recording_reporter()
 
@@ -270,7 +255,7 @@ class TestCheckOneFile:
             run_for(forbidden_runner(rule_runs), report),
         )
 
-        assert result.had_error, "expected the failed provenance to flag the result"
+        assert result.had_error, "expected the failed resolution to flag the result"
         assert isinstance(failures[0][1], config.InvalidConfigError), (
             "expected the configuration error to reach the reporter"
         )

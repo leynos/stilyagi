@@ -479,16 +479,21 @@ influences the default, exactly as the previous call-time lookup did.
 
 ### Configuration resolution
 
-`cli_config.resolve_target_config` is the one place a target's configuration
-and its provenance are resolved together. It returns a frozen
-`config.ResolvedTargetConfig`, pairing the effective `StilyagiConfig` with the
-config file that governs the target, or `None` when only inline configuration
-and built-in defaults apply. `check_execution._rule_request` consumes that
-record rather than calling `ConfigResolver.config_file_for_path` itself:
-re-deriving provenance would let the file a diagnostic names drift from the
-configuration the diagnostic was produced under. The per-file pipeline keeps
-`resolve_discovery_config` for the run-level sweep, which discards the file and
-returns the configuration alone because discovery is not attributed to a file.
+`ConfigResolver.resolve_with_provenance` is the one place a target's
+configuration and its provenance are resolved, and it resolves them in a single
+pass. It returns a frozen `config.ResolvedTargetConfig`, pairing the effective
+`StilyagiConfig` with the config file that governs the target, or `None` when
+only inline configuration and built-in defaults apply. Discovery, explicit-file
+layering, override merging, and parsing each happen once, and the provenance
+travels back with the configuration. There is deliberately no separate
+provenance query: a second walk could record cache statistics and log from a
+method whose name promises a query, and it would let the file a diagnostic
+names drift from the configuration the diagnostic was produced under.
+`cli_config.resolve_target_config` validates the returned configuration at this
+boundary, and `check_execution._rule_request` consumes the record as given. The
+per-file pipeline keeps `resolve_discovery_config` for the run-level sweep,
+which discards the file and returns the configuration alone because discovery
+is not attributed to a file.
 
 Builtin rule tables are validated at this boundary, not when a rule runs.
 `config/rules.py` owns the parsers for `[tool.stilyagi.rule.<CODE>]` tables and

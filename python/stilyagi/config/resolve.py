@@ -138,6 +138,69 @@ class ConfigResolver:
         StilyagiConfig
             The merged, validated configuration for ``target``.
         """
+        return self.resolve_with_provenance(
+            target,
+            cli_overrides=cli_overrides,
+            explicit_config=explicit_config,
+            isolated=isolated,
+        ).config
+
+    def resolve_with_provenance(
+        self,
+        target: pathlib.Path,
+        *,
+        cli_overrides: cabc.Mapping[str, object] | None,
+        explicit_config: cabc.Iterable[str | pathlib.Path] | None,
+        isolated: bool,
+    ) -> ResolvedTargetConfig:
+        """Resolve one target's config and the file that supplied it, in one pass.
+
+        Discovery, explicit-file layering, override merging, and parsing happen
+        once. The provenance travels back with the configuration instead of
+        coming from a second lookup, so the file a diagnostic names cannot
+        drift from the configuration it was produced under, and asking for both
+        costs one walk of the ancestors rather than two.
+
+        The effective config file is the last explicit ``--config`` path when
+        one was given, because explicit files are layered in order and the last
+        one has the final say. Otherwise it is the nearest discovered config,
+        unless ``isolated`` suppressed discovery. An inline ``--config``
+        fragment names no file and therefore supplies no provenance.
+
+        Parameters
+        ----------
+        target:
+            The file or directory whose nearest configuration is resolved.
+        cli_overrides:
+            Highest-precedence overrides from command-line flags, or ``None``.
+        explicit_config:
+            Explicit ``--config`` values (file paths or inline TOML fragments)
+            layered over the discovered config, or ``None``.
+        isolated:
+            When ``True``, skip nearest-config discovery and use only the
+            explicit config and CLI overrides.
+
+        Returns
+        -------
+        ResolvedTargetConfig
+            The merged, validated configuration for ``target`` and the config
+            file that governs it, or ``None`` when only inline configuration
+            and built-in defaults apply.
+
+        Examples
+        --------
+        >>> from pathlib import Path
+        >>> resolved = ConfigResolver().resolve_with_provenance(
+        ...     Path("/work/docs/a.md"),
+        ...     cli_overrides=None,
+        ...     explicit_config=None,
+        ...     isolated=True,
+        ... )
+        >>> resolved.config_file is None
+        True
+        """
+        explicit_paths, _ = split_explicit_config(explicit_config)
+        discovered_path: pathlib.Path | None = None
         resolved_table: dict[str, object] = {}
 
         if not isolated:
@@ -152,48 +215,10 @@ class ConfigResolver:
         if cli_overrides:
             resolved_table = merge_config_tables(resolved_table, dict(cli_overrides))
 
-        return parse_config_table(resolved_table, path=target)
-
-    def config_file_for_path(
-        self,
-        target: pathlib.Path,
-        *,
-        explicit_config: cabc.Iterable[str | pathlib.Path] | None,
-        isolated: bool,
-    ) -> pathlib.Path | None:
-        """Return the config file that governs ``target``, if any.
-
-        The effective config file is the last explicit ``--config`` path when
-        one was given, because explicit files are layered in order and the last
-        one has the final say. Otherwise it is the nearest discovered config,
-        unless ``isolated`` suppressed discovery. An inline ``--config``
-        fragment names no file and therefore supplies no provenance.
-
-        This mirrors the provenance rules used by
-        :meth:`resolve_config_for_path`, and shares its discovery cache, so a
-        caller may request both for the same target without a second walk.
-
-        Parameters
-        ----------
-        target:
-            The file or directory whose governing config is requested.
-        explicit_config:
-            Explicit ``--config`` values, or ``None``.
-        isolated:
-            When ``True``, nearest-config discovery is not performed.
-
-        Returns
-        -------
-        pathlib.Path | None
-            The governing config file path, or ``None`` when the effective
-            configuration came from inline fragments and CLI overrides only.
-        """
-        explicit_paths, _ = split_explicit_config(explicit_config)
-        if explicit_paths:
-            return explicit_paths[-1]
-        if isolated:
-            return None
-        return self._discover_nearest_config(target_directory(target))
+        return ResolvedTargetConfig(
+            config=parse_config_table(resolved_table, path=target),
+            config_file=explicit_paths[-1] if explicit_paths else discovered_path,
+        )
 
     def _resolve_config_table(
         self,

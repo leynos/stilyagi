@@ -488,13 +488,19 @@ with error exit 1. An invalid `TERM001` option exits 2.
     are now one record. `config.resolve`
     defines `ResolvedTargetConfig`, pairing the effective `StilyagiConfig` with
     the config file the resolver discovered; `cli_config.resolve_target_config`
-    returns it, and `check_execution._rule_request` consumes it instead of
-    re-running `ConfigResolver.config_file_for_path`. The resolver's discovery
-    cache still makes the second lookup cheap, but cheapness was never the
-    concern: one target now has one resolution, made inside the phase that
-    reports configuration failures. `tests/test_cli_config.py` pins both halves
-    of the pair, including the inline-only case where no file governs the
-    target.
+    returns it, and `check_execution._rule_request` consumes it. The first
+    repair still left a second query in place: `resolve_config_for_path` and
+    `config_file_for_path` each walked the ancestors, and the second one
+    mutated the discovery cache and logged from a method named as a query. A
+    later review round flagged that directly, so the two were folded into one
+    `ConfigResolver.resolve_with_provenance` pass that returns both halves;
+    `resolve_config_for_path` now delegates to it and `config_file_for_path` is
+    gone. One target has one resolution, made inside the phase that reports
+    configuration failures, and no query has a side effect.
+    `tests/test_cli_config.py` pins both halves of the pair, including the
+    inline-only case where no file governs the target;
+    `tests/test_config_resolution_caching.py` pins that one target records
+    exactly one discovery miss and no discovery hit.
   - Developer documentation (warning): this entry, the `COMPLETE` status, the
     final-state paragraph in the retrospective, and a new "Configuration
     resolution" subsection in the developer's guide covering the record and the
@@ -588,10 +594,12 @@ with error exit 1. An invalid `TERM001` option exits 2.
     gone from "Designed, not yet built", and the implemented capability is
     listed under "Working today".
   - Unit Architecture pre-merge check: `tests/test_check_pipeline_units.py`
-    gains a test that makes `resolve_config_for_path` succeed and
-    `config_file_for_path` raise `InvalidConfigError`, then asserts the result
-    is a configuration failure, the reporter receives that error, and the rule
-    runner is never called.
+    gains a test that makes the single configuration resolution raise
+    `InvalidConfigError`, then asserts the result is a configuration failure,
+    the reporter receives that error, and the rule runner is never called. When
+    the two queries were folded into `resolve_with_provenance`, the test was
+    retargeted at that one method rather than keeping a stub for a method that
+    no longer exists.
   - Gate evidence: `check-fmt`, `markdownlint`, `nixie`, `typecheck`, `lint`,
     and `test` all exited 0 on the repaired tree. `test` ran nextest 364/364,
     pytest 1080 passed, the docstring lane 135 passed with 3 skipped, and
