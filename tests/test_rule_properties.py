@@ -1,10 +1,14 @@
-"""Property tests for the repetition rule's byte contract.
+"""Property tests for the builtin pack's byte contracts.
 
 Two invariants are generated rather than enumerated: the reported span must
 address exactly the repetition it names (V-1), and the unsafe edit must remove
 only the repeated suffix while leaving every other byte alone (V-3). Both
 checks are written against an independent tokenizer and byte arithmetic rather
 than against the rule's own helpers, so a shared bug cannot satisfy both.
+
+A third invariant covers the inline-code index the rules query: its binary
+search must answer containment exactly as a scan over every indexed span does,
+for span lists in any order and with any overlap, nesting, or duplication.
 
 The preservation check splices the rule's production edits and compares the
 result with an independently collapsed paragraph. A mutation control then
@@ -25,6 +29,7 @@ from stilyagi.engine.fix_planning import admissibility
 from stilyagi.fixes import TextEdit
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.builtin.text import Token
+from stilyagi.rules.inline_code import InlineCodeIndex
 
 from tests.support.rule_fixtures import LintSetup
 
@@ -276,3 +281,53 @@ def _collapse_runs(text: str) -> str:
         index += 1
     pieces.append(text[cursor:])
     return "".join(pieces)
+
+
+#: Offsets stay small so generated cases concentrate on overlap and boundary
+#: shapes rather than on large empty gaps.
+_INLINE_OFFSET_LIMIT = 24
+_INLINE_SPAN_LIMIT = 6
+
+
+@st.composite
+def _inline_spans(draw: st.DrawFn) -> tuple[SourceSpan, ...]:
+    """Build an unordered span list that may overlap, nest, or repeat."""
+    count = draw(st.integers(min_value=0, max_value=_INLINE_SPAN_LIMIT))
+    spans: list[SourceSpan] = []
+    for _ in range(count):
+        start = draw(st.integers(min_value=0, max_value=_INLINE_OFFSET_LIMIT))
+        span_end = start + draw(
+            st.integers(min_value=0, max_value=_INLINE_OFFSET_LIMIT)
+        )
+        spans.append(SourceSpan(start, span_end))
+    return tuple(spans)
+
+
+@st.composite
+def _inline_candidate(draw: st.DrawFn) -> SourceSpan:
+    """Build one candidate span for a containment query."""
+    start = draw(st.integers(min_value=0, max_value=_INLINE_OFFSET_LIMIT))
+    return SourceSpan(
+        start,
+        start + draw(st.integers(min_value=0, max_value=_INLINE_OFFSET_LIMIT)),
+    )
+
+
+@settings(max_examples=200, deadline=None)
+@given(spans=_inline_spans(), candidate=_inline_candidate())
+def test_inline_code_index_contains_agrees_with_a_direct_scan(
+    spans: tuple[SourceSpan, ...],
+    candidate: SourceSpan,
+) -> None:
+    """The indexed query answers exactly what scanning every span answers.
+
+    ``from_spans`` sorts and folds a running maximum over the span list, so the
+    index is only correct if that fold preserves enclosure under arbitrary
+    order, overlap, nesting, and duplication. The oracle is
+    :meth:`SourceSpan.contains` applied to every span, which shares no code
+    with the indexed search.
+    """
+    index = InlineCodeIndex.from_spans(spans)
+    expected = any(span.contains(candidate) for span in spans)
+
+    assert index.contains(candidate) is expected, (spans, candidate)

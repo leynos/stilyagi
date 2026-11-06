@@ -628,6 +628,29 @@ with error exit 1. An invalid `TERM001` option exits 2.
     Review passed with code health improved, and the Gecko security review
     passed. `Sourcery review` and `automerge` skip on this repository and are
     not required checks.
+- [x] (2026-11-06) Close the two testing rows the organisation-level pre-merge
+  checklist raised against `d70e498d`, and correct the Rust coverage margin.
+  - `tests/test_rule_policy.py` gained
+    `test_unselected_ignore_next_binds_only_the_first_unit`, which resolves the
+    policy with `STY001` outside `lint.select` and asserts on the plan rather
+    than on an empty diagnostic list: the directive still consumes the first
+    paragraph and not the second. `LintSetup` now exposes `policy()` for this,
+    sharing one `request_for()` builder with `run()`.
+  - Adding that case pushed `tests/test_rule_policy.py` past the 400-line
+    ceiling Pylint enforces on test modules. The `TestSuppressionPlumbing`
+    group moved verbatim to `tests/test_suppression_plumbing.py`: it resolves
+    plans from handwritten IR and made no policy-level claim, so the split has
+    its own boundary rather than being a line-count shuffle.
+  - `tests/test_suppression_sequences.py` gained
+    `test_ignore_next_binds_the_first_unit_and_not_the_second`, which pins the
+    resolved plan for a directive followed by two prose units.
+  - `tests/test_rule_properties.py` gained a Hypothesis property comparing
+    `InlineCodeIndex.contains` with a scan of `SourceSpan.contains` over
+    generated span lists that are unordered and may overlap, nest, or repeat.
+  - The Rust margin in the accepted head's coverage sentence is `0.83` points,
+    not `0.17`: coverage measured 91.31% against the 91.48% baseline, so 0.17
+    points were consumed of the 1.00-point tolerance. The Python margin of
+    0.22 points was already correct.
 
 ## Surprises & discoveries
 
@@ -973,7 +996,7 @@ local gate run recorded in the Progress section for that exact tree, and hosted
 Smoke run `41981901016`, which passed `lint-test` and all three `release-smoke`
 jobs on the head itself. Coverage on that run measured 92.10% for Python
 against a 92.88% baseline and 91.31% for Rust against 91.48%, both inside the
-1.00-point tolerance, leaving 0.22 and 0.17 percentage points of margin
+1.00-point tolerance, leaving 0.22 and 0.83 percentage points of margin
 respectively. Preserve coverage in any later change.
 
 Shipped:

@@ -17,7 +17,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from stilyagi import model
 from stilyagi.model.source import SourceSpan
-from stilyagi.rules.suppression import resolve_suppressions
+from stilyagi.rules.suppression import SuppressionPlan, resolve_suppressions
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -178,9 +178,9 @@ def _raw_suppressions(case: _SuppressionCase) -> list[dict[str, object]]:
     return ranges + inline
 
 
-def _assert_matches_replay(case: _SuppressionCase) -> None:
-    """Compare the resolved plan with the direct replay over every query."""
-    plan = resolve_suppressions(
+def _resolve(case: _SuppressionCase) -> SuppressionPlan:
+    """Resolve the plan one generated case describes."""
+    return resolve_suppressions(
         model.Document(
             syntax=model.Syntax.MARKDOWN,
             ir={"suppressions": _raw_suppressions(case)},
@@ -189,6 +189,11 @@ def _assert_matches_replay(case: _SuppressionCase) -> None:
         source_length=_SOURCE_LENGTH,
         prose_units=tuple(starmap(SourceSpan, case.units)),
     )
+
+
+def _assert_matches_replay(case: _SuppressionCase) -> None:
+    """Compare the resolved plan with the direct replay over every query."""
+    plan = _resolve(case)
     for code, offset in case.queries:
         expected = case.suppresses(code, offset)
         assert plan.suppresses(code, SourceSpan(offset, offset + 1)) is expected, (
@@ -251,3 +256,29 @@ def test_named_witnesses_cover_states_the_property_must_reach() -> None:
 
     for case in (empty, transition, bound, shared, orphan):
         _assert_matches_replay(case)
+
+
+def test_ignore_next_binds_the_first_unit_and_not_the_second() -> None:
+    """One directive consumes one unit, even when two units follow it.
+
+    The generated property compares the plan against a replay, so a
+    resolver that bound every later unit would agree with a replay that did
+    the same. This pins the resolved plan itself against the documented
+    "next nonempty unit" semantics.
+    """
+    two_units = _named_case(
+        inline=((5, ("STY001",)),),
+        unit_starts=(_FIRST_UNIT_START, _FIRST_UNIT_START + _UNIT_SPACING),
+    )
+    plan = _resolve(two_units)
+
+    assert plan.suppresses(
+        "STY001", SourceSpan(_FIRST_UNIT_START, _FIRST_UNIT_START)
+    ), "the directive must bind the first unit"
+    assert not plan.suppresses(
+        "STY001",
+        SourceSpan(
+            _FIRST_UNIT_START + _UNIT_SPACING,
+            _FIRST_UNIT_START + _UNIT_SPACING,
+        ),
+    ), "the directive must not reach the second unit"

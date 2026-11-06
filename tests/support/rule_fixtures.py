@@ -11,7 +11,8 @@ import typing as typ
 
 from stilyagi import config, diagnostics, engine, model
 from stilyagi.config.schema import LintConfig
-from stilyagi.rules.registry import RuleRunRequest, run_rules
+from stilyagi.rules.policy import RulePolicy, resolve_policy
+from stilyagi.rules.registry import RuleRunRequest, builtin_metadata, run_rules
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -60,11 +61,24 @@ class LintSetup:
             rules={code: dict(values) for code, values in self.rules.items()},
         )
 
-    def run(self, source: str | bytes) -> list[diagnostics.Diagnostic]:
-        """Extract ``source`` and run the selected builtin rules over it."""
+    def request_for(self, source: str | bytes) -> RuleRunRequest:
+        """Extract ``source`` and build the run request this setup describes.
+
+        Parameters
+        ----------
+        source:
+            Markdown text, or its UTF-8 bytes.
+
+        Returns
+        -------
+        RuleRunRequest
+            The request both :meth:`run` and :meth:`policy` start from, so a
+            test can assert on selection and suppression without also
+            producing diagnostics.
+        """
         text = source.decode("utf-8") if isinstance(source, bytes) else source
         document = engine.extract_document(text, model.Syntax.MARKDOWN)
-        request = RuleRunRequest(
+        return RuleRunRequest(
             config=self.build_config(),
             config_path=None,
             source_bytes=text.encode("utf-8"),
@@ -76,7 +90,31 @@ class LintSetup:
                 else self.reported_path
             ),
         )
-        return run_rules(request)
+
+    def run(self, source: str | bytes) -> list[diagnostics.Diagnostic]:
+        """Extract ``source`` and run the selected builtin rules over it."""
+        return run_rules(self.request_for(source))
+
+    def policy(self, source: str | bytes) -> RulePolicy:
+        r"""Return the resolved selection and suppression plan for ``source``.
+
+        Parameters
+        ----------
+        source:
+            Markdown text, or its UTF-8 bytes.
+
+        Returns
+        -------
+        RulePolicy
+            The selection decision and the suppression plan for this document.
+
+        Examples
+        --------
+        >>> setup = LintSetup(select=("MD",))
+        >>> setup.policy("the the.\n").is_enabled("STY001")
+        False
+        """
+        return resolve_policy(self.request_for(source), builtin_metadata())
 
     def run_document(
         self,
