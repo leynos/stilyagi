@@ -9,6 +9,12 @@ The expensive per-document work lives in
 :mod:`stilyagi.engine.rule_projection`; these helpers are thin adapters for
 callers that hold only a document, such as tests and suppression resolution.
 A caller that needs several of them at once should project once instead.
+
+Every helper here is a read-only query. It projects the document, returns what
+it needs, and records nothing: no metric is incremented and no log line is
+emitted. Anomaly reporting belongs to the rule runner, which reports one
+document's snapshot once, so a query repeated for the same document cannot
+count its recoveries twice.
 """
 
 import typing as typ
@@ -131,7 +137,7 @@ def ignore_next_units(document: model.Document) -> tuple[SourceSpan, ...]:
     >>> ignore_next_units(model.Document(syntax=model.Syntax.MARKDOWN))
     ()
     """
-    return project(document, should_report=False).prose_units
+    return project(document).prose_units
 
 
 def inline_code_spans(document: model.Document) -> tuple[SourceSpan, ...]:

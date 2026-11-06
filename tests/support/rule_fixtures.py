@@ -92,7 +92,25 @@ class LintSetup:
         )
 
     def run(self, source: str | bytes) -> list[diagnostics.Diagnostic]:
-        """Extract ``source`` and run the selected builtin rules over it."""
+        r"""Extract ``source`` and run the selected builtin rules over it.
+
+        Parameters
+        ----------
+        source:
+            Markdown text, or its UTF-8 bytes.
+
+        Returns
+        -------
+        list[diagnostics.Diagnostic]
+            The diagnostics that survived selection, per-file ignores, and
+            suppression.
+
+        Examples
+        --------
+        >>> setup = LintSetup(select=("STY",))
+        >>> [found.code for found in setup.run("the the.\n")]
+        ['STY001']
+        """
         return run_rules(self.request_for(source))
 
     def policy(self, source: str | bytes) -> RulePolicy:

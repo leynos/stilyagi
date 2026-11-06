@@ -6,8 +6,14 @@ the fixed vocabulary those recoveries are counted under, and the one place a
 document's tally becomes a metric and a log line.
 
 Keeping the vocabulary here, rather than at each drop site, is what lets a
-caller add a recovery path without inventing an unbounded label. The metric and
-the log carry counts only, never IR, segment text, or a path.
+caller add a recovery path without inventing an unbounded label. The metric
+labels stay fixed and path-free; the log line names the document by the path
+the user already supplied, so a degraded check can be traced to the file it
+under-read. Neither carries IR or segment text.
+
+Reporting happens once per document, at the rule runner. The projection itself
+only builds the snapshot, so a read-only query can never count the same
+document twice.
 """
 
 import collections as col
@@ -16,7 +22,13 @@ import typing as typ
 
 from stilyagi import check_metrics
 
-__all__ = ["ANOMALY_KINDS", "AnomalyTally", "report_anomalies"]
+__all__ = [
+    "ANOMALY_KINDS",
+    "AnomalyCounts",
+    "AnomalyTally",
+    "anomaly_snapshot",
+    "report_anomalies",
+]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,29 +42,63 @@ ANOMALY_KINDS: typ.Final = (
     "source_mismatch",
 )
 
-#: Anomaly counts for one projection, keyed by their fixed metric label.
+#: Anomaly counts for one projection, keyed by their fixed metric label while
+#: the projection is still being built.
 AnomalyTally = col.Counter[str]
 
+#: An immutable anomaly snapshot in reporting order, as ``(label, count)``.
+type AnomalyCounts = tuple[tuple[str, int], ...]
 
-def report_anomalies(anomalies: AnomalyTally) -> None:
-    """Count and log what one projection recovered from, without its contents.
+
+def anomaly_snapshot(anomalies: AnomalyTally) -> AnomalyCounts:
+    """Return one projection's non-zero counts in fixed reporting order.
 
     Parameters
     ----------
     anomalies:
-        One document's anomaly counts, keyed by their fixed metric label.
+        The tally a projection accumulated while recovering from its IR.
+
+    Returns
+    -------
+    AnomalyCounts
+        Every label that was counted, ordered by :data:`ANOMALY_KINDS` so two
+        projections of the same document produce the same snapshot.
 
     Examples
     --------
-    >>> report_anomalies(col.Counter())
+    >>> anomaly_snapshot(col.Counter({"source_mismatch": 2}))
+    (('source_mismatch', 2),)
     """
-    if not anomalies:
+    return tuple((kind, anomalies[kind]) for kind in ANOMALY_KINDS if anomalies[kind])
+
+
+def report_anomalies(counts: AnomalyCounts, *, document_id: str) -> None:
+    """Count and log what one document's projection recovered from.
+
+    This is the reporting boundary: one call per document, from the rule
+    runner, which is the only place that knows both the snapshot and the path
+    the user supplied.
+
+    Parameters
+    ----------
+    counts:
+        One document's anomaly snapshot.
+    document_id:
+        The reported path of the document. It is the caller's own spelling, so
+        it names the file without exposing anything the user did not provide.
+
+    Examples
+    --------
+    >>> report_anomalies((), document_id="docs/example.md")
+    """
+    if not counts:
         return
-    check_metrics._record_projection_anomalies(dict(anomalies))
-    _LOGGER.debug(
-        "projection recovered %d anomalies: %s",
-        sum(anomalies.values()),
-        ", ".join(
-            f"{kind}={anomalies[kind]}" for kind in ANOMALY_KINDS if kind in anomalies
-        ),
+    check_metrics._record_projection_anomalies(dict(counts))
+    total = sum(count for _, count in counts)
+    detail = ", ".join(f"{kind}={count}" for kind, count in counts)
+    _LOGGER.info(
+        "projection recovered anomalies: total=%d; %s",
+        total,
+        detail,
+        extra={"operation": "projection_anomalies", "path": document_id},
     )

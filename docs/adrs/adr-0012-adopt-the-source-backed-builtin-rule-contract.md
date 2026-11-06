@@ -10,6 +10,10 @@ per-document policy, but their findings are filtered only after every rule has
 updated its state, so a suppressed heading still advances the heading-depth
 comparison.
 
+Amended 2026-11-06: the rule boundary and the projection's reporting duty are
+restated precisely in [Amendments](#amendments). The decision itself is
+unchanged.
+
 ## Date
 
 2026-10-30.
@@ -204,6 +208,42 @@ skip the check, and building the index once means the marginal cost of a rule
 is its own matching logic. Keeping the façade (`rule_view`) stable while the
 projection moved into its own module avoids a repository-wide change for an
 internal improvement.
+
+## Amendments
+
+### 2026-11-06: the rule boundary as implemented
+
+The requirement above says "a rule receives … the effective configuration".
+That is true of the runner, not of the hook, and the two packet names are easy
+to conflate. This amendment records the boundary the code enforces; the
+requirement is preserved above as history and is satisfied as described here.
+
+- `RuleRunRequest` is the application-level packet the check pipeline builds.
+  It carries the extracted document, the original source bytes, the reported
+  path, the configuration-relative path, and the effective configuration. The
+  runner reads it to resolve policy and to parse each rule's own options, and
+  never hands it to a rule.
+- `RuleContext` is what a rule hook receives. It carries the rule's own
+  validated configuration, the document, the source bytes, the reported path,
+  the line starts, the inline-code index, the matched `RegionView` objects, and
+  the tokenized segments for a `textual` rule. It carries neither the effective
+  global configuration nor the configuration-relative path, so a rule cannot
+  read policy it does not own.
+
+So "a rule receives the effective configuration" holds in the sense that the
+runner turns the effective configuration into the rule's validated options
+before the hook runs. A rule never sees the global configuration itself.
+
+### 2026-11-06: the projection reports nothing
+
+The projection's recoverable anomalies used to be counted and logged inside
+`project()`, which made a read-only query a side effect: asking a document for
+a second slice of its view counted the same recovery again. `project()` now
+returns an immutable `anomaly_counts` snapshot on `DocumentRegionView` and
+records nothing. `run_rules` is the single reporting boundary: it turns the
+snapshot into one metric increment and one `INFO` record that names the
+document's reported path, once per document. Every `rule_view` query is
+read-only.
 
 ## References
 

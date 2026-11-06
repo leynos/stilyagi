@@ -364,6 +364,34 @@ silence.
 `--quiet` and `--silent` currently select the same level and handler; the two
 names are kept because they read differently at a call site.
 
+#### Projection anomaly records
+
+The projection drops or demotes any part of the extracted IR it cannot use,
+rather than diagnosing against bytes it cannot verify. `--verbose` reports that
+recovery as one record per affected document:
+
+```text
+projection recovered anomalies: total=1; source_mismatch=1
+```
+
+The record comes from `stilyagi.engine.projection_anomalies` and carries the
+path the command was given, never the document's text. Its labels are a fixed
+vocabulary:
+
+- `malformed_node` and `invalid_node_span`: a node entry could not be read, or
+  its span falls outside the source.
+- `malformed_region` and `malformed_segment`: a region or segment entry could
+  not be read.
+- `invalid_segment_span`: a segment advertised a span that ends before it
+  starts.
+- `source_mismatch`: the bytes a segment's span addresses do not decode to the
+  segment's own text.
+
+A recovered anomaly is not a finding. It does not appear in the diagnostics,
+does not change the exit code, and does not mean the document is wrong; it
+means a rule saw less of the document than it contains. A count that persists
+across runs points at the extractor rather than at the file.
+
 #### Verbose metrics
 
 Use `--verbose` to include a `stilyagi check metrics: {...}` JSON snapshot on

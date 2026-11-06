@@ -628,7 +628,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
     Review passed with code health improved, and the Gecko security review
     passed. `Sourcery review` and `automerge` skip on this repository and are
     not required checks.
-- [x] (2026-11-06) Close the two testing rows the organisation-level pre-merge
+- [x] (2026-11-06) Close the two testing rows the organization-level pre-merge
   checklist raised against `d70e498d`, and correct the Rust coverage margin.
   - `tests/test_rule_policy.py` gained
     `test_unselected_ignore_next_binds_only_the_first_unit`, which resolves the
@@ -643,7 +643,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
     its own boundary rather than being a line-count shuffle.
   - The hosted CodeScene review then failed that module for Code Duplication
     between its two range tests, which shared a body. They are now one
-    parameterised case over a `_ToggleCase` table: four rows state code
+    parameterized case over a `_ToggleCase` table: four rows state code
     granularity and boundary exclusivity instead of two near-identical bodies.
     Local `cs check` reports 10.00 for the module.
   - `tests/test_suppression_sequences.py` gained
@@ -656,6 +656,74 @@ with error exit 1. An invalid `TERM001` option exits 2.
     not `0.17`: coverage measured 91.31% against the 91.48% baseline, so 0.17
     points were consumed of the 1.00-point tolerance. The Python margin of
     0.22 points was already correct.
+- [x] (2026-11-06) Reconcile the organization-level pre-merge checklist against
+  `08467de8` and repair the four valid rows.
+  - Unit Architecture and Observability shared one cause: `project()` recorded
+    a metric and a log line, so a read-only query counted the same recovery
+    again every time a caller asked for a different slice of the view.
+    `project()` now returns an immutable `anomaly_counts` snapshot on
+    `DocumentRegionView` and records nothing. `engine/projection_anomalies.py`
+    owns the fixed label vocabulary and the single `report_anomalies` boundary;
+    `rules/registry.run_rules` is its only caller and reports once per document
+    at `INFO`, naming the reported path. Every `rule_view` helper is now a
+    read-only query.
+  - `tests/test_rule_projection_observability.py` is rewritten around that
+    boundary. It pins the snapshot for each anomaly kind, proves the view
+    queries record no metric and no record however often they run, pins one
+    aggregated record per document carrying its `path`, and drives
+    `cli.run_check(..., verbose=True)` end to end so the record is proven to
+    reach a supported command level.
+  - Testing (Overall): `tests/test_cli_config.py` gains explicit-`--config`
+    provenance cases. The last explicit file governs, and per-file globs anchor
+    on the explicit config rather than the working directory, with a control
+    document proving the ignore is file-specific.
+  - Developer Documentation: the guide claimed a rule receives the effective
+    configuration. A rule receives `RuleContext`, which carries its own
+    validated options; `RuleRunRequest` is the packet that carries the global
+    configuration and the configuration-relative path. The guide now states
+    both, and ADR 0012 records the boundary in an `## Amendments` entry rather
+    than rewriting the original requirement.
+  - User-Facing Documentation was rebutted rather than repaired. The
+    documentation style guide requires a migration guide per release that
+    changes observable behaviour, and this PR creates no release boundary:
+    `pyproject.toml` is still `0.1.0` and the only tag is `v0.1.0`. The new
+    `INFO` record is documented in the users' guide under "Projection anomaly
+    records" instead.
+  - Domain Architecture was rebutted on the same evidence recorded in ADR 0012:
+    `rules/suppression.py` reaches raw mappings only through the
+    `engine.rule_view.raw_suppressions` façade, and the boundary decision is
+    already the ADR's subject.
+
+- [x] (2026-11-06) Gate the repair round and record its evidence.
+  - The first pass over `8b9d085d` was red for four reasons. `make check-fmt`
+    wanted two files reformatted. Ruff rejected a missing final newline in
+    `engine/projection_anomalies.py` and a runtime-only `pathlib` import in
+    `tests/test_rule_projection_observability.py`. `ty` rejected `_MIXED_IR` as
+    a narrower literal than the `dict[str, object]` parameter it was passed to.
+    And `make test` timed out two `trybuild` binaries at their 600 s ceiling
+    while the compile-admission queue was more than 100 crate compilations
+    deep, with sccache not serving.
+  - Formatting, both ruff findings and the `ty` finding were repaired directly.
+    The two `trybuild` binaries passed on the next run, in 246 s and 515 s with
+    admission healthy throughout, which confirms the timeouts were
+    environmental rather than a compile error.
+  - The second pass over `19336903` exposed one real defect. The new
+    `LintSetup.run` doctest used a plain docstring, so ruff's
+    `escape-sequence-in-docstring` fired and the doctest parser split the
+    example at the `\n`, failing collection of `tests/support/rule_fixtures.py`.
+    The docstring is now raw. `make lint` had stopped at ruff in that pass, so
+    every later lint stage had no verdict until the third pass.
+  - The third pass over `5e05241d`, on a clean tree, is green on all six gates.
+    `make check-fmt` reported 332 files formatted and 76 Markdown files
+    unchanged. `make typecheck` passed, with `ty 0.0.74` reporting all checks
+    passed. `make lint` passed every sub-stage: ruff, interrogate at 100%,
+    pylint and the df12 pass both at 10.00/10, ambrleaks, `cargo doc`, Clippy,
+    Whitaker, Skylos, and the duplication gate with 9 reasoned exceptions.
+    `make markdownlint` reported 77 files and 0 issues, with the spelling gate
+    current. `make nixie` validated every diagram. `make test` passed every
+    lane: nextest 364 of 364, `cargo test --doc` green, pytest 1094 passed with
+    19 snapshots, `--doctest-modules` 138 passed with 3 pre-existing collector
+    skips, and `duplication-test` 154 passed with 4 snapshots.
 
 ## Surprises & discoveries
 

@@ -118,6 +118,11 @@ def builtin_metadata() -> tuple[RuleMetadata, ...]:
 def run_rules(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:
     """Run the selected builtin rules for one document.
 
+    This is the reporting boundary for the projection's recoverable anomalies:
+    it is the only layer that holds both the projection's snapshot and the
+    document's reported path, so it records them once per document. The
+    projection and the view queries it backs are read-only.
+
     Parameters
     ----------
     request:
@@ -143,12 +148,14 @@ def run_rules(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:
     []
     """
     from stilyagi.engine import rule_view
+    from stilyagi.engine.projection_anomalies import report_anomalies
     from stilyagi.rules.builtin import run_selected
 
     registry = builtin_metadata()
     document_view = rule_view.project(
         request.document, source_bytes=request.source_bytes
     )
+    report_anomalies(document_view.anomaly_counts, document_id=request.reported_path)
     request_policy = rule_policy.resolve_policy(
         request,
         registry,

@@ -656,15 +656,21 @@ malformed IR by dropping the offending entry or demoting a mismatched segment
 to synthetic, and it reports that recovery rather than hiding it:
 `stilyagi_check_projection_anomalies_total` counts each fixed category
 (`malformed_node`, `invalid_node_span`, `malformed_region`, `malformed_segment`,
-`invalid_segment_span`, `source_mismatch`), and one aggregated debug line per
+`invalid_segment_span`, `source_mismatch`), and one aggregated `INFO` line per
 document carries the counts. The vocabulary and that reporting live in
 `python/stilyagi/engine/projection_anomalies.py`, so a new recovery path adds a
-label to one list rather than inventing a metric name at its drop site. Neither
-the metric nor the log carries IR, segment text, or a path.
-`project(..., should_report=False)` exists for a caller that re-projects a
-document already reported, so one document's anomalies are never counted twice.
-Metrics-facade observations continue to reach a host-installed recorder;
-Stilyagi does not install or replace it.
+label to one list rather than inventing a metric name at its drop site.
+
+Projecting is read-only. `project()` returns the document's counts as an
+immutable `anomaly_counts` snapshot on `DocumentRegionView` and records
+nothing, and every `rule_view` helper is a query over that view. The single
+reporting boundary is `rules/registry.run_rules`: it is the one layer that
+holds both the snapshot and the document's reported path, and it records the
+metric and emits the log line once per document. A document projected twice
+therefore cannot count its recoveries twice. The metric labels stay fixed and
+path-free; the log line names the document by the path the user supplied and
+quotes neither its IR nor its text. Metrics-facade observations continue to
+reach a host-installed recorder; Stilyagi does not install or replace it.
 
 ### Configuration loading and resolution
 
@@ -765,10 +771,21 @@ records the contract; this section is the maintainer's map of where it lives.
 
 `rules/base.py` defines the typed boundary. A `RuleMetadata` declares a code,
 name, severity, and `RegionTarget`; the target selects by region kind, syntax,
-and required scope entries. `RuleContext` carries the source bytes, paths,
-configuration, the matched `RegionView` objects, and — for rules that declare
-`textual = True` — the document's tokenized segments. `RuleRunRequest` is the
-application-level packet the check pipeline constructs.
+and required scope entries.
+
+`RuleRunRequest` is the application-level packet the check pipeline constructs.
+It carries the extracted document, the original source bytes, the reported
+path, the configuration-relative path used for per-file globs, and the
+effective configuration. The runner reads it to resolve policy and to parse
+each rule's own options, and does not hand it to a rule.
+
+`RuleContext` is what a rule hook actually receives, and it is deliberately
+narrower: the rule's own validated configuration, the document, the source
+bytes, the reported path, the line starts, the inline-code index, the matched
+`RegionView` objects, and — for rules that declare `textual = True` — the
+document's tokenized segments. It carries neither the effective global
+configuration nor the configuration-relative path, so a rule cannot read policy
+it does not own.
 
 `engine/rule_projection.py` performs the one per-document pass:
 
@@ -779,15 +796,20 @@ application-level packet the check pipeline constructs.
   to exactly the segment text, otherwise demoting it to synthetic with
   `synthetic_reason="source_mismatch"`;
 - `prose_units` records the heading, paragraph, and table-cell spans that
-  `ignore-next` may consume.
+  `ignore-next` may consume;
+- `anomaly_counts` carries an immutable snapshot of every recovery the pass
+  made. Projecting records no metric and emits no log. `run_rules` is the
+  single reporting boundary: it turns the snapshot into one metric increment
+  and one `INFO` record naming the document's reported path, so repeating a
+  query cannot count the same document twice.
 
-`engine/rule_view.py` is the façade other modules import. `rules/tokens.py`
-holds the shared `Token` and `TokenizedSegment` records;
-`rules/builtin/text.py` tokenizes every source-backed segment outside inline
-code once per document, so a second text rule reuses the tokens rather than
-rescanning the prose. The runner tokenizes only when a selected, enabled
-textual rule will read the tokens, so a structural-only selection pays nothing
-for prose tokenization.
+`engine/rule_view.py` is the façade other modules import, and every helper it
+exposes is a read-only query. `rules/tokens.py` holds the shared `Token` and
+`TokenizedSegment` records; `rules/builtin/text.py` tokenizes every
+source-backed segment outside inline code once per document, so a second text
+rule reuses the tokens rather than rescanning the prose. The runner tokenizes
+only when a selected, enabled textual rule will read the tokens, so a
+structural-only selection pays nothing for prose tokenization.
 
 `rules/policy.py` and `rules/suppression.py` decide which findings survive.
 `resolve_policy` expands `select` and `ignore` prefixes against the enabled

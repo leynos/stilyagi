@@ -11,9 +11,11 @@ decodes to exactly the segment text. A stale or malformed span is demoted to a
 synthetic segment, so a byte-exact finding can never point at other bytes.
 
 Recovering from malformed IR is not silent. Every dropped node, region, or
-segment is counted under one of six fixed labels and reported once per document,
-so a projection that suppresses a finding can be told apart from a document that
-genuinely had none.
+segment is counted under one of six fixed labels and returned in the
+projection's immutable snapshot, so a projection that suppresses a finding can
+be told apart from a document that genuinely had none. Projecting is itself
+read-only: the snapshot is turned into a metric and a log line once per
+document by the rule runner, which knows the document's reported path.
 """
 
 import dataclasses as dc
@@ -28,7 +30,11 @@ from stilyagi.engine.ir_mapping import (
     source_span,
     string_tuple,
 )
-from stilyagi.engine.projection_anomalies import AnomalyTally, report_anomalies
+from stilyagi.engine.projection_anomalies import (
+    AnomalyCounts,
+    AnomalyTally,
+    anomaly_snapshot,
+)
 from stilyagi.model.region import RegionSegment, RegionView
 from stilyagi.model.source import SourceSpan, is_utf8_boundary
 
@@ -61,6 +67,10 @@ class DocumentRegionView:
     prose_units:
         Nonempty heading, paragraph, and table-cell spans in source order, the
         units an ``ignore-next`` directive may consume.
+    anomaly_counts:
+        Recoveries this projection made, in fixed reporting order. Empty when
+        the IR was well formed. The rule runner reports these once per
+        document; projection and view queries never do.
 
     Examples
     --------
@@ -71,6 +81,7 @@ class DocumentRegionView:
     regions: tuple[RegionView, ...] = ()
     inline_code_spans: tuple[SourceSpan, ...] = ()
     prose_units: tuple[SourceSpan, ...] = ()
+    anomaly_counts: AnomalyCounts = ()
 
     def for_target(self, target: RegionTarget) -> tuple[RegionView, ...]:
         """Return the regions ``target`` claims, in document order.
@@ -98,9 +109,13 @@ def project(
     document: model.Document,
     *,
     source_bytes: bytes | None = None,
-    should_report: bool = True,
 ) -> DocumentRegionView:
     """Build the per-document region projection.
+
+    Projection is a read-only operation: it records no metric and emits no log
+    line. A recovery it made is returned in ``anomaly_counts`` for the caller's
+    reporting boundary to record, so projecting the same document twice — as
+    suppression resolution does — cannot double-count its anomalies.
 
     Parameters
     ----------
@@ -109,20 +124,19 @@ def project(
     source_bytes:
         Original file bytes. When supplied, each segment's advertised span is
         kept only if that slice decodes to exactly the segment text.
-    should_report:
-        Whether this projection records its recovered anomalies. Suppression
-        resolution re-projects the same document to collect prose units, so it
-        passes ``False`` rather than count one document's anomalies twice.
 
     Returns
     -------
     DocumentRegionView
-        Regions, inline-code spans, and prose units for this document.
+        Regions, inline-code spans, prose units, and anomaly counts for this
+        document.
 
     Examples
     --------
     >>> from stilyagi import model
     >>> project(model.Document(syntax=model.Syntax.MARKDOWN)).regions
+    ()
+    >>> project(model.Document(syntax=model.Syntax.MARKDOWN)).anomaly_counts
     ()
     """
     anomalies = AnomalyTally()
@@ -133,8 +147,6 @@ def project(
         if (region := _region_view(raw_region, nodes, source_bytes, anomalies))
         is not None
     )
-    if should_report:
-        report_anomalies(anomalies)
     return DocumentRegionView(
         regions=regions,
         inline_code_spans=merge_touching_spans(sorted(inline_spans)),
@@ -145,6 +157,7 @@ def project(
             and not region.is_empty
             and region.span is not None
         ),
+        anomaly_counts=anomaly_snapshot(anomalies),
     )
 
 
