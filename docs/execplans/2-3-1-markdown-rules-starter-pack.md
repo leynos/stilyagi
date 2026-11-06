@@ -6,8 +6,10 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan`.
 
 Status: COMPLETE — implementation, validation, and review reconciliation
-finished on 2026-11-05, when the final candidate `d484dab1` was reconciled
-against the accepted plan. Milestones M1–M3 were approved on 2026-10-28 and are
+finished on 2026-11-06, when the final candidate `4a4d107a` was reconciled
+against the accepted plan. The 2026-11-05 reconciliation of `d484dab1` is
+retained as history; the repair round that followed it is recorded in the
+Progress section. Milestones M1–M3 were approved on 2026-10-28 and are
 delivered within the stated constraints and tolerances.
 
 Roadmap item: 2.3.1. Prerequisites 2.1.2 (Markdown IR coverage) and 2.2.1
@@ -725,6 +727,20 @@ with error exit 1. An invalid `TERM001` option exits 2.
     19 snapshots, `--doctest-modules` 138 passed with 3 pre-existing collector
     skips, and `duplication-test` 154 passed with 4 snapshots.
 
+- [x] (2026-11-06) Reconcile the ExecPlan with the repaired candidate
+  `4a4d107a`.
+  - The pre-merge reassessment accepted four repairs and two documented
+    dispositions, and asked for this plan's own summary to be brought into line
+    with them. The status line and the retrospective now name `4a4d107a`, and
+    the `d484dab1` record is kept as history for the candidate it describes.
+  - Validation stays revision-bound. The six-gate evidence above belongs to
+    `5e05241d`, the last tree carrying production changes. The delta from
+    `5e05241d` to `4a4d107a` is this Markdown file alone, so the documentation
+    gates and the pytest lane were re-run on `4a4d107a` and are recorded as
+    author-reported. Hosted Smoke run `42219413204` passed `lint-test` and all
+    three `release-smoke` jobs on that head, and the CodeScene and Gecko checks
+    passed there too.
+
 ## Surprises & discoveries
 
 - Observation: the rule runner is an intentionally empty seam, and the model
@@ -1071,6 +1087,27 @@ jobs on the head itself. Coverage on that run measured 92.10% for Python
 against a 92.88% baseline and 91.31% for Rust against 91.48%, both inside the
 1.00-point tolerance, leaving 0.22 and 0.83 percentage points of margin
 respectively. Preserve coverage in any later change.
+
+Final state at `4a4d107a`. A further pre-merge reassessment of `d484dab1`
+raised six rows, of which four were repaired. The projection is now read-only
+and `run_rules` is the single reporting boundary; the anomaly record is `INFO`
+with the reported path; the explicit-`--config` provenance cases closed the
+Testing (Overall) row; and the developer's guide and ADR 0012 now distinguish
+`RuleRunRequest` from `RuleContext`. The other two rows are accepted
+dispositions, not implemented refactors: no version-specific migration guide is
+required while no release boundary exists, and the domain-boundary deviations in
+`rules/suppression.py` and `rules/builtin/pack.py` remain as ADR 0012 records
+them. `4a4d107a` is therefore the final candidate, and `d484dab1` keeps its own
+hosted evidence as history.
+
+Local gates are revision-bound. The six-gate run recorded in the Progress
+section belongs to `5e05241d`, the last tree carrying production changes. The
+only later delta is a Markdown-only ExecPlan edit, and the author-reported
+re-run of the documentation-relevant gates, the workflow contracts, and the
+pytest lane on `4a4d107a` was green. Hosted evidence for the final head is
+Smoke run `42219413204`, which passed `lint-test` and all three `release-smoke`
+jobs on `4a4d107a` itself, plus the CodeScene code-health review and the Gecko
+security review, both successful on the same head.
 
 Shipped:
 
@@ -1826,3 +1863,8 @@ these deliberate boundaries and case-fold expansion.
   earlier `27fc732e` gate evidence is labelled as belonging to that merge
   commit rather than the tip, and hosted run `41981901016` is linked to the
   head it tested. Shorthand `ADR 009` references are normalized to `ADR 0009`.
+- 2026-11-06: Reconciled the delivery record with the repaired head
+  `4a4d107a`. The status line and the retrospective name that head, the
+  `d484dab1` record is retained as history, the local gate evidence is labelled
+  by the revision it ran on, and hosted run `42219413204` is recorded against
+  the head it tested.
