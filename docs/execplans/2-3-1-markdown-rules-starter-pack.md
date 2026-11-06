@@ -6,11 +6,12 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan`.
 
 Status: COMPLETE — implementation, validation, and review reconciliation
-finished on 2026-11-06, when the final candidate `9227d62c` was reconciled
-against the accepted plan. The earlier reconciliations of `4a4d107a` and
-`d484dab1` are retained as history; the repair rounds that followed them are
-recorded in the Progress section. Milestones M1–M3 were approved on 2026-10-28
-and are delivered within the stated constraints and tolerances.
+finished on 2026-11-06, when the final candidate `6cf17fcf` was reconciled
+against the accepted plan. The earlier reconciliations of `9227d62c`,
+`4a4d107a`, and `d484dab1` are retained as history; the repair rounds that
+followed them are recorded in the Progress section. Milestones M1–M3 were
+approved on 2026-10-28 and are delivered within the stated constraints and
+tolerances.
 
 Roadmap item: 2.3.1. Prerequisites 2.1.2 (Markdown IR coverage) and 2.2.1
 (`stilyagi check`) are complete. Safe-fix planning, 2.2.2, is also complete.
@@ -814,6 +815,65 @@ with error exit 1. An invalid `TERM001` option exits 2.
     1099 passed with 19 snapshots, doctests 139 passed with 3 skips), and
     `make duplication-test` (154 passed).
 
+- [x] (2026-11-06) Close the review round raised against `9227d62c`, committed
+  as `b393c87e`, `e206db94`, and `d56391f7`.
+  - `b393c87e` makes `cli._run_check` call `cli_run.collect_checked_files`
+    instead of keeping a second copy of the per-file loop, so the helper's
+    regression test now covers the command boundary. A new test drives
+    `cli.main(["check", "."])` with one unresolvable file and proves the later
+    file's diagnostic still reports and the operational-error status is
+    returned.
+  - `e206db94` replaces `resolve_config_for_path` and `config_file_for_path`
+    with `ConfigResolver.resolve_with_provenance`, which performs discovery,
+    explicit-file layering, override merging, and parsing once and returns the
+    frozen `ResolvedTargetConfig`. No query mutates the cache any more, and
+    `tests/test_config_resolution_caching.py` pins one discovery miss and no
+    discovery hit per target.
+  - `d56391f7` fixes three review findings. `resolve_with_provenance` split
+    `explicit_config` and then passed the same iterable to
+    `_merge_explicit_configs`, which split it again, so a one-shot iterator was
+    exhausted and the explicit files and inline fragments were silently
+    dropped; it now splits once and passes both lists. The different-drive
+    fallback test now uses real `PureWindowsPath` values on separate drives
+    instead of mocking `relative_to`, and `config_relative_path` annotates both
+    parameters as `pathlib.PurePath`. The path-failure tests now fail
+    `Path.expanduser` for the target, because non-strict `Path.resolve` does not
+    raise for a symlink loop on Python 3.14; the developer guide and the module
+    docstrings name that cause instead.
+  - Gate logs are under `/tmp`, named `r5-*` and `r6-*`. A gate run over
+    `d56391f7` stopped at `make check-fmt`, which reported that two paragraphs
+    re-wrapped by the earlier prose edits no longer matched `mdtablefix`; the
+    re-wrap shipped with `00fa9e24`. The `r6` run over `00fa9e24` passed
+    `make check-fmt`, `make typecheck`, `make lint`, `make markdownlint`, and
+    `make nixie`, then failed `make test` on the new `TERM001` table-cell test,
+    which `6cf17fcf` corrects.
+
+- [x] (2026-11-06) Close the table-cell coverage row, committed as `00fa9e24`
+  and corrected in `6cf17fcf`.
+  - Review finding: both text rules target table cells and `ignore-next` can be
+    consumed by one, but no test exercised that path. The extractor emits a
+    `table_cell` region for every cell, including empty ones, so the gap was
+    coverage rather than behaviour.
+  - `tests/test_builtin_markdown_rules.py` now runs `STY001` and `TERM001` over
+    a source-backed table cell and pins each finding's own byte span, which
+    differs from the row's. `tests/test_rule_policy.py` adds a case where a
+    nonempty cell consumes the directive and a later cell still reports, plus
+    the positive control where the reporting cell is suppressed.
+  - `6cf17fcf` corrects the new `TERM001` test: it had reused the `STY001`
+    source, whose first cell holds `the the`, so the default selection reported
+    `STY001` as well and the exact-code assertion failed. The first cell now
+    holds a non-repeating word, so the banned term is the only finding.
+  - Gate logs are under `/tmp`, named `r7-<gate>-2-3-1.out` and
+    `r7b-test-2-3-1.out`. All six gates passed on `6cf17fcf`: `make check-fmt`
+    (76 Markdown files unchanged), `make typecheck` (`ty 0.0.74` reported all
+    checks passed), `make lint` (interrogate at 100%, pylint and the df12 pass
+    both 10.00/10, Clippy under `-D warnings`, Whitaker, Skylos, and the
+    duplication gate with 9 reasoned exceptions), `make markdownlint` (0 issues
+    in 77 files, spelling gate current), `make nixie` (every diagram validated),
+    and `make test` (nextest 364/364, doctests 14, pytest 1107 passed with 19
+    snapshots, the `--doctest-modules` lane 140 passed with 3 skips, and
+    `make duplication-test` 154 passed).
+
 ## Surprises & discoveries
 
 - Observation: the rule runner is an intentionally empty seam, and the model
@@ -1031,6 +1091,19 @@ with error exit 1. An invalid `TERM001` option exits 2.
   main landed `adr-0011-pinned-nightly-and-build-standard.md` first. Rationale:
   ADR numbers form one sequence, and two records sharing 0011 would make every
   later reference ambiguous. Date/author: 2026-11-02, implementation agent.
+- Review disposition: the Observability row asking for projection degradation
+  to be reported in normal standalone runs is satisfied by the existing
+  boundary rather than by a new one. `report_anomalies` emits one aggregated
+  INFO record per document with bounded label values, the caller's own path,
+  and no document content; the counter kind is validated in Rust against
+  `PROJECTION_ANOMALY_KINDS`; and `tests/test_rule_projection_observability.py`
+  covers both the standalone command path and the read-only view path. Two
+  parts of the row are not taken: escalating recoveries to WARNING would change
+  CLI output and exit semantics for a condition that is not a finding, and a
+  new label for a missing IR container needs the Rust array to grow with it,
+  which belongs with extractor work that can produce one. Rationale: a rule
+  pack must not silently widen the diagnostics contract or the cross-language
+  metric vocabulary. Date/author: 2026-11-06, implementation agent.
 
 ## Outcomes & retrospective
 
@@ -1207,6 +1280,29 @@ both 10.00/10, Clippy under `-D warnings`, Whitaker, Skylos, and the
 duplication gate with 9 reasoned exceptions), `make markdownlint`, `make nixie`,
 `make test` (nextest 364/364, the doctest lanes, pytest 1099 passed with 19
 snapshots), and `make duplication-test` (154 passed).
+
+The review round after `9227d62c` produced three code findings and one coverage
+row, and the branch now rests at `6cf17fcf`. `b393c87e` removed the command's
+private copy of the per-file loop so the helper's regression test covers the
+command boundary. `e206db94` folded configuration provenance into a single
+`resolve_with_provenance` call, so asking for the effective config and the file
+it came from no longer resolves the target twice or mutates the cache from a
+query. `d56391f7` fixed the three findings that round left: a one-shot
+`explicit_config` iterator was split twice and silently dropped its files and
+inline fragments, the different-drive fallback test mocked the very method it
+claimed to exercise, and the path-failure tests modelled a symlink-loop failure
+that non-strict `Path.resolve` does not raise on Python 3.14. The coverage row
+is closed by `00fa9e24`, which runs both text rules over a table cell and adds
+the `ignore-next` consumer and suppression control; `6cf17fcf` corrects one of
+those new tests, whose source also tripped `STY001` under the default selection.
+
+The six-gate local run for `6cf17fcf` is green: `make check-fmt`,
+`make typecheck`, `make lint` (interrogate at 100%, pylint and the df12 pass
+both 10.00/10, Clippy under `-D warnings`, Whitaker, Skylos, and the
+duplication gate with 9 reasoned exceptions), `make markdownlint`,
+`make nixie`, and `make test` (nextest 364/364, doctests 14, pytest 1107 passed
+with 19 snapshots, the `--doctest-modules` lane 140 passed with 3 skips, and
+`make duplication-test` 154 passed).
 
 Shipped:
 
@@ -1978,3 +2074,12 @@ these deliberate boundaries and case-fold expansion.
   `d484dab1` records are retained as history; and the seven-gate local run for
   `9227d62c` is recorded with its sub-stage results, including pytest at 1099
   passed.
+- 2026-11-06: Reconciled the delivery record with the repaired head `6cf17fcf`,
+  which closes the table-cell coverage row raised against `e206db94` and the
+  three code findings repaired at `d56391f7`. The status line and the
+  retrospective name the new head; the `9227d62c`, `c5a4bd83`, `4a4d107a`, and
+  `d484dab1` records are retained as history; the Progress section records
+  `b393c87e`, `e206db94`, `d56391f7`, `00fa9e24`, and `6cf17fcf`; and the
+  six-gate local run for `6cf17fcf` is recorded with its sub-stage results,
+  including pytest at 1107 passed. The Decision log records the Observability
+  disposition.
