@@ -370,12 +370,18 @@ The projection drops or demotes any part of the extracted IR it cannot use,
 rather than diagnosing against bytes it cannot verify. `--verbose` reports that
 recovery as one record per affected document:
 
+<!-- tested-example: projection-anomaly-record -->
 ```text
 projection recovered anomalies: total=1; source_mismatch=1
 ```
 
-The record comes from `stilyagi.engine.projection_anomalies` and carries the
-path the command was given, never the document's text. Its labels are a fixed
+At `--verbose` the record is rendered like every other progress record. The
+level and the emitting logger, `INFO stilyagi.engine.projection_anomalies:`,
+come before the message, and the parenthesized fields
+`operation='projection_anomalies'` and `path='docs/example.md'` follow it, in
+the fixed alphabetical order described under
+[verbosity and progress logs](#verbosity-and-progress-logs). The path is the
+one the command was given, never the document's text. The labels are a fixed
 vocabulary:
 
 - `malformed_node` and `invalid_node_span`: a node entry could not be read, or

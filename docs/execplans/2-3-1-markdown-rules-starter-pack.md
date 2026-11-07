@@ -937,9 +937,12 @@ with error exit 1. An invalid `TERM001` option exits 2.
     invariants are enforced at construction, not re-parsed. The ExecPlan no
     longer calls `report_anomalies` pure and no longer presents `6cf17fcf` as
     the branch tip.
-  - Testing (Overall) row: a new case gives `disable STY`, a repeated word, one
-    `enable STY`, and a second repeated word, and asserts that only the later
-    finding is reported.
+  - Testing (Overall) row: two cases carry the load. The repeated-disable case
+    gives two `disable STY` directives, a repeated word, one `enable STY`, and a
+    second repeated word, and asserts that only the later finding is reported,
+    so a policy needing a second enable would fail it. The single-directive
+    case gives one `disable STY` and the same two findings, pinning that path
+    on its own.
   - Gate evidence for `713efc52`: the six gates ran sequentially on a clean
     tree and all passed — `make check-fmt`, `make typecheck`, `make lint`,
     `make test` (nextest 364/364, doc tests 14, pytest 1110, doctest-modules
@@ -962,6 +965,35 @@ with error exit 1. An invalid `TERM001` option exits 2.
   - Gate evidence: these repairs are documentation and comment only. The six
     gates were run on the resulting tip; the tip's identity and results are
     recorded in the pull-request description.
+- [x] (2026-11-07) Close the review of `61da69d3`: correct the span-recovery
+  description, mark and pin the anomaly example, and strengthen the
+  repeated-disable test.
+  - Developer's guide: the rule-execution paragraph now names
+    `RuleContext.rule_config` and describes structural IR defects as recovered
+    from rather than raised. `engine.ir_mapping.source_span` returns `None` for
+    a missing, non-integer, negative, or inverted span, and the projection
+    counts and drops the entry; `SourceSpan` still rejects a bad range at
+    construction, so a span that reaches a finding is well ordered.
+  - User's guide: the projection-anomaly fence carries a
+    `<!-- tested-example: projection-anomaly-record -->` marker, and the
+    surrounding prose names the level, logger, and the two appended fields the
+    `--verbose` handler renders. The shared Markdown example loader remains the
+    recorded outstanding item, so the marker is the part of that convention
+    this slice can satisfy.
+  - Observability test: `test_the_boundary_logs_one_record_per_document` now
+    renders the record through `cli_log.append_structured_fields` and
+    `cli_log.LOG_FORMAT` and asserts the complete line, logger and path
+    included, rather than only the attributes behind it.
+  - Testing (Overall) row: `test_repeated_disable_is_idempotent` gained a
+    finding after its single `enable`, so it now fails if a second enable is
+    required. The row above describes both suppression cases accurately.
+  - Suppression module: the docstring states that the plan is resolved
+    independently of selection, against the full builtin inventory, before rule
+    execution.
+  - Observability disposition: the exit-semantics claim is removed.
+    `compute_exit_code` derives the status from diagnostics and operational
+    errors, not from log levels, so escalating to WARNING would change
+    visibility only.
 
 ## Surprises & discoveries
 
@@ -1189,12 +1221,14 @@ with error exit 1. An invalid `TERM001` option exits 2.
   kind is validated in Rust against `PROJECTION_ANOMALY_KINDS`; and
   `tests/test_rule_projection_observability.py` covers both the standalone
   command path and the read-only view path. Two parts of the row are not taken:
-  escalating recoveries to WARNING would change CLI output and exit semantics
-  for a condition that is not a finding, and a new label for a missing IR
-  container needs the Rust array to grow with it, which belongs with extractor
-  work that can produce one. Rationale: a rule pack must not silently widen the
-  diagnostics contract or the cross-language metric vocabulary. Date/author:
-  2026-11-06, implementation agent; corrected 2026-11-07 after the level check.
+  escalating recoveries to WARNING would change CLI output for a condition that
+  is not a finding, and a new label for a missing IR container needs the Rust
+  array to grow with it, which belongs with extractor work that can produce
+  one. Rationale: a rule pack must not silently widen the diagnostics contract
+  or the cross-language metric vocabulary. Date/author: 2026-11-06,
+  implementation agent; corrected 2026-11-07 after the level check and again
+  after checking `compute_exit_code`, which derives the status from diagnostics
+  and operational errors rather than from log levels.
 - Review disposition: the Unit Architecture row asking to separate rule
   evaluation from anomaly reporting is answered by keeping `run_rules` as the
   single reporting boundary rather than by injecting a third dependency.
@@ -2210,3 +2244,8 @@ these deliberate boundaries and case-fold expansion.
   the Observability disposition raised against `713efc52`. The Progress section
   records the documentation-only repairs; the head that carries them and its
   six-gate results are named in the pull-request description.
+- 2026-11-07: Reconciled the delivery record with the head carrying the
+  `61da69d3` round. The Progress section records the corrected span-recovery
+  description, the marked and pinned anomaly example, the strengthened
+  repeated-disable case, and the suppression docstring. The head and its gate
+  results are named in the pull-request description.

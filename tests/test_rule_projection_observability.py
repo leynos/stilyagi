@@ -15,13 +15,15 @@ import logging
 import typing as typ
 
 import pytest
-from stilyagi import check_metrics, cli, config, engine, model
+from stilyagi import check_metrics, cli, cli_log, config, engine, model
 from stilyagi.engine import rule_projection, rule_view
 from stilyagi.rules import registry as rules_registry
 from stilyagi.rules.base import RegionTarget
 
 if typ.TYPE_CHECKING:
     import pathlib
+
+    from syrupy.assertion import SnapshotAssertion
 
 _LOGGER_NAME = "stilyagi.engine.projection_anomalies"
 _ANOMALY_METRIC = "stilyagi_check_projection_anomalies_total"
@@ -199,6 +201,7 @@ def test_view_queries_leave_metrics_and_logs_unchanged(
 
 def test_the_boundary_logs_one_record_per_document(
     caplog: pytest.LogCaptureFixture,
+    snapshot: SnapshotAssertion,
 ) -> None:
     """Aggregate a document's anomalies into one path-bearing INFO record."""
     check_metrics.reset_check_metrics()
@@ -220,6 +223,18 @@ def test_the_boundary_logs_one_record_per_document(
         assert expected in message, f"expected {expected!r} in {message!r}"
     assert "Title" not in message, "the log must not quote document content"
     assert sum(_anomaly_counts().values()) == 3, "each anomaly is counted once"
+
+    # The user guide documents this record as the reader sees it, so pin the
+    # rendered line rather than only the attributes behind it. The CLI's
+    # handler is what appends the structured fields, so apply it here. The
+    # line itself lives in a snapshot: it is a rendering contract, and a
+    # snapshot diff shows a format change far more plainly than a wrapped
+    # literal would.
+    cli_log.append_structured_fields(record)
+    rendered = logging.Formatter(cli_log.LOG_FORMAT).format(record)
+    assert rendered == snapshot, (
+        f"expected the rendered verbose record, got {rendered!r}"
+    )
 
 
 def test_the_check_command_reports_projection_anomalies(

@@ -111,9 +111,13 @@ class TestSuppressionDirectives:
             "<!-- stilyagi: disable STY -->\n"
             "the the.\n"
             "<!-- stilyagi: enable STY -->\n"
+            "the the.\n"
         )
 
-        assert LintSetup().run(source) == [], (
+        # The finding after the single enable is what makes the assertion
+        # meaningful: with nothing reported there, a policy that silently kept
+        # the range open would pass this test too.
+        assert spans_of(LintSetup().run(source)) == ((105, 108),), (
             "expected a repeated disable to need no second enable"
         )
 

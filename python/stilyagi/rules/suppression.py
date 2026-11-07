@@ -1,8 +1,12 @@
 """Resolve canonical IR suppression directives into a per-document plan.
 
-The plan is computed before rule selection so that changing ``select`` or
-``ignore`` cannot move an ``ignore-next`` target, and so that a stateful rule
-can be evaluated in full before its findings are filtered.
+The plan is computed before rule execution so that a stateful rule can be
+evaluated in full before its findings are filtered. It is also resolved
+independently of rule selection: code prefixes are expanded against the full
+builtin inventory rather than the selected set, so changing ``select`` or
+``ignore`` cannot move an ``ignore-next`` target, ``disable STY`` covers a rule
+the caller did not select, and selecting that rule later does not reinterpret a
+directive the document already carries.
 """
 
 import bisect

@@ -510,13 +510,19 @@ decides what the user sees.
 - **During rule execution.** `rules/builtin/pack.run_selected` parses each
   selected rule's builtin table again, before it checks whether that rule is
   enabled, so a disabled rule's malformed table still raises. The runner then
-  passes the parsed frozen record to the hook as `RuleContext.config`, so the
-  hook reads typed values rather than re-reading options itself. What execution
-  validates beyond parsing is structural: `SourceSpan` rejects negative or
-  inverted ranges at construction, so a misplaced span cannot become a finding,
-  and the projection keeps an advertised segment span only when the source
-  slice decodes to exactly the segment text. A defect in those invariants is a
-  programming error, not user configuration, and surfaces as one.
+  passes the parsed frozen record to the hook as `RuleContext.rule_config`, so
+  the hook reads typed values rather than re-reading options itself. What
+  execution validates beyond parsing is structural, and a structural defect in
+  the extracted IR is recovered from rather than raised:
+  `engine.ir_mapping.source_span` returns `None` when an IR span is missing,
+  non-integer, negative, or inverted, and the projection counts the entry under
+  `invalid_node_span` or `invalid_segment_span` and drops it, so one corrupt
+  entry cannot abort a whole run. `SourceSpan` still rejects a negative or
+  inverted range at construction, so a span that reaches a finding is well
+  ordered. The projection also keeps an advertised segment span only when the
+  source slice decodes to exactly the segment text, and demotes a mismatch to a
+  synthetic segment counted under `source_mismatch`. None of these conditions
+  is a finding: they reach a human only through the `--verbose` anomaly record.
 
 Path expansion inside resolution follows the same rule. `Path.expanduser` raises
 `RuntimeError` when it cannot determine the home directory, so every expansion
