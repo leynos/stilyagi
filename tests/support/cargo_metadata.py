@@ -14,6 +14,8 @@ inject a fake outcome and two contract tests cross the real boundary.
 
 This module is separate from `tests.support.lint_policy` because it is the one
 reader that leaves the filesystem; the TOML and Makefile readers stay there.
+Validating the document it gets back is a separate concern, and lives in
+`tests.support.cargo_metadata_document`.
 """
 
 import collections.abc as cabc
@@ -23,6 +25,7 @@ import shutil
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs the pinned `cargo metadata`, which compiles nothing.
 import typing as typ
 
+from tests.support.cargo_metadata_document import member_paths, reject
 from tests.support.errors import ReadingError
 from tests.support.lint_policy import WORKSPACE_MANIFEST, workspace_table
 
@@ -102,82 +105,16 @@ def member_manifests(
         Each member's `Cargo.toml`, in sorted order.
     """
     _require_member_list(path)
-    return _member_paths(_cargo_metadata(path, run_metadata), path)
-
-
-def _member_paths(
-    metadata: dict[str, object], path: pathlib.Path
-) -> tuple[pathlib.Path, ...]:
-    """Return the manifest of every declared workspace member, sorted."""
-    member_ids = _member_ids(metadata, path)
-    manifests = _manifests_by_id(metadata, path)
-    missing = [identity for identity in member_ids if identity not in manifests]
-    if missing:
-        message = f"cargo metadata listed members without a package: {missing}"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
-    return tuple(sorted(pathlib.Path(manifests[identity]) for identity in member_ids))
-
-
-def _member_ids(metadata: dict[str, object], path: pathlib.Path) -> list[str]:
-    """Return the document's workspace member IDs after validating them."""
-    ids = metadata.get("workspace_members")
-    if not isinstance(ids, list):
-        message = "cargo metadata reported no workspace member list"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
-    members: list[str] = []
-    for identity in ids:
-        if not isinstance(identity, str):
-            message = f"workspace member {identity!r} is not a string"
-            raise ReadingError(message, reader="lint_policy", path=str(path))
-        members.append(identity)
-    if len(set(members)) != len(members):
-        message = "cargo metadata listed a workspace member twice"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
-    return members
-
-
-def _manifests_by_id(metadata: dict[str, object], path: pathlib.Path) -> dict[str, str]:
-    """Return each package's manifest path, keyed by its package ID."""
-    packages = metadata.get("packages")
-    if not isinstance(packages, list):
-        message = "cargo metadata reported no package list"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
-    manifests: dict[str, str] = {}
-    for package in packages:
-        identity, manifest = _package_record(package, path)
-        if identity in manifests:
-            message = f"cargo metadata reported package {identity!r} twice"
-            raise ReadingError(message, reader="lint_policy", path=str(path))
-        manifests[identity] = manifest
-    return manifests
-
-
-def _package_record(package: object, path: pathlib.Path) -> tuple[str, str]:
-    """Return one package record's ID and manifest path, validated."""
-    if not isinstance(package, dict):
-        message = f"package record {package!r} is not an object"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
-    identity = package.get("id")
-    manifest = package.get("manifest_path")
-    if not isinstance(identity, str):
-        message = f"package record has no string id: {identity!r}"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
-    if not isinstance(manifest, str):
-        message = f"package {identity!r} has no string manifest_path: {manifest!r}"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
-    return identity, manifest
+    return member_paths(_cargo_metadata(path, run_metadata), path)
 
 
 def _require_member_list(path: pathlib.Path) -> None:
     """Raise unless the manifest declares a list of string member patterns."""
     patterns = workspace_table(path).get("members")
     if not isinstance(patterns, list):
-        message = "Cargo.toml declares no member list"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
-    for pattern in patterns:
-        if not isinstance(pattern, str):
-            message = f"member pattern {pattern!r} is not a string"
-            raise ReadingError(message, reader="lint_policy", path=str(path))
+        reject(path, "Cargo.toml declares no member list")
+    if not all(isinstance(pattern, str) for pattern in patterns):
+        reject(path, f"Cargo.toml declares a non-string member in {patterns!r}")
 
 
 def _cargo_metadata(
@@ -186,8 +123,7 @@ def _cargo_metadata(
     """Return the metadata document the runner produced for `path`."""
     result = run_metadata(path)
     if result.returncode != 0:
-        message = f"cargo metadata failed: {result.stderr.strip()}"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
+        reject(path, f"cargo metadata failed: {result.stderr.strip()}")
     return _metadata_document(result.stdout, path)
 
 
@@ -199,6 +135,5 @@ def _metadata_document(stdout: str, path: pathlib.Path) -> dict[str, object]:
         message = f"cargo metadata returned invalid JSON: {error}"
         raise ReadingError(message, reader="lint_policy", path=str(path)) from error
     if not isinstance(document, dict):
-        message = "cargo metadata returned a non-object document"
-        raise ReadingError(message, reader="lint_policy", path=str(path))
+        reject(path, "cargo metadata returned a non-object document")
     return document

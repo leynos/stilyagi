@@ -2054,10 +2054,12 @@ writes no lockfile and fetches nothing. Reader tests inject a fake outcome;
 `test_every_workspace_member_inherits_the_lint_tables` are the two contract
 tests that cross the real boundary. `workspace_table` is public in
 `lint_policy` because member discovery validates the manifest's own shape
-before asking Cargo. The selection validates the document before trusting it:
-every member ID must be a string listed once, every package record must be an
-object with string `id` and `manifest_path` fields, and every member must name
-exactly one package record.
+before asking Cargo. The selection itself is pure and lives in
+`tests/support/cargo_metadata_document.py`, which keeps the command boundary
+and the untrusted-document boundary apart. It validates the document before
+trusting it: every member ID must be a string listed once, every package record
+must be an object with string `id` and `manifest_path` fields, and every member
+must name exactly one package record.
 
 Five modules use those readers and prove different things.
 `tests/test_lint_policy_contract.py` fails when an entry this repository relies
