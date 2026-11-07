@@ -2052,9 +2052,11 @@ narrow callable seam whose default runs
 writes no lockfile and fetches nothing. Reader tests inject a fake outcome;
 `test_cargo_resolves_the_workspace_members` and
 `test_every_workspace_member_inherits_the_lint_tables` are the two contract
-tests that cross the real boundary. `workspace_table` is public in
-`lint_policy` because member discovery validates the manifest's own shape
-before asking Cargo. The selection itself is pure and lives in
+tests that cross the real boundary. A decoding failure at that seam is a
+`ReadingError` naming the reader and path, so output that is not valid UTF-8 is
+a policy finding rather than a `UnicodeDecodeError`. `workspace_table` is
+public in `lint_policy` because member discovery validates the manifest's own
+shape before asking Cargo. The selection itself is pure and lives in
 `tests/support/cargo_metadata_document.py`, which keeps the command boundary
 and the untrusted-document boundary apart. It validates the document before
 trusting it: every member ID must be a string listed once, every package record
@@ -2071,12 +2073,22 @@ crates under `target/` — one each for `disallowed_methods`,
 `missing_assert_message`, `missing_docs_in_private_items` and `unsafe_code` —
 so a table naming a lint that does not exist cannot pass; separate cases cover
 the rustc `missing_docs` denial and the rustdoc default and override routes.
-`tests/test_lint_policy_make_routes.py` dry-runs `make lint` against the
-recording probes and reads the `RUSTDOCFLAGS` the doc recipe evaluates.
-`tests/test_lint_policy_readers.py` pins the failure modes of the TOML and
-Makefile readers. `tests/test_lint_policy_metadata.py` pins the
+The fixture sources and the manifests that copy the workspace tables live in
+`tests/support/lint_policy_fixtures.py`; the test module supplies a scratch
+base directory unique to the run and removes it afterwards, so two runs in the
+same worktree never share a crate. `tests/test_lint_policy_make_routes.py`
+dry-runs `make lint` against the recording probes and reads the `RUSTDOCFLAGS`
+the doc recipe evaluates. `tests/test_lint_policy_readers.py` pins the failure
+modes of the TOML and Makefile readers; its undecodable, missing and unreadable
+cases run over every public reader, so a new reader without a case is visible
+in the parameter list. `tests/test_lint_policy_metadata.py` pins the
 `cargo metadata` boundary: the selection examples, every malformed document
-shape, and the property case over arbitrary metadata documents.
+shape, the undecodable-output case, and the property case over arbitrary
+metadata documents.
+
+The decisions behind this split — the shared readers, the `cargo metadata`
+seam, the scratch crates and the unique run directory — are recorded in
+[ADR 0013](adrs/adr-0013-prove-the-lint-policy-through-readers-and-fixtures.md).
 
 The route tests pass environment overrides through
 `tests.support.build_standard.dry_run(target, tools, *extra, env=...)`. The
