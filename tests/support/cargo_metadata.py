@@ -58,6 +58,7 @@ def _run_cargo_metadata(path: pathlib.Path) -> subprocess.CompletedProcess[str]:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
             timeout=CARGO_METADATA_TIMEOUT_SECONDS,
         )

@@ -18,10 +18,17 @@ repository workspace. Clippy is pointed at the repository root with
 `CLIPPY_CONF_DIR`, so the `disallowed-methods` restrictions under test are the
 real ones.
 
-There are two crates because a binary links its package's library, so a library
-that violates `missing_docs` would mask every binary's own diagnostic. The
-first crate therefore carries a documentation-clean library beside the binary
-fixtures, and the undocumented library under test lives alone in the second.
+Four scratch crates carry the fixtures, and each exists so one denial can be
+read without another masking it. The first pairs the four binary fixtures — one
+each for `disallowed_methods`, `missing_assert_message`,
+`missing_docs_in_private_items` and `unsafe_code` — with a documentation-clean
+library, because a binary links its package's library and a library that
+violated a denied entry would mask every binary's own diagnostic. The second
+holds the undocumented library alone, so `missing_docs` is the only violation
+it reports. The third and fourth both hold a library with a broken intra-doc
+link and differ in one table entry: the third denies that link in the rustdoc
+table, which proves the table bites with no flags at all, and the fourth omits
+the entry, so the link stays a warning unless `-D warnings` escalates it.
 """
 
 import dataclasses
@@ -269,6 +276,8 @@ def _run_cargo(
             env=env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=COMPILE_TIMEOUT_SECONDS,
         )

@@ -174,8 +174,8 @@ PACKAGE_ID = st.text(
 def metadata_documents(draw: st.DrawFn) -> tuple[dict[str, object], set[str]]:
     """Draw a metadata document and the IDs it declares as members.
 
-    The records are drawn in arbitrary order, so the package list and the
-    member list are both unordered relative to the sorted result.
+    The two lists are permuted independently, so neither the member list nor
+    the package list is ordered relative to the other or to the sorted result.
 
     Returns
     -------
@@ -196,8 +196,8 @@ def metadata_documents(draw: st.DrawFn) -> tuple[dict[str, object], set[str]]:
     ]
     members = {identity for identity, is_member in records if is_member}
     return {
-        "workspace_members": [record[0] for record in records if record[1]],
-        "packages": packages,
+        "workspace_members": list(draw(st.permutations(sorted(members)))),
+        "packages": list(draw(st.permutations(packages))),
     }, members
 
 

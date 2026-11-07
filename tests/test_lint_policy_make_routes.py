@@ -66,8 +66,9 @@ def _rustdocflags(
 def test_the_route_defaults_to_docsrs_and_denied_warnings(
     probe_dir: pathlib.Path,
 ) -> None:
-    """An unset environment lets the Makefile's default reach the compiler."""
-    assert _rustdocflags(probe_dir).split() == ["--cfg", "docsrs", "-D", "warnings"], (
+    """Both variables unset lets the Makefile's default reach the compiler."""
+    flags = _rustdocflags(probe_dir, extra=None, override=None)
+    assert flags.split() == ["--cfg", "docsrs", "-D", "warnings"], (
         "the doc route must compile with the docsrs cfg and denied warnings"
     )
 
