@@ -932,7 +932,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
   - Documentation: the developer's guide states both validation points — at
     configuration resolution, where every recognized builtin table is
     validated whether or not its rule is selected, and during rule execution,
-    where `run_selected` parses each selected rule's table again before its
+    where `run_selected` parses each registered rule's table again before its
     enablement check and the hook receives the parsed record. Structural
     invariants are enforced at construction, not re-parsed. The ExecPlan no
     longer calls `report_anomalies` pure and no longer presents `6cf17fcf` as
@@ -994,6 +994,41 @@ with error exit 1. An invalid `TERM001` option exits 2.
     `compute_exit_code` derives the status from diagnostics and operational
     errors, not from log levels, so escalating to WARNING would change
     visibility only.
+- [x] (2026-11-07) Close the review of `a6fc633b`: correct the rule-execution
+  and segment-recovery descriptions, name the log path boundary, and fix the
+  glob anchor for a symlinked config file.
+  - Developer's guide, rule execution: `run_selected` parses each *registered*
+    rule's table, not each selected one, and the resolution bullet no longer
+    claims that parsing does not happen during execution. The re-read is
+    described as defensive, because resolution has already validated the same
+    tables and still owns the error the user sees.
+  - Developer's guide, segment recovery: the paragraph now separates the two
+    cases. A node entry with an unreadable span counts under
+    `invalid_node_span` and is dropped; a segment whose `source` is missing or
+    `null` is retained as synthetic with no anomaly, and only an advertised
+    segment `source` that cannot be read as a span counts under
+    `invalid_segment_span` and is dropped. This supersedes the single
+    "counts and drops the entry" wording recorded for `61da69d3`.
+  - User's guide: the `path` field is the reported path of the checked file,
+    which for a directory argument is the path discovery built for a file found
+    beneath it, so a `--verbose` run discloses discovered filenames. The
+    `invalid_segment_span` label is described as an unreadable advertised
+    `source` rather than only an inverted range.
+  - Glob anchor: `check_paths.config_relative_path_for` resolves
+    `config_file.parent` rather than the parent of the resolved config file, so
+    a config file reached through a symlink keeps its per-file-ignore globs
+    anchored in the project that names it. `tests/test_check_path_anchor.py`
+    pins both the plain and the symlinked case.
+  - Path-failure tests: the `expanduser` stubs now raise a plain `RuntimeError`
+    subclass, so the tests exercise `expand_user`'s conversion into
+    `PathResolutionError` instead of raising the named type directly. The
+    direct `config_relative_path_for` patch keeps a separate
+    `PathResolutionError` subclass, because it bypasses `expand_user`.
+  - Documented example: a new test pins the exact line the user's guide
+    publishes for a single `source_mismatch`. The mixed-document snapshot
+    renders a different tally, so it could not cover that line. The shared
+    Markdown loader remains the recorded outstanding item, so the literal is
+    repeated in the test until it exists.
 
 ## Surprises & discoveries
 

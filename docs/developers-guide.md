@@ -498,8 +498,8 @@ is not attributed to a file.
 Configuration is validated at two distinct points, and which one owns a defect
 decides what the user sees.
 
-- **At configuration resolution.** Builtin rule tables are validated here, not
-  when a rule runs. `config/rules.py` owns the parsers for
+- **At configuration resolution.** This is where a malformed builtin rule table
+  is reported, before any rule runs. `config/rules.py` owns the parsers for
   `[tool.stilyagi.rule.<CODE>]` tables and `validate_builtin_tables` walks
   every recognized builtin table, selected or not. A malformed option is
   therefore reported whether or not its rule is enabled, and
@@ -508,17 +508,23 @@ decides what the user sees.
   preserved untouched for future slices; the module never rejects configuration
   it does not yet understand.
 - **During rule execution.** `rules/builtin/pack.run_selected` parses each
-  selected rule's builtin table again, before it checks whether that rule is
-  enabled, so a disabled rule's malformed table still raises. The runner then
-  passes the parsed frozen record to the hook as `RuleContext.rule_config`, so
-  the hook reads typed values rather than re-reading options itself. What
-  execution validates beyond parsing is structural, and a structural defect in
-  the extracted IR is recovered from rather than raised:
-  `engine.ir_mapping.source_span` returns `None` when an IR span is missing,
-  non-integer, negative, or inverted, and the projection counts the entry under
-  `invalid_node_span` or `invalid_segment_span` and drops it, so one corrupt
-  entry cannot abort a whole run. `SourceSpan` still rejects a negative or
-  inverted range at construction, so a span that reaches a finding is well
+  registered rule's builtin table again, before it checks whether that rule is
+  enabled, so the runner itself never relies on selection to notice a malformed
+  table. On the command path resolution has already validated those tables, so
+  this re-read is defensive: the error the user sees is still the one raised at
+  resolution. The runner then passes the parsed frozen record to the hook as
+  `RuleContext.rule_config`, so the hook reads typed values rather than
+  re-reading options itself. What execution validates beyond parsing is
+  structural, and a structural defect in the extracted IR is recovered from
+  rather than raised: `engine.ir_mapping.source_span` returns `None` when it is
+  handed anything but a pair of non-negative, ordered integer offsets, so a
+  corrupt span is absent rather than fatal. How the projection treats that
+  absence depends on what carried it. A node entry counts under
+  `invalid_node_span` and is dropped. A segment whose `source` is missing or
+  `null` is retained as synthetic with no anomaly, and only an advertised
+  segment `source` that cannot be read as a span counts under
+  `invalid_segment_span` and is dropped. `SourceSpan` still rejects a negative
+  or inverted range at construction, so a span that reaches a finding is well
   ordered. The projection also keeps an advertised segment span only when the
   source slice decodes to exactly the segment text, and demotes a mismatch to a
   synthetic segment counted under `source_mismatch`. None of these conditions
@@ -659,14 +665,17 @@ discovery and render phases around its command orchestration.
 checked and spells the target relative to it. The work has two steps with
 different boundaries:
 
-- **Resolution** reads the filesystem. The anchor is the governing config
-  file's parent, or the invocation working directory when no config file
-  governs the target. A deleted working directory or an unreadable parent raises
-  `OSError`; an unresolved home directory raises `PathResolutionError`, the
-  named failure `config.path_resolution` raises in place of pathlib's bare
-  `RuntimeError`. Resolution runs inside the recorded `config` phase, so a
-  failure is reported against the file being checked and the rest of the run
-  continues.
+- **Resolution** reads the filesystem. The anchor is the directory that holds
+  the governing config file as it was named, resolved on its own, or the
+  invocation working directory when no config file governs the target.
+  Resolving the config file before taking its parent would follow a symlink and
+  move the anchor to the link target's directory, where a per-file ignore such
+  as `docs/a.md` no longer matches. A deleted working directory or an
+  unreadable parent raises `OSError`; an unresolved home directory raises
+  `PathResolutionError`, the named failure `config.path_resolution` raises in
+  place of pathlib's bare `RuntimeError`. Resolution runs inside the recorded
+  `config` phase, so a failure is reported against the file being checked and
+  the rest of the run continues.
 - **Spelling** decides only how an already-resolved target is written relative
   to an already-resolved anchor. It lives in `python/stilyagi/config/paths.py`,
   reads nothing, and is therefore testable without a filesystem.
@@ -679,7 +688,9 @@ directory raises `FileNotFoundError`, an unresolved home directory raises
 without being recorded. A fourth checks that a later file is still checked
 after an earlier failure, asserting the reported failures and the surviving
 diagnostic. The fifth runs the same scenario through `cli.main`, asserting the
-exit code and the rendered output.
+exit code and the rendered output. `tests/test_check_path_anchor.py` pins the
+anchor itself: a plain config file anchors globs at its own directory, and a
+symlinked config file keeps the anchor in the project that names it.
 
 The run-level sweep deliberately does not live here.
 `cli_run.collect_checked_files` drives `check_one_file` once per input and

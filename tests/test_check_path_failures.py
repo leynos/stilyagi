@@ -41,11 +41,24 @@ class _MissingWorkingDirectoryError(FileNotFoundError):
         super().__init__("working directory disappeared")
 
 
-class _UnresolvedHomeDirectoryError(config.PathResolutionError):
-    """A home directory that ``Path.expanduser`` cannot determine."""
+class _UnresolvedHomeDirectoryError(RuntimeError):
+    """The error ``Path.expanduser`` raises when it cannot find a home.
+
+    Deliberately not a :class:`config.PathResolutionError`: the expansion sites
+    are supposed to convert this into one, and a stub that already raised the
+    named type would let a regression that dropped the conversion pass.
+    """
 
     def __init__(self) -> None:
         """Build the failure with the message pathlib itself raises."""
+        super().__init__("Could not determine home directory.")
+
+
+class _PathFailureError(config.PathResolutionError):
+    """The named failure, raised where ``expand_user`` is bypassed."""
+
+    def __init__(self) -> None:
+        """Build the failure with its message inside the class."""
         super().__init__("Could not determine home directory.")
 
 
@@ -283,7 +296,7 @@ def test_the_command_still_checks_a_later_file_after_a_resolution_failure(
     def failing_first(target: pathlib.Path, config_file: pathlib.Path | None) -> str:
         """Fail the first file's anchor and resolve every other file normally."""
         if target.name == first.name:
-            raise _UnresolvedHomeDirectoryError
+            raise _PathFailureError
         return resolve_normally(target, config_file)
 
     def reporting_runner(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:

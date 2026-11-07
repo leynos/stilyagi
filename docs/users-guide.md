@@ -380,16 +380,19 @@ level and the emitting logger, `INFO stilyagi.engine.projection_anomalies:`,
 come before the message, and the parenthesized fields
 `operation='projection_anomalies'` and `path='docs/example.md'` follow it, in
 the fixed alphabetical order described under
-[verbosity and progress logs](#verbosity-and-progress-logs). The path is the
-one the command was given, never the document's text. The labels are a fixed
-vocabulary:
+[verbosity and progress logs](#verbosity-and-progress-logs). The `path` field
+is the reported path of the checked file, never the document's text: the
+argument you named, or, when you name a directory, the path discovery built for
+a file found beneath it. A `--verbose` run over a directory therefore discloses
+the names of the files it discovered, not only the arguments on the command
+line. The labels are a fixed vocabulary:
 
 - `malformed_node` and `invalid_node_span`: a node entry could not be read, or
   its span falls outside the source.
 - `malformed_region` and `malformed_segment`: a region or segment entry could
   not be read.
-- `invalid_segment_span`: a segment advertised a span that ends before it
-  starts.
+- `invalid_segment_span`: a segment advertised a `source` that is not a
+  bounded, forward span.
 - `source_mismatch`: the bytes a segment's span addresses do not decode to the
   segment's own text.
 

@@ -94,6 +94,9 @@ _ANOMALY_CASES: typ.Final = (
     ),
 )
 
+#: The same cases addressed by their fixed label, for tests about one label.
+_ANOMALY_CASE_BY_LABEL: typ.Final = {case.label: case for case in _ANOMALY_CASES}
+
 #: One document that provokes three different recoveries at once.
 _MIXED_IR: typ.Final[dict[str, object]] = {
     "nodes": [
@@ -234,6 +237,31 @@ def test_the_boundary_logs_one_record_per_document(
     rendered = logging.Formatter(cli_log.LOG_FORMAT).format(record)
     assert rendered == snapshot, (
         f"expected the rendered verbose record, got {rendered!r}"
+    )
+
+
+def test_the_documented_single_anomaly_message_is_what_one_mismatch_renders(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The user guide's example line is a real single-mismatch record.
+
+    The guide publishes that line under a ``tested-example`` marker. The shared
+    Markdown loader that would read it back out of the guide is not implemented,
+    so the literal is repeated here; this still pins the rendering the guide
+    describes, which the mixed-document case above cannot, because it renders a
+    different tally.
+    """
+    check_metrics.reset_check_metrics()
+    case = _ANOMALY_CASE_BY_LABEL["source_mismatch"]
+
+    with caplog.at_level(logging.INFO, logger=_LOGGER_NAME):
+        _run_rules(case.ir, case.source_bytes)
+
+    records = _anomaly_records(caplog)
+    assert len(records) == 1, f"expected one aggregated record, got {len(records)}"
+    message = records[0].getMessage()
+    assert message == ("projection recovered anomalies: total=1; source_mismatch=1"), (
+        f"expected the message the user guide publishes, got {message!r}"
     )
 
 

@@ -1,10 +1,11 @@
 """Resolve the glob anchor for one checked file at the check boundary.
 
-Globs in a configuration are relative to the config file that supplies them,
-or to the invocation working directory when no config file governs the target.
-Finding either anchor reads the filesystem and the working directory, and both
-can fail for an environmental reason: a deleted working directory, an
-unreadable parent, or an unresolved home directory.
+Globs in a configuration are relative to the directory that holds the config
+file that supplies them, as that file was named, or to the invocation working
+directory when no config file governs the target. Finding either anchor reads
+the filesystem and the working directory, and both can fail for an
+environmental reason: a deleted working directory, an unreadable parent, or an
+unresolved home directory.
 
 That failure belongs to the file being checked. Resolving here, next to the
 per-file check rather than inside rule execution, lets the check executor
@@ -51,6 +52,11 @@ def config_relative_path_for(
 
     Notes
     -----
+    The anchor is the directory that holds the config file *as named*, resolved
+    on its own, rather than the parent of the resolved file. A config file that
+    is a symlink to a file elsewhere therefore keeps its globs anchored in the
+    project, where the user put it, instead of at the link target's directory.
+
     An unresolvable home directory surfaces as
     :class:`stilyagi.config.path_resolution.PathResolutionError`, and a
     missing working directory, unreadable parent, or unresolvable target
@@ -65,7 +71,7 @@ def config_relative_path_for(
     'docs/a.md'
     """
     anchor = (
-        expand_and_resolve(config_file).parent
+        expand_and_resolve(config_file.parent)
         if config_file is not None
         else pathlib.Path.cwd()
     )
