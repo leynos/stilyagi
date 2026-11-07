@@ -6,12 +6,10 @@ configuration in force for its path, run the rules, and -- when the run asked
 for one -- plan its fix. Every stage is wrapped in an operational metric span,
 so a run's cost can be attributed to the phase that spent it.
 
-Keeping that in one function is what makes the run's accounting honest. A
-second implementation of "check one file" would have to repeat the metric
-recording, the span boundaries, and the failure classification, and the two
-copies would disagree the first time one of them changed. The run-level sweep,
-which flattens these per-file results and reconciles a mutating run's re-lint,
-is `cli_run`'s work and imports this module rather than reimplementing it.
+Keeping that in one function is what makes the run's accounting honest: a
+second implementation would repeat the metric recording, span boundaries, and
+failure classification, and the two copies would disagree the first time one
+changed. The run-level sweep imports this module rather than reimplementing it.
 
 The read lives here rather than entirely in `cli_io`. `cli_io` owns the byte
 *boundary*: how a stream is read without newline translation, and how an
@@ -38,6 +36,7 @@ from stilyagi.check_inputs import (
     CheckInput,
     FileCheckResult,
 )
+from stilyagi.check_paths import config_relative_path_for
 from stilyagi.cli_config import resolve_target_config
 from stilyagi.cli_io import SourcedInput, SourceReadError, read_source
 from stilyagi.engine.checker import map_ir_errors
@@ -48,11 +47,13 @@ from stilyagi.engine.fix_pipeline import (
     preview_safe_fixes,
 )
 from stilyagi.fixes import FixLevel
+from stilyagi.rules.registry import RuleRunRequest
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
     from stilyagi.cli_args import CheckOptions
+    from stilyagi.config import ResolvedTargetConfig
     from stilyagi.rules import registry as rules_registry
 
 __all__ = [
@@ -91,6 +92,63 @@ class CheckRun:
     report: CheckReporter
 
 
+@dc.dataclass(frozen=True, slots=True)
+class _ConfigOutcome:
+    """The two products of one file's config phase.
+
+    They travel together because a rule needs both: the effective
+    configuration, and the spelling of the target relative to the anchor that
+    configuration was resolved against. Separating them would let a caller
+    pair one file's config with another's spelling.
+    """
+
+    resolved_target: ResolvedTargetConfig
+    relative_path: str
+
+
+def _rule_request(
+    *,
+    sourced_input: SourcedInput,
+    document: model.Document,
+    config_outcome: _ConfigOutcome,
+) -> RuleRunRequest:
+    """Build the per-document rule request from the values already in hand.
+
+    The check pipeline already holds the original bytes, the reported path and
+    the resolved configuration here, so rules can be handed byte-exact source
+    without a second read and without reaching for the filesystem themselves.
+    The config file travels with the configuration because both describe the
+    same resolution; re-deriving it here would let the origin a diagnostic
+    names drift from the configuration it was produced under.
+
+    Parameters
+    ----------
+    sourced_input:
+        The read result carrying both the original bytes and decoded text.
+    document:
+        The extracted document with its canonical IR envelope.
+    config_outcome:
+        The effective configuration for this target, the config file that
+        supplied it, and the target's spelling relative to the glob anchor,
+        resolved once in the config phase so a resolution failure is reported
+        there.
+
+    Returns
+    -------
+    RuleRunRequest
+        The frozen request a rule runner receives.
+    """
+    config_file = config_outcome.resolved_target.config_file
+    return RuleRunRequest(
+        config=config_outcome.resolved_target.config,
+        config_path=str(config_file) if config_file is not None else None,
+        source_bytes=sourced_input.source_bytes,
+        reported_path=sourced_input.reported_path,
+        document=document,
+        config_relative_path=config_outcome.relative_path,
+    )
+
+
 def _wants_a_plan(run: CheckRun) -> bool:
     """Return whether this invocation asked for a fix preview or a mutation."""
     return bool(run.options.diff or run.options.fix)
@@ -117,12 +175,9 @@ def _requested_level(run: CheckRun) -> FixLevel:
 class _PlannedFileRequest:
     """Everything one file's fix plan needs to be described.
 
-    Grouped rather than passed as five positional arguments because they are
-    one fact each and read as a clump at the call site: which file, the two
-    products of reading it, the configuration resolved for its path, and the
-    run whose flags decide the level. Splitting them across an argument list
-    made the call site a puzzle in which every argument's role had to be
-    recovered from position.
+    Grouped because these values read as one clump at every call site; spread
+    across an argument list, each argument's role had to be recovered from
+    position.
     """
 
     sourced_input: SourcedInput
@@ -254,45 +309,80 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
     _LOGGER.debug("resolving config for %s", sourced_input.reported_path)
     try:
         with check_metrics._measure_phase("config"):
-            resolved_config = resolve_target_config(
+            resolved_target = resolve_target_config(
                 sourced_input.resolved_path, run.options, run.resolver
+            )
+            relative_path = config_relative_path_for(
+                sourced_input.resolved_path, resolved_target.config_file
             )
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
+        config.PathResolutionError,
+        OSError,
     ) as exc:
+        # A path that cannot be resolved is this file's operational failure,
+        # not a reason to abandon the run: the remaining files are still
+        # checkable, and the user is told which one was not. Only the named
+        # path failure is absorbed; any other ``RuntimeError`` is a defect and
+        # must propagate rather than be reported as an ordinary file failure.
         return _report_phase_failure(sourced_input, run, exc, "config")
 
+    config_outcome = _ConfigOutcome(resolved_target, relative_path)
+    diagnostics_list = _collect_diagnostics(
+        sourced_input, document, config_outcome, run
+    )
+    return FileCheckResult(
+        diagnostics=diagnostics_list,
+        had_error=False,
+        was_unreadable=False,
+        planned=_plan_if_wanted(
+            _PlannedFileRequest(
+                sourced_input=sourced_input,
+                document=document,
+                diagnostics_list=diagnostics_list,
+                resolved_config=resolved_target.config,
+                run=run,
+            )
+        ),
+    )
+
+
+def _collect_diagnostics(
+    sourced_input: SourcedInput,
+    document: model.Document,
+    config_outcome: _ConfigOutcome,
+    run: CheckRun,
+) -> list[diagnostics.Diagnostic]:
+    """Return the file's IR-error and rule diagnostics for the rules phase."""
     try:
         with check_metrics._measure_phase("rules"):
-            diagnostics_list = [
+            return [
                 *map_ir_errors(document, sourced_input.reported_path),
-                *run.rule_runner(document, resolved_config),
+                *run.rule_runner(
+                    _rule_request(
+                        sourced_input=sourced_input,
+                        document=document,
+                        config_outcome=config_outcome,
+                    )
+                ),
             ]
     except Exception:
         check_metrics.record_operational_failure("rules")
         raise
 
-    if not _wants_a_plan(run):
-        # Planning is skipped entirely unless a fix was asked for, so an
-        # ordinary check never pays for it and never reports a plan it did not
-        # make.
-        return FileCheckResult(
-            diagnostics=diagnostics_list,
-            had_error=False,
-            was_unreadable=False,
-        )
-    return FileCheckResult(
-        diagnostics=diagnostics_list,
-        had_error=False,
-        was_unreadable=False,
-        planned=_plan_fix(
-            _PlannedFileRequest(
-                sourced_input=sourced_input,
-                document=document,
-                diagnostics_list=diagnostics_list,
-                resolved_config=resolved_config,
-                run=run,
-            )
-        ),
-    )
+
+def _plan_if_wanted(request: _PlannedFileRequest) -> PlannedFile | None:
+    """Plan this file's fix, unless the run asked for no plan.
+
+    Planning is skipped unless a fix was asked for, so an ordinary check never
+    pays for it and never reports a plan it did not make.
+
+    Returns
+    -------
+    PlannedFile | None
+        The file's plan, or ``None`` when this run asked for no plan.
+    """
+    if not _wants_a_plan(request.run):
+        return None
+    return _plan_fix(request)

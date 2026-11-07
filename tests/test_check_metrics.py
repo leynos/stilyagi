@@ -165,7 +165,7 @@ def test_verbose_metrics_record_diagnostic_counts_by_severity(
     ]
     monkeypatch.setattr(
         "stilyagi.rules.registry.run_rules",
-        lambda _document, _config: diagnostics_list,
+        lambda _request: diagnostics_list,
     )
 
     actual_exit_code = cli.main(["check", ".", "--verbose", "--output-format", "json"])

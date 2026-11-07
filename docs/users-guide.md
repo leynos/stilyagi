@@ -364,6 +364,46 @@ silence.
 `--quiet` and `--silent` currently select the same level and handler; the two
 names are kept because they read differently at a call site.
 
+#### Projection anomaly records
+
+The projection drops or demotes any part of the extracted IR it cannot use,
+rather than diagnosing against bytes it cannot verify. `--verbose` reports that
+recovery as one record per affected document:
+
+<!-- tested-example: projection-anomaly-record -->
+```text
+projection recovered anomalies: total=1; source_mismatch=1
+```
+
+At `--verbose` the record is rendered like every other progress record. The
+level and the emitting logger, `INFO stilyagi.engine.projection_anomalies:`,
+come before the message, and the parenthesized fields
+`operation='projection_anomalies'` and `path='docs/example.md'` follow it, in
+the fixed alphabetical order described under
+[verbosity and progress logs](#verbosity-and-progress-logs). The `path` field
+is the reported path of the checked file, never the document's text: the
+argument named on the command line, or, when that argument is a directory, the
+path discovery built for a file found beneath it. A `--verbose` run over a
+directory therefore discloses the names of the files it discovered, not only
+the arguments on the command line. The labels are a fixed vocabulary:
+
+- `malformed_node` and `invalid_node_span`: a node entry could not be read, or
+  its span is not an ordered, non-negative pair of UTF-8 boundaries inside the
+  source.
+- `malformed_region` and `malformed_segment`: a region or segment entry could
+  not be read.
+- `invalid_segment_span`: a segment's `source` could not be read as a span at
+  all — an offset is missing or not an integer, an offset is negative, or the
+  end precedes the start.
+- `source_mismatch`: the span is well ordered but does not address the
+  segment's own text: it runs past the end of the source, it is not aligned to
+  a UTF-8 boundary, or the bytes it covers decode to something else.
+
+A recovered anomaly is not a finding. It does not appear in the diagnostics,
+does not change the exit code, and does not mean the document is wrong; it
+means a rule saw less of the document than it contains. A count that persists
+across runs points at the extractor rather than at the file.
+
 #### Verbose metrics
 
 Use `--verbose` to include a `stilyagi check metrics: {...}` JSON snapshot on
@@ -382,6 +422,113 @@ The `stilyagi_check_phase_duration_seconds` histogram has the fixed labels
 Pass `--config` with an explicit config file path or an inline TOML fragment to
 supply configuration directly. Use `--isolated` to bypass configuration
 discovery entirely.
+
+#### Builtin Markdown rules
+
+The builtin pack ships three deterministic Markdown rules. None of them uses a
+natural language processing (NLP) component, downloads a model, or makes a
+locale claim.
+
+| Code      | Name            | Severity | Offered fix                                   |
+| --------- | --------------- | -------- | --------------------------------------------- |
+| `MD001`   | `heading-depth` | error    | Manual only; no edit is proposed.             |
+| `STY001`  | `repeated-word` | warning  | Unsafe suffix removal; needs explicit opt-in. |
+| `TERM001` | `banned-term`   | error    | None.                                         |
+
+*Table 2: The starter-pack rules, their default severities, and fixability.*
+
+`MD001` reports a heading whose depth is more than one greater than the
+previous heading. The first heading may be any depth. The diagnostic covers the
+whole heading node, marker included, and it cannot be fixed automatically
+because the `#` marker is not source-backed text that a rule may rewrite.
+
+`STY001` reports an adjacent repeated word inside one prose segment, for example
+`the the`. Matching is exact and case-sensitive, and only ASCII spaces or tabs
+may separate the tokens; a line break, markup boundary, punctuation, inline
+code, or different spelling ends the run. The diagnostic covers the second
+word, and the proposed edit removes the repeated suffix, leaving one word. That
+edit is classified **unsafe**, so `--fix` alone withholds it and the text
+output names `--unsafe-fixes`.
+
+`TERM001` is opt-in. It does nothing until it is selected *and* given at least
+one term. Each term must be a single alphabetic word; a multi-word, empty, or
+non-alphabetic term is a configuration error (exit code `2`). Comparison folds
+Unicode case by default; `case_sensitive = true` requires the configured
+spelling. The rule reports the original token span and never offers a fix.
+
+The tables below configure a standalone `.stilyagi.toml` or `stilyagi.toml`.
+Stilyagi discovers those files, or `pyproject.toml`, in the target's directory
+and then its ancestors; inside `pyproject.toml` every table gains a
+`tool.stilyagi` prefix.
+
+```toml
+# .stilyagi.toml or stilyagi.toml
+[lint]
+select = ["MD", "STY", "TERM"]
+ignore = ["STY001"]
+
+[lint.per-file-ignores]
+"docs/generated/*.md" = ["MD"]
+
+[rule.TERM001]
+terms = ["obviously", "clearly"]
+case_sensitive = false
+```
+
+```toml
+# pyproject.toml
+[tool.stilyagi.lint]
+select = ["MD", "STY", "TERM"]
+ignore = ["STY001"]
+
+[tool.stilyagi.lint.per-file-ignores]
+"docs/generated/*.md" = ["MD"]
+
+[tool.stilyagi.rule.TERM001]
+terms = ["obviously", "clearly"]
+case_sensitive = false
+```
+
+`lint.select` defaults to `["MD", "DOC", "PUN", "STY", "PYDOC"]`, so `MD001` and
+`STY001` run without configuration while `TERM001` stays dormant. An entry may
+be a full code such as `STY001`, a prefix such as `STY`, or `ALL`. Prefixes
+expand against the builtin codes that are actually enabled. `lint.ignore` is
+applied after `select` and wins regardless of which prefix is longer.
+`lint.per-file-ignores` maps a glob to codes; the glob is matched against the
+path relative to the directory holding the effective config file, and `*`
+crosses directory separators.
+
+The whole pack is disabled when `plugins` omits `builtin`:
+
+```toml
+plugins = []
+```
+
+Each finding is filtered by its primary span's start byte. The supported
+directives are:
+
+```markdown
+<!-- stilyagi: disable STY -->
+<!-- stilyagi: enable STY001 -->
+<!-- stilyagi: ignore-next MD001 -->
+<!-- stilyagi: ignore-file -->
+```
+
+`disable` and `enable` toggle named codes or prefixes from that point in the
+document; `enable STY001` re-enables just that code inside a disabled `STY`
+range. Repeated disables are harmless, an unmatched `enable` does nothing, and
+an unclosed disable lasts to the end of the file. `ignore-file` covers the
+whole document, and an empty code list there means every builtin. `ignore-next`
+consumes the next nonempty heading, paragraph, or table-cell unit, so a blank
+line between the directive and the text it protects is allowed.
+
+JSON output carries the byte contract directly. Each diagnostic has a `span`
+object with `byte_start` and `byte_end` offsets into the original file, or
+`null` when no byte span is attached. A `null` span does not mean the location
+is unknown: a diagnostic mapped from an extractor error can still carry
+`location.line` and `location.column`, and consumers should keep those
+coordinates. `fix_applicable` says whether the rule offered a fix at all.
+`fix.applicability` distinguishes a `manual` fix from an `unsafe` one.
 
 #### Standard input
 

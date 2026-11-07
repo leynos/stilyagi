@@ -123,11 +123,11 @@ def discover_files_with_summary(
         metadata-lookup, path-resolution and directory-traversal failures are
         retained with any successfully discovered files; their errors are
         ``OSError`` or ``RuntimeError`` instances. Runtime errors include an
-        unresolved home directory during expansion and a symlink loop during
-        resolution. A candidate is skipped when it has no registered extractor
-        or when it is a symlinked directory target or unsupported filesystem
-        type. Skips are counted once per distinct path, even when several
-        targets overlap; missing targets are ignored and not counted.
+        unresolved home directory during expansion. A candidate is skipped
+        when it has no registered extractor or when it is a symlinked
+        directory target or unsupported filesystem type. Skips are counted
+        once per distinct path, even when several targets overlap; missing
+        targets are ignored and not counted.
 
     Examples
     --------

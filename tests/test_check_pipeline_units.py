@@ -19,11 +19,19 @@ or, for this module alone:
 import typing as typ
 
 import pytest
-from stilyagi import check_execution, check_inputs, cli_io, cli_run, config, engine
+from stilyagi import (
+    check_execution,
+    check_inputs,
+    cli_io,
+    cli_run,
+    config,
+    engine,
+)
 
 from tests.support.assertions import assert_with_context
 from tests.support.check_pipeline_fixtures import (
     checked_file,
+    forbidden_runner,
     input_for,
     one_diagnostic_runner,
     planned_file,
@@ -209,6 +217,49 @@ class TestCheckOneFile:
         assert isinstance(
             failures[0][1], (config.InvalidCacheDirError, config.InvalidConfigError)
         ), "expected the configuration error to reach the reporter"
+
+    def test_a_config_resolution_failure_skips_the_rules_phase(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A failed configuration resolution is reported before any rule runs.
+
+        Configuration and provenance come back from one resolution, so a
+        failure there leaves the file with neither. The file fails in the
+        configuration phase rather than surfacing later as a rule-run failure.
+        """
+        target = tmp_path / "notes.md"
+        target.write_text("# Notes\n", encoding="utf-8")
+        rule_runs: list[object] = []
+
+        def failing_resolution(
+            _self: config.ConfigResolver,
+            resolved_target: pathlib.Path,
+            *,
+            cli_overrides: cabc.Mapping[str, object] | None,
+            explicit_config: cabc.Iterable[str | pathlib.Path] | None,
+            isolated: bool,
+        ) -> config.ResolvedTargetConfig:
+            """Raise the configuration phase's typed failure."""
+            del cli_overrides, explicit_config, isolated
+            raise config.InvalidConfigError(
+                resolved_target, "config", "unreadable config provenance"
+            )
+
+        monkeypatch.setattr(
+            config.ConfigResolver, "resolve_with_provenance", failing_resolution
+        )
+        failures, report = recording_reporter()
+
+        result = check_execution.check_one_file(
+            input_for(target),
+            run_for(forbidden_runner(rule_runs), report),
+        )
+
+        assert result.had_error, "expected the failed resolution to flag the result"
+        assert isinstance(failures[0][1], config.InvalidConfigError), (
+            "expected the configuration error to reach the reporter"
+        )
+        assert not rule_runs, "expected no rule to run after a config failure"
 
 
 class TestAggregateCheckedFiles:
