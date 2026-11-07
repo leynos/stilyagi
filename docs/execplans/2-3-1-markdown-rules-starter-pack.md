@@ -7,12 +7,12 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 
 Status: COMPLETE — implementation, validation, and review reconciliation
 finished on 2026-11-06, when the candidate `6cf17fcf` was reconciled against
-the accepted plan. The reconciliation of `0863c378` and the review round that
-followed it are recorded in the Progress section. The earlier reconciliations of
-`9227d62c`, `4a4d107a`, and `d484dab1` are retained as history; the repair
-rounds that followed them are recorded in the Progress section. Milestones
-M1–M3 were approved on 2026-10-28 and are delivered within the stated
-constraints and tolerances.
+the accepted plan. Later review repairs on `0863c378`, `2ed8ed58`, and
+`69c6ee92` closed on 2026-11-07 and are recorded in the Progress section. The
+earlier reconciliations of `9227d62c`, `4a4d107a`, and `d484dab1` are retained
+as history; the repair rounds that followed them are recorded in the Progress
+section. Milestones M1–M3 were approved on 2026-10-28 and are delivered within
+the stated constraints and tolerances.
 
 Roadmap item: 2.3.1. Prerequisites 2.1.2 (Markdown IR coverage) and 2.2.1
 (`stilyagi check`) are complete. Safe-fix planning, 2.2.2, is also complete.
@@ -932,12 +932,36 @@ with error exit 1. An invalid `TERM001` option exits 2.
   - Documentation: the developer's guide states both validation points — at
     configuration resolution, where every recognized builtin table is
     validated whether or not its rule is selected, and during rule execution,
-    where no option is re-parsed and only structural invariants are enforced.
-    The ExecPlan no longer calls `report_anomalies` pure and no longer
-    presents `6cf17fcf` as the branch tip.
+    where `run_selected` parses each selected rule's table again before its
+    enablement check and the hook receives the parsed record. Structural
+    invariants are enforced at construction, not re-parsed. The ExecPlan no
+    longer calls `report_anomalies` pure and no longer presents `6cf17fcf` as
+    the branch tip.
   - Testing (Overall) row: a new case gives `disable STY`, a repeated word, one
     `enable STY`, and a second repeated word, and asserts that only the later
     finding is reported.
+  - Gate evidence for `713efc52`: the six gates ran sequentially on a clean
+    tree and all passed — `make check-fmt`, `make typecheck`, `make lint`,
+    `make test` (nextest 364/364, doc tests 14, pytest 1110, doctest-modules
+    143 passed with 3 skips, duplication-test 154), `make markdownlint` (77
+    files, 0 issues), and `make nixie`.
+- [x] (2026-11-07) Close the review of `713efc52`: correct the rule-execution
+  and test-inventory descriptions, and correct the Observability disposition.
+  - Documentation: the guide no longer claims that no option is parsed during
+    rule execution. `rules/builtin/pack.run_selected` parses each selected
+    rule's table before its enablement check, and both the guide and this plan
+    now say so. The guide's `tests/test_check_path_failures.py` inventory lists
+    all five cases and distinguishes what each one asserts.
+  - Observability row: recorded as not met for a normal standalone run, because
+    the anomaly record is INFO and the CLI installs an INFO configuration only
+    under `--verbose`. The `report_anomalies` boundary and the deferral of
+    WARNING escalation are unchanged.
+  - Oracle comment: `²` and `½` are numeric characters, not letters, so the
+    comment now says the pattern accepts Unicode letters plus the non-decimal
+    numeric characters.
+  - Gate evidence: these repairs are documentation and comment only. The six
+    gates were run on the resulting tip; the tip's identity and results are
+    recorded in the pull-request description.
 
 ## Surprises & discoveries
 
@@ -1157,18 +1181,20 @@ with error exit 1. An invalid `TERM001` option exits 2.
   ADR numbers form one sequence, and two records sharing 0011 would make every
   later reference ambiguous. Date/author: 2026-11-02, implementation agent.
 - Review disposition: the Observability row asking for projection degradation
-  to be reported in normal standalone runs is satisfied by the existing
-  boundary rather than by a new one. `report_anomalies` emits one aggregated
-  INFO record per document with bounded label values, the caller's own path,
-  and no document content; the counter kind is validated in Rust against
-  `PROJECTION_ANOMALY_KINDS`; and `tests/test_rule_projection_observability.py`
-  covers both the standalone command path and the read-only view path. Two
-  parts of the row are not taken: escalating recoveries to WARNING would change
-  CLI output and exit semantics for a condition that is not a finding, and a
-  new label for a missing IR container needs the Rust array to grow with it,
-  which belongs with extractor work that can produce one. Rationale: a rule
-  pack must not silently widen the diagnostics contract or the cross-language
-  metric vocabulary. Date/author: 2026-11-06, implementation agent.
+  to be reported in normal standalone runs is not met. `report_anomalies` emits
+  one aggregated INFO record per document, and the CLI installs an INFO-level
+  configuration only under `--verbose`, so a normal run does not show it. The
+  existing boundary is kept rather than replaced: the record carries bounded
+  label values, the caller's own path, and no document content; the counter
+  kind is validated in Rust against `PROJECTION_ANOMALY_KINDS`; and
+  `tests/test_rule_projection_observability.py` covers both the standalone
+  command path and the read-only view path. Two parts of the row are not taken:
+  escalating recoveries to WARNING would change CLI output and exit semantics
+  for a condition that is not a finding, and a new label for a missing IR
+  container needs the Rust array to grow with it, which belongs with extractor
+  work that can produce one. Rationale: a rule pack must not silently widen the
+  diagnostics contract or the cross-language metric vocabulary. Date/author:
+  2026-11-06, implementation agent; corrected 2026-11-07 after the level check.
 - Review disposition: the Unit Architecture row asking to separate rule
   evaluation from anomaly reporting is answered by keeping `run_rules` as the
   single reporting boundary rather than by injecting a third dependency.
@@ -2170,3 +2196,17 @@ these deliberate boundaries and case-fold expansion.
   six-gate local run for `6cf17fcf` is recorded with its sub-stage results,
   including pytest at 1107 passed. The Decision log records the Observability
   disposition.
+- 2026-11-07: Reconciled the delivery record with the repaired head `2ed8ed58`,
+  which closes the `0863c378` round. The Progress section records the policy
+  fixture, the one-shot file-only iterator case, and the removal of the stale
+  symlink-loop claim; the `6cf17fcf` and earlier records are retained as
+  history.
+- 2026-11-07: Reconciled the delivery record with the repaired head `713efc52`,
+  which closes the `69c6ee92` round. The Progress section records the named
+  `PathResolutionError`, the fixture request parity, the ExecPlan wording, and
+  the suppression case, together with the six-gate run for `713efc52` and its
+  sub-stage results, including pytest at 1110 passed.
+- 2026-11-07: Corrected the rule-execution and test-inventory descriptions and
+  the Observability disposition raised against `713efc52`. The Progress section
+  records the documentation-only repairs; the head that carries them and its
+  six-gate results are named in the pull-request description.

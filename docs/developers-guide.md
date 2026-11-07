@@ -507,15 +507,16 @@ decides what the user sees.
   the target path otherwise. Tables belonging to other rule families are
   preserved untouched for future slices; the module never rejects configuration
   it does not yet understand.
-- **During rule execution.** No option is parsed again. The runner passes each
-  rule its already-parsed frozen record as `RuleContext.config`, so a rule hook
-  reads typed values and cannot re-raise a configuration error mid-run. What
-  execution validates is structural rather than textual: `SourceSpan` rejects
-  negative or inverted ranges at construction, so a misplaced span cannot
-  become a finding, and the projection keeps an advertised segment span only
-  when the source slice decodes to exactly the segment text. A defect in those
-  invariants is a programming error, not user configuration, and surfaces as
-  one.
+- **During rule execution.** `rules/builtin/pack.run_selected` parses each
+  selected rule's builtin table again, before it checks whether that rule is
+  enabled, so a disabled rule's malformed table still raises. The runner then
+  passes the parsed frozen record to the hook as `RuleContext.config`, so the
+  hook reads typed values rather than re-reading options itself. What execution
+  validates beyond parsing is structural: `SourceSpan` rejects negative or
+  inverted ranges at construction, so a misplaced span cannot become a finding,
+  and the projection keeps an advertised segment span only when the source
+  slice decodes to exactly the segment text. A defect in those invariants is a
+  programming error, not user configuration, and surfaces as one.
 
 Path expansion inside resolution follows the same rule. `Path.expanduser` raises
 `RuntimeError` when it cannot determine the home directory, so every expansion
@@ -664,11 +665,15 @@ different boundaries:
   to an already-resolved anchor. It lives in `python/stilyagi/config/paths.py`,
   reads nothing, and is therefore testable without a filesystem.
 
-`tests/test_check_path_failures.py` exercises both boundaries: one case fails
-`Path.cwd()`, one fails `Path.expanduser()`, one injects an unexpected
-`RuntimeError` and requires it to propagate, and one checks that a later file
-is still checked after an earlier failure. Each asserts the per-file
-operational-failure record and whether any rule ran.
+`tests/test_check_path_failures.py` exercises both boundaries with five cases.
+Three drive one file through `check_one_file` and assert the per-file
+operational-failure record and whether any rule ran: a missing working
+directory raises `FileNotFoundError`, an unresolved home directory raises
+`PathResolutionError`, and an injected unexpected `RuntimeError` must propagate
+without being recorded. A fourth checks that a later file is still checked
+after an earlier failure, asserting the reported failures and the surviving
+diagnostic. The fifth runs the same scenario through `cli.main`, asserting the
+exit code and the rendered output.
 
 The run-level sweep deliberately does not live here.
 `cli_run.collect_checked_files` drives `check_one_file` once per input and

@@ -24,8 +24,9 @@ __all__ = [
 ]
 
 #: Tokens matched by the independent ``re`` oracle. The pattern accepts every
-#: Unicode letter, including characters such as ``²``, ``½`` and ``Ⅷ`` that
-#: ``str.isalpha`` rejects, so the two matchers deliberately do not agree.
+#: Unicode letter plus the non-decimal numeric characters, so it also matches
+#: ``²``, ``½`` and ``Ⅷ``, which ``str.isalpha`` rejects; the two matchers
+#: therefore deliberately disagree.
 TOKEN_PATTERN = re.compile(r"[^\W\d_]+")
 
 
