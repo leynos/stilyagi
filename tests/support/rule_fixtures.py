@@ -50,6 +50,14 @@ class LintSetup:
     reported_path: str = "doc.md"
     config_relative_path: str | None = None
 
+    def _config_relative_path(self) -> str:
+        """Return the path per-file globs are matched against."""
+        return (
+            self.config_relative_path
+            if self.config_relative_path is not None
+            else self.reported_path
+        )
+
     def build_config(self) -> config.StilyagiConfig:
         """Return the resolved configuration this setup describes."""
         return config.StilyagiConfig(
@@ -85,11 +93,7 @@ class LintSetup:
             source_bytes=text.encode("utf-8"),
             reported_path=self.reported_path,
             document=document,
-            config_relative_path=(
-                self.config_relative_path
-                if self.config_relative_path is not None
-                else self.reported_path
-            ),
+            config_relative_path=self._config_relative_path(),
         )
 
     def run(self, source: str | bytes) -> list[diagnostics.Diagnostic]:
@@ -154,7 +158,7 @@ class LintSetup:
             source_bytes=source_bytes,
             reported_path=self.reported_path,
             document=document,
-            config_relative_path=self.reported_path,
+            config_relative_path=self._config_relative_path(),
         )
         return run_rules(request)
 

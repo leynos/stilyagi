@@ -318,12 +318,14 @@ def check_one_file(check_input: CheckInput, run: CheckRun) -> FileCheckResult:
     except (
         config.InvalidCacheDirError,
         config.InvalidConfigError,
+        config.PathResolutionError,
         OSError,
-        RuntimeError,
     ) as exc:
         # A path that cannot be resolved is this file's operational failure,
         # not a reason to abandon the run: the remaining files are still
-        # checkable, and the user is told which one was not.
+        # checkable, and the user is told which one was not. Only the named
+        # path failure is absorbed; any other ``RuntimeError`` is a defect and
+        # must propagate rather than be reported as an ordinary file failure.
         return _report_phase_failure(sourced_input, run, exc, "config")
 
     config_outcome = _ConfigOutcome(resolved_target, relative_path)

@@ -495,14 +495,36 @@ per-file pipeline keeps `resolve_discovery_config` for the run-level sweep,
 which discards the file and returns the configuration alone because discovery
 is not attributed to a file.
 
-Builtin rule tables are validated at this boundary, not when a rule runs.
-`config/rules.py` owns the parsers for `[tool.stilyagi.rule.<CODE>]` tables and
-`validate_builtin_tables` walks every recognized builtin table, selected or
-not. A malformed option is therefore reported whether or not its rule is
-enabled, and `InvalidConfigError` names the governing config file when there is
-one and the target path otherwise. Tables belonging to other rule families are
-preserved untouched for future slices; the module never rejects configuration
-it does not yet understand.
+Configuration is validated at two distinct points, and which one owns a defect
+decides what the user sees.
+
+- **At configuration resolution.** Builtin rule tables are validated here, not
+  when a rule runs. `config/rules.py` owns the parsers for
+  `[tool.stilyagi.rule.<CODE>]` tables and `validate_builtin_tables` walks
+  every recognized builtin table, selected or not. A malformed option is
+  therefore reported whether or not its rule is enabled, and
+  `InvalidConfigError` names the governing config file when there is one and
+  the target path otherwise. Tables belonging to other rule families are
+  preserved untouched for future slices; the module never rejects configuration
+  it does not yet understand.
+- **During rule execution.** No option is parsed again. The runner passes each
+  rule its already-parsed frozen record as `RuleContext.config`, so a rule hook
+  reads typed values and cannot re-raise a configuration error mid-run. What
+  execution validates is structural rather than textual: `SourceSpan` rejects
+  negative or inverted ranges at construction, so a misplaced span cannot
+  become a finding, and the projection keeps an advertised segment span only
+  when the source slice decodes to exactly the segment text. A defect in those
+  invariants is a programming error, not user configuration, and surfaces as
+  one.
+
+Path expansion inside resolution follows the same rule. `Path.expanduser` raises
+`RuntimeError` when it cannot determine the home directory, so every expansion
+site goes through `config.path_resolution.expand_user`/`expand_and_resolve`,
+which convert that one failure into `PathResolutionError`. `check_execution`
+absorbs exactly that type, alongside `OSError` and the configuration errors,
+and lets every other `RuntimeError` propagate: a deleted working directory or
+unreadable parent is this file's operational failure, while an unexpected
+runtime error is a defect that must not be reported as an ordinary file failure.
 
 ### Discovery
 
@@ -632,17 +654,21 @@ different boundaries:
 
 - **Resolution** reads the filesystem. The anchor is the governing config
   file's parent, or the invocation working directory when no config file
-  governs the target. A deleted working directory, an unreadable parent, or an
-  unresolved home directory can make it fail. Resolution runs inside the
-  recorded `config` phase, so a failure is reported against the file being
-  checked and the rest of the run continues.
+  governs the target. A deleted working directory or an unreadable parent raises
+  `OSError`; an unresolved home directory raises `PathResolutionError`, the
+  named failure `config.path_resolution` raises in place of pathlib's bare
+  `RuntimeError`. Resolution runs inside the recorded `config` phase, so a
+  failure is reported against the file being checked and the rest of the run
+  continues.
 - **Spelling** decides only how an already-resolved target is written relative
   to an already-resolved anchor. It lives in `python/stilyagi/config/paths.py`,
   reads nothing, and is therefore testable without a filesystem.
 
 `tests/test_check_path_failures.py` exercises both boundaries: one case fails
-`Path.cwd()` and another fails `Path.expanduser()`, and each asserts that the
-failure is reported as a per-file operational failure with no rule run.
+`Path.cwd()`, one fails `Path.expanduser()`, one injects an unexpected
+`RuntimeError` and requires it to propagate, and one checks that a later file
+is still checked after an earlier failure. Each asserts the per-file
+operational-failure record and whether any rule ran.
 
 The run-level sweep deliberately does not live here.
 `cli_run.collect_checked_files` drives `check_one_file` once per input and

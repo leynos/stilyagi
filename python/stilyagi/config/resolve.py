@@ -8,6 +8,7 @@ import typing as typ
 
 from .load import load_config_table
 from .parse import parse_config_table
+from .path_resolution import expand_and_resolve
 from .schema import InvalidConfigError, StilyagiConfig
 from .tables import (
     load_inline_config,
@@ -232,7 +233,7 @@ class ConfigResolver:
         stack: tuple[pathlib.Path, ...] = (),
     ) -> dict[str, object]:
         """Resolve a config file and its explicit `extend` chain."""
-        resolved_path = path.expanduser().resolve()
+        resolved_path = expand_and_resolve(path)
         if resolved_path in stack:
             cycle = " -> ".join(str(item) for item in (*stack, resolved_path))
             raise InvalidConfigError(path, "extend", f"cycle detected: {cycle}")
@@ -289,7 +290,7 @@ class ConfigResolver:
 
         # Reuse the read performed during discovery so resolving this config
         # does not re-read the same file on the hot path.
-        resolved_path = discovered.path.expanduser().resolve()
+        resolved_path = expand_and_resolve(discovered.path)
         self._raw_table_cache.setdefault(resolved_path, discovered.raw_table)
         self._discovery_cache[directory] = discovered.path
         _LOGGER.debug("discovered nearest config %s", discovered.path)

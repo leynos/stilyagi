@@ -125,6 +125,19 @@ class TestSuppressionDirectives:
             "expected an unmatched enable to change nothing"
         )
 
+    def test_one_enable_reopens_the_range_for_the_finding_that_follows(self) -> None:
+        """A single ``enable`` drops the earlier finding and keeps the later."""
+        source = (
+            "<!-- stilyagi: disable STY -->\n"
+            "the the.\n"
+            "<!-- stilyagi: enable STY -->\n"
+            "the the.\n"
+        )
+
+        assert spans_of(LintSetup().run(source)) == ((74, 77),), (
+            "expected the earlier finding suppressed and the later one reported"
+        )
+
     def test_an_unclosed_disable_lasts_to_end_of_file(self) -> None:
         """No ``enable`` means suppression runs to EOF."""
         source = "<!-- stilyagi: disable STY -->\nthe the.\n\nthe the.\n"

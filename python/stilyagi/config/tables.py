@@ -14,6 +14,7 @@ import tomllib
 import typing as typ
 
 from .load import discover_same_directory_config
+from .path_resolution import expand_user
 from .schema import InvalidConfigError
 from .validate import ensure_extend_value
 
@@ -185,7 +186,7 @@ def resolve_config_reference(
     ...     resolved == base / "shared.toml"
     True
     """
-    candidate = pathlib.Path(reference).expanduser()
+    candidate = expand_user(pathlib.Path(reference))
     if not candidate.is_absolute():
         candidate = base_directory / candidate
     if candidate.is_file():
@@ -217,8 +218,8 @@ def target_directory(target: pathlib.Path) -> pathlib.Path:
     True
     """
     if target.is_dir():
-        return target.expanduser().resolve()
-    return target.expanduser().parent.resolve()
+        return expand_user(target).resolve()
+    return expand_user(target).parent.resolve()
 
 
 def search_ancestors_for_config(directory: pathlib.Path) -> LoadedConfig | None:
@@ -264,7 +265,7 @@ def _classify_explicit_config(
     if isinstance(value, pathlib.Path):
         return "path", value
 
-    candidate = pathlib.Path(value).expanduser()
+    candidate = expand_user(pathlib.Path(value))
     if "=" in value and not candidate.exists():
         return "inline", value
     if candidate.exists():

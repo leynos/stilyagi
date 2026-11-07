@@ -912,6 +912,33 @@ with error exit 1. An invalid `TERM001` option exits 2.
     cases `tests/test_check_path_failures.py` drives, `Path.cwd()` and
     `Path.expanduser()`.
 
+- [x] (2026-11-07) Close the review of `2ed8ed58`: name the home-directory
+  failure, align the two fixture request builders, and state both validation
+  points in the guide.
+  - Error boundary: `check_execution` no longer absorbs a bare `RuntimeError`
+    as a per-file operational failure. Every path expansion in the config
+    phase goes through `config.path_resolution`, which converts pathlib's
+    home-directory `RuntimeError` into `PathResolutionError`; the executor
+    catches exactly that type and lets any other runtime error propagate. A
+    new case in `tests/test_check_path_failures.py` injects an unexpected
+    runtime error and requires it to escape rather than be reported.
+  - Fixture parity: `LintSetup.run_document` ignored the
+    `config_relative_path` override that `request_for` applies. Both now share
+    one private helper, so a handwritten document and an extracted one match
+    per-file globs against the same path.
+  - Oracle comment: the word-run oracle's token pattern was described as the
+    place where it agrees with `str.isalpha`. It deliberately does not: the
+    pattern also matches `²`, `½`, and `Ⅷ`. The comment now says so.
+  - Documentation: the developer's guide states both validation points — at
+    configuration resolution, where every recognized builtin table is
+    validated whether or not its rule is selected, and during rule execution,
+    where no option is re-parsed and only structural invariants are enforced.
+    The ExecPlan no longer calls `report_anomalies` pure and no longer
+    presents `6cf17fcf` as the branch tip.
+  - Testing (Overall) row: a new case gives `disable STY`, a repeated word, one
+    `enable STY`, and a second repeated word, and asserts that only the later
+    finding is reported.
+
 ## Surprises & discoveries
 
 - Observation: the rule runner is an intentionally empty seam, and the model
@@ -1145,14 +1172,25 @@ with error exit 1. An invalid `TERM001` option exits 2.
 - Review disposition: the Unit Architecture row asking to separate rule
   evaluation from anomaly reporting is answered by keeping `run_rules` as the
   single reporting boundary rather than by injecting a third dependency.
-  `report_anomalies` is already a pure function of the projection's immutable
-  `anomaly_counts` snapshot, so the coupling is one call from the only layer
-  that holds both the snapshot and the document's reported path, and the ADR
-  0012 amendment records that duty. Rationale: an injected reporter would add a
+  `report_anomalies` takes only the projection's immutable `anomaly_counts`
+  snapshot, and it is the reporting boundary that records and logs: it updates
+  the projection anomaly metric and emits one INFO record per document with
+  recovered anomalies. The coupling is one call from the only layer that holds
+  both the snapshot and the document's reported path, and the ADR 0012
+  amendment records that duty. Rationale: an injected reporter would add a
   parameter to the seam every caller must satisfy to preserve a separation the
   read-only projection already provides. The row's test requirement is met by
   `tests/test_rule_projection_observability.py`. Date/author: 2026-11-07,
   implementation agent.
+- Review repair: the config phase absorbs named path failures rather than every
+  `RuntimeError`. `Path.expanduser` raises `RuntimeError` when the home
+  directory cannot be determined, and that environmental failure belongs to the
+  file being checked, but catching the bare type also swallowed defects.
+  `config.path_resolution` now raises `PathResolutionError` from every
+  expansion site, and `check_execution` catches exactly that alongside
+  `OSError` and the configuration errors. Rationale: the two failures need
+  different treatments, and only the environment's failure is a per-file
+  outcome. Date/author: 2026-11-07, implementation agent.
 
 ## Outcomes & retrospective
 
@@ -1331,7 +1369,7 @@ duplication gate with 9 reasoned exceptions), `make markdownlint`, `make nixie`,
 snapshots), and `make duplication-test` (154 passed).
 
 The review round after `9227d62c` produced three code findings and one coverage
-row, and the branch now rests at `6cf17fcf`. `b393c87e` removed the command's
+row, and that round ended at `6cf17fcf`. `b393c87e` removed the command's
 private copy of the per-file loop so the helper's regression test covers the
 command boundary. `e206db94` folded configuration provenance into a single
 `resolve_with_provenance` call, so asking for the effective config and the file

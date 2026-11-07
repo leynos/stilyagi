@@ -11,10 +11,16 @@ per-file check rather than inside rule execution, lets the check executor
 report it against that file and carry on with the rest of the run. The
 spelling decision itself stays in :mod:`stilyagi.config.paths`, which reads
 nothing.
+
+An unresolvable home directory arrives as
+:class:`stilyagi.config.path_resolution.PathResolutionError` rather than the
+bare ``RuntimeError`` pathlib raises, so the executor can absorb that known
+failure without also absorbing a programming error.
 """
 
 import pathlib
 
+from stilyagi.config.path_resolution import expand_and_resolve
 from stilyagi.config.paths import config_relative_path
 
 __all__ = ["config_relative_path_for"]
@@ -26,9 +32,9 @@ def config_relative_path_for(
 ) -> str:
     """Resolve the glob anchor and target, then spell the target purely.
 
-    Resolving reads the filesystem, so this call can propagate the resolution's
-    own failure. It raises nothing of its own: the caller owns the decision
-    that such a failure is reported against the file being checked.
+    Resolving reads the filesystem, so this call propagates the resolution's
+    own failure. The caller owns the decision that such a failure is reported
+    against the file being checked.
 
     Parameters
     ----------
@@ -43,6 +49,13 @@ def config_relative_path_for(
     str
         The target path as POSIX text, relative to the glob anchor.
 
+    Notes
+    -----
+    An unresolvable home directory surfaces as
+    :class:`stilyagi.config.path_resolution.PathResolutionError`, and a
+    missing working directory, unreadable parent, or unresolvable target
+    surfaces as ``OSError``. Both are the caller's to report.
+
     Examples
     --------
     >>> from pathlib import Path
@@ -52,8 +65,8 @@ def config_relative_path_for(
     'docs/a.md'
     """
     anchor = (
-        config_file.expanduser().resolve().parent
+        expand_and_resolve(config_file).parent
         if config_file is not None
         else pathlib.Path.cwd()
     )
-    return config_relative_path(target.expanduser().resolve(), anchor)
+    return config_relative_path(expand_and_resolve(target), anchor)

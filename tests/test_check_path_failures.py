@@ -10,6 +10,7 @@ abandon the files that follow it.
 import pathlib
 import typing as typ
 
+import pytest
 from stilyagi import (
     check_execution,
     check_metrics,
@@ -27,7 +28,6 @@ from tests.support.check_pipeline_fixtures import (
 )
 
 if typ.TYPE_CHECKING:
-    import pytest
     from stilyagi.rules.registry import RuleRunRequest
 
 _OPERATIONAL_FAILURES = "stilyagi_check_operational_failures_total"
@@ -41,7 +41,7 @@ class _MissingWorkingDirectoryError(FileNotFoundError):
         super().__init__("working directory disappeared")
 
 
-class _UnresolvedHomeDirectoryError(RuntimeError):
+class _UnresolvedHomeDirectoryError(config.PathResolutionError):
     """A home directory that ``Path.expanduser`` cannot determine."""
 
     def __init__(self) -> None:
@@ -127,6 +127,8 @@ def test_an_unresolved_home_directory_is_reported_in_the_config_phase(
 
     ``Path.expanduser`` raises ``RuntimeError`` when it cannot determine the
     home directory, which is the genuine failure the config phase must absorb.
+    The expansion site converts it to ``PathResolutionError``, so the executor
+    can absorb that named failure without also absorbing a programming error.
     The config file expands first, so the replacement fails only for the
     target. That keeps the test honest: it would fail if target expansion were
     removed, because the config file alone would then succeed.
@@ -157,8 +159,8 @@ def test_an_unresolved_home_directory_is_reported_in_the_config_phase(
     assert failures[0][0] == pathlib.Path("notes.md"), (
         "expected the failure to name the file being checked"
     )
-    assert isinstance(failures[0][1], RuntimeError), (
-        "expected the expansion failure to reach the reporter"
+    assert isinstance(failures[0][1], config.PathResolutionError), (
+        "expected the expansion failure to arrive as the named path error"
     )
     assert _operational_failures()["config"] == 1, (
         "expected the failure to be counted against the config phase"
@@ -167,6 +169,48 @@ def test_an_unresolved_home_directory_is_reported_in_the_config_phase(
         "expected no rules-phase failure to be recorded"
     )
     assert not rule_runs, "expected no rule to run after a config failure"
+
+
+def test_an_unexpected_runtime_error_is_not_absorbed_as_a_file_failure(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A programming error must propagate, not be reported as a file failure.
+
+    Only the named path failure is an environmental condition the config phase
+    absorbs. A bare ``RuntimeError`` from anywhere else is a defect, and
+    reporting it as an ordinary per-file failure would hide it behind a
+    plausible message and a non-zero exit code.
+    """
+
+    class _UnexpectedRuntimeError(RuntimeError):
+        """A defect that happens to be a runtime error."""
+
+        def __init__(self) -> None:
+            """Build the defect with its message inside the class."""
+            super().__init__("a defect, not an environment")
+
+    target = tmp_path / "notes.md"
+    target.write_text("# Notes\n", encoding="utf-8")
+    _stub_config_resolution(monkeypatch, config_file=None)
+
+    def broken_anchor(_target: pathlib.Path, _config_file: pathlib.Path | None) -> str:
+        """Fail with a defect rather than an environmental condition."""
+        raise _UnexpectedRuntimeError
+
+    check_metrics.reset_check_metrics()
+    failures, report = recording_reporter()
+    monkeypatch.setattr(check_execution, "config_relative_path_for", broken_anchor)
+
+    with pytest.raises(_UnexpectedRuntimeError):
+        check_execution.check_one_file(
+            input_for(target),
+            run_for(forbidden_runner([]), report),
+        )
+
+    assert not failures, "expected the defect not to be reported as a file failure"
+    assert _operational_failures()["config"] == 0, (
+        "expected the defect not to be counted against the config phase"
+    )
 
 
 def test_a_later_file_is_still_checked_after_an_earlier_resolution_failure(

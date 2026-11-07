@@ -23,7 +23,9 @@ __all__ = [
     "span_for",
 ]
 
-#: Characters where ``str.isalpha`` and the independent ``re`` oracle agree.
+#: Tokens matched by the independent ``re`` oracle. The pattern accepts every
+#: Unicode letter, including characters such as ``²``, ``½`` and ``Ⅷ`` that
+#: ``str.isalpha`` rejects, so the two matchers deliberately do not agree.
 TOKEN_PATTERN = re.compile(r"[^\W\d_]+")
 
 
