@@ -951,7 +951,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
 - [x] (2026-11-07) Close the review of `713efc52`: correct the rule-execution
   and test-inventory descriptions, and correct the Observability disposition.
   - Documentation: the guide no longer claims that no option is parsed during
-    rule execution. `rules/builtin/pack.run_selected` parses each selected
+    rule execution. `rules/builtin/pack.run_selected` parses each registered
     rule's table before its enablement check, and both the guide and this plan
     now say so. The guide's `tests/test_check_path_failures.py` inventory lists
     all five cases and distinguishes what each one asserts.
@@ -1029,6 +1029,26 @@ with error exit 1. An invalid `TERM001` option exits 2.
     renders a different tally, so it could not cover that line. The shared
     Markdown loader remains the recorded outstanding item, so the literal is
     repeated in the test until it exists.
+- [x] (2026-11-07) Close the review of `1e3ee23a`: correct three prose
+  descriptions and apply complete edits in the preservation property.
+  - User's guide: the `path` field description drops the second-person
+    pronouns the documentation rules forbid, and `invalid_node_span` now names
+    every case the label covers — a span that is missing, non-integer,
+    negative, inverted, past the end of the source, or not on a UTF-8
+    boundary — rather than only a span that "falls outside the source".
+  - Module docstrings: `engine/rule_projection.py` separates the three segment
+    outcomes (synthetic with no source, dropped under `invalid_segment_span`
+    when the advertised source is unreadable, demoted under `source_mismatch`
+    when the slice does not match). Both builtin module docstrings say
+    *selected* rules run, and name the skip for unregistered or disabled ones.
+  - Preservation property: `test_applying_the_edits_preserves_every_other_byte`
+    applied only deletions, because `_splice` ignored each edit's
+    `replacement`. `_apply_edits` now writes the replacement text, so a rule
+    that ever emits a non-empty replacement is covered.
+  - Oracle docstrings: the seven helpers exported by
+    `tests/support/word_run_oracle.py` carry Parameters and Returns sections.
+  - ExecPlan: the `713efc52` entry now says "registered" where it said
+    "selected", matching the code it describes.
 
 ## Surprises & discoveries
 

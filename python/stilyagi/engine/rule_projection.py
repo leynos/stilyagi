@@ -6,11 +6,14 @@ prose units an ``ignore-next`` directive may consume. Projecting once and
 sharing the result keeps a document's cost independent of how many rules are
 selected.
 
-A segment's advertised source span is trusted only when the source slice
-decodes to exactly the segment text. A stale or malformed span is demoted to a
-synthetic segment, so a byte-exact finding can never point at other bytes.
+A segment that advertises no source is synthetic. An advertised source that
+cannot be read as a span is dropped and counted under
+``invalid_segment_span``. When the caller supplies source bytes, an advertised
+span is trusted only if it is bounded, UTF-8 aligned, and addresses exactly the
+segment text; otherwise the segment is demoted to synthetic under
+``source_mismatch``, so a byte-exact finding can never point at other bytes.
 
-Recovering from malformed IR is not silent. Every dropped node, region, or
+Recovering from malformed IR is not silent. Every recovered node, region, or
 segment is counted under one of six fixed labels and returned in the
 projection's immutable snapshot, so a projection that suppresses a finding can
 be told apart from a document that genuinely had none. Projecting is itself

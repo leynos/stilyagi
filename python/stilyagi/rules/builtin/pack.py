@@ -4,10 +4,11 @@ The starter pack declares three deterministic rules. ``MD`` structural rules
 come first, then ``STY`` style rules, then opt-in ``TERM`` rules, which is the
 documented code-prefix scheme.
 
-Each rule runs once per document against only the regions its
-:class:`~stilyagi.rules.base.RegionTarget` claims. Rules run in inventory order
-so diagnostics are deterministic, and a rule still evaluates its full state
-when its findings are later suppressed.
+Each selected rule runs once per document against only the regions its
+:class:`~stilyagi.rules.base.RegionTarget` claims; a rule whose code is not
+registered, or whose config disables it, is skipped before it evaluates. Rules
+run in inventory order so diagnostics are deterministic, and a rule still
+evaluates its full state when its findings are later suppressed.
 """
 
 import dataclasses as dc

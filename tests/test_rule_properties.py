@@ -93,21 +93,20 @@ def test_reported_spans_and_edits_match_the_oracle(text: str) -> None:
 @settings(max_examples=120, deadline=None)
 @given(text=_prose())
 def test_applying_the_edits_preserves_every_other_byte(text: str) -> None:
-    """Splicing the rule's own edits collapses only the repeated runs."""
+    """Applying the rule's own edits collapses only the repeated runs."""
     source = text.encode("utf-8")
     result = LintSetup().run(source)
-    spans = _production_edit_spans(result)
-    edits = sorted(spans, key=lambda span: span.byte_start)
+    edits = sorted(_production_edits(result), key=lambda edit: edit.byte_start)
 
     for earlier, later in itertools.pairwise(edits):
         assert earlier.byte_end <= later.byte_start, "edits must be disjoint"
 
-    assert _splice(source, edits) == collapse_runs(text).encode("utf-8"), (
-        "expected splicing the rule's edits to collapse only repeated runs"
+    assert _apply_edits(source, edits) == collapse_runs(text).encode("utf-8"), (
+        "expected applying the rule's edits to collapse only repeated runs"
     )
-    for span in edits:
-        source[: span.byte_start].decode("utf-8")
-        source[: span.byte_end].decode("utf-8")
+    for edit in edits:
+        source[: edit.byte_start].decode("utf-8")
+        source[: edit.byte_end].decode("utf-8")
 
 
 _MULTIBYTE_SOURCES = (
@@ -145,26 +144,27 @@ def test_a_boundary_shifted_into_a_continuation_byte_is_rejected(text: str) -> N
     assert mutations, "expected at least one shift into a continuation byte"
 
 
-def _production_edit_spans(
+def _production_edits(
     result: cabc.Sequence[diagnostics.Diagnostic],
-) -> list[SourceSpan]:
-    """Return each finding's edit as a source span, in diagnostic order."""
-    spans: list[SourceSpan] = []
+) -> list[TextEdit]:
+    """Return each finding's edits, replacements included, in diagnostic order."""
+    edits: list[TextEdit] = []
     for diagnostic in result:
         assert diagnostic.fix is not None, "expected each finding to carry a fix"
-        spans.extend(
-            SourceSpan(edit.byte_start, edit.byte_end) for edit in diagnostic.fix.edits
-        )
-    return spans
+        edits.extend(diagnostic.fix.edits)
+    return edits
 
 
-def _splice(source: bytes, spans: cabc.Iterable[SourceSpan]) -> bytes:
-    """Return ``source`` with every span's bytes removed."""
+def _apply_edits(source: bytes, edits: cabc.Iterable[TextEdit]) -> bytes:
+    """Return ``source`` with every edit's replacement applied in order."""
     pieces: list[bytes] = []
     cursor = 0
-    for span in spans:
-        pieces.append(source[cursor : span.byte_start])
-        cursor = span.byte_end
+    for edit in edits:
+        pieces.extend((
+            source[cursor : edit.byte_start],
+            edit.replacement.encode("utf-8"),
+        ))
+        cursor = edit.byte_end
     pieces.append(source[cursor:])
     return b"".join(pieces)
 
