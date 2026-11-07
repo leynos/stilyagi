@@ -26,6 +26,9 @@ from tests.support.cargo_metadata import MetadataRunner, member_manifests
 from tests.support.errors import ReadingError
 from tests.support.reader_cases import assert_names_reader_and_path, write_text
 
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
 
 def _completed(
     stdout: str, *, returncode: int = 0, stderr: str = ""
@@ -44,6 +47,35 @@ def _returns(result: subprocess.CompletedProcess[str]) -> MetadataRunner:
     return lambda _path: result
 
 
+def _manifest(tmp_path: pathlib.Path) -> pathlib.Path:
+    """Write an empty workspace manifest and return its path."""
+    return write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+
+
+def _assert_rejected(
+    manifest: pathlib.Path, runner: MetadataRunner, message: str | None = None
+) -> None:
+    """Assert discovery rejects `manifest`, naming the reader and the path."""
+    with pytest.raises(ReadingError, match=message) as raised:
+        member_manifests(manifest, run_metadata=runner)
+    assert_names_reader_and_path(raised, manifest)
+
+
+def _timeout(*_args: object, **_kwargs: object) -> None:
+    """Stand in for a Cargo that outlives its timeout."""
+    raise subprocess.TimeoutExpired(["cargo", "metadata"], 1.0)
+
+
+def _refuse(*_args: object, **_kwargs: object) -> None:
+    """Stand in for a Cargo the platform refuses to execute."""
+    raise OSError
+
+
+def _undecodable(_path: pathlib.Path) -> subprocess.CompletedProcess[str]:
+    """Stand in for Cargo output that is not valid UTF-8."""
+    raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+
 @pytest.mark.parametrize(
     "document",
     [
@@ -56,14 +88,12 @@ def test_member_list_failures_are_reading_errors(
 ) -> None:
     """An unusable member list is a finding rather than a skipped pattern."""
     path = write_text(tmp_path / "Cargo.toml", document)
-    with pytest.raises(ReadingError) as raised:
-        member_manifests(path)
-    assert_names_reader_and_path(raised, path)
+    _assert_rejected(path, _returns(_completed("{}")))
 
 
 def test_member_discovery_reads_the_runner_document(tmp_path: pathlib.Path) -> None:
     """Members come from the metadata document, not from the patterns."""
-    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+    manifest = _manifest(tmp_path)
     member = tmp_path / "crates" / "probe" / "Cargo.toml"
     outsider = tmp_path / "vendor" / "other" / "Cargo.toml"
     document = json.dumps({
@@ -85,33 +115,48 @@ def test_member_discovery_reads_the_runner_document(tmp_path: pathlib.Path) -> N
     )
 
 
-def test_member_discovery_reports_a_failed_runner(tmp_path: pathlib.Path) -> None:
-    """A runner that exits non-zero is a finding naming the reader and path."""
-    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
-    failed = _completed("", returncode=101, stderr="error: no network")
-    with pytest.raises(ReadingError) as raised:
-        member_manifests(manifest, run_metadata=_returns(failed))
-    assert_names_reader_and_path(raised, manifest)
-    assert "no network" in str(raised.value), (
-        f"expected the runner's stderr in {raised.value}"
-    )
-
-
-def test_member_discovery_reports_an_invalid_document(tmp_path: pathlib.Path) -> None:
-    """A runner that returns non-JSON is a finding, not a traceback."""
-    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
-    with pytest.raises(ReadingError) as raised:
-        member_manifests(manifest, run_metadata=_returns(_completed("not json")))
-    assert_names_reader_and_path(raised, manifest)
-
-
-def test_member_discovery_rejects_a_non_object_document(
-    tmp_path: pathlib.Path,
+@pytest.mark.parametrize(
+    ("runner", "message"),
+    [
+        pytest.param(
+            _returns(_completed("", returncode=101, stderr="error: no network")),
+            "no network",
+            id="non-zero-exit",
+        ),
+        pytest.param(
+            _returns(_completed("not json")), "invalid JSON", id="invalid-json"
+        ),
+        pytest.param(
+            _returns(_completed("[]")), "non-object", id="non-object-document"
+        ),
+        pytest.param(_undecodable, "could not be decoded", id="undecodable"),
+    ],
+)
+def test_member_discovery_reports_a_runner_failure(
+    tmp_path: pathlib.Path, runner: MetadataRunner, message: str
 ) -> None:
-    """A document that is not a JSON object is a finding, not a lookup error."""
-    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
-    with pytest.raises(ReadingError, match="non-object") as raised:
-        member_manifests(manifest, run_metadata=_returns(_completed("[]")))
+    """Any document a runner reports badly is a reading finding."""
+    _assert_rejected(_manifest(tmp_path), runner, message)
+
+
+@pytest.mark.parametrize(
+    ("run", "message"),
+    [
+        pytest.param(_timeout, "did not finish", id="timeout"),
+        pytest.param(_refuse, "could not start", id="start-failure"),
+    ],
+)
+def test_member_discovery_converts_a_process_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    run: cabc.Callable[..., None],
+    message: str,
+) -> None:
+    """A Cargo that never starts or never returns is a reading finding."""
+    monkeypatch.setattr(cargo_metadata.subprocess, "run", run)
+    manifest = _manifest(tmp_path)
+    with pytest.raises(ReadingError, match=message) as raised:
+        member_manifests(manifest)
     assert_names_reader_and_path(raised, manifest)
 
 
@@ -119,59 +164,11 @@ def test_member_discovery_names_a_missing_cargo(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """No Cargo on `PATH` is a finding from the default runner, not a crash."""
-    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+    manifest = _manifest(tmp_path)
     monkeypatch.setattr(cargo_metadata.shutil, "which", lambda _name: None)
     with pytest.raises(ReadingError, match="cargo is required") as raised:
         member_manifests(manifest)
     assert_names_reader_and_path(raised, manifest)
-
-
-def test_member_discovery_reports_a_metadata_timeout(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A Cargo that never returns is a finding naming the timeout."""
-    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
-
-    def timeout(*_args: object, **_kwargs: object) -> None:
-        """Stand in for a Cargo that outlives its timeout."""
-        raise subprocess.TimeoutExpired(["cargo", "metadata"], 1.0)
-
-    monkeypatch.setattr(cargo_metadata.subprocess, "run", timeout)
-    with pytest.raises(ReadingError, match="did not finish") as raised:
-        member_manifests(manifest)
-    assert_names_reader_and_path(raised, manifest)
-
-
-def test_member_discovery_reports_a_start_failure(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A Cargo that cannot be executed is a finding, not an `OSError`."""
-    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
-
-    def refuse(*_args: object, **_kwargs: object) -> None:
-        """Stand in for a Cargo the platform refuses to execute."""
-        raise OSError
-
-    monkeypatch.setattr(cargo_metadata.subprocess, "run", refuse)
-    with pytest.raises(ReadingError, match="could not start") as raised:
-        member_manifests(manifest)
-    assert_names_reader_and_path(raised, manifest)
-
-
-def test_member_discovery_reports_undecodable_output(tmp_path: pathlib.Path) -> None:
-    """Bytes Cargo emits that are not UTF-8 are a finding, not a decoder error."""
-
-    def undecodable(_path: pathlib.Path) -> subprocess.CompletedProcess[str]:
-        """Stand in for Cargo output the runner cannot decode as UTF-8."""
-        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
-
-    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
-    with pytest.raises(ReadingError) as raised:
-        member_manifests(manifest, run_metadata=undecodable)
-    assert_names_reader_and_path(raised, manifest)
-    assert "could not be decoded" in str(raised.value), (
-        f"expected the decoding failure in {raised.value}"
-    )
 
 
 _PROBE_RECORD: typ.Final = {"id": "probe", "manifest_path": "/tree/probe/Cargo.toml"}
@@ -225,11 +222,8 @@ def test_member_discovery_rejects_a_malformed_document(
     tmp_path: pathlib.Path, document: dict[str, object]
 ) -> None:
     """An untrustworthy metadata document is a finding, not a partial answer."""
-    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
     runner = _returns(_completed(json.dumps(document)))
-    with pytest.raises(ReadingError) as raised:
-        member_manifests(manifest, run_metadata=runner)
-    assert_names_reader_and_path(raised, manifest)
+    _assert_rejected(_manifest(tmp_path), runner)
 
 
 #: A package identity that is safe as a single path segment.
@@ -286,8 +280,7 @@ def test_member_discovery_selects_exactly_the_declared_ids(
 ) -> None:
     """Return exactly the declared members' manifests, in sorted order."""
     metadata, members = document
-    manifest = tmp_path / "Cargo.toml"
-    manifest.write_text("[workspace]\nmembers = []\n", encoding="utf-8")
+    manifest = _manifest(tmp_path)
     manifests = member_manifests(
         manifest, run_metadata=lambda _path: _completed(json.dumps(metadata))
     )
