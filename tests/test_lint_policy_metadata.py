@@ -104,6 +104,21 @@ def test_member_discovery_reports_an_invalid_document(tmp_path: pathlib.Path) ->
     assert_names_reader_and_path(raised, manifest)
 
 
+def test_member_discovery_reports_undecodable_output(tmp_path: pathlib.Path) -> None:
+    """Bytes Cargo emits that are not UTF-8 are a finding, not a decoder error."""
+
+    def undecodable(_path: pathlib.Path) -> subprocess.CompletedProcess[str]:
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+    with pytest.raises(ReadingError) as raised:
+        member_manifests(manifest, run_metadata=undecodable)
+    assert_names_reader_and_path(raised, manifest)
+    assert "could not be decoded" in str(raised.value), (
+        f"expected the decoding failure in {raised.value}"
+    )
+
+
 _PROBE_RECORD: typ.Final = {"id": "probe", "manifest_path": "/tree/probe/Cargo.toml"}
 
 

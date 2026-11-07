@@ -5,9 +5,11 @@ to `Cargo.toml`, `clippy.toml` and the `Makefile`. A reader that let an
 `OSError`, a decoding failure or a structural surprise escape would report as
 an incidental traceback, which is indistinguishable from a broken test rather
 than a broken policy. These cases pin the contract that every such failure is
-a `ReadingError` naming the reader and the path. The one reader that leaves
-the filesystem, `member_manifests`, is covered in
-`tests/test_lint_policy_metadata.py`.
+a `ReadingError` naming the reader and the path. The undecodable, missing and
+unreadable cases run over every public reader that takes a path, so each one
+proves its own route to the shared file helper rather than inheriting a
+sibling's proof. The one reader that leaves the filesystem, `member_manifests`,
+is covered in `tests/test_lint_policy_metadata.py`.
 
 They write their own files under `tmp_path` and pass the path in, so none of
 them reads or perturbs the repository's real configuration.
@@ -28,6 +30,7 @@ from tests.support.lint_policy import (
 from tests.support.reader_cases import assert_names_reader_and_path, write_text
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     import pathlib
 
 
@@ -49,27 +52,47 @@ def test_malformed_toml_is_a_reading_error(
     assert_names_reader_and_path(raised, path)
 
 
-def test_undecodable_file_is_a_reading_error(tmp_path: pathlib.Path) -> None:
+#: Every public reader that takes a path, so each proves its own file-failure
+#: contract instead of relying on a sibling's case to cover the shared helper.
+READERS: typ.Final = (
+    pytest.param(workspace_lints, id="workspace-lints"),
+    pytest.param(clippy_restrictions, id="clippy-restrictions"),
+    pytest.param(member_inherits_workspace_lints, id="member-inheritance"),
+    pytest.param(rustdoc_default_lines, id="rustdoc-default-lines"),
+    pytest.param(rustdoc_default, id="rustdoc-default"),
+)
+
+
+@pytest.mark.parametrize("reader", READERS)
+def test_undecodable_file_is_a_reading_error(
+    tmp_path: pathlib.Path, reader: cabc.Callable[[pathlib.Path], object]
+) -> None:
     """Bytes that are not UTF-8 cannot be interpreted as policy."""
     path = tmp_path / "Cargo.toml"
     path.write_bytes(b"[workspace]\nmembers = ['\xff']\n")
     with pytest.raises(ReadingError, match="policy file") as raised:
-        workspace_lints(path)
+        reader(path)
     assert_names_reader_and_path(raised, path)
 
 
-def test_missing_file_is_a_reading_error(tmp_path: pathlib.Path) -> None:
+@pytest.mark.parametrize("reader", READERS)
+def test_missing_file_is_a_reading_error(
+    tmp_path: pathlib.Path, reader: cabc.Callable[[pathlib.Path], object]
+) -> None:
     """A policy file that does not exist names the path it looked for."""
     path = tmp_path / "absent.toml"
     with pytest.raises(ReadingError, match="policy file") as raised:
-        workspace_lints(path)
+        reader(path)
     assert_names_reader_and_path(raised, path)
 
 
-def test_unreadable_path_is_a_reading_error(tmp_path: pathlib.Path) -> None:
+@pytest.mark.parametrize("reader", READERS)
+def test_unreadable_path_is_a_reading_error(
+    tmp_path: pathlib.Path, reader: cabc.Callable[[pathlib.Path], object]
+) -> None:
     """A directory where a file is expected is reported, not raised raw."""
     with pytest.raises(ReadingError, match="policy file") as raised:
-        clippy_restrictions(tmp_path)
+        reader(tmp_path)
     assert_names_reader_and_path(raised, tmp_path)
 
 
@@ -116,36 +139,6 @@ def test_member_inheritance_reader_rejects_everything_else(
     assert member_inherits_workspace_lints(path) is False, (
         "expected anything other than `workspace = true` to report no inheritance"
     )
-
-
-def test_member_inheritance_missing_file_is_a_reading_error(
-    tmp_path: pathlib.Path,
-) -> None:
-    """A member manifest that does not exist names the path it looked for."""
-    path = tmp_path / "absent" / "Cargo.toml"
-    with pytest.raises(ReadingError, match="policy file") as raised:
-        member_inherits_workspace_lints(path)
-    assert_names_reader_and_path(raised, path)
-
-
-def test_member_inheritance_unreadable_path_is_a_reading_error(
-    tmp_path: pathlib.Path,
-) -> None:
-    """A directory where a member manifest is expected is reported, not raised raw."""
-    with pytest.raises(ReadingError, match="policy file") as raised:
-        member_inherits_workspace_lints(tmp_path)
-    assert_names_reader_and_path(raised, tmp_path)
-
-
-def test_member_inheritance_undecodable_file_is_a_reading_error(
-    tmp_path: pathlib.Path,
-) -> None:
-    """Bytes that are not UTF-8 cannot be interpreted as a member manifest."""
-    path = tmp_path / "Cargo.toml"
-    path.write_bytes(b"[lints]\nworkspace = '\xff'\n")
-    with pytest.raises(ReadingError, match="policy file") as raised:
-        member_inherits_workspace_lints(path)
-    assert_names_reader_and_path(raised, path)
 
 
 @pytest.mark.parametrize(

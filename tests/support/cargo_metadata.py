@@ -88,9 +88,10 @@ def member_manifests(
     validated.
 
     Every failure — an unreadable or malformed manifest, a missing member list,
-    a non-string pattern, unavailable Cargo, an unresolvable workspace, or a
-    metadata document that is malformed or internally inconsistent — is a
-    `ReadingError` naming the reader and the requested path.
+    a non-string pattern, unavailable Cargo, an unresolvable workspace, output
+    that is not valid UTF-8, or a metadata document that is malformed or
+    internally inconsistent — is a `ReadingError` naming the reader and the
+    requested path.
 
     Parameters
     ----------
@@ -122,7 +123,10 @@ def _cargo_metadata(
     path: pathlib.Path, run_metadata: MetadataRunner
 ) -> dict[str, object]:
     """Return the metadata document the runner produced for `path`."""
-    result = run_metadata(path)
+    try:
+        result = run_metadata(path)
+    except UnicodeDecodeError as error:
+        reject(path, f"cargo metadata output could not be decoded: {error}")
     if result.returncode != 0:
         reject(path, f"cargo metadata failed: {result.stderr.strip()}")
     return _metadata_document(result.stdout, path)
