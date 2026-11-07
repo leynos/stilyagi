@@ -199,6 +199,74 @@ def test_config_resolver_reports_cache_hit_and_miss_counts(
     )
 
 
+def test_resolving_with_provenance_discovers_once_per_target(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Configuration and provenance come from one discovery, not two.
+
+    The provenance used to be a second query over the same target. That made
+    the answer depend on resolver state a second time and cost a second walk of
+    the ancestors. One resolution now returns both halves, so a fresh resolver
+    records exactly one discovery miss and no discovery hit for one target.
+    """
+    _write_discovered_cache_dir(tmp_path, ".once")
+    target = _make_markdown_target(tmp_path)
+    resolver = config.ConfigResolver()
+
+    resolved = resolver.resolve_with_provenance(
+        target,
+        cli_overrides=None,
+        explicit_config=None,
+        isolated=False,
+    )
+
+    assert_with_context(
+        resolved.config.cache_dir == pathlib.Path(".once"),
+        "expected the resolved config to come from the discovered file",
+    )
+    assert_with_context(
+        resolved.config_file == tmp_path / "pyproject.toml",
+        "expected the discovered file to be reported as the provenance",
+    )
+    stats = resolver.cache_stats
+    assert_with_context(
+        stats["discovery_misses"] == 1,
+        "expected exactly one discovery for one target",
+    )
+    assert_with_context(
+        stats.get("discovery_hits", 0) == 0,
+        "expected no second discovery query for the same target",
+    )
+
+
+def test_resolving_with_provenance_reports_the_last_explicit_config(
+    tmp_path: pathlib.Path,
+) -> None:
+    """An explicit ``--config`` file is the provenance, not the discovered one."""
+    _write_discovered_cache_dir(tmp_path, ".discovered")
+    explicit = tmp_path / "explicit.toml"
+    # A standalone config file holds the Stilyagi table directly; only a
+    # `pyproject.toml` nests it under `[tool.stilyagi]`.
+    explicit.write_text('cache-dir = ".explicit"\n', encoding="utf-8")
+    target = _make_markdown_target(tmp_path)
+
+    resolved = config.ConfigResolver().resolve_with_provenance(
+        target,
+        cli_overrides=None,
+        explicit_config=[explicit],
+        isolated=False,
+    )
+
+    assert_with_context(
+        resolved.config.cache_dir == pathlib.Path(".explicit"),
+        "expected the explicit file to win over the discovered one",
+    )
+    assert_with_context(
+        resolved.config_file == explicit,
+        "expected the last explicit file to be reported as the provenance",
+    )
+
+
 def test_config_resolver_instances_stay_isolated_under_concurrency(
     tmp_path: pathlib.Path,
 ) -> None:

@@ -25,7 +25,7 @@ import io
 import sys
 import typing as typ
 
-from stilyagi import cli, cli_fix, config, diagnostics, model
+from stilyagi import cli, cli_fix, diagnostics
 from stilyagi.fixes import Applicability, Fix, TextEdit
 
 from tests.support.assertions import assert_with_context
@@ -38,6 +38,7 @@ if typ.TYPE_CHECKING:
     import pathlib
 
     import pytest
+    from stilyagi.rules.registry import RuleRunRequest
 
 
 class TestMutationStreams:
@@ -164,8 +165,7 @@ class TestExitStatusAcrossMixedOutcomes:
 
 
 def _fix_one_and_leave_the_other_standing(
-    document: model.Document,
-    _config: config.StilyagiConfig,
+    request: RuleRunRequest,
 ) -> list[diagnostics.Diagnostic]:
     """Report a fixable edit for one file and an unfixable finding for the other.
 
@@ -198,6 +198,7 @@ def _fix_one_and_leave_the_other_standing(
     """
     from tests.support.fix_fixtures import find_source_span
 
+    document = request.document
     prose = "".join(region.text for region in document.regions)
     if "Notes" in prose:
         return [

@@ -178,6 +178,88 @@ def test_explicit_config_path_and_inline_override_precedence(
     )
 
 
+def test_explicit_config_accepts_a_one_shot_iterator(tmp_path: pathlib.Path) -> None:
+    """A one-shot `--config` iterator is split once, so every entry applies.
+
+    ``explicit_config`` is typed as any iterable, and a generator or other
+    one-shot iterator is exhausted by the first pass. Splitting it twice would
+    leave the merge with nothing to layer while provenance still named the
+    file, so the configuration and the file a diagnostic reports would
+    disagree.
+    """
+    named_config = tmp_path / "named.toml"
+    _write_config(
+        named_config,
+        """
+        cache-dir = ".file"
+        respect-gitignore = false
+        """,
+    )
+    target = _make_markdown_target(tmp_path)
+
+    resolved = config.ConfigResolver().resolve_with_provenance(
+        target,
+        cli_overrides=None,
+        explicit_config=iter([named_config, 'cache-dir = ".inline"']),
+        isolated=True,
+    )
+
+    assert_with_context(
+        resolved.config.cache_dir == pathlib.Path(".inline"),
+        "expected the inline fragment after the file to apply",
+    )
+    # The file sets this key and the inline fragment does not, so a merge that
+    # dropped the file's layer would leave the default in place.
+    assert_with_context(
+        resolved.config.respect_gitignore is False,
+        "expected a file-only setting to survive the inline layer",
+    )
+    assert_with_context(
+        resolved.config_file == named_config,
+        "expected the explicit file to be reported as the provenance",
+    )
+
+
+def test_one_shot_iterator_with_only_a_file_still_applies_it(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A one-shot iterator holding only a file path still applies that file.
+
+    This is the other half of the split-once contract: with no inline fragment,
+    the file list and the empty fragment list must both survive the split, so
+    the file's settings reach the merge and its provenance is recorded.
+    """
+    named_config = tmp_path / "named.toml"
+    _write_config(
+        named_config,
+        """
+        cache-dir = ".file"
+        respect-gitignore = false
+        """,
+    )
+    target = _make_markdown_target(tmp_path)
+
+    resolved = config.ConfigResolver().resolve_with_provenance(
+        target,
+        cli_overrides=None,
+        explicit_config=iter([named_config]),
+        isolated=True,
+    )
+
+    assert_with_context(
+        resolved.config.cache_dir == pathlib.Path(".file"),
+        "expected the file-only iterator's setting to apply",
+    )
+    assert_with_context(
+        resolved.config.respect_gitignore is False,
+        "expected the file-only iterator's second setting to apply",
+    )
+    assert_with_context(
+        resolved.config_file == named_config,
+        "expected the file-only iterator's file to be the provenance",
+    )
+
+
 def test_cli_overrides_win_over_every_config_source(
     tmp_path: pathlib.Path,
 ) -> None:

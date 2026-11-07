@@ -76,7 +76,7 @@ def test_main_renders_json_for_synthetic_diagnostics(
     )
     monkeypatch.setattr(
         "stilyagi.rules.registry.run_rules",
-        lambda _document, _config: [synthetic_diagnostic],
+        lambda _request: [synthetic_diagnostic],
     )
 
     assert_with_context(

@@ -6,6 +6,7 @@ import typing as typ
 
 if typ.TYPE_CHECKING:
     from stilyagi.fixes import Fix
+    from stilyagi.model.source import SourceSpan
 
 
 class Severity(enum.StrEnum):
@@ -72,6 +73,7 @@ class Diagnostic:
     line: int | None = None
     column: int | None = None
     fix: Fix | None = None
+    span: SourceSpan | None = None
 
 
 @dc.dataclass(frozen=True, slots=True)

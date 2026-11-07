@@ -963,6 +963,26 @@ V1 sufficiency:
 - The current rule API is directionally good, but it needs narrowing and
   stronger performance semantics before implementation.
 
+#### Starter-pack implementation
+
+[ADR 0012](adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md)
+records how the first builtin pack applies those recommendations without
+freezing a public rule-authoring API. The shape is:
+
+- one private `RuleRunRequest` carrying the document, immutable source bytes,
+  the reported path, the configuration-relative path, and the effective
+  configuration;
+- one per-document projection that verifies every advertised segment span
+  against the source bytes and demotes a mismatch to synthetic text;
+- one tokenization per eligible segment, shared by every selected text rule;
+- one policy resolution that applies `select`, `ignore`, per-file globs, and
+  the `plugins` gate before any rule runs, and resolves suppression directives
+  into a plan whose findings are dropped after rule state updates.
+
+The pack itself is `MD001` heading depth, `STY001` repeated word, and opt-in
+`TERM001` banned term. Only `STY001` proposes an edit, and only as an unsafe
+suffix removal.
+
 #### Grammar-capability extension
 
 Strong points in RFC 0005:

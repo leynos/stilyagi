@@ -139,7 +139,7 @@ class DiscoveryInputs(typ.NamedTuple):
         Structured filesystem discovery failures, including path expansion,
         metadata lookup, path resolution and directory-walk errors. These may
         be ``OSError`` or ``RuntimeError`` instances (for example, an
-        unresolved home directory or a symlink loop). They are reported by the
+        unresolved home directory). They are reported by the
         command layer and make the run an operational failure even when some
         inputs were discovered.
     skipped_by_reason:

@@ -10,7 +10,8 @@
       },
       "message": "First",
       "path": "docs/a.md",
-      "severity": "error"
+      "severity": "error",
+      "span": null
     },
     {
       "code": "STY010",
@@ -22,7 +23,8 @@
       },
       "message": "Later code",
       "path": "docs/a.md",
-      "severity": "error"
+      "severity": "error",
+      "span": null
     },
     {
       "code": "STY002",
@@ -34,7 +36,8 @@
       },
       "message": "Second",
       "path": "docs/b.md",
-      "severity": "warning"
+      "severity": "warning",
+      "span": null
     }
   ],
   "fix_errors": [],

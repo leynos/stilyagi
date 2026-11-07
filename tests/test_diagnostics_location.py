@@ -1,5 +1,6 @@
 """Tests for converting IR byte offsets into source locations."""
 
+import typing as typ
 from itertools import pairwise
 
 import hypothesis as hyp
@@ -74,6 +75,24 @@ def test_line_column_from_offset_falls_back_for_invalid_line_indexes(
     assert_with_context(
         line_column_from_offset(line_index, 7) == (1, 1),
         "expected invalid line indexes to fall back to (1, 1)",
+    )
+
+
+def test_line_column_from_offset_rejects_a_non_integer_line_index() -> None:
+    """A line index that cannot be converted to integers falls back."""
+    malformed = typ.cast("tuple[int, ...]", ("zero", 6))
+
+    assert_with_context(
+        line_column_from_offset(malformed, 7) == (1, 1),
+        "expected a non-integer line index to fall back to (1, 1)",
+    )
+
+
+def test_line_column_from_offset_clamps_a_position_past_the_last_line() -> None:
+    """A position beyond the recorded end stays on the final line."""
+    assert_with_context(
+        line_column_from_offset((0, 6, 12), 99) == (2, 94),
+        "expected a position past the end to clamp to the final line",
     )
 
 

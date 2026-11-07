@@ -28,7 +28,7 @@ from stilyagi import (
     config,
     engine,
 )
-from stilyagi.check_execution import CheckReporter, CheckRun, check_one_file
+from stilyagi.check_execution import CheckReporter, CheckRun
 from stilyagi.check_inputs import (
     CheckInput,
     DiscoveryInputs,
@@ -43,7 +43,7 @@ from stilyagi.cli_args import (
     options_from_args,
 )
 from stilyagi.cli_io import report_check_error
-from stilyagi.cli_run import CheckedFile
+from stilyagi.cli_run import collect_checked_files
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
@@ -264,13 +264,11 @@ def _run_check(
         report=resolved_collaborators.reporter,
     )
     started = time.perf_counter()
-    checked_files = [
-        CheckedFile(
-            reported_path=check_input.reported_path,
-            result=check_one_file(check_input, run),
-        )
-        for check_input in discovery_inputs.inputs
-    ]
+    # The per-file loop belongs to `cli_run` so the command and the run-level
+    # sweep share one implementation. A second copy here would let a regression
+    # in one of them drop the files after a failed one while the other's tests
+    # stayed green.
+    checked_files = collect_checked_files(discovery_inputs.inputs, run)
     # Logged at the command boundary rather than in the planner: the planner
     # records what it *decided*, and a target it never planned -- a file with no
     # fixable diagnostic, or a stream input -- would otherwise be missing from

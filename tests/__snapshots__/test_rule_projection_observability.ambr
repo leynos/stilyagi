@@ -1,0 +1,4 @@
+# serializer version: 1
+# name: test_the_boundary_logs_one_record_per_document
+  "INFO stilyagi.engine.projection_anomalies: projection recovered anomalies: total=3; malformed_node=1, invalid_node_span=1, malformed_region=1 (operation='projection_anomalies', path='docs/example.md')"
+# ---

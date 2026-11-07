@@ -477,6 +477,68 @@ capturing the object at import time. That keeps a module-level default
 substitutable: a test that monkeypatches `rules_registry.run_rules` still
 influences the default, exactly as the previous call-time lookup did.
 
+### Configuration resolution
+
+`ConfigResolver.resolve_with_provenance` is the one place a target's
+configuration and its provenance are resolved, and it resolves them in a single
+pass. It returns a frozen `config.ResolvedTargetConfig`, pairing the effective
+`StilyagiConfig` with the config file that governs the target, or `None` when
+only inline configuration and built-in defaults apply. Discovery, explicit-file
+layering, override merging, and parsing each happen once, and the provenance
+travels back with the configuration. There is deliberately no separate
+provenance query: a second walk could record cache statistics and log from a
+method whose name promises a query, and it would let the file a diagnostic
+names drift from the configuration the diagnostic was produced under.
+`cli_config.resolve_target_config` validates the returned configuration at this
+boundary, and `check_execution._rule_request` consumes the record as given. The
+per-file pipeline keeps `resolve_discovery_config` for the run-level sweep,
+which discards the file and returns the configuration alone because discovery
+is not attributed to a file.
+
+Configuration is validated at two distinct points, and which one owns a defect
+decides what the user sees.
+
+- **At configuration resolution.** This is where a malformed builtin rule table
+  is reported, before any rule runs. `config/rules.py` owns the parsers for
+  `[tool.stilyagi.rule.<CODE>]` tables and `validate_builtin_tables` walks
+  every recognized builtin table, selected or not. A malformed option is
+  therefore reported whether or not its rule is enabled, and
+  `InvalidConfigError` names the governing config file when there is one and
+  the target path otherwise. Tables belonging to other rule families are
+  preserved untouched for future slices; the module never rejects configuration
+  it does not yet understand.
+- **During rule execution.** `rules/builtin/pack.run_selected` parses each
+  registered rule's builtin table again, before it checks whether that rule is
+  enabled, so the runner itself never relies on selection to notice a malformed
+  table. On the command path resolution has already validated those tables, so
+  this re-read is defensive: the error the user sees is still the one raised at
+  resolution. The runner then passes the parsed frozen record to the hook as
+  `RuleContext.rule_config`, so the hook reads typed values rather than
+  re-reading options itself. What execution validates beyond parsing is
+  structural, and a structural defect in the extracted IR is recovered from
+  rather than raised: `engine.ir_mapping.source_span` returns `None` when it is
+  handed anything but a pair of non-negative, ordered integer offsets, so a
+  corrupt span is absent rather than fatal. How the projection treats that
+  absence depends on what carried it. A node entry counts under
+  `invalid_node_span` and is dropped. A segment whose `source` is missing or
+  `null` is retained as synthetic with no anomaly, and only an advertised
+  segment `source` that cannot be read as a span counts under
+  `invalid_segment_span` and is dropped. `SourceSpan` still rejects a negative
+  or inverted range at construction, so a span that reaches a finding is well
+  ordered. The projection also keeps an advertised segment span only when the
+  source slice decodes to exactly the segment text, and demotes a mismatch to a
+  synthetic segment counted under `source_mismatch`. None of these conditions
+  is a finding: they reach a human only through the `--verbose` anomaly record.
+
+Path expansion inside resolution follows the same rule. `Path.expanduser` raises
+`RuntimeError` when it cannot determine the home directory, so every expansion
+site goes through `config.path_resolution.expand_user`/`expand_and_resolve`,
+which convert that one failure into `PathResolutionError`. `check_execution`
+absorbs exactly that type, alongside `OSError` and the configuration errors,
+and lets every other `RuntimeError` propagate: a deleted working directory or
+unreadable parent is this file's operational failure, while an unexpected
+runtime error is a defect that must not be reported as an ordinary file failure.
+
 ### Discovery
 
 `run_check` delegates target collection to `check_targets.discover_targets`.
@@ -516,8 +578,9 @@ the requested targets.
 - `failures` — structured path-expansion, metadata-lookup, path-resolution, or
   directory-walk failures (`OSError | RuntimeError`), with their path, retained
   alongside any files successfully discovered before or after the failure.
-  Runtime errors include unresolved home directories during expansion and
-  symlink loops during resolution.
+  Runtime errors include unresolved home directories during expansion.
+  Resolution is non-strict, so a symlink loop yields a path rather than an
+  error.
 
 `DiscoveredFile` is a frozen dataclass with three fields:
 
@@ -598,6 +661,37 @@ extraction, configuration resolution, and rules for it. The module records
 phase timings around read, extract, config, and rules; `cli.py` owns the
 discovery and render phases around its command orchestration.
 
+`python/stilyagi/check_paths.py` resolves the glob anchor for the file being
+checked and spells the target relative to it. The work has two steps with
+different boundaries:
+
+- **Resolution** reads the filesystem. The anchor is the directory that holds
+  the governing config file as it was named, resolved on its own, or the
+  invocation working directory when no config file governs the target.
+  Resolving the config file before taking its parent would follow a symlink and
+  move the anchor to the link target's directory, where a per-file ignore such
+  as `docs/a.md` no longer matches. A deleted working directory or an
+  unreadable parent raises `OSError`; an unresolved home directory raises
+  `PathResolutionError`, the named failure `config.path_resolution` raises in
+  place of pathlib's bare `RuntimeError`. Resolution runs inside the recorded
+  `config` phase, so a failure is reported against the file being checked and
+  the rest of the run continues.
+- **Spelling** decides only how an already-resolved target is written relative
+  to an already-resolved anchor. It lives in `python/stilyagi/config/paths.py`,
+  reads nothing, and is therefore testable without a filesystem.
+
+`tests/test_check_path_failures.py` exercises both boundaries with five cases.
+Three drive one file through `check_one_file` and assert the per-file
+operational-failure record and whether any rule ran: a missing working
+directory raises `FileNotFoundError`, an unresolved home directory raises
+`PathResolutionError`, and an injected unexpected `RuntimeError` must propagate
+without being recorded. A fourth checks that a later file is still checked
+after an earlier failure, asserting the reported failures and the surviving
+diagnostic. The fifth runs the same scenario through `cli.main`, asserting the
+exit code and the rendered output. `tests/test_check_path_anchor.py` pins the
+anchor itself: a plain config file anchors globs at its own directory, and a
+symlinked config file keeps the anchor in the project that names it.
+
 The run-level sweep deliberately does not live here.
 `cli_run.collect_checked_files` drives `check_one_file` once per input and
 keeps the per-file results, which a mutating run needs for its planning and
@@ -623,12 +717,32 @@ also has the bounded `total` label. `total` measures one complete `run_check`
 invocation with the monotonic `time.perf_counter_ns()` clock. It is recorded
 once before the verbose snapshot on normal returns, handled operational
 returns, and propagated exceptions. Counters use only bounded run-outcome,
-syntax, skip-reason, failure-kind, and diagnostic-severity (`error`/`warning`)
-labels. Python and Rust extraction counters are recorded at the PyO3 boundary.
-No paths or raw error strings become labels, keeping metric cardinality
-independent of repository contents and failure text. Metrics-facade
-observations continue to reach a host-installed recorder; Stilyagi does not
-install or replace it.
+syntax, skip-reason, failure-kind, diagnostic-severity (`error`/`warning`), and
+projection-anomaly labels. Python and Rust extraction counters are recorded at
+the PyO3 boundary. No paths or raw error strings become labels, keeping metric
+cardinality independent of repository contents and failure text.
+
+`python/stilyagi/engine/rule_projection.py` is the rules boundary that converts
+the extractor's untyped IR into the typed facts rules consume. It recovers from
+malformed IR by dropping the offending entry or demoting a mismatched segment
+to synthetic, and it reports that recovery rather than hiding it:
+`stilyagi_check_projection_anomalies_total` counts each fixed category
+(`malformed_node`, `invalid_node_span`, `malformed_region`, `malformed_segment`,
+`invalid_segment_span`, `source_mismatch`), and one aggregated `INFO` line per
+document carries the counts. The vocabulary and that reporting live in
+`python/stilyagi/engine/projection_anomalies.py`, so a new recovery path adds a
+label to one list rather than inventing a metric name at its drop site.
+
+Projecting is read-only. `project()` returns the document's counts as an
+immutable `anomaly_counts` snapshot on `DocumentRegionView` and records
+nothing, and every `rule_view` helper is a query over that view. The single
+reporting boundary is `rules/registry.run_rules`: it is the one layer that
+holds both the snapshot and the document's reported path, and it records the
+metric and emits the log line once per document. A document projected twice
+therefore cannot count its recoveries twice. The metric labels stay fixed and
+path-free; the log line names the document by the path the user supplied and
+quotes neither its IR nor its text. Metrics-facade observations continue to
+reach a host-installed recorder; Stilyagi does not install or replace it.
 
 ### Configuration loading and resolution
 
@@ -650,6 +764,11 @@ install or replace it.
   selected mapping into a `StilyagiConfig`, preserving the raw reserved values.
   Unsupported keys and invalid field or section values raise
   `InvalidConfigError` with the source path and offending key.
+- `config/tables.py` holds the raw-table primitives the resolver composes:
+  recursive table merging, inline `--config` parsing, `extend` reference
+  resolution, the discovery start directory, and the split of `--config` values
+  into file paths and fragments. Keeping them separate leaves
+  `config/resolve.py` to state the order in which those steps apply.
 - `config/resolve.py` defines `ConfigResolver`, which owns the per-run
   discovery and resolved-table caches so one `run_check` invocation reuses
   parsed config across many targets while leaking no state between runs. The
@@ -707,14 +826,85 @@ config, and collects diagnostics from two sources:
   including extractor recovery notices and any future unclassified code, fails
   safe to warning severity and does not gate the exit code.
 - the injected `rule_runner` — `rules_registry.run_rules` unless a
-  `CheckCollaborators.rule_runner` was supplied — is called as
-  `rule_runner(document, resolved_config)` to run the registered rule set
-  against the extracted document. The current default returns an empty list,
-  because the rule engine has not landed yet.
+  `CheckCollaborators.rule_runner` was supplied — receives one
+  `rules_registry.RuleRunRequest`. `_rule_request` builds it from the values
+  the pipeline already holds: the extractor's `Document`, the original source
+  bytes, the reported path, the config-relative path, and the resolved
+  configuration. The default runner executes the builtin pack described below.
 
 `diagnostics_location.py` converts IR byte offsets into 1-based line and column
 positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 `Severity` enum.
+
+### Rule execution and the builtin pack
+
+[ADR 0012](adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md)
+records the contract; this section is the maintainer's map of where it lives.
+
+`rules/base.py` defines the typed boundary. A `RuleMetadata` declares a code,
+name, severity, and `RegionTarget`; the target selects by region kind, syntax,
+and required scope entries.
+
+`RuleRunRequest` is the application-level packet the check pipeline constructs.
+It carries the extracted document, the original source bytes, the reported
+path, the configuration-relative path used for per-file globs, and the
+effective configuration. The runner reads it to resolve policy and to parse
+each rule's own options, and does not hand it to a rule.
+
+`RuleContext` is what a rule hook actually receives, and it is deliberately
+narrower: the rule's own validated configuration, the document, the source
+bytes, the reported path, the line starts, the inline-code index, the matched
+`RegionView` objects, and — for rules that declare `textual = True` — the
+document's tokenized segments. It carries neither the effective global
+configuration nor the configuration-relative path, so a rule cannot read policy
+it does not own.
+
+`engine/rule_projection.py` performs the one per-document pass:
+
+- `_node_facts` walks `ir["nodes"]` once, producing the node-id-to-span index
+  and the inline-code spans;
+- `_region_view` projects each canonical region into a `RegionView`;
+- `_segment_view` keeps an advertised span only when the source slice decodes
+  to exactly the segment text, otherwise demoting it to synthetic with
+  `synthetic_reason="source_mismatch"`;
+- `prose_units` records the heading, paragraph, and table-cell spans that
+  `ignore-next` may consume;
+- `anomaly_counts` carries an immutable snapshot of every recovery the pass
+  made. Projecting records no metric and emits no log. `run_rules` is the
+  single reporting boundary: it turns the snapshot into one metric increment
+  and one `INFO` record naming the document's reported path, so repeating a
+  query cannot count the same document twice.
+
+`engine/rule_view.py` is the façade other modules import, and every helper it
+exposes is a read-only query. `rules/tokens.py` holds the shared `Token` and
+`TokenizedSegment` records; `rules/builtin/text.py` tokenizes every
+source-backed segment outside inline code once per document, so a second text
+rule reuses the tokens rather than rescanning the prose. The runner tokenizes
+only when a selected, enabled textual rule will read the tokens, so a
+structural-only selection pays nothing for prose tokenization.
+
+`rules/policy.py` and `rules/suppression.py` decide which findings survive.
+`resolve_policy` expands `select` and `ignore` prefixes against the enabled
+builtin inventory, applies per-file globs to the config-relative path, and
+passes the projection's prose units into suppression resolution.
+`filter_diagnostics` drops findings whose primary span start falls in a
+suppressed interval; the runner filters only after every rule has reported, so
+stateful rules such as `MD001` still see the headings they suppress.
+`SuppressionPlan` indexes the intervals and inline units per code in
+`rules/suppression_index.py`, so a lookup is one bisection rather than a scan
+over every directive. The `RuleInterval` record it consumes lives in
+`rules/suppression_records.py`; `rules/suppression.py` re-exports it alongside
+`InlineSuppression`, so existing import sites are unchanged. `config/paths.py`
+owns the config-relative spelling those globs match: it walks up from the
+anchor with `Path.relative_to(..., walk_up=True)` and falls back to the
+absolute POSIX path when no relative spelling exists, as on a different Windows
+drive.
+
+The pack itself is `rules/builtin/{heading_depth,repeated_word,banned_term}.py`
+with shared text helpers in `rules/builtin/text.py`. `MD001` is manual-only,
+`STY001` proposes an unsafe suffix edit, and `TERM001` never fixes. No builtin
+imports an NLP library; `tests/test_builtin_rules_no_nlp.py` runs a full pass
+in a fresh interpreter with spaCy blocked at the import system.
 
 ### Fix planning
 
@@ -902,6 +1092,12 @@ skipped, unreadable, errors, warnings) that the CLI fills from the check loop;
 list and is also the zero-file fallback when a direct renderer caller omits the
 summary.
 
+The text formats themselves live in `engine/text_renderer.py` as `render_text`,
+which is handed the already-ordered diagnostics and fix errors and returns the
+newline-terminated text document. `engine/renderers.py` keeps the summary
+model, the format dispatch, and the JSON payload shapes, so a change to the
+human-readable line format does not have to be read past the JSON contract.
+
 `RendererRegistry.render` accepts the diagnostics to render, an optional output
 format, an optional `summary`, and a keyword-only
 `fix_errors: cabc.Iterable[diagnostics.FixError]` that defaults to an empty
@@ -912,9 +1108,12 @@ not significant for either. The renderer then produces one of:
 - deterministic text: one line per diagnostic formatted as
   `path:line:column: severity code message`, then one line per fix error in the
   distinct non-rule shape `identifier: path: rule_codes: message`, joining
-  several rule codes with commas. A summary line follows, counting the
-  diagnostics and separating their safe from their unsafe fixes, so a clean run
-  ends with `0 diagnostics found (0 safe fixes, 0 unsafe fixes)`
+  several rule codes with commas. A summary line follows, counting the files
+  checked, skipped, and unreadable, then the error and warning totals, so a
+  clean run ends with
+  `checked 0 files (0 skipped, 0 unreadable); 0 errors, 0 warnings`. When a fix
+  was handled, the line gains a trailing `; S safe fix(es), U unsafe fix(es)`
+  clause; a run that handled no fix omits it rather than reporting zeroes
 - a stable JSON document, an object carrying a `schema_version` field
   (currently `"1.0.0"`), a `diagnostics` array, a separate `fix_errors` array,
   and an additive `summary` object carrying checked, skipped, unreadable,
@@ -2303,6 +2502,19 @@ ratchet then compares two builds. Re-read the action's constant whenever the
 shared-actions pin moves. `tests/test_cv005_publisher_contract.py` records the
 expected version beside the pin and fails when the lane preinstall disagrees,
 so a bump that changes the constant has to update both deliberately.
+
+**Type-only blocks are not part of the denominator.** slipcover runs with
+`--branch`, so it records a line for every executable line it instruments. An
+`if TYPE_CHECKING:` guard and the imports beneath it never run, so those lines
+are a permanent miss in every module that follows the typing convention. A
+change that adds many modules accumulates those misses faster than tests can
+cover real code, and the ratchet then fails on lines no test can reach. Mark
+the guard `# pragma: no cover - typing only`, as `tests/conftest.py` does;
+slipcover honours the pragma on an `if` line by excluding the whole block from
+the report. The pragma states that the block is unreachable by construction,
+which is why it is applied only to the guard and never to ordinary code that
+merely happens to be untested. Adding real tests is the remedy for a genuine
+gap; the pragma is not a substitute for one.
 
 **No checksum input.** `installer-checksum` is rejected outright when non-empty
 from the pinned action onwards, and `archive-checksum` is not a rename of it:

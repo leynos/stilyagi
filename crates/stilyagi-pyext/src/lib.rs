@@ -203,6 +203,10 @@ fn stilyagi_rs_module(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         check_metrics::record_operational_failure,
         m
     )?)?;
+    m.add_function(wrap_pyfunction!(
+        check_metrics::record_projection_anomaly,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(check_metrics::record_phase_duration, m)?)?;
     m.add_function(wrap_pyfunction!(check_metrics::check_metrics_snapshot, m)?)?;
     m.add_function(extract_document_function(py)?)?;
