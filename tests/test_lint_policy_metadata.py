@@ -21,6 +21,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
+from tests.support import cargo_metadata
 from tests.support.cargo_metadata import MetadataRunner, member_manifests
 from tests.support.errors import ReadingError
 from tests.support.reader_cases import assert_names_reader_and_path, write_text
@@ -104,10 +105,64 @@ def test_member_discovery_reports_an_invalid_document(tmp_path: pathlib.Path) ->
     assert_names_reader_and_path(raised, manifest)
 
 
+def test_member_discovery_rejects_a_non_object_document(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A document that is not a JSON object is a finding, not a lookup error."""
+    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+    with pytest.raises(ReadingError, match="non-object") as raised:
+        member_manifests(manifest, run_metadata=_returns(_completed("[]")))
+    assert_names_reader_and_path(raised, manifest)
+
+
+def test_member_discovery_names_a_missing_cargo(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No Cargo on `PATH` is a finding from the default runner, not a crash."""
+    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+    monkeypatch.setattr(cargo_metadata.shutil, "which", lambda _name: None)
+    with pytest.raises(ReadingError, match="cargo is required") as raised:
+        member_manifests(manifest)
+    assert_names_reader_and_path(raised, manifest)
+
+
+def test_member_discovery_reports_a_metadata_timeout(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Cargo that never returns is a finding naming the timeout."""
+    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+
+    def timeout(*_args: object, **_kwargs: object) -> None:
+        """Stand in for a Cargo that outlives its timeout."""
+        raise subprocess.TimeoutExpired(["cargo", "metadata"], 1.0)
+
+    monkeypatch.setattr(cargo_metadata.subprocess, "run", timeout)
+    with pytest.raises(ReadingError, match="did not finish") as raised:
+        member_manifests(manifest)
+    assert_names_reader_and_path(raised, manifest)
+
+
+def test_member_discovery_reports_a_start_failure(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Cargo that cannot be executed is a finding, not an `OSError`."""
+    manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        """Stand in for a Cargo the platform refuses to execute."""
+        raise OSError
+
+    monkeypatch.setattr(cargo_metadata.subprocess, "run", refuse)
+    with pytest.raises(ReadingError, match="could not start") as raised:
+        member_manifests(manifest)
+    assert_names_reader_and_path(raised, manifest)
+
+
 def test_member_discovery_reports_undecodable_output(tmp_path: pathlib.Path) -> None:
     """Bytes Cargo emits that are not UTF-8 are a finding, not a decoder error."""
 
     def undecodable(_path: pathlib.Path) -> subprocess.CompletedProcess[str]:
+        """Stand in for Cargo output the runner cannot decode as UTF-8."""
         raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
 
     manifest = write_text(tmp_path / "Cargo.toml", "[workspace]\nmembers = []\n")

@@ -21,7 +21,9 @@ import pytest
 
 from tests.support.errors import ReadingError
 from tests.support.lint_policy import (
+    WORKSPACE_MANIFEST,
     clippy_restrictions,
+    lint_level,
     member_inherits_workspace_lints,
     rustdoc_default,
     rustdoc_default_lines,
@@ -237,3 +239,48 @@ def test_rustdoc_default_rejects_two_assignments(tmp_path: pathlib.Path) -> None
     with pytest.raises(ReadingError, match="found 2") as raised:
         rustdoc_default(path)
     assert_names_reader_and_path(raised, path)
+
+
+@pytest.mark.parametrize(
+    ("entry", "level"),
+    [
+        pytest.param("deny", "deny", id="bare-string"),
+        pytest.param({"level": "warn"}, "warn", id="table-without-priority"),
+        pytest.param({"level": "allow", "priority": 2}, "allow", id="with-priority"),
+    ],
+)
+def test_lint_level_reads_both_entry_forms(entry: object, level: str) -> None:
+    """A level is read from the bare string form and the table form alike."""
+    assert lint_level(entry) == level, f"expected {level!r} from {entry!r}"
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        pytest.param({"priority": 1}, id="table-without-level"),
+        pytest.param({"level": 2}, id="level-not-a-string"),
+        pytest.param(3, id="bare-integer"),
+        pytest.param(None, id="null"),
+    ],
+)
+def test_lint_level_rejects_an_entry_without_a_level(entry: object) -> None:
+    """An entry that declares no string level is a policy finding."""
+    with pytest.raises(ReadingError, match="declares no string level") as raised:
+        lint_level(entry)
+    assert_names_reader_and_path(raised, WORKSPACE_MANIFEST)
+
+
+def test_the_shared_assertion_reports_a_wrong_reader(tmp_path: pathlib.Path) -> None:
+    """The shared assertion fails a case whose error names another reading."""
+    with pytest.raises(ReadingError) as raised:
+        raise ReadingError("probe", reader="other", path=str(tmp_path))
+    with pytest.raises(pytest.fail.Exception, match="expected the lint_policy reader"):
+        assert_names_reader_and_path(raised, tmp_path)
+
+
+def test_the_shared_assertion_reports_a_wrong_path(tmp_path: pathlib.Path) -> None:
+    """The shared assertion fails a case whose error names another path."""
+    with pytest.raises(ReadingError) as raised:
+        raise ReadingError("probe", reader="lint_policy", path="/elsewhere")
+    with pytest.raises(pytest.fail.Exception, match="expected the requested path"):
+        assert_names_reader_and_path(raised, tmp_path)

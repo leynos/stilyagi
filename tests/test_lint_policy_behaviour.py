@@ -242,3 +242,26 @@ def test_rustdoc_default_is_overridable(crates: ScratchCrates) -> None:
     """An empty `RUSTDOCFLAGS` override leaves the same link a warning."""
     outcome = _run_cargo(crates.warn, "doc", "--lib", "--no-deps", rustdocflags="")
     assert outcome.returncode == 0, outcome.output
+
+
+def test_a_non_json_message_line_is_ignored() -> None:
+    """A cargo line that is not JSON contributes no lint code."""
+    stream = "not json\n" + json.dumps({"message": {"code": {"code": "dead_code"}}})
+    assert _lint_codes(stream) == frozenset({"dead_code"}), (
+        f"expected only the JSON line's code, got {_lint_codes(stream)}"
+    )
+
+
+def test_a_compile_that_times_out_is_reported(
+    crates: ScratchCrates, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cargo that never returns is reported as an outcome, not raised."""
+
+    def timeout(*_args: object, **_kwargs: object) -> None:
+        """Stand in for a cargo that outlives its timeout."""
+        raise subprocess.TimeoutExpired(["cargo"], 1.0)
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+    outcome = _run_cargo(crates.undocumented, "check", "--lib")
+    assert outcome.returncode == -1, f"expected the timeout marker, got {outcome}"
+    assert "timed out" in outcome.output, f"expected the timeout in {outcome.output!r}"
