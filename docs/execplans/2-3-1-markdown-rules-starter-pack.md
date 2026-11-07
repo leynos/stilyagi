@@ -7,12 +7,12 @@ sections are `Constraints`, `Tolerances (exception triggers)`, `Risks`,
 
 Status: COMPLETE — implementation, validation, and review reconciliation
 finished on 2026-11-06, when the candidate `6cf17fcf` was reconciled against
-the accepted plan. Later review repairs on `0863c378`, `2ed8ed58`, and
-`69c6ee92` closed on 2026-11-07 and are recorded in the Progress section. The
-earlier reconciliations of `9227d62c`, `4a4d107a`, and `d484dab1` are retained
-as history; the repair rounds that followed them are recorded in the Progress
-section. Milestones M1–M3 were approved on 2026-10-28 and are delivered within
-the stated constraints and tolerances.
+the accepted plan. Later review repairs on `0863c378`, `2ed8ed58`, `69c6ee92`,
+`1e3ee23a`, and `5e1fe527` closed on 2026-11-07 and are recorded in the
+Progress section. The earlier reconciliations of `9227d62c`, `4a4d107a`, and
+`d484dab1` are retained as history; the repair rounds that followed them are
+recorded in the Progress section. Milestones M1–M3 were approved on 2026-10-28
+and are delivered within the stated constraints and tolerances.
 
 Roadmap item: 2.3.1. Prerequisites 2.1.2 (Markdown IR coverage) and 2.2.1
 (`stilyagi check`) are complete. Safe-fix planning, 2.2.2, is also complete.
@@ -693,8 +693,9 @@ with error exit 1. An invalid `TERM001` option exits 2.
     configuration. A rule receives `RuleContext`, which carries its own
     validated options; `RuleRunRequest` is the packet that carries the global
     configuration and the configuration-relative path. The guide now states
-    both, and ADR 0012 records the boundary in an `## Amendments` entry rather
-    than rewriting the original requirement.
+    both. ADR 0012 first recorded the boundary in an `## Amendments` entry;
+    the `5e1fe527` round folded it into the requirement itself, because the
+    record is introduced by this PR and has no published version to preserve.
   - User-Facing Documentation was rebutted rather than repaired. The
     documentation style guide requires a migration guide per release that
     changes observable behaviour, and this PR creates no release boundary:
@@ -1049,6 +1050,21 @@ with error exit 1. An invalid `TERM001` option exits 2.
     `tests/support/word_run_oracle.py` carry Parameters and Returns sections.
   - ExecPlan: the `713efc52` entry now says "registered" where it said
     "selected", matching the code it describes.
+- [x] (2026-11-07) Close the review of `5e1fe527`: state the ADR requirement
+  directly, correct two segment-recovery labels, and isolate the explicit
+  config test.
+  - ADR 0012: the record is introduced by this PR, so it has no published
+    version for an `## Amendments` entry to preserve. The rule-boundary and
+    reporting requirements are restated in `## Requirements` and in
+    "Projection and verification", and the amendment section and its status
+    banner are removed.
+  - User's guide: `invalid_segment_span` now describes an unreadable `source`
+    — a missing or non-integer offset, a negative offset, or an inverted span
+    — and `source_mismatch` names every span that is well ordered but addresses
+    other bytes, including one running past the end of the source.
+  - Explicit-config test: `tests/test_cli_config.py` sets `isolated=True`, so
+    only the explicit config can supply the per-file ignore the test asserts
+    on.
 
 ## Surprises & discoveries
 

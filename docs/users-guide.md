@@ -392,10 +392,12 @@ the arguments on the command line. The labels are a fixed vocabulary:
   source.
 - `malformed_region` and `malformed_segment`: a region or segment entry could
   not be read.
-- `invalid_segment_span`: a segment advertised a `source` that is not a
-  bounded, forward span.
-- `source_mismatch`: the bytes a segment's span addresses do not decode to the
-  segment's own text.
+- `invalid_segment_span`: a segment's `source` could not be read as a span at
+  all — an offset is missing or not an integer, an offset is negative, or the
+  end precedes the start.
+- `source_mismatch`: the span is well ordered but does not address the
+  segment's own text: it runs past the end of the source, it is not aligned to
+  a UTF-8 boundary, or the bytes it covers decode to something else.
 
 A recovered anomaly is not a finding. It does not appear in the diagnostics,
 does not change the exit code, and does not mean the document is wrong; it

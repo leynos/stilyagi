@@ -110,6 +110,8 @@ def test_an_explicit_config_anchors_per_file_ignores_from_elsewhere(
     documents live under `project/docs/`. Only the file the glob names may lose
     its finding, so a provenance fallback that anchored on the working
     directory would leave both findings live and fail the control assertion.
+    The run is isolated, so the explicit config is the only one that could
+    supply the ignore.
     """
     project = tmp_path / "project"
     docs = project / "docs"
@@ -136,6 +138,7 @@ def test_an_explicit_config_anchors_per_file_ignores_from_elsewhere(
         cli.CheckOptions(
             targets=("project/docs/doc.md", "project/docs/control.md"),
             explicit_config=(str(config_file),),
+            isolated=True,
         ),
         collaborators=cli.CheckCollaborators(rule_runner=record, output=io.StringIO()),
     )
