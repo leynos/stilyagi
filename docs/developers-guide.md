@@ -2049,22 +2049,32 @@ set, which is wider than the `members` patterns. It is the one reader that
 leaves the filesystem: it asks Cargo for the set through `MetadataRunner`, a
 narrow callable seam whose default runs
 `cargo metadata --no-deps --locked --offline`, so discovery compiles nothing,
-writes no lockfile and fetches nothing. Reader tests inject a fake outcome; one
-contract test crosses the real boundary. `workspace_table` is public in
+writes no lockfile and fetches nothing. Reader tests inject a fake outcome;
+`test_cargo_resolves_the_workspace_members` and
+`test_every_workspace_member_inherits_the_lint_tables` are the two contract
+tests that cross the real boundary. `workspace_table` is public in
 `lint_policy` because member discovery validates the manifest's own shape
-before asking Cargo.
+before asking Cargo. The selection validates the document before trusting it:
+every member ID must be a string listed once, every package record must be an
+object with string `id` and `manifest_path` fields, and every member must name
+exactly one package record.
 
-Four modules use those readers and prove different things.
+Five modules use those readers and prove different things.
 `tests/test_lint_policy_contract.py` fails when an entry this repository relies
 on is missing, weakened, or loses its reason, when a member stops inheriting
 the tables, or when the `RUSTDOC_FLAGS` default stops being conditional,
 docsrs-enabled, warning-denying and last-extended.
-`tests/test_lint_policy_behaviour.py` compiles one violating fixture per
-enabled entry in scratch crates under `target/`, so a table naming a lint that
-does not exist cannot pass. `tests/test_lint_policy_make_routes.py` dry-runs
-`make lint` against the recording probes and reads the `RUSTDOCFLAGS` the doc
-recipe evaluates. `tests/test_lint_policy_readers.py` pins the failure modes of
-every reader.
+`tests/test_lint_policy_behaviour.py` compiles four Clippy fixtures in scratch
+crates under `target/` — one each for `disallowed_methods`,
+`missing_assert_message`, `missing_docs_in_private_items` and `unsafe_code` —
+so a table naming a lint that does not exist cannot pass; separate cases cover
+the rustc `missing_docs` denial and the rustdoc default and override routes.
+`tests/test_lint_policy_make_routes.py` dry-runs `make lint` against the
+recording probes and reads the `RUSTDOCFLAGS` the doc recipe evaluates.
+`tests/test_lint_policy_readers.py` pins the failure modes of the TOML and
+Makefile readers. `tests/test_lint_policy_metadata.py` pins the
+`cargo metadata` boundary: the selection examples, every malformed document
+shape, and the property case over arbitrary metadata documents.
 
 The route tests pass environment overrides through
 `tests.support.build_standard.dry_run(target, tools, *extra, env=...)`. The

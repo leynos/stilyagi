@@ -266,7 +266,7 @@ project:
   root instead, so it needs no per-member stanza. See the developers' guide,
   [Rust lint baseline](docs/developers-guide.md#rust-lint-baseline), for the
   selected estate baseline, consumer additions, and exception rules.
-- Rustdoc defaults to `RUSTDOC_FLAGS = --cfg docsrs -D warnings`, extended
+- Rustdoc defaults to `RUSTDOC_FLAGS ?= --cfg docsrs -D warnings`, extended
   through `RUSTDOC_FLAGS_EXTRA`; an environment `RUSTDOC_FLAGS` replaces the
   default. Preserve the documentation and doctest routes and their workspace
   and feature coverage.
