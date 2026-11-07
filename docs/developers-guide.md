@@ -627,14 +627,22 @@ phase timings around read, extract, config, and rules; `cli.py` owns the
 discovery and render phases around its command orchestration.
 
 `python/stilyagi/check_paths.py` resolves the glob anchor for the file being
-checked and spells the target relative to it. The anchor is the governing
-config file's parent, or the invocation working directory when no config file
-governs the target. Resolving either reads the filesystem, and a deleted
-working directory, an unreadable parent, or an unresolved home directory can
-make it fail. That work runs inside the recorded `config` phase, so the failure
-is reported against the file being checked and the rest of the run continues.
-The spelling decision itself stays in `python/stilyagi/config/paths.py`, which
-reads nothing and is therefore testable without a filesystem.
+checked and spells the target relative to it. The work has two steps with
+different boundaries:
+
+- **Resolution** reads the filesystem. The anchor is the governing config
+  file's parent, or the invocation working directory when no config file
+  governs the target. A deleted working directory, an unreadable parent, or an
+  unresolved home directory can make it fail. Resolution runs inside the
+  recorded `config` phase, so a failure is reported against the file being
+  checked and the rest of the run continues.
+- **Spelling** decides only how an already-resolved target is written relative
+  to an already-resolved anchor. It lives in `python/stilyagi/config/paths.py`,
+  reads nothing, and is therefore testable without a filesystem.
+
+`tests/test_check_path_failures.py` exercises both boundaries: one case fails
+`Path.cwd()` and another fails `Path.expanduser()`, and each asserts that the
+failure is reported as a per-file operational failure with no rule run.
 
 The run-level sweep deliberately does not live here.
 `cli_run.collect_checked_files` drives `check_one_file` once per input and

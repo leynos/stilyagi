@@ -902,6 +902,16 @@ with error exit 1. An invalid `TERM001` option exits 2.
     Domain Architecture and Observability decisions are recorded in ADR 0012
     and in the *Decision log* below.
 
+- [x] (2026-11-07) Name both path-validation boundaries in the developer's
+  guide.
+  - The Developer Documentation row asked for both validation steps and their
+    boundaries to be described. The guide's paragraph is now split into
+    **Resolution**, which reads the filesystem inside the recorded `config`
+    phase, and **Spelling**, which decides only how an already-resolved target
+    is written relative to an already-resolved anchor. It also names the two
+    cases `tests/test_check_path_failures.py` drives, `Path.cwd()` and
+    `Path.expanduser()`.
+
 ## Surprises & discoveries
 
 - Observation: the rule runner is an intentionally empty seam, and the model
