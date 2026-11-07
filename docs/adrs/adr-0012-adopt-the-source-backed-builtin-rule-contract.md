@@ -139,8 +139,9 @@ projection module directly.
 `stilyagi.rules.tokens` defines the shared `Token` and `TokenizedSegment`
 records so `RuleContext` can carry tokenized prose without importing the
 builtin pack. `stilyagi.rules.builtin.text.tokenize_segments` tokenizes each
-nonempty segment once, and the runner passes the result to rules that declare
-`textual = True`. A second text rule reuses those tokens.
+source-backed segment outside inline code once, and the runner passes the
+result to rules that declare `textual = True`. A second text rule reuses those
+tokens.
 
 ### The starter pack
 

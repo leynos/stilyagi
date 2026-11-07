@@ -498,7 +498,10 @@ with error exit 1. An invalid `TERM001` option exits 2.
     `ConfigResolver.resolve_with_provenance` pass that returns both halves;
     `resolve_config_for_path` now delegates to it and `config_file_for_path` is
     gone. One target has one resolution, made inside the phase that reports
-    configuration failures, and no query has a side effect.
+    configuration failures, and the separate provenance query is gone.
+    Resolution still updates the resolver's discovery and table caches and
+    their counters; that is what makes a reused resolver cost one walk per
+    target. What was removed is the second, separately named query.
     `tests/test_cli_config.py` pins both halves of the pair, including the
     inline-only case where no file governs the target;
     `tests/test_config_resolution_caching.py` pins that one target records
@@ -1065,6 +1068,18 @@ with error exit 1. An invalid `TERM001` option exits 2.
   - Explicit-config test: `tests/test_cli_config.py` sets `isolated=True`, so
     only the explicit config can supply the per-file ignore the test asserts
     on.
+- [x] (2026-11-07) Close the review of `69c8734b`: three documentation
+  corrections.
+  - ADR 0012: the tokenization paragraph names the eligibility criterion the
+    code applies — each *source-backed* segment outside inline code — rather
+    than "each nonempty segment".
+  - This plan: the configuration-resolution passage says the separate
+    provenance query was removed, instead of claiming no query has a side
+    effect. `resolve_with_provenance` still fills the discovery and table
+    caches and their counters; that is what makes a reused resolver cheap.
+  - This plan: the Observability disposition points at the ADR 0012
+    requirements, which now carry the reporting duty, not at an amendment
+    section.
 
 ## Surprises & discoveries
 
@@ -1308,7 +1323,7 @@ with error exit 1. An invalid `TERM001` option exits 2.
   the projection anomaly metric and emits one INFO record per document with
   recovered anomalies. The coupling is one call from the only layer that holds
   both the snapshot and the document's reported path, and the ADR 0012
-  amendment records that duty. Rationale: an injected reporter would add a
+  requirements record that duty. Rationale: an injected reporter would add a
   parameter to the seam every caller must satisfy to preserve a separation the
   read-only projection already provides. The row's test requirement is met by
   `tests/test_rule_projection_observability.py`. Date/author: 2026-11-07,
