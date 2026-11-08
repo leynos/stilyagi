@@ -11,6 +11,12 @@ import pathlib
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - fixed local interpreter invocation.
 import sys
 
+#: What a captured `python -m stilyagi` run returns. Named so a caller that
+#: delegates to :func:`run_python_module` can annotate the result without
+#: importing `subprocess` itself, which is what the step modules otherwise need
+#: a lint suppression for.
+type CapturedProcess = subprocess.CompletedProcess[bytes]
+
 
 def run_python_module(
     cwd: pathlib.Path,

@@ -12,7 +12,8 @@ the detailed command reference.
 Three commands join `stilyagi check`:
 
 - `stilyagi config` reports the effective configuration for the current
-  directory, and with a dotted key also the file each leaf value came from.
+  directory and the file each leaf value came from. Origins are always
+  reported; a dotted key only narrows the output to one leaf or table.
 - `stilyagi dump-ir` emits the canonical JSON the Rust extractor produces, so
   byte spans, the line index, the content hash, and the frontmatter region can
   be inspected directly.

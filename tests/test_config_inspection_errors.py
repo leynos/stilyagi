@@ -41,6 +41,38 @@ def test_config_inspection_errors_do_not_write_stdout(
     assert message in output.err, "expected a useful config inspection error"
 
 
+def test_an_unresolvable_home_directory_is_an_operational_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Report a failed `~` expansion as status 2 rather than a traceback.
+
+    `Path.expanduser` raises a bare `RuntimeError` when it cannot determine the
+    home directory. Expanding through `path_resolution.expand_user` turns that
+    one environmental failure into the `PathResolutionError` this command
+    reports, so the user sees a sentence naming the target instead of a stack
+    trace.
+    """
+    from stilyagi import cli_config_command
+    from stilyagi.config import path_resolution
+
+    def _unresolvable(path: pathlib.Path) -> pathlib.Path:
+        message = f"no home for {path}"
+        raise path_resolution.PathResolutionError(message)
+
+    # The command imports the helper by name, so the substitution has to
+    # replace that binding rather than the module attribute it came from.
+    monkeypatch.setattr(cli_config_command, "expand_user", _unresolvable)
+
+    exit_code = cli.main(["config", "--target", "~/notes.md"])
+    output = capsys.readouterr()
+
+    assert exit_code == 2, "expected an unexpandable target to exit 2"
+    assert not output.out, "expected no output when the target cannot expand"
+    assert "cannot expand target" in output.err, (
+        "expected the failure to name the target expansion that failed"
+    )
+
+
 def test_extend_cycle_is_reported_without_partial_json(
     capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
 ) -> None:

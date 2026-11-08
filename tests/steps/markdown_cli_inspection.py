@@ -3,14 +3,12 @@
 import hashlib
 import json
 import pathlib  # ruff: ignore[typing-only-standard-library-import] - pytest-bdd resolves step annotations at runtime.
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - fixed local argv, no shell.
-import sys
 import typing as typ
 
 import pytest
 from pytest_bdd import given, then, when
 
-from tests.support.subprocess_env import python_module_environment
+from tests.support.subprocess_env import CapturedProcess, run_python_module
 
 
 class MarkdownInspectionState(typ.TypedDict, total=False):
@@ -18,8 +16,8 @@ class MarkdownInspectionState(typ.TypedDict, total=False):
 
     root: pathlib.Path
     sources: dict[str, bytes]
-    runs: list[subprocess.CompletedProcess[bytes]]
-    last_run: subprocess.CompletedProcess[bytes]
+    runs: list[CapturedProcess]
+    last_run: CapturedProcess
     outside_target: pathlib.Path
 
 
@@ -50,21 +48,25 @@ def _write_source(
 def _run_cli(
     state: MarkdownInspectionState,
     *arguments: str,
-) -> subprocess.CompletedProcess[bytes]:
-    """Invoke the built package through its Python module command boundary."""
-    completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed arguments, no shell.
-        [sys.executable, "-m", "stilyagi", *arguments],
-        cwd=_root(state),
-        env=python_module_environment(),
-        capture_output=True,
-        check=False,
-    )
+) -> CapturedProcess:
+    """Invoke the built package through its Python module command boundary.
+
+    The process boundary itself belongs to :func:`run_python_module`, which
+    bounds the run and closes standard input. What stays here is the scenario
+    bookkeeping: which runs happened, and which was last.
+
+    Returns
+    -------
+    CapturedProcess
+        The completed run, also recorded on the scenario state.
+    """
+    completed = run_python_module(_root(state), *arguments)
     state.setdefault("runs", []).append(completed)
     state["last_run"] = completed
     return completed
 
 
-def _last_run(state: MarkdownInspectionState) -> subprocess.CompletedProcess[bytes]:
+def _last_run(state: MarkdownInspectionState) -> CapturedProcess:
     """Return the most recent process result after asserting it exists."""
     completed = state.get("last_run")
     assert completed is not None, "expected the scenario to run the CLI"

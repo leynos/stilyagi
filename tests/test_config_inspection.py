@@ -77,9 +77,19 @@ def test_config_json_shows_all_defaults_without_creating_cache(
 
 
 def test_config_text_output_is_stable(
-    capsys: pytest.CaptureFixture[str], snapshot: SnapshotAssertion
+    capsys: pytest.CaptureFixture[str],
+    snapshot: SnapshotAssertion,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Keep the human-readable view deterministic and snapshot its contract."""
+    """Keep the human-readable view deterministic and snapshot its contract.
+
+    The run happens in a disposable directory: nearest-config discovery walks
+    the invoking directory and its ancestors, so a `stilyagi.toml` anywhere
+    above the checkout would change this output without a code change.
+    """
+    monkeypatch.chdir(tmp_path)
+
     exit_code = cli.main(["config"])
     output = capsys.readouterr()
 
