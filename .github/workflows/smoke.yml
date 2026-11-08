@@ -58,6 +58,9 @@ jobs:
           # reachable. A shallow checkout leaves the comparison with
           # nothing to compare against.
           fetch-depth: 0
+          # Every later step can read a token left in .git/config, and this
+          # workflow needs none: it reads the repository and publishes nothing.
+          persist-credentials: false
 
       - name: Install Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0

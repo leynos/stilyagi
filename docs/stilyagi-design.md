@@ -1238,9 +1238,12 @@ sdist, or more than one, fails there.
 Publishing is the tag's job, and `release.yml` owns it. The two workflows meet
 at the build: `release.yml` calls the same `build-wheels.yml`, attests exactly
 the artefacts that build produced, and reconciles them against PyPI and the
-tag's GitHub Release. The smoke path and the release path therefore cannot
-diverge, and the smoke workflow stays a proof rather than a publisher — no
-pull-request run holds a publishing credential.
+tag's GitHub Release. A file carried from one destination to the other is
+verified first — against this repository, the signing workflow, the tag's ref,
+and the commit it was built from — so a re-pushed tag's earlier bytes are
+attributable rather than merely present. The smoke path and the release path
+therefore cannot diverge, and the smoke workflow stays a proof rather than a
+publisher — no pull-request run holds a publishing credential.
 [ADR 0014](adrs/adr-0014-release-pipeline.md) records the pipeline; the
 [developer's guide](developers-guide.md) documents what each job does.
 

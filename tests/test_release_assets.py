@@ -16,17 +16,17 @@ import json
 import typing as typ
 
 import pytest
+import release_assets
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-
-from scripts import release_assets
-from scripts.release_assets import (
+from release_assets import (
     Plan,
     ReleaseAssetError,
     Source,
     mismatches,
     plan,
 )
+
 from tests.support.release_assets_fixtures import (
     digest,
     write_assets,

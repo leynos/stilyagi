@@ -14,9 +14,9 @@ workflow's ``curl`` and ``gh`` steps. That is the documented exception to the
 scripting standards' Cyclopts, Cuprum, and Python 3.14 defaults. Each subcommand
 is one step of ``release.yml``: ``carryover`` (``draft-release``),
 ``stage-pypi`` (``publish-pypi``), then ``stage-github``, ``check-fetched``,
-and ``verify`` (``publish-release``). The reconciliation logic itself lives in
-``scripts/release_assets.py``; this module only wires it to ``argparse`` and
-the workflow's ``GITHUB_OUTPUT`` protocol.
+``check-provenance``, and ``verify`` (``publish-release``). The reconciliation
+logic itself lives in ``scripts/release_assets.py``; this module only wires it
+to ``argparse`` and the workflow's ``GITHUB_OUTPUT`` protocol.
 """
 
 import argparse
@@ -28,11 +28,14 @@ from release_assets import (
     ReleaseAssetError,
     State,
     carryover,
-    check_fetched,
-    stage_github,
     stage_pypi,
-    verify,
     write_output,
+)
+from release_github_upload import (
+    check_fetched,
+    check_provenance,
+    stage_github,
+    verify,
 )
 
 if typ.TYPE_CHECKING:
@@ -47,8 +50,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--index", type=Path)
     parser.add_argument("--github-files", type=Path)
+    parser.add_argument("--provenance", type=Path)
     parser.add_argument("--bundles", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--pypi-published",
+        action="store_true",
+        help=(
+            "this workflow already published to PyPI for this release, so an "
+            "artefact the index does not list means the index is stale"
+        ),
+    )
     return parser
 
 
@@ -70,13 +82,20 @@ def _carryover(state: State, args: argparse.Namespace) -> None:
 
 def _stage_pypi(state: State, args: argparse.Namespace) -> None:
     """Stage PyPI's upload set and report whether anything remains."""
-    write_output("remaining", value=stage_pypi(state, _path(args, "github_files")))
+    github_files = _path(args, "github_files")
+    remaining = stage_pypi(state, github_files, args.provenance)
+    write_output("remaining", value=remaining)
 
 
 def _stage_github(state: State, args: argparse.Namespace) -> None:
     """Stage GitHub's upload set and print PyPI's files as TSV rows."""
     output = _path(args, "output")
-    fetch = stage_github(state, _path(args, "bundles"), output)
+    fetch = stage_github(
+        state,
+        _path(args, "bundles"),
+        output,
+        pypi_published=args.pypi_published,
+    )
     for name, url in fetch:
         print(f"{name}\t{url}")
     write_output("pending", value=bool(fetch) or any(output.iterdir()))
@@ -87,9 +106,16 @@ def _check_fetched(state: State, args: argparse.Namespace) -> None:
     check_fetched(state, _path(args, "output"))
 
 
+def _check_provenance(state: State, args: argparse.Namespace) -> None:
+    """Refuse an upload set any of whose files has no verified attestation."""
+    del state
+    check_provenance(_path(args, "output"), _path(args, "provenance"))
+
+
 def _verify(state: State, args: argparse.Namespace) -> None:
-    """Fail on any artefact or bundle the two destinations disagree on."""
-    problems = verify(state, _path(args, "bundles"))
+    """Fail on any artefact the two destinations disagree on."""
+    del args
+    problems = verify(state)
     if problems:
         raise ReleaseAssetError("; ".join(problems))
     print("PyPI and the GitHub Release hold the same bytes for every artefact.")
@@ -100,6 +126,7 @@ _COMMANDS: dict[str, cabc.Callable[[State, argparse.Namespace], None]] = {
     "stage-pypi": _stage_pypi,
     "stage-github": _stage_github,
     "check-fetched": _check_fetched,
+    "check-provenance": _check_provenance,
     "verify": _verify,
 }
 

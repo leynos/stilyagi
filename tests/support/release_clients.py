@@ -1,19 +1,19 @@
-"""The two network clients' stand-ins, and the dispatch a fake re-executes.
+"""The ``gh release`` and ``curl`` stand-ins a publishing step runs against.
 
-``release.yml`` reaches the network only through ``curl`` and ``gh``, so a test
-of a publishing step replaces those two programs with these. Each keeps its
-state in the directory the environment names: one file per GitHub Release
-asset, one file per PyPI file, and a journal of argument vectors. Like the
-services they stand in for, neither overwrites what it holds: a second upload
-of an existing asset name fails, exactly as ``gh`` does without ``--clobber``,
-and a download of a file PyPI does not list exits as ``curl --fail`` would.
+``release.yml`` reaches the network only through those two programs, so a test
+of a publishing step replaces them for the duration. Each keeps its state in
+the directory the environment names: one file per GitHub Release asset, one
+file per PyPI file, and a journal of the argument vectors that were run. Like
+the services they stand in for, neither overwrites what it holds: a second
+upload of an existing asset name fails, exactly as ``gh`` does without
+``--clobber``, and a download of a file PyPI does not list exits as
+``curl --fail`` would.
 
-Every fake starts with ``#!/bin/sh`` and re-executes this module's interpreter,
-so the program that serves it is the one pytest runs under rather than whatever
-``python3`` a caller's ``PATH`` happens to resolve. This module is
-standard-library only precisely so that it can be that entry point: importing
-pytest or a support helper here would cost every fake invocation the test
-session's import graph.
+``gh attestation`` is the third program the workflow runs, and its stand-in
+lives in ``tests/support/release_attestations.py``: its policy flags and record
+shape are a subject of their own. Both modules are standard-library only, and
+neither imports the other, so the entry point that wires them together
+(``tests/support/release_fake.py``) is the only place they are combined.
 """
 
 import hashlib
@@ -34,9 +34,20 @@ FILES_URL: typ.Final = "https://files.example.test/packages/"
 #: The tag the scripted runs release, so a step that names the tag resolves it.
 RELEASE_TAG: typ.Final = "v0.2.0"
 
+#: The repository and ref the scripted runs release from, as GitHub reports
+#: them. The attestation policy names both, so the fake checks both.
+RELEASE_REPO: typ.Final = "leynos/stilyagi"
+RELEASE_REF: typ.Final = f"refs/tags/{RELEASE_TAG}"
+RELEASE_WORKFLOW: typ.Final = "/.github/workflows/release.yml"
 
-def _journal(args: cabc.Sequence[str]) -> None:
-    """Append one invocation to the shared call journal."""
+
+def journal(args: cabc.Sequence[str]) -> None:
+    """Append one program invocation to the shared call journal.
+
+    The vector is recorded whole, the program name first, exactly as the
+    stand-in received it: a test reads this file to learn which commands ran,
+    and a test over the journal must be able to check that too.
+    """
     record = json.dumps(list(args))
     with pathlib.Path(os.environ["FAKE_RELEASE_JOURNAL"]).open(
         "a", encoding="utf-8"
@@ -101,15 +112,33 @@ def _download(args: cabc.Sequence[str]) -> int:
     return 0
 
 
-#: The ``gh release`` options whose value is the next argument.
+#: The ``gh`` options whose value is the next argument.
 _VALUED: typ.Final = frozenset({
+    "--bundle",
+    "--cert-identity",
+    "--cert-identity-regex",
+    "--cert-oidc-issuer",
+    "--custom-trusted-root",
+    "--digest-alg",
     "--dir",
+    "--format",
+    "--hostname",
+    "--jq",
     "--json",
+    "--limit",
     "--notes",
     "--notes-file",
+    "--owner",
     "--pattern",
+    "--predicate-type",
     "--repo",
+    "--signer-digest",
+    "--signer-repo",
+    "--signer-workflow",
+    "--source-digest",
+    "--source-ref",
     "--target",
+    "--template",
     "--title",
 })
 
@@ -172,15 +201,35 @@ def _edit(args: cabc.Sequence[str]) -> int:
 
 
 def gh(args: cabc.Sequence[str]) -> int:
-    """Serve the ``gh release`` calls the release workflow makes."""
-    command = args[1] if len(args) > 1 else ""
+    """Serve the ``gh release`` calls the release workflow makes.
+
+    Parameters
+    ----------
+    args
+        The argument vector after the program name, so ``args[0]`` is the
+        top-level command and ``args[1]`` its subcommand.
+
+    Returns
+    -------
+    int
+        The exit status the real command would have.
+    """
+    command = args[0] if args else ""
+    if command == "release":
+        return _release(args[1:])
+    return 0
+
+
+def _release(args: cabc.Sequence[str]) -> int:
+    """Serve the ``gh release`` subcommands the workflow calls."""
+    command = args[0] if args else ""
     if command == "view":
         return _view()
     if command in {"create", "edit"}:
         # The tag is an operand either way; only the options are read.
         return _create(args) if command == "create" else _edit(args)
     if command == "upload":
-        return _upload(args[2:])
+        return _upload(args[1:])
     if command == "download":
         return _download(args)
     return 0
@@ -242,22 +291,13 @@ def curl(args: cabc.Sequence[str]) -> int:
     return 0
 
 
-def main(argv: cabc.Sequence[str] | None = None) -> int:
-    """Dispatch to the stand-in named by the first argument."""
-    args = list(sys.argv[1:] if argv is None else argv)
-    tool, rest = args[0], args[1:]
-    _journal(args)
-    return gh(rest) if tool == "gh" else curl(rest)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
 __all__ = [
     "FILES_URL",
+    "RELEASE_REF",
+    "RELEASE_REPO",
     "RELEASE_TAG",
+    "RELEASE_WORKFLOW",
     "curl",
     "gh",
-    "main",
+    "journal",
 ]

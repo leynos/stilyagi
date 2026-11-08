@@ -1,11 +1,10 @@
 """Specify the commands ``scripts/release_assets.py`` runs on the artefacts.
 
-A release reaches its steady state through five commands: ``stage_pypi``
-deletes what PyPI holds and replaces what the Release holds; ``stage_github``
-copies the local gap and names the PyPI files to fetch; ``check_fetched``
-enforces PyPI's digest on what arrived; ``verify`` compares the destinations;
-and ``write_output`` tells the workflow what remains. Each is a command, so
-each is specified here against real directories and real bytes.
+A release reaches its steady state through a short sequence of commands, and
+this module specifies the half that decides PyPI's upload set: ``stage_pypi``
+deletes what PyPI holds and replaces what the Release holds, and ``write_output``
+tells the workflow what remains. The GitHub Release's half lives in
+``test_release_github_upload.py``.
 
 The running theme is that a command must be safe to run twice. A re-pushed tag
 runs the whole sequence again against destinations that already hold almost
@@ -17,15 +16,19 @@ it has.
 import typing as typ
 
 import pytest
-
-from scripts import release_assets
-from scripts.release_assets import (
+import release_assets
+from release_assets import (
     PypiFile,
     ReleaseAssetError,
     Source,
     State,
 )
-from tests.support.release_assets_fixtures import digest, write_file
+
+from tests.support.release_assets_fixtures import (
+    digest,
+    write_file,
+    write_provenance,
+)
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -41,34 +44,7 @@ def output_file(
     return path
 
 
-def _pypi(name: str, url: str = "https://x/a") -> dict[str, PypiFile]:
-    """Return a one-file PyPI holding whose digest matches no real payload.
-
-    Returns
-    -------
-    dict[str, PypiFile]
-        The name mapped to a file PyPI claims to hold under digest ``ab``.
-    """
-    return {name: PypiFile(sha256="ab", url=url)}
-
-
 # -- staging for PyPI --------------------------------------------------------
-
-
-def test_pypi_is_not_asked_for_a_file_over_plain_http(tmp_path: pathlib.Path) -> None:
-    """A transport downgrade is refused before any URL reaches ``curl``."""
-    publish = tmp_path / "publish"
-    bundles = tmp_path / "bundles"
-    bundles.mkdir()
-    write_file(publish, "c.whl", b"rebuilt")
-    state = State(
-        publish=publish,
-        pypi={"c.whl": PypiFile(sha256="ab", url="http://pypi.example/c.whl")},
-        github={},
-    )
-    with pytest.raises(ReleaseAssetError, match="HTTPS"):
-        release_assets.stage_github(state, bundles, tmp_path / "out")
-    assert (publish / "c.whl").exists(), "the refusal must leave the artefact alone"
 
 
 def test_a_carried_file_with_the_wrong_bytes_is_refused(
@@ -85,6 +61,29 @@ def test_a_carried_file_with_the_wrong_bytes_is_refused(
         release_assets.stage_pypi(state, carried)
 
 
+def test_a_carried_file_with_no_records_at_all_is_not_sent_on(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A job that verified nothing supplies no directory, and that is a refusal.
+
+    The digest check above cannot stand in for this one: bytes that match the
+    Release's listing are still unattributed, and copying them would make the
+    PyPI upload rest on the API's word alone. ``None`` is what
+    ``release_assets_cli`` passes when the provenance directory was never
+    given, so this is the shape a skipped verification step takes.
+    """
+    publish = tmp_path / "publish"
+    carried = tmp_path / "github"
+    write_file(publish, "c.whl", b"rebuilt")
+    write_file(carried, "c.whl", b"canonical")
+    state = State(publish=publish, pypi={}, github={"c.whl": digest(carried / "c.whl")})
+    with pytest.raises(ReleaseAssetError, match="no provenance record was supplied"):
+        release_assets.stage_pypi(state, carried, None)
+    assert (publish / "c.whl").read_bytes() == b"rebuilt", (
+        "the refusal must leave the artefact alone"
+    )
+
+
 def test_staging_pypi_leaves_only_what_pypi_lacks_and_says_so(
     tmp_path: pathlib.Path,
     capsys: pytest.CaptureFixture[str],
@@ -96,12 +95,15 @@ def test_staging_pypi_leaves_only_what_pypi_lacks_and_says_so(
     write_file(publish, "b.whl", b"rebuilt-b")
     write_file(publish, "c.whl", b"rebuilt-c")
     write_file(carried, "b.whl", b"canonical-b")
+    records = write_provenance(
+        tmp_path / "records", {"b.whl": {"b.whl": b"canonical-b"}}
+    )
     state = State(
         publish=publish,
         pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
         github={"b.whl": digest(carried / "b.whl")},
     )
-    assert release_assets.stage_pypi(state, carried) is True, state
+    assert release_assets.stage_pypi(state, carried, records) is True, state
     assert release_assets.local_names(publish) == ["b.whl", "c.whl"], publish
     assert (publish / "b.whl").read_bytes() == b"canonical-b", publish
     notices = capsys.readouterr().out
@@ -127,89 +129,7 @@ def test_staging_pypi_reports_that_nothing_remains(
     )
 
 
-# -- staging for the GitHub Release -----------------------------------------
-
-
-def test_staging_github_sends_the_local_gap_and_the_fetch_list(
-    tmp_path: pathlib.Path,
-) -> None:
-    """A name PyPI has is fetched; a name only this run has is copied directly."""
-    publish = tmp_path / "publish"
-    bundles = tmp_path / "attestations"
-    output = tmp_path / "upload"
-    write_file(publish, "a.whl", b"a")
-    write_file(publish, "b.whl", b"b")
-    write_file(bundles, "run7.sigstore.json", b"bundle")
-    state = State(
-        publish=publish,
-        pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
-        github={"run6.sigstore.json": None},
-    )
-    write_file(bundles, "run6.sigstore.json", b"earlier")
-    assert release_assets.stage_github(state, bundles, output) == [
-        ("a.whl", "https://x/a")
-    ], state
-    assert sorted(path.name for path in output.iterdir()) == [
-        "b.whl",
-        "run7.sigstore.json",
-    ], sorted(path.name for path in output.iterdir())
-
-
-def test_checking_a_fetched_file_enforces_pypis_digest(tmp_path: pathlib.Path) -> None:
-    """The bytes PyPI served are checked against the bytes PyPI advertised."""
-    publish = tmp_path / "publish"
-    output = tmp_path / "upload"
-    write_file(publish, "a.whl", b"rebuilt")
-    write_file(output, "a.whl", b"fetched")
-    wrong = State(publish=publish, pypi=_pypi("a.whl"), github={})
-    with pytest.raises(ReleaseAssetError):
-        release_assets.check_fetched(wrong, output)
-    right = State(
-        publish=publish,
-        pypi={"a.whl": PypiFile(sha256=digest(output / "a.whl"), url="https://x/a")},
-        github={},
-    )
-    release_assets.check_fetched(right, output)
-
-
-# -- verification and outputs ------------------------------------------------
-
-
-def test_verification_reports_a_bundle_the_release_lacks(
-    tmp_path: pathlib.Path,
-) -> None:
-    """A run's provenance bundle must reach the release, not only PyPI."""
-    publish = tmp_path / "publish"
-    bundles = tmp_path / "attestations"
-    write_file(publish, "a.whl", b"a")
-    write_file(bundles, "run7.sigstore.json", b"bundle")
-    state = State(
-        publish=publish,
-        pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
-        github={"a.whl": digest(publish / "a.whl")},
-    )
-    assert release_assets.verify(state, bundles) == [
-        "run7.sigstore.json is missing from the GitHub Release"
-    ], release_assets.verify(state, bundles)
-
-
-def test_an_agreed_release_verifies_clean(tmp_path: pathlib.Path) -> None:
-    """Both destinations holding the same bytes, and the bundle attached, is clean."""
-    publish = tmp_path / "publish"
-    bundles = tmp_path / "attestations"
-    write_file(publish, "a.whl", b"a")
-    write_file(bundles, "run7.sigstore.json", b"bundle")
-    state = State(
-        publish=publish,
-        pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
-        github={
-            "a.whl": digest(publish / "a.whl"),
-            "run7.sigstore.json": digest(bundles / "run7.sigstore.json"),
-        },
-    )
-    assert release_assets.verify(state, bundles) == [], release_assets.verify(
-        state, bundles
-    )
+# -- state, outputs, and the plan -------------------------------------------
 
 
 def test_state_loads_an_absent_index_as_an_empty_one(tmp_path: pathlib.Path) -> None:
@@ -243,16 +163,19 @@ def test_staging_the_same_state_twice_changes_nothing(tmp_path: pathlib.Path) ->
     write_file(publish, "b.whl", b"rebuilt-b")
     write_file(publish, "c.whl", b"rebuilt-c")
     write_file(carried, "b.whl", b"canonical-b")
+    records = write_provenance(
+        tmp_path / "records", {"b.whl": {"b.whl": b"canonical-b"}}
+    )
     state = State(
         publish=publish,
         pypi={"a.whl": PypiFile(sha256="whatever", url="https://x/a")},
         github={"b.whl": digest(carried / "b.whl")},
     )
-    assert release_assets.stage_pypi(state, carried) is True, state
+    assert release_assets.stage_pypi(state, carried, records) is True, state
     after_first = sorted(path.name for path in publish.iterdir())
     assert after_first == ["b.whl", "c.whl"], after_first
     # The second pass sees the same state and must leave the same survivors.
-    assert release_assets.stage_pypi(state, carried) is True, state
+    assert release_assets.stage_pypi(state, carried, records) is True, state
     assert sorted(path.name for path in publish.iterdir()) == after_first, (
         sorted(path.name for path in publish.iterdir()),
         after_first,

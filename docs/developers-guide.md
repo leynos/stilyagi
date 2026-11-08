@@ -1946,32 +1946,48 @@ sdist. The sdist is platform-independent, so building it on one leg is what
 keeps a run to one sdist.
 
 `.github/workflows/release.yml` runs on `v*.*.*` tags with
-`cancel-in-progress: false`, so a re-pushed tag queues rather than interrupting
-an upload. `check-version` compares the tag against
-`crates/stilyagi-pyext/Cargo.toml` and `pyproject.toml` and derives the
-pre-release flag from the PEP 440 label; `attest` signs exactly the run's
-artefacts with `actions/attest-build-provenance` and stages the bundle under a
-run-unique name; `draft-release` creates or reuses the tag's draft;
-`publish-pypi` uploads under Trusted Publishing with `skip-existing: true`; and
-`publish-release` fills the release's gaps from PyPI's bytes, verifies both
-destinations hold identical digests, and only then un-drafts the release.
+`cancel-in-progress: false` and `queue: max`, so a re-pushed tag queues rather
+than interrupting an upload, and a third push does not displace the second.
+`check-version` compares the tag against `crates/stilyagi-pyext/Cargo.toml` and
+`pyproject.toml` and derives the pre-release flag from the PEP 440 label;
+`attest` signs exactly the run's artefacts with
+`actions/attest-build-provenance` and stages the bundle under a run-unique name;
+`draft-release` creates or reuses the tag's draft; `publish-pypi` uploads
+under Trusted Publishing with `skip-existing: true`; and `publish-release`
+fills the release's gaps from PyPI's bytes, verifies both destinations hold
+identical digests, and only then un-drafts the release.
 
-The reconciliation logic lives in `scripts/release_assets.py`, wrapped for the
-workflow by `scripts/release_assets_cli.py`. It resolves no third-party code,
-because it runs in the job that holds the PyPI token, and it makes no network
-call: the steps' `curl` and `gh` invocations do that. The module's tests are
-`tests/test_release_assets.py` and `tests/test_release_assets_staging.py`; the
-steps' own behaviour is specified by `tests/test_release_publish_steps.py`,
-`tests/test_release_github_steps.py`, and
-`tests/test_release_workflow_contract.py`, which execute the checked-in scripts
-against a scripted PyPI and GitHub Release.
+The reconciliation logic lives in `scripts/release_assets.py`, with the GitHub
+Release's half in `scripts/release_github_upload.py` and the reading of
+`gh attestation verify`'s answer in `scripts/release_provenance.py`. All three
+are wrapped for the workflow by `scripts/release_assets_cli.py`. They resolve
+no third-party code, because they run in the job that holds the PyPI token, and
+they make no network call: the steps' `curl` and `gh` invocations do that. The
+modules' tests are `tests/test_release_assets.py`,
+`tests/test_release_assets_staging.py`, `tests/test_release_github_upload.py`,
+and `tests/test_release_provenance.py`; the steps' own behaviour is specified by
+`tests/test_release_publish_steps.py`, `tests/test_release_github_steps.py`,
+and `tests/test_release_workflow_contract.py`, which execute the checked-in
+scripts against a scripted PyPI and GitHub Release. That scripted pair is
+`tests/support/release_clients.py` for `gh release` and `curl`,
+`tests/support/release_attestations.py` for `gh attestation verify`, and the
+entry point `tests/support/release_fake.py` that dispatches between them.
 
 A release is repaired by re-running the same tag, never by cutting a new
 version. Each filename's canonical bytes are PyPI's if it holds the name, the
 release's if it does not, and this run's rebuild only when neither does; each
 destination receives only the names it lacks, and nothing is overwritten. A
-re-run of a healthy tag uploads nothing to PyPI and nothing to the release
-except that run's new provenance bundle.
+re-run of a healthy tag therefore uploads nothing at all — to PyPI or to the
+release. The run's own attestation still reaches the repository's attestation
+store, which is where the original bundle of any carried file is found by
+digest, so a bundle already on the release is never duplicated.
+
+Provenance gates both destinations. An asset carried from the release to PyPI
+is verified first, pinned to this repository, the `release.yml` signer, and the
+tag's ref; an asset the release is about to receive is verified too, and its
+record must name the commit it was built from. Those checks are what keep a
+re-pushed tag's earlier bytes attributable to a revision of this repository
+rather than merely signed by something.
 
 ### Publishing a release
 
@@ -1998,10 +2014,22 @@ except that run's new provenance bundle.
    then verifies both destinations hold identical digests before the release
    becomes public. A run that stops before that leaves a draft, which is
    visible only to a token allowed to write contents.
-5. If the run fails, read the failing job, fix the workflow or the scripts on
-   `main`, and re-run the tag. Do not delete the tag and re-create it under a
-   new version unless the published bytes are genuinely wrong: the existing
-   ones are canonical, and a new version leaves them on PyPI forever.
+5. If the run fails, read the failing job and fix the workflow or the scripts
+   on `main`. Re-running the *failed run* does not pick the fix up: GitHub
+   re-runs a workflow at the commit and ref it originally ran at, so a fix on
+   `main` is invisible to it. Re-push the same tag instead, which starts a new
+   run at `main`'s tip:
+
+   ```shell
+   git tag -f -a v0.2.0 -m "Release 0.2.0"
+   git push --force git@github.com:leynos/stilyagi.git v0.2.0
+   ```
+
+   Re-pushing is safe precisely because the reconciliation treats whatever is
+   already published as canonical; it is also the only route that runs code
+   newer than the tag. Do not delete the tag and re-create it under a new
+   version unless the published bytes are genuinely wrong: the existing ones
+   are canonical, and a new version leaves them on PyPI forever.
 
 The PyPI project page for a version may lag the workflow by a minute or two
 after the release job succeeds; that is the index cache, not a failed upload.
@@ -2030,9 +2058,12 @@ workflow files, so a from-scratch fork must set them up before its first tag.
   it.
 - **Attestations.** `attest` uses `actions/attest-build-provenance`, which
   needs no secret: it signs through the run's OIDC token and writes a Sigstore
-  bundle. That bundle travels inside `release-dist` and is attached to the
-  release as an asset, so the proof of which commit and run produced a file
-  survives even if the repository's attestation store is pruned.
+  bundle. That bundle travels inside `release-dist`, and the first run of a tag
+  attaches it to the release as an asset, so the proof of which commit and run
+  produced a file survives even if the repository's attestation store is pruned.
+  `draft-release` and `publish-release` then read the store back with
+  `gh attestation verify`, so both declare `attestations: read` beside their
+  `contents: write`.
 
 This repository does not adopt cuprum's `release-telemetry` action. Stilyagi
 has no telemetry sink of its own, so the release run reports through the

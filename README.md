@@ -48,6 +48,9 @@ ______________________________________________________________________
 
 ## Installation
 
+> **This compiler has not been published yet.** Its first release is 0.2.0.
+> Until that release exists, nothing on the Python Package Index installs it.
+
 Stilyagi releases are published to the Python Package Index as `stilyagi`, with
 wheels for Linux (`x86_64` and `aarch64`), macOS (`arm64` and `x86_64`), and
 Windows, plus a source distribution for everything else. Python 3.14 or newer
@@ -55,18 +58,29 @@ is required; there is no Rust toolchain to install and no helper binary to
 manage, because the extraction engine ships inside the wheel.
 
 ```shell
-uv pip install stilyagi
+uv pip install "stilyagi>=0.2.0"
 ```
 
 or, with `pip`:
 
 ```shell
-pip install stilyagi
+pip install "stilyagi>=0.2.0"
 ```
 
 The `stilyagi` name on the Python Package Index belongs to this project. Its
-first upload was an earlier Vale-style tool, which this compiler replaces; the
-project page is where releases land from here on.
+only upload so far, 0.1.0, was an earlier Vale-style tool that this compiler
+replaces. That older release declares `>=3.13`, so it installs on a Python 3.14
+interpreter, and an unversioned `pip install stilyagi` would select it. The
+floor above is what keeps the predecessor out; lower it only if you mean to
+install the Vale-style tool.
+
+To run the compiler before 0.2.0 is published, build it from a checkout:
+
+```shell
+git clone https://github.com/leynos/stilyagi.git
+cd stilyagi
+make build
+```
 
 A release is published only from a `v*.*.*` tag, and every artefact is attested
 by the workflow run that built it. Source-based installs build from the sdist,

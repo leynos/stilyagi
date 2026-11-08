@@ -15,8 +15,8 @@ acts on: a matching tag that publishes, and a disagreeing one that must not.
 import typing as typ
 
 import pytest
+import release_version
 
-from scripts import release_version
 from tests.support.release_fakes import fake_release
 from tests.support.release_steps import requires_bash, run_version_check
 from tests.support.release_workflow import REPOSITORY_ROOT, link_scripts

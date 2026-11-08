@@ -157,8 +157,9 @@
     adrs/adr-0014-release-pipeline.md)
     records the tag-triggered release pipeline: one sdist beside the native
     wheels, attestation of every artefact, canonical bytes chosen from the
-    destinations rather than the build, and the draft-then-publish GitHub
-    Release that makes a re-run converge.
+    destinations rather than the build, provenance verified in both
+    directions before either destination receives a carried file, and the
+    draft-then-publish GitHub Release that makes a re-run converge.
 
 ## Requests for comments (RFCs)
 

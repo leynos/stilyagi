@@ -86,8 +86,9 @@ the failure they prevent (two sdists, or none) is silent otherwise.
 ### The release workflow
 
 `.github/workflows/release.yml` runs on `v*.*.*` tags, with
-`cancel-in-progress: false` so a re-pushed tag queues behind the run it
-replaces instead of interrupting an upload part-way through.
+`cancel-in-progress: false` and `queue: max` so a re-pushed tag queues behind
+the run it replaces instead of interrupting an upload part-way through, and a
+third push does not silently displace the second.
 
 It has six jobs:
 
@@ -102,17 +103,23 @@ It has six jobs:
   `stilyagi-${GITHUB_REF_NAME}-run${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}`, so a
   second run adds a record rather than colliding with the first.
 - `draft-release` creates the tag's release as a draft, or reuses one that
-  already exists, and downloads the assets it already holds.
+  already exists, downloads the assets it already holds, and verifies their
+  provenance: each is pinned to this repository, to `release.yml` as the
+  signer, and to the tag's ref.
 - `publish-pypi` uploads through `pypa/gh-action-pypi-publish` under Trusted
-  Publishing, with `skip-existing: true`.
-- `publish-release` fills the release's gaps, verifies both destinations, and
-  only then edits the release from draft to published.
+  Publishing, with `skip-existing: true`, and refuses to carry an asset whose
+  verified record is absent or names other bytes.
+- `publish-release` fills the release's gaps, verifies the provenance of
+  everything it is about to attach, verifies both destinations, and only then
+  edits the release from draft to published.
 
 Every network call stays in the workflow's own `curl` and `gh` invocations. The
-decisions live in `scripts/release_assets.py`, which
-`scripts/release_assets_cli.py` wraps in the command line the steps call. That
-module resolves no third-party code, because it executes inside the job holding
-the PyPI token.
+decisions live in `scripts/release_assets.py`, with the GitHub Release's upload
+set in `scripts/release_github_upload.py` and the reading of
+`gh attestation verify`'s answer in `scripts/release_provenance.py`;
+`scripts/release_assets_cli.py` wraps them in the command line the steps call.
+Those modules resolve no third-party code, because they execute inside the job
+holding the PyPI token.
 
 Cuprum's `release-telemetry` composite action is not adopted. It writes to a
 sink cuprum owns and Stilyagi has none; the run's logs and its attached
@@ -149,17 +156,48 @@ for a name PyPI lacks, the release's bytes are copied over this run's rebuild
 and sent to PyPI, so the two destinations converge on one byte string.
 
 The release stays a draft until `verify` finds that PyPI and the GitHub Release
-hold identical digests for every name and that this run's bundle is attached. A
-disagreement leaves it a draft, which is visible only to a token that can write
-contents — a failed release is not a public one.
+hold identical digests for every name and that the release carries a provenance
+bundle. A disagreement leaves it a draft, which is visible only to a token that
+can write contents — a failed release is not a public one.
+
+The bundle is required once, not once per run. The first run of a tag attaches
+its own; a re-run attaches none, because the release already records provenance
+for the canonical bytes and a run-unique bundle for a rebuild would describe
+bytes the release does not hold. The re-run's attestation is still written to
+the repository's attestation store, which is queried by digest whenever a name
+has to be carried back from the release.
+
+### Provenance of carried bytes
+
+A digest reported by an API proves only that a destination holds those bytes
+now. It says nothing about who built them, and a re-pushed tag's earlier bytes
+were built by an earlier run at an earlier commit. Both directions therefore
+verify, and refuse rather than warn:
+
+- **Release to PyPI.** `draft-release` runs `gh attestation verify` on every
+  asset it downloaded, naming the repository, the `release.yml` signer, the
+  tag's ref, and refusing self-hosted runners. `publish-pypi` then requires the
+  verified record to name exactly the bytes it is about to send.
+- **PyPI to Release.** `publish-release` runs the same verification on every
+  file in its upload set, because a gap is filled from PyPI's bytes and those
+  may have been built by an earlier run too. The record must additionally name
+  the commit the file was built from, so an attachment is always attributable
+  to a revision even though it predates this run.
+
+The commit is required rather than pinned to `github.sha`. Pinning it would
+make every re-run of a tag fail on any file the first run published, which is
+the normal case the reconciliation exists for; requiring attribution keeps the
+guarantee that actually matters.
 
 ### Network isolation
 
 Each release job holds a token only for the destination it writes to:
 `publish-pypi` holds `id-token: write` for Trusted Publishing and
 `contents: read`; `draft-release` and `publish-release` hold `contents: write`
-and no `id-token`. Every job checks out with `persist-credentials: false` and a
-sparse checkout of `scripts/`, so no job carries a credential it does not need.
+and `attestations: read`, the latter for `gh attestation verify`, and no
+`id-token`. Every job checks out with `persist-credentials: false` and a sparse
+checkout of `scripts/`, and `smoke.yml` does the same, so no job carries a
+credential it does not need.
 
 ## Options considered
 
@@ -184,7 +222,7 @@ shippable from a prebuilt wheel.
 Recreating the release would make a re-run converge trivially. It is rejected
 because it discards the previous run's attestation bundle and makes the
 release's notes and asset history churn on every attempt. Reuse-with-gap-fill
-keeps the first published bytes canonical and leaves earlier bundles attached.
+keeps the first published bytes canonical and leaves the attached bundle alone.
 
 ## Consequences
 

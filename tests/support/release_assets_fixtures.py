@@ -128,6 +128,64 @@ def write_assets(
     )
 
 
+def write_provenance(
+    directory: pathlib.Path,
+    attestations: dict[str, dict[str, bytes]],
+    *,
+    source: str = "a40898789a80e1ead3537cdab070fa87a80afced",
+) -> pathlib.Path:
+    """Write verifier records attesting the given artefact bytes.
+
+    Each record is written under the name of the artefact it answers for,
+    which is how the workflow keeps one verified answer per downloaded file.
+    One record may attest several artefacts, as the release's single
+    attestation does for every wheel and the sdist.
+
+    The record's shape is the verifier's own ``--format json`` answer: a list
+    holding one entry per verified attestation, whose ``statement.subject``
+    lists the artefacts signed together and whose ``verifiedIdentity`` names
+    the commit the workflow checked out.
+
+    Parameters
+    ----------
+    directory
+        The directory to write the records into.
+    attestations
+        Each record name, mapped to the artefacts it attests and the payload
+        each was signed over.
+    source
+        The source commit the records name. ``""`` writes records that name
+        none, which is what a verifier reports for an attestation built from
+        a revision it cannot attribute.
+
+    Returns
+    -------
+    pathlib.Path
+        The directory the records were written into.
+    """
+    for record, subjects in attestations.items():
+        document = [
+            {
+                "verificationResult": {
+                    "statement": {
+                        "subject": [
+                            {
+                                "name": name,
+                                "digest": {
+                                    "sha256": hashlib.sha256(payload).hexdigest()
+                                },
+                            }
+                            for name, payload in subjects.items()
+                        ]
+                    },
+                    "verifiedIdentity": {"sourceRepositoryDigest": source},
+                }
+            }
+        ]
+        _write_document(directory / f"{record}.json", document)
+    return directory
+
+
 def _write_document(path: pathlib.Path, document: object) -> pathlib.Path:
     """Serialize `document` as JSON to `path`, creating its directory."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,4 +193,10 @@ def _write_document(path: pathlib.Path, document: object) -> pathlib.Path:
     return path
 
 
-__all__ = ["digest", "write_assets", "write_file", "write_index"]
+__all__ = [
+    "digest",
+    "write_assets",
+    "write_file",
+    "write_index",
+    "write_provenance",
+]

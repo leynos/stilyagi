@@ -12,10 +12,9 @@ one sdist" after every artefact has been downloaded into one directory, and
 must not sign an ambiguous set either. Both are read from the workflow
 documents, so a change to a guard is a change to what this contract runs.
 
-The verify job's guard is a whole step, run verbatim. The attest job's guard is
-the tail of a longer collection command, so this module composes the same
-directory it collects into and runs only the fragment that follows the
-``find``, asserting that the fragment is the step's own tail.
+Both are whole steps, run verbatim from the checked-in documents against a
+scratch directory laid out the way the steps' own downloads leave it. Nothing
+is extracted or retyped: what runs here is what a tag runs.
 """
 
 import typing as typ
@@ -100,59 +99,48 @@ def test_the_verify_job_refuses_an_ambiguous_artefact_set(
     assert completed.returncode == expected, (names, completed.stderr)
 
 
-#: The guard as the ``attest`` job states it, from the ``shopt`` that makes an
-#: empty glob expand to nothing. Kept as a literal because the step's script is
-#: composed of a copy loop that needs a whole checkout to exercise; the literal
-#: is asserted equal to the step's tail below, so the two cannot drift.
-_ATTEST_TAIL: typ.Final = """\
-shopt -s nullglob
-sdists=(dist/publish/*.tar.gz)
-if [ "${#sdists[@]}" -ne 1 ]; then
-  echo "Expected exactly one source distribution." >&2
-  ls -al dist/publish >&2
-  exit 1
-fi
-"""
-
-
-def _unindented(script: str) -> str:
-    """Return a script with each line's leading and trailing space removed.
-
-    Indentation is YAML's, not the shell's: a guard nested under ``if`` is
-    readable in the workflow and would still run as written. Comparing the
-    texts without it keeps this contract about the guard's words.
-
-    Returns
-    -------
-    str
-        The script's lines, each stripped, joined with newlines.
-    """
-    return "\n".join(line.strip() for line in script.strip().splitlines())
-
-
-def test_the_attest_tail_matches_the_workflow() -> None:
-    """The fragment this module runs is the fragment the job runs."""
-    script = _script(RELEASE_WORKFLOW, "attest", "Collect release artefacts")
-    assert _unindented(script).endswith(_unindented(_ATTEST_TAIL)), script
+#: Where each download step leaves what it fetched. The wheels arrive one
+#: directory per ``wheels-*`` artefact, and the sdist under ``dist/sdist``.
+def _download(
+    dist: pathlib.Path, *, wheels: tuple[str, ...] = (), sdists: tuple[str, ...] = ()
+) -> None:
+    """Lay out the two download steps' directories on disk."""
+    _populate(dist / "wheels-linux", *wheels)
+    _populate(dist / "sdist", *sdists)
 
 
 @requires_bash
 @pytest.mark.parametrize(
-    ("names", "expected"),
+    ("wheels", "sdists", "expected"),
     [
-        pytest.param((SDIST, WHEEL), 0, id="one_sdist"),
-        pytest.param((), 1, id="empty"),
-        pytest.param((SDIST, OTHER_SDIST), 1, id="two_different_sdists"),
-        pytest.param((WHEEL,), 1, id="wheel_but_no_sdist"),
+        pytest.param((WHEEL, WHEEL), (SDIST,), 0, id="one_sdist"),
+        pytest.param((), (), 1, id="empty"),
+        pytest.param((), (SDIST, OTHER_SDIST), 1, id="two_different_sdists"),
+        pytest.param((WHEEL,), (), 1, id="wheel_but_no_sdist"),
+        pytest.param((WHEEL, "other.whl"), (SDIST,), 0, id="every_wheel_kept"),
     ],
 )
-def test_the_attest_job_refuses_an_ambiguous_artefact_set(
-    names: tuple[str, ...], expected: int, tmp_path: pathlib.Path
+def test_the_attest_job_collects_every_wheel_and_refuses_an_ambiguous_set(
+    wheels: tuple[str, ...],
+    sdists: tuple[str, ...],
+    expected: int,
+    tmp_path: pathlib.Path,
 ) -> None:
-    """Attesting is publishing: the same count holds before a signature."""
-    _populate(tmp_path / "dist" / "publish", *names)
-    completed = run_bash(_ATTEST_TAIL, tmp_path, environ=SHELL)
-    assert completed.returncode == expected, (names, completed.stderr)
+    """Attesting is publishing: the same count holds before a signature.
+
+    The whole step runs, collection loop included, because the loop is what
+    decides the set the guard then counts: a guard that passes over a
+    collection that dropped a wheel would still attest an incomplete release.
+    """
+    _download(tmp_path / "dist", wheels=wheels, sdists=sdists)
+    script = _script(RELEASE_WORKFLOW, "attest", "Collect release artefacts")
+    completed = run_bash(script, tmp_path, environ=SHELL)
+    assert completed.returncode == expected, (wheels, sdists, completed.stderr)
+    if expected == 0:
+        published = sorted(
+            path.name for path in (tmp_path / "dist" / "publish").iterdir()
+        )
+        assert published == sorted({*wheels, *sdists}), published
 
 
 def test_the_guards_live_in_the_workflows_this_repository_ships() -> None:

@@ -16,7 +16,7 @@ import typing as typ
 
 import pytest
 
-from tests.support.release_fakes import FakeRelease, fake_release
+from tests.support.release_fakes import Attested, FakeRelease, fake_release
 from tests.support.release_steps import (
     requires_bash,
     run_bash,
@@ -69,15 +69,16 @@ def workspace(
     return work, fake_release(tmp_path), publish
 
 
-#: The steps up to and including PyPI's upload decision, in workflow order.
-#: Each publishes into the directory the one before it filled, so they are a
-#: sequence rather than a set.
-_PUBLISH_TO_PYPI: typ.Final = (
+#: ``draft-release``'s scripted steps, in workflow order. Each publishes into
+#: the directory the one before it filled, so they are a sequence, not a set.
+_DRAFT_STEPS: typ.Final = (
     "Create or reuse the draft release",
     "Snapshot the release assets",
-    "Fetch the PyPI index",
-    "Skip artefacts already on PyPI",
+    "Verify the carried assets' provenance",
 )
+
+#: ``publish-pypi``'s scripted steps, in workflow order.
+_PUBLISH_STEPS: typ.Final = ("Fetch the PyPI index", "Skip artefacts already on PyPI")
 
 
 def _run_publish(
@@ -85,10 +86,10 @@ def _run_publish(
 ) -> subprocess.CompletedProcess[str]:
     """Run ``draft-release`` and then ``publish-pypi``, as a release does.
 
-    The tag's release is created or reused first, its assets snapshotted, and
-    only then is the index fetched and the upload set decided. Later steps
-    consume what the earlier ones wrote, so they cannot be reordered or run
-    in isolation.
+    The tag's release is created or reused first, its assets snapshotted and
+    their provenance verified, and only then is the index fetched and the
+    upload set decided. Later steps consume what the earlier ones wrote, so
+    they cannot be reordered or run in isolation.
 
     Returns
     -------
@@ -99,18 +100,12 @@ def _run_publish(
     document = _document()
     environ = fake.environ()
     completed = run_job_steps(
-        workflow_job(document, "draft-release"),
-        ("Create or reuse the draft release", "Snapshot the release assets"),
-        work,
-        environ=environ,
+        workflow_job(document, "draft-release"), _DRAFT_STEPS, work, environ=environ
     )
     if completed.returncode != 0:
         return completed
     return run_job_steps(
-        workflow_job(document, "publish-pypi"),
-        ("Fetch the PyPI index", "Skip artefacts already on PyPI"),
-        work,
-        environ=environ,
+        workflow_job(document, "publish-pypi"), _PUBLISH_STEPS, work, environ=environ
     )
 
 
@@ -121,10 +116,15 @@ def _seed_release(
     pypi: tuple[str, ...] = (),
     github: tuple[str, ...] = (),
 ) -> None:
-    """Write a rebuilt artefact set and the two destinations' holdings."""
+    """Write a rebuilt artefact set and the two destinations' holdings.
+
+    Whatever either destination holds is attested, as it would be in practice:
+    a file reaches PyPI or the Release only through a run that signed it.
+    """
     (publish / WHEEL).write_bytes(b"rebuilt-wheel")
     (publish / SDIST).write_bytes(b"rebuilt-sdist")
     canonical = {WHEEL: b"canonical-wheel", SDIST: b"canonical-sdist"}
+    fake.attest(canonical)
     for directory, names in ((fake.pypi, pypi), (fake.github, github)):
         for name in names:
             (directory / name).write_bytes(canonical[name])
@@ -138,6 +138,7 @@ def test_the_publishing_steps_name_this_repository_scripts() -> None:
         ("publish-pypi", "Skip artefacts already on PyPI"),
         ("publish-release", "Stage the assets the release lacks"),
         ("publish-release", "Check the fetched PyPI bytes"),
+        ("publish-release", "Verify the upload set's provenance"),
         ("publish-release", "Check both destinations hold the same bytes"),
     ):
         script = _script(job, step)
@@ -199,6 +200,46 @@ def test_a_name_only_the_release_holds_is_sent_with_the_releases_bytes(
         p.name for p in publish.iterdir()
     ]
     assert (publish / WHEEL).read_bytes() == b"canonical-wheel", publish
+
+
+@requires_bash
+def test_a_carried_asset_with_no_attestation_is_never_sent_to_pypi(
+    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+) -> None:
+    """The release's bytes are attested, or PyPI does not receive them.
+
+    The digest the Release reports proves only that the file matches what the
+    Release holds now; the attestation is the only evidence of who built it.
+    """
+    _work, fake, publish = workspace
+    _seed_release(publish, fake, github=(WHEEL,))
+    for record in fake.attestations.iterdir():
+        record.unlink()
+    completed = _run_publish(workspace)
+    assert completed.returncode != 0, completed.stdout
+    assert "no attestations found" in completed.stderr, completed.stderr
+    assert (publish / SDIST).exists(), "the refusal must stop the carry, not the run"
+    assert (publish / WHEEL).read_bytes() == b"rebuilt-wheel", (
+        "the unattested file must not replace the rebuild"
+    )
+
+
+@requires_bash
+def test_a_carried_asset_signed_by_another_workflow_is_refused(
+    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+) -> None:
+    """A signature proves *a* workflow ran, so the workflow is named too."""
+    _work, fake, publish = workspace
+    _seed_release(publish, fake, github=(WHEEL,))
+    for record in fake.attestations.iterdir():
+        record.unlink()
+    fake.attest(
+        {WHEEL: b"canonical-wheel"},
+        as_=Attested(workflow="/.github/workflows/build-wheels.yml"),
+    )
+    completed = _run_publish(workspace)
+    assert completed.returncode != 0, completed.stdout
+    assert "no attestations matched the policy" in completed.stderr, completed.stderr
 
 
 @requires_bash

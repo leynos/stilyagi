@@ -51,15 +51,21 @@ EXPECTED_JOBS: typ.Final = {
     "publish-release": {"check-version", "draft-release", "publish-pypi"},
 }
 
+#: The step in each job that verifies an attestation, by name.
+STRICT_VERIFY: typ.Final = {
+    "draft-release": "Verify the carried assets' provenance",
+    "publish-release": "Verify the upload set's provenance",
+}
+
 #: The write scopes each job may declare. Nothing else, and no job may inherit
 #: the workflow's own, which is empty.
 JOB_PERMISSIONS: typ.Final = {
     "check-version": {"contents": "read"},
     "build-wheels": {"contents": "read"},
     "attest": {"contents": "read", "id-token": "write", "attestations": "write"},
-    "draft-release": {"contents": "write"},
+    "draft-release": {"contents": "write", "attestations": "read"},
     "publish-pypi": {"contents": "read", "id-token": "write"},
-    "publish-release": {"contents": "write"},
+    "publish-release": {"contents": "write", "attestations": "read"},
 }
 
 
@@ -92,11 +98,33 @@ def test_the_workflow_declares_no_permissions_of_its_own() -> None:
 
 
 def test_a_re_run_queues_rather_than_cancels() -> None:
-    """Cancelling could stop an upload part-way through."""
+    """A pending run must survive the one ahead of it, however many there are.
+
+    ``cancel-in-progress: false`` keeps a run that has started, but GitHub
+    allows only one *pending* run per group by default: a third push silently
+    replaces the second, which is exactly the run that would have reconciled
+    the tag.
+    """
     concurrency = DOCUMENT.get("concurrency")
     assert isinstance(concurrency, dict), "expected a concurrency mapping"
     assert concurrency.get("group") == "release-${{ github.ref }}", concurrency
     assert concurrency.get("cancel-in-progress") == "false", concurrency
+    assert concurrency.get("queue") == "max", concurrency
+
+
+#: Every policy flag an attestation lookup must state, and what each one
+#: answers. A lookup without the repository could verify a signature by anyone
+#: at all, and one without the signer workflow accepts any workflow in the
+#: repository.
+ATTESTATION_POLICY: typ.Final = ("--repo ", "--signer-workflow ", "--source-ref ")
+
+
+def test_every_attestation_lookup_declares_its_scope() -> None:
+    """``gh attestation`` is a read, and a job that makes it must be allowed to."""
+    for job in ("draft-release", "publish-release"):
+        script = step_script(workflow_job(DOCUMENT, job), STRICT_VERIFY[job])
+        missing = [flag for flag in ATTESTATION_POLICY if flag not in script]
+        assert not missing, (job, missing, script)
 
 
 @pytest.mark.parametrize(("job", "needs"), sorted(EXPECTED_JOBS.items()))
@@ -176,21 +204,6 @@ def test_every_run_script_is_free_of_github_expressions() -> None:
         and "${{" in entry["run"]
     ]
     assert not offenders, offenders
-
-
-def test_every_checked_out_repository_keeps_its_credentials_to_itself() -> None:
-    """A token left in ``.git/config`` is readable by every later step."""
-    jobs = DOCUMENT["jobs"]
-    assert isinstance(jobs, dict), "jobs must be a mapping"
-    for job, body in jobs.items():
-        for entry in body.get("steps") or []:
-            if not isinstance(entry, dict):
-                continue
-            if not str(entry.get("uses", "")).startswith("actions/checkout@"):
-                continue
-            declared = entry.get("with") or {}
-            inputs: dict[str, object] = declared if isinstance(declared, dict) else {}
-            assert inputs.get("persist-credentials") == "false", (job, inputs)
 
 
 def test_the_publishing_jobs_check_out_only_the_scripts() -> None:
@@ -297,3 +310,31 @@ def test_the_pypi_job_publishes_from_an_environment() -> None:
 def test_the_reading_names_its_own_document() -> None:
     """A missing job is reported as this workflow's, not an anonymous one."""
     assert READER == "release workflow", READER
+
+
+# -- what reaches the publishing steps in ``publish-release`` ----------------
+
+
+def test_the_upload_step_is_gated_on_the_staging_output() -> None:
+    """Nothing is uploaded unless the staging step found a gap."""
+    job = workflow_job(DOCUMENT, "publish-release")
+    gate = step(job, "Upload the assets the release lacks")
+    assert gate.get("if") == "steps.stage.outputs.pending == 'true'", gate
+
+
+def test_the_prerelease_flag_reaches_the_step_through_its_environment() -> None:
+    """A tag's pre-release status is data, never part of the script."""
+    job = workflow_job(DOCUMENT, "publish-release")
+    publish = step(job, "Publish the GitHub Release")
+    assert publish.get("env") == {
+        "IS_PRERELEASE": "${{ needs.check-version.outputs.prerelease }}"
+    }, publish
+
+
+def test_the_publishing_job_holds_a_token_and_a_repository_for_gh() -> None:
+    """``gh`` needs both, and neither is spelled into a command line."""
+    job = workflow_job(DOCUMENT, "publish-release")
+    assert job.get("env") == {
+        "GH_TOKEN": "${{ github.token }}",
+        "GH_REPO": "${{ github.repository }}",
+    }, job.get("env")
