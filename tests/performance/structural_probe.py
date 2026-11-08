@@ -244,7 +244,8 @@ def measure_probe(
 
 def write_report(report: ReportPayload, output_path: pathlib.Path) -> None:
     """Write a structural probe report as formatted JSON."""
-    logger.debug("writing report: path=%s", output_path)
+    resolved_path = output_path.resolve()
+    logger.debug("writing report: path=%s", resolved_path)
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
@@ -252,13 +253,18 @@ def write_report(report: ReportPayload, output_path: pathlib.Path) -> None:
             encoding="utf-8",
         )
     except OSError:
-        logger.exception("report write failed: path=%s", output_path)
+        logger.exception("report write failed: path=%s", resolved_path)
         raise
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Run the structural performance probe command."""
     args = _argument_parser().parse_args(argv)
+    if args.log_level is not None:
+        logging.basicConfig(
+            level=args.log_level,
+            format="%(levelname)s %(name)s: %(message)s",
+        )
     if args.child_run:
         from tests.performance.structural_probe_execution import measure_extraction
 
@@ -353,6 +359,12 @@ def _argument_parser() -> argparse.ArgumentParser:
         type=pathlib.Path,
         default=pathlib.Path("build/performance/structural-baseline.json"),
         help="JSON report output path",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        default=None,
+        help="enable probe diagnostics at this level (default: disabled)",
     )
     parser.add_argument(
         "--child-run",

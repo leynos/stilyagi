@@ -77,7 +77,7 @@ def _measure_run(
     )
     if mode == "cold":
         durations = tuple(
-            _measure_cold_iteration(fixture, iteration_index)
+            _measure_cold_iteration(fixture, mode, iteration_index)
             for iteration_index in range(iterations)
         )
     else:
@@ -100,6 +100,7 @@ def _measure_run(
 
 def _measure_cold_iteration(
     fixture: probe.StructuralFixture,
+    mode: probe.ProbeMode,
     iteration_index: int,
 ) -> int:
     """Measure one syntax extraction in a fresh Python interpreter."""
@@ -115,7 +116,8 @@ def _measure_cold_iteration(
         fixture.syntax.value,
     ]
     logger.debug(
-        "cold iteration subprocess: iteration=%d command=%s",
+        "cold iteration subprocess: mode=%s iteration=%d command=%s",
+        mode,
         iteration_index,
         command,
     )
@@ -129,7 +131,8 @@ def _measure_cold_iteration(
         )
     except subprocess.CalledProcessError as exc:
         logger.exception(
-            "cold iteration subprocess failed: iteration=%d stderr=%s",
+            "cold iteration subprocess failed: mode=%s iteration=%d stderr=%s",
+            mode,
             iteration_index,
             exc.stderr,
         )
