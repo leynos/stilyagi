@@ -10,7 +10,6 @@ from stilyagi.cache.model import (
     CACHE_FORMAT_VERSION,
     CacheFileKind,
     ExtractionRequest,
-    cache_entry_name,
     cache_key,
     classify_cache_filename,
 )
@@ -33,6 +32,17 @@ def _request(source_text: str = "# Title\n") -> ExtractionRequest:
     )
 
 
+def _identity() -> dict[str, object]:
+    """Return source metadata that matches the request's extraction identity."""
+    request = _request()
+    return {
+        "content_hash": "sha256:"
+        + hashlib.sha256(request.source_text.encode()).hexdigest(),
+        "syntax": request.syntax,
+        "path": request.reported_identity,
+    }
+
+
 def _envelope(**overrides: object) -> str:
     """Return one valid envelope with the requested fields replaced."""
     ir_json = json.dumps({"document": {}})
@@ -49,23 +59,17 @@ def _envelope(**overrides: object) -> str:
     return json.dumps(fields)
 
 
-def test_cache_entry_names_reject_malformed_keys() -> None:
-    """Refuse to build an owned filename from an invalid key."""
-    with pytest.raises(ValueError, match="64 lowercase hexadecimal"):
-        cache_entry_name("NOT-A-KEY")
-
-
 @pytest.mark.parametrize(
     ("name", "expected"),
     [
-        pytest.param("0" * 64 + ".json", CacheFileKind.ENTRY, id="entry"),
-        pytest.param(".tmp-" + "a" * 32, CacheFileKind.TEMP, id="temp"),
+        # The model module's classifier is certified over its own forms. These
+        # two name shapes only cleanup depends on: the ownership marker it must
+        # leave alone, and a foreign suffix beside a genuine digest.
         pytest.param("owner.json", None, id="owner-marker"),
-        pytest.param("0" * 63 + ".json", None, id="short-key"),
         pytest.param("0" * 64 + ".json.bak", None, id="unexpected-suffix"),
     ],
 )
-def test_classify_cache_filename_separates_owned_and_foreign_names(
+def test_classify_cache_filename_refuses_names_cleanup_must_not_remove(
     name: str,
     expected: CacheFileKind | None,
 ) -> None:
@@ -81,16 +85,6 @@ def test_canonical_identity_rejects_non_json_configuration() -> None:
 
     with pytest.raises(ValueError, match="finite JSON data"):
         cache_key(request)
-
-
-def test_cache_key_is_stable_and_keyed_by_every_input() -> None:
-    """Produce one stable digest for an unchanged extraction identity."""
-    request = _request()
-
-    assert cache_key(request) == cache_key(_request()), (
-        "an unchanged request must hash to the same cache key"
-    )
-    assert len(cache_key(request)) == 64, "a cache key is a full SHA-256 digest"
 
 
 def _decode(content: str | bytes, key: str = "0" * 64) -> object:
@@ -172,21 +166,43 @@ def test_decode_cache_entry_rejects_invalid_envelopes(
 
 
 @pytest.mark.parametrize(
-    "ir_payload",
+    ("ir_payload", "expected"),
     [
-        pytest.param([], id="ir-not-a-mapping"),
-        pytest.param({"regions": []}, id="missing-document"),
-        pytest.param({"document": []}, id="document-not-a-mapping"),
-        pytest.param({"document": {"content_hash": "sha256:0"}}, id="wrong-hash"),
-        pytest.param({"document": {"syntax": "python_docstring"}}, id="wrong-syntax"),
-        pytest.param({"document": {"path": "other.md"}}, id="wrong-path"),
+        pytest.param([], "no document mapping", id="ir-not-a-mapping"),
+        pytest.param({"regions": []}, "no source identity", id="missing-document"),
+        pytest.param(
+            {"document": []}, "no source identity", id="document-not-a-mapping"
+        ),
+        pytest.param(
+            {"document": {"content_hash": "sha256:0"}},
+            "source hash differs from its cache key",
+            id="wrong-hash",
+        ),
+        # The hash has to match here, or the hash check fires first and this
+        # case never reaches the syntax comparison it exists to exercise.
+        pytest.param(
+            {"document": {**_identity(), "syntax": "python_docstring"}},
+            "syntax differs from its cache key",
+            id="wrong-syntax",
+        ),
+        pytest.param(
+            {"document": {**_identity(), "path": "other.md"}},
+            "path differs from its cache key",
+            id="wrong-path",
+        ),
     ],
 )
 def test_decode_cache_entry_rejects_mismatched_source_identity(
     ir_payload: object,
+    expected: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Reject hydrated IR whose source metadata disagrees with its cache key."""
+    """Reject hydrated IR whose source metadata disagrees with its cache key.
+
+    Each case names the specific reason, because a shared prefix would accept a
+    regression that makes one case fail for a different reason than the one it
+    was written to pin.
+    """
     from stilyagi.cache import ir
     from stilyagi.cache.ir import InvalidCacheEntryError
 
@@ -196,7 +212,7 @@ def test_decode_cache_entry_rejects_mismatched_source_identity(
         lambda _canonical: typ.cast("object", _Hydrated(ir_payload)),
     )
 
-    with pytest.raises(InvalidCacheEntryError, match=r"no |differs from its cache key"):
+    with pytest.raises(InvalidCacheEntryError, match=expected):
         _decode(_envelope())
 
 
@@ -218,15 +234,7 @@ class _Document:
 
 def _true_ir_payload() -> dict[str, object]:
     """Return the IR payload whose metadata matches the request identity."""
-    request = _request()
-    return {
-        "document": {
-            "content_hash": "sha256:"
-            + hashlib.sha256(request.source_text.encode()).hexdigest(),
-            "syntax": request.syntax,
-            "path": request.reported_identity,
-        }
-    }
+    return {"document": _identity()}
 
 
 def test_decode_cache_entry_accepts_a_matching_source_identity(

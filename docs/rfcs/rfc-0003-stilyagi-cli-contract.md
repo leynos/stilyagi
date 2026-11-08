@@ -143,8 +143,9 @@ The command SHALL default to `.` and recursively inspect Markdown files with
 `.md`, `.markdown` or `.mdc` suffixes. Explicit non-Markdown files SHALL exit
 `2`. It SHALL accept `-` once when paired with a Markdown `--stdin-filename`,
 and SHALL reject stdin mixed with file or directory operands. Configuration
-flags, `--no-cache` and `--output-format json` are supported; fix and
-rule-selection flags are not.
+flags, `--no-cache`, `--verbose` and `--output-format json` are supported; fix
+and rule-selection flags are not. `--verbose` writes the extraction-cache
+counters to standard error only, so standard output stays parseable.
 
 One successful input SHALL emit its canonical IR object. Zero or multiple
 inputs SHALL emit a JSON array, with empty discovery represented as `[]`.

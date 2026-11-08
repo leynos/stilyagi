@@ -682,8 +682,8 @@ not applied. Run it again if the note appears.
 
 A `--fix` run that writes nothing reports exactly like a plain check, on the
 ordinary stream, so `--fix` on an already-clean tree is byte-identical to a
-check without it. Because no builtin rules ship yet, this is currently every
-`--fix` run: the planner is complete but has nothing to plan over.
+check without it. That is the outcome whenever no diagnostic the run reports
+carries a fix this run may apply.
 
 ##### Why a fix can be refused
 
@@ -897,9 +897,8 @@ The `check`, `config`, `dump-ir`, and `clean` commands are available. Markdown
 extraction caching reuses only canonical IR; each run still evaluates its
 current rules and fix plan. `--no-cache` bypasses persistent cache access, and
 `clean` removes only recognized Stilyagi cache data beneath the working
-directory. No builtin rules ship yet, so a run currently reports no diagnostics
-whatever the source. Treat this guide as a record of the settled user-facing v1
-contract rather than as a complete operating manual.
+directory. Treat this guide as a record of the settled user-facing v1 contract
+rather than as a complete operating manual.
 
 ## References
 

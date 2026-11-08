@@ -10,6 +10,7 @@ import typing as typ
 
 from stilyagi import config
 from stilyagi.cli_config import _build_rule_selection_overrides
+from stilyagi.config.path_resolution import PathResolutionError, expand_user
 from stilyagi.config.provenance import _is_within
 
 if typ.TYPE_CHECKING:
@@ -44,7 +45,13 @@ def _spell_origin_path(path: _OriginPath) -> str:
         The dotted key spelling, with non-bare components quoted.
     """
     return ".".join(
-        component if _BARE_KEY.match(component) else json.dumps(component)
+        component
+        if _BARE_KEY.match(component)
+        # `ensure_ascii=False` is not cosmetic here. The escaped form of an
+        # astral-plane character is a surrogate pair, and TOML forbids
+        # surrogate code points in `\u` escapes, so `_decode_key_component`
+        # would reject the very key this command just printed.
+        else json.dumps(component, ensure_ascii=False)
         for component in path
     )
 
@@ -136,8 +143,24 @@ def _inspection_target(
     target_value: str,
     error: typ.TextIO,
 ) -> pathlib.Path | None:
-    """Expand and validate the file or directory inspected by the command."""
-    target = pathlib.Path(target_value).expanduser()
+    """Expand and validate the file or directory inspected by the command.
+
+    The expansion goes through `path_resolution.expand_user` rather than
+    `Path.expanduser` so an unresolvable home directory becomes the named
+    `PathResolutionError` this command reports, instead of a bare `RuntimeError`
+    escaping as a traceback. Every other `RuntimeError` still propagates: only
+    the environmental failure is this command's operational error to absorb.
+
+    Returns
+    -------
+    pathlib.Path or None
+        The target when it exists, otherwise None after reporting why.
+    """
+    try:
+        target = expand_user(pathlib.Path(target_value))
+    except PathResolutionError as exc:
+        error.write(f"stilyagi config: cannot expand target: {exc}\n")
+        return None
     if target.is_file():
         return target
     if target.is_dir():

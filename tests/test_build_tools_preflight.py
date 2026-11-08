@@ -148,7 +148,8 @@ def test_check_toolchain_reports_an_uninstalled_channel(
 
 
 def test_check_mold_skips_the_check_off_linux(
-    pins: PinWorkspace, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Report no problems off Linux, and say which linker is used instead."""
     runner = _Runner()
@@ -160,6 +161,9 @@ def test_check_mold_skips_the_check_off_linux(
 
     assert problems == [], "mold is not required outside Linux"
     assert not runner.calls, "no version probe may run where mold is unusable"
+    assert "the default darwin linker is used" in capsys.readouterr().err, (
+        "the skip must name the linker that is used instead"
+    )
 
 
 def test_check_toolchain_reports_every_missing_component(

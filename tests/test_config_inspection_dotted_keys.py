@@ -102,3 +102,42 @@ def test_quoted_dotted_key_can_be_selected(
         "expected the requested key to be echoed unchanged"
     )
     assert payload["value"] == ["MD001"], "expected the selected rule list"
+
+
+def test_a_key_component_outside_the_basic_plane_round_trips(
+    capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    """Render an astral-plane component in a spelling TOML can read back.
+
+    `json.dumps` escapes such a character as a surrogate pair by default, and
+    TOML forbids surrogate code points in its Unicode escapes. Quoting that way
+    made the command reject its own printed key, so this pins the round trip
+    rather than only the rendering.
+    """
+    glob = "*.md-\U0001f600"
+    config_file = tmp_path / "stilyagi.toml"
+    _write_config(config_file, f'[lint.per-file-ignores]\n"{glob}" = ["MD001"]')
+    target = _make_markdown_target(tmp_path)
+
+    rendered = cli.main(["config", "--target", str(target)])
+    text = capsys.readouterr()
+    selected = cli.main([
+        "config",
+        f'lint.per-file-ignores."{glob}"',
+        "--target",
+        str(target),
+        "--output-format",
+        "json",
+    ])
+    output = capsys.readouterr()
+
+    assert rendered == 0, "expected text output to accept an astral-plane key"
+    assert selected == 0, "expected the printed key component to be selectable"
+    assert not text.err, "expected no diagnostic for a valid config"
+    assert not output.err, "expected no diagnostic selecting the printed key"
+    assert f'lint.per-file-ignores."{glob}"' in text.out, (
+        "expected the component to be quoted verbatim, not surrogate-escaped"
+    )
+    assert json.loads(output.out)["value"] == ["MD001"], (
+        "expected the selected rule list to survive the round trip"
+    )
