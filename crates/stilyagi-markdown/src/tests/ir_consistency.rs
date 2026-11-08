@@ -18,6 +18,8 @@ use super::{
 };
 use crate::{markdown_ir_document, source_span, source_text::decoded_text_maps_to_source};
 
+/// Markdown IR extraction must fill the canonical envelope, nodes, and
+/// regions for a document with a heading, a paragraph, and a table.
 #[rstest]
 fn markdown_ir_document_emits_envelope_nodes_and_regions() {
     let source = concat!(
