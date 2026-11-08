@@ -1,11 +1,24 @@
-"""Shared stand-ins for driving scripts/build_tools.py under cmd-mox.
+"""Shared stand-ins for driving scripts/build_tools.py at two boundaries.
 
 The script runs `curl`, `tar`, `rustup` and `mold`, and every failure it
 reports is a promise to the developer: an actionable `build-tools:` line and a
-non-zero exit instead of a silent fallback to a slower or different build. The
-tests execute the script as a subprocess whose `PATH` holds only shims, so a
-real `mold` on the machine cannot make a missing-tool case pass for the wrong
-reason, and they read the journal to prove what was, and was not, run.
+non-zero exit instead of a silent fallback to a slower or different build.
+
+The stand-ins serve two kinds of test, and the difference is what each can see.
+The cross-process cases run the script as a subprocess whose `PATH` holds only
+shims, so a real `mold` on the machine cannot make a missing-tool case pass for
+the wrong reason, and they read the journal to prove what was, and was not, run.
+The in-process cases import the script and call its orchestration with the
+catalogue runner replaced. Nothing is spawned there, so a result value is
+observable directly -- which is how the exact problem set of one preflight, or
+the whole argument vector of one tool call, is asserted rather than
+pattern-matched out of a merged standard-error stream.
+
+`ScriptedRunner` and `CurlServingRunner` are the in-process answers, and
+`command_result` builds the values they return. The shim factories and journal
+helpers are their cross-process counterparts. Importing the script also puts
+its sibling modules on the path, so `build_tools_environment` and
+`build_tools_pins` are available to both kinds.
 """
 
 import dataclasses as dc
