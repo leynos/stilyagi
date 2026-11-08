@@ -236,8 +236,8 @@ def _configure_logging(options: CheckOptions) -> None:
     cli_log.configure_command_warning_handler()
     if options.silent or options.quiet:
         logging.basicConfig(level=logging.WARNING, handlers=[cli_log.log_handler()])
-    elif options.verbose:
-        logging.basicConfig(level=logging.INFO, handlers=[cli_log.log_handler()])
+    else:
+        cli_log.configure_verbose_logging(verbose=options.verbose)
 
 
 def _run_check(
