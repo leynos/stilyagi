@@ -19,6 +19,7 @@ class MarkdownInspectionState(typ.TypedDict, total=False):
     runs: list[CapturedProcess]
     last_run: CapturedProcess
     outside_target: pathlib.Path
+    recognized_link_target: pathlib.Path
 
 
 @pytest.fixture
