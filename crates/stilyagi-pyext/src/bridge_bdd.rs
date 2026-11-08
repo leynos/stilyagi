@@ -81,7 +81,7 @@ fn bridge_can_call_the_shared_smoke_greeting(bridge_state: &mut BridgeState) {
     bridge_state.core_greeting = Some(stilyagi_core::smoke_hello());
 }
 
-/// Records the greeting produced through the PyO3 bridge.
+/// Records the greeting produced through the `PyO3` bridge.
 #[when("the bridge produces a hello greeting")]
 fn bridge_produces_a_hello_greeting(bridge_state: &mut BridgeState) {
     bridge_state.bridge_greeting = Some(hello());

@@ -6,22 +6,17 @@
 //! omit the canonical IR JSON where a structural assertion already covers it;
 //! see the snapshot workflow in the developers' guide.
 
+mod errors;
 mod hydration;
 mod identity;
 pub(crate) mod payload;
 mod python_docstring;
 mod rust_doc_comment;
+mod vocabulary;
 
-use payload::{
-    dict_list,
-    dict_string,
-    list_dict_at,
-    parse_ir_json,
-    region_kind_and_text,
-    tuple_strings,
-};
+use payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text};
 use pyo3::{
-    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
+    exceptions::PyTypeError,
     prelude::{Bound, Py, PyErr, PyResult, Python},
     types::{
         PyAny,
@@ -46,7 +41,6 @@ use stilyagi_extract::{
     PythonExtractError,
     RustExtractError,
 };
-use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, RegionKind as IrRegionKind};
 
 use super::{
     authored_directive_error_codes_py,
@@ -236,11 +230,6 @@ fn assert_ir_json_contract(parsed: &serde_json::Value) {
     );
 }
 
-/// Collects the expected spellings for a vocabulary comparison.
-fn expected_strings<'a>(values: impl IntoIterator<Item = &'a str>) -> Vec<String> {
-    values.into_iter().map(str::to_owned).collect()
-}
-
 /// The bridge greeting must be the same value the core crate exposes.
 #[rstest]
 fn hello_delegates_to_the_core_smoke_greeting() {
@@ -252,62 +241,6 @@ fn hello_delegates_to_the_core_smoke_greeting() {
 #[case("hello from Python")]
 fn hello_is_not_the_legacy_python_fallback(#[case] legacy_fallback: &str) {
     assert_ne!(hello(), legacy_fallback);
-}
-
-/// The bridge's supported syntaxes must mirror `ExtractSyntax::ALL`.
-///
-/// The snapshot pins the wire spelling, while the comparison beside it keeps
-/// the relationship to the Rust vocabulary. Without that comparison a
-/// vocabulary change the bridge did not export would still match the old
-/// snapshot and pass.
-#[rstest]
-fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
-    Python::attach(|py| {
-        let expected = expected_strings(
-            ExtractSyntax::ALL
-                .iter()
-                .copied()
-                .map(ExtractSyntax::as_str),
-        );
-        let actual = tuple_strings(py, supported_syntaxes_py(py))
-            .expect("supported_syntaxes should return a tuple of strings");
-
-        assert_eq!(actual, expected);
-        insta::assert_json_snapshot!("supported_syntaxes", json!(actual));
-    });
-}
-
-/// The bridge's supported region kinds must mirror `IrRegionKind::ALL`.
-///
-/// See [`supported_syntaxes_follow_the_rust_extraction_vocabulary`] for why the
-/// semantic comparison sits beside the snapshot.
-#[rstest]
-fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
-    Python::attach(|py| {
-        let expected =
-            expected_strings(IrRegionKind::ALL.iter().copied().map(IrRegionKind::as_str));
-        let actual = tuple_strings(py, supported_region_kinds_py(py))
-            .expect("supported_region_kinds should return a tuple of strings");
-
-        assert_eq!(actual, expected);
-        insta::assert_json_snapshot!("supported_region_kinds", json!(actual));
-    });
-}
-
-/// The bridge's authored-directive error codes must mirror the Rust constants.
-///
-/// See [`supported_syntaxes_follow_the_rust_extraction_vocabulary`] for why the
-/// semantic comparison sits beside the snapshot.
-#[rstest]
-fn authored_directive_error_codes_follow_the_rust_ir_vocabulary() {
-    Python::attach(|py| {
-        let expected = expected_strings(AUTHORED_DIRECTIVE_ERROR_CODES.iter().copied());
-        let actual = tuple_strings(py, authored_directive_error_codes_py(py))
-            .expect("authored_directive_error_codes should return a tuple of strings");
-
-        assert_eq!(actual, expected);
-        insta::assert_json_snapshot!("authored_directive_error_codes", json!(actual));
-    });
 }
 
 /// The exported function must reject keyword arguments it does not accept.
@@ -365,51 +298,6 @@ fn extract_document_py_exposes_markdown_document() {
     });
 }
 
-/// Python docstring extraction must preserve both the module and function
-/// regions.
-#[rstest]
-fn extract_document_py_exposes_python_docstrings() {
-    let source = "\"\"\"Module docs.\"\"\"\n\ndef example():\n    \"\"\"Function docs.\"\"\"\n";
-    let document = bridge_extract_document(&BridgeExtractRequest {
-        source,
-        syntax: "python_docstring",
-        source_path: None,
-    })
-    .expect("Python docstring extraction should succeed");
-
-    Python::attach(|py| {
-        let document_dict = document.bind(py);
-        let regions = dict_list(document_dict, "regions").expect("Python regions should be a list");
-        let region_summaries = (0..regions.len())
-            .map(|index| {
-                let region = list_dict_at(&regions, index).expect("region should be a dict");
-                region_kind_and_text(&region).expect("region should carry kind and text")
-            })
-            .collect::<Vec<_>>();
-
-        insta::assert_json_snapshot!(
-            "extract_document_py__python_docstring_payload",
-            document_payload(document_dict)
-        );
-
-        assert_eq!(
-            dict_string(document_dict, "syntax").expect("syntax payload should be a string"),
-            ExtractSyntax::PythonDocstring.as_str(),
-        );
-        assert_eq!(
-            region_summaries,
-            [
-                ("python_docstring".to_owned(), "Module docs.".to_owned()),
-                ("python_docstring".to_owned(), "Function docs.".to_owned()),
-            ],
-        );
-
-        let ir_json = dict_string(document_dict, "ir_json").expect("IR payload should be a string");
-        let parsed = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
-        assert_ir_json_contract(&parsed);
-    });
-}
-
 /// Keep rejection behaviour stable for both unsupported and unknown syntax
 /// strings.
 #[rstest]
@@ -428,62 +316,6 @@ fn extract_document_py_rejects_invalid_syntaxes(#[case] case: InvalidSyntaxCase)
         "extract_document_py__invalid_syntax_error",
         format!("{err}")
     );
-}
-
-/// Keep the `UnknownSyntax` arm of `map_extract_error` wired to a
-/// `PyValueError` so Python callers receive a `ValueError` for unrecognized
-/// syntax strings.
-#[rstest]
-fn bridge_extract_document_rejects_unknown_syntaxes() {
-    let error = bridge_extract_document(&BridgeExtractRequest {
-        source: "example",
-        syntax: "not_a_real_syntax",
-        source_path: None,
-    })
-    .expect_err("expected unknown syntax error");
-
-    Python::attach(|py| {
-        assert!(error.is_instance_of::<PyValueError>(py));
-    });
-    assert!(error.to_string().contains("not_a_real_syntax"));
-}
-
-/// Markdown IR failures must surface to Python as `RuntimeError`.
-#[rstest]
-fn map_extract_error_uses_runtime_error_for_markdown_ir() {
-    Python::attach(|py| {
-        let error = map_extract_error(&ExtractError::MarkdownIr(MarkdownIrFailure::new(
-            "stilyagi-markdown",
-            "bad-ir",
-            "bad IR",
-        )));
-
-        assert!(error.is_instance_of::<PyRuntimeError>(py));
-    });
-}
-
-/// Python IR failures must surface as `RuntimeError` with the crate's wording.
-#[rstest]
-fn map_extract_error_uses_runtime_error_for_python_ir() {
-    Python::attach(|py| {
-        let error = map_extract_error(&ExtractError::PythonIr(PythonExtractError::NoParseTree));
-
-        assert!(error.is_instance_of::<PyRuntimeError>(py));
-        assert!(
-            error.to_string().contains("python IR extraction failed"),
-            "unexpected python IR error display: {error}"
-        );
-    });
-}
-
-/// An unrecognized syntax string must surface as `ValueError`.
-#[rstest]
-fn map_extract_error_uses_value_error_for_unknown_syntax() {
-    Python::attach(|py| {
-        let error = map_extract_error(&ExtractError::UnknownSyntax("bogus".to_owned()));
-
-        assert!(error.is_instance_of::<PyValueError>(py));
-    });
 }
 
 /// The projection must not flatten booleans and integers into strings.

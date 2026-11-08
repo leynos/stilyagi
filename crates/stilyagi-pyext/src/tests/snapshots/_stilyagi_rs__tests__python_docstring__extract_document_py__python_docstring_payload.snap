@@ -1,5 +1,5 @@
 ---
-source: crates/stilyagi-pyext/src/tests/mod.rs
+source: crates/stilyagi-pyext/src/tests/python_docstring.rs
 expression: document_payload(document_dict)
 ---
 {
