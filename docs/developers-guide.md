@@ -1846,11 +1846,10 @@ tools in its own unconditional step, ahead of the first step that reaches them:
 the `lint-test` job in `smoke.yml` and the `coverage-upload` job in
 `coverage-main.yml`. The coverage publisher excludes `mold` from its compiler
 flags, but the suite it runs still drives Make targets that run the preflight,
-so it installs the tools itself. `release-smoke` installs them too: its wheel
-comes from `release-artefact`, which takes the release flags, but
-`smoke-release` takes its base interpreter from `.venv`, so `make release`
-reaches the preflight there. Only the mutation workflow reaches none, and
-installs nothing.
+so it installs the tools itself. `release-smoke` installs nothing: it delegates
+to `build-wheels.yml`, and that file's jobs run `maturin` and `uv build`
+directly, reaching neither the suite nor a Make goal. Only the mutation
+workflow reaches none as well, and it installs nothing either.
 
 `tests/test_build_tools_wiring.py` derives the job set from reachability: a
 step reaches the suite through the coverage action, a direct
@@ -3081,13 +3080,15 @@ reader. Ubicloud's cache proxy is scoped by ref, so a pull request's lane reads
 a warm main scope only when a main job on Ubicloud writes it. A fork's pull
 request restores a hosted cache that main no longer refreshes; fork pull
 requests are rare here, and a second hosted writer would pay double on every
-main push. `release-smoke` stays hosted: its runner comes from an operating
-system matrix.
+main push. `release-smoke` states no runner of its own: it delegates to
+`build-wheels.yml`, whose `build-linux` and `verify-wheel-install` jobs carry
+the Ubicloud expression above, and whose `build-hosted` job keeps an operating
+system matrix because each of those targets needs its own hosted runner.
 
-Both jobs keep their 60-minute ceilings. An Ubicloud runner is a self-hosted
+Those jobs keep their 60-minute ceilings. An Ubicloud runner is a self-hosted
 just-in-time runner, so GitHub's six-hour cap for hosted jobs does not bound it
-and each job must state its own; section 12 holds these two above the 1,800 s
-cargo watchdog, so neither can be set to twice a warm run.
+and each job must state its own; section 12 holds these above the 1,800 s cargo
+watchdog, so none can be set to twice a warm run.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
 evaluates the expression for a push or dispatch, a same-repository pull request
@@ -3686,12 +3687,12 @@ they must be ordered lives in the `generate-coverage` README in
 `leynos/shared-actions`.[^6] Before the nextest file was added exactly one of
 the four was set here.
 
-| Tier                     | What it bounds                     | Where it is set                                  | Current value             |
-| ------------------------ | ---------------------------------- | ------------------------------------------------ | ------------------------- |
-| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | 180 s; 600 s for trybuild |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 18 m                      |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 1,800 s (30 m)            |
-| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new                 |
+| Tier                     | What it bounds                     | Where it is set                                                                    | Current value             |
+| ------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------- | ------------------------- |
+| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                                                             | 180 s; 600 s for trybuild |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                                             | 18 m                      |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level                                    | 1,800 s (30 m)            |
+| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml`, `coverage-main.yml`, and every job of `build-wheels.yml` | 60 m, new                 |
 
 *Table: the timers that can end a run, innermost first.*
 
