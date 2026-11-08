@@ -2076,15 +2076,19 @@ the rustc `missing_docs` denial and the rustdoc default and override routes.
 The fixture sources and the manifests that copy the workspace tables live in
 `tests/support/lint_policy_fixtures.py`; the test module supplies a scratch
 base directory unique to the run and removes it afterwards, so two runs in the
-same worktree never share a crate. `tests/test_lint_policy_make_routes.py`
-dry-runs `make lint` against the recording probes and reads the `RUSTDOCFLAGS`
-the doc recipe evaluates. `tests/test_lint_policy_readers.py` pins the failure
-modes of the TOML and Makefile readers; its undecodable, missing and unreadable
-cases run over every public reader, so a new reader without a case is visible
-in the parameter list. `tests/test_lint_policy_metadata.py` pins the
-`cargo metadata` boundary: the selection examples, every malformed document
-shape, the undecodable-output case, and the property case over arbitrary
-metadata documents.
+same worktree never share a crate. The module reads the workspace tables once,
+at `write_workspace_crates`, and passes them to the renderer, so rendering is a
+pure function of the tables it is given: a case can inject tables the
+repository does not declare today, and a read that fails raises before any
+directory is created. `tests/test_lint_policy_make_routes.py` dry-runs
+`make lint` against the recording probes and reads the `RUSTDOCFLAGS` the doc
+recipe evaluates. `tests/test_lint_policy_readers.py` pins the failure modes of
+the TOML and Makefile readers; its undecodable, missing and unreadable cases
+run over every public reader, so a new reader without a case is visible in the
+parameter list. `tests/test_lint_policy_metadata.py` pins the `cargo metadata`
+boundary: the selection examples, every malformed document shape, the
+undecodable-output case, and the property case over arbitrary metadata
+documents.
 
 The decisions behind this split — the shared readers, the `cargo metadata`
 seam, the scratch crates and the unique run directory — are recorded in

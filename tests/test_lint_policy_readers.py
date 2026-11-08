@@ -28,6 +28,7 @@ from tests.support.lint_policy import (
     rustdoc_default,
     rustdoc_default_lines,
     workspace_lints,
+    workspace_table,
 )
 from tests.support.reader_cases import assert_names_reader_and_path, write_text
 
@@ -39,7 +40,6 @@ if typ.TYPE_CHECKING:
 @pytest.mark.parametrize(
     "document",
     [
-        pytest.param("", id="empty"),
         pytest.param("[workspace\n", id="truncated"),
         pytest.param("[workspace]\nmembers = [\n", id="unterminated-array"),
     ],
@@ -57,6 +57,7 @@ def test_malformed_toml_is_a_reading_error(
 #: Every public reader that takes a path, so each proves its own file-failure
 #: contract instead of relying on a sibling's case to cover the shared helper.
 READERS: typ.Final = (
+    pytest.param(workspace_table, id="workspace-table"),
     pytest.param(workspace_lints, id="workspace-lints"),
     pytest.param(clippy_restrictions, id="clippy-restrictions"),
     pytest.param(member_inherits_workspace_lints, id="member-inheritance"),
@@ -101,6 +102,7 @@ def test_unreadable_path_is_a_reading_error(
 @pytest.mark.parametrize(
     "document",
     [
+        pytest.param("", id="empty-document"),
         pytest.param("[package]\nname = 'probe'\n", id="no-workspace-table"),
         pytest.param("[workspace]\nlints = 3\n", id="lints-not-a-table"),
         pytest.param("[workspace.lints]\nclippy = 'deny'\n", id="namespace-not-table"),
@@ -109,7 +111,7 @@ def test_unreadable_path_is_a_reading_error(
 def test_structural_surprises_are_reading_errors(
     tmp_path: pathlib.Path, document: str
 ) -> None:
-    """A manifest with an unexpected shape is rejected, not partially read."""
+    """A manifest with no lint tables, or an unexpected shape, is rejected."""
     path = write_text(tmp_path / "Cargo.toml", document)
     with pytest.raises(ReadingError) as raised:
         workspace_lints(path)

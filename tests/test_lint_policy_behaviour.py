@@ -53,7 +53,7 @@ from tests.support.lint_policy import (
 from tests.support.lint_policy_fixtures import (
     CLIPPY_FIXTURES,
     ScratchCrates,
-    write_scratch_crates,
+    write_workspace_crates,
 )
 
 if typ.TYPE_CHECKING:
@@ -150,7 +150,9 @@ def crates() -> cabc.Iterator[ScratchCrates]:
         / (f"lint-policy-fixtures-{os.getpid()}-{uuid.uuid4().hex[:8]}")
     )
     try:
-        yield write_scratch_crates(base)
+        # The boundary reads the workspace tables and writes from them; a
+        # failed read raises here, before any directory exists.
+        yield write_workspace_crates(base)
     finally:
         shutil.rmtree(base, ignore_errors=True)
 
@@ -238,8 +240,10 @@ def test_rustdoc_default_flags_deny_warnings(crates: ScratchCrates) -> None:
     )
 
 
-def test_rustdoc_default_is_overridable(crates: ScratchCrates) -> None:
-    """An empty `RUSTDOCFLAGS` override leaves the same link a warning."""
+def test_rustdoc_without_flags_leaves_the_link_a_warning(
+    crates: ScratchCrates,
+) -> None:
+    """Without `-D warnings`, the same link stays a warning and the build passes."""
     outcome = _run_cargo(crates.warn, "doc", "--lib", "--no-deps", rustdocflags="")
     assert outcome.returncode == 0, outcome.output
 

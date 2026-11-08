@@ -11,6 +11,11 @@ under the same policy the real members inherit. The tables are read through
 `tests.support.lint_policy`, which is the single reader for the repository's
 configuration; nothing here interprets the policy itself.
 
+Rendering takes the tables as an argument rather than reading them, so it is a
+pure function of what it is given. `write_workspace_crates` is the one boundary
+that reads: it supplies the repository's tables to the writer, and reads before
+writing anything, so a manifest that cannot be read leaves no fixture behind.
+
 The crates are written into a caller-supplied base directory. The caller owns
 that directory's lifetime, so a test run can use a unique path and remove it
 afterwards without this module knowing where the tree lives.
@@ -22,7 +27,11 @@ import typing as typ
 from tests.support.lint_policy import workspace_lints
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     import pathlib
+
+#: Lint namespace to its entries, the shape `workspace_lints` returns.
+type Tables = dict[str, dict[str, object]]
 
 CRATE_NAME: typ.Final = "lint-policy-fixtures"
 UNDOCUMENTED_NAME: typ.Final = "lint-policy-fixtures-undocumented"
@@ -100,6 +109,27 @@ class ScratchCrates:
     warn: pathlib.Path
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class _Library:
+    """One library-only crate: its name, its source and its rustdoc omissions."""
+
+    name: str
+    source: str
+    omit_rustdoc: frozenset[str] = frozenset()
+
+
+#: The library-only crates, in the order the fixtures describe them.
+LIBRARIES: typ.Final = (
+    _Library(UNDOCUMENTED_NAME, UNDOCUMENTED_LIBRARY_SOURCE),
+    _Library(DENIED_NAME, BROKEN_LINK_LIBRARY_SOURCE),
+    _Library(
+        WARN_NAME,
+        BROKEN_LINK_LIBRARY_SOURCE,
+        frozenset({"broken_intra_doc_links"}),
+    ),
+)
+
+
 def _render_value(value: object) -> str:
     """Render one lint entry as TOML, in both the string and table forms."""
     match value:
@@ -119,8 +149,15 @@ def _render_value(value: object) -> str:
             raise TypeError(message)
 
 
-def _manifest(name: str, *, omit_rustdoc: frozenset[str] = frozenset()) -> str:
-    """Render a scratch manifest copying the workspace lint tables.
+def _manifest(
+    name: str, tables: Tables, *, omit_rustdoc: frozenset[str] = frozenset()
+) -> str:
+    """Render a scratch manifest copying the supplied lint tables.
+
+    `tables` is supplied rather than read here, so rendering is a pure
+    function of its arguments: a case can inject tables the repository does
+    not declare today, and a failed read cannot leave a half-written fixture
+    behind.
 
     `omit_rustdoc` drops named rustdoc entries. A fixture proving `-D
     warnings` bites must omit the entry rather than set it to `warn`: an
@@ -144,7 +181,7 @@ def _manifest(name: str, *, omit_rustdoc: frozenset[str] = frozenset()) -> str:
         "[workspace]",
         "",
     ]
-    for namespace, entries in workspace_lints().items():
+    for namespace, entries in tables.items():
         rendered = [
             (lint, value)
             for lint, value in entries.items()
@@ -165,43 +202,72 @@ def _write_binary(root: pathlib.Path, name: str, source: str) -> None:
 
 
 def _write_library_crate(
-    root: pathlib.Path,
-    name: str,
-    source: str,
-    *,
-    omit_rustdoc: frozenset[str] = frozenset(),
+    root: pathlib.Path, library: _Library, tables: Tables
 ) -> pathlib.Path:
     """Write one library-only scratch crate and return its directory."""
     (root / "src").mkdir(parents=True, exist_ok=True)
     (root / "Cargo.toml").write_text(
-        _manifest(name, omit_rustdoc=omit_rustdoc), encoding="utf-8"
+        _manifest(library.name, tables, omit_rustdoc=library.omit_rustdoc),
+        encoding="utf-8",
     )
-    (root / "src" / "lib.rs").write_text(source, encoding="utf-8")
+    (root / "src" / "lib.rs").write_text(library.source, encoding="utf-8")
     return root
 
 
-def write_scratch_crates(base: pathlib.Path) -> ScratchCrates:
-    """Write the four scratch crates under `base` and return their directories."""
+def write_scratch_crates(base: pathlib.Path, tables: Tables) -> ScratchCrates:
+    """Write the four scratch crates under `base` and return their directories.
+
+    Parameters
+    ----------
+    base
+        Directory the crates are written under. The caller owns its lifetime.
+    tables
+        The lint tables each manifest copies, from `workspace_lints`.
+
+    Returns
+    -------
+    ScratchCrates
+        The four crate directories.
+    """
     scratch = base / CRATE_NAME
     (scratch / "src" / "bin").mkdir(parents=True, exist_ok=True)
-    (scratch / "Cargo.toml").write_text(_manifest(CRATE_NAME), encoding="utf-8")
+    (scratch / "Cargo.toml").write_text(_manifest(CRATE_NAME, tables), encoding="utf-8")
     (scratch / "src" / "lib.rs").write_text(LIBRARY_SOURCE, encoding="utf-8")
     for name, (source, _) in CLIPPY_FIXTURES.items():
         _write_binary(scratch, name, source)
     _write_binary(scratch, "docsrs_link", DOCSRS_SOURCE)
-
+    libraries = {
+        library.name: _write_library_crate(base / library.name, library, tables)
+        for library in LIBRARIES
+    }
     return ScratchCrates(
         scratch=scratch,
-        undocumented=_write_library_crate(
-            base / UNDOCUMENTED_NAME, UNDOCUMENTED_NAME, UNDOCUMENTED_LIBRARY_SOURCE
-        ),
-        denied=_write_library_crate(
-            base / DENIED_NAME, DENIED_NAME, BROKEN_LINK_LIBRARY_SOURCE
-        ),
-        warn=_write_library_crate(
-            base / WARN_NAME,
-            WARN_NAME,
-            BROKEN_LINK_LIBRARY_SOURCE,
-            omit_rustdoc=frozenset({"broken_intra_doc_links"}),
-        ),
+        undocumented=libraries[UNDOCUMENTED_NAME],
+        denied=libraries[DENIED_NAME],
+        warn=libraries[WARN_NAME],
     )
+
+
+def write_workspace_crates(
+    base: pathlib.Path, *, read: cabc.Callable[[], Tables] = workspace_lints
+) -> ScratchCrates:
+    """Read the workspace lint tables, then write the crates that copy them.
+
+    The read happens before anything is written, so a policy file that cannot
+    be read leaves `base` untouched rather than producing fixtures that
+    compile under a policy nobody declared.
+
+    Parameters
+    ----------
+    base
+        Directory the crates are written under. The caller owns its lifetime.
+    read
+        Reader for the workspace tables. The seam exists so a case can prove
+        the ordering with a reader that refuses.
+
+    Returns
+    -------
+    ScratchCrates
+        The four crate directories.
+    """
+    return write_scratch_crates(base, read())

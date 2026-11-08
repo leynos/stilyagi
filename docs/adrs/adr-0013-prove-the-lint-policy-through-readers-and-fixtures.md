@@ -103,6 +103,27 @@ the value Make computes rather than a value the test restates.
 - Scratch crates are written under `target/`, which Cargo ignores and Git does
   not track, and are removed when the module finishes.
 
+## Addendum, 2026-11-08: reader signatures and the fixture boundary
+
+The decision outcome above says every reader takes a path and defaults to the
+repository's file. Two do not fit that shape. `workspace_lints`,
+`clippy_restrictions`, `rustdoc_default_lines` and `rustdoc_default` take a
+path and default to the repository's file; `workspace_table` takes a path but
+has no default, because a caller may be reading any manifest; and `lint_level`
+takes one lint entry rather than a path. The undecodable, missing and
+unreadable cases are parameterized over every public reader that takes a path,
+which is those five. `lint_level` is proved by its own cases, since it has no
+file to fail on.
+
+The fixture writer no longer reads the policy itself.
+`write_scratch_crates(base, tables)` renders from the tables the caller
+supplies, and `write_workspace_crates(base)` is the one boundary that reads
+them, through `workspace_lints`, before it writes anything. Rendering is
+therefore a pure function of its arguments: a case can inject tables the
+repository does not declare today, and a read that fails raises before any
+directory exists, so no fixture is left behind that would compile under a
+policy nobody declared.
+
 ## References
 
 - [ADR 0004: Adopt layered Python linting](adr-0004-adopt-layered-python-linting.md)
