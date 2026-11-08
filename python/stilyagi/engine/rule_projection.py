@@ -322,7 +322,7 @@ def _region_segments(
     if not is_sequence(raw_segments):
         anomalies["malformed_region"] += 1
         return
-    for raw_segment in typ.cast("cabc.Sequence[object]", raw_segments):
+    for raw_segment in raw_segments:
         segment = _segment_view(raw_segment, source_bytes, anomalies)
         if segment is not None:
             yield segment

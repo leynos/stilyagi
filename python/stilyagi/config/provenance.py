@@ -7,86 +7,14 @@ argument parsing or filesystem discovery; callers provide those boundaries.
 
 import collections.abc as cabc
 import dataclasses as dc
-import pathlib
-import tomllib
 import typing as typ
 
-from .schema import InvalidConfigError
-from .validate import ensure_extend_value
+if typ.TYPE_CHECKING:
+    import pathlib
+
+from .tables import merge_config_tables
 
 type _ConfigSourceKind = typ.Literal["default", "file", "inline", "flag"]
-
-
-def _normalize_extend_values(
-    value: object,
-    *,
-    path: pathlib.Path,
-) -> tuple[str, ...]:
-    """Normalize a raw `extend` value to ordered string references."""
-    validated = (
-        () if value is None else ensure_extend_value(value, path=path, key="extend")
-    )
-    if isinstance(validated, str):
-        return (validated,)
-    return tuple(validated)
-
-
-def _load_inline_config(
-    fragment: str,
-    *,
-    path: pathlib.Path,
-) -> dict[str, object]:
-    """Parse one inline `--config` fragment into a raw table."""
-    try:
-        parsed = tomllib.loads(fragment)
-    except tomllib.TOMLDecodeError as exc:
-        raise InvalidConfigError(path, "config", str(exc)) from exc
-    return dict(parsed)
-
-
-def _resolve_config_reference(
-    reference: str,
-    *,
-    base_directory: pathlib.Path,
-    path: pathlib.Path,
-) -> pathlib.Path:
-    """Resolve one `extend` reference relative to its config file."""
-    candidate = pathlib.Path(reference).expanduser()
-    if not candidate.is_absolute():
-        candidate = base_directory / candidate
-    if candidate.is_file():
-        return candidate
-    raise InvalidConfigError(path, "extend", f"missing config file: {reference}")
-
-
-def _classify_explicit_config(
-    value: str | pathlib.Path,
-) -> tuple[str, str | pathlib.Path]:
-    """Classify an explicit config value as inline TOML or a file path."""
-    if isinstance(value, pathlib.Path):
-        return "path", value
-
-    candidate = pathlib.Path(value).expanduser()
-    if "=" in value and not candidate.exists():
-        return "inline", value
-    if candidate.exists():
-        return "path", candidate
-    raise InvalidConfigError(candidate, "config", "does not exist")
-
-
-def _split_explicit_config(
-    explicit_config: cabc.Iterable[str | pathlib.Path] | None,
-) -> tuple[list[pathlib.Path], list[str]]:
-    """Group explicit config values by path and inline source."""
-    explicit_paths: list[pathlib.Path] = []
-    explicit_inline: list[str] = []
-    for value in explicit_config or ():
-        kind, payload = _classify_explicit_config(value)
-        if kind == "path":
-            explicit_paths.append(typ.cast("pathlib.Path", payload))
-        else:
-            explicit_inline.append(typ.cast("str", payload))
-    return explicit_paths, explicit_inline
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -121,24 +49,6 @@ class _OriginMergeState:
 
     merged: dict[_OriginPath, _ConfigOrigin]
     override: cabc.Mapping[_OriginPath, _ConfigOrigin]
-
-
-def _merge_config_tables(
-    base: cabc.Mapping[str, object],
-    override: cabc.Mapping[str, object],
-) -> dict[str, object]:
-    """Merge config tables recursively, replacing non-mapping values."""
-    merged = dict(base)
-    for key, value in override.items():
-        existing = merged.get(key)
-        if isinstance(existing, cabc.Mapping) and isinstance(value, cabc.Mapping):
-            merged[key] = _merge_config_tables(
-                typ.cast("cabc.Mapping[str, object]", existing),
-                typ.cast("cabc.Mapping[str, object]", value),
-            )
-            continue
-        merged[key] = value
-    return merged
 
 
 def _origin_paths(
@@ -187,7 +97,7 @@ def _merge_config_tables_with_origins(
         _OriginMergeState(merged_origins, override.origins),
     )
     return _ConfigTableWithOrigins(
-        values=_merge_config_tables(base.values, override.values),
+        values=merge_config_tables(base.values, override.values),
         origins=merged_origins,
     )
 
@@ -230,7 +140,7 @@ def _reconcile_mapping_origin(
     state: _OriginMergeState,
 ) -> None:
     """Keep only an origin for an empty mapping after recursive merging."""
-    if _merge_config_tables(base, override):
+    if merge_config_tables(base, override):
         state.merged.pop(path, None)
         return
     if base or override:

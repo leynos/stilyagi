@@ -194,6 +194,11 @@ struct ExtractDocumentRequest {
     source: String,
     /// Syntax name supplied by the caller, validated later by `ExtractSyntax`.
     syntax: String,
+    /// Reported path the caller claims for the source, absent when unknown.
+    ///
+    /// The third positional argument is optional because string-only
+    /// extraction has no file context; a supplied path becomes the document's
+    /// `SourceIdentity` so diagnostics can name the file they came from.
     source_path: Option<String>,
 }
 

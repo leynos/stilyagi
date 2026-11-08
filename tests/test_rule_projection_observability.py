@@ -273,10 +273,16 @@ def test_the_check_command_reports_projection_anomalies(
     """A verbose check names the document whose IR the projection recovered from."""
     (tmp_path / "doc.md").write_text("# Title\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
+    # The check command extracts through the cache service, whose default
+    # extractor resolves ``extract_document_result`` at call time. Patching the
+    # lower-level ``extract_document`` would leave the cached path untouched.
     monkeypatch.setattr(
         engine,
-        "extract_document",
-        lambda *_args, **_kwargs: _document({"nodes": ["not-a-node"]}),
+        "extract_document_result",
+        lambda *_args, **_kwargs: engine.ExtractionResult(
+            _document({"nodes": ["not-a-node"]}),
+            canonical_json=None,
+        ),
     )
 
     with caplog.at_level(logging.INFO, logger=_LOGGER_NAME):
