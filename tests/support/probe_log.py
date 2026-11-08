@@ -11,6 +11,7 @@ malformed line is a reading finding naming the log, not a `KeyError` or
 `TypeError` from wherever the record happened to be read.
 """
 
+import dataclasses as dc
 import json
 import typing as typ
 
@@ -22,6 +23,9 @@ if typ.TYPE_CHECKING:
 
 #: The reading these helpers report, as a failure names it.
 READER: typ.Final = "probe_log"
+
+#: Distinguishes an absent field from one whose value is null.
+_UNSET: typ.Final = object()
 
 
 def read_records(
@@ -53,6 +57,7 @@ def read_records(
     lines = log.read_text(encoding="utf-8").splitlines()
     records: list[ToolInvocation] = []
     for number, line in enumerate(lines, start=1):
+        origin = _Origin(log, number)
         try:
             decoded = json.loads(line)
         except json.JSONDecodeError as error:
@@ -60,7 +65,7 @@ def read_records(
                 break
             message = f"probe log line {number} is not JSON: {error}"
             raise ReadingError(message, reader=READER, path=str(log)) from error
-        records.append(_record(decoded, log, number))
+        records.append(origin.invocation(decoded))
     return tuple(records)
 
 
@@ -69,26 +74,65 @@ def identity(record: ToolInvocation) -> str:
     return f"{record.program} {' '.join(record.args)}"
 
 
-def _record(raw: object, log: pathlib.Path, number: int) -> ToolInvocation:
-    """Return one decoded log line as an invocation, or reject its shape."""
-    if not isinstance(raw, dict):
-        raise _malformed(log, number, "a record must be an object")
-    program = raw.get("program")
-    args = raw.get("args")
-    env = raw.get("env")
-    phase = raw.get("phase", "start")
-    if not isinstance(program, str):
-        raise _malformed(log, number, "program must be a string")
-    if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
-        raise _malformed(log, number, "args must be a list of strings")
-    if not isinstance(env, dict):
-        raise _malformed(log, number, "env must be an object")
-    if not isinstance(phase, str):
-        raise _malformed(log, number, "phase must be a string")
-    return ToolInvocation(program, tuple(args), dict(env), phase)
+@dc.dataclass(frozen=True, slots=True)
+class _Origin:
+    """The log and line a record came from, so a rejection can name them.
 
+    Every shape check needs both, and a rejection reads better as a method on
+    them than as two more parameters on each helper.
+    """
 
-def _malformed(log: pathlib.Path, number: int, detail: str) -> ReadingError:
-    """Return the finding for a line that decoded but is not a record."""
-    message = f"probe log line {number} is not a record: {detail}"
-    return ReadingError(message, reader=READER, path=str(log))
+    log: pathlib.Path
+    number: int
+
+    def reject(self, detail: str) -> typ.NoReturn:
+        """Raise the finding for this line."""
+        message = f"probe log line {self.number} is not a record: {detail}"
+        raise ReadingError(message, reader=READER, path=str(self.log))
+
+    def invocation(self, raw: object) -> ToolInvocation:
+        """Return one decoded line as an invocation, or reject its shape."""
+        if not isinstance(raw, dict):
+            self.reject("a record must be an object")
+        return ToolInvocation(
+            program=self._text(raw, "program"),
+            args=self._texts(raw, "args"),
+            env=self._env(raw),
+            phase=self._text(raw, "phase", default="start"),
+        )
+
+    def _text(
+        self,
+        raw: dict[str, object],
+        field: str,
+        *,
+        default: object = _UNSET,
+    ) -> str:
+        """Return a field that must hold text, or its default when absent."""
+        value = raw.get(field, default)
+        if not isinstance(value, str):
+            self.reject(f"{field} must be a string")
+        return value
+
+    def _texts(self, raw: dict[str, object], field: str) -> tuple[str, ...]:
+        """Return a field that must hold a list of text."""
+        value = raw.get(field)
+        if not isinstance(value, list):
+            self.reject(f"{field} must be a list of strings")
+        for item in value:
+            if not isinstance(item, str):
+                self.reject(f"{field} must be a list of strings")
+        return tuple(typ.cast("list[str]", value))
+
+    def _env(self, raw: dict[str, object]) -> dict[str, str | None]:
+        """Return the environment a record carries, keyed by variable name."""
+        value = raw.get("env")
+        if not isinstance(value, dict):
+            self.reject("env must be an object")
+        return {str(name): self._entry(entry) for name, entry in value.items()}
+
+    def _entry(self, value: object) -> str | None:
+        """Return one environment entry, which must be text or null."""
+        if value is not None and not isinstance(value, str):
+            self.reject("env entries must be text or null")
+        return value if isinstance(value, str) else None
