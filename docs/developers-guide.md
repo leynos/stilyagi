@@ -641,10 +641,11 @@ Each discovered file becomes a `check_inputs.CheckInput` through
 `CheckInput` directly: `--stdin-filename` selects the syntax by final suffix
 (including `.mdc`, and defaulting to Markdown when omitted), and an
 unregistered stdin filename is logged and counted as skipped rather than
-checked. Per-file dispatch then goes through `check_execution._check_one_file`,
+checked. Per-file dispatch then goes through `check_execution.check_one_file`,
 which reads Python source using its declared encoding and other source as
-UTF-8, stripping a leading byte-order mark. It extracts through the bridge,
-resolves the per-file config, and reports operational failures with exit code
+UTF-8, stripping a leading byte-order mark. It resolves the per-file config
+first, so the cache key carries the same effective values as the rule run, and
+then extracts through the bridge. It reports operational failures with exit code
 `2`.
 
 For filesystem targets, `check_targets.discover_targets` carries the result's
@@ -1487,10 +1488,11 @@ identity, and builds the complete canonical output in a 1 MiB spooled stream
 before writing stdout. Keep this boundary read-only; check-only rule and fix
 options do not belong on the command.
 
-The private `_write_chunk` stays inside `cli_dump_ir`: its callers write
-canonical JSON framing or stdout chunks. Its error-code argument shares the
-complete-write check while keeping spool and stdout failures distinct. Do not
-promote it to a general stream API.
+The private `_write_chunk` lives in `cli_dump_ir_output`, beside the framing
+and spool helpers it belongs with, and `cli_dump_ir` imports it: its callers
+write canonical JSON framing or stdout chunks. Its error-code argument shares
+the complete-write check while keeping spool and stdout failures distinct. Do
+not promote it to a general stream API.
 
 Table: Current Markdown, Python, and Rust extraction differences.
 
@@ -3046,8 +3048,8 @@ system matrix.
 
 Both jobs keep their 100-minute ceilings. An Ubicloud runner is a self-hosted
 just-in-time runner, so GitHub's six-hour cap for hosted jobs does not bound it
-and each job must state its own; section 12 holds these two above the 3,900 s
-cargo watchdog, so neither can be set to twice a warm run.
+and each job must state its own; section 12 holds each of them above that job's
+4,080 s cargo watchdog, so neither can be set to twice a warm run.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
 evaluates the expression for a push or dispatch, a same-repository pull request
@@ -3619,8 +3621,8 @@ the four was set here.
 | Tier                     | What it bounds                     | Where it is set                                  | Current value               |
 | ------------------------ | ---------------------------------- | ------------------------------------------------ | --------------------------- |
 | Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | 180 s; 1,500 s for trybuild |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 50 m                        |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 3,900 s (65 m)              |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 56 m                        |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 4,080 s (68 m)              |
 | Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 100 m                       |
 
 *Table: the timers that can end a run, innermost first.*
@@ -3628,7 +3630,7 @@ the four was set here.
 ### What the watchdog does and does not cover
 
 The watchdog is the only inner bound. It kills the `cargo` invocation after
-3,900 s, so a hung test is caught, but by a timer that names `cargo` rather
+4,080 s, so a hung test is caught, but by a timer that names `cargo` rather
 than the test. Nothing hung outside `cargo` was bounded at all before the job
 ceilings landed: those jobs declared no `timeout-minutes` and so inherited
 GitHub's six-hour default.
@@ -3637,9 +3639,9 @@ GitHub's six-hour default.
 
 `.config/nextest.toml` sets both. The default profile keeps the 180 s per-test
 budget that `generate-coverage` writes when the file is absent, with a 5 s
-grace period and `terminate-after = 1`, and adds a 50-minute `global-timeout`.
-That leaves the serial trybuild tests their full allowance before the 3,900 s
-watchdog.
+grace period and `terminate-after = 1`, and adds a 56-minute `global-timeout`.
+That leaves both serial trybuild tests their full allowance, one after the
+other, before the 4,080 s watchdog.
 
 One override widens the budget for the two trybuild binaries, `stilyagi-ir`'s
 `ui` and `stilyagi-pyext`'s `compile_tests`, to 1,500 s. They build a scratch
@@ -3655,16 +3657,19 @@ two binaries share a serial `trybuild` test group because their nested Cargo
 builds use the same target-directory lock. A 2026-11-05 rebased run spent 1,137
 s in the first UI test, then hit the 33-minute whole-run timeout 842 s into the
 second UI test; 373/374 tests had passed while trybuild was compiling another
-fixture. The 50-minute whole-run allowance covers that observed prefix and the
-full 1,500 s per-test allowance, with six minutes for suite overhead and
-reporting. Every other test keeps 180 s, so a hung test is still reported as
-one rather than absorbed by a generous default.
+fixture. The 56-minute whole-run allowance covers both serial 1,500 s per-test
+allowances, with six minutes for suite overhead and reporting. Sizing it from
+one allowance plus that observed prefix was the mistake the pair corrects: a
+run slow for both builds can spend 3,000 s before either test reaches its own
+limit, and a budget derived from a 1,137 s prefix cancels the second one for
+being slow rather than for overrunning. Every other test keeps 180 s, so a hung
+test is still reported as one rather than absorbed by a generous default.
 
 `tests/test_trybuild_timeout_contract.py` asserts the override names both
-binaries with a budget of at least 1,500 s, below the 50-minute whole-run
+binaries with a budget of at least 1,500 s, below the 56-minute whole-run
 budget, and that the profile default is unchanged;
 `tests/test_timeout_ordering_contract.py` holds the ordering against the
-65-minute watchdog and 100-minute job ceiling.
+68-minute watchdog and 100-minute job ceiling.
 
 [Issue 137](https://github.com/leynos/stilyagi/issues/137) recorded the
 measurements that a later pass needed to choose these values.
@@ -3691,14 +3696,18 @@ all 25 runs of `coverage-main.yml`, all successful. Neither history contains a
 cancelled or timeout-terminated run, so no run in the sample was ended by any
 of these four timers, and the measurements are of work that completed.
 
-The widest gap is 541 s, so the contract allows 15 minutes, making the
-requirement 95 minutes, and the ceilings are 100: five above it, which is the
-margin the estate asks for above every requirement. A ceiling equal to the sum
-it contains cancels the job at the moment the watchdog would have reported the
-overrun, and the report is the only thing that makes an overrun actionable, so
-the margin is a term of the requirement rather than slack that happens to be
-there. On the pull-request lane most of that gap is the linting and the Python
-suite, which run outside the coverage step and so outside the watchdog.
+The widest gap is 541 s, so the contract allows 15 minutes, and a further 15 is
+the estate's margin above the requirement. Against the 68-minute watchdog that
+is 4,080 + 900 + 900 = 5,880 s, or 98 minutes, so the ceilings are 100: two
+minutes above it. A ceiling equal to the sum it contains cancels the job at the
+moment the watchdog would have reported the overrun, and the report is the only
+thing that makes an overrun actionable, so the margin is a term of the
+requirement rather than slack that happens to be there. The two-minute excess
+is thin by design: the ceiling is sized to the watchdog, and the watchdog is
+what has headroom. A longer job ceiling would only let a job that has already
+outlived every timer above it run unattended. On the pull-request lane most of
+that gap is the linting and the Python suite, which run outside the coverage
+step and so outside the watchdog.
 
 None of those runs was genuinely cold. One run is the coldest seen so far, not
 a measurement of the cold case.
@@ -3997,9 +4006,9 @@ does not, so its coverage step is conditional on the pull-request event;
 `coverage-main.yml` is the trunk lane and runs unconditionally. A lane gaining,
 losing or changing a condition has to change this section with it.
 
-It pins each ceiling to the documented 100 minutes as well as deriving the 95
+It pins each ceiling to the documented 100 minutes as well as deriving the 98
 minutes required. The derivation alone would accept a ceiling anywhere above
-95, including one that had drifted away from this guide without anything
+98, including one that had drifted away from this guide without anything
 failing; the pin makes the table above the source of the value.
 
 The termination allowance it demands between a whole-run budget and the

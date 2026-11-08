@@ -24,7 +24,14 @@ REPOSITORY_ROOT: typ.Final = Path(__file__).resolve().parents[1]
 CONFIG_PATH: typ.Final = REPOSITORY_ROOT / ".config" / "nextest.toml"
 DEFAULT_PER_TEST_SECONDS: typ.Final = 180
 MINIMUM_TRYBUILD_SECONDS: typ.Final = 1500
-MINIMUM_WHOLE_RUN_SECONDS: typ.Final = 50 * 60
+
+#: Suite overhead and reporting once the last trybuild test has finished.
+SUITE_OVERHEAD_SECONDS: typ.Final = 6 * 60
+
+#: The whole-run budget, pinned as well as derived. The derivation below rises
+#: with the trybuild allowance, so on its own it would accept any value above
+#: its own requirement and let the number drift away from the guide's table.
+MINIMUM_WHOLE_RUN_SECONDS: typ.Final = 56 * 60
 TRYBUILD_BINARIES: typ.Final = (
     "package(stilyagi-ir) & binary(ui)",
     "package(stilyagi-pyext) & binary(compile_tests)",
@@ -126,14 +133,19 @@ def _trybuild_override() -> dict[str, typ.Any]:
     return matches[0]
 
 
+def _trybuild_budget() -> int:
+    """Return the per-test allowance the trybuild override grants, in seconds."""
+    slow = _trybuild_override()["slow-timeout"]
+    return _seconds(slow["period"]) * slow["terminate-after"]
+
+
 def test_the_trybuild_binaries_outlast_the_default_budget() -> None:
     """Their per-test budget is at least the cold-compile allowance.
 
     The override's own budget is checked here, and the repository's shared
     reading, which takes the largest allowance the file grants, must agree.
     """
-    slow = _trybuild_override()["slow-timeout"]
-    budget = _seconds(slow["period"]) * slow["terminate-after"]
+    budget = _trybuild_budget()
     assert largest_test_allowance(read_config_text(CONFIG_PATH)) == budget, (
         "the shared nextest reading must see the override as the largest allowance"
     )
@@ -147,24 +159,32 @@ def test_the_trybuild_binaries_outlast_the_default_budget() -> None:
 
 def test_the_trybuild_budget_stays_below_the_whole_run_budget() -> None:
     """A per-test budget at or above `global-timeout` would never be reached."""
-    slow = _trybuild_override()["slow-timeout"]
-    budget = _seconds(slow["period"]) * slow["terminate-after"]
-
-    assert budget < _seconds(_profile()["global-timeout"]), (
+    assert _trybuild_budget() < _seconds(_profile()["global-timeout"]), (
         "the trybuild budget must sit below the global-timeout"
     )
 
 
 def test_the_whole_run_budget_covers_the_serial_trybuild_sequence() -> None:
-    """Leave time for the second UI build after the first has completed.
+    """Both trybuild allowances, run one after the other, plus suite overhead.
 
-    A rebased run spent 1,137 s on the first UI test, then the 33-minute
-    whole-run timeout cancelled the second after 842 s, despite its 1,500 s
-    per-test allowance. Fifty minutes covers that observed prefix and the full
-    per-test budget, with six minutes left for suite overhead and reporting.
+    The two binaries share a serial test group, so a run that is slow for both
+    spends two full allowances before either finishes, and a whole-run budget
+    sized for one allowance plus an observed prefix can cancel the second while
+    neither test has exceeded its own budget. A 2026-11-05 rebased run spent
+    1,137 s on the first UI test and was cancelled 842 s into the second; the
+    budget was 33 minutes then. Fifty minutes covers that prefix but not a pair
+    at their full allowance, so the pair is what the budget is derived from
+    rather than the one observed prefix.
     """
-    whole_run = global_timeout(read_config_text(CONFIG_PATH))
+    config_text = read_config_text(CONFIG_PATH)
+    whole_run = global_timeout(config_text)
     assert whole_run is not None, "the configuration must bound the whole run"
+
+    pair = 2 * largest_test_allowance(config_text)
+    assert whole_run >= pair + SUITE_OVERHEAD_SECONDS, (
+        f"whole-run budget is {whole_run}s; two serial trybuild allowances are "
+        f"{pair}s and suite overhead is {SUITE_OVERHEAD_SECONDS}s"
+    )
     assert whole_run >= MINIMUM_WHOLE_RUN_SECONDS, (
         f"whole-run budget is {whole_run}s; the serial trybuild sequence needs "
         f"at least {MINIMUM_WHOLE_RUN_SECONDS}s"

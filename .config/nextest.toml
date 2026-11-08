@@ -4,11 +4,18 @@
 # outlast 180 s on a cold, instrumented runner, get a budget that fits them.
 #
 # The ordering the contract in tests/test_timeout_ordering_contract.py holds:
-# largest per-test budget < global-timeout < the 3,900 s cargo watchdog less
+# largest per-test budget < global-timeout < the 4,080 s cargo watchdog less
 # termination and a cold build.
+#
+# The whole-run budget is sized for the serial pair, not for one test plus an
+# observed prefix: the two UI binaries share a test group, so a run that is
+# slow for both spends 2 x 1,500 s before either finishes. A 50-minute budget
+# cancels the second one while neither test has reached its own allowance.
+# Fifty-six minutes is that pair plus the six minutes of suite overhead and
+# reporting the earlier sizing already allowed for.
 [profile.default]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
-global-timeout = "50m"
+global-timeout = "56m"
 
 # The two UI binaries use the same trybuild target-directory build lock.
 [test-groups]

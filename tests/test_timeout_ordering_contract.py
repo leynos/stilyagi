@@ -70,7 +70,7 @@ OUTSIDE_WATCHDOG_ALLOWANCE_SECONDS: typ.Final[float] = 15 * 60.0
 #: repository's: stilyagi's trybuild-heavy suite and its maturin
 #: extension build need this much headroom under cold instrumentation,
 #: and both workflows say so where they set it.
-REQUIRED_WATCHDOG_SECONDS: typ.Final[float] = 3900.0
+REQUIRED_WATCHDOG_SECONDS: typ.Final[float] = 4080.0
 
 #: The condition each coverage lane legitimately carries, keyed by
 #: workflow and job, as a tuple of the step's ``if`` and its job's.
@@ -98,7 +98,7 @@ CEILING_MARGIN_SECONDS: typ.Final[float] = 15 * 60.0
 
 #: The ceiling both coverage jobs carry, as `docs/developers-guide.md`
 #: records it. Pinned as well as derived: the derivation below would
-#: accept anything above its 95-minute requirement, so a ceiling that
+#: accept anything above its 98-minute requirement, so a ceiling that
 #: had drifted away from the guide would fail nothing.
 REQUIRED_JOB_CEILING_SECONDS: typ.Final[float] = 100 * 60.0
 
@@ -191,9 +191,9 @@ def test_every_coverage_step_runs_under_an_explicit_watchdog(
     """The default is invisible, so every step must write it down.
 
     The action kills `cargo` after 3,900 s unless told otherwise, and the
-    value here equals that default, which makes writing it down more
-    important rather than less: an accidental deletion would change
-    nothing observable until the run it killed.
+    value here no longer equals that default, so a deletion would now
+    restore the shorter one silently: the run would be killed 180 s
+    before the whole-run budget it has to contain had elapsed.
     """
     missing = unset_watchdogs(coverage_jobs)
     assert not missing, f"these inherit the action's default: {missing}"
@@ -239,7 +239,7 @@ def test_each_coverage_job_carries_the_documented_ceiling(
 ) -> None:
     """The value is the guide's, not merely something above the requirement.
 
-    The derivation above is satisfied by any ceiling over 95 minutes, so
+    The derivation above is satisfied by any ceiling over 98 minutes, so
     on its own it would let the value drift away from the table in
     `docs/developers-guide.md` without failing anything. Pinning it makes
     the guide and the workflows one statement.
