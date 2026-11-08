@@ -1357,3 +1357,15 @@ Cargo watchdog to 3,900 seconds and coverage job ceilings to 100 minutes. This
 preserves the timeout ordering while covering the observed first UI test, the
 full second-test budget, cold compilation and job work outside the watchdog.
 Rerun the full sequential gates before delivery.
+
+Revision note (2026-11-08): the 50-minute budget above was derived from one
+observed prefix plus one allowance, and both trybuild binaries share a serial
+test group. A run slow for both therefore spends 2 x 1,500 seconds before
+either test reaches its own limit, and the whole-run budget can cancel the
+second one for the run being slow rather than for a test overrunning. Raise the
+global timeout to 56 minutes (2 x 1,500 s plus the six minutes of suite
+overhead the earlier sizing already allowed) and the Cargo watchdog to 4,080 s.
+The coverage job ceilings stay at 100 minutes: 4,080 + 900 + 900 = 5,880 s, or
+98 minutes, which the existing ceiling still contains. The trybuild contract
+now derives its requirement from the pair rather than from one allowance plus a
+prefix, so raising the per-test allowance raises the whole-run budget with it.
