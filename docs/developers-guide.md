@@ -415,6 +415,25 @@ sample as a hard threshold. If later roadmap slices extend `stilyagi check`
 with additional subcommands or persistent Stilyagi caches, update this section
 and the ExecPlan-backed tests together.
 
+Both probe modules log through a module-level logger that is silent by default.
+Pass `--log-level` to configure the root logger and emit diagnostics on
+standard error:
+
+```bash
+.venv/bin/python -m tests.performance.structural_probe \
+  --mode both \
+  --output build/performance/structural-baseline.json \
+  --log-level DEBUG
+```
+
+At `DEBUG` level the probe records fixture discovery, measurement-run entry and
+exit, and every cold subprocess command with its mode and iteration index. The
+report-writing step records the resolved absolute output path, so a relative
+`--output` value can still be located from the log. When a cold subprocess
+exits non-zero, the probe logs its captured standard error at `ERROR` level
+before re-raising the failure. Without `--log-level`, no records are emitted
+and the command's normal output is unchanged.
+
 Round-trip edit helpers exist to test fix safety before the full rule engine
 lands. They must preserve source text outside edited ranges, accept adjacent
 source-backed edits, reject synthetic spans, and reject overlapping source
