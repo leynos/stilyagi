@@ -32,7 +32,7 @@ def measure_probe(
         msg = "iterations must be at least 1"
         raise ValueError(msg)
 
-    fixtures = probe.discover_structural_fixtures(root)
+    fixtures = _discover_fixtures(root)
     runs = [
         _measure_run(
             run_mode,
@@ -44,6 +44,19 @@ def measure_probe(
         for run_mode in _modes(mode)
     ]
     return probe.build_report(repository_root=root, fixtures=fixtures, runs=runs)
+
+
+def _discover_fixtures(root: pathlib.Path) -> tuple[probe.StructuralFixture, ...]:
+    """Discover fixtures at the command boundary and log each resolved path."""
+    try:
+        fixtures = probe.discover_structural_fixtures(root)
+    except FileNotFoundError:
+        # Issue #19 asks for operational visibility of a probe that cannot start.
+        logger.exception("structural fixture discovery failed")
+        raise
+    for fixture in fixtures:
+        logger.debug("fixture discovered: path=%s", fixture.path)
+    return fixtures
 
 
 def measure_extraction(source: str, syntax: model.Syntax) -> int:
@@ -134,6 +147,8 @@ def _measure_cold_iteration(
             text=True,
         )
     except subprocess.CalledProcessError as exc:
+        # Issue #19 requires the child stderr at ERROR level, and
+        # CalledProcessError.__str__ omits it, so log before re-raising.
         logger.exception(
             "cold iteration subprocess failed: mode=%s iteration=%d stderr=%s",
             mode,

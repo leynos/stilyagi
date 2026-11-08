@@ -1,9 +1,18 @@
-"""Logging behaviour tests for the structural performance probe."""
+"""Unit logging behaviour tests for the structural performance probe.
+
+The probe is an operator-run benchmark rather than production code, so its
+diagnostics are exercised by driving the probe helpers directly and inspecting
+the captured records with ``caplog``. End-to-end assertions over the real
+command line live in
+``tests/test_structural_performance_probe_cli_logging.py``.
+
+Run this module with
+``pytest tests/test_structural_performance_probe_logging.py``.
+"""
 
 import logging
 import pathlib
-import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: typing a simulated child process result and invoking the probe CLI under test
-import sys
+import subprocess  # ruff: ignore[suspicious-subprocess-import] -- justified: typing a simulated child process result and its failure
 from unittest import mock
 
 import pytest
@@ -43,13 +52,13 @@ def _empty_report() -> structural_probe.ReportPayload:
     )
 
 
-def test_discover_structural_fixtures_logs_each_resolved_path(
+def test_discover_fixtures_logs_each_resolved_path(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Record every resolved fixture path at DEBUG level."""
-    caplog.set_level(logging.DEBUG, logger=structural_probe.__name__)
+    """Record every resolved fixture path at DEBUG level at the boundary."""
+    caplog.set_level(logging.DEBUG, logger=structural_probe_execution.__name__)
 
-    fixtures = structural_probe.discover_structural_fixtures(REPOSITORY_ROOT)
+    fixtures = structural_probe_execution._discover_fixtures(REPOSITORY_ROOT)
 
     messages = _messages(caplog)
     for fixture in fixtures:
@@ -61,23 +70,53 @@ def test_discover_structural_fixtures_logs_each_resolved_path(
     )
 
 
+def test_discover_structural_fixtures_emits_no_log_records(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Keep fixture discovery a quiet, repeatable query."""
+    caplog.set_level(logging.DEBUG)
+
+    first = structural_probe.discover_structural_fixtures(REPOSITORY_ROOT)
+    second = structural_probe.discover_structural_fixtures(REPOSITORY_ROOT)
+
+    assert first == second, "expected discovery to be repeatable"
+    assert caplog.records == [], f"expected a quiet query; got {_messages(caplog)}"
+
+
 def test_missing_fixture_is_logged_before_raising(
     caplog: pytest.LogCaptureFixture,
     tmp_path: pathlib.Path,
 ) -> None:
-    """Report the missing fixture path at ERROR level before failing."""
-    caplog.set_level(logging.ERROR, logger=structural_probe.__name__)
+    """Report the actual missing fixture path at ERROR level before failing."""
+    caplog.set_level(logging.ERROR, logger=structural_probe_execution.__name__)
+    missing_path = (tmp_path / structural_probe.MARKDOWN_FIXTURE).as_posix()
 
     with pytest.raises(FileNotFoundError, match="structural fixture is missing"):
-        structural_probe.discover_structural_fixtures(tmp_path)
+        structural_probe_execution.measure_probe(
+            mode="warm",
+            iterations=1,
+            root=tmp_path,
+        )
 
     messages = _messages(caplog)
-    assert any(
-        message.startswith("structural fixture is missing: path=")
-        for message in messages
-    ), f"expected a missing-fixture error log; got {messages}"
-    assert _level_of(caplog, "structural fixture is missing: path=") == logging.ERROR, (
+    assert "structural fixture discovery failed" in messages, (
+        f"expected a missing-fixture error log; got {messages}"
+    )
+    assert _level_of(caplog, "structural fixture discovery failed") == logging.ERROR, (
         "expected the missing-fixture log at ERROR level"
+    )
+    failures = [
+        record
+        for record in caplog.records
+        if record.getMessage() == "structural fixture discovery failed"
+    ]
+    exc_info = failures[0].exc_info
+    assert exc_info is not None, "expected the discovery failure context"
+    assert isinstance(exc_info[1], FileNotFoundError), (
+        f"expected a FileNotFoundError; got {exc_info[1]!r}"
+    )
+    assert missing_path in str(exc_info[1]), (
+        f"expected the missing fixture path; got {exc_info[1]}"
     )
 
 
@@ -121,6 +160,17 @@ def test_write_report_logs_oserror_before_reraising(
     assert _level_of(caplog, "report write failed: path=") == logging.ERROR, (
         "expected the report-write failure log at ERROR level"
     )
+    failures = [
+        record
+        for record in caplog.records
+        if record.getMessage().startswith("report write failed: path=")
+    ]
+    exc_info = failures[0].exc_info
+    assert exc_info is not None, "expected the OSError traceback in the record"
+    assert isinstance(
+        exc_info[1],
+        (IsADirectoryError, PermissionError),
+    ), f"expected the write error context; got {exc_info[1]!r}"
 
 
 def test_measure_run_logs_entry_and_exit_with_mode_and_iterations(
@@ -230,6 +280,42 @@ def test_cold_iteration_logs_child_stderr_before_reraising(
     ), "expected the cold-subprocess failure log at ERROR level"
 
 
+def test_cold_run_logs_each_iteration_index(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Log a distinct iteration index for every cold measurement."""
+    caplog.set_level(logging.DEBUG, logger=structural_probe_execution.__name__)
+    source = MARKDOWN_FIXTURE.read_text(encoding="utf-8")
+
+    def fake_run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        """Return a canned child payload without spawning a process."""
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=0,
+            stdout='{"duration_ns": 7}',
+            stderr="",
+        )
+
+    with mock.patch.object(structural_probe_execution.subprocess, "run", fake_run):
+        run = structural_probe_execution._measure_run(
+            "cold",
+            2,
+            source,
+            MARKDOWN_STRUCTURAL_FIXTURE,
+        )
+
+    assert run.durations_ns == (7, 7), f"expected two cold samples; got {run}"
+    messages = _messages(caplog)
+    for index in (0, 1):
+        prefix = f"cold iteration subprocess: mode=cold iteration={index} command="
+        assert any(message.startswith(prefix) for message in messages), (
+            f"expected an iteration {index} log; got {messages}"
+        )
+
+
 def test_write_report_logs_the_resolved_path_for_a_relative_output(
     caplog: pytest.LogCaptureFixture,
     tmp_path: pathlib.Path,
@@ -246,74 +332,4 @@ def test_write_report_logs_the_resolved_path_for_a_relative_output(
     messages = _messages(caplog)
     assert f"writing report: path={resolved_path}" in messages, (
         f"expected the resolved report path; got {messages}"
-    )
-
-
-def test_cli_debug_logging_reaches_stderr(tmp_path: pathlib.Path) -> None:
-    """Expose probe diagnostics on stderr when the CLI enables DEBUG."""
-    output_path = tmp_path / "structural-baseline.json"
-
-    completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- justified: exercising the documented CLI entry point with a fixed argument list
-        [
-            sys.executable,
-            "-m",
-            "tests.performance.structural_probe",
-            "--mode",
-            "warm",
-            "--iterations",
-            "1",
-            "--output",
-            str(output_path),
-            "--log-level",
-            "DEBUG",
-        ],
-        cwd=REPOSITORY_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert output_path.is_file(), f"expected a report at {output_path}"
-    assert "DEBUG" in completed.stderr, (
-        f"expected DEBUG records on stderr; got {completed.stderr}"
-    )
-    assert "fixture discovered: path=" in completed.stderr, (
-        f"expected fixture discovery logs on stderr; got {completed.stderr}"
-    )
-    assert f"writing report: path={output_path.resolve()}" in completed.stderr, (
-        f"expected the resolved report path on stderr; got {completed.stderr}"
-    )
-
-
-def test_cli_without_log_level_keeps_failure_output_single(
-    tmp_path: pathlib.Path,
-) -> None:
-    """Avoid logging's last-resort handler duplicating an uncaught traceback."""
-    output_path = tmp_path / "directory-in-the-way"
-    output_path.mkdir()
-
-    completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- justified: exercising the documented CLI entry point with a fixed argument list
-        [
-            sys.executable,
-            "-m",
-            "tests.performance.structural_probe",
-            "--mode",
-            "warm",
-            "--iterations",
-            "1",
-            "--output",
-            str(output_path),
-        ],
-        cwd=REPOSITORY_ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-
-    assert completed.returncode != 0, "expected the unwritable report to fail"
-    assert "report write failed: path=" not in completed.stderr, (
-        f"expected no logging fallback output; got {completed.stderr}"
-    )
-    assert completed.stderr.count("Traceback (most recent call last)") == 1, (
-        f"expected exactly one traceback; got {completed.stderr}"
     )

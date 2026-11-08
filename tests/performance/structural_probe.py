@@ -126,10 +126,8 @@ def discover_structural_fixtures(
     )
     for fixture in fixtures:
         if not fixture.path.is_file():
-            logger.error("structural fixture is missing: path=%s", fixture.path)
             msg = f"structural fixture is missing: {fixture.path.as_posix()}"
             raise FileNotFoundError(msg)
-        logger.debug("fixture discovered: path=%s", fixture.path)
     return fixtures
 
 

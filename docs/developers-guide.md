@@ -428,7 +428,7 @@ standard error:
 
 At `DEBUG` level the probe records fixture discovery, measurement-run entry and
 exit, and every cold subprocess command with its mode and iteration index. The
-report write records the resolved absolute output path, so a relative
+report-writing step records the resolved absolute output path, so a relative
 `--output` value can still be located from the log. When a cold subprocess
 exits non-zero, the probe logs its captured standard error at `ERROR` level
 before re-raising the failure. Without `--log-level`, no records are emitted
