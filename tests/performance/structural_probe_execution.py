@@ -15,6 +15,10 @@ if typ.TYPE_CHECKING:
     import pathlib
 
 logger = logging.getLogger(__name__)
+# Without a handler, logging falls back to its last-resort stderr handler and
+# duplicates the traceback of a failure we re-raise. A NullHandler keeps an
+# unconfigured probe quiet while records still propagate to a configured root.
+logger.addHandler(logging.NullHandler())
 
 
 def measure_probe(

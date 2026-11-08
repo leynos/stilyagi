@@ -283,3 +283,37 @@ def test_cli_debug_logging_reaches_stderr(tmp_path: pathlib.Path) -> None:
     assert f"writing report: path={output_path.resolve()}" in completed.stderr, (
         f"expected the resolved report path on stderr; got {completed.stderr}"
     )
+
+
+def test_cli_without_log_level_keeps_failure_output_single(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Avoid logging's last-resort handler duplicating an uncaught traceback."""
+    output_path = tmp_path / "directory-in-the-way"
+    output_path.mkdir()
+
+    completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- justified: exercising the documented CLI entry point with a fixed argument list
+        [
+            sys.executable,
+            "-m",
+            "tests.performance.structural_probe",
+            "--mode",
+            "warm",
+            "--iterations",
+            "1",
+            "--output",
+            str(output_path),
+        ],
+        cwd=REPOSITORY_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0, "expected the unwritable report to fail"
+    assert "report write failed: path=" not in completed.stderr, (
+        f"expected no logging fallback output; got {completed.stderr}"
+    )
+    assert completed.stderr.count("Traceback (most recent call last)") == 1, (
+        f"expected exactly one traceback; got {completed.stderr}"
+    )
