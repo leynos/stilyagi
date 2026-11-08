@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 011: Markdown CLI inspection and cache
+# Architectural decision record (ADR) 0014: Markdown CLI inspection and cache
 
 ## Status
 
@@ -45,7 +45,7 @@ parents without granting cleanup authority over those parents.
 ## Decision outcome
 
 Adopt the detailed command contracts in the
-[2.2.3 ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md):
+[2.2.3 ExecPlan](../execplans/2-2-3-cli-sub-commands-for-markdown.md):
 
 - Treat `.md`, `.markdown` and `.mdc` as Markdown throughout discovery, stdin,
   inspection and repair. Preserve YAML frontmatter bytes, including fences and
@@ -72,6 +72,9 @@ Adopt the detailed command contracts in the
 - Treat `--no-cache` as zero persistent-cache I/O, including directory creation
   and fingerprint reads. Retain per-run config and bridge-vocabulary
   memoization. Stdin and post-fix verification use fresh extraction.
+- Let `dump-ir` raise its log level with `--verbose` so the cache counters it
+  already computes reach a human. Counters stay on standard error and never
+  enter the JSON document, which must remain parseable on its own.
 - Anchor descriptor-relative cache operations at the caller-selected invocation
   cwd: open it once per chain walk, then refuse symlinks in cache-root
   descendants. Walk absolute roots outside cwd strictly from the filesystem

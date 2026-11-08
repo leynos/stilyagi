@@ -11,7 +11,12 @@ if typ.TYPE_CHECKING:
 
 @dc.dataclass(frozen=True, slots=True)
 class DumpIrOptions:
-    """Options for one read-only `stilyagi dump-ir` invocation."""
+    """Options for one read-only `stilyagi dump-ir` invocation.
+
+    ``verbose`` mirrors the check command's flag for one reason: the extraction
+    cache logs its counters at INFO, and a standalone `dump-ir` run has no other
+    way to raise the level. Without it the counters are computed and discarded.
+    """
 
     targets: tuple[str, ...]
     stdin_filename: str | None = None
@@ -19,6 +24,7 @@ class DumpIrOptions:
     explicit_config: tuple[str | pathlib.Path, ...] = ()
     isolated: bool = False
     no_cache: bool = False
+    verbose: bool = False
 
 
 def dump_ir_options_from_args(args: argparse.Namespace) -> DumpIrOptions:
@@ -40,7 +46,7 @@ def dump_ir_options_from_args(args: argparse.Namespace) -> DumpIrOptions:
     >>> from argparse import Namespace
     >>> parsed = Namespace(
     ...     targets=[], stdin_filename=None, output_format="json",
-    ...     config=[], isolated=False, no_cache=False
+    ...     config=[], isolated=False, no_cache=False, verbose=False
     ... )
     >>> dump_ir_options_from_args(parsed).targets
     ('.',)
@@ -52,6 +58,7 @@ def dump_ir_options_from_args(args: argparse.Namespace) -> DumpIrOptions:
         explicit_config=tuple(args.config),
         isolated=args.isolated,
         no_cache=args.no_cache,
+        verbose=args.verbose,
     )
 
 
@@ -80,6 +87,11 @@ def _add_dump_ir_arguments(
         "--no-cache",
         action="store_true",
         help="Bypass persistent extraction cache reads and writes.",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Log extraction cache counters to standard error.",
     )
     parser.add_argument(
         "targets",

@@ -21,17 +21,7 @@ from tests.support.build_tools_harness import (
     build_tools_environment,
     build_tools_pins,
     mold_archive,
-    write_pins,
 )
-
-if typ.TYPE_CHECKING:
-    import pathlib
-
-
-@pytest.fixture
-def pins(tmp_path: pathlib.Path) -> PinWorkspace:
-    """Return fixture pin files naming the pinned channel and mold release."""
-    return write_pins(tmp_path)
 
 
 def test_read_pin_trims_one_version(pins: PinWorkspace) -> None:
@@ -257,3 +247,7 @@ def test_is_linux_falls_back_to_the_running_platform(
     assert (
         build_tools_environment.is_linux(build_tools_environment.Layout()) is False
     ), "an empty layout must consult the host's own platform"
+
+
+if typ.TYPE_CHECKING:
+    import pathlib

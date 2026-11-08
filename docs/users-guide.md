@@ -694,6 +694,22 @@ outside the file, that cuts a UTF-8 character in half, that targets text the
 extractor synthesized rather than read, or whose region text disagrees with the
 source, is refused.
 
+YAML frontmatter is protected on the same footing. A Markdown file that opens
+with a fenced YAML metadata block has that block recognized from the file's own
+intermediate representation, and the block plus its closing line ending is
+preserved byte-for-byte. Any fix that would touch it is refused, and since the
+metadata is not a body region, the refusal is reported as
+`fix-error/frontmatter-protected` rather than as a bad span. One insertion is
+allowed at the position immediately after the closing line ending: that is the
+start of the body, so inserted text lands in front of the body rather than
+inside the metadata. Frontmatter keeps this protection under `--unsafe-fixes`;
+no level of opt-in edits it.
+
+If the frontmatter cannot be verified — the file claims more than one metadata
+region, a region's span is unusable, or the region's text disagrees with the
+bytes it claims — then every fix in that file is refused. The file is treated
+as having metadata that cannot be vouched for, not as having none.
+
 Two edits that overlap and are not identical are a conflict. **A conflict
 leaves the whole file completely unmodified** — including fixes that had
 nothing to do with the conflict. Resolving the conflict needs a human. This is
@@ -718,16 +734,17 @@ planned, so the planned edits were not written; file was not modified; no edits
 were applied to this file
 ```
 
-| Identifier                    | Meaning                                               |
-| ----------------------------- | ----------------------------------------------------- |
-| `fix-error/invalid-span`      | The byte range is outside the file.                   |
-| `fix-error/non-utf8-boundary` | The byte range cuts a UTF-8 character in half.        |
-| `fix-error/synthetic-span`    | The range targets text the extractor synthesized.     |
-| `fix-error/source-mismatch`   | The region's text disagrees with the source bytes.    |
-| `fix-error/overlapping-edits` | Two non-identical edits overlap.                      |
-| `fix-error/standard-input`    | The input came from a stream, which is never written. |
-| `fix-error/changed-on-disk`   | The file changed between planning and writing.        |
-| `fix-error/write-failed`      | The filesystem refused the write.                     |
+| Identifier                        | Meaning                                               |
+| --------------------------------- | ----------------------------------------------------- |
+| `fix-error/invalid-span`          | The byte range is outside the file.                   |
+| `fix-error/non-utf8-boundary`     | The byte range cuts a UTF-8 character in half.        |
+| `fix-error/synthetic-span`        | The range targets text the extractor synthesized.     |
+| `fix-error/source-mismatch`       | The region's text disagrees with the source bytes.    |
+| `fix-error/frontmatter-protected` | The edit touches, or cannot verify, YAML frontmatter. |
+| `fix-error/overlapping-edits`     | Two non-identical edits overlap.                      |
+| `fix-error/standard-input`        | The input came from a stream, which is never written. |
+| `fix-error/changed-on-disk`       | The file changed between planning and writing.        |
+| `fix-error/write-failed`          | The filesystem refused the write.                     |
 
 *Table 1: Refusal identifiers a `--fix` or `--diff` run can report.*
 
@@ -840,8 +857,12 @@ The JSON retains Rust's source path, byte spans, line index, content hash,
 frontmatter region, and extraction errors. An input or extraction failure exits
 `2` without writing partial JSON. Use `--config`, `--isolated`, and
 `--no-cache` as with `check`; `dump-ir` does not accept fix or rule-selection
-options. `--no-cache` bypasses persistent reads and writes. Markdown fixes
-preserve recognized YAML frontmatter byte-for-byte.
+options. `--no-cache` bypasses persistent reads and writes.
+
+`--verbose` writes the extraction cache counters — hits, misses, invalid
+entries, bypasses, and write failures — to standard error. They are the same
+fixed fields `check --verbose` reports, and they stay off the JSON stream, so
+`dump-ir --verbose` still emits a parseable document on standard output.
 
 ## 4. Locale policy in v1
 

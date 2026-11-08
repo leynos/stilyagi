@@ -960,6 +960,13 @@ small package, one module per concern:
   not. `source_backed_spans(document)` returns sorted, merged, disjoint spans,
   and `segment_for_span(document, span)` returns the source-backed segment that
   wholly contains a span, or `None`.
+- `offset_view.py` `OffsetView.of(source_bytes)` splits a leading UTF-8
+  byte-order mark from the bytes IR offsets address, and `restore` puts it
+  back. It exists because the reader decodes Markdown with `utf-8-sig`: every
+  IR offset counts from the byte after the mark, while the source bytes still
+  carry it, so validating one view against the other refuses every edit in a
+  buffer-marked file. Keeping it separate from `plan.py` gives the planner one
+  view to work in without re-deriving the mark width at each call site.
 - `frontmatter.py` keeps `_source_segments(region)` local to YAML-frontmatter
   provenance. It shares segment/source mapping checks between span selection
   and source-text matching; those callers retain their distinct validation
@@ -983,7 +990,12 @@ small package, one module per concern:
   byte position, refuses overlaps that are not exact duplicates, and produces a
   `PlannedFile`. A plan that loses any edit carries no replacement bytes at
   all, so a conflict leaves the file with nothing to write rather than a
-  partial result.
+  partial result. Its `_re_extract_markdown` is the frontmatter guard's only
+  route to an extractor: re-extracting the repaired text is what proves the
+  metadata prefix survived, and routing it through one function keeps the guard
+  depending on *an* extractor rather than on the concrete bridge. When that
+  re-extraction fails the guard cannot vouch for the prefix, so it refuses the
+  whole plan rather than writing bytes it never verified.
 - `splice.py` `apply_edits(source_bytes, edits)` is the normative kernel for
   splice semantics. It is deliberately narrow: it assumes its input is already
   validated and does nothing but give admitted edits deterministic byte

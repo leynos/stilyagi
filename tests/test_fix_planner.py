@@ -285,3 +285,71 @@ def test_planner_accepts_list_paragraph_end_insertions_from_real_corpus() -> Non
         == source.replace("Unordered item", "Unordered item.").encode(),
         "expected the nested source-backed list paragraph to accept an end insertion",
     )
+
+
+_BOM = b"\xef\xbb\xbf"
+
+
+def test_planner_addresses_offsets_past_a_leading_byte_order_mark() -> None:
+    """Plan an edit in the offset view the IR was built in, then restore the mark.
+
+    The reader decodes Markdown with ``utf-8-sig``, so extraction never sees the
+    mark and every IR offset counts from the first byte after it. Validating
+    those offsets against the mark-prefixed source refused every edit in the
+    file as a source mismatch, which is what this pins shut.
+    """
+    source = "# Title\n\nHello world\n"
+    document = engine.extract_document(source, model.Syntax.MARKDOWN)
+    span = find_source_span(document, "world")
+    candidate = _diagnostic(
+        "PUN201", Fix("Replace", Applicability.SAFE, (TextEdit.replace(span, "earth"),))
+    )
+
+    plan = plan_fixes(
+        FixPlanRequest(
+            _BOM + source.encode(),
+            document,
+            (candidate,),
+            FixLevel.SAFE,
+            config.LintConfig(),
+        )
+    )
+
+    assert_with_context(
+        not plan.rejections, "expected no refusal for a BOM-prefixed file"
+    )
+    assert_with_context(
+        plan.fixed_bytes == _BOM + source.replace("world", "earth").encode(),
+        "expected the replacement to keep exactly one leading byte-order mark",
+    )
+
+
+def test_planner_preserves_bom_prefixed_frontmatter_and_edits_the_body() -> None:
+    """Keep a BOM-prefixed document's metadata intact while repairing its body.
+
+    Both offset views and both frontmatter recognitions have to agree here for
+    the plan to survive: a mismatch in either one refuses the whole file, so a
+    passing plan is proof the mark is accounted for on each side.
+    """
+    source = "---\ntitle: Notes\n---\n\nHello world\n"
+    document = engine.extract_document(source, model.Syntax.MARKDOWN)
+    span = find_source_span(document, "world")
+    candidate = _diagnostic(
+        "PUN201", Fix("Replace", Applicability.SAFE, (TextEdit.replace(span, "earth"),))
+    )
+
+    plan = plan_fixes(
+        FixPlanRequest(
+            _BOM + source.encode(),
+            document,
+            (candidate,),
+            FixLevel.SAFE,
+            config.LintConfig(),
+        )
+    )
+
+    assert_with_context(not plan.rejections, "expected the body edit to be admissible")
+    assert_with_context(
+        plan.fixed_bytes == _BOM + source.replace("world", "earth").encode(),
+        "expected the BOM, the frontmatter and the body edit to survive together",
+    )

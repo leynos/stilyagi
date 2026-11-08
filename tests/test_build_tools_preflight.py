@@ -7,8 +7,6 @@ reported for one host can be asserted rather than pattern-matched out of a
 merged standard-error stream.
 """
 
-import typing as typ
-
 import pytest
 
 from tests.support.build_tools_harness import (
@@ -17,60 +15,13 @@ from tests.support.build_tools_harness import (
     PinWorkspace,
     build_tools_environment,
     build_tools_pins,
-    write_pins,
 )
-
-if typ.TYPE_CHECKING:
-    import pathlib
-
-    from cuprum.sh import CommandResult
-
-
-def _result(
-    *,
-    stdout: str | None = "",
-    exit_code: int = 0,
-) -> CommandResult:
-    """Return a stand-in command result with the chosen output and status."""
-    from cuprum.program import Program
-    from cuprum.sh import CommandResult
-
-    return CommandResult(
-        program=Program("stub"),
-        argv=(),
-        exit_code=exit_code,
-        pid=0,
-        stdout=stdout,
-        stderr="",
-    )
-
-
-class _Runner:
-    """Answer a scripted command runner, recording what it was asked."""
-
-    def __init__(self, *answers: CommandResult | BaseException) -> None:
-        """Queue one answer per expected call, in order."""
-        self._answers = list(answers)
-        self.calls: list[tuple[str, tuple[str, ...]]] = []
-
-    def __call__(
-        self,
-        program: str,
-        *args: str,
-        echo: bool = False,  # mirrors the primitive's signature.
-    ) -> CommandResult:
-        """Return the next queued answer for this call."""
-        self.calls.append((str(program), args))
-        answer = self._answers.pop(0) if self._answers else _result()
-        if isinstance(answer, BaseException):
-            raise answer
-        return answer
-
-
-@pytest.fixture
-def pins(tmp_path: pathlib.Path) -> PinWorkspace:
-    """Return fixture pin files naming the pinned channel and mold release."""
-    return write_pins(tmp_path)
+from tests.support.build_tools_harness import (
+    ScriptedRunner as _Runner,
+)
+from tests.support.build_tools_harness import (
+    command_result as _result,
+)
 
 
 @pytest.mark.parametrize(

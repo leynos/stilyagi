@@ -16,35 +16,11 @@ import typing as typ
 
 import pytest
 from pytest_bdd import given, then, when
-from stilyagi import cli, config, diagnostics, model
-from stilyagi.fixes import Applicability, Fix, TextEdit
+from stilyagi import cli
 
-from tests.support.fix_fixtures import find_source_span
-
-if typ.TYPE_CHECKING:
-    from stilyagi.rules.registry import RuleRunner
+from tests.support import frontmatter_fixtures as fixtures
 
 _REPORTED_NAME = "notes.mdc"
-
-#: A CRLF fenced prefix carrying every YAML shape the plan names: a quoted
-#: scalar, a comment, a single-quoted scalar containing a colon, and a
-#: multiline value.
-_FRONTMATTER_SOURCE = (
-    b"---\r\n"
-    + 'title: "Café"\r\n'.encode()
-    + b"# Preserve this comment\r\n"
-    + b"quoted: 'a: b'\r\n"
-    + b"description: |\r\n"
-    + b"  first line\r\n"
-    + b"---\r\n"
-    + b"\r\n"
-    + b"Paragraph text.\r\n"
-)
-
-#: The body text the repair replaces, and the bytes it is replaced with. The
-#: replacement keeps the CRLF ending the surrounding document already uses.
-_BODY_TEXT = "Paragraph text."
-_REPLACED_BODY = b"Section text.\r\n"
 
 
 class FrontmatterRepairState(typ.TypedDict, total=False):
@@ -58,35 +34,6 @@ class FrontmatterRepairState(typ.TypedDict, total=False):
     repaired: bytes
 
 
-def _body_fix_runner(reported_path: str) -> RuleRunner:
-    """Offer a body-only edit that disappears once the repair has applied."""
-
-    def run_rules(
-        document: model.Document,
-        _resolved_config: config.StilyagiConfig,
-    ) -> list[diagnostics.Diagnostic]:
-        """Return the diagnostic only while its source-backed body text exists."""
-        try:
-            span = find_source_span(document, _BODY_TEXT)
-        except ValueError:
-            return []
-        return [
-            diagnostics.Diagnostic(
-                path=reported_path,
-                code="PUN201",
-                message="Rewrite the sample paragraph.",
-                severity=diagnostics.Severity.ERROR,
-                fix=Fix(
-                    "Rewrite the sample paragraph",
-                    Applicability.SAFE,
-                    (TextEdit.replace(span, "Section text."),),
-                ),
-            )
-        ]
-
-    return run_rules
-
-
 @given(
     "an mdc file with YAML frontmatter and a fixable body diagnostic",
     target_fixture="frontmatter_repair_state",
@@ -98,17 +45,19 @@ def mdc_file_with_fixable_body_diagnostic(
     """Create the component file and inject the rule that proposes its repair."""
     monkeypatch.chdir(tmp_path)
     target = tmp_path / _REPORTED_NAME
-    target.write_bytes(_FRONTMATTER_SOURCE)
+    target.write_bytes(fixtures.FRONTMATTER_SOURCE)
     monkeypatch.setattr(
         cli.rules_registry,
         "run_rules",
-        _body_fix_runner(_REPORTED_NAME),
+        fixtures.body_fix_runner(_REPORTED_NAME),
     )
     return {
         "root": tmp_path,
         "target": target,
-        "original": _FRONTMATTER_SOURCE,
-        "prefix": _FRONTMATTER_SOURCE[: _FRONTMATTER_SOURCE.index(_BODY_TEXT.encode())],
+        "original": fixtures.FRONTMATTER_SOURCE,
+        "prefix": fixtures.FRONTMATTER_SOURCE[
+            : fixtures.FRONTMATTER_SOURCE.index(fixtures.BODY_TEXT.encode())
+        ],
     }
 
 
@@ -130,7 +79,7 @@ def the_body_is_repaired(frontmatter_repair_state: FrontmatterRepairState) -> No
     assert repaired != frontmatter_repair_state["original"], (
         "expected the run to change the file"
     )
-    assert repaired[len(prefix) :] == _REPLACED_BODY, (
+    assert repaired[len(prefix) :] == fixtures.REPLACED_BODY, (
         "expected the body edit to replace exactly the diagnosed paragraph"
     )
     assert frontmatter_repair_state["exit_code"] == 0, (

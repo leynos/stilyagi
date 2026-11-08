@@ -3,11 +3,15 @@
 import typing as typ
 
 from stilyagi import config, diagnostics, engine, model
+from stilyagi.engine.fix_planning import plan as plan_module
 from stilyagi.engine.fix_planning.frontmatter import edit_conflicts_with_frontmatter
 from stilyagi.engine.fix_planning.plan import FixPlanRequest, plan_fixes
 from stilyagi.fixes import Applicability, Fix, FixLevel, TextEdit
 
 from tests.support.fix_fixtures import find_source_span
+
+if typ.TYPE_CHECKING:
+    import pytest
 
 
 def _request(
@@ -152,4 +156,45 @@ def test_planner_refuses_edits_that_create_frontmatter_from_body_text() -> None:
     )
     assert plan.rejections[0].identifier == "fix-error/frontmatter-protected", (
         "expected newly recognized frontmatter to invalidate the edit"
+    )
+
+
+def test_planner_refuses_when_reextraction_cannot_verify_the_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refuse every edit in a file whose prefix cannot be re-verified.
+
+    The planner re-extracts the repaired text to prove the metadata prefix
+    survived. When that re-extraction fails it has no evidence the prefix is
+    intact, so it must refuse rather than write bytes it cannot vouch for. The
+    extractor is patched through the planner's own re-extraction seam, so this
+    branch is exercised without depending on a bridge failure being reachable
+    from the corpus.
+    """
+    source = "---\ntitle: Café\n---\n\nHello world\n"
+    document = engine.extract_document(source, model.Syntax.MARKDOWN)
+    span = find_source_span(document, "Hello world")
+    candidate = _diagnostic(
+        "PUN201",
+        Fix(
+            "Replace body",
+            Applicability.SAFE,
+            (TextEdit.replace(span, "Goodbye world"),),
+        ),
+    )
+
+    def refuse_reextraction(_source_text: str) -> typ.NoReturn:
+        """Fail the verification extraction the guard depends on."""
+        message = "bridge refused the repaired document"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(plan_module, "_re_extract_markdown", refuse_reextraction)
+
+    plan = plan_fixes(_request(source, document, (candidate,)))
+
+    assert plan.fixed_bytes is None, (
+        "expected an unverifiable prefix to refuse the whole plan"
+    )
+    assert plan.rejections[0].identifier == "fix-error/frontmatter-protected", (
+        "expected the refusal to name frontmatter protection"
     )

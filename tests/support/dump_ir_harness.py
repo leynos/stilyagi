@@ -25,6 +25,14 @@ class Stdin:
 
     The filename stays optional because rejecting piped bytes that name no
     source is itself a command branch worth exercising.
+
+    Attributes
+    ----------
+    text:
+        The bytes the command reads from standard input.
+    filename:
+        The Markdown identity the caller claims for those bytes, or ``None``
+        when the case deliberately names no source.
     """
 
     text: str
@@ -37,7 +45,27 @@ def run_dump_ir(
     *arguments: str,
     stdin: Stdin | None = None,
 ) -> tuple[int, bytes, str]:
-    """Run one invocation and return its exit status, stdout and stderr."""
+    """Run one invocation and return its exit status, stdout and stderr.
+
+    Parameters
+    ----------
+    tmp_path:
+        The directory the invocation runs in; it is also where relative
+        targets are resolved from.
+    monkeypatch:
+        The pytest patcher used to set the working directory and, when a case
+        pipes bytes, the command's standard input.
+    *arguments:
+        The positional targets to hand the command.
+    stdin:
+        Bytes to pipe, or ``None`` to leave standard input untouched.
+
+    Returns
+    -------
+    tuple
+        The exit status, the captured standard output and the captured
+        standard error, in that order.
+    """
     monkeypatch.chdir(tmp_path)
     output = io.BytesIO()
     error = io.StringIO()

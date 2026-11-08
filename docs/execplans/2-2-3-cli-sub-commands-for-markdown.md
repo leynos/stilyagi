@@ -251,7 +251,7 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       all six sequential R23 gates passed on the candidate. The R23 logs record
       Nextest 367/367 and Python 872/872. The current-head CodeRabbit review
       remains pending.
-- [x] (2026-10-25) Accept ADR 011 and reconcile the design, documentation index
+- [x] (2026-10-25) Accept ADR 0014 and reconcile the design, documentation index
       and roadmap item 2.2.3. `make check-fmt`, `make markdownlint` and
       `make nixie` passed sequentially on the R25 candidate; all three gates
       passed without temporary-directory or storage errors.
@@ -447,6 +447,61 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       contract `tests/test_check_mutation.py` already records, and this
       segment's first draft asserted the wrong status until the standing test
       was read.
+- [x] (2026-11-08) Rebase the 28-commit range from `1e1e1190` onto
+      `48c24f9d` and clear the 15 CodeRabbit findings the review raised. The
+      rebase brought in ADRs 0012 and 0013, so the branch ADR moved to
+      `docs/adrs/adr-0014-markdown-cli-inspection-and-cache.md` (the suggested
+      0012 was already taken). New target surfaces required real repairs, not
+      just resets: the `RuleRunner` contract now takes one `RuleRunRequest`,
+      and the branch's fakes still had the old two-argument signature, so the
+      shared frontmatter runner reads `request.document`. Lint then failed on
+      an unused import and an import-sorting rule, and `pylint C0302` fired at
+      412 lines on `test_fix_frontmatter_recognition.py`; the module was split
+      along its recognition/guard seam into 280 + 126 + 50 lines rather than
+      suppressing the check. `make check-fmt` and Ruff are green on the
+      repaired tree; the remaining gates ran through the sequencer below.
+- [x] (2026-11-08) Reconcile the five failed pre-merge rows in the CodeRabbit
+      walkthrough against the live tree, and fix the four that survived
+      verification. Module-Level Documentation was real: `tests/test_cli_args.py`
+      described only `check`, so its docstring now names the `dump-ir` boundary
+      too. User-Facing Documentation was real twice over: `README.md` still
+      listed `dump-ir`, `config` and `clean` as "Designed, not yet built", and
+      the repository had no change notes for the new behaviour; the README now
+      lists the three commands as working and links
+      `docs/markdown-inspection-and-cache-notes.md`, which follows the
+      `mixed-source-discovery-notes.md` precedent. Observability was real:
+      `run_dump_ir` called `log_summary()` at INFO but configured no logging and
+      `DumpIrOptions` carried no verbosity flag, so the cache counters were
+      computed and discarded — `dump-ir --verbose` now reaches them, pinned by
+      a parser test. Domain Architecture was partly real: the frontmatter guard
+      depended on the concrete bridge, and its unverifiable-prefix branch was
+      therefore unreachable in tests; the re-extraction now goes through
+      `_re_extract_markdown`, and
+      `test_planner_refuses_when_reextraction_cannot_verify_the_prefix` proves
+      the refusal red-then-green. Unit Architecture was rebutted rather than
+      changed: the developers' guide already assigns invocation-scoped cache
+      selection to `cache/extraction.py`, and the
+      `--no-cache`/stdin direct path it describes is the documented contract.
+      Splitting `test_dump_ir_in_process.py` at 403 lines moved the extraction
+      faults into `tests/test_dump_ir_extraction_faults.py` rather than
+      raising the Pylint ceiling.
+- [x] (2026-11-08) Verify every factual claim in the 17 staged review
+      dispositions and the PR description against the rebased tree before
+      committing them, and correct the ones that had drifted. Seven needed it:
+      one disposition cited a pre-rebase SHA no reader could fetch (the same
+      defect the roadmap entry had already been fixed for), three quoted line
+      counts or line numbers that the split and the new `offset_view.py` bullet
+      moved, one named a helper that the extraction had made public under a
+      different name, one claimed a shared import in a module that never
+      needed it, and one test count became two after the module split. A stale
+      line reference to `docs/developers-guide.md` was removed from this plan
+      and the reconciliation comment rather than renumbered, because a line
+      number in a commit message or an ExecPlan rots on the next edit while a
+      section name does not. The PR description likewise now names the
+      commits that repaired the formatter merges and the CodeScene findings by
+      subject instead of by SHA, and records that its coverage percentages
+      were measured on the pre-rebase candidate with the hosted ratchet as the
+      authority for the current head.
 
 ## Surprises & discoveries
 
@@ -470,8 +525,11 @@ a configuration-sensitive key, preserving existing error classification and
 phase measurements.
 
 The rebase target added the nose duplication-gate ADR as ADR 010. The Markdown
-CLI ADR is now ADR 011; the existing main entry and both design intents remain
-in the documentation index.
+CLI ADR was allocated 011 at that point; the existing main entry and both
+design intents remain in the documentation index. A later rebase onto
+`48c24f9d` brought in ADRs 0012 and 0013 from the target, so the Markdown CLI
+ADR was renumbered to 0014 and moved to `docs/adrs/` alongside the rest of the
+series.
 
 The PyO3 bridge serializes canonical JSON but the Python adapter discards its
 string after parsing. Rust already has `extract_document_with_source_identity`;
@@ -527,8 +585,8 @@ notice helper — rather than towards shaving lines from individual tests.
 
 The implementation decisions below were proposed on 2026-10-14 and approved
 with this plan on 2026-10-24. They were implemented within the recorded scope.
-[ADR 011](../adr-011-markdown-cli-inspection-and-cache.md) records the accepted
-substantive framing and persistent-state choices.
+[ADR 0014](../adrs/adr-0014-markdown-cli-inspection-and-cache.md) records the
+accepted substantive framing and persistent-state choices.
 
 Validation sequencing follows the installed scrutineer's fixed order:
 `make check-fmt`, `make lint`, `make typecheck`, `make test`,
@@ -585,7 +643,7 @@ from the hash.
 The reviewed plan incorporates six expert perspectives and was approved for
 implementation on 2026-10-24. M1–M4 each passed all six local quality gates. M4
 added process-boundary acceptance and frontmatter integrity evidence; the
-separate CodeScene refactor cleared the planned findings. ADR 011, the design,
+separate CodeScene refactor cleared the planned findings. ADR 0014, the design,
 documentation index and roadmap now record the accepted implementation. The R3
 candidate passed all six local gates, and CodeRabbit found no remaining
 findings. Roadmap 2.2.3 is complete; 3.3.1 remains separate. No performance
@@ -631,8 +689,8 @@ is the rebased target, commit `765915e5f0ff47899184ed24c9a398c3bc9f2b90`;
 revalidate source references against it. There is no separate task-specific
 Terms of Reference. The governing documents are [the roadmap](../roadmap.md)
 2.2.3, [the design](../stilyagi-design.md) §§4, 7.3 and 13,
-[RFC 0003](../rfcs/0003-stilyagi-cli-contract.md) §§3.4–3.6, 5 and 13,
-[RFC 0001](../rfcs/0001-stilyagi-intermediate-representation.md), and ADRs
+[RFC 0003](../rfcs/rfc-0003-stilyagi-cli-contract.md) §§3.4–3.6, 5 and 13,
+[RFC 0001](../rfcs/rfc-0001-stilyagi-intermediate-representation.md), and ADRs
 [002][adr002], [003][adr003], [008][adr008] and [009][adr009]. Prerequisites
 2.1.1 and 2.2.1 are checked in the roadmap and present in code.
 
@@ -1180,10 +1238,10 @@ ownership, descriptor-safe cache access, exact owned filenames, finite output
 spooling and manual disk reclamation. These tighten M2/M3 acceptance without
 authorizing execution.
 
-[adr002]: ../adr-002-packaging-boundary.md
-[adr003]: ../adr-003-v1-contract-scope.md
-[adr008]: ../adr-008-v1-discovery-defaults.md
-[adr009]: ../adr-009-safe-fix-planning-and-conflict-resolution.md
+[adr002]: ../adrs/adr-0002-ratify-the-packaging-boundary.md
+[adr003]: ../adrs/adr-0003-ratify-the-v1-contract-scope.md
+[adr008]: ../adrs/adr-0008-adopt-v1-discovery-defaults.md
+[adr009]: ../adrs/adr-0009-safe-fix-planning-and-conflict-resolution.md
 [complexity]: ../complexity-antipatterns-and-refactoring-strategies.md
 [fixtures]: ../rust-testing-with-rstest-fixtures.md
 [doctests]: ../rust-doctest-dry-guide.md

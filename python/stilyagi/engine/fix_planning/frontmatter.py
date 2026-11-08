@@ -14,7 +14,44 @@ if typ.TYPE_CHECKING:
 
 @dc.dataclass(frozen=True, slots=True)
 class YamlFrontmatter:
-    """The source span and byte-faithful closing-line prefix of YAML metadata."""
+    r"""The source span and byte-faithful closing-line prefix of YAML metadata.
+
+    A recognized prefix is one the document's own IR still describes: the span
+    is the region's claimed source range and ``prefix_bytes`` is what the
+    source actually holds across it. Comparing those bytes before and after a
+    planned splice is what proves a repair left the metadata alone.
+
+    The ``None`` triple is the third state, and it is deliberately not the
+    same as absence. It means the file *has* frontmatter the guard cannot
+    verify -- several candidate regions, a region whose span is unusable, or
+    region text that disagrees with the bytes it claims. Recognition cannot
+    prove the prefix is intact, so every edit in the file is refused rather
+    than planned against metadata nobody can vouch for. Only ``None`` for the
+    whole value means the file carries no frontmatter and needs no guard.
+
+    Attributes
+    ----------
+    span:
+        The region's byte range in the source, excluding any closing line
+        ending, or ``None`` when the region cannot be verified.
+    protected_end:
+        The offset just past one closing CRLF, LF, or CR, which is the end of
+        the prefix an edit must not touch, or ``None`` when unverified.
+    prefix_bytes:
+        The source bytes from ``span.byte_start`` to ``protected_end``, kept
+        for the before-and-after comparison, or ``None`` when unverified.
+
+    Examples
+    --------
+    >>> from stilyagi import engine, model
+    >>> source = "---\ntitle: Notes\n---\n\nBody\n"
+    >>> frontmatter = yaml_frontmatter(
+    ...     engine.extract_document(source, model.Syntax.MARKDOWN),
+    ...     source.encode(),
+    ... )
+    >>> frontmatter.prefix_bytes
+    b'---\ntitle: Notes\n---\n'
+    """
 
     span: ir_view.SourceSpan | None
     protected_end: int | None
@@ -25,17 +62,42 @@ def yaml_frontmatter(
     document: model.Document,
     source_bytes: bytes,
 ) -> YamlFrontmatter | None:
-    """Return the YAML frontmatter source boundary, or ``None`` when absent."""
+    r"""Return the YAML frontmatter source boundary, or ``None`` when absent.
+
+    Parameters
+    ----------
+    document:
+        The extracted document whose canonical IR is inspected for a
+        frontmatter region.
+    source_bytes:
+        The exact bytes the document was extracted from. The region's claimed
+        span is verified against them rather than trusted.
+
+    Returns
+    -------
+    YamlFrontmatter | None
+        The recognized prefix, the unverifiable triple
+        ``YamlFrontmatter(None, None, None)`` when a frontmatter region exists
+        but cannot be confirmed, or ``None`` when the document carries no
+        frontmatter at all.
+
+    Examples
+    --------
+    >>> from stilyagi import engine, model
+    >>> yaml_frontmatter(
+    ...     engine.extract_document("# Title\n", model.Syntax.MARKDOWN),
+    ...     b"# Title\n",
+    ... ) is None
+    True
+    """
     regions = _yaml_frontmatter_regions(document)
     if not regions:
         return None
     if len(regions) != 1:
         return YamlFrontmatter(None, None, None)
 
-    source_span = _region_source_span(regions[0])
-    if source_span is None or not _matches_region_text(
-        regions[0], source_span, source_bytes
-    ):
+    source_span = _verified_region_span(regions[0], source_bytes)
+    if source_span is None:
         return YamlFrontmatter(None, None, None)
     protected_end = _closing_line_end(source_bytes, source_span.byte_end)
     return YamlFrontmatter(
@@ -49,7 +111,46 @@ def edit_conflicts_with_frontmatter(
     edit: TextEdit,
     frontmatter: YamlFrontmatter | None,
 ) -> bool:
-    """Return whether an edit is invalid or overlaps a protected prefix."""
+    r"""Return whether an edit is invalid or overlaps a protected prefix.
+
+    Overlap is judged against the whole protected prefix, closing line ending
+    included, because a rule that consumed that ending would join the metadata
+    to the body it precedes. An insertion is contained when its zero-width
+    position lies inside the half-open prefix; a replacement or removal when
+    its range intersects it.
+
+    Parameters
+    ----------
+    edit:
+        The candidate edit. Any value outside the :class:`TextEdit` contract is
+        treated as conflicting, so a rule that hands back a look-alike cannot
+        slip past the guard.
+    frontmatter:
+        The recognition result for this document and source, or ``None`` when
+        the document carries no frontmatter.
+
+    Returns
+    -------
+    bool
+        ``True`` when the edit must be refused: it is not a ``TextEdit``,
+        frontmatter is present but unverifiable, or the edit overlaps the
+        protected prefix. ``False`` when there is no frontmatter to protect or
+        the edit lies wholly beyond it.
+
+    Examples
+    --------
+    >>> from stilyagi import engine, model
+    >>> from stilyagi.fixes import TextEdit
+    >>> source = "---\ntitle: Notes\n---\n\nBody\n"
+    >>> frontmatter = yaml_frontmatter(
+    ...     engine.extract_document(source, model.Syntax.MARKDOWN),
+    ...     source.encode(),
+    ... )
+    >>> edit_conflicts_with_frontmatter(TextEdit(22, 26, "Text"), frontmatter)
+    False
+    >>> edit_conflicts_with_frontmatter(TextEdit(0, 3, "+++"), frontmatter)
+    True
+    """
     if not isinstance(edit, TextEdit):
         return True
     if frontmatter is None:
@@ -67,7 +168,39 @@ def is_frontmatter_boundary_insertion(
     edit: TextEdit,
     frontmatter: YamlFrontmatter | None,
 ) -> bool:
-    """Return whether an insertion sits just after the protected prefix."""
+    r"""Return whether an insertion sits just after the protected prefix.
+
+    A zero-width edit at ``protected_end`` touches the prefix at neither byte,
+    so the overlap test calls it contained; it is nevertheless the one place
+    the admissibility bound has to be suspended. The prefix ends with its
+    closing line ending, so the position is the start of the body, and text
+    inserted there precedes the body rather than entering the metadata.
+
+    Parameters
+    ----------
+    edit:
+        The candidate edit, which must be zero-width to qualify.
+    frontmatter:
+        The recognition result for this document and source, or ``None``.
+
+    Returns
+    -------
+    bool
+        ``True`` only for a zero-width edit at exactly ``protected_end`` of a
+        verifiable prefix. An absent or unverifiable frontmatter has no such
+        position and answers ``False``.
+
+    Examples
+    --------
+    >>> from stilyagi.engine import ir_view
+    >>> from stilyagi.fixes import TextEdit
+    >>> block = b"---\ntitle: x\n---\n"
+    >>> known = YamlFrontmatter(ir_view.SourceSpan(0, 19), 20, block)
+    >>> is_frontmatter_boundary_insertion(TextEdit(20, 20, "!"), known)
+    True
+    >>> is_frontmatter_boundary_insertion(TextEdit(19, 19, "!"), known)
+    False
+    """
     return (
         frontmatter is not None
         and frontmatter.protected_end is not None
@@ -79,7 +212,36 @@ def frontmatter_is_unchanged(
     before: YamlFrontmatter | None,
     after: YamlFrontmatter | None,
 ) -> bool:
-    """Compare recognized YAML frontmatter bytes before and after a splice."""
+    """Compare recognized YAML frontmatter bytes before and after a splice.
+
+    The comparison is over bytes rather than over recognition alone, because a
+    splice can leave the region recognizable while changing what the prefix
+    says. An unverifiable side has no bytes to compare and therefore counts as
+    changed: a repair is only allowed to proceed when both sides can be shown
+    to hold the same prefix.
+
+    Parameters
+    ----------
+    before:
+        Recognition of the source the plan was made from.
+    after:
+        Recognition of the planned replacement, re-extracted from its text.
+
+    Returns
+    -------
+    bool
+        ``True`` when neither side has frontmatter, or when both have a
+        verifiable prefix holding identical bytes. ``False`` when one side has
+        frontmatter and the other does not, or when either side is
+        unverifiable.
+
+    Examples
+    --------
+    >>> frontmatter_is_unchanged(None, None)
+    True
+    >>> frontmatter_is_unchanged(None, YamlFrontmatter(None, None, None))
+    False
+    """
     if before is None or after is None:
         return before is None and after is None
     return before.prefix_bytes is not None and before.prefix_bytes == after.prefix_bytes
@@ -147,32 +309,35 @@ def _source_segment(
     return segment, source
 
 
-def _region_source_span(
+def _verified_region_span(
     region: cabc.Mapping[str, object],
-) -> ir_view.SourceSpan | None:
-    """Return the first valid source span carried by a frontmatter region."""
-    for _, source in _source_segments(region):
-        start = source.get("byte_start")
-        end = source.get("byte_end")
-        return _source_span(start, end)
-    return None
-
-
-def _matches_region_text(
-    region: cabc.Mapping[str, object],
-    span: ir_view.SourceSpan,
     source_bytes: bytes,
-) -> bool:
-    """Ensure the source-backed segment still describes its claimed bytes."""
-    if span.byte_end > len(source_bytes):
-        return False
-    for segment, source in _source_segments(region):
-        if source.get("byte_start") != span.byte_start:
-            continue
-        if source.get("byte_end") != span.byte_end:
-            continue
-        return _source_text_matches(segment, span, source_bytes)
-    return False
+) -> ir_view.SourceSpan | None:
+    """Return the region's first claimed source span, once its text is verified.
+
+    The span and the text that has to back it are read from the same segment,
+    so one segment cannot supply the offsets while another supplies the text.
+    Both failures -- an unusable span and text that disagrees with the bytes it
+    claims -- refuse the whole region rather than searching past it for a
+    segment that happens to agree. The region asserts that it describes the
+    prefix; a segment that contradicts the source means the recognition is
+    stale, and a later segment agreeing would not make the first one true.
+
+    Returns
+    -------
+    ir_view.SourceSpan | None
+        The first segment's span when its text matches the bytes it claims,
+        or ``None`` when the region offers no usable first segment or that
+        segment disagrees with the source.
+    """
+    first = next(iter(_source_segments(region)), None)
+    if first is None:
+        return None
+    segment, source = first
+    span = _source_span(source.get("byte_start"), source.get("byte_end"))
+    if span is None:
+        return None
+    return span if _source_text_matches(segment, span, source_bytes) else None
 
 
 def _source_text_matches(
@@ -181,6 +346,8 @@ def _source_text_matches(
     source_bytes: bytes,
 ) -> bool:
     """Decode one verified source range and compare its segment text."""
+    if span.byte_end > len(source_bytes):
+        return False
     try:
         return source_bytes[span.byte_start : span.byte_end].decode() == segment.get(
             "text"

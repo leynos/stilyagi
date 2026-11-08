@@ -5,10 +5,12 @@ import logging
 import typing as typ
 
 from stilyagi.engine import ir_view
+from stilyagi.engine.extraction import BridgeExtractionError
 
 from .admissibility import EditRejection, classify_edit
 from .conflicts import coalesce_identical, first_overlap
 from .frontmatter import frontmatter_is_unchanged, yaml_frontmatter
+from .offset_view import OffsetView
 from .selection import CandidatePartition, partition_candidates
 from .splice import apply_edits
 
@@ -20,6 +22,26 @@ if typ.TYPE_CHECKING:
     from stilyagi.fixes import FixLevel, TextEdit
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _re_extract_markdown(source_text: str) -> model.Document:
+    """Re-extract decoded Markdown through the engine's public boundary.
+
+    The frontmatter guard has to see the document a repair would produce, and
+    the only authority on that is a real extraction of the repaired text. Kept
+    as its own function so the planner depends on *an* extractor rather than on
+    this one, which is what makes the unverifiable-frontmatter branch testable
+    without the native extension.
+
+    Returns
+    -------
+    model.Document
+        The document the given text extracts to.
+    """
+    from stilyagi import model
+    from stilyagi.engine.api import extract_document
+
+    return extract_document(source_text, model.Syntax.MARKDOWN)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -67,6 +89,10 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
     to be reported as the absence of a replacement rather than as a replacement
     equal to the source.
 
+    Every check and every splice happens in the offset view the IR was built
+    in, which omits a leading byte-order mark, and only the returned bytes are
+    put back into the source's own shape.
+
     Returns
     -------
     FixPlan
@@ -76,7 +102,8 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
     selected = partition_candidates(
         request.diagnostics, request.level, request.lint_config
     )
-    accepted, rejections = _validate_candidates(selected.eligible, request)
+    view = OffsetView.of(request.source_bytes)
+    accepted, rejections = _validate_candidates(selected.eligible, request, view.body)
     if rejections:
         return _log_plan(
             FixPlan((), (), rejections, None, selected, _span_count(request)),
@@ -97,9 +124,9 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
             selected,
         )
     fixed_codes = tuple(dict.fromkeys(code for code, _edit in accepted))
-    replacement = _replacement(request.source_bytes, edits)
+    replacement = _replacement(view.body, edits)
     if replacement is not None and not _preserves_yaml_frontmatter(
-        request.source_bytes,
+        view.body,
         replacement,
         request.document,
     ):
@@ -117,7 +144,7 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
             edits,
             fixed_codes,
             (),
-            replacement,
+            None if replacement is None else view.restore(replacement),
             selected,
             _span_count(request),
             coalesced=len(accepted) - len(edits),
@@ -127,25 +154,37 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
 
 
 def _preserves_yaml_frontmatter(
-    source_bytes: bytes,
+    body: bytes,
     replacement: bytes,
     document: model.Document,
 ) -> bool:
-    """Re-extract Markdown to verify its recognized YAML prefix byte-for-byte."""
+    """Re-extract Markdown to verify its recognized YAML prefix byte-for-byte.
+
+    Both sides are the same offset view the planner spliced in, so the
+    comparison cannot be decided by a byte-order mark one side carries and the
+    other does not. The re-extraction must also decode the replacement exactly
+    as the reader decoded the source, which is why it strips the mark rather
+    than assuming there is none.
+
+    Returns
+    -------
+    bool
+        ``True`` for a non-Markdown document, or when the recognized prefix
+        survives the splice unchanged. ``False`` when the re-extraction fails
+        and the prefix therefore cannot be vouched for.
+    """
     if document.syntax.value != "markdown":
         return True
-    before = yaml_frontmatter(document, source_bytes)
+    before = yaml_frontmatter(document, body)
     try:
-        from stilyagi import model
-        from stilyagi.engine.api import extract_document
-        from stilyagi.engine.extraction import BridgeExtractionError
-
         replacement_text = replacement.decode("utf-8-sig")
-        updated_document = extract_document(
-            replacement_text,
-            model.Syntax.MARKDOWN,
-        )
-    except (BridgeExtractionError, RuntimeError, TypeError, ValueError) as error:
+        updated_document = _re_extract_markdown(replacement_text)
+    except (
+        BridgeExtractionError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as error:
         _LOGGER.warning(
             "could not verify YAML frontmatter after planned edits: %s",
             error,
@@ -268,6 +307,7 @@ def _span_count(request: FixPlanRequest) -> int:
 def _validate_candidates(
     candidates: cabc.Iterable[diagnostics.Diagnostic],
     request: FixPlanRequest,
+    body: bytes,
 ) -> tuple[tuple[tuple[str, TextEdit], ...], tuple[EditRejection, ...]]:
     """Keep only whole fixes whose edits all pass admissibility."""
     accepted: list[tuple[str, TextEdit]] = []
@@ -281,7 +321,7 @@ def _validate_candidates(
             for edit in fix.edits
             if (
                 rejection := classify_edit(
-                    edit, request.source_bytes, request.document, diagnostic.code
+                    edit, body, request.document, diagnostic.code
                 )
             )
             is not None
