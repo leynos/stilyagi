@@ -42,7 +42,10 @@ tests.
 The minimum local setup is:
 
 - Python 3.14 available to `uv`
-- Rust toolchain with `cargo`, `rustfmt`, and `clippy`
+- A `rustup`-managed Rust toolchain. `rust-toolchain.toml` pins a dated nightly
+  and rustup installs it, with `rustfmt` and `clippy`, on the first Cargo
+  command in the checkout. See
+  [ADR 0011](adrs/adr-0011-pin-a-dated-rust-nightly-toolchain.md).
 - `uv`
 - `pyproject.toml` hard-pins maturin as
   `build-system.requires = ["maturin==1.13.3"]`
@@ -1197,15 +1200,14 @@ Inspect the updated `.stderr` files before committing to confirm that the fail
 test still represents a genuine PyO3 contract violation.
 
 The `.stderr` files record rustc's exact wording, so they are tied to the
-compiler release that produced them. `rust-toolchain.toml` pins Rust `1.99.0`,
-so local builds and CI use the compiler the snapshots were recorded with, and
-`pymodule_three_args.stderr` matches rustc 1.99, which prints the suggested
-argument type as `&Bound<..>` rather than the `&pyo3::Bound<..>` that earlier
-releases printed. A compiler older than 1.99 (including the declared minimum
-supported Rust version, if run by hand with `cargo +<version>`) therefore fails
-`compile_time_ui` although the code compiles. Dependabot's `rust-toolchain`
-entry proposes each new release as a pull request; re-record the snapshots in
-that pull request when the wording changes.
+compiler release that produced them. `rust-toolchain.toml` pins a dated nightly
+(see [ADR 0011](adrs/adr-0011-pin-a-dated-rust-nightly-toolchain.md)), so local
+builds and CI use the compiler the snapshots were recorded with. Any other
+compiler, including one selected by hand with `cargo +<version>`, may fail
+`compile_time_ui` on diagnostic wording although the code compiles. Dependabot
+proposes each newer night as a weekly pull request; review the `.stderr` diff
+in that pull request and re-record the snapshots only when the wording
+genuinely changed.
 
 ### 4.2 Current mixed-package skeleton
 
@@ -1351,6 +1353,58 @@ would run before the recipe. `tests/test_make_test_doc_execution.py` runs the
 target against command shims and checks the journal. Both doctest passes run,
 neither unit suite does, and a failing Rust doctest ends the target before the
 Python pass.
+
+### 5a. Rust toolchain channel and build backends
+
+`rust-toolchain.toml` pins a dated nightly. Stable cannot supply the estate
+build standard's compiler parallelism (`-Zthreads=8`), and Stilyagi has no
+downstream MSRV consumer, so the repository adopts the nightly channel rather
+than keeping the previous Dependabot-managed stable pin. The standard's
+Cranelift development backend was trialled and rejected. The decision, the
+rejected options and the evidence are in
+[ADR 0011](adrs/adr-0011-pin-a-dated-rust-nightly-toolchain.md).
+
+The nightly channel is written as `nightly-YYYY-MM-DD`, never as the moving
+`nightly` tag. The file declares `rustfmt` and `clippy`; the pinned CI
+`setup-rust` action installs every item in the toolchain file before its own
+component list, so the declared components reach CI without a second
+declaration.
+
+`-Zthreads=8` is part of the Makefile `RUST_FLAGS` default and of the
+`rustflags` input on every CI `setup-rust` call, because `setup-rust` exports
+that input as `RUSTFLAGS` for the rest of the job. The flag is unstable; a
+future night may replace it, and the weekly bump pull request is where that
+surfaces.
+
+Nightly clippy also gains lints before they reach stable, so a bump can fail
+`make lint` on files the bump does not touch. The candidate night did exactly
+that across `stilyagi-ir`, `stilyagi-extract`, `stilyagi-tree-sitter`,
+`stilyagi-test-support` and `stilyagi-pyext`. Fix the code in the bump pull
+request — the preferred remedy keeps the existing public surface, and a
+suppression needs a tightly scoped reason — rather than allowing the lint to
+keep the gate green.
+
+`make lint` also compiles the workspace under the Whitaker Dylint driver, which
+forces its own pinned nightly independently of `rust-toolchain.toml`. Code must
+build on that compiler too, so an API stabilized after Whitaker's night is
+unavailable here even when the project pin accepts it; `Option::map_or_default`
+is one example. Check a suspicious API against both toolchains before using it.
+
+Every profile builds with the default LLVM backend, and there is no root
+`.cargo/config.toml`. Cranelift was configured for `[profile.dev]` during
+validation, but `stilyagi-markdown`'s panic-containment test escaped
+`catch_unwind` under it and passed when the same tree was rebuilt with
+`CARGO_PROFILE_TEST_CODEGEN_BACKEND=llvm`. Upstream documents "Unwinding on
+panics" as unsupported in `rustc_codegen_cranelift`. Because that is a
+safety-relevant behaviour the suite asserts, the backend is not used for any
+profile; coverage needs no override as a result. Do not reintroduce a
+`codegen-backend` selection without a passing panic-boundary test under it and
+an update to ADR 0011.
+
+There is no `rust-version` in the workspace or any crate. The previous `1.85`
+declaration was never compiled by CI, so it promised a floor nothing tested. Do
+not reintroduce one without a lane that builds with it; the supported channel
+is whatever `rust-toolchain.toml` pins.
 
 ## 6. Lint, typecheck, and test workflow
 
@@ -1546,7 +1600,7 @@ dependency only a gate script uses does not belong in `pyproject.toml`.
    `RUSTDOCFLAGS=-D warnings`
 2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 3. `whitaker --all -- --workspace --all-targets --all-features` with
-   `RUSTFLAGS=-D warnings`
+   `RUSTFLAGS="-D warnings -Zthreads=8"`
 4. Skylos runs last through its pinned CPython 3.14 tool environment, scanning
    production dead code strictly.
 

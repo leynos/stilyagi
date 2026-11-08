@@ -57,8 +57,11 @@ make build
 ```
 
 That creates the virtual environment, compiles the Rust extension through
-`maturin`, and installs the package in editable mode. Python 3.14 or newer and
-a Rust toolchain are required.
+`maturin`, and installs the package in editable mode. Python 3.14 or newer is
+required. The Rust channel is pinned in
+[`rust-toolchain.toml`](rust-toolchain.toml) as a dated nightly, which `rustup`
+installs automatically on the first Cargo command; see
+[ADR 0011](docs/adrs/adr-0011-pin-a-dated-rust-nightly-toolchain.md) for why.
 
 Then point it at some Markdown:
 

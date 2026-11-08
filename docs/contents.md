@@ -136,6 +136,12 @@
     adrs/adr-0010-adopt-the-nose-code-duplication-gate.md)
     records the blocking duplication gate, its reasoned exception entries,
     scan scope, and detector provisioning policy.
+  - [ADR 0011: Pin a dated Rust nightly toolchain](
+    adrs/adr-0011-pin-a-dated-rust-nightly-toolchain.md)
+    records the move from a Dependabot-managed stable pin to a dated nightly,
+    the `-Zthreads=8` adoption, the rejection of the Cranelift development
+    backend after panic containment failed under it, the LLVM backend kept for
+    every profile, and the evidence gathered before the switch.
 
 ## Requests for comments (RFCs)
 
