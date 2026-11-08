@@ -194,7 +194,10 @@ def _edit(args: cabc.Sequence[str]) -> int:
     for arg in args:
         for name in ("draft", "prerelease"):
             option = f"--{name}="
-            if arg.startswith(option):
+            # Only a value the real flag could carry changes the state. A
+            # workflow typo such as ``--draft=maybe`` must not read as a
+            # publication here, or every step test would agree with it.
+            if arg.startswith(option) and arg.removeprefix(option) in {"true", "false"}:
                 state[name] = arg.removeprefix(option) == "true"
     path.write_text(json.dumps(state), encoding="utf-8")
     return 0

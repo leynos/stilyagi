@@ -62,26 +62,33 @@ so the steps those actions performed are inlined into the jobs.
 `permissions: {}` at the top level and per-job scopes beneath. It has three
 jobs:
 
-- `build-linux` builds `x86_64` and `aarch64` wheels in a matrix. Only the
-  `aarch64` leg installs QEMU, and only the `x86_64` leg also builds the one
-  sdist, with `uv build --sdist`, so exactly one source distribution exists per
-  run. Both legs build through maturin 1.14.1 against `manylinux_2_28`.
+- `build-linux` builds `x86_64` and `aarch64` wheels in a matrix. The
+  `aarch64` wheel is cross-compiled in the pinned `manylinux_2_28-cross`
+  container, whose aarch64 toolchain runs natively on the x86_64 runner, so no
+  emulation is involved. Only the `x86_64` leg also builds the one sdist, with
+  `uv build --sdist`, so exactly one source distribution exists per run. Both
+  legs build through maturin 1.14.1 against `manylinux_2_28`. Because this
+  workflow registers no emulation, only the `x86_64` wheel is imported before
+  publication; the `aarch64` wheel is proved to build, not to run.
 - `build-hosted` builds the macOS `arm64` and `x86_64` wheels and the Windows
   wheel, since each of those targets needs its own runner.
-- `verify-wheel-install` proves the wheel installs and that the sdist
+- `verify-wheel-install` proves the host's wheel installs and that the sdist
   rebuilds. It is the step that makes "the sdist is publishable" a tested claim
-  rather than an assumption.
+  rather than an assumption. It matches the wheel by `uname -m`, so on an
+  x86_64 runner it smokes the x86_64 wheel only.
 
 `smoke.yml` keeps a job named `release-smoke`, which now delegates to this
 workflow instead of repeating a matrix of its own. The smoke workflow therefore
 exercises the same build the release uses, and a change to the build cannot
 pass smoke while failing the release.
 
-The sdist cardinality is asserted in three places: the build job counts the
-sdists it produced, `verify-wheel-install` counts the sdists it received, and
-`release.yml`'s `attest` job refuses to continue unless exactly one is present.
-The redundancy is deliberate — the three checks guard different boundaries, and
-the failure they prevent (two sdists, or none) is silent otherwise.
+The sdist cardinality is asserted in two places: `verify-wheel-install` counts
+the sdists it received, and `release.yml`'s `attest` job refuses to continue
+unless exactly one is present. The redundancy is deliberate — the two checks
+guard different boundaries, and the failure they prevent (two sdists, or none)
+is silent otherwise. `build-linux` uploads `sdist/*.tar.gz` with
+`if-no-files-found: error`, which rejects an empty set but not a second
+archive, so it establishes presence rather than cardinality.
 
 ### The release workflow
 
@@ -110,12 +117,14 @@ It has six jobs:
   Publishing, with `skip-existing: true`, and refuses to carry an asset whose
   verified record is absent or names other bytes.
 - `publish-release` fills the release's gaps, verifies the provenance of
-  everything it is about to attach, verifies both destinations, and only then
-  edits the release from draft to published.
+  everything it is about to attach, verifies both destinations hold the same
+  bytes, re-reads the release's own attached bundle to confirm it covers every
+  asset there, and only then edits the release from draft to published.
 
 Every network call stays in the workflow's own `curl` and `gh` invocations. The
 decisions live in `scripts/release_assets.py`, with the GitHub Release's upload
-set in `scripts/release_github_upload.py` and the reading of
+set in `scripts/release_github_upload.py`, the coverage check on the Release's
+own bundle in `scripts/release_bundles.py`, and the reading of
 `gh attestation verify`'s answer in `scripts/release_provenance.py`;
 `scripts/release_assets_cli.py` wraps them in the command line the steps call.
 Those modules resolve no third-party code, because they execute inside the job
@@ -155,17 +164,28 @@ invoked without `--clobber`. When the release's asset is the canonical source
 for a name PyPI lacks, the release's bytes are copied over this run's rebuild
 and sent to PyPI, so the two destinations converge on one byte string.
 
-The release stays a draft until `verify` finds that PyPI and the GitHub Release
-hold identical digests for every name and that the release carries a provenance
-bundle. A disagreement leaves it a draft, which is visible only to a token that
-can write contents — a failed release is not a public one.
+The release stays a draft until the two destinations are shown to agree and its
+provenance is shown to cover it. `verify` requires identical digests for every
+name; `check-bundle` then downloads the `.sigstore.json` assets the release
+already holds, decodes their DSSE payloads, and requires one statement to name
+every asset's name and digest in the release's own listing. Coverage is checked
+against the release as a consumer would see it, not against the run's local
+records, because an asset attached outside this workflow would leave a local
+check answering for bytes the release does not hold. A disagreement or an
+uncovered asset leaves the release a draft, which is visible only to a token
+that can write contents — a failed release is not a public one.
 
-The bundle is required once, not once per run. The first run of a tag attaches
-its own; a re-run attaches none, because the release already records provenance
-for the canonical bytes and a run-unique bundle for a rebuild would describe
-bytes the release does not hold. The re-run's attestation is still written to
-the repository's attestation store, which is queried by digest whenever a name
-has to be carried back from the release.
+The bundle is required once, not once per run, and it must *cover* what the
+release holds. The first run of a tag attaches one only when its statement
+names every digest the finished release will carry; a run whose assets come
+from PyPI or from an earlier release has no such bundle, because its own
+attests its rebuild instead. A re-run attaches none: the release already
+records provenance for the canonical bytes, and a run-unique bundle for a
+rebuild would describe bytes the release does not hold. A release that cannot
+be covered is not published; it is repaired by attaching the attestation for
+those exact bytes from the repository's attestation store, which
+`gh attestation download` writes in the JSON-lines form the reader accepts. The
+re-run's own attestation is still written to that store either way.
 
 ### Provenance of carried bytes
 
@@ -195,9 +215,12 @@ Each release job holds a token only for the destination it writes to:
 `publish-pypi` holds `id-token: write` for Trusted Publishing and
 `contents: read`; `draft-release` and `publish-release` hold `contents: write`
 and `attestations: read`, the latter for `gh attestation verify`, and no
-`id-token`. Every job checks out with `persist-credentials: false` and a sparse
-checkout of `scripts/`, and `smoke.yml` does the same, so no job carries a
-credential it does not need.
+`id-token`. The four publishing jobs — `attest`, `draft-release`,
+`publish-pypi` and `publish-release` — check out with
+`persist-credentials: false` and a sparse checkout of `scripts/`, and
+`smoke.yml` does the same, so no job carries a credential it does not need.
+`check-version` needs the manifest it reads, so it checks out the whole tree,
+still without persisting credentials.
 
 ## Options considered
 

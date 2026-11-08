@@ -22,6 +22,7 @@ from release_assets import PypiFile, ReleaseAssetError, State
 
 from tests.support.release_assets_fixtures import (
     digest,
+    write_bundle,
     write_file,
     write_provenance,
 )
@@ -67,7 +68,7 @@ def test_staging_github_sends_the_local_gap_and_the_fetch_list(
     output = tmp_path / "upload"
     write_file(publish, "a.whl", b"a")
     write_file(publish, "b.whl", b"b")
-    write_file(bundles, "run7.sigstore.json", b"bundle")
+    write_bundle(bundles, "run7.sigstore.json", {"a.whl": b"a", "b.whl": b"b"})
     state = State(
         publish=publish,
         pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
@@ -77,46 +78,6 @@ def test_staging_github_sends_the_local_gap_and_the_fetch_list(
         ("a.whl", "https://x/a")
     ], state
     assert sorted(path.name for path in output.iterdir()) == ["b.whl"], sorted(
-        path.name for path in output.iterdir()
-    )
-
-
-def test_a_release_without_provenance_receives_one_bundle(
-    tmp_path: pathlib.Path,
-) -> None:
-    """A first release attaches one record, not one per bundle it was handed."""
-    publish = tmp_path / "publish"
-    bundles = tmp_path / "attestations"
-    output = tmp_path / "upload"
-    write_file(publish, "a.whl", b"a")
-    write_file(bundles, "run7.sigstore.json", b"bundle")
-    write_file(bundles, "run6.sigstore.json", b"earlier")
-    state = State(publish=publish, pypi={}, github={})
-
-    release_github_upload.stage_github(state, bundles, output)
-
-    staged = sorted(path.name for path in output.iterdir())
-    assert [name for name in staged if name.endswith(".sigstore.json")] == [
-        "run6.sigstore.json"
-    ], staged
-
-
-def test_a_first_release_fills_its_gap_from_its_own_build(
-    tmp_path: pathlib.Path,
-) -> None:
-    """Before PyPI has the name, this run's bytes *are* the canonical bytes."""
-    publish = tmp_path / "publish"
-    bundles = tmp_path / "attestations"
-    output = tmp_path / "upload"
-    write_file(publish, "a.whl", b"a")
-    bundles.mkdir()
-    state = State(publish=publish, pypi={}, github={})
-
-    assert (
-        release_github_upload.stage_github(state, bundles, output, pypi_published=False)
-        == []
-    ), "a name already on PyPI is never also copied from this run's rebuild"
-    assert (output / "a.whl").read_bytes() == b"a", sorted(
         path.name for path in output.iterdir()
     )
 

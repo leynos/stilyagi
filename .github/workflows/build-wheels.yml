@@ -41,10 +41,9 @@ jobs:
     # selects the Ubicloud class. tests/test_runner_placement_contract.py
     # inventories this lane.
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
-    # Above the matrix's slowest leg plus the aarch64 emulation the QEMU leg
-    # pays for. A ceiling is stated because an Ubicloud runner is a
-    # self-hosted just-in-time runner that GitHub's hosted six-hour cap does
-    # not bound.
+    # Above the matrix's slowest leg. A ceiling is stated because an Ubicloud
+    # runner is a self-hosted just-in-time runner that GitHub's hosted six-hour
+    # cap does not bound.
     timeout-minutes: 60
     permissions:
       contents: read
@@ -54,7 +53,9 @@ jobs:
         include:
           - arch: x86_64
             target: x86_64-unknown-linux-gnu
-          # aarch64 wheels are built under QEMU emulation by maturin-action.
+          # The aarch64 wheel is cross-compiled: the pinned container is a
+          # cross image whose aarch64 toolchain runs natively on the x86_64
+          # runner, so no emulation is involved in the build.
           - arch: aarch64
             target: aarch64-unknown-linux-gnu
     steps:
@@ -73,12 +74,6 @@ jobs:
           key: stilyagi-wheel-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.target }}-${{ env.MATURIN_VERSION }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             stilyagi-wheel-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.target }}-${{ env.MATURIN_VERSION }}-
-
-      - name: Set up QEMU (Linux aarch64)
-        if: matrix.arch == 'aarch64'
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
-        with:
-          platforms: arm64
 
       - name: Build manylinux wheel (Linux x86_64)
         # The container's interpreter is named directly: this leg can execute
@@ -163,9 +158,9 @@ jobs:
 
       - name: Smoke-test the built wheel
         # Only the x86_64 leg can run its own wheel here: the aarch64 wheel is
-        # cross-built and needs emulation to import. verify-wheel-install runs
-        # the aarch64 cardinality check, and the release publishes that artefact
-        # only after it has been attested beside the wheel this step proved.
+        # cross-built and needs emulation to import, and this workflow registers
+        # none. The aarch64 wheel is therefore attested and published without
+        # ever being imported; its build is proved, its runtime is not.
         if: matrix.arch == 'x86_64'
         shell: bash
         env:
