@@ -74,9 +74,11 @@ impl PythonIrBuilder<'_> {
         self.errors.push(IrError {
             code: "python-traversal-depth-limit".to_owned(),
             message: format!(
-                "stopped Python docstring traversal at the maximum depth of {MAX_TRAVERSAL_DEPTH} \
-                 at bytes {}..{}",
-                span.byte_start, span.byte_end
+                concat!(
+                    "stopped Python docstring traversal at the maximum depth of {} ",
+                    "at bytes {}..{}",
+                ),
+                MAX_TRAVERSAL_DEPTH, span.byte_start, span.byte_end
             ),
             span: Some(span),
         });
