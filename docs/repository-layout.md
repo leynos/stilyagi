@@ -68,8 +68,12 @@ new maintainer needs to recognize quickly and omits transient cache contents.
   - Canonical maintainer entrypoint for build, format, lint, typecheck, test,
     and release workflows.
 - `Cargo.toml`
-  - Root Cargo workspace manifest for the Rust crate graph under `crates/`.
-    It declares no minimum supported Rust version.
+  - Root Cargo workspace manifest for the Rust crate graph under `crates/`,
+    including the workspace lint tables inherited by every member. It declares
+    no minimum supported Rust version.
+- `clippy.toml`
+  - Clippy complexity thresholds, test-body expectation policy, and restrictions
+    on ambient environment access and process working-directory changes.
 - `rust-toolchain.toml`
   - The pinned dated nightly and its components (Clippy, rustfmt,
     rust-analyzer, `llvm-tools-preview`, and

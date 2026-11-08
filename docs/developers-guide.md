@@ -1994,6 +1994,114 @@ that require external resources, incomplete snippets, or environment-specific
 setup. `make test-doc` currently runs the Rust doctests and Python docstring
 examples; it does not change the Markdown-example gap above.
 
+### Rust lint baseline
+
+The root `Cargo.toml` workspace lint tables and `clippy.toml` are the
+configuration sources of truth, and two different mechanisms consume them. All
+eight members inherit the tables through `[lints] workspace = true` in their
+own manifests, and every new member must do the same. Clippy reads
+`clippy.toml` from the workspace root instead, so the environment-method
+restrictions need no per-member stanza and Cargo's lint inheritance does not
+carry them. The selected estate baseline is Concordat commit
+`2a10f37dca005274c18bc5189a8af901ba09441b`, with explicit consumer additions
+`missing_docs_in_private_items` and `missing_assert_message`. Consult the
+configuration files for the full inventory.
+
+Fix findings at source. Never add `#[allow]`; retain `#[expect]` only for a
+verified macro-expansion artefact or genuinely floating-point arithmetic, with
+a narrow scope and a reason. Recognized test bodies may use descriptive
+`.expect()` calls. Setup and lookup helpers, including fixtures and BDD setup
+steps, remain fallible. A test-related module alone does not establish that
+recognition.
+
+Clippy limits cognitive complexity to 9, arguments to 4, function lines to 70,
+and nesting to 4. The seven environment-method restrictions in `clippy.toml`
+require injected readers, stub environments in tests, and explicit base paths;
+child-process working directories use `Command::current_dir`.
+
+`rust-toolchain.toml` pins the nightly and its `clippy`, `rustfmt`,
+`rust-analyzer`, `llvm-tools-preview`, and `rustc-codegen-cranelift-preview`
+components. Section 5a documents the frontend and linker flags and the scoped
+Cranelift exception. `RUSTDOC_FLAGS` defaults to `--cfg docsrs -D warnings`,
+`RUSTDOC_FLAGS_EXTRA` is appended after that default, and an environment
+`RUSTDOC_FLAGS` replaces the default outright because the Makefile assigns it
+with `?=`; the existing documentation and doctest routes retain their workspace
+and feature coverage.
+
+### Lint-policy test architecture
+
+`tests/support/lint_policy.py` and `tests/support/cargo_metadata.py` are the
+read-only boundary for policy reads of `Cargo.toml`, `clippy.toml` and the
+`Makefile`. The split keeps the one reader that leaves the filesystem apart
+from the ones that only read files. Most readers take a path and default to the
+repository's file: `workspace_lints`, `clippy_restrictions`,
+`rustdoc_default_lines`, and `rustdoc_default` (the validated single
+`RUSTDOC_FLAGS` assignment). Two do not fit that shape:
+`member_inherits_workspace_lints` requires the member manifest path because no
+single member is the obvious default, and `lint_level` takes one lint entry
+rather than a path. All file access goes through `_read_text` and `_read_toml`,
+so an unreadable, undecodable or malformed file, and a structural surprise such
+as a non-table restriction, are `ReadingError`s naming the reader and path
+rather than an `OSError` or parser traceback.
+
+`tests/support/cargo_metadata.py` holds `member_manifests`, the resolved member
+set, which is wider than the `members` patterns. It is the one reader that
+leaves the filesystem: it asks Cargo for the set through `MetadataRunner`, a
+narrow callable seam whose default runs
+`cargo metadata --no-deps --locked --offline`, so discovery compiles nothing,
+writes no lockfile and fetches nothing. Reader tests inject a fake outcome;
+`test_cargo_resolves_the_workspace_members` and
+`test_every_workspace_member_inherits_the_lint_tables` are the two contract
+tests that cross the real boundary. A decoding failure at that seam is a
+`ReadingError` naming the reader and path, so output that is not valid UTF-8 is
+a policy finding rather than a `UnicodeDecodeError`. `workspace_table` is
+public in `lint_policy` because member discovery validates the manifest's own
+shape before asking Cargo. The selection itself is pure and lives in
+`tests/support/cargo_metadata_document.py`, which keeps the command boundary
+and the untrusted-document boundary apart. It validates the document before
+trusting it: every member ID must be a string listed once, every package record
+must be an object with string `id` and `manifest_path` fields, and every member
+must name exactly one package record.
+
+Five modules use those readers and prove different things.
+`tests/test_lint_policy_contract.py` fails when an entry this repository relies
+on is missing, weakened, or loses its reason, when a member stops inheriting
+the tables, or when the `RUSTDOC_FLAGS` default stops being conditional,
+docsrs-enabled, warning-denying and last-extended.
+`tests/test_lint_policy_behaviour.py` compiles four Clippy fixtures in scratch
+crates under `target/` — one each for `disallowed_methods`,
+`missing_assert_message`, `missing_docs_in_private_items` and `unsafe_code` —
+so a table naming a lint that does not exist cannot pass; separate cases cover
+the rustc `missing_docs` denial and the rustdoc default and override routes.
+The fixture sources and the manifests that copy the workspace tables live in
+`tests/support/lint_policy_fixtures.py`; the test module supplies a scratch
+base directory unique to the run and removes it afterwards, so two runs in the
+same worktree never share a crate. The module reads the workspace tables once,
+at `write_workspace_crates`, and passes them to the renderer, so rendering is a
+pure function of the tables it is given: a case can inject tables the
+repository does not declare today, and a read that fails raises before any
+directory is created. `tests/test_lint_policy_make_routes.py` dry-runs
+`make lint` against the recording probes and reads the `RUSTDOCFLAGS` the doc
+recipe evaluates. `tests/test_lint_policy_readers.py` pins the failure modes of
+the TOML and Makefile readers; its undecodable, missing and unreadable cases
+run over every public reader, so a new reader without a case is visible in the
+parameter list. `tests/test_lint_policy_metadata.py` pins the `cargo metadata`
+boundary: the selection examples, every malformed document shape, the
+undecodable-output case, and the property case over arbitrary metadata
+documents.
+
+The decisions behind this split — the shared readers, the `cargo metadata`
+seam, the scratch crates and the unique run directory — are recorded in
+[ADR 0013](adrs/adr-0013-prove-the-lint-policy-through-readers-and-fixtures.md).
+
+The route tests pass environment overrides through
+`tests.support.build_standard.dry_run(target, tools, *extra, env=...)`. The
+helper starts from the inherited environment with the probe directory leading
+`PATH`, sets each string value in `env`, and removes each variable whose value
+is `None`. The `None` form is not decoration: it neutralizes an ambient
+`RUSTDOC_FLAGS` a developer shell may export, so a case can assert the
+Makefile's own `?=` default without depending on the shell it runs in.
+
 ### Shared workflow parser
 
 Workflow contract tests use `tests/support/workflows.py::load_workflow` to
@@ -2047,8 +2155,10 @@ dependency only a gate script uses does not belong in `pyproject.toml`.
 
 `make lint` then continues into the Rust lint tiers owned by the repository:
 
-1. `cargo doc --workspace --all-features --no-deps` with
-   `RUSTDOCFLAGS=-D warnings`
+1. `cargo doc --workspace --all-features --no-deps` with `RUSTDOCFLAGS` set
+   from `RUSTDOC_FLAGS`. That variable defaults to `--cfg docsrs -D warnings`
+   and appends `RUSTDOC_FLAGS_EXTRA`; an environment `RUSTDOC_FLAGS` replaces
+   the default outright.
 2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 3. `whitaker --all -- --workspace --all-targets --all-features` with
    `RUSTFLAGS=-D warnings`

@@ -1,0 +1,10 @@
+[
+  "stilyagi-core",
+  "stilyagi-extract",
+  "stilyagi-ir",
+  "stilyagi-markdown",
+  "stilyagi-pyext",
+  "stilyagi-test-fixtures",
+  "stilyagi-test-support",
+  "stilyagi-tree-sitter"
+]

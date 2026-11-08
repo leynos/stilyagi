@@ -149,6 +149,10 @@
     adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md)
     records the per-document projection, span verification, one-time
     tokenization, policy resolution, and the three starter-pack rules.
+  - [ADR 0013: Prove the lint policy through readers and compiled fixtures](
+    adrs/adr-0013-prove-the-lint-policy-through-readers-and-fixtures.md)
+    records the shared readers, the `cargo metadata` seam, the scratch crates
+    that copy the workspace tables, and the unique run directory.
 
 ## Requests for comments (RFCs)
 

@@ -37,7 +37,7 @@ STANDARD_RUSTFLAGS = $(STANDARD_THREADS_FLAG)$(if $(filter Linux,$(BUILD_HOST_OS
 RUST_FLAGS_EXTRA ?=
 RUST_FLAGS ?= -D warnings $(STANDARD_RUSTFLAGS) $(RUST_FLAGS_EXTRA)
 RUSTDOC_FLAGS_EXTRA ?=
-RUSTDOC_FLAGS ?= -D warnings $(RUSTDOC_FLAGS_EXTRA)
+RUSTDOC_FLAGS ?= --cfg docsrs -D warnings $(RUSTDOC_FLAGS_EXTRA)
 # Development builds without a warnings policy (`maturin develop`).
 DEBUG_RUST_FLAGS ?= $(STANDARD_RUSTFLAGS)
 # Release and packaging routes name `RUSTFLAGS` so the configuration's
