@@ -182,8 +182,10 @@ def is_frontmatter_boundary_insertion(
     rather than entering the metadata. A fence that ends the file with no
     closing line ending has ``protected_end`` at the end of the source, where
     the same position appends after the fence; this predicate admits it, and
-    the re-extraction check in :func:`frontmatter_is_unchanged` then refuses
-    the result, because the appended bytes stop the region being recognized.
+    the planner then refuses it by re-extracting the replacement and comparing
+    protected prefixes. An appended line ending is taken into the prefix and
+    changes its bytes; any other append stops the region being recognized at
+    all. Both make the comparison in :func:`frontmatter_is_unchanged` fail.
 
     Parameters
     ----------
