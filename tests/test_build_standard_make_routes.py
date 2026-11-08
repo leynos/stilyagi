@@ -5,9 +5,12 @@ configuration's `rustflags` outright, so a recipe that restates only
 `-D warnings` stays green while building without the standard. These contracts
 read the evaluated invocation of every route separately (a Cargo invocation
 per line, both branches of the nextest fallback, doctests, Clippy, rustdoc,
-Whitaker, maturin and the editable install), then run the targets against
-recording probes to observe the `RUSTFLAGS` each tool would receive, with and
-without the `-D warnings` CI exports.
+Whitaker, maturin and the editable install).
+
+A dry run shows the recipe text, not the environment a tool receives, so the
+executed half of the contract lives in
+`tests/test_build_standard_recorded_routes.py`, which reads the route kinds and
+the flag policy defined here.
 
 Make's text alone does not prove compiler behaviour; the empirical builds in
 docs/developers-guide.md (verbose rustc lines, `readelf -p .comment`) do.
@@ -22,7 +25,6 @@ import pytest
 from tests.support.build_standard import (
     MOLD_FLAG,
     PROBE_CARGO,
-    PROBE_CHECK,
     PROBE_UV,
     PROBE_WHITAKER,
     THREADS_FLAG,
@@ -31,12 +33,6 @@ from tests.support.build_standard import (
     dry_run,
     make_available_tools,
     read_invocations,
-)
-from tests.support.build_standard_probes import (
-    RecordingTree,
-    make_recording_tools,
-    run_recorded,
-    stage_makefile_tree,
 )
 
 if typ.TYPE_CHECKING:
@@ -86,9 +82,9 @@ def _cargo(case_id: str, target: str, *prefix: str, **kwargs: str) -> Route:
 #: estate playbook makes a shared id a silently missing case.
 ROUTES: typ.Final[tuple[Route, ...]] = (
     _cargo("make_typecheck_check", "typecheck", "check"),
-    _cargo("make_lint_doc", "lint", "doc"),
-    _cargo("make_lint_clippy", "lint", "clippy"),
-    Route("make_lint_whitaker", "lint", "whitaker", PROBE_WHITAKER, ()),
+    _cargo("make_lint_doc", "lint-clippy", "doc"),
+    _cargo("make_lint_clippy", "lint-clippy", "clippy"),
+    Route("make_lint_whitaker", "lint-whitaker", "whitaker", PROBE_WHITAKER, ()),
     _cargo("make_test_clippy", "test", "clippy"),
     _cargo("make_test_nextest", "test", "nextest", "run"),
     _cargo("make_test_cargo_test_fallback", "test", "test", forbidden_arg="--doc"),
@@ -203,115 +199,3 @@ def test_the_nextest_fallback_branch_is_read_alongside_its_primary(
     assert {"nextest", "test"} <= subcommands, (
         "expected {'nextest', 'test'} <= subcommands"
     )
-
-
-@pytest.fixture
-def recording(tmp_path: pathlib.Path) -> RecordingTree:
-    """Return a staged Make tree and a directory of recording probes."""
-    return RecordingTree(
-        stage_makefile_tree(tmp_path / "tree"),
-        make_recording_tools(tmp_path / "bin"),
-    )
-
-
-AMBIENT: typ.Final = [
-    pytest.param(None, id="no_ambient_rustflags"),
-    pytest.param("-D warnings", id="ci_exports_warnings"),
-]
-
-
-@pytest.mark.parametrize("ambient", AMBIENT)
-@pytest.mark.parametrize("target", [*GATE_TARGETS, "build"])
-def test_executed_dev_routes_keep_the_standard(
-    target: str,
-    ambient: str | None,
-    recording: RecordingTree,
-) -> None:
-    """Under CI's exported `-D warnings`, every compile still gets the standard."""
-    run = run_recorded(target, recording, ambient_rustflags=ambient)
-    assert run.returncode == 0, run.stderr
-    compiling = [
-        record
-        for record in run.records
-        if compiles(record) and record.program != PROBE_WHITAKER
-    ]
-    assert compiling, f"{target}: no compiling invocation was recorded"
-    for record in compiling:
-        is_editable_install = "maturin" in record.args or record.has_args("sync")
-        kind = "dev" if is_editable_install else "gate"
-        _assert_kind(kind, record, f"{target}: {record.program} {record.args}")
-
-
-@pytest.mark.parametrize("ambient", AMBIENT)
-def test_executed_whitaker_route_takes_no_development_flags(
-    ambient: str | None, recording: RecordingTree
-) -> None:
-    """Whitaker's `RUSTFLAGS` is `-D warnings` whatever the caller exports."""
-    run = run_recorded("lint", recording, ambient_rustflags=ambient)
-    assert run.returncode == 0, run.stderr
-    whitaker = [r for r in run.records if r.program == PROBE_WHITAKER]
-    assert len(whitaker) == 1, "expected len(whitaker) == 1"
-    _assert_kind("whitaker", whitaker[0], "lint: whitaker")
-
-
-@pytest.mark.parametrize("ambient", AMBIENT)
-def test_executed_release_route_displaces_the_standard_and_skips_the_preflight(
-    ambient: str | None, recording: RecordingTree
-) -> None:
-    """The release wheel and the editable install take the caller's flags only."""
-    run = run_recorded("release-artefact", recording, ambient_rustflags=ambient)
-    assert run.returncode == 0, run.stderr
-    assert not [r for r in run.records if r.program == PROBE_CHECK], (
-        "expected not [r for r in run.records if r.program == PROBE_CHECK]"
-    )
-    builds = [r for r in run.records if compiles(r)]
-    assert [b.args[:2] for b in builds if "maturin" in b.args], "no maturin build"
-    for build in builds:
-        assert build.rustflags == (ambient or ""), (build.args, build.rustflags)
-
-
-@pytest.mark.parametrize("target", [*GATE_TARGETS, "build"])
-def test_the_preflight_runs_before_any_compilation(
-    target: str, recording: RecordingTree
-) -> None:
-    """The first record of each dev or gate route is the build-tools check."""
-    run = run_recorded(target, recording, ambient_rustflags="-D warnings")
-    assert run.returncode == 0, run.stderr
-    first_check = next(
-        (i for i, r in enumerate(run.records) if r.program == PROBE_CHECK), None
-    )
-    assert first_check is not None, f"{target}: the preflight never ran"
-    first_compile = next(i for i, r in enumerate(run.records) if compiles(r))
-    assert first_check < first_compile, f"{target}: compiled before the preflight"
-
-
-@pytest.mark.parametrize("target", [*GATE_TARGETS, "build"])
-def test_a_failing_preflight_stops_the_target_before_compiling(
-    target: str, recording: RecordingTree
-) -> None:
-    """A preflight that exits 1 ends the run: nothing compiles after it."""
-    run = run_recorded(target, recording, ambient_rustflags=None, fail=PROBE_CHECK)
-    assert run.returncode != 0, "expected run.returncode != 0"
-    assert not [r for r in run.records if compiles(r)], (
-        "expected not [r for r in run.records if compiles(r)]"
-    )
-
-
-def test_the_cargo_test_fallback_carries_the_standard_when_nextest_is_absent(
-    recording: RecordingTree,
-) -> None:
-    """With `nextest --version` failing, the `cargo test` branch runs and is flagged."""
-    run = run_recorded(
-        "test",
-        recording,
-        ambient_rustflags="-D warnings",
-        fail=f"{PROBE_CARGO} nextest --version",
-    )
-    assert run.returncode == 0, run.stderr
-    cargo = [r for r in run.records if r.program == PROBE_CARGO]
-    assert not [r for r in cargo if r.has_args("nextest", "run")], (
-        "expected not [r for r in cargo if r.has_args('nextest', 'run')]"
-    )
-    fallback = [r for r in cargo if r.has_args("test") and "--doc" not in r.args]
-    assert len(fallback) == 1, "expected len(fallback) == 1"
-    _assert_kind("gate", fallback[0], "fallback")

@@ -167,7 +167,7 @@ def _run_skylos_allow(*arguments: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_lint_recipe_runs_the_production_dead_code_gate() -> None:
-    """`make lint` must scan production code with Skylos's strict gate."""
+    """The `lint-clippy` stage must scan production code with Skylos's strict gate."""
     skylos_version = _variable_tokens("SKYLOS_VERSION")
     assert len(skylos_version) == 1, "Skylos version configuration must be singular"
     assert skylos_version[0], "Skylos version configuration must not be empty"
@@ -191,7 +191,9 @@ def test_lint_recipe_runs_the_production_dead_code_gate() -> None:
         "--no-provenance",
         "--no-grep-verify",
     )
-    skylos_commands = [c for c in _recipe_tokens("lint") if c[:1] == ("$(SKYLOS)",)]
+    skylos_commands = [
+        c for c in _recipe_tokens("lint-clippy") if c[:1] == ("$(SKYLOS)",)
+    ]
     assert skylos_commands == [expected_skylos_command], (
         "Skylos lint command contract must scan production dead code strictly"
     )

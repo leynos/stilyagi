@@ -1701,9 +1701,66 @@ Extend the gate flags with `RUST_FLAGS_EXTRA` or `RUSTDOC_FLAGS_EXTRA`;
 overriding `RUST_FLAGS` itself replaces the whole set, standard included. Every
 Cargo invocation goes through `$(CARGO)`, so tests can inject a probe.
 `tests/test_build_standard_config.py` holds `STANDARD_RUSTFLAGS` equal to the
-configuration, and `tests/test_build_standard_make_routes.py` evaluates every
-Cargo and maturin line separately, including both branches of the nextest
-fallback.
+configuration, `tests/test_build_standard_make_routes.py` evaluates every Cargo
+and maturin line separately, including both branches of the nextest fallback,
+and `tests/test_build_standard_recorded_routes.py` runs those routes against
+recording probes to read the flags each tool actually receives.
+
+### Running a target against recording probes
+
+`tests/support/build_standard_probes.py` runs a real Make target in a copy of
+the tree, with every tool the recipes name replaced by an executable that
+appends one JSON line to `$PROBE_LOG`. The harness has four parts.
+
+`stage_makefile_tree(destination)` copies the files a Make run reads into a
+scratch directory, so recipes that create or delete paths such as `dist` stay
+off the checkout. `make_recording_tools(directory)` writes the probes: each
+records `program`, `args`, `phase` and the `RUSTFLAGS` and `RUSTDOCFLAGS` it
+received, then exits 0. Two environment selectors change that: `PROBE_FAIL`
+makes a probe whose `<name> <args>` contains the value exit 1, which is how a
+test takes the nextest fallback or proves a failing preflight stops the target;
+`PROBE_BLOCK` makes a matching probe wait for the file named by
+`PROBE_RELEASE`, which is how a test holds one stage open.
+
+`RunOptions` is the whole of a run's control surface: `ambient_rustflags` for
+the `RUSTFLAGS` the caller exports, `block` and `fail` for the two selectors,
+`make_arguments` for extra Make arguments placed before the target (such as
+`("-j4",)` or a `NAME=value` override), and `trace_completion` for the second,
+`done` entry a probe writes as it exits. That last option exists because a
+`start` record only proves a stage began; an ordering claim such as "Whitaker
+cannot start until Clippy finishes" has to be read from Clippy's `done` entry
+and Whitaker's `start` entry, which is what
+`test_parallel_lint_cannot_start_whitaker_until_clippy_completes` asserts.
+
+`run_recorded(target, tree, options)` runs a target to completion and returns
+the `RecordedRun` — exit status, stderr and every record in order. A test that
+must observe Make *while* it runs uses `start_recorded(target, tree, options)`
+instead, which returns a `StartedRun` and does not wait:
+
+- `records()` returns the log as it stands. It skips one torn trailing line,
+  because a probe may be mid-write.
+- `wait_for_block()` polls until the probe selected by `block` has recorded
+  its start, and raises `TimeoutError` if Make exits or the deadline passes
+  first.
+- `release()` creates the release marker, letting that probe continue.
+- `finish()` waits for Make to exit and returns the `RecordedRun`. It reads
+  the log strictly, since no probe can still be writing, so a line that does
+  not parse is reported rather than dropped.
+
+`StartedRun` is a context manager that releases and reaps the process even when
+an assertion fails, so a broken test cannot leave a blocked probe behind.
+`tests/support/probe_log.py` owns the parsing for both modes: it validates each
+line's shape and raises `ReadingError` naming the log, so a malformed record
+surfaces as a reading finding rather than a `KeyError` from whichever assertion
+happened to touch it first. `start_make` in `tests/support/build_standard.py`
+is the underlying non-waiting `make` invocation; `run_make` is the waiting one.
+
+The Makefile target tables shared by the recipe contracts live in
+`tests/support/makefile_target_cases.py`, which exports
+`MAKEFILE_TARGET_CASES`. Each `MakefileTargetCase` names a target, the header
+and recipe fragments it must keep, and whether it should reach pytest. The
+table is data, not logic, so a new target is one entry rather than a new test
+function; the module that consumes it decides how each case is checked.
 
 ### Installed components are not active everywhere
 
@@ -2153,17 +2210,38 @@ directory to the checker's search path (`make typecheck` depends on the stamp
 that builds it). Widen the staging rather than the application environment: a
 dependency only a gate script uses does not belong in `pyproject.toml`.
 
-`make lint` then continues into the Rust lint tiers owned by the repository:
+`make lint` composes two stages. `make lint-clippy` runs the Python tiers above
+and then the Rust lint tiers owned by the repository:
 
 1. `cargo doc --workspace --all-features --no-deps` with `RUSTDOCFLAGS` set
    from `RUSTDOC_FLAGS`. That variable defaults to `--cfg docsrs -D warnings`
    and appends `RUSTDOC_FLAGS_EXTRA`; an environment `RUSTDOC_FLAGS` replaces
    the default outright.
 2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-3. `whitaker --all -- --workspace --all-targets --all-features` with
-   `RUSTFLAGS=-D warnings`
-4. Skylos runs last through its pinned CPython 3.14 tool environment, scanning
-   production dead code strictly.
+3. Skylos through its pinned CPython 3.14 tool environment, scanning production
+   dead code strictly
+4. the blocking `nose` duplication gate
+
+`make lint-whitaker` then runs
+`whitaker $(WHITAKER_LIBRARIES) -- --workspace --all-targets --all-features`
+with `RUSTFLAGS=-D warnings`.
+
+`lint-whitaker: lint-clippy` is the sequencing guarantee. The prerequisite
+makes Make build the Clippy stage before it schedules Whitaker, so even
+`make -j lint` cannot start Whitaker while Clippy is still running; the order
+does not rely on `.NOTPARALLEL` or on recipe line order. `WHITAKER_LIBRARIES`
+defaults to `--all`, which loads all discovered Dylint libraries, while the
+package and target scope is the `--workspace --all-targets --all-features`
+passed after `--`.
+
+The gate is binding. Whitaker's exit status is the recipe's exit status: there
+is no `|| true`, no `-` error prefix, no existence guard, and no masking
+pipeline. A Whitaker finding therefore fails `make lint-whitaker`, fails
+`make lint`, and fails the CI step that runs `make lint`.
+`tests/test_build_standard_recorded_routes.py` proves the propagation with a
+controlled failing executable probe, which makes the target exit non-zero.
+`WHITAKER_RUST_FLAGS` stays `-D warnings` alone, so the suite still takes none
+of the development flags.
 
 The repository root `clippy.toml` owns the Clippy thresholds used by the
 workspace, including the four-argument maximum and the low complexity and
@@ -2539,21 +2617,26 @@ as a test assertion on the SHA string.
 ### 6f-bis. Whitaker in continuous integration
 
 `.github/workflows/smoke.yml` provisions Whitaker through the shared
-`leynos/shared-actions/.github/actions/install-whitaker` action, pinned to a
-full commit hash and passing only `cranelift: true`. The action owns the
-installer version (0.2.9 or later), the digest-verified download, the cache and
-the `--no-source-fallback` rule, so the workflow carries no install script and
-no `WHITAKER_INSTALLER_VERSION` variable. The local requirement is unchanged:
-`make lint` still expects `whitaker` on `PATH` and runs it as before.
+`leynos/shared-actions/.github/actions/install-whitaker` action, pinned to full
+SHA `5a99aed78ce68dcebd3052b75c31e6f173162b1e` (shared-actions commit
+`5a99aed7`, which pins whitaker-installer 0.2.11), and passing only
+`cranelift: true`. The action owns the installer version, the digest-verified
+download, the cache and the `--no-source-fallback` rule, so the workflow
+carries no install script, no suite pin, no source-build fallback and no
+`WHITAKER_INSTALLER_VERSION` variable. The local requirement is unchanged:
+`make lint` still expects `whitaker` on `PATH` and reaches it through the
+`lint-whitaker` stage.
 
 The `cranelift: true` input predates the development build standard. The
 repository's configuration selects no codegen backend (see "Why Cranelift is
 not part of the standard" in section 5a), so the build standard does not
 require the input; it stays as the Whitaker provisioning policy has it. The
-`make lint` recipe gives Whitaker `RUSTFLAGS="-D warnings"`
+`make lint-whitaker` recipe gives Whitaker `RUSTFLAGS="-D warnings"`
 (`WHITAKER_RUST_FLAGS`) alone, a known boundary with none of the development
-flags, and Whitaker's installer-managed toolchain is independent of the pin in
-`rust-toolchain.toml`.
+flags; `WHITAKER_LIBRARIES` defaults to `--all`, which loads all discovered
+Dylint libraries, while the package and target scope is the
+`--workspace --all-targets --all-features` passed after `--`. Whitaker's
+installer-managed toolchain is independent of the pin in `rust-toolchain.toml`.
 
 `tests/test_ci_workflow_units.py` asserts the step uses the action at a full
 commit hash with no script and only the `cranelift` input. The concordat QG-002
