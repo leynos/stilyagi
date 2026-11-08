@@ -206,9 +206,9 @@ fn hello_delegates_to_the_core_smoke_greeting() {
 
 /// A stale Python implementation must not shadow the Rust greeting.
 #[rstest]
-#[case("hello from Python")]
-fn hello_is_not_the_legacy_python_fallback(#[case] legacy_fallback: &str) {
-    assert_ne!(hello(), legacy_fallback);
+fn hello_is_not_the_legacy_python_fallback() {
+    const LEGACY_PYTHON_GREETING: &str = "hello from Python";
+    assert_ne!(hello(), LEGACY_PYTHON_GREETING);
 }
 
 /// The exported function must reject keyword arguments it does not accept.
@@ -307,26 +307,20 @@ fn extract_document_py_exposes_python_docstrings() {
     });
 }
 
-/// Keep rejection behaviour stable for both unsupported and unknown syntax
-/// strings.
+/// An unknown syntax string must be rejected with the pinned error.
 #[rstest]
-#[case(
-    "not_a_syntax",
-    "extract_document_py__invalid_syntax_error",
-    "not_a_syntax"
-)]
-fn extract_document_py_rejects_invalid_syntaxes(
-    #[case] syntax: &str,
-    #[case] snapshot_name: &str,
-    #[case] expected_fragment: &str,
-) {
-    let err = bridge_extract_document("Example", syntax)
-        .expect_err(&format!("expected an error for syntax {syntax:?}"));
+fn extract_document_py_rejects_invalid_syntaxes() {
+    const UNKNOWN_SYNTAX: &str = "not_a_syntax";
+    let err = bridge_extract_document("Example", UNKNOWN_SYNTAX)
+        .expect_err(&format!("expected an error for syntax {UNKNOWN_SYNTAX:?}"));
     assert!(
-        err.to_string().contains(expected_fragment),
-        "error message {err:?} did not contain {expected_fragment:?}"
+        err.to_string().contains(UNKNOWN_SYNTAX),
+        "error message {err:?} did not contain {UNKNOWN_SYNTAX:?}"
     );
-    insta::assert_snapshot!(snapshot_name, format!("{err}"));
+    insta::assert_snapshot!(
+        "extract_document_py__invalid_syntax_error",
+        format!("{err}")
+    );
 }
 
 /// The projection must not flatten booleans and integers into strings.
