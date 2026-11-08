@@ -2,7 +2,6 @@
 
 import dataclasses as dc
 import enum
-import logging
 import pathlib
 import sys
 import tempfile
@@ -120,19 +119,9 @@ def run_dump_ir(
     """
     out_stream = output if output is not None else sys.stdout
     error_stream = error if error is not None else sys.stderr
-    # The cache logs its counters at INFO, so without this the invocation pays
-    # to compute them and shows nobody. `--verbose` is the only switch that
-    # raises the level, matching `check`.
-    if options.verbose:
-        logging.basicConfig(level=logging.INFO, handlers=[cli_log.log_handler()])
+    cli_log.configure_verbose_logging(verbose=options.verbose)
     config_resolver = resolver if resolver is not None else config.ConfigResolver()
-    extraction_cache = CacheExtractionService(
-        CacheServiceConfig(
-            invocation_cwd=pathlib.Path.cwd(),
-            package_version=PACKAGE_VERSION,
-            no_cache=options.no_cache,
-        )
-    )
+    extraction_cache = _open_extraction_cache(no_cache=options.no_cache)
     try:
         inputs = _discover_markdown_inputs(options, config_resolver)
         _write_dump_output(
@@ -147,6 +136,17 @@ def run_dump_ir(
         extraction_cache.log_summary()
         extraction_cache.close()
     return 0
+
+
+def _open_extraction_cache(*, no_cache: bool) -> CacheExtractionService:
+    """Return the invocation-scoped cache this run extracts through."""
+    return CacheExtractionService(
+        CacheServiceConfig(
+            invocation_cwd=pathlib.Path.cwd(),
+            package_version=PACKAGE_VERSION,
+            no_cache=no_cache,
+        )
+    )
 
 
 def _write_dump_output(
@@ -225,22 +225,26 @@ def _reject_non_markdown_explicit_files(
         )
 
 
+#: Discovery notice reasons this command turns into errors, with their codes.
+_NOTICE_ERROR_CODES: typ.Final = {
+    "missing_or_unsupported_target": DumpIrErrorCode.MISSING_TARGET,
+    "unregistered_explicit_file": DumpIrErrorCode.UNSUPPORTED_EXPLICIT_FILE,
+}
+
+
 def _raise_target_notices(
     notices: cabc.Iterable[discovery.DiscoveryNotice],
 ) -> None:
     """Turn the first missing or unsupported target notice into a command error."""
-    notice_errors = (
-        ("missing_or_unsupported_target", DumpIrErrorCode.MISSING_TARGET),
-        ("unregistered_explicit_file", DumpIrErrorCode.UNSUPPORTED_EXPLICIT_FILE),
+    notice = next(
+        (item for item in notices if item.reason in _NOTICE_ERROR_CODES),
+        None,
     )
-    notice_items = tuple(notices)
-    for reason, code in notice_errors:
-        notice = next((item for item in notice_items if item.reason == reason), None)
-        if notice is None:
-            continue
-        if notice.path is None:
-            raise DumpIrError(DumpIrErrorCode.TARGET_NOTICE_MISSING_PATH)
-        raise DumpIrError(code, notice.path)
+    if notice is None:
+        return
+    if notice.path is None:
+        raise DumpIrError(DumpIrErrorCode.TARGET_NOTICE_MISSING_PATH)
+    raise DumpIrError(_NOTICE_ERROR_CODES[notice.reason], notice.path)
 
 
 def _extract_documents(

@@ -201,3 +201,23 @@ def configure_command_warning_handler() -> None:
     logger.addHandler(_CommandWarningHandler(sys.stderr))
     logger.setLevel(logging.WARNING)
     logger.propagate = False
+
+
+def configure_verbose_logging(*, verbose: bool) -> None:
+    """Raise the root level to INFO when the command's verbose flag is set.
+
+    The extraction cache logs its counters at INFO, so without this an
+    invocation pays to compute them and shows nobody. Both commands that own a
+    cache share this so `--verbose` means the same thing in each.
+
+    Parameters
+    ----------
+    verbose:
+        Whether the invocation asked for the verbose level.
+
+    Examples
+    --------
+    >>> configure_verbose_logging(verbose=False)
+    """
+    if verbose:
+        logging.basicConfig(level=logging.INFO, handlers=[log_handler()])
