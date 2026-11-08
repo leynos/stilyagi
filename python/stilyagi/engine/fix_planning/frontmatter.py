@@ -176,9 +176,14 @@ def is_frontmatter_boundary_insertion(
 
     A zero-width edit at ``protected_end`` touches the prefix at neither byte,
     so the overlap test answers ``False`` for it; it is nevertheless the one
-    place the admissibility bound has to be suspended. The prefix ends with its
-    closing line ending, so the position is the start of the body, and text
-    inserted there precedes the body rather than entering the metadata.
+    place the admissibility bound has to be suspended. When the prefix ends
+    with a closing line ending -- which it does whenever one is present -- that
+    position is the start of the body, so text inserted there precedes the body
+    rather than entering the metadata. A fence that ends the file with no
+    closing line ending has ``protected_end`` at the end of the source, where
+    the same position appends after the fence; this predicate admits it, and
+    the re-extraction check in :func:`frontmatter_is_unchanged` then refuses
+    the result, because the appended bytes stop the region being recognized.
 
     Parameters
     ----------
