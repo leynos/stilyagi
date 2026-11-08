@@ -96,10 +96,10 @@ impl fmt::Display for InvalidRegionKind {
 
 impl std::error::Error for InvalidRegionKind {}
 
-impl TryFrom<&str> for RegionKind {
-    type Error = InvalidRegionKind;
+impl std::str::FromStr for RegionKind {
+    type Err = InvalidRegionKind;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "heading" => Ok(Self::Heading),
             "paragraph" => Ok(Self::Paragraph),
@@ -116,6 +116,18 @@ impl TryFrom<&str> for RegionKind {
                 value: value.to_owned(),
             }),
         }
+    }
+}
+
+// `FromStr` is the idiomatic spelling for a text codec, but the crate
+// published `TryFrom<&str>` first and callers outside this module use it.
+// Keeping the shim preserves that surface while the parse itself lives in
+// one place.
+impl TryFrom<&str> for RegionKind {
+    type Error = InvalidRegionKind;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 

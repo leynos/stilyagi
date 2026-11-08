@@ -27,8 +27,7 @@ fn category_snapshot<'py>(
 fn counter_value(counters: &[std::sync::atomic::AtomicU64], index: usize) -> u64 {
     counters
         .get(index)
-        .map(|counter| counter.load(Ordering::Relaxed))
-        .unwrap_or_default()
+        .map_or(0, |counter| counter.load(Ordering::Relaxed))
 }
 
 fn counter_categories<'a>(

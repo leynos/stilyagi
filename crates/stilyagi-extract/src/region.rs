@@ -69,15 +69,25 @@ impl fmt::Display for RegionKind {
     }
 }
 
-impl TryFrom<&str> for RegionKind {
-    type Error = String;
+impl std::str::FromStr for RegionKind {
+    type Err = String;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         if value == "document" {
             Ok(Self::Document)
         } else {
             Self::from_shared_ir_kind(value)
         }
+    }
+}
+
+// Retained for callers that already use `TryFrom<&str>`; the parse itself
+// lives in `FromStr`.
+impl TryFrom<&str> for RegionKind {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 

@@ -195,7 +195,7 @@ fn utf8_slice(source: &str, start: usize, end: usize) -> Result<&str, RoundTripE
         .ok_or(RoundTripEditError::NonUtf8Boundary { span })
 }
 
-fn validate_source_span(source: &str, span: ByteSpan) -> Result<(), RoundTripEditError> {
+const fn validate_source_span(source: &str, span: ByteSpan) -> Result<(), RoundTripEditError> {
     if span.start() > span.end() || span.end() > source.len() {
         return Err(RoundTripEditError::InvalidSpan {
             span,

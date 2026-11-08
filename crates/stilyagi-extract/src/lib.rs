@@ -46,16 +46,26 @@ impl fmt::Display for ExtractSyntax {
     }
 }
 
-impl TryFrom<&str> for ExtractSyntax {
-    type Error = ExtractError;
+impl std::str::FromStr for ExtractSyntax {
+    type Err = ExtractError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "markdown" => Ok(Self::Markdown),
             "python_docstring" => Ok(Self::PythonDocstring),
             "rust_doc_comment" => Ok(Self::RustDocComment),
             _ => Err(ExtractError::UnknownSyntax(value.to_owned())),
         }
+    }
+}
+
+// Retained for callers that already use `TryFrom<&str>`; the parse itself
+// lives in `FromStr`.
+impl TryFrom<&str> for ExtractSyntax {
+    type Error = ExtractError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 

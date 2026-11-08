@@ -175,8 +175,14 @@ fn map_extract_error(error: &ExtractError) -> PyErr {
 }
 
 /// Initialize the `_stilyagi_rs` Python module and register exported functions.
+///
+/// The Rust name carries no leading underscore while the exported module does:
+/// clippy rejects the use of underscore-prefixed items, and `PyO3` derives the
+/// `PyInit__stilyagi_rs` symbol from the `pyo3` name, which is the name Python
+/// imports.
 #[pymodule]
-fn _stilyagi_rs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+#[pyo3(name = "_stilyagi_rs")]
+fn stilyagi_rs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(check_metrics::reset_check_metrics, m)?)?;
     m.add_function(wrap_pyfunction!(check_metrics::record_check_run, m)?)?;
     m.add_function(wrap_pyfunction!(check_metrics::record_checked_file, m)?)?;

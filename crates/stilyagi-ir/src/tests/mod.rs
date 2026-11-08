@@ -86,6 +86,7 @@ fn region_kind_vocabulary_matches_rfc_0001() {
 #[case::rust_doc_comment(RegionKind::RustDocComment)]
 fn region_kind_round_trips_through_stable_spelling(#[case] kind: RegionKind) {
     assert_eq!(RegionKind::try_from(kind.as_str()), Ok(kind));
+    assert_eq!(kind.as_str().parse::<RegionKind>(), Ok(kind));
 }
 
 #[rstest]

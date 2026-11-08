@@ -15,7 +15,7 @@ WORKSPACE_MANIFEST ?= Cargo.toml
 PYEXT_MANIFEST ?= crates/stilyagi-pyext/Cargo.toml
 BUILD_JOBS ?=
 RUST_FLAGS ?=
-RUST_FLAGS := -D warnings $(RUST_FLAGS)
+RUST_FLAGS := -D warnings -Zthreads=8 $(RUST_FLAGS)
 RUSTDOC_FLAGS ?=
 RUSTDOC_FLAGS := -D warnings $(RUSTDOC_FLAGS)
 CARGO_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-targets --all-features

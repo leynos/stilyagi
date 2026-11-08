@@ -67,21 +67,21 @@ updates:
       default-days: 7
       semver-major-days: 14
 
-  # Keep the pinned Rust toolchain current (RT-024).
+  # Keep the pinned dated nightly current (RT-024). Dependabot understands the
+  # `nightly-YYYY-MM-DD` channel and proposes each newer night as a weekly
+  # pull request. Review the regenerated trybuild `.stderr` snapshots in every
+  # bump pull request: compiler diagnostics are pinned to the exact night.
   - package-ecosystem: "rust-toolchain"
     directory: "/"
     groups:
-      minor-and-patch:
+      nightly:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "rust-toolchain"
     schedule:
-      interval: "daily"
+      interval: "weekly"
     cooldown:
       default-days: 7

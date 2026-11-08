@@ -279,12 +279,11 @@ impl<'source> RustIrBuilder<'source> {
         if let Some(name) = text_for_field(self.source, node, "name") {
             fields.insert("name".to_owned(), name);
         }
-        if matches!(node.kind(), "impl_item") {
-            if let Some(self_type) = text_for_field(self.source, node, "type")
+        if matches!(node.kind(), "impl_item")
+            && let Some(self_type) = text_for_field(self.source, node, "type")
                 .or_else(|| text_for_field(self.source, node, "self_type"))
-            {
-                fields.insert("type".to_owned(), self_type);
-            }
+        {
+            fields.insert("type".to_owned(), self_type);
         }
         self.push_node(IrNode {
             id: node_id.clone().into(),
@@ -315,8 +314,10 @@ impl<'source> RustIrBuilder<'source> {
         self.errors.push(IrError {
             code: "rust-traversal-depth-limit".to_owned(),
             message: format!(
-                "stopped Rust doc-comment traversal at the maximum depth of \
-                 {} at bytes {}..{}",
+                concat!(
+                    "stopped Rust doc-comment traversal at the maximum depth of ",
+                    "{} at bytes {}..{}",
+                ),
                 super::MAX_TRAVERSAL_DEPTH,
                 span.byte_start,
                 span.byte_end

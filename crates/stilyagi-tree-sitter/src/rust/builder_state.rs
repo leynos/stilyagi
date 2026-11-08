@@ -100,11 +100,9 @@ pub(super) fn push_group<'source>(
                 )
             })
     });
-    if should_merge {
-        if let Some(last) = groups.last_mut() {
-            last.push(entry);
-            return;
-        }
+    if should_merge && let Some(last) = groups.last_mut() {
+        last.push(entry);
+        return;
     }
     groups.push(DocCommentGroup::new(entry));
 }
