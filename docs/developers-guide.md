@@ -1706,6 +1706,62 @@ and maturin line separately, including both branches of the nextest fallback,
 and `tests/test_build_standard_recorded_routes.py` runs those routes against
 recording probes to read the flags each tool actually receives.
 
+### Running a target against recording probes
+
+`tests/support/build_standard_probes.py` runs a real Make target in a copy of
+the tree, with every tool the recipes name replaced by an executable that
+appends one JSON line to `$PROBE_LOG`. The harness has four parts.
+
+`stage_makefile_tree(destination)` copies the files a Make run reads into a
+scratch directory, so recipes that create or delete paths such as `dist` stay
+off the checkout. `make_recording_tools(directory)` writes the probes: each
+records `program`, `args`, `phase` and the `RUSTFLAGS` and `RUSTDOCFLAGS` it
+received, then exits 0. Two environment selectors change that: `PROBE_FAIL`
+makes a probe whose `<name> <args>` contains the value exit 1, which is how a
+test takes the nextest fallback or proves a failing preflight stops the target;
+`PROBE_BLOCK` makes a matching probe wait for the file named by
+`PROBE_RELEASE`, which is how a test holds one stage open.
+
+`RunOptions` is the whole of a run's control surface: `ambient_rustflags` for
+the `RUSTFLAGS` the caller exports, `block` and `fail` for the two selectors,
+`make_arguments` for extra Make arguments placed before the target (such as
+`("-j4",)` or a `NAME=value` override), and `trace_completion` for the second,
+`done` entry a probe writes as it exits. That last option exists because a
+`start` record only proves a stage began; an ordering claim such as "Whitaker
+cannot start until Clippy finishes" has to be read from Clippy's `done` entry
+and Whitaker's `start` entry, which is what
+`test_parallel_lint_cannot_start_whitaker_until_clippy_completes` asserts.
+
+`run_recorded(target, tree, options)` runs a target to completion and returns
+the `RecordedRun` — exit status, stderr and every record in order. A test that
+must observe Make *while* it runs uses `start_recorded(target, tree, options)`
+instead, which returns a `StartedRun` and does not wait:
+
+- `records()` returns the log as it stands. It skips one torn trailing line,
+  because a probe may be mid-write.
+- `wait_for_block()` polls until the probe selected by `block` has recorded
+  its start, and raises `TimeoutError` if Make exits or the deadline passes
+  first.
+- `release()` creates the release marker, letting that probe continue.
+- `finish()` waits for Make to exit and returns the `RecordedRun`. It reads
+  the log strictly, since no probe can still be writing, so a line that does
+  not parse is reported rather than dropped.
+
+`StartedRun` is a context manager that releases and reaps the process even when
+an assertion fails, so a broken test cannot leave a blocked probe behind.
+`tests/support/probe_log.py` owns the parsing for both modes: it validates each
+line's shape and raises `ReadingError` naming the log, so a malformed record
+surfaces as a reading finding rather than a `KeyError` from whichever assertion
+happened to touch it first. `start_make` in `tests/support/build_standard.py`
+is the underlying non-waiting `make` invocation; `run_make` is the waiting one.
+
+The Makefile target tables shared by the recipe contracts live in
+`tests/support/makefile_target_cases.py`, which exports
+`MAKEFILE_TARGET_CASES`. Each `MakefileTargetCase` names a target, the header
+and recipe fragments it must keep, and whether it should reach pytest. The
+table is data, not logic, so a new target is one entry rather than a new test
+function; the module that consumes it decides how each case is checked.
+
 ### Installed components are not active everywhere
 
 `rust-toolchain.toml` installs `clippy`, `rustfmt`, `rust-analyzer`,
