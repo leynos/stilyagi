@@ -22,11 +22,11 @@ For users, that means:
   extraction call.
 
 Released versions install from the Python Package Index with
-`pip install stilyagi`. A wheel is published for every platform the release
-builds — Linux `x86_64` and `aarch64`, macOS `arm64` and `x86_64`, and Windows
-— together with one source distribution, so a platform without a wheel installs
-from the sdist and needs a Rust toolchain. Python 3.14 or newer is required
-either way.[^5]
+`pip install "stilyagi>=0.2.0"`; the floor keeps out the unrelated 0.1.0
+upload. A wheel is published for every platform the release builds — Linux
+`x86_64` and `aarch64`, macOS `arm64` and `x86_64`, and Windows — together with
+one source distribution, so a platform without a wheel installs from the sdist
+and needs a Rust toolchain. Python 3.14 or newer is required either way.[^5]
 
 Building from a source checkout needs `uv`, `rustup`, and, on Linux, the pinned
 `mold` linker. The

@@ -1,17 +1,21 @@
-"""Build the files ``scripts/release_assets.py`` reads and digests.
+"""Build the files the release scripts read, check, and copy.
 
-The reconciliation module reads three things: a directory of rebuilt
-artefacts, a PEP 691 JSON index of what PyPI holds, and a ``gh release view
---json assets`` listing of what the release holds. Each is a file with a
-small, documented shape, and a test that specifies a reading has to build
-that shape exactly — including the parts a hurried implementation might
-assume away, such as a relative file URL or an asset with no digest.
+The reconciliation modules read four things: a directory of rebuilt
+artefacts, a PEP 691 JSON index of what PyPI holds, a ``gh release view
+--json assets`` listing of what the release holds, and the provenance
+evidence -- the per-asset records a verification step writes and the bundle a
+run stages. Each is a file with a small, documented shape, and a test that
+specifies a reading has to build that shape exactly -- including the parts a
+hurried implementation might assume away, such as a relative file URL, an
+asset with no digest, or a bundle that attests different bytes from the ones
+being staged.
 
 These helpers build those files from payloads, so a test states what each
 destination holds in bytes and lets the digest follow. Names are written
 verbatim; a caller that needs an unsafe name writes it itself.
 """
 
+import base64
 import hashlib
 import json
 import typing as typ
@@ -128,6 +132,45 @@ def write_assets(
     )
 
 
+def _statement(subjects: dict[str, bytes]) -> dict[str, object]:
+    """Return the in-toto statement naming every artefact by name and digest."""
+    return {
+        "subject": [
+            {
+                "name": name,
+                "digest": {"sha256": hashlib.sha256(payload).hexdigest()},
+            }
+            for name, payload in subjects.items()
+        ]
+    }
+
+
+def _verifier_answer(
+    subjects: dict[str, bytes], source: str
+) -> list[dict[str, object]]:
+    """Return the verifier's ``--format json`` answer for some artefacts.
+
+    The answer is a list holding one entry per verified attestation, whose
+    ``statement`` lists the artefacts signed together and whose
+    ``verifiedIdentity`` names the commit the workflow checked out. Both the
+    record a step writes and the bundle a run stages carry this shape, which
+    is why they share one builder here.
+
+    Returns
+    -------
+    list[dict[str, object]]
+        The single verifier record covering every artefact in ``subjects``.
+    """
+    return [
+        {
+            "verificationResult": {
+                "statement": _statement(subjects),
+                "verifiedIdentity": {"sourceRepositoryDigest": source},
+            }
+        }
+    ]
+
+
 def write_provenance(
     directory: pathlib.Path,
     attestations: dict[str, dict[str, bytes]],
@@ -140,11 +183,6 @@ def write_provenance(
     which is how the workflow keeps one verified answer per downloaded file.
     One record may attest several artefacts, as the release's single
     attestation does for every wheel and the sdist.
-
-    The record's shape is the verifier's own ``--format json`` answer: a list
-    holding one entry per verified attestation, whose ``statement.subject``
-    lists the artefacts signed together and whose ``verifiedIdentity`` names
-    the commit the workflow checked out.
 
     Parameters
     ----------
@@ -164,26 +202,60 @@ def write_provenance(
         The directory the records were written into.
     """
     for record, subjects in attestations.items():
-        document = [
-            {
-                "verificationResult": {
-                    "statement": {
-                        "subject": [
-                            {
-                                "name": name,
-                                "digest": {
-                                    "sha256": hashlib.sha256(payload).hexdigest()
-                                },
-                            }
-                            for name, payload in subjects.items()
-                        ]
-                    },
-                    "verifiedIdentity": {"sourceRepositoryDigest": source},
-                }
-            }
-        ]
-        _write_document(directory / f"{record}.json", document)
+        _write_document(
+            directory / f"{record}.json", _verifier_answer(subjects, source)
+        )
     return directory
+
+
+def write_bundle(
+    directory: pathlib.Path,
+    name: str,
+    subjects: dict[str, bytes],
+    *,
+    source: str = "a40898789a80e1ead3537cdab070fa87a80afced",
+) -> pathlib.Path:
+    """Write one Sigstore bundle attesting ``subjects``.
+
+    The bundle is what ``actions/attest-build-provenance`` produces: a Sigstore
+    envelope whose DSSE payload is the base64-encoded in-toto statement naming
+    each subject by name and digest. The workflow stages it under a
+    run-unique ``<run>.sigstore.json`` name and attaches it to the Release, so
+    both the staging and the post-publication check read this shape rather
+    than the verifier's printed answer.
+
+    Parameters
+    ----------
+    directory
+        The directory to write the bundle into.
+    name
+        The bundle's file name, written verbatim and expected to end in
+        ``.sigstore.json``.
+    subjects
+        Each artefact name the bundle attests and the payload it was signed
+        over.
+    source
+        The source commit the bundle's statement names.
+
+    Returns
+    -------
+    pathlib.Path
+        The path of the bundle written.
+    """
+    statement = _statement(subjects)
+    payload = base64.b64encode(json.dumps(statement).encode("utf-8")).decode("ascii")
+    return _write_document(
+        directory / name,
+        {
+            "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+            "verificationMaterial": {},
+            "dsseEnvelope": {
+                "payload": payload,
+                "payloadType": "application/vnd.in-toto+json",
+                "signatures": [{"sig": "c2ln", "keyid": ""}],
+            },
+        },
+    )
 
 
 def _write_document(path: pathlib.Path, document: object) -> pathlib.Path:
@@ -196,6 +268,7 @@ def _write_document(path: pathlib.Path, document: object) -> pathlib.Path:
 __all__ = [
     "digest",
     "write_assets",
+    "write_bundle",
     "write_file",
     "write_index",
     "write_provenance",

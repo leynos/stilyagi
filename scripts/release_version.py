@@ -9,7 +9,7 @@ The shared pyproject.toml validator exists only inside the reusable
 publishing workflow, which also builds and publishes, so ``release.yml``'s
 ``check-version`` job runs this instead: the declared string must equal the
 tag-derived version exactly, and the step reports whether it is a
-pre-release. It uses the runner's preinstalled ``python3`` and the standard
+pre-release. It uses the Python 3.14 the job installs and the standard
 library only, as ``scripts/release_assets.py`` does and for the same reason:
 the job sits inside the tag-only run that holds the publishing credentials,
 so nothing here resolves third-party code at release time.

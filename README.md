@@ -10,12 +10,11 @@ Stilyagi reads Markdown pages, Python docstrings, and Rust documentation
 comments as structured regions rather than as undifferentiated lines. Rust does
 the parsing and keeps byte-exact source maps; Python runs the rules.
 
-> **Status: pre-release; no release has been published.** The first release of
-> this compiler is version 0.2.0, and it is a preview one. The extraction
-> engine works, and three builtin rules ship: `MD001` (heading depth), `STY001`
-> (adjacent repeated words), and the opt-in `TERM001` (configured banned
-> terms). See the [users' guide](docs/users-guide.md) for their options and the
-> [roadmap](docs/roadmap.md) for what has landed.
+> **Status: preview.** 0.2.0 is the first release of this compiler. The
+> extraction engine works, and three builtin rules ship: `MD001` (heading
+> depth), `STY001` (adjacent repeated words), and the opt-in `TERM001`
+> (configured banned terms). See the [users' guide](docs/users-guide.md) for
+> their options and the [roadmap](docs/roadmap.md) for what has landed.
 
 Website: <https://df12.studio/stilyagi>
 
@@ -48,9 +47,6 @@ ______________________________________________________________________
 
 ## Installation
 
-> **This compiler has not been published yet.** Its first release is 0.2.0.
-> Until that release exists, nothing on the Python Package Index installs it.
-
 Stilyagi releases are published to the Python Package Index as `stilyagi`, with
 wheels for Linux (`x86_64` and `aarch64`), macOS (`arm64` and `x86_64`), and
 Windows, plus a source distribution for everything else. Python 3.14 or newer
@@ -74,7 +70,7 @@ interpreter, and an unversioned `pip install stilyagi` would select it. The
 floor above is what keeps the predecessor out; lower it only if you mean to
 install the Vale-style tool.
 
-To run the compiler before 0.2.0 is published, build it from a checkout:
+To run the compiler from a checkout, build it there:
 
 ```shell
 git clone https://github.com/leynos/stilyagi.git

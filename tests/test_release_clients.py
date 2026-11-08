@@ -251,7 +251,7 @@ def test_an_edit_ignores_a_flag_it_cannot_read(release: FakeRelease) -> None:
     assert created == 0, "the create must succeed"
     edited = gh(["release", "edit", RELEASE_TAG, "--draft=perhaps"])
     assert edited == 0, "an unreadable flag must not fail the edit"
-    assert _state(release)["draft"] is False, _state(release)
+    assert _state(release)["draft"] is True, _state(release)
 
 
 # -- curl --------------------------------------------------------------------

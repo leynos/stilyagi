@@ -12,17 +12,24 @@ quietly re-uploads, or takes its bytes from the wrong source, fails here rather
 than on a tag.
 """
 
-import json
 import typing as typ
 
 import pytest
 
+from tests.support.release_assets_fixtures import write_bundle
 from tests.support.release_fakes import Attested, FakeRelease, fake_release
-from tests.support.release_steps import (
-    requires_bash,
-    run_bash,
-    run_job_steps,
+from tests.support.release_github_workspace import (
+    BUNDLE,
+    EARLIER_BUNDLE,
+    SDIST,
+    WHEEL,
+    Holding,
+    published,
+    record_state,
+    seed_release,
+    uploads,
 )
+from tests.support.release_steps import requires_bash, run_bash, run_job_steps
 from tests.support.release_workflow import (
     RELEASE_WORKFLOW,
     REPOSITORY_ROOT,
@@ -39,11 +46,6 @@ if typ.TYPE_CHECKING:
 
     from tests.support.workflows import WorkflowDocument
 
-WHEEL: typ.Final = "stilyagi-0.2.0-cp314-cp314-manylinux_2_28_x86_64.whl"
-SDIST: typ.Final = "stilyagi-0.2.0.tar.gz"
-BUNDLE: typ.Final = "stilyagi-v0.2.0-run7-1.sigstore.json"
-EARLIER_BUNDLE: typ.Final = "stilyagi-v0.2.0-run6-1.sigstore.json"
-
 #: Every ``publish-release`` step that carries a script, in workflow order. The
 #: checkout and download actions are represented by the directories the fixture
 #: lays out, exactly as those actions would leave them.
@@ -54,12 +56,23 @@ RELEASE_STEPS: typ.Final = (
     "Check the fetched PyPI bytes",
     "Verify the upload set's provenance",
     "Upload the assets the release lacks",
+    "Check the Release's assets are attested",
     "Check both destinations hold the same bytes",
     "Publish the GitHub Release",
 )
 
 #: The steps up to and including the comparison, but not the publication.
 THROUGH_VERIFY: typ.Final = RELEASE_STEPS[:-1]
+
+#: The steps up to and including staging, so the fetch list is written.
+THROUGH_STAGE: typ.Final = RELEASE_STEPS[:3]
+
+#: Both destinations holding what a completed earlier run left them.
+_COMPLETE: typ.Final = Holding(
+    pypi=(WHEEL, SDIST), github=(WHEEL, SDIST, EARLIER_BUNDLE)
+)
+#: PyPI complete, and the Release missing the wheel a retry must fill.
+_WHEEL_GAP: typ.Final = Holding(pypi=(WHEEL, SDIST), github=(SDIST, EARLIER_BUNDLE))
 
 
 def _document() -> WorkflowDocument:
@@ -100,13 +113,8 @@ def workspace(tmp_path: pathlib.Path) -> tuple[pathlib.Path, FakeRelease]:
     (work / "dist" / "publish").mkdir(parents=True)
     (work / "dist" / "attestations").mkdir()
     fake = fake_release(tmp_path)
-    _record_state(fake, draft=True, prerelease=False)
+    record_state(fake, draft=True, prerelease=False)
     return work, fake
-
-
-def _record_state(fake: FakeRelease, **state: bool) -> None:
-    """Write the release state the fake ``gh`` edits."""
-    (fake.root / "release-state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
 def _run(
@@ -130,49 +138,6 @@ def _run(
     )
 
 
-def _seed(
-    work: pathlib.Path,
-    fake: FakeRelease,
-    *,
-    pypi: tuple[str, ...] = (),
-    github: tuple[str, ...] = (),
-) -> None:
-    """Write the rebuilt artefacts, this run's bundle and both holdings.
-
-    The canonical bytes differ from the rebuild in every case, so a step that
-    takes the wrong source is visible in what lands on the release. Both
-    destinations' copies are attested, as they would be: an artefact only
-    reaches either one through a run that signed it.
-    """
-    publish = work / "dist" / "publish"
-    (publish / WHEEL).write_bytes(b"rebuilt-wheel")
-    (publish / SDIST).write_bytes(b"rebuilt-sdist")
-    bundle = work / "dist" / "attestations" / BUNDLE
-    bundle.write_bytes(b"bundle")
-    canonical = {
-        WHEEL: b"canonical-wheel",
-        SDIST: b"canonical-sdist",
-        EARLIER_BUNDLE: b"earlier-bundle",
-    }
-    fake.attest({name: canonical[name] for name in (WHEEL, SDIST)})
-    fake.attest({BUNDLE: bundle.read_bytes()})
-    for directory, names in ((fake.pypi, pypi), (fake.github, github)):
-        for name in names:
-            (directory / name).write_bytes(canonical[name])
-
-
-def _published(fake: FakeRelease) -> dict[str, object]:
-    """Return the draft/prerelease state the release was left in."""
-    path = fake.root / "release-state.json"
-    assert path.exists(), "the release was never created"
-    return typ.cast("dict[str, object]", json.loads(path.read_text(encoding="utf-8")))
-
-
-def _uploads(fake: FakeRelease) -> list[tuple[str, ...]]:
-    """Return every ``gh release upload`` the job made."""
-    return [call for call in fake.calls("gh") if call[:2] == ("release", "upload")]
-
-
 @requires_bash
 def test_a_re_run_uploads_no_artefact_and_leaves_the_release_published(
     workspace: tuple[pathlib.Path, FakeRelease],
@@ -186,14 +151,14 @@ def test_a_re_run_uploads_no_artefact_and_leaves_the_release_published(
     found by digest if it is ever needed.
     """
     work, fake = workspace
-    _seed(work, fake, pypi=(WHEEL, SDIST), github=(WHEEL, SDIST, EARLIER_BUNDLE))
+    seed_release(work, fake, _COMPLETE)
     completed = _run(workspace)
     assert completed.returncode == 0, completed.stderr
-    assert not _uploads(fake), _uploads(fake)
+    assert not uploads(fake), uploads(fake)
     assert not any((work / "github-upload").iterdir()), sorted(
         path.name for path in (work / "github-upload").iterdir()
     )
-    assert _published(fake) == {"draft": False, "prerelease": False}, _published(fake)
+    assert published(fake) == {"draft": False, "prerelease": False}, published(fake)
 
 
 @requires_bash
@@ -206,7 +171,7 @@ def test_a_gap_whose_bytes_no_run_attests_is_never_attached(
     are not attached at all: the run fails and the release stays unpublished.
     """
     work, fake = workspace
-    _seed(work, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
+    seed_release(work, fake, _WHEEL_GAP)
     for record in fake.attestations.iterdir():
         record.unlink()
     completed = _run(workspace)
@@ -215,7 +180,7 @@ def test_a_gap_whose_bytes_no_run_attests_is_never_attached(
     assert not (fake.github / WHEEL).exists(), sorted(
         path.name for path in fake.github.iterdir()
     )
-    assert _published(fake)["draft"] is True, "the draft was published"
+    assert published(fake)["draft"] is True, "the draft was published"
 
 
 @requires_bash
@@ -224,7 +189,7 @@ def test_a_gap_attested_only_by_another_repository_is_refused(
 ) -> None:
     """A signature from someone else's release is not this repository's."""
     work, fake = workspace
-    _seed(work, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
+    seed_release(work, fake, _WHEEL_GAP)
     for record in fake.attestations.iterdir():
         record.unlink()
     fake.attest(
@@ -245,15 +210,15 @@ def test_a_gap_on_the_release_is_filled_with_pypi_s_bytes(
 ) -> None:
     """The wheel arrives from PyPI, not from this run's rebuild."""
     work, fake = workspace
-    _seed(work, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
+    seed_release(work, fake, _WHEEL_GAP)
     completed = _run(workspace)
     assert completed.returncode == 0, completed.stderr
     assert (fake.github / WHEEL).read_bytes() == b"canonical-wheel", (
         "the release must hold PyPI's bytes, not the rebuild"
     )
-    uploads = _uploads(fake)
-    assert len(uploads) == 1, uploads
-    assert "--clobber" not in uploads[0], uploads[0]
+    sent = uploads(fake)
+    assert len(sent) == 1, sent
+    assert "--clobber" not in sent[0], sent[0]
 
 
 @requires_bash
@@ -267,14 +232,15 @@ def test_the_staged_set_is_the_gap_alone_when_provenance_is_already_attached(
     that is otherwise complete.
     """
     work, fake = workspace
-    _seed(work, fake, pypi=(WHEEL, SDIST), github=(SDIST, EARLIER_BUNDLE))
+    seed_release(work, fake, _WHEEL_GAP)
+    earlier = (fake.github / EARLIER_BUNDLE).read_bytes()
     completed = _run(workspace)
     assert completed.returncode == 0, completed.stderr
     staged = work / "github-upload"
     assert {path.name for path in staged.iterdir()} == {WHEEL}, sorted(
         path.name for path in staged.iterdir()
     )
-    assert (fake.github / EARLIER_BUNDLE).read_bytes() == b"earlier-bundle", (
+    assert (fake.github / EARLIER_BUNDLE).read_bytes() == earlier, (
         "an existing asset must be left alone"
     )
 
@@ -287,18 +253,25 @@ def test_a_release_without_an_attestation_receives_one(
 
     A release published with no attestation would give a consumer no way to
     check where its assets came from, so the run that finds none supplies one.
+    The run's own bytes are canonical here, which is what lets its bundle
+    cover them: this is a first release, so nothing was published before it.
     """
     work, fake = workspace
-    _seed(work, fake, pypi=(WHEEL, SDIST), github=(WHEEL, SDIST))
+    seed_release(
+        work,
+        fake,
+        Holding(pypi=(WHEEL, SDIST), github=(WHEEL, SDIST)),
+        canonical_is_rebuild=True,
+    )
     completed = _run(workspace)
     assert completed.returncode == 0, completed.stderr
     staged = work / "github-upload"
     assert {path.name for path in staged.iterdir()} == {BUNDLE}, sorted(
         path.name for path in staged.iterdir()
     )
-    assert (fake.github / BUNDLE).read_bytes() == b"bundle", sorted(
-        path.name for path in fake.github.iterdir()
-    )
+    assert (fake.github / BUNDLE).read_bytes() == (
+        work / "dist" / "attestations" / BUNDLE
+    ).read_bytes(), sorted(path.name for path in fake.github.iterdir())
 
 
 @requires_bash
@@ -307,8 +280,8 @@ def test_the_fetch_stage_names_every_file_it_needs_as_tsv(
 ) -> None:
     """The TSV is the only channel from the stage step to the fetch loop."""
     work, fake = workspace
-    _seed(work, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
-    completed = _run(workspace, RELEASE_STEPS[:3])
+    seed_release(work, fake, _WHEEL_GAP)
+    completed = _run(workspace, THROUGH_STAGE)
     assert completed.returncode == 0, completed.stderr
     fetched = (work / "pypi-fetch.tsv").read_text(encoding="utf-8")
     assert fetched.splitlines() == [
@@ -317,17 +290,37 @@ def test_the_fetch_stage_names_every_file_it_needs_as_tsv(
 
 
 @requires_bash
+def test_a_release_whose_bundle_covers_other_bytes_is_not_published(
+    workspace: tuple[pathlib.Path, FakeRelease],
+) -> None:
+    """A bundle attached by an earlier run must still name today's assets.
+
+    The Release can hold a bundle and still be unattested: if the assets were
+    replaced, or a bundle was attached from a different run, the statement
+    beside them says nothing about the bytes actually there. Publishing would
+    present that as provenance, so the step refuses and the draft stays.
+    """
+    work, fake = workspace
+    seed_release(work, fake, _COMPLETE)
+    write_bundle(fake.github, EARLIER_BUNDLE, {WHEEL: b"other", SDIST: b"other"})
+    completed = _run(workspace, RELEASE_STEPS[:-1])
+    assert completed.returncode == 1, completed.stdout
+    assert "no provenance bundle covering" in completed.stderr, completed.stderr
+    assert published(fake)["draft"] is True, "the draft was published"
+
+
+@requires_bash
 def test_a_destination_that_disagrees_keeps_the_release_a_draft(
     workspace: tuple[pathlib.Path, FakeRelease],
 ) -> None:
     """The comparison is the gate on publishing, and it does not pass."""
     work, fake = workspace
-    _seed(work, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
+    seed_release(work, fake, _WHEEL_GAP)
     (fake.github / WHEEL).write_bytes(b"someone-else's-wheel")
     completed = _run(workspace)
     assert completed.returncode == 1, completed.stdout
     assert WHEEL in completed.stderr, completed.stderr
-    assert _published(fake)["draft"] is True, "the draft was published"
+    assert published(fake)["draft"] is True, "the draft was published"
 
 
 @requires_bash
@@ -336,11 +329,11 @@ def test_the_verification_runs_before_the_release_is_published(
 ) -> None:
     """A release still a draft while the check is running cannot go out early."""
     work, fake = workspace
-    _seed(work, fake, pypi=(WHEEL, SDIST), github=(WHEEL, SDIST))
-    _record_state(fake, draft=True, prerelease=False)
+    seed_release(work, fake, _COMPLETE)
+    record_state(fake, draft=True, prerelease=False)
     completed = _run(workspace, THROUGH_VERIFY)
     assert completed.returncode == 0, completed.stderr
-    assert _published(fake) == {"draft": True, "prerelease": False}, _published(fake)
+    assert published(fake) == {"draft": True, "prerelease": False}, published(fake)
 
 
 @requires_bash
@@ -353,16 +346,14 @@ def test_the_release_takes_the_tag_s_prerelease_state(
 ) -> None:
     """``v0.2.0rc1`` must not be published as a final release."""
     work, fake = workspace
-    _record_state(fake, draft=True, prerelease=not expected)
+    record_state(fake, draft=True, prerelease=not expected)
     completed = run_bash(
         typ.cast("str", step(_job(), "Publish the GitHub Release")["run"]),
         work,
         environ=fake.environ(IS_PRERELEASE=prerelease),
     )
     assert completed.returncode == 0, completed.stderr
-    assert _published(fake) == {"draft": False, "prerelease": expected}, _published(
-        fake
-    )
+    assert published(fake) == {"draft": False, "prerelease": expected}, published(fake)
 
 
 def test_every_scripted_step_is_run_by_this_module() -> None:

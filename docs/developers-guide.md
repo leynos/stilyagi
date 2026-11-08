@@ -1937,7 +1937,7 @@ re-evaluate it fails.
 section is the maintainer's view of what runs.
 
 `.github/workflows/build-wheels.yml` is a `workflow_call` workflow. It builds
-`x86_64` and `aarch64` Linux wheels (the `aarch64` leg under QEMU), macOS
+`x86_64` and `aarch64` Linux wheels (the `aarch64` leg cross-compiled), macOS
 `arm64` and `x86_64` wheels, and a Windows wheel, all with maturin 1.14.1. The
 `x86_64` Linux leg also builds the one source distribution with
 `uv build --sdist`; `verify-wheel-install` asserts that exactly one sdist
@@ -1955,23 +1955,29 @@ than interrupting an upload, and a third push does not displace the second.
 `draft-release` creates or reuses the tag's draft; `publish-pypi` uploads
 under Trusted Publishing with `skip-existing: true`; and `publish-release`
 fills the release's gaps from PyPI's bytes, verifies both destinations hold
-identical digests, and only then un-drafts the release.
+identical digests, re-reads the release's own bundle to confirm it covers every
+asset there, and only then un-drafts the release.
 
 The reconciliation logic lives in `scripts/release_assets.py`, with the GitHub
-Release's half in `scripts/release_github_upload.py` and the reading of
-`gh attestation verify`'s answer in `scripts/release_provenance.py`. All three
-are wrapped for the workflow by `scripts/release_assets_cli.py`. They resolve
-no third-party code, because they run in the job that holds the PyPI token, and
-they make no network call: the steps' `curl` and `gh` invocations do that. The
-modules' tests are `tests/test_release_assets.py`,
-`tests/test_release_assets_staging.py`, `tests/test_release_github_upload.py`,
-and `tests/test_release_provenance.py`; the steps' own behaviour is specified by
-`tests/test_release_publish_steps.py`, `tests/test_release_github_steps.py`,
-and `tests/test_release_workflow_contract.py`, which execute the checked-in
+Release's half in `scripts/release_github_upload.py`, the coverage check on the
+Release's own bundle in `scripts/release_bundles.py`, and the reading of
+provenance in `scripts/release_provenance.py`, which answers for both shapes
+the evidence takes: `gh attestation verify`'s printed records, and the DSSE
+payload inside a Sigstore bundle. All four are wrapped for the workflow by
+`scripts/release_assets_cli.py`. They resolve no third-party code, because they
+run in the job that holds the PyPI token, and they make no network call: the
+steps' `curl` and `gh` invocations do that. The modules' tests are
+`tests/test_release_assets.py`, `tests/test_release_assets_staging.py`,
+`tests/test_release_github_upload.py`, `tests/test_release_bundles.py`, and
+`tests/test_release_provenance.py`; the steps' own behaviour is specified by
+`tests/test_release_publish_steps.py`, `tests/test_release_github_steps.py`, and
+`tests/test_release_workflow_contract.py`, which execute the checked-in
 scripts against a scripted PyPI and GitHub Release. That scripted pair is
 `tests/support/release_clients.py` for `gh release` and `curl`,
 `tests/support/release_attestations.py` for `gh attestation verify`, and the
-entry point `tests/support/release_fake.py` that dispatches between them.
+entry point `tests/support/release_fake.py` that dispatches between them. The
+workspace a `publish-release` test runs against is laid out by
+`tests/support/release_github_workspace.py`.
 
 A release is repaired by re-running the same tag, never by cutting a new
 version. Each filename's canonical bytes are PyPI's if it holds the name, the
@@ -1988,6 +1994,16 @@ tag's ref; an asset the release is about to receive is verified too, and its
 record must name the commit it was built from. Those checks are what keep a
 re-pushed tag's earlier bytes attributable to a revision of this repository
 rather than merely signed by something.
+
+The bundle beside the release's assets is checked as a consumer would check it:
+`bundles` lists the `.sigstore.json` assets the release holds, the step
+downloads them, and `check-bundle` decodes each DSSE payload and requires one
+statement to name every asset's name and digest. Coverage means every asset,
+not any one of them, so a bundle attached for a different run's bytes — or a
+file added to the release by hand — leaves it unattested and it stays a draft.
+A release the check refuses is repaired by attaching the attestation for those
+exact bytes from the repository's attestation store, not by re-running: the
+re-run's own bundle attests its rebuild, which is not what the release holds.
 
 ### Publishing a release
 

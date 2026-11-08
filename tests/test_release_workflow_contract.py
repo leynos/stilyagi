@@ -176,7 +176,13 @@ def test_every_job_that_runs_a_script_installs_python_3_14() -> None:
     the version it was checking. Every job running a script must therefore
     declare the setup step that the other jobs take for granted.
     """
-    for name in ("check-version", "attest", "draft-release", "publish-pypi"):
+    for name in (
+        "check-version",
+        "attest",
+        "draft-release",
+        "publish-pypi",
+        "publish-release",
+    ):
         job = workflow_job(DOCUMENT, name)
         setup = step(job, "Install Python")
         assert setup.get("with") == {"python-version": "3.14"}, (name, setup)

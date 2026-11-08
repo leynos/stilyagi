@@ -6,17 +6,18 @@
 """Command-line entry point for the release-asset reconciliation commands.
 
 ``release.yml`` places ``scripts/`` on ``PYTHONPATH`` and runs this module from
-the workspace root as ``python -m release_assets_cli``, with the runner's
-preinstalled ``python3`` and the standard library alone: it executes inside the
+the workspace root as ``python -m release_assets_cli``, under the Python 3.14
+each job installs, with the standard library alone: it executes inside the
 job that holds the PyPI publishing token, so it resolves no third-party code
 (Cyclopts or Cuprum) at release time, and every network call stays in the
 workflow's ``curl`` and ``gh`` steps. That is the documented exception to the
-scripting standards' Cyclopts, Cuprum, and Python 3.14 defaults. Each subcommand
-is one step of ``release.yml``: ``carryover`` (``draft-release``),
-``stage-pypi`` (``publish-pypi``), then ``stage-github``, ``check-fetched``,
-``check-provenance``, and ``verify`` (``publish-release``). The reconciliation
-logic itself lives in ``scripts/release_assets.py``; this module only wires it
-to ``argparse`` and the workflow's ``GITHUB_OUTPUT`` protocol.
+scripting standards' Cyclopts and Cuprum defaults. Each subcommand is one step
+of ``release.yml``: ``carryover`` (``draft-release``), ``stage-pypi``
+(``publish-pypi``), then ``stage-github``, ``check-fetched``,
+``check-provenance``, ``bundles``, ``check-bundle``, and ``verify``
+(``publish-release``). The reconciliation logic itself lives in
+``scripts/release_assets.py``; this module only wires it to ``argparse`` and
+the workflow's ``GITHUB_OUTPUT`` protocol.
 """
 
 import argparse
@@ -31,6 +32,7 @@ from release_assets import (
     stage_pypi,
     write_output,
 )
+from release_bundles import check_release_bundle, held_bundles
 from release_github_upload import (
     check_fetched,
     check_provenance,
@@ -112,6 +114,24 @@ def _check_provenance(state: State, args: argparse.Namespace) -> None:
     check_provenance(_path(args, "output"), _path(args, "provenance"))
 
 
+def _bundles(state: State, args: argparse.Namespace) -> None:
+    """Print the Release's provenance bundle names, one per line."""
+    del args
+    for name in held_bundles(state):
+        print(name)
+
+
+def _check_bundle(state: State, args: argparse.Namespace) -> None:
+    """Refuse a Release none of whose bundles attests as it now stands.
+
+    Staging has already refused to attach a bundle that does not cover what it
+    staged, so this is the check on the Release itself: it reads the bundles
+    the Release holds and requires one of them to name every asset there. It
+    is what catches a Release an upload from elsewhere has left unattested.
+    """
+    check_release_bundle(state, _path(args, "provenance"))
+
+
 def _verify(state: State, args: argparse.Namespace) -> None:
     """Fail on any artefact the two destinations disagree on."""
     del args
@@ -123,10 +143,12 @@ def _verify(state: State, args: argparse.Namespace) -> None:
 
 _COMMANDS: dict[str, cabc.Callable[[State, argparse.Namespace], None]] = {
     "carryover": _carryover,
+    "bundles": _bundles,
     "stage-pypi": _stage_pypi,
     "stage-github": _stage_github,
     "check-fetched": _check_fetched,
     "check-provenance": _check_provenance,
+    "check-bundle": _check_bundle,
     "verify": _verify,
 }
 

@@ -482,6 +482,28 @@ jobs:
         if: steps.stage.outputs.pending == 'true'
         run: gh release upload "${GITHUB_REF_NAME}" github-upload/*
 
+      # The bundle beside the assets is what a consumer can check, so it is
+      # read as a consumer would: listed from the Release as it now stands,
+      # downloaded, decoded, and compared against the Release's own asset
+      # digests. A Release that carries no attestation covering everything in
+      # it is not published, whichever run attached the parts.
+      - name: Check the Release's assets are attested
+        id: attested
+        run: |
+          set -euo pipefail
+          gh release view "${GITHUB_REF_NAME}" --json assets > release-assets.json
+          mkdir -p release-bundles
+          PYTHONPATH=scripts python3 -m release_assets_cli bundles \
+            --publish dist/publish --assets release-assets.json > release-bundles.txt
+          while IFS= read -r name; do
+            [ -n "${name}" ] || continue
+            gh release download "${GITHUB_REF_NAME}" --pattern "${name}" \
+              --dir release-bundles
+          done < release-bundles.txt
+          PYTHONPATH=scripts python3 -m release_assets_cli check-bundle \
+            --publish dist/publish --assets release-assets.json \
+            --provenance release-bundles
+
       - name: Check both destinations hold the same bytes
         id: verify
         run: |

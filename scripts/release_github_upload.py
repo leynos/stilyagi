@@ -4,7 +4,8 @@
 bytes; this module turns that decision into the files a single workflow step
 uploads, and checks them afterwards. A name PyPI holds is fetched from PyPI so
 the Release receives PyPI's bytes rather than this run's rebuild; a name only
-this run has is copied from its attested build.
+this run has is copied from its attested build. Whether the Release's own
+bundle covers what it holds is ``release_bundles.py``'s question.
 
 Like ``release_assets.py``, this module resolves no third-party code and makes
 no network call: the workflow's ``curl`` and ``gh`` steps fetch what it names.
@@ -22,14 +23,17 @@ from release_assets import (
     require_digest,
     sha256_of,
 )
+from release_bundles import (
+    BUNDLE_SUFFIX,
+    artefact_digests,
+    copy_covering_bundle,
+    holds_bundle,
+)
 from release_provenance import ProvenanceRecordError, require_matching_record
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
     from pathlib import Path
-
-#: The suffix every provenance bundle's name carries.
-_BUNDLE_SUFFIX = ".sigstore.json"
 
 
 def _pypi_fetch_list(
@@ -107,26 +111,6 @@ def unlisted_after_publishing(
     return sorted(name for name in lacking if name not in pypi)
 
 
-def _copy_first_bundle(
-    bundles: Path, github: cabc.Mapping[str, str | None], output: Path
-) -> None:
-    """Copy one bundle into ``output`` only when the Release holds none.
-
-    A run attests its own bytes under a run-unique name so that no asset is
-    overwritten, but a re-run must still upload nothing: the Release already
-    records provenance for the canonical bytes, and attaching a second bundle
-    for a rebuild would describe bytes the Release does not hold. The first
-    bundle to reach the Release is therefore the only one it receives, and the
-    later runs' bundles stay in the attestation store.
-    """
-    if any(name.endswith(_BUNDLE_SUFFIX) for name in github):
-        return
-    for bundle in sorted(bundles.iterdir()):
-        if bundle.name.endswith(_BUNDLE_SUFFIX):
-            shutil.copyfile(bundle, output / bundle.name)
-            return
-
-
 def stage_github(
     state: State,
     bundles: Path,
@@ -176,8 +160,40 @@ def stage_github(
     fetch = _pypi_fetch_list(lacking, state.pypi)
     output.mkdir(parents=True, exist_ok=True)
     _copy_pypi_gap(lacking, state.pypi, state.publish, output)
-    _copy_first_bundle(bundles, state.github, output)
+    # A Release that already holds a bundle is left alone: the first run's
+    # record is the one a consumer checks, and a second run's describes a
+    # rebuild the Release does not hold.
+    if not holds_bundle(state.github):
+        copy_covering_bundle(
+            bundles,
+            artefact_digests(_resulting_assets(state, fetch)),
+            output,
+        )
     return fetch
+
+
+def _resulting_assets(
+    state: State, fetch: cabc.Iterable[tuple[str, str]]
+) -> dict[str, str | None]:
+    """Return the digest map the Release holds once this run's upload lands.
+
+    The bundle is chosen for the *finished* Release, not for the gap: a run
+    that carries PyPI's bytes must attach a bundle naming those bytes, and
+    this run's own bundle names its rebuild instead.
+
+    Returns
+    -------
+    dict[str, str | None]
+        Each name the Release will hold and its digest, or ``None`` where the
+        listing reports none.
+    """
+    assets = dict(state.github)
+    for name, _ in fetch:
+        assets[name] = state.pypi[name].sha256
+    for name in sorted(state.plan().github_uploads):
+        if name not in state.pypi:
+            assets[name] = sha256_of(state.publish / name)
+    return assets
 
 
 def _attached_artefacts(upload: Path) -> list[Path]:
@@ -185,7 +201,7 @@ def _attached_artefacts(upload: Path) -> list[Path]:
     return [
         artefact
         for artefact in sorted(upload.iterdir())
-        if not artefact.name.endswith(_BUNDLE_SUFFIX)
+        if not artefact.name.endswith(BUNDLE_SUFFIX)
     ]
 
 
@@ -245,9 +261,11 @@ def verify(state: State) -> list[str]:
 
     A bundle's name carries the run that wrote it, so a re-run's bundle is
     deliberately absent from the Release and is never compared. What is
-    required is that the Release holds *a* bundle: without one, the assets it
-    carries have no provenance a consumer can check, which is the whole point
-    of publishing an attested release.
+    required here is that the Release holds *a* bundle: without one, the assets
+    it carries have no provenance a consumer can check, which is the whole
+    point of publishing an attested release. That the bundle covers those
+    assets is ``release_bundles.check_release_bundle``'s question, asked of the
+    Release's own downloaded bundle rather than of any local recording.
 
     Returns
     -------
@@ -257,6 +275,6 @@ def verify(state: State) -> list[str]:
     """
     pypi = {name: file.sha256 for name, file in state.pypi.items()}
     problems = mismatches(local_names(state.publish), pypi, state.github)
-    if not any(name.endswith(_BUNDLE_SUFFIX) for name in state.github):
+    if not holds_bundle(state.github):
         problems.append("the GitHub Release holds no provenance bundle")
     return problems
