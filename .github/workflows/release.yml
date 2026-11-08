@@ -24,6 +24,14 @@ concurrency:
   # starts from a complete state, and the reconciliation below makes it safe
   # to repeat.
   cancel-in-progress: false
+  # GitHub keeps one pending run per group by default, so a third push would
+  # silently replace the second. `max` keeps every queued run instead.
+  #
+  # actionlint 1.7.12, the latest release, does not yet know this key and
+  # reports `unexpected key "queue"`. GitHub documents it and validates it, and
+  # the parser fix is still open upstream (rhysd/actionlint#657, PR #661), so
+  # the lint error is the checker lagging, not this file.
+  queue: max
 
 # Every job declares exactly what it needs, so nothing inherits a write scope.
 permissions: {}
@@ -177,6 +185,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      attestations: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -231,6 +240,27 @@ jobs:
               --dir github-state/files
           done < github-state/carryover.txt
 
+      # An asset the Release already holds is carried to PyPI, so its bytes
+      # must be shown to have been built by this repository's release workflow
+      # for this tag. The tag is pinned rather than the commit: a re-pushed tag
+      # legitimately carries bytes built at an older commit, and the
+      # attestation records which one, so the record kept here is the audit
+      # trail for it.
+      - name: Verify the carried assets' provenance
+        id: carried
+        run: |
+          set -euo pipefail
+          mkdir -p github-state/provenance
+          while IFS= read -r name; do
+            [ -n "${name}" ] || continue
+            gh attestation verify "github-state/files/${name}" \
+              --repo "${GH_REPO}" \
+              --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
+              --source-ref "${GITHUB_REF}" \
+              --deny-self-hosted-runners \
+              --format json > "github-state/provenance/${name}.json"
+          done < github-state/carryover.txt
+
       - name: Hand the release state to the publishing jobs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -252,6 +282,12 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    outputs:
+      # Whether this run put anything on PyPI. `publish-release` needs it to
+      # tell a new artefact (absent from an index read before the upload) from
+      # a stale index (absent from an index read after it), which decides
+      # whether local bytes may stand in for PyPI's.
+      uploaded: ${{ steps.pending.outputs.remaining }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -321,7 +357,8 @@ jobs:
           set -euo pipefail
           PYTHONPATH=scripts python3 -m release_assets_cli stage-pypi --publish dist/publish \
             --index pypi-index.json --assets github-state/assets.json \
-            --github-files github-state/files
+            --github-files github-state/files \
+            --provenance github-state/provenance
 
       # pypa's action rather than `uv publish`: with Trusted Publishing it also
       # signs and uploads a PEP 740 attestation for every file, which uv does
@@ -343,10 +380,13 @@ jobs:
       - check-version
       - draft-release
       - publish-pypi
+    # `publish-pypi` reports whether it uploaded, which decides whether an
+    # artefact the index omits may be filled from this run's rebuild.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write
+      attestations: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -381,11 +421,22 @@ jobs:
 
       - name: Stage the assets the release lacks
         id: stage
+        env:
+          PYPI_PUBLISHED: ${{ needs.publish-pypi.outputs.uploaded }}
         run: |
           set -euo pipefail
+          # A run that published has just changed PyPI, and PyPI's index is
+          # cached, so a name it omits now is a stale read. Staging refuses
+          # that rather than filling the gap with this run's rebuild, whose
+          # bytes need not equal the ones PyPI accepted.
+          published=""
+          if [ "${PYPI_PUBLISHED:-}" = "true" ]; then
+            published="--pypi-published"
+          fi
           PYTHONPATH=scripts python3 -m release_assets_cli stage-github --publish dist/publish \
             --index pypi-index.json --assets release-assets.json \
-            --bundles dist/attestations --output github-upload > pypi-fetch.tsv
+            --bundles dist/attestations --output github-upload \
+            ${published:+"${published}"} > pypi-fetch.tsv
           while IFS=$'\t' read -r name url; do
             curl --silent --show-error --location --fail \
               --retry 5 --retry-all-errors --retry-delay 2 \
@@ -399,6 +450,32 @@ jobs:
           PYTHONPATH=scripts python3 -m release_assets_cli check-fetched --publish dist/publish \
             --index pypi-index.json --assets release-assets.json --output github-upload
 
+      # Every file about to be attached must be covered by a verified
+      # attestation, whether this run built it or an earlier run of the tag
+      # did. The commit is deliberately not pinned here: a carried file was
+      # built at whatever commit that earlier run saw, and its attestation
+      # records which one. `check-provenance` requires that record to name a
+      # source commit, so an unattributed build cannot reach the Release.
+      - name: Verify the upload set's provenance
+        id: provenance
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          mkdir -p provenance
+          for file in github-upload/*; do
+            name="$(basename "${file}")"
+            case "${name}" in *.sigstore.json) continue ;; esac
+            gh attestation verify "${file}" \
+              --repo "${GH_REPO}" \
+              --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
+              --source-ref "${GITHUB_REF}" \
+              --deny-self-hosted-runners \
+              --format json > "provenance/${name}.json"
+          done
+          PYTHONPATH=scripts python3 -m release_assets_cli check-provenance \
+            --publish dist/publish --assets release-assets.json \
+            --output github-upload --provenance provenance
+
       # No `--clobber`: an asset the release already holds is canonical.
       - name: Upload the assets the release lacks
         id: upload
@@ -411,8 +488,7 @@ jobs:
           set -euo pipefail
           gh release view "${GITHUB_REF_NAME}" --json assets > release-assets.json
           PYTHONPATH=scripts python3 -m release_assets_cli verify --publish dist/publish \
-            --index pypi-index.json --assets release-assets.json \
-            --bundles dist/attestations
+            --index pypi-index.json --assets release-assets.json
 
       - name: Publish the GitHub Release
         id: publish

@@ -22,7 +22,8 @@ import typing as typ
 
 import pytest
 
-from tests.support.release_clients import FILES_URL, RELEASE_TAG, curl, gh, main
+from tests.support.release_clients import FILES_URL, RELEASE_TAG, curl, gh
+from tests.support.release_fake import main
 from tests.support.release_fakes import FakeRelease, fake_release
 
 if typ.TYPE_CHECKING:
