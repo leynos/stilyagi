@@ -1,9 +1,10 @@
-"""End-to-end logging tests for the structural performance probe command.
+"""Command-line logging tests for the structural performance probe.
 
-These tests spawn ``python -m tests.performance.structural_probe`` against a
-temporary output path, so they verify the documented operator workflow rather
-than the logging calls in isolation. Unit-level record assertions live in
-``tests/test_structural_performance_probe_logging.py``.
+The end-to-end tests spawn ``python -m tests.performance.structural_probe``
+against a temporary output path, so they verify the documented operator
+workflow rather than the logging calls in isolation. The configuration tests
+check that the requested level reaches the logging setup. Unit-level record
+assertions live in ``tests/test_structural_performance_probe_logging.py``.
 
 Run this module with
 ``pytest tests/test_structural_performance_probe_cli_logging.py``.
@@ -15,7 +16,47 @@ import sys
 
 import pytest
 
+from tests.performance import structural_probe
+
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+LOG_FORMAT = "%(levelname)s %(name)s: %(message)s"
+
+
+@pytest.mark.parametrize("log_level", ["DEBUG", "INFO", "WARNING", "ERROR"])
+def test_configure_logging_passes_the_requested_level(
+    log_level: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pass each requested CLI level through to the logging configuration."""
+    calls: list[dict[str, object]] = []
+
+    def fake_basic_config(**kwargs: object) -> None:
+        """Record the logging configuration keyword arguments."""
+        calls.append(kwargs)
+
+    monkeypatch.setattr(structural_probe.logging, "basicConfig", fake_basic_config)
+    structural_probe._configure_logging(log_level)
+
+    assert calls == [{"level": log_level, "format": LOG_FORMAT}], (
+        f"expected the requested level; got {calls}"
+    )
+
+
+def test_configure_logging_is_skipped_without_a_level(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Leave logging unconfigured when the CLI option is absent."""
+    calls: list[dict[str, object]] = []
+
+    def fake_basic_config(**kwargs: object) -> None:
+        """Record the logging configuration keyword arguments."""
+        calls.append(kwargs)
+
+    monkeypatch.setattr(structural_probe.logging, "basicConfig", fake_basic_config)
+    structural_probe._configure_logging(None)
+
+    assert not calls, f"expected no logging configuration; got {calls}"
 
 
 def test_cli_debug_logging_reaches_stderr(tmp_path: pathlib.Path) -> None:

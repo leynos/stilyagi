@@ -52,6 +52,30 @@ def _empty_report() -> structural_probe.ReportPayload:
     )
 
 
+_FIXTURE_RELATIVE_PATHS = (
+    structural_probe.MARKDOWN_FIXTURE,
+    structural_probe.PYTHON_FIXTURE,
+    structural_probe.RUST_FIXTURE,
+)
+
+
+def _copy_fixture_tree(destination: pathlib.Path) -> None:
+    """Copy the representative fixtures into an isolated tree."""
+    for relative in _FIXTURE_RELATIVE_PATHS:
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((REPOSITORY_ROOT / relative).read_bytes())
+
+
+def _tree_snapshot(root: pathlib.Path) -> dict[str, bytes]:
+    """Return every file's bytes beneath a directory tree."""
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+
 def test_discover_fixtures_logs_each_resolved_path(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -62,7 +86,7 @@ def test_discover_fixtures_logs_each_resolved_path(
 
     messages = _messages(caplog)
     for fixture in fixtures:
-        assert f"fixture discovered: path={fixture.path}" in messages, (
+        assert f"fixture discovered: path={fixture.path.resolve()}" in messages, (
             f"expected a discovery log for {fixture.path}; got {messages}"
         )
     assert _level_of(caplog, "fixture discovered: path=") == logging.DEBUG, (
@@ -70,17 +94,49 @@ def test_discover_fixtures_logs_each_resolved_path(
     )
 
 
-def test_discover_structural_fixtures_emits_no_log_records(
+def test_discovery_resolves_logged_paths_for_a_relative_root(
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Keep fixture discovery a quiet, repeatable query."""
+    """Resolve logged paths without changing the query's returned paths."""
+    caplog.set_level(logging.DEBUG, logger=structural_probe_execution.__name__)
+    monkeypatch.chdir(REPOSITORY_ROOT)
+
+    fixtures = structural_probe_execution._discover_fixtures(pathlib.Path())
+
+    messages = _messages(caplog)
+    for fixture in fixtures:
+        assert not fixture.path.is_absolute(), (
+            f"expected the caller's relative path; got {fixture.path}"
+        )
+        assert f"fixture discovered: path={fixture.path.resolve()}" in messages, (
+            f"expected a resolved discovery log for {fixture.path}; got {messages}"
+        )
+
+
+def test_discovery_is_a_quiet_read_only_query(
+    caplog: pytest.LogCaptureFixture,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: pathlib.Path,
+) -> None:
+    """Keep discovery quiet, read-only, and repeatable on success and failure."""
     caplog.set_level(logging.DEBUG)
+    _copy_fixture_tree(tmp_path)
+    before = _tree_snapshot(tmp_path)
 
-    first = structural_probe.discover_structural_fixtures(REPOSITORY_ROOT)
-    second = structural_probe.discover_structural_fixtures(REPOSITORY_ROOT)
+    first = structural_probe.discover_structural_fixtures(tmp_path)
+    second = structural_probe.discover_structural_fixtures(tmp_path)
+    with pytest.raises(FileNotFoundError, match="structural fixture is missing"):
+        structural_probe.discover_structural_fixtures(tmp_path / "empty")
 
-    assert first == second, "expected discovery to be repeatable"
+    captured = capsys.readouterr()
+    assert not captured.out, f"expected no stdout; got {captured.out!r}"
+    assert not captured.err, f"expected no stderr; got {captured.err!r}"
     assert caplog.records == [], f"expected a quiet query; got {_messages(caplog)}"
+    assert first == second, "expected discovery to be repeatable"
+    assert _tree_snapshot(tmp_path) == before, (
+        "expected discovery to leave the fixture tree unchanged"
+    )
 
 
 def test_missing_fixture_is_logged_before_raising(

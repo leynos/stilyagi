@@ -259,14 +259,19 @@ def write_report(report: ReportPayload, output_path: pathlib.Path) -> None:
         raise
 
 
+def _configure_logging(level: str | None) -> None:
+    """Configure root logging when the caller opts in."""
+    if level is not None:
+        logging.basicConfig(
+            level=level,
+            format="%(levelname)s %(name)s: %(message)s",
+        )
+
+
 def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Run the structural performance probe command."""
     args = _argument_parser().parse_args(argv)
-    if args.log_level is not None:
-        logging.basicConfig(
-            level=args.log_level,
-            format="%(levelname)s %(name)s: %(message)s",
-        )
+    _configure_logging(args.log_level)
     if args.child_run:
         from tests.performance.structural_probe_execution import measure_extraction
 

@@ -55,7 +55,7 @@ def _discover_fixtures(root: pathlib.Path) -> tuple[probe.StructuralFixture, ...
         logger.exception("structural fixture discovery failed")
         raise
     for fixture in fixtures:
-        logger.debug("fixture discovered: path=%s", fixture.path)
+        logger.debug("fixture discovered: path=%s", fixture.path.resolve())
     return fixtures
 
 
