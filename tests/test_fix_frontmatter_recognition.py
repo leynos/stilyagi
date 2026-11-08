@@ -168,7 +168,7 @@ _VERIFIED_SEGMENT = {
                 ]
             ),
             "offsets addressing different bytes than its text",
-            id="offset-mismatch",
+            id="offsets-address-different-bytes",
         ),
         pytest.param(
             docs.region(

@@ -710,6 +710,17 @@ region, a region's span is unusable, or the region's text disagrees with the
 bytes it claims — then every fix in that file is refused. The file is treated
 as having metadata that cannot be vouched for, not as having none.
 
+The protection applies to a file, not to a single fix. If any planned edit
+would touch the metadata, every fix for that file is refused, including the
+ones that had nothing to do with it, so the file is left exactly as it was
+rather than partly repaired around the refusal. The guard also runs in the
+other direction: an edit is refused when applying it would leave the result
+opening with a fenced YAML block that the file did not already have. A fix
+cannot create metadata, and therefore cannot create a protected region that
+later edits must work around. Overlapping, unverifiable, and newly created
+metadata are all refused under the same `fix-error/frontmatter-protected`
+identifier.
+
 Two edits that overlap and are not identical are a conflict. **A conflict
 leaves the whole file completely unmodified** — including fixes that had
 nothing to do with the conflict. Resolving the conflict needs a human. This is

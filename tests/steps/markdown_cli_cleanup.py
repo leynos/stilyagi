@@ -18,21 +18,23 @@ if typ.TYPE_CHECKING:
 
 
 @given(
-    "a project with a populated cache and an outside symlink",
+    "a project with a populated cache and outside symlinks",
     target_fixture="markdown_inspection_state",
 )
 def project_with_cache_and_outside_symlink(
     markdown_inspection_state: MarkdownInspectionState,
 ) -> MarkdownInspectionState:
-    """Populate owned cache state and plant a link out of it and into it.
+    """Populate owned cache state and plant links out of it and into it.
 
-    Two links are planted, because they prove different things. The one in the
-    project root is never visited -- cleanup only descends into real
+    Three links are planted, because they prove different things. The one in
+    the project root is never visited -- cleanup only descends into real
     directories -- so it proves nothing about following links and is kept as a
-    plain preservation check. The one inside the owned namespace *is* visited,
-    on the entry loop that deletes owned leaves, and that is where a follow
-    would reach an outside file. Its target lives outside the project, so any
-    byte it loses would have to have been reached through the link.
+    plain preservation check. Two go inside the owned namespace, where the
+    entry loop that deletes owned leaves does visit them; both point outside
+    the project, so any byte lost would have to have been reached through a
+    link. Their names differ in the one way that matters: the unrecognized one
+    is skipped before any unlink is considered, while the recognized one
+    reaches the unlink and proves it removes the link rather than its target.
 
     Returns
     -------
@@ -59,7 +61,7 @@ def project_with_cache_and_outside_symlink(
     _run_cli(markdown_inspection_state, "check", "docs/notes.md")
     completed = _last_run(markdown_inspection_state)
     assert completed.returncode == 0, "expected the cache-populating check to pass"
-    _plant_link_inside_owned_namespace(markdown_inspection_state, outside_target)
+    _plant_links_inside_owned_namespace(markdown_inspection_state, outside_target)
     return markdown_inspection_state
 
 
@@ -68,17 +70,29 @@ def project_with_cache_and_outside_symlink(
 #: entry would be an owned leaf, not a link the traversal declined to follow.
 _NAMESPACE_LINK_NAME = "inside-link.md"
 
+#: A recognized cache-entry name, so the link reaches the unlink branch. All
+#: zeros cannot collide with a real entry, whose key is a source digest.
+_RECOGNIZED_LINK_NAME = f"{'0' * 64}.json"
 
-def _plant_link_inside_owned_namespace(
+
+def _plant_links_inside_owned_namespace(
     state: MarkdownInspectionState,
     outside_target: pathlib.Path,
 ) -> None:
-    """Place one file symlink inside the populated namespace, before cleanup."""
+    """Place both file symlinks inside the populated namespace, before cleanup."""
     namespace = _root(state) / ".stilyagi_cache" / "stilyagi-v1"
     assert namespace.is_dir(), "expected the check to create the owned namespace"
-    link = namespace / _NAMESPACE_LINK_NAME
+    recognized_target = _root(state).parent / "outside-entry-target.json"
+    recognized_target.write_bytes(b'{"outside":"entry stays unchanged"}\n')
+    state["recognized_link_target"] = recognized_target
+    _symlink_or_skip(namespace / _NAMESPACE_LINK_NAME, outside_target)
+    _symlink_or_skip(namespace / _RECOGNIZED_LINK_NAME, recognized_target)
+
+
+def _symlink_or_skip(link: pathlib.Path, target: pathlib.Path) -> None:
+    """Create one file symlink, skipping the scenario where links are unsupported."""
     try:
-        link.symlink_to(outside_target)
+        link.symlink_to(target)
     except OSError as error:
         pytest.skip(f"file symlinks are unavailable: {error}")
 
@@ -90,7 +104,7 @@ def clean_project_twice(markdown_inspection_state: MarkdownInspectionState) -> N
     _run_cli(markdown_inspection_state, "clean")
 
 
-@then("cleanup removes only cache state and preserves both targets")
+@then("cleanup removes only cache state and preserves every outside target")
 def cleanup_is_bounded_and_repeatable(
     markdown_inspection_state: MarkdownInspectionState,
 ) -> None:
@@ -103,11 +117,12 @@ def cleanup_is_bounded_and_repeatable(
 
     assert first.returncode == 0, "expected the first cleanup to succeed"
     assert second.returncode == 0, "expected repeated cleanup to succeed"
+    # Two owned leaves go: the entry the check wrote and the recognized link.
     # The unrecognized link is preserved, so the namespace keeps its marker and
-    # itself: the owned leaf goes, but no namespace is claimed as removed.
-    assert "cleaned 1 cache files in 0 namespaces; preserved 1 unknown entries" in (
+    # itself: no namespace is claimed as removed.
+    assert "cleaned 2 cache files in 0 namespaces; preserved 1 unknown entries" in (
         first.stdout.decode()
-    ), "expected the owned entry removed, the marker kept and the link preserved"
+    ), "expected both owned leaves removed, the marker kept and the link preserved"
     assert "cleaned 0 cache files in 0 namespaces; preserved 1 unknown entries" in (
         second.stdout.decode()
     ), "expected repeated cleanup to find nothing further to remove"
@@ -120,6 +135,9 @@ def cleanup_is_bounded_and_repeatable(
     assert (cache_namespace / _NAMESPACE_LINK_NAME).is_symlink(), (
         "an unrecognized link inside the namespace must not be unlinked"
     )
+    assert not (cache_namespace / _RECOGNIZED_LINK_NAME).is_symlink(), (
+        "a recognized link must be unlinked along with the other owned leaves"
+    )
     for relative_path, original in markdown_inspection_state["sources"].items():
         assert (
             _root(markdown_inspection_state) / relative_path
@@ -127,4 +145,8 @@ def cleanup_is_bounded_and_repeatable(
     outside_target = markdown_inspection_state["outside_target"]
     assert outside_target.read_bytes() == b"outside target stays unchanged\n", (
         "expected cleanup not to follow the outside symlink"
+    )
+    recognized_target = markdown_inspection_state["recognized_link_target"]
+    assert recognized_target.read_bytes() == b'{"outside":"entry stays unchanged"}\n', (
+        "expected the unlink of a recognized link to remove the link, not its target"
     )

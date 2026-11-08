@@ -620,6 +620,14 @@ a join is admissible on the same terms as one inside either half. An edit
 failing any condition is refused by name, the file is left completely
 unmodified, and the refusal is reported as described below.
 
+The containment rule has exactly one qualification: a zero-width insertion at
+the offset just past a protected frontmatter prefix is admissible although it
+is not contained in a source-backed segment. It still has to satisfy every
+other condition, so its position must be a valid bound in the source and sit on
+a UTF-8 boundary. No non-zero-width edit, and no insertion anywhere else, is
+admitted outside a source-backed segment. Frontmatter protection below explains
+why that one position is singled out.
+
 One consequence deserves stating plainly: **a heading-depth rule cannot be
 auto-fixed under this model.** The source-backed segment of `## Section` is
 `Section`; the `##` marker belongs to no source-backed segment, so no
@@ -641,12 +649,13 @@ body that follows. The guard runs ahead of the source-backed test because the
 prefix is a region, not a body segment, and the segment test would otherwise
 refuse every edit in a frontmatter file by accident.
 
-There is exactly one suspension of the bound. A zero-width insertion at the
-offset just past the closing line ending touches the prefix at no byte, so the
-overlap test would call it contained; it is nevertheless the one position where
-insertion continues to be admissible. That offset is the start of the body, so
-the inserted text precedes the body rather than entering the metadata. Every
-other edit inside the prefix, and every replacement or deletion that intersects
+There is exactly one suspension of the bound. The overlap test treats the
+protected prefix as half-open, so a zero-width insertion at the offset just
+past the closing line ending touches it at no byte and is *not* reported as
+overlapping; that offset is nevertheless the one position where insertion
+continues to be admissible. That offset is the start of the body, so the
+inserted text precedes the body rather than entering the metadata. Every other
+insertion inside the prefix, and every replacement or deletion that intersects
 it, is refused.
 
 Recognition can also fail: a file may carry more than one candidate region, a
@@ -657,7 +666,10 @@ leave it intact, every edit in the file is refused. Only the absence of any
 frontmatter region leaves a file unguarded. The same reasoning governs the
 after-the-fact check: a planned replacement is re-extracted and its prefix
 compared with the original, and a side that cannot be verified counts as
-changed, so a plan cannot reach a file whose metadata it cannot vouch for.
+changed, so a plan cannot reach a file whose metadata it cannot vouch for. The
+comparison is symmetric: a replacement that drops a verified prefix and one
+that introduces a prefix where the source had none both count as changed, so a
+repair cannot create metadata by writing a fenced block at the top of a body.
 
 **Refusals are not rule codes.** They are engine reports about a rule's
 defective output, so they travel on a separate channel: a `fix_errors` array

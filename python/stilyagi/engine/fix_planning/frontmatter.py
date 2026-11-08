@@ -35,8 +35,9 @@ class YamlFrontmatter:
         The region's byte range in the source, excluding any closing line
         ending, or ``None`` when the region cannot be verified.
     protected_end:
-        The offset just past one closing CRLF, LF, or CR, which is the end of
-        the prefix an edit must not touch, or ``None`` when unverified.
+        The offset just past one closing CRLF, LF, or CR ending -- when one is
+        present -- which is the end of the prefix an edit must not touch, or
+        ``None`` when unverified.
     prefix_bytes:
         The source bytes from ``span.byte_start`` to ``protected_end``, kept
         for the before-and-after comparison, or ``None`` when unverified.
@@ -115,9 +116,12 @@ def edit_conflicts_with_frontmatter(
 
     Overlap is judged against the whole protected prefix, closing line ending
     included, because a rule that consumed that ending would join the metadata
-    to the body it precedes. An insertion is contained when its zero-width
-    position lies inside the half-open prefix; a replacement or removal when
-    its range intersects it.
+    to the body it precedes. An insertion overlaps when its zero-width position
+    lies inside the half-open prefix; a replacement or removal when its range
+    intersects it. A zero-width position exactly at ``protected_end`` lies
+    outside that half-open range and does not overlap, which is why
+    :func:`is_frontmatter_boundary_insertion` exists to suspend the bound there
+    instead of relying on this test.
 
     Parameters
     ----------
@@ -171,8 +175,8 @@ def is_frontmatter_boundary_insertion(
     r"""Return whether an insertion sits just after the protected prefix.
 
     A zero-width edit at ``protected_end`` touches the prefix at neither byte,
-    so the overlap test calls it contained; it is nevertheless the one place
-    the admissibility bound has to be suspended. The prefix ends with its
+    so the overlap test answers ``False`` for it; it is nevertheless the one
+    place the admissibility bound has to be suspended. The prefix ends with its
     closing line ending, so the position is the start of the body, and text
     inserted there precedes the body rather than entering the metadata.
 
@@ -195,10 +199,12 @@ def is_frontmatter_boundary_insertion(
     >>> from stilyagi.engine import ir_view
     >>> from stilyagi.fixes import TextEdit
     >>> block = b"---\ntitle: x\n---\n"
-    >>> known = YamlFrontmatter(ir_view.SourceSpan(0, 19), 20, block)
-    >>> is_frontmatter_boundary_insertion(TextEdit(20, 20, "!"), known)
+    >>> len(block)
+    17
+    >>> known = YamlFrontmatter(ir_view.SourceSpan(0, 16), 17, block)
+    >>> is_frontmatter_boundary_insertion(TextEdit(17, 17, "!"), known)
     True
-    >>> is_frontmatter_boundary_insertion(TextEdit(19, 19, "!"), known)
+    >>> is_frontmatter_boundary_insertion(TextEdit(16, 16, "!"), known)
     False
     """
     return (

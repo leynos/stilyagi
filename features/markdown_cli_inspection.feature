@@ -35,6 +35,6 @@ Feature: Inspect and maintain Markdown CLI state
     Then the changed check misses and dump spans match current bytes
 
   Scenario: Clean owned cache state twice
-    Given a project with a populated cache and an outside symlink
+    Given a project with a populated cache and outside symlinks
     When I clean the project twice
-    Then cleanup removes only cache state and preserves both targets
+    Then cleanup removes only cache state and preserves every outside target
