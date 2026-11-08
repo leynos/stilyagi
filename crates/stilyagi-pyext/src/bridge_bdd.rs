@@ -15,6 +15,7 @@ use super::{
     hello,
     tests::payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text},
 };
+use crate::check_metrics::with_metrics_test_lock;
 
 /// Unwrap an `Ok` inside a `then` step or assertion helper, panicking with
 /// the caller's location. Not for `given`/`when` steps, which return `Err`.
@@ -47,6 +48,7 @@ struct BridgeState {
     expected_document_text: Option<String>,
 }
 
+/// Provides the per-scenario state shared by the bridge steps.
 #[fixture]
 fn bridge_state() -> BridgeState {
     BridgeState {
@@ -57,38 +59,51 @@ fn bridge_state() -> BridgeState {
     }
 }
 
+/// Runs one bridge extraction and stores the resulting document.
+///
+/// Extraction records into process-global metrics counters, so the call is
+/// serialized against the metrics snapshot tests that reset and read those
+/// counters.
 fn perform_extraction(source: &str, syntax: &str, bridge_state: &mut BridgeState) -> PyResult<()> {
-    let document = Python::attach(|py| {
-        let args = PyTuple::new(py, [source, syntax])?;
-        extract_document_py(py, &args)
+    let document = with_metrics_test_lock(|| {
+        Python::attach(|py| {
+            let args = PyTuple::new(py, [source, syntax])?;
+            extract_document_py(py, &args)
+        })
     })?;
     bridge_state.extracted_document = Some(document);
     Ok(())
 }
 
+/// Records the greeting the core crate exposes for comparison.
 #[given("the bridge can call the shared smoke greeting")]
 fn bridge_can_call_the_shared_smoke_greeting(bridge_state: &mut BridgeState) {
     bridge_state.core_greeting = Some(stilyagi_core::smoke_hello());
 }
 
+/// Records the greeting produced through the PyO3 bridge.
 #[when("the bridge produces a hello greeting")]
 fn bridge_produces_a_hello_greeting(bridge_state: &mut BridgeState) {
     bridge_state.bridge_greeting = Some(hello());
 }
 
+/// Asserts the bridge and core greetings agree.
 #[then("the greeting matches the core crate greeting")]
 fn greeting_matches_the_core_crate_greeting(bridge_state: &BridgeState) {
     assert_eq!(bridge_state.bridge_greeting, bridge_state.core_greeting);
 }
 
+/// Asserts the legacy Python greeting is not in use.
 #[then("the greeting is not the legacy Python fallback")]
 fn greeting_is_not_the_legacy_python_fallback(bridge_state: &BridgeState) {
     assert_ne!(bridge_state.bridge_greeting, Some("hello from Python"));
 }
 
+/// Establishes the precondition that the extraction entrypoint is exported.
 #[given("the bridge can call the Rust extraction entrypoint")]
 fn bridge_can_call_the_rust_extraction_entrypoint() {}
 
+/// Extracts the inline Markdown heading through the bridge.
 #[when("the bridge extracts a Markdown document")]
 fn bridge_extracts_a_markdown_document(bridge_state: &mut BridgeState) -> StepResult {
     perform_extraction("# Heading", "markdown", bridge_state)?;
@@ -96,6 +111,7 @@ fn bridge_extracts_a_markdown_document(bridge_state: &mut BridgeState) -> StepRe
     Ok(())
 }
 
+/// Extracts the shared Markdown corpus fixture through the bridge.
 #[when("the bridge extracts the shared Markdown fixture")]
 fn bridge_extracts_the_shared_markdown_fixture(bridge_state: &mut BridgeState) -> StepResult {
     let source = read_corpus_fixture(SHARED_MARKDOWN_FIXTURE_PATH)?;
@@ -105,6 +121,7 @@ fn bridge_extracts_the_shared_markdown_fixture(bridge_state: &mut BridgeState) -
     Ok(())
 }
 
+/// Extracts a whitespace-only Markdown document through the bridge.
 #[when("the bridge extracts a blank Markdown document")]
 fn bridge_extracts_a_blank_markdown_document(bridge_state: &mut BridgeState) -> StepResult {
     perform_extraction("   \n", "markdown", bridge_state)?;
@@ -112,6 +129,7 @@ fn bridge_extracts_a_blank_markdown_document(bridge_state: &mut BridgeState) -> 
     Ok(())
 }
 
+/// Pins the syntax field the bridge reports for a Markdown extraction.
 #[then("the extracted document reports Markdown syntax")]
 fn extracted_document_reports_markdown_syntax(bridge_state: &BridgeState) {
     let extracted_document = must_some!(
@@ -121,19 +139,48 @@ fn extracted_document_reports_markdown_syntax(bridge_state: &BridgeState) {
 
     Python::attach(|py| {
         let document = extracted_document.bind(py);
+        let syntax = must_ok!(dict_string(document, "syntax"), "missing syntax payload");
 
-        assert_eq!(
-            must_ok!(dict_string(document, "syntax"), "missing syntax payload"),
-            "markdown",
+        insta::assert_json_snapshot!(
+            "markdown_syntax_payload",
+            serde_json::json!({ "syntax": syntax })
         );
+        assert_eq!(syntax, "markdown");
     });
 }
 
+/// Checks the region structurally and pins the whole bridge payload.
 #[then("the extracted document preserves one source-backed region")]
 fn extracted_document_preserves_one_source_backed_region(bridge_state: &BridgeState) {
     assert_expected_document_payload(bridge_state, assert_source_backed_region_payload);
+    assert_expected_document_payload(bridge_state, snapshot_document_payload);
 }
 
+/// Snapshot the whole bridge payload for the rendered Markdown scenario.
+///
+/// The scenario carries every payload field, so the snapshot pins the bridge
+/// shape itself: syntax, region kind and text, and the canonical IR JSON,
+/// which `document_payload_with_ir` embeds as structured JSON rather than the
+/// escaped string the bridge transports. The document content hash and
+/// producer version are redacted because they belong to the IR golden
+/// snapshots, not to the bridge contract, and would otherwise churn the
+/// bridge snapshot on a dependency bump.
+fn snapshot_document_payload(
+    py: Python<'_>,
+    extracted_document: &Py<PyDict>,
+    _expected_text: &str,
+) {
+    insta::assert_json_snapshot!(
+        "markdown_document_payload",
+        super::tests::document_payload_with_ir(extracted_document.bind(py)),
+        {
+            ".ir_json.document.content_hash" => "[CONTENT_HASH]",
+            ".ir_json.producers[].version" => "[PRODUCER_VERSION]",
+        }
+    );
+}
+
+/// Runs one payload assertion against the scenario's extracted document.
 fn assert_expected_document_payload(
     bridge_state: &BridgeState,
     assertion: impl FnOnce(Python<'_>, &Py<PyDict>, &str),
@@ -150,6 +197,7 @@ fn assert_expected_document_payload(
     Python::attach(|py| assertion(py, extracted_document, expected_text));
 }
 
+/// Asserts a blank Markdown extraction carries no regions.
 #[then("the extracted document has no regions")]
 fn extracted_document_has_no_regions(bridge_state: &BridgeState) {
     let extracted_document = must_some!(
@@ -167,6 +215,7 @@ fn extracted_document_has_no_regions(bridge_state: &BridgeState) {
     });
 }
 
+/// Asserts the bridge payload and canonical IR agree on the heading region.
 fn assert_source_backed_region_payload(
     py: Python<'_>,
     extracted_document: &Py<PyDict>,
@@ -181,6 +230,7 @@ fn assert_source_backed_region_payload(
     assert_canonical_ir_preserves_one_source_backed_heading(document, expected_text);
 }
 
+/// Asserts a region dictionary holds the expected kind and text.
 fn assert_heading_region_payload(region: &Bound<'_, PyDict>, expected_text: &str) {
     assert_eq!(
         must_ok!(region_kind_and_text(region), "expected region strings"),
@@ -188,6 +238,7 @@ fn assert_heading_region_payload(region: &Bound<'_, PyDict>, expected_text: &str
     );
 }
 
+/// Parses the canonical IR payload and returns its regions.
 fn canonical_ir_regions(extracted_document: &Bound<'_, PyDict>) -> PyResult<Vec<Value>> {
     let parsed = parse_ir_json(&dict_string(extracted_document, "ir_json")?)?;
     parsed
@@ -197,6 +248,7 @@ fn canonical_ir_regions(extracted_document: &Bound<'_, PyDict>) -> PyResult<Vec<
         .ok_or_else(|| PyKeyError::new_err("canonical IR regions array"))
 }
 
+/// Asserts the canonical IR holds one source-backed heading region.
 fn assert_canonical_ir_preserves_one_source_backed_heading(
     extracted_document: &Bound<'_, PyDict>,
     expected_text: &str,
@@ -211,6 +263,7 @@ fn assert_canonical_ir_preserves_one_source_backed_heading(
     assert_single_source_backed_segment(region, expected_text);
 }
 
+/// Asserts a canonical IR region is a heading with the expected text.
 fn assert_canonical_heading_region(region: &Value, expected_text: &str) {
     assert_eq!(
         region.get("kind"),
@@ -222,6 +275,7 @@ fn assert_canonical_heading_region(region: &Value, expected_text: &str) {
     );
 }
 
+/// Asserts a region carries one source-backed, non-synthetic segment.
 fn assert_single_source_backed_segment(region: &Value, expected_text: &str) {
     let segments = must_some!(
         region.get("segments").and_then(Value::as_array),
@@ -240,6 +294,7 @@ fn assert_single_source_backed_segment(region: &Value, expected_text: &str) {
     assert_eq!(segment.get("synthetic"), Some(&Value::Null));
 }
 
+/// Asserts the first bridge region is the expected heading.
 fn assert_first_region_payload(
     py: Python<'_>,
     extracted_document: &Py<PyDict>,
@@ -254,11 +309,13 @@ fn assert_first_region_payload(
     assert_heading_region_payload(&first_region, expected_text);
 }
 
+/// Checks the shared fixture extraction kept its heading region.
 #[then("the extracted document preserves the shared Markdown fixture")]
 fn extracted_document_preserves_the_shared_markdown_fixture(bridge_state: &BridgeState) {
     assert_expected_document_payload(bridge_state, assert_first_region_payload);
 }
 
+/// Runs the greeting-delegation scenario.
 #[scenario(
     path = "tests/features/bridge_structure.feature",
     name = "Bridge delegates the smoke greeting to the core crate"
@@ -268,6 +325,7 @@ fn bridge_delegates_the_smoke_greeting_to_the_core_crate(
 ) {
 }
 
+/// Runs the legacy-greeting rejection scenario.
 #[scenario(
     path = "tests/features/bridge_structure.feature",
     name = "Bridge greeting is not the legacy Python fallback"
@@ -277,6 +335,7 @@ fn bridge_greeting_is_not_the_legacy_python_fallback(
 ) {
 }
 
+/// Runs the Markdown extraction scenario.
 #[scenario(
     path = "tests/features/bridge_structure.feature",
     name = "Bridge extracts a Markdown document through the Rust boundary"
@@ -286,6 +345,7 @@ fn bridge_extracts_a_markdown_document_through_the_rust_boundary(
 ) {
 }
 
+/// Runs the shared-fixture extraction scenario.
 #[scenario(
     path = "tests/features/bridge_structure.feature",
     name = "Bridge extracts the shared Markdown fixture through the Rust boundary"
@@ -295,6 +355,7 @@ fn bridge_extracts_the_shared_markdown_fixture_through_the_rust_boundary(
 ) {
 }
 
+/// Runs the blank-Markdown scenario.
 #[scenario(
     path = "tests/features/bridge_structure.feature",
     name = "Bridge yields no regions for blank Markdown"

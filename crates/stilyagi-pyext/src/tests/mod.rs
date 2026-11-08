@@ -1,4 +1,10 @@
 //! Tests for the Python extension bridge payload and error mapping.
+//!
+//! The payload assertions snapshot a canonical, stable rendering of each
+//! `PyDict` rather than `Bound`'s `repr()`, which can change with the
+//! interpreter and with any object whose repr embeds an address. Projections
+//! omit the canonical IR JSON where a structural assertion already covers it;
+//! see the snapshot workflow in the developers' guide.
 
 pub(crate) mod payload;
 mod rust_doc_comment;
@@ -13,10 +19,23 @@ use payload::{
 };
 use pyo3::{
     exceptions::{PyRuntimeError, PyTypeError, PyValueError},
-    prelude::{Py, PyResult, Python},
-    types::{PyAnyMethods, PyDict, PyListMethods, PyTuple},
+    prelude::{Bound, Py, PyResult, Python},
+    types::{
+        PyAny,
+        PyAnyMethods,
+        PyBool,
+        PyBoolMethods,
+        PyDict,
+        PyDictMethods,
+        PyInt,
+        PyList,
+        PyListMethods,
+        PyTuple,
+        PyTypeMethods,
+    },
 };
 use rstest::rstest;
+use serde_json::json;
 use stilyagi_extract::{
     ExtractError,
     ExtractSyntax,
@@ -35,11 +54,114 @@ use super::{
     supported_region_kinds_py,
     supported_syntaxes_py,
 };
+use crate::check_metrics::with_metrics_test_lock;
 
+/// Renders one payload value with its primitive type preserved.
+///
+/// Strings, booleans, and integers map to the matching JSON types, and a list
+/// of region dicts becomes a JSON array. Order matters: Python's `bool` is a
+/// subclass of `int`, so the boolean check must come before the exact-integer
+/// one. An unsupported type panics rather than being stringified, so a bridge
+/// field that changes from the integer `1` to a list (or any other unsupported
+/// type) fails here instead of passing a snapshot that renders both alike.
+fn rendered_value(value: &Bound<'_, PyAny>) -> serde_json::Value {
+    if let Ok(text) = value.extract::<String>() {
+        return serde_json::Value::String(text);
+    }
+    if let Ok(flag) = value.cast::<PyBool>() {
+        return serde_json::Value::Bool(flag.is_true());
+    }
+    if value.is_exact_instance_of::<PyInt>() {
+        let number = value
+            .extract::<i64>()
+            .expect("expected payload integers to fit in i64");
+        return serde_json::Value::from(number);
+    }
+    if let Ok(list) = value.cast::<PyList>() {
+        return list_json(list);
+    }
+
+    let rendered_type = value
+        .get_type()
+        .name()
+        .map_or_else(|_| "<unavailable>".to_owned(), |name| name.to_string());
+    panic!("payload value type is not supported by the projection: {rendered_type}");
+}
+
+/// Renders one `PyDict` as a stable JSON object.
+///
+/// Members keep their primitive JSON type through [`rendered_value`]: strings
+/// stay strings, booleans and integers stay booleans and integers, and lists
+/// of region dicts become arrays of objects. An unsupported value type panics,
+/// so the projection cannot quietly flatten a type change into a string.
+fn dictionary_json(dictionary: &Bound<'_, PyDict>) -> serde_json::Value {
+    let mut rendered = serde_json::Map::new();
+    for (key, value) in dictionary.iter() {
+        let rendered_key = key
+            .extract::<String>()
+            .expect("expected payload keys to be strings");
+        rendered.insert(rendered_key, rendered_value(&value));
+    }
+    serde_json::Value::Object(rendered)
+}
+
+/// Renders a list of region dictionaries as a JSON array.
+fn list_json(list: &Bound<'_, PyList>) -> serde_json::Value {
+    let items = list
+        .iter()
+        .map(|item| {
+            let region = item
+                .cast::<PyDict>()
+                .expect("expected list items to be region dicts");
+            dictionary_json(region)
+        })
+        .collect::<Vec<_>>();
+    serde_json::Value::Array(items)
+}
+
+/// Returns the bridge document payload as a stable, snapshot-friendly value.
+///
+/// The canonical IR JSON is dropped without being parsed: it records the full
+/// document, so snapshotting it here would duplicate an existing golden-IR
+/// snapshot and bury the bridge shape in hundreds of lines of IR. A caller
+/// that needs the IR keeps a structural assertion beside the snapshot.
+pub(super) fn document_payload(payload: &Bound<'_, PyDict>) -> serde_json::Value {
+    let mut rendered = dictionary_json(payload);
+    if let serde_json::Value::Object(ref mut map) = rendered {
+        map.remove("ir_json");
+    }
+    rendered
+}
+
+/// Returns the whole bridge payload with its canonical IR JSON parsed.
+///
+/// Unlike [`document_payload`], this keeps `ir_json` and replaces the
+/// transported string with structured JSON. A string serde cannot parse is a
+/// bridge contract violation, so the projection panics with the parser's
+/// error instead of snapshotting a silently different shape.
+pub(super) fn document_payload_with_ir(payload: &Bound<'_, PyDict>) -> serde_json::Value {
+    let mut rendered = dictionary_json(payload);
+    let Some(map) = rendered.as_object_mut() else {
+        return rendered;
+    };
+    let Some(serde_json::Value::String(ir_json)) = map.get("ir_json").cloned() else {
+        return rendered;
+    };
+    let parsed = match serde_json::from_str::<serde_json::Value>(&ir_json) {
+        Ok(parsed) => parsed,
+        Err(error) => panic!("bridge ir_json is not valid JSON: {error}"),
+    };
+    map.insert("ir_json".to_owned(), parsed);
+    rendered
+}
+
+/// Extracts a document through the PyO3 entrypoint with Python attached.
 fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
-    Python::attach(|py| {
-        let args = PyTuple::new(py, [source, syntax])?;
-        extract_document_py(py, &args)
+    with_metrics_test_lock(|| {
+        Python::attach(|py| {
+            let args = PyTuple::new(py, [source, syntax])?;
+            extract_document_py(py, &args)
+        })
     })
 }
 
@@ -69,6 +191,10 @@ fn ir_contract_violations(parsed: &serde_json::Value) -> Vec<&'static str> {
     .collect()
 }
 
+/// Asserts the minimum envelope every canonical IR payload must carry.
+///
+/// This stays outside the snapshots so a missing or renamed key fails on its
+/// own terms rather than being masked by a snapshot update.
 #[track_caller]
 fn assert_ir_json_contract(parsed: &serde_json::Value) {
     assert_eq!(
@@ -78,21 +204,30 @@ fn assert_ir_json_contract(parsed: &serde_json::Value) {
     );
 }
 
+/// Collects the expected spellings for a vocabulary comparison.
 fn expected_strings<'a>(values: impl IntoIterator<Item = &'a str>) -> Vec<String> {
     values.into_iter().map(str::to_owned).collect()
 }
 
+/// The bridge greeting must be the same value the core crate exposes.
 #[rstest]
 fn hello_delegates_to_the_core_smoke_greeting() {
     assert_eq!(hello(), stilyagi_core::smoke_hello());
 }
 
+/// A stale Python implementation must not shadow the Rust greeting.
 #[rstest]
 #[case("hello from Python")]
 fn hello_is_not_the_legacy_python_fallback(#[case] legacy_fallback: &str) {
     assert_ne!(hello(), legacy_fallback);
 }
 
+/// The bridge's supported syntaxes must mirror `ExtractSyntax::ALL`.
+///
+/// The snapshot pins the wire spelling, while the comparison beside it keeps
+/// the relationship to the Rust vocabulary. Without that comparison a
+/// vocabulary change the bridge did not export would still match the old
+/// snapshot and pass.
 #[rstest]
 fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
     Python::attach(|py| {
@@ -106,9 +241,14 @@ fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
             .expect("supported_syntaxes should return a tuple of strings");
 
         assert_eq!(actual, expected);
+        insta::assert_json_snapshot!("supported_syntaxes", json!(actual));
     });
 }
 
+/// The bridge's supported region kinds must mirror `IrRegionKind::ALL`.
+///
+/// See [`supported_syntaxes_follow_the_rust_extraction_vocabulary`] for why the
+/// semantic comparison sits beside the snapshot.
 #[rstest]
 fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
     Python::attach(|py| {
@@ -118,9 +258,14 @@ fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
             .expect("supported_region_kinds should return a tuple of strings");
 
         assert_eq!(actual, expected);
+        insta::assert_json_snapshot!("supported_region_kinds", json!(actual));
     });
 }
 
+/// The bridge's authored-directive error codes must mirror the Rust constants.
+///
+/// See [`supported_syntaxes_follow_the_rust_extraction_vocabulary`] for why the
+/// semantic comparison sits beside the snapshot.
 #[rstest]
 fn authored_directive_error_codes_follow_the_rust_ir_vocabulary() {
     Python::attach(|py| {
@@ -129,9 +274,11 @@ fn authored_directive_error_codes_follow_the_rust_ir_vocabulary() {
             .expect("authored_directive_error_codes should return a tuple of strings");
 
         assert_eq!(actual, expected);
+        insta::assert_json_snapshot!("authored_directive_error_codes", json!(actual));
     });
 }
 
+/// The exported function must reject keyword arguments it does not accept.
 #[rstest]
 fn extract_document_function_rejects_unexpected_kwargs() {
     Python::attach(|py| {
@@ -150,31 +297,44 @@ fn extract_document_function_rejects_unexpected_kwargs() {
     });
 }
 
+/// A Markdown extraction must expose the documented bridge payload shape.
 #[rstest]
 fn extract_document_py_exposes_markdown_document() {
-    Python::attach(|py| {
-        let args = PyTuple::new(py, ["# Heading", "markdown"]).expect("expected argument tuple");
-        let extracted = extract_document_py(py, &args).expect("Markdown extraction should succeed");
-        let document = extracted.bind(py);
-        let regions = dict_list(document, "regions").expect("Markdown regions should be a list");
-        let first_region =
-            list_dict_at(&regions, 0).expect("first Markdown region should be a dict");
+    with_metrics_test_lock(|| {
+        Python::attach(|py| {
+            let args =
+                PyTuple::new(py, ["# Heading", "markdown"]).expect("expected argument tuple");
+            let extracted =
+                extract_document_py(py, &args).expect("Markdown extraction should succeed");
+            let document = extracted.bind(py);
+            let regions =
+                dict_list(document, "regions").expect("Markdown regions should be a list");
+            let first_region =
+                list_dict_at(&regions, 0).expect("first Markdown region should be a dict");
 
-        assert_eq!(
-            dict_string(document, "syntax").expect("syntax payload should be a string"),
-            ExtractSyntax::Markdown.as_str(),
-        );
-        assert_eq!(regions.len(), 1);
-        assert_eq!(
-            region_kind_and_text(&first_region).expect("region should carry kind and text"),
-            ("heading".to_owned(), "Heading".to_owned()),
-        );
-        let ir_json = dict_string(document, "ir_json").expect("IR payload should be a string");
-        let parsed = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
-        assert_ir_json_contract(&parsed);
+            insta::assert_json_snapshot!(
+                "extract_document_py__markdown_payload",
+                document_payload(document)
+            );
+
+            assert_eq!(
+                dict_string(document, "syntax").expect("syntax payload should be a string"),
+                ExtractSyntax::Markdown.as_str(),
+            );
+            assert_eq!(regions.len(), 1);
+            assert_eq!(
+                region_kind_and_text(&first_region).expect("region should carry kind and text"),
+                ("heading".to_owned(), "Heading".to_owned()),
+            );
+            let ir_json = dict_string(document, "ir_json").expect("IR payload should be a string");
+            let parsed = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
+            assert_ir_json_contract(&parsed);
+        });
     });
 }
 
+/// Python docstring extraction must preserve both the module and function
+/// regions.
 #[rstest]
 fn extract_document_py_exposes_python_docstrings() {
     let source = "\"\"\"Module docs.\"\"\"\n\ndef example():\n    \"\"\"Function docs.\"\"\"\n";
@@ -190,6 +350,11 @@ fn extract_document_py_exposes_python_docstrings() {
                 region_kind_and_text(&region).expect("region should carry kind and text")
             })
             .collect::<Vec<_>>();
+
+        insta::assert_json_snapshot!(
+            "extract_document_py__python_docstring_payload",
+            document_payload(document_dict)
+        );
 
         assert_eq!(
             dict_string(document_dict, "syntax").expect("syntax payload should be a string"),
@@ -212,9 +377,14 @@ fn extract_document_py_exposes_python_docstrings() {
 /// Keep rejection behaviour stable for both unsupported and unknown syntax
 /// strings.
 #[rstest]
-#[case("not_a_syntax", "not_a_syntax")]
+#[case(
+    "not_a_syntax",
+    "extract_document_py__invalid_syntax_error",
+    "not_a_syntax"
+)]
 fn extract_document_py_rejects_invalid_syntaxes(
     #[case] syntax: &str,
+    #[case] snapshot_name: &str,
     #[case] expected_fragment: &str,
 ) {
     let err = bridge_extract_document("Example", syntax)
@@ -223,6 +393,7 @@ fn extract_document_py_rejects_invalid_syntaxes(
         err.to_string().contains(expected_fragment),
         "error message {err:?} did not contain {expected_fragment:?}"
     );
+    insta::assert_snapshot!(snapshot_name, format!("{err}"));
 }
 
 /// Keep the `UnknownSyntax` arm of `map_extract_error` wired to a
@@ -239,6 +410,7 @@ fn bridge_extract_document_rejects_unknown_syntaxes() {
     assert!(error.to_string().contains("not_a_real_syntax"));
 }
 
+/// Markdown IR failures must surface to Python as `RuntimeError`.
 #[rstest]
 fn map_extract_error_uses_runtime_error_for_markdown_ir() {
     Python::attach(|py| {
@@ -252,6 +424,7 @@ fn map_extract_error_uses_runtime_error_for_markdown_ir() {
     });
 }
 
+/// Python IR failures must surface as `RuntimeError` with the crate's wording.
 #[rstest]
 fn map_extract_error_uses_runtime_error_for_python_ir() {
     Python::attach(|py| {
@@ -265,11 +438,43 @@ fn map_extract_error_uses_runtime_error_for_python_ir() {
     });
 }
 
+/// An unrecognized syntax string must surface as `ValueError`.
 #[rstest]
 fn map_extract_error_uses_value_error_for_unknown_syntax() {
     Python::attach(|py| {
         let error = map_extract_error(&ExtractError::UnknownSyntax("bogus".to_owned()));
 
         assert!(error.is_instance_of::<PyValueError>(py));
+    });
+}
+
+/// The projection must not flatten booleans and integers into strings.
+#[rstest]
+fn rendered_value_preserves_primitive_types() {
+    Python::attach(|py| {
+        let value = PyDict::new(py);
+        value
+            .set_item("flag", true)
+            .expect("expected a boolean item");
+        value
+            .set_item("count", 7)
+            .expect("expected an integer item");
+
+        assert_eq!(dictionary_json(&value), json!({ "flag": true, "count": 7 }));
+    });
+}
+
+/// A malformed IR string must fail the projection rather than snapshot the raw
+/// string as a silently different shape.
+#[rstest]
+#[should_panic(expected = "bridge ir_json is not valid JSON")]
+fn document_payload_with_ir_rejects_malformed_ir_json() {
+    Python::attach(|py| {
+        let payload = PyDict::new(py);
+        payload
+            .set_item("ir_json", "not json")
+            .expect("expected IR payload setup");
+
+        let _ = document_payload_with_ir(&payload);
     });
 }

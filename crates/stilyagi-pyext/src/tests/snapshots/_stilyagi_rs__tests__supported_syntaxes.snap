@@ -1,0 +1,9 @@
+---
+source: crates/stilyagi-pyext/src/tests/mod.rs
+expression: "tuple_json(py, &supported_values)"
+---
+[
+  "markdown",
+  "python_docstring",
+  "rust_doc_comment"
+]
