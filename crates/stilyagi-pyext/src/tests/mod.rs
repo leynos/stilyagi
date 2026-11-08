@@ -238,9 +238,9 @@ fn hello_delegates_to_the_core_smoke_greeting() {
 
 /// A stale Python implementation must not shadow the Rust greeting.
 #[rstest]
-#[case("hello from Python")]
-fn hello_is_not_the_legacy_python_fallback(#[case] legacy_fallback: &str) {
-    assert_ne!(hello(), legacy_fallback);
+fn hello_is_not_the_legacy_python_fallback() {
+    const LEGACY_PYTHON_GREETING: &str = "hello from Python";
+    assert_ne!(hello(), LEGACY_PYTHON_GREETING);
 }
 
 /// The exported function must reject keyword arguments it does not accept.
@@ -298,8 +298,7 @@ fn extract_document_py_exposes_markdown_document() {
     });
 }
 
-/// Keep rejection behaviour stable for both unsupported and unknown syntax
-/// strings.
+/// An unknown syntax string must be rejected with the pinned error.
 #[rstest]
 #[case(InvalidSyntaxCase {
     syntax: "not_a_syntax",
