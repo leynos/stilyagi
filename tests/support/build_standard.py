@@ -112,11 +112,15 @@ class ToolInvocation:
 
     `env` holds the variable assignments that prefix the command in the
     recipe text, or the compiler-relevant variables a recording observed.
+    `phase` is `start` for a reading of the recipe text and for the record a
+    probe writes as it begins, and `done` for the record a probe writes as it
+    exits, which is what shows a stage finished rather than merely began.
     """
 
     program: str
     args: tuple[str, ...]
     env: dict[str, str | None] = dc.field(default_factory=dict)
+    phase: str = "start"
 
     @property
     def rustflags(self) -> str | None:

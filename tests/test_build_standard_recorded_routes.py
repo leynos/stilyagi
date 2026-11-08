@@ -133,11 +133,39 @@ def test_lint_whitaker_forwards_a_command_line_library_override(
     assert invocation.args[separator + 1 :] == CARGO_SCOPE, invocation.args
 
 
+def _only(
+    records: tuple[ToolInvocation, ...],
+    *,
+    program: str,
+    phase: str,
+    prefix: tuple[str, ...] = (),
+) -> int:
+    """Return the position of the one record matching a program and phase."""
+    found = [
+        index
+        for index, record in enumerate(records)
+        if record.program == program
+        and record.phase == phase
+        and record.has_args(*prefix)
+    ]
+    assert len(found) == 1, f"expected one {phase} {program} record, got {found}"
+    return found[0]
+
+
 def test_parallel_lint_cannot_start_whitaker_until_clippy_completes(
     recording: RecordingTree,
 ) -> None:
-    """`make -j4 lint` holds Whitaker back while a Clippy-stage probe blocks."""
-    options = RunOptions(make_arguments=("-j4",), block=f"{PROBE_CARGO} clippy")
+    """`make -j4 lint` holds Whitaker back while a Clippy-stage probe blocks.
+
+    The ordering is asserted on Clippy's *completion*, not its start: a
+    prerequisite that merely began first would satisfy an ordering read from
+    start records while still letting Whitaker run alongside Clippy.
+    """
+    options = RunOptions(
+        make_arguments=("-j4",),
+        block=f"{PROBE_CARGO} clippy",
+        trace_completion=True,
+    )
     with start_recorded("lint", recording, options) as run:
         run.wait_for_block()
         assert not [r for r in run.records() if r.program == PROBE_WHITAKER], (
@@ -146,19 +174,13 @@ def test_parallel_lint_cannot_start_whitaker_until_clippy_completes(
         run.release()
     finished = run.finish()
     assert finished.returncode == 0, finished.stderr
-    clippy = next(
-        index
-        for index, record in enumerate(finished.records)
-        if record.program == PROBE_CARGO and record.has_args("clippy")
+    clippy_done = _only(
+        finished.records, program=PROBE_CARGO, phase="done", prefix=("clippy",)
     )
-    whitaker = next(
-        index
-        for index, record in enumerate(finished.records)
-        if record.program == PROBE_WHITAKER
-    )
-    assert clippy < whitaker, (
-        f"expected cargo clippy before Whitaker: clippy at {clippy}, "
-        f"whitaker at {whitaker}"
+    whitaker_start = _only(finished.records, program=PROBE_WHITAKER, phase="start")
+    assert clippy_done < whitaker_start, (
+        "expected cargo clippy to finish before Whitaker started: clippy done "
+        f"at {clippy_done}, whitaker start at {whitaker_start}"
     )
 
 

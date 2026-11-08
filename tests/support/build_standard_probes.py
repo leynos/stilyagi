@@ -7,7 +7,6 @@ exports one) interacts with a recipe's own assignment.
 """
 
 import dataclasses as dc
-import json
 import os
 import shutil
 import stat
@@ -22,6 +21,7 @@ from tests.support.build_standard import (
     ToolInvocation,
     start_make,
 )
+from tests.support.probe_log import identity, read_records
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -32,26 +32,36 @@ import json, os, sys, time
 
 name = os.path.basename(sys.argv[0])
 identity = name + " " + " ".join(sys.argv[1:])
-record = {
-    "program": name,
-    "args": sys.argv[1:],
-    "env": {
-        key: os.environ.get(key) for key in ("RUSTFLAGS", "RUSTDOCFLAGS")
-    },
-}
-with open(os.environ["PROBE_LOG"], "a", encoding="utf-8") as log:
-    log.write(json.dumps(record) + "\\n")
-blocking = os.environ.get("PROBE_BLOCK", "")
-if blocking and blocking in identity:
-    deadline = time.monotonic() + 120
-    release = os.environ["PROBE_RELEASE"]
-    while not os.path.exists(release):
-        if time.monotonic() > deadline:
-            sys.exit(2)
-        time.sleep(0.02)
-failing = os.environ.get("PROBE_FAIL", "")
-if failing and failing in identity:
-    sys.exit(1)
+log_path = os.environ["PROBE_LOG"]
+
+def record(phase):
+    entry = {
+        "program": name,
+        "args": sys.argv[1:],
+        "env": {
+            key: os.environ.get(key) for key in ("RUSTFLAGS", "RUSTDOCFLAGS")
+        },
+        "phase": phase,
+    }
+    with open(log_path, "a", encoding="utf-8") as log:
+        log.write(json.dumps(entry) + "\\n")
+
+record("start")
+try:
+    blocking = os.environ.get("PROBE_BLOCK", "")
+    if blocking and blocking in identity:
+        deadline = time.monotonic() + 120
+        release = os.environ["PROBE_RELEASE"]
+        while not os.path.exists(release):
+            if time.monotonic() > deadline:
+                sys.exit(2)
+            time.sleep(0.02)
+    failing = os.environ.get("PROBE_FAIL", "")
+    if failing and failing in identity:
+        sys.exit(1)
+finally:
+    if os.environ.get("PROBE_TRACE_COMPLETION"):
+        record("done")
 """
 
 
@@ -64,7 +74,10 @@ def make_recording_tools(directory: pathlib.Path) -> pathlib.Path:
     `cargo test` fallback, or a preflight fail to prove it stops the target.
     A probe whose `<name> <args>` matches `$PROBE_BLOCK` first waits for the
     file named by `$PROBE_RELEASE`, so a test can hold a stage open and check
-    what has not started yet.
+    what has not started yet. When `$PROBE_TRACE_COMPLETION` is set it also
+    appends a `done` line as it exits, from a `finally` block so a failing
+    exit still records one, which is what proves a stage finished before the
+    next began rather than merely started before it.
 
     Returns
     -------
@@ -145,12 +158,17 @@ class RunOptions:
         Extra Make arguments placed before the target, such as `("-j4",)` for
         a parallel run or a `NAME=value` assignment for a command-line
         variable override.
+    trace_completion
+        Whether each probe also records a `done` entry as it exits. A test
+        that must show one stage finished before another began needs it; the
+        default keeps the log to one entry per invocation.
     """
 
     ambient_rustflags: str | None = None
     block: str = ""
     fail: str = ""
     make_arguments: tuple[str, ...] = ()
+    trace_completion: bool = False
 
 
 #: How often a live run re-reads the probe log while waiting for a block.
@@ -175,8 +193,8 @@ class StartedRun:
     _finished: RecordedRun | None = dc.field(default=None, init=False)
 
     def records(self) -> tuple[ToolInvocation, ...]:
-        """Return the records the probe log holds now."""
-        return _read_records(self.log)
+        """Return the records the probe log holds now, skipping a torn tail."""
+        return read_records(self.log, live=True)
 
     def wait_for_block(self, timeout: float = _BLOCK_TIMEOUT_SECONDS) -> None:
         """Wait until the probe selected by `block` has recorded its start.
@@ -188,7 +206,7 @@ class StartedRun:
         """
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if any(self.block in _identity(record) for record in self.records()):
+            if any(self.block in identity(record) for record in self.records()):
                 return
             if self.process.poll() is not None:
                 break
@@ -201,11 +219,20 @@ class StartedRun:
         self.release_marker.write_text("", encoding="utf-8")
 
     def finish(self) -> RecordedRun:
-        """Wait for Make to exit and return everything the probes recorded."""
+        """Wait for Make to exit and return everything the probes recorded.
+
+        The log is read strictly here: Make has exited, so no probe can still
+        be writing, and a line that does not parse means a record was lost.
+
+        Returns
+        -------
+        RecordedRun
+            Make's exit status, its stderr, and every record in order.
+        """
         if self._finished is None:
             _, stderr = self.process.communicate()
             self._finished = RecordedRun(
-                self.process.returncode, stderr, self.records()
+                self.process.returncode, stderr, read_records(self.log)
             )
         return self._finished
 
@@ -295,41 +322,8 @@ def _run_environment(
         "PROBE_BLOCK": options.block,
         "PROBE_RELEASE": str(release),
         "PROBE_FAIL": options.fail,
+        "PROBE_TRACE_COMPLETION": "1" if options.trace_completion else "",
     }
     if options.ambient_rustflags is not None:
         env["RUSTFLAGS"] = options.ambient_rustflags
     return env
-
-
-def _read_records(log: pathlib.Path) -> tuple[ToolInvocation, ...]:
-    """Return the records a probe log holds, skipping a torn trailing line.
-
-    A live run polls the log while a probe may be mid-write, so the last line
-    can be incomplete. A completed run never loses a record this way.
-
-    Returns
-    -------
-    tuple[ToolInvocation, ...]
-        Each complete probe call in the order it was recorded.
-    """
-    if not log.exists():
-        return ()
-    records: list[ToolInvocation] = []
-    for line in log.read_text(encoding="utf-8").splitlines():
-        try:
-            records.append(_record(json.loads(line)))
-        except json.JSONDecodeError:
-            continue
-    return tuple(records)
-
-
-def _identity(record: ToolInvocation) -> str:
-    """Return the text a probe matches its selectors against."""
-    return f"{record.program} {' '.join(record.args)}"
-
-
-def _record(raw: dict[str, typ.Any]) -> ToolInvocation:
-    """Return one probe log line as an invocation."""
-    return ToolInvocation(
-        program=raw["program"], args=tuple(raw["args"]), env=dict(raw["env"])
-    )
