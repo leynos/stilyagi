@@ -74,7 +74,7 @@ def ir_sequence(document: model.Document, key: str) -> cabc.Sequence[object]:
     ()
     """
     value = ir_value(document, key)
-    return typ.cast("cabc.Sequence[object]", value) if is_sequence(value) else ()
+    return value if is_sequence(value) else ()
 
 
 def is_sequence(value: object) -> typ.TypeGuard[cabc.Sequence[object]]:
@@ -151,8 +151,7 @@ def string_tuple(value: object) -> tuple[str, ...]:
     """
     if not is_sequence(value):
         return ()
-    values = typ.cast("cabc.Sequence[object]", value)
-    return tuple(item for item in values if isinstance(item, str))
+    return tuple(item for item in value if isinstance(item, str))
 
 
 def segment_with_text(
