@@ -74,11 +74,9 @@ impl PythonIrBuilder<'_> {
         self.errors.push(IrError {
             code: "python-traversal-depth-limit".to_owned(),
             message: format!(
-                // `concat!` expands before `format!` resolves implicit named
-                // arguments, so the depth constant is passed explicitly.
                 concat!(
-                    "stopped Python docstring traversal at the maximum depth of ",
-                    "{} at bytes {}..{}",
+                    "stopped Python docstring traversal at the maximum depth of {} ",
+                    "at bytes {}..{}",
                 ),
                 MAX_TRAVERSAL_DEPTH, span.byte_start, span.byte_end
             ),

@@ -212,8 +212,8 @@ fn multiline_fixture_merges_three_line_comments_and_block_comment() {
     assert_eq!(
         first_region.text,
         concat!(
-            " First line of a multiline Rust doc comment.  Second line keeps the same owner. ",
-            " Third line completes the merged region.",
+            " First line of a multiline Rust doc comment.  Second line keeps the same owner.  ",
+            "Third line completes the merged region.",
         )
     );
     assert!(first_region.segments_reconstruct_text());
