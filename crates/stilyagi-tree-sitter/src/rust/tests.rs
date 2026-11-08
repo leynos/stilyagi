@@ -197,6 +197,8 @@ fn non_doc_comment_edge_cases_emit_no_regions(#[case] source: &str) {
     assert_eq!(document.regions, []);
 }
 
+/// A three-line doc-comment run and an adjacent block comment must merge into
+/// exactly two regions, each owned by its enclosing item.
 #[rstest]
 fn multiline_fixture_merges_three_line_comments_and_block_comment() {
     let document =
