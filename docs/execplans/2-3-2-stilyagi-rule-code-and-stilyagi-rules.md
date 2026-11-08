@@ -88,7 +88,8 @@ before continuing.
   findings and obtain follow-up confirmation of no remaining blockers.
 - [x] (2026-11-08) Pass `make fmt`, `make check-fmt`, `make markdownlint`
   (including spelling), and `make nixie` for the planning document.
-- [ ] Publish the validated planning document in a draft pull request.
+- [x] (2026-11-08) Publish the plan in [draft PR 276][planning-pr] and verify
+  the remote head and named upstream.
 - [ ] Obtain explicit approval to implement.
 - [ ] M1: complete typed builtin descriptions and pure catalogue queries.
 - [ ] M2: deliver text/JSON commands and behavioural coverage.
@@ -131,9 +132,10 @@ assuming that this session's tool availability persists.
 
 The plan has passed architecture, contract, reliability, performance, and
 maintainability review. No runtime behaviour has changed. Planning formatting,
-Markdown, spelling, and Mermaid validation passed on 2026-11-08. Publication is
-the remaining delivery step; record implementation results separately after
-approval. Do not describe a drafted test or proposed proof as executed evidence.
+Markdown, spelling, and Mermaid validation passed on 2026-11-08. The plan is
+published in [draft PR 276][planning-pr]. Record implementation results
+separately after approval. Do not describe a drafted test or proposed proof as
+executed evidence.
 
 ## Context and orientation
 
@@ -592,9 +594,14 @@ destination refspec, set the named upstream, and read back the remote head and
 PR status. Implementation approval remains separate from publication.
 
 [ruff-cli]: https://docs.astral.sh/ruff/configuration/
+[planning-pr]: https://github.com/leynos/stilyagi/pull/276
 
 Revision note (2026-11-08): initial evidence-led draft defines catalogue
 contracts and proportionate verification before implementation design. Expert
 review tightened nested schemas, metadata derivation, text identity fields,
 filter repetition, isolation test boundaries, and milestone gate coherence. All
 six perspectives confirmed the revisions; planning validation remains pending.
+
+Publication note (2026-11-08): draft PR 276 carries the reviewed plan; the
+remote branch matches the local commit and tracks the requested origin branch.
+Implementation approval remains outstanding.
