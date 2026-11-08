@@ -7,7 +7,6 @@ case still passes while a download bound or a component is silently dropped.
 """
 
 import dataclasses as dc
-import pathlib
 import typing as typ
 
 import pytest
@@ -20,73 +19,19 @@ from tests.support.build_tools_harness import (
     build_tools,
     build_tools_environment,
     build_tools_pins,
-    mold_archive,
-    write_pins,
+)
+from tests.support.build_tools_harness import (
+    CurlServingRunner as _CurlServingRunner,
+)
+from tests.support.build_tools_harness import (
+    ScriptedRunner as _Runner,
+)
+from tests.support.build_tools_harness import (
+    command_result as _result,
 )
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
-
-    from cuprum.sh import CommandResult
-
-
-def _result(*, exit_code: int = 0) -> CommandResult:
-    """Return a stand-in command result with the chosen exit status."""
-    from cuprum.program import Program
-    from cuprum.sh import CommandResult
-
-    return CommandResult(
-        program=Program("stub"),
-        argv=(),
-        exit_code=exit_code,
-        pid=0,
-        stdout="",
-        stderr="",
-    )
-
-
-class _Runner:
-    """Answer a scripted runner, recording each call's program and arguments."""
-
-    def __init__(self, *answers: CommandResult | BaseException) -> None:
-        """Queue one answer per expected call, in order."""
-        self._answers = list(answers)
-        self.calls: list[tuple[str, tuple[str, ...]]] = []
-
-    def __call__(
-        self,
-        program: str,
-        *args: str,
-        echo: bool = False,
-    ) -> CommandResult:
-        """Return the next queued answer, recording the invocation."""
-        self.calls.append((str(program), args))
-        answer = self._answers.pop(0) if self._answers else _result()
-        if isinstance(answer, BaseException):
-            raise answer
-        return answer
-
-
-class _CurlServingRunner(_Runner):
-    """Answer as `_Runner` does, writing the fixture archive for curl."""
-
-    def __call__(
-        self,
-        program: str,
-        *args: str,
-        echo: bool = False,
-    ) -> CommandResult:
-        """Serve the pinned archive to curl, then answer as usual."""
-        if str(program) == "curl":
-            destination = pathlib.Path(args[args.index("--output") + 1])
-            destination.write_bytes(mold_archive())
-        return super().__call__(program, *args, echo=echo)
-
-
-@pytest.fixture
-def pins(tmp_path: pathlib.Path) -> PinWorkspace:
-    """Return fixture pin files naming the pinned channel and mold release."""
-    return write_pins(tmp_path)
 
 
 def _layout(pins: PinWorkspace, **overrides: object) -> build_tools_environment.Layout:

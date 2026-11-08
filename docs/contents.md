@@ -17,6 +17,10 @@
 - [Mixed-source discovery change notes](mixed-source-discovery-notes.md)
   summarize the user-facing discovery behaviour without implying a release
   target.
+- [Markdown inspection and cache change notes](
+  markdown-inspection-and-cache-notes.md) summarize the `config`, `dump-ir`, and
+  `clean` commands, the Markdown extraction cache, and frontmatter protection
+  without implying a release target.
 - [ExecPlans](execplans/) records approved and in-progress execution plans for
   substantial repository work:
   - [1.1.1 packaging boundary decision ADR](
@@ -159,9 +163,8 @@
     adrs/adr-0013-prove-the-lint-policy-through-readers-and-fixtures.md)
     records the shared readers, the `cargo metadata` seam, the scratch crates
     that copy the workspace tables, and the unique run directory.
-
-  - [ADR 011: Markdown CLI inspection and cache](
-    adr-011-markdown-cli-inspection-and-cache.md)
+  - [ADR 0014: Markdown CLI inspection and cache](
+    adrs/adr-0014-markdown-cli-inspection-and-cache.md)
     records the accepted command framing, extraction-cache ownership and
     cleanup boundaries for roadmap 2.2.3.
 

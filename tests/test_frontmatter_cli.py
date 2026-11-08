@@ -5,59 +5,19 @@ import sys
 import typing as typ
 
 import pytest
-from stilyagi import cli, config, diagnostics, model
+from stilyagi import cli, diagnostics
 from stilyagi.fixes import Applicability, Fix, TextEdit
 
+from tests.support import frontmatter_fixtures as fixtures
 from tests.support.fix_fixtures import find_source_span
 
 if typ.TYPE_CHECKING:
     import pathlib
 
-    from stilyagi.rules.registry import RuleRunner
-
-_FRONTMATTER_SOURCE = (
-    b"---\r\n"
-    + 'title: "Café"\r\n'.encode()
-    + b"# Preserve this comment\r\n"
-    + b"quoted: 'a: b'\r\n"
-    + b"description: |\r\n"
-    + b"  first line\r\n"
-    + b"---\r\n"
-    + b"\r\n"
-    + b"Paragraph text.\r\n"
-)
+    from stilyagi.rules.registry import RuleRunner, RuleRunRequest
 
 
-def _body_fix_runner(
-    reported_path: str,
-    applicability: Applicability,
-) -> RuleRunner:
-    """Offer a body-only edit that disappears after successful repair."""
-
-    def run_rules(
-        document: model.Document,
-        _resolved_config: config.StilyagiConfig,
-    ) -> list[diagnostics.Diagnostic]:
-        """Return the diagnostic only while its source-backed body text exists."""
-        try:
-            span = find_source_span(document, "Paragraph text.")
-        except ValueError:
-            return []
-        return [
-            diagnostics.Diagnostic(
-                path=reported_path,
-                code="PUN201",
-                message="Rewrite the sample paragraph.",
-                severity=diagnostics.Severity.ERROR,
-                fix=Fix(
-                    "Rewrite the sample paragraph",
-                    applicability,
-                    (TextEdit.replace(span, "Section text."),),
-                ),
-            )
-        ]
-
-    return run_rules
+_BOM = b"\xef\xbb\xbf"
 
 
 @pytest.mark.parametrize(
@@ -81,13 +41,13 @@ def test_cli_repairs_the_body_and_preserves_frontmatter_bytes(
     suffix, applicability = repair_case
     monkeypatch.chdir(tmp_path)
     target = tmp_path / f"notes{suffix}"
-    target.write_bytes(_FRONTMATTER_SOURCE)
-    prefix_end = _FRONTMATTER_SOURCE.index(b"Paragraph text.")
-    original_prefix = _FRONTMATTER_SOURCE[:prefix_end]
+    target.write_bytes(fixtures.FRONTMATTER_SOURCE)
+    prefix_end = fixtures.FRONTMATTER_SOURCE.index(b"Paragraph text.")
+    original_prefix = fixtures.FRONTMATTER_SOURCE[:prefix_end]
     monkeypatch.setattr(
         cli.rules_registry,
         "run_rules",
-        _body_fix_runner(target.name, applicability),
+        fixtures.body_fix_runner(target.name, applicability),
     )
 
     exit_code = cli.run_check(
@@ -107,6 +67,51 @@ def test_cli_repairs_the_body_and_preserves_frontmatter_bytes(
     )
     assert repaired[prefix_end:] == b"Section text.\r\n", (
         "expected the body edit to preserve CRLF line endings"
+    )
+    assert "1 files fixed, 1 fixes applied" in output.err, (
+        "expected the CLI to report its repair"
+    )
+
+
+def test_cli_repairs_a_bom_prefixed_document_and_keeps_its_mark(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Repair a byte-order-marked file through the real read and write path.
+
+    The reader strips the mark before extraction, so the IR addresses the bytes
+    after it. This drives the whole boundary rather than the planner alone: the
+    file on disk must come back with exactly one mark, its frontmatter intact,
+    and its body repaired.
+    """
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / "notes.md"
+    original = _BOM + fixtures.FRONTMATTER_SOURCE
+    target.write_bytes(original)
+    prefix_end = original.index(b"Paragraph text.")
+    monkeypatch.setattr(
+        cli.rules_registry,
+        "run_rules",
+        fixtures.body_fix_runner(target.name, Applicability.SAFE),
+    )
+
+    exit_code = cli.run_check(
+        cli.CheckOptions(targets=(target.name,), fix=True, no_cache=True)
+    )
+    output = capsys.readouterr()
+    repaired = target.read_bytes()
+
+    assert exit_code == 0, "expected the repaired file to pass verification"
+    assert repaired.startswith(_BOM), "expected the byte-order mark to be preserved"
+    assert not repaired[len(_BOM) :].startswith(_BOM), (
+        "expected exactly one byte-order mark, not one per rewrite"
+    )
+    assert repaired[:prefix_end] == original[:prefix_end], (
+        "expected the mark and every frontmatter byte to survive unchanged"
+    )
+    assert repaired[prefix_end:] == b"Section text.\r\n", (
+        "expected the body edit to apply and keep its CRLF ending"
     )
     assert "1 files fixed, 1 fixes applied" in output.err, (
         "expected the CLI to report its repair"
@@ -139,11 +144,11 @@ def test_stdin_repair_preserves_frontmatter_and_never_writes_the_named_file(
     reported_name = f"notes{suffix}"
     on_disk = tmp_path / reported_name
     on_disk.write_bytes(b"# Untouched\n")
-    monkeypatch.setattr(sys, "stdin", io.StringIO(_FRONTMATTER_SOURCE.decode()))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(fixtures.FRONTMATTER_SOURCE.decode()))
     monkeypatch.setattr(
         cli.rules_registry,
         "run_rules",
-        _body_fix_runner(reported_name, Applicability.SAFE),
+        fixtures.body_fix_runner(reported_name, Applicability.SAFE),
     )
 
     exit_code = cli.run_check(
@@ -155,10 +160,10 @@ def test_stdin_repair_preserves_frontmatter_and_never_writes_the_named_file(
         )
     )
     captured = capsys.readouterr()
-    prefix_end = _FRONTMATTER_SOURCE.index(b"Paragraph text.")
+    prefix_end = fixtures.FRONTMATTER_SOURCE.index(b"Paragraph text.")
 
     assert exit_code == 1, "expected an unwritten stream input to still exit one"
-    assert captured.out.encode().startswith(_FRONTMATTER_SOURCE[:prefix_end]), (
+    assert captured.out.encode().startswith(fixtures.FRONTMATTER_SOURCE[:prefix_end]), (
         "the emitted document must retain every original frontmatter byte"
     )
     assert captured.out.encode()[prefix_end:] == b"Section text.\r\n", (
@@ -186,11 +191,11 @@ def test_diff_preview_never_touches_the_frontmatter_prefix(
     """Keep every changed hunk inside the body for a frontmatter document."""
     monkeypatch.chdir(tmp_path)
     target = tmp_path / f"notes{suffix}"
-    target.write_bytes(_FRONTMATTER_SOURCE)
+    target.write_bytes(fixtures.FRONTMATTER_SOURCE)
     monkeypatch.setattr(
         cli.rules_registry,
         "run_rules",
-        _body_fix_runner(target.name, Applicability.SAFE),
+        fixtures.body_fix_runner(target.name, Applicability.SAFE),
     )
 
     exit_code = cli.run_check(
@@ -199,7 +204,7 @@ def test_diff_preview_never_touches_the_frontmatter_prefix(
     captured = capsys.readouterr()
 
     assert exit_code == 1, "expected the previewed finding to still be reported"
-    assert target.read_bytes() == _FRONTMATTER_SOURCE, (
+    assert target.read_bytes() == fixtures.FRONTMATTER_SOURCE, (
         "--diff must never write the source it previews"
     )
     changed_lines = [
@@ -221,11 +226,9 @@ def _frontmatter_edit_runner(
 ) -> RuleRunner:
     """Offer one edit that targets or crosses the protected YAML prefix."""
 
-    def run_rules(
-        document: model.Document,
-        _resolved_config: config.StilyagiConfig,
-    ) -> list[diagnostics.Diagnostic]:
+    def run_rules(request: RuleRunRequest) -> list[diagnostics.Diagnostic]:
         """Build the requested unsafe candidate from actual IR spans."""
+        document = request.document
         title = find_source_span(document, "Café")
         body = find_source_span(document, "Paragraph text.")
         match edit_kind:
@@ -275,7 +278,7 @@ def test_cli_refuses_edits_to_or_across_frontmatter(
     """Refuse frontmatter and boundary edits before writing any source bytes."""
     monkeypatch.chdir(tmp_path)
     target = tmp_path / "notes.mdc"
-    target.write_bytes(_FRONTMATTER_SOURCE)
+    target.write_bytes(fixtures.FRONTMATTER_SOURCE)
     original = target.read_bytes()
     monkeypatch.setattr(
         cli.rules_registry,

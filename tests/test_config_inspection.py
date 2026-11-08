@@ -221,12 +221,12 @@ def test_config_values_match_check_resolution_for_the_same_inputs(
     payload = json.loads(output.out)
 
     assert exit_code == 0, "expected config inspection to succeed"
-    assert tuple(payload["values"]["lint"]["select"]) == check_config.lint.select, (
-        "expected config inspection and check to agree on selected rules"
-    )
-    assert tuple(payload["values"]["lint"]["ignore"]) == check_config.lint.ignore, (
-        "expected config inspection and check to agree on ignored rules"
-    )
+    assert (
+        tuple(payload["values"]["lint"]["select"]) == check_config.config.lint.select
+    ), "expected config inspection and check to agree on selected rules"
+    assert (
+        tuple(payload["values"]["lint"]["ignore"]) == check_config.config.lint.ignore
+    ), "expected config inspection and check to agree on ignored rules"
 
 
 def test_table_inspection_includes_descendant_origins(

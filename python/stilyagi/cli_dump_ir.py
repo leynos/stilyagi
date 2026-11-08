@@ -2,12 +2,13 @@
 
 import dataclasses as dc
 import enum
+import logging
 import pathlib
 import sys
 import tempfile
 import typing as typ
 
-from stilyagi import config, discovery, engine, model
+from stilyagi import cli_log, config, discovery, engine, model
 from stilyagi.cache.extraction import (
     CacheExtractionInput,
     CacheExtractionService,
@@ -119,6 +120,11 @@ def run_dump_ir(
     """
     out_stream = output if output is not None else sys.stdout
     error_stream = error if error is not None else sys.stderr
+    # The cache logs its counters at INFO, so without this the invocation pays
+    # to compute them and shows nobody. `--verbose` is the only switch that
+    # raises the level, matching `check`.
+    if options.verbose:
+        logging.basicConfig(level=logging.INFO, handlers=[cli_log.log_handler()])
     config_resolver = resolver if resolver is not None else config.ConfigResolver()
     extraction_cache = CacheExtractionService(
         CacheServiceConfig(
@@ -264,13 +270,16 @@ def _extract_document(
             check_input.reported_path,
             exc.error,
         ) from exc
+    # Resolved outside the extraction guard: ``ConfigError`` subclasses
+    # ``ValueError``, so leaving it inside would report a broken
+    # ``stilyagi.toml`` as an extraction failure although nothing was extracted.
+    effective_config = context.resolver.resolve_config_for_path(
+        sourced.resolved_path,
+        cli_overrides=None,
+        explicit_config=context.options.explicit_config or None,
+        isolated=context.options.isolated,
+    )
     try:
-        effective_config = context.resolver.resolve_config_for_path(
-            sourced.resolved_path,
-            cli_overrides=None,
-            explicit_config=context.options.explicit_config or None,
-            isolated=context.options.isolated,
-        )
         result = context.cache.extract(
             CacheExtractionInput(
                 source_text=sourced.source_text,

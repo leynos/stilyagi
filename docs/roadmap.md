@@ -197,10 +197,10 @@ support normal repository linting and debugging for Markdown-only users. See
   - Completed on 2026-10-25 under the approved
     [ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md), with
     process-boundary CLI coverage, frontmatter invariants and documentation
-    reconciliation. All six local gates passed on candidate
-    `488764aad31508e26323c471b184bd165fbbfc4e`; CodeRabbit CLI reviewed the
-    committed diff against `7ebeb90287b44d1fd95ffa056f4a79a816dda844` and
-    found no issues. Independent analysis caching remains item 3.3.1.
+    reconciliation. All six local gates passed on the implementation
+    candidate, and the CodeRabbit CLI reviewed the committed diff against its
+    recorded comparison base without finding issues. Independent analysis
+    caching remains item 3.3.1.
 
 ### 2.3. Ship the first builtin rules that make the slice worth adopting
 

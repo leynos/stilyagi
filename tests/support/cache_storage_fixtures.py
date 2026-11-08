@@ -19,7 +19,19 @@ if typ.TYPE_CHECKING:
 
 @pytest.fixture
 def namespace_fd(tmp_path: pathlib.Path) -> cabc.Iterator[int]:
-    """Yield an open descriptor for one empty directory under ``tmp_path``."""
+    """Yield an open descriptor for one empty directory under ``tmp_path``.
+
+    Parameters
+    ----------
+    tmp_path:
+        The pytest-provided root the namespace directory is created beneath.
+
+    Yields
+    ------
+    int
+        An open descriptor for the namespace directory, closed when the
+        fixture is torn down so a test need not manage its lifetime.
+    """
     namespace = tmp_path / "namespace"
     namespace.mkdir()
     descriptor = os.open(namespace, primitives._DIRECTORY_FLAGS)
