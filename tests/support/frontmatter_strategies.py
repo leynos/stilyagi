@@ -3,7 +3,7 @@
 The corpus strategies deliberately step around frontmatter: an edit that
 crosses the protected prefix is refused by design, so drawing one there would
 only measure the refusal. That leaves the guard's own invariant unexercised by
-generated input, and the hand-written contracts in `test_fix_frontmatter.py`
+generated input, and the handwritten contracts in `test_fix_frontmatter.py`
 and `test_frontmatter_cli.py` cover selected examples of it rather than a
 range.
 
