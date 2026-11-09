@@ -509,7 +509,10 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
 no-op. No persistent cache manager exists. `ConfigResolver` has only per-run
 in-memory discovery, raw-table and resolved-table caches; bridge vocabulary is
 also memoized. A useful cache-control command therefore needs a real, bounded
-persistent cache, rather than merely removing the no-op wording.
+persistent cache, rather than merely removing the no-op wording. This is the
+baseline observation that motivated M3, not a description of the delivered
+tree: the cache described under [Cache and bypass](#cache-and-bypass) is now
+implemented and `--no-cache` performs zero persistent-cache I/O.
 
 `ConfigResolver.resolve_config_for_path` returns values without provenance.
 Provenance cannot be recovered accurately from the final dataclass. It must be
@@ -519,10 +522,13 @@ Nextest started both trybuild UI binaries together even though their nested
 Cargo builds use one target-directory lock. A serial test group keeps the
 second binary from spending its timeout waiting behind the active build.
 
-`check_execution.check_one_file` currently extracts before resolving per-file
-configuration. M3 must move configuration resolution before extraction to build
-a configuration-sensitive key, preserving existing error classification and
-phase measurements.
+`check_execution.check_one_file` extracts before resolving per-file
+configuration at the baseline this plan was written against. M3 must move
+configuration resolution before extraction to build a configuration-sensitive
+key, preserving existing error classification and phase measurements.
+Implemented: `check_one_file` now resolves the per-file configuration first,
+records it under the `config` phase, and extracts after it, so the cache key
+carries the same effective values as the rule run.
 
 The rebase target added the nose duplication-gate ADR as ADR 010. The Markdown
 CLI ADR was allocated 011 at that point; the existing main entry and both
