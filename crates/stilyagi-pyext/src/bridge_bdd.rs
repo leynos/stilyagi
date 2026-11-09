@@ -153,7 +153,9 @@ fn extracted_document_reports_markdown_syntax(bridge_state: &BridgeState) {
 #[then("the extracted document preserves one source-backed region")]
 fn extracted_document_preserves_one_source_backed_region(bridge_state: &BridgeState) {
     assert_expected_document_payload(bridge_state, assert_source_backed_region_payload);
-    assert_expected_document_payload(bridge_state, snapshot_document_payload);
+    assert_expected_document_payload(bridge_state, |py, document, _expected_text| {
+        snapshot_document_payload(py, document);
+    });
 }
 
 /// Snapshot the whole bridge payload for the rendered Markdown scenario.
@@ -165,11 +167,7 @@ fn extracted_document_preserves_one_source_backed_region(bridge_state: &BridgeSt
 /// producer version are redacted because they belong to the IR golden
 /// snapshots, not to the bridge contract, and would otherwise churn the
 /// bridge snapshot on a dependency bump.
-fn snapshot_document_payload(
-    py: Python<'_>,
-    extracted_document: &Py<PyDict>,
-    _expected_text: &str,
-) {
+fn snapshot_document_payload(py: Python<'_>, extracted_document: &Py<PyDict>) {
     insta::assert_json_snapshot!(
         "markdown_document_payload",
         super::tests::document_payload_with_ir(extracted_document.bind(py)),
