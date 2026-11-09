@@ -1,7 +1,7 @@
 """Read a wheel's ``METADATA`` into the reviewed snapshot shape.
 
 ``tests/test_maturin_build.py`` builds the native wheel and snapshots it, and
-``tests/test_maturin_wheel_units.py`` holds the readers to hand-written
+``tests/test_maturin_wheel_units.py`` holds the readers to handwritten
 documents rather than to whatever maturin happened to emit. Both need the same
 three steps: scan the headers, keep only the fields the snapshot reviews, and
 read the first value of a repeated header. They live here so the scan has one

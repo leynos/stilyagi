@@ -322,10 +322,21 @@ def _require_carried_asset(
 
     The digest check alone proves only that the downloaded file matches what
     the Release's API reports *now*, which is not the same as proving that
-    this repository's release workflow built it. The provenance record is the
-    only evidence of that, so a carry without one is refused rather than
-    trusted. ``provenance`` is ``None`` when the job that verified the assets
-    uploaded no record — which is a refusal, not a licence to skip.
+    this repository's release workflow built it. A repository writer can
+    manage releases without holding the PyPI token, so an asset substituted
+    into a failed run's draft would otherwise reach PyPI under the expected
+    name. The provenance record is the only evidence that did not come from
+    the Release, so a carry without one is refused rather than trusted.
+
+    That record is only worth as much as the verifier that wrote it. The step
+    producing it pins ``--repo``, ``--signer-workflow release.yml``,
+    ``--source-ref "${GITHUB_REF}"`` and ``--deny-self-hosted-runners``, so a
+    record can only exist when this repository's release workflow signed
+    these bytes for this tag; an asset attached by hand has none. Do not
+    relax that step without restoring an equivalent binding here.
+
+    ``provenance`` is ``None`` when the job that verified the assets uploaded
+    no record — which is a refusal, not a licence to skip.
 
     Raises
     ------
