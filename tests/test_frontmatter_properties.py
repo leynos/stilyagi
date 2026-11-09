@@ -4,7 +4,7 @@ The guard has three parts. Per edit, `classify_edit` refuses anything that
 overlaps the protected prefix, and separately suspends the admissibility bound
 for a zero-width insertion at exactly `protected_end`. At plan level,
 `_preserves_yaml_frontmatter` re-extracts the replacement and compares the
-recognized prefix byte-for-byte. The hand-written contracts pin selected
+recognized prefix byte-for-byte. The handwritten contracts pin selected
 examples of each. These properties generate the document instead -- several
 YAML shapes, all three line endings, with and without a byte-order mark, and
 both an ended file and a fence terminated by a line ending -- so each part is
