@@ -18,6 +18,7 @@ from tests.support.cache_extraction import (
     counting_extractor,
     extract_cached_document,
 )
+from tests.support.log_records import record_field
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -287,4 +288,57 @@ def test_cache_read_failure_retries_store_construction_for_later_requests(
         "each read-failed request must reach fresh extraction"
     )
     assert service.counters.bypasses == 2, "each read failure must count as a bypass"
+    service.close()
+
+
+def test_each_storage_operation_logs_a_bounded_operation_and_duration(
+    tmp_path: pathlib.Path,
+    caplog: pytest.LogCaptureFixture,
+    close_cache_services: CacheServiceRegistrar,
+) -> None:
+    """Time each storage call without letting a path reach the log."""
+    calls: list[str] = []
+
+    service = close_cache_services(
+        CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=tmp_path,
+                package_version="test-version",
+                extractor=counting_extractor(calls),
+                native_digest_factory=lambda: "native-digest",
+                builtin_signature_factory=lambda _config: "builtin-signature",
+            )
+        )
+    )
+    config = StilyagiConfig(cache_dir=tmp_path / "cache")
+
+    with caplog.at_level(logging.DEBUG, logger="stilyagi.cache.extraction"):
+        first = extract_cached_document(service, config)
+        second = extract_cached_document(service, config)
+
+    assert first.canonical_json is not None, "the miss must return canonical IR"
+    assert second.canonical_json is not None, "the hit must return canonical IR"
+    spans = [
+        record
+        for record in caplog.records
+        if record_field(record, "operation") == "extraction_cache_storage"
+    ]
+    assert [record_field(span, "outcome") for span in spans] == [
+        "open",
+        "read",
+        "write",
+        "open",
+        "read",
+    ], "each storage operation must be timed under its own fixed name"
+    durations = [record_field(span, "elapsed_ms") for span in spans]
+    assert all(isinstance(duration, int) for duration in durations), (
+        "each timed operation must carry a whole-millisecond duration"
+    )
+    assert all(duration >= 0 for duration in durations if isinstance(duration, int)), (
+        "a measured duration cannot be negative"
+    )
+    assert not any(
+        "cache" in span.getMessage() and str(tmp_path) in span.getMessage()
+        for span in spans
+    ), "the timed operations must not put a cache path in the log"
     service.close()

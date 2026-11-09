@@ -1,15 +1,19 @@
 """Coordinate canonical extraction, cache identity, and fresh fallbacks."""
 
 import collections.abc as cabc
+import contextlib
 import dataclasses as dc
-import hashlib
 import logging
-import pathlib
+import time
 import typing as typ
+
+if typ.TYPE_CHECKING:
+    import pathlib
 
 from stilyagi import config, engine, model
 from stilyagi.config.inspection import _config_table
 
+from .identity import builtin_pack_signature, native_extension_digest
 from .ir import InvalidCacheEntryError, decode_cache_entry, encode_cache_entry
 from .model import ExtractionRequest, cache_key
 from .storage import CacheStorageError, CacheStore, storage_outcome
@@ -137,35 +141,6 @@ def _default_extractor(
     )
 
 
-def _native_extension_digest() -> str:
-    """Hash the loaded extension binary used by Rust extraction."""
-    import stilyagi._stilyagi_rs as bridge
-
-    extension_filename = getattr(bridge, "__file__", None)
-    if not isinstance(extension_filename, str):
-        message = "loaded Rust extension has no filesystem path"
-        raise OSError(message)
-    extension_path = pathlib.Path(extension_filename)
-    return hashlib.sha256(extension_path.read_bytes()).hexdigest()
-
-
-def _builtin_pack_signature(effective_config: cabc.Mapping[str, object]) -> str:
-    """Hash enabled rule-package sources in stable relative-path order."""
-    configured_plugins = effective_config.get("plugins", ())
-    if not isinstance(configured_plugins, (list, tuple)):
-        return "disabled"
-    if "builtin" not in configured_plugins:
-        return "disabled"
-
-    package_root = pathlib.Path(__file__).parent.parent / "rules"
-    digest = hashlib.sha256()
-    for source_file in sorted(package_root.rglob("*.py")):
-        digest.update(source_file.relative_to(package_root).as_posix().encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(source_file.read_bytes())
-    return digest.hexdigest()
-
-
 class CacheExtractionService:
     """Reuse validated Rust Markdown IR and retain a direct extraction path.
 
@@ -193,12 +168,12 @@ class CacheExtractionService:
         self._native_digest_factory = (
             settings.native_digest_factory
             if settings.native_digest_factory is not None
-            else _native_extension_digest
+            else native_extension_digest
         )
         self._builtin_signature_factory = (
             settings.builtin_signature_factory
             if settings.builtin_signature_factory is not None
-            else _builtin_pack_signature
+            else builtin_pack_signature
         )
         self._storage_factory = (
             settings.storage_factory
@@ -259,13 +234,15 @@ class CacheExtractionService:
             self.counters.bypasses += 1
             return self._fresh(extraction_input)
         try:
-            store = self._store_for(extraction_input.cache_dir, store_key)
+            with self._storage_span("open"):
+                store = self._store_for(extraction_input.cache_dir, store_key)
         except CacheStorageError as error:
             self._unusable_roots.add(store_key)
             self._record_bypass(storage_outcome("open", error.category), "warning")
             return self._fresh(extraction_input)
         try:
-            cached = store.read(key)
+            with self._storage_span("read"):
+                cached = store.read(key)
         except CacheStorageError as error:
             self._record_bypass(storage_outcome("read", error.category), "warning")
             self._discard_store(store_key)
@@ -309,7 +286,8 @@ class CacheExtractionService:
     ) -> None:
         """Publish one successful extraction without changing its result."""
         try:
-            store.write(key, encode_cache_entry(key, canonical_json))
+            with self._storage_span("write"):
+                store.write(key, encode_cache_entry(key, canonical_json))
         except CacheStorageError as error:
             self._event(storage_outcome("write", error.category), "warning")
             self.counters.write_failures += 1
@@ -365,6 +343,24 @@ class CacheExtractionService:
             request.syntax,
             request.reported_identity,
         )
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _storage_span(operation: str) -> cabc.Iterator[None]:
+        """Time one storage operation, logging a bounded operation and duration."""
+        started = time.perf_counter()
+        try:
+            yield
+        finally:
+            _LOGGER.debug(
+                "persistent extraction cache storage %s",
+                operation,
+                extra={
+                    "operation": "extraction_cache_storage",
+                    "outcome": operation,
+                    "elapsed_ms": round((time.perf_counter() - started) * 1000),
+                },
+            )
 
     @staticmethod
     def _event(outcome: str, level: str) -> None:
