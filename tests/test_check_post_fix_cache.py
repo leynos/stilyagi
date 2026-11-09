@@ -26,6 +26,7 @@ import contextlib
 import dataclasses as dc
 import io
 import json
+import logging
 import typing as typ
 
 import pytest
@@ -168,4 +169,70 @@ class TestPostFixCacheBypass:
         )
         assert "Section" not in str(payloads[0].get("ir_json")), (
             "expected no entry to describe the repaired bytes"
+        )
+
+    def test_a_warm_entry_for_the_repaired_bytes_is_not_read(
+        self,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Bypass covers the read half, not just publication.
+
+        The cold case above only proves the re-lint writes nothing. A run that
+        *read* a stale entry and then declined to write would leave that test
+        green and the user reading diagnostics for a document that no longer
+        exists. So warm the cache with the repaired bytes first and then run
+        the fix, which is the shape that can distinguish the two.
+
+        The counters are the signal: `cache_hits` must stay at zero and
+        `cache_bypasses` must count the fresh re-lint. The summary is emitted
+        at INFO on the extraction logger, so the assertion reads it through a
+        `caplog` level rather than through `run_check`'s `--verbose` handler,
+        which `basicConfig` declines to install once pytest owns the root.
+        """
+        (tmp_path / "notes.md").write_text(AFTER, encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        with contextlib.redirect_stderr(io.StringIO()):
+            assert cli.run_check(CheckOptions(targets=("notes.md",))) == 0, (
+                "expected the warm-up run to succeed"
+            )
+        warm = _entry_payloads(tmp_path)
+        assert len(warm) == 1, (
+            f"expected the warm-up to publish one entry, found {len(warm)}"
+        )
+        assert "Section" in str(warm[0].get("ir_json")), (
+            "expected the warm entry to describe the repaired bytes"
+        )
+
+        (tmp_path / "notes.md").write_text(BEFORE, encoding="utf-8")
+        with caplog.at_level(logging.INFO, logger="stilyagi.cache.extraction"):
+            assert (
+                cli.run_check(
+                    CheckOptions(targets=("notes.md",), fix=True),
+                    collaborators=cli.CheckCollaborators(
+                        rule_runner=_rewrite_paragraph
+                    ),
+                )
+                == 0
+            ), "expected the fix run to succeed"
+
+        summary = [
+            record
+            for record in caplog.records
+            if getattr(record, "operation", None) == "extraction_cache_summary"
+        ]
+        assert summary, "expected the run to report its cache counters"
+        # The counters ride on the record as structured extras rather than in
+        # the message, so each one is read by name. Binding them once also
+        # keeps the failure messages free of attribute access on a `LogRecord`,
+        # which static checkers reject even though the extras are present.
+        hits = getattr(summary[-1], "cache_hits", None)
+        bypasses = getattr(summary[-1], "cache_bypasses", None)
+        assert hits == 0, (
+            "expected the re-lint to bypass the warm entry for the repaired "
+            f"bytes rather than read it, got hits={hits}"
+        )
+        assert bypasses == 1, (
+            f"expected exactly one bypass, the post-fix re-lint, got {bypasses}"
         )
