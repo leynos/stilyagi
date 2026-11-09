@@ -121,6 +121,11 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 - `python/stilyagi/cli_config_command.py`, `cli_dump_ir.py`, and `cli_clean.py`
   - Coordinate configuration inspection, canonical Markdown IR output, and
     removal of Stilyagi-owned cache data.
+- `python/stilyagi/cli_command_shell.py`
+  - Owns the report shape shared by those commands: `command_streams`
+    resolves their optional output and error streams, and
+    `write_command_failure` renders the `stilyagi <command>: <reason>`
+    sentence with status two.
 - `crates/stilyagi-pyext/`
   - PyO3-based Rust bridge crate.
   - Owns the compiled `_stilyagi_rs` module and the Rust-side bridge tests.

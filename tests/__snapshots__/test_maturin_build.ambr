@@ -29,6 +29,7 @@
       'stilyagi/cli_apply.py',
       'stilyagi/cli_args.py',
       'stilyagi/cli_clean.py',
+      'stilyagi/cli_command_shell.py',
       'stilyagi/cli_config.py',
       'stilyagi/cli_config_command.py',
       'stilyagi/cli_dump_ir.py',

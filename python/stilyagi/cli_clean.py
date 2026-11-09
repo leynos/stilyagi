@@ -1,10 +1,10 @@
 """Run the top-level cleanup command for owned extraction-cache state."""
 
 import pathlib
-import sys
 import typing as typ
 
 from stilyagi.cache.clean import CacheCleanResult, clean_cache_tree
+from stilyagi.cli_command_shell import command_streams, write_command_failure
 
 
 def run_clean(
@@ -36,15 +36,13 @@ def run_clean(
     ... )  # doctest: +SKIP
     0
     """
-    out_stream = output if output is not None else sys.stdout
-    error_stream = error if error is not None else sys.stderr
+    streams = command_streams(output, error)
     traversal_root = pathlib.Path.cwd() if root is None else root
     try:
         result = clean_cache_tree(traversal_root)
     except OSError as exc:
-        error_stream.write(f"stilyagi clean: {exc}\n")
-        return 2
-    _render_result(result, out_stream, error_stream)
+        return write_command_failure(streams.error, command="clean", failure=exc)
+    _render_result(result, streams.output, streams.error)
     return 2 if result.errors else 0
 
 

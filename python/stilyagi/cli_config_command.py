@@ -4,11 +4,11 @@ import collections.abc as cabc
 import json
 import pathlib
 import re
-import sys
 import tomllib
 import typing as typ
 
 from stilyagi import config
+from stilyagi.cli_command_shell import command_streams, write_command_failure
 from stilyagi.cli_config import _build_rule_selection_overrides
 from stilyagi.config.path_resolution import PathResolutionError, expand_user
 from stilyagi.config.provenance import _is_within
@@ -28,6 +28,31 @@ class _UnknownConfigKeyError(config.ConfigError):
     def __init__(self, key: str) -> None:
         """Retain the missing key in the human-readable error."""
         super().__init__(f"unknown configuration key: {key}")
+
+
+class _InspectionTargetError(config.ConfigError):
+    """Identify an inspection target that cannot be expanded or found.
+
+    A target naming no existing file or directory is an operational error of
+    this command, not a configuration failure. It still travels as a
+    `ConfigError` so the command boundary reports every expected failure
+    through one path and one exit status.
+
+    The reason is chosen from a closed set rather than supplied as prose, so
+    the sentence the user reads is stated once here. Every message names the
+    target that failed.
+    """
+
+    def __init__(
+        self, reason: typ.Literal["expand", "missing"], target: object
+    ) -> None:
+        """Render the named reason around the target it concerns."""
+        detail = (
+            f"cannot expand target: {target}"
+            if reason == "expand"
+            else f"target does not exist: {target}"
+        )
+        super().__init__(detail)
 
 
 def _spell_origin_path(path: _OriginPath) -> str:
@@ -89,6 +114,7 @@ def _run_config_inspection(
     *,
     output: typ.TextIO | None = None,
     error: typ.TextIO | None = None,
+    resolver: config.ConfigResolver | None = None,
 ) -> int:
     """Inspect and render effective config values without linting files.
 
@@ -98,6 +124,10 @@ def _run_config_inspection(
         Parsed options for one read-only config command.
     output, error:
         Optional streams used for the result and operational errors.
+    resolver:
+        Resolver to query, or ``None`` to build a single-use one. Supplying it
+        lets a caller observe the resolution through `cache_stats` and drive
+        the query with a double.
 
     Returns
     -------
@@ -116,34 +146,28 @@ def _run_config_inspection(
     >>> _run_config_inspection(options, output=StringIO(), error=StringIO())
     0
     """
-    out_stream = output if output is not None else sys.stdout
-    error_stream = error if error is not None else sys.stderr
-    target = _inspection_target(options.target, error_stream)
-    if target is None:
-        return 2
+    streams = command_streams(output, error)
     try:
+        target = _inspection_target(options.target)
         inspection, selected_value, selected_origins = _load_inspection(
             options,
             target,
+            resolver if resolver is not None else config.ConfigResolver(),
         )
     except config.ConfigError as exc:
-        error_stream.write(f"stilyagi config: {exc}\n")
-        return 2
+        return write_command_failure(streams.error, command="config", failure=exc)
     rendered = _render_inspection(
         options,
         inspection,
         selected_value,
         selected_origins,
     )
-    out_stream.write(rendered)
+    streams.output.write(rendered)
     return 0
 
 
-def _inspection_target(
-    target_value: str,
-    error: typ.TextIO,
-) -> pathlib.Path | None:
-    """Expand and validate the file or directory inspected by the command.
+def _inspection_target(target_value: str) -> pathlib.Path:
+    """Expand and validate the file or directory the command inspects.
 
     The expansion goes through `path_resolution.expand_user` rather than
     `Path.expanduser` so an unresolvable home directory becomes the named
@@ -153,33 +177,47 @@ def _inspection_target(
 
     Returns
     -------
-    pathlib.Path or None
-        The target when it exists, otherwise None after reporting why.
+    pathlib.Path
+        The target, which names an existing file or directory.
+
+    Raises
+    ------
+    _InspectionTargetError
+        The target cannot be expanded, or names no existing file or directory.
+        The reason is the sentence the command boundary reports.
     """
     try:
         target = expand_user(pathlib.Path(target_value))
     except PathResolutionError as exc:
-        error.write(f"stilyagi config: cannot expand target: {exc}\n")
-        return None
-    if target.is_file():
+        raise _InspectionTargetError("expand", exc) from exc
+    if target.is_file() or target.is_dir():
         return target
-    if target.is_dir():
-        return target
-    error.write(f"stilyagi config: target does not exist: {target}\n")
-    return None
+    raise _InspectionTargetError("missing", target)
 
 
 def _load_inspection(
     options: _ConfigInspectionOptions,
     target: pathlib.Path,
+    resolver: config.ConfigResolver,
 ) -> tuple[_ConfigInspection, object, dict[_OriginPath, _ConfigOrigin]]:
-    """Resolve the effective config and select its requested key and origins."""
+    """Resolve the effective config and select its requested key and origins.
+
+    The resolver arrives from the caller rather than being constructed here, so
+    this read-only query can be driven by a test double and inspected through
+    its accumulated `cache_stats` without touching the filesystem.
+
+    Returns
+    -------
+    tuple
+        The full inspection, the selected key's value, and its per-leaf
+        origins.
+    """
     overrides = _build_rule_selection_overrides(
         select=options.select,
         ignore=options.ignore,
         extend_select=options.extend_select,
     )
-    inspection = config.ConfigResolver()._inspect_config_for_path(
+    inspection = resolver._inspect_config_for_path(
         target,
         cli_overrides=overrides or None,
         explicit_config=options.explicit_config or None,

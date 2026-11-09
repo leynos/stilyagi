@@ -16,6 +16,7 @@ import copy
 import dataclasses as dc
 import io
 import re
+import sys
 import typing as typ
 
 from stilyagi import cli_dump_ir
@@ -109,7 +110,10 @@ def run_dump_ir(
     output = io.BytesIO()
     error = io.StringIO()
     if stdin is not None:
-        monkeypatch.setattr(cli_dump_ir.sys, "stdin", io.StringIO(stdin.text))
+        # `cli_io.read_stdin_bytes` reads the interpreter's own ``sys.stdin`` at
+        # call time, so the substitution has to replace that module attribute
+        # rather than a name re-exported by the command module.
+        monkeypatch.setattr(sys, "stdin", io.StringIO(stdin.text))
     options = DumpIrOptions(
         targets=arguments,
         stdin_filename=None if stdin is None else stdin.filename,
