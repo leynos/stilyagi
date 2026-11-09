@@ -791,6 +791,25 @@ metrics-facade calls still reach a recorder installed by an embedding host,
 without changing its ownership or lifetime. The standalone `--verbose` JSON
 snapshot is independent of that recorder and is written to stderr.
 
+#### Serializing metrics-sensitive tests
+
+`check_metrics/mod.rs` also owns the test-only `CHECK_METRICS_TEST_LOCK` mutex
+and the `with_metrics_test_lock` helper. Extraction records into process-global
+atomic counters, and a metrics snapshot test resets those counters and then
+reads them back. An extraction that ran inside that window would be counted by
+the snapshot test, so every test that extracts a document through the `PyO3`
+bridge takes the lock for its whole extract-and-assert body, and the metrics
+snapshot tests take the same lock across their reset-seed-read window. Both
+sides share one lock because they share the counters: a lock per test module,
+or per crate, would leave the interleaving it exists to prevent.
+
+The helper recovers a poisoned lock with `PoisonError::into_inner` rather than
+propagating the poison. A panicking extraction test therefore fails only
+itself; later tests that need the lock still run, and the next metrics snapshot
+test resets the counters it is about to read. Take the lock through the helper
+rather than locking `CHECK_METRICS_TEST_LOCK` directly, so the poison policy
+stays in one place.
+
 `check_execution.py` records per-file `read`, `extract`, `config`, and `rules`
 durations; `cli.py` records the `discovery` and `render` phases. These are the
 six fixed-bucket phase labels in `stilyagi_check_phase_duration_seconds`, which
