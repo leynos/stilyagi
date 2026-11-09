@@ -37,10 +37,25 @@ _REPOSITORY_ROOT: typ.Final = pathlib.Path(__file__).resolve().parents[1]
 
 
 def _write_sdist(
-    path: pathlib.Path, members: cabc.Iterable[str], *, root: str = "stilyagi-0.2.0"
+    path: pathlib.Path,
+    members: cabc.Iterable[str],
+    *,
+    root: str = "stilyagi-0.2.0",
+    writes_root_entry: bool = False,
 ) -> pathlib.Path:
-    """Write a ``.tar.gz`` at `path` holding `members` under `root`."""
+    """Write a ``.tar.gz`` at `path` holding `members` under `root`.
+
+    Returns
+    -------
+    pathlib.Path
+        The archive's path, so a caller can chain the call into ``_members``.
+    """
+    # ``writes_root_entry`` adds the archive's own directory entry, whose name
+    # carries no separator once ``root`` is stripped. A real sdist carries it,
+    # and it is the entry the ``"/" in name`` filter must drop.
     with tarfile.open(path, "w:gz") as bundle:
+        if writes_root_entry:
+            bundle.addfile(tarfile.TarInfo(root))
         for member in members:
             payload = b""
             info = tarfile.TarInfo(f"{root}/{member}")
@@ -73,7 +88,10 @@ def test_the_release_prefix_is_stripped_from_every_member(
 def test_a_member_at_the_archive_root_is_dropped(tmp_path: pathlib.Path) -> None:
     """A name with no separator is the prefix itself, not a member of it."""
     archive = _write_sdist(
-        tmp_path / "stilyagi-0.2.0.tar.gz", ["Cargo.toml"], root="stilyagi-0.2.0"
+        tmp_path / "stilyagi-0.2.0.tar.gz",
+        ["Cargo.toml"],
+        root="stilyagi-0.2.0",
+        writes_root_entry=True,
     )
 
     members = _members(archive)

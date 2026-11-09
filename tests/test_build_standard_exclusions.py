@@ -9,8 +9,9 @@ and are held by `test_build_standard_make_routes`; these contracts hold the
 workflow and configuration halves.
 
 The wheel workflow is the one lane whose exclusion cannot come from the
-configuration, because its container is the host's own target triple. Its two
-maturin steps are therefore held to naming `RUSTFLAGS` themselves.
+configuration, because its container is the host's own target triple. Its
+three maturin steps — two Linux legs and the hosted build — are therefore held
+to naming `RUSTFLAGS` themselves.
 
 Driven over constructed workflows in both directions first, because a check
 over this repository's own correct workflows passes whether or not it

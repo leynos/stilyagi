@@ -25,18 +25,18 @@ import zipfile
 
 import pytest
 
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
-
+from tests.support.maturin_metadata import (
+    header_value,
+    parse_headers,
+    parse_metadata,
+)
 from tests.test_maturin_build import (
     _DIST_INFO_SUFFIXES,
     _extract_wheel_line_fields,
-    _header_value,
     _locate_dist_info_wheel,
     _normalize_wheel_entry,
     _normalize_wheel_tag,
     _object_mapping,
-    _parse_metadata,
     _parse_wheel_header,
     _read_maturin_pins,
     _require_maturin_pin,
@@ -154,7 +154,7 @@ def test_the_repository_declares_one_pin_for_both_locations() -> None:
 
 def test_the_snapshot_metadata_is_reduced_to_the_reviewed_headers() -> None:
     """Unreviewed headers are dropped, and the reviewed ones are sorted."""
-    parsed = _parse_metadata(_METADATA)
+    parsed = parse_metadata(_METADATA)
 
     assert sorted(parsed) == [
         "classifiers",
@@ -178,62 +178,28 @@ def test_the_snapshot_metadata_is_reduced_to_the_reviewed_headers() -> None:
 
 def test_a_folded_header_continues_the_line_before_it() -> None:
     """A summary spanning two lines is joined, as the metadata grammar says."""
-    headers = _headers(_METADATA.splitlines())
+    headers = parse_headers(_METADATA.splitlines())
 
     assert headers["Summary"] == ["A tool that spans two lines"], headers["Summary"]
 
 
 def test_a_body_after_the_headers_is_not_read_as_one() -> None:
     """The first line without a colon ends the header block."""
-    headers = _headers(["Name: stilyagi", "", "Summary: not a header"])
+    headers = parse_headers(["Name: stilyagi", "", "Summary: not a header"])
 
     assert headers == {"Name": ["stilyagi"]}, headers
 
 
 def test_a_header_that_is_absent_reads_as_nothing() -> None:
     """The empty answer is distinct from the empty string."""
-    assert _header_value({}, "Name") is None, "an absent header must be None"
+    assert header_value({}, "Name") is None, "an absent header must be None"
 
 
 def test_a_header_is_read_from_the_first_occurrence() -> None:
     """A repeated header contributes its first value, not its last."""
-    first = _header_value({"Name": ["first", "second"]}, "Name")
+    first = header_value({"Name": ["first", "second"]}, "Name")
 
     assert first == "first", first
-
-
-def _headers(lines: cabc.Sequence[str]) -> dict[str, list[str]]:
-    """Reproduce the header scan `_parse_metadata` performs, for one question.
-
-    `_parse_metadata` returns only the reviewed headers, and the folding and
-    the end-of-headers rule are not visible through them, so the scan is
-    repeated here over a document that keeps a header the snapshot drops.
-
-    The parameter is a sequence rather than a list because `str.splitlines`
-    answers with literal strings, and a `list` parameter would reject them.
-
-    Parameters
-    ----------
-    lines
-        The metadata document's lines, unfolded.
-
-    Returns
-    -------
-    dict[str, list[str]]
-        Each header and the values the scan accumulated for it.
-    """
-    headers: dict[str, list[str]] = {}
-    current: str | None = None
-    for line in lines:
-        if line.startswith((" ", "\t")) and current is not None:
-            headers[current][-1] = f"{headers[current][-1]} {line.strip()}"
-            continue
-        if ":" not in line:
-            break
-        current, _, value = line.partition(":")
-        current = current.strip()
-        headers.setdefault(current, []).append(value.strip())
-    return headers
 
 
 # -- entry and tag normalization --------------------------------------------
