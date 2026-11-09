@@ -1501,6 +1501,7 @@ version = "0.1.0"
 name = "stilyagi-extract"
 version = "0.1.0"
 dependencies = [
+ "cap-std 4.0.3",
  "insta",
  "markdown",
  "rstest",
