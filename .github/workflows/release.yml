@@ -492,7 +492,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release view "${GITHUB_REF_NAME}" --json assets > release-assets.json
-          mkdir -p release-bundles
+          mkdir -p release-bundles release-verified
           PYTHONPATH=scripts python3 -m release_assets_cli artefacts \
             --publish dist/publish --assets release-assets.json > release-artefacts.list
           PYTHONPATH=scripts python3 -m release_assets_cli bundles \
@@ -508,33 +508,44 @@ jobs:
           # signing would cover the Release in the check below while its
           # signature proved nothing. `--bundle` verifies offline, against
           # this file rather than the attestation store, and answers in the
-          # same record shape the decoder reads. A Release may legitimately
-          # hold more than one bundle, so each asset needs one that verifies
-          # rather than every bundle doing so; that one of them covers them
-          # all is `check-bundle`'s separate rule.
-          while IFS= read -r name; do
-            [ -n "${name}" ] || continue
-            verified=""
-            for bundle in release-bundles/*.sigstore.json; do
-              [ -e "${bundle}" ] || continue
-              if gh attestation verify "release-bundles/${name}" \
+          # same record shape the decoder reads.
+          #
+          # Each bundle is asked on its own: every asset it names must
+          # verify against it, and `check-bundle` then judges that one
+          # bundle's statements. Two bundles naming one asset each are two
+          # signatures, and neither vouches for the Release both would
+          # appear to cover if coverage were read across them. A bundle that
+          # verifies nothing, or that only one of them covers, is not copied
+          # into `release-verified`, so the coverage check cannot read it.
+          for bundle in release-bundles/*.sigstore.json; do
+            [ -e "${bundle}" ] || continue
+            verified="yes"
+            while IFS= read -r name; do
+              [ -n "${name}" ] || continue
+              # stdin is the artefact list this loop reads, so the verifier
+              # must not inherit it: a command that reads stdin as `gh` may
+              # would consume names the loop has not reached yet.
+              if ! gh attestation verify "release-bundles/${name}" \
                 --bundle "${bundle}" \
                 --repo "${GH_REPO}" \
                 --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
                 --source-ref "${GITHUB_REF}" \
-                --deny-self-hosted-runners > /dev/null 2> verify-error.txt; then
-                verified="yes"
+                --deny-self-hosted-runners \
+                > /dev/null 2> verify-error.txt < /dev/null; then
+                verified=""
                 break
               fi
-            done
-            if [ -z "${verified}" ]; then
-              echo "no verified bundle covers ${name}: $(cat verify-error.txt)" >&2
-              exit 1
+            done < release-artefacts.list
+            if [ -n "${verified}" ]; then
+              cp "${bundle}" release-verified/
+            else
+              echo "release-verified/: $(basename "${bundle}") does not verify" >&2
+              cat verify-error.txt >&2
             fi
-          done < release-artefacts.list
+          done
           PYTHONPATH=scripts python3 -m release_assets_cli check-bundle \
             --publish dist/publish --assets release-assets.json \
-            --provenance release-bundles
+            --provenance release-verified
 
       - name: Check both destinations hold the same bytes
         id: verify

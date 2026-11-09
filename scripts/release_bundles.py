@@ -6,6 +6,12 @@ check. A bundle covers a Release only when one statement names every asset, by
 name and digest: a bundle attached for a rebuild, or a file added to the
 Release by hand, leaves the rest of the Release unattested.
 
+Coverage is asked of a *statement*, never of a collection. Reading the union of
+several statements would pass a Release no single signature vouches for: two
+bundles covering one asset each, beside a third whose edited statement names
+both, would otherwise satisfy the check that neither signature does. The same
+holds inside one file, since ``gh attestation download`` writes JSON lines.
+
 Like the other release modules, this one resolves no third-party code and makes
 no network call: the workflow's ``gh`` steps list and download the bundles it
 reads.
@@ -28,28 +34,72 @@ if typ.TYPE_CHECKING:
 BUNDLE_SUFFIX = ".sigstore.json"
 
 
-def _covers(bundle: Path, assets: cabc.Mapping[str, str]) -> bool:
-    """Return whether one bundle's statement covers every asset's bytes.
+def _covers(statement: object, assets: cabc.Mapping[str, str]) -> bool:
+    """Return whether one statement names every asset and digest in ``assets``.
 
-    A bundle names the files its run attested, by digest. Coverage means every
-    asset, not any one of them: a Release published with a bundle attesting
-    some of its files leaves the rest with a provenance claim that says
-    nothing about them. A file that is not a bundle at all covers nothing, so
-    it answers ``False`` here rather than raising: each caller's refusal names
-    what would be published otherwise.
+    Coverage means every asset, not any one of them: a Release published with a
+    statement attesting some of its files leaves the rest with a provenance
+    claim that says nothing about them. It is deliberately one statement and
+    not a set: two statements naming one asset each are two signatures, and
+    neither of them vouches for the Release both are read to cover.
 
     Returns
     -------
     bool
-        Whether every name and digest in ``assets`` appears in the bundle.
+        Whether every name and digest in ``assets`` appears in ``statement``.
+    """
+    return all(
+        has_matching_subject([statement], name, digest)
+        for name, digest in assets.items()
+    )
+
+
+def _covering_bundle(bundle: Path, assets: cabc.Mapping[str, str]) -> bool:
+    """Return whether one bundle's file holds a statement covering ``assets``.
+
+    A bundle file may hold several statements, and each is asked separately. A
+    file that is not a bundle at all covers nothing, so it answers ``False``
+    here rather than raising: each caller's refusal names what would be
+    published otherwise.
+
+    Returns
+    -------
+    bool
+        Whether one of the file's statements covers every asset.
     """
     try:
         records = read_bundle_statements(bundle)
     except ProvenanceRecordError:
         return False
-    return all(
-        has_matching_subject(records, name, digest) for name, digest in assets.items()
-    )
+    return any(_covers(record, assets) for record in records)
+
+
+def verified_bundle_names(directory: Path, assets: cabc.Mapping[str, str]) -> list[str]:
+    """Return the bundles in ``directory`` that verified against every asset.
+
+    The directory is one the workflow's ``gh attestation verify --bundle`` loop
+    filled, so a name that is absent there answered nothing for the Release.
+    That absence is the point rather than an indirect way of asking the same
+    question: the answer that admits an asset is a signature over the bundle's
+    statement, and decoding alone would accept an edited one.
+
+    Parameters
+    ----------
+    directory
+        The directory holding a copy of each bundle that verified.
+    assets
+        Each artefact name and the digest it must be named under.
+
+    Returns
+    -------
+    list[str]
+        The verified bundles whose statement covers every asset.
+    """
+    return [
+        name
+        for name in bundle_names(directory)
+        if _covering_bundle(directory / name, assets)
+    ]
 
 
 def bundle_names(directory: Path) -> list[str]:
@@ -124,11 +174,11 @@ def copy_covering_bundle(bundles: Path, assets: dict[str, str], output: Path) ->
 
     Name alone does not establish coverage: the bytes a run attaches may come
     from PyPI rather than from its own build, and this run's bundle then
-    attests *different* bytes. A bundle is attached only if its statement names
-    every digest the Release is receiving. A Release left with no such bundle
-    is refused here rather than published with provenance for bytes it does
-    not hold; the refusal names the repair, because no retry of the same run
-    can supply the missing statement.
+    attests *different* bytes. A bundle is attached only if one of its
+    statements names every digest the Release is receiving. A Release left with
+    no such bundle is refused here rather than published with provenance for
+    bytes it does not hold; the refusal names the repair, because no retry of
+    the same run can supply the missing statement.
 
     Raises
     ------
@@ -136,7 +186,9 @@ def copy_covering_bundle(bundles: Path, assets: dict[str, str], output: Path) ->
         If none of this run's bundles covers ``assets``.
     """
     covering = [
-        name for name in bundle_names(bundles) if _covers(bundles / name, assets)
+        name
+        for name in bundle_names(bundles)
+        if _covering_bundle(bundles / name, assets)
     ]
     if not covering:
         msg = (
@@ -151,14 +203,20 @@ def copy_covering_bundle(bundles: Path, assets: dict[str, str], output: Path) ->
 
 
 def check_release_bundle(state: State, bundle_dir: Path) -> None:
-    """Raise unless a bundle the Release holds covers every asset it holds.
+    """Raise unless one verified bundle covers every asset the Release holds.
 
     The bundle beside the assets is the provenance a consumer checks, and it
-    is read here as a consumer would: downloaded from the Release, decoded, and
-    compared against the Release's own asset digests. That is the claim the
-    published Release makes, and it is checked on the run that uploaded
-    nothing as well as on the one that uploaded, because a Release can also
-    become unattested by having an asset attached to it outside this workflow.
+    is read here as a consumer would: downloaded from the Release, verified,
+    decoded, and compared against the Release's own asset digests. That is the
+    claim the published Release makes, and it is checked on the run that
+    uploaded nothing as well as on the one that uploaded, because a Release can
+    also become unattested by having an asset attached to it outside this
+    workflow.
+
+    ``bundle_dir`` is the directory the workflow's verification loop filled, so
+    a bundle it refused is not here to be read. Coverage over the whole
+    directory would admit a Release no signature covers, and coverage of a
+    statement that was never verified is the same claim with less evidence.
 
     Parameters
     ----------
@@ -167,26 +225,24 @@ def check_release_bundle(state: State, bundle_dir: Path) -> None:
         is the Release's asset listing, which supplies the digests the bundle
         must cover.
     bundle_dir
-        The directory the Release's ``.sigstore.json`` assets were downloaded
-        into.
+        The directory holding the copies of the Release's bundles that
+        verified, named as the Release lists them.
 
     Raises
     ------
     ReleaseAssetError
-        If the Release holds no bundle, an asset has no digest, or no bundle
-        covers every asset.
+        If the Release holds no bundle, an asset has no digest, or no verified
+        bundle covers every asset.
     """
     digests = artefact_digests(state.github)
-    covering = [
-        name for name in bundle_names(bundle_dir) if _covers(bundle_dir / name, digests)
-    ]
-    if not covering:
+    if not verified_bundle_names(bundle_dir, digests):
         held = bundle_names(bundle_dir)
         msg = (
-            f"the GitHub Release holds no provenance bundle covering "
+            f"the GitHub Release holds no verified provenance bundle covering "
             f"{sorted(digests)}, so publishing it would attach provenance for "
-            f"other bytes. It holds {held or 'no bundle at all'}. Attach the "
-            "attestation for these bytes from the repository's attestation "
+            f"other bytes. It holds "
+            f"{held or 'no bundle that verified against every asset'}. Attach "
+            "the attestation for these bytes from the repository's attestation "
             "store, then re-run."
         )
         raise ReleaseAssetError(msg)

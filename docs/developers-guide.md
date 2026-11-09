@@ -1998,13 +1998,21 @@ rather than merely signed by something.
 
 The bundle beside the release's assets is checked as a consumer would check it:
 `bundles` lists the `.sigstore.json` assets the release holds, the step
-downloads them, and `check-bundle` decodes each DSSE payload and requires one
-statement to name every asset's name and digest. Coverage means every asset,
-not any one of them, so a bundle attached for a different run's bytes — or a
-file added to the release by hand — leaves it unattested and it stays a draft.
-A release the check refuses is repaired by attaching the attestation for those
-exact bytes from the repository's attestation store, not by re-running: the
-re-run's own bundle attests its rebuild, which is not what the release holds.
+downloads and verifies them, and `check-bundle` decodes each DSSE payload and
+requires one verified statement to name every asset's name and digest. Coverage
+means every asset, not any one of them, so a bundle attached for a different
+run's bytes — or a file added to the release by hand — leaves it unattested and
+it stays a draft. A release the check refuses is repaired by attaching the
+attestation for those exact bytes from the repository's attestation store, not
+by re-running: the re-run's own bundle attests its rebuild, which is not what
+the release holds.
+
+Coverage is a single statement's claim. Reading a union of statements, whether
+across bundles or across the JSON lines one file can hold, would accept a
+release whose assets were each covered by a different signature while no signer
+named the release: the step therefore verifies each bundle against every asset
+it must cover, copies only the bundles that pass into the directory
+`check-bundle` reads, and asks coverage of one statement at a time.
 
 ### Publishing a release
 
