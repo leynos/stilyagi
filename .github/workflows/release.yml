@@ -484,22 +484,54 @@ jobs:
 
       # The bundle beside the assets is what a consumer can check, so it is
       # read as a consumer would: listed from the Release as it now stands,
-      # downloaded, decoded, and compared against the Release's own asset
-      # digests. A Release that carries no attestation covering everything in
-      # it is not published, whichever run attached the parts.
+      # downloaded, verified, decoded, and compared against the Release's own
+      # asset digests. A Release that carries no attestation covering
+      # everything in it is not published, whichever run attached the parts.
       - name: Check the Release's assets are attested
         id: attested
         run: |
           set -euo pipefail
           gh release view "${GITHUB_REF_NAME}" --json assets > release-assets.json
           mkdir -p release-bundles
+          PYTHONPATH=scripts python3 -m release_assets_cli artefacts \
+            --publish dist/publish --assets release-assets.json > release-artefacts.list
           PYTHONPATH=scripts python3 -m release_assets_cli bundles \
-            --publish dist/publish --assets release-assets.json > release-bundles.txt
-          while IFS= read -r name; do
+            --publish dist/publish --assets release-assets.json > release-bundles.list
+          cat release-artefacts.list release-bundles.list | while IFS= read -r name; do
             [ -n "${name}" ] || continue
             gh release download "${GITHUB_REF_NAME}" --pattern "${name}" \
               --dir release-bundles
-          done < release-bundles.txt
+          done
+          # Decoding a bundle's statement says what its signer claimed, not
+          # that the signer said it. Without this the attached bundle is
+          # taken on trust, and a bundle whose subjects were edited after
+          # signing would cover the Release in the check below while its
+          # signature proved nothing. `--bundle` verifies offline, against
+          # this file rather than the attestation store, and answers in the
+          # same record shape the decoder reads. A Release may legitimately
+          # hold more than one bundle, so each asset needs one that verifies
+          # rather than every bundle doing so; that one of them covers them
+          # all is `check-bundle`'s separate rule.
+          while IFS= read -r name; do
+            [ -n "${name}" ] || continue
+            verified=""
+            for bundle in release-bundles/*.sigstore.json; do
+              [ -e "${bundle}" ] || continue
+              if gh attestation verify "release-bundles/${name}" \
+                --bundle "${bundle}" \
+                --repo "${GH_REPO}" \
+                --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
+                --source-ref "${GITHUB_REF}" \
+                --deny-self-hosted-runners > /dev/null 2> verify-error.txt; then
+                verified="yes"
+                break
+              fi
+            done
+            if [ -z "${verified}" ]; then
+              echo "no verified bundle covers ${name}: $(cat verify-error.txt)" >&2
+              exit 1
+            fi
+          done < release-artefacts.list
           PYTHONPATH=scripts python3 -m release_assets_cli check-bundle \
             --publish dist/publish --assets release-assets.json \
             --provenance release-bundles

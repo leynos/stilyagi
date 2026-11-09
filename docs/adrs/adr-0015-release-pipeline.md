@@ -176,6 +176,17 @@ check answering for bytes the release does not hold. A disagreement or an
 uncovered asset leaves the release a draft, which is visible only to a token
 that can write contents — a failed release is not a public one.
 
+Decoding a bundle establishes what its signer *claimed*, not that the signer
+said it: a statement edited after signing still decodes, and would then cover
+whatever names it was edited to carry. Before coverage is judged, the step
+therefore verifies every asset against the attached bundle with
+`gh attestation verify --bundle`, which checks the envelope's signature offline
+and answers in the same record shape the decoder reads. A bundle that does not
+verify attests nothing, and the release stays a draft. Each asset needs one
+bundle that verifies rather than every bundle doing so, because a release may
+legitimately hold more than one; that a single statement covers them all is
+`check-bundle`'s separate rule.
+
 The bundle is required once, not once per run, and it must *cover* what the
 release holds. The first run of a tag attaches one only when its statement
 names every digest the finished release will carry; a run whose assets come

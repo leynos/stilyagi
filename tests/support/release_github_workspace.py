@@ -35,7 +35,7 @@ EARLIER_BUNDLE: typ.Final = "stilyagi-v0.2.0-run6-1.sigstore.json"
 #: The rebuilt payloads, which are canonical only on a first release.
 _REBUILD: typ.Final = {WHEEL: b"rebuilt-wheel", SDIST: b"rebuilt-sdist"}
 #: The payloads an earlier run published, which a re-run carries forward.
-_PUBLISHED: typ.Final = {WHEEL: b"canonical-wheel", SDIST: b"canonical-sdist"}
+PUBLISHED_PAYLOADS: typ.Final = {WHEEL: b"canonical-wheel", SDIST: b"canonical-sdist"}
 
 
 class Holding(typ.NamedTuple):
@@ -86,7 +86,7 @@ def seed_release(
     for name, payload in _REBUILD.items():
         (publish / name).write_bytes(payload)
     write_bundle(work / "dist" / "attestations", BUNDLE, _REBUILD)
-    canonical = dict(_REBUILD) if canonical_is_rebuild else dict(_PUBLISHED)
+    canonical = dict(_REBUILD) if canonical_is_rebuild else dict(PUBLISHED_PAYLOADS)
     fake.attest(canonical)
     for directory, names in ((fake.pypi, holding.pypi), (fake.github, holding.github)):
         for name in names:
@@ -131,6 +131,7 @@ def uploads(fake: FakeRelease) -> list[tuple[str, ...]]:
 __all__ = [
     "BUNDLE",
     "EARLIER_BUNDLE",
+    "PUBLISHED_PAYLOADS",
     "SDIST",
     "WHEEL",
     "Holding",

@@ -32,7 +32,7 @@ from release_assets import (
     stage_pypi,
     write_output,
 )
-from release_bundles import check_release_bundle, held_bundles
+from release_bundles import artefact_digests, check_release_bundle, held_bundles
 from release_github_upload import (
     check_fetched,
     check_provenance,
@@ -121,6 +121,19 @@ def _bundles(state: State, args: argparse.Namespace) -> None:
         print(name)
 
 
+def _artefacts(state: State, args: argparse.Namespace) -> None:
+    """Print the Release's artefact names, one per line, bundles left out.
+
+    The attestation check verifies each attached bundle against the artefacts
+    it must cover, and that step holds only the Release's listing. Printing the
+    names here keeps the rule for which assets are artefacts, rather than
+    evidence, in the module that already states it.
+    """
+    del args
+    for name in artefact_digests(state.github):
+        print(name)
+
+
 def _check_bundle(state: State, args: argparse.Namespace) -> None:
     """Refuse a Release none of whose bundles attests as it now stands.
 
@@ -143,6 +156,7 @@ def _verify(state: State, args: argparse.Namespace) -> None:
 
 _COMMANDS: dict[str, cabc.Callable[[State, argparse.Namespace], None]] = {
     "carryover": _carryover,
+    "artefacts": _artefacts,
     "bundles": _bundles,
     "stage-pypi": _stage_pypi,
     "stage-github": _stage_github,
