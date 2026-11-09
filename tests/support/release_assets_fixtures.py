@@ -288,9 +288,49 @@ def write_bundle(
     pathlib.Path
         The path of the bundle written.
     """
+    return _write_document(directory / name, _bundle_of(subjects))
+
+
+def write_bundles(
+    directory: pathlib.Path, name: str, statements: list[dict[str, bytes]]
+) -> pathlib.Path:
+    """Write one file holding ``statements`` as JSON lines, as the downloader does.
+
+    ``gh attestation download`` writes one bundle per line, so a file an
+    operator recovers from the attestation store can carry several independent
+    statements. Two signatures in one file are still two signatures: writing
+    them here lets a test state what that file must and must not be read to
+    cover.
+
+    Parameters
+    ----------
+    directory
+        The directory to write the bundles into.
+    name
+        The file name, written verbatim and expected to end in
+        ``.sigstore.json``.
+    statements
+        Each statement's artefact names and the payloads it was signed over.
+
+    Returns
+    -------
+    pathlib.Path
+        The path of the file written.
+    """
+    path = directory / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(json.dumps(_bundle_of(subjects)) for subjects in statements),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _bundle_of(subjects: dict[str, bytes]) -> dict[str, object]:
+    """Return a Sigstore bundle attesting ``subjects``."""
     statement = _statement(subjects)
     payload = base64.b64encode(json.dumps(statement).encode("utf-8")).decode("ascii")
-    return _write_document(directory / name, bundle_document(payload))
+    return bundle_document(payload)
 
 
 def _write_document(path: pathlib.Path, document: object) -> pathlib.Path:
@@ -306,6 +346,7 @@ __all__ = [
     "signature_of",
     "write_assets",
     "write_bundle",
+    "write_bundles",
     "write_file",
     "write_index",
     "write_provenance",

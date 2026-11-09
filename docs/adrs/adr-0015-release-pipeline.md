@@ -167,8 +167,8 @@ and sent to PyPI, so the two destinations converge on one byte string.
 
 The release stays a draft until the two destinations are shown to agree and its
 provenance is shown to cover it. `verify` requires identical digests for every
-name; `check-bundle` then downloads the `.sigstore.json` assets the release
-already holds, decodes their DSSE payloads, and requires one statement to name
+name; `check-bundle` then reads the `.sigstore.json` assets the release already
+holds, decodes their DSSE payloads, and requires one verified statement to name
 every asset's name and digest in the release's own listing. Coverage is checked
 against the release as a consumer would see it, not against the run's local
 records, because an asset attached outside this workflow would leave a local
@@ -179,13 +179,20 @@ that can write contents — a failed release is not a public one.
 Decoding a bundle establishes what its signer *claimed*, not that the signer
 said it: a statement edited after signing still decodes, and would then cover
 whatever names it was edited to carry. Before coverage is judged, the step
-therefore verifies every asset against the attached bundle with
-`gh attestation verify --bundle`, which checks the envelope's signature offline
-and answers in the same record shape the decoder reads. A bundle that does not
-verify attests nothing, and the release stays a draft. Each asset needs one
-bundle that verifies rather than every bundle doing so, because a release may
-legitimately hold more than one; that a single statement covers them all is
-`check-bundle`'s separate rule.
+therefore verifies each attached bundle with `gh attestation verify --bundle`,
+which checks the envelope's signature offline and answers in the same record
+shape the decoder reads. A bundle that does not verify attests nothing, and the
+release stays a draft.
+
+Verification is asked of a bundle as a whole, not of each asset separately.
+Every asset a bundle names must verify against it, and a bundle that does is
+the only kind copied into the directory coverage is then judged over. Asking
+per asset instead would admit a release no signature covers: two bundles naming
+one asset each both verify, and a third whose statement was edited to name both
+decodes as covering, so the union of three documents would answer for a claim
+none of their signers made. Coverage is asked of one statement for the same
+reason, including across the JSON lines `gh attestation download` writes, since
+two statements in one file are still two signatures.
 
 The bundle is required once, not once per run, and it must *cover* what the
 release holds. The first run of a tag attaches one only when its statement

@@ -16,7 +16,12 @@ import release_bundles
 import release_github_upload
 from release_assets import PypiFile, ReleaseAssetError, State
 
-from tests.support.release_assets_fixtures import digest, write_bundle, write_file
+from tests.support.release_assets_fixtures import (
+    digest,
+    write_bundle,
+    write_bundles,
+    write_file,
+)
 
 if typ.TYPE_CHECKING:
     import pathlib
@@ -72,7 +77,9 @@ def test_a_releases_bundle_that_misses_an_asset_does_not_pass(
     """
     state, bundles = _release_with_bundle(tmp_path, {"a.whl": b"a"})
 
-    with pytest.raises(ReleaseAssetError, match="no provenance bundle covering"):
+    with pytest.raises(
+        ReleaseAssetError, match="no verified provenance bundle covering"
+    ):
         release_bundles.check_release_bundle(state, bundles)
 
 
@@ -88,8 +95,39 @@ def test_a_release_holding_no_bundle_does_not_pass_the_bundle_check(
         github={"a.whl": digest(publish / "a.whl")},
     )
 
-    with pytest.raises(ReleaseAssetError, match="no bundle at all"):
+    with pytest.raises(
+        ReleaseAssetError, match="no bundle that verified against every asset"
+    ):
         release_bundles.check_release_bundle(state, tmp_path / "release-bundles")
+
+
+def test_a_bundle_that_did_not_verify_is_refused_as_unverified(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The refusal says the bundle failed verification, not that none exists.
+
+    The Release's listing names a bundle the verification step refused, so the
+    directory coverage is judged over does not hold it. An operator reading
+    "no bundle at all" would look for a missing attachment; the repair is on
+    the attachment that is there.
+    """
+    publish = tmp_path / "publish"
+    bundles = tmp_path / "release-verified"
+    write_file(publish, "a.whl", b"a")
+    bundles.mkdir()
+    state = State(
+        publish=publish,
+        pypi=_pypi("a.whl"),
+        github={
+            "a.whl": digest(publish / "a.whl"),
+            "run6.sigstore.json": digest(publish / "a.whl"),
+        },
+    )
+
+    with pytest.raises(
+        ReleaseAssetError, match="no bundle that verified against every asset"
+    ):
+        release_bundles.check_release_bundle(state, bundles)
 
 
 def test_a_bundle_naming_other_bytes_does_not_pass(
@@ -100,7 +138,71 @@ def test_a_bundle_naming_other_bytes_does_not_pass(
         tmp_path, {"a.whl": b"a-rebuild", "b.whl": b"b-rebuild"}
     )
 
-    with pytest.raises(ReleaseAssetError, match="no provenance bundle covering"):
+    with pytest.raises(
+        ReleaseAssetError, match="no verified provenance bundle covering"
+    ):
+        release_bundles.check_release_bundle(state, bundles)
+
+
+def test_coverage_is_one_statement_not_the_union_of_several(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Two statements naming one asset each are two signatures, not one claim.
+
+    A Release holding a bundle per asset has a verified statement for
+    everything it carries and a statement covering everything it carries. It
+    has no single statement that does both, which is what publishing presents
+    as provenance, and a consumer checking the attached bundle would find no
+    signature naming the Release.
+    """
+    publish = tmp_path / "publish"
+    bundles = tmp_path / "release-bundles"
+    write_file(publish, "a.whl", b"a")
+    write_file(publish, "b.whl", b"b")
+    write_bundle(bundles, "run6-a.sigstore.json", {"a.whl": b"a"})
+    write_bundle(bundles, "run6-b.sigstore.json", {"b.whl": b"b"})
+    state = State(
+        publish=publish,
+        pypi=_pypi("a.whl") | {"b.whl": PypiFile("ab", "https://x/b")},
+        github={
+            "a.whl": digest(publish / "a.whl"),
+            "b.whl": digest(publish / "b.whl"),
+        },
+    )
+
+    with pytest.raises(ReleaseAssetError, match="no verified provenance bundle"):
+        release_bundles.check_release_bundle(state, bundles)
+
+
+def test_a_json_lines_file_is_read_one_statement_at_a_time(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A recovered file's lines are separate statements, not one covering both.
+
+    ``gh attestation download`` writes JSON lines, so a single file can hold
+    evidence for bytes recovered from two runs. Reading its lines together
+    would let a file cover a Release that neither of its signatures does.
+    """
+    publish = tmp_path / "publish"
+    bundles = tmp_path / "release-bundles"
+    write_file(publish, "a.whl", b"a")
+    write_file(publish, "b.whl", b"b")
+    write_bundles(
+        bundles,
+        "recovered.sigstore.json",
+        [{"a.whl": b"a"}, {"b.whl": b"b"}],
+    )
+    state = State(
+        publish=publish,
+        pypi=_pypi("a.whl") | {"b.whl": PypiFile("ab", "https://x/b")},
+        github={
+            "a.whl": digest(publish / "a.whl"),
+            "b.whl": digest(publish / "b.whl"),
+            "recovered.sigstore.json": digest(bundles / "recovered.sigstore.json"),
+        },
+    )
+
+    with pytest.raises(ReleaseAssetError, match="no verified provenance bundle"):
         release_bundles.check_release_bundle(state, bundles)
 
 
