@@ -15,6 +15,7 @@
       'stilyagi/cache/__init__.py',
       'stilyagi/cache/clean.py',
       'stilyagi/cache/extraction.py',
+      'stilyagi/cache/identity.py',
       'stilyagi/cache/ir.py',
       'stilyagi/cache/model.py',
       'stilyagi/cache/storage.py',
