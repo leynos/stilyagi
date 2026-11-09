@@ -9,6 +9,7 @@ from stilyagi.cache import storage as cache_storage
 from stilyagi.cache.extraction import CacheExtractionService, CacheServiceConfig
 from stilyagi.cache.model import CACHE_NAMESPACE_NAME
 from stilyagi.cache.storage import CacheStorageError
+from stilyagi.cache.storage_primitives import StorageFailureCategory
 from stilyagi.config import StilyagiConfig
 
 from tests.support.cache_extraction import (
@@ -87,8 +88,11 @@ def test_cache_open_failure_warns_and_extracts_without_storage(
         """Simulate an unsafe or unavailable configured cache root."""
         nonlocal storage_attempts
         storage_attempts += 1
-        message = "injected unavailable cache"
-        raise CacheStorageError(message)
+        message = "injected unavailable cache at /secret/path"
+        raise CacheStorageError(
+            message,
+            category=StorageFailureCategory.LEASE_UNAVAILABLE,
+        )
 
     service = close_cache_services(
         CacheExtractionService(
@@ -126,8 +130,11 @@ def test_cache_open_failure_warns_and_extracts_without_storage(
         if record.name == "stilyagi.cache.extraction"
         and record.levelno == logging.WARNING
     )
-    assert warnings == ("persistent extraction cache unavailable",), (
-        "an unusable root must emit only one warning"
+    assert warnings == (
+        "persistent extraction cache storage_open_lease_unavailable",
+    ), "an unusable root must emit one warning naming its bounded category"
+    assert not any("/secret/path" in warning for warning in warnings), (
+        "the storage error's path-bearing message must not reach the log"
     )
     service.close()
 

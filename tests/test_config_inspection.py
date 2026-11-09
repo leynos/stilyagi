@@ -47,7 +47,7 @@ def test_config_json_shows_all_defaults_without_creating_cache(
     """Expose default values and origins without filesystem side effects."""
     monkeypatch.chdir(tmp_path)
 
-    exit_code = cli.main(["config", "--output-format", "json"])
+    exit_code = cli.main(["config", "--isolated", "--output-format", "json"])
     output = capsys.readouterr()
     payload = json.loads(output.out)
 
@@ -84,13 +84,13 @@ def test_config_text_output_is_stable(
 ) -> None:
     """Keep the human-readable view deterministic and snapshot its contract.
 
-    The run happens in a disposable directory: nearest-config discovery walks
-    the invoking directory and its ancestors, so a `stilyagi.toml` anywhere
-    above the checkout would change this output without a code change.
+    The run happens in a disposable directory with discovery isolated:
+    nearest-config search walks every ancestor, so a `stilyagi.toml` above the
+    checkout would otherwise change this output without a code change.
     """
     monkeypatch.chdir(tmp_path)
 
-    exit_code = cli.main(["config"])
+    exit_code = cli.main(["config", "--isolated"])
     output = capsys.readouterr()
 
     assert exit_code == 0, "expected config inspection to succeed"

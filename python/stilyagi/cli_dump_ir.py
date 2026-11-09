@@ -87,12 +87,25 @@ class DumpIrError(Exception):
         super().__init__(self._MESSAGES[code].format(*values))
 
 
+@dc.dataclass(frozen=True, slots=True)
+class DumpIrCollaborators:
+    """The collaborators a caller may substitute for one `dump-ir` run.
+
+    They travel together because each exists for the same reason: a test or an
+    embedding caller wants to observe one boundary without the command
+    reaching for the process's own streams, working directory, or extractor.
+    """
+
+    output: typ.TextIO | typ.BinaryIO | None = None
+    error: typ.TextIO | None = None
+    resolver: config.ConfigResolver | None = None
+    cache: CacheExtractionService | None = None
+
+
 def run_dump_ir(
     options: DumpIrOptions,
     *,
-    output: typ.TextIO | typ.BinaryIO | None = None,
-    error: typ.TextIO | None = None,
-    resolver: config.ConfigResolver | None = None,
+    collaborators: DumpIrCollaborators | None = None,
 ) -> int:
     """Discover Markdown inputs and emit their canonical IR as JSON.
 
@@ -104,10 +117,11 @@ def run_dump_ir(
     ----------
     options:
         Parsed options for one `dump-ir` invocation.
-    output, error:
-        Optional streams for tests and embedding callers.
-    resolver:
-        Optional configuration resolver used by the shared discovery query.
+    collaborators:
+        Optional streams, configuration resolver, and extraction service. A
+        supplied cache keeps the command from constructing one over the
+        ambient working directory, which is what lets a test observe cache
+        reads and publishes independently of where it runs.
 
     Returns
     -------
@@ -121,10 +135,17 @@ def run_dump_ir(
     >>> run_dump_ir(DumpIrOptions(targets=("README.md",)))  # doctest: +SKIP
     0
     """
-    streams = command_streams(output, error)
+    injected = collaborators if collaborators is not None else DumpIrCollaborators()
+    streams = command_streams(injected.output, injected.error)
     cli_log.configure_verbose_logging(verbose=options.verbose)
-    config_resolver = resolver if resolver is not None else config.ConfigResolver()
-    extraction_cache = _open_extraction_cache(no_cache=options.no_cache)
+    config_resolver = (
+        injected.resolver if injected.resolver is not None else config.ConfigResolver()
+    )
+    extraction_cache = (
+        injected.cache
+        if injected.cache is not None
+        else _open_extraction_cache(no_cache=options.no_cache)
+    )
     try:
         inputs = _discover_markdown_inputs(options, config_resolver)
         _write_dump_output(

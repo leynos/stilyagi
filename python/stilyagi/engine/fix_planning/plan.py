@@ -5,7 +5,6 @@ import logging
 import typing as typ
 
 from stilyagi.engine import ir_view
-from stilyagi.engine.extraction import BridgeExtractionError
 
 from .admissibility import EditRejection, classify_edit
 from .conflicts import coalesce_identical, first_overlap
@@ -13,6 +12,7 @@ from .frontmatter import frontmatter_is_unchanged, yaml_frontmatter
 from .offset_view import OffsetView
 from .selection import CandidatePartition, partition_candidates
 from .splice import apply_edits
+from .verification import FixVerificationError, MarkdownVerifier, markdown_verifier
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -24,35 +24,24 @@ if typ.TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-def _re_extract_markdown(source_text: str) -> model.Document:
-    """Re-extract decoded Markdown through the engine's public boundary.
-
-    The frontmatter guard has to see the document a repair would produce, and
-    the only authority on that is a real extraction of the repaired text. Kept
-    as its own function so the planner depends on *an* extractor rather than on
-    this one, which is what makes the unverifiable-frontmatter branch testable
-    without the native extension.
-
-    Returns
-    -------
-    model.Document
-        The document the given text extracts to.
-    """
-    from stilyagi import model
-    from stilyagi.engine.api import extract_document
-
-    return extract_document(source_text, model.Syntax.MARKDOWN)
-
-
 @dc.dataclass(frozen=True, slots=True)
 class FixPlanRequest:
-    """Inputs needed to plan one file's rule-authored source edits."""
+    """Inputs needed to plan one file's rule-authored source edits.
+
+    ``verify_markdown`` is the planner's only route to a second extraction. It
+    is a required field rather than a module-level import so the frontmatter
+    guard can be exercised with a fake, and so an embedding caller can supply
+    the extractor it already owns instead of paying for another bridge call.
+    """
 
     source_bytes: bytes
     document: model.Document
     diagnostics: tuple[diagnostics.Diagnostic, ...]
     level: FixLevel
     lint_config: LintConfig
+    verify_markdown: MarkdownVerifier = dc.field(
+        default_factory=markdown_verifier,
+    )
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -129,6 +118,7 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
         view.body,
         replacement,
         request.document,
+        request.verify_markdown,
     ):
         refusal = EditRejection(
             "fix-error/frontmatter-protected",
@@ -157,6 +147,7 @@ def _preserves_yaml_frontmatter(
     body: bytes,
     replacement: bytes,
     document: model.Document,
+    verify_markdown: MarkdownVerifier,
 ) -> bool:
     """Re-extract Markdown to verify its recognized YAML prefix byte-for-byte.
 
@@ -178,13 +169,8 @@ def _preserves_yaml_frontmatter(
     before = yaml_frontmatter(document, body)
     try:
         replacement_text = replacement.decode("utf-8-sig")
-        updated_document = _re_extract_markdown(replacement_text)
-    except (
-        BridgeExtractionError,
-        RuntimeError,
-        TypeError,
-        ValueError,
-    ) as error:
+        updated_document = verify_markdown(replacement_text)
+    except (FixVerificationError, UnicodeDecodeError) as error:
         _LOGGER.warning(
             "could not verify YAML frontmatter after planned edits: %s",
             error,

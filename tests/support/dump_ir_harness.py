@@ -118,5 +118,8 @@ def run_dump_ir(
         targets=arguments,
         stdin_filename=None if stdin is None else stdin.filename,
     )
-    exit_code = cli_dump_ir.run_dump_ir(options, output=output, error=error)
+    exit_code = cli_dump_ir.run_dump_ir(
+        options,
+        collaborators=cli_dump_ir.DumpIrCollaborators(output=output, error=error),
+    )
     return exit_code, output.getvalue(), error.getvalue()

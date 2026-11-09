@@ -12,7 +12,7 @@ from stilyagi.config.inspection import _config_table
 
 from .ir import InvalidCacheEntryError, decode_cache_entry, encode_cache_entry
 from .model import ExtractionRequest, cache_key
-from .storage import CacheStorageError, CacheStore
+from .storage import CacheStorageError, CacheStore, storage_outcome
 from .storage_primitives import _absolute_lexical_path
 
 __all__ = [
@@ -246,7 +246,7 @@ class CacheExtractionService:
         try:
             request = self._request(extraction_input, normalized_config)
         except (ImportError, OSError, TypeError, ValueError) as error:
-            self._record_bypass("unavailable", "warning")
+            self._record_bypass("identity_unavailable", "warning")
             _LOGGER.debug("cache identity unavailable: %s", error)
             return self._fresh(extraction_input)
 
@@ -260,14 +260,14 @@ class CacheExtractionService:
             return self._fresh(extraction_input)
         try:
             store = self._store_for(extraction_input.cache_dir, store_key)
-        except CacheStorageError:
+        except CacheStorageError as error:
             self._unusable_roots.add(store_key)
-            self._record_bypass("unavailable", "warning")
+            self._record_bypass(storage_outcome("open", error.category), "warning")
             return self._fresh(extraction_input)
         try:
             cached = store.read(key)
-        except CacheStorageError:
-            self._record_bypass("read_failure", "warning")
+        except CacheStorageError as error:
+            self._record_bypass(storage_outcome("read", error.category), "warning")
             self._discard_store(store_key)
             return self._fresh(extraction_input)
 
@@ -310,8 +310,8 @@ class CacheExtractionService:
         """Publish one successful extraction without changing its result."""
         try:
             store.write(key, encode_cache_entry(key, canonical_json))
-        except CacheStorageError:
-            self._event("write_failure", "warning")
+        except CacheStorageError as error:
+            self._event(storage_outcome("write", error.category), "warning")
             self.counters.write_failures += 1
             self._discard_store(store_key)
 
