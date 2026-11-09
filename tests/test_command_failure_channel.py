@@ -17,7 +17,7 @@ import sys
 import typing as typ
 
 import pytest
-from stilyagi import cli_clean, cli_command_shell, cli_config_command
+from stilyagi import cli_clean, cli_command_shell, cli_config_command, cli_dump_ir
 from stilyagi.cli_args import DumpIrOptions, _ConfigInspectionOptions
 from stilyagi.cli_dump_ir import run_dump_ir
 from stilyagi.config import path_resolution
@@ -115,8 +115,10 @@ class TestCommandsShareTheChannel:
 
         status = run_dump_ir(
             DumpIrOptions(targets=("missing.md",)),
-            output=io.BytesIO(),
-            error=sink,
+            collaborators=cli_dump_ir.DumpIrCollaborators(
+                output=io.BytesIO(),
+                error=sink,
+            ),
         )
 
         assert status == 2, "expected a missing operand to exit two"

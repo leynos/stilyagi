@@ -236,8 +236,7 @@ def test_dump_ir_reports_spool_creation_failure_before_stdout(
 
     exit_code = cli_dump_ir.run_dump_ir(
         DumpIrOptions(targets=(".",)),
-        output=output,
-        error=error,
+        collaborators=cli_dump_ir.DumpIrCollaborators(output=output, error=error),
     )
 
     assert exit_code == 2, "expected spool creation failure to exit two"
@@ -277,8 +276,7 @@ def test_dump_ir_reports_spool_write_failure_before_stdout(
 
     exit_code = cli_dump_ir.run_dump_ir(
         DumpIrOptions(targets=(".",)),
-        output=output,
-        error=error,
+        collaborators=cli_dump_ir.DumpIrCollaborators(output=output, error=error),
     )
 
     assert exit_code == 2, "expected spool write failure to exit two"
@@ -308,8 +306,7 @@ def test_dump_ir_reports_short_text_output_write(
 
     exit_code = cli_dump_ir.run_dump_ir(
         DumpIrOptions(targets=("notes.md",)),
-        output=output,
-        error=error,
+        collaborators=cli_dump_ir.DumpIrCollaborators(output=output, error=error),
     )
 
     assert exit_code == 2, "expected a short stdout write to exit two"
@@ -365,8 +362,7 @@ def test_dump_ir_reports_framing_spool_failure_before_stdout(
 
     exit_code = cli_dump_ir.run_dump_ir(
         DumpIrOptions(targets=("notes.md",)),
-        output=output,
-        error=error,
+        collaborators=cli_dump_ir.DumpIrCollaborators(output=output, error=error),
     )
 
     assert exit_code == 2, "expected framing spool failure to exit two"

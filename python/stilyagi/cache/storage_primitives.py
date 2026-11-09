@@ -15,6 +15,7 @@ from .model import (
     OWNER_MARKER_BYTES,
     OWNER_MARKER_NAME,
 )
+from .storage_failure import StorageFailureCategory
 
 __all__ = ["CacheStorageError"]
 
@@ -29,17 +30,39 @@ _READ_SIZE = 1024 * 1024
 
 
 class CacheStorageError(OSError):
-    """A cache operation could not prove that it stayed in owned storage."""
+    """A cache operation could not prove that it stayed in owned storage.
+
+    Parameters
+    ----------
+    message
+        Human detail for the operator reading a traceback. It may name a path
+        and must not be used as a log field or metric label.
+    category
+        The bounded class of failure, safe to report.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: StorageFailureCategory = StorageFailureCategory.ENTRY_INVALID,
+    ) -> None:
+        """Keep the human detail and the bounded category together."""
+        super().__init__(message)
+        self.category = category
 
 
 def _raise_storage_error(
     message: str,
     cause: Exception | None = None,
+    *,
+    category: StorageFailureCategory = StorageFailureCategory.ENTRY_INVALID,
 ) -> typ.NoReturn:
-    """Raise a storage failure after its operation-specific detail is prepared."""
+    """Raise a categorized storage failure after its detail is prepared."""
+    error = CacheStorageError(message, category=category)
     if cause is None:
-        raise CacheStorageError(message)
-    raise CacheStorageError(message) from cause
+        raise error
+    raise error from cause
 
 
 def _require_descriptor_support() -> None:
@@ -49,7 +72,10 @@ def _require_descriptor_support() -> None:
         hasattr(os, flag)
         for flag in ("O_DIRECTORY", "O_NOFOLLOW", "O_CLOEXEC", "O_NONBLOCK")
     ):
-        _raise_storage_error("descriptor-relative safe cache operations unavailable")
+        _raise_storage_error(
+            "descriptor-relative safe cache operations unavailable",
+            category=StorageFailureCategory.UNSAFE_OPERATIONS,
+        )
 
 
 def _close_descriptor(descriptor: int) -> None:
@@ -57,7 +83,11 @@ def _close_descriptor(descriptor: int) -> None:
     try:
         os.close(descriptor)
     except OSError as error:
-        _raise_storage_error(f"cannot close cache descriptor: {error}", error)
+        _raise_storage_error(
+            f"cannot close cache descriptor: {error}",
+            error,
+            category=StorageFailureCategory.LEASE_UNAVAILABLE,
+        )
 
 
 def _absolute_lexical_path(
@@ -164,9 +194,16 @@ def _directory_identity(descriptor: int) -> tuple[int, int]:
     try:
         metadata = os.fstat(descriptor)
     except OSError as error:
-        _raise_storage_error(f"cannot inspect cache directory: {error}", error)
+        _raise_storage_error(
+            f"cannot inspect cache directory: {error}",
+            error,
+            category=StorageFailureCategory.NAMESPACE_REPLACED,
+        )
     if not stat.S_ISDIR(metadata.st_mode):
-        _raise_storage_error("cache directory descriptor is not a directory")
+        _raise_storage_error(
+            "cache directory descriptor is not a directory",
+            category=StorageFailureCategory.NAMESPACE_REPLACED,
+        )
     return metadata.st_dev, metadata.st_ino
 
 
@@ -177,7 +214,11 @@ def _read_all(descriptor: int) -> bytes:
         while chunk := os.read(descriptor, _READ_SIZE):
             chunks.append(chunk)
     except OSError as error:
-        _raise_storage_error(f"cannot read cache file: {error}", error)
+        _raise_storage_error(
+            f"cannot read cache file: {error}",
+            error,
+            category=StorageFailureCategory.ENTRY_INVALID,
+        )
     return b"".join(chunks)
 
 
@@ -186,7 +227,11 @@ def _read_regular_file(descriptor: int, *, subject: str) -> bytes | None:
     try:
         metadata = os.fstat(descriptor)
     except OSError as error:
-        _raise_storage_error(f"cannot inspect {subject}: {error}", error)
+        _raise_storage_error(
+            f"cannot inspect {subject}: {error}",
+            error,
+            category=StorageFailureCategory.ENTRY_INVALID,
+        )
     if not stat.S_ISREG(metadata.st_mode):
         return None
     return _read_all(descriptor)
@@ -199,10 +244,17 @@ def _write_all(descriptor: int, content: bytes) -> None:
         while pending:
             written = os.write(descriptor, pending)
             if written <= 0:
-                _raise_storage_error("short write while storing cache data")
+                _raise_storage_error(
+                    "short write while storing cache data",
+                    category=StorageFailureCategory.RESTORE_FAILED,
+                )
             pending = pending[written:]
     except OSError as error:
-        _raise_storage_error(f"cannot write cache file: {error}", error)
+        _raise_storage_error(
+            f"cannot write cache file: {error}",
+            error,
+            category=StorageFailureCategory.RESTORE_FAILED,
+        )
 
 
 def _read_marker(namespace_fd: int) -> bytes | None:
@@ -212,7 +264,11 @@ def _read_marker(namespace_fd: int) -> bytes | None:
     except FileNotFoundError:
         return None
     except OSError as error:
-        _raise_storage_error(f"cannot safely read cache owner marker: {error}", error)
+        _raise_storage_error(
+            f"cannot safely read cache owner marker: {error}",
+            error,
+            category=StorageFailureCategory.MARKER_UNTRUSTED,
+        )
     try:
         return _read_regular_file(descriptor, subject="cache owner marker")
     finally:
@@ -231,7 +287,11 @@ def _write_marker(namespace_fd: int) -> None:
     except FileExistsError:
         return
     except OSError as error:
-        _raise_storage_error(f"cannot create cache owner marker: {error}", error)
+        _raise_storage_error(
+            f"cannot create cache owner marker: {error}",
+            error,
+            category=StorageFailureCategory.MARKER_UNTRUSTED,
+        )
     try:
         try:
             _write_all(descriptor, OWNER_MARKER_BYTES)

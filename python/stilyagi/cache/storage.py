@@ -6,6 +6,7 @@ import stat
 import typing as typ
 
 from .model import CACHE_NAMESPACE_NAME, OWNER_MARKER_BYTES, cache_entry_name
+from .storage_failure import StorageFailureCategory, storage_outcome
 from .storage_primitives import (
     _FILE_FLAGS,
     _WRITE_FLAGS,
@@ -26,7 +27,7 @@ from .storage_primitives import (
 if typ.TYPE_CHECKING:
     import pathlib
 
-__all__ = ["CacheStorageError", "CacheStore"]
+__all__ = ["CacheStorageError", "CacheStore", "storage_outcome"]
 
 
 class CacheStore:
@@ -69,7 +70,11 @@ class CacheStore:
             self.close()
             if isinstance(error, CacheStorageError):
                 raise
-            _raise_storage_error(f"cannot open owned cache storage: {error}", error)
+            _raise_storage_error(
+                f"cannot open owned cache storage: {error}",
+                error,
+                category=StorageFailureCategory.LEASE_UNAVAILABLE,
+            )
         except Exception:
             self.close()
             raise
@@ -93,7 +98,8 @@ class CacheStore:
             marker = _read_marker(self._namespace_fd)
         if marker != OWNER_MARKER_BYTES:
             _raise_storage_error(
-                f"cache namespace {CACHE_NAMESPACE_NAME} is not owned by Stilyagi"
+                f"cache namespace {CACHE_NAMESPACE_NAME} is not owned by Stilyagi",
+                category=StorageFailureCategory.OWNERSHIP_REFUSED,
             )
 
     def __enter__(self) -> CacheStore:
@@ -124,7 +130,10 @@ class CacheStore:
         )
         try:
             if _directory_identity(current_root) != self._root_identity:
-                _raise_storage_error("configured cache root was replaced")
+                _raise_storage_error(
+                    "configured cache root was replaced",
+                    category=StorageFailureCategory.NAMESPACE_REPLACED,
+                )
         finally:
             _close_descriptor(current_root)
         try:
@@ -134,13 +143,20 @@ class CacheStore:
                 follow_symlinks=False,
             )
         except OSError as error:
-            _raise_storage_error(f"cache namespace was replaced: {error}", error)
+            _raise_storage_error(
+                f"cache namespace was replaced: {error}",
+                error,
+                category=StorageFailureCategory.NAMESPACE_REPLACED,
+            )
         if (
             not stat.S_ISDIR(namespace_metadata.st_mode)
             or (namespace_metadata.st_dev, namespace_metadata.st_ino)
             != self._namespace_identity
         ):
-            _raise_storage_error("cache namespace was replaced")
+            _raise_storage_error(
+                "cache namespace was replaced",
+                category=StorageFailureCategory.NAMESPACE_REPLACED,
+            )
 
     def read(self, key: str) -> bytes | None:
         """Read one cache entry, returning ``None`` when it has no entry.
@@ -168,11 +184,18 @@ class CacheStore:
             self._verify_directories()
             return None
         except OSError as error:
-            _raise_storage_error(f"cannot safely read cache entry: {error}", error)
+            _raise_storage_error(
+                f"cannot safely read cache entry: {error}",
+                error,
+                category=StorageFailureCategory.ENTRY_INVALID,
+            )
         try:
             content = _read_regular_file(descriptor, subject="cache entry")
             if content is None:
-                _raise_storage_error("cache entry is not a regular file")
+                _raise_storage_error(
+                    "cache entry is not a regular file",
+                    category=StorageFailureCategory.ENTRY_INVALID,
+                )
             self._verify_directories()
             return content
         finally:
@@ -204,7 +227,11 @@ class CacheStore:
                 dir_fd=self._namespace_fd,
             )
         except OSError as error:
-            _raise_storage_error(f"cannot create cache temporary file: {error}", error)
+            _raise_storage_error(
+                f"cannot create cache temporary file: {error}",
+                error,
+                category=StorageFailureCategory.RESTORE_FAILED,
+            )
         try:
             try:
                 _write_all(descriptor, content)
@@ -223,7 +250,11 @@ class CacheStore:
         except CacheStorageError:
             raise
         except OSError as error:
-            _raise_storage_error(f"cannot write cache entry atomically: {error}", error)
+            _raise_storage_error(
+                f"cannot write cache entry atomically: {error}",
+                error,
+                category=StorageFailureCategory.RESTORE_FAILED,
+            )
         finally:
             try:
                 os.unlink(temporary_name, dir_fd=self._namespace_fd)

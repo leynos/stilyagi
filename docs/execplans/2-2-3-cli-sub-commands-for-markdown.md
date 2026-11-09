@@ -561,7 +561,11 @@ series.
 The PyO3 bridge serializes canonical JSON but the Python adapter discards its
 string after parsing. Rust already has `extract_document_with_source_identity`;
 the bridge currently uses anonymous identity. Reuse that Rust entrypoint
-instead of patching serialized JSON.
+instead of patching serialized JSON. This is a baseline observation from before
+that work, not a description of the delivered tree: the adapter now retains the
+canonical JSON (`engine/bridge_adapter.py`) and the bridge maps a supplied path
+into `SourceIdentity` (`crates/stilyagi-pyext/src/lib.rs`), which is what
+`dump-ir` and the extraction cache are built on.
 
 The 2026-10-24 source inspection confirms that Markdown enables frontmatter in
 `crates/stilyagi-markdown/src/lib.rs`. The `frontmatter_region` function in

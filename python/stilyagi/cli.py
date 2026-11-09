@@ -110,6 +110,14 @@ class CheckCollaborators:
     )
     output: typ.TextIO = dc.field(default_factory=lambda: sys.stdout)
     reporter: CheckReporter = dc.field(default_factory=lambda: report_check_error)
+    extraction_cache: CacheExtractionService | None = None
+    """The cache this run extracts through, or ``None`` for a fresh one.
+
+    It is a collaborator rather than something the run always builds so a test
+    can observe cache reads and publishes without depending on the ambient
+    working directory, and so an embedding caller can reuse one service across
+    several runs.
+    """
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
@@ -274,11 +282,15 @@ def _run_check(
         len(discovery_inputs.inputs),
     )
 
-    extraction_cache = CacheExtractionService(
-        CacheServiceConfig(
-            invocation_cwd=pathlib.Path.cwd(),
-            package_version=PACKAGE_VERSION,
-            no_cache=options.no_cache,
+    extraction_cache = (
+        resolved_collaborators.extraction_cache
+        if resolved_collaborators.extraction_cache is not None
+        else CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=pathlib.Path.cwd(),
+                package_version=PACKAGE_VERSION,
+                no_cache=options.no_cache,
+            )
         )
     )
     try:

@@ -1,32 +1,47 @@
 """Behavioural contracts for frontmatter-protected fix planning."""
 
+import dataclasses as dc
 import typing as typ
 
+import pytest
 from stilyagi import config, diagnostics, engine, model
+from stilyagi.engine.extraction import BridgeExtractionError
 from stilyagi.engine.fix_planning import plan as plan_module
 from stilyagi.engine.fix_planning.frontmatter import edit_conflicts_with_frontmatter
 from stilyagi.engine.fix_planning.plan import FixPlanRequest, plan_fixes
+from stilyagi.engine.fix_planning.verification import (
+    FixVerificationError,
+    MarkdownVerifier,
+)
 from stilyagi.fixes import Applicability, Fix, FixLevel, TextEdit
 
 from tests.support.fix_fixtures import find_source_span
-
-if typ.TYPE_CHECKING:
-    import pytest
 
 
 def _request(
     source: str,
     document: model.Document,
     candidates: tuple[diagnostics.Diagnostic, ...],
+    *,
+    verify_markdown: MarkdownVerifier | None = None,
 ) -> FixPlanRequest:
     """Build a safe-level planner request for one frontmatter contract."""
-    return FixPlanRequest(
+    request = FixPlanRequest(
         source.encode(),
         document,
         candidates,
         FixLevel.SAFE,
         config.LintConfig(),
     )
+    if verify_markdown is None:
+        return request
+    return dc.replace(request, verify_markdown=verify_markdown)
+
+
+def _raise_bridge_failure(_source_text: str) -> typ.NoReturn:
+    """Fail as the Rust bridge does for text it cannot parse."""
+    message = "parser refused the document"
+    raise BridgeExtractionError(message)
 
 
 def _diagnostic(code: str, fix: Fix) -> diagnostics.Diagnostic:
@@ -159,17 +174,15 @@ def test_planner_refuses_edits_that_create_frontmatter_from_body_text() -> None:
     )
 
 
-def test_planner_refuses_when_reextraction_cannot_verify_the_prefix(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_planner_refuses_when_reextraction_cannot_verify_the_prefix() -> None:
     """Refuse every edit in a file whose prefix cannot be re-verified.
 
     The planner re-extracts the repaired text to prove the metadata prefix
     survived. When that re-extraction fails it has no evidence the prefix is
     intact, so it must refuse rather than write bytes it cannot vouch for. The
-    extractor is patched through the planner's own re-extraction seam, so this
-    branch is exercised without depending on a bridge failure being reachable
-    from the corpus.
+    verifier arrives as a request dependency -- not as the module's own
+    extractor reached through a patched private name -- so this branch is
+    exercised by handing the planner a fake.
     """
     source = "---\ntitle: Café\n---\n\nHello world\n"
     document = engine.extract_document(source, model.Syntax.MARKDOWN)
@@ -186,11 +199,16 @@ def test_planner_refuses_when_reextraction_cannot_verify_the_prefix(
     def refuse_reextraction(_source_text: str) -> typ.NoReturn:
         """Fail the verification extraction the guard depends on."""
         message = "bridge refused the repaired document"
-        raise RuntimeError(message)
+        raise FixVerificationError(message)
 
-    monkeypatch.setattr(plan_module, "_re_extract_markdown", refuse_reextraction)
-
-    plan = plan_fixes(_request(source, document, (candidate,)))
+    plan = plan_fixes(
+        _request(
+            source,
+            document,
+            (candidate,),
+            verify_markdown=refuse_reextraction,
+        )
+    )
 
     assert plan.fixed_bytes is None, (
         "expected an unverifiable prefix to refuse the whole plan"
@@ -198,3 +216,15 @@ def test_planner_refuses_when_reextraction_cannot_verify_the_prefix(
     assert plan.rejections[0].identifier == "fix-error/frontmatter-protected", (
         "expected the refusal to name frontmatter protection"
     )
+
+
+def test_the_default_verifier_translates_a_bridge_failure() -> None:
+    """Report a bridge failure as the one failure the guard reacts to.
+
+    The planner must not import a bridge exception type, so the translation
+    lives in `markdown_verifier`. This pins the contract that makes the
+    default request safe: the same failure a real bridge raises arrives at the
+    guard as `FixVerificationError`, not as a traceback out of the planner.
+    """
+    with pytest.raises(FixVerificationError):
+        plan_module.markdown_verifier(_raise_bridge_failure)("---\n---\n")
