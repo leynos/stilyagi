@@ -1,12 +1,11 @@
-"""Read provenance evidence and decide whether it attests an artefact.
+"""Decide whether provenance evidence attests an artefact.
 
-Two documents answer the same question in different shapes. ``gh attestation
-verify --format json`` answers with one record per attestation it checked,
-whose statement lists every subject the attestation covers -- for this
-repository the whole release, because one statement binds every wheel and the
-sdist. A Sigstore bundle, which is what ``actions/attest-build-provenance``
-hands the workflow and what the Release carries as an asset, holds that same
-statement base64-encoded in its DSSE payload.
+``gh attestation verify --format json`` answers with one record per attestation
+it checked, whose statement lists every subject the attestation covers -- for
+this repository the whole release, because one statement binds every wheel and
+the sdist. A Sigstore bundle holds that same statement base64-encoded in its
+DSSE payload; ``release_sigstore`` decodes it into this module's record shape,
+so both documents answer here the same way.
 
 The statement is the evidence a destination is allowed to receive a file, so a
 missing record, an unreadable one, or one whose subjects do not include the
@@ -14,17 +13,12 @@ name and digest is a refusal rather than a warning. This module only reads
 files; the ``gh`` calls that produce them belong to the workflow.
 """
 
-import base64
-import binascii
 import json
 import typing as typ
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
     from pathlib import Path
-
-#: The DSSE payload type an in-toto statement carries.
-_IN_TOTO_PAYLOAD = "application/vnd.in-toto+json"
 
 
 class ProvenanceRecordError(Exception):
@@ -63,130 +57,32 @@ def read_provenance_record(path: Path) -> list[typ.Any] | None:
     return document
 
 
-def _decoded_payload(bundle: object) -> object:
-    """Return the in-toto statement a parsed Sigstore bundle's payload holds."""
-    envelope = bundle.get("dsseEnvelope") if isinstance(bundle, dict) else None
-    payload = envelope.get("payload") if isinstance(envelope, dict) else None
-    if not isinstance(payload, str):
-        msg = "the bundle holds no DSSE payload"
-        raise ProvenanceRecordError(msg)
-    # Encoders are free to wrap base64 at any column, and the JSON field can
-    # carry the newlines, so the whitespace is dropped before decoding.
-    try:
-        decoded = base64.b64decode("".join(payload.split()), validate=True)
-        return json.loads(decoded)
-    except (binascii.Error, ValueError) as error:
-        msg = f"the bundle's DSSE payload is not base64 JSON: {error}"
-        raise ProvenanceRecordError(msg) from error
+def _mapping(value: object) -> dict[str, object]:
+    """Return ``value`` as a mapping, or an empty one when it is not a dict."""
+    return value if isinstance(value, dict) else {}
 
 
-def _bundle_documents(path: Path) -> list[object]:
-    """Return the bundles a file holds, whether one object or JSON lines.
-
-    ``actions/attest-build-provenance`` writes one JSON object. ``gh
-    attestation download``, which is how an operator recovers the attestation
-    for bytes a failed run published, writes JSON lines with one bundle per
-    line. Accepting both is what makes the recovery instruction in the release
-    refusals something an operator can actually carry out.
-
-    Returns
-    -------
-    list[object]
-        One parsed bundle per non-blank line, in file order.
-
-    Raises
-    ------
-    ProvenanceRecordError
-        If the file is unreadable or a non-blank line is not JSON.
-    """
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as error:
-        msg = f"cannot read the provenance bundle {path}: {error}"
-        raise ProvenanceRecordError(msg) from error
-    try:
-        return [json.loads(line) for line in text.splitlines() if line.strip()]
-    except ValueError as error:
-        msg = f"the provenance bundle {path} is not JSON: {error}"
-        raise ProvenanceRecordError(msg) from error
-
-
-def read_bundle_statements(path: Path) -> list[object]:
-    """Return every statement a bundle file holds, in the verifier's shape.
-
-    ``actions/attest-build-provenance`` produces a Sigstore bundle, and the
-    workflow stages it under a run-unique name and attaches it to the Release.
-    Its statement is the same one the verifier prints, only still inside the
-    DSSE envelope, so wrapping it in the verifier's own envelope lets one
-    reader answer for both: what a statement covers does not depend on which
-    document it was read out of.
-
-    Parameters
-    ----------
-    path
-        The bundle file to read: one Sigstore bundle, or JSON lines holding
-        several.
-
-    Returns
-    -------
-    list[object]
-        One record per statement the file holds, parseable by
-        ``has_matching_subject`` as the verifier's answer is.
-
-    Raises
-    ------
-    ProvenanceRecordError
-        If the file is unreadable, holds no bundle, or a bundle has no DSSE
-        payload carrying an in-toto statement.
-    """
-    documents = _bundle_documents(path)
-    if not documents:
-        msg = f"the provenance bundle {path} holds no bundle"
-        raise ProvenanceRecordError(msg)
-    return [
-        {"verificationResult": {"statement": _statement_of(document, path)}}
-        for document in documents
-    ]
-
-
-def _statement_of(document: object, path: Path) -> dict[str, object]:
-    """Return one bundle's decoded in-toto statement, or raise."""
-    statement = _decoded_payload(document)
-    if not isinstance(statement, dict):
-        msg = f"the provenance bundle {path} holds no statement"
-        raise ProvenanceRecordError(msg)
-    envelope = document.get("dsseEnvelope") if isinstance(document, dict) else None
-    payload_type = envelope.get("payloadType") if isinstance(envelope, dict) else None
-    if payload_type != _IN_TOTO_PAYLOAD:
-        msg = (
-            f"the provenance bundle {path} carries payload type "
-            f"{payload_type!r}, not {_IN_TOTO_PAYLOAD!r}"
-        )
-        raise ProvenanceRecordError(msg)
-    return statement
+def _could_be(value: object) -> str:
+    """Return ``value`` when it is a string, else the empty string."""
+    # Reading an untrusted document through this helper keeps the shape checks
+    # out of each caller: a missing, null, or mistyped field reads as absent,
+    # which is what every predicate below wants, without a branch per field.
+    return value if isinstance(value, str) else ""
 
 
 def _subjects(record: object) -> list[object]:
     """Return one record's statement subjects, or none when it has no statement."""
-    if not isinstance(record, dict):
-        return []
-    result = record.get("verificationResult")
-    statement = result.get("statement") if isinstance(result, dict) else None
-    subjects = statement.get("subject") if isinstance(statement, dict) else None
+    result = _mapping(_mapping(record).get("verificationResult"))
+    statement = _mapping(result.get("statement"))
+    subjects = statement.get("subject")
     return subjects if isinstance(subjects, list) else []
 
 
 def _subject_matches(subject: object, name: str, digest: str) -> bool:
     """Return whether one subject names ``name`` under ``digest``."""
-    if not isinstance(subject, dict):
-        return False
-    digests = subject.get("digest")
-    recorded = digests.get("sha256") if isinstance(digests, dict) else None
-    return (
-        subject.get("name") == name
-        and isinstance(recorded, str)
-        and recorded.lower() == digest.lower()
-    )
+    subject = _mapping(subject)
+    recorded = _could_be(_mapping(subject.get("digest")).get("sha256"))
+    return subject.get("name") == name and recorded.lower() == digest.lower()
 
 
 def has_matching_subject(
@@ -227,14 +123,9 @@ def has_matching_subject(
 
 def _source_digest(record: object) -> str | None:
     """Return one record's attested source commit, or ``None`` when it has none."""
-    if not isinstance(record, dict):
-        return None
-    result = record.get("verificationResult")
-    identity = result.get("verifiedIdentity") if isinstance(result, dict) else None
-    commit = (
-        identity.get("sourceRepositoryDigest") if isinstance(identity, dict) else None
-    )
-    return commit if isinstance(commit, str) and commit else None
+    result = _mapping(_mapping(record).get("verificationResult"))
+    identity = _mapping(result.get("verifiedIdentity"))
+    return _could_be(identity.get("sourceRepositoryDigest")) or None
 
 
 def has_source_digest(records: cabc.Iterable[object], name: str, digest: str) -> bool:
@@ -272,12 +163,13 @@ def has_source_digest(records: cabc.Iterable[object], name: str, digest: str) ->
     >>> has_source_digest([record], "a.whl", "cd")
     False
     """
-    return any(
-        _source_digest(record) is not None
-        and any(
-            _subject_matches(subject, name, digest) for subject in _subjects(record)
-        )
-        for record in records
+    return any(_attests_with_source(record, name, digest) for record in records)
+
+
+def _attests_with_source(record: object, name: str, digest: str) -> bool:
+    """Return whether one record attests those bytes and names a commit."""
+    return _source_digest(record) is not None and any(
+        _subject_matches(subject, name, digest) for subject in _subjects(record)
     )
 
 

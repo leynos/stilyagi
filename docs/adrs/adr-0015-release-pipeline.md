@@ -123,12 +123,13 @@ It has six jobs:
 
 Every network call stays in the workflow's own `curl` and `gh` invocations. The
 decisions live in `scripts/release_assets.py`, with the GitHub Release's upload
-set in `scripts/release_github_upload.py`, the coverage check on the Release's
-own bundle in `scripts/release_bundles.py`, and the reading of
-`gh attestation verify`'s answer in `scripts/release_provenance.py`;
-`scripts/release_assets_cli.py` wraps them in the command line the steps call.
-Those modules resolve no third-party code, because they execute inside the job
-holding the PyPI token.
+set in `scripts/release_github_upload.py` and the coverage check on the
+Release's own bundle in `scripts/release_bundles.py`. The evidence is read by
+two modules: `scripts/release_provenance.py` answers for
+`gh attestation verify`'s printed records, and `scripts/release_sigstore.py`
+decodes a Sigstore bundle into that same shape. `scripts/release_assets_cli.py`
+wraps them in the command line the steps call. Those modules resolve no
+third-party code, because they execute inside the job holding the PyPI token.
 
 Cuprum's `release-telemetry` composite action is not adopted. It writes to a
 sink cuprum owns and Stilyagi has none; the run's logs and its attached

@@ -15,11 +15,8 @@ import shutil
 import typing as typ
 
 from release_assets import ReleaseAssetError
-from release_provenance import (
-    ProvenanceRecordError,
-    has_matching_subject,
-    read_bundle_statements,
-)
+from release_provenance import ProvenanceRecordError, has_matching_subject
+from release_sigstore import read_bundle_statements
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
