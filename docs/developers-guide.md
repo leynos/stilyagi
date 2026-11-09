@@ -1959,20 +1959,21 @@ identical digests, re-reads the release's own bundle to confirm it covers every
 asset there, and only then un-drafts the release.
 
 The reconciliation logic lives in `scripts/release_assets.py`, with the GitHub
-Release's half in `scripts/release_github_upload.py`, the coverage check on the
-Release's own bundle in `scripts/release_bundles.py`, and the reading of
-provenance in `scripts/release_provenance.py`, which answers for both shapes
-the evidence takes: `gh attestation verify`'s printed records, and the DSSE
-payload inside a Sigstore bundle. All four are wrapped for the workflow by
-`scripts/release_assets_cli.py`. They resolve no third-party code, because they
-run in the job that holds the PyPI token, and they make no network call: the
-steps' `curl` and `gh` invocations do that. The modules' tests are
-`tests/test_release_assets.py`, `tests/test_release_assets_staging.py`,
-`tests/test_release_github_upload.py`, `tests/test_release_bundles.py`, and
-`tests/test_release_provenance.py`; the steps' own behaviour is specified by
-`tests/test_release_publish_steps.py`, `tests/test_release_github_steps.py`, and
-`tests/test_release_workflow_contract.py`, which execute the checked-in
-scripts against a scripted PyPI and GitHub Release. That scripted pair is
+Release's half in `scripts/release_github_upload.py` and the coverage check on
+the Release's own bundle in `scripts/release_bundles.py`. The evidence itself
+is read by `scripts/release_provenance.py`, which answers for the records
+`gh attestation verify` prints, and by `scripts/release_sigstore.py`, which
+decodes a Sigstore bundle's DSSE payload into that same record shape. All five
+are wrapped for the workflow by `scripts/release_assets_cli.py`. They resolve
+no third-party code, because they run in the job that holds the PyPI token, and
+they make no network call: the steps' `curl` and `gh` invocations do that. The
+modules' tests are `tests/test_release_assets.py`,
+`tests/test_release_assets_staging.py`, `tests/test_release_github_upload.py`,
+`tests/test_release_bundles.py`, and `tests/test_release_provenance.py`; the
+steps' own behaviour is specified by `tests/test_release_publish_steps.py`,
+`tests/test_release_github_steps.py`, and
+`tests/test_release_workflow_contract.py`, which execute the checked-in scripts
+against a scripted PyPI and GitHub Release. That scripted pair is
 `tests/support/release_clients.py` for `gh release` and `curl`,
 `tests/support/release_attestations.py` for `gh attestation verify`, and the
 entry point `tests/support/release_fake.py` that dispatches between them. The
