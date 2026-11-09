@@ -218,11 +218,12 @@ Each release job holds a token only for the destination it writes to:
 and `attestations: read`, the latter for `gh attestation verify`, and no
 `id-token`. The four publishing jobs — `attest`, `draft-release`,
 `publish-pypi` and `publish-release` — check out with
-`persist-credentials: false` and a sparse checkout of `scripts/`, and
-`smoke.yml` does the same, so no job carries a credential it does not need.
-`check-version` is the exception on both counts: it needs the manifest it
-reads, so it takes the whole tree, and it runs no script, so it takes no sparse
-checkout either.
+`persist-credentials: false` and a sparse checkout of `scripts/`, so no job
+carries a credential it does not need and none fetches more of the tree than it
+runs. `check-version` is the exception: it reads manifests at the tree's root,
+so it takes the whole tree, and it repeats `smoke.yml`'s choice of
+`persist-credentials: false`. `smoke.yml` names that setting too, and takes the
+whole tree because its coverage step compares against a baseline.
 
 ## Options considered
 
@@ -256,8 +257,13 @@ keeps the first published bytes canonical and leaves the attached bundle alone.
   published.
 - The canonical byte for a name is decided by the destinations, not by the
   build, so the pipeline must be able to read PyPI's index and the release's
-  assets before it can decide anything. Both are read as their own steps,
-  immediately before the step that stages, and never inside it.
+  assets before it can decide anything. `publish-release` reads both as their
+  own steps, immediately before the step that stages them, and never inside it.
+  `publish-pypi` writes to one destination only: it reads PyPI's index itself
+  and takes the release's assets, with their verified provenance, from the
+  snapshot `draft-release` uploaded, so a name it skips and a byte it carries
+  are both established against a listing taken before this run could change
+  either.
 - `publish-release` needs `publish-pypi` to have completed, so PyPI is always
   the source of a release gap's bytes. That ordering is the mechanism, not an
   incidental detail: reversing it would let the release carry bytes PyPI never
