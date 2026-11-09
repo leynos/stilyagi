@@ -94,24 +94,11 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
     view = OffsetView.of(request.source_bytes)
     accepted, rejections = _validate_candidates(selected.eligible, request, view.body)
     if rejections:
-        return _log_plan(
-            FixPlan((), (), rejections, None, selected, _span_count(request)),
-            selected,
-        )
+        return _refuse(selected, request, rejections)
     edits = coalesce_identical(edit for _code, edit in accepted)
     overlap = first_overlap(edits)
     if overlap is not None:
-        return _log_plan(
-            FixPlan(
-                (),
-                (),
-                (_overlap_rejection(overlap, accepted),),
-                None,
-                selected,
-                _span_count(request),
-            ),
-            selected,
-        )
+        return _refuse(selected, request, (_overlap_rejection(overlap, accepted),))
     fixed_codes = tuple(dict.fromkeys(code for code, _edit in accepted))
     replacement = _replacement(view.body, edits)
     if replacement is not None and not _preserves_yaml_frontmatter(
@@ -120,15 +107,7 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
         request.document,
         request.verify_markdown,
     ):
-        refusal = EditRejection(
-            "fix-error/frontmatter-protected",
-            ",".join(fixed_codes),
-            "planned edits change or cannot verify YAML frontmatter bytes",
-        )
-        return _log_plan(
-            FixPlan((), (), (refusal,), None, selected, _span_count(request)),
-            selected,
-        )
+        return _refuse(selected, request, (_frontmatter_refusal(fixed_codes),))
     return _log_plan(
         FixPlan(
             edits,
@@ -140,6 +119,27 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
             coalesced=len(accepted) - len(edits),
         ),
         selected,
+    )
+
+
+def _refuse(
+    selected: CandidatePartition,
+    request: FixPlanRequest,
+    rejections: tuple[EditRejection, ...],
+) -> FixPlan:
+    """Return the plan for a file refused before any bytes are written."""
+    return _log_plan(
+        FixPlan((), (), rejections, None, selected, _span_count(request)),
+        selected,
+    )
+
+
+def _frontmatter_refusal(fixed_codes: tuple[str, ...]) -> EditRejection:
+    """Name one refusal caused by an unverifiable YAML frontmatter prefix."""
+    return EditRejection(
+        "fix-error/frontmatter-protected",
+        ",".join(fixed_codes),
+        "planned edits change or cannot verify YAML frontmatter bytes",
     )
 
 
