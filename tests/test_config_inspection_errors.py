@@ -56,6 +56,7 @@ def test_an_unresolvable_home_directory_is_an_operational_error(
     from stilyagi.config import path_resolution
 
     def _unresolvable(path: pathlib.Path) -> pathlib.Path:
+        """Fail every expansion the way an unset home directory would."""
         message = f"no home for {path}"
         raise path_resolution.PathResolutionError(message)
 

@@ -1055,6 +1055,22 @@ standard error, distinguishing a `SourceReadError` from an extraction or
 configuration failure, and accepting `None` for a failure that has no single
 path.
 
+`cli_command_shell.py` states the failure shape the read-only commands share.
+`command_streams(output, error)` resolves the optional result and failure
+streams every command accepts, replacing each ``None`` with the process's own
+stream, and returns them as a `CommandStreams` pair so a command names its two
+parameters and nothing else.
+`write_command_failure(error, command=…, failure=…)` renders the one
+`stilyagi <command>: <reason>` sentence and returns status two, tying the
+sentence to the status so a new command cannot pick a different prefix or a
+different code. The `command` argument is the subcommand the user typed, and
+the reason is the typed error's own message, so no message table is duplicated.
+`config`, `dump-ir`, and `clean` all report through these helpers; a new
+command should import this module rather than render its own prefix. This is
+policy rather than byte handling, which is why it is not part of `cli_io.py`,
+and it holds the shared shape only — each command still decides which of its
+own typed errors are expected failures.
+
 `check_execution.check_one_file` builds a `FixRequest` for a file from its
 already-read bytes and text, the extracted document, the diagnostics collected
 for it, and the resolved `lint_config`. It does so only when a mutating or

@@ -502,6 +502,27 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       subject instead of by SHA, and records that its coverage percentages
       were measured on the pre-rebase candidate with the hosted ratchet as the
       authority for the current head.
+- [x] (2026-11-09) Repair the two gates the 2026-11-08 tree failed, each on
+      evidence rather than on a guess. `make lint` stopped at Interrogate:
+      the new `_inspection_target` extraction added a nested
+      `RecordResolver._inspect_config_for_path` with no docstring, and a
+      pre-existing `_unresolvable` miss in `test_config_inspection_errors.py`
+      had been invisible only because one miss in 3,352 rounds to "100.0%"
+      while two in 3,355 do not. Both gained docstrings; coverage is 100.0%
+      over `python/stilyagi tests scripts`. `make test` stopped at the
+      duplication lane with an unsuppressed family
+      (`cli_config_command.py` ~ `cli_dump_ir.py`, value 72.8) plus a stale
+      allow entry for `cli_config_command.py ~ cli_clean.py`. Three extraction
+      shapes were measured against the pinned detector in isolated scratch
+      copies at both gate settings and at `min-size 0`; the two narrower ones
+      left residual families, and the adopted one moves the command shell into
+      a new `python/stilyagi/cli_command_shell.py` (`CommandStreams`,
+      `command_streams`, `write_command_failure`) that all three commands
+      import. `cli_io.py` is restored to its committed 343 lines rather than
+      grown to 454, keeping it under Pylint's 400-line ceiling. With every
+      family touching `cli_clean` gone at `min-size 0` as well as at gate
+      settings, the stale allow entry was deleted on evidence that the
+      duplication is gone rather than merely below the floor.
 
 ## Surprises & discoveries
 
@@ -586,6 +607,21 @@ CodeScene's *Code Duplication* rule for these files was shape-based: it named
 whole files, not functions. That pushed the fix towards one shared idiom per
 family — a single fault injector, a single descriptor-scope helper, a single
 notice helper — rather than towards shaving lines from individual tests.
+
+Interrogate's whole-tree percentage is computed over every docstring site and
+rounded to one decimal, so a single miss can be reported as "100.0%" and pass.
+`make lint` only fails once the misses are numerous enough to move the rounded
+figure below 100.0. A gate that had been passing therefore does not prove the
+tree was clean: adding one more miss anywhere can tip a latent pre-existing one
+into view. Repair both rather than only the one this branch added.
+
+The nose detector reports ranked families, and the gate judges only those
+`top = 30` selects. A family can therefore disappear from the gate verdict by
+falling below the ranking rather than by being fixed, which is why an allow
+entry may only be deleted after re-measuring at `min-size 0` with a wide `top`.
+Conversely, a repair can look sufficient at gate settings while a residual
+family remains just underneath; measuring both surfaces is what distinguishes
+the two.
 
 ## Decision log
 

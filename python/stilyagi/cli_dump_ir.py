@@ -3,7 +3,6 @@
 import dataclasses as dc
 import enum
 import pathlib
-import sys
 import tempfile
 import typing as typ
 
@@ -16,6 +15,7 @@ from stilyagi.cache.extraction import (
 from stilyagi.check_inputs import CheckInput
 from stilyagi.check_targets import parse_target_operands
 from stilyagi.cli_args import PACKAGE_VERSION
+from stilyagi.cli_command_shell import command_streams, write_command_failure
 from stilyagi.cli_config import resolve_discovery_config
 from stilyagi.cli_dump_ir_output import (
     _canonical_bytes,
@@ -23,7 +23,11 @@ from stilyagi.cli_dump_ir_output import (
     _write_chunk,
     _write_json_framing,
 )
-from stilyagi.cli_io import SourceReadError, read_source, stdin_check_input
+from stilyagi.cli_io import (
+    SourceReadError,
+    read_source,
+    stdin_check_input,
+)
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -117,8 +121,7 @@ def run_dump_ir(
     >>> run_dump_ir(DumpIrOptions(targets=("README.md",)))  # doctest: +SKIP
     0
     """
-    out_stream = output if output is not None else sys.stdout
-    error_stream = error if error is not None else sys.stderr
+    streams = command_streams(output, error)
     cli_log.configure_verbose_logging(verbose=options.verbose)
     config_resolver = resolver if resolver is not None else config.ConfigResolver()
     extraction_cache = _open_extraction_cache(no_cache=options.no_cache)
@@ -127,11 +130,10 @@ def run_dump_ir(
         _write_dump_output(
             inputs,
             _ExtractionContext(options, config_resolver, extraction_cache),
-            out_stream,
+            streams.output,
         )
     except (DumpIrError, config.ConfigError, OSError, ValueError) as exc:
-        error_stream.write(f"stilyagi dump-ir: {exc}\n")
-        return 2
+        return write_command_failure(streams.error, command="dump-ir", failure=exc)
     finally:
         extraction_cache.log_summary()
         extraction_cache.close()
