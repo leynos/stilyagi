@@ -143,23 +143,23 @@ fn region_kind_try_from_round_trips_through_as_str(#[case] spelling: &str) {
     assert_eq!(kind.as_str(), spelling);
 }
 
-/// Maps one representative error to its fixed snapshot identity.
-const fn extract_error_snapshot_name(error: &ExtractError) -> SnapshotName {
-    match error {
-        ExtractError::UnsupportedSyntax(ExtractSyntax::RustDocComment) => {
-            SnapshotName("extract_error_display__unsupported_rust_doc_comment")
-        }
-        ExtractError::UnknownSyntax(_) => {
-            SnapshotName("extract_error_display__unknown_syntax_bogus")
-        }
-        _ => SnapshotName("extract_error_display__other"),
-    }
-}
-
 /// Pins the rendered text callers see for each representative error.
+///
+/// Every case names its own snapshot. A lookup that derived the name from the
+/// error would need a catch-all arm, so a newly added `ExtractError` variant
+/// could silently reuse an existing case's snapshot instead of failing.
 #[rstest]
-#[case(ExtractError::UnsupportedSyntax(ExtractSyntax::RustDocComment))]
-#[case(ExtractError::UnknownSyntax("bogus".to_owned()))]
-fn extract_error_display_is_informative(#[case] error: ExtractError) {
-    insta::assert_snapshot!(extract_error_snapshot_name(&error).0, format!("{error}"));
+#[case::unsupported_rust_doc_comment(
+    ExtractError::UnsupportedSyntax(ExtractSyntax::RustDocComment),
+    SnapshotName("extract_error_display__unsupported_rust_doc_comment")
+)]
+#[case::unknown_syntax(
+    ExtractError::UnknownSyntax("bogus".to_owned()),
+    SnapshotName("extract_error_display__unknown_syntax_bogus")
+)]
+fn extract_error_display_is_informative(
+    #[case] error: ExtractError,
+    #[case] snapshot_name: SnapshotName,
+) {
+    insta::assert_snapshot!(snapshot_name.0, format!("{error}"));
 }
