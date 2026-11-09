@@ -220,8 +220,9 @@ and `attestations: read`, the latter for `gh attestation verify`, and no
 `publish-pypi` and `publish-release` — check out with
 `persist-credentials: false` and a sparse checkout of `scripts/`, and
 `smoke.yml` does the same, so no job carries a credential it does not need.
-`check-version` needs the manifest it reads, so it checks out the whole tree,
-still without persisting credentials.
+`check-version` is the exception on both counts: it needs the manifest it
+reads, so it takes the whole tree, and it runs no script, so it takes no sparse
+checkout either.
 
 ## Options considered
 
@@ -255,8 +256,8 @@ keeps the first published bytes canonical and leaves the attached bundle alone.
   published.
 - The canonical byte for a name is decided by the destinations, not by the
   build, so the pipeline must be able to read PyPI's index and the release's
-  assets before it can decide anything. Both are read in the same step that
-  stages.
+  assets before it can decide anything. Both are read as their own steps,
+  immediately before the step that stages, and never inside it.
 - `publish-release` needs `publish-pypi` to have completed, so PyPI is always
   the source of a release gap's bytes. That ordering is the mechanism, not an
   incidental detail: reversing it would let the release carry bytes PyPI never

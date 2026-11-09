@@ -79,8 +79,8 @@ def declared_versions(pyproject_text: str, workspace_text: str) -> tuple[str, st
     Examples
     --------
     >>> declared_versions(
-    ...     '[project]\\nversion = "1.0.0"\\n',
-    ...     '[workspace.package]\\nversion = "1.0.0"\\n',
+    ...     '[project]\nversion = "1.0.0"\n',
+    ...     '[workspace.package]\nversion = "1.0.0"\n',
     ... )
     ('1.0.0', '1.0.0')
     """
@@ -121,14 +121,26 @@ def version_faults(pyproject_text: str, workspace_text: str) -> list[str]:
     Returns
     -------
     list[str]
-        One message when the versions differ, or when either is missing;
-        empty when they are the same exact string.
+        One message when the versions differ, empty when they are the same
+        exact string.
 
     Examples
     --------
-    >>> version_faults('[project]\\nversion = "1.0.0"\\n', '[workspace.package]\\n')
-    ['[workspace.package] sets no string \\'version\\'']
+    >>> version_faults(
+    ...     '[project]\nversion = "1.0.0"\n',
+    ...     '[workspace.package]\nversion = "1.0.1"\n',
+    ... )
+    ["[project].version '1.0.0' does not equal [workspace.package].version '1.0.1'"]
+    >>> version_faults(
+    ...     '[project]\nversion = "1.0.0"\n',
+    ...     '[workspace.package]\nversion = "1.0.0"\n',
+    ... )
+    []
     """
+    # ``declared_versions`` raises ``TypeError`` when a manifest declares no
+    # string version, and that propagates out of here deliberately: a broken
+    # input is not a version disagreement. Returning a fault list instead would
+    # let a check that never found a version at all read as satisfied.
     python_version, rust_version = declared_versions(pyproject_text, workspace_text)
     if python_version == rust_version:
         return []
