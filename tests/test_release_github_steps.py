@@ -267,6 +267,37 @@ def test_two_bundles_covering_one_asset_each_do_not_publish(
 
 
 @requires_bash
+def test_partial_bundles_beside_a_tampered_covering_one_do_not_publish(
+    workspace: tuple[pathlib.Path, FakeRelease],
+) -> None:
+    """Neither verification nor coverage may be satisfied by combining records.
+
+    This is the case the two rules exist for. Two bundles verify, one against
+    each asset, and a third decodes as naming both because its statement was
+    edited after signing. Asking per asset admits all three, and asking
+    coverage across them accepts the third's claim, so the Release would
+    publish carrying provenance no single signer gave. Asked of one verified
+    statement, it does not: the partial bundles do not cover the Release and
+    the covering one does not verify.
+    """
+    work, fake = workspace
+    seed_release(work, fake, COMPLETE)
+    (fake.github / EARLIER_BUNDLE).unlink()
+    write_bundle(fake.github, "run6-wheel.sigstore.json", {WHEEL: b"canonical-wheel"})
+    write_bundle(fake.github, "run6-sdist.sigstore.json", {SDIST: b"canonical-sdist"})
+    tampered = write_bundle(
+        fake.github, "run6-both.sigstore.json", {WHEEL: b"other", SDIST: b"other"}
+    )
+    _edit_after_signing(tampered)
+    completed = run_release_steps(workspace, THROUGH_VERIFY)
+    assert completed.returncode == 1, completed.stdout
+    assert "no verified provenance bundle covering" in completed.stderr, (
+        completed.stderr
+    )
+    assert published(fake)["draft"] is True, "the draft was published"
+
+
+@requires_bash
 def test_a_bundle_whose_statement_was_edited_after_signing_does_not_publish(
     workspace: tuple[pathlib.Path, FakeRelease],
 ) -> None:
