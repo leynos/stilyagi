@@ -35,8 +35,9 @@ _VERSION_CONST_RE = re.compile(
     r'const\s+MARKDOWN_RS_VERSION\s*:\s*&str\s*=\s*"(?P<version>[^"]+)"\s*;'
 )
 
-#: A caret requirement as the repository mandates, e.g. `^1.0.0` or `1.0.0`.
-_CARET_REQUIREMENT_RE = re.compile(r"^\^?(?P<version>\d+\.\d+\.\d+)")
+#: An exact release triple in Cargo's implicit caret form, e.g. `1.0.0`. An
+#: explicit `^` is tolerated; any suffix is refused.
+_CARET_REQUIREMENT_RE = re.compile(r"^\^?(?P<version>\d+\.\d+\.\d+)$")
 
 
 def _recorded_version() -> str:
@@ -108,17 +109,39 @@ def test_the_requirement_reader_names_the_pinned_release(
     requirement: str,
     expected: str,
 ) -> None:
-    """Read the release stem from the requirement forms the manifest may use.
+    """Read the release triple from the requirement forms the manifest may use.
 
-    A bare `1.0.0` and `^1.0.0` are the same requirement in Cargo, and the
-    repository mandates the caret form. The reader takes the leading release
-    triple and ignores anything after it, so it compares versions rather than
-    matching a substring -- a prerelease suffix cannot make two different
-    releases look equal.
+    A bare `1.0.0` and `^1.0.0` are the same requirement in Cargo. The
+    repository uses the bare form and tolerates an explicit caret. The reader
+    accepts only a complete release triple, so a prerelease suffix is refused
+    rather than read as the plain release it follows.
     """
     match = _CARET_REQUIREMENT_RE.match(requirement)
 
     assert match is not None, f"expected {requirement!r} to name a release"
     assert match.group("version") == expected, (
         f"expected {expected!r} from {requirement!r}, got {match.group('version')!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "requirement",
+    [
+        pytest.param("1.0.0-rc.1", id="prerelease"),
+        pytest.param("^1.0.0-beta.2", id="explicit-caret-prerelease"),
+        pytest.param("1.0.0+build.7", id="build-metadata"),
+    ],
+)
+def test_a_suffixed_requirement_is_refused_rather_than_truncated(
+    requirement: str,
+) -> None:
+    """A suffix makes the release different, so reading past it is a lie.
+
+    An unanchored reader would take `1.0.0-rc.1` as `1.0.0` and let the
+    contract pass against a `MARKDOWN_RS_VERSION` of `1.0.0`, even though a
+    prerelease is not the release. Refusing the whole requirement is what keeps
+    the reader a version comparison rather than a prefix match.
+    """
+    assert _CARET_REQUIREMENT_RE.match(requirement) is None, (
+        f"expected {requirement!r} to be refused, not read as its release stem"
     )

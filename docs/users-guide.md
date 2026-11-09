@@ -700,10 +700,13 @@ intermediate representation, and the block plus its closing line ending is
 preserved byte-for-byte. Any fix that would touch it is refused, and since the
 metadata is not a body region, the refusal is reported as
 `fix-error/frontmatter-protected` rather than as a bad span. One insertion is
-allowed at the position immediately after the closing line ending: that is the
-start of the body, so inserted text lands in front of the body rather than
-inside the metadata. Frontmatter keeps this protection under `--unsafe-fixes`;
-no level of opt-in edits it.
+allowed at the position immediately after the closing line ending. When a
+closing line ending is present, that position is the start of the body, so
+inserted text lands in front of the body rather than inside the metadata. When
+the closing fence ends the file, that position is the end of the source; the
+insertion is admitted and then refused by the after-the-fact comparison that
+re-extracts the result. Frontmatter keeps this protection under
+`--unsafe-fixes`; no level of opt-in edits it.
 
 If the frontmatter cannot be verified — the file claims more than one metadata
 region, a region's span is unusable, or the region's text disagrees with the

@@ -653,10 +653,12 @@ There is exactly one suspension of the bound. The overlap test treats the
 protected prefix as half-open, so a zero-width insertion at the offset just
 past the closing line ending touches it at no byte and is *not* reported as
 overlapping; that offset is nevertheless the one position where insertion
-continues to be admissible. That offset is the start of the body, so the
-inserted text precedes the body rather than entering the metadata. Every other
-insertion inside the prefix, and every replacement or deletion that intersects
-it, is refused.
+continues to be admissible. When a closing line ending is present, that offset
+is the start of the body, so the inserted text precedes the body rather than
+entering the metadata. When the closing fence ends the file, that offset is the
+end of the source; the per-edit test still admits it, and the re-extraction
+comparison described below refuses the result. Every other insertion inside the
+prefix, and every replacement or deletion that intersects it, is refused.
 
 Recognition can also fail: a file may carry more than one candidate region, a
 region whose span is unusable, or region text that disagrees with the bytes it
