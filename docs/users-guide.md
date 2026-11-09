@@ -876,7 +876,11 @@ options. `--no-cache` bypasses persistent reads and writes.
 `--verbose` writes the extraction cache counters — hits, misses, invalid
 entries, bypasses, and write failures — to standard error. They are the same
 fixed fields `check --verbose` reports, and they stay off the JSON stream, so
-`dump-ir --verbose` still emits a parseable document on standard output.
+`dump-ir --verbose` still emits a parseable document on standard output. A
+failed cache operation warns with a bounded `storage_<operation>_<category>`
+outcome instead of the underlying system message, so a cache directory path
+never reaches the log. Each cache read, write, and open is timed in the debug
+log under the same bounded operation name.
 
 ## 4. Locale policy in v1
 
