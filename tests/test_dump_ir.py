@@ -9,6 +9,11 @@ from stilyagi import cli_dump_ir, cli_dump_ir_output, engine, model
 from stilyagi.cli_args import DumpIrOptions
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.dump_ir_harness import (
+    RELEASE_TRIPLE_RE,
+    producer_versions,
+    without_producer_versions,
+)
 from tests.support.subprocess_env import run_python_module
 
 if typ.TYPE_CHECKING:
@@ -31,9 +36,12 @@ def test_dump_ir_snapshots_one_canonical_document(
     payload = json.loads(completed.stdout)
     assert isinstance(payload, dict), "expected one input to emit an IR object"
     assert payload["document"]["path"] == "notes.md", "expected reported source path"
-    assert payload == snapshot(extension_class=JSONSnapshotExtension), (
-        "expected one-document canonical IR snapshot"
-    )
+    assert all(
+        RELEASE_TRIPLE_RE.match(version) for version in producer_versions(payload)
+    ), "expected each producer version to be a release triple"
+    assert without_producer_versions(payload) == snapshot(
+        extension_class=JSONSnapshotExtension
+    ), "expected one-document canonical IR snapshot"
     assert completed.stdout.endswith(b"\n"), "expected canonical JSON newline"
     assert not completed.stderr, "expected extraction logs to stay off stderr"
 
@@ -56,9 +64,9 @@ def test_dump_ir_snapshots_multiple_markdown_documents(
         "a.mdc",
         "b.markdown",
     ], "expected sorted Markdown paths including the component suffix"
-    assert payload == snapshot(extension_class=JSONSnapshotExtension), (
-        "expected multi-document canonical IR snapshot"
-    )
+    assert without_producer_versions(payload) == snapshot(
+        extension_class=JSONSnapshotExtension
+    ), "expected multi-document canonical IR snapshot"
     assert completed.stdout.endswith(b"\n"), "expected array framing newline"
     assert not completed.stderr, "expected extraction logs to stay off stderr"
 
