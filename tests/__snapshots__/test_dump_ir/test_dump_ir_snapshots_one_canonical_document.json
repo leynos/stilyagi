@@ -86,7 +86,7 @@
         "frontmatter": true,
         "gfm": true
       },
-      "version": "1.0.0"
+      "version": "<producer-version>"
     }
   ],
   "regions": [

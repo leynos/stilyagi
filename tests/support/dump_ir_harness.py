@@ -4,10 +4,18 @@ The end-to-end suite spawns the command, so the parent process never imports
 its modules and their branching stays invisible to the coverage ratchet. These
 tests call the command in-process instead, and the helper that sets up its
 streams is shared by every module that does so.
+
+The snapshot normalizers live here for a different reason. A producer version
+is the dependency pin, not this command's shape, so a bump would churn every
+IR snapshot for no reviewer-useful reason. Blanking it keeps the snapshots
+about structure and leaves its meaning to
+`tests/test_markdown_producer_version_contract.py`.
 """
 
+import copy
 import dataclasses as dc
 import io
+import re
 import typing as typ
 
 from stilyagi import cli_dump_ir
@@ -17,6 +25,37 @@ if typ.TYPE_CHECKING:
     import pathlib
 
     import pytest
+
+#: Stands in for each producer's version so a dependency bump does not churn
+#: the snapshots. `test_markdown_producer_version_contract` pins that value's
+#: meaning; the snapshots pin the surrounding shape.
+PRODUCER_VERSION_PLACEHOLDER = "<producer-version>"
+
+RELEASE_TRIPLE_RE = re.compile(r"^\d+\.\d+\.\d+$")
+
+
+def documents(payload: object) -> list[dict[str, typ.Any]]:
+    """Return a payload's documents, whether it is one object or an array."""
+    entries = payload if isinstance(payload, list) else [payload]
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def producer_versions(payload: object) -> list[str]:
+    """Return every producer version the payload reports."""
+    return [
+        str(producer["version"])
+        for document in documents(payload)
+        for producer in document.get("producers", ())
+    ]
+
+
+def without_producer_versions(payload: object) -> object:
+    """Return a copy with each producer version blanked for snapshotting."""
+    normalized = copy.deepcopy(payload)
+    for document in documents(normalized):
+        for producer in document.get("producers", ()):
+            producer["version"] = PRODUCER_VERSION_PLACEHOLDER
+    return normalized
 
 
 @dc.dataclass(frozen=True, slots=True)
