@@ -194,11 +194,18 @@ def _edit(args: cabc.Sequence[str]) -> int:
     for arg in args:
         for name in ("draft", "prerelease"):
             option = f"--{name}="
-            # Only a value the real flag could carry changes the state. A
-            # workflow typo such as ``--draft=maybe`` must not read as a
-            # publication here, or every step test would agree with it.
-            if arg.startswith(option) and arg.removeprefix(option) in {"true", "false"}:
-                state[name] = arg.removeprefix(option) == "true"
+            # The real flag accepts only these two spellings and rejects the
+            # rest, so the fake must too. ``release.yml`` passes
+            # ``--prerelease="${IS_PRERELEASE}"``, whose value comes from a
+            # script output; an empty one would otherwise record a final
+            # release here and fail only on a real tag run.
+            if not arg.startswith(option):
+                continue
+            value = arg.removeprefix(option)
+            if value not in {"true", "false"}:
+                print(f"invalid boolean for --{name}: {value!r}", file=sys.stderr)
+                return 1
+            state[name] = value == "true"
     path.write_text(json.dumps(state), encoding="utf-8")
     return 0
 

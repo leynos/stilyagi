@@ -245,12 +245,17 @@ def test_an_edit_records_the_state_it_leaves(release: FakeRelease) -> None:
     assert _state(release)["draft"] is False, _state(release)
 
 
-def test_an_edit_ignores_a_flag_it_cannot_read(release: FakeRelease) -> None:
-    """A value that is neither true nor false leaves the state unchanged."""
+def test_an_edit_refuses_a_flag_it_cannot_read(release: FakeRelease) -> None:
+    """A value that is neither true nor false fails, as the real flag does.
+
+    ``release.yml`` passes ``--prerelease="${IS_PRERELEASE}"``, whose value is
+    a script output. A fake that accepted an empty string would record a final
+    release and leave the mistake to surface on a real tag run.
+    """
     created = gh(["release", "create", RELEASE_TAG, "--draft"])
     assert created == 0, "the create must succeed"
     edited = gh(["release", "edit", RELEASE_TAG, "--draft=perhaps"])
-    assert edited == 0, "an unreadable flag must not fail the edit"
+    assert edited == 1, "an unreadable flag must fail the edit"
     assert _state(release)["draft"] is True, _state(release)
 
 
