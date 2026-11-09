@@ -145,6 +145,52 @@ def _statement(subjects: dict[str, bytes]) -> dict[str, object]:
     }
 
 
+def bundle_document(payload: str) -> dict[str, object]:
+    """Return a Sigstore bundle whose envelope carries ``payload`` and its signature.
+
+    The stand-in for ``gh attestation verify`` decides whether a bundle is
+    signed exactly as the real command does, so the ``sig`` field has to be
+    something it can recompute. Here it is a digest of the signed payload: a
+    statement edited after it was signed no longer matches, which is the case
+    the workflow's verify step exists to refuse.
+
+    Parameters
+    ----------
+    payload
+        The base64-encoded DSSE payload the envelope carries.
+
+    Returns
+    -------
+    dict[str, object]
+        A bundle in the shape ``actions/attest-build-provenance`` produces.
+    """
+    return {
+        "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+        "verificationMaterial": {},
+        "dsseEnvelope": {
+            "payload": payload,
+            "payloadType": "application/vnd.in-toto+json",
+            "signatures": [{"sig": signature_of(payload), "keyid": ""}],
+        },
+    }
+
+
+def signature_of(payload: str) -> str:
+    """Return the signature this repository's fixtures sign ``payload`` with.
+
+    Parameters
+    ----------
+    payload
+        The base64-encoded DSSE payload the signature covers.
+
+    Returns
+    -------
+    str
+        The digest the stand-in verifier recomputes and compares.
+    """
+    return f"sha256:{hashlib.sha256(payload.encode('ascii')).hexdigest()}"
+
+
 def _verifier_answer(
     subjects: dict[str, bytes], source: str
 ) -> list[dict[str, object]]:
@@ -244,18 +290,7 @@ def write_bundle(
     """
     statement = _statement(subjects)
     payload = base64.b64encode(json.dumps(statement).encode("utf-8")).decode("ascii")
-    return _write_document(
-        directory / name,
-        {
-            "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
-            "verificationMaterial": {},
-            "dsseEnvelope": {
-                "payload": payload,
-                "payloadType": "application/vnd.in-toto+json",
-                "signatures": [{"sig": "c2ln", "keyid": ""}],
-            },
-        },
-    )
+    return _write_document(directory / name, bundle_document(payload))
 
 
 def _write_document(path: pathlib.Path, document: object) -> pathlib.Path:
@@ -266,7 +301,9 @@ def _write_document(path: pathlib.Path, document: object) -> pathlib.Path:
 
 
 __all__ = [
+    "bundle_document",
     "digest",
+    "signature_of",
     "write_assets",
     "write_bundle",
     "write_file",
