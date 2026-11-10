@@ -685,8 +685,8 @@ per-file checking, and run aggregation:
 
 `python/stilyagi/check_execution.py` owns the per-file execution stage:
 `_read_source` reads or decodes one input, and `check_one_file` runs
-extraction, configuration resolution, and rules for it. The module records
-phase timings around read, extract, config, and rules; `cli.py` owns the
+configuration resolution, extraction, and rules for it. The module records
+phase timings around read, config, extract, and rules; `cli.py` owns the
 discovery and render phases around its command orchestration.
 
 `python/stilyagi/check_paths.py` resolves the glob anchor for the file being

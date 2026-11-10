@@ -31,10 +31,15 @@ import typing as typ
 
 import pytest
 from stilyagi import cli, diagnostics
+from stilyagi.cache.extraction import CacheExtractionService, CacheServiceConfig
 from stilyagi.cache.model import CACHE_NAMESPACE_NAME, OWNER_MARKER_NAME
 from stilyagi.cli_args import CheckOptions
 from stilyagi.fixes import Applicability, Fix, TextEdit
 
+from tests.support.cache_extraction import (
+    CacheServiceRegistrar,
+    counting_extractor,
+)
 from tests.support.fix_fixtures import find_source_span
 
 if typ.TYPE_CHECKING:
@@ -176,6 +181,7 @@ class TestPostFixCacheBypass:
         tmp_path: pathlib.Path,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
+        close_cache_services: CacheServiceRegistrar,
     ) -> None:
         """Bypass covers the read half, not just publication.
 
@@ -185,18 +191,42 @@ class TestPostFixCacheBypass:
         exists. So warm the cache with the repaired bytes first and then run
         the fix, which is the shape that can distinguish the two.
 
-        The counters are the signal: `cache_hits` must stay at zero and
+        Counting alone cannot tell a served hit from a recorded bypass, so the
+        extractor is injected and asked directly: the planning pass must
+        receive the pre-fix bytes and the re-lint the repaired ones. The warm
+        entry's own bytes are compared before and after as well, because a
+        re-lint that rewrote it would leave the counters looking correct while
+        destroying the entry a later plain `check` should hit.
+
+        The counters are also asserted: `cache_hits` must stay at zero and
         `cache_bypasses` must count the fresh re-lint. The summary is emitted
         at INFO on the extraction logger, so the assertion reads it through a
         `caplog` level rather than through `run_check`'s `--verbose` handler,
         which `basicConfig` declines to install once pytest owns the root.
         """
+        calls: list[str] = []
+        service = close_cache_services(
+            CacheExtractionService(
+                CacheServiceConfig(
+                    invocation_cwd=tmp_path,
+                    package_version="test-version",
+                    extractor=counting_extractor(calls),
+                    native_digest_factory=lambda: "native-digest",
+                    builtin_signature_factory=lambda _config: "builtin-signature",
+                )
+            )
+        )
         (tmp_path / "notes.md").write_text(AFTER, encoding="utf-8")
         monkeypatch.chdir(tmp_path)
         with contextlib.redirect_stderr(io.StringIO()):
-            assert cli.run_check(CheckOptions(targets=("notes.md",))) == 0, (
-                "expected the warm-up run to succeed"
-            )
+            assert (
+                cli.run_check(
+                    CheckOptions(targets=("notes.md",)),
+                    collaborators=cli.CheckCollaborators(extraction_cache=service),
+                )
+                == 0
+            ), "expected the warm-up run to succeed"
+        assert calls == [AFTER], "expected the warm-up to extract the repaired bytes"
         warm = _entry_payloads(tmp_path)
         assert len(warm) == 1, (
             f"expected the warm-up to publish one entry, found {len(warm)}"
@@ -204,6 +234,11 @@ class TestPostFixCacheBypass:
         assert "Section" in str(warm[0].get("ir_json")), (
             "expected the warm entry to describe the repaired bytes"
         )
+        warm_files = {
+            path.name: path.read_bytes()
+            for path in _namespace(tmp_path).iterdir()
+            if path.suffix == ".json" and path.name != OWNER_MARKER_NAME
+        }
 
         (tmp_path / "notes.md").write_text(BEFORE, encoding="utf-8")
         with caplog.at_level(logging.INFO, logger="stilyagi.cache.extraction"):
@@ -211,11 +246,31 @@ class TestPostFixCacheBypass:
                 cli.run_check(
                     CheckOptions(targets=("notes.md",), fix=True),
                     collaborators=cli.CheckCollaborators(
-                        rule_runner=_rewrite_paragraph
+                        rule_runner=_rewrite_paragraph,
+                        extraction_cache=service,
                     ),
                 )
                 == 0
             ), "expected the fix run to succeed"
+
+        assert calls == [AFTER, BEFORE, AFTER], (
+            "expected the planning pass to read the pre-fix bytes and the "
+            f"re-lint the repaired ones, got {calls}"
+        )
+        after = {
+            path.name: path.read_bytes()
+            for path in _namespace(tmp_path).iterdir()
+            if path.suffix == ".json" and path.name != OWNER_MARKER_NAME
+        }
+        assert len(after) == 2, (
+            "expected the warm entry plus the planning pass's entry, found "
+            f"{len(after)}; a third means the re-lint published for bytes no "
+            "planner verified"
+        )
+        for name, content in warm_files.items():
+            assert after.get(name) == content, (
+                f"expected the warm entry {name} to survive the fix unchanged"
+            )
 
         summary = [
             record

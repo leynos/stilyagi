@@ -18,6 +18,7 @@ import typing as typ
 
 import pytest
 from stilyagi import cli_clean, cli_command_shell, cli_config_command, cli_dump_ir
+from stilyagi.cache.clean import CacheCleanResult
 from stilyagi.cli_args import DumpIrOptions, _ConfigInspectionOptions
 from stilyagi.cli_dump_ir import run_dump_ir
 from stilyagi.config import path_resolution
@@ -105,6 +106,56 @@ class TestCommandsShareTheChannel:
         assert sink.getvalue().startswith("stilyagi clean: "), (
             "expected the clean prefix on the reported failure"
         )
+
+    def test_clean_reports_an_escaping_oserror_through_the_channel(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A traversal that raises is reported once, prefixed and as status two.
+
+        The traversal test above exits through `_render_result`, because a
+        failed subtree is collected into `result.errors` rather than raised.
+        `run_clean`'s own `except OSError` branch is therefore unreached there,
+        so it is driven here by making the traversal raise.
+        """
+        failure = "denied"
+        error_sink = io.StringIO()
+
+        def raise_denied(_root: pathlib.Path) -> typ.NoReturn:
+            """Fail the traversal the way an unusable root does."""
+            raise OSError(failure)
+
+        monkeypatch.setattr(cli_clean, "clean_cache_tree", raise_denied)
+
+        status = cli_clean.run_clean(
+            root=tmp_path, output=io.StringIO(), error=error_sink
+        )
+
+        assert error_sink.getvalue() == f"stilyagi clean: {failure}\n", (
+            "expected the shared helper's exact sentence on the error stream"
+        )
+        assert status == 2, "expected a raising traversal to exit two"
+
+    def test_clean_renders_collected_failures_with_the_shared_prefix(
+        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Each collected traversal failure uses the shared prefix, not a copy."""
+        collected = ("notes.md/one: denied", "notes.md/two: unstable")
+
+        def return_collected(_root: pathlib.Path) -> CacheCleanResult:
+            """Report two subtree failures without raising out of the traversal."""
+            return CacheCleanResult(removed_files=0, errors=collected)
+
+        monkeypatch.setattr(cli_clean, "clean_cache_tree", return_collected)
+        error_sink = io.StringIO()
+
+        status = cli_clean.run_clean(
+            root=tmp_path, output=io.StringIO(), error=error_sink
+        )
+
+        assert error_sink.getvalue() == "".join(
+            f"stilyagi clean: {failure}\n" for failure in collected
+        ), "expected every collected failure to be rendered by the shared helper"
+        assert status == 2, "expected collected failures to exit two"
 
     def test_dump_ir_reports_a_missing_target_through_the_channel(
         self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch

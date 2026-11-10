@@ -10,7 +10,10 @@ if typ.TYPE_CHECKING:
 
 import pytest
 from stilyagi.cache import storage_primitives as primitives
-from stilyagi.cache.storage_primitives import CacheStorageError
+from stilyagi.cache.storage_primitives import (
+    CacheStorageError,
+    StorageFailureCategory,
+)
 
 
 def _raise_oserror(*_args: object, **_kwargs: object) -> typ.NoReturn:
@@ -186,8 +189,14 @@ def test_open_child_directory_classifies_a_failed_reopen(
 
     monkeypatch.setattr(primitives.os, "mkdir", create_nothing)
 
-    with pytest.raises(CacheStorageError, match="cannot safely open cache namespace"):
+    with pytest.raises(
+        CacheStorageError, match="cannot safely open cache namespace"
+    ) as failure:
         primitives._open_child_directory(namespace_fd, "vanished")
+
+    assert failure.value.category is StorageFailureCategory.LEASE_UNAVAILABLE, (
+        "an unusable namespace is a lease fault, not a spoiled entry"
+    )
 
 
 def test_open_child_directory_classifies_a_forbidden_create(
@@ -208,8 +217,14 @@ def test_open_child_directory_classifies_a_forbidden_create(
         {*primitives.os.supports_dir_fd, refuse_create},
     )
 
-    with pytest.raises(CacheStorageError, match="cannot create cache namespace"):
+    with pytest.raises(
+        CacheStorageError, match="cannot create cache namespace"
+    ) as failure:
         primitives._open_child_directory(namespace_fd, "refused")
+
+    assert failure.value.category is StorageFailureCategory.LEASE_UNAVAILABLE, (
+        "a namespace that cannot be created is a lease fault"
+    )
 
 
 def test_open_child_directory_classifies_a_forbidden_open(
@@ -225,8 +240,14 @@ def test_open_child_directory_classifies_a_forbidden_open(
 
     monkeypatch.setattr(primitives.os, "open", refuse_open)
 
-    with pytest.raises(CacheStorageError, match="cannot safely open cache namespace"):
+    with pytest.raises(
+        CacheStorageError, match="cannot safely open cache namespace"
+    ) as failure:
         primitives._open_child_directory(namespace_fd, "blocked")
+
+    assert failure.value.category is StorageFailureCategory.LEASE_UNAVAILABLE, (
+        "a namespace that cannot be opened is a lease fault"
+    )
 
 
 def test_directory_identity_classifies_an_inspection_fault(

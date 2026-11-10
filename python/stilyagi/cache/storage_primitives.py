@@ -171,7 +171,9 @@ def _open_child_directory(parent_fd: int, name: str) -> tuple[int, bool]:
             created = False
         except OSError as error:
             _raise_storage_error(
-                f"cannot create cache namespace {name}: {error}", error
+                f"cannot create cache namespace {name}: {error}",
+                error,
+                category=StorageFailureCategory.LEASE_UNAVAILABLE,
             )
         try:
             descriptor = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
@@ -179,10 +181,13 @@ def _open_child_directory(parent_fd: int, name: str) -> tuple[int, bool]:
             _raise_storage_error(
                 f"cannot safely open cache namespace {name}: {error}",
                 error,
+                category=StorageFailureCategory.LEASE_UNAVAILABLE,
             )
     except OSError as error:
         _raise_storage_error(
-            f"cannot safely open cache namespace {name}: {error}", error
+            f"cannot safely open cache namespace {name}: {error}",
+            error,
+            category=StorageFailureCategory.LEASE_UNAVAILABLE,
         )
     else:
         return descriptor, False
@@ -296,7 +301,15 @@ def _write_marker(namespace_fd: int) -> None:
         try:
             _write_all(descriptor, OWNER_MARKER_BYTES)
             os.fsync(descriptor)
+        except CacheStorageError:
+            # A categorized failure from `_write_all` already names its own
+            # class; re-labelling it here would discard the reason it carried.
+            raise
         except OSError as error:
-            _raise_storage_error(f"cannot write cache owner marker: {error}", error)
+            _raise_storage_error(
+                f"cannot write cache owner marker: {error}",
+                error,
+                category=StorageFailureCategory.MARKER_UNTRUSTED,
+            )
     finally:
         _close_descriptor(descriptor)
