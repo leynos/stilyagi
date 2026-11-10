@@ -58,4 +58,5 @@ def _render_result(
         "namespaces; preserved "
         f"{result.preserved_unknown_entries} unknown entries\n"
     )
-    error.writelines(f"stilyagi clean: {failure}\n" for failure in result.errors)
+    for failure in result.errors:
+        write_command_failure(error, command="clean", failure=failure)

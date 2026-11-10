@@ -14,7 +14,10 @@ import typing as typ
 import pytest
 from stilyagi.cache import storage_primitives as primitives
 from stilyagi.cache.model import OWNER_MARKER_BYTES, OWNER_MARKER_NAME
-from stilyagi.cache.storage_primitives import CacheStorageError
+from stilyagi.cache.storage_primitives import (
+    CacheStorageError,
+    StorageFailureCategory,
+)
 
 pytest_plugins = ("tests.support.cache_storage_fixtures",)
 
@@ -100,6 +103,36 @@ def test_write_marker_classifies_a_failed_content_write(
 
     with pytest.raises(CacheStorageError, match="cannot write cache owner marker"):
         primitives._write_marker(namespace_fd)
+
+
+def test_write_marker_preserves_a_categorized_write_failure(
+    namespace_fd: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep the category a provenanced write failure already carries.
+
+    `_write_all` reports its own `RESTORE_FAILED`, and `CacheStorageError` is
+    an `OSError` subclass, so a bare `except OSError` here would catch that
+    error and re-raise it under a different category. The marker's own class
+    is only right for a raw operating-system fault.
+    """
+
+    def fail_with_restore_category(_descriptor: int, _content: bytes) -> typ.NoReturn:
+        """Fail the content write the way the shared write helper does."""
+        message = "cannot write cache file: injected fault"
+        raise CacheStorageError(message, category=StorageFailureCategory.RESTORE_FAILED)
+
+    monkeypatch.setattr(primitives, "_write_all", fail_with_restore_category)
+
+    with pytest.raises(CacheStorageError) as failure:
+        primitives._write_marker(namespace_fd)
+
+    assert failure.value.category is StorageFailureCategory.RESTORE_FAILED, (
+        "a categorized write fault must keep the class it was raised with"
+    )
+    assert "cannot write cache file" in str(failure.value), (
+        "the original failure's own detail must survive the re-raise"
+    )
 
 
 def test_marker_constants_keep_the_owned_regular_file_shape(
