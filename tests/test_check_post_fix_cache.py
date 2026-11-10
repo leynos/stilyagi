@@ -96,6 +96,117 @@ def _entry_payloads(root: pathlib.Path) -> list[dict[str, object]]:
     ]
 
 
+def _entry_files(root: pathlib.Path) -> dict[str, bytes]:
+    """Return the raw entry bytes present, keyed by name, excluding the marker.
+
+    A re-lint that rewrote an entry keeps the same *name*, so comparing these
+    bytes before and after is what distinguishes a served-entry bypass from a
+    silent overwrite. The payload reader above cannot show that: it decodes
+    the same envelope either way.
+
+    Returns
+    -------
+    dict[str, bytes]
+        Each entry's raw contents, keyed by its file name.
+    """
+    namespace = _namespace(root)
+    return {
+        path.name: path.read_bytes()
+        for path in namespace.iterdir()
+        if path.suffix == ".json" and path.name != OWNER_MARKER_NAME
+    }
+
+
+def _counting_service(
+    tmp_path: pathlib.Path,
+    calls: list[str],
+    register: CacheServiceRegistrar,
+) -> CacheExtractionService:
+    """Build the injected service, recording each extraction into `calls`."""
+    return register(
+        CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=tmp_path,
+                package_version="test-version",
+                extractor=counting_extractor(calls),
+                native_digest_factory=lambda: "native-digest",
+                builtin_signature_factory=lambda _config: "builtin-signature",
+            )
+        )
+    )
+
+
+def _repair_the_target(tmp_path: pathlib.Path, service: CacheExtractionService) -> None:
+    """Restore the pre-fix source and run `check --fix` over it."""
+    (tmp_path / "notes.md").write_text(BEFORE, encoding="utf-8")
+    with contextlib.redirect_stderr(io.StringIO()):
+        assert (
+            cli.run_check(
+                CheckOptions(targets=("notes.md",), fix=True),
+                collaborators=cli.CheckCollaborators(
+                    rule_runner=_rewrite_paragraph,
+                    extraction_cache=service,
+                ),
+            )
+            == 0
+        ), "expected the fix run to succeed"
+
+
+def _warm_the_cache(
+    tmp_path: pathlib.Path,
+    service: CacheExtractionService,
+    calls: list[str],
+) -> None:
+    """Run one plain `check` over the repaired bytes, then assert it published.
+
+    The warm-up is the precondition the test below depends on: without an
+    entry describing the repaired bytes there is nothing for the re-lint to
+    wrongly read, and the test would pass for the wrong reason.
+    """
+    (tmp_path / "notes.md").write_text(AFTER, encoding="utf-8")
+    with contextlib.redirect_stderr(io.StringIO()):
+        assert (
+            cli.run_check(
+                CheckOptions(targets=("notes.md",)),
+                collaborators=cli.CheckCollaborators(extraction_cache=service),
+            )
+            == 0
+        ), "expected the warm-up run to succeed"
+    assert calls == [AFTER], "expected the warm-up to extract the repaired bytes"
+    warm = _entry_payloads(tmp_path)
+    assert len(warm) == 1, (
+        f"expected the warm-up to publish one entry, found {len(warm)}"
+    )
+    assert "Section" in str(warm[0].get("ir_json")), (
+        "expected the warm entry to describe the repaired bytes"
+    )
+
+
+def _counters(records: list[logging.LogRecord]) -> tuple[object, object]:
+    """Return the cache-hit and cache-bypass totals the run reported.
+
+    The counters ride on the record as structured extras rather than in the
+    message, so each one is read by name. Binding them here also keeps the
+    failure messages free of attribute access on a `LogRecord`, which static
+    checkers reject even though the extras are present.
+
+    Returns
+    -------
+    tuple[object, object]
+        The reported `cache_hits` and `cache_bypasses` totals.
+    """
+    summary = [
+        record
+        for record in records
+        if getattr(record, "operation", None) == "extraction_cache_summary"
+    ]
+    assert summary, "expected the run to report its cache counters"
+    return (
+        getattr(summary[-1], "cache_hits", None),
+        getattr(summary[-1], "cache_bypasses", None),
+    )
+
+
 @dc.dataclass(frozen=True, slots=True)
 class FixedRun:
     """What one cache-enabled `check --fix` left behind.
@@ -205,63 +316,19 @@ class TestPostFixCacheBypass:
         which `basicConfig` declines to install once pytest owns the root.
         """
         calls: list[str] = []
-        service = close_cache_services(
-            CacheExtractionService(
-                CacheServiceConfig(
-                    invocation_cwd=tmp_path,
-                    package_version="test-version",
-                    extractor=counting_extractor(calls),
-                    native_digest_factory=lambda: "native-digest",
-                    builtin_signature_factory=lambda _config: "builtin-signature",
-                )
-            )
-        )
-        (tmp_path / "notes.md").write_text(AFTER, encoding="utf-8")
+        service = _counting_service(tmp_path, calls, close_cache_services)
         monkeypatch.chdir(tmp_path)
-        with contextlib.redirect_stderr(io.StringIO()):
-            assert (
-                cli.run_check(
-                    CheckOptions(targets=("notes.md",)),
-                    collaborators=cli.CheckCollaborators(extraction_cache=service),
-                )
-                == 0
-            ), "expected the warm-up run to succeed"
-        assert calls == [AFTER], "expected the warm-up to extract the repaired bytes"
-        warm = _entry_payloads(tmp_path)
-        assert len(warm) == 1, (
-            f"expected the warm-up to publish one entry, found {len(warm)}"
-        )
-        assert "Section" in str(warm[0].get("ir_json")), (
-            "expected the warm entry to describe the repaired bytes"
-        )
-        warm_files = {
-            path.name: path.read_bytes()
-            for path in _namespace(tmp_path).iterdir()
-            if path.suffix == ".json" and path.name != OWNER_MARKER_NAME
-        }
+        _warm_the_cache(tmp_path, service, calls)
+        warm_files = _entry_files(tmp_path)
 
-        (tmp_path / "notes.md").write_text(BEFORE, encoding="utf-8")
         with caplog.at_level(logging.INFO, logger="stilyagi.cache.extraction"):
-            assert (
-                cli.run_check(
-                    CheckOptions(targets=("notes.md",), fix=True),
-                    collaborators=cli.CheckCollaborators(
-                        rule_runner=_rewrite_paragraph,
-                        extraction_cache=service,
-                    ),
-                )
-                == 0
-            ), "expected the fix run to succeed"
+            _repair_the_target(tmp_path, service)
 
         assert calls == [AFTER, BEFORE, AFTER], (
             "expected the planning pass to read the pre-fix bytes and the "
             f"re-lint the repaired ones, got {calls}"
         )
-        after = {
-            path.name: path.read_bytes()
-            for path in _namespace(tmp_path).iterdir()
-            if path.suffix == ".json" and path.name != OWNER_MARKER_NAME
-        }
+        after = _entry_files(tmp_path)
         assert len(after) == 2, (
             "expected the warm entry plus the planning pass's entry, found "
             f"{len(after)}; a third means the re-lint published for bytes no "
@@ -272,18 +339,7 @@ class TestPostFixCacheBypass:
                 f"expected the warm entry {name} to survive the fix unchanged"
             )
 
-        summary = [
-            record
-            for record in caplog.records
-            if getattr(record, "operation", None) == "extraction_cache_summary"
-        ]
-        assert summary, "expected the run to report its cache counters"
-        # The counters ride on the record as structured extras rather than in
-        # the message, so each one is read by name. Binding them once also
-        # keeps the failure messages free of attribute access on a `LogRecord`,
-        # which static checkers reject even though the extras are present.
-        hits = getattr(summary[-1], "cache_hits", None)
-        bypasses = getattr(summary[-1], "cache_bypasses", None)
+        hits, bypasses = _counters(caplog.records)
         assert hits == 0, (
             "expected the re-lint to bypass the warm entry for the repaired "
             f"bytes rather than read it, got hits={hits}"
