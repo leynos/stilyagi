@@ -3,7 +3,7 @@
 # `rust-toolchain` entry moves the pin. See
 # docs/adrs/adr-0011-pinned-nightly-and-build-standard.md.
 [toolchain]
-channel = "nightly-2026-10-18"
+channel = "nightly-2026-11-09"
 components = [
   "clippy",
   "llvm-tools-preview",
