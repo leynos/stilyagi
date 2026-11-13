@@ -3061,7 +3061,7 @@ make duplication-allow FIRST=python/stilyagi/a.py \
 Repeating `SECOND` does not add keys: GNU `make` keeps only the last
 command-line assignment to a variable, so an earlier one is dropped without
 warning. The writer is atomic and holds a sidecar advisory lock
-(`.*.duplication-gate.lock`) so concurrent `allow` runs do not lose updates.
+(`.pyproject.toml.df12.lock`) so concurrent `allow` runs do not lose updates.
 That lock coordinates processes that participate in the protocol; it does not
 constrain an editor writing `pyproject.toml` directly.
 
@@ -3072,18 +3072,15 @@ schema allows for those families is the whole file. That means each such entry
 also silences any later fragment-level family in the same file. Use a
 `path::name` key whenever the detector does supply a name.
 
-A key that would cover every repository path is refused at validation, not
-merely discouraged. Validation rejects an all-`**` glob and the recursive
-variants `**/**` and `**/*`, because any of them would silence every finding in
-the scan. This is a scope argument rather than a style one: a plain `**`
-carries no information about which family is intended, so accepting it would
-defeat the gate for the whole repository. A recursive prefix that still names a
-real segment, such as `python/stilyagi/**/models.py` or `**/*/*`, stays
-narrowed to paths of that shape and is accepted. Patterns such as `*/**` and
-`**/*/**` look like a catch-all but behave identically to `**/*/*`: each
-requires at least one named segment below the recursion, so none of them covers
-a single-segment path such as `Makefile`, and all are accepted. Refusing them
-would reject keys that legitimately scope a family to a subtree.
+Never record a key that would cover every repository path, such as `**`,
+`**/**` or `**/*`: any of them would silence every finding in the scan, and a
+plain `**` carries no information about which family is intended. The installed
+`df12-duplication` command does not yet refuse these keys at validation (the
+vendored gate did); that gap is tracked in
+[df12-python-lints#80](https://github.com/leynos/df12-python-lints/issues/80),
+so review any new entry's keys by hand until it is closed. A recursive prefix
+that still names a real segment, such as `python/stilyagi/**/models.py`, stays
+narrowed to paths of that shape and is fine.
 
 When the gate reports an entry as stale, confirm the duplication is actually
 gone before removing it. A family can drop out of the ranking because it fell
