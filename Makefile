@@ -82,13 +82,17 @@ DF12_PYLINT = $(UV_RUN) --python $(DF12_PYTHON) pylint \
 	--enable=$(DF12_PYLINT_MESSAGES)
 AMBRLEAKS_TARGETS ?= tests scripts
 AMBRLEAKS = $(UV_RUN) --python $(DF12_PYTHON) ambrleaks
-SKYLOS_VERSION = 4.33.2
-# Skylos parses source using its own Python AST, so Python 3.14 prevents
-# phantom dead-code findings from syntax older tool runtimes cannot parse.
-SKYLOS_CLI = $(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos
-SKYLOS = $(SKYLOS_CLI) --config-file pyproject.toml
-SKYLOS_PRODUCTION_TARGETS ?= python/stilyagi
-SKYLOS_EXCLUDE_FOLDERS ?= tests
+# The gates are the installed df12-skylos and df12-duplication commands. The
+# `skylos` extra carries the one Skylos pin, and Skylos parses source with its
+# own runtime AST, so its tool environment runs Python 3.14. `[tool.nose]
+# version` is the only detector pin; the duplication command verifies the
+# download against the digest table shipped in the package.
+DF12_GATES_SHA = 56ad71721c3f1f2164ec84b69150582488f1a927
+DF12_GATES = git+https://github.com/leynos/df12-python-lints.git@$(DF12_GATES_SHA)
+SKYLOS = $(UV_ENV) $(UV) tool run --python 3.14 --from \
+	'df12-python-lints[skylos] @ $(DF12_GATES)' df12-skylos
+DUPLICATION = $(UV_ENV) $(UV) tool run --from \
+	'df12-python-lints[duplication] @ $(DF12_GATES)' df12-duplication
 INTERROGATE ?= $(UV_RUN) interrogate
 INTERROGATE_TARGETS ?= python/stilyagi tests scripts
 INTERROGATE_FLAGS ?= --fail-under 100
@@ -98,53 +102,14 @@ RUFF = env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)
 TY_VERSION ?= 0.0.74
 TY = env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)
 # The checker resolves imports from the project environment and `scripts/` on
-# the search path, which is where the gate's own modules live. The gate is a
-# PEP 723 script: `cyclopts` and `tomlkit` are declared in its `# /// script`
-# header and provisioned for the gate's own runs by `make duplication`, not
-# installed into the application environment, so they are staged here in the
-# tool environment instead. Pinning the staging to the gate's declared
-# versions keeps one interpreter importable under the pin the gate runs with.
-TY_EXTRA_PATHS ?= --extra-search-path scripts --extra-search-path $(TY_GATE_STAGE_DIR)
-# A literal path, because `UV_TOOL_DIR` lives in the `UV_ENV` shell prefix
-# rather than in Make's own variable table: as a Make variable it expands to
-# nothing and the staging directory would resolve to `/ty-gate-deps`.
-TY_GATE_STAGE_DIR ?= .uv-tools/ty-gate-deps
-TY_GATE_DEPS = $(TY_GATE_STAGE_DIR)/stamp
-$(TY_GATE_DEPS): scripts/duplication_gate.py
-	@rm -rf "$(TY_GATE_STAGE_DIR)"
-	@mkdir -p "$(TY_GATE_STAGE_DIR)"
-	@$(UV_ENV) $(UV) pip install --quiet --python 3.14 --target \
-	  "$(TY_GATE_STAGE_DIR)" cyclopts==4.25.2 tomlkit==0.15.1
-	@touch "$(TY_GATE_DEPS)"
+# the search path.
+TY_EXTRA_PATHS ?= --extra-search-path scripts
 # Single source of truth for the spelling gate; CI consumes it through the
 # markdownlint target, so the Makefile and CI cannot drift apart.
 TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.3
 TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 	"git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
 	typos-config-builder
-# Keep this pin in sync with the CI detector install step and with
-# [tool.nose] version in pyproject.toml; tests/test_toolchain_contract.py
-# enforces the match.
-NOSE_VERSION ?= 0.20.0
-NOSE_TOOLS_DIR ?= .tools/nose
-NOSE_BIN ?= $(NOSE_TOOLS_DIR)/nose
-CARGO_BINSTALL ?= cargo-binstall
-DUPLICATION_GATE = $(UV_ENV) NOSE_BIN=$(NOSE_BIN) $(UV) run scripts/duplication_gate.py
-# Extra arguments for the duplication-gate helper test lane, empty by default.
-# Pass DUPLICATION_TEST_ARGS=--snapshot-update to regenerate the syrupy
-# snapshots that pin the gate's report wording and argument vectors.
-DUPLICATION_TEST_ARGS ?=
-# The interpreter the helper-test lane runs on. The lane passes `--no-project`
-# so it can carry its own pinned pytest plugins rather than the whole `dev`
-# group, but that also makes uv ignore `requires-python = ">=3.14"` and resolve
-# whatever interpreter it discovers first. The gate's modules annotate with
-# names imported only under `typing.TYPE_CHECKING`; ruff's TC003 requires that
-# placement on the declared 3.14 baseline, whose PEP 649 annotations stay lazy.
-# An interpreter below the floor evaluates those annotations eagerly at def
-# time, so collection dies with `NameError` before a single test runs -- on a
-# machine with only 3.13 this lane would disagree with every other Python
-# gateway in the repository. Pin the floor the lane is written against.
-DUPLICATION_TEST_PYTHON ?= 3.14
 # `find` descends into `.git`, where a remote branch whose name ends in `.md`
 # appears as `refs/remotes/origin/<name>` and would be linted as Markdown. The
 # ignore below and the matching `.git/**` entry in `.markdownlint-cli2.jsonc`
@@ -161,8 +126,8 @@ RESOLVE_VENV_PYTHON = VENV_PYTHON=".venv/bin/python"; if [ ! -x "$$VENV_PYTHON" 
 
 .PHONY: help all clean build build-release lint lint-clippy lint-whitaker fmt check-fmt \
         markdownlint nixie spelling test test-ci test-doc test-quick \
-        typecheck tools skylos-allow \
-        install-nose duplication duplication-test duplication-allow \
+        typecheck tools skylos skylos-allow \
+        duplication duplication-allow \
         tools-check tools-docs tools-lint install-build-tools check-build-tools \
         release release-artefact smoke smoke-release test-workflow-contracts
 
@@ -282,7 +247,7 @@ check-fmt: tools-check ## Verify formatting
 
 lint: lint-clippy lint-whitaker ## Run linters, including the Whitaker Dylint suite
 
-lint-clippy: check-build-tools tools-lint install-nose ## Run the Python and Cargo lint stages
+lint-clippy: check-build-tools tools-lint skylos duplication ## Run the Python and Cargo lint stages
 	$(RUFF) check
 	$(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
@@ -290,48 +255,16 @@ lint-clippy: check-build-tools tools-lint install-nose ## Run the Python and Car
 	$(AMBRLEAKS) $(AMBRLEAKS_TARGETS)
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) doc $(DOC_FLAGS)
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
-	$(SKYLOS) $(SKYLOS_PRODUCTION_TARGETS) --exclude $(SKYLOS_EXCLUDE_FOLDERS) --category dead_code --gate --format concise --no-upload --no-provenance --no-grep-verify
-	$(DUPLICATION_GATE) check
 
 lint-whitaker: lint-clippy ## Run the Whitaker Dylint suite after the Clippy stage
 	RUSTFLAGS="$(WHITAKER_RUST_FLAGS)" $(CARGO_BUILD_ENV) $(WHITAKER) $(WHITAKER_LIBRARIES) -- $(CARGO_FLAGS)
 
-install-nose: ## Install the pinned nose duplication detector
-	@if [ "$$($(NOSE_BIN) --version 2>/dev/null)" = "nose $(NOSE_VERSION)" ]; then \
-	  printf "nose %s already installed at %s\n" "$(NOSE_VERSION)" "$(NOSE_BIN)"; \
-	else \
-	  printf "Installing nose %s into %s\n" "$(NOSE_VERSION)" "$(NOSE_TOOLS_DIR)"; \
-	  mkdir -p "$(NOSE_TOOLS_DIR)"; \
-	  $(CARGO_BINSTALL) --no-confirm --install-path "$(NOSE_TOOLS_DIR)" \
-	    --disable-strategies compile,quick-install \
-	    --git https://github.com/corca-ai/nose 'nose-cli@$(NOSE_VERSION)'; \
-	fi
+skylos: ## Detect dead production code
+	$(SKYLOS) check --repository .
 
-duplication: install-nose ## Run the blocking code-duplication gate
-	$(DUPLICATION_GATE) check
-
-duplication-test: ## Run the duplication-gate helper tests
-	@$(UV_ENV) NOSE_BIN=$(NOSE_BIN) $(UV) run --no-project \
-		--python $(DUPLICATION_TEST_PYTHON) \
-		--with pytest==9.0.2 --with cyclopts==4.25.2 \
-		--with tomlkit==0.15.1 --with 'hypothesis==6.168.0' \
-		--with 'syrupy==6.1.1' \
-		python -m pytest -c /dev/null --rootdir=. -p no:cacheprovider \
-		$(DUPLICATION_TEST_ARGS) \
-		scripts/tests/test_atomic_write.py \
-		scripts/tests/test_duplication_gate.py \
-		scripts/tests/test_duplication_gate_boundaries.py \
-		scripts/tests/test_duplication_gate_commands.py \
-		scripts/tests/test_duplication_gate_end_to_end.py \
-		scripts/tests/test_duplication_gate_make.py \
-		scripts/tests/test_duplication_gate_persistence.py \
-		scripts/tests/test_duplication_gate_properties.py \
-		scripts/tests/test_duplication_gate_real_detector.py \
-		scripts/tests/test_make_install_nose.py \
-		scripts/tests/test_nose_command.py \
-		scripts/tests/test_nose_execution.py \
-		scripts/tests/test_nose_report_schema.py \
-		scripts/tests/test_nose_settings.py
+duplication: ## Run the blocking code-duplication gate
+	$(DUPLICATION) install
+	$(DUPLICATION) check
 
 # Accept FIRST/SECOND/REASON only from the make command line. `NAME` is
 # ambient under WSL, which injects the hostname there, so this interface avoids
@@ -345,21 +278,20 @@ duplication-allow: export DUPLICATION_REASON = $(call duplication_allow_value,RE
 duplication-allow: ## Record one reasoned duplication exception
 	@case "$${DUPLICATION_FIRST}" in *[![:space:]]*) ;; *) printf "Error: FIRST is required (path[::name])\\n" >&2; exit 2;; esac
 	@case "$${DUPLICATION_REASON}" in *[![:space:]]*) ;; *) printf "Error: REASON is required for a duplication exception\\n" >&2; exit 2;; esac
+	@$(DUPLICATION) install
 	@set -f; \
 	set -- --first "$${DUPLICATION_FIRST}" --reason "$${DUPLICATION_REASON}"; \
 	for key in $${DUPLICATION_SECOND}; do \
 	  set -- "$$@" --second "$${key}"; \
 	done; \
-	$(DUPLICATION_GATE) allow "$$@"
+	$(DUPLICATION) allow "$$@"
 
 skylos-allow: export SKYLOS_SYMBOL = $(value SYMBOL)
 skylos-allow: export SKYLOS_REASON = $(value REASON)
-skylos-allow: ## Document one named Skylos exception, not an entry point
-	@case "$${SKYLOS_SYMBOL}" in *[![:space:]]*) ;; *) printf "Error: SYMBOL is required for a named whitelist exception\\n" >&2; exit 2;; esac
-	@case "$${SKYLOS_REASON}" in *[![:space:]]*) ;; *) printf "Error: REASON is required for a named whitelist exception\\n" >&2; exit 2;; esac
-	$(SKYLOS_CLI) whitelist "$${SKYLOS_SYMBOL}" --reason "$${SKYLOS_REASON}"
+skylos-allow: ## Document one named Skylos exception (SYMBOL=name REASON=text)
+	$(SKYLOS) allow --repository . --symbol="$${SKYLOS_SYMBOL}" --reason="$${SKYLOS_REASON}"
 
-typecheck: check-build-tools build tools-check $(TY_GATE_DEPS) ## Run typechecking
+typecheck: check-build-tools build tools-check ## Run typechecking
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) check $(CARGO_FLAGS)
 	$(TY) --version
 	$(TY) check --python .venv $(TY_EXTRA_PATHS)
@@ -389,10 +321,6 @@ test: check-build-tools build tools-lint ## Run tests (nextest if available, oth
 	$(RESOLVE_VENV_PYTHON); \
 	"$$VENV_PYTHON" -m pytest -v && \
 	"$$VENV_PYTHON" -m pytest -v --doctest-modules $(PY_DOCTEST_PATHS)
-	# The gate's own helper tests live outside `testpaths`, so a bare pytest
-	# run never collects them. Run the lane here as well as in CI, so an
-	# application-lane test that drives the gate keeps meeting a green gate.
-	$(MAKE) duplication-test
 
 # The docstring examples alone, Rust and Python. CI runs this instead of
 # `test`: the coverage run already executes both suites under the same

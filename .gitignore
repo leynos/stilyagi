@@ -107,9 +107,9 @@ ipython_config.py
 # Pinned binaries installed by the Makefile, such as the nose duplication
 # detector. Cached in CI by version and platform, never committed.
 .tools/
-# Advisory sidecar lock held while `make duplication-allow` rewrites
-# pyproject.toml. It is empty and transient, so it must not be committed.
-.*.duplication-gate.lock
+# Advisory sidecar lock the df12 gates hold while they rewrite pyproject.toml.
+# It is empty and transient, so it must not be committed.
+.pyproject.toml.df12.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.

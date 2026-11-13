@@ -107,7 +107,6 @@
     that an extraction would wrongly couple. Never add a repository-wide
     wildcard, a mass-generated reason, or an entry that covers only some of a
     family's locations. Never relabel unresolved duplication as "intentional".
-    `make duplication-test` runs the gate's helper tests.
   - **Docstring coverage:** Interrogate, run as part of `make lint`, requires
     100% docstring coverage over `python/stilyagi` and `tests`. Add
     docstrings with new code rather than suppressing the check.
@@ -138,14 +137,12 @@
   versions. Ruff and Interrogate are pinned in the `pyproject.toml` `dev`
   dependency group and resolved from `uv.lock`; the spelling gate is pinned by
   the Makefile `TYPOS_CONFIG_BUILDER_VERSION` variable. The `nose` duplication
-  detector is pinned by the Makefile `NOSE_VERSION` variable, the workflow-level
-  `NOSE_VERSION`, and `[tool.nose] version`, with
-  `tests/test_toolchain_contract.py` asserting the three agree. Bump the pin at
-  its single source of truth rather than installing a different version ad hoc,
-  and never add a separate tool-install step to CI for a tool the Makefile
-  already provides. Do not relax the detector's
-  `--disable-strategies compile,quick-install` prohibition to make a missing
-  binary build: fix provisioning instead.
+  detector is pinned only by `[tool.nose] version`; the installed
+  `df12-duplication` command verifies the download. Bump the pin at its single
+  source of truth rather than installing a different version ad hoc, and never
+  add a separate tool-install step to CI for a tool the Makefile already
+  provides. Do not make a missing binary build from source: fix provisioning
+  instead.
 
 ## Refactoring heuristics and workflow
 
