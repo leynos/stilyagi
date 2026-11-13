@@ -347,22 +347,12 @@ markers = [
     "act: integration tests that drive GitHub Actions via act",
     "slow: exercises that take longer or require heavyweight tooling",
 ]
-# Scope the bare run to the application suite. `make test` and the coverage
-# step both invoke `pytest` with no path, which would otherwise also discover
-# `scripts/tests/`: the duplication-gate helper tests import the gate's
-# PEP 723 dependencies (`cyclopts`, `tomlkit`) rather than the application's
-# dev group, so collecting them fails every application run at import. They
-# are a lane of their own, provisioned and run by `make duplication-test`,
-# which names its files explicitly; a path argument overrides `testpaths`, so
-# that lane is unaffected. Stated as the one place the suite lives rather than
-# as an exclusion, since `norecursedirs` would replace pytest's own defaults
-# rather than extend them.
 testpaths = ["tests"]
 
 # Settings for the pinned `nose` code-duplication detector, run by the
-# `make duplication` gate that `make lint` invokes. Keep `version` in sync with
-# NOSE_VERSION in the Makefile and CI; tests/test_toolchain_contract.py enforces
-# the match.
+# installed `df12-duplication` command through `make duplication`, which
+# `make lint` invokes. `version` is the only detector pin; the command verifies
+# the downloaded release against the digest table shipped in the package.
 #
 # `roots` deliberately names only the maintained production Python package.
 # `tests/` is excluded because a scan of it returns an order of magnitude more
@@ -480,6 +470,16 @@ module-root = "python"
 manifest-path = "crates/stilyagi-pyext/Cargo.toml"
 module-name = "stilyagi._stilyagi_rs"
 python-source = "python"
+
+# The dead-code gate is the installed `df12-skylos` command from
+# df12-python-lints. `roots` limits liveness analysis to production sources and
+# the exclusion keeps the test tree out of the liveness graph.
+[tool.df12_skylos]
+roots = ["python/stilyagi"]
+python = "3.14"
+
+[tool.skylos]
+exclude = ["tests"]
 
 [tool.skylos.gate]
 strict = true
