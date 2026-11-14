@@ -368,22 +368,17 @@ testpaths = ["tests"]
 #
 # `min-size` counts nose intermediate-language (IL) tokens, not Python lines or
 # AST nodes. `surface = "all"` is required: nose's curated default dashboard
-# reports nothing here at all, while `all` reports 9 families. `top = 30` sits
-# above the saturation point — the complete ranking is 9 families, so every one
-# of them is adjudicated rather than truncated, and the gate's coverage of this
-# package is total rather than merely the top 30. That saturation is a
-# measurement of the present tree rather than a guarantee: if the package grows
-# past 30 families the bound starts hiding some, and the surface should be
-# re-measured before the "nothing is hidden" claim is repeated. The count has
-# moved before: it stood at 4 until this branch was replayed onto main's
-# safe-fix work, which added package code the earlier measurement predated.
+# reports nothing here at all, while `all` reports 9 families. `top = 0` asks
+# for every family, so none is ever truncated and the gate's coverage of this
+# package is total however many families the package grows; concordat's
+# python-duplication-gate rule (NS-001) requires `top = 0`.
 [tool.nose]
 version = "0.20.0"
 roots = ["python/stilyagi"]
 mode = "syntax,semantic,near"
 min-size = 24
 surface = "all"
-top = 30
+top = 0
 
 # Reasoned exceptions for the duplication gate. Entries key on locations, not
 # line spans: `path` (glob) matches any location in matching files, and
