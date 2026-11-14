@@ -8,10 +8,13 @@ use super::{
     RustExtractError,
     assert_ir_json_contract,
     bridge_extract_document,
+    document_payload,
     map_extract_error,
     payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text},
 };
 
+/// A Rust doc-comment extraction must expose four regions and the expected
+/// owner metadata.
 #[rstest::rstest]
 fn extract_document_py_exposes_rust_doc_comments() {
     let source =
@@ -24,6 +27,11 @@ fn extract_document_py_exposes_rust_doc_comments() {
         let document_dict = document.bind(py);
         let regions = dict_list(document_dict, "regions").expect("Rust regions should be a list");
         let first_region = list_dict_at(&regions, 0).expect("first Rust region should be a dict");
+
+        insta::assert_json_snapshot!(
+            "extract_document_py__rust_doc_comments_payload",
+            document_payload(document_dict)
+        );
 
         assert_eq!(
             dict_string(document_dict, "syntax").expect("syntax payload should be a string"),
@@ -56,6 +64,7 @@ fn extract_document_py_exposes_rust_doc_comments() {
     });
 }
 
+/// Rust IR failures must surface as `RuntimeError` with the crate's wording.
 #[rstest::rstest]
 fn map_extract_error_uses_runtime_error_for_rust_ir() {
     Python::attach(|py| {

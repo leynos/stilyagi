@@ -14,6 +14,8 @@ mod python_docstring_bdd;
 mod region_vocabulary;
 #[path = "extract/rust_doc_comment_bdd.rs"]
 mod rust_doc_comment_bdd;
+#[path = "extract/snapshot_workflow.rs"]
+mod snapshot_workflow;
 #[path = "extract/spelling_display.rs"]
 mod spelling_display;
 
