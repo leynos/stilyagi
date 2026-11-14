@@ -1898,8 +1898,8 @@ LLVM is the default codegen backend for every profile in this repository.
 Cranelift is disabled here and is opt-in only. On 14 November 2026 the estate
 decided that Cranelift is not part of the Rust build standard for now
 ([concordat decision record](https://github.com/leynos/concordat/blob/main/docs/adrs/adr-0004-cranelift-is-not-part-of-the-rust-build-standard.md)).
-That decision is reviewed on 14 May 2027. Cranelift is disabled, not removed:
-the toolchain component stays installed for requalification.
+That decision is scheduled for review on 14 May 2027. Cranelift is disabled,
+not removed: the toolchain component stays installed for requalification.
 
 This repository selects no codegen backend. `.cargo/config.toml` carries no
 `codegen-backend` key and no `[unstable] codegen-backend` switch, so the dev
@@ -1932,7 +1932,10 @@ interpreter, or escape PyO3's wrapper, instead of raising `PanicException`.
 
 The exception is scoped to `nightly-2026-10-18`, to `x86_64-unknown-linux-gnu`
 (the only platform measured), and to the dev and test profiles. It goes stale
-on every pin move: a bump that wants to retire it adds
+on every pin move: a bump that wants to retire it restores the probe from git
+history
+(`git restore --source=509d7d0^ -- crates/stilyagi-pyext/tests/unwind_probe.rs`,
+because PR #285 removed it in `509d7d0`), adds
 `[unstable] codegen-backend = true` and
 `[profile.dev] codegen-backend = "cranelift"` to `.cargo/config.toml`, runs
 `cargo nextest run -p stilyagi-pyext --test unwind_probe` (each case runs in
