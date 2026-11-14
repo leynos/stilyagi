@@ -298,12 +298,15 @@ project:
   declared minimum supported Rust version. `.cargo/config.toml` applies the
   development build standard to every bare `cargo` run: the parallel frontend
   (`-Zthreads=8`) and, on Linux, the `mold` linker. It selects no codegen
-  backend: the Cranelift exception is recorded in the developer's guide. Make
-  recipes that assign `RUSTFLAGS` restate the flags, because an assignment
-  displaces the configuration's `rustflags`. Release, coverage, and Whitaker
-  routes exclude them. Run `make install-build-tools` once on a new machine;
-  build, test, lint, and typecheck routes run `make check-build-tools` first.
-  See the developer's guide, section 5a (Development build standard).
+  backend, so LLVM is the default. Cranelift is disabled and opt-in only
+  (concordat ADR-0004, scheduled for review on 14 May 2027); the developer's
+  guide, section 5a, records the exception. Make recipes that assign
+  `RUSTFLAGS` restate the flags, because an assignment displaces the
+  configuration's `rustflags`. The wheel build (`make release-artefact`),
+  coverage, and Whitaker routes exclude them; `make release` restates them
+  through `.venv` (ADR-0011). Run `make install-build-tools` once on a new
+  machine; build, test, lint, and typecheck routes run `make check-build-tools`
+  first. See the developer's guide, section 5a (Development build standard).
 - Run `make check-fmt`, `make lint`, and `make test` before committing. These
   targets wrap the following commands, so contributors understand the exact
   behaviour and policy enforced:

@@ -155,7 +155,9 @@ PyO3 or a spawned thread and only a few reach `catch_unwind`, so a green suite
 alone would prove little about unwinding through the extension.
 
 (Superseded on 14 November 2026: the estate abandoned Cranelift for now, so the
-probe file was removed; this section is kept as history.)
+probe file was removed. LLVM is the default, and Cranelift is disabled and
+opt-in only under concordat ADR-0004, scheduled for review on 14 May 2027. This
+section is kept as history.)
 
 `crates/stilyagi-pyext/tests/unwind_probe.rs` covered the PyO3 trampoline
 (`#[pyfunction]` panic to `PanicException`), a bare `catch_unwind`, a panic in
@@ -206,7 +208,10 @@ The exception is scoped by:
   Whitaker never selected it.
 
 The exception goes stale on every pin move. A bump pull request that wants to
-retire it re-runs the probe: add the two keys to `.cargo/config.toml`, run
+retire it restores the probe from git history
+(`git restore --source=509d7d0^ -- crates/stilyagi-pyext/tests/unwind_probe.rs`,
+because PR #285 removed it) and re-runs it: add the two keys to
+`.cargo/config.toml`, run
 `cargo nextest run -p stilyagi-pyext --test unwind_probe` (the probe aborts the
 process when unwinding fails, so nextest's per-test processes isolate each
 case), and, if every case passes and the full suite passes, keep the keys and
