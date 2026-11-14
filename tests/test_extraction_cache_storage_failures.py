@@ -23,6 +23,9 @@ from tests.support.log_records import record_field
 if typ.TYPE_CHECKING:
     import pathlib
 
+#: The structured operation name each timed storage record carries.
+_STORAGE_OPERATION = "extraction_cache_storage"
+
 
 def test_cache_storage_failure_falls_back_to_uncached_extraction(
     tmp_path: pathlib.Path,
@@ -291,6 +294,53 @@ def test_cache_read_failure_retries_store_construction_for_later_requests(
     service.close()
 
 
+def _timed_storage_spans(
+    caplog: pytest.LogCaptureFixture,
+) -> list[logging.LogRecord]:
+    """Return the records the cache tagged as one timed storage operation."""
+    return [
+        record
+        for record in caplog.records
+        if record_field(record, "operation") == _STORAGE_OPERATION
+    ]
+
+
+def _assert_span_names(spans: list[logging.LogRecord]) -> None:
+    """Pin each operation's fixed label and the level `--verbose` enables."""
+    assert [record_field(span, "outcome") for span in spans] == [
+        "open",
+        "read",
+        "write",
+        "open",
+        "read",
+    ], "each storage operation must be timed under its own fixed name"
+    assert all(span.levelno == logging.INFO for span in spans), (
+        "storage timing must be visible at the level --verbose enables"
+    )
+
+
+def _assert_span_durations(spans: list[logging.LogRecord]) -> None:
+    """Pin the whole-millisecond duration each timing record carries."""
+    durations = [record_field(span, "elapsed_ms") for span in spans]
+    assert all(isinstance(duration, int) for duration in durations), (
+        "each timed operation must carry a whole-millisecond duration"
+    )
+    assert all(duration >= 0 for duration in durations if isinstance(duration, int)), (
+        "a measured duration cannot be negative"
+    )
+
+
+def _assert_spans_name_no_path(
+    spans: list[logging.LogRecord],
+    cache_root: pathlib.Path,
+) -> None:
+    """Prove that no timed operation renders the cache path it touched."""
+    assert not any(
+        "cache" in span.getMessage() and str(cache_root) in span.getMessage()
+        for span in spans
+    ), "the timed operations must not put a cache path in the log"
+
+
 def test_each_storage_operation_logs_a_bounded_operation_and_duration(
     tmp_path: pathlib.Path,
     caplog: pytest.LogCaptureFixture,
@@ -326,30 +376,9 @@ def test_each_storage_operation_logs_a_bounded_operation_and_duration(
 
     assert first.canonical_json is not None, "the miss must return canonical IR"
     assert second.canonical_json is not None, "the hit must return canonical IR"
-    spans = [
-        record
-        for record in caplog.records
-        if record_field(record, "operation") == "extraction_cache_storage"
-    ]
-    assert [record_field(span, "outcome") for span in spans] == [
-        "open",
-        "read",
-        "write",
-        "open",
-        "read",
-    ], "each storage operation must be timed under its own fixed name"
-    assert all(span.levelno == logging.INFO for span in spans), (
-        "storage timing must be visible at the level --verbose enables"
-    )
-    durations = [record_field(span, "elapsed_ms") for span in spans]
-    assert all(isinstance(duration, int) for duration in durations), (
-        "each timed operation must carry a whole-millisecond duration"
-    )
-    assert all(duration >= 0 for duration in durations if isinstance(duration, int)), (
-        "a measured duration cannot be negative"
-    )
-    assert not any(
-        "cache" in span.getMessage() and str(tmp_path) in span.getMessage()
-        for span in spans
-    ), "the timed operations must not put a cache path in the log"
+    spans = _timed_storage_spans(caplog)
+
+    _assert_span_names(spans)
+    _assert_span_durations(spans)
+    _assert_spans_name_no_path(spans, tmp_path / "cache")
     service.close()
