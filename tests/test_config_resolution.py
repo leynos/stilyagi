@@ -289,6 +289,54 @@ def test_cli_overrides_win_over_every_config_source(
     )
 
 
+def test_inspection_and_check_share_one_resolution(tmp_path: pathlib.Path) -> None:
+    """Resolve check values and inspection values from one resolution path.
+
+    The ExecPlan requires one shared resolution-with-origin path, with the
+    value-only caller consuming its values. This pins that agreement across
+    every precedence layer, so a future edit that reintroduces a parallel
+    algorithm in either caller fails here rather than drifting silently.
+    """
+    _write_discovered_cache_dir(tmp_path, ".discovered")
+    named_config = tmp_path / "named.toml"
+    _write_config(named_config, 'cache-dir = ".file"\n[lint]\npreview = true')
+    target = _make_markdown_target(tmp_path)
+    explicit_config = [str(named_config), 'cache-dir = ".inline"']
+    cli_overrides: dict[str, object] = {"lint": {"select": ["STY001"]}}
+
+    resolver = config.ConfigResolver()
+    resolved = resolver.resolve_config_for_path(
+        target,
+        cli_overrides=cli_overrides,
+        explicit_config=explicit_config,
+        isolated=False,
+    )
+    inspection = resolver._inspect_config_for_path(
+        target,
+        cli_overrides=cli_overrides,
+        explicit_config=explicit_config,
+        isolated=False,
+    )
+
+    assert inspection.values["cache-dir"] == str(resolved.cache_dir), (
+        "expected inspection and check to agree on the cache directory"
+    )
+    expected_lint: dict[str, object] = {
+        "select": list(resolved.lint.select),
+        "ignore": list(resolved.lint.ignore),
+        "preview": resolved.lint.preview,
+        "fixable": list(resolved.lint.fixable),
+        "unfixable": list(resolved.lint.unfixable),
+        "per-file-ignores": dict(resolved.lint.per_file_ignores),
+    }
+    inspected_lint = inspection.values["lint"]
+    assert isinstance(inspected_lint, dict), "expected inspection to carry a lint table"
+    for field, expected in expected_lint.items():
+        assert inspected_lint[field] == expected, (
+            f"expected inspection and check to agree on lint.{field}"
+        )
+
+
 @pytest.mark.parametrize(
     ("filename", "content", "match"),
     [

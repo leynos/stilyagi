@@ -2,7 +2,9 @@
 
 The check command discovers registered source files, reads each input,
 extracts documents through the Rust bridge, and renders the accumulated
-diagnostics with an honest run summary.
+diagnostics with an honest run summary. The config command inspects effective
+values and their source origins without linting files.
+The dump-ir command emits the canonical Rust JSON for Markdown inputs.
 
 The command is an orchestration layer and nothing more. Target resolution,
 per-file checking, aggregation, fix execution, rendering and the exit policy
@@ -17,6 +19,7 @@ defines the mapping from diagnostics to process status, and it is documented at
 
 import dataclasses as dc
 import logging
+import pathlib
 import sys
 import time
 import typing as typ
@@ -28,6 +31,7 @@ from stilyagi import (
     config,
     engine,
 )
+from stilyagi.cache.extraction import CacheExtractionService, CacheServiceConfig
 from stilyagi.check_execution import CheckReporter, CheckRun
 from stilyagi.check_inputs import (
     CheckInput,
@@ -39,9 +43,14 @@ from stilyagi.check_targets import discover_targets
 from stilyagi.cli_args import (
     PACKAGE_VERSION,
     CheckOptions,
+    _config_inspection_options_from_args,
     build_parser,
+    dump_ir_options_from_args,
     options_from_args,
 )
+from stilyagi.cli_clean import run_clean
+from stilyagi.cli_config_command import _run_config_inspection
+from stilyagi.cli_dump_ir import run_dump_ir
 from stilyagi.cli_io import report_check_error
 from stilyagi.cli_run import collect_checked_files
 from stilyagi.rules import registry as rules_registry
@@ -101,6 +110,14 @@ class CheckCollaborators:
     )
     output: typ.TextIO = dc.field(default_factory=lambda: sys.stdout)
     reporter: CheckReporter = dc.field(default_factory=lambda: report_check_error)
+    extraction_cache: CacheExtractionService | None = None
+    """The cache this run extracts through, or ``None`` for a fresh one.
+
+    It is a collaborator rather than something the run always builds so a test
+    can observe cache reads and publishes without depending on the ambient
+    working directory, and so an embedding caller can reuse one service across
+    several runs.
+    """
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
@@ -125,6 +142,14 @@ def main(argv: cabc.Sequence[str] | None = None) -> int:
         args = parser.parse_args(list(normalized_argv))
     except SystemExit as exc:
         return typ.cast("int", exc.code)
+
+    if args.command == "config":
+        config_options = _config_inspection_options_from_args(args)
+        return _run_config_inspection(config_options)
+    if args.command == "dump-ir":
+        return run_dump_ir(dump_ir_options_from_args(args))
+    if args.command == "clean":
+        return run_clean()
 
     options = options_from_args(args)
     return run_check(options)
@@ -219,8 +244,8 @@ def _configure_logging(options: CheckOptions) -> None:
     cli_log.configure_command_warning_handler()
     if options.silent or options.quiet:
         logging.basicConfig(level=logging.WARNING, handlers=[cli_log.log_handler()])
-    elif options.verbose:
-        logging.basicConfig(level=logging.INFO, handlers=[cli_log.log_handler()])
+    else:
+        cli_log.configure_verbose_logging(verbose=options.verbose)
 
 
 def _run_check(
@@ -257,11 +282,45 @@ def _run_check(
         len(discovery_inputs.inputs),
     )
 
+    extraction_cache = (
+        resolved_collaborators.extraction_cache
+        if resolved_collaborators.extraction_cache is not None
+        else CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=pathlib.Path.cwd(),
+                package_version=PACKAGE_VERSION,
+            )
+        )
+    )
+    if options.no_cache:
+        # Applied to the selected service, not only to one built here, so the
+        # flag means the same thing whether or not a caller injected a cache.
+        extraction_cache.without_persistent_cache()
+    try:
+        return _run_discovered_check(
+            options,
+            resolved_collaborators,
+            discovery_inputs,
+            extraction_cache,
+        )
+    finally:
+        extraction_cache.log_summary()
+        extraction_cache.close()
+
+
+def _run_discovered_check(
+    options: CheckOptions,
+    resolved_collaborators: CheckCollaborators,
+    discovery_inputs: DiscoveryInputs,
+    extraction_cache: CacheExtractionService,
+) -> int:
+    """Check discovered inputs and finish the command's output and status."""
     run = CheckRun(
         options=options,
         resolver=resolved_collaborators.resolver,
         rule_runner=resolved_collaborators.rule_runner,
         report=resolved_collaborators.reporter,
+        extraction_cache=extraction_cache,
     )
     started = time.perf_counter()
     # The per-file loop belongs to `cli_run` so the command and the run-level

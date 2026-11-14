@@ -74,10 +74,10 @@ def ir_sequence(document: model.Document, key: str) -> cabc.Sequence[object]:
     ()
     """
     value = ir_value(document, key)
-    return typ.cast("cabc.Sequence[object]", value) if is_sequence(value) else ()
+    return value if is_sequence(value) else ()
 
 
-def is_sequence(value: object) -> bool:
+def is_sequence(value: object) -> typ.TypeGuard[cabc.Sequence[object]]:
     """Return whether a value is a non-text sequence.
 
     Parameters
@@ -88,7 +88,9 @@ def is_sequence(value: object) -> bool:
     Returns
     -------
     bool
-        ``True`` for lists, tuples, and other non-string sequences.
+        ``True`` for lists, tuples, and other non-string sequences. The
+        ``TypeGuard`` return narrows ``value`` for callers, so a guard is
+        enough to make the sequence usable without a separate ``cast``.
 
     Examples
     --------
@@ -149,8 +151,7 @@ def string_tuple(value: object) -> tuple[str, ...]:
     """
     if not is_sequence(value):
         return ()
-    values = typ.cast("cabc.Sequence[object]", value)
-    return tuple(item for item in values if isinstance(item, str))
+    return tuple(item for item in value if isinstance(item, str))
 
 
 def segment_with_text(

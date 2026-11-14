@@ -196,7 +196,7 @@ def test_check_logs_extraction_failure_alongside_stderr(
     """A failed extraction is emitted once as a user-facing log message."""
     _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(engine, "extract_document", _raise_bridge_error)
+    monkeypatch.setattr(engine, "extract_document_result", _raise_bridge_error)
 
     root_logger = logging.getLogger()
     previous_level = root_logger.level
@@ -346,7 +346,7 @@ def test_check_reraises_unexpected_extraction_failure(
     """Unexpected adapter failures are logged with a traceback and re-raised."""
     _write_markdown(tmp_path / "docs" / "notes.md", "Notes")
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(engine, "extract_document", _raise_adapter_error)
+    monkeypatch.setattr(engine, "extract_document_result", _raise_adapter_error)
 
     with caplog.at_level(logging.ERROR), pytest.raises(TypeError, match="adapter"):
         cli.main(["check", "."])
@@ -361,13 +361,21 @@ def test_check_reraises_unexpected_extraction_failure(
     assert errors[0].exc_info is not None, "expected exception traceback details"
 
 
-def _raise_bridge_error(_source: str, _syntax: object) -> typ.NoReturn:
+def _raise_bridge_error(
+    _source: str,
+    _syntax: object,
+    **_kwargs: object,
+) -> typ.NoReturn:
     """Raise the deterministic extractor failure used by the logging test."""
     message = "bridge exploded"
     raise engine.BridgeExtractionError(message)
 
 
-def _raise_adapter_error(_source: str, _syntax: object) -> typ.NoReturn:
+def _raise_adapter_error(
+    _source: str,
+    _syntax: object,
+    **_kwargs: object,
+) -> typ.NoReturn:
     """Raise an unexpected adapter failure used by the propagation test."""
     message = "adapter exploded"
     raise TypeError(message)

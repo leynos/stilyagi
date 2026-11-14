@@ -40,14 +40,19 @@ def test_cli_continues_after_python_encoding_detection_failure(
     (root / "z-valid.rs").write_text("//! Rust docs.\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     extracted_syntaxes: list[model.Syntax] = []
-    original_extract = engine.extract_document
+    original_extract = engine.extract_document_result
 
-    def track_extraction(source: str, syntax: model.Syntax) -> model.Document:
+    def track_extraction(
+        source: str,
+        syntax: model.Syntax,
+        *,
+        source_path: str | None = None,
+    ) -> engine.ExtractionResult:
         """Record each extraction while retaining the real implementation."""
         extracted_syntaxes.append(syntax)
-        return original_extract(source, syntax)
+        return original_extract(source, syntax, source_path=source_path)
 
-    monkeypatch.setattr(engine, "extract_document", track_extraction)
+    monkeypatch.setattr(engine, "extract_document_result", track_extraction)
 
     exit_code = cli.main(["check", ".", "--verbose"])
     captured = capsys.readouterr()

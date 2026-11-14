@@ -8,8 +8,11 @@ from stilyagi.engine import ir_view
 
 from .admissibility import EditRejection, classify_edit
 from .conflicts import coalesce_identical, first_overlap
+from .frontmatter import frontmatter_is_unchanged, yaml_frontmatter
+from .offset_view import OffsetView
 from .selection import CandidatePartition, partition_candidates
 from .splice import apply_edits
+from .verification import FixVerificationError, MarkdownVerifier, markdown_verifier
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -23,13 +26,22 @@ _LOGGER = logging.getLogger(__name__)
 
 @dc.dataclass(frozen=True, slots=True)
 class FixPlanRequest:
-    """Inputs needed to plan one file's rule-authored source edits."""
+    """Inputs needed to plan one file's rule-authored source edits.
+
+    ``verify_markdown`` is the planner's only route to a second extraction. It
+    is a required field rather than a module-level import so the frontmatter
+    guard can be exercised with a fake, and so an embedding caller can supply
+    the extractor it already owns instead of paying for another bridge call.
+    """
 
     source_bytes: bytes
     document: model.Document
     diagnostics: tuple[diagnostics.Diagnostic, ...]
     level: FixLevel
     lint_config: LintConfig
+    verify_markdown: MarkdownVerifier = dc.field(
+        default_factory=markdown_verifier,
+    )
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -66,6 +78,10 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
     to be reported as the absence of a replacement rather than as a replacement
     equal to the source.
 
+    Every check and every splice happens in the offset view the IR was built
+    in, which omits a leading byte-order mark, and only the returned bytes are
+    put back into the source's own shape.
+
     Returns
     -------
     FixPlan
@@ -75,39 +91,93 @@ def plan_fixes(request: FixPlanRequest) -> FixPlan:
     selected = partition_candidates(
         request.diagnostics, request.level, request.lint_config
     )
-    accepted, rejections = _validate_candidates(selected.eligible, request)
+    view = OffsetView.of(request.source_bytes)
+    accepted, rejections = _validate_candidates(selected.eligible, request, view.body)
     if rejections:
-        return _log_plan(
-            FixPlan((), (), rejections, None, selected, _span_count(request)),
-            selected,
-        )
+        return _refuse(selected, request, rejections)
     edits = coalesce_identical(edit for _code, edit in accepted)
     overlap = first_overlap(edits)
     if overlap is not None:
-        return _log_plan(
-            FixPlan(
-                (),
-                (),
-                (_overlap_rejection(overlap, accepted),),
-                None,
-                selected,
-                _span_count(request),
-            ),
-            selected,
-        )
+        return _refuse(selected, request, (_overlap_rejection(overlap, accepted),))
     fixed_codes = tuple(dict.fromkeys(code for code, _edit in accepted))
+    replacement = _replacement(view.body, edits)
+    if replacement is not None and not _preserves_yaml_frontmatter(
+        view.body,
+        replacement,
+        request.document,
+        request.verify_markdown,
+    ):
+        return _refuse(selected, request, (_frontmatter_refusal(fixed_codes),))
     return _log_plan(
         FixPlan(
             edits,
             fixed_codes,
             (),
-            _replacement(request.source_bytes, edits),
+            None if replacement is None else view.restore(replacement),
             selected,
             _span_count(request),
             coalesced=len(accepted) - len(edits),
         ),
         selected,
     )
+
+
+def _refuse(
+    selected: CandidatePartition,
+    request: FixPlanRequest,
+    rejections: tuple[EditRejection, ...],
+) -> FixPlan:
+    """Return the plan for a file refused before any bytes are written."""
+    return _log_plan(
+        FixPlan((), (), rejections, None, selected, _span_count(request)),
+        selected,
+    )
+
+
+def _frontmatter_refusal(fixed_codes: tuple[str, ...]) -> EditRejection:
+    """Name one refusal caused by an unverifiable YAML frontmatter prefix."""
+    return EditRejection(
+        "fix-error/frontmatter-protected",
+        ",".join(fixed_codes),
+        "planned edits change or cannot verify YAML frontmatter bytes",
+    )
+
+
+def _preserves_yaml_frontmatter(
+    body: bytes,
+    replacement: bytes,
+    document: model.Document,
+    verify_markdown: MarkdownVerifier,
+) -> bool:
+    """Re-extract Markdown to verify its recognized YAML prefix byte-for-byte.
+
+    Both sides are the same offset view the planner spliced in, so the
+    comparison cannot be decided by a byte-order mark one side carries and the
+    other does not. The re-extraction must also decode the replacement exactly
+    as the reader decoded the source, which is why it strips the mark rather
+    than assuming there is none.
+
+    Returns
+    -------
+    bool
+        ``True`` for a non-Markdown document, or when the recognized prefix
+        survives the splice unchanged. ``False`` when the re-extraction fails
+        and the prefix therefore cannot be vouched for.
+    """
+    if document.syntax.value != "markdown":
+        return True
+    before = yaml_frontmatter(document, body)
+    try:
+        replacement_text = replacement.decode("utf-8-sig")
+        updated_document = verify_markdown(replacement_text)
+    except (FixVerificationError, UnicodeDecodeError) as error:
+        _LOGGER.warning(
+            "could not verify YAML frontmatter after planned edits: %s",
+            error,
+        )
+        return False
+    after = yaml_frontmatter(updated_document, replacement)
+    return frontmatter_is_unchanged(before, after)
 
 
 def _log_plan(plan: FixPlan, selected: CandidatePartition) -> FixPlan:
@@ -223,6 +293,7 @@ def _span_count(request: FixPlanRequest) -> int:
 def _validate_candidates(
     candidates: cabc.Iterable[diagnostics.Diagnostic],
     request: FixPlanRequest,
+    body: bytes,
 ) -> tuple[tuple[tuple[str, TextEdit], ...], tuple[EditRejection, ...]]:
     """Keep only whole fixes whose edits all pass admissibility."""
     accepted: list[tuple[str, TextEdit]] = []
@@ -236,7 +307,7 @@ def _validate_candidates(
             for edit in fix.edits
             if (
                 rejection := classify_edit(
-                    edit, request.source_bytes, request.document, diagnostic.code
+                    edit, body, request.document, diagnostic.code
                 )
             )
             is not None

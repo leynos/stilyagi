@@ -13,7 +13,9 @@ use stilyagi_extract::{
     ExtractError,
     ExtractRegion,
     ExtractSyntax,
-    extract_document as extract_document_from_rust,
+    SourceIdentity,
+    extract_document_with_source_identity as extract_document_with_identity_from_rust,
+    hydrate_ir_json as hydrate_ir_json_from_rust,
 };
 use stilyagi_ir::{AUTHORED_DIRECTIVE_ERROR_CODES, IrRegion, RegionKind as IrRegionKind};
 
@@ -60,8 +62,15 @@ fn extract_document_py(py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<Py
     let extract_syntax = ExtractSyntax::try_from(request.syntax.as_str())
         .map_err(|error| map_extract_error(&error))?;
     let source = request.source;
+    let source_identity = request
+        .source_path
+        .map_or_else(SourceIdentity::anonymous, |path| {
+            SourceIdentity::new(Some(path), None)
+        });
     check_metrics::record_extraction_attempt(extract_syntax);
-    let document = match py.detach(|| extract_document_from_rust(&source, extract_syntax)) {
+    let document = match py.detach(|| {
+        extract_document_with_identity_from_rust(&source, extract_syntax, source_identity)
+    }) {
         Ok(document) => {
             let recovery_errors = document
                 .ir()
@@ -74,8 +83,46 @@ fn extract_document_py(py: Python<'_>, args: &Bound<'_, PyTuple>) -> PyResult<Py
             return Err(map_extract_error(&error));
         }
     };
+    document_payload(py, &document)
+}
+
+/// Restore a canonical IR document through the shared Rust model.
+fn hydrate_ir_json_py(py: Python<'_>, canonical_json: &str) -> PyResult<Py<PyDict>> {
+    let owned_json = canonical_json.to_owned();
+    let document = py
+        .detach(move || hydrate_ir_json_from_rust(&owned_json))
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    document_payload(py, &document)
+}
+
+/// Isolate callable construction for the positional-only IR hydration API.
+fn hydrate_ir_json_function(py: Python<'_>) -> PyResult<Bound<'_, PyCFunction>> {
+    PyCFunction::new_closure(
+        py,
+        Some(c"hydrate_ir_json"),
+        Some(c"Restore a canonical IR document through Rust's schema."),
+        |args, kwargs| {
+            if kwargs.is_some_and(|keyword_args| !keyword_args.is_empty()) {
+                return Err(PyTypeError::new_err(
+                    "hydrate_ir_json() got unexpected keyword arguments",
+                ));
+            }
+            if args.len() != 1 {
+                return Err(PyTypeError::new_err(format!(
+                    "hydrate_ir_json() expected 1 argument, got {}",
+                    args.len()
+                )));
+            }
+            let canonical_json = args.get_item(0)?.extract::<String>()?;
+            hydrate_ir_json_py(args.py(), &canonical_json)
+        },
+    )
+}
+
+/// Convert an extraction or hydrated Rust document to the shared Python shape.
+fn document_payload(py: Python<'_>, document: &ExtractDocument) -> PyResult<Py<PyDict>> {
     let document_dict = PyDict::new(py);
-    let region_items = region_items_for_document(py, &document)?;
+    let region_items = region_items_for_document(py, document)?;
     let region_list = PyList::new(py, region_items)?;
 
     document_dict.set_item("syntax", document.syntax().as_str())?;
@@ -147,14 +194,20 @@ struct ExtractDocumentRequest {
     source: String,
     /// Syntax name supplied by the caller, validated later by `ExtractSyntax`.
     syntax: String,
+    /// Reported path the caller claims for the source, absent when unknown.
+    ///
+    /// The third positional argument is optional because string-only
+    /// extraction has no file context; a supplied path becomes the document's
+    /// `SourceIdentity` so diagnostics can name the file they came from.
+    source_path: Option<String>,
 }
 
 impl ExtractDocumentRequest {
     /// Validate the narrow positional boundary before invoking Rust extraction.
     fn from_args(args: &Bound<'_, PyTuple>) -> PyResult<Self> {
-        if args.len() != 2 {
+        if !(2..=3).contains(&args.len()) {
             return Err(PyTypeError::new_err(format!(
-                "extract_document() expected 2 arguments, got {}",
+                "extract_document() expected 2 or 3 arguments, got {}",
                 args.len()
             )));
         }
@@ -162,6 +215,11 @@ impl ExtractDocumentRequest {
         Ok(Self {
             source: args.get_item(0)?.extract()?,
             syntax: args.get_item(1)?.extract()?,
+            source_path: if args.len() == 3 {
+                args.get_item(2)?.extract::<Option<String>>()?
+            } else {
+                None
+            },
         })
     }
 }
@@ -210,6 +268,7 @@ fn stilyagi_rs_module(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(check_metrics::record_phase_duration, m)?)?;
     m.add_function(wrap_pyfunction!(check_metrics::check_metrics_snapshot, m)?)?;
     m.add_function(extract_document_function(py)?)?;
+    m.add_function(hydrate_ir_json_function(py)?)?;
     m.add_function(wrap_pyfunction!(hello, m)?)?;
     m.add_function(wrap_pyfunction!(authored_directive_error_codes_py, m)?)?;
     m.add_function(wrap_pyfunction!(supported_region_kinds_py, m)?)?;
@@ -219,6 +278,9 @@ fn stilyagi_rs_module(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod bridge_bdd;
+
+#[cfg(test)]
+mod bridge_identity_bdd;
 
 #[cfg(test)]
 mod tests;

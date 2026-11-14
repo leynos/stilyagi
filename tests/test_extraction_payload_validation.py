@@ -17,7 +17,13 @@ from tests.support.assertions import assert_with_context
 
 def _extract_with(monkeypatch: pytest.MonkeyPatch, payload: object) -> model.Document:
     """Run ``extract_document`` against a fixed bridge payload."""
-    monkeypatch.setattr(extraction, "_extract_bridge_payload", lambda *_: payload)
+    # `_extract_bridge_payload` takes its reported path as a keyword-only
+    # argument, so the double must accept keywords as well as positionals.
+    monkeypatch.setattr(
+        extraction,
+        "_extract_bridge_payload",
+        lambda _source, _syntax, *, source_path=None: payload,
+    )
     return extraction.extract_document("text", model.Syntax.MARKDOWN)
 
 

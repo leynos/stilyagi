@@ -111,9 +111,21 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 - `python/stilyagi/`
   - Python package source root.
   - Owns package-level orchestration, the Python-visible runtime surface, and
-    the initial `engine/`, `model/`, `nlp/`, and `rules/` package boundaries.
+    the `cache/`, `config/`, `engine/`, `model/`, `nlp/`, and `rules/` package
+    boundaries.
   - Hosts the editable-install location for the package-scoped
     `stilyagi._stilyagi_rs` extension module produced by `maturin develop`.
+- `python/stilyagi/cache/`
+  - Owns Markdown IR cache identity, checksummed serialization, descriptor-
+    anchored storage and cleanup. It does not cache rule analysis or fix plans.
+- `python/stilyagi/cli_config_command.py`, `cli_dump_ir.py`, and `cli_clean.py`
+  - Coordinate configuration inspection, canonical Markdown IR output, and
+    removal of Stilyagi-owned cache data.
+- `python/stilyagi/cli_command_shell.py`
+  - Owns the report shape shared by those commands: `command_streams`
+    resolves their optional output and error streams, and
+    `write_command_failure` renders the `stilyagi <command>: <reason>`
+    sentence with status two.
 - `crates/stilyagi-pyext/`
   - PyO3-based Rust bridge crate.
   - Owns the compiled `_stilyagi_rs` module and the Rust-side bridge tests.
@@ -230,6 +242,11 @@ The following paths are operationally useful but are not authoritative sources:
   - Local Ruff cache data.
 - `.pytest_cache/`
   - Local pytest cache data.
+- `.stilyagi_cache/`
+  - Default disposable Markdown extraction cache beneath the invocation's
+    working directory. A custom `cache-dir` can place the same owned namespace
+    elsewhere; `stilyagi clean` only removes recognized cache state beneath its
+    current working directory.
 - `target/`
   - Cargo workspace build artefacts for the crates under `crates/`.
 - `crates/stilyagi-pyext/target/`
