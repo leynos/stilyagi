@@ -154,7 +154,10 @@ probe of the paths that depend on unwinding, because no test panics through
 PyO3 or a spawned thread and only a few reach `catch_unwind`, so a green suite
 alone would prove little about unwinding through the extension.
 
-`crates/stilyagi-pyext/tests/unwind_probe.rs` covers the PyO3 trampoline
+(Superseded on 14 November 2026: the estate abandoned Cranelift for now, so the
+probe file was removed; this section is kept as history.)
+
+`crates/stilyagi-pyext/tests/unwind_probe.rs` covered the PyO3 trampoline
 (`#[pyfunction]` panic to `PanicException`), a bare `catch_unwind`, a panic in
 a spawned thread, a panic in a thread spawned from detached Python state, and
 `#[should_panic]`.

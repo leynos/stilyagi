@@ -1900,6 +1900,10 @@ incompatibility on the pinned channel, `nightly-2026-10-18`, so the dev profile
 keeps the default LLVM backend and `.cargo/config.toml` carries no
 `codegen-backend` key.
 
+The estate abandoned Cranelift for now on 14 November 2026, so the unwind probe
+described below (`unwind_probe.rs`) was removed; the reproduction is kept as
+history.
+
 The reproduction, on the pinned channel with the two backend keys added:
 
 - `cargo nextest run -p stilyagi-pyext --test unwind_probe`
