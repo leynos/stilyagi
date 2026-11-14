@@ -1894,15 +1894,21 @@ confirm `-C instrument-coverage` appears without `-Zthreads=8`, `mold`, or a
 
 ### Why Cranelift is not part of the standard
 
-The Cranelift codegen backend is the estate default for development builds
-where the full suite passes under it. This repository has a reproduced
-incompatibility on the pinned channel, `nightly-2026-10-18`, so the dev profile
-keeps the default LLVM backend and `.cargo/config.toml` carries no
-`codegen-backend` key.
+LLVM is the default codegen backend for every profile in this repository.
+Cranelift is disabled here and is opt-in only. On 14 November 2026 the estate
+decided that Cranelift is not part of the Rust build standard for now
+([concordat decision record](https://github.com/leynos/concordat/blob/main/docs/adrs/adr-0004-cranelift-is-not-part-of-the-rust-build-standard.md)).
+That decision is reviewed on 14 May 2027. Cranelift is disabled, not removed:
+the toolchain component stays installed for requalification.
 
-The estate abandoned Cranelift for now on 14 November 2026, so the unwind probe
-described below (`unwind_probe.rs`) was removed; the reproduction is kept as
-history.
+This repository selects no codegen backend. `.cargo/config.toml` carries no
+`codegen-backend` key and no `[unstable] codegen-backend` switch, so the dev
+profile keeps the default LLVM backend. The pinned channel,
+`nightly-2026-10-18`, also reproduces an incompatibility with Cranelift, which
+is recorded below.
+
+The unwind probe described below (`unwind_probe.rs`) was removed when the
+estate abandoned Cranelift; the reproduction is kept as history.
 
 The reproduction, on the pinned channel with the two backend keys added:
 

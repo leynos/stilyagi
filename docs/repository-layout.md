@@ -85,8 +85,9 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 - `.cargo/config.toml`
   - The development build standard that every bare `cargo` run discovers: the
     parallel frontend and the `mold` linker on Linux. It selects no codegen
-    backend (a recorded Cranelift exception). Release, coverage, and Whitaker
-    routes exclude it; see the developer's guide, section 5a.
+    backend, so LLVM is the default; Cranelift is disabled and opt-in only (a
+    recorded exception). Release, coverage, and Whitaker routes exclude it; see
+    the developer's guide, section 5a.
 - `pyproject.toml`
   - Python package metadata, Ruff configuration, `ty` configuration, pytest
     settings, `uv` package behaviour, and `maturin` mixed-package settings.

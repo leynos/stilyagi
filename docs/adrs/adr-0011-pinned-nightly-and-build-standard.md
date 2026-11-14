@@ -21,11 +21,13 @@ Two open issues asked for decisions the repository had never recorded:
 - Issue #145 observed that neither the Cranelift backend nor the `mold` linker
   was in effect, and that nothing in the repository recorded the gap.
 
-The estate's `rust-build-defaults` canon gives a nightly-pinned repository the
-parallel frontend (`-Zthreads=8`), the `mold` linker on Linux, and the
-Cranelift backend for development builds where the full suite passes under it.
-The parallel frontend needs a nightly compiler. This repository had a stable pin
-(`1.99.1`) and a workspace `rust-version = "1.85"` that no consumer required.
+When this was decided, the estate's `rust-build-defaults` canon gave a
+nightly-pinned repository the parallel frontend (`-Zthreads=8`), the `mold`
+linker on Linux, and the Cranelift backend for development builds where the
+full suite passes under it. The canon has since changed: LLVM is the default
+and Cranelift is opt-in only (concordat ADR-0004). The parallel frontend needs
+a nightly compiler. This repository had a stable pin (`1.99.1`) and a workspace
+`rust-version = "1.85"` that no consumer required.
 
 The PyO3 extension adds two constraints. `maturin` builds the `cdylib` for both
 `make build` (dev profile) and the published wheel (release profile), so
@@ -155,7 +157,9 @@ PyO3 or a spawned thread and only a few reach `catch_unwind`, so a green suite
 alone would prove little about unwinding through the extension.
 
 (Superseded on 14 November 2026: the estate abandoned Cranelift for now, so the
-probe file was removed; this section is kept as history.)
+probe file was removed. LLVM is the default, and Cranelift is disabled and
+opt-in only under concordat ADR-0004, reviewed on 14 May 2027. This section is
+kept as history.)
 
 `crates/stilyagi-pyext/tests/unwind_probe.rs` covered the PyO3 trampoline
 (`#[pyfunction]` panic to `PanicException`), a bare `catch_unwind`, a panic in
