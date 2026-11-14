@@ -8,6 +8,11 @@ selection of LLVM. The release and Whitaker `RUSTFLAGS` live in the Makefile
 and are held by `test_build_standard_make_routes`; these contracts hold the
 workflow and configuration halves.
 
+The wheel workflow is the one lane whose exclusion cannot come from the
+configuration, because its container is the host's own target triple. Its
+three maturin steps — two Linux legs and the hosted build — are therefore held
+to naming `RUSTFLAGS` themselves.
+
 Driven over constructed workflows in both directions first, because a check
 over this repository's own correct workflows passes whether or not it
 discriminates anything.
@@ -209,6 +214,109 @@ def test_no_real_workflow_leaks_a_development_flag(workflow: str) -> None:
     assert not development_leaks(REAL_WORKFLOWS[workflow]), (
         "expected not development_leaks(REAL_WORKFLOWS[workflow])"
     )
+
+
+WHEEL_WORKFLOW: typ.Final = "build-wheels.yml"
+MATURIN_ACTION: typ.Final = "maturin-action@"
+
+
+def wheel_build_steps(
+    document: dict[str | bool, object],
+) -> list[dict[str, object]]:
+    """Return every step that runs a maturin build.
+
+    Parameters
+    ----------
+    document
+        A parsed workflow.
+
+    Returns
+    -------
+    list[dict[str, object]]
+        The steps that use the maturin action.
+    """
+    return [
+        step
+        for step in workflow_steps(document)
+        if MATURIN_ACTION in str(step.get("uses", ""))
+    ]
+
+
+def wheel_flag_faults(step: dict[str, object]) -> list[str]:
+    """Return why a wheel build does not displace the Cargo configuration.
+
+    A wheel build runs in a manylinux container, which is the same target
+    triple as a development host, so no selector can exclude it and the
+    repository's mold flag would be passed to a host that has no mold. The
+    exclusion has to be the step's own assignment.
+
+    Parameters
+    ----------
+    step
+        A maturin build step.
+
+    Returns
+    -------
+    list[str]
+        One entry per fault; empty when the step is correctly excluded.
+    """
+    env = step.get("env")
+    if not isinstance(env, dict) or "RUSTFLAGS" not in env:
+        return ["the wheel build does not assign RUSTFLAGS itself"]
+    flags = str(env["RUSTFLAGS"])
+    return [
+        f"the wheel build's RUSTFLAGS carries {marker}"
+        for marker in DEVELOPMENT_MARKERS
+        if marker in flags
+    ]
+
+
+def test_a_wheel_build_that_states_its_exclusion_has_no_faults() -> None:
+    """The positive control, including the empty value the release uses."""
+    steps = (
+        "      - uses: messense/maturin-action@abc\n"
+        "        env:\n"
+        '          RUSTFLAGS: ""\n'
+    )
+    (step,) = wheel_build_steps(_workflow(steps))
+    assert not wheel_flag_faults(step), "expected not wheel_flag_faults(step)"
+
+
+@pytest.mark.parametrize(
+    ("steps", "expected"),
+    [
+        pytest.param(
+            "      - uses: messense/maturin-action@abc\n",
+            "does not assign",
+            id="no_env",
+        ),
+        pytest.param(
+            "      - uses: messense/maturin-action@abc\n"
+            "        env:\n"
+            "          RUSTFLAGS: -Zthreads=8 -Clink-arg=-fuse-ld=mold\n",
+            "carries -Clink-arg=-fuse-ld=mold",
+            id="inherits_the_standard",
+        ),
+    ],
+)
+def test_each_wheel_inheritance_is_detected(steps: str, expected: str) -> None:
+    """A wheel build that takes the development standard is refused."""
+    (step,) = wheel_build_steps(_workflow(steps))
+    assert any(expected in fault for fault in wheel_flag_faults(step)), (
+        "expected any((expected in fault for fault in wheel_flag_faults(step)))"
+    )
+
+
+def test_every_real_wheel_build_states_its_exclusion() -> None:
+    """Every leg that builds a wheel, not only the Linux ones, is excluded.
+
+    The hosted legs would not fail without the assignment — they use their own
+    linker tables — so a contract is the only thing that holds them.
+    """
+    steps = wheel_build_steps(REAL_WORKFLOWS[WHEEL_WORKFLOW])
+    assert len(steps) == 3, steps
+    for step in steps:
+        assert not wheel_flag_faults(step), wheel_flag_faults(step)
 
 
 def test_only_the_dev_profile_selects_a_backend() -> None:

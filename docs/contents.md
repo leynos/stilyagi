@@ -153,6 +153,13 @@
     adrs/adr-0013-prove-the-lint-policy-through-readers-and-fixtures.md)
     records the shared readers, the `cargo metadata` seam, the scratch crates
     that copy the workspace tables, and the unique run directory.
+  - [ADR 0014: Publish the sdist and make releases idempotent](
+    adrs/adr-0014-release-pipeline.md)
+    records the tag-triggered release pipeline: one sdist beside the native
+    wheels, attestation of every artefact, canonical bytes chosen from the
+    destinations rather than the build, provenance verified in both
+    directions before either destination receives a carried file, and the
+    draft-then-publish GitHub Release that makes a re-run converge.
 
 ## Requests for comments (RFCs)
 

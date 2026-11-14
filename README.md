@@ -10,10 +10,9 @@ Stilyagi reads Markdown pages, Python docstrings, and Rust documentation
 comments as structured regions rather than as undifferentiated lines. Rust does
 the parsing and keeps byte-exact source maps; Python runs the rules.
 
-> **Status: pre-release; no release has been published.** Package metadata
-> currently carries version `0.1.0`, but that does not indicate a published
-> release. The extraction engine works, and three builtin rules ship: `MD001`
-> (heading depth), `STY001` (adjacent repeated words), and the opt-in `TERM001`
+> **Status: preview.** 0.2.0 is the first release of this compiler. The
+> extraction engine works, and three builtin rules ship: `MD001` (heading
+> depth), `STY001` (adjacent repeated words), and the opt-in `TERM001`
 > (configured banned terms). See the [users' guide](docs/users-guide.md) for
 > their options and the [roadmap](docs/roadmap.md) for what has landed.
 
@@ -46,10 +45,47 @@ model, and the text they see has already been parsed properly:
 
 ______________________________________________________________________
 
-## Quick start
+## Installation
 
-Stilyagi is not published yet — the `stilyagi` package currently on the Python
-Package Index is an unrelated older tool. Build from source:
+Stilyagi releases are published to the Python Package Index as `stilyagi`, with
+wheels for Linux (`x86_64` and `aarch64`), macOS (`arm64` and `x86_64`), and
+Windows, plus a source distribution for everything else. Python 3.14 or newer
+is required; there is no Rust toolchain to install and no helper binary to
+manage, because the extraction engine ships inside the wheel.
+
+```shell
+uv pip install "stilyagi>=0.2.0"
+```
+
+or, with `pip`:
+
+```shell
+pip install "stilyagi>=0.2.0"
+```
+
+The `stilyagi` name on the Python Package Index belongs to this project. Its
+only upload so far, 0.1.0, was an earlier Vale-style tool that this compiler
+replaces. That older release declares `>=3.13`, so it installs on a Python 3.14
+interpreter, and an unversioned `pip install stilyagi` would select it. The
+floor above is what keeps the predecessor out; lower it only if you mean to
+install the Vale-style tool.
+
+To run the compiler from a checkout, build it there:
+
+```shell
+git clone https://github.com/leynos/stilyagi.git
+cd stilyagi
+make build
+```
+
+A release is published only from a `v*.*.*` tag, and every artefact is attested
+by the workflow run that built it. Source-based installs build from the sdist,
+which needs a Rust toolchain — see
+[Building from source](#building-from-source).
+
+## Building from source
+
+Build a checkout with `make build`:
 
 ```shell
 git clone https://github.com/leynos/stilyagi.git
@@ -59,9 +95,9 @@ make build
 
 That creates the virtual environment, compiles the Rust extension through
 `maturin`, and installs the package in editable mode. Python 3.14 or newer,
-`uv`, and [`rustup`](https://rustup.rs) are required. The repository pins a
-dated Rust nightly in `rust-toolchain.toml`, which `rustup` selects
-automatically. On Linux the development build also links with the
+`uv`, and [`rustup`](https://rustup.rs) are required for a source build. The
+repository pins a dated Rust nightly in `rust-toolchain.toml`, which `rustup`
+selects automatically. On Linux the development build also links with the
 [`mold`](https://github.com/rui314/mold) linker, so run
 `make install-build-tools` once to install the pinned `mold` and the pinned
 toolchain before `make build`. See the
@@ -107,7 +143,8 @@ Working today:
 - Three builtin Markdown rules — `MD001` heading depth, `STY001` adjacent
   repeated words, and opt-in `TERM001` banned terms — with selection, ignore,
   per-file ignores, and suppression.
-- Wheels that build and smoke-test on Linux, macOS, and Windows.
+- Wheels and a source distribution that build, smoke-test, and publish on
+  Linux, macOS, and Windows.
 
 The [developers' guide](docs/developers-guide.md) covers the intermediate
 representation these rest on.

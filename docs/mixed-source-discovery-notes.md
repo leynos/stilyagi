@@ -1,9 +1,8 @@
 # Mixed-source discovery change notes
 
-These notes summarize the mixed-source discovery behaviour. Stilyagi has not
-published a release; the current `0.1.0` package metadata does not establish a
-published version or a future release target. The
-[user's guide](users-guide.md) remains the detailed command reference.
+These notes summarize the mixed-source discovery behaviour. The first release
+of Stilyagi is 0.2.0, a preview; see the [user's guide](users-guide.md) for the
+detailed command reference.
 
 ## Mixed-source discovery
 

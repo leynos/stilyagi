@@ -20,9 +20,12 @@ use crate::{markdown_ir_document, source_span, source_text::decoded_text_maps_to
 
 #[rstest]
 fn markdown_ir_document_emits_envelope_nodes_and_regions() {
-    let source = "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi \
-                  design](../../../../../docs/stilyagi-design.md).\n\n| Term | Meaning |\n| ---- \
-                  | ------- |\n| IR   | Intermediate representation |\n";
+    let source = concat!(
+        "# Fixture Heading\n\nThis paragraph links to the\n[Stilyagi ",
+        "design](../../../../../docs/stilyagi-design.md).\n\n",
+        "| Term | Meaning |\n| ---- | ------- |\n",
+        "| IR   | Intermediate representation |\n",
+    );
     let document = markdown_ir_document(
         source,
         source_identity(Path::new("tests/fixtures/corpus/markdown/valid/example.md")),

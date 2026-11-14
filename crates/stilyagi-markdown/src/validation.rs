@@ -241,8 +241,10 @@ fn validate_segment_origin(
         context,
         "ir-segment-origin-invalid",
         format!(
-            "segment origin invalid region id={} segment text={} source_present={} \
-             synthetic_present={}",
+            concat!(
+                "segment origin invalid region id={} segment text={} source_present={} ",
+                "synthetic_present={}"
+            ),
             region.id,
             segment.text,
             segment.source.is_some(),

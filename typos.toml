@@ -46,6 +46,7 @@ extend-ignore-re = [
     "\\b(?:carousel|dropdown|footer|indicator|items|navbar|toast)-center\\b",
     "\\bAppFactory<Ser\\b",
     "\\bCARGO_TERM_COLOR\\b",
+    "\\bactions/(upload|download)-artifact@",
     "\\bartifact-(?:name|server-path)\\b",
     "\\bcolor-(?:mix|contrast)\\b",
     "\\brust-analyzer\\b",

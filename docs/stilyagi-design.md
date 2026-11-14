@@ -1227,9 +1227,25 @@ release artefacts, and CI. `make build` installs the package with
 repository virtual environment. `make release` builds the wheel, installs it
 into a fresh `.venv-release-smoke` environment, and runs the same smoke module
 from outside the repository tree. The GitHub Actions smoke workflow calls
-Makefile targets for lint and test coverage, then runs a release-smoke matrix
-for Ubuntu, macOS, and Windows wheels. This proves the PyO3 boundary without
-turning the smoke workflow into release publishing automation.
+Makefile targets for lint and test coverage, then delegates its release-smoke
+job to `.github/workflows/build-wheels.yml`, the reusable `workflow_call`
+workflow a tag's release also builds with. That workflow builds the native
+wheels for Linux, macOS, and Windows, builds the one source distribution on the
+`x86_64` Linux leg, and proves both: `verify-wheel-install` installs the wheel
+and rebuilds a wheel from the sdist. A pull request whose build produced no
+sdist, or more than one, fails there.
+
+Publishing is the tag's job, and `release.yml` owns it. The two workflows meet
+at the build: `release.yml` calls the same `build-wheels.yml`, attests exactly
+the artefacts that build produced, and reconciles them against PyPI and the
+tag's GitHub Release. A file carried from one destination to the other is
+verified first — against this repository, the signing workflow, the tag's ref,
+and the commit it was built from — so a re-pushed tag's earlier bytes are
+attributable rather than merely present. The smoke path and the release path
+therefore cannot diverge, and the smoke workflow stays a proof rather than a
+publisher — no pull-request run holds a publishing credential.
+[ADR 0014](adrs/adr-0014-release-pipeline.md) records the pipeline; the
+[developer's guide](developers-guide.md) documents what each job does.
 
 The source validation corpus lives under `tests/fixtures/corpus/`, grouped by
 syntax and by `valid` or `malformed` case. It currently covers Markdown,
@@ -1270,8 +1286,11 @@ The design must be validated with the following test classes.
   run the shared `python -m stilyagi.smoke` proof through the public Python API
   backed by the embedded Rust extension.
 - Compatibility tests: Linux, macOS, and Windows wheel builds and smoke
-  installs, plus supported syntax corpus tests across Markdown, Python, and
-  Rust.
+  installs, a rebuild from the source distribution, plus supported syntax
+  corpus tests across Markdown, Python, and Rust.
+- Release reconciliation tests: the tag's publishing steps run against a
+  scripted PyPI and GitHub Release, so a re-run's convergence on published
+  bytes is specified without a network or a token.
 
 ## 12. Open questions and required ADRs
 
