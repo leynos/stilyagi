@@ -14,11 +14,13 @@ from tests.support.dump_ir_harness import (
     producer_versions,
     without_producer_versions,
 )
-from tests.support.subprocess_env import run_python_module
+from tests.support.dump_ir_subprocess import (
+    run_discovering_dump_ir,
+    run_isolated_dump_ir,
+)
 
 if typ.TYPE_CHECKING:
     import pathlib
-    import subprocess
 
     from syrupy.assertion import SnapshotAssertion
 
@@ -30,7 +32,7 @@ def test_dump_ir_snapshots_one_canonical_document(
     """Emit the Rust canonical JSON unchanged for one Markdown input."""
     (tmp_path / "notes.md").write_text("# Heading\n", encoding="utf-8")
 
-    completed = _run_dump_ir(tmp_path, "notes.md")
+    completed = run_isolated_dump_ir(tmp_path, "notes.md")
 
     assert completed.returncode == 0, "expected one input to extract successfully"
     payload = json.loads(completed.stdout)
@@ -55,7 +57,7 @@ def test_dump_ir_snapshots_multiple_markdown_documents(
     (tmp_path / "a.mdc").write_text("# Alpha\n", encoding="utf-8")
     (tmp_path / "ignored.py").write_text('"""Python docs."""\n', encoding="utf-8")
 
-    completed = _run_dump_ir(tmp_path, ".")
+    completed = run_isolated_dump_ir(tmp_path, ".")
 
     assert completed.returncode == 0, "expected Markdown discovery to succeed"
     payload = json.loads(completed.stdout)
@@ -76,7 +78,7 @@ def test_dump_ir_snapshots_empty_discovery_as_an_empty_array(
     snapshot: SnapshotAssertion,
 ) -> None:
     """Give empty discovery a valid, newline-terminated JSON value."""
-    completed = _run_dump_ir(tmp_path, ".")
+    completed = run_isolated_dump_ir(tmp_path, ".")
 
     assert completed.returncode == 0, "expected empty discovery to succeed"
     payload = json.loads(completed.stdout)
@@ -94,7 +96,7 @@ def test_dump_ir_preserves_frontmatter_and_rust_canonical_bytes(
     source = "---\r\ntitle: Café\r\n---\r\n\r\n# Body\r\n"
     (tmp_path / "notes.mdc").write_bytes(source.encode("utf-8"))
 
-    completed = _run_dump_ir(tmp_path, "notes.mdc")
+    completed = run_isolated_dump_ir(tmp_path, "notes.mdc")
     canonical_json = engine.extract_document_result(
         source,
         model.Syntax.MARKDOWN,
@@ -131,7 +133,7 @@ def test_dump_ir_rejects_invalid_stdin_shapes(
     arguments: tuple[str, ...],
 ) -> None:
     """Reject unnamed stdin, repeated stdin and mixed stdin/file operands."""
-    completed = _run_dump_ir(tmp_path, *arguments, stdin_bytes=b"# Piped\n")
+    completed = run_isolated_dump_ir(tmp_path, *arguments, stdin_bytes=b"# Piped\n")
 
     assert completed.returncode == 2, "expected invalid stdin operands to exit two"
     assert not completed.stdout, "expected usage failures to emit no partial IR"
@@ -144,7 +146,7 @@ def test_dump_ir_validates_config_when_reading_stdin(tmp_path: pathlib.Path) -> 
     """An accepted config option still reports an invalid discovered config."""
     (tmp_path / "stilyagi.toml").write_text("[lint\n", encoding="utf-8")
 
-    completed = _run_dump_ir(
+    completed = run_discovering_dump_ir(
         tmp_path,
         "--stdin-filename",
         "notes.md",
@@ -161,7 +163,7 @@ def test_dump_ir_uses_stdin_filename_as_ir_source_identity(
     tmp_path: pathlib.Path,
 ) -> None:
     """Require and retain the reported Markdown filename for stdin bytes."""
-    completed = _run_dump_ir(
+    completed = run_isolated_dump_ir(
         tmp_path,
         "--stdin-filename",
         "docs/notes.mdc",
@@ -183,7 +185,7 @@ def test_dump_ir_rejects_an_explicit_non_markdown_file(
     """Fail explicitly instead of silently omitting a requested non-Markdown file."""
     (tmp_path / "module.py").write_text('"""Docs."""\n', encoding="utf-8")
 
-    completed = _run_dump_ir(tmp_path, "module.py")
+    completed = run_isolated_dump_ir(tmp_path, "module.py")
 
     assert completed.returncode == 2, "expected an explicit Python file to be rejected"
     assert not completed.stdout, "expected unsupported input to emit no IR"
@@ -194,7 +196,7 @@ def test_dump_ir_rejects_an_explicit_non_markdown_file(
 
 def test_dump_ir_rejects_a_missing_explicit_file(tmp_path: pathlib.Path) -> None:
     """Report a missing requested input instead of treating it as empty discovery."""
-    completed = _run_dump_ir(tmp_path, "missing.md")
+    completed = run_isolated_dump_ir(tmp_path, "missing.md")
 
     assert completed.returncode == 2, "expected a missing explicit input to exit two"
     assert not completed.stdout, "expected a missing input to emit no IR"
@@ -208,7 +210,7 @@ def test_dump_ir_buffers_output_until_all_inputs_succeed(
     (tmp_path / "a-valid.md").write_text("# Valid\n", encoding="utf-8")
     (tmp_path / "z-invalid.md").write_bytes(b"# Invalid \xff\n")
 
-    completed = _run_dump_ir(tmp_path, ".")
+    completed = run_isolated_dump_ir(tmp_path, ".")
 
     assert completed.returncode == 2, "expected invalid source bytes to fail"
     assert not completed.stdout, "expected failed input batches to emit no JSON"
@@ -370,12 +372,3 @@ def test_dump_ir_reports_framing_spool_failure_before_stdout(
     assert "short write to JSON spool" in error.getvalue(), (
         "expected framing spool failure detail"
     )
-
-
-def _run_dump_ir(
-    cwd: pathlib.Path,
-    *arguments: str,
-    stdin_bytes: bytes | None = None,
-) -> subprocess.CompletedProcess[bytes]:
-    """Run one dump-ir subprocess with the checkout package importable."""
-    return run_python_module(cwd, "dump-ir", *arguments, stdin_bytes=stdin_bytes)

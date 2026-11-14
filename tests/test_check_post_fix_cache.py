@@ -1,17 +1,20 @@
 """Command-boundary coverage for the post-fix extraction-cache bypass.
 
 `cli_run.relint_written_files` re-checks the files a `--fix` run wrote, and it
-sets `force_fresh=True` so that re-check reads the bytes now on disk rather
-than a warm entry for the bytes they replaced. The extraction service's own
-tests prove a `force_fresh` request bypasses storage; they cannot prove the
-command boundary asks for one.
+sets `force_fresh=True` so that re-check extracts the bytes now on disk. The
+extraction service's own tests prove a `force_fresh` request bypasses storage;
+they cannot prove the command boundary asks for one.
 
-That distinction matters because the two failures look the same from the cache
-tests and different from the user's terminal. A missing `force_fresh` leaves
-the re-lint reporting the *pre-fix* document, so a repaired file is described
-by diagnostics that no longer apply -- and the re-lint publishes a cache entry
-for content it never verified. This module drives `cli.run_check`, so the flag
-is exercised where it is set.
+`force_fresh` is not what prevents a *stale* hit. The cache key already covers
+`source_sha256` (`cache/model.py`), so an entry for the pre-fix bytes could
+never be served for the repaired ones. What `force_fresh` buys is that the
+re-lint touches no persistent storage at all: it neither reads an entry nor
+publishes one for the bytes it just verified. Without the flag the re-lint
+would still extract the repaired text, but it would consult storage first and
+publish a second entry for content no planner reviewed.
+
+This module drives `cli.run_check`, so the flag is exercised where it is set
+rather than only where it is honoured.
 
 Run them with:
 

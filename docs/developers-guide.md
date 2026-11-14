@@ -503,6 +503,30 @@ capturing the object at import time. That keeps a module-level default
 substitutable: a test that monkeypatches `rules_registry.run_rules` still
 influences the default, exactly as the previous call-time lookup did.
 
+### Cache collaborator injection
+
+The extraction cache is injectable at both command boundaries.
+`CheckCollaborators.extraction_cache` and `DumpIrCollaborators.cache` both
+default to `None`, and `None` means "build the production service". When the
+boundary builds one, it constructs a `CacheExtractionService` for that
+invocation alone, anchored at the invocation cwd with the installed package
+version. Either way it closes the selected service in a `finally` once the
+command finishes. The service owns descriptors, so its lifetime is the
+command's: nothing outlives the invocation that opened it.
+
+An injected service supplies its own identity and extractor. The bypass is not
+part of that identity, because it is a request rather than a capability: when
+`--no-cache` is given, the boundary calls `without_persistent_cache()` on
+whichever service it selected. The flag then means the same thing whether the
+service was built here or injected, and a caller cannot accidentally re-enable
+storage by supplying its own. A service that had already opened storage keeps
+those descriptors until `close` and simply performs no further operations
+through them.
+
+Tests that inject a service to observe cache traffic still see the reads and
+publishes they inject it for; they opt into the bypass by passing `--no-cache`,
+which is the same switch a user has.
+
 ### Configuration resolution
 
 `ConfigResolver.resolve_with_provenance` is the one place a target's
@@ -991,11 +1015,15 @@ small package, one module per concern:
   byte position, refuses overlaps that are not exact duplicates, and produces a
   `PlannedFile`. A plan that loses any edit carries no replacement bytes at
   all, so a conflict leaves the file with nothing to write rather than a
-  partial result. Its `_re_extract_markdown` is the frontmatter guard's only
-  route to an extractor: re-extracting the repaired text is what proves the
-  metadata prefix survived, and routing it through one function keeps the guard
-  depending on *an* extractor rather than on the concrete bridge. When that
-  re-extraction fails the guard cannot vouch for the prefix, so it refuses the
+  partial result. Its frontmatter guard reaches an extractor only through
+  `FixPlanRequest.verify_markdown`: re-extracting the repaired text is what
+  proves the metadata prefix survived. That field defaults to
+  `markdown_verifier()`, the production adapter over `_re_extract_markdown` in
+  `verification.py` -- not in `plan.py`, which imports it. It is a request
+  field rather than a module-level import so the guard can be exercised with a
+  fake and an embedding caller can supply the extractor it already owns. A
+  verifier signals an unreadable document by raising `FixVerificationError`;
+  the planner treats that as "the prefix cannot be vouched for" and refuses the
   whole plan rather than writing bytes it never verified.
 - `splice.py` `apply_edits(source_bytes, edits)` is the normative kernel for
   splice semantics. It is deliberately narrow: it assumes its input is already
@@ -1491,6 +1519,18 @@ sets `force_fresh`. These paths perform no persistent-cache reads, writes,
 directory creation, or cache-path stats. The fixed cache counters are logged
 without file paths; keep their names in `cli_log.STRUCTURED_FIELDS` so verbose
 output exposes them.
+
+Each storage operation is timed as a completed span at INFO: one
+`extraction_cache_storage` record carrying a fixed `outcome` (open, read or
+write) and an `elapsed_ms`. INFO rather than DEBUG is deliberate, because
+`--verbose` raises the root to INFO and no higher, so a DEBUG record would be
+computed and discarded. The record's attribute set is exactly those fields plus
+the counters above: no path, no key, and no error text, so the timing can be
+logged on every invocation without leaking user input into a log. A storage
+failure is reported separately as a bounded category from
+`StorageFailureCategory`; parent-directory open and creation failures are
+`LEASE_UNAVAILABLE` rather than `ENTRY_INVALID`, because no entry was reached
+and the caller should remember the root as unusable rather than retry it.
 
 `cli_clean.py` invokes cleanup from the current working directory without
 loading project configuration. Cleanup owns only marked cache namespaces and

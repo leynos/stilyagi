@@ -142,10 +142,12 @@ def run_dump_ir(
         injected.resolver if injected.resolver is not None else config.ConfigResolver()
     )
     extraction_cache = (
-        injected.cache
-        if injected.cache is not None
-        else _open_extraction_cache(no_cache=options.no_cache)
+        injected.cache if injected.cache is not None else _open_extraction_cache()
     )
+    if options.no_cache:
+        # Applied to the selected service, not only to one built here, so the
+        # flag means the same thing whether or not a caller injected a cache.
+        extraction_cache.without_persistent_cache()
     try:
         inputs = _discover_markdown_inputs(options, config_resolver)
         _write_dump_output(
@@ -161,13 +163,12 @@ def run_dump_ir(
     return 0
 
 
-def _open_extraction_cache(*, no_cache: bool) -> CacheExtractionService:
+def _open_extraction_cache() -> CacheExtractionService:
     """Return the invocation-scoped cache this run extracts through."""
     return CacheExtractionService(
         CacheServiceConfig(
             invocation_cwd=pathlib.Path.cwd(),
             package_version=PACKAGE_VERSION,
-            no_cache=no_cache,
         )
     )
 
