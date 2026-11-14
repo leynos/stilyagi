@@ -2995,12 +2995,10 @@ Two units need stating plainly, because both are easy to misread:
 
 - **`min-size` counts IL tokens, not Python lines and not AST nodes.** The
   configured floor of 24 is neither a line count nor a node count.
-- **Ranking is bounded.** The gate adjudicates the ranked surface, not every
-  family the detector can find. Stilyagi's ranking currently saturates at nine
-  families, which is well below the configured `top = 30`, so nothing is hidden
-  today. That is a measurement of the present tree, not a guarantee: if the
-  ranked surface ever fills, families below the cutoff stop blocking, and the
-  bound has to be revisited rather than assumed safe.
+- **Ranking is unbounded.** The configured `top = 0` asks the detector for
+  every family, so the gate adjudicates all of them however many the package
+  grows to (nine at present). concordat's `python-duplication-gate` rule
+  (NS-001) requires `top = 0`.
 
 #### Scan scope
 
