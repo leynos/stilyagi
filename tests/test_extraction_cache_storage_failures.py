@@ -296,7 +296,15 @@ def test_each_storage_operation_logs_a_bounded_operation_and_duration(
     caplog: pytest.LogCaptureFixture,
     close_cache_services: CacheServiceRegistrar,
 ) -> None:
-    """Time each storage call without letting a path reach the log."""
+    """Time each storage call at INFO, without letting a path reach the log.
+
+    INFO is the level the assertion pins, not a detail of the logger's
+    configuration. `--verbose` raises the root to INFO, so a record below it is
+    computed and discarded; timing that no invocation can show is not
+    observability. The level is read from each record rather than assumed from
+    the capture filter, because `caplog.at_level(logging.DEBUG)` would collect
+    an INFO record just as willingly.
+    """
     calls: list[str] = []
 
     service = close_cache_services(
@@ -312,7 +320,7 @@ def test_each_storage_operation_logs_a_bounded_operation_and_duration(
     )
     config = StilyagiConfig(cache_dir=tmp_path / "cache")
 
-    with caplog.at_level(logging.DEBUG, logger="stilyagi.cache.extraction"):
+    with caplog.at_level(logging.INFO, logger="stilyagi.cache.extraction"):
         first = extract_cached_document(service, config)
         second = extract_cached_document(service, config)
 
@@ -330,6 +338,9 @@ def test_each_storage_operation_logs_a_bounded_operation_and_duration(
         "open",
         "read",
     ], "each storage operation must be timed under its own fixed name"
+    assert all(span.levelno == logging.INFO for span in spans), (
+        "storage timing must be visible at the level --verbose enables"
+    )
     durations = [record_field(span, "elapsed_ms") for span in spans]
     assert all(isinstance(duration, int) for duration in durations), (
         "each timed operation must carry a whole-millisecond duration"

@@ -289,10 +289,13 @@ def _run_check(
             CacheServiceConfig(
                 invocation_cwd=pathlib.Path.cwd(),
                 package_version=PACKAGE_VERSION,
-                no_cache=options.no_cache,
             )
         )
     )
+    if options.no_cache:
+        # Applied to the selected service, not only to one built here, so the
+        # flag means the same thing whether or not a caller injected a cache.
+        extraction_cache.without_persistent_cache()
     try:
         return _run_discovered_check(
             options,

@@ -1,10 +1,8 @@
 """Coordinate canonical extraction, cache identity, and fresh fallbacks."""
 
 import collections.abc as cabc
-import contextlib
 import dataclasses as dc
 import logging
-import time
 import typing as typ
 
 if typ.TYPE_CHECKING:
@@ -16,11 +14,11 @@ from stilyagi.config.inspection import _config_table
 from .identity import builtin_pack_signature, native_extension_digest
 from .ir import InvalidCacheEntryError, decode_cache_entry, encode_cache_entry
 from .model import ExtractionRequest, cache_key
+from .observability import CacheEventCounts, storage_span
 from .storage import CacheStorageError, CacheStore, storage_outcome
 from .storage_primitives import _absolute_lexical_path
 
 __all__ = [
-    "CacheEventCounts",
     "CacheExtractionInput",
     "CacheExtractionService",
     "CacheServiceConfig",
@@ -58,11 +56,17 @@ class CacheServiceConfig:
     Parameters
     ----------
     invocation_cwd
-        Working directory used to anchor relative cache paths.
+        Working directory used to anchor relative cache paths. The command
+        boundary supplies its own working directory here rather than letting
+        the service read the ambient one, so a service is anchored where the
+        command says it is.
     package_version
         Installed Stilyagi package version included in the cache key.
     no_cache
-        Disable all persistent-cache operations for the invocation.
+        Disable all persistent-cache operations for the invocation. A service
+        can also be told this after construction with
+        :meth:`CacheExtractionService.without_persistent_cache`, which is what
+        the command boundaries use so the flag reaches an injected service.
     extractor, native_digest_factory, builtin_signature_factory, storage_factory
         Optional collaborators used by tests and embedding callers.
     """
@@ -105,27 +109,6 @@ class CacheExtractionInput:
     cache_dir: pathlib.Path
     from_stdin: bool = False
     force_fresh: bool = False
-
-
-@dc.dataclass(slots=True)
-class CacheEventCounts:
-    """Fixed, path-free event counters for one CLI invocation."""
-
-    hits: int = 0
-    misses: int = 0
-    invalid: int = 0
-    bypasses: int = 0
-    write_failures: int = 0
-
-    def as_dict(self) -> dict[str, int]:
-        """Return stable counter names suitable for structured logging."""
-        return {
-            "cache_hits": self.hits,
-            "cache_misses": self.misses,
-            "cache_invalid": self.invalid,
-            "cache_bypasses": self.bypasses,
-            "cache_write_failures": self.write_failures,
-        }
 
 
 def _default_extractor(
@@ -186,6 +169,21 @@ class CacheExtractionService:
         self._unusable_roots: set[pathlib.Path] = set()
         self.counters = CacheEventCounts()
 
+    def without_persistent_cache(self) -> None:
+        """Forbid all persistent-cache work, keeping this service's identity.
+
+        The command boundaries call this when `--no-cache` was asked for, so
+        the policy reaches an injected service as well as one they built. A
+        service that has already opened storage keeps those descriptors until
+        `close`; it simply performs no further operations through them, which
+        is what makes the flag effective at the boundary rather than only at
+        construction.
+
+        The counters and identity collaborators survive, so a caller still
+        gets the extraction and the bypass it asked for.
+        """
+        self.no_cache = True
+
     def extract(self, request: CacheExtractionInput) -> engine.ExtractionResult:
         """Return the current Rust extraction for one file request.
 
@@ -234,14 +232,14 @@ class CacheExtractionService:
             self.counters.bypasses += 1
             return self._fresh(extraction_input)
         try:
-            with self._storage_span("open"):
+            with storage_span("open"):
                 store = self._store_for(extraction_input.cache_dir, store_key)
         except CacheStorageError as error:
             self._unusable_roots.add(store_key)
             self._record_bypass(storage_outcome("open", error.category), "warning")
             return self._fresh(extraction_input)
         try:
-            with self._storage_span("read"):
+            with storage_span("read"):
                 cached = store.read(key)
         except CacheStorageError as error:
             self._record_bypass(storage_outcome("read", error.category), "warning")
@@ -286,7 +284,7 @@ class CacheExtractionService:
     ) -> None:
         """Publish one successful extraction without changing its result."""
         try:
-            with self._storage_span("write"):
+            with storage_span("write"):
                 store.write(key, encode_cache_entry(key, canonical_json))
         except CacheStorageError as error:
             self._event(storage_outcome("write", error.category), "warning")
@@ -343,24 +341,6 @@ class CacheExtractionService:
             request.syntax,
             request.reported_identity,
         )
-
-    @staticmethod
-    @contextlib.contextmanager
-    def _storage_span(operation: str) -> cabc.Iterator[None]:
-        """Time one storage operation, logging a bounded operation and duration."""
-        started = time.perf_counter()
-        try:
-            yield
-        finally:
-            _LOGGER.debug(
-                "persistent extraction cache storage %s",
-                operation,
-                extra={
-                    "operation": "extraction_cache_storage",
-                    "outcome": operation,
-                    "elapsed_ms": round((time.perf_counter() - started) * 1000),
-                },
-            )
 
     @staticmethod
     def _event(outcome: str, level: str) -> None:

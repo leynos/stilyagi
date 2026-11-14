@@ -250,6 +250,28 @@ def test_open_child_directory_classifies_a_forbidden_open(
     )
 
 
+def test_open_directory_chain_classifies_a_parent_access_fault(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Report a parent directory that cannot be opened as a lease fault."""
+
+    def refuse_open(*_args: object, **_kwargs: object) -> int:
+        """Reject every attempt to open a chain component."""
+        raise PermissionError(errno.EACCES, "denied")
+
+    monkeypatch.setattr(primitives.os, "open", refuse_open)
+
+    with pytest.raises(
+        CacheStorageError, match="cannot safely open cache directory"
+    ) as failure:
+        primitives._open_directory_chain(tmp_path / "cache", create=True)
+
+    assert failure.value.category is StorageFailureCategory.LEASE_UNAVAILABLE, (
+        "an unreachable parent directory is a lease fault, not a spoiled entry"
+    )
+
+
 def test_directory_identity_classifies_an_inspection_fault(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

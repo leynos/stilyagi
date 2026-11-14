@@ -152,8 +152,13 @@ def _open_directory_chain(
     except (OSError, ValueError) as error:
         if descriptor >= 0:
             _close_descriptor(descriptor)
+        # A parent directory that cannot be opened, anchored, or created is a
+        # lease fault, not a spoiled entry: no entry was ever reached, and the
+        # caller should remember the root as unusable rather than retry it.
         _raise_storage_error(
-            f"cannot safely open cache directory {path}: {error}", error
+            f"cannot safely open cache directory {path}: {error}",
+            error,
+            category=StorageFailureCategory.LEASE_UNAVAILABLE,
         )
     else:
         return descriptor
