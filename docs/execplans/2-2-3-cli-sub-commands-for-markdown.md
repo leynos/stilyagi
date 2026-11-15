@@ -1,8 +1,10 @@
 # Deliver the Markdown inspection and cache commands
 
-Status: IMPLEMENTATION COMPLETE — all six local gates pass on the
-CodeScene-repair tree; PR review reconciliation remains before delivery is
-complete.
+Status: DELIVERED — merged to `main` as
+`2ea363c86ceed04a940e7475a24959ff68d4668c` on 15 November 2026, with the
+post-merge `Smoke` and `Coverage (main)` jobs green. The plan records the
+delivery checkpoint and outcome above; it is otherwise the document as
+implemented.
 
 Roadmap item: **2.2.3**. Branch: `2-2-3-cli-sub-commands-for-markdown`.
 
