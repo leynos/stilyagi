@@ -140,23 +140,26 @@ impl<'source> MarkdownIrBuilder<'source> {
         }
     }
 
-    /// Emits a list's items while its inherited list context is pushed.
+    /// Emits the items of a list with the list's context pushed.
     fn list_child_node_ids(
         &mut self,
         list: &markdown::mdast::List,
         node_id: &str,
         context: &MarkdownDiagnosticContext<'_>,
     ) -> Result<Vec<String>, Message> {
+        let mut child_ids = Vec::new();
         self.list_contexts.push(ListContext {
             ordered: list.ordered,
             start: list.start,
         });
-        let child_ids = self.child_ids_of(&list.children, node_id, context);
+        for child in &list.children {
+            child_ids.push(self.push_node(child, Some(node_id), context)?);
+        }
         self.list_contexts.pop();
-        child_ids
+        Ok(child_ids)
     }
 
-    /// Emits a table's rows while each row's header context is pushed.
+    /// Emits the rows of a table, marking the first row as the header.
     fn table_child_node_ids(
         &mut self,
         table: &markdown::mdast::Table,
@@ -168,24 +171,10 @@ impl<'source> MarkdownIrBuilder<'source> {
             self.table_row_contexts.push(TableRowContext {
                 is_header: row_index == 0,
             });
-            let row_ids = self.push_node(child, Some(node_id), context);
+            child_ids.push(self.push_node(child, Some(node_id), context)?);
             self.table_row_contexts.pop();
-            child_ids.push(row_ids?);
         }
         Ok(child_ids)
-    }
-
-    /// Emits every node in `children` as a child of `node_id`.
-    fn child_ids_of(
-        &mut self,
-        children: &[Node],
-        node_id: &str,
-        context: &MarkdownDiagnosticContext<'_>,
-    ) -> Result<Vec<String>, Message> {
-        children
-            .iter()
-            .map(|child| self.push_node(child, Some(node_id), context))
-            .collect()
     }
 
     /// Emits the children of a node that needs no special context tracking.
