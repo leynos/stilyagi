@@ -93,8 +93,10 @@ partially. The refusal is reported on the fix-error channel, so it appears in
 text is `fix-error/frontmatter-protected`; see
 [Common errors and fixes](#common-errors-and-fixes).
 
-A refusal is per planned fix, not per file: other fixes in the same file still
-apply if they preserve the frontmatter.
+A refusal is per file and all-or-nothing. If any planned fix in a file cannot
+be shown to preserve the frontmatter, that file is refused whole: no edits and
+no replacement bytes are produced, so an otherwise valid body fix in the same
+file does not apply either. Fix the frontmatter conflict, then re-run.
 
 ## What does not need to change
 
