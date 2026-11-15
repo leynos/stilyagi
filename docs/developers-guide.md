@@ -2629,8 +2629,8 @@ as a test assertion on the SHA string.
 
 `.github/workflows/smoke.yml` provisions Whitaker through the shared
 `leynos/shared-actions/.github/actions/install-whitaker` action, pinned to full
-SHA `5a99aed78ce68dcebd3052b75c31e6f173162b1e` (shared-actions commit
-`5a99aed7`, which pins whitaker-installer 0.2.11), and passing only
+SHA `0eabb6bc07148981de5da395e30cd78d83f5c7c2` (shared-actions commit
+`0eabb6bc`, which pins whitaker-installer 0.2.12), and passing only
 `cranelift: true`. The action owns the installer version, the digest-verified
 download, the cache and the `--no-source-fallback` rule, so the workflow
 carries no install script, no suite pin, no source-build fallback and no
@@ -2695,7 +2695,7 @@ two builds rather than between two commits, and it does so silently.
 from two lanes race.
 
 **The runner is part of that selection.** Both lanes pin the same
-`generate-coverage` action commit, and at shared-actions `6cec89ba` that
+`generate-coverage` action commit, and at shared-actions `6f53870b` that
 action's `scripts/install_cargo_nextest.py` declares
 `CARGO_NEXTEST_VERSION = "0.9.145"` and reuses a preinstalled `cargo-nextest`
 rather than installing its own. `smoke.yml` therefore preinstalls exactly

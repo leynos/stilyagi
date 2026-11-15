@@ -72,7 +72,7 @@ COVERAGE_ACTION: typ.Final[str] = (
 #: ``CARGO_NEXTEST_VERSION = "0.9.145"`` and reuses a preinstalled
 #: ``cargo-nextest`` rather than installing its own. Re-read that constant
 #: when this pin moves; ``COVERAGE_NEXTEST_VERSION`` must move with it.
-SHARED_ACTIONS_PIN: typ.Final[str] = "6cec89bac47a21cf756d68d638a9a510998e57f8"
+SHARED_ACTIONS_PIN: typ.Final[str] = "6f53870bc36cfac0c0c9893daaee77a5eb4327f4"
 COVERAGE_NEXTEST_VERSION: typ.Final[str] = "0.9.145"
 
 #: The pull-request lane whose ratchet compares against the publisher.
