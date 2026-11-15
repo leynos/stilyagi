@@ -1,4 +1,4 @@
-"""Parse options for the read-only canonical Markdown IR command."""
+"""Parse options for the canonical Markdown IR command."""
 
 import dataclasses as dc
 import typing as typ
@@ -11,7 +11,7 @@ if typ.TYPE_CHECKING:
 
 @dc.dataclass(frozen=True, slots=True)
 class DumpIrOptions:
-    """Options for one read-only `stilyagi dump-ir` invocation.
+    """Options for one `stilyagi dump-ir` invocation.
 
     ``verbose`` mirrors the check command's flag for one reason: the extraction
     cache logs its counters at INFO, and a standalone `dump-ir` run has no other
@@ -68,7 +68,7 @@ def _add_dump_ir_arguments(
     add_config_argument: cabc.Callable[[argparse.ArgumentParser], None],
     add_isolated_argument: cabc.Callable[[argparse.ArgumentParser], None],
 ) -> None:
-    """Add read-only canonical-IR options without check or rule controls."""
+    """Add canonical-IR options without check-only rule or fix controls."""
     parser.add_argument(
         "--output-format",
         choices=("json",),

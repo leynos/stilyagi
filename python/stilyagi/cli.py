@@ -56,6 +56,7 @@ from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+    import pathlib
 
     from stilyagi.cache.extraction import CacheExtractionService
 
@@ -118,6 +119,14 @@ class CheckCollaborators:
     can observe cache reads and publishes without depending on the ambient
     working directory, and so an embedding caller can reuse one service across
     several runs.
+    """
+    invocation_cwd: pathlib.Path | None = None
+    """Where a cache this run builds is anchored, or ``None`` for the ambient one.
+
+    The run reads the process working directory only when this is ``None``, so
+    a test or an embedding caller can place the cache it exercises without
+    changing process-global state, and so the production ambient read has
+    exactly one call site.
     """
 
 
@@ -283,7 +292,10 @@ def _run_check(
         len(discovery_inputs.inputs),
     )
 
-    extraction_cache = open_extraction_cache(resolved_collaborators.extraction_cache)
+    extraction_cache = open_extraction_cache(
+        resolved_collaborators.extraction_cache,
+        invocation_cwd=resolved_collaborators.invocation_cwd,
+    )
     try:
         with cache_policy_for(extraction_cache, no_cache=options.no_cache):
             return _run_discovered_check(

@@ -42,6 +42,9 @@ def test_cache_storage_failure_falls_back_to_uncached_extraction(
             """Treat every key as a cold request."""
             return None
 
+        def create_namespace(self) -> None:
+            """Succeed, so the injected failure lands on the write itself."""
+
         def write(self, _key: str, _content: bytes) -> None:
             """Simulate a cache filesystem failure such as disk full."""
             message = "injected disk-full write"
@@ -222,8 +225,14 @@ def test_os_permission_error_opening_namespace_falls_back_to_extraction(
         assert refused == [CACHE_NAMESPACE_NAME], (
             "the test must inject a namespace creation failure"
         )
-        assert service.counters.bypasses == 1, (
-            "the unavailable cache must be counted as a bypass"
+        # Reading is a query and writes nothing, so the refusal surfaces on
+        # the publication that follows the miss rather than on the lookup.
+        assert service.counters.misses == 1, "the cold request must be a miss"
+        assert service.counters.write_failures == 1, (
+            "a refused namespace create is a failed publication"
+        )
+        assert service.counters.bypasses == 0, (
+            "a readable lookup is not a bypass, even when its publish fails"
         )
     finally:
         service.close()
@@ -245,6 +254,10 @@ def test_cache_read_failure_retries_store_construction_for_later_requests(
             """Fail one cache lookup while leaving the root reopenable."""
             message = "injected transient read failure"
             raise CacheStorageError(message)
+
+        def create_namespace(self) -> None:
+            """Reject a create reached after the injected read failure."""
+            pytest.fail("unexpected cache create after a read failure")
 
         def write(self, _key: str, _content: bytes) -> None:
             """Reject unexpected publication after the injected read failure."""

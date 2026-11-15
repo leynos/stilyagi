@@ -252,7 +252,8 @@ def _extract_document(
             check_input.syntax,
             source_path=sourced_input.reported_path,
         )
-    extraction = run.extraction_cache.extract(
+    cache = run.extraction_cache
+    lookup = cache.lookup(
         CacheExtractionInput(
             source_text=sourced_input.source_text,
             syntax=check_input.syntax,
@@ -263,7 +264,8 @@ def _extract_document(
             force_fresh=run.force_fresh,
         )
     )
-    return extraction.document
+    cache.publish(lookup)
+    return lookup.result.document
 
 
 def _run_rules_and_plan(

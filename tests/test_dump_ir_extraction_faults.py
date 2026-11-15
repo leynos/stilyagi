@@ -9,8 +9,9 @@ error rather than a partial JSON array.
 import json
 import typing as typ
 
-from stilyagi import cli_dump_ir, config, model
+from stilyagi import cli_dump_ir, config, engine, model
 from stilyagi.cache.extraction import CacheServiceConfig
+from stilyagi.cache.lookup import CacheLookup
 from stilyagi.check_inputs import CheckInput
 from stilyagi.cli_args import PACKAGE_VERSION, DumpIrOptions
 
@@ -44,10 +45,8 @@ def test_dump_ir_reports_a_missing_canonical_ir(
     (tmp_path / "notes.md").write_text("# Heading\n", encoding="utf-8")
     monkeypatch.setattr(
         cli_dump_ir.CacheExtractionService,
-        "extract",
-        lambda _self, _request: typ.cast(
-            "object", _ExtractionResult(canonical_json=None)
-        ),
+        "lookup",
+        lambda _self, _request: _lookup_returning(None),
     )
 
     exit_code, output, error = run_dump_ir(tmp_path, monkeypatch, "notes.md")
@@ -71,9 +70,7 @@ def test_dump_ir_reports_an_extraction_failure(
         message = "bridge refused the document"
         raise ValueError(message)
 
-    monkeypatch.setattr(
-        cli_dump_ir.CacheExtractionService, "extract", refuse_extraction
-    )
+    monkeypatch.setattr(cli_dump_ir.CacheExtractionService, "lookup", refuse_extraction)
 
     exit_code, output, error = run_dump_ir(tmp_path, monkeypatch, "notes.md")
 
@@ -115,12 +112,19 @@ def test_dump_ir_reports_a_config_error(
     )
 
 
-class _ExtractionResult:
-    """Stand in for one cache extraction result with a chosen IR payload."""
+class _ResultPayload:
+    """Stand in for one extraction result with a chosen IR payload."""
 
     def __init__(self, canonical_json: str | None) -> None:
         """Hold the canonical JSON the extractor would have produced."""
         self.canonical_json = canonical_json
+
+
+def _lookup_returning(canonical_json: str | None) -> CacheLookup:
+    """Wrap a chosen IR payload in a lookup that has nothing to publish."""
+    return CacheLookup(
+        result=typ.cast("engine.ExtractionResult", _ResultPayload(canonical_json))
+    )
 
 
 def test_dump_ir_extracts_an_explicit_markdown_check_input(

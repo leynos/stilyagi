@@ -57,27 +57,59 @@ else:
 """
 
 
-def test_store_marks_owned_namespace_and_atomically_roundtrips_entry(
+def test_store_lookup_creates_nothing_until_the_namespace_is_created(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Mark a new namespace and atomically roundtrip one serialized entry."""
+    """Leave the filesystem untouched until the namespace create is asked for."""
     store = CacheStore(pathlib.Path("cache"), invocation_cwd=tmp_path)
     key = "a" * 64
     entry_name = cache_entry_name(key)
-    namespace = tmp_path / "cache" / CACHE_NAMESPACE_NAME
+    cache_parent = tmp_path / "cache"
+    namespace = cache_parent / CACHE_NAMESPACE_NAME
 
     with store:
-        assert store.read(key) is None, "a newly created cache entry must be absent"
-        store.write(key, b'{"value":1}\n')
-        assert store.read(key) == b'{"value":1}\n', "published bytes must roundtrip"
+        assert store.read(key) is None, "an absent namespace has no entries"
+        assert not cache_parent.exists(), (
+            "a lookup must not create the configured cache parent"
+        )
+        with pytest.raises(CacheStorageError, match="never created"):
+            store.write(key, b'{"value":1}\n')
+
+    assert not cache_parent.exists(), "a lookup-only store must create nothing at all"
+
+    with CacheStore(pathlib.Path("cache"), invocation_cwd=tmp_path) as writer:
+        writer.create_namespace()
+        writer.write(key, b'{"value":1}\n')
+        assert writer.read(key) == b'{"value":1}\n', "published bytes must roundtrip"
 
     assert (namespace / OWNER_MARKER_NAME).read_bytes() == OWNER_MARKER_BYTES, (
-        "a new namespace must contain the exact ownership marker"
+        "a created namespace must contain the exact ownership marker"
     )
     assert sorted(path.name for path in namespace.iterdir()) == [
         entry_name,
         OWNER_MARKER_NAME,
     ], "atomic publication must leave only the marker and final entry"
+
+
+def test_store_reuses_a_namespace_created_by_a_previous_run(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Adopt an already-marked namespace without recreating or rewriting it."""
+    key = "b" * 64
+    namespace = tmp_path / "cache" / CACHE_NAMESPACE_NAME
+
+    with CacheStore(pathlib.Path("cache"), invocation_cwd=tmp_path) as creator:
+        creator.create_namespace()
+        creator.write(key, b"first")
+
+    marker_mtime = (namespace / OWNER_MARKER_NAME).stat().st_mtime_ns
+    with CacheStore(pathlib.Path("cache"), invocation_cwd=tmp_path) as reader:
+        reader.create_namespace()
+        assert reader.read(key) == b"first", "an adopted namespace must serve its entry"
+
+    assert (namespace / OWNER_MARKER_NAME).stat().st_mtime_ns == marker_mtime, (
+        "adopting a marked namespace must not rewrite its owner marker"
+    )
 
 
 def test_store_trusts_invocation_root_but_refuses_symlinks_below_it(
@@ -90,6 +122,7 @@ def test_store_trusts_invocation_root_but_refuses_symlinks_below_it(
     linked_cwd.symlink_to(project, target_is_directory=True)
 
     with CacheStore(pathlib.Path("cache"), invocation_cwd=linked_cwd) as store:
+        store.create_namespace()
         store.write("a" * 64, b"owned")
         assert store.read("a" * 64) == b"owned", (
             "a linked invocation path must still support anchored cache I/O"
@@ -213,6 +246,9 @@ def test_store_never_follows_entry_symlink_for_read_or_replace(
     store = CacheStore(pathlib.Path("cache"), invocation_cwd=tmp_path)
     key = "b" * 64
     namespace = tmp_path / "cache" / CACHE_NAMESPACE_NAME
+    store.create_namespace()
+    store.close()
+    store = CacheStore(pathlib.Path("cache"), invocation_cwd=tmp_path)
 
     with store:
         entry = namespace / cache_entry_name(key)
@@ -241,6 +277,7 @@ def test_store_refuses_namespace_replacement_before_writing(
     root = tmp_path / "cache"
     namespace = root / CACHE_NAMESPACE_NAME
     moved_namespace = root / "stilyagi-v1-moved"
+    store.create_namespace()
 
     with store:
         namespace.rename(moved_namespace)
@@ -264,6 +301,7 @@ def test_failed_atomic_replace_keeps_old_entry_and_removes_temporary_file(
     store = CacheStore(pathlib.Path("cache"), invocation_cwd=tmp_path)
     key = "d" * 64
     namespace = tmp_path / "cache" / CACHE_NAMESPACE_NAME
+    store.create_namespace()
 
     with store:
         store.write(key, b"old")

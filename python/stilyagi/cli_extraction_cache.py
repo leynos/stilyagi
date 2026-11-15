@@ -19,8 +19,16 @@ __all__ = ["cache_policy_for", "open_extraction_cache"]
 
 def open_extraction_cache(
     injected: CacheExtractionService | None,
+    *,
+    invocation_cwd: pathlib.Path | None = None,
 ) -> CacheExtractionService:
-    """Return the injected cache, or build one for this invocation.
+    """Return the injected cache, or build one anchored at ``invocation_cwd``.
+
+    The working directory is a parameter rather than something this function
+    discovers, so a caller decides where its cache is anchored. Both command
+    boundaries pass their own injected directory and leave the production
+    invocation to supply the ambient one, which is the single place the
+    process's working directory is read.
 
     A working directory that cannot be read is a cache root that cannot be
     anchored, so the service built here is one that never touches storage
@@ -33,8 +41,10 @@ def open_extraction_cache(
     Parameters
     ----------
     injected
-        A caller's service, or ``None`` to build one over the working
-        directory.
+        A caller's service, or ``None`` to build one over ``invocation_cwd``.
+    invocation_cwd
+        Directory to anchor a built service at, or ``None`` to read the
+        process's ambient working directory.
 
     Returns
     -------
@@ -51,14 +61,13 @@ def open_extraction_cache(
     >>> service = CacheExtractionService(
     ...     CacheServiceConfig(invocation_cwd=Path.cwd(), package_version="1.0")
     ... )
-    >>> open_extraction_cache(service) is service
+    >>> open_extraction_cache(service, invocation_cwd=Path("/tmp")) is service
     True
     """
     if injected is not None:
         return injected
-    try:
-        invocation_cwd = pathlib.Path.cwd()
-    except OSError:
+    anchor = invocation_cwd if invocation_cwd is not None else _ambient_directory()
+    if anchor is None:
         return CacheExtractionService(
             CacheServiceConfig(
                 invocation_cwd=pathlib.Path(),
@@ -68,10 +77,18 @@ def open_extraction_cache(
         )
     return CacheExtractionService(
         CacheServiceConfig(
-            invocation_cwd=invocation_cwd,
+            invocation_cwd=anchor,
             package_version=PACKAGE_VERSION,
         )
     )
+
+
+def _ambient_directory() -> pathlib.Path | None:
+    """Read the process working directory, or None when it cannot be read."""
+    try:
+        return pathlib.Path.cwd()
+    except OSError:
+        return None
 
 
 def cache_policy_for(

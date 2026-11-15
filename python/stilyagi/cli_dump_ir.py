@@ -1,4 +1,11 @@
-"""Run the read-only command that emits Rust's canonical Markdown IR."""
+"""Emit Rust's canonical Markdown IR from an extraction-cache-backed run.
+
+The command inspects canonical IR rather than diagnostics, so it has no rule
+or fix options. It is not read-only with respect to its own extraction cache:
+like `check`, it publishes a miss so a second run can reuse the entry, which is
+why the cache reads and publishes are named as such here rather than folded
+into a document-extraction call.
+"""
 
 import dataclasses as dc
 import enum
@@ -99,6 +106,14 @@ class DumpIrCollaborators:
     error: typ.TextIO | None = None
     resolver: config.ConfigResolver | None = None
     cache: CacheExtractionService | None = None
+    invocation_cwd: pathlib.Path | None = None
+    """Where a cache this run builds is anchored, or ``None`` for the ambient one.
+
+    The run reads the process working directory only when this is ``None``, so
+    a test or an embedding caller can place the cache it exercises without
+    changing process-global state, and so the production ambient read has
+    exactly one call site.
+    """
 
 
 def run_dump_ir(
@@ -117,10 +132,11 @@ def run_dump_ir(
     options:
         Parsed options for one `dump-ir` invocation.
     collaborators:
-        Optional streams, configuration resolver, and extraction service. A
-        supplied cache keeps the command from constructing one over the
-        ambient working directory, which is what lets a test observe cache
-        reads and publishes independently of where it runs.
+        Optional streams, configuration resolver, extraction service, and
+        invocation directory. Supplying a cache or a directory keeps the
+        command from constructing one over the ambient working directory,
+        which is what lets a test observe cache reads and publishes
+        independently of where it runs.
 
     Returns
     -------
@@ -140,7 +156,10 @@ def run_dump_ir(
     config_resolver = (
         injected.resolver if injected.resolver is not None else config.ConfigResolver()
     )
-    extraction_cache = open_extraction_cache(injected.cache)
+    extraction_cache = open_extraction_cache(
+        injected.cache,
+        invocation_cwd=injected.invocation_cwd,
+    )
     try:
         with cache_policy_for(extraction_cache, no_cache=options.no_cache):
             inputs = _discover_markdown_inputs(options, config_resolver)
@@ -316,7 +335,7 @@ def _extract_document(
         isolated=context.options.isolated,
     )
     try:
-        result = context.cache.extract(
+        lookup = context.cache.lookup(
             CacheExtractionInput(
                 source_text=sourced.source_text,
                 syntax=model.Syntax.MARKDOWN,
@@ -326,6 +345,7 @@ def _extract_document(
                 from_stdin=sourced.from_stdin,
             )
         )
+        context.cache.publish(lookup)
     except (
         engine.BridgeExtractionError,
         RuntimeError,
@@ -337,6 +357,7 @@ def _extract_document(
             sourced.reported_path,
             exc,
         ) from exc
+    result = lookup.result
     if result.canonical_json is None:
         raise DumpIrError(
             DumpIrErrorCode.MISSING_IR,

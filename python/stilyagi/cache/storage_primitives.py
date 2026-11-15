@@ -164,39 +164,77 @@ def _open_directory_chain(
         return descriptor
 
 
-def _open_child_directory(parent_fd: int, name: str) -> tuple[int, bool]:
-    """Open or create one child directory and report whether it was created."""
+def _open_child_directory_once(
+    parent_fd: int,
+    name: str,
+    *,
+    absent_is_fault: bool,
+) -> int:
+    """Open one child directory without following links.
+
+    The no-follow open is the single place a child directory is opened, so the
+    callers below cannot drift on the flags they pass or on which failures
+    become a storage error. ``absent_is_fault`` is the one outcome they must
+    decide for themselves: before a create, a missing directory is the reason
+    to create it, but after one it means something removed the namespace the
+    caller just made, which is a lease fault rather than an absence.
+
+    Returns
+    -------
+    int
+        Descriptor for the opened child directory.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the child is absent and ``absent_is_fault`` is false, leaving the
+        caller to decide whether absence means "create it".
+    """
     try:
-        descriptor = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
-    except FileNotFoundError:
-        try:
-            os.mkdir(name, mode=0o700, dir_fd=parent_fd)
-            created = True
-        except FileExistsError:
-            created = False
-        except OSError as error:
-            _raise_storage_error(
-                f"cannot create cache namespace {name}: {error}",
-                error,
-                category=StorageFailureCategory.LEASE_UNAVAILABLE,
-            )
-        try:
-            descriptor = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
-        except OSError as error:
-            _raise_storage_error(
-                f"cannot safely open cache namespace {name}: {error}",
-                error,
-                category=StorageFailureCategory.LEASE_UNAVAILABLE,
-            )
+        return os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+    except FileNotFoundError as error:
+        if not absent_is_fault:
+            raise
+        _raise_storage_error(
+            f"cannot safely open cache namespace {name}: {error}",
+            error,
+            category=StorageFailureCategory.LEASE_UNAVAILABLE,
+        )
     except OSError as error:
         _raise_storage_error(
             f"cannot safely open cache namespace {name}: {error}",
             error,
             category=StorageFailureCategory.LEASE_UNAVAILABLE,
         )
-    else:
-        return descriptor, False
-    return descriptor, created
+
+
+def _open_child_directory(parent_fd: int, name: str) -> tuple[int, bool]:
+    """Open or create one child directory and report whether it was created."""
+    try:
+        return _open_child_directory_once(
+            parent_fd,
+            name,
+            absent_is_fault=False,
+        ), False
+    except FileNotFoundError:
+        pass
+    try:
+        os.mkdir(name, mode=0o700, dir_fd=parent_fd)
+        created = True
+    except FileExistsError:
+        created = False
+    except OSError as error:
+        _raise_storage_error(
+            f"cannot create cache namespace {name}: {error}",
+            error,
+            category=StorageFailureCategory.LEASE_UNAVAILABLE,
+        )
+    return _open_child_directory_once(parent_fd, name, absent_is_fault=True), created
+
+
+def _open_existing_child_directory(parent_fd: int, name: str) -> int:
+    """Open one existing child directory, refusing to create it."""
+    return _open_child_directory_once(parent_fd, name, absent_is_fault=False)
 
 
 def _directory_identity(descriptor: int) -> tuple[int, int]:

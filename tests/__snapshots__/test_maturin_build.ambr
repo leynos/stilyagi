@@ -17,6 +17,7 @@
       'stilyagi/cache/extraction.py',
       'stilyagi/cache/identity.py',
       'stilyagi/cache/ir.py',
+      'stilyagi/cache/lookup.py',
       'stilyagi/cache/model.py',
       'stilyagi/cache/observability.py',
       'stilyagi/cache/storage.py',

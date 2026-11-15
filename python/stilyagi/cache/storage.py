@@ -16,6 +16,7 @@ from .storage_primitives import (
     _directory_identity,
     _open_child_directory,
     _open_directory_chain,
+    _open_existing_child_directory,
     _raise_storage_error,
     _read_marker,
     _read_regular_file,
@@ -31,7 +32,13 @@ __all__ = ["CacheStorageError", "CacheStore", "storage_outcome"]
 
 
 class CacheStore:
-    """Read and atomically replace entries inside one marked cache namespace.
+    """Read entries from, and publish entries into, one marked namespace.
+
+    Construction is a pure query: it opens the configured parent and the
+    namespace when they already exist, and holds nothing when they do not.
+    Creating either directory is a separate, explicit command,
+    :meth:`create_namespace`, so a lookup cannot publish an ownership marker
+    or a configured parent merely by running.
 
     Parameters
     ----------
@@ -43,8 +50,8 @@ class CacheStore:
     Raises
     ------
     CacheStorageError
-        If safe operations are unavailable, traversal is unsafe, or the
-        namespace is not marked as owned.
+        If safe operations are unavailable, traversal is unsafe, or an
+        existing namespace is not marked as owned.
     """
 
     def __init__(
@@ -53,19 +60,15 @@ class CacheStore:
         *,
         invocation_cwd: pathlib.Path,
     ) -> None:
-        """Open the configured parent and its exact owned namespace."""
+        """Open the namespace read-only when it already exists."""
         _require_descriptor_support()
         self._invocation_cwd = invocation_cwd.absolute()
         self._root_path = _absolute_lexical_path(cache_dir, self._invocation_cwd)
-        self._root_fd = _open_directory_chain(
-            self._root_path,
-            create=True,
-            trusted_base=self._invocation_cwd,
-        )
+        self._root_fd = -1
         self._namespace_fd = -1
         self._closed = False
         try:
-            self._adopt_namespace()
+            self._open_existing()
         except OSError as error:
             self.close()
             if isinstance(error, CacheStorageError):
@@ -79,28 +82,90 @@ class CacheStore:
             self.close()
             raise
 
-    def _adopt_namespace(self) -> None:
-        """Open, mark and verify the namespace this store will operate on."""
+    def _open_existing(self) -> None:
+        """Adopt the namespace only when it already exists and is marked.
+
+        An absent parent or namespace simply means this store adopts nothing:
+        it is a store over a cache that has never been used. Every other
+        failure still propagates, because a path that cannot be proved safe is
+        a refusal and not an absence. Reading a symlinked root as "no cache
+        yet" would hand a later publication the very redirect the no-follow
+        walk exists to reject.
+
+        Raises
+        ------
+        CacheStorageError
+            If the root or namespace exists but cannot be proved safe, or is
+            not marked as owned by Stilyagi.
+        """
+        try:
+            self._root_fd = _open_directory_chain(
+                self._root_path,
+                create=False,
+                trusted_base=self._invocation_cwd,
+            )
+        except CacheStorageError as error:
+            if isinstance(error.__cause__, FileNotFoundError):
+                return
+            raise
         self._root_identity = _directory_identity(self._root_fd)
+        try:
+            self._namespace_fd = _open_existing_child_directory(
+                self._root_fd,
+                CACHE_NAMESPACE_NAME,
+            )
+        except FileNotFoundError:
+            return
+        self._namespace_identity = _directory_identity(self._namespace_fd)
+        self._require_owned_marker()
+        self._verify_directories()
+
+    def _require_owned_marker(self) -> None:
+        """Refuse a namespace whose marker is absent or inexact."""
+        if _read_marker(self._namespace_fd) != OWNER_MARKER_BYTES:
+            _raise_storage_error(
+                f"cache namespace {CACHE_NAMESPACE_NAME} is not owned by Stilyagi",
+                category=StorageFailureCategory.OWNERSHIP_REFUSED,
+            )
+
+    def create_namespace(self) -> None:
+        """Create the configured parent, namespace and marker when absent.
+
+        This is the only route by which a store brings storage into being.
+        It is idempotent, and it re-derives the held identities afterwards so
+        a store built over an absent namespace can then publish entries.
+        A creation, ownership or verification refusal surfaces as a
+        :class:`CacheStorageError` raised by the helpers this delegates to.
+
+        Examples
+        --------
+        >>> # A cold store holds no descriptors until this call creates them.
+        >>> # See tests/test_cache_storage.py for a real temporary directory.
+        """
+        if self._namespace_fd >= 0:
+            self._verify_directories()
+            return
+        if self._root_fd < 0:
+            self._root_fd = _open_directory_chain(
+                self._root_path,
+                create=True,
+                trusted_base=self._invocation_cwd,
+            )
+            self._root_identity = _directory_identity(self._root_fd)
         self._namespace_fd, created = _open_child_directory(
             self._root_fd,
             CACHE_NAMESPACE_NAME,
         )
         self._namespace_identity = _directory_identity(self._namespace_fd)
-        self._require_owned_marker(created=created)
-        self._verify_directories()
-
-    def _require_owned_marker(self, *, created: bool) -> None:
-        """Write the marker only when this store created the namespace."""
-        marker = _read_marker(self._namespace_fd)
-        if marker is None and created:
-            _write_marker(self._namespace_fd)
-            marker = _read_marker(self._namespace_fd)
-        if marker != OWNER_MARKER_BYTES:
-            _raise_storage_error(
-                f"cache namespace {CACHE_NAMESPACE_NAME} is not owned by Stilyagi",
-                category=StorageFailureCategory.OWNERSHIP_REFUSED,
-            )
+        try:
+            if created:
+                _write_marker(self._namespace_fd)
+            self._require_owned_marker()
+            self._verify_directories()
+        except BaseException:
+            _close_descriptor(self._namespace_fd)
+            self._namespace_fd = -1
+            raise
 
     def __enter__(self) -> CacheStore:
         """Return this open store as a context manager."""
@@ -111,7 +176,12 @@ class CacheStore:
         self.close()
 
     def close(self) -> None:
-        """Close the namespace and configured-parent descriptors once."""
+        """Close the namespace and configured-parent descriptors once.
+
+        A store that adopted no namespace still holds the configured parent
+        when it exists, and holds nothing at all when it does not, so each
+        descriptor is closed only when it was opened.
+        """
         if self._closed:
             return
         self._closed = True
@@ -119,7 +189,8 @@ class CacheStore:
             if self._namespace_fd >= 0:
                 _close_descriptor(self._namespace_fd)
         finally:
-            _close_descriptor(self._root_fd)
+            if self._root_fd >= 0:
+                _close_descriptor(self._root_fd)
 
     def _verify_directories(self) -> None:
         """Reject a replaced root or namespace before touching an entry."""
@@ -169,13 +240,17 @@ class CacheStore:
         Returns
         -------
         bytes or None
-            The stored envelope, or ``None`` when no entry exists.
+            The stored envelope, or ``None`` when no entry exists. A store
+            that adopted no namespace has no entries, so it reports ``None``
+            without touching the filesystem.
 
         Examples
         --------
         >>> # A new, marked store returns None until its first write.
         >>> # See tests/test_cache_storage.py for a real temporary directory.
         """
+        if self._namespace_fd < 0:
+            return None
         entry_name = cache_entry_name(key)
         self._verify_directories()
         try:
@@ -214,8 +289,14 @@ class CacheStore:
         Raises
         ------
         CacheStorageError
-            If safe descriptor-relative creation or atomic replacement fails.
+            If the store holds no namespace, or safe descriptor-relative
+            creation or atomic replacement fails.
         """
+        if self._namespace_fd < 0:
+            _raise_storage_error(
+                "cannot write to a cache namespace that was never created",
+                category=StorageFailureCategory.LEASE_UNAVAILABLE,
+            )
         entry_name = cache_entry_name(key)
         self._verify_directories()
         temporary_name = f".tmp-{secrets.token_hex(16)}"

@@ -173,7 +173,7 @@ class _GeneratedCacheRun:
         """Compare service output and parser calls with the independent oracle."""
         should_parse = self._predict_selection(force_fresh=force_fresh)
         before_calls = len(self.calls)
-        result = self.service.extract(
+        lookup = self.service.lookup(
             CacheExtractionInput(
                 source_text=self.source,
                 syntax=model.Syntax.MARKDOWN,
@@ -183,6 +183,8 @@ class _GeneratedCacheRun:
                 force_fresh=force_fresh,
             )
         )
+        self.service.publish(lookup)
+        result = lookup.result
         expected = engine.extract_document_result(
             self.source,
             model.Syntax.MARKDOWN,

@@ -9,11 +9,18 @@ import typing as typ
 if typ.TYPE_CHECKING:
     import pathlib
 
-from stilyagi import config, engine, model
+from stilyagi import engine, model
 from stilyagi.config.inspection import _config_table
 
 from .identity import builtin_pack_signature, native_extension_digest
 from .ir import InvalidCacheEntryError, decode_cache_entry, encode_cache_entry
+from .lookup import (
+    CacheAdapter,
+    CacheExtractionInput,
+    CacheLookup,
+    CacheStoreFactory,
+    Publication,
+)
 from .model import ExtractionRequest, cache_key
 from .observability import CacheEventCounts, storage_span
 from .storage import CacheStorageError, CacheStore, storage_outcome
@@ -32,22 +39,6 @@ type ExtractionCallable = cabc.Callable[
 ]
 type NativeDigestFactory = cabc.Callable[[], str]
 type BuiltinSignatureFactory = cabc.Callable[[cabc.Mapping[str, object]], str]
-
-
-class _CacheAdapter(typ.Protocol):
-    """Narrow serialized-artefact operations used by the extraction policy."""
-
-    def read(self, key: str, /) -> bytes | None:
-        """Return one stored envelope or no entry."""
-
-    def write(self, key: str, content: bytes, /) -> None:
-        """Atomically store one already-serialized envelope."""
-
-    def close(self) -> None:
-        """Close storage descriptors held by the adapter."""
-
-
-type CacheStoreFactory = cabc.Callable[..., _CacheAdapter]
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -79,37 +70,6 @@ class CacheServiceConfig:
     native_digest_factory: NativeDigestFactory | None = None
     builtin_signature_factory: BuiltinSignatureFactory | None = None
     storage_factory: CacheStoreFactory | None = None
-
-
-@dc.dataclass(frozen=True, slots=True)
-class CacheExtractionInput:
-    """Describe one file's source, effective config, and bypass policy.
-
-    Parameters
-    ----------
-    source_text
-        UTF-8-decoded source text read without newline translation.
-    syntax
-        Syntax selected by discovery for the input.
-    reported_identity
-        User-visible path embedded in canonical IR metadata.
-    effective_config
-        Resolved per-file configuration; provenance is excluded from keying.
-    cache_dir
-        Configured parent directory for this file's disposable cache.
-    from_stdin
-        Standard input always bypasses persistent storage.
-    force_fresh
-        Post-fix verification must extract the bytes written to disk again.
-    """
-
-    source_text: str
-    syntax: model.Syntax
-    reported_identity: str
-    effective_config: config.StilyagiConfig
-    cache_dir: pathlib.Path
-    from_stdin: bool = False
-    force_fresh: bool = False
 
 
 def _default_extractor(
@@ -166,7 +126,7 @@ class CacheExtractionService:
         )
         self._native_digest: str | None = None
         self._builtin_signatures: dict[tuple[str, ...], str] = {}
-        self._stores: dict[pathlib.Path, _CacheAdapter] = {}
+        self._stores: dict[pathlib.Path, CacheAdapter] = {}
         self._unusable_roots: set[pathlib.Path] = set()
         self.counters = CacheEventCounts()
 
@@ -208,8 +168,13 @@ class CacheExtractionService:
         finally:
             self.no_cache = saved_policy
 
-    def extract(self, request: CacheExtractionInput) -> engine.ExtractionResult:
-        """Return the current Rust extraction for one file request.
+    def lookup(self, request: CacheExtractionInput) -> CacheLookup:
+        """Return a cache hit, or the fresh extraction to publish.
+
+        This is a query: it opens the configured parent and namespace only
+        when they already exist, publishes no ownership marker, and writes no
+        entry. A miss therefore leaves the filesystem exactly as it found it,
+        and :meth:`publish` is the separate command that persists the result.
 
         Parameters
         ----------
@@ -218,34 +183,59 @@ class CacheExtractionService:
 
         Returns
         -------
-        stilyagi.engine.extraction.ExtractionResult
-            The current extraction, hydrated from a valid cache entry when the
-            request is eligible and the stored envelope passes validation.
+        CacheLookup
+            The extraction to return, the key that identified it, and the
+            serialized bytes :meth:`publish` should store, or ``None`` when
+            the request bypasses storage or has nothing worth storing.
+
+        Examples
+        --------
+        >>> # A cold lookup reports a miss and writes no cache entry.
+        >>> # See tests/test_extraction_cache.py for a real temporary directory.
         """
         if request.syntax is not model.Syntax.MARKDOWN:
-            return self._fresh(request)
+            return CacheLookup(result=self._fresh(request))
         if self.no_cache or self._should_bypass(request):
             self._record_bypass("bypassed", "debug")
-            return self._fresh(request)
-        return self._extract_with_cache(request)
+            return CacheLookup(result=self._fresh(request))
+        return self._lookup_with_cache(request)
+
+    def publish(self, lookup: CacheLookup) -> None:
+        """Store the bytes one lookup prepared, when it has any.
+
+        Parameters
+        ----------
+        lookup
+            The result of :meth:`lookup` for this same request. Publishing
+            the preparation the lookup made is what keeps the stored key and
+            the stored bytes derived from one reading of the request.
+        """
+        if lookup.publication is None:
+            return
+        pending = lookup.publication
+        try:
+            with storage_span("write"):
+                pending.store.create_namespace()
+                pending.store.write(pending.key, pending.content)
+        except CacheStorageError as error:
+            self._event(storage_outcome("write", error.category), "warning")
+            self.counters.write_failures += 1
+            self._discard_store(pending.store_key)
 
     @staticmethod
     def _should_bypass(request: CacheExtractionInput) -> bool:
         """Return whether input origin or verification policy bypasses storage."""
         return any((request.from_stdin, request.force_fresh))
 
-    def _extract_with_cache(
-        self,
-        extraction_input: CacheExtractionInput,
-    ) -> engine.ExtractionResult:
-        """Read a valid hit or extract and atomically publish a cache miss."""
+    def _lookup_with_cache(self, extraction_input: CacheExtractionInput) -> CacheLookup:
+        """Return a valid hit, or prepare a miss for explicit publication."""
         normalized_config = _config_table(extraction_input.effective_config)
         try:
             request = self._request(extraction_input, normalized_config)
         except (ImportError, OSError, TypeError, ValueError) as error:
             self._record_bypass("identity_unavailable", "warning")
             _LOGGER.debug("cache identity unavailable: %s", error)
-            return self._fresh(extraction_input)
+            return CacheLookup(result=self._fresh(extraction_input))
 
         key = cache_key(request)
         store_key = _absolute_lexical_path(
@@ -254,31 +244,39 @@ class CacheExtractionService:
         )
         if store_key in self._unusable_roots:
             self.counters.bypasses += 1
-            return self._fresh(extraction_input)
+            return CacheLookup(result=self._fresh(extraction_input))
         try:
             with storage_span("open"):
                 store = self._store_for(extraction_input.cache_dir, store_key)
         except CacheStorageError as error:
             self._unusable_roots.add(store_key)
             self._record_bypass(storage_outcome("open", error.category), "warning")
-            return self._fresh(extraction_input)
+            return CacheLookup(result=self._fresh(extraction_input))
         try:
             with storage_span("read"):
                 cached = store.read(key)
         except CacheStorageError as error:
             self._record_bypass(storage_outcome("read", error.category), "warning")
             self._discard_store(store_key)
-            return self._fresh(extraction_input)
+            return CacheLookup(result=self._fresh(extraction_input))
 
         hydrated = self._hydrate_cached(cached, key, request)
         if hydrated is not None:
-            return hydrated
+            return CacheLookup(result=hydrated)
         self._event("miss", "debug")
         self.counters.misses += 1
         result = self._fresh(extraction_input)
-        if result.canonical_json is not None:
-            self._write_cache(store, store_key, key, result.canonical_json)
-        return result
+        publication = (
+            None
+            if result.canonical_json is None
+            else Publication(
+                store=store,
+                store_key=store_key,
+                key=key,
+                content=encode_cache_entry(key, result.canonical_json),
+            )
+        )
+        return CacheLookup(result=result, publication=publication)
 
     def _hydrate_cached(
         self,
@@ -298,22 +296,6 @@ class CacheExtractionService:
         self._event("hit", "debug")
         self.counters.hits += 1
         return result
-
-    def _write_cache(
-        self,
-        store: _CacheAdapter,
-        store_key: pathlib.Path,
-        key: str,
-        canonical_json: str,
-    ) -> None:
-        """Publish one successful extraction without changing its result."""
-        try:
-            with storage_span("write"):
-                store.write(key, encode_cache_entry(key, canonical_json))
-        except CacheStorageError as error:
-            self._event(storage_outcome("write", error.category), "warning")
-            self.counters.write_failures += 1
-            self._discard_store(store_key)
 
     def _request(
         self,
@@ -343,7 +325,7 @@ class CacheExtractionService:
 
     def _store_for(
         self, cache_dir: pathlib.Path, store_key: pathlib.Path
-    ) -> _CacheAdapter:
+    ) -> CacheAdapter:
         """Open one lazy store per normalized configured parent."""
         if store_key not in self._stores:
             self._stores[store_key] = self._storage_factory(

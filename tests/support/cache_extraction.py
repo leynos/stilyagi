@@ -107,8 +107,8 @@ def extract_cached_document(
     config: StilyagiConfig,
     request: CacheTestRequest = _DEFAULT_REQUEST,
 ) -> engine.ExtractionResult:
-    """Run the service with one stable Markdown request."""
-    return service.extract(
+    """Run the service with one stable Markdown request, publishing any miss."""
+    lookup = service.lookup(
         CacheExtractionInput(
             source_text=request.source,
             syntax=model.Syntax.MARKDOWN,
@@ -119,3 +119,5 @@ def extract_cached_document(
             force_fresh=request.force_fresh,
         )
     )
+    service.publish(lookup)
+    return lookup.result
