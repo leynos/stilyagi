@@ -123,12 +123,22 @@ def _publisher() -> tuple[str, WorkflowDocument, str, WorkflowJob]:
 
 
 def _coverage_step(document: WorkflowDocument) -> WorkflowStep:
-    """Return the one step invoking the shared coverage action."""
+    """Return the one measuring step invoking the shared coverage action.
+
+    A build-only step compiles for the compiler cache and measures nothing, so
+    it is not the step whose selection the ratchet compares.
+
+    Returns
+    -------
+    WorkflowStep
+        The sole measuring step in the document.
+    """
     found = [
         step
         for job in _jobs(document).values()
         for step in _steps(job)
         if _action_of(step) == COVERAGE_ACTION
+        and (step.get("with") or {}).get("build-only") != "true"
     ]
     assert len(found) == 1, f"expected one coverage step, found {found}"
     return found[0]

@@ -3138,13 +3138,16 @@ doctest run and the failure never reaches the recipe's exit status.
 
 ### 6i. Runner placement
 
-`smoke.yml`'s `lint-test` and `coverage-main.yml`'s `coverage-upload` run on
-`ubicloud-standard-4`. `coverage-main.yml`'s `coverage-upload` selects it with
-the runner-selection expression:
-
-```yaml
-runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
-```
+`smoke.yml`'s `lint-test` runs on `ubicloud-standard-4`. `coverage-main.yml`
+splits three ways. `coverage-upload` runs the tests and coverage and uploads to
+CodeScene on `ubuntu-latest`: a hosted runner cannot write Ubicloud's cache
+store, so it carries no compiler cache and hands the measured ratchet figures
+over as an artefact (`publish-baseline: never`). `coverage-baseline`
+(`ubicloud-standard-2`) saves that baseline into the store the Ubicloud
+pull-request lane reads, and `coverage-warmup` (`ubicloud-standard-4`) compiles
+the instrumented tests so their compiler-cache entries sit in main's scope. The
+two Ubicloud jobs run on pushes to main only and name their class outright,
+with no fork fallback.
 
 `smoke.yml`'s `lint-test` runs on pull requests, so its expression also sends
 Dependabot's pull requests to the hosted pool:
@@ -3162,9 +3165,9 @@ shortfall: `lint-test` took 12.4 and 13.5 minutes on two vCPUs (runs
 
 A pull request from a fork cannot obtain an Ubicloud runner, so it falls back to
 `ubuntu-latest`; a push and a dispatch have no pull request, so the fork value
-is null and they select Ubicloud. A push to `main` runs both lanes, so main
-writes the Ubicloud cache scope a pull request reads, on the same class as the
-reader. Ubicloud's cache proxy is scoped by ref, so a pull request's lane reads
+is null and they select Ubicloud. A push to `main` runs `lint-test` and the two
+Ubicloud coverage jobs, so main writes the Ubicloud cache scope a pull request
+reads. Ubicloud's cache proxy is scoped by ref, so a pull request's lane reads
 a warm main scope only when a main job on Ubicloud writes it. A fork's pull
 request restores a hosted cache that main no longer refreshes; fork pull
 requests are rare here, and a second hosted writer would pay double on every
@@ -3180,10 +3183,15 @@ would pay double on every main push. The expression tests the pull request's
 author, not the actor, so a person re-running or pushing to a Dependabot branch
 does not move the run onto Ubicloud.
 
-Both jobs keep their 100-minute ceilings. An Ubicloud runner is a self-hosted
+`lint-test`, `coverage-upload` and `coverage-warmup` keep 100-minute ceilings
+(`coverage-baseline` states 15). An Ubicloud runner is a self-hosted
 just-in-time runner, so GitHub's six-hour cap for hosted jobs does not bound it
-and each job must state its own; section 12 holds each of them above that job's
-4,080 s cargo watchdog, so neither can be set to twice a warm run.
+and each job must state its own; section 12 holds every job invoking the
+coverage action above the 4,080 s cargo watchdog, so none can be set to twice a
+warm run. `coverage-baseline` invokes no coverage action and inherits no
+watchdog, so its 15-minute ceiling bounds only the baseline handover.
+`tests/test_coverage_main_runners.py` names each `coverage-main.yml` job's
+runner outright and admits no other job.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
 models the two accepted expressions rather than evaluating them in GitHub
@@ -3830,6 +3838,9 @@ The sample is the last 60 runs of `smoke.yml`, 43 successful and 17 failed, and
 all 25 runs of `coverage-main.yml`, all successful. Neither history contains a
 cancelled or timeout-terminated run, so no run in the sample was ended by any
 of these four timers, and the measurements are of work that completed.
+`coverage-baseline` and `coverage-warmup` are absent from the table because
+they postdate that history: they have no runs to measure yet, so they take the
+same 15-minute allowance and the same margin as the lanes that do.
 
 The widest gap is 541 s, so the contract allows 15 minutes, and a further 15 is
 the estate's margin above the requirement. Against the 68-minute watchdog that
