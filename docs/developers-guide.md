@@ -2977,9 +2977,9 @@ does not move the run onto Ubicloud.
 states 15). An Ubicloud runner is a self-hosted just-in-time runner, so
 GitHub's six-hour cap for hosted jobs does not bound it and each job must state
 its own; section 12 holds the coverage jobs above the 1,800 s cargo watchdog,
-so neither can be set to twice a warm run. The placement test names the two
-main-only jobs in its `MAIN_ONLY` inventory and expects their class outright,
-and checks that `coverage-upload` stays on `ubuntu-latest`.
+so neither can be set to twice a warm run.
+`tests/test_coverage_main_runners.py` names each `coverage-main.yml` job's
+runner outright and admits no other job.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
 models the two accepted expressions rather than evaluating them in GitHub

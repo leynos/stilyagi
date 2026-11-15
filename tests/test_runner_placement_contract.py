@@ -39,18 +39,7 @@ PLACEMENTS: typ.Final = (
     ("smoke.yml", "lint-test", "ubicloud-standard-4", "60"),
 )
 
-#: The inventoried lanes that run on a push to main only, so no pull request
-#: reaches them and they name their Ubicloud class outright, with no fork
-#: fallback. coverage-main.yml's coverage-upload is not here: it measures and
-#: uploads on a GitHub-hosted runner, which cannot write Ubicloud's cache store,
-#: and these two jobs write what the Ubicloud pull-request lane reads from main.
-MAIN_ONLY: typ.Final = frozenset({
-    ("coverage-main.yml", "coverage-baseline"),
-    ("coverage-main.yml", "coverage-warmup"),
-})
-
-#: The inventoried lanes that also send Dependabot's pull requests to the hosted
-#: pool. coverage-main.yml runs on pushes to main only, so it has no such arm.
+#: The lanes that send Dependabot's pull requests to the hosted pool as well.
 DEPENDABOT_HOSTED: typ.Final = frozenset({("smoke.yml", "lint-test")})
 
 #: The runner-selection shape: a condition, a quoted hosted arm and a quoted
@@ -387,30 +376,12 @@ def test_every_ubicloud_lane_is_placed_by_the_expression_and_states_a_ceiling(
     for (name, job, runs_on, _), (_, _, label, _) in zip(
         placed, PLACEMENTS, strict=True
     ):
-        if (name, job) in MAIN_ONLY:
-            assert runs_on == label, f"{name}: {job} runs on {runs_on}, wanted {label}"
+        if name == "coverage-main.yml":  # push-only; its jobs are checked outright
             continue
         faults = placement_faults(
             runs_on, label, dependabot_hosted=(name, job) in DEPENDABOT_HOSTED
         )
         assert not faults, f"{name}: {job} is misplaced: {faults}"
-
-
-def test_the_measuring_job_runs_on_the_hosted_pool(
-    documents: dict[str, WorkflowDocument],
-) -> None:
-    """Keep coverage-upload hosted: a hosted job cannot write Ubicloud's cache.
-
-    The baseline and warmup jobs beside it carry what the Ubicloud lane reads.
-
-    Parameters
-    ----------
-    documents
-        This repository's workflows, parsed once for the session.
-    """
-    jobs = dict(_job_mappings(documents["coverage-main.yml"]))
-    runs_on = jobs["coverage-upload"].get("runs-on")
-    assert runs_on == HOSTED_LABEL, f"coverage-upload runs on {runs_on}"
 
 
 def test_an_indirect_ubicloud_runner_is_inventoried_and_rejected() -> None:
