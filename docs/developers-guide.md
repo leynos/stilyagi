@@ -2928,13 +2928,16 @@ doctest run and the failure never reaches the recipe's exit status.
 
 ### 6i. Runner placement
 
-`smoke.yml`'s `lint-test` and `coverage-main.yml`'s `coverage-upload` run on
-`ubicloud-standard-4`. `coverage-main.yml`'s `coverage-upload` selects it with
-the runner-selection expression:
-
-```yaml
-runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
-```
+`smoke.yml`'s `lint-test` runs on `ubicloud-standard-4`. `coverage-main.yml`
+splits three ways. `coverage-upload` runs the tests and coverage and uploads to
+CodeScene on `ubuntu-latest`: a hosted runner cannot write Ubicloud's cache
+store, so it carries no compiler cache and hands the measured ratchet figures
+over as an artefact (`publish-baseline: never`). `coverage-baseline`
+(`ubicloud-standard-2`) saves that baseline into the store the Ubicloud
+pull-request lane reads, and `coverage-warmup` (`ubicloud-standard-4`) compiles
+the instrumented tests so their compiler-cache entries sit in main's scope. The
+two Ubicloud jobs run on pushes to main only and name their class outright,
+with no fork fallback.
 
 `smoke.yml`'s `lint-test` runs on pull requests, so its expression also sends
 Dependabot's pull requests to the hosted pool:
@@ -2952,9 +2955,9 @@ shortfall: `lint-test` took 12.4 and 13.5 minutes on two vCPUs (runs
 
 A pull request from a fork cannot obtain an Ubicloud runner, so it falls back to
 `ubuntu-latest`; a push and a dispatch have no pull request, so the fork value
-is null and they select Ubicloud. A push to `main` runs both lanes, so main
-writes the Ubicloud cache scope a pull request reads, on the same class as the
-reader. Ubicloud's cache proxy is scoped by ref, so a pull request's lane reads
+is null and they select Ubicloud. A push to `main` runs `lint-test` and the two
+Ubicloud coverage jobs, so main writes the Ubicloud cache scope a pull request
+reads. Ubicloud's cache proxy is scoped by ref, so a pull request's lane reads
 a warm main scope only when a main job on Ubicloud writes it. A fork's pull
 request restores a hosted cache that main no longer refreshes; fork pull
 requests are rare here, and a second hosted writer would pay double on every
@@ -2970,10 +2973,13 @@ would pay double on every main push. The expression tests the pull request's
 author, not the actor, so a person re-running or pushing to a Dependabot branch
 does not move the run onto Ubicloud.
 
-Both jobs keep their 60-minute ceilings. An Ubicloud runner is a self-hosted
-just-in-time runner, so GitHub's six-hour cap for hosted jobs does not bound it
-and each job must state its own; section 12 holds these two above the 1,800 s
-cargo watchdog, so neither can be set to twice a warm run.
+`lint-test` and `coverage-warmup` keep 60-minute ceilings (`coverage-baseline`
+states 15). An Ubicloud runner is a self-hosted just-in-time runner, so
+GitHub's six-hour cap for hosted jobs does not bound it and each job must state
+its own; section 12 holds the coverage jobs above the 1,800 s cargo watchdog,
+so neither can be set to twice a warm run. The placement test names the two
+main-only jobs in its `MAIN_ONLY` inventory and expects their class outright,
+and checks that `coverage-upload` stays on `ubuntu-latest`.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
 models the two accepted expressions rather than evaluating them in GitHub

@@ -51,11 +51,13 @@ env:
 
 jobs:
   coverage-upload:
-    # Ubicloud's cache proxy is scoped by ref, so a pull request's Ubicloud
-    # lint-test reads a warm main scope only if a main job on Ubicloud writes
-    # it. This is a main writer. The fork arm never applies on push or
-    # dispatch; it is kept so every Ubicloud lane reads the same way.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
+    name: coverage-upload
+    # Main-only: no pull request can start this workflow, so it needs no fork
+    # fallback arm. This job measures and uploads on a GitHub-hosted runner,
+    # with no compiler cache (a hosted runner's sccache reaches only GitHub's
+    # store, which no Ubicloud lane reads). The two Ubicloud jobs below carry
+    # what the Ubicloud pull-request lane reads from main.
+    runs-on: ubuntu-latest
     # The CodeScene token lives in this environment, whose deployment policy
     # admits `main` alone; the codescene environment contract holds it to
     # this job.
@@ -86,6 +88,9 @@ jobs:
 
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        with:
+          use-sccache: 'false'
+          save-cache: 'false'
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
@@ -136,6 +141,11 @@ jobs:
           format: cobertura
           use-cargo-nextest: 'true'
           with-ratchet: 'true'
+          # `coverage-baseline` saves the baseline on Ubicloud, where the
+          # pull-request lane reads it: this hosted job cannot write that
+          # store, so it hands the measured figures over as an artefact.
+          publish-baseline: never
+          baseline-artefact-name: coverage-baseline-handover
           pytest-workers: ''
 
       # Publishes whether the token exists, and nothing else. The token
@@ -172,3 +182,61 @@ jobs:
           # the value across under the new name would fail every run.
           # The action pins cs-coverage through its own manifest now,
           # which is what that variable was standing in for.
+
+  coverage-baseline:
+    name: coverage-baseline
+    # Saves the ratchet baseline the measuring job hands over, into the store
+    # the Ubicloud pull-request lane reads. It does no compiling. The action
+    # publishes only on a push to `main`.
+    needs: coverage-upload
+    runs-on: ubicloud-standard-2
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Publish the ratchet baseline
+        uses: leynos/shared-actions/.github/actions/publish-coverage-baseline@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        with:
+          artefact-name: coverage-baseline-handover
+
+  coverage-warmup:
+    name: coverage-warmup
+    # Build-only: compiles the pull-request lane's instrumented test binaries
+    # so their compiler-cache entries sit in main's Ubicloud scope, which a
+    # pull request reads only if a main job on Ubicloud writes it. It runs no
+    # test and uploads nothing.
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.14"
+
+      - name: Setup Rust
+        uses: leynos/shared-actions/.github/actions/setup-rust@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+
+      - name: Install the build standard
+        run: make install-build-tools
+
+      - name: Compile the instrumented tests
+        # The same flags as smoke.yml's coverage step, so the cache entries
+        # written here are the ones the pull-request lane reads.
+        env:
+          RUSTFLAGS: -D warnings
+        uses: leynos/shared-actions/.github/actions/generate-coverage@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
+        with:
+          output-path: coverage.xml
+          format: cobertura
+          use-cargo-nextest: 'true'
+          build-only: 'true'

@@ -1,0 +1,9 @@
+# Runner labels actionlint cannot know about.
+#
+# actionlint validates `runs-on` against GitHub's own label set and reports
+# anything else as an unknown runner. Ubicloud's labels are not in that set,
+# and coverage-main.yml names two of them as plain labels.
+self-hosted-runner:
+  labels:
+    - ubicloud-standard-2
+    - ubicloud-standard-4
