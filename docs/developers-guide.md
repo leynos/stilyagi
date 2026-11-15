@@ -1651,13 +1651,14 @@ behaviourally identical to `release`.
 
 The `.github/workflows/smoke.yml` workflow is the bounded CI smoke path for
 this repository. Its `lint-test` job (on an Ubicloud runner, with a hosted
-fallback for a fork's pull request) installs Python, Rust, `uv`, the pinned
-build tools (`make install-build-tools`), and the support tools required by the
-checked targets, then runs `make check-fmt`, `make markdownlint`, `make nixie`,
-`make typecheck`, `make lint`, and `make test-doc`. Its `release-smoke` matrix
-builds and smoke-tests release wheels on Ubuntu, macOS, and Windows. The
-workflow is not release publishing automation; it proves that local development
-installs and release wheels exercise the same PyO3 boundary.
+fallback for a fork's or Dependabot's pull request) installs Python, Rust,
+`uv`, the pinned build tools (`make install-build-tools`), and the support
+tools required by the checked targets, then runs `make check-fmt`,
+`make markdownlint`, `make nixie`, `make typecheck`, `make lint`, and
+`make test-doc`. Its `release-smoke` matrix builds and smoke-tests release
+wheels on Ubuntu, macOS, and Windows. The workflow is not release publishing
+automation; it proves that local development installs and release wheels
+exercise the same PyO3 boundary.
 
 CI runs `make test-doc` rather than `make test` because every other part of
 `make test` already runs once per event. The coverage step in `smoke.yml` on a
@@ -2928,11 +2929,21 @@ doctest run and the failure never reaches the recipe's exit status.
 ### 6i. Runner placement
 
 `smoke.yml`'s `lint-test` and `coverage-main.yml`'s `coverage-upload` run on
-`ubicloud-standard-4`. `runs-on` selects it with the runner-selection
-expression:
+`ubicloud-standard-4`. `coverage-main.yml`'s `coverage-upload` selects it with
+the runner-selection expression:
 
 ```yaml
 runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
+```
+
+`smoke.yml`'s `lint-test` runs on pull requests, so its expression also sends
+Dependabot's pull requests to the hosted pool:
+
+```yaml
+runs-on: >-
+  ${{ (github.event.pull_request.head.repo.fork
+  || github.event.pull_request.user.login == 'dependabot[bot]')
+  && 'ubuntu-latest' || 'ubicloud-standard-4' }}
 ```
 
 It is `standard-4` rather than the estate's `standard-2` on a measured
@@ -2956,12 +2967,14 @@ and each job must state its own; section 12 holds these two above the 1,800 s
 cargo watchdog, so neither can be set to twice a warm run.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
-evaluates the expression for a push or dispatch, a same-repository pull request
-and a fork, rejects a literal label, inverted arms, another label and another
-condition, inventories and refuses a runner named through the matrix, and
-asserts an exact inventory of the jobs that can land on Ubicloud with their
-runner class and ceiling. A change that adds, removes or re-times such a job
-fails it until the inventory is updated in the same commit.
+evaluates the expression for a push or dispatch, a same-repository pull
+request, a Dependabot pull request and a fork, expects the Dependabot arm only
+on the lanes listed in its `DEPENDABOT_HOSTED` inventory (today `lint-test`),
+rejects a literal label, inverted arms, another label and another condition,
+inventories and refuses a runner named through the matrix, and asserts an exact
+inventory of the jobs that can land on Ubicloud with their runner class and
+ceiling. A change that adds, removes or re-times such a job fails it until the
+inventory is updated in the same commit.
 
 ### The Makefile parser in CI
 

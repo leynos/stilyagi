@@ -196,7 +196,7 @@ def test_a_goal_that_reaches_nothing_makes_the_job_irrelevant(reach: MakeReach) 
             "${{ github.event.pull_request.head.repo.fork"
             " && ('ubuntu-latest') || ('ubicloud-standard-4') }}",
             {"ubuntu-latest", "ubicloud-standard-4"},
-            id="selection_expression_with_parenthesised_arms",
+            id="selection_expression_with_parenthesized_arms",
         ),
         pytest.param(
             "${{ github.event.pull_request.user.login != 'dependabot[bot]'"

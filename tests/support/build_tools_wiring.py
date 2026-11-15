@@ -44,7 +44,7 @@ _SWALLOWED_FAILURE: typ.Final = re.compile(r"\|\|\s*(?:true|:|exit\s+0)\b")
 # A quoted string in a runner-selection expression, with the comparison
 # operator in front of it when there is one. A string after `==` or `!=` is a
 # condition operand (`user.login == 'dependabot[bot]'`), not a runner label;
-# every other quoted string is an arm, parenthesised or not.
+# every other quoted string is an arm, parenthesized or not.
 _QUOTED: typ.Final = re.compile(r"(?:(?P<operator>[=!]=)\s*)?'(?P<text>[^']*)'")
 _MATRIX_REFERENCE: typ.Final = re.compile(r"^\$\{\{\s*matrix\.([\w-]+)\s*\}\}$")
 _LINUX_PREFIXES: typ.Final = ("ubuntu", "ubicloud")
