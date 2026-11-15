@@ -71,7 +71,7 @@ jobs:
       - name: Install test runner
         # The generate-coverage action below reuses a preinstalled
         # cargo-nextest rather than installing its own; at shared-actions
-        # 6cec89ba it pins CARGO_NEXTEST_VERSION = "0.9.145". This version
+        # 6f53870b it pins CARGO_NEXTEST_VERSION = "0.9.145". This version
         # must equal that constant, or this lane and the main baseline run
         # different test runners and the ratchet compares two builds rather
         # than two commits. Re-read the constant when the shared-actions pin

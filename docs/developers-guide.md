@@ -2695,7 +2695,7 @@ two builds rather than between two commits, and it does so silently.
 from two lanes race.
 
 **The runner is part of that selection.** Both lanes pin the same
-`generate-coverage` action commit, and at shared-actions `6cec89ba` that
+`generate-coverage` action commit, and at shared-actions `6f53870b` that
 action's `scripts/install_cargo_nextest.py` declares
 `CARGO_NEXTEST_VERSION = "0.9.145"` and reuses a preinstalled `cargo-nextest`
 rather than installing its own. `smoke.yml` therefore preinstalls exactly
