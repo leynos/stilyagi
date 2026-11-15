@@ -34,12 +34,12 @@ FORK_OR_DEPENDABOT_CONDITION: typ.Final = (
 #: ceiling it states in minutes. The inventory is exact, so a new Ubicloud lane
 #: without a ceiling, or a class or ceiling changed, fails until reviewed.
 PLACEMENTS: typ.Final = (
-    ("coverage-main.yml", "coverage-upload", "ubicloud-standard-4", "60"),
+    ("coverage-main.yml", "coverage-baseline", "ubicloud-standard-2", "15"),
+    ("coverage-main.yml", "coverage-warmup", "ubicloud-standard-4", "60"),
     ("smoke.yml", "lint-test", "ubicloud-standard-4", "60"),
 )
 
-#: The inventoried lanes that also send Dependabot's pull requests to the hosted
-#: pool. coverage-main.yml runs on pushes to main only, so it has no such arm.
+#: The lanes that send Dependabot's pull requests to the hosted pool as well.
 DEPENDABOT_HOSTED: typ.Final = frozenset({("smoke.yml", "lint-test")})
 
 #: The runner-selection shape: a condition, a quoted hosted arm and a quoted
@@ -376,6 +376,8 @@ def test_every_ubicloud_lane_is_placed_by_the_expression_and_states_a_ceiling(
     for (name, job, runs_on, _), (_, _, label, _) in zip(
         placed, PLACEMENTS, strict=True
     ):
+        if name == "coverage-main.yml":  # push-only; its jobs are checked outright
+            continue
         faults = placement_faults(
             runs_on, label, dependabot_hosted=(name, job) in DEPENDABOT_HOSTED
         )

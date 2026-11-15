@@ -92,6 +92,7 @@ REQUIRED_WATCHDOG_SECONDS: typ.Final[float] = 1800.0
 REQUIRED_CONDITIONS: typ.Final[dict[tuple[str, str], tuple[object, object]]] = {
     ("smoke.yml", "lint-test"): ("github.event_name == 'pull_request'", None),
     ("coverage-main.yml", "coverage-upload"): (None, None),
+    ("coverage-main.yml", "coverage-warmup"): (None, None),
 }
 
 #: How far a ceiling must sit above the sum it contains, rather than
