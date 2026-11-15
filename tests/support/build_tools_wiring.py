@@ -41,10 +41,11 @@ _SUITE_COMMAND: typ.Final = re.compile(
     r"\bcargo\s+(?:nextest\s+run|llvm-cov)\b|(?<![\w-])pytest\b"
 )
 _SWALLOWED_FAILURE: typ.Final = re.compile(r"\|\|\s*(?:true|:|exit\s+0)\b")
-# An expression arm is a quoted label right after `&&` or `||`. A quoted string
-# after `==` is a condition operand (`user.login == 'dependabot[bot]'`), not a
-# runner label.
-_QUOTED: typ.Final = re.compile(r"(?:&&|\|\|)\s*'([^']*)'")
+# A quoted string in a runner-selection expression, with the comparison
+# operator in front of it when there is one. A string after `==` or `!=` is a
+# condition operand (`user.login == 'dependabot[bot]'`), not a runner label;
+# every other quoted string is an arm, parenthesised or not.
+_QUOTED: typ.Final = re.compile(r"(?:(?P<operator>[=!]=)\s*)?'(?P<text>[^']*)'")
 _MATRIX_REFERENCE: typ.Final = re.compile(r"^\$\{\{\s*matrix\.([\w-]+)\s*\}\}$")
 _LINUX_PREFIXES: typ.Final = ("ubuntu", "ubicloud")
 _OTHER_PREFIXES: typ.Final = ("macos", "windows")
@@ -147,7 +148,11 @@ def _labels_of(value: object, job: dict[str, object]) -> list[str]:
     if reference:
         return _matrix_values(job, reference.group(1))
     if "${{" in value:
-        return _QUOTED.findall(value)
+        return [
+            quoted["text"]
+            for quoted in _QUOTED.finditer(value)
+            if quoted["operator"] is None
+        ]
     return [value]
 
 

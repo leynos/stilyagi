@@ -193,6 +193,18 @@ def test_a_goal_that_reaches_nothing_makes_the_job_irrelevant(reach: MakeReach) 
             id="selection_expression_with_dependabot_arm",
         ),
         pytest.param(
+            "${{ github.event.pull_request.head.repo.fork"
+            " && ('ubuntu-latest') || ('ubicloud-standard-4') }}",
+            {"ubuntu-latest", "ubicloud-standard-4"},
+            id="selection_expression_with_parenthesised_arms",
+        ),
+        pytest.param(
+            "${{ github.event.pull_request.user.login != 'dependabot[bot]'"
+            " && 'ubicloud-standard-4' || 'ubuntu-latest' }}",
+            {"ubuntu-latest", "ubicloud-standard-4"},
+            id="selection_expression_with_inequality_operand",
+        ),
+        pytest.param(
             "${{ matrix.os }}", {"ubuntu-latest", "macos-latest"}, id="matrix"
         ),
     ],
