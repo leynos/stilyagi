@@ -67,6 +67,11 @@ SELECTION_EXPRESSION = (
     "${{ github.event.pull_request.head.repo.fork"
     " && 'ubuntu-latest' || 'ubicloud-standard-4' }}"
 )
+DEPENDABOT_SELECTION_EXPRESSION = (
+    "${{ (github.event.pull_request.head.repo.fork"
+    " || github.event.pull_request.user.login == 'dependabot[bot]')"
+    " && 'ubuntu-latest' || 'ubicloud-standard-4' }}"
+)
 LINT_STEP = "      - run: make lint\n"
 COVERAGE_STEP = (
     "      - uses: leynos/shared-actions/.github/actions/generate-coverage@abc\n"
@@ -181,6 +186,23 @@ def test_a_goal_that_reaches_nothing_makes_the_job_irrelevant(reach: MakeReach) 
             SELECTION_EXPRESSION,
             {"ubuntu-latest", "ubicloud-standard-4"},
             id="selection_expression",
+        ),
+        pytest.param(
+            DEPENDABOT_SELECTION_EXPRESSION,
+            {"ubuntu-latest", "ubicloud-standard-4"},
+            id="selection_expression_with_dependabot_arm",
+        ),
+        pytest.param(
+            "${{ github.event.pull_request.head.repo.fork"
+            " && ('ubuntu-latest') || ('ubicloud-standard-4') }}",
+            {"ubuntu-latest", "ubicloud-standard-4"},
+            id="selection_expression_with_parenthesized_arms",
+        ),
+        pytest.param(
+            "${{ github.event.pull_request.user.login != 'dependabot[bot]'"
+            " && 'ubicloud-standard-4' || 'ubuntu-latest' }}",
+            {"ubuntu-latest", "ubicloud-standard-4"},
+            id="selection_expression_with_inequality_operand",
         ),
         pytest.param(
             "${{ matrix.os }}", {"ubuntu-latest", "macos-latest"}, id="matrix"
