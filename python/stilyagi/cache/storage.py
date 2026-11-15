@@ -1,5 +1,6 @@
 """Read and atomically replace entries in the marked cache namespace."""
 
+import contextlib
 import os
 import secrets
 import stat
@@ -284,13 +285,10 @@ class CacheStore:
         key
             The validated lowercase SHA-256 request key.
         content
-            The serialized envelope to store.
-
-        Raises
-        ------
-        CacheStorageError
-            If the store holds no namespace, or safe descriptor-relative
-            creation or atomic replacement fails.
+            The serialized envelope to store. A store that created no
+            namespace refuses to write; every other failure in the
+            descriptor-relative create, flush or rename surfaces as a
+            :class:`CacheStorageError` raised by the helpers this delegates to.
         """
         if self._namespace_fd < 0:
             _raise_storage_error(
@@ -300,6 +298,31 @@ class CacheStore:
         entry_name = cache_entry_name(key)
         self._verify_directories()
         temporary_name = f".tmp-{secrets.token_hex(16)}"
+        try:
+            self._publish_temporary(temporary_name, entry_name, content)
+        finally:
+            # A temporary file that outlived its publication is litter, not a
+            # fault: the entry itself is already durable or already reported.
+            with contextlib.suppress(OSError):
+                os.unlink(temporary_name, dir_fd=self._namespace_fd)
+
+    def _publish_temporary(
+        self,
+        temporary_name: str,
+        entry_name: str,
+        content: bytes,
+    ) -> None:
+        """Write, flush and rename one temporary file onto its final name.
+
+        The rename is what makes the replacement atomic: a reader sees either
+        the whole previous entry or the whole new one, never a partial write.
+
+        Raises
+        ------
+        CacheStorageError
+            If the temporary file cannot be created, written, flushed, or
+            renamed onto its final name.
+        """
         try:
             descriptor = os.open(
                 temporary_name,
@@ -336,10 +359,3 @@ class CacheStore:
                 error,
                 category=StorageFailureCategory.RESTORE_FAILED,
             )
-        finally:
-            try:
-                os.unlink(temporary_name, dir_fd=self._namespace_fd)
-            except FileNotFoundError:
-                pass
-            except OSError:
-                pass
