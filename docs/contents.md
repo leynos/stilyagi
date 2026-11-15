@@ -77,6 +77,10 @@
     execplans/2-3-1-markdown-rules-starter-pack.md)
     plans the approval-gated builtin Markdown rules, source spans, policy
     targeting, and fix validation.
+  - [2.3.2 builtin rule discovery commands](
+    execplans/2-3-2-stilyagi-rule-code-and-stilyagi-rules.md)
+    plans the approval-gated rule catalogue, command output, typed options,
+    and discovery verification.
 - [Repository layout](repository-layout.md) maps the major repository paths,
   their responsibilities, and the generated or constrained directories that
   contributors should treat carefully.
