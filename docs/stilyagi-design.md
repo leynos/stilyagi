@@ -483,6 +483,11 @@ Implementation consequences:
 
 - Use nearest-config semantics with explicit `extend`, modelled on Ruff.[^6]
 - Do not auto-load user-level configuration in v1.
+- Keep configuration inspection read-only and route it through the same source
+  ordering and selection-flag translation as `check`.
+- Track per-leaf origins while merging config layers. This ledger belongs to
+  configuration inspection; it is not a general provenance framework and does
+  not participate in lint execution or persistent caching.
 - Separate `locale` from `syntax` and from `nlp.profile`. The current RFC
   overloads `language`.
 
@@ -615,6 +620,14 @@ a join is admissible on the same terms as one inside either half. An edit
 failing any condition is refused by name, the file is left completely
 unmodified, and the refusal is reported as described below.
 
+The containment rule has exactly one qualification: a zero-width insertion at
+the offset just past a protected frontmatter prefix is admissible although it
+is not contained in a source-backed segment. It still has to satisfy every
+other condition, so its position must be a valid bound in the source and sit on
+a UTF-8 boundary. No non-zero-width edit, and no insertion anywhere else, is
+admitted outside a source-backed segment. Frontmatter protection below explains
+why that one position is singled out.
+
 One consequence deserves stating plainly: **a heading-depth rule cannot be
 auto-fixed under this model.** The source-backed segment of `## Section` is
 `Section`; the `##` marker belongs to no source-backed segment, so no
@@ -625,15 +638,51 @@ constraining none. A rule that alters markup outside region text therefore ships
 `manual` — reported, never applied. Roadmap 2.3.1 must be reviewed against
 this constraint before it starts.
 
+**YAML frontmatter is protected before admissibility is consulted.** A Markdown
+file that opens with a YAML frontmatter region has that region recognized from
+its own IR, and the source bytes it claims are compared with the text the IR
+reports for it. When the comparison succeeds, the recognized prefix — the
+fenced block plus its closing line ending — is protected as a whole, and any
+edit that overlaps it is refused. Protecting the closing line ending as well as
+the fence is deliberate: a rule that consumed it would fuse the metadata to the
+body that follows. The guard runs ahead of the source-backed test because the
+prefix is a region, not a body segment, and the segment test would otherwise
+refuse every edit in a frontmatter file by accident.
+
+There is exactly one suspension of the bound. The overlap test treats the
+protected prefix as half-open, so a zero-width insertion at the offset just
+past the closing line ending touches it at no byte and is *not* reported as
+overlapping; that offset is nevertheless the one position where insertion
+continues to be admissible. When a closing line ending is present, that offset
+is the start of the body, so the inserted text precedes the body rather than
+entering the metadata. When the closing fence ends the file, that offset is the
+end of the source; the per-edit test still admits it, and the re-extraction
+comparison described below refuses the result. Every other insertion inside the
+prefix, and every replacement or deletion that intersects it, is refused.
+
+Recognition can also fail: a file may carry more than one candidate region, a
+region whose span is unusable, or region text that disagrees with the bytes it
+claims. That state is not treated as "no frontmatter". It means the file has
+metadata that cannot be verified, and since a repair cannot then be shown to
+leave it intact, every edit in the file is refused. Only the absence of any
+frontmatter region leaves a file unguarded. The same reasoning governs the
+after-the-fact check: a planned replacement is re-extracted and its prefix
+compared with the original, and a side that cannot be verified counts as
+changed, so a plan cannot reach a file whose metadata it cannot vouch for. The
+comparison is symmetric: a replacement that drops a verified prefix and one
+that introduces a prefix where the source had none both count as changed, so a
+repair cannot create metadata by writing a fenced block at the top of a body.
+
 **Refusals are not rule codes.** They are engine reports about a rule's
 defective output, so they travel on a separate channel: a `fix_errors` array
 beside `diagnostics` in JSON, and a distinct non-rule prefix in text. The
 identifiers are namespaced `fix-error/`: `invalid-span`, `non-utf8-boundary`,
-`synthetic-span`, and `source-mismatch` from admissibility; `overlapping-edits`
-from conflict detection; and `standard-input`, `changed-on-disk`, and
-`write-failed` from execution. They are exempt from `--select`, `--ignore`, and
-suppression by construction — silencing one would hide the evidence that a file
-is still not fixed.
+`synthetic-span`, and `source-mismatch` from admissibility;
+`frontmatter-protected` from the metadata guard; `overlapping-edits` from
+conflict detection; and `standard-input`, `changed-on-disk`, and `write-failed`
+from execution. They are exempt from `--select`, `--ignore`, and suppression by
+construction — silencing one would hide the evidence that a file is still not
+fixed.
 
 All but `write-failed` carry no exit-code weight of their own, because the
 unfixed diagnostic that prompted them already forces exit 1. `write-failed` is
@@ -1063,6 +1112,27 @@ V1 sufficiency:
 
 ### 7.3 CLI contract
 
+The Markdown inspection and cache contracts for roadmap 2.2.3 are recorded in
+[ADR 0014](adrs/adr-0014-markdown-cli-inspection-and-cache.md) and its
+[ExecPlan](execplans/2-2-3-cli-sub-commands-for-markdown.md). The accepted
+implementation exposes effective configuration inspection, canonical IR dumps,
+persistent extraction-cache bypass and safe cache cleanup. ADR 0014 was
+accepted after implementation and conformance review on 2026-10-25.
+
+Descriptor-relative cache access trusts the selected invocation directory as
+its starting point, opens it once per directory-chain walk, and refuses links
+below that anchor. Absolute cache roots outside cwd keep a strict no-follow
+walk. Construction failures are reported once per cache root for an invocation;
+later files bypass that root while read and write failures remain retryable.
+
+The 2.2.3 contract includes `.mdc` alongside `.md` and `.markdown`, and
+preserves YAML frontmatter verbatim during repairs. Existing
+[ADR 0005](adrs/adr-0005-scope-markdown-region-vocabulary.md) retains a
+positioned whole block rather than parsed YAML fields. The extraction cache
+includes that IR representation in its integrity checksum and invalidates on
+frontmatter-only changes; configurable exclusion and YAML parser robustness
+remain deferred.
+
 Strong points in RFC 0003:
 
 - The compact Ruff-like command surface is right.[^6][^7]
@@ -1081,8 +1151,8 @@ Weaknesses and ambiguities:
 
 Recommended revisions:
 
-- V1 discovery defaults should cover `*.md`, `*.markdown`, `*.py`, and `*.rs`,
-  with `*.mdx` as preview-only until proven.
+- V1 discovery defaults should cover `*.md`, `*.markdown`, `*.mdc`, `*.py`,
+  and `*.rs`, with `*.mdx` as preview-only until proven.
 - Keep `check`, `rule`, `rules`, `config`, `clean`, and `dump-ir`.
 - Add `--no-cache` in v1 because cache debugging is unavoidable.
 - Keep `server`, `doctor`, and `migrate-config` reserved.

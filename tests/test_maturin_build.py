@@ -27,7 +27,7 @@ if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
-_SUBPROCESS_TIMEOUT_SECONDS = 600
+_SUBPROCESS_TIMEOUT_SECONDS = 1200
 _MATURIN_PIN_RE = re.compile(r"^maturin==(\d+\.\d+\.\d+)$")
 _GENERATOR_RE = re.compile(r"^Generator:\s*maturin\s*\(([^)]+)\)\s*$", re.MULTILINE)
 _EXTENSION_MODULE_RE = re.compile(

@@ -7,7 +7,8 @@ and on a cold instrumented runner they outlast 180 s: both were terminated at
 180 s in the `Generate coverage` step of a pull request whose workflow change
 left the Cargo cache cold. The configuration must therefore carry an override
 naming both binaries with a budget well beyond the default, and that budget
-must stay under the whole-run budget.
+must stay under the whole-run budget. Both binaries also share a serial test
+group because their nested Cargo builds use the same trybuild target directory.
 """
 
 import re
@@ -17,16 +18,25 @@ from pathlib import Path
 
 import pytest
 
-from tests.support.nextest_config import largest_test_allowance
+from tests.support.nextest_config import global_timeout, largest_test_allowance
 
 REPOSITORY_ROOT: typ.Final = Path(__file__).resolve().parents[1]
 CONFIG_PATH: typ.Final = REPOSITORY_ROOT / ".config" / "nextest.toml"
 DEFAULT_PER_TEST_SECONDS: typ.Final = 180
-MINIMUM_TRYBUILD_SECONDS: typ.Final = 600
+MINIMUM_TRYBUILD_SECONDS: typ.Final = 1500
+
+#: Suite overhead and reporting once the last trybuild test has finished.
+SUITE_OVERHEAD_SECONDS: typ.Final = 6 * 60
+
+#: The whole-run budget, pinned as well as derived. The derivation below rises
+#: with the trybuild allowance, so on its own it would accept any value above
+#: its own requirement and let the number drift away from the guide's table.
+MINIMUM_WHOLE_RUN_SECONDS: typ.Final = 56 * 60
 TRYBUILD_BINARIES: typ.Final = (
     "package(stilyagi-ir) & binary(ui)",
     "package(stilyagi-pyext) & binary(compile_tests)",
 )
+TRYBUILD_TEST_GROUP: typ.Final = "trybuild"
 
 
 def _seconds(duration: str) -> int:
@@ -123,14 +133,19 @@ def _trybuild_override() -> dict[str, typ.Any]:
     return matches[0]
 
 
+def _trybuild_budget() -> int:
+    """Return the per-test allowance the trybuild override grants, in seconds."""
+    slow = _trybuild_override()["slow-timeout"]
+    return _seconds(slow["period"]) * slow["terminate-after"]
+
+
 def test_the_trybuild_binaries_outlast_the_default_budget() -> None:
     """Their per-test budget is at least the cold-compile allowance.
 
     The override's own budget is checked here, and the repository's shared
     reading, which takes the largest allowance the file grants, must agree.
     """
-    slow = _trybuild_override()["slow-timeout"]
-    budget = _seconds(slow["period"]) * slow["terminate-after"]
+    budget = _trybuild_budget()
     assert largest_test_allowance(read_config_text(CONFIG_PATH)) == budget, (
         "the shared nextest reading must see the override as the largest allowance"
     )
@@ -144,11 +159,49 @@ def test_the_trybuild_binaries_outlast_the_default_budget() -> None:
 
 def test_the_trybuild_budget_stays_below_the_whole_run_budget() -> None:
     """A per-test budget at or above `global-timeout` would never be reached."""
-    slow = _trybuild_override()["slow-timeout"]
-    budget = _seconds(slow["period"]) * slow["terminate-after"]
-
-    assert budget < _seconds(_profile()["global-timeout"]), (
+    assert _trybuild_budget() < _seconds(_profile()["global-timeout"]), (
         "the trybuild budget must sit below the global-timeout"
+    )
+
+
+def test_the_whole_run_budget_covers_the_serial_trybuild_sequence() -> None:
+    """Both trybuild allowances, run one after the other, plus suite overhead.
+
+    The two binaries share a serial test group, so a run that is slow for both
+    spends two full allowances before either finishes, and a whole-run budget
+    sized for one allowance plus an observed prefix can cancel the second while
+    neither test has exceeded its own budget. A 2026-11-05 rebased run spent
+    1,137 s on the first UI test and was cancelled 842 s into the second; the
+    budget was 33 minutes then. Fifty minutes covers that prefix but not a pair
+    at their full allowance, so the pair is what the budget is derived from
+    rather than the one observed prefix.
+    """
+    config_text = read_config_text(CONFIG_PATH)
+    whole_run = global_timeout(config_text)
+    assert whole_run is not None, "the configuration must bound the whole run"
+
+    pair = 2 * largest_test_allowance(config_text)
+    assert whole_run >= pair + SUITE_OVERHEAD_SECONDS, (
+        f"whole-run budget is {whole_run}s; two serial trybuild allowances are "
+        f"{pair}s and suite overhead is {SUITE_OVERHEAD_SECONDS}s"
+    )
+    assert whole_run >= MINIMUM_WHOLE_RUN_SECONDS, (
+        f"whole-run budget is {whole_run}s; the serial trybuild sequence needs "
+        f"at least {MINIMUM_WHOLE_RUN_SECONDS}s"
+    )
+
+
+def test_trybuild_binaries_share_a_serial_test_group() -> None:
+    """Serialize nested trybuild builds that share one target lock."""
+    document = tomllib.loads(read_config_text(CONFIG_PATH))
+    group = _trybuild_override().get("test-group")
+    groups = document.get("test-groups", {})
+
+    assert group == TRYBUILD_TEST_GROUP, (
+        "expected both trybuild binaries to use the shared test group"
+    )
+    assert groups.get(TRYBUILD_TEST_GROUP, {}).get("max-threads") == 1, (
+        "expected the trybuild test group to allow one active test"
     )
 
 
@@ -164,7 +217,7 @@ def test_every_other_test_keeps_the_default_budget() -> None:
 def test_the_widened_budget_is_scoped_to_the_two_binaries_only() -> None:
     """The override filter names only package-and-binary terms, never a wildcard.
 
-    A filter such as `all()` or `test(/./)` would widen the 600 s budget to
+    A filter such as `all()` or `test(/./)` would widen the 1,500 s budget to
     every test and hide a hang as a slow test.
     """
     override = _trybuild_override()
@@ -182,7 +235,7 @@ def test_the_widened_budget_is_scoped_to_the_two_binaries_only() -> None:
 def test_the_trybuild_override_is_the_only_override() -> None:
     """No second override may exist, whatever its filter or budget.
 
-    A second entry such as `filter = "all()"` at the same 600 s would leave the
+    A second entry such as `filter = "all()"` at the same 1,500 s would leave the
     matching override unique and the shared reading unchanged, yet widen the
     budget to every test. The same holds under another profile, such as the
     `ci` profile `make test-ci` selects, which inherits the default. Requiring

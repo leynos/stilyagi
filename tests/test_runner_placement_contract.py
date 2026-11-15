@@ -35,8 +35,8 @@ FORK_OR_DEPENDABOT_CONDITION: typ.Final = (
 #: without a ceiling, or a class or ceiling changed, fails until reviewed.
 PLACEMENTS: typ.Final = (
     ("coverage-main.yml", "coverage-baseline", "ubicloud-standard-2", "15"),
-    ("coverage-main.yml", "coverage-warmup", "ubicloud-standard-4", "60"),
-    ("smoke.yml", "lint-test", "ubicloud-standard-4", "60"),
+    ("coverage-main.yml", "coverage-warmup", "ubicloud-standard-4", "100"),
+    ("smoke.yml", "lint-test", "ubicloud-standard-4", "100"),
 )
 
 #: The lanes that send Dependabot's pull requests to the hosted pool as well.
