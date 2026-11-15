@@ -2961,20 +2961,30 @@ requests are rare here, and a second hosted writer would pay double on every
 main push. `release-smoke` stays hosted: its runner comes from an operating
 system matrix.
 
+`lint-test` also sends Dependabot's pull requests to the hosted pool. Hosted
+minutes are free on a public repository, so a bot's pull request costs nothing
+there, whereas an Ubicloud runner is billed. The cache trade-off is the fork's:
+a Dependabot run restores a hosted cache that main no longer refreshes, which
+costs it a slower cold build and nothing else, while a second hosted writer
+would pay double on every main push. The expression tests the pull request's
+author, not the actor, so a person re-running or pushing to a Dependabot branch
+does not move the run onto Ubicloud.
+
 Both jobs keep their 60-minute ceilings. An Ubicloud runner is a self-hosted
 just-in-time runner, so GitHub's six-hour cap for hosted jobs does not bound it
 and each job must state its own; section 12 holds these two above the 1,800 s
 cargo watchdog, so neither can be set to twice a warm run.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
-evaluates the expression for a push or dispatch, a same-repository pull
-request, a Dependabot pull request and a fork, expects the Dependabot arm only
-on the lanes listed in its `DEPENDABOT_HOSTED` inventory (today `lint-test`),
-rejects a literal label, inverted arms, another label and another condition,
-inventories and refuses a runner named through the matrix, and asserts an exact
-inventory of the jobs that can land on Ubicloud with their runner class and
-ceiling. A change that adds, removes or re-times such a job fails it until the
-inventory is updated in the same commit.
+models the two accepted expressions rather than evaluating them in GitHub
+Actions. It reads the placement each expression gives a push or dispatch, a
+same-repository pull request, a Dependabot pull request and a fork, expects the
+Dependabot arm only on the lanes listed in its `DEPENDABOT_HOSTED` inventory
+(today `lint-test`), rejects a literal label, inverted arms, another label and
+another condition, inventories and refuses a runner named through the matrix,
+and asserts an exact inventory of the jobs that can land on Ubicloud with their
+runner class and ceiling. A change that adds, removes or re-times such a job
+fails it until the inventory is updated in the same commit.
 
 ### The Makefile parser in CI
 
