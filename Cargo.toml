@@ -28,6 +28,13 @@ tree-sitter-rust = "0.24.2"
 tracing = "0.1.41"
 metrics = "0.24.2"
 
+# The dev-build footprint standard (DF-001, DF-002): no incremental cache and
+# no debuginfo, which keeps `target/` small. `maturin develop` builds this
+# profile too; the extension needs neither.
+[profile.dev]
+incremental = false
+debug = 0
+
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 allow_attributes = "deny"
