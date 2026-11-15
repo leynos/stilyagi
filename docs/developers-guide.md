@@ -729,6 +729,19 @@ metrics-facade calls still reach a recorder installed by an embedding host,
 without changing its ownership or lifetime. The standalone `--verbose` JSON
 snapshot is independent of that recorder and is written to stderr.
 
+The setter helpers in `check_metrics/snapshot.rs` (`set_categories`,
+`set_run_counters`, `set_failure_counters`, `set_extraction_totals` and
+`set_extraction_fatal_errors`) are private to that file. `set_check_counters`
+calls `set_run_counters` and `set_failure_counters`, and
+`set_extraction_counters` calls `set_extraction_totals` and
+`set_extraction_fatal_errors`; the three groups that record categories
+(`set_run_counters`, `set_failure_counters` and `set_extraction_fatal_errors`)
+call `set_categories`. They exist to keep each function's branching low, so a
+new counter joins the group it belongs to rather than growing one long setter.
+Likewise `list_child_node_ids` and `table_child_node_ids` in
+`crates/stilyagi-markdown/src/builder.rs` are private to `child_node_ids`,
+which dispatches to them by node kind.
+
 `check_execution.py` records per-file `read`, `extract`, `config`, and `rules`
 durations; `cli.py` records the `discovery` and `render` phases. These are the
 six fixed-bucket phase labels in `stilyagi_check_phase_duration_seconds`, which

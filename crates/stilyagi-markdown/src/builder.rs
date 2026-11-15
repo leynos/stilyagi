@@ -133,28 +133,46 @@ impl<'source> MarkdownIrBuilder<'source> {
         node_id: &str,
         context: &MarkdownDiagnosticContext<'_>,
     ) -> Result<Vec<String>, Message> {
-        let mut child_ids = Vec::new();
         match node {
-            Node::List(list) => {
-                self.list_contexts.push(ListContext {
-                    ordered: list.ordered,
-                    start: list.start,
-                });
-                for child in &list.children {
-                    child_ids.push(self.push_node(child, Some(node_id), context)?);
-                }
-                self.list_contexts.pop();
-            }
-            Node::Table(table) => {
-                for (row_index, child) in table.children.iter().enumerate() {
-                    self.table_row_contexts.push(TableRowContext {
-                        is_header: row_index == 0,
-                    });
-                    child_ids.push(self.push_node(child, Some(node_id), context)?);
-                    self.table_row_contexts.pop();
-                }
-            }
-            _ => child_ids.extend(self.regular_child_node_ids(node, node_id, context)?),
+            Node::List(list) => self.list_child_node_ids(list, node_id, context),
+            Node::Table(table) => self.table_child_node_ids(table, node_id, context),
+            _ => self.regular_child_node_ids(node, node_id, context),
+        }
+    }
+
+    /// Emits the items of a list with the list's context pushed.
+    fn list_child_node_ids(
+        &mut self,
+        list: &markdown::mdast::List,
+        node_id: &str,
+        context: &MarkdownDiagnosticContext<'_>,
+    ) -> Result<Vec<String>, Message> {
+        let mut child_ids = Vec::new();
+        self.list_contexts.push(ListContext {
+            ordered: list.ordered,
+            start: list.start,
+        });
+        for child in &list.children {
+            child_ids.push(self.push_node(child, Some(node_id), context)?);
+        }
+        self.list_contexts.pop();
+        Ok(child_ids)
+    }
+
+    /// Emits the rows of a table, marking the first row as the header.
+    fn table_child_node_ids(
+        &mut self,
+        table: &markdown::mdast::Table,
+        node_id: &str,
+        context: &MarkdownDiagnosticContext<'_>,
+    ) -> Result<Vec<String>, Message> {
+        let mut child_ids = Vec::new();
+        for (row_index, child) in table.children.iter().enumerate() {
+            self.table_row_contexts.push(TableRowContext {
+                is_header: row_index == 0,
+            });
+            child_ids.push(self.push_node(child, Some(node_id), context)?);
+            self.table_row_contexts.pop();
         }
         Ok(child_ids)
     }
