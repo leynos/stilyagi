@@ -137,7 +137,9 @@ class CacheExtractionService:
         The boundaries call this when `--no-cache` was asked for, so the
         policy reaches an injected service as well as one they built. A
         service that has already opened storage keeps those descriptors until
-        `close` and simply performs no further operations through them.
+        `close` and simply performs no further operations through them: both
+        :meth:`lookup` and :meth:`publish` read the policy, so a lookup
+        prepared before the bypass began still cannot be published into it.
 
         The policy is saved and restored around the block: the bypass belongs
         to the invocation, not the service, so an embedding caller may reuse
@@ -201,7 +203,14 @@ class CacheExtractionService:
         return self._lookup_with_cache(request)
 
     def publish(self, lookup: CacheLookup) -> None:
-        """Store the bytes one lookup prepared, when it has any.
+        """Store the bytes one lookup prepared, when policy still allows it.
+
+        The bypass is read here as well as in :meth:`lookup`, because a
+        caller may prepare a lookup and only then enter
+        :meth:`without_persistent_cache`. A retained publication is a
+        write waiting to happen, so honouring the policy only on the query
+        would let a bypassed invocation store through a lookup it made
+        before the bypass began.
 
         Parameters
         ----------
@@ -210,7 +219,7 @@ class CacheExtractionService:
             the preparation the lookup made is what keeps the stored key and
             the stored bytes derived from one reading of the request.
         """
-        if lookup.publication is None:
+        if lookup.publication is None or self.no_cache:
             return
         pending = lookup.publication
         try:

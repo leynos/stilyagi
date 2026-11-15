@@ -83,6 +83,18 @@ def _recording_service(root: pathlib.Path) -> tuple[CacheExtractionService, list
     return service, calls
 
 
+def _refuse_storage(*_args: object, **_kwargs: object) -> RecordingStore:
+    """Fail the case that reaches storage at all under a strict bypass.
+
+    A working in-memory store would let a bypassed command read, create and
+    write while every assertion still passed, because that case discards the
+    call list and looks only at extraction and the filesystem. Raising here
+    is what makes the zero-storage-call promise enforceable rather than
+    merely unobserved.
+    """
+    pytest.fail("a strict bypass must never open cache storage")
+
+
 def _cold_lookup(
     service: CacheExtractionService,
     *,
@@ -281,6 +293,36 @@ def test_a_default_command_run_reads_before_it_creates(
     )
 
 
+def test_publishing_a_lookup_prepared_before_a_bypass_stores_nothing(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Honour the bypass on the command, not only on the query.
+
+    A publication is a write waiting to happen, so an embedding caller that
+    prepares a miss and then enters the bypass must not be able to store the
+    preparation it already holds. The store records its own calls, so an
+    empty list is the assertion: nothing was read, created or written.
+    """
+    service, store_calls = _recording_service(tmp_path)
+    try:
+        lookup = _cold_lookup(service)
+        assert lookup.publication is not None, (
+            "the case needs a real preparation, or the bypass is untested"
+        )
+
+        with service.without_persistent_cache():
+            service.publish(lookup)
+
+        assert store_calls == ["read"], (
+            f"a bypass must not publish a prepared lookup, got {store_calls}"
+        )
+        assert not _namespace(tmp_path).exists(), (
+            "a bypassed publication must not create the namespace"
+        )
+    finally:
+        service.close()
+
+
 @pytest.mark.parametrize("command", COMMANDS)
 def test_an_injected_cache_under_no_cache_performs_no_storage_calls(
     tmp_path: pathlib.Path,
@@ -295,7 +337,7 @@ def test_an_injected_cache_under_no_cache_performs_no_storage_calls(
             invocation_cwd=tmp_path,
             package_version="test-version",
             extractor=counting_extractor(calls),
-            storage_factory=lambda *_args, **_kwargs: RecordingStore([]),
+            storage_factory=_refuse_storage,
         )
     )
     try:
