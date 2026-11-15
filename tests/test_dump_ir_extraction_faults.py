@@ -10,8 +10,9 @@ import json
 import typing as typ
 
 from stilyagi import cli_dump_ir, config, model
+from stilyagi.cache.extraction import CacheServiceConfig
 from stilyagi.check_inputs import CheckInput
-from stilyagi.cli_args import DumpIrOptions
+from stilyagi.cli_args import PACKAGE_VERSION, DumpIrOptions
 
 from tests.support.dump_ir_harness import run_dump_ir
 
@@ -131,9 +132,9 @@ def test_dump_ir_extracts_an_explicit_markdown_check_input(
         DumpIrOptions(targets=("notes.md",)),
         config.ConfigResolver(),
         cli_dump_ir.CacheExtractionService(
-            cli_dump_ir.CacheServiceConfig(
+            CacheServiceConfig(
                 invocation_cwd=tmp_path,
-                package_version=cli_dump_ir.PACKAGE_VERSION,
+                package_version=PACKAGE_VERSION,
                 no_cache=True,
             )
         ),

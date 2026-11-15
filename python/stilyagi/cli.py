@@ -17,10 +17,8 @@ defines the mapping from diagnostics to process status, and it is documented at
 `check_outcome` beside the report it describes.
 """
 
-import contextlib
 import dataclasses as dc
 import logging
-import pathlib
 import sys
 import time
 import typing as typ
@@ -32,7 +30,6 @@ from stilyagi import (
     config,
     engine,
 )
-from stilyagi.cache.extraction import CacheExtractionService, CacheServiceConfig
 from stilyagi.check_execution import CheckReporter, CheckRun
 from stilyagi.check_inputs import (
     CheckInput,
@@ -52,12 +49,15 @@ from stilyagi.cli_args import (
 from stilyagi.cli_clean import run_clean
 from stilyagi.cli_config_command import _run_config_inspection
 from stilyagi.cli_dump_ir import run_dump_ir
+from stilyagi.cli_extraction_cache import cache_policy_for, open_extraction_cache
 from stilyagi.cli_io import report_check_error
 from stilyagi.cli_run import collect_checked_files
 from stilyagi.rules import registry as rules_registry
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+
+    from stilyagi.cache.extraction import CacheExtractionService
 
 __all__ = [
     "PACKAGE_VERSION",
@@ -283,9 +283,9 @@ def _run_check(
         len(discovery_inputs.inputs),
     )
 
-    extraction_cache = _selected_extraction_cache(resolved_collaborators)
+    extraction_cache = open_extraction_cache(resolved_collaborators.extraction_cache)
     try:
-        with _cache_policy_for(options, extraction_cache):
+        with cache_policy_for(extraction_cache, no_cache=options.no_cache):
             return _run_discovered_check(
                 options,
                 resolved_collaborators,
@@ -295,48 +295,6 @@ def _run_check(
     finally:
         extraction_cache.log_summary()
         extraction_cache.close()
-
-
-def _selected_extraction_cache(
-    resolved_collaborators: CheckCollaborators,
-) -> CacheExtractionService:
-    """Return the injected cache, or build one for this invocation.
-
-    A working directory that cannot be read is a cache root that cannot be
-    anchored, so the service built here is one that never touches storage
-    rather than one pointed at a substitute directory. The check still runs
-    and reports its own result.
-    """
-    if resolved_collaborators.extraction_cache is not None:
-        return resolved_collaborators.extraction_cache
-    try:
-        invocation_cwd = pathlib.Path.cwd()
-    except OSError:
-        return CacheExtractionService(
-            CacheServiceConfig(
-                invocation_cwd=pathlib.Path(),
-                package_version=PACKAGE_VERSION,
-                no_cache=True,
-            )
-        )
-    return CacheExtractionService(
-        CacheServiceConfig(
-            invocation_cwd=invocation_cwd,
-            package_version=PACKAGE_VERSION,
-        )
-    )
-
-
-def _cache_policy_for(
-    options: CheckOptions,
-    extraction_cache: CacheExtractionService,
-) -> cabc.ContextManager[None]:
-    """Scope `--no-cache` to this invocation of the selected service."""
-    if options.no_cache:
-        # Applied to the selected service, not only to one built here, so the
-        # flag means the same thing whether or not a caller injected a cache.
-        return extraction_cache.without_persistent_cache()
-    return contextlib.nullcontext()
 
 
 def _run_discovered_check(

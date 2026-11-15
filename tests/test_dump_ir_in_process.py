@@ -193,6 +193,7 @@ def test_dump_ir_rejects_a_home_relative_non_markdown_operand(
 def test_dump_ir_reports_a_removed_working_directory_as_a_failure(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
+    *,
     no_cache: bool,
 ) -> None:
     """Report an unreadable working directory instead of raising a traceback.

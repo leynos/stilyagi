@@ -1,6 +1,5 @@
 """Run the read-only command that emits Rust's canonical Markdown IR."""
 
-import contextlib
 import dataclasses as dc
 import enum
 import pathlib
@@ -11,11 +10,9 @@ from stilyagi import cli_log, config, discovery, engine, model
 from stilyagi.cache.extraction import (
     CacheExtractionInput,
     CacheExtractionService,
-    CacheServiceConfig,
 )
 from stilyagi.check_inputs import CheckInput
 from stilyagi.check_targets import parse_target_operands
-from stilyagi.cli_args import PACKAGE_VERSION
 from stilyagi.cli_command_shell import command_streams, write_command_failure
 from stilyagi.cli_config import resolve_discovery_config
 from stilyagi.cli_dump_ir_output import (
@@ -24,6 +21,7 @@ from stilyagi.cli_dump_ir_output import (
     _write_chunk,
     _write_json_framing,
 )
+from stilyagi.cli_extraction_cache import cache_policy_for, open_extraction_cache
 from stilyagi.cli_io import (
     SourceReadError,
     read_source,
@@ -142,9 +140,9 @@ def run_dump_ir(
     config_resolver = (
         injected.resolver if injected.resolver is not None else config.ConfigResolver()
     )
-    extraction_cache = _open_extraction_cache(injected.cache)
+    extraction_cache = open_extraction_cache(injected.cache)
     try:
-        with _cache_policy_for(options, extraction_cache):
+        with cache_policy_for(extraction_cache, no_cache=options.no_cache):
             inputs = _discover_markdown_inputs(options, config_resolver)
             _write_dump_output(
                 inputs,
@@ -157,48 +155,6 @@ def run_dump_ir(
         extraction_cache.log_summary()
         extraction_cache.close()
     return 0
-
-
-def _open_extraction_cache(
-    injected: CacheExtractionService | None,
-) -> CacheExtractionService:
-    """Return the injected cache, or build one for this invocation.
-
-    A working directory that cannot be read is a cache root that cannot be
-    anchored, so the service built here is one that never touches storage
-    rather than one pointed at a substitute directory. The command still
-    extracts and reports its own result.
-    """
-    if injected is not None:
-        return injected
-    try:
-        invocation_cwd = pathlib.Path.cwd()
-    except OSError:
-        return CacheExtractionService(
-            CacheServiceConfig(
-                invocation_cwd=pathlib.Path(),
-                package_version=PACKAGE_VERSION,
-                no_cache=True,
-            )
-        )
-    return CacheExtractionService(
-        CacheServiceConfig(
-            invocation_cwd=invocation_cwd,
-            package_version=PACKAGE_VERSION,
-        )
-    )
-
-
-def _cache_policy_for(
-    options: DumpIrOptions,
-    extraction_cache: CacheExtractionService,
-) -> cabc.ContextManager[None]:
-    """Scope `--no-cache` to this invocation of the selected service."""
-    if options.no_cache:
-        # Applied to the selected service, not only to one built here, so the
-        # flag means the same thing whether or not a caller injected a cache.
-        return extraction_cache.without_persistent_cache()
-    return contextlib.nullcontext()
 
 
 def _write_dump_output(
@@ -272,6 +228,11 @@ def _reject_non_markdown_explicit_files(
     no output for an operand it refuses when spelled expanded. An expansion
     failure is left for discovery, which reports it as `CANNOT_DISCOVER`
     rather than as an unsupported file.
+
+    Raises
+    ------
+    DumpIrError
+        When an explicitly named operand exists and has no Markdown extractor.
     """
     unsupported_targets = tuple(
         expanded
