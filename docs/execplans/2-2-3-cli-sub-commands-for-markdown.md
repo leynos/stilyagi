@@ -524,6 +524,49 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       settings, the stale allow entry was deleted on evidence that the
       duplication is gone rather than merely below the floor.
 
+- [x] (2026-11-15) Answer the CodeRabbit Unit Architecture error and the
+      User-Facing Documentation warning, both of which had been rebutted once
+      and rejected. The architecture finding is now implemented rather than
+      argued against: `CacheExtractionService.extract` is split into
+      `lookup`/`publish`, `CacheStore.__init__` no longer opens the root with
+      `create=True`, and `CacheStore.create_namespace` is the only route that
+      creates the parent, the namespace and `owner.json`. Both command
+      boundaries accept an injected `invocation_cwd`, and
+      `cli_extraction_cache._ambient_directory` is now the single call site
+      that reads the process working directory. The stale "read-only" wording
+      in `cli_dump_ir.py`, `cli_dump_ir_args.py` and the developer's guide was
+      rewritten, because `dump-ir` publishes a miss exactly as `check` does.
+      The new `tests/test_cache_query_and_publication.py` holds the boundary
+      with a store that records its own call order: a lookup must reach
+      `read` and nothing else, and a command must reach
+      `read`, `create_namespace`, `write` in that order. The documentation
+      finding is answered with `docs/v0-2-0-migration-guide.md`, linked from
+      the user's guide, `docs/contents.md` and the change notes. The earlier
+      rebuttal reasoned that no 0.2.0 release exists, but the style guide's
+      migration-guide rule has no unpublished-release exemption, so the guide
+      exists to describe changes that are observable now.
+
+- [x] (2026-11-15) Repair the gate findings the `lookup`/`publish` split
+      introduced, all reported on the split tree rather than by the split's
+      design. `make duplication` caught `_open_child_directory` and
+      `_open_existing_child_directory` sharing one open, so both now delegate
+      to `_open_child_directory_once`. That extraction first regressed the
+      post-create fault path — after a successful `mkdir`, an absent
+      namespace is a lease fault, not an absence — so the helper takes an
+      explicit `absent_is_fault` and each caller decides. `make lint`'s
+      `ruff check` then found nine issues: a seventh return in
+      `_lookup_with_cache`, type-only imports at runtime in `lookup.py` and
+      the new test module, and three stale `Raises`/`Returns` docstring
+      sections. The miss path builds its `Publication` in one conditional
+      instead of returning twice, which keeps `extraction.py` at 382 lines
+      under the 400-line ceiling. Pylint then reported `R0913` on the new
+      test's five-argument `_run_command`, which ruff does not because it
+      waives that rule for test modules; the two cache options are now one
+      frozen `_InjectedCache`. `make test` is green on this tree — 370
+      Nextest, 16 Rust doctests, 1687 pytest, and 179 doctest-modules with 3
+      skipped, so the second pytest lane did execute. The hosted Whitaker
+      suite passes directly on this tree.
+
 ## Surprises & discoveries
 
 `CheckOptions.no_cache` is already parsed but its help explicitly describes a
@@ -914,6 +957,34 @@ persistent caching. Always execute current rule analysis and fix planning, and
 keep post-fix verification extraction fresh so a hit cannot mask applied edits.
 Expose hit, miss, invalid, bypass and write-failure events via existing logging
 and bounded counters; never place file paths in metric labels or JSON stdout.
+
+### Cache lookup is a query; publication is a command
+
+A lookup must not persist. `CacheExtractionService.lookup` returns a
+`CacheLookup`: the extraction result, plus a `Publication` naming the key and
+bytes to store when the request missed and produced canonical IR. It opens the
+configured parent and namespace only when they already exist, so a cold lookup
+brings nothing into being. `CacheStore.create_namespace` is the only route that
+creates the parent, the namespace and `owner.json`, and
+`CacheExtractionService.publish` is the only caller that reaches it. A store
+with no namespace reports `read` as `None` and refuses `write`. Both command
+boundaries call the pair in order at the point where a document is extracted,
+and a hit carries no publication, so the second call is a no-op.
+
+The split exists because the earlier shape persisted inside a query-named call:
+`CacheStore.__init__` opened the root with `create=True`, wrote the ownership
+marker, and `extract` then published the miss entry. Persistence is now visible
+in a name and a type. A caller may return a result that never reached the
+cache, and a `publish` failure is a counted `write_failure` that leaves the
+command's output intact.
+
+Both boundaries also accept an injected `invocation_cwd` (`CheckCollaborators`
+and `DumpIrCollaborators`), and only `cli_extraction_cache._ambient_directory`
+reads the process working directory. A test can therefore exercise a command
+against a temporary tree without changing process-global state. Injection
+anchors the cache, not discovery: relative operands are still resolved against
+the process's own directory, so a test that wants full isolation passes an
+absolute operand.
 
 ### Cleanup
 

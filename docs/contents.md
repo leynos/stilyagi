@@ -21,6 +21,9 @@
   markdown-inspection-and-cache-notes.md) summarize the `config`, `dump-ir`, and
   `clean` commands, the Markdown extraction cache, and frontmatter protection
   without implying a release target.
+- [v0.2.0 migration guide](v0-2-0-migration-guide.md) carries a reader from
+  v0.1.0 to v0.2.0: the cache directory to ignore, the `.mdc` files discovery
+  now claims, and the frontmatter-protected fix refusals.
 - [ExecPlans](execplans/) records approved and in-progress execution plans for
   substantial repository work:
   - [1.1.1 packaging boundary decision ADR](

@@ -918,13 +918,14 @@ current rules and fix plan. `--no-cache` bypasses persistent cache access, and
 directory. Treat this guide as a record of the settled user-facing v1 contract
 rather than as a complete operating manual.
 
-Stilyagi has not published a release, so there is no versioned migration guide
-to follow.
+Readers moving from v0.1.0 to v0.2.0 should follow the
+[v0.2.0 migration guide](v0-2-0-migration-guide.md), which sets out what must
+change, what is worth reviewing, and what is unaffected. The
 [Markdown inspection and cache change notes](markdown-inspection-and-cache-notes.md)
 collect what the `config`, `dump-ir`, and `clean` commands add, the default
 cache behaviour and how to opt out of it, the `.mdc` file type that discovery
-now claims, and the frontmatter protection described above, in one place for
-readers moving from an earlier working tree.
+now claims, and the frontmatter protection described above, in one place
+without claiming a release boundary.
 
 ## References
 

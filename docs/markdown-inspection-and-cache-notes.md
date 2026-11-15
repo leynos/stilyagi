@@ -2,10 +2,11 @@
 
 These notes summarize the user-facing behaviour added by the Markdown
 inspection and cache work: effective configuration inspection, canonical IR
-dumps, the extraction cache, and safe cache cleanup. Stilyagi has not published
-a release; the current `0.1.0` package metadata does not establish a published
-version or a future release target. The [user's guide](users-guide.md) remains
-the detailed command reference.
+dumps, the extraction cache, and safe cache cleanup. They describe the
+behaviour without tracking which release carried it. The
+[v0.2.0 migration guide](v0-2-0-migration-guide.md) is the release-boundary
+document: follow it to move a repository from v0.1.0 to v0.2.0. The
+[user's guide](users-guide.md) remains the detailed command reference.
 
 ## New commands
 

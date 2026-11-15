@@ -527,6 +527,41 @@ Tests that inject a service to observe cache traffic still see the reads and
 publishes they inject it for; they opt into the bypass by passing `--no-cache`,
 which is the same switch a user has.
 
+The invocation directory is injectable for the same reason.
+`CheckCollaborators.invocation_cwd` and `DumpIrCollaborators.invocation_cwd`
+both default to `None`, and `None` means "read the process working directory".
+Only `cli_extraction_cache._ambient_directory` reads it, so the ambient
+dependency has exactly one call site and a test can exercise both commands
+against a temporary tree without changing process-global state. Pass the
+directory, not the cache, when the point of the test is where the command
+anchors a cache it builds itself.
+
+### Cache lookup is a query; publication is a command
+
+`CacheExtractionService.lookup` answers "what should this request return?" and
+`publish` stores it. The split exists because the read path used to persist as
+a side effect of a query-named call: opening the root with `create=True`,
+writing `owner.json`, and publishing the miss entry were all reachable from
+`extract`.
+
+`lookup` returns a `CacheLookup`: the extraction result, plus a `Publication`
+describing the bytes to store when the request was a miss worth caching. It
+opens the configured parent and namespace only when they already exist and
+brings nothing into being when they do not, so a cold lookup leaves the
+filesystem exactly as it found it. `publish` is the only route by which a store
+creates storage; `CacheStore.create_namespace` creates the parent, the
+namespace and the marker, and a store that never had one reports `read` as
+`None` and refuses `write`.
+
+Both command boundaries call the pair, in order, at the point where a document
+is extracted. A cache hit carries no publication, so the second call is a
+no-op. A miss carries the key and bytes derived from the same reading of the
+request, which is what keeps the stored key and the stored payload from
+diverging. Callers must not treat `lookup` as if it returned something already
+stored: a result the command returns may never have reached the cache, and a
+`publish` failure is a counted `write_failure` that leaves the run's output
+intact.
+
 ### Configuration resolution
 
 `ConfigResolver.resolve_with_provenance` is the one place a target's
@@ -1541,8 +1576,9 @@ The `cli_dump_ir` coordinator reuses `check_targets.parse_target_operands`,
 shared configuration resolution, discovery and source reading. It filters the
 discovered set to Markdown, carries each reported path into Rust source
 identity, and builds the complete canonical output in a 1 MiB spooled stream
-before writing stdout. Keep this boundary read-only; check-only rule and fix
-options do not belong on the command.
+before writing stdout. Check-only rule and fix options do not belong on the
+command, but it is not read-only with respect to its own extraction cache: it
+publishes a miss exactly as `check` does, so a second run reuses the entry.
 
 The private `_write_chunk` lives in `cli_dump_ir_output`, beside the framing
 and spool helpers it belongs with, and `cli_dump_ir` imports it: its callers
