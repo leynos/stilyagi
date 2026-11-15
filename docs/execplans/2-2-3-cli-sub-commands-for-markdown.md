@@ -567,6 +567,69 @@ no elapsed-time limit. Queueing for compiler admission is not a failure.
       skipped, so the second pytest lane did execute. The hosted Whitaker
       suite passes directly on this tree.
 
+### Delivery checkpoint: the three findings at `d793b789`, 15 November
+
+CodeRabbit's review 5911225337 returned `CHANGES_REQUESTED` at `d793b789` with
+three inline findings, each verified against the source before repair:
+
+- `publish()` read no bypass policy, so an embedding caller could prepare a
+  lookup, enter `without_persistent_cache()`, and still store the preparation
+  it held. `publish` now returns early on `self.no_cache` as `lookup` does.
+- The strict-bypass case injected a working in-memory store and then discarded
+  the recorded calls, so a command that ignored the flag read, created and
+  wrote with every assertion passing. Its factory now fails the case on
+  contact, which makes the zero-storage-call promise enforceable.
+- The migration guide promised refusal "whole rather than applied partially"
+  without saying the unit is the file. `_refuse` returns no edits and no
+  replacement bytes for the file, so it now says a safe body fix in the same
+  file does not apply either.
+
+Both behavioural fixes were falsified first: reverting the `self.no_cache`
+guard fails the new case with `got ['read', 'create_namespace', 'write']`, and
+forcing the commands to ignore the flag fails the strict case with
+`a strict bypass must never open cache storage`. All seven gates then passed on
+`d703e890`: check-fmt, lint, typecheck, test, markdownlint, nixie, spelling.
+
+CodeRabbit confirmed both repairs inline at `d703e890` and resolved both
+threads; all 40 review threads are resolved and all 14 pre-merge rows pass. Its
+auto-pause, triggered by the commit count since `d793b789`, still needs
+`@coderabbitai resume` (comenq `a6cf8b4a`) so the current head is reviewed at
+all, and the approval request is a separate conversation. `reviewDecision`
+remains `CHANGES_REQUESTED` until CodeRabbit approves the new head; the
+decision is attached to review 5911225337 and cannot be cleared by a
+disposition reply.
+
+### Delivery outcome: merged as `2ea363c8`
+
+PR #226 squash-merged to `main` at 2026-11-15T17:04:54Z as
+`2ea363c86ceed04a940e7475a24959ff68d4668c`, guarded by
+`--match-head-commit d703e890d47e5e778705ae075fabe4e3dde94419`. The head branch
+was deleted; `main` had been `d8cf3276` both when the merge was checked and
+when it was accepted, so no base drift occurred.
+
+Approval evidence on the accepted head: CodeRabbit review 5911845749 `APPROVED`
+at `d703e890` (17:04:17Z), plus `codescene-access[bot]` 5911534015. All 40
+review threads resolved, all 14 pre-merge checks passed.
+
+The three findings from review 5911225337 were dispositioned by inline replies
+at the published head and CodeRabbit's own confirmation answers. Its approval
+reply records what that inspection did not cover: it verified the three repairs
+by reading the source and did not execute the tests or the negative controls.
+The local gate run on the same tip covers that gap, so the repair rests on both
+a source inspection and an executed suite rather than on either alone.
+
+Post-merge integration on the landing commit, all green: `Smoke` (`lint-test`,
+and `release-smoke` on ubuntu, macos and windows) and `Coverage (main)`
+(`coverage-upload`, `coverage-baseline`, `coverage-warmup`). `coverage-warmup`
+is the job whose 60-minute ceiling the earlier conflict resolution had left
+under the 4,080 s watchdog; it ran and passed with the 100-minute ceiling this
+branch now carries.
+
+A queued `@coderabbitai resume` (comenq `a6cf8b4a`, ETA ~6 h) was removed once
+the approval was granted, because the approval request resolved
+`reviewDecision` without it. The auto-pause was raised by the commit count since
+`d793b789`, not by a rate limit.
+
 ## Surprises & discoveries
 
 `CheckOptions.no_cache` is already parsed but its help explicitly describes a
