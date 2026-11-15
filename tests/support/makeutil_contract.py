@@ -12,7 +12,7 @@ from tests.support.assertions import assert_with_context
 
 INSTALL_ACTION: typ.Final = (
     "leynos/shared-actions/.github/actions/install-makeutil"
-    "@ebe2f3105334283441f4c915eb979a0f4b9f2c04"
+    "@6f53870bc36cfac0c0c9893daaee77a5eb4327f4"
 )
 
 _VERSION_CHECK: typ.Final = (
