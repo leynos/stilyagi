@@ -41,7 +41,10 @@ _SUITE_COMMAND: typ.Final = re.compile(
     r"\bcargo\s+(?:nextest\s+run|llvm-cov)\b|(?<![\w-])pytest\b"
 )
 _SWALLOWED_FAILURE: typ.Final = re.compile(r"\|\|\s*(?:true|:|exit\s+0)\b")
-_QUOTED: typ.Final = re.compile(r"'([^']*)'")
+# An expression arm is a quoted label right after `&&` or `||`. A quoted string
+# after `==` is a condition operand (`user.login == 'dependabot[bot]'`), not a
+# runner label.
+_QUOTED: typ.Final = re.compile(r"(?:&&|\|\|)\s*'([^']*)'")
 _MATRIX_REFERENCE: typ.Final = re.compile(r"^\$\{\{\s*matrix\.([\w-]+)\s*\}\}$")
 _LINUX_PREFIXES: typ.Final = ("ubuntu", "ubicloud")
 _OTHER_PREFIXES: typ.Final = ("macos", "windows")
