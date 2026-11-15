@@ -1,6 +1,7 @@
 """Coordinate canonical extraction, cache identity, and fresh fallbacks."""
 
 import collections.abc as cabc
+import contextlib
 import dataclasses as dc
 import logging
 import typing as typ
@@ -169,20 +170,43 @@ class CacheExtractionService:
         self._unusable_roots: set[pathlib.Path] = set()
         self.counters = CacheEventCounts()
 
-    def without_persistent_cache(self) -> None:
-        """Forbid all persistent-cache work, keeping this service's identity.
+    @contextlib.contextmanager
+    def without_persistent_cache(self) -> cabc.Iterator[None]:
+        """Forbid persistent-cache work for one invocation of this service.
 
-        The command boundaries call this when `--no-cache` was asked for, so
-        the policy reaches an injected service as well as one they built. A
+        The boundaries call this when `--no-cache` was asked for, so the
+        policy reaches an injected service as well as one they built. A
         service that has already opened storage keeps those descriptors until
-        `close`; it simply performs no further operations through them, which
-        is what makes the flag effective at the boundary rather than only at
-        construction.
+        `close` and simply performs no further operations through them.
 
-        The counters and identity collaborators survive, so a caller still
-        gets the extraction and the bypass it asked for.
+        The policy is saved and restored around the block: the bypass belongs
+        to the invocation, not the service, so an embedding caller may reuse
+        one service and a service configured ``no_cache=True`` keeps it.
+
+        Examples
+        --------
+        >>> from pathlib import Path
+        >>> from stilyagi.cache.extraction import (
+        ...     CacheExtractionService,
+        ...     CacheServiceConfig,
+        ... )
+        >>> service = CacheExtractionService(
+        ...     CacheServiceConfig(
+        ...         invocation_cwd=Path.cwd(), package_version="test-version"
+        ...     )
+        ... )
+        >>> with service.without_persistent_cache():
+        ...     service.no_cache
+        True
+        >>> service.no_cache
+        False
         """
+        saved_policy = self.no_cache
         self.no_cache = True
+        try:
+            yield
+        finally:
+            self.no_cache = saved_policy
 
     def extract(self, request: CacheExtractionInput) -> engine.ExtractionResult:
         """Return the current Rust extraction for one file request.

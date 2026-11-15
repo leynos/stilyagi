@@ -150,6 +150,43 @@ def test_cli_no_cache_is_a_cold_and_warm_zero_write_bypass(
 
 
 @pytest.mark.parametrize("command", ["check", "dump-ir"])
+def test_a_reused_cache_is_not_left_bypassed_after_a_no_cache_run(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    """Scope the bypass to its invocation, so a reused service still caches.
+
+    The first run asks for `--no-cache` on an injected service; the second asks
+    for the ordinary behaviour on the same object. A service that kept the
+    bypass would pass the first run and then silently skip every read and write
+    for the rest of the caller's lifetime.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "notes.md").write_bytes(SOURCE.encode())
+    service = CacheExtractionService(
+        CacheServiceConfig(
+            invocation_cwd=tmp_path,
+            package_version="test-version",
+            extractor=counting_extractor([]),
+        )
+    )
+
+    assert _run_command(command, no_cache=True, service=service) == 0, (
+        "the bypass run must succeed"
+    )
+    cache_parent = tmp_path / ".stilyagi_cache"
+    assert not cache_parent.exists(), "the bypass run must not create storage"
+
+    assert _run_command(command, no_cache=False, service=service) == 0, (
+        "the later cacheable run must succeed"
+    )
+    assert _cache_state(cache_parent / CACHE_NAMESPACE_NAME) or cache_parent.exists(), (
+        "a reused service must cache again once its bypass invocation has ended"
+    )
+
+
+@pytest.mark.parametrize("command", ["check", "dump-ir"])
 def test_an_injected_cache_honours_no_cache_on_a_cold_run(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,

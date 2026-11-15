@@ -17,6 +17,7 @@ defines the mapping from diagnostics to process status, and it is documented at
 `check_outcome` beside the report it describes.
 """
 
+import contextlib
 import dataclasses as dc
 import logging
 import pathlib
@@ -282,30 +283,60 @@ def _run_check(
         len(discovery_inputs.inputs),
     )
 
-    extraction_cache = (
-        resolved_collaborators.extraction_cache
-        if resolved_collaborators.extraction_cache is not None
-        else CacheExtractionService(
-            CacheServiceConfig(
-                invocation_cwd=pathlib.Path.cwd(),
-                package_version=PACKAGE_VERSION,
-            )
-        )
-    )
-    if options.no_cache:
-        # Applied to the selected service, not only to one built here, so the
-        # flag means the same thing whether or not a caller injected a cache.
-        extraction_cache.without_persistent_cache()
+    extraction_cache = _selected_extraction_cache(resolved_collaborators)
     try:
-        return _run_discovered_check(
-            options,
-            resolved_collaborators,
-            discovery_inputs,
-            extraction_cache,
-        )
+        with _cache_policy_for(options, extraction_cache):
+            return _run_discovered_check(
+                options,
+                resolved_collaborators,
+                discovery_inputs,
+                extraction_cache,
+            )
     finally:
         extraction_cache.log_summary()
         extraction_cache.close()
+
+
+def _selected_extraction_cache(
+    resolved_collaborators: CheckCollaborators,
+) -> CacheExtractionService:
+    """Return the injected cache, or build one for this invocation.
+
+    A working directory that cannot be read is a cache root that cannot be
+    anchored, so the service built here is one that never touches storage
+    rather than one pointed at a substitute directory. The check still runs
+    and reports its own result.
+    """
+    if resolved_collaborators.extraction_cache is not None:
+        return resolved_collaborators.extraction_cache
+    try:
+        invocation_cwd = pathlib.Path.cwd()
+    except OSError:
+        return CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=pathlib.Path(),
+                package_version=PACKAGE_VERSION,
+                no_cache=True,
+            )
+        )
+    return CacheExtractionService(
+        CacheServiceConfig(
+            invocation_cwd=invocation_cwd,
+            package_version=PACKAGE_VERSION,
+        )
+    )
+
+
+def _cache_policy_for(
+    options: CheckOptions,
+    extraction_cache: CacheExtractionService,
+) -> cabc.ContextManager[None]:
+    """Scope `--no-cache` to this invocation of the selected service."""
+    if options.no_cache:
+        # Applied to the selected service, not only to one built here, so the
+        # flag means the same thing whether or not a caller injected a cache.
+        return extraction_cache.without_persistent_cache()
+    return contextlib.nullcontext()
 
 
 def _run_discovered_check(

@@ -237,7 +237,7 @@ def test_dump_ir_reports_spool_creation_failure_before_stdout(
     error = io.StringIO()
 
     exit_code = cli_dump_ir.run_dump_ir(
-        DumpIrOptions(targets=(".",)),
+        DumpIrOptions(targets=(".",), isolated=True),
         collaborators=cli_dump_ir.DumpIrCollaborators(output=output, error=error),
     )
 
@@ -277,7 +277,7 @@ def test_dump_ir_reports_spool_write_failure_before_stdout(
     error = io.StringIO()
 
     exit_code = cli_dump_ir.run_dump_ir(
-        DumpIrOptions(targets=(".",)),
+        DumpIrOptions(targets=(".",), isolated=True),
         collaborators=cli_dump_ir.DumpIrCollaborators(output=output, error=error),
     )
 
@@ -307,7 +307,7 @@ def test_dump_ir_reports_short_text_output_write(
     error = io.StringIO()
 
     exit_code = cli_dump_ir.run_dump_ir(
-        DumpIrOptions(targets=("notes.md",)),
+        DumpIrOptions(targets=("notes.md",), isolated=True),
         collaborators=cli_dump_ir.DumpIrCollaborators(output=output, error=error),
     )
 
@@ -363,7 +363,7 @@ def test_dump_ir_reports_framing_spool_failure_before_stdout(
     error = io.StringIO()
 
     exit_code = cli_dump_ir.run_dump_ir(
-        DumpIrOptions(targets=("notes.md",)),
+        DumpIrOptions(targets=("notes.md",), isolated=True),
         collaborators=cli_dump_ir.DumpIrCollaborators(output=output, error=error),
     )
 

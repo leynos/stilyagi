@@ -7,12 +7,14 @@ directly, keeping the command's fault handling measured.
 """
 
 import errno
+import io
 import json
 import pathlib
 import typing as typ
 
 import pytest
 from stilyagi import cli_dump_ir, discovery
+from stilyagi.cli_args import DumpIrOptions
 
 from tests.support.dump_ir_harness import Stdin, run_dump_ir
 
@@ -155,6 +157,66 @@ def test_dump_ir_rejects_a_non_markdown_explicit_file_in_process(
     assert "unsupported explicit file" in error, (
         "the error must identify the unsupported explicit file"
     )
+
+
+def test_dump_ir_rejects_a_home_relative_non_markdown_operand(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Classify `~/` operands after expansion, as discovery does.
+
+    The raw spelling `~/module.py` is not a relative path that exists, so a
+    filter that tested it unexpanded would let the operand through. Discovery
+    would then expand it, find the file, and the Markdown filter would discard
+    it -- an exit zero with no output for an operand refused when spelled
+    expanded.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "module.py").write_text("print('hi')\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+
+    exit_code, output, error = run_dump_ir(
+        tmp_path,
+        monkeypatch,
+        "~/module.py",
+    )
+
+    assert exit_code == 2, "a home-relative non-Markdown file is invalid"
+    assert not output, "a rejected invocation must emit no JSON"
+    assert "unsupported explicit file" in error, (
+        "the error must identify the unsupported explicit file"
+    )
+
+
+@pytest.mark.parametrize("no_cache", [False, True], ids=["cache", "no-cache"])
+def test_dump_ir_reports_a_removed_working_directory_as_a_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    no_cache: bool,
+) -> None:
+    """Report an unreadable working directory instead of raising a traceback.
+
+    `Path.cwd()` raises when the directory has been removed, which is exactly
+    the state a long-running process can be left in. The command must report
+    its documented status two rather than letting that escape, and the
+    `--no-cache` form is included because it needs no cache directory at all
+    and so must not be refused for a cache reason.
+    """
+    removed = tmp_path / "removed"
+    removed.mkdir()
+    monkeypatch.chdir(removed)
+    removed.rmdir()
+
+    exit_code = cli_dump_ir.run_dump_ir(
+        DumpIrOptions(targets=("notes.md",), no_cache=no_cache),
+        collaborators=cli_dump_ir.DumpIrCollaborators(
+            output=io.BytesIO(),
+            error=io.StringIO(),
+        ),
+    )
+
+    assert exit_code == 2, "an unreadable working directory must exit two"
 
 
 def test_dump_ir_reports_a_discovery_failure(

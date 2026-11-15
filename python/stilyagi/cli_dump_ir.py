@@ -1,5 +1,6 @@
 """Run the read-only command that emits Rust's canonical Markdown IR."""
 
+import contextlib
 import dataclasses as dc
 import enum
 import pathlib
@@ -141,20 +142,15 @@ def run_dump_ir(
     config_resolver = (
         injected.resolver if injected.resolver is not None else config.ConfigResolver()
     )
-    extraction_cache = (
-        injected.cache if injected.cache is not None else _open_extraction_cache()
-    )
-    if options.no_cache:
-        # Applied to the selected service, not only to one built here, so the
-        # flag means the same thing whether or not a caller injected a cache.
-        extraction_cache.without_persistent_cache()
+    extraction_cache = _open_extraction_cache(injected.cache)
     try:
-        inputs = _discover_markdown_inputs(options, config_resolver)
-        _write_dump_output(
-            inputs,
-            _ExtractionContext(options, config_resolver, extraction_cache),
-            streams.output,
-        )
+        with _cache_policy_for(options, extraction_cache):
+            inputs = _discover_markdown_inputs(options, config_resolver)
+            _write_dump_output(
+                inputs,
+                _ExtractionContext(options, config_resolver, extraction_cache),
+                streams.output,
+            )
     except (DumpIrError, config.ConfigError, OSError, ValueError) as exc:
         return write_command_failure(streams.error, command="dump-ir", failure=exc)
     finally:
@@ -163,14 +159,46 @@ def run_dump_ir(
     return 0
 
 
-def _open_extraction_cache() -> CacheExtractionService:
-    """Return the invocation-scoped cache this run extracts through."""
+def _open_extraction_cache(
+    injected: CacheExtractionService | None,
+) -> CacheExtractionService:
+    """Return the injected cache, or build one for this invocation.
+
+    A working directory that cannot be read is a cache root that cannot be
+    anchored, so the service built here is one that never touches storage
+    rather than one pointed at a substitute directory. The command still
+    extracts and reports its own result.
+    """
+    if injected is not None:
+        return injected
+    try:
+        invocation_cwd = pathlib.Path.cwd()
+    except OSError:
+        return CacheExtractionService(
+            CacheServiceConfig(
+                invocation_cwd=pathlib.Path(),
+                package_version=PACKAGE_VERSION,
+                no_cache=True,
+            )
+        )
     return CacheExtractionService(
         CacheServiceConfig(
-            invocation_cwd=pathlib.Path.cwd(),
+            invocation_cwd=invocation_cwd,
             package_version=PACKAGE_VERSION,
         )
     )
+
+
+def _cache_policy_for(
+    options: DumpIrOptions,
+    extraction_cache: CacheExtractionService,
+) -> cabc.ContextManager[None]:
+    """Scope `--no-cache` to this invocation of the selected service."""
+    if options.no_cache:
+        # Applied to the selected service, not only to one built here, so the
+        # flag means the same thing whether or not a caller injected a cache.
+        return extraction_cache.without_persistent_cache()
+    return contextlib.nullcontext()
 
 
 def _write_dump_output(
@@ -235,18 +263,37 @@ def _stdin_markdown_input(options: DumpIrOptions) -> tuple[CheckInput, ...]:
 def _reject_non_markdown_explicit_files(
     target_paths: cabc.Iterable[pathlib.Path],
 ) -> None:
-    """Reject explicit existing files without a Markdown extractor."""
+    """Reject explicit existing files without a Markdown extractor.
+
+    The operand is expanded before it is classified. Discovery expands every
+    target itself, so testing the raw spelling would leave `~/example.py`
+    looking like a missing relative path: discovery would then find the file,
+    the Markdown filter would discard it, and the command would exit zero with
+    no output for an operand it refuses when spelled expanded. An expansion
+    failure is left for discovery, which reports it as `CANNOT_DISCOVER`
+    rather than as an unsupported file.
+    """
     unsupported_targets = tuple(
-        path
+        expanded
         for path in target_paths
-        if path.is_file()
-        and discovery.syntax_for_path(path) is not model.Syntax.MARKDOWN
+        if (expanded := _expanded_operand(path)) is not None
+        and expanded.is_file()
+        and discovery.syntax_for_path(expanded) is not model.Syntax.MARKDOWN
     )
     if unsupported_targets:
         raise DumpIrError(
             DumpIrErrorCode.UNSUPPORTED_EXPLICIT_FILE,
             unsupported_targets[0],
         )
+
+
+def _expanded_operand(path: pathlib.Path) -> pathlib.Path | None:
+    """Return the operand discovery will inspect, or None if it cannot expand."""
+    try:
+        return path.expanduser()
+    except OSError, RuntimeError:
+        # Discovery owns the failure and reports it as CANNOT_DISCOVER.
+        return None
 
 
 #: Discovery notice reasons this command turns into errors, with their codes.
