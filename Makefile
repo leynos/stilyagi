@@ -309,6 +309,9 @@ nixie: tools-docs ## Validate Mermaid diagrams
 test: check-build-tools build tools-lint ## Run tests (nextest if available, otherwise cargo test)
 	$(CARGO) fmt --manifest-path $(WORKSPACE_MANIFEST) --all -- --check
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) clippy $(CLIPPY_FLAGS)
+	# The nextest profile fetches through its setup script; the cargo test
+	# fallback has none, so fetch the locked dependencies here, and stop on failure.
+	$(CARGO) fetch --locked --manifest-path $(WORKSPACE_MANIFEST)
 	@if $(CARGO) nextest --version >/dev/null 2>&1; then \
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO_BUILD_ENV) $(CARGO) nextest run --profile default --no-tests pass $(TEST_FLAGS) $(BUILD_JOBS); \
 	else \
