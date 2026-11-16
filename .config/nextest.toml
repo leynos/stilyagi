@@ -13,6 +13,22 @@
 # cancels the second one while neither test has reached its own allowance.
 # Fifty-six minutes is that pair plus the six minutes of suite overhead and
 # reporting the earlier sizing already allowed for.
+# Fetch the locked dependencies once, before any test starts, so a nested
+# Cargo build in a test (the trybuild binaries below) does not resolve them
+# while holding the shared package-cache lock (the Concordat NC-008 rule). It
+# lives here, not in each caller, because `make test` and every
+# generate-coverage step run this profile. Setup scripts are experimental in
+# the nextest versions the coverage action may install, so the configuration
+# opts in; newer versions accept the entry.
+experimental = ["setup-scripts"]
+
+[scripts.setup.fetch-locked]
+command = "cargo fetch --locked"
+
+[[profile.default.scripts]]
+filter = "all()"
+setup = "fetch-locked"
+
 [profile.default]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 global-timeout = "56m"
