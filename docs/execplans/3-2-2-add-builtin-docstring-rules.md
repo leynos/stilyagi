@@ -4,8 +4,10 @@ This execution plan (ExecPlan) is a living document. Keep its constraints,
 progress, discoveries, decisions, conformance basis, verification, and outcomes
 current at every milestone boundary.
 
-Status: DRAFT. Planning is complete enough for review; implementation requires
-approval and delivery of prerequisite 2.3.1. No feature is implemented here.
+Status: DRAFT. Planning is complete enough for review; implementation still
+requires approval. Prerequisite 2.3.1 merged as
+`a6ba33a1985b75bdcd07513f1b9cffb2559a5d17` (PR #240). No feature is implemented
+here.
 
 ## Purpose / big picture
 
@@ -27,8 +29,9 @@ below passes.
 - Preserve the Rust extraction/Python policy boundary. Rules consume the
   shared typed region API and never inspect tree-sitter nodes, read source
   files themselves, or invoke an extractor directly.
-- Reuse the existing policy targeting, registry, diagnostics, suppression, and
-  command pipeline delivered by 2.3.1. Do not create a docstring-only engine.
+- Reuse the policy, registry, diagnostics, suppression, and command pipeline
+  delivered by 2.3.1. Add only the bounded Python-side projection and targeting
+  extensions described below; do not create a docstring-only engine.
 - Support Python docstrings and Rust documentation comments explicitly.
   Standalone Markdown and arbitrary non-documentation comments are excluded
   from these three new rules. Existing Markdown rules remain unchanged.
@@ -45,13 +48,12 @@ below passes.
 ## Tolerances (exception triggers)
 
 Stop implementation, record the proposed deviation, and seek explicit direction
-if prerequisite 2.3.1 remains absent; the shared policy API cannot express the
-specified targets; owner or source mapping needs new extraction metadata; a
-runtime dependency, parser, public wire change, or autocorrection is needed; or
-a rule cannot meet its specified false-positive exclusions. Do not implement
-missing prerequisite work under this task number. Mechanical renames of the
-prerequisite's unpublished Python API are allowed only when recorded with all
-plan references updated; compatibility wrappers are not required.
+if the merged rule substrate cannot support the planned private projection and
+targeting extensions; source mapping needs new extractor metadata; a runtime
+dependency, parser, public wire change, or autocorrection is needed; or a rule
+cannot meet its specified false-positive exclusions. Do not change the Rust
+extractors or wire schema. Private API changes may be made atomically with all
+callers; compatibility wrappers are not required.
 
 There is no elapsed-time limit. Three unsuccessful fixes of the same gate
 failure require a recorded diagnosis before another attempt, not a weakened
@@ -60,15 +62,16 @@ external blocker without bypassing it.
 
 ## Risks
 
-The prerequisite is definitely absent at the recorded baseline (high impact).
-An explicit entry gate prevents accidental engine construction in this task.
-Markdown inside Rust comments and verbatim Python strings make broad summary
-heuristics prone to false positives (medium impact); restrict recognition as
-specified below and test unsupported forms as negative cases. Synthetic Rust
-line separators make region offsets different from source offsets (high
-impact); use the prerequisite's source mapping and offer no fixes. Optional
-owner names are normal, not extraction failures (medium impact); skip the
-owner-dependent rule when a trustworthy name is absent.
+The merged rule loop is the baseline, but its projection exposes no owner and
+its target accepts one syntax at a time (medium impact). A bounded extension
+milestone will add these rule-facing capabilities without changing extraction
+or wire formats. Markdown inside Rust comments and verbatim Python strings make
+broad summary heuristics prone to false positives (medium impact); restrict
+recognition as specified below and test unsupported forms as negative cases.
+Synthetic Rust line separators make region offsets different from source
+offsets (high impact); use the prerequisite's source mapping and offer no
+fixes. Optional owner names are normal, not extraction failures (medium
+impact); skip the owner-dependent rule when a trustworthy name is absent.
 
 ## Progress
 
@@ -81,38 +84,47 @@ owner-dependent rule when a trustworthy name is absent.
   mutation witnesses, and fail-fast gate commands.
 - [x] (2026-10-13) Markdown lint, spelling, and Mermaid validation pass.
 - [x] (2026-10-13) Formatting validation passes after a second format pass.
-- [ ] Publish the validated planning commit as a draft pull request.
-- [ ] EP-M0: verify prerequisite delivery and bind the plan to its actual API.
+- [x] (2026-10-13) Publish the validated planning commit as draft PR #225.
+- [x] (2026-11-16) Rebase onto the refreshed target and reconcile the plan
+  with the merged 2.3.1 rule substrate.
+- [ ] EP-M0: verify the merged substrate and add typed owner and multi-target
+      projection capabilities.
 - [ ] EP-M1: deliver three registered rules with focused verification.
 - [ ] EP-M2: prove mixed-source workflow behaviour and document delivery.
 
 ## Surprises & discoveries
 
-At baseline `91941ef36df9c262af74e6089e661921d1ae3577`, extraction and
-mixed-source file discovery exist, but
-`python/stilyagi/rules/registry.py::run_rules` returns an empty list.
-`python/stilyagi/model/region.py::Region` contains only `kind` and `text`; the
-execution planner and runner are placeholders. Roadmap 2.3.1 is unchecked. RFC
-0002 describes the intended rule API, not a present working implementation.
-Planning can proceed; implementation cannot yet pass EP-M0.
+At the original planning baseline (`91941ef36df9c262af74e6089e661921d1ae3577`),
+the rule runner was a placeholder and 2.3.1 was unchecked. That is historical
+context, not the current implementation state. PR #240 merged 2.3.1 as
+`a6ba33a1985b75bdcd07513f1b9cffb2559a5d17`; the starter pack now exercises the
+shared rule loop. The current gap is narrower: the rule-facing `RegionView`
+does not yet project typed owner identity, and `RegionTarget` has one syntax
+value and no owner-kind filter.
 
-CodeGraph indexing did not establish a useful graph for this checkout and agent
-symbol searches failed with `Transport closed`. Focused repository reads and
-context packs supplied the evidence instead. No graph-derived relationships are
-assumed by this plan.
+During the original reconnaissance, CodeGraph indexing did not establish a
+useful graph and agent symbol searches failed with `Transport closed`. Focused
+repository reads and context packs supplied the evidence instead. No
+graph-derived relationships are assumed by this plan.
 
 ## Decision log
 
 - 2026-10-13: Keep this task conditional on 2.3.1. Folding in an entire rule
   engine would violate the roadmap dependency and obscure the learning goal.
+  This describes the planning baseline; 2.3.1 has since merged.
 - 2026-10-13: Propose three conservative structural rules, rather than
   imperative-mood detection or signature analysis. Owner kind and name exist;
   parameters, return types, decorators, and visibility do not form a guaranteed
   owner contract. Grammar rules belong to later capability slices.
 - 2026-10-13: All three rules are diagnostic-only and explicitly enabled.
-  This follows the shared policy model without choosing a new default style for
-  all repositories. Source fix mapping remains the existing engine's
+  This followed the shared policy model without choosing a new default style
+  for all repositories. Source fix mapping remains the existing engine's
   responsibility; 3.2.3 owns broader mixed-source output/fix work.
+- 2026-11-16: Retain per-rule opt-in, but implement it as validated
+  `enabled=false` rule configuration. Default `DOC` and `PYDOC` prefixes
+  already select these codes, so prefix selection alone cannot satisfy opt-in.
+  The rule hook must produce no diagnostics until explicitly enabled; shared
+  policy still handles selection, ignores, plugins, and suppression.
 - 2026-10-13: Record the proposed rule contract in design §7.2, linked to this
   plan. No new port, transport, schema, or persistent format is proposed, so a
   separate architectural decision record (ADR) is unnecessary. If that changes,
@@ -121,16 +133,17 @@ assumed by this plan.
 ## Outcomes & retrospective
 
 The current deliverable is a pre-implementation plan, not completed 3.2.2
-behaviour. The missing shared rule substrate is an explicit delivery gate.
-Implementation outcomes, exact gate logs, commits, and any approved deviations
-must replace this paragraph as milestones complete. Do not mark the plan
-COMPLETE while prerequisite, acceptance, or upstream documentation work remains.
+behaviour. The shared rule substrate is delivered; its remaining projection and
+targeting gaps are assigned to EP-M0. Implementation outcomes, exact gate logs,
+commits, and any approved deviations must replace this paragraph as milestones
+complete. Do not mark the plan COMPLETE while acceptance or upstream
+documentation work remains.
 
 ## Context and orientation
 
 Read `AGENTS.md`, `docs/contents.md`, and `docs/repository-layout.md` first.
-The current layout guide's skeleton language is older than the extraction
-implementation; use the actual source for implementation status.
+Use the layout guide for path responsibilities and the actual source for
+implementation status.
 
 Rust owns source fidelity in `crates/stilyagi-ir/src/region.rs` and the
 extractors under `crates/stilyagi-tree-sitter/`. `IrRegion` already carries
@@ -140,34 +153,57 @@ function; methods use function, and module names can be absent. Rust includes
 module, struct, enum, union, trait, function, const, static, type, macro, impl,
 and fallback item. The rule must use those facts, not infer missing semantics.
 
-`python/stilyagi/engine/api.py::extract_document` is the supported extraction
-entrypoint. `python/stilyagi/engine/checker.py::map_ir_errors` maps extraction
-errors, while `python/stilyagi/rules/registry.py::run_rules` is the current
-empty rule seam. `python/stilyagi/rules/builtin/__init__.py` reserves the
-builtin namespace. EP-M0 must identify the actual Rule, RegionTarget,
-context-reporting, source mapping, configuration, and registration APIs
-introduced by 2.3.1. Record the existing CLI exit statuses and renderer
-contracts, including whether configurable fail-on severity exists, before EP-M2
-begins. Names below for new files are proposals, not claims that those files
-exist.
+The delivered path is `python/stilyagi/rules/registry.py::run_rules`, using
+`RuleRunRequest` from that module and `RuleContext`, `RuleMetadata`, and
+`RegionTarget` from `python/stilyagi/rules/base.py`, plus the private
+`BuiltinRule`/`inventory`/`run_selected` pack contract in
+`python/stilyagi/rules/builtin/pack.py`. Projection lives in
+`python/stilyagi/engine/rule_projection.py::project`; rule-facing regions and
+segments are `RegionView` and `RegionSegment` in
+`python/stilyagi/model/region.py`. Source mapping helpers `utf8_offsets`,
+`token_span`, and `location` are in `python/stilyagi/rules/builtin/text.py`, and
+`Diagnostic.span` carries the source span. There is no public `Rule` subclass
+or `visit_region` API; hooks run per document. EP-M0 adds typed owner
+projection and extends private `RegionTarget.syntax` to
+`syntaxes: tuple[str, ...]` plus `owner_kinds`, updating all callers
+atomically. No extractor or wire-schema change is required.
+
+`LintConfig.select` already includes `DOC` and `PYDOC`. Each new rule therefore
+needs frozen per-rule configuration defaulting to `enabled=False` and validated
+TOML opt-in under `[tool.stilyagi.rule.DOC001]` (file scope `[rule.DOC001]`).
+The hook returns no diagnostics until enabled, following the existing
+`Term001Config.is_active` pattern in `python/stilyagi/config/rules.py`; normal
+selection, ignore, plugin, and suppression policy continues to apply. Do not
+alter global selection defaults or add a registry activation framework. The CLI
+exits 0 for warning-only findings, 1 for error findings, and 2 for
+configuration or environment failures; there is no configurable fail-on option.
+Names below for new test files are proposals, not claims that those files exist.
 
 ## Conformance basis
 
-The baseline revision above applies to `docs/roadmap.md` item 3.2.2,
-`docs/stilyagi-design.md` §§3–4, 7.2, and 13,
-`docs/rfcs/0002-stilyagi-python-rule-api.md`, and ADRs 003, 006, 007, and 008.
-There is no separate task-specific terms-of-reference document. RFC 0002
-requires explicit region targets, capability declarations, hook dispatch only
-for matching targets, and ordering by pack name, rule code, and document order.
+The current basis is target commit `b52ffc0c0cfe28bd0fb61e019568471112534b05`,
+merged prerequisite commit `a6ba33a1985b75bdcd07513f1b9cffb2559a5d17`,
+`docs/roadmap.md` item 3.2.2, `docs/stilyagi-design.md` §§3–4, 7.2, and 13,
+`docs/rfcs/rfc-0002-stilyagi-python-rule-api.md`,
+`docs/adrs/adr-0003-ratify-the-v1-contract-scope.md`,
+`docs/adrs/adr-0006-adopt-docstring-owner-metadata.md`,
+`docs/adrs/adr-0007-adopt-rust-documentation-comment-owner-metadata.md`,
+`docs/adrs/adr-0008-adopt-v1-discovery-defaults.md`, and
+`docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md`. There is
+no separate task-specific terms-of-reference document. RFC 0002 describes
+region targets and deterministic ordering. ADR-0012 records the delivered
+private implementation contract: one per-document hook per builtin rule,
+selected target regions in each context, and deterministic inventory order. The
+source API is private and may change atomically with its callers.
 
-Trace R-REUSE (shared loop and prerequisite) through EP-M0 and EP-M1 to the
-registration/dispatch tests; R-VALUE (summary, punctuation, owner-aware value)
-through EP-M1 to the three rule tables; R-SCOPE (explicit surface targeting and
-no ordinary comments) through both implementation milestones to the targeting
-matrix and mixed-tree command test; R-FIDELITY (source-backed diagnostics)
-through EP-M1 and EP-M2 to Unicode properties and renderer snapshots;
-R-DELIVERY (documentation and roadmap completion) through EP-M2 to final gates
-and the roadmap diff. Keep these links current after prerequisite integration.
+Trace R-REUSE (shared loop and merged prerequisite) through EP-M0 and EP-M1 to
+the registration/dispatch tests; R-VALUE (summary, punctuation, owner-aware
+value) through EP-M1 to the three rule tables; R-SCOPE (explicit surface
+targeting and no ordinary comments) through both implementation milestones to
+the targeting matrix and mixed-tree command test; R-FIDELITY (source-backed
+diagnostics) through EP-M1 and EP-M2 to Unicode properties and renderer
+snapshots; R-DELIVERY (documentation and roadmap completion) through EP-M2 to
+final gates and the roadmap diff. Keep these links current as work progresses.
 
 Primary-source research on 2026-10-13 used Firecrawl to consult
 [PEP 257](https://peps.python.org/pep-0257/) and the
@@ -180,16 +216,17 @@ mandatory.
 
 ## Proposed rule contract
 
-Reserve `DOC001`, `DOC002`, and `DOC003` subject to an EP-M0 collision check.
-If the prerequisite establishes another code namespace, record the mechanical
-substitution everywhere before writing tests. Each declares only the existing
-structural capability, default warning severity, no fix, no preview dependency,
-and explicit opt-in through the shared rule selection configuration. Policies
-can narrow these targets; they cannot broaden a rule into an unsupported
-syntax. No rule needs locale-sensitive linguistic claims. Physical content
-lines split only at LF, treating a preceding CR as part of the CR-LF
-terminator; Unicode line separators and a lone CR do not create additional
-physical lines. Analysis-only trimming uses Python Unicode whitespace semantics.
+Reserve `DOC001`, `DOC002`, and `DOC003`, after confirming those codes are
+unused. Each declares `requires_nlp=False`, default warning severity, no fix,
+and no preview dependency. Explicit per-rule `enabled=true` is required in
+addition to shared prefix selection. Policies can narrow these targets; they
+cannot broaden a rule into an unsupported syntax. `owner_kinds=()` means the
+target accepts any owner state, including absent owner metadata; a nonempty
+tuple requires a present owner whose kind matches. No rule needs
+locale-sensitive linguistic claims. Physical content lines split only at LF,
+treating a preceding CR as part of the CR-LF terminator; Unicode line
+separators and a lone CR do not create additional physical lines. Analysis-only
+trimming uses Python Unicode whitespace semantics.
 
 `DOC001`, summary separation, targets only Python `python_docstring` regions
 with module, class, or function owners. Find the first nonblank physical
@@ -236,60 +273,79 @@ the name. This uses metadata without claiming full signature or semantic
 analysis. `DOC002` and `DOC003` may both report `Widget`; retain both
 independent findings in the engine's established ordering.
 
-Introduce a private summary-analysis helper only after checking the
-prerequisite for an equivalent. Its sole responsibility is selecting candidate
-text ranges and identifying supported forms while retaining offsets into
-unchanged region text. Source mapping and reporting stay with the shared
-context. For Rust block comments, do not strip decorative `*` prefixes or
-reparse Markdown: punctuation checking skips these unsupported forms, and owner
-matching remains exact. If an anchor cannot be mapped to a source-backed
-character, omit that finding; never substitute a file-level location or
-synthetic separator. When the prerequisite diagnostic API accepts a span, use
-the half-open UTF-8 byte span of that one complete anchor character, not one
+Introduce a private summary-analysis helper only after checking
+`python/stilyagi/rules/builtin/text.py` and related rule helpers for an
+equivalent. Its sole responsibility is selecting candidate text ranges and
+identifying supported forms while retaining offsets into unchanged region text.
+Source mapping and reporting stay with the shared context. For Rust block
+comments, do not strip decorative `*` prefixes or reparse Markdown: punctuation
+checking skips these unsupported forms, and owner matching remains exact. If an
+anchor cannot be mapped to a source-backed character, omit that finding; never
+substitute a file-level location or synthetic separator. Use the diagnostic
+API's half-open UTF-8 byte span for that one complete anchor character, not one
 byte of a multibyte character. Point-only renderers use its start. Preserve the
 existing 1-based byte-column contract; do not change renderer coordinate units
-in this task.
+in this task. `diagnostics.Diagnostic.span` carries the accepted half-open
+source span.
 
 ## Plan of work and milestones
 
-### EP-M0: establish the usable prerequisite
+### EP-M0: conform the rule projection to documentation targets
 
-Inspect the accepted 2.3.1 commit and its tests. Record its revision and actual
-API paths in this plan. Require a working Markdown builtin through the real
-check pipeline, typed owner/segment access, shared policy target matching,
-explicit enable/disable selection, source-span reporting, and deterministic
-registration. Verify 3.1.1 and 3.1.2 extractor tests still pass. If any
-required substrate is absent, stop at this stable plateau and report the
-missing prerequisite rather than implementing it here. This baseline currently
-fails that entry condition. Do not mark 2.3.1 done merely to advance this plan.
+Start from merged 2.3.1 (`a6ba33a1985b75bdcd07513f1b9cffb2559a5d17`) and
+confirm the existing Markdown starter pack through `run_rules`. Add only the
+Python rule-facing extensions needed by 3.2.2: project the existing IR owner
+into a typed owner value (`kind`, optional `name`, optional `qualname`) on
+`RegionView`, and replace scalar `RegionTarget.syntax` with
+`syntaxes: tuple[str, ...]` while adding `owner_kinds`. An empty owner-kind
+tuple is unrestricted, including regions without owner metadata; a nonempty
+tuple requires a present matching owner. Update every private caller and test
+in the same change; do not add compatibility wrappers. Keep current Markdown
+targets equivalent. Extractor IR and serialized schemas stay unchanged.
 
-After the prerequisite lands, run the four major gates below and record the
-baseline results. Acceptance A0 is the passing Markdown rule workflow plus
-concrete references for each required API. R-REUSE is established; all new rule
-behaviour remains for EP-M1. Recovery is a clean restart from the prerequisite
-commit; no compatibility layer or change to extractors is justified.
+First write the narrow projection and target tests and run them red for the
+missing fields and matching behaviour. Then implement the projection and target
+changes, rerun those tests green, and refactor only while they remain green. Use
+`tests/support/rule_fixtures.py::LintSetup` as the real registry harness;
+extend its request helper with a syntax parameter if needed, since it currently
+extracts Markdown only. Test owner projection and target matching with actual
+Python and Rust extracted documents, including absent names, multi-syntax
+targets, owner-kind exclusion, and unchanged Markdown dispatch. Verify the
+existing extraction tests in `tests/test_python_docstring_extraction.py` and
+`tests/test_rust_doc_comment_extraction.py` still pass. Acceptance A0 is the
+existing Markdown workflow plus the new typed projection and target truth
+table, with concrete references to the API paths above. R-REUSE is established
+and R-SCOPE has explicit targeting primitives; the three rules remain for
+EP-M1. Run `make check-fmt`, `make typecheck`, `make lint`, and `make test`
+sequentially before committing this milestone. If owner projection requires new
+extractor facts or a wire change, stop and request a design decision. Recovery
+is a revert of this coherent private API change.
 
 ### EP-M1: deliver the complete rule policy
 
 Create focused modules under `python/stilyagi/rules/builtin/` for documentation
 summary analysis and the three rule declarations. Register them through the
-same mechanism as the Markdown pack, updating the prerequisite's registry and
-configuration metadata only where necessary. Use `visit_region` and shared
-`RegionTarget` descriptors. Do not extend the currently empty registry directly
-before EP-M0 establishes its replacement.
+existing `BuiltinRule` inventory and per-document hook contract. Each rule's
+frozen config defaults to `enabled=False`; validate its `enabled` TOML value
+even when policy ignores the rule. Its hook returns no findings unless enabled.
+The default `DOC`/`PYDOC` selection prefixes remain unchanged. Shared policy
+selection, plugin disablement, ignores, per-file ignores, and suppression keep
+their existing precedence.
 
 Write `tests/test_builtin_docstring_rules.py` and
-`tests/test_builtin_docstring_properties.py` first, using the prerequisite's
-real rule harness. Observe the expected failures (missing codes or missing
-findings), then implement the smallest policy and rerun. Include both passing
-and failing examples for every owner/syntax partition, multiline and blank
-inputs, CR-LF, Unicode, unsupported Markdown, literal escapes, optional owner
-names, owner names containing underscores, Unicode line separators, and
-independent overlapping diagnostics. Include a Rust summary immediately
-followed by a heading without a blank line as an explicit skip witness. Test
-policy disablement and narrowed syntax/owner targeting through the shared
-dispatch rather than calling private predicates alone. Extract helpers only
-after green tests.
+`tests/test_builtin_docstring_properties.py` first, using the real registry
+harness and actual syntax extraction. Observe the expected failures (missing
+codes or missing findings), then implement the smallest policy and rerun.
+Include a default-prefix run with absent and false per-rule opt-in (no DOC
+findings), an enabled and selected run (findings), ignore/plugin suppression,
+and malformed `enabled` validation even when ignored. Include both passing and
+failing examples for every owner/syntax partition, multiline and blank inputs,
+CR-LF, Unicode, unsupported Markdown, literal escapes, optional owner names,
+owner names containing underscores, Unicode line separators, and independent
+overlapping diagnostics. Include a Rust summary immediately followed by a
+heading without a blank line as an explicit skip witness. Test policy
+disablement and syntax/owner target matching through the shared dispatch rather
+than calling private predicates alone. Extract helpers only after green tests.
 
 Acceptance A1 is the finite rule matrix and invariants V1–V3 below passing,
 including source locations on actual extracted Python/Rust fixtures. Run all
@@ -305,7 +361,7 @@ Add `features/builtin_docstring_rules.feature` and
 `tests/test_builtin_docstring_rules_bdd.py`, plus subprocess command tests in
 `tests/test_builtin_docstring_cli.py`. Create a temporary tree with Markdown,
 Python, Rust, ordinary comments, valid summaries, and invalid summaries. Enable
-all three codes using the prerequisite's documented configuration, then execute
+all three codes using each rule's validated opt-in configuration, then execute
 `stilyagi check .` with the supported human and JSON renderers. Snapshot only
 stable diagnostic records with normalized temporary paths, and assert codes,
 severity, locations, ordering, and exit status separately. Confirm disabling
@@ -371,8 +427,9 @@ The intermediate contract is that summary analysis retains region-relative
 positions and shared context maps them to source bytes. Test it at the real
 extraction boundary, not through a mock of the same mapper. Trusted assumptions
 are the documented tree-sitter/PyO3 interfaces, Python Unicode behaviour, and
-the prerequisite's typed context contract. Third-party internals are not proof
-obligations; the repository-owned integration is.
+the typed `RuleContext` contract in `python/stilyagi/rules/base.py`.
+Third-party internals are not proof obligations; the repository-owned
+integration is.
 
 The intended implementation adds Python editorial predicates, no new Rust axiom
 or contractual kernel requiring an unbounded proof. If source mapping or new
@@ -421,7 +478,7 @@ Feature: Builtin documentation rules share the mixed-source rule loop
 Add scenarios for disabling a rule, Rust anonymous owners, a blank separator
 passing, and mixed-tree ordering. Rust BDD covers extraction of source-backed
 regions and owner identity from the same fixture corpus. It does not claim to
-execute Python policy. Record the actual Rust feature path during EP-M0.
+execute Python policy.
 
 ## Concrete steps and validation
 
@@ -465,14 +522,13 @@ PR, run documentation gates and formatting; the four code gates above remain
 mandatory for each future implementation milestone.
 
 Manual acceptance uses the same mixed-tree fixture and configuration as the
-command test: enabled warnings appear with the three specified codes and exact
-locations, conforming examples do not warn, disabling the rules removes their
-findings, and repeated JSON output is identical. Cover clean input,
-warning-only input under default behaviour, configured fail-on behaviour if the
-prerequisite supports it, and malformed-source diagnostics with rules enabled
-and disabled. If fail-on is unavailable, record that fact rather than
-introducing the option. Assert the prerequisite CLI's existing warning/fail-on
-contract; do not invent a new exit-code policy.
+command test: explicit opt-in produces the three specified codes at exact
+locations, default or false opt-in produces none, conforming examples do not
+warn, policy ignores/plugins suppress findings, and repeated JSON output is
+identical. Cover clean input, warning-only input (exit 0), error findings (exit
+1), configuration/environment failures (exit 2), and malformed-source
+diagnostics with rules enabled and disabled. Do not introduce a configurable
+fail-on option; none exists in the current CLI contract.
 
 ## Skills and reference signposts
 
@@ -490,9 +546,10 @@ introducing helpers; `docs/rust-testing-with-rstest-fixtures.md`,
 `docs/reliable-testing-in-rust-via-dependency-injection.md`, and
 `docs/rstest-bdd-users-guide.md` before Rust test changes. Consult
 `docs/documentation-style-guide.md` for prose and ADR structure, and
-`docs/rfcs/0004-stilyagi-rule-testing-framework.md` as a proposal: do not
-assume its test plugin exists until EP-M0 confirms it. Follow `.rules/` Python
-guidance and `docs/scripting-standards.md` if scripts become necessary.
+`docs/rfcs/rfc-0004-stilyagi-rule-testing-framework.md` as a proposal: do not
+assume its test plugin exists until its actual runner is inspected. Follow
+`.rules/` Python guidance and `docs/scripting-standards.md` if scripts become
+necessary.
 
 ## Idempotence, recovery, and evidence
 
@@ -505,8 +562,18 @@ rule, documentation, and roadmap evidence tied to the exact validated commit.
 Prerequisite and architecture deviations must be reconciled before feature
 completion.
 
-Revision note (2026-10-13): Initial plan records the missing prerequisite,
+Revision note (2026-10-13): Initial plan records the then-missing prerequisite,
 conservative policy contract, verification obligations, and staged delivery.
 Community review clarified shared summary selection, per-line markup skips,
 physical lines and Unicode spans, exit-status evidence, non-vacuous mutation
 witnesses, and fail-fast milestone logging. No runtime scope was added.
+
+Revision note (2026-11-16): Updated after rebasing onto
+`b52ffc0c0cfe28bd0fb61e019568471112534b05` and confirming 2.3.1 merged as
+`a6ba33a1985b75bdcd07513f1b9cffb2559a5d17` (PR #240). Replaced the obsolete
+missing-substrate gate with EP-M0's bounded owner projection and multi-syntax
+target extension; documented the actual private rule API, per-rule opt-in
+required by default `DOC`/`PYDOC` selection, current CLI exits, canonical
+reference paths, and current testing harness. PR #225 contains the planning
+draft. The plan remains DRAFT; implementation and roadmap completion remain
+approval- and evidence-gated.
