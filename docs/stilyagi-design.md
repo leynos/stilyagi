@@ -1034,9 +1034,13 @@ suffix removal.
 
 #### Proposed 3.2.2 documentation rules
 
-Subject to delivery of prerequisite 2.3.1, add three opt-in, diagnostic-only
-rules through the shared `RegionTarget` and policy-targeting model. Keep their
-analysis structural and use the extracted owner metadata:
+With prerequisite 2.3.1 now delivered by
+[PR #240](https://github.com/leynos/stilyagi/pull/240), add three opt-in,
+diagnostic-only rules through the shared rule pack and policy-targeting model.
+The rule projection still needs a typed owner view and targets that can name
+several syntaxes and owner kinds; add those as private Python-side extensions
+without changing extractor IR or serialized schemas. Keep analysis structural
+and use the extracted owner metadata:
 
 - `DOC001` checks summary separation in Python docstrings.
 - `DOC002` checks plain-summary punctuation in Python docstrings and Rust
@@ -1044,11 +1048,13 @@ analysis structural and use the extracted owner metadata:
 - `DOC003` warns when a Python or Rust summary only repeats its documented
   owner's name.
 
-These rules exclude Markdown and arbitrary non-documentation comments. This is
-a proposal, not an implementation claim: prerequisite 2.3.1 is not yet
-available. The [3.2.2 ExecPlan](execplans/3-2-2-add-builtin-docstring-rules.md)
-holds the detailed rule contracts, prerequisite gate, and validation plan.
-
+These rules exclude Markdown and arbitrary non-documentation comments. Each
+rule must require explicit per-rule opt-in because default `DOC` and `PYDOC`
+selection prefixes already include these codes; existing selection, ignore,
+plugin, and suppression policy still applies. This is a proposal, not an
+implementation claim. The
+[3.2.2 ExecPlan](execplans/3-2-2-add-builtin-docstring-rules.md) holds the
+detailed rule contracts, bounded projection extension, and validation plan.
 
 #### Grammar-capability extension
 

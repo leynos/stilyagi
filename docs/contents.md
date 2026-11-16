@@ -70,8 +70,8 @@
     functions, including IR bridge coverage and validation evidence.
   - [3.2.2 builtin documentation rules](
     execplans/3-2-2-add-builtin-docstring-rules.md)
-    proposes opt-in documentation rules over the shared region-oriented API,
-    gated on delivery of the rule substrate in 2.3.1.
+    plans opt-in documentation rules over the rule substrate delivered in
+    2.3.1, including bounded owner projection and syntax-target extensions.
   - [maturin and PyO3 compatibility tests](
     execplans/maturin-pyo3-test-upgrade.md)
     plans the maturin pin update, native wheel snapshot coverage, and PyO3
