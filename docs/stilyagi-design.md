@@ -1032,6 +1032,30 @@ The pack itself is `MD001` heading depth, `STY001` repeated word, and opt-in
 `TERM001` banned term. Only `STY001` proposes an edit, and only as an unsafe
 suffix removal.
 
+#### Proposed 3.2.2 documentation rules
+
+With prerequisite 2.3.1 now delivered by
+[PR #240](https://github.com/leynos/stilyagi/pull/240), add three opt-in,
+diagnostic-only rules through the shared rule pack and policy-targeting model.
+The rule projection still needs a typed owner view and targets that can name
+several syntaxes and owner kinds; add those as private Python-side extensions
+without changing extractor IR or serialized schemas. Keep analysis structural
+and use the extracted owner metadata:
+
+- `DOC001` checks summary separation in Python docstrings.
+- `DOC002` checks plain-summary punctuation in Python docstrings and Rust
+  documentation comments.
+- `DOC003` warns when a Python or Rust summary only repeats its documented
+  owner's name.
+
+These rules exclude Markdown and arbitrary non-documentation comments. Each
+rule must require explicit per-rule opt-in because default `DOC` and `PYDOC`
+selection prefixes already include these codes; existing selection, ignore,
+plugin, and suppression policy still applies. This is a proposal, not an
+implementation claim. The
+[3.2.2 ExecPlan](execplans/3-2-2-add-builtin-docstring-rules.md) holds the
+detailed rule contracts, bounded projection extension, and validation plan.
+
 #### Grammar-capability extension
 
 Strong points in RFC 0005:

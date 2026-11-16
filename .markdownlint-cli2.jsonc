@@ -12,6 +12,7 @@
   },
   "ignores": [
     ".git/**",
+    "**/.git/**",
     "**/.venv/**",
     ".node_modules/**",
     "**/node_modules/**",
