@@ -58,13 +58,17 @@ PYPI_UPLOAD_STEP: typ.Final = "Publish to PyPI"
 #: upload is expected to be skipped.
 PUBLISH_WITH_GATE_STEPS: typ.Final = (*PUBLISH_STEPS, PYPI_UPLOAD_STEP)
 
-#: ``publish-release``'s steps up to, but not including, the upload. Staging
-#: is what decides whether anything may be uploaded, so a refusal is visible
-#: here without needing the release's own checkout and download actions.
+#: ``publish-release``'s steps up to, and including, the upload. The upload
+#: step carries a script that ``gh release upload`` would run, so it belongs in
+#: the sequence: an assertion that no upload was made has to cover the step
+#: that would make one. Its gate reads ``steps.stage.outputs.pending``, which
+#: ``run_job_steps`` honours, so a refusal at staging skips it exactly as the
+#: runner does.
 RELEASE_DECISION_STEPS: typ.Final = (
     "Fetch the PyPI index",
     "List the release assets",
     "Stage the assets the release lacks",
+    "Upload the assets the release lacks",
 )
 
 #: What one scripted run consists of: the workspace, its fake destinations,

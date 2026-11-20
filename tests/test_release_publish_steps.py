@@ -16,6 +16,7 @@ import typing as typ
 
 import pytest
 
+from tests.support.release_assets_fixtures import write_bundle
 from tests.support.release_fakes import Attested
 from tests.support.release_steps import (
     requires_bash,
@@ -24,6 +25,7 @@ from tests.support.release_steps import (
 )
 from tests.support.release_workflow import github_output, workflow_job
 from tests.support.release_workspace import (
+    BUNDLE,
     DRAFT_STEPS,
     PUBLISH_STEPS,
     PUBLISH_WITH_GATE_STEPS,
@@ -126,6 +128,39 @@ def test_a_stale_index_never_reaches_a_skipped_upload_s_run(
     assert not [
         call for call in fake.calls("gh") if call[:2] == ("release", "upload")
     ], "a stale index must not reach an upload"
+
+
+@requires_bash
+def test_a_fresh_index_reaches_the_release_upload(
+    workspace: Workspace,
+) -> None:
+    """The sequence does reach ``gh release upload`` when staging permits it.
+
+    This is the control the refusal test needs. Without it, "no upload was
+    made" would also hold if the step list never ran the upload step, or if
+    the gate could never open, and the assertion would pass for the wrong
+    reason. Here staging is given the covering bundle it requires, and the
+    same step list reaches the upload and attaches the file PyPI holds.
+    """
+    work, fake, publish = workspace
+    seed_release(publish, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
+    bundles = work / "dist" / "attestations"
+    bundles.mkdir()
+    write_bundle(
+        bundles, BUNDLE, {WHEEL: b"canonical-wheel", SDIST: b"canonical-sdist"}
+    )
+    completed = run_job_steps(
+        workflow_job(release_document(), "publish-release"),
+        RELEASE_DECISION_STEPS,
+        work,
+        environ=fake.environ(),
+    )
+    assert completed.returncode == 0, completed.stderr
+    uploads = [call for call in fake.calls("gh") if call[:2] == ("release", "upload")]
+    assert len(uploads) == 1, uploads
+    assert (fake.github / WHEEL).read_bytes() == b"canonical-wheel", (
+        "the Release must receive PyPI's bytes, not this run's rebuild"
+    )
 
 
 @pytest.mark.usefixtures("workspace")
