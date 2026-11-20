@@ -452,12 +452,26 @@ jobs:
       # built at whatever commit that earlier run saw, and its attestation
       # records which one. `check-provenance` requires that record to name a
       # source commit, so an unattributed build cannot reach the Release.
+      #
+      # The bundle in the upload set is verified here too, against the artefacts
+      # this run is about to attach. The check below reads the Release's bundle
+      # after the upload, and a Release asset cannot be replaced: a bundle whose
+      # statement names the right digests but whose signature does not hold
+      # would reach the draft, fail that check, and leave a Release no retry
+      # can repair, because the staged bundle is no longer offered once the
+      # Release holds one. Asking here keeps the bad bundle out of the draft.
+      #
+      # A bundle names the *finished* Release, so it is asked against what the
+      # Release already holds as well as what is about to be attached. The
+      # verifier hashes the file it is handed and cannot be asked about a name,
+      # so the held assets are downloaded beside the staged ones rather than
+      # being named in the loop.
       - name: Verify the upload set's provenance
         id: provenance
         run: |
           set -euo pipefail
           shopt -s nullglob
-          mkdir -p provenance
+          mkdir -p provenance staged-verify
           for file in github-upload/*; do
             name="$(basename "${file}")"
             case "${name}" in *.sigstore.json) continue ;; esac
@@ -471,6 +485,33 @@ jobs:
           PYTHONPATH=scripts python3 -m release_assets_cli check-provenance \
             --publish dist/publish --assets release-assets.json \
             --output github-upload --provenance provenance
+          PYTHONPATH=scripts python3 -m release_assets_cli artefacts \
+            --publish dist/publish --assets release-assets.json > held-artefacts.list
+          while IFS= read -r name; do
+            [ -n "${name}" ] || continue
+            gh release download "${GITHUB_REF_NAME}" --pattern "${name}" \
+              --dir staged-verify
+          done < held-artefacts.list
+          for file in github-upload/*; do
+            name="$(basename "${file}")"
+            case "${name}" in *.sigstore.json) continue ;; esac
+            cp "${file}" staged-verify/
+          done
+          for bundle in github-upload/*.sigstore.json; do
+            [ -e "${bundle}" ] || continue
+            for file in staged-verify/*; do
+              [ -e "${file}" ] || continue
+              # stdin is the held-artefact list this step reads in an earlier
+              # loop, so the verifier must not inherit it.
+              gh attestation verify "${file}" \
+                --bundle "${bundle}" \
+                --repo "${GH_REPO}" \
+                --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
+                --source-ref "${GITHUB_REF}" \
+                --deny-self-hosted-runners \
+                < /dev/null
+            done
+          done
 
       # No `--clobber`: an asset the release already holds is canonical.
       - name: Upload the assets the release lacks

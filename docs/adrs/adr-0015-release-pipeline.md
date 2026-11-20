@@ -194,6 +194,17 @@ none of their signers made. Coverage is asked of one statement for the same
 reason, including across the JSON lines `gh attestation download` writes, since
 two statements in one file are still two signatures.
 
+The staged bundle is verified before it is uploaded, not only after. A release
+asset cannot be replaced and `gh release upload` is invoked without
+`--clobber`, so a bundle whose statement names the right digests while its
+signature does not hold would reach the draft, fail the post-upload check, and
+leave a tag no re-run can repair: the release already holds a bundle, so no
+replacement is staged. Asking first keeps that bundle out of the draft. The
+verifier hashes the file it is handed and cannot be asked about a name, so the
+assets the release already holds are downloaded beside the staged files, and
+every staged bundle is asked of that union — which is what the release holds
+once the upload lands, and so what the bundle's statement must name.
+
 The bundle is required once, not once per run, and it must *cover* what the
 release holds. The first run of a tag attaches one only when its statement
 names every digest the finished release will carry; a run whose assets come

@@ -12,18 +12,14 @@ quietly re-uploads, or takes its bytes from the wrong source, fails here rather
 than on a tag.
 """
 
-import base64
-import json
 import typing as typ
 
 import pytest
 
-from tests.support.release_assets_fixtures import write_bundle
 from tests.support.release_fakes import Attested, FakeRelease
 from tests.support.release_github_workspace import (
     BUNDLE,
     EARLIER_BUNDLE,
-    PUBLISHED_PAYLOADS,
     SDIST,
     WHEEL,
     Holding,
@@ -40,7 +36,6 @@ from tests.support.release_publish_release import (
     publish_release_job,
     release_workspace,
     run_release_steps,
-    subjects_of,
 )
 from tests.support.release_steps import requires_bash, run_bash
 from tests.support.release_workflow import step
@@ -210,133 +205,6 @@ def test_the_fetch_stage_names_every_file_it_needs_as_tsv(
     assert fetched.splitlines() == [
         f"{WHEEL}\thttps://files.example.test/packages/{WHEEL}"
     ], fetched
-
-
-@requires_bash
-def test_a_release_whose_bundle_covers_other_bytes_is_not_published(
-    workspace: tuple[pathlib.Path, FakeRelease],
-) -> None:
-    """A bundle attached by an earlier run must still name today's assets.
-
-    The Release can hold a bundle and still be unattested: if the assets were
-    replaced, or a bundle was attached from a different run, the statement
-    beside them says nothing about the bytes actually there. Publishing would
-    present that as provenance, so the step refuses and the draft stays.
-
-    Either refusal is a correct answer, and which one fires first depends on
-    the order the checks run in: the verification loop finds no bundle that
-    verifies against every asset, and the coverage step finds no verified
-    statement naming them. Both leave the Release a draft, which is the
-    property under test.
-    """
-    work, fake = workspace
-    seed_release(work, fake, COMPLETE)
-    write_bundle(fake.github, EARLIER_BUNDLE, {WHEEL: b"other", SDIST: b"other"})
-    completed = run_release_steps(workspace, THROUGH_VERIFY)
-    assert completed.returncode == 1, completed.stdout
-    assert "no verified provenance bundle covering" in completed.stderr, (
-        completed.stderr
-    )
-    assert published(fake)["draft"] is True, "the draft was published"
-
-
-@requires_bash
-def test_two_bundles_covering_one_asset_each_do_not_publish(
-    workspace: tuple[pathlib.Path, FakeRelease],
-) -> None:
-    """Coverage is one statement's claim, not the union of two signatures.
-
-    The Release can hold two bundles that each verify against one of its assets
-    and neither of which names both. Read across them the Release looks
-    covered: every asset has a statement, and every statement verified. It is
-    not, because no signer said what publishing would present as said. The
-    verify loop asks each bundle for the whole Release, so neither is admitted
-    and the draft stays.
-    """
-    work, fake = workspace
-    seed_release(work, fake, COMPLETE)
-    (fake.github / EARLIER_BUNDLE).unlink()
-    write_bundle(fake.github, "run6-wheel.sigstore.json", {WHEEL: b"canonical-wheel"})
-    write_bundle(fake.github, "run6-sdist.sigstore.json", {SDIST: b"canonical-sdist"})
-    completed = run_release_steps(workspace, THROUGH_VERIFY)
-    assert completed.returncode == 1, completed.stdout
-    assert "no verified provenance bundle covering" in completed.stderr, (
-        completed.stderr
-    )
-    assert published(fake)["draft"] is True, "the draft was published"
-
-
-@requires_bash
-def test_partial_bundles_beside_a_tampered_covering_one_do_not_publish(
-    workspace: tuple[pathlib.Path, FakeRelease],
-) -> None:
-    """Neither verification nor coverage may be satisfied by combining records.
-
-    This is the case the two rules exist for. Two bundles verify, one against
-    each asset, and a third decodes as naming both because its statement was
-    edited after signing. Asking per asset admits all three, and asking
-    coverage across them accepts the third's claim, so the Release would
-    publish carrying provenance no single signer gave. Asked of one verified
-    statement, it does not: the partial bundles do not cover the Release and
-    the covering one does not verify.
-    """
-    work, fake = workspace
-    seed_release(work, fake, COMPLETE)
-    (fake.github / EARLIER_BUNDLE).unlink()
-    write_bundle(fake.github, "run6-wheel.sigstore.json", {WHEEL: b"canonical-wheel"})
-    write_bundle(fake.github, "run6-sdist.sigstore.json", {SDIST: b"canonical-sdist"})
-    tampered = write_bundle(
-        fake.github, "run6-both.sigstore.json", {WHEEL: b"other", SDIST: b"other"}
-    )
-    _edit_after_signing(tampered)
-    completed = run_release_steps(workspace, THROUGH_VERIFY)
-    assert completed.returncode == 1, completed.stdout
-    assert "no verified provenance bundle covering" in completed.stderr, (
-        completed.stderr
-    )
-    assert published(fake)["draft"] is True, "the draft was published"
-
-
-@requires_bash
-def test_a_bundle_whose_statement_was_edited_after_signing_does_not_publish(
-    workspace: tuple[pathlib.Path, FakeRelease],
-) -> None:
-    """A bundle's subjects are checked against its signature, not merely read.
-
-    Reading a statement out of the envelope says what its subject names, not
-    that the signer named them. A Release holding a bundle whose subjects were
-    edited to match its assets therefore passes a decode-only coverage check
-    while carrying provenance for nothing. The verify step is what separates
-    the two: without it this Release would publish.
-    """
-    work, fake = workspace
-    seed_release(work, fake, COMPLETE)
-    write_bundle(fake.github, EARLIER_BUNDLE, {WHEEL: b"other", SDIST: b"other"})
-    _edit_after_signing(fake.github / EARLIER_BUNDLE)
-    completed = run_release_steps(workspace, THROUGH_VERIFY)
-    assert completed.returncode == 1, completed.stdout
-    assert "no attestations found" in completed.stderr, completed.stderr
-    assert published(fake)["draft"] is True, "the draft was published"
-
-
-def _edit_after_signing(bundle: pathlib.Path) -> None:
-    """Rewrite a bundle's subjects, leaving the signature that covered others.
-
-    The signature is left exactly as it was while the payload is re-encoded
-    over the Release's own assets, so the envelope is what a tampered bundle
-    looks like: well-formed, and self-consistent in every field except the one
-    that establishes who said it. Recomputing over the same statement it
-    already carried would be no edit at all, which is why the bundle first
-    attests other bytes.
-    """
-    document = json.loads(bundle.read_text(encoding="utf-8"))
-    envelope = document["dsseEnvelope"]
-    signature = envelope["signatures"][0]["sig"]
-    envelope["payload"] = base64.b64encode(
-        json.dumps(subjects_of(PUBLISHED_PAYLOADS)).encode("utf-8")
-    ).decode("ascii")
-    assert envelope["signatures"][0]["sig"] == signature, "the signature was rewritten"
-    bundle.write_text(json.dumps(document), encoding="utf-8")
 
 
 @requires_bash

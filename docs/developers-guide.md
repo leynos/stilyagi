@@ -2237,6 +2237,18 @@ record must name the commit it was built from. Those checks are what keep a
 re-pushed tag's earlier bytes attributable to a revision of this repository
 rather than merely signed by something.
 
+A staged bundle is verified *before* it is uploaded, not only after. The
+post-upload check would catch a bundle whose signature does not hold, but it
+would catch it too late: a release asset cannot be replaced,
+`gh release upload` has no `--clobber`, and once the release holds a bundle the
+staged one is no longer offered, so a bad signature reaching the draft would
+wedge that tag permanently rather than fail once. The step therefore asks
+`gh attestation verify --bundle` about the staged bundle first. The verifier
+hashes the file it is handed and cannot be asked about a name, so the assets
+the release already holds are downloaded beside the staged files and both are
+asked of every staged bundle: the union is what the release holds once the
+upload lands, which is what the bundle's statement names.
+
 The bundle beside the release's assets is checked as a consumer would check it:
 `bundles` lists the `.sigstore.json` assets the release holds, the step
 downloads and verifies them, and `check-bundle` decodes each DSSE payload and

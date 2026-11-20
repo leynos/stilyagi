@@ -15,7 +15,6 @@ and each of those has to stay in one place or a change to the workflow would
 be reflected in one suite and not the other.
 """
 
-import hashlib
 import typing as typ
 
 from tests.support.release_fakes import FakeRelease, fake_release
@@ -139,27 +138,6 @@ def run_release_steps(
     )
 
 
-def subjects_of(payloads: dict[str, bytes]) -> dict[str, object]:
-    """Return an in-toto statement naming ``payloads`` by name and digest.
-
-    Parameters
-    ----------
-    payloads
-        Each artefact name and the bytes it holds.
-
-    Returns
-    -------
-    dict[str, object]
-        A statement whose subjects are those artefacts, as a bundle carries.
-    """
-    return {
-        "subject": [
-            {"name": name, "digest": {"sha256": hashlib.sha256(payload).hexdigest()}}
-            for name, payload in payloads.items()
-        ]
-    }
-
-
 __all__ = [
     "BUNDLE",
     "COMPLETE",
@@ -172,5 +150,4 @@ __all__ = [
     "publish_release_job",
     "release_workspace",
     "run_release_steps",
-    "subjects_of",
 ]
