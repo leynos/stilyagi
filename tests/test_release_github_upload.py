@@ -6,7 +6,10 @@ fetch and refuses an index that does not list them, ``check_fetched`` enforces
 PyPI's digest on what arrived, ``check_provenance`` demands a verified record
 for every file about to be attached, ``verify`` compares the two destinations,
 and ``unlisted_by_pypi`` is the predicate that decides which names the index
-must list.
+must list. That predicate is asked of every name the release must carry, not
+only of the names the Release lacks: an omission the gap does not contain
+still means the index read is stale, and acting on the rest of the gap first
+spends an upload that cannot be taken back.
 
 The theme here is the same as on PyPI's side: a command must be safe to run
 twice, and must refuse rather than proceed where the bytes it was promised are
@@ -114,6 +117,39 @@ def test_a_stale_index_is_refused_rather_than_filled_from_the_rebuild(
     with pytest.raises(ReleaseAssetError, match="does not list"):
         release_github_upload.stage_github(state, bundles, output)
     assert not output.exists(), "the refusal must stage nothing"
+
+
+def test_a_stale_index_is_refused_even_when_it_omits_a_held_asset(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The rule covers the whole release, not only the names this run adds.
+
+    A stale read can omit a name the Release already holds, and then nothing
+    is "lacking" by that name, so a guard asked only about the gap stays
+    silent. The other artefacts are staged and uploaded, and the final
+    comparison fails afterwards -- on a Release whose sdist can no longer be
+    replaced. Asking about every expected name refuses before the upload.
+    """
+    publish = tmp_path / "publish"
+    bundles = tmp_path / "attestations"
+    output = tmp_path / "upload"
+    write_file(publish, "a.whl", b"a")
+    write_file(publish, "a.tar.gz", b"sdist")
+    # A bundle covering both, so the provenance question is already settled
+    # and the index rule is the only one left that can refuse. Without it the
+    # bundle check fires first and this test would pass for its reason.
+    write_bundle(bundles, "run7.sigstore.json", {"a.whl": b"a", "a.tar.gz": b"sdist"})
+    state = State(
+        publish=publish,
+        # The wheel is omitted, as a read predating a write would omit it.
+        pypi={"a.tar.gz": PypiFile("cd", "https://x/a.tar.gz")},
+        # And the Release already holds it, so it is not in the gap.
+        github={"a.whl": "ab"},
+    )
+
+    with pytest.raises(ReleaseAssetError, match=r"does not list \['a\.whl'\]"):
+        release_github_upload.stage_github(state, bundles, output)
+    assert not output.exists(), "the refusal must stage nothing to upload"
 
 
 def test_a_stale_index_refusal_names_every_unlisted_artefact(

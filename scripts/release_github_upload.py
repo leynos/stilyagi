@@ -47,17 +47,23 @@ def _pypi_fetch_list(
 
 
 def unlisted_by_pypi(
-    lacking: cabc.Iterable[str],
+    expected: cabc.Iterable[str],
     pypi: cabc.Mapping[str, PypiFile],
 ) -> list[str]:
     """Return the artefacts PyPI's index should list but does not.
 
     ``publish-release`` runs only after ``publish-pypi`` has completed, and
     that job completes only when the index it read held every artefact of the
-    run. A name the Release still lacks and PyPI's index no longer lists is
-    therefore not new: PyPI held it a moment ago, and the read that omits it
-    predates a write this release made. PyPI's simple index is served from a
-    cache, so that window is real rather than theoretical.
+    run. A name PyPI's index no longer lists is therefore not new: PyPI held
+    it a moment ago, and the read that omits it predates a write this release
+    made. PyPI's simple index is served from a cache, so that window is real
+    rather than theoretical.
+
+    Ask it of every name the release must carry, not only of the names the
+    Release lacks. A stale read can omit a name the Release already holds,
+    and asking about the gap alone would leave the other artefacts free to
+    be staged and uploaded onto a Release whose two destinations cannot
+    agree.
 
     The rule is asked of the index alone, deliberately not of a flag saying
     whether this run uploaded. A run that skipped the upload is the case the
@@ -74,8 +80,9 @@ def unlisted_by_pypi(
 
     Parameters
     ----------
-    lacking
-        The names the GitHub Release lacks and must receive.
+    expected
+        Every name the finished release must carry, whether the Release
+        already holds it or this run is to attach it.
     pypi
         The files PyPI's index lists.
 
@@ -91,7 +98,7 @@ def unlisted_by_pypi(
     >>> unlisted_by_pypi(["a.whl"], {"a.whl": PypiFile("ab", "https://x/a")})
     []
     """
-    return sorted(name for name in lacking if name not in pypi)
+    return sorted(name for name in expected if name not in pypi)
 
 
 def stage_github(
@@ -124,11 +131,19 @@ def stage_github(
     Raises
     ------
     ReleaseAssetError
-        If PyPI's index does not list an artefact the Release lacks, or a PyPI
-        URL is not HTTPS.
+        If PyPI's index does not list an artefact the release must carry, or
+        a PyPI URL is not HTTPS.
     """
-    lacking = sorted(state.plan().github_uploads)
-    unlisted = unlisted_by_pypi(lacking, state.pypi)
+    plan = state.plan()
+    lacking = sorted(plan.github_uploads)
+    # Asked of every name the release must carry, not only the ones the
+    # Release lacks. A stale index can omit a name the Release already holds,
+    # and asking only about the gap would let this run stage and upload the
+    # *other* artefacts before the final comparison noticed the omission.
+    # Those bytes are PyPI's, so they are not substituted — but the upload
+    # still lands on a Release whose destinations cannot agree, and an asset
+    # cannot be replaced, so the run has spent its one chance to attach them.
+    unlisted = unlisted_by_pypi(sorted(plan.canonical), state.pypi)
     if unlisted:
         msg = (
             f"PyPI's index does not list {unlisted}, which the GitHub Release "

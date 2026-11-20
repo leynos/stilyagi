@@ -424,12 +424,15 @@ jobs:
         run: |
           set -euo pipefail
           # PyPI's index is cached, and this job runs only after `publish-pypi`
-          # completed, so a name the Release lacks and the index omits is a
-          # stale read rather than a new file. Staging refuses that instead of
-          # filling the gap with this run's rebuild, whose bytes need not
-          # equal the ones PyPI holds. That is true whether or not this run
-          # uploaded: a run that skipped because the index already listed
-          # everything is exactly the case a stale read hides in.
+          # completed, so a name the index omits is a stale read rather than a
+          # new file. The rule covers every name the release must carry, not
+          # only the ones the Release lacks: a stale read can omit a held
+          # name, and a guard asked about the gap alone would let the rest be
+          # staged and uploaded onto a Release whose destinations then fail to
+          # agree -- with the upload already spent, since an asset cannot be
+          # replaced. That is true whether or not this run uploaded: a run that
+          # skipped because the index already listed everything is exactly the
+          # case a stale read hides in.
           PYTHONPATH=scripts python3 -m release_assets_cli stage-github --publish dist/publish \
             --index pypi-index.json --assets release-assets.json \
             --bundles dist/attestations --output github-upload > pypi-fetch.tsv

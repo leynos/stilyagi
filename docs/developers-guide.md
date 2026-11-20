@@ -2412,15 +2412,24 @@ holds.
 That cache is also why `publish-release` refuses a name PyPI's index does not
 list. The job runs only after `publish-pypi` completed, and that job completes
 only when the index it read held every artefact of the run, so PyPI is
-guaranteed to hold what the Release still lacks. A name the Release lacks and
-the index omits is therefore a cached read that predates a write, not a new
-file. Staging refuses it rather than filling the gap with the run's rebuild:
-the rebuild's bytes need not equal the ones PyPI accepted, and a Release asset
-cannot be overwritten, so the mistake would be permanent. The refusal is
-independent of whether this run uploaded anything — a run that skipped the
-upload because the index already listed everything is precisely the run in
-which a later stale read has no upload of its own to explain it. Re-run the tag
-once the index lists every distribution.
+guaranteed to hold every artefact of the release. A name the index omits is
+therefore a cached read that predates a write, not a new file. Staging refuses
+it rather than filling the gap with the run's rebuild: the rebuild's bytes need
+not equal the ones PyPI accepted, and a Release asset cannot be overwritten, so
+the mistake would be permanent. The refusal is independent of whether this run
+uploaded anything — a run that skipped the upload because the index already
+listed everything is precisely the run in which a later stale read has no
+upload of its own to explain it. Re-run the tag once the index lists every
+distribution.
+
+The rule is asked of every name the release must carry, not only of the names
+the Release still lacks. A stale read can omit a name the Release already
+holds, and a guard asked about the gap alone stays silent then: the other
+artefacts are staged and uploaded, the two destinations fail to agree at the
+final comparison, and the upload has already been spent on a Release whose
+assets cannot be replaced. Asking about the whole release refuses before
+anything is attached, which is the only point at which the run can still be
+retried cleanly.
 
 ### Settings this pipeline requires
 
