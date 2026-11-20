@@ -160,7 +160,7 @@ struct BridgeExtractRequest<'a> {
     source_path: Option<&'a str>,
 }
 
-/// Extracts a document through the PyO3 entrypoint with Python attached.
+/// Extracts a document through the `PyO3` entrypoint with Python attached.
 fn bridge_extract_document(request: &BridgeExtractRequest<'_>) -> PyResult<Py<PyDict>> {
     with_metrics_test_lock(|| {
         Python::attach(|py| {
