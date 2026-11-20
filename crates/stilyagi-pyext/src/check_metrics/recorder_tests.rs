@@ -133,81 +133,58 @@ fn record_every_bounded_metric() {
     record_phase_duration("extract", 5_000_000).expect("extract is a fixed phase");
 }
 
-/// Asserts the recorded run, file, diagnostic, and skip counts.
+/// Asserts the counts as one tuple so a mismatch reports every observed value.
 fn assert_check_and_file_counts() {
     assert_eq!(
-        CHECK_RUNS
-            .first()
-            .map(|counter| counter.load(Ordering::Relaxed)),
-        Some(1),
-        "one success must increment the first run-outcome slot"
-    );
-    assert_eq!(
-        CHECKED_FILES
-            .get(1)
-            .map(|counter| counter.load(Ordering::Relaxed)),
-        Some(1),
-        "one Python file must increment the Python syntax slot"
-    );
-    assert_eq!(
-        DIAGNOSTIC_COUNTS
-            .get(1)
-            .map(|counter| counter.load(Ordering::Relaxed)),
-        Some(2),
-        "two warnings must increment the warning severity slot"
-    );
-    assert_eq!(
-        SKIPPED_CANDIDATES
-            .first()
-            .map(|counter| counter.load(Ordering::Relaxed)),
-        Some(2),
-        "two candidates must increment the unregistered skip slot"
+        (
+            CHECK_RUNS
+                .first()
+                .map(|counter| counter.load(Ordering::Relaxed)),
+            CHECKED_FILES
+                .get(1)
+                .map(|counter| counter.load(Ordering::Relaxed)),
+            DIAGNOSTIC_COUNTS
+                .get(1)
+                .map(|counter| counter.load(Ordering::Relaxed)),
+            SKIPPED_CANDIDATES
+                .first()
+                .map(|counter| counter.load(Ordering::Relaxed)),
+        ),
+        (Some(1), Some(1), Some(2), Some(2)),
+        "run, Python file, warning, and unregistered-skip counts"
     );
 }
 
 /// Asserts the recorded unreadable, failure, duration, and anomaly counts.
 fn assert_failure_and_duration_counts() {
     assert_eq!(
-        UNREADABLE_FILES.load(Ordering::Relaxed),
-        1,
-        "one unreadable file must be counted"
-    );
-    assert_eq!(
-        OPERATIONAL_FAILURES
-            .get(1)
-            .map(|counter| counter.load(Ordering::Relaxed)),
-        Some(1),
-        "one read failure must increment the read failure slot"
-    );
-    assert_eq!(
-        PHASE_DURATIONS
-            .get(2)
-            .map(|histogram| histogram.count.load(Ordering::Relaxed)),
-        Some(1),
-        "one extract duration must increment the extract phase count"
-    );
-    assert_eq!(
-        PROJECTION_ANOMALIES
-            .get(5)
-            .map(|counter| counter.load(Ordering::Relaxed)),
-        Some(3),
-        "three anomalies must increment the source-mismatch slot"
+        (
+            UNREADABLE_FILES.load(Ordering::Relaxed),
+            OPERATIONAL_FAILURES
+                .get(1)
+                .map(|counter| counter.load(Ordering::Relaxed)),
+            PHASE_DURATIONS
+                .get(2)
+                .map(|histogram| histogram.count.load(Ordering::Relaxed)),
+            PROJECTION_ANOMALIES
+                .get(5)
+                .map(|counter| counter.load(Ordering::Relaxed)),
+        ),
+        (1, Some(1), Some(1), Some(3)),
+        "unreadable, read-failure, extract-duration, and anomaly counts"
     );
 }
 
 /// Asserts the recorder rejects labels outside its fixed vocabularies.
 fn assert_unbounded_labels_are_rejected() {
-    assert!(
-        record_check_run("/tmp/private-source.py").is_err(),
-        "an unregistered run outcome must be rejected"
-    );
-    assert!(
-        record_diagnostic_severity("/tmp/private-source.py", 1).is_err(),
-        "an unbounded diagnostic severity label must be rejected"
-    );
-    assert!(
-        record_projection_anomaly("/tmp/private-source.py", 1).is_err(),
-        "an unbounded anomaly label must be rejected"
+    assert_eq!(
+        (
+            record_check_run("/tmp/private-source.py").is_err(),
+            record_diagnostic_severity("/tmp/private-source.py", 1).is_err(),
+            record_projection_anomaly("/tmp/private-source.py", 1).is_err(),
+        ),
+        (true, true, true),
+        "run-outcome, severity, and anomaly labels must be bounded"
     );
     assert!(
         record_projection_anomaly("malformed_node", 1).is_ok(),
@@ -227,9 +204,15 @@ fn leaves_global_recorder_ownership_to_the_host() {
         record_diagnostic_severity("warning", 1).expect("warning is a bounded diagnostic severity");
         record_phase_duration("total", 7_000_000).expect("total is a bounded duration label");
         metrics::counter!("test_host_unrelated_metric").increment(1);
-        assert_eq!(HOST_CHECK_METRIC.load(Ordering::Relaxed), 1);
-        assert_eq!(HOST_DIAGNOSTIC_METRIC.load(Ordering::Relaxed), 1);
-        assert_eq!(HOST_DURATION_METRIC.load(Ordering::Relaxed), 1);
-        assert_eq!(HOST_METRIC.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            (
+                HOST_CHECK_METRIC.load(Ordering::Relaxed),
+                HOST_DIAGNOSTIC_METRIC.load(Ordering::Relaxed),
+                HOST_DURATION_METRIC.load(Ordering::Relaxed),
+                HOST_METRIC.load(Ordering::Relaxed),
+            ),
+            (1, 1, 1, 1),
+            "the host recorder must receive each forwarded metric once"
+        );
     });
 }
