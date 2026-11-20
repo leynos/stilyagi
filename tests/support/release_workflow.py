@@ -1,11 +1,11 @@
-"""Read one step of the release workflow and run its script.
+"""Read the release workflow's jobs, steps and step outputs.
 
 ``release.yml`` keeps every decision in ``scripts/release_assets.py`` and
 every network call in a ``curl`` or ``gh`` invocation, so what a test can
 usefully assert about the workflow itself is which steps exist, what each
 step hands to the next, and what its script does with the files it is
-given. This module supplies those readings and one way to execute a
-step's script.
+given. This module supplies the readings that answer the first two, and
+the workspace helpers a test needs before it runs a step.
 
 Nothing here builds a workflow document of its own: the document is read
 by ``tests/support/workflows.load_workflow`` like every other contract's,

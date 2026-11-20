@@ -8,6 +8,9 @@ supported Rust version (MSRV), applies the parallel `rustc` frontend and the
 exception for the Cranelift codegen backend. Release, coverage, and Whitaker
 routes exclude the development flags.
 
+Amended on 2026-11-20: the build-wheels workflow joins the excluded routes. See
+[Amendments](#amendments).
+
 ## Date
 
 2026-10-19.
@@ -249,3 +252,39 @@ The decision keeps one source of truth for each fact: the pin lives in
 them only where an assignment would otherwise displace them, and contracts hold
 the three equal. Exclusions use the mechanism each route actually has, so none
 depends on an action's default.
+
+## Amendments
+
+### 2026-11-20: the build-wheels workflow is an excluded route
+
+The original decision listed five excluded routes and named the release wheel
+build but not the workflow that produces the published wheels. That omission
+was not a decision: the workflow had not yet been written when this ADR was
+accepted, and the routes were enumerated from what existed.
+
+`build-wheels.yml` builds the sdist and every native wheel with
+`maturin-action`, and it cannot inherit the development flags. A manylinux
+container reports the host's own target triple, so no `cfg()` selector can
+exclude it, and the images carry no `mold`; the x86_64 leg failed with
+`cannot find 'ld'` and the aarch64 cross `gcc` rejected `-fuse-ld=mold`
+outright. Cargo selects exactly one `rustflags` source, so each
+`maturin-action` step assigns `RUSTFLAGS: ""`, which displaces the
+configuration into the release build it was always meant to make.
+
+The original table said this of the release wheel:
+
+| Route         | Mechanism                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Release wheel | `make release-artefact` and the maturin build in `tests/test_maturin_build.py` assign `RUSTFLAGS` from the caller alone, displacing the configuration. |
+
+That row is preserved above as history and is now joined by a `Wheel workflow`
+row in [Excluded routes](#excluded-routes). The mechanism is the same one the
+release wheel uses — an explicit `RUSTFLAGS` assignment displacing the
+configuration — so the amendment records an omission rather than a change of
+policy. `tests/test_build_standard_exclusions.py` holds the contract:
+`test_every_real_wheel_build_states_its_exclusion` requires every
+`maturin-action` step in the workflow to assign `RUSTFLAGS`, and
+`test_each_wheel_inheritance_is_detected` proves the check rejects a leg that
+carries `-Zthreads=8` or `-Clink-arg=-fuse-ld=mold`. The macOS and Windows legs
+link without the exclusion, which is why the rule is held by the contract
+rather than by the build.
