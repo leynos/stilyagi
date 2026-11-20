@@ -17,7 +17,6 @@ use stilyagi_extract::{
 };
 
 use super::{
-    CHECK_METRICS_TEST_LOCK,
     EXTRACTION_RECOVERY_ERRORS,
     check_metrics_snapshot,
     record_check_run,
@@ -32,20 +31,20 @@ use super::{
     record_skipped_candidates,
     record_unreadable_file,
     reset_metrics,
+    with_metrics_test_lock,
 };
 use crate::tests::payload::{dict_dict, dict_item};
 
 mod duration_tests;
 
 fn populated_snapshot() -> PyResult<Py<PyDict>> {
-    let _guard = CHECK_METRICS_TEST_LOCK
-        .lock()
-        .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
-    reset_metrics();
-    seed_check_counters()?;
-    seed_extraction_counters();
-    seed_phase_durations()?;
-    Python::attach(check_metrics_snapshot)
+    with_metrics_test_lock(|| {
+        reset_metrics();
+        seed_check_counters()?;
+        seed_extraction_counters();
+        seed_phase_durations()?;
+        Python::attach(check_metrics_snapshot)
+    })
 }
 
 /// Record one of every check counter a populated snapshot carries.
@@ -191,21 +190,24 @@ struct RecoveryMetricCounts {
 }
 
 fn recovery_metric_counts(fixture: &RecoveryMetricFixture) -> PyResult<RecoveryMetricCounts> {
-    let _guard = CHECK_METRICS_TEST_LOCK
-        .lock()
-        .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
-    Ok(RecoveryMetricCounts {
-        authored_only: bridge_recovery_count(
-            fixture.authored_only_source,
-            fixture.syntax,
-            fixture.counter_index,
-        )?,
-        recovery_only: bridge_recovery_count(
-            fixture.recovery_only_source,
-            fixture.syntax,
-            fixture.counter_index,
-        )?,
-        mixed: bridge_recovery_count(fixture.mixed_source, fixture.syntax, fixture.counter_index)?,
+    with_metrics_test_lock(|| {
+        Ok(RecoveryMetricCounts {
+            authored_only: bridge_recovery_count(
+                fixture.authored_only_source,
+                fixture.syntax,
+                fixture.counter_index,
+            )?,
+            recovery_only: bridge_recovery_count(
+                fixture.recovery_only_source,
+                fixture.syntax,
+                fixture.counter_index,
+            )?,
+            mixed: bridge_recovery_count(
+                fixture.mixed_source,
+                fixture.syntax,
+                fixture.counter_index,
+            )?,
+        })
     })
 }
 

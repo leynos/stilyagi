@@ -14,7 +14,7 @@ pub(super) use recording_bindings::{
 pub(super) use snapshot::check_metrics_snapshot;
 
 #[cfg(test)]
-pub(crate) static CHECK_METRICS_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static CHECK_METRICS_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Runs `body` while holding the metrics test lock.
 ///
