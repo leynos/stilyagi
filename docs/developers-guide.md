@@ -2275,10 +2275,16 @@ gh release view "${tag}" --repo "${repo}" --json assets \
   --jq '.assets[].name | select(endswith(".sigstore.json") | not)' \
   > names.txt
 
-name="$(head -n 1 names.txt)"
-gh release download "${tag}" --repo "${repo}" --pattern "${name}" --dir "${work}"
-gh attestation download "${work}/${name}" --repo "${repo}"
+while IFS= read -r name; do
+  gh release download "${tag}" --repo "${repo}" --pattern "${name}" --dir "${work}"
+done < names.txt
+
+gh attestation download "${work}/$(head -n 1 names.txt)" --repo "${repo}"
 ```
+
+Every artefact is downloaded, not only the one whose digest is asked about. The
+download answers for one digest, but the candidate it yields has to be verified
+against all of them, and that loop reads the files from this directory.
 
 The downloader writes `<digest>.jsonl` into the working directory, one bundle
 per line, and `--limit` must be raised when the store holds more than its

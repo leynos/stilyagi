@@ -16,83 +16,34 @@ import typing as typ
 
 import pytest
 
-from tests.support.release_fakes import Attested, FakeRelease, fake_release
+from tests.support.release_fakes import Attested
 from tests.support.release_steps import (
     requires_bash,
     run_bash,
     run_job_steps,
 )
-from tests.support.release_workflow import (
-    RELEASE_WORKFLOW,
-    REPOSITORY_ROOT,
-    github_output,
-    link_scripts,
-    step_script,
-    workflow_job,
+from tests.support.release_workflow import github_output, workflow_job
+from tests.support.release_workspace import (
+    DRAFT_STEPS,
+    PUBLISH_STEPS,
+    PUBLISH_WITH_GATE_STEPS,
+    RELEASE_DECISION_STEPS,
+    SDIST,
+    WHEEL,
+    Workspace,
+    release_document,
+    release_script,
+    seed_release,
+    stage_rebuild,
 )
-from tests.support.workflow_documents import WORKFLOWS_DIRECTORY
-from tests.support.workflows import load_workflow
+
+pytest_plugins = ("tests.support.release_workspace_fixtures",)
 
 if typ.TYPE_CHECKING:
-    import pathlib
     import subprocess
 
-    from tests.support.workflows import WorkflowDocument
 
-WHEEL: typ.Final = "stilyagi-0.2.0-cp314-cp314-manylinux_2_28_x86_64.whl"
-SDIST: typ.Final = "stilyagi-0.2.0.tar.gz"
-BUNDLE: typ.Final = "stilyagi-v0.2.0-run7-1.sigstore.json"
-
-
-def _document() -> WorkflowDocument:
-    """Return the release workflow document."""
-    return load_workflow(
-        (WORKFLOWS_DIRECTORY / RELEASE_WORKFLOW).read_text(encoding="utf-8")
-    )
-
-
-def _script(job: str, step: str) -> str:
-    """Return one named step's script from the release workflow's job."""
-    return step_script(workflow_job(_document(), job), step)
-
-
-@pytest.fixture
-def workspace(
-    tmp_path: pathlib.Path,
-) -> tuple[pathlib.Path, FakeRelease, pathlib.Path]:
-    """Return a working directory, its fake destinations and its publish dir."""
-    work = tmp_path / "work"
-    work.mkdir()
-    link_scripts(REPOSITORY_ROOT, work)
-    publish = work / "dist" / "publish"
-    publish.mkdir(parents=True)
-    return work, fake_release(tmp_path), publish
-
-
-#: ``draft-release``'s scripted steps, in workflow order. Each publishes into
-#: the directory the one before it filled, so they are a sequence, not a set.
-_DRAFT_STEPS: typ.Final = (
-    "Create or reuse the draft release",
-    "Snapshot the release assets",
-    "Verify the carried assets' provenance",
-)
-
-#: ``publish-pypi``'s scripted steps, in workflow order.
-_PUBLISH_STEPS: typ.Final = ("Fetch the PyPI index", "Skip artefacts already on PyPI")
-
-#: ``publish-release``'s steps up to, but not including, the upload. Staging
-#: is what decides whether anything may be uploaded, so a refusal is visible
-#: here without needing the release's own checkout and download actions.
-_RELEASE_DECISION_STEPS: typ.Final = (
-    "Fetch the PyPI index",
-    "List the release assets",
-    "Stage the assets the release lacks",
-)
-
-
-def _run_publish(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
-) -> subprocess.CompletedProcess[str]:
+def _run_publish(workspace: Workspace) -> subprocess.CompletedProcess[str]:
     """Run ``draft-release`` and then ``publish-pypi``, as a release does.
 
     The tag's release is created or reused first, its assets snapshotted and
@@ -106,72 +57,69 @@ def _run_publish(
         The first step that failed, or the last step to run when all passed.
     """
     work, fake, _publish = workspace
-    document = _document()
+    document = release_document()
     environ = fake.environ()
     completed = run_job_steps(
-        workflow_job(document, "draft-release"), _DRAFT_STEPS, work, environ=environ
+        workflow_job(document, "draft-release"), DRAFT_STEPS, work, environ=environ
     )
     if completed.returncode != 0:
         return completed
     return run_job_steps(
-        workflow_job(document, "publish-pypi"), _PUBLISH_STEPS, work, environ=environ
+        workflow_job(document, "publish-pypi"), PUBLISH_STEPS, work, environ=environ
     )
-
-
-def _seed_release(
-    publish: pathlib.Path,
-    fake: FakeRelease,
-    *,
-    pypi: tuple[str, ...] = (),
-    github: tuple[str, ...] = (),
-) -> None:
-    """Write a rebuilt artefact set and the two destinations' holdings.
-
-    Whatever either destination holds is attested, as it would be in practice:
-    a file reaches PyPI or the Release only through a run that signed it.
-    """
-    (publish / WHEEL).write_bytes(b"rebuilt-wheel")
-    (publish / SDIST).write_bytes(b"rebuilt-sdist")
-    canonical = {WHEEL: b"canonical-wheel", SDIST: b"canonical-sdist"}
-    fake.attest(canonical)
-    for directory, names in ((fake.pypi, pypi), (fake.github, github)):
-        for name in names:
-            (directory / name).write_bytes(canonical[name])
 
 
 @requires_bash
 def test_a_stale_index_never_reaches_a_skipped_upload_s_run(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """The run that uploads nothing is the one the staging guard exists for.
 
-    ``publish-pypi`` completed because its read of the index listed every
-    artefact, so this run uploads nothing, and its ``remaining`` output is
-    ``false``. The next index read comes from a cache edge and omits a name
-    the Release still lacks. Filling that gap from this run's rebuild would
-    attach bytes PyPI never accepted under a name it has published, and no
-    re-run could repair it, so staging refuses and no ``gh release upload``
-    is made.
+    The whole sequence is run, in the order the workflow runs it. The index
+    first lists both artefacts, so ``publish-pypi`` uploads nothing and
+    writes ``remaining=false``. The index is then read again from a cache
+    edge, and that read omits a name the Release still lacks. Filling the gap
+    from this run's rebuild would attach bytes PyPI never accepted under a
+    name it has published, and no re-run could repair it, so staging refuses
+    and no ``gh release upload`` is made.
 
     Gating the refusal on "did this run upload" leaves exactly this case
     unguarded, which is why the rule is asked of the index alone.
     """
     work, fake, publish = workspace
-    _seed_release(publish, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
-    environ = fake.environ(FAKE_RELEASE_INDEX_OMITS=WHEEL)
+    seed_release(publish, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
+    document = release_document()
+
     completed = run_job_steps(
-        workflow_job(_document(), "draft-release"),
-        _DRAFT_STEPS,
+        workflow_job(document, "draft-release"),
+        DRAFT_STEPS,
         work,
-        environ=environ,
+        environ=fake.environ(),
     )
-    if completed.returncode == 0:
-        completed = run_job_steps(
-            workflow_job(_document(), "publish-release"),
-            _RELEASE_DECISION_STEPS,
-            work,
-            environ=environ,
-        )
+    assert completed.returncode == 0, completed.stderr
+
+    # A complete index: every artefact is already PyPI's, so the run skips the
+    # upload. The gate step is in the sequence because that is the fact under
+    # test; a gate that ran it would fail here on the missing script.
+    completed = run_job_steps(
+        workflow_job(document, "publish-pypi"),
+        PUBLISH_WITH_GATE_STEPS,
+        work,
+        environ=fake.environ(FAKE_RELEASE_INDEX_OMITS=""),
+    )
+    assert completed.returncode == 0, completed.stderr
+    skipped = github_output(fake.root / "github-output")
+    assert skipped["remaining"] == "false", skipped
+
+    # The next job downloads the artefacts for itself; the one before deleted
+    # every name it skipped.
+    stage_rebuild(publish)
+    completed = run_job_steps(
+        workflow_job(document, "publish-release"),
+        RELEASE_DECISION_STEPS,
+        work,
+        environ=fake.environ(FAKE_RELEASE_INDEX_OMITS=WHEEL),
+    )
     assert completed.returncode == 1, completed.stdout
     assert "does not list" in completed.stderr, completed.stderr
     assert WHEEL in completed.stderr, completed.stderr
@@ -191,14 +139,14 @@ def test_the_publishing_steps_name_this_repository_scripts() -> None:
         ("publish-release", "Verify the upload set's provenance"),
         ("publish-release", "Check both destinations hold the same bytes"),
     ):
-        script = _script(job, step)
+        script = release_script(job, step)
         assert "PYTHONPATH=scripts" in script, (job, step)
         assert "-m release_assets_cli" in script, (job, step)
 
 
 def test_the_upload_step_is_gated_on_the_staging_output() -> None:
     """PyPI is never called when nothing remains to publish."""
-    upload = workflow_job(_document(), "publish-pypi").get("steps")
+    upload = workflow_job(release_document(), "publish-pypi").get("steps")
     assert isinstance(upload, list), "steps must be a list"
     publish = [s for s in upload if s.get("name") == "Publish to PyPI"]
     assert len(publish) == 1, publish
@@ -207,12 +155,12 @@ def test_the_upload_step_is_gated_on_the_staging_output() -> None:
 
 @requires_bash
 def test_a_missing_release_is_created(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """A confirmed absence is the one case that creates a release."""
     work, fake, _publish = workspace
     completed = run_bash(
-        _script("draft-release", "Create or reuse the draft release"),
+        release_script("draft-release", "Create or reuse the draft release"),
         work,
         environ=fake.environ(FAKE_RELEASE_VIEW_STATUS="1", IS_PRERELEASE="false"),
     )
@@ -223,7 +171,7 @@ def test_a_missing_release_is_created(
 
 @requires_bash
 def test_a_view_failure_that_is_not_absence_is_reported_as_itself(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """A network or token failure must not become "release already exists".
 
@@ -233,7 +181,7 @@ def test_a_view_failure_that_is_not_absence_is_reported_as_itself(
     """
     work, fake, _publish = workspace
     completed = run_bash(
-        _script("draft-release", "Create or reuse the draft release"),
+        release_script("draft-release", "Create or reuse the draft release"),
         work,
         environ=fake.environ(
             FAKE_RELEASE_VIEW_STATUS="1",
@@ -249,11 +197,11 @@ def test_a_view_failure_that_is_not_absence_is_reported_as_itself(
 
 @requires_bash
 def test_a_first_release_uploads_every_artefact(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """With both destinations empty, both files remain for PyPI."""
     _work, fake, publish = workspace
-    _seed_release(publish, fake)
+    seed_release(publish, fake)
     completed = _run_publish(workspace)
     assert completed.returncode == 0, completed.stderr
     assert {p.name for p in publish.iterdir()} == {WHEEL, SDIST}, (
@@ -265,11 +213,11 @@ def test_a_first_release_uploads_every_artefact(
 
 @requires_bash
 def test_a_re_run_holds_back_what_pypi_already_has(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """Rebuilt bytes never replace bytes PyPI already published."""
     _work, fake, publish = workspace
-    _seed_release(publish, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
+    seed_release(publish, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
     completed = _run_publish(workspace)
     assert completed.returncode == 0, completed.stderr
     assert not any(publish.iterdir()), sorted(p.name for p in publish.iterdir())
@@ -281,11 +229,11 @@ def test_a_re_run_holds_back_what_pypi_already_has(
 
 @requires_bash
 def test_a_name_only_the_release_holds_is_sent_with_the_releases_bytes(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """The destination that holds the name decides the bytes, not the rebuild."""
     _work, fake, publish = workspace
-    _seed_release(publish, fake, pypi=(SDIST,), github=(WHEEL,))
+    seed_release(publish, fake, pypi=(SDIST,), github=(WHEEL,))
     completed = _run_publish(workspace)
     assert completed.returncode == 0, completed.stderr
     assert {p.name for p in publish.iterdir()} == {WHEEL}, [
@@ -296,7 +244,7 @@ def test_a_name_only_the_release_holds_is_sent_with_the_releases_bytes(
 
 @requires_bash
 def test_a_carried_asset_with_no_attestation_is_never_sent_to_pypi(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """The release's bytes are attested, or PyPI does not receive them.
 
@@ -304,7 +252,7 @@ def test_a_carried_asset_with_no_attestation_is_never_sent_to_pypi(
     Release holds now; the attestation is the only evidence of who built it.
     """
     _work, fake, publish = workspace
-    _seed_release(publish, fake, github=(WHEEL,))
+    seed_release(publish, fake, github=(WHEEL,))
     for record in fake.attestations.iterdir():
         record.unlink()
     completed = _run_publish(workspace)
@@ -318,11 +266,11 @@ def test_a_carried_asset_with_no_attestation_is_never_sent_to_pypi(
 
 @requires_bash
 def test_a_carried_asset_signed_by_another_workflow_is_refused(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """A signature proves *a* workflow ran, so the workflow is named too."""
     _work, fake, publish = workspace
-    _seed_release(publish, fake, github=(WHEEL,))
+    seed_release(publish, fake, github=(WHEEL,))
     for record in fake.attestations.iterdir():
         record.unlink()
     fake.attest(
@@ -336,11 +284,11 @@ def test_a_carried_asset_signed_by_another_workflow_is_refused(
 
 @requires_bash
 def test_the_staged_upload_set_addresses_pypi_exactly_once(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """One staging decision is read once; no artefact is retried or skipped."""
     _work, fake, publish = workspace
-    _seed_release(publish, fake, github=())
+    seed_release(publish, fake, github=())
     completed = _run_publish(workspace)
     assert completed.returncode == 0, completed.stderr
     index_calls = [call for call in fake.calls("curl") if "--write-out" in call]
@@ -349,13 +297,13 @@ def test_the_staged_upload_set_addresses_pypi_exactly_once(
 
 @requires_bash
 def test_a_connection_failure_is_retried_then_reported(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """A runner that cannot reach PyPI fails rather than releasing blind."""
     _work, fake, _publish = workspace
     environ = fake.environ(FAKE_RELEASE_CURL_STATUSES="000")
     completed = run_bash(
-        _script("publish-pypi", "Fetch the PyPI index"),
+        release_script("publish-pypi", "Fetch the PyPI index"),
         workspace[0],
         environ=environ,
     )
@@ -367,12 +315,12 @@ def test_a_connection_failure_is_retried_then_reported(
 
 @requires_bash
 def test_a_first_release_treats_a_404_as_an_empty_index(
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """A project PyPI has never seen has no page, and that is not an error."""
     _work, fake, _publish = workspace
     completed = run_bash(
-        _script("publish-pypi", "Fetch the PyPI index"),
+        release_script("publish-pypi", "Fetch the PyPI index"),
         workspace[0],
         environ=fake.environ(FAKE_RELEASE_CURL_STATUSES="404"),
     )
@@ -385,12 +333,12 @@ def test_a_first_release_treats_a_404_as_an_empty_index(
 @pytest.mark.parametrize("status", ["403", "502"])
 def test_an_unexpected_status_stops_the_release(
     status: str,
-    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+    workspace: Workspace,
 ) -> None:
     """A proxy's refusal must not be mistaken for "nothing published"."""
     _work, fake, _publish = workspace
     completed = run_bash(
-        _script("publish-pypi", "Fetch the PyPI index"),
+        release_script("publish-pypi", "Fetch the PyPI index"),
         workspace[0],
         environ=fake.environ(FAKE_RELEASE_CURL_STATUSES=status),
     )
