@@ -286,6 +286,17 @@ keeps the first published bytes canonical and leaves the attached bundle alone.
   the source of a release gap's bytes. That ordering is the mechanism, not an
   incidental detail: reversing it would let the release carry bytes PyPI never
   saw.
+- Because that ordering holds, a name the Release lacks and PyPI's index omits
+  is a stale read rather than a new file: `publish-pypi` completes only when
+  the index it read held every artefact of the run, and PyPI's simple index is
+  served from a cache. Staging refuses such a name instead of filling the gap
+  from the run's rebuild. The refusal is decided from the index alone, never
+  from whether this run uploaded: the run that skipped the upload because the
+  index already listed everything is the one in which a later omission has no
+  upload of its own to explain it, so gating on an upload flag would leave
+  exactly that case unguarded. Substituting the rebuild would be irreparable —
+  a Release asset cannot be overwritten once published — so the job fails and
+  the operator re-runs the tag once the index is fresh.
 - The release jobs carry a copy of the PyPI index fetch as a YAML anchor
   (`*fetch-index`), so the retry policy is written once and used twice. The
   runner's `curl` cannot report `%{num_retries}`, so the loop retries network

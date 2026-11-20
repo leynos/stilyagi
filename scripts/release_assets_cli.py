@@ -55,14 +55,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--provenance", type=Path)
     parser.add_argument("--bundles", type=Path)
     parser.add_argument("--output", type=Path)
-    parser.add_argument(
-        "--pypi-published",
-        action="store_true",
-        help=(
-            "this workflow already published to PyPI for this release, so an "
-            "artefact the index does not list means the index is stale"
-        ),
-    )
     return parser
 
 
@@ -92,12 +84,7 @@ def _stage_pypi(state: State, args: argparse.Namespace) -> None:
 def _stage_github(state: State, args: argparse.Namespace) -> None:
     """Stage GitHub's upload set and print PyPI's files as TSV rows."""
     output = _path(args, "output")
-    fetch = stage_github(
-        state,
-        _path(args, "bundles"),
-        output,
-        pypi_published=args.pypi_published,
-    )
+    fetch = stage_github(state, _path(args, "bundles"), output)
     for name, url in fetch:
         print(f"{name}\t{url}")
     write_output("pending", value=bool(fetch) or any(output.iterdir()))

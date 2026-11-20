@@ -77,9 +77,25 @@ def _assets_json() -> str:
 
 
 def _view() -> int:
-    """Answer ``gh release view`` with the scripted exit status, then the list."""
-    if os.environ.get("FAKE_RELEASE_VIEW_STATUS", "0") != "0":
-        return int(os.environ["FAKE_RELEASE_VIEW_STATUS"])
+    """Answer ``gh release view`` with the scripted status and error message.
+
+    A failing ``view`` writes to standard error, as ``gh`` does: a missing
+    release prints ``release not found``, while a network or token failure
+    prints something else. The workflow distinguishes the two, so the fake
+    must be able to produce both.
+
+    Returns
+    -------
+    int
+        The scripted exit status, ``0`` when the listing was printed.
+    """
+    status = int(os.environ.get("FAKE_RELEASE_VIEW_STATUS", "0"))
+    if status != 0:
+        print(
+            os.environ.get("FAKE_RELEASE_VIEW_ERROR", "release not found"),
+            file=sys.stderr,
+        )
+        return status
     print(_assets_json())
     return 0
 
@@ -257,7 +273,19 @@ def _next_status() -> str:
 
 
 def _index_json() -> str:
-    """Render the PyPI state as a PEP 691 JSON simple index."""
+    """Render the PyPI state as a PEP 691 JSON simple index.
+
+    ``FAKE_RELEASE_INDEX_OMITS`` names files the index has not caught up with.
+    PyPI holds and serves them -- a download URL still resolves -- but the
+    listing omits them, which is exactly the cached read a release run can be
+    handed moments after a write.
+
+    Returns
+    -------
+    str
+        The index document, as text.
+    """
+    omitted = set(os.environ.get("FAKE_RELEASE_INDEX_OMITS", "").split(","))
     files = [
         {
             "filename": path.name,
@@ -265,6 +293,7 @@ def _index_json() -> str:
             "hashes": {"sha256": _digest(path)},
         }
         for path in sorted(_directory("FAKE_RELEASE_PYPI").iterdir())
+        if path.name not in omitted
     ]
     return json.dumps({"name": "stilyagi", "files": files})
 

@@ -217,9 +217,17 @@ jobs:
         run: |
           set -euo pipefail
           # A re-run reuses whatever release the tag already has, draft or not.
-          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2> release-view.txt; then
             echo "Reusing the existing release for ${GITHUB_REF_NAME}."
             exit 0
+          fi
+          # Only a confirmed absence creates a release. A network error, a
+          # rejected token or a rate limit is reported with its own message:
+          # creating then fails with a misleading "already exists", and the
+          # release's real state is never examined.
+          if ! grep -qi 'release not found' release-view.txt; then
+            cat release-view.txt >&2
+            exit 1
           fi
           flags=(--draft --verify-tag --generate-notes --title "${GITHUB_REF_NAME}")
           if [ "${IS_PRERELEASE}" = true ]; then
@@ -282,12 +290,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    outputs:
-      # Whether this run put anything on PyPI. `publish-release` needs it to
-      # tell a new artefact (absent from an index read before the upload) from
-      # a stale index (absent from an index read after it), which decides
-      # whether local bytes may stand in for PyPI's.
-      uploaded: ${{ steps.pending.outputs.remaining }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -380,8 +382,6 @@ jobs:
       - check-version
       - draft-release
       - publish-pypi
-    # `publish-pypi` reports whether it uploaded, which decides whether an
-    # artefact the index omits may be filled from this run's rebuild.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -421,22 +421,18 @@ jobs:
 
       - name: Stage the assets the release lacks
         id: stage
-        env:
-          PYPI_PUBLISHED: ${{ needs.publish-pypi.outputs.uploaded }}
         run: |
           set -euo pipefail
-          # A run that published has just changed PyPI, and PyPI's index is
-          # cached, so a name it omits now is a stale read. Staging refuses
-          # that rather than filling the gap with this run's rebuild, whose
-          # bytes need not equal the ones PyPI accepted.
-          published=""
-          if [ "${PYPI_PUBLISHED:-}" = "true" ]; then
-            published="--pypi-published"
-          fi
+          # PyPI's index is cached, and this job runs only after `publish-pypi`
+          # completed, so a name the Release lacks and the index omits is a
+          # stale read rather than a new file. Staging refuses that instead of
+          # filling the gap with this run's rebuild, whose bytes need not
+          # equal the ones PyPI holds. That is true whether or not this run
+          # uploaded: a run that skipped because the index already listed
+          # everything is exactly the case a stale read hides in.
           PYTHONPATH=scripts python3 -m release_assets_cli stage-github --publish dist/publish \
             --index pypi-index.json --assets release-assets.json \
-            --bundles dist/attestations --output github-upload \
-            ${published:+"${published}"} > pypi-fetch.tsv
+            --bundles dist/attestations --output github-upload > pypi-fetch.tsv
           while IFS=$'\t' read -r name url; do
             curl --silent --show-error --location --fail \
               --retry 5 --retry-all-errors --retry-delay 2 \

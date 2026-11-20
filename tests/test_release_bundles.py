@@ -251,7 +251,11 @@ def test_a_release_without_provenance_receives_one_bundle(
     write_file(publish, "a.whl", b"a")
     write_bundle(bundles, "run7.sigstore.json", {"a.whl": b"a"})
     write_bundle(bundles, "run6.sigstore.json", {"a.whl": b"a"})
-    state = State(publish=publish, pypi={}, github={})
+    state = State(
+        publish=publish,
+        pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
+        github={},
+    )
 
     release_github_upload.stage_github(state, bundles, output)
 
@@ -259,26 +263,6 @@ def test_a_release_without_provenance_receives_one_bundle(
     assert [name for name in staged if name.endswith(".sigstore.json")] == [
         "run6.sigstore.json"
     ], staged
-
-
-def test_a_first_release_fills_its_gap_from_its_own_build(
-    tmp_path: pathlib.Path,
-) -> None:
-    """Before PyPI has the name, this run's bytes *are* the canonical bytes."""
-    publish = tmp_path / "publish"
-    bundles = tmp_path / "attestations"
-    output = tmp_path / "upload"
-    write_file(publish, "a.whl", b"a")
-    write_bundle(bundles, "run7.sigstore.json", {"a.whl": b"a"})
-    state = State(publish=publish, pypi={}, github={})
-
-    assert (
-        release_github_upload.stage_github(state, bundles, output, pypi_published=False)
-        == []
-    ), "a name already on PyPI is never also copied from this run's rebuild"
-    assert (output / "a.whl").read_bytes() == b"a", sorted(
-        path.name for path in output.iterdir()
-    )
 
 
 def test_a_bundle_for_other_bytes_is_not_attached_to_this_release(
@@ -316,7 +300,14 @@ def test_a_bundle_covering_only_some_assets_is_not_coverage(
     write_file(publish, "a.whl", b"a")
     write_file(publish, "b.whl", b"b")
     write_bundle(bundles, "run7.sigstore.json", {"a.whl": b"a"})
-    state = State(publish=publish, pypi={}, github={})
+    state = State(
+        publish=publish,
+        pypi={
+            "a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a"),
+            "b.whl": PypiFile(sha256=digest(publish / "b.whl"), url="https://x/b"),
+        },
+        github={},
+    )
 
     with pytest.raises(ReleaseAssetError, match="no provenance bundle"):
         release_github_upload.stage_github(state, bundles, output)
@@ -335,7 +326,11 @@ def test_an_unreadable_bundle_is_not_read_as_coverage(
     bundles = tmp_path / "attestations"
     write_file(publish, "a.whl", b"a")
     write_file(bundles, "run7.sigstore.json", b"not a verifier answer")
-    state = State(publish=publish, pypi={}, github={})
+    state = State(
+        publish=publish,
+        pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
+        github={},
+    )
 
     with pytest.raises(ReleaseAssetError, match="no provenance bundle"):
         release_github_upload.stage_github(state, bundles, tmp_path / "upload")
@@ -357,13 +352,11 @@ def test_a_release_holding_its_bundle_receives_no_second_one(
     write_bundle(bundles, "run7.sigstore.json", {"b.whl": b"b"})
     state = State(
         publish=publish,
-        pypi={},
+        pypi={"b.whl": PypiFile(sha256=digest(publish / "b.whl"), url="https://x/b")},
         github={"run6.sigstore.json": "ab"},
     )
 
-    assert release_github_upload.stage_github(state, bundles, output) == [], (
-        "the name the Release lacks is local, so nothing is fetched from PyPI"
-    )
-    assert sorted(path.name for path in output.iterdir()) == ["b.whl"], sorted(
-        path.name for path in output.iterdir()
-    )
+    assert release_github_upload.stage_github(state, bundles, output) == [
+        ("b.whl", "https://x/b")
+    ], "the name the Release lacks is fetched from PyPI, the canonical source"
+    assert not list(output.iterdir()), "no second bundle is staged beside it"

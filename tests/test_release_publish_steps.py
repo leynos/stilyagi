@@ -80,6 +80,15 @@ _DRAFT_STEPS: typ.Final = (
 #: ``publish-pypi``'s scripted steps, in workflow order.
 _PUBLISH_STEPS: typ.Final = ("Fetch the PyPI index", "Skip artefacts already on PyPI")
 
+#: ``publish-release``'s steps up to, but not including, the upload. Staging
+#: is what decides whether anything may be uploaded, so a refusal is visible
+#: here without needing the release's own checkout and download actions.
+_RELEASE_DECISION_STEPS: typ.Final = (
+    "Fetch the PyPI index",
+    "List the release assets",
+    "Stage the assets the release lacks",
+)
+
 
 def _run_publish(
     workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
@@ -130,6 +139,47 @@ def _seed_release(
             (directory / name).write_bytes(canonical[name])
 
 
+@requires_bash
+def test_a_stale_index_never_reaches_a_skipped_upload_s_run(
+    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+) -> None:
+    """The run that uploads nothing is the one the staging guard exists for.
+
+    ``publish-pypi`` completed because its read of the index listed every
+    artefact, so this run uploads nothing, and its ``remaining`` output is
+    ``false``. The next index read comes from a cache edge and omits a name
+    the Release still lacks. Filling that gap from this run's rebuild would
+    attach bytes PyPI never accepted under a name it has published, and no
+    re-run could repair it, so staging refuses and no ``gh release upload``
+    is made.
+
+    Gating the refusal on "did this run upload" leaves exactly this case
+    unguarded, which is why the rule is asked of the index alone.
+    """
+    work, fake, publish = workspace
+    _seed_release(publish, fake, pypi=(WHEEL, SDIST), github=(SDIST,))
+    environ = fake.environ(FAKE_RELEASE_INDEX_OMITS=WHEEL)
+    completed = run_job_steps(
+        workflow_job(_document(), "draft-release"),
+        _DRAFT_STEPS,
+        work,
+        environ=environ,
+    )
+    if completed.returncode == 0:
+        completed = run_job_steps(
+            workflow_job(_document(), "publish-release"),
+            _RELEASE_DECISION_STEPS,
+            work,
+            environ=environ,
+        )
+    assert completed.returncode == 1, completed.stdout
+    assert "does not list" in completed.stderr, completed.stderr
+    assert WHEEL in completed.stderr, completed.stderr
+    assert not [
+        call for call in fake.calls("gh") if call[:2] == ("release", "upload")
+    ], "a stale index must not reach an upload"
+
+
 @pytest.mark.usefixtures("workspace")
 def test_the_publishing_steps_name_this_repository_scripts() -> None:
     """The steps run the checked-in modules, not an inline copy."""
@@ -153,6 +203,48 @@ def test_the_upload_step_is_gated_on_the_staging_output() -> None:
     publish = [s for s in upload if s.get("name") == "Publish to PyPI"]
     assert len(publish) == 1, publish
     assert publish[0].get("if") == "steps.pending.outputs.remaining == 'true'", publish
+
+
+@requires_bash
+def test_a_missing_release_is_created(
+    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+) -> None:
+    """A confirmed absence is the one case that creates a release."""
+    work, fake, _publish = workspace
+    completed = run_bash(
+        _script("draft-release", "Create or reuse the draft release"),
+        work,
+        environ=fake.environ(FAKE_RELEASE_VIEW_STATUS="1", IS_PRERELEASE="false"),
+    )
+    assert completed.returncode == 0, completed.stderr
+    created = [call for call in fake.calls("gh") if call[:2] == ("release", "create")]
+    assert len(created) == 1, created
+
+
+@requires_bash
+def test_a_view_failure_that_is_not_absence_is_reported_as_itself(
+    workspace: tuple[pathlib.Path, FakeRelease, pathlib.Path],
+) -> None:
+    """A network or token failure must not become "release already exists".
+
+    Only ``release not found`` means the Release is absent. Any other failure
+    is passed through with its own message: creating after one would fail
+    misleadingly, and the release's real state would never be examined.
+    """
+    work, fake, _publish = workspace
+    completed = run_bash(
+        _script("draft-release", "Create or reuse the draft release"),
+        work,
+        environ=fake.environ(
+            FAKE_RELEASE_VIEW_STATUS="1",
+            FAKE_RELEASE_VIEW_ERROR="HTTP 403: Resource not accessible by integration",
+            IS_PRERELEASE="false",
+        ),
+    )
+    assert completed.returncode == 1, completed.stdout
+    assert "403" in completed.stderr, completed.stderr
+    created = [call for call in fake.calls("gh") if call[:2] == ("release", "create")]
+    assert not created, "a release must not be created on an unconfirmed absence"
 
 
 @requires_bash

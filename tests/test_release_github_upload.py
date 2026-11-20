@@ -1,12 +1,12 @@
 """Specify the commands that fill and check the GitHub Release's upload set.
 
 The Release's side of a release run is five commands in
-``scripts/release_github_upload.py``: ``stage_github`` copies the local gap
-and names the PyPI files to fetch, ``check_fetched`` enforces PyPI's digest on
-what arrived, ``check_provenance`` demands a verified record for every file
-about to be attached, ``verify`` compares the two destinations, and
-``unlisted_after_publishing`` is the predicate that decides whether an
-artefact the index omits is new or a stale read.
+``scripts/release_github_upload.py``: ``stage_github`` names the PyPI files to
+fetch and refuses an index that does not list them, ``check_fetched`` enforces
+PyPI's digest on what arrived, ``check_provenance`` demands a verified record
+for every file about to be attached, ``verify`` compares the two destinations,
+and ``unlisted_by_pypi`` is the predicate that decides which names the index
+must list.
 
 The theme here is the same as on PyPI's side: a command must be safe to run
 twice, and must refuse rather than proceed where the bytes it was promised are
@@ -55,13 +55,15 @@ def test_pypi_is_not_asked_for_a_file_over_plain_http(tmp_path: pathlib.Path) ->
     assert (publish / "c.whl").exists(), "the refusal must leave the artefact alone"
 
 
-def test_staging_github_sends_the_local_gap_and_the_fetch_list(
+def test_staging_fetches_every_missing_name_from_pypi(
     tmp_path: pathlib.Path,
 ) -> None:
-    """A name PyPI has is fetched; a name only this run has is copied directly.
+    """Every name the Release lacks is fetched, none is copied from the rebuild.
 
-    The release already records provenance, so this run's bundle is not staged
-    beside the gap: a re-run must leave the release's assets untouched.
+    ``publish-release`` runs only after ``publish-pypi`` completed, so PyPI
+    holds every artefact of the release and its bytes are the canonical ones.
+    The rebuild stays in ``publish`` untouched: it is not the byte PyPI
+    accepted, and an asset uploaded from it could never be replaced.
     """
     publish = tmp_path / "publish"
     bundles = tmp_path / "attestations"
@@ -71,26 +73,36 @@ def test_staging_github_sends_the_local_gap_and_the_fetch_list(
     write_bundle(bundles, "run7.sigstore.json", {"a.whl": b"a", "b.whl": b"b"})
     state = State(
         publish=publish,
-        pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
+        pypi={
+            "a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a"),
+            "b.whl": PypiFile(sha256=digest(publish / "b.whl"), url="https://x/b"),
+        },
+        # The Release already records provenance, so no bundle is staged beside
+        # the gap: a re-run must leave the release's assets untouched.
         github={"run6.sigstore.json": None},
     )
     assert release_github_upload.stage_github(state, bundles, output) == [
-        ("a.whl", "https://x/a")
+        ("a.whl", "https://x/a"),
+        ("b.whl", "https://x/b"),
     ], state
-    assert sorted(path.name for path in output.iterdir()) == ["b.whl"], sorted(
-        path.name for path in output.iterdir()
-    )
+    assert not list(output.iterdir()), "staging must not copy the rebuild"
 
 
 def test_a_stale_index_is_refused_rather_than_filled_from_the_rebuild(
     tmp_path: pathlib.Path,
 ) -> None:
-    """A name absent after this run published means the index is a stale read.
+    """A name the index omits after this job's predecessor published is stale.
 
-    PyPI serves its simple index from a cache, so a run that has just uploaded
-    can be told the project holds nothing. Substituting the rebuild would put
-    different bytes on GitHub from the ones PyPI accepted, and because an
-    upload never overwrites, no retry could repair it.
+    ``publish-release`` runs only after ``publish-pypi`` completed, and that
+    job completes only when the index it read held every artefact of the run.
+    A name the index now omits is therefore a read that predates a write, which
+    PyPI's cached simple index makes a real window. The rule is asked of the
+    index alone, so it also covers a run that skipped the upload -- the run
+    most exposed, since nothing in it explains the omission.
+
+    Substituting the rebuild would put different bytes on GitHub from the ones
+    PyPI accepted, and because an upload never overwrites, no retry could
+    repair it.
     """
     publish = tmp_path / "publish"
     bundles = tmp_path / "attestations"
@@ -99,9 +111,9 @@ def test_a_stale_index_is_refused_rather_than_filled_from_the_rebuild(
     bundles.mkdir()
     state = State(publish=publish, pypi={}, github={})
 
-    with pytest.raises(ReleaseAssetError, match="stale"):
-        release_github_upload.stage_github(state, bundles, output, pypi_published=True)
-    assert not (output / "a.whl").exists(), "the refusal must stage nothing"
+    with pytest.raises(ReleaseAssetError, match="does not list"):
+        release_github_upload.stage_github(state, bundles, output)
+    assert not output.exists(), "the refusal must stage nothing"
 
 
 def test_a_stale_index_refusal_names_every_unlisted_artefact(
@@ -121,29 +133,21 @@ def test_a_stale_index_refusal_names_every_unlisted_artefact(
     )
 
     with pytest.raises(ReleaseAssetError, match=r"\['c\.tar\.gz'\]"):
-        release_github_upload.stage_github(
-            state, bundles, tmp_path / "out", pypi_published=True
-        )
+        release_github_upload.stage_github(state, bundles, tmp_path / "out")
 
 
-def test_unlisted_after_publishing_is_empty_before_the_run_publishes() -> None:
+def test_unlisted_by_pypi_reports_exactly_the_names_the_index_omits() -> None:
     """The predicate is the whole rule, so it is stated on its own."""
-    assert (
-        release_github_upload.unlisted_after_publishing(
-            ["a.whl"], {}, pypi_published=False
-        )
-        == []
-    ), "an index read before this run published is authoritative, not stale"
-    assert release_github_upload.unlisted_after_publishing(
-        ["a.whl"], {}, pypi_published=True
-    ) == ["a.whl"], "after publishing, an omitted name is a stale read"
     listed = {"a.whl": PypiFile(sha256="ab", url="https://x/a")}
-    assert (
-        release_github_upload.unlisted_after_publishing(
-            ["a.whl"], listed, pypi_published=True
-        )
-        == []
-    ), "a listed name is never reported, whether or not this run published"
+    assert release_github_upload.unlisted_by_pypi(["a.whl"], listed) == [], (
+        "a listed name is never reported"
+    )
+    assert release_github_upload.unlisted_by_pypi(["a.whl"], {}) == ["a.whl"], (
+        "an omitted name is reported regardless of any upload this run made"
+    )
+    assert release_github_upload.unlisted_by_pypi(
+        ["a.whl", "b.whl", "c.tar.gz"], listed
+    ) == ["b.whl", "c.tar.gz"], "every omitted name is reported, sorted"
 
 
 def test_checking_a_fetched_file_enforces_pypis_digest(tmp_path: pathlib.Path) -> None:

@@ -11,7 +11,6 @@ Like ``release_assets.py``, this module resolves no third-party code and makes
 no network call: the workflow's ``curl`` and ``gh`` steps fetch what it names.
 """
 
-import shutil
 import typing as typ
 
 from release_assets import (
@@ -47,43 +46,31 @@ def _pypi_fetch_list(
     return fetch
 
 
-def _copy_pypi_gap(
+def unlisted_by_pypi(
     lacking: cabc.Iterable[str],
     pypi: cabc.Mapping[str, PypiFile],
-    publish: Path,
-    output: Path,
-) -> None:
-    """Copy each lacking artefact that PyPI does not list into ``output``.
-
-    A name PyPI does not list is copied from this run's rebuild *only* when
-    PyPI is expected not to have it, which is the case for a first release.
-    ``stage_github`` has already refused the ambiguous case: once a run has
-    published to PyPI, a name absent from the index means the index is stale,
-    so the callers that reach here have established PyPI never saw the name.
-    """
-    for name in lacking:
-        if name not in pypi:
-            shutil.copyfile(publish / name, output / name)
-
-
-def unlisted_after_publishing(
-    lacking: cabc.Iterable[str],
-    pypi: cabc.Mapping[str, PypiFile],
-    *,
-    pypi_published: bool,
 ) -> list[str]:
-    """Return the artefacts PyPI should list but the index does not.
+    """Return the artefacts PyPI's index should list but does not.
 
-    PyPI's simple index is served from a cache, so a run that has just
-    uploaded can read an index that predates its own upload. Falling back to
-    this run's rebuild in that window is unsafe: the bytes published to PyPI
-    are whatever PyPI accepted, and the rebuild need not equal them. GitHub
-    would then be sent different bytes from PyPI's, verification would fail,
-    and no retry could repair the asset, because uploading it again would
-    overwrite a published asset.
+    ``publish-release`` runs only after ``publish-pypi`` has completed, and
+    that job completes only when the index it read held every artefact of the
+    run. A name the Release still lacks and PyPI's index no longer lists is
+    therefore not new: PyPI held it a moment ago, and the read that omits it
+    predates a write this release made. PyPI's simple index is served from a
+    cache, so that window is real rather than theoretical.
 
-    A name absent from an index read *before* this run published is not
-    ambiguous: it is simply new, and this run's bytes are canonical for it.
+    The rule is asked of the index alone, deliberately not of a flag saying
+    whether this run uploaded. A run that skipped the upload is the case the
+    guard exists for: it skipped because the index already listed everything,
+    so a later read that omits a name is stale with no upload of ours to
+    explain it. Gating on "did this run upload" would leave exactly that case
+    unguarded.
+
+    Filling such a gap from this run's rebuild is unsafe. The bytes PyPI holds
+    are whatever it accepted, which for a re-run's rebuild need not equal what
+    this run built; the Release would then receive different bytes under a
+    name PyPI has already published, and no retry could repair that, because
+    attaching an asset again would overwrite a published file.
 
     Parameters
     ----------
@@ -91,8 +78,6 @@ def unlisted_after_publishing(
         The names the GitHub Release lacks and must receive.
     pypi
         The files PyPI's index lists.
-    pypi_published
-        Whether this workflow has already published to PyPI in this release.
 
     Returns
     -------
@@ -101,13 +86,11 @@ def unlisted_after_publishing(
 
     Examples
     --------
-    >>> unlisted_after_publishing(["a.whl"], {}, pypi_published=False)
-    []
-    >>> unlisted_after_publishing(["a.whl"], {}, pypi_published=True)
+    >>> unlisted_by_pypi(["a.whl"], {})
     ['a.whl']
+    >>> unlisted_by_pypi(["a.whl"], {"a.whl": PypiFile("ab", "https://x/a")})
+    []
     """
-    if not pypi_published:
-        return []
     return sorted(name for name in lacking if name not in pypi)
 
 
@@ -115,10 +98,14 @@ def stage_github(
     state: State,
     bundles: Path,
     output: Path,
-    *,
-    pypi_published: bool = False,
 ) -> list[tuple[str, str]]:
     """Stage what the GitHub Release lacks; return the PyPI files to fetch.
+
+    Every name the Release lacks is fetched from PyPI. Staging never copies
+    this run's rebuild into the upload set: by the time this job runs, PyPI
+    has published every artefact of the release, so a name its index omits is
+    a stale read rather than a new file, and the rebuild is not the canonical
+    byte for it.
 
     Parameters
     ----------
@@ -128,11 +115,6 @@ def stage_github(
         The run's provenance bundles, staged for a Release that lacks them.
     output
         The directory the upload set is built in.
-    pypi_published
-        Whether this workflow already published to PyPI in this release. When
-        it has, a name the index does not list is a stale read rather than a
-        new artefact, and staging refuses it instead of substituting bytes
-        that need not match PyPI's.
 
     Returns
     -------
@@ -142,24 +124,22 @@ def stage_github(
     Raises
     ------
     ReleaseAssetError
-        If an artefact is unlisted after this run published, or a PyPI URL is
-        not HTTPS.
+        If PyPI's index does not list an artefact the Release lacks, or a PyPI
+        URL is not HTTPS.
     """
     lacking = sorted(state.plan().github_uploads)
-    unlisted = unlisted_after_publishing(
-        lacking, state.pypi, pypi_published=pypi_published
-    )
+    unlisted = unlisted_by_pypi(lacking, state.pypi)
     if unlisted:
         msg = (
-            f"PyPI's index does not list {unlisted} after this run published, "
-            "so it is stale. Uploading this run's rebuild would put different "
-            "bytes on GitHub from the ones PyPI holds, and a retry could not "
-            "repair it. Re-run once the index lists every distribution."
+            f"PyPI's index does not list {unlisted}, which the GitHub Release "
+            "must also carry, so the index read predates a write this release "
+            "made. Uploading this run's rebuild would put different bytes on "
+            "GitHub from the ones PyPI holds, and a retry could not repair "
+            "it. Re-run once the index lists every distribution."
         )
         raise ReleaseAssetError(msg)
     fetch = _pypi_fetch_list(lacking, state.pypi)
     output.mkdir(parents=True, exist_ok=True)
-    _copy_pypi_gap(lacking, state.pypi, state.publish, output)
     # A Release that already holds a bundle is left alone: the first run's
     # record is the one a consumer checks, and a second run's describes a
     # rebuild the Release does not hold.
@@ -190,9 +170,6 @@ def _resulting_assets(
     assets = dict(state.github)
     for name, _ in fetch:
         assets[name] = state.pypi[name].sha256
-    for name in sorted(state.plan().github_uploads):
-        if name not in state.pypi:
-            assets[name] = sha256_of(state.publish / name)
     return assets
 
 

@@ -2287,9 +2287,15 @@ it must cover, copies only the bundles that pass into the directory
    run at `main`'s tip:
 
    ```shell
-   git tag -f -a v0.2.0 -m "Release 0.2.0"
+   git fetch git@github.com:leynos/stilyagi.git main
+   git tag -f -a v0.2.0 -m "Release 0.2.0" FETCH_HEAD
    git push --force git@github.com:leynos/stilyagi.git v0.2.0
    ```
+
+   The tag is given `FETCH_HEAD` explicitly because `git tag -f -a NAME`
+   without a target tags the current checkout. A maintainer on a stale or
+   feature branch would otherwise re-tag the wrong commit, and `check-version`
+   does not catch that when the manifests happen to agree.
 
    Re-pushing is safe precisely because the reconciliation treats whatever is
    already published as canonical; it is also the only route that runs code
@@ -2301,6 +2307,19 @@ The PyPI project page for a version may lag the workflow by a minute or two
 after the release job succeeds; that is the index cache, not a failed upload.
 `curl https://pypi.org/pypi/stilyagi/json` reports what the index actually
 holds.
+
+That cache is also why `publish-release` refuses a name PyPI's index does not
+list. The job runs only after `publish-pypi` completed, and that job completes
+only when the index it read held every artefact of the run, so PyPI is
+guaranteed to hold what the Release still lacks. A name the Release lacks and
+the index omits is therefore a cached read that predates a write, not a new
+file. Staging refuses it rather than filling the gap with the run's rebuild:
+the rebuild's bytes need not equal the ones PyPI accepted, and a Release asset
+cannot be overwritten, so the mistake would be permanent. The refusal is
+independent of whether this run uploaded anything — a run that skipped the
+upload because the index already listed everything is precisely the run in
+which a later stale read has no upload of its own to explain it. Re-run the tag
+once the index lists every distribution.
 
 ### Settings this pipeline requires
 
@@ -2320,8 +2339,9 @@ workflow files, so a from-scratch fork must set them up before its first tag.
   without it, Trusted Publishing rejects the OIDC exchange.
 - **Workflow permissions.** The repository must allow GitHub Actions to create
   a token with `id-token: write`, which it does by default unless the
-  organization has disabled OIDC. `publish-pypi` is the only job that asks for
-  it.
+  organization has disabled OIDC. Two jobs ask for it: `attest`, which signs
+  the build provenance through the run's OIDC token, and `publish-pypi`, which
+  exchanges it for Trusted Publishing credentials.
 - **Attestations.** `attest` uses `actions/attest-build-provenance`, which
   needs no secret: it signs through the run's OIDC token and writes a Sigstore
   bundle. That bundle travels inside `release-dist`, and the first run of a tag
