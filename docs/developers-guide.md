@@ -2255,6 +2255,76 @@ named the release: the step therefore verifies each bundle against every asset
 it must cover, copies only the bundles that pass into the directory
 `check-bundle` reads, and asks coverage of one statement at a time.
 
+### Recovering a bundle from the attestation store
+
+The refusal above names the repair, and the store is the only place it can come
+from. `gh attestation download` takes a file rather than a Release asset, so
+start from an asset the Release already holds: one download reaches every
+bundle the store keeps for that digest, including the run whose statement names
+the others. The listing below is filtered to the assets that are artefacts
+rather than evidence, which is the same rule `artefact_digests` applies.
+
+```shell
+set -euo pipefail
+tag=v0.2.0
+repo=leynos/stilyagi
+work="$(mktemp -d)"
+cd "${work}"
+
+gh release view "${tag}" --repo "${repo}" --json assets \
+  --jq '.assets[].name | select(endswith(".sigstore.json") | not)' \
+  > names.txt
+
+name="$(head -n 1 names.txt)"
+gh release download "${tag}" --repo "${repo}" --pattern "${name}" --dir "${work}"
+gh attestation download "${work}/${name}" --repo "${repo}"
+```
+
+The downloader writes `<digest>.jsonl` into the working directory, one bundle
+per line, and `--limit` must be raised when the store holds more than its
+default of 30. Each line is a candidate on its own, and the name a candidate is
+attached under must end in `.sigstore.json`: the check below looks for bundles
+by that suffix, and `gh attestation verify --bundle` reads such a file as one
+JSON document. That second half is also why the download is split first — a
+multi-line file renamed whole to `.sigstore.json` is refused as unparsable
+rather than read line by line.
+
+```shell
+split -l 1 --numeric-suffixes=1 --additional-suffix=.sigstore.json \
+  sha256*.jsonl candidate-
+```
+
+Each candidate is then asked the question the check asks.
+`gh attestation verify` answers for one artefact and one bundle, so the
+candidate to attach is the one that answers for every asset. Asking the
+verifier rather than the store is also what keeps a statement edited by hand
+out: only a line whose signature still covers its payload verifies at all.
+
+```shell
+for candidate in candidate-*.sigstore.json; do
+  covers=yes
+  while IFS= read -r name; do
+    gh attestation verify "${work}/${name}" \
+      --bundle "${candidate}" --repo "${repo}" \
+      --signer-workflow "${repo}/.github/workflows/release.yml" \
+      --source-ref "refs/tags/${tag}" --deny-self-hosted-runners \
+      || { covers=; break; }
+  done < names.txt
+  if [ -n "${covers}" ]; then
+    gh release upload "${tag}" "${candidate}" --repo "${repo}"
+    break
+  fi
+done
+```
+
+The next run of the tag downloads that asset again and verifies it before
+`check-bundle` reads it, so a line that misses an asset leaves the release a
+draft with the check's refusal rather than a published release. When no
+candidate verifies against every asset, the store holds no covering statement
+for those bytes and the release cannot be published as it stands: re-pushing
+the tag produces a statement about the rebuild, which is not a statement about
+the bytes the release holds.
+
 ### Publishing a release
 
 1. Raise the version in `pyproject.toml` and the workspace `Cargo.toml`, and

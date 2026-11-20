@@ -203,8 +203,12 @@ records provenance for the canonical bytes, and a run-unique bundle for a
 rebuild would describe bytes the release does not hold. A release that cannot
 be covered is not published; it is repaired by attaching the attestation for
 those exact bytes from the repository's attestation store, which
-`gh attestation download` writes in the JSON-lines form the reader accepts. The
-re-run's own attestation is still written to that store either way.
+`gh attestation download` writes in the JSON-lines form the reader accepts.
+That form is a file the two readers split before either can use it: the
+download is one bundle per line, so an operator attaches one line under a
+`.sigstore.json` name rather than the whole file, whose lines neither reader
+parses as one document. The re-run's own attestation is still written to that
+store either way.
 
 ### Provenance of carried bytes
 
