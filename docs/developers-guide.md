@@ -1879,9 +1879,9 @@ tools required by the checked targets, then runs `make check-fmt`,
 `make markdownlint`, `make nixie`, `make typecheck`, `make lint`, and
 `make test-doc`. Its `release-smoke` job delegates to
 `.github/workflows/build-wheels.yml`, the same reusable workflow a tag's
-release builds with, so the smoke path and the release path cannot diverge.
-The workflow is not release publishing automation; it proves that local
-development installs and release wheels exercise the same PyO3 boundary.
+release builds with, so the smoke path and the release path cannot diverge. The
+workflow is not release publishing automation; it proves that local development
+installs and release wheels exercise the same PyO3 boundary.
 
 CI runs `make test-doc` rather than `make test` because every other part of
 `make test` already runs once per event. The coverage step in `smoke.yml` on a
@@ -3405,14 +3405,13 @@ does not move the run onto Ubicloud.
 
 `lint-test`, `coverage-upload` and `coverage-warmup` keep 100-minute ceilings
 (`coverage-baseline` states 15), and every job of `build-wheels.yml` keeps its
-own 60. An Ubicloud runner is a self-hosted
-just-in-time runner, so GitHub's six-hour cap for hosted jobs does not bound it
-and each job must state its own; section 12 holds every job invoking the
-coverage action above the 4,080 s cargo watchdog, so none can be set to twice a
-warm run. `coverage-baseline` invokes no coverage action and inherits no
-watchdog, so its 15-minute ceiling bounds only the baseline handover.
-`tests/test_coverage_main_runners.py` names each `coverage-main.yml` job's
-runner outright and admits no other job.
+own 60. An Ubicloud runner is a self-hosted just-in-time runner, so GitHub's
+six-hour cap for hosted jobs does not bound it and each job must state its own;
+section 12 holds every job invoking the coverage action above the 4,080 s cargo
+watchdog, so none can be set to twice a warm run. `coverage-baseline` invokes
+no coverage action and inherits no watchdog, so its 15-minute ceiling bounds
+only the baseline handover. `tests/test_coverage_main_runners.py` names each
+`coverage-main.yml` job's runner outright and admits no other job.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
 models the two accepted expressions rather than evaluating them in GitHub
@@ -3987,11 +3986,11 @@ they must be ordered lives in the `generate-coverage` README in
 `leynos/shared-actions`.[^6] Before the nextest file was added exactly one of
 the four was set here.
 
-| Tier                     | What it bounds                     | Where it is set                                                                    | Current value               |
-| ------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------- | --------------------------- |
-| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                                                             | 180 s; 1,500 s for trybuild |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                                             | 56 m                        |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level                                    | 4,080 s (68 m)              |
+| Tier                     | What it bounds                     | Where it is set                                                                    | Current value                     |
+| ------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------- |
+| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                                                             | 180 s; 1,500 s for trybuild       |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                                             | 56 m                              |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level                                    | 4,080 s (68 m)                    |
 | Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml`, `coverage-main.yml`, and every job of `build-wheels.yml` | 100 m; 60 m in `build-wheels.yml` |
 
 *Table: the timers that can end a run, innermost first.*
