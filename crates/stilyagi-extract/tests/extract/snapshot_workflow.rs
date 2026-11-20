@@ -14,13 +14,10 @@
 //! crate's tests with that variable set, and an in-process probe would silently
 //! take the update path there.
 //!
-//! A third test runs the real `make update-snapshots` target with `CARGO`
-//! replaced by a shell shim. The shim reports the update mode and the package
-//! arguments the recipe supplies, then execs `cargo test` narrowed to the
-//! isolated regeneration test, so the target's own environment drives a real
-//! regeneration instead of the target recursively running this whole module.
-//! A text contract on the Makefile and the hosted workflows then pins where
-//! update mode may be enabled.
+//! The target itself is covered with real Cargo by `snapshot_update_e2e`,
+//! which runs the recipe narrowed to its own ignored probes. A text contract on
+//! the Makefile and the hosted workflows then pins where update mode may be
+//! enabled.
 //!
 //! Files are read through `cap_std` directory handles, matching the
 //! capability-oriented filesystem policy the rest of the test estate follows.
@@ -31,11 +28,10 @@ use cap_std::{ambient_authority, fs::Dir};
 use rstest::rstest;
 use stilyagi_test_support::repository_root;
 
+use super::test_utils::child_report;
+
 /// Scratch directory name for the isolated snapshot probe.
 const SCRATCH_DIR: &str = "snapshot_workflow";
-
-/// Scratch directory the update-mode regeneration test writes to.
-const UPDATE_SCRATCH_DIR: &str = "snapshot_workflow_update";
 
 /// Snapshot name used by the isolated workflow probe.
 const PROBE_SNAPSHOT: &str = "workflow_probe";
@@ -54,9 +50,6 @@ const UPDATE_ASSIGNMENT: &str = "INSTA_UPDATE=always";
 
 /// Exact name of the probe test the driver runs in a child process.
 const PROBE_TEST: &str = "snapshot_workflow::probe_asserts_the_accepted_value";
-
-/// Exact name of the isolated regeneration test the recipe shim runs.
-const UPDATE_TEST: &str = "snapshot_workflow::update_mode_regenerates_the_isolated_snapshot";
 
 /// Return an empty scratch directory named `name` for an isolated snapshot.
 fn scratch_snapshot_dir(name: &str) -> std::io::Result<Dir> {
@@ -111,16 +104,6 @@ fn run_probe(directory: &std::path::Path, update_mode: Option<&str>) -> std::io:
 /// Return the committed probe snapshot's text.
 fn probe_snapshot_text(snapshots: &Dir) -> std::io::Result<String> {
     snapshots.read_to_string(PROBE_SNAPSHOT_FILE)
-}
-
-/// Return a child's captured output as a failure message.
-fn child_report(output: &Output) -> String {
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    format!(
-        "status {}\nstdout:\n{stdout}\nstderr:\n{stderr}",
-        output.status
-    )
 }
 
 /// Assert the probe's value against the snapshot in the working directory.
@@ -180,85 +163,6 @@ fn snapshot_mismatch_fails_until_insta_updates_the_snapshot() {
         accepted.status.success(),
         "expected the regenerated snapshot to pass every later run:\n{}",
         child_report(&accepted)
-    );
-}
-
-/// `make update-snapshots` must regenerate a stale snapshot under its own
-/// environment rather than relying on the driver to pass `INSTA_UPDATE`.
-///
-/// Ignored so the ordinary suite never shares this scratch directory with the
-/// recipe shim, which runs this test in its own child process.
-#[rstest]
-#[ignore = "the update-snapshots shim runs this in a child process"]
-fn update_mode_regenerates_the_isolated_snapshot() {
-    let snapshots =
-        scratch_snapshot_dir(UPDATE_SCRATCH_DIR).expect("expected an isolated snapshot directory");
-    snapshots
-        .write(PROBE_SNAPSHOT_FILE, committed_snapshot(STALE_TEXT))
-        .expect("expected the stale snapshot to be writable");
-
-    let update = run_probe(&scratch_snapshot_path(UPDATE_SCRATCH_DIR), Some("always"))
-        .expect("expected the probe to run");
-    assert!(
-        update.status.success(),
-        "expected insta's update mode to accept the new value:\n{}",
-        child_report(&update)
-    );
-    let regenerated =
-        probe_snapshot_text(&snapshots).expect("expected the updated snapshot to be readable");
-    assert!(
-        regenerated.contains(ACCEPTED_TEXT) && !regenerated.contains(STALE_TEXT),
-        "expected the update run to regenerate the snapshot, got:\n{regenerated}"
-    );
-}
-
-/// Build the `CARGO` override that lets the real recipe drive this crate's
-/// isolated regeneration test.
-///
-/// The shim reports the environment the recipe supplies, then narrows the
-/// recipe's own `cargo test` to one test in a temporary snapshot directory.
-/// That proves the target's update mode end to end without letting it rewrite
-/// any committed snapshot. `make` expands `$$` to `$`, so the inner shell sees
-/// the variable references intact; the single quotes stop the outer shell from
-/// expanding them first.
-fn update_recipe_shim() -> String {
-    format!(
-        concat!(
-            "sh -c 'echo shim_update=$${{INSTA_UPDATE}}; echo shim_args=$$*; ",
-            "unset CARGO; exec cargo test -p stilyagi-extract ",
-            "--test extract_integration -- --exact --ignored {}'"
-        ),
-        UPDATE_TEST
-    )
-}
-
-/// The local recipe must reach both snapshot-bearing crates in update mode.
-#[rstest]
-fn make_update_snapshots_runs_both_crates_in_update_mode() {
-    let repository = repository_root().expect("expected the repository root");
-    let output = std::process::Command::new("make")
-        .arg("-s")
-        .arg("update-snapshots")
-        .arg(format!("CARGO={}", update_recipe_shim()))
-        .current_dir(repository)
-        .env_remove("INSTA_UPDATE")
-        .env_remove("INSTA_FORCE_PASS")
-        .output()
-        .expect("expected make update-snapshots to run");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(
-        output.status.success(),
-        "expected make update-snapshots to succeed:\n{}",
-        child_report(&output)
-    );
-    assert!(
-        stdout.contains("shim_update=always"),
-        "expected the recipe to supply {UPDATE_ASSIGNMENT} to Cargo, got:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("shim_args=-p stilyagi-extract -p stilyagi-pyext"),
-        "expected the recipe to regenerate snapshots for both crates, got:\n{stdout}"
     );
 }
 

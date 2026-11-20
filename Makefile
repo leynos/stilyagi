@@ -117,6 +117,10 @@ TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 MD_FILES_FIND = find . -type f -name '*.md' -not -path './.git/*' -not -path './.venv/*' -not -path './.venv-release-smoke/*' -not -path './.uv-cache/*' -not -path './.uv-tools/*' -not -path './.vtcode/*' -not -path './target/*' -not -path './crates/stilyagi-pyext/target/*' -print0
 CARGO_BUILD_ENV ?= PYO3_USE_ABI3_FORWARD_COMPATIBILITY=0
 TEST_FLAGS ?= --manifest-path $(WORKSPACE_MANIFEST) --workspace --all-features
+# Extra `cargo test` arguments for `update-snapshots`. Empty in normal use; the
+# snapshot-update end-to-end test narrows the run to its ignored probes so the
+# target cannot recurse into the test that drives it.
+SNAPSHOT_UPDATE_ARGS ?=
 # Modules whose docstring examples are executed. The library and the test
 # support package both document helpers with examples, and an example nothing
 # runs is prose that can go untrue. tests/test_doctest_collection.py fails when
@@ -350,7 +354,7 @@ test-quick: check-build-tools build tools-lint ## Run Rust library tests only wi
 # failing test's log instead.
 # See "Snapshot and round-trip helper workflow" in docs/developers-guide.md.
 update-snapshots: ## Regenerate insta snapshots for review
-	INSTA_UPDATE=always $(CARGO_BUILD_ENV) $(CARGO) test -p stilyagi-extract -p stilyagi-pyext
+	INSTA_UPDATE=always $(CARGO_BUILD_ENV) $(CARGO) test -p stilyagi-extract -p stilyagi-pyext $(SNAPSHOT_UPDATE_ARGS)
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

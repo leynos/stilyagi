@@ -20,9 +20,13 @@ static CHECK_METRICS_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(())
 ///
 /// Extraction records into process-global counters, so a test that extracts a
 /// document must not overlap a metrics snapshot test's reset-then-read window.
-/// A poisoned lock is recovered rather than propagated: the counters are
-/// reset by the next metrics test, and a panic in one extraction test should
-/// not fail every later test that needs the lock.
+/// Acquire the lock before attaching Python, never inside an active
+/// `Python::attach` closure: the bridge helpers below hold this lock and then
+/// wait for the interpreter, so attaching first would invert the order and
+/// deadlock the two tests against each other. A poisoned lock is recovered
+/// rather than propagated: the counters are reset by the next metrics test,
+/// and a panic in one extraction test should not fail every later test that
+/// needs the lock.
 #[cfg(test)]
 pub(crate) fn with_metrics_test_lock<T>(body: impl FnOnce() -> T) -> T {
     let guard = CHECK_METRICS_TEST_LOCK

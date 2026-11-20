@@ -391,6 +391,24 @@ make update-snapshots
 INSTA_UPDATE=always cargo test -p stilyagi-extract -p stilyagi-pyext
 ```
 
+The recipe appends `SNAPSHOT_UPDATE_ARGS` to that Cargo command; it is empty in
+normal use. The target's end-to-end test
+(`crates/stilyagi-extract/tests/extract/snapshot_update_e2e.rs`) sets it to
+`--lib -- --ignored snapshot_update_probe`, so the test can drive the real
+recipe without re-entering the suite that invoked it. The test stages a stale
+snapshot for both crates, checks that an ordinary run fails, runs the target,
+and checks that each staged snapshot was rewritten and that the next ordinary
+run passes.
+
+Each crate carries one ignored lib probe that asserts a fixed value against a
+staged file, and `stilyagi-test-support::snapshot_update` holds the names both
+sides use. The staged root is the untracked `target/tmp/snapshot_update_e2e`
+directory, derived from the fixture crate's compiled-in manifest directory
+rather than from the process environment, so no tracked snapshot is touched and
+the probes need no environment seam. A developer's real `make update-snapshots`
+also runs this test; its nested run is narrowed to the probes and completes
+harmlessly beside it.
+
 Python snapshots are regenerated separately:
 
 ```bash
@@ -903,15 +921,29 @@ snapshot tests take the same lock across their reset-seed-read window. The
 extraction side holds the lock no longer than that call: the returned document
 is inert data, so asserting over it or snapshotting it records no further
 metric, and serializing those reads would slow the suite without protecting
-anything. Both sides share one lock because they share the counters: a lock per
-test module, or per crate, would leave the interleaving it exists to prevent.
+anything. A test that needs Python again after the call re-attaches; a
+`Py<PyDict>` can outlive the attachment that created it. Both sides share one
+lock because they share the counters: a lock per test module, or per crate,
+would leave the interleaving it exists to prevent.
+
+The lock is acquired **before** Python is attached, never inside an active
+`Python::attach` closure. Every extraction helper already holds the lock and
+then waits for the interpreter, so a test that attached first and then waited
+for the lock would invert that order: two tests then hold one resource each and
+wait for the other for ever. A test that only re-reads the returned payload
+after the call attaches Python without the lock, which cannot invert anything.
+
+The rule is uniform even though Markdown extraction records no extraction
+metric. A test does not have to know which syntaxes currently record, and one
+lock acquisition per extraction is cheap next to the risk of a syntax gaining a
+counter later.
 
 The helper recovers a poisoned lock with `PoisonError::into_inner` rather than
-propagating the poison. A panicking extraction test therefore fails only
-itself; later tests that need the lock still run, and the next metrics snapshot
-test resets the counters it is about to read. Take the lock through the helper
-rather than locking `CHECK_METRICS_TEST_LOCK` directly, so the poison policy
-stays in one place.
+propagating the poison. A panicking test therefore fails only itself; later
+tests that need the lock still run, and the next metrics snapshot test resets
+the counters it is about to read. Every lock user goes through the helper,
+including `check_metrics/recorder_tests.rs`, so the poison policy stays in one
+place.
 
 `check_execution.py` records per-file `read`, `extract`, `config`, and `rules`
 durations; `cli.py` records the `discovery` and `render` phases. These are the

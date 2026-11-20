@@ -12,6 +12,7 @@ mod identity;
 pub(crate) mod payload;
 mod python_docstring;
 mod rust_doc_comment;
+mod snapshot_update_probe;
 mod vocabulary;
 
 use payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text};
@@ -246,55 +247,59 @@ fn hello_is_not_the_legacy_python_fallback() {
 /// The exported function must reject keyword arguments it does not accept.
 #[rstest]
 fn extract_document_function_rejects_unexpected_kwargs() {
-    Python::attach(|py| {
-        let function =
-            extract_document_function(py).expect("expected extract_document function construction");
-        let args = PyTuple::new(py, ["# Heading", "markdown"]).expect("expected argument tuple");
-        let kwargs = PyDict::new(py);
-        kwargs
-            .set_item("unexpected", true)
-            .expect("expected kwargs setup to succeed");
-        let error = function
-            .call(args, Some(&kwargs))
-            .expect_err("expected unexpected keyword argument to fail");
+    with_metrics_test_lock(|| {
+        Python::attach(|py| {
+            let function = extract_document_function(py)
+                .expect("expected extract_document function construction");
+            let args =
+                PyTuple::new(py, ["# Heading", "markdown"]).expect("expected argument tuple");
+            let kwargs = PyDict::new(py);
+            kwargs
+                .set_item("unexpected", true)
+                .expect("expected kwargs setup to succeed");
+            let error = function
+                .call(args, Some(&kwargs))
+                .expect_err("expected unexpected keyword argument to fail");
 
-        assert!(error.is_instance_of::<PyTypeError>(py));
+            assert!(error.is_instance_of::<PyTypeError>(py));
+        });
     });
 }
 
 /// A Markdown extraction must expose the documented bridge payload shape.
 #[rstest]
 fn extract_document_py_exposes_markdown_document() {
-    with_metrics_test_lock(|| {
+    let extracted = with_metrics_test_lock(|| {
         Python::attach(|py| {
             let args =
                 PyTuple::new(py, ["# Heading", "markdown"]).expect("expected argument tuple");
-            let extracted =
-                extract_document_py(py, &args).expect("Markdown extraction should succeed");
-            let document = extracted.bind(py);
-            let regions =
-                dict_list(document, "regions").expect("Markdown regions should be a list");
-            let first_region =
-                list_dict_at(&regions, 0).expect("first Markdown region should be a dict");
+            extract_document_py(py, &args)
+        })
+    })
+    .expect("Markdown extraction should succeed");
+    Python::attach(|py| {
+        let document = extracted.bind(py);
+        let regions = dict_list(document, "regions").expect("Markdown regions should be a list");
+        let first_region =
+            list_dict_at(&regions, 0).expect("first Markdown region should be a dict");
 
-            insta::assert_json_snapshot!(
-                "extract_document_py__markdown_payload",
-                document_payload(document)
-            );
+        insta::assert_json_snapshot!(
+            "extract_document_py__markdown_payload",
+            document_payload(document)
+        );
 
-            assert_eq!(
-                dict_string(document, "syntax").expect("syntax payload should be a string"),
-                ExtractSyntax::Markdown.as_str(),
-            );
-            assert_eq!(regions.len(), 1);
-            assert_eq!(
-                region_kind_and_text(&first_region).expect("region should carry kind and text"),
-                ("heading".to_owned(), "Heading".to_owned()),
-            );
-            let ir_json = dict_string(document, "ir_json").expect("IR payload should be a string");
-            let parsed = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
-            assert_ir_json_contract(&parsed);
-        });
+        assert_eq!(
+            dict_string(document, "syntax").expect("syntax payload should be a string"),
+            ExtractSyntax::Markdown.as_str(),
+        );
+        assert_eq!(regions.len(), 1);
+        assert_eq!(
+            region_kind_and_text(&first_region).expect("region should carry kind and text"),
+            ("heading".to_owned(), "Heading".to_owned()),
+        );
+        let ir_json = dict_string(document, "ir_json").expect("IR payload should be a string");
+        let parsed = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
+        assert_ir_json_contract(&parsed);
     });
 }
 

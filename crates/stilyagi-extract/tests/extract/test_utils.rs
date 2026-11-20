@@ -3,6 +3,8 @@
 //! Setup helpers and rstest fixtures here are fallible: they return the
 //! underlying error so that recognized test bodies decide how to fail.
 
+use std::process::Output;
+
 use rstest::fixture;
 use stilyagi_extract::{
     ExtractDocument,
@@ -22,6 +24,19 @@ use stilyagi_test_support::{
 
 /// Outcome of reading a corpus fixture, handed to tests as a fixture value.
 pub(crate) type FixtureSource = Result<String, FixtureReadError>;
+
+/// Return a child process's captured output as a failure message.
+///
+/// Both streams are included because `make` reports recipe failures on stderr
+/// while Cargo reports test failures on stdout.
+pub(crate) fn child_report(output: &Output) -> String {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    format!(
+        "status {}\nstdout:\n{stdout}\nstderr:\n{stderr}",
+        output.status
+    )
+}
 
 /// Return an error carrying `message` when `condition` is false.
 ///
