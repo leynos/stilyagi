@@ -2302,10 +2302,11 @@ The downloader writes `<digest>.jsonl` into the working directory, one bundle
 per line, and `--limit` must be raised when the store holds more than its
 default of 30. Each line is a candidate on its own, and the name a candidate is
 attached under must end in `.sigstore.json`: the check below looks for bundles
-by that suffix, and `gh attestation verify --bundle` reads such a file as one
-JSON document. That second half is also why the download is split first — a
-multi-line file renamed whole to `.sigstore.json` is refused as unparsable
-rather than read line by line.
+by that suffix. The suffix is not cosmetic — it selects the parser, since
+`gh attestation verify --bundle` reads a `.jsonl` file one line at a time and a
+`.sigstore.json` file as a single JSON document. That is why the download is
+split first: a multi-line file renamed whole to `.sigstore.json` is refused as
+unparsable rather than read line by line.
 
 ```shell
 split -l 1 --numeric-suffixes=1 --additional-suffix=.sigstore.json \
@@ -2317,6 +2318,18 @@ Each candidate is then asked the question the check asks.
 candidate to attach is the one that answers for every asset. Asking the
 verifier rather than the store is also what keeps a statement edited by hand
 out: only a line whose signature still covers its payload verifies at all.
+
+A rejection does not always mean the candidate misses an asset. The verifier
+enforces `https://slsa.dev/provenance/v1` unless told otherwise, and the store
+answers with every predicate it holds for that digest, so a release-predicate
+line downloaded beside a build-provenance one is refused with
+`no attestations found with predicate type: …`. Read that as "not this
+candidate" rather than "these bytes are unattested", and let the loop carry on:
+the build-provenance line that follows is the one that verifies. Filtering the
+download with
+`gh attestation download --predicate-type https://slsa.dev/provenance/v1`
+avoids the mixed file altogether when only one kind is wanted, though the loop
+does not need it.
 
 ```shell
 for candidate in candidate-*.sigstore.json; do
