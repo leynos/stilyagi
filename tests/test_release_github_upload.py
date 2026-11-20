@@ -142,9 +142,13 @@ def test_a_stale_index_is_refused_even_when_it_omits_a_held_asset(
     state = State(
         publish=publish,
         # The wheel is omitted, as a read predating a write would omit it.
-        pypi={"a.tar.gz": PypiFile("cd", "https://x/a.tar.gz")},
+        # The digests are the payloads' real ones, not placeholders: the
+        # bundle is chosen against what the finished Release will hold, so a
+        # short digest here would leave the bundle uncovered and the coverage
+        # check -- not the index rule -- would be the refusal under test.
+        pypi={"a.tar.gz": PypiFile(digest(publish / "a.tar.gz"), "https://x/a.tar.gz")},
         # And the Release already holds it, so it is not in the gap.
-        github={"a.whl": "ab"},
+        github={"a.whl": digest(publish / "a.whl")},
     )
 
     with pytest.raises(ReleaseAssetError, match=r"does not list \['a\.whl'\]"):
