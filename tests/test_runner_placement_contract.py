@@ -1,11 +1,10 @@
 """Hold the workflows' Ubicloud placement to the files: expression and ceiling.
 
-Ubicloud's cache proxy is scoped by ref, and a pull request from a fork cannot
-obtain an Ubicloud runner at all. A lane that names an Ubicloud runner
-therefore selects it by a runner-selection expression that falls back to the
-hosted pool for a fork, and states its own ceiling, because an Ubicloud runner
-is a self-hosted just-in-time runner that GitHub's six-hour cap for hosted jobs
-does not bound.
+Ubicloud's cache proxy is scoped by ref, and a fork's pull request cannot obtain
+an Ubicloud runner at all. A lane that names one therefore selects it by a
+runner-selection expression that falls back to the hosted pool for a fork, and
+states its own ceiling: an Ubicloud runner is a self-hosted just-in-time runner
+that GitHub's six-hour cap does not bound.
 
 The judgement is driven over constructed expressions in both directions before
 the real files are asserted, because a check over this repository's own
@@ -44,8 +43,7 @@ PLACEMENTS: typ.Final = (
 #: The lanes that send Dependabot's pull requests to the hosted pool as well.
 DEPENDABOT_HOSTED: typ.Final = frozenset({("smoke.yml", "lint-test")})
 
-#: The runner-selection shape: a condition, a quoted hosted arm and a quoted
-#: other arm.
+#: The runner-selection shape: a condition and two quoted arms.
 _SHAPE: typ.Final = re.compile(
     r"\$\{\{\s*(?P<condition>.+?)\s*&&\s*'(?P<hosted>[^']*)'"
     r"\s*\|\|\s*'(?P<other>[^']*)'\s*\}\}"
