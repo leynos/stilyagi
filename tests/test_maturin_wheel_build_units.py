@@ -22,6 +22,7 @@ if typ.TYPE_CHECKING:
     import pathlib
 
 from tests.test_maturin_build import (
+    _SUBPROCESS_TIMEOUT_SECONDS,
     _build_native_wheel_artefact,
     _installed_maturin_version,
     _maturin_module_available,
@@ -54,7 +55,13 @@ def test_the_release_build_keeps_an_ambient_rustflags_value(
 def test_the_build_returns_the_one_wheel_it_wrote(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
-    """A stale wheel is removed, and the remaining one is the answer."""
+    """A stale wheel is removed, and the remaining one is the answer.
+
+    The deadline is asserted through the shared constant rather than restated
+    as a number. The build module owns that budget, and a second literal here
+    would fail the day the owner raises it, reporting a defect in a helper that
+    was never changed.
+    """
     out_dir = tmp_path / "wheelhouse"
     out_dir.mkdir()
     (out_dir / "stale-0.1.0-py3-none-any.whl").write_bytes(b"stale")
@@ -71,7 +78,7 @@ def test_the_build_returns_the_one_wheel_it_wrote(
     built = _build_native_wheel_artefact(tmp_path, out_dir)
 
     assert built.name == "stilyagi-0.2.0-cp314-cp314-x86_64.whl", built.name
-    assert seen["timeout"] == 600, seen["timeout"]
+    assert seen["timeout"] == _SUBPROCESS_TIMEOUT_SECONDS, seen["timeout"]
     assert str(out_dir) in seen["command"], seen["command"]
 
 
