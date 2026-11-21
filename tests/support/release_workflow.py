@@ -1,11 +1,16 @@
-"""Read the release workflow's jobs, steps and step outputs.
+"""Read the release workflows' jobs, steps and step outputs, and ready a workspace.
 
 ``release.yml`` keeps every decision in ``scripts/release_assets.py`` and
 every network call in a ``curl`` or ``gh`` invocation, so what a test can
 usefully assert about the workflow itself is which steps exist, what each
 step hands to the next, and what its script does with the files it is
-given. This module supplies the readings that answer the first two, and
-the workspace helpers a test needs before it runs a step.
+given. This module supplies the readings that answer the first two.
+
+It also supplies the workspace helpers a test needs before it can run a
+step: ``link_scripts`` puts a job's checked-in scripts where the step's own
+working directory will find them, and ``github_output`` reads back what a
+finished step wrote to ``$GITHUB_OUTPUT``. Those two prepare and collect,
+they do not execute.
 
 Nothing here builds a workflow document of its own: the document is read
 by ``tests/support/workflows.load_workflow`` like every other contract's,
@@ -15,7 +20,8 @@ A missing job, step or key is a `ReadingError` naming the reading rather
 than an `AssertionError` from a helper: the contract that called the
 reading decides whether the absence is a failure, and it says so in its
 own vocabulary. Running a step's script is `tests.support.release_steps`'
-job; this module only reads the document that supplies it.
+job; this module only reads the document that supplies it and readies the
+directory it runs in.
 """
 
 import pathlib
