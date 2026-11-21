@@ -159,11 +159,15 @@ Each filename's canonical bytes are, in order of precedence:
 3. this run's freshly built and attested file, only when neither destination
    has the name.
 
-Each destination receives only the names it lacks. Nothing is overwritten:
-PyPI's upload step never sees a name PyPI holds, and `gh release upload` is
-invoked without `--clobber`. When the release's asset is the canonical source
-for a name PyPI lacks, the release's bytes are copied over this run's rebuild
-and sent to PyPI, so the two destinations converge on one byte string.
+Each destination receives only the names the index reports it lacks. Nothing is
+overwritten: staging drops the names the index lists, `skip-existing` makes any
+name the index failed to report a skip rather than a replacement, and
+`gh release upload` is invoked without `--clobber`. When the release's asset is
+the canonical source for a name PyPI lacks, the release's bytes are copied over
+this run's rebuild and sent to PyPI, so the two destinations converge on one
+byte string. A stale index can therefore send the upload step a name PyPI
+already holds; `skip-existing` is what keeps that harmless, and the upload is
+skipped rather than applied.
 
 The release stays a draft until the two destinations are shown to agree and its
 provenance is shown to cover it. `verify` requires identical digests for every
@@ -232,13 +236,16 @@ The second is a **mixed** release, one whose names come from two runs. It
 arises because `skip-existing` makes a PyPI upload skippable per file rather
 than per job: a run can publish some names and stop before the rest, and a
 later run then takes those names as canonical while contributing its own
-rebuild for the others. No single statement names both sets. The first run
-signed only what it uploaded, and this run's statement — written by `attest`
-over the freshly built artefacts alone, before any carried bytes are copied in
-— names only its rebuild. Downloading either one cannot satisfy
-`copy_covering_bundle`, and because an asset cannot be replaced, the draft
-stays unpublished and each further re-run refuses the same way. The repair text
-above does not apply, and a re-run must not be expected to converge.
+rebuild for the others. No single statement names both sets. The first run's
+statement does cover the whole build it made, so it names its own `a` — the
+bytes PyPI holds — but the `b` beside them is this run's rebuild, which that
+statement predates and cannot name. This run's statement is written by `attest`
+over the freshly built artefacts alone, before any carried bytes are copied in,
+so it names `b` and not `a`. Downloading either one leaves at least one name of
+the release uncovered, which is what `copy_covering_bundle` demands. Because an
+asset cannot be replaced, the draft stays unpublished and each further re-run
+refuses the same way. The repair text above does not apply, and a re-run must
+not be expected to converge.
 
 The mechanism that rules this out is stated as a requirement on the workflow
 rather than left to the build: **a tag's release is rebuilt once, and every run
@@ -323,12 +330,15 @@ that is byte-for-byte a first release, so no rule on this evidence could
 distinguish them. **The mixed state is therefore not unreachable; it is
 unreachable only through what the index reports.** That residual is accepted,
 and it is bounded three ways: `skip-existing` makes an interrupted run's
-`403 File already exists` a skipped name rather than a failure, so re-running
-is always safe; a published filename can never be replaced, so the worst case
-is a tag whose names came from different builds rather than one that keeps
-degrading; and `verify` still refuses to publish the Release in that case,
-because no single statement covers the combined set, so the tag cannot both be
-mixed and announced as coherent.
+`403 File already exists` a skipped name rather than a failure, so a re-run
+never overwrites a published name; a published filename can never be replaced,
+so the worst case is a tag whose names came from different builds rather than
+one that keeps degrading; and `verify` still refuses to publish the Release in
+that case, because no single statement covers the combined set, so the tag
+cannot both be mixed and announced as coherent. The bound is about damage, not
+about convergence: a tag that does reach the mixed state is the case above
+where a re-run must not be expected to repair it, and re-running is safe only
+in that it adds nothing further.
 
 Closing the residual needs a source that does not depend on the index — the
 run's own record that it was interrupted, which this pipeline does not have.
@@ -406,7 +416,9 @@ keeps the first published bytes canonical and leaves the attached bundle alone.
 
 - A failed release is repaired by re-running the same tag, not by inventing a
   new version. The queued run reconciles against whatever the failed run
-  published.
+  published. This holds unless the failure left a mixed release — names on PyPI
+  from two different builds — which re-running does not repair and which only
+  the manual route above addresses.
 - The canonical byte for a name is decided by the destinations, not by the
   build, so the pipeline must be able to read PyPI's index and the release's
   assets before it can decide anything. `publish-release` reads both as their
