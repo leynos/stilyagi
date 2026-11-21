@@ -247,15 +247,28 @@ for all of its names at once, because `attest` runs before any upload and its
 statement names every artefact that run built. A re-run then converges because
 it carries the first run's bytes, whose own statement covers them.
 
-The workflow does not currently refuse the state that breaks the property. It
-does not compare the attested set with the upload set: `attest` signs the
-freshly built artefacts, and `publish-pypi` may then replace a name with the
-Release's carried bytes or drop it as already present, so the bytes uploaded
-need not be the bytes that statement names. Carried bytes are not unchecked —
-each is verified against an earlier statement naming exactly them — but that is
-a different statement from this run's, and the comparison that would stop a
-partial first publication is not in place. The mixed release above therefore
-remains reachable through the window it describes.
+The workflow does not currently enforce the property. It does not compare the
+attested set with the upload set: `attest` signs the freshly built artefacts,
+and `publish-pypi` may then replace a name with the Release's carried bytes or
+drop it as already present, so the bytes uploaded need not be the bytes that
+statement names. Carried bytes are not unchecked — each is verified against an
+earlier statement naming exactly them — but that is a different statement from
+this run's, and the comparison that would stop a partial first publication is
+not in place. The mixed release above therefore remains reachable through the
+window it describes.
+
+Enforcing it at `stage_pypi` is not available, and the reason is worth stating
+so the gap is not mistaken for an oversight. That function's view is one run's
+`publish` directory against the two listings, and the state an interrupted run
+leaves — PyPI holding some names, the staged directory holding the rest, each
+of those rest sourced locally — is exactly the state a legitimate run reaches
+when a first attempt published from PyPI and from the Release, and a second
+attempt uploads a name only the Release held. Both plans name PyPI and local
+bytes, so a check confined to them cannot refuse the first without refusing the
+second. Distinguishing the two needs evidence about who attested what and when,
+which is the attestation store's, not this module's. The guard belongs in a
+check that reads that store, and until one exists the property is a stated
+requirement rather than an enforced one.
 
 Bit-reproducible builds are not the answer and are not assumed: identical bytes
 would let a rebuild stand in for a carried one, but nothing in this pipeline
