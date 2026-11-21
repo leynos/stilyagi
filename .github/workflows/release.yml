@@ -336,7 +336,14 @@ jobs:
               --header 'Accept: application/vnd.pypi.simple.v1+json' \
               https://pypi.org/simple/stilyagi/) || status=000
             case "${status}" in
-              000|429|5??) [ "${attempt}" -lt 6 ] && sleep 2 ;;
+              000|429|5??)
+                # Retries are otherwise invisible: the run simply pauses. Name
+                # the attempt and the class of failure, so an operator reading
+                # the annotations can tell a transient 5xx from a 429 still
+                # being retried after the last attempt.
+                echo "::warning title=PyPI index retry::attempt ${attempt} of 6, status ${status}"
+                [ "${attempt}" -lt 6 ] && sleep 2
+                ;;
               *) break ;;
             esac
           done

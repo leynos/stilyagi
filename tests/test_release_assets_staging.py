@@ -141,7 +141,10 @@ def test_state_loads_an_absent_index_as_an_empty_one(tmp_path: pathlib.Path) -> 
     state = State.load(publish, None, listing)
     assert not state.pypi, state
     assert not state.github, state
-    assert state.plan().pypi_uploads == frozenset({"a.whl"}), state
+    decided = release_assets.plan(
+        release_assets.local_names(publish), state.pypi, state.github
+    )
+    assert decided.pypi_uploads == frozenset({"a.whl"}), decided
 
 
 def test_the_step_output_is_written_lowercase(output_file: pathlib.Path) -> None:
@@ -194,7 +197,9 @@ def test_a_release_that_agrees_plans_nothing_on_a_second_run(
         pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
         github={"a.whl": digest(publish / "a.whl")},
     )
-    decided = state.plan()
+    decided = release_assets.plan(
+        release_assets.local_names(publish), state.pypi, state.github
+    )
     assert decided.canonical == {"a.whl": Source.PYPI}, decided
     assert not decided.pypi_uploads, decided
     assert not decided.github_uploads, decided

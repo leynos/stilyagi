@@ -134,13 +134,12 @@ installation hint.
 
 ### Excluded routes
 
-| Route            | Mechanism                                                                                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Release wheel    | `make release-artefact` and the maturin build in `tests/test_maturin_build.py` assign `RUSTFLAGS` from the caller alone, displacing the configuration.                                                 |
-| Wheel workflow   | Every `maturin-action` step in `build-wheels.yml` assigns `RUSTFLAGS: ""`. A manylinux container is the host's own target triple, so no `cfg()` selector can exclude it, and the images carry no mold. |
-| Coverage         | The coverage step assigns `RUSTFLAGS: -D warnings`, displacing the flags and keeping instrumentation; the shared action selects LLVM itself.                                                           |
-| Whitaker         | `WHITAKER_RUST_FLAGS` is `-D warnings` alone; the installer-managed toolchain and `cranelift: true` input are unchanged.                                                                               |
-| Mutation testing | The shared workflow's setup-rust exports `-D warnings`, which displaces the flags; `cargo-mutants` reaches no Make goal.                                                                               |
+| Route            | Mechanism                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Release wheel    | `make release-artefact` and the maturin build in `tests/test_maturin_build.py` assign `RUSTFLAGS` from the caller alone, displacing the configuration. |
+| Coverage         | The coverage step assigns `RUSTFLAGS: -D warnings`, displacing the flags and keeping instrumentation; the shared action selects LLVM itself.           |
+| Whitaker         | `WHITAKER_RUST_FLAGS` is `-D warnings` alone; the installer-managed toolchain and `cranelift: true` input are unchanged.                               |
+| Mutation testing | The shared workflow's setup-rust exports `-D warnings`, which displaces the flags; `cargo-mutants` reaches no Make goal.                               |
 
 _Table 2: Routes that exclude the development standard, and how._
 
@@ -257,7 +256,7 @@ depends on an action's default.
 
 ### 2026-11-20: the build-wheels workflow is an excluded route
 
-The original decision listed five excluded routes and named the release wheel
+The original decision listed four excluded routes, naming the release wheel
 build but not the workflow that produces the published wheels. That omission
 was not a decision: the workflow had not yet been written when this ADR was
 accepted, and the routes were enumerated from what existed.
@@ -271,17 +270,19 @@ outright. Cargo selects exactly one `rustflags` source, so each
 `maturin-action` step assigns `RUSTFLAGS: ""`, which displaces the
 configuration into the release build it was always meant to make.
 
-The original table said this of the release wheel:
+The route this amendment adds is:
 
-| Route         | Mechanism                                                                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Release wheel | `make release-artefact` and the maturin build in `tests/test_maturin_build.py` assign `RUSTFLAGS` from the caller alone, displacing the configuration. |
+| Route          | Mechanism                                                                                                                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wheel workflow | Every `maturin-action` step in `build-wheels.yml` assigns `RUSTFLAGS: ""`. A manylinux container is the host's own target triple, so no `cfg()` selector can exclude it, and the images carry no `mold`. |
 
-That row is preserved above as history and is now joined by a `Wheel workflow`
-row in [Excluded routes](#excluded-routes). The mechanism is the same one the
-release wheel uses — an explicit `RUSTFLAGS` assignment displacing the
-configuration — so the amendment records an omission rather than a change of
-policy. `tests/test_build_standard_exclusions.py` holds the contract:
+The table in [Excluded routes](#excluded-routes) is the accepted decision as
+recorded on 2026-10-19 and is left as written. This section is the operative
+addition: read the two together, and the excluded routes are those four plus
+the wheel workflow. The mechanism is the one the release wheel already uses —
+an explicit `RUSTFLAGS` assignment displacing the configuration — so the
+amendment records an omission rather than a change of policy.
+`tests/test_build_standard_exclusions.py` holds the contract:
 `test_every_real_wheel_build_states_its_exclusion` requires every
 `maturin-action` step in the workflow to assign `RUSTFLAGS`, and
 `test_each_wheel_inheritance_is_detected` proves the check rejects a leg that

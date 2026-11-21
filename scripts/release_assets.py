@@ -293,7 +293,13 @@ def write_output(name: str, *, value: bool) -> None:
 
 @dc.dataclass(frozen=True, slots=True)
 class State:
-    """The run's artefacts and what each destination already holds."""
+    """The run's artefacts and what each destination already holds.
+
+    A record, not an accessor: ``publish`` names the directory without
+    listing it, and listing it validates every name and can refuse the
+    directory. Callers read it with ``local_names`` and pass the names to
+    ``plan``; a ``plan`` method here would hide that fallible read.
+    """
 
     publish: Path
     pypi: dict[str, PypiFile]
@@ -301,13 +307,9 @@ class State:
 
     @classmethod
     def load(cls, publish: Path, index: Path | None, assets: Path) -> State:
-        """Read the staged artefacts, the PyPI index, and the asset listing."""
+        """Read the PyPI index and the asset listing for ``publish``."""
         pypi = read_pypi_index(index) if index is not None else {}
         return cls(publish, pypi, read_github_assets(assets))
-
-    def plan(self) -> Plan:
-        """Plan this run's uploads against both destinations."""
-        return plan(local_names(self.publish), self.pypi, self.github)
 
 
 def carryover(state: State) -> list[str]:
@@ -379,7 +381,7 @@ def stage_pypi(
     bool
         Whether any artefact remains to upload.
     """
-    decided = state.plan()
+    decided = plan(local_names(state.publish), state.pypi, state.github)
     for name, source in sorted(decided.canonical.items()):
         artefact = state.publish / name
         if source is Source.PYPI:

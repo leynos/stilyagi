@@ -346,6 +346,17 @@ def test_a_connection_failure_is_retried_then_reported(
     output = github_output(fake.root / "github-output")
     assert output["status"] == "000", output
     assert output["attempts"] == "6", output
+    # A retry is silent unless it is annotated, and an operator reading a run
+    # that sat for minutes needs to know which failures it was retrying. One
+    # annotation per attempt, naming that attempt and its status.
+    retries = [
+        line
+        for line in completed.stdout.splitlines()
+        if line.startswith("::warning title=PyPI index retry::")
+    ]
+    assert len(retries) == 6, completed.stdout
+    assert "attempt 1 of 6, status 000" in retries[0], retries
+    assert "attempt 6 of 6, status 000" in retries[-1], retries
 
 
 @requires_bash

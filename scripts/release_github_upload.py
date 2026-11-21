@@ -19,6 +19,7 @@ from release_assets import (
     State,
     local_names,
     mismatches,
+    plan,
     require_digest,
     sha256_of,
 )
@@ -134,8 +135,8 @@ def stage_github(
         If PyPI's index does not list an artefact the release must carry, or
         a PyPI URL is not HTTPS.
     """
-    plan = state.plan()
-    lacking = sorted(plan.github_uploads)
+    decided = plan(local_names(state.publish), state.pypi, state.github)
+    lacking = sorted(decided.github_uploads)
     # Asked of every name the release must carry, not only the ones the
     # Release lacks. A stale index can omit a name the Release already holds,
     # and asking only about the gap would let this run stage and upload the
@@ -143,7 +144,7 @@ def stage_github(
     # Those bytes are PyPI's, so they are not substituted — but the upload
     # still lands on a Release whose destinations cannot agree, and an asset
     # cannot be replaced, so the run has spent its one chance to attach them.
-    unlisted = unlisted_by_pypi(sorted(plan.canonical), state.pypi)
+    unlisted = unlisted_by_pypi(sorted(decided.canonical), state.pypi)
     if unlisted:
         msg = (
             f"PyPI's index does not list {unlisted}, which the GitHub Release "
@@ -244,7 +245,8 @@ def check_provenance(upload: Path, records: Path) -> None:
 
 def check_fetched(state: State, output: Path) -> None:
     """Raise unless every file fetched from PyPI matches PyPI's digest."""
-    for name in sorted(state.plan().github_uploads & set(state.pypi)):
+    decided = plan(local_names(state.publish), state.pypi, state.github)
+    for name in sorted(decided.github_uploads & set(state.pypi)):
         require_digest(output / name, state.pypi[name].sha256)
 
 
