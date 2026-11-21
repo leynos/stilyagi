@@ -289,9 +289,12 @@ recover it.
 #### The mixed state is prevented, not repaired
 
 The recovery mechanism above is still unimplemented, but the state it would
-repair is now unreachable through the workflow. `stage_pypi` refuses to add
-this run's rebuilt bytes under a name PyPI does not hold when PyPI already
-holds another of the tag's names (`_refuse_rebuild_beside_an_earlier_build`).
+repair is now unreachable through the workflow **as the index describes it**.
+`stage_pypi` refuses to add this run's rebuilt bytes under a name PyPI does not
+hold when PyPI already holds another of the tag's names
+(`_refuse_rebuild_beside_an_earlier_build`). The qualifier matters and is
+unpacked at the end of this section: the refusal's evidence is the PyPI index,
+and an index that reports nothing leaves it nothing to refuse.
 `pypa/gh-action-pypi-publish` uploads file by file, so an attempt that sent the
 sdist and then failed previously left exactly that state: the next run found
 PyPI holding a strict subset, took the remainder from its own rebuild, and
@@ -305,11 +308,11 @@ still proceeds; only the second is refused. Every reachable clean state — a
 first release, a clean re-run, a gap filled from PyPI or from the Release —
 plans no `LOCAL` upload at all, and is unaffected.
 
-A tag that has already reached the mixed state is therefore no longer *growing*
-on PyPI, but it is still not repaired: the guard refuses, and the tag needs the
-manual repair this ADR already describes. What the guard buys is that PyPI is
-never polluted with bytes that can never be replaced, so the repair has a
-target that is still coherent.
+A tag whose index reports the mixed state is therefore no longer *growing* on
+PyPI, but it is still not repaired: the guard refuses, and the tag needs the
+manual repair this ADR already describes. What the guard buys in that case is
+that no further bytes join a set that can never be replaced, so the repair has
+a target that is still coherent.
 
 The guard's evidence is the PyPI index, so it is only as good as that read.
 PyPI's index is cached (`Fastly-Debug-Path` is absent from a fresh publish and
@@ -317,13 +320,15 @@ the file's `upload_time` can trail the upload), and the workflow fetches it
 once, before the upload. If that fetch omits *every* one of the tag's names,
 the guard sees no holdings to compare against and permits the upload — a state
 that is byte-for-byte a first release, so no rule on this evidence could
-distinguish them. That residual is accepted, and it is bounded three ways:
-`skip-existing` makes an interrupted run's `403 File already exists` a skipped
-name rather than a failure, so re-running is always safe; a published filename
-can never be replaced, so the worst case is a tag whose names came from
-different builds rather than one that keeps degrading; and `verify` still
-refuses to publish the Release in that case, because no single statement covers
-the combined set, so the tag cannot both be mixed and announced as coherent.
+distinguish them. **The mixed state is therefore not unreachable; it is
+unreachable only through what the index reports.** That residual is accepted,
+and it is bounded three ways: `skip-existing` makes an interrupted run's
+`403 File already exists` a skipped name rather than a failure, so re-running
+is always safe; a published filename can never be replaced, so the worst case
+is a tag whose names came from different builds rather than one that keeps
+degrading; and `verify` still refuses to publish the Release in that case,
+because no single statement covers the combined set, so the tag cannot both be
+mixed and announced as coherent.
 
 Closing the residual needs a source that does not depend on the index — the
 run's own record that it was interrupted, which this pipeline does not have.
@@ -438,9 +443,11 @@ keeps the first published bytes canonical and leaves the attached bundle alone.
   holds part of the tag and the missing part would come from this run's
   rebuild: no bytes move, so nothing can become irreparable. `publish-release`
   refuses before publication when the Release's own contents are not covered by
-  a single statement. The first prevents the mixed state; the second catches a
-  Release that reached an inconsistent shape by some other route, and leaves it
-  a draft.
+  a single statement. The first prevents the mixed state wherever the index
+  reports it; the second catches a Release that reached an inconsistent shape
+  by some other route, and leaves it a draft. Neither covers an index read that
+  omits every name, which is the residual the prevents-not-repairs section
+  records.
 - The release jobs carry a copy of the PyPI index fetch as a YAML anchor
   (`*fetch-index`), so the retry policy is written once and used twice. The
   runner's `curl` cannot report `%{num_retries}`, so the loop retries network
