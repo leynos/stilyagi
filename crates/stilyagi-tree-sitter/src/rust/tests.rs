@@ -197,6 +197,8 @@ fn non_doc_comment_edge_cases_emit_no_regions(#[case] source: &str) {
     assert_eq!(document.regions, []);
 }
 
+/// A three-line doc-comment run and an adjacent block comment must merge into
+/// exactly two regions, each owned by its enclosing item.
 #[rstest]
 fn multiline_fixture_merges_three_line_comments_and_block_comment() {
     let document =
@@ -212,8 +214,8 @@ fn multiline_fixture_merges_three_line_comments_and_block_comment() {
     assert_eq!(
         first_region.text,
         concat!(
-            " First line of a multiline Rust doc comment.  Second line keeps the same owner. ",
-            " Third line completes the merged region.",
+            " First line of a multiline Rust doc comment.  Second line keeps the same owner.  ",
+            "Third line completes the merged region.",
         )
     );
     assert!(first_region.segments_reconstruct_text());

@@ -1,0 +1,5 @@
+---
+source: crates/stilyagi-extract/tests/extract/spelling_display.rs
+expression: "format!(\"{kind}\")"
+---
+document

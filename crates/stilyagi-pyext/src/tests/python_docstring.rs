@@ -8,6 +8,7 @@ use super::{
     BridgeExtractRequest,
     assert_ir_json_contract,
     bridge_extract_document,
+    document_payload,
     payload::{dict_list, dict_string, list_dict_at, parse_ir_json, region_kind_and_text},
 };
 
@@ -39,6 +40,11 @@ fn extract_document_py_exposes_python_docstrings() {
         assert_eq!(
             region_kind_and_text(&function_doc).expect("function doc should expose region fields"),
             ("python_docstring".to_owned(), "Function docs.".to_owned()),
+        );
+
+        insta::assert_json_snapshot!(
+            "extract_document_py__python_docstring_payload",
+            document_payload(document_dict)
         );
 
         let ir_json = dict_string(document_dict, "ir_json").expect("IR payload should be a string");
