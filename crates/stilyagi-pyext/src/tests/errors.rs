@@ -32,9 +32,15 @@ fn bridge_extract_document_rejects_unknown_syntaxes() {
     .expect_err("expected unknown syntax error");
 
     Python::attach(|py| {
-        assert!(error.is_instance_of::<PyValueError>(py));
+        assert!(
+            error.is_instance_of::<PyValueError>(py),
+            "an unknown syntax must surface as ValueError"
+        );
     });
-    assert!(error.to_string().contains("not_a_real_syntax"));
+    assert!(
+        error.to_string().contains("not_a_real_syntax"),
+        "the rejected syntax name must appear in the error display: {error}"
+    );
 }
 
 /// Markdown IR failures must surface to Python as `RuntimeError`.
@@ -47,7 +53,10 @@ fn map_extract_error_uses_runtime_error_for_markdown_ir() {
             "bad IR",
         )));
 
-        assert!(error.is_instance_of::<PyRuntimeError>(py));
+        assert!(
+            error.is_instance_of::<PyRuntimeError>(py),
+            "a Markdown IR failure must surface as RuntimeError"
+        );
     });
 }
 
@@ -57,7 +66,10 @@ fn map_extract_error_uses_runtime_error_for_python_ir() {
     Python::attach(|py| {
         let error = map_extract_error(&ExtractError::PythonIr(PythonExtractError::NoParseTree));
 
-        assert!(error.is_instance_of::<PyRuntimeError>(py));
+        assert!(
+            error.is_instance_of::<PyRuntimeError>(py),
+            "a Python IR failure must surface as RuntimeError"
+        );
         assert!(
             error.to_string().contains("python IR extraction failed"),
             "unexpected python IR error display: {error}"
@@ -71,6 +83,9 @@ fn map_extract_error_uses_value_error_for_unknown_syntax() {
     Python::attach(|py| {
         let error = map_extract_error(&ExtractError::UnknownSyntax("bogus".to_owned()));
 
-        assert!(error.is_instance_of::<PyValueError>(py));
+        assert!(
+            error.is_instance_of::<PyValueError>(py),
+            "an unknown syntax mapped from the domain error must surface as ValueError"
+        );
     });
 }

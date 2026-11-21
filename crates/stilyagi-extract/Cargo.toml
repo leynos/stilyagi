@@ -21,5 +21,12 @@ rstest-bdd.workspace = true
 rstest-bdd-macros.workspace = true
 stilyagi-test-support = { path = "../stilyagi-test-support" }
 
+# `flock` guards the shared snapshot probe root for the end-to-end driver,
+# whose module the integration-test root declares under `cfg(unix)` because it
+# also drives `make`. The lock is taken on a descriptor opened through a
+# `cap_std::fs::Dir`, never a `std::fs` path.
+[target.'cfg(unix)'.dev-dependencies]
+rustix.workspace = true
+
 [lints]
 workspace = true

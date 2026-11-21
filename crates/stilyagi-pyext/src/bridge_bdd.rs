@@ -145,7 +145,10 @@ fn extracted_document_reports_markdown_syntax(bridge_state: &BridgeState) {
             "markdown_syntax_payload",
             serde_json::json!({ "syntax": syntax })
         );
-        assert_eq!(syntax, "markdown");
+        assert_eq!(
+            syntax, "markdown",
+            "the bridge must report the Markdown syntax spelling"
+        );
     });
 }
 

@@ -5,11 +5,12 @@
 //! fails without rewriting the committed snapshot, running insta in update
 //! mode regenerates that snapshot, and the next ordinary run passes.
 //!
-//! The driver test proves all three in an isolated snapshot directory under
-//! `CARGO_TARGET_TMPDIR`. It runs the probe in a child process of this test
-//! binary, in that directory, rather than nesting a Cargo build, and sets the
-//! child's `insta` environment explicitly. The child therefore runs in exactly
-//! the mode the driver chooses even when the suite itself was started under
+//! The driver test proves all three in a scratch directory unique to this
+//! process under `CARGO_TARGET_TMPDIR`, which it removes when the fixture is
+//! dropped. It runs the probe in a child process of this test binary, in that
+//! directory, rather than nesting a Cargo build, and sets the child's `insta`
+//! environment explicitly. The child therefore runs in exactly the mode the
+//! driver chooses even when the suite itself was started under
 //! `INSTA_UPDATE=always`. That matters: `make update-snapshots` runs this
 //! crate's tests with that variable set, and an in-process probe would silently
 //! take the update path there.
@@ -22,7 +23,11 @@
 //! Files are read through `cap_std` directory handles, matching the
 //! capability-oriented filesystem policy the rest of the test estate follows.
 
-use std::{path::PathBuf, process::Output};
+use std::{
+    path::PathBuf,
+    process::Output,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use cap_std::{ambient_authority, fs::Dir};
 use rstest::rstest;
@@ -30,7 +35,7 @@ use stilyagi_test_support::repository_root;
 
 use super::test_utils::child_report;
 
-/// Scratch directory name for the isolated snapshot probe.
+/// Name prefix for the scratch directory the driver owns.
 const SCRATCH_DIR: &str = "snapshot_workflow";
 
 /// Snapshot name used by the isolated workflow probe.
@@ -51,26 +56,81 @@ const UPDATE_ASSIGNMENT: &str = "INSTA_UPDATE=always";
 /// Exact name of the probe test the driver runs in a child process.
 const PROBE_TEST: &str = "snapshot_workflow::probe_asserts_the_accepted_value";
 
-/// Return an empty scratch directory named `name` for an isolated snapshot.
-fn scratch_snapshot_dir(name: &str) -> std::io::Result<Dir> {
-    let root = Dir::open_ambient_dir(env!("CARGO_TARGET_TMPDIR"), ambient_authority())?;
-    root.remove_dir_all(name).or_else(|error| {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            Ok(())
-        } else {
-            Err(error)
-        }
-    })?;
-    root.create_dir_all(name)?;
-    root.open_dir(name)
+/// The driver's own scratch directory, removed when the fixture is dropped.
+///
+/// The name carries this process's id and a timestamp, so concurrent driver
+/// runs never share a directory: the child probe's working directory is the
+/// only thing telling it where to assert, and a shared name would let a second
+/// driver replace the snapshot a first one is still reading. Owning the
+/// directory as a fixture also removes it whether the driver passed or failed
+/// an assertion, so a failed run leaves no stale snapshot behind.
+struct ScratchSnapshotDir {
+    /// Handle on `CARGO_TARGET_TMPDIR`, used to remove the scratch directory.
+    parent: Dir,
+    /// Unique name of the scratch directory inside `parent`.
+    name: String,
+    /// Handle on the scratch directory itself, for the test's own I/O.
+    directory: Dir,
 }
 
-/// Return the absolute path of the isolated snapshot directory named `name`.
-///
-/// `insta` resolves its own paths, so the redirect is passed as a path rather
-/// than as the directory handle used for the test's own reads and writes.
-fn scratch_snapshot_path(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name)
+impl ScratchSnapshotDir {
+    /// Create an empty scratch directory unique to this process.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error when the target temporary root or the scratch
+    /// directory inside it cannot be created.
+    fn create() -> std::io::Result<Self> {
+        let parent = Dir::open_ambient_dir(env!("CARGO_TARGET_TMPDIR"), ambient_authority())?;
+        let name = unique_scratch_name();
+        parent.create_dir_all(&name)?;
+        let directory = parent.open_dir(&name)?;
+        Ok(Self {
+            parent,
+            name,
+            directory,
+        })
+    }
+
+    /// Return the scratch directory's absolute path.
+    ///
+    /// `insta` resolves its own paths, so the redirect is passed as a path
+    /// rather than as the directory handle used for the test's own reads and
+    /// writes.
+    fn path(&self) -> PathBuf { PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(&self.name) }
+
+    /// Write `contents` to `name` inside the scratch directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error when the file cannot be written.
+    fn write(&self, name: &str, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+        self.directory.write(name, contents)
+    }
+
+    /// Return the text of `name` inside the scratch directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error when the file cannot be read.
+    fn read_to_string(&self, name: &str) -> std::io::Result<String> {
+        self.directory.read_to_string(name)
+    }
+}
+
+impl Drop for ScratchSnapshotDir {
+    fn drop(&mut self) {
+        // Best effort: a cleanup failure must not mask the driver's own result.
+        let _cleanup = self.parent.remove_dir_all(&self.name);
+    }
+}
+
+/// Return a scratch directory name no other driver run can share.
+fn unique_scratch_name() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_nanos());
+    format!("{SCRATCH_DIR}-{}-{nanos}", std::process::id())
 }
 
 /// Render a committed snapshot file holding `body` as its value.
@@ -101,11 +161,6 @@ fn run_probe(directory: &std::path::Path, update_mode: Option<&str>) -> std::io:
     command.output()
 }
 
-/// Return the committed probe snapshot's text.
-fn probe_snapshot_text(snapshots: &Dir) -> std::io::Result<String> {
-    snapshots.read_to_string(PROBE_SNAPSHOT_FILE)
-}
-
 /// Assert the probe's value against the snapshot in the working directory.
 ///
 /// Ignored so an ordinary suite run never asserts against a snapshot the driver
@@ -126,12 +181,11 @@ fn probe_asserts_the_accepted_value() {
 /// must regenerate it, and the next ordinary run must pass.
 #[rstest]
 fn snapshot_mismatch_fails_until_insta_updates_the_snapshot() {
-    let snapshots =
-        scratch_snapshot_dir(SCRATCH_DIR).expect("expected an isolated snapshot directory");
-    snapshots
+    let scratch = ScratchSnapshotDir::create().expect("expected an isolated snapshot directory");
+    scratch
         .write(PROBE_SNAPSHOT_FILE, committed_snapshot(STALE_TEXT))
         .expect("expected the stale snapshot to be writable");
-    let directory = scratch_snapshot_path(SCRATCH_DIR);
+    let directory = scratch.path();
 
     let mismatch = run_probe(&directory, None).expect("expected the probe to run");
     assert!(
@@ -140,7 +194,9 @@ fn snapshot_mismatch_fails_until_insta_updates_the_snapshot() {
         child_report(&mismatch)
     );
     assert_eq!(
-        probe_snapshot_text(&snapshots).expect("expected the snapshot to be readable"),
+        scratch
+            .read_to_string(PROBE_SNAPSHOT_FILE)
+            .expect("expected the snapshot to be readable"),
         committed_snapshot(STALE_TEXT),
         "a failed run must leave the committed snapshot untouched"
     );
@@ -151,8 +207,9 @@ fn snapshot_mismatch_fails_until_insta_updates_the_snapshot() {
         "expected insta's update mode to accept the new value:\n{}",
         child_report(&update)
     );
-    let regenerated =
-        probe_snapshot_text(&snapshots).expect("expected the updated snapshot to be readable");
+    let regenerated = scratch
+        .read_to_string(PROBE_SNAPSHOT_FILE)
+        .expect("expected the updated snapshot to be readable");
     assert!(
         regenerated.contains(ACCEPTED_TEXT) && !regenerated.contains(STALE_TEXT),
         "expected the update run to regenerate the snapshot, got:\n{regenerated}"

@@ -366,8 +366,10 @@ Three contracts are pinned by `insta` snapshots:
 - **`Display` output** for the extraction vocabulary. The spelling a Python
   caller receives from the bridge is the contract, so
   `crates/stilyagi-extract/tests/extract/spelling_display.rs` snapshots each
-  `ExtractSyntax` and `RegionKind` spelling rather than restating it in an
-  `assert_eq!`.
+  `ExtractSyntax` and `RegionKind` spelling. A semantic `assert_eq!` with a
+  diagnostic message stays beside each snapshot: the snapshot pins the text,
+  and the assertion keeps the round-trip and agreement contracts readable when
+  one fails.
 - **`PyO3` payload shape**. The bridge returns `PyDict` values, whose `repr()`
   is interpreter-dependent and can embed addresses. Tests therefore project the
   payload into a canonical `serde_json::Value` (`document_payload` and
@@ -380,7 +382,13 @@ Three contracts are pinned by `insta` snapshots:
   snapshot on a dependency bump.
 - **Primitive typing**. The same projection keeps each value's JSON type and
   panics on a type it does not model, so a bridge field that changes from an
-  integer to a string cannot pass its snapshot unnoticed.
+  integer to a string cannot pass its snapshot unnoticed. A `proptest` in
+  `crates/stilyagi-pyext/src/tests/projection.rs` generates nested payloads
+  from strings, booleans, `i64` integers, and lists of dictionaries and asserts
+  that `dictionary_json` returns the value it was given, which covers type
+  preservation beyond the literals the named tests happen to use. A companion
+  `#[should_panic]` case pins that an unsupported type, such as a float, fails
+  the projection instead of being stringified.
 
 Update snapshots only when the reviewed contract changes. The `make` target
 runs the same two crates as a single step:
@@ -408,6 +416,20 @@ rather than from the process environment, so no tracked snapshot is touched and
 the probes need no environment seam. A developer's real `make update-snapshots`
 also runs this test; its nested run is narrowed to the probes and completes
 harmlessly beside it.
+
+Because the probes resolve one compiled-in root, the end-to-end driver takes an
+exclusive cross-process lock on `target/tmp/snapshot_update_e2e.lock` before it
+resets and stages the root. It holds that lock through the mismatch run, the
+target run, and its final read, removes the staged tree, and only then releases
+the lock. A second driver that starts meanwhile polls the lock for up to ten
+minutes and then runs against a tree it stages itself, so two concurrent suite
+invocations cannot restage the root under each other's assertions. The driver
+is Unix-only, because it drives `make` and its guard is a POSIX advisory lock,
+so the integration-test root declares its module under `cfg(unix)`. The unit
+driver in `snapshot_workflow.rs` needs no such lock: it owns a scratch
+directory named from its process id and a nanosecond timestamp, keeps it alive
+across all three child runs, and removes it when the fixture is dropped, so a
+failed assertion still cleans up.
 
 Python snapshots are regenerated separately:
 
@@ -455,11 +477,12 @@ visible in the snapshot's shape.
 
 1. Add the variant to `ExtractSyntax` or `RegionKind`.
 2. Add a case to the relevant `#[rstest]` table in
-   `crates/stilyagi-extract/tests/extract/spelling_display.rs`. Pass a
-   `SnapshotName` such as `SnapshotName("syntax_display__new_variant")` and
-   keep the spelling itself as the value under test. Do not derive the name from
-   `as_str()`: two variants that collided would then read one snapshot and
-   both pass.
+   `crates/stilyagi-extract/tests/extract/spelling_display.rs`. Each case is a
+   `SpellingContract` carrying the variant, its `as_str` snapshot name, its
+   `Display` snapshot name, and the expected spelling, so one case pins both
+   contracts for that variant. Keep the spelling itself as the value under
+   test. Do not derive either name from `as_str()`: two variants that collided
+   would then read one snapshot and both pass.
 3. Run `make update-snapshots`; a new `.snap` file appears beside the test
    module.
 4. Inspect the generated file, confirm the spelling is what the bridge should

@@ -7,6 +7,13 @@
 //! and each crate's probe asserts its accepted value against that staged file.
 //! The constants live here so the driver, the probes, and the Makefile's
 //! narrowed argument list cannot drift apart.
+//!
+//! The root is one fixed location, compiled into both probes, so only one
+//! driver may own it at a time. The end-to-end driver holds an exclusive
+//! cross-process lock over [`snapshot_probe_root`] from the staging reset until
+//! its last read, runs the probes inside that window as child processes, and
+//! removes the staged tree before releasing the lock. A second driver waits for
+//! the lock instead of restaging the root underneath the first one's checks.
 
 use std::path::PathBuf;
 
@@ -49,6 +56,10 @@ pub const SNAPSHOT_PROBE_FILTER: &str = "snapshot_update_probe";
 /// probe run never touches a tracked snapshot. Deriving it from the fixture
 /// crate's compiled-in manifest directory lets both sides agree without
 /// reading the process environment at run time.
+///
+/// Callers that reset or stage the root must hold the driver's exclusive
+/// cross-process lock for as long as they use it; see the module documentation
+/// for the ownership contract.
 ///
 /// # Errors
 ///

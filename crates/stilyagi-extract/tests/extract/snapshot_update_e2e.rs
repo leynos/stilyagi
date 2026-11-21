@@ -17,15 +17,33 @@
 //! this process's environment, including any `RUSTFLAGS` and
 //! `CARGO_TARGET_DIR`, so they reuse the parent build instead of starting a
 //! parallel one.
+//!
+//! The probes derive their snapshot directory from a compiled-in path, so each
+//! run addresses the same files and cannot be redirected to a private root
+//! without an environment override the probes deliberately never read. One
+//! driver therefore takes an exclusive cross-process lock over the staged root
+//! for the whole reset-stage-run-read sequence, and the next waits for it. The
+//! staged root is removed before the lock is released, so a later run never
+//! inherits a half-written tree.
+//!
+//! The driver is Unix-only: it drives the repository's `make` recipe and its
+//! cross-process guard is a POSIX advisory lock. The parent module declares it
+//! under `cfg(unix)`, so nothing here needs a second platform story.
 
 use std::{
     error::Error,
     path::{Path, PathBuf},
     process::Output,
+    thread,
+    time::{Duration, Instant},
 };
 
 use cap_std::{ambient_authority, fs::Dir};
 use rstest::rstest;
+use rustix::{
+    fs::{FlockOperation, flock},
+    io::Errno,
+};
 use stilyagi_test_support::{
     repository_root,
     snapshot_update::{
@@ -68,12 +86,135 @@ const STAGED_PROBES: [StagedProbe; 2] = [
     },
 ];
 
+/// File name of the cross-process guard over the shared probe root.
+const PROBE_ROOT_LOCK_FILE: &str = "snapshot_update_e2e.lock";
+
+/// Longest a driver waits for another run to release the shared root.
+const LOCK_WAIT: Duration = Duration::from_secs(600);
+
+/// Pause between lock attempts while another driver owns the root.
+const LOCK_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Exclusive cross-process guard over the shared probe root.
+///
+/// The lock lives on a descriptor opened through a directory handle, so it
+/// follows the capability-based filesystem policy the test estate uses rather
+/// than naming an ambient path. Holding the descriptor alive for the whole
+/// sequence is what keeps a second driver out; closing it releases the lock.
+/// The wait is bounded, so a driver that cannot take the root reports a
+/// timeout instead of blocking a gate indefinitely.
+struct ProbeRootLock {
+    /// Locked file, held for as long as the guard lives.
+    file: cap_std::fs::File,
+}
+
+impl ProbeRootLock {
+    /// Wait up to [`LOCK_WAIT`] for exclusive ownership of the probe root.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error when the lock file cannot be opened, when the
+    /// platform lock fails, or when the wait expires.
+    fn acquire(repository: &Path) -> TestResult<Self> {
+        let handle = Dir::open_ambient_dir(repository, ambient_authority())?;
+        handle.create_dir_all("target/tmp")?;
+        let mut options = cap_std::fs::OpenOptions::new();
+        options.create(true).read(true).write(true);
+        let file =
+            handle.open_with(Path::new("target/tmp").join(PROBE_ROOT_LOCK_FILE), &options)?;
+        wait_for_lock(&file)?;
+        Ok(Self { file })
+    }
+}
+
+impl Drop for ProbeRootLock {
+    fn drop(&mut self) {
+        // Best effort: closing the file releases the lock in any case, and a
+        // `Drop` has no channel through which to report an unlock failure.
+        let _released = flock(&self.file, FlockOperation::Unlock);
+    }
+}
+
+/// Poll `file` until this run owns the exclusive lock or the wait expires.
+///
+/// `flock` reports a held lock as `EWOULDBLOCK`, and the operation is retried
+/// after a short pause until the deadline. Any other error is a real failure
+/// and is propagated rather than retried.
+fn wait_for_lock(file: &cap_std::fs::File) -> TestResult<()> {
+    let deadline = Instant::now() + LOCK_WAIT;
+    loop {
+        match flock(file, FlockOperation::NonBlockingLockExclusive) {
+            Ok(()) => return Ok(()),
+            Err(Errno::WOULDBLOCK) if Instant::now() >= deadline => {
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "timed out waiting for another snapshot update driver",
+                )));
+            }
+            Err(Errno::WOULDBLOCK) => thread::sleep(LOCK_POLL_INTERVAL),
+            Err(error) => return Err(Box::new(std::io::Error::from(error))),
+        }
+    }
+}
+
+/// The staged probe root, the lock that owns it, and its cleanup.
+///
+/// Dropping the guard removes the staged root and then releases the lock, so
+/// the next driver never inherits a half-written tree and an early `?` part-way
+/// through the phases still cleans up.
+struct StagedProbeRoot {
+    /// Absolute path of the staged root.
+    root: PathBuf,
+    /// Repository the root lives under, needed to remove it.
+    repository: PathBuf,
+    /// Exclusive ownership of the root, released after the cleanup above.
+    _lock: ProbeRootLock,
+}
+
+impl StagedProbeRoot {
+    /// Take the lock and stage a stale snapshot for each crate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the lock cannot be acquired, the repository root
+    /// cannot be resolved, or a staged snapshot cannot be written.
+    fn create() -> TestResult<Self> {
+        let repository = repository_root()?;
+        let lock = ProbeRootLock::acquire(&repository)?;
+        let root = stage_stale_snapshots(&repository)?;
+        Ok(Self {
+            root,
+            repository,
+            _lock: lock,
+        })
+    }
+
+    /// Return the staged root's absolute path.
+    fn root(&self) -> &Path { &self.root }
+
+    /// Remove the staged root, leaving the lock held.
+    fn remove_staged_root(&self) -> std::io::Result<()> {
+        let relative = self
+            .root
+            .strip_prefix(&self.repository)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error))?;
+        let target = Dir::open_ambient_dir(&self.repository, ambient_authority())?;
+        target.remove_dir_all(relative)
+    }
+}
+
+impl Drop for StagedProbeRoot {
+    fn drop(&mut self) {
+        // Best effort: a cleanup failure must not mask the driver's own result.
+        let _cleanup = self.remove_staged_root();
+    }
+}
+
 /// Stage a stale snapshot for each crate and return the scratch root.
-fn stage_stale_snapshots() -> TestResult<PathBuf> {
-    let repository = repository_root()?;
+fn stage_stale_snapshots(repository: &Path) -> TestResult<PathBuf> {
     let root = snapshot_probe_root()?;
-    let relative = root.strip_prefix(&repository)?;
-    let target = Dir::open_ambient_dir(&repository, ambient_authority())?;
+    let relative = root.strip_prefix(repository)?;
+    let target = Dir::open_ambient_dir(repository, ambient_authority())?;
     target.remove_dir_all(relative).or_else(ignore_missing)?;
     for probe in STAGED_PROBES {
         let staged = relative.join(probe.directory);
@@ -165,19 +306,23 @@ struct SnapshotUpdateEvidence {
 /// functions: a function that returns `Result` must report a problem by
 /// returning it, and an assertion there would panic past the caller's `?`.
 fn run_snapshot_update_phases() -> TestResult<SnapshotUpdateEvidence> {
-    let root = stage_stale_snapshots()?;
+    let staged = StagedProbeRoot::create()?;
     let mismatch = run_probes()?;
-    let stale_snapshots = staged_snapshot_texts(&root)?;
+    let stale_snapshots = staged_snapshot_texts(staged.root())?;
     let update = run_update_target()?;
-    let regenerated_snapshots = staged_snapshot_texts(&root)?;
+    let regenerated_snapshots = staged_snapshot_texts(staged.root())?;
     let accepted = run_probes()?;
-    Ok(SnapshotUpdateEvidence {
+    let evidence = SnapshotUpdateEvidence {
         mismatch,
         stale_snapshots,
         update,
         regenerated_snapshots,
         accepted,
-    })
+    };
+    // Remove the staged root while the lock is still held, so the next driver
+    // starts from an absent tree rather than from this one's leftovers.
+    drop(staged);
+    Ok(evidence)
 }
 
 /// Assert the stale snapshots failed the ordinary run and stayed untouched.

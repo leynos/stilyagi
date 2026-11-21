@@ -40,7 +40,10 @@ fn supported_syntaxes_follow_the_rust_extraction_vocabulary() {
         let actual = tuple_strings(py, supported_syntaxes_py(py))
             .expect("supported_syntaxes should return a tuple of strings");
 
-        assert_eq!(actual, expected);
+        assert_eq!(
+            actual, expected,
+            "supported_syntaxes must mirror ExtractSyntax::ALL"
+        );
         insta::assert_json_snapshot!("supported_syntaxes", json!(actual));
     });
 }
@@ -57,7 +60,10 @@ fn supported_region_kinds_follow_the_rust_ir_vocabulary() {
         let actual = tuple_strings(py, supported_region_kinds_py(py))
             .expect("supported_region_kinds should return a tuple of strings");
 
-        assert_eq!(actual, expected);
+        assert_eq!(
+            actual, expected,
+            "supported_region_kinds must mirror IrRegionKind::ALL"
+        );
         insta::assert_json_snapshot!("supported_region_kinds", json!(actual));
     });
 }
@@ -73,7 +79,10 @@ fn authored_directive_error_codes_follow_the_rust_ir_vocabulary() {
         let actual = tuple_strings(py, authored_directive_error_codes_py(py))
             .expect("authored_directive_error_codes should return a tuple of strings");
 
-        assert_eq!(actual, expected);
+        assert_eq!(
+            actual, expected,
+            "authored_directive_error_codes must mirror AUTHORED_DIRECTIVE_ERROR_CODES"
+        );
         insta::assert_json_snapshot!("authored_directive_error_codes", json!(actual));
     });
 }

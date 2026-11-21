@@ -16,6 +16,9 @@ mod python_docstring_bdd;
 mod region_vocabulary;
 #[path = "extract/rust_doc_comment_bdd.rs"]
 mod rust_doc_comment_bdd;
+// The driver invokes `make` and takes a POSIX advisory lock, so it only has a
+// meaning on a Unix host.
+#[cfg(unix)]
 #[path = "extract/snapshot_update_e2e.rs"]
 mod snapshot_update_e2e;
 #[path = "extract/snapshot_workflow.rs"]

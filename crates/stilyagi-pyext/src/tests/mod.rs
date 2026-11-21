@@ -10,6 +10,7 @@ mod errors;
 mod hydration;
 mod identity;
 pub(crate) mod payload;
+mod projection;
 mod python_docstring;
 mod rust_doc_comment;
 mod snapshot_update_probe;
@@ -234,14 +235,22 @@ fn assert_ir_json_contract(parsed: &serde_json::Value) {
 /// The bridge greeting must be the same value the core crate exposes.
 #[rstest]
 fn hello_delegates_to_the_core_smoke_greeting() {
-    assert_eq!(hello(), stilyagi_core::smoke_hello());
+    assert_eq!(
+        hello(),
+        stilyagi_core::smoke_hello(),
+        "the bridge greeting must be the core smoke greeting"
+    );
 }
 
 /// A stale Python implementation must not shadow the Rust greeting.
 #[rstest]
 fn hello_is_not_the_legacy_python_fallback() {
     const LEGACY_PYTHON_GREETING: &str = "hello from Python";
-    assert_ne!(hello(), LEGACY_PYTHON_GREETING);
+    assert_ne!(
+        hello(),
+        LEGACY_PYTHON_GREETING,
+        "the bridge greeting must not be the legacy Python fallback"
+    );
 }
 
 /// The exported function must reject keyword arguments it does not accept.
@@ -261,7 +270,10 @@ fn extract_document_function_rejects_unexpected_kwargs() {
                 .call(args, Some(&kwargs))
                 .expect_err("expected unexpected keyword argument to fail");
 
-            assert!(error.is_instance_of::<PyTypeError>(py));
+            assert!(
+                error.is_instance_of::<PyTypeError>(py),
+                "unexpected keyword arguments must raise TypeError, got {error:?}"
+            );
         });
     });
 }
@@ -291,11 +303,17 @@ fn extract_document_py_exposes_markdown_document() {
         assert_eq!(
             dict_string(document, "syntax").expect("syntax payload should be a string"),
             ExtractSyntax::Markdown.as_str(),
+            "the bridge must report the Markdown syntax spelling"
         );
-        assert_eq!(regions.len(), 1);
+        assert_eq!(
+            regions.len(),
+            1,
+            "a single-heading Markdown document must expose exactly one region"
+        );
         assert_eq!(
             region_kind_and_text(&first_region).expect("region should carry kind and text"),
             ("heading".to_owned(), "Heading".to_owned()),
+            "the first Markdown region must be the heading's text"
         );
         let ir_json = dict_string(document, "ir_json").expect("IR payload should be a string");
         let parsed = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
@@ -334,7 +352,11 @@ fn rendered_value_preserves_primitive_types() {
             .set_item("count", 7)
             .expect("expected an integer item");
 
-        assert_eq!(dictionary_json(&value), json!({ "flag": true, "count": 7 }));
+        assert_eq!(
+            dictionary_json(&value),
+            json!({ "flag": true, "count": 7 }),
+            "booleans and integers must keep their JSON primitive types"
+        );
     });
 }
 
