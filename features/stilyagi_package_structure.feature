@@ -16,4 +16,4 @@ Feature: Stilyagi package structure
     When I inspect the canonical build workflows
     Then make build runs the development smoke check
     And make release runs the release artefact smoke check
-    And CI uses the canonical Makefile smoke path
+    And CI delegates the release smoke to the reusable wheel build

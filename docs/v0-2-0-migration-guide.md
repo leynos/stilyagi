@@ -98,6 +98,24 @@ be shown to preserve the frontmatter, that file is refused whole: no edits and
 no replacement bytes are produced, so an otherwise valid body fix in the same
 file does not apply either. Fix the frontmatter conflict, then re-run.
 
+## 4. Install from the Python Package Index
+
+v0.2.0 is the first release published to the Python Package Index, so the
+installation route changes even though nothing in the package's behaviour does.
+The predecessor package is unrelated, which is why the floor is `0.2.0`:
+
+```shell
+pip install "stilyagi>=0.2.0"
+```
+
+A tagged release publishes one source distribution and a native wheel for each
+supported platform. A platform with no wheel builds from the source
+distribution, which needs a Rust toolchain and, on Linux, `mold`. The
+[user's guide](users-guide.md#1-packaging-model) states the supported platforms
+and the interpreter floor; the
+[README section on building from source](../README.md#building-from-source)
+lists the prerequisites and the commands that install them.
+
 ## What does not need to change
 
 - Existing `stilyagi check` invocations, their arguments, and their exit codes.
@@ -122,6 +140,8 @@ file does not apply either. Fix the frontmatter conflict, then re-run.
 - [ ] Run any `--fix` workflow you rely on and read every
       `frontmatter-protected` refusal rather than assuming the fix applied.
 - [ ] Optionally run `stilyagi clean` to remove cache data you no longer want.
+- [ ] If you install from an index, move to `pip install "stilyagi>=0.2.0"`;
+      the predecessor 0.1.0 package on PyPI is unrelated to this one.
 
 ## Common errors and fixes
 

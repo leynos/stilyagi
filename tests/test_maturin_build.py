@@ -23,6 +23,8 @@ import zipfile
 
 import pytest
 
+from tests.support.maturin_metadata import parse_metadata
+
 if typ.TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
 
@@ -144,7 +146,7 @@ def _wheel_build_snapshot(whl_path: pathlib.Path) -> dict[str, object]:
     generator, root_is_purelib, tags = _parse_wheel_header(wheel_payload, whl_path)
     return {
         "generator": generator,
-        "metadata": _parse_metadata(metadata_payload),
+        "metadata": parse_metadata(metadata_payload),
         "wheel": {"root_is_purelib": root_is_purelib, "tag": tags},
         "entries": sorted(_normalize_wheel_entry(name) for name in entry_names),
     }
@@ -179,35 +181,6 @@ def _maturin_module_available() -> bool:
         return importlib.util.find_spec("maturin") is not None
     except ImportError:
         return False
-
-
-def _header_value(headers: dict[str, list[str]], key: str) -> str | None:
-    """Return the first parsed metadata header value for key."""
-    values = headers.get(key)
-    return values[0] if values else None
-
-
-def _parse_metadata(raw_metadata: str) -> dict[str, object]:
-    """Parse wheel METADATA into the reviewed snapshot shape."""
-    headers: dict[str, list[str]] = {}
-    current_key: str | None = None
-    for line in raw_metadata.splitlines():
-        if line.startswith((" ", "\t")) and current_key is not None:
-            headers[current_key][-1] = f"{headers[current_key][-1]} {line.strip()}"
-            continue
-        if ":" not in line:
-            break
-        key, value = line.split(":", 1)
-        current_key = key.strip()
-        headers.setdefault(current_key, []).append(value.strip())
-
-    return {
-        "name": _header_value(headers, "Name"),
-        "version": _header_value(headers, "Version"),
-        "requires_python": _header_value(headers, "Requires-Python"),
-        "requires_dist": sorted(headers.get("Requires-Dist", [])),
-        "classifiers": sorted(headers.get("Classifier", [])),
-    }
 
 
 def _normalize_wheel_entry(name: str) -> str:
