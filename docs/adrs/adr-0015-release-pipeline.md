@@ -240,35 +240,51 @@ over the freshly built artefacts alone, before any carried bytes are copied in
 stays unpublished and each further re-run refuses the same way. The repair text
 above does not apply, and a re-run must not be expected to converge.
 
-The property that rules this out is stated as a requirement on the workflow
-rather than left to the build: **every name a tag publishes should be attested
-by the run that first puts it on PyPI.** The first run of a tag satisfies it
-for all of its names at once, because `attest` runs before any upload and its
-statement names every artefact that run built. A re-run then converges because
-it carries the first run's bytes, whose own statement covers them.
+The mechanism that rules this out is stated as a requirement on the workflow
+rather than left to the build: **a tag's release is rebuilt once, and every run
+of that tag publishes from that one build.** The first run of a tag does
+satisfy it for all of its names at once, because `attest` runs before any
+upload and its statement names every artefact that run built — the full build,
+not only the files it goes on to upload. A later run then converges by carrying
+bytes rather than rebuilding.
 
-The workflow does not currently enforce the property. It does not compare the
-attested set with the upload set: `attest` signs the freshly built artefacts,
-and `publish-pypi` may then replace a name with the Release's carried bytes or
-drop it as already present, so the bytes uploaded need not be the bytes that
-statement names. Carried bytes are not unchecked — each is verified against an
-earlier statement naming exactly them — but that is a different statement from
-this run's, and the comparison that would stop a partial first publication is
-not in place. The mixed release above therefore remains reachable through the
-window it describes.
+Attesting every file by the run that first uploaded it is not sufficient, and
+the reason is structural. Two runs can each satisfy that rule — run one attests
+and uploads `a`, run two attests and uploads `b` — while the release's combined
+bytes still lack a single covering statement, which is exactly what
+`copy_covering_bundle` demands. The requirement has to be about the build a tag
+publishes, not about each file's uploader.
 
-Enforcing it at `stage_pypi` is not available, and the reason is worth stating
-so the gap is not mistaken for an oversight. That function's view is one run's
-`publish` directory against the two listings, and the state an interrupted run
-leaves — PyPI holding some names, the staged directory holding the rest, each
-of those rest sourced locally — is exactly the state a legitimate run reaches
-when a first attempt published from PyPI and from the Release, and a second
-attempt uploads a name only the Release held. Both plans name PyPI and local
-bytes, so a check confined to them cannot refuse the first without refusing the
-second. Distinguishing the two needs evidence about who attested what and when,
-which is the attestation store's, not this module's. The guard belongs in a
-check that reads that store, and until one exists the property is a stated
-requirement rather than an enforced one.
+The workflow does not currently enforce it. `stage_pypi` replaces a name with
+the Release's carried bytes or drops it as already present, so the bytes a run
+uploads need not be the bytes its own statement names — and its view is one
+run's `publish` directory against the two listings, which cannot distinguish an
+interrupted first run from a legitimate run whose earlier attempt published
+from PyPI and from the Release. Both plans name PyPI and local bytes. Nor can
+`gh attestation download` repair a mixed release: it returns statements, and a
+statement names digests, not the bytes themselves, so it cannot reconstruct a
+file a destination is missing.
+
+The recovery source has to be the tag's own build, retained and addressed by
+the tag. Before the first upload, a run persists the complete artefact set with
+its bundle and an immutable tag-to-run manifest, for at least the supported
+recovery period. Retention is the constraint that makes this explicit rather
+than assumed: GitHub keeps Actions artefacts for 90 days by default and allows
+at most 90 for a public repository, no workflow here sets `retention-days`, and
+a tag can legitimately be re-run after that window. A retry then retrieves that
+set instead of rebuilding, verifies its bundle against every artefact under the
+existing repository, workflow, tag and runner policy, and compares its digests
+with both destinations before uploading. It passes that same bundle to
+`publish-release`, and where a destination it must fill holds different bytes
+for a name, it fails before anything else is uploaded rather than letting
+`skip-existing` hide the conflict. The existing carry from the Release is the
+same idea applied through the destination rather than through retained storage,
+and it already reuses rather than rebuilds.
+
+That mechanism is not implemented, and the ADR does not claim it is. Until it
+is, a release that has already reached the mixed state has no covering
+statement available, and any safeguard must fail closed rather than purport to
+recover it.
 
 Bit-reproducible builds are not the answer and are not assumed: identical bytes
 would let a rebuild stand in for a carried one, but nothing in this pipeline
