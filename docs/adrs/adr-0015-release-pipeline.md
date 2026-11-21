@@ -286,6 +286,31 @@ is, a release that has already reached the mixed state has no covering
 statement available, and any safeguard must fail closed rather than purport to
 recover it.
 
+#### The mixed state is prevented, not repaired
+
+The recovery mechanism above is still unimplemented, but the state it would
+repair is now unreachable through the workflow. `stage_pypi` refuses to add
+this run's rebuilt bytes under a name PyPI does not hold when PyPI already
+holds another of the tag's names (`_refuse_rebuild_beside_an_earlier_build`).
+`pypa/gh-action-pypi-publish` uploads file by file, so an attempt that sent the
+sdist and then failed previously left exactly that state: the next run found
+PyPI holding a strict subset, took the remainder from its own rebuild, and
+published an incoherent pair that no statement covered.
+
+The distinction the guard turns on is provenance, not count. A run that fills
+the gap from the Release sends bytes an earlier run built and signed
+(`Source.GITHUB`); a run that fills it from its own rebuild sends bytes no
+destination has seen (`Source.LOCAL`). The first is the legitimate carry and
+still proceeds; only the second is refused. Every reachable clean state — a
+first release, a clean re-run, a gap filled from PyPI or from the Release —
+plans no `LOCAL` upload at all, and is unaffected.
+
+A tag that has already reached the mixed state is therefore no longer *growing*
+on PyPI, but it is still not repaired: the guard refuses, and the tag needs the
+manual repair this ADR already describes. What the guard buys is that PyPI is
+never polluted with bytes that can never be replaced, so the repair has a
+target that is still coherent.
+
 Bit-reproducible builds are not the answer and are not assumed: identical bytes
 would let a rebuild stand in for a carried one, but nothing in this pipeline
 establishes reproducibility, and the guarantee would have to be proved
@@ -389,6 +414,14 @@ keeps the first published bytes canonical and leaves the attached bundle alone.
   final comparison, and the upload has already been spent on a Release whose
   assets cannot be replaced. Scoping the refusal to the whole release is what
   makes the failure arrive while a clean retry is still possible.
+- Two different failures are refused at the two ends of the pipeline, and the
+  split is deliberate. `stage_pypi` refuses before an upload when PyPI already
+  holds part of the tag and the missing part would come from this run's
+  rebuild: no bytes move, so nothing can become irreparable. `publish-release`
+  refuses before publication when the Release's own contents are not covered by
+  a single statement. The first prevents the mixed state; the second catches a
+  Release that reached an inconsistent shape by some other route, and leaves it
+  a draft.
 - The release jobs carry a copy of the PyPI index fetch as a YAML anchor
   (`*fetch-index`), so the retry policy is written once and used twice. The
   runner's `curl` cannot report `%{num_retries}`, so the loop retries network

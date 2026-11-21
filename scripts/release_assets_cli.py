@@ -15,9 +15,10 @@ scripting standards' Cyclopts and Cuprum defaults. Each subcommand is one step
 of ``release.yml``: ``carryover`` (``draft-release``), ``stage-pypi``
 (``publish-pypi``), then ``stage-github``, ``check-fetched``,
 ``check-provenance``, ``bundles``, ``check-bundle``, and ``verify``
-(``publish-release``). The reconciliation logic itself lives in
-``scripts/release_assets.py``; this module only wires it to ``argparse`` and
-the workflow's ``GITHUB_OUTPUT`` protocol.
+(``publish-release``). The reconciliation rules live in
+``scripts/release_assets.py``, the staging command in
+``scripts/release_staging.py``; this module only wires them to ``argparse``
+and the workflow's ``GITHUB_OUTPUT`` protocol.
 """
 
 import argparse
@@ -29,7 +30,6 @@ from release_assets import (
     ReleaseAssetError,
     State,
     carryover,
-    stage_pypi,
     write_output,
 )
 from release_bundles import artefact_digests, check_release_bundle, held_bundles
@@ -39,6 +39,7 @@ from release_github_upload import (
     stage_github,
     verify,
 )
+from release_staging import stage_pypi
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc

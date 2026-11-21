@@ -207,21 +207,25 @@ def test_a_pypi_hand_off_missing_a_name_keeps_the_release_a_draft(
 
 
 @requires_bash
-def test_an_interrupted_tag_reaches_pypi_and_then_fails_at_the_release(
+def test_a_release_holding_bytes_outside_the_tag_is_never_published(
     workspace: Workspace,
 ) -> None:
-    """A tag stopped between jobs is carried on, and stops where it cannot heal.
+    """A corrupted Release cannot be completed into a published one.
 
-    PyPI holding the sdist while the Release holds the wheel is what an
-    interrupted run leaves. ``publish-pypi`` cannot tell that from the
-    legitimate sequence, so it completes and sends the Release's wheel; the
-    release is then mixed rather than healed. ``publish-release`` refuses it:
-    the Release holds no bundle covering the sdist it lacks, and a Release
-    asset cannot be replaced.
+    PyPI holds the sdist and the Release holds the wheel, so between them the
+    tag is complete and ``publish-pypi`` carries the Release's wheel to PyPI.
+    That much is the legitimate path. What is not legitimate is the Release's
+    own contents: no bundle it holds names both assets, so ``publish-release``
+    cannot establish that what the Release carries is one run's build, and it
+    refuses. The draft stays a draft.
 
-    This asserts the limit ``adr-0015`` records rather than approving it. If
-    staging ever distinguishes the two states, this test fails and the ADR,
-    which says the recovery mechanism is unimplemented, needs revising with it.
+    This seeds a state a clean run cannot reach -- ``publish-release`` only
+    runs once PyPI holds everything, so a Release asset PyPI lacks was never
+    put there by this workflow's own sequence. It is the defensive half of the
+    contract: whatever puts an asset on the Release, the release is not
+    published unless one statement covers everything it holds. The guard that
+    stops an ordinary interrupted upload from creating this shape is
+    ``test_a_rebuild_beside_an_earlier_build_is_refused``.
     """
     work, fake, _publish_dir = workspace
     record_state(fake, draft=True, prerelease=False)
@@ -242,3 +246,34 @@ def test_an_interrupted_tag_reaches_pypi_and_then_fails_at_the_release(
         path.name for path in fake.github.iterdir()
     )
     assert published(fake)["draft"] is True, "a mixed release must not be published"
+
+
+@requires_bash
+def test_an_interrupted_upload_stops_before_polluting_pypi(
+    workspace: Workspace,
+) -> None:
+    """The tag-level statement of the guard, run through the workflow.
+
+    ``pypa/gh-action-pypi-publish`` uploads file by file, so an attempt can
+    leave PyPI holding the sdist and not the wheel. A re-run must not send its
+    own wheel: PyPI would then hold two builds that never formed a pair, and
+    because a published filename can never be replaced the tag could never be
+    repaired. The guard refuses at staging, so PyPI keeps exactly the bytes it
+    had and the release stays unpublished.
+
+    The refusal happens in ``publish-pypi`` rather than at ``publish-release``,
+    which is the point: nothing new reaches PyPI, so there is no mixed
+    destination to leave behind.
+    """
+    work, fake, _publish_dir = workspace
+    record_state(fake, draft=True, prerelease=False)
+    hold(fake, {SDIST: b"published-sdist"}, {})
+    stage_build(work, fake, SECOND, SECOND_BUNDLE)
+
+    sent, _ = publish_tag(work, fake)
+    assert sent.returncode == 1, sent.stdout
+    assert "refusing to add this run's rebuild" in sent.stderr, sent.stderr
+    assert {path.name: path.read_bytes() for path in fake.pypi.iterdir()} == {
+        SDIST: b"published-sdist"
+    }, "the refused run must add nothing to PyPI"
+    assert published(fake)["draft"] is True, "the release must still be unpublished"

@@ -1,9 +1,11 @@
-"""Specify the commands ``scripts/release_assets.py`` runs on the artefacts.
+"""Specify the commands the release scripts run on the artefacts.
 
 A release reaches its steady state through a short sequence of commands, and
 this module specifies the half that decides PyPI's upload set: ``stage_pypi``
-deletes what PyPI holds and replaces what the Release holds, and ``write_output``
-tells the workflow what remains. The GitHub Release's half lives in
+(in ``scripts/release_staging.py``) deletes what PyPI holds and replaces what
+the Release holds, and ``write_output`` tells the workflow what remains. The
+rules it dispatches over, and the ``State`` both halves share, are in
+``scripts/release_assets.py``. The GitHub Release's half lives in
 ``test_release_github_upload.py``.
 
 The running theme is that a command must be safe to run twice. A re-pushed tag
@@ -17,13 +19,16 @@ import typing as typ
 
 import pytest
 import release_assets
+import release_staging
 from release_assets import (
     PypiFile,
     ReleaseAssetError,
     Source,
     State,
 )
+from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.assertions import assert_with_context
 from tests.support.release_assets_fixtures import (
     digest,
     write_file,
@@ -32,6 +37,8 @@ from tests.support.release_assets_fixtures import (
 
 if typ.TYPE_CHECKING:
     import pathlib
+
+    from syrupy.assertion import SnapshotAssertion
 
 
 @pytest.fixture
@@ -58,7 +65,7 @@ def test_a_carried_file_with_the_wrong_bytes_is_refused(
     state = State(publish=publish, pypi={}, github={"c.whl": digest(carried / "c.whl")})
     (carried / "c.whl").write_bytes(b"changed-after-the-fact")
     with pytest.raises(ReleaseAssetError, match="expected"):
-        release_assets.stage_pypi(state, carried)
+        release_staging.stage_pypi(state, carried)
 
 
 def test_a_carried_file_with_no_records_at_all_is_not_sent_on(
@@ -78,7 +85,7 @@ def test_a_carried_file_with_no_records_at_all_is_not_sent_on(
     write_file(carried, "c.whl", b"canonical")
     state = State(publish=publish, pypi={}, github={"c.whl": digest(carried / "c.whl")})
     with pytest.raises(ReleaseAssetError, match="no provenance record was supplied"):
-        release_assets.stage_pypi(state, carried, None)
+        release_staging.stage_pypi(state, carried, None)
     assert (publish / "c.whl").read_bytes() == b"rebuilt", (
         "the refusal must leave the artefact alone"
     )
@@ -87,8 +94,16 @@ def test_a_carried_file_with_no_records_at_all_is_not_sent_on(
 def test_staging_pypi_leaves_only_what_pypi_lacks_and_says_so(
     tmp_path: pathlib.Path,
     capsys: pytest.CaptureFixture[str],
+    snapshot: SnapshotAssertion,
 ) -> None:
-    """A published name is deleted, a carried name is replaced, the rest stays."""
+    """A published name is deleted, and a carried one is replaced.
+
+    PyPI holds ``a.whl`` and ``c.whl`` and the Release holds ``b.whl``, so the
+    tag is complete across the two destinations and the release is not mixed:
+    every name either PyPI or an earlier run's build already holds, and the one
+    this run would send is the Release's signed bytes rather than its rebuild.
+    ``b.whl`` is the only survivor, and it survives as the canonical bytes.
+    """
     publish = tmp_path / "publish"
     carried = tmp_path / "github"
     write_file(publish, "a.whl", b"rebuilt-a")
@@ -100,15 +115,24 @@ def test_staging_pypi_leaves_only_what_pypi_lacks_and_says_so(
     )
     state = State(
         publish=publish,
-        pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
+        pypi={
+            "a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a"),
+            "c.whl": PypiFile(sha256=digest(publish / "c.whl"), url="https://x/c"),
+        },
         github={"b.whl": digest(carried / "b.whl")},
     )
-    assert release_assets.stage_pypi(state, carried, records) is True, state
-    assert release_assets.local_names(publish) == ["b.whl", "c.whl"], publish
+    assert release_staging.stage_pypi(state, carried, records) is True, state
+    assert release_assets.local_names(publish) == ["b.whl"], publish
     assert (publish / "b.whl").read_bytes() == b"canonical-b", publish
-    notices = capsys.readouterr().out
-    assert "Skipping a.whl" in notices, notices
-    assert "GitHub Release's bytes for b.whl" in notices, notices
+    notices = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if line.startswith("::notice::")
+    ]
+    assert_with_context(
+        notices == snapshot(extension_class=JSONSnapshotExtension),
+        "expected each staged name to be reported with its disposition",
+    )
 
 
 def test_staging_pypi_reports_that_nothing_remains(
@@ -123,7 +147,7 @@ def test_staging_pypi_reports_that_nothing_remains(
         pypi={"a.whl": PypiFile(sha256=digest(publish / "a.whl"), url="https://x/a")},
         github={},
     )
-    assert release_assets.stage_pypi(state, tmp_path) is False, state
+    assert release_staging.stage_pypi(state, tmp_path) is False, state
     assert "nothing to publish" in capsys.readouterr().out, (
         "an empty upload set must be reported"
     )
@@ -171,18 +195,81 @@ def test_staging_the_same_state_twice_changes_nothing(tmp_path: pathlib.Path) ->
     )
     state = State(
         publish=publish,
-        pypi={"a.whl": PypiFile(sha256="whatever", url="https://x/a")},
+        pypi={
+            "a.whl": PypiFile(sha256="whatever", url="https://x/a"),
+            "c.whl": PypiFile(sha256="whatever", url="https://x/c"),
+        },
         github={"b.whl": digest(carried / "b.whl")},
     )
-    assert release_assets.stage_pypi(state, carried, records) is True, state
+    assert release_staging.stage_pypi(state, carried, records) is True, state
     after_first = sorted(path.name for path in publish.iterdir())
-    assert after_first == ["b.whl", "c.whl"], after_first
+    assert after_first == ["b.whl"], after_first
     # The second pass sees the same state and must leave the same survivors.
-    assert release_assets.stage_pypi(state, carried, records) is True, state
+    second = State(
+        publish=publish,
+        pypi={
+            "a.whl": PypiFile(sha256="whatever", url="https://x/a"),
+            "c.whl": PypiFile(sha256="whatever", url="https://x/c"),
+        },
+        github={"b.whl": digest(carried / "b.whl")},
+    )
+    assert release_staging.stage_pypi(second, carried, records) is True, second
     assert sorted(path.name for path in publish.iterdir()) == after_first, (
         sorted(path.name for path in publish.iterdir()),
         after_first,
     )
+    assert (publish / "b.whl").read_bytes() == b"canonical-b", publish
+
+
+def test_a_rebuild_beside_an_earlier_build_is_refused(tmp_path: pathlib.Path) -> None:
+    """An interrupted upload cannot be completed from this run's rebuild.
+
+    ``pypa/gh-action-pypi-publish`` uploads file by file, so an attempt that
+    sent ``a.whl`` and then failed leaves PyPI holding one of the tag's names.
+    A re-run that sent its own ``b.whl`` would leave PyPI holding two builds
+    that never formed a pair, and no statement covers both. The re-run must
+    refuse before the upload rather than pollute PyPI with bytes no run can
+    ever replace.
+    """
+    publish = tmp_path / "publish"
+    write_file(publish, "a.whl", b"rebuilt-a")
+    write_file(publish, "b.whl", b"rebuilt-b")
+    state = State(
+        publish=publish,
+        pypi={"a.whl": PypiFile(sha256="whatever", url="https://x/a")},
+        github={},
+    )
+    with pytest.raises(ReleaseAssetError, match="refusing to add this run's rebuild"):
+        release_staging.stage_pypi(state, tmp_path)
+    assert release_assets.local_names(publish) == ["a.whl", "b.whl"], publish
+
+
+def test_filling_the_gap_from_the_release_is_still_allowed(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The guard distinguishes the rebuild from the Release's signed bytes.
+
+    This is the case the guard must not refuse, and it is why the rule is
+    about the bytes' provenance rather than about how many names PyPI holds.
+    PyPI holds ``a.whl`` and lacks ``b.whl``, exactly as an interrupted upload
+    would leave it, but ``b.whl`` comes from the Release -- bytes an earlier
+    run built and signed -- so the release is completed rather than mixed.
+    """
+    publish = tmp_path / "publish"
+    carried = tmp_path / "github"
+    write_file(publish, "a.whl", b"rebuilt-a")
+    write_file(publish, "b.whl", b"rebuilt-b")
+    write_file(carried, "b.whl", b"canonical-b")
+    records = write_provenance(
+        tmp_path / "records", {"b.whl": {"b.whl": b"canonical-b"}}
+    )
+    state = State(
+        publish=publish,
+        pypi={"a.whl": PypiFile(sha256="whatever", url="https://x/a")},
+        github={"b.whl": digest(carried / "b.whl")},
+    )
+    assert release_staging.stage_pypi(state, carried, records) is True, state
+    assert release_assets.local_names(publish) == ["b.whl"], publish
     assert (publish / "b.whl").read_bytes() == b"canonical-b", publish
 
 
