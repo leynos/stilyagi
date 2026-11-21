@@ -273,6 +273,39 @@ def test_filling_the_gap_from_the_release_is_still_allowed(
     assert (publish / "b.whl").read_bytes() == b"canonical-b", publish
 
 
+def test_an_index_that_omits_every_name_is_not_refused(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The guard's blind spot, pinned so it cannot widen unnoticed.
+
+    The guard compares against what the index *reports*, so an index that
+    omits every one of the tag's names leaves it nothing to compare. That
+    state is byte-for-byte a first release: ``plan`` sees no PyPI holdings,
+    every name resolves to ``Source.LOCAL``, and nothing is refused.
+
+    Stating it here is deliberate. The refusal cannot be made on this
+    evidence -- a genuine first release is the same input, and refusing it
+    would refuse every release -- so what must not happen is the gap silently
+    growing to cover states the index *does* describe. An index that lists one
+    of the tag's names while another is due for upload is still refused, which
+    the test above holds.
+
+    The damage here is bounded, and worth recording: ``skip-existing`` means
+    an uploaded name is skipped rather than rejected, and a PyPI-held filename
+    can never be replaced, so the worst case is a tag whose two names came
+    from different builds. ``release_assets_cli verify`` still refuses to
+    publish the Release, because no single statement covers both. That is the
+    residual this repository accepts until a source that does not depend on the
+    index is implemented; ``adr-0015`` records it as unimplemented.
+    """
+    publish = tmp_path / "publish"
+    write_file(publish, "a.whl", b"rebuilt-a")
+    write_file(publish, "b.whl", b"rebuilt-b")
+    state = State(publish=publish, pypi={}, github={})
+    assert release_staging.stage_pypi(state, tmp_path) is True, state
+    assert release_assets.local_names(publish) == ["a.whl", "b.whl"], publish
+
+
 def test_a_release_that_agrees_plans_nothing_on_a_second_run(
     tmp_path: pathlib.Path,
 ) -> None:
