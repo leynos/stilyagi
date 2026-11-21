@@ -208,18 +208,59 @@ once the upload lands, and so what the bundle's statement must name.
 The bundle is required once, not once per run, and it must *cover* what the
 release holds. The first run of a tag attaches one only when its statement
 names every digest the finished release will carry; a run whose assets come
-from PyPI or from an earlier release has no such bundle, because its own
-attests its rebuild instead. A re-run attaches none: the release already
-records provenance for the canonical bytes, and a run-unique bundle for a
-rebuild would describe bytes the release does not hold. A release that cannot
-be covered is not published; it is repaired by attaching the attestation for
-those exact bytes from the repository's attestation store, which
-`gh attestation download` writes in the JSON-lines form the reader accepts.
-That form is a file the two readers split before either can use it: the
-download is one bundle per line, so an operator attaches one line under a
-`.sigstore.json` name rather than the whole file, whose lines neither reader
-parses as one document. The re-run's own attestation is still written to that
-store either way.
+from PyPI or from an earlier release has no such bundle because its own attests
+its rebuild instead. A re-run attaches none: the release already records
+provenance for the canonical bytes, and a run-unique bundle for a rebuild would
+describe bytes the release does not hold. A release that cannot be covered is
+not published; it is repaired by attaching the attestation for those exact
+bytes from the repository's attestation store, which `gh attestation download`
+writes in the JSON-lines form the reader accepts. That form is a file the two
+readers split before either can use it: the download is one bundle per line, so
+an operator attaches one line under a `.sigstore.json` name rather than the
+whole file, whose lines neither reader parses as one document. The re-run's own
+attestation is still written to that store either way.
+
+Coverage is asked of one statement, so the repair assumes an attestation exists
+that names every byte the release holds. Two cases do not satisfy that
+assumption, and the difference decides what an operator can do.
+
+The first is a release whose names all came from one earlier run or from PyPI:
+`gh attestation download` returns that run's own statement for those digests,
+so one line covers the whole release and the repair above applies unchanged.
+
+The second is a **mixed** release, one whose names come from two runs. It
+arises because `skip-existing` makes a PyPI upload skippable per file rather
+than per job: a run can publish some names and stop before the rest, and a
+later run then takes those names as canonical while contributing its own
+rebuild for the others. No single statement names both sets. The first run
+signed only what it uploaded, and this run's statement — written by `attest`
+over the freshly built artefacts alone, before any carried bytes are copied in
+— names only its rebuild. Downloading either one cannot satisfy
+`copy_covering_bundle`, and because an asset cannot be replaced, the draft
+stays unpublished and each further re-run refuses the same way. The repair text
+above does not apply, and a re-run must not be expected to converge.
+
+The property that rules this out is stated as a requirement on the workflow
+rather than left to the build: **every name a tag publishes should be attested
+by the run that first puts it on PyPI.** The first run of a tag satisfies it
+for all of its names at once, because `attest` runs before any upload and its
+statement names every artefact that run built. A re-run then converges because
+it carries the first run's bytes, whose own statement covers them.
+
+The workflow does not currently refuse the state that breaks the property. It
+does not compare the attested set with the upload set: `attest` signs the
+freshly built artefacts, and `publish-pypi` may then replace a name with the
+Release's carried bytes or drop it as already present, so the bytes uploaded
+need not be the bytes that statement names. Carried bytes are not unchecked —
+each is verified against an earlier statement naming exactly them — but that is
+a different statement from this run's, and the comparison that would stop a
+partial first publication is not in place. The mixed release above therefore
+remains reachable through the window it describes.
+
+Bit-reproducible builds are not the answer and are not assumed: identical bytes
+would let a rebuild stand in for a carried one, but nothing in this pipeline
+establishes reproducibility, and the guarantee would have to be proved
+separately before it could be relied on.
 
 ### Provenance of carried bytes
 
