@@ -24,7 +24,7 @@
     STRUCTURE
   
   Policy/enablement:
-    Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = ["MD001"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable MD001` directive, or removing `builtin` from `plugins` prevents it running for a file.
+    Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = ["MD001"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable MD001` directive, or removing `builtin` from `plugins` suppresses reported findings for the covered region. The rule still evaluates, so a suppressed heading remains the depth the next heading compares against.
     TOML:
     [tool.stilyagi.lint]
     select = ["MD"]
@@ -43,6 +43,7 @@
       configuration:
         defaults
       expected codes: MD001
+      expected exit status: 1
     Consecutive levels are accepted
       source:
         # Start
@@ -51,6 +52,7 @@
       configuration:
         defaults
       expected codes: None
+      expected exit status: 0
   
   Limitations:
     Only headings with a locatable node span are reported; a heading the extractor cannot map to source bytes is skipped.
@@ -78,7 +80,7 @@
     Report an immediately repeated word in prose.
   
   Explanation:
-    Two or more identical alphabetic tokens separated only by spaces or tabs are reported as a repeated run. Comparison is exact, so `the the` is a run and `The the` is not. A run never crosses markup, a region boundary, a line break, or a synthetic region, and inline code is excluded.
+    Two or more identical alphabetic tokens separated only by spaces or tabs are reported as a repeated run. Comparison is exact, so `the the` is a run and `The the` is not. A run never crosses markup, a region boundary, a line break, or a synthetic region, and inline code is excluded. The `TOKENS` capability is supplied by the builtin pack's in-process tokenizer; no NLP model or external provider is loaded.
   
   Targets:
     syntax: markdown
@@ -90,7 +92,7 @@
     TOKENS
   
   Policy/enablement:
-    Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = ["STY001"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable STY001` directive, or removing `builtin` from `plugins` prevents it running for a file.
+    Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = ["STY001"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable STY001` directive, or removing `builtin` from `plugins` suppresses reported findings for the covered region. The rule still evaluates over the document.
     TOML:
     [tool.stilyagi.lint]
     select = ["STY"]
@@ -108,12 +110,14 @@
       configuration:
         defaults
       expected codes: STY001
+      expected exit status: 1
     Exact spelling is required
       source:
         The the plan is clear.
       configuration:
         defaults
       expected codes: None
+      expected exit status: 0
     A line break ends the run
       source:
         the
@@ -121,6 +125,7 @@
       configuration:
         defaults
       expected codes: None
+      expected exit status: 0
   
   Limitations:
     Matching is exact and adjacent: `the the` is a run, but `the plan the plan` is not because other words intervene.
@@ -150,7 +155,7 @@
     Report configured banned terms in prose.
   
   Explanation:
-    Every configured term is matched against whole alphabetic tokens, so `obviously` never matches inside `unobviously`. When `case_sensitive` is false, which is the default, both the configured term and the token are compared with Unicode `casefold()`; when it is true, the exact spelling is compared. Duplicate terms coalesce under the chosen comparison. The rule is opt-in and does nothing until terms are configured.
+    Every configured term is matched against whole alphabetic tokens, so `obviously` never matches inside `unobviously`. The `TOKENS` capability is supplied by the builtin pack's in-process tokenizer; no NLP model or external provider is loaded. When `case_sensitive` is false, which is the default, both the configured term and the token are compared with Unicode `casefold()`; when it is true, the exact spelling is compared. Duplicate terms coalesce under the chosen comparison. The rule is opt-in and does nothing until terms are configured.
   
   Targets:
     syntax: markdown
@@ -201,6 +206,7 @@
       configuration:
         defaults
       expected codes: None
+      expected exit status: 0
     A selected and configured term is reported
       source:
         This is obviously fine.
@@ -211,6 +217,7 @@
         terms = ["obviously"]
         case_sensitive = false
       expected codes: TERM001
+      expected exit status: 1
     Case-insensitive matching folds case
       source:
         Obviously, this is fine.
@@ -220,6 +227,7 @@
         [tool.stilyagi.rule.TERM001]
         terms = ["obviously"]
       expected codes: TERM001
+      expected exit status: 1
     Case-sensitive matching requires the exact spelling
       source:
         obviously fine.
@@ -230,6 +238,17 @@
         terms = ["Obviously"]
         case_sensitive = true
       expected codes: None
+      expected exit status: 0
+    Hyphenated text is split into tokens
+      source:
+        This is obviously-not fine.
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["TERM001"]
+        [tool.stilyagi.rule.TERM001]
+        terms = ["obviously"]
+      expected codes: TERM001
+      expected exit status: 1
     Unicode case folding applies to whole tokens
       source:
         STRASSE matters.
@@ -240,10 +259,11 @@
         terms = ["straße"]
         case_sensitive = false
       expected codes: TERM001
+      expected exit status: 1
   
   Limitations:
     Only headings, paragraphs, and table cells are inspected; code blocks, inline code, link destinations, and frontmatter are not.
-    Matching is whole-token only, so a hyphenated or punctuated form is not split into words a term could match.
+    Matching is whole-token only, but hyphens, punctuation, and digits are token boundaries: a term can match one word inside a hyphenated or punctuated form. Use an exact context check when that is too broad.
     The opposite editorial policy, requiring a term rather than banning it, is not supported; no inverse rule or option exists in this slice.
     Neither case mode promises locale-aware matching or Unicode normalization; use `case_sensitive = true` when exact spelling matters.
     Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file.

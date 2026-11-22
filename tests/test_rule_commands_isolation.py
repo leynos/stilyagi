@@ -40,6 +40,12 @@ _SENTINEL_FUNCTIONS: typ.Final[tuple[str, ...]] = (
     "stilyagi.rules.registry.run_rules",
     "stilyagi.rules.builtin.pack.run_selected",
     "stilyagi.cli_extraction_cache.open_extraction_cache",
+    # Aliases imported into the command modules are the actual call sites for
+    # the check path, so patching only their defining modules would leave a
+    # sentinel that the command never consults.
+    "stilyagi.cli.discover_targets",
+    "stilyagi.cli.collect_checked_files",
+    "stilyagi.cli_apply.apply_fixes",
 )
 
 

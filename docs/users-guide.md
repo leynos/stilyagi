@@ -920,11 +920,12 @@ stilyagi rule STY001 --output-format json
 ```
 
 The detail states the default severity, pack, default enablement, preview and
-fix status, fix mode, targets, capability requirements, configuration guidance
-with TOML, typed options and their boolean variants, executable examples,
-limitations, and references. An unknown code, a prefix, or a lower-case
-spelling exits `2` with an actionable message on standard error and nothing on
-standard output, even when JSON output was requested.
+fix status, fix mode, fix guidance, targets, capability requirements,
+configuration guidance with TOML, typed options and their boolean variants,
+executable examples with their expected exit status, limitations, and
+references. An unknown code, a prefix, or a lower-case spelling exits `2` with
+an actionable message on standard error and nothing on standard output, even
+when JSON output was requested.
 
 ```shell
 $ stilyagi rule MD
@@ -941,10 +942,10 @@ JSON envelopes are schema version 1: `{"schema_version": 1, "rules": [...]}`
 for a list and `{"schema_version": 1, "rule": {...}}` for a detail. Each
 descriptor carries `code`, `name`, `pack`, `summary`, `explanation`,
 `default_severity`, `targets`, `requires`, `requires_nlp`, `fixable`,
-`fix_mode`, `enabled_by_default`, `preview`, `configuration`, `examples`,
-`limitations`, and `references`. Empty collections are arrays; booleans are
-JSON booleans. Errors always use standard error as text, so a consumer can
-treat standard output as the machine-readable result alone.
+`fix_mode`, `fixes`, `enabled_by_default`, `preview`, `configuration`,
+`examples`, `limitations`, and `references`. Empty collections are arrays;
+booleans are JSON booleans. Errors always use standard error as text, so a
+consumer can treat standard output as the machine-readable result alone.
 
 Fixability describes a capability, not a guarantee. `STY001` can propose an
 unsafe edit, which `--fix` applies only with `--unsafe-fixes`; `MD001` reports

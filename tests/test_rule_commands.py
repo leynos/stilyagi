@@ -44,6 +44,7 @@ _DESCRIPTOR_KEYS = frozenset({
     "requires_nlp",
     "fixable",
     "fix_mode",
+    "fixes",
     "enabled_by_default",
     "preview",
     "configuration",

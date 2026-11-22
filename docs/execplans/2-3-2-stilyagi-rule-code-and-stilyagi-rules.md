@@ -18,9 +18,10 @@ and inspect its policy, options, examples, and limitations through
 `TERM001` needs configuration and why `STY001` is not safely auto-fixable
 without reading source code.
 
-This is a planning-only change. Implementation and the roadmap completion
-checkbox remain pending approval. The eventual implementation completes roadmap
-2.3.2, not the broader documentation work in 2.3.3.
+This plan was approved on 2026-11-22 and implemented in the same branch. The
+implementation completes roadmap 2.3.2, not the broader documentation work in
+2.3.3. The planning-only statements below record the original draft and are
+superseded by the Progress and Outcomes sections.
 
 ## Constraints
 
@@ -223,7 +224,23 @@ assuming that this session's tool availability persists.
   file limit, which split argument and support helpers into their own modules.
   No runtime capability beyond the approved behavioural contract was added; the
   explicit implementation instruction supplies the approval that the escalation
-  trigger would otherwise request.
+  trigger would otherwise request. The hosted assessment could not
+  independently verify a waiver; this record is the acceptance evidence.
+- 2026-11-22: the assessment requested the already-authored fix guidance in the
+  JSON descriptor. Add `fixes` as an additive schema-version-1 key rather than
+  a breaking change. Text examples also print a derived exit status (1 when the
+  example reports findings, otherwise 0), satisfying E5 without changing the
+  example record's stored shape.
+- 2026-11-22: correct two prose claims surfaced by the assessment. TERM001's
+  matching is whole-token, but hyphens and punctuation are token boundaries, so
+  a term can match part of a hyphenated form; the description now says so and
+  documents an executable `obviously-not` example. Suppression directives drop
+  reported findings after rule evaluation, so the MD001/STY001 enablement text
+  now says "suppresses reported findings" rather than "prevents it running";
+  MD001's suppressed heading still updates depth state.
+- 2026-11-22: validate that an `array[string]` option default contains only
+  strings. The description records could previously render JSON that
+  contradicted their declared type.
 
 ## Outcomes & retrospective
 

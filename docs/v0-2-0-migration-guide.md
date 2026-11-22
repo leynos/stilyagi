@@ -111,9 +111,13 @@ stilyagi rule TERM001
 ```
 
 `rules` lists the shipped rules and accepts prefix, pack, severity, preview,
-and fixability filters. `rule CODE` prints one rule's policy, typed options,
-examples, limitations, and references. Both accept `--output-format json` and
-exit `2` on an unknown code. See the
+and fixability filters. A filter that matches nothing succeeds and prints
+`No builtin rules match the supplied filters.` `rule CODE` prints one rule's
+policy, typed options, examples, limitations, and references; an unknown,
+lower-case, or prefix code exits `2` with an actionable message on standard
+error. Both accept `--output-format json`. The catalogue describes the shipped
+inventory, not the effective configuration of a particular project or file. See
+the
 [user's guide](users-guide.md#discovering-builtin-rules-with-stilyagi-rules)
 for the output contract and examples.
 

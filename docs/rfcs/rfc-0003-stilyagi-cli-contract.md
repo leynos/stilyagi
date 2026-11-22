@@ -97,9 +97,11 @@ The output SHALL include:
   `none`);
 - targets, with syntax, region kinds, and required scope tags;
 - capability requirements from RFC 0002;
+- fix guidance, including any opt-in an edit requires;
 - configuration keys, typed options, defaults, constraints, and documented
   boolean variants;
-- executable examples, limitations, and references.
+- executable examples with their expected diagnostic codes and exit status,
+  limitations, and references.
 
 Sections SHALL remain visible when empty, with an explicit `None` value.
 

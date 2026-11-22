@@ -70,6 +70,14 @@
         "title": "Case-sensitive matching requires the exact spelling"
       },
       {
+        "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\n",
+        "expected_codes": [
+          "TERM001"
+        ],
+        "source": "This is obviously-not fine.\n",
+        "title": "Hyphenated text is split into tokens"
+      },
+      {
         "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"straße\"]\ncase_sensitive = false\n",
         "expected_codes": [
           "TERM001"
@@ -78,12 +86,13 @@
         "title": "Unicode case folding applies to whole tokens"
       }
     ],
-    "explanation": "Every configured term is matched against whole alphabetic tokens, so `obviously` never matches inside `unobviously`. When `case_sensitive` is false, which is the default, both the configured term and the token are compared with Unicode `casefold()`; when it is true, the exact spelling is compared. Duplicate terms coalesce under the chosen comparison. The rule is opt-in and does nothing until terms are configured.",
+    "explanation": "Every configured term is matched against whole alphabetic tokens, so `obviously` never matches inside `unobviously`. The `TOKENS` capability is supplied by the builtin pack's in-process tokenizer; no NLP model or external provider is loaded. When `case_sensitive` is false, which is the default, both the configured term and the token are compared with Unicode `casefold()`; when it is true, the exact spelling is compared. Duplicate terms coalesce under the chosen comparison. The rule is opt-in and does nothing until terms are configured.",
     "fix_mode": "none",
     "fixable": false,
+    "fixes": "The rule offers no fix. Choosing a replacement for a banned term is editorial, so no edit is planned and `--fix` leaves the source unchanged.",
     "limitations": [
       "Only headings, paragraphs, and table cells are inspected; code blocks, inline code, link destinations, and frontmatter are not.",
-      "Matching is whole-token only, so a hyphenated or punctuated form is not split into words a term could match.",
+      "Matching is whole-token only, but hyphens, punctuation, and digits are token boundaries: a term can match one word inside a hyphenated or punctuated form. Use an exact context check when that is too broad.",
       "The opposite editorial policy, requiring a term rather than banning it, is not supported; no inverse rule or option exists in this slice.",
       "Neither case mode promises locale-aware matching or Unicode normalization; use `case_sensitive = true` when exact spelling matters.",
       "Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file."

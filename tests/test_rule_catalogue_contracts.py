@@ -69,6 +69,54 @@ def test_documented_example_produces_its_expected_codes(
     )
 
 
+@pytest.mark.parametrize("rule", catalogue.list_rules(), ids=lambda rule: rule.code)
+def test_published_configuration_parses_through_the_real_pipeline(
+    rule: RuleMetadata,
+    tmp_path: pathlib.Path,
+) -> None:
+    """Every rule publishes configuration the real parser accepts.
+
+    The rendered `configuration.toml` is what a maintainer copies out of the
+    catalogue, so it must parse as written. The example loop covers the TOML an
+    example carries; this covers the separately published guidance, including
+    the MD001 and STY001 snippets that no example repeats.
+    """
+    published = rule.description.configuration.toml
+    assert published, f"expected {rule.code} to publish configuration guidance"
+
+    effective = resolved_config(tmp_path, published)
+
+    assert effective.lint.select, "expected the published TOML to select a rule"
+
+
+@pytest.mark.parametrize("rule", catalogue.list_rules(), ids=lambda rule: rule.code)
+def test_published_configuration_lints_its_rule(
+    rule: RuleMetadata,
+    tmp_path: pathlib.Path,
+) -> None:
+    """The published TOML enables the rule whose description prints it.
+
+    A code prefix would satisfy a weaker check, so this asserts the rule is
+    actually enabled by the real policy for a document, not merely mentioned.
+    """
+    effective = resolved_config(tmp_path, rule.description.configuration.toml)
+    reporting_example = next(
+        (
+            example
+            for example in rule.description.examples
+            if rule.code in example.expected_codes
+        ),
+        None,
+    )
+    assert reporting_example is not None, f"expected {rule.code} to document a finding"
+
+    produced = lint(effective, reporting_example.source)
+
+    assert rule.code in {item.code for item in produced}, (
+        "expected the published TOML to enable the rule it documents"
+    )
+
+
 def test_default_selection_enables_md_and_sty_but_not_term() -> None:
     """The shipped default selection explains TERM001's disabled-by-default flag."""
     default_config = config.StilyagiConfig()

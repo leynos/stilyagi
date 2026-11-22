@@ -85,11 +85,20 @@ def test_valid_records_construct_without_error() -> None:
     metadata = _metadata()
     boolean = _boolean_option()
     array = _array_option()
+    filled_array = RuleOption(
+        name="terms",
+        type="array[string]",
+        default=("one", "two"),
+        description="terms to report",
+    )
 
     assert description.fixable is False, "expected manual mode not to be fixable"
     assert metadata.code == "MD001", "expected the descriptor to retain its code"
     assert boolean.variants[0].value is False, "expected false then true"
     assert array.default == (), "expected the empty array default"
+    assert filled_array.default == ("one", "two"), (
+        "expected a non-empty string tuple default to be accepted"
+    )
     assert RuleConfiguration("selected", options=(boolean, array)).options == (
         boolean,
         array,
@@ -97,11 +106,12 @@ def test_valid_records_construct_without_error() -> None:
 
 
 @pytest.mark.parametrize(
-    ("factory", "error"),
+    ("factory", "error", "match"),
     [
         pytest.param(
             lambda: OptionVariant(value=typ.cast("bool", "yes"), description="x"),
             TypeError,
+            "variant value must be a boolean",
             id="variant-not-boolean",
         ),
         pytest.param(
@@ -116,11 +126,13 @@ def test_valid_records_construct_without_error() -> None:
                 ),
             ),
             ValueError,
+            "name must be non-empty",
             id="empty-option-name",
         ),
         pytest.param(
             lambda: dc.replace(_boolean_option(), default=()),
             TypeError,
+            "needs a boolean default",
             id="boolean-default-not-bool",
         ),
         pytest.param(
@@ -132,12 +144,23 @@ def test_valid_records_construct_without_error() -> None:
                 ),
             ),
             ValueError,
+            "false then true variants",
             id="boolean-variant-order",
         ),
         pytest.param(
             lambda: dc.replace(_array_option(), default=False),
             TypeError,
+            "needs a tuple default",
             id="array-default-not-tuple",
+        ),
+        pytest.param(
+            lambda: dc.replace(
+                _array_option(),
+                default=(typ.cast("str", 1),),
+            ),
+            TypeError,
+            "only string elements",
+            id="array-element-not-string",
         ),
         pytest.param(
             lambda: dc.replace(
@@ -145,6 +168,7 @@ def test_valid_records_construct_without_error() -> None:
                 variants=(OptionVariant(value=False, description="x"),),
             ),
             ValueError,
+            "cannot declare variants",
             id="array-with-variants",
         ),
     ],
@@ -152,9 +176,10 @@ def test_valid_records_construct_without_error() -> None:
 def test_option_records_reject_contradictions(
     factory: cabc.Callable[[], object],
     error: type[Exception],
+    match: str,
 ) -> None:
     """A typed option whose shape contradicts its declaration is rejected."""
-    with pytest.raises(error):
+    with pytest.raises(error, match=match):
         factory()
 
 

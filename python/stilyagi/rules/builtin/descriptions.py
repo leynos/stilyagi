@@ -83,7 +83,9 @@ _MD001_ENABLEMENT = (
     "Selected by default. `MD` selects this rule and `MD001` selects only it. "
     '`lint.ignore = ["MD001"]`, a matching `lint.per-file-ignores` entry, a '
     "`stilyagi: disable MD001` directive, or removing `builtin` from `plugins` "
-    "prevents it running for a file."
+    "suppresses reported findings for the covered region. The rule still "
+    "evaluates, so a suppressed heading remains the depth the next heading "
+    "compares against."
 )
 _MD001_FIXES = (
     "The rule reports a manual suggestion. The correct heading level is a "
@@ -103,13 +105,16 @@ _STY001_EXPLANATION = (
     "Two or more identical alphabetic tokens separated only by spaces or tabs "
     "are reported as a repeated run. Comparison is exact, so `the the` is a "
     "run and `The the` is not. A run never crosses markup, a region boundary, "
-    "a line break, or a synthetic region, and inline code is excluded."
+    "a line break, or a synthetic region, and inline code is excluded. The "
+    "`TOKENS` capability is supplied by the builtin pack's in-process "
+    "tokenizer; no NLP model or external provider is loaded."
 )
 _STY001_ENABLEMENT = (
     "Selected by default. `STY` selects this rule and `STY001` selects only "
     'it. `lint.ignore = ["STY001"]`, a matching `lint.per-file-ignores` entry, '
     "a `stilyagi: disable STY001` directive, or removing `builtin` from "
-    "`plugins` prevents it running for a file."
+    "`plugins` suppresses reported findings for the covered region. The rule "
+    "still evaluates over the document."
 )
 _STY001_FIXES = (
     "The rule may propose an unsafe edit that removes the repeated suffix. "
@@ -138,7 +143,9 @@ _STY001_LIMITATION_SYNTHETIC = (
 
 _TERM001_EXPLANATION = (
     "Every configured term is matched against whole alphabetic tokens, so "
-    "`obviously` never matches inside `unobviously`. When `case_sensitive` is "
+    "`obviously` never matches inside `unobviously`. The `TOKENS` capability "
+    "is supplied by the builtin pack's in-process tokenizer; no NLP model or "
+    "external provider is loaded. When `case_sensitive` is "
     "false, which is the default, both the configured term and the token are "
     "compared with Unicode `casefold()`; when it is true, the exact spelling "
     "is compared. Duplicate terms coalesce under the chosen comparison. The "
@@ -160,8 +167,9 @@ _TERM001_LIMITATION_TARGET = (
     "inline code, link destinations, and frontmatter are not."
 )
 _TERM001_LIMITATION_WHOLE_WORD = (
-    "Matching is whole-token only, so a hyphenated or punctuated form is not "
-    "split into words a term could match."
+    "Matching is whole-token only, but hyphens, punctuation, and digits are "
+    "token boundaries: a term can match one word inside a hyphenated or "
+    "punctuated form. Use an exact context check when that is too broad."
 )
 _TERM001_LIMITATION_INVERSE = (
     "The opposite editorial policy, requiring a term rather than banning it, "
@@ -320,6 +328,12 @@ TERM001_DESCRIPTION = RuleDescription(
             source="obviously fine.\n",
             configuration=_TERM_CASE_SENSITIVE_TOML,
             expected_codes=(),
+        ),
+        RuleExample(
+            title="Hyphenated text is split into tokens",
+            source="This is obviously-not fine.\n",
+            configuration=_TERM_SELECTION_TOML,
+            expected_codes=("TERM001",),
         ),
         RuleExample(
             title="Unicode case folding applies to whole tokens",

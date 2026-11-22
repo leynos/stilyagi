@@ -245,7 +245,10 @@ def _one_example_lines(example: RuleExample) -> list[str]:
     lines.extend(_indented(example.source.splitlines() or [""], "    "))
     lines.append("  configuration:")
     lines.extend(_indented(configuration, "    "))
-    lines.append(f"  expected codes: {codes}")
+    lines.extend((
+        f"  expected codes: {codes}",
+        f"  expected exit status: {example.exit_code}",
+    ))
     return lines
 
 
@@ -281,6 +284,7 @@ def _descriptor(rule: RuleMetadata) -> dict[str, object]:
         "requires_nlp": rule.requires_nlp,
         "fixable": description.fixable,
         "fix_mode": description.fix_mode,
+        "fixes": description.fixes,
         "enabled_by_default": description.enabled_by_default,
         "preview": description.preview,
         "configuration": _configuration_descriptor(description.configuration),

@@ -112,6 +112,9 @@ def _require_array_option(option: RuleOption) -> None:
     if not isinstance(option.default, tuple):
         message = f"array option {option.name!r} needs a tuple default"
         raise TypeError(message)
+    if any(not isinstance(item, str) for item in option.default):
+        message = f"array option {option.name!r} needs only string elements"
+        raise TypeError(message)
     if option.variants:
         message = f"array option {option.name!r} cannot declare variants"
         raise ValueError(message)
@@ -171,6 +174,28 @@ class RuleExample:
     source: str
     configuration: str = ""
     expected_codes: tuple[str, ...] = ()
+
+    @property
+    def exit_code(self) -> int:
+        r"""The check exit status this example documents.
+
+        Returns
+        -------
+        int
+            ``1`` when the example reports at least one finding, otherwise
+            ``0``. The example contract assumes a check over a document whose
+            only findings are the documented ones.
+
+        Examples
+        --------
+        >>> RuleExample(title="clean", source="x\n").exit_code
+        0
+        >>> RuleExample(
+        ...     title="finding", source="x\n", expected_codes=("MD001",)
+        ... ).exit_code
+        1
+        """
+        return 1 if self.expected_codes else 0
 
 
 def _require_capabilities(requires: tuple[str, ...]) -> None:

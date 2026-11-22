@@ -2,7 +2,7 @@
   "rule": {
     "code": "STY001",
     "configuration": {
-      "enablement": "Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = [\"STY001\"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable STY001` directive, or removing `builtin` from `plugins` prevents it running for a file.",
+      "enablement": "Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = [\"STY001\"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable STY001` directive, or removing `builtin` from `plugins` suppresses reported findings for the covered region. The rule still evaluates over the document.",
       "options": [],
       "toml": "[tool.stilyagi.lint]\nselect = [\"STY\"]\n"
     },
@@ -30,9 +30,10 @@
         "title": "A line break ends the run"
       }
     ],
-    "explanation": "Two or more identical alphabetic tokens separated only by spaces or tabs are reported as a repeated run. Comparison is exact, so `the the` is a run and `The the` is not. A run never crosses markup, a region boundary, a line break, or a synthetic region, and inline code is excluded.",
+    "explanation": "Two or more identical alphabetic tokens separated only by spaces or tabs are reported as a repeated run. Comparison is exact, so `the the` is a run and `The the` is not. A run never crosses markup, a region boundary, a line break, or a synthetic region, and inline code is excluded. The `TOKENS` capability is supplied by the builtin pack's in-process tokenizer; no NLP model or external provider is loaded.",
     "fix_mode": "unsafe",
     "fixable": true,
+    "fixes": "The rule may propose an unsafe edit that removes the repeated suffix. Apply it only with `stilyagi check --fix --unsafe-fixes`; `--fix` alone skips it, and the `lint.fixable` policy still decides whether the code may contribute an edit. Review the diff before applying it, because a deliberate repetition such as `had had` is removed just as an accidental one is.",
     "limitations": [
       "Matching is exact and adjacent: `the the` is a run, but `the plan the plan` is not because other words intervene.",
       "A deliberate repetition is reported the same way as an accidental one, and the unsafe edit cannot tell them apart.",

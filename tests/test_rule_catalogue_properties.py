@@ -271,6 +271,24 @@ def _synthetic(code: str) -> RuleMetadata:
     )
 
 
+@settings(max_examples=150, deadline=None)
+@given(registry=_registries, filters=_filters)
+def test_generated_cases_cover_matching_and_nonmatching_classes(
+    registry: tuple[RuleMetadata, ...],
+    filters: RuleFilters,
+) -> None:
+    """Classify every generated case and require both outcomes to be reachable.
+
+    Hypothesis fails the run when a class the test declares is never produced,
+    so this turns "the generator can exercise a match and a miss" into an
+    assertion rather than a hope about the corpus.
+    """
+    selected = catalogue._select_rules(registry, filters)
+
+    event("empty registry" if not registry else "non-empty registry")
+    event("empty selection" if not selected else "matching selection")
+
+
 def test_generated_case_space_contains_both_outcomes() -> None:
     """The case space really does contain matching and nonmatching filters.
 
