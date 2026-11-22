@@ -170,7 +170,11 @@ def relint_written_files(
         for checked in planned
         if checked.result.planned is not None
     }
-    rerun = dc.replace(run, options=dc.replace(run.options, diff=False, fix=False))
+    rerun = dc.replace(
+        run,
+        options=dc.replace(run.options, diff=False, fix=False),
+        force_fresh=True,
+    )
     return collect_checked_files(
         (
             CheckInput(

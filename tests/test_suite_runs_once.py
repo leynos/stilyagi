@@ -139,6 +139,8 @@ def test_coverage_runs_nextest_without_the_doctests() -> None:
         for workflow in ("smoke.yml", "coverage-main.yml")
         for step in _steps(workflow)
         if str(step.get("uses", "")).startswith(COVERAGE_ACTION)
+        and typ.cast("dict[str, object]", step.get("with") or {}).get("build-only")
+        != "true"
     ]
     assert_with_context(
         len(coverage_steps) == 2, f"expected two coverage steps: {coverage_steps!r}"

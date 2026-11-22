@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import logging
 import pathlib
 import platform
 import typing as typ
@@ -19,6 +20,12 @@ from tests.performance.structural_probe_reporting import (
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+
+logger = logging.getLogger(__name__)
+# Without a handler, logging falls back to its last-resort stderr handler and
+# duplicates the traceback of a failure we re-raise. A NullHandler keeps an
+# unconfigured probe quiet while records still propagate to a configured root.
+logger.addHandler(logging.NullHandler())
 
 PROBE_NAME = "structural-syntax"
 ENTRYPOINT = "stilyagi.engine.extract_document"
@@ -239,16 +246,32 @@ def measure_probe(
 
 def write_report(report: ReportPayload, output_path: pathlib.Path) -> None:
     """Write a structural probe report as formatted JSON."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        f"{json.dumps(report, indent=2, sort_keys=True)}\n",
-        encoding="utf-8",
-    )
+    resolved_path = output_path.resolve()
+    logger.debug("writing report: path=%s", resolved_path)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            f"{json.dumps(report, indent=2, sort_keys=True)}\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        logger.exception("report write failed: path=%s", resolved_path)
+        raise
+
+
+def _configure_logging(level: str | None) -> None:
+    """Configure root logging when the caller opts in."""
+    if level is not None:
+        logging.basicConfig(
+            level=level,
+            format="%(levelname)s %(name)s: %(message)s",
+        )
 
 
 def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Run the structural performance probe command."""
     args = _argument_parser().parse_args(argv)
+    _configure_logging(args.log_level)
     if args.child_run:
         from tests.performance.structural_probe_execution import measure_extraction
 
@@ -343,6 +366,12 @@ def _argument_parser() -> argparse.ArgumentParser:
         type=pathlib.Path,
         default=pathlib.Path("build/performance/structural-baseline.json"),
         help="JSON report output path",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        default=None,
+        help="enable probe diagnostics at this level (default: disabled)",
     )
     parser.add_argument(
         "--child-run",

@@ -1,11 +1,24 @@
-"""Shared stand-ins for driving scripts/build_tools.py under cmd-mox.
+"""Shared stand-ins for driving scripts/build_tools.py at two boundaries.
 
 The script runs `curl`, `tar`, `rustup` and `mold`, and every failure it
 reports is a promise to the developer: an actionable `build-tools:` line and a
-non-zero exit instead of a silent fallback to a slower or different build. The
-tests execute the script as a subprocess whose `PATH` holds only shims, so a
-real `mold` on the machine cannot make a missing-tool case pass for the wrong
-reason, and they read the journal to prove what was, and was not, run.
+non-zero exit instead of a silent fallback to a slower or different build.
+
+The stand-ins serve two kinds of test, and the difference is what each can see.
+The cross-process cases run the script as a subprocess whose `PATH` holds only
+shims, so a real `mold` on the machine cannot make a missing-tool case pass for
+the wrong reason, and they read the journal to prove what was, and was not, run.
+The in-process cases import the script and call its orchestration with the
+catalogue runner replaced. Nothing is spawned there, so a result value is
+observable directly -- which is how the exact problem set of one preflight, or
+the whole argument vector of one tool call, is asserted rather than
+pattern-matched out of a merged standard-error stream.
+
+`ScriptedRunner` and `CurlServingRunner` are the in-process answers, and
+`command_result` builds the values they return. The shim factories and journal
+helpers are their cross-process counterparts. Importing the script also puts
+its sibling modules on the path, so `build_tools_environment` and
+`build_tools_pins` are available to both kinds.
 """
 
 import dataclasses as dc
@@ -18,6 +31,9 @@ import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs this repo
 import sys
 import tarfile
 import typing as typ
+
+from cuprum.program import Program
+from cuprum.sh import CommandResult
 
 from tests.support.errors import ReadingError
 
@@ -56,6 +72,10 @@ def load_script_module() -> types.ModuleType:
 
 
 build_tools = load_script_module()
+# Loading the script put `scripts/` on the path; the siblings come back here so
+# the in-process helpers are testable without a second import mechanism.
+build_tools_environment = importlib.import_module("build_tools_environment")
+build_tools_pins = importlib.import_module("build_tools_pins")
 
 
 def mold_archive() -> bytes:
@@ -220,3 +240,96 @@ def serve_archive(archive: bytes) -> Handler:
         return ("", "", 0)
 
     return handler
+
+
+def command_result(
+    *,
+    stdout: str = "",
+    exit_code: int = 0,
+) -> CommandResult:
+    """Return a stand-in command result with the chosen output and status.
+
+    Parameters
+    ----------
+    stdout:
+        The captured standard output the caller expects to read back.
+    exit_code:
+        The status the stand-in should report.
+
+    Returns
+    -------
+    cuprum.sh.CommandResult
+        A result carrying no argv or process identity, because nothing in
+        these contracts reads either.
+
+    Examples
+    --------
+    >>> command_result(exit_code=1).exit_code
+    1
+    """
+    return CommandResult(
+        program=Program("stub"),
+        argv=(),
+        exit_code=exit_code,
+        pid=0,
+        stdout=stdout,
+        stderr="",
+    )
+
+
+class ScriptedRunner:
+    r"""Answer a scripted command runner, recording what it was asked.
+
+    The orchestration under test takes its command runner as a parameter, so a
+    test substitutes this for it and then asserts the exact argument vector of
+    every call. Each queued answer is consumed in order; an exception queued in
+    place of a result is raised, which is how a missing executable or a failed
+    `curl` is expressed.
+
+    Examples
+    --------
+    >>> runner = ScriptedRunner(command_result(stdout="1.0\\n"))
+    >>> runner("mold", "--version").stdout
+    '1.0\\n'
+    >>> runner.calls
+    [('mold', ('--version',))]
+    """
+
+    def __init__(self, *answers: CommandResult | BaseException) -> None:
+        """Queue one answer per expected call, in order."""
+        self._answers = list(answers)
+        self.calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def __call__(
+        self,
+        program: str,
+        *args: str,
+        echo: bool = False,
+    ) -> CommandResult:
+        """Return the next queued answer, recording the invocation."""
+        self.calls.append((str(program), args))
+        answer = self._answers.pop(0) if self._answers else command_result()
+        if isinstance(answer, BaseException):
+            raise answer
+        return answer
+
+
+class CurlServingRunner(ScriptedRunner):
+    """Answer as `ScriptedRunner` does, writing the fixture archive for curl.
+
+    `curl` is the one command whose effect the orchestration reads back from the
+    filesystem rather than from its output, so the stand-in has to perform the
+    download it was asked for before handing over the queued answer.
+    """
+
+    def __call__(
+        self,
+        program: str,
+        *args: str,
+        echo: bool = False,
+    ) -> CommandResult:
+        """Serve the pinned archive to curl, then answer as usual."""
+        if str(program) == "curl":
+            destination = pathlib.Path(args[args.index("--output") + 1])
+            destination.write_bytes(mold_archive())
+        return super().__call__(program, *args, echo=echo)

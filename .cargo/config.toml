@@ -27,6 +27,12 @@
 # decision and the exclusions; docs/developers-guide.md explains them for
 # developers.
 
+[unstable]
+# The dev-build footprint standard (DF-003): from `nightly-2026-07-31` the
+# native key avoids duplicated metadata in the rlibs (Cargo still produces the
+# `.rmeta` files).
+embed-metadata = false
+
 [build]
 rustflags = ["-Zthreads=8"]
 

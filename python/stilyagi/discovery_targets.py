@@ -22,6 +22,7 @@ from stilyagi.discovery_results import (
 _EXTENSION_SYNTAXES: typ.Final[cabc.Mapping[str, model.Syntax]] = {
     "md": model.Syntax.MARKDOWN,
     "markdown": model.Syntax.MARKDOWN,
+    "mdc": model.Syntax.MARKDOWN,
     "py": model.Syntax.PYTHON_DOCSTRING,
     "rs": model.Syntax.RUST_DOC_COMMENT,
 }

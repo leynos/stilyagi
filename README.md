@@ -104,19 +104,27 @@ Working today:
   `--unsafe-fixes`.
 - `stilyagi check` over Markdown, Python, and Rust sources, with configuration
   discovery, text and JSON output, run summaries, and standard input.
+- `stilyagi config` reporting effective values with the file each leaf came
+  from, and `stilyagi dump-ir` emitting canonical intermediate representation.
+- An invocation-scoped Markdown extraction cache with a strict `--no-cache`
+  bypass, plus `stilyagi clean` for the files and namespaces this tool owns.
 - Three builtin Markdown rules — `MD001` heading depth, `STY001` adjacent
   repeated words, and opt-in `TERM001` banned terms — with selection, ignore,
   per-file ignores, and suppression.
 - Wheels that build and smoke-test on Linux, macOS, and Windows.
 
 The [developers' guide](docs/developers-guide.md) covers the intermediate
-representation these rest on.
+representation these rest on, and the
+[change notes](docs/markdown-inspection-and-cache-notes.md) summarize the
+inspection and cache behaviour for people picking the tool up for the first
+time.
 
 Designed, not yet built:
 
 - The rest of the v1 rule catalogue described on the website.
-- The `dump-ir`, `config`, `clean`, `rules`, and `rule` commands.
+- The `rules` and `rule` commands.
 - Grammar and spelling providers behind the capability planner.
+
 The [roadmap](docs/roadmap.md) is the reliable record: an item is ticked only
 once it is done.
 

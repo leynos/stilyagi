@@ -110,7 +110,6 @@ def stage_makefile_tree(destination: pathlib.Path) -> pathlib.Path:
         "uv.lock",
         "Cargo.toml",
         "Cargo.lock",
-        "scripts/duplication_gate.py",
     ):
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)

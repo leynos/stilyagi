@@ -173,7 +173,9 @@ def test_extract_bridge_payload_translates_documented_bridge_errors(
     monkeypatch.setattr(extraction_module, "extract_document_bridge", fail_bridge)
 
     with pytest.raises(extraction_module.BridgeExtractionError, match=message) as error:
-        extraction_module._extract_bridge_payload("# Heading", model.Syntax.MARKDOWN)
+        extraction_module._extract_bridge_payload(
+            "# Heading", model.Syntax.MARKDOWN, source_path=None
+        )
 
     assert isinstance(error.value.__cause__, bridge_error), "expected bridge cause"
 

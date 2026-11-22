@@ -80,7 +80,7 @@ def _run_failing_check(
     """Run one failing check and return warnings captured on stderr."""
     _stub_discovery(harness.monkeypatch, target)
 
-    exit_code = cli.run_check(cli.CheckOptions(targets=(target.name,)))
+    exit_code = cli.run_check(cli.CheckOptions(targets=(target.name,), no_cache=True))
     captured = harness.capsys.readouterr()
 
     assert exit_code == 2, "expected exit_code == 2"
@@ -221,8 +221,8 @@ def _setup_extractor_failure(
     target.write_text("# Notes\n", encoding="utf-8")
     monkeypatch.setattr(
         engine,
-        "extract_document",
-        lambda _source, _syntax: _raise_bridge_extraction_error(),
+        "extract_document_result",
+        lambda _source, _syntax, *, source_path=None: _raise_bridge_extraction_error(),
     )
     expected = f"stilyagi check: failed to check {target.name}: bridge exploded"
     return target, (expected,)

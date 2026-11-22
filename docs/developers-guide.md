@@ -168,10 +168,10 @@ test-only and should not be used for application validation or control flow.
 ### The `.md.fixture` corpus convention
 
 Because discovery matches the final suffix, `.md.fixture` remains undiscovered
-even though `stilyagi check` now discovers `.md`, `.markdown`, `.py`, and `.rs`
-files. Any test that exercises discovery must strip the trailing `.fixture`
-suffix when materializing fixtures into a temporary tree; otherwise the
-fixtures are invisible to discovery and the test passes vacuously.
+even though `stilyagi check` now discovers `.md`, `.markdown`, `.mdc`, `.py`,
+and `.rs` files. Any test that exercises discovery must strip the trailing
+`.fixture` suffix when materializing fixtures into a temporary tree; otherwise
+the fixtures are invisible to discovery and the test passes vacuously.
 
 The shared helper `tests/support/malformed_corpus.py` centralizes this:
 `materialize_malformed_corpus(destination)` copies each fixture from
@@ -411,9 +411,29 @@ interpreter before the measured iterations run in that same interpreter.
 Use the probe output as review evidence when changing the structural extractor,
 Python adapter, or build spine. Compare cold with cold and warm with warm, and
 look for large regressions in context rather than treating one noisy local
-sample as a hard threshold. If later roadmap slices extend `stilyagi check`
-with additional subcommands or persistent Stilyagi caches, update this section
-and the ExecPlan-backed tests together.
+sample as a hard threshold. The Markdown inspection commands and the persistent
+extraction cache are described in the command-boundary section below; later
+changes to those surfaces should update the relevant tests and documentation
+together.
+
+Both probe modules log through a module-level logger that is silent by default.
+Pass `--log-level` to configure the root logger and emit diagnostics on
+standard error:
+
+```bash
+.venv/bin/python -m tests.performance.structural_probe \
+  --mode both \
+  --output build/performance/structural-baseline.json \
+  --log-level DEBUG
+```
+
+At `DEBUG` level the probe records fixture discovery, measurement-run entry and
+exit, and every cold subprocess command with its mode and iteration index. The
+report-writing step records the resolved absolute output path, so a relative
+`--output` value can still be located from the log. When a cold subprocess
+exits non-zero, the probe logs its captured standard error at `ERROR` level
+before re-raising the failure. Without `--log-level`, no records are emitted
+and the command's normal output is unchanged.
 
 Round-trip edit helpers exist to test fix safety before the full rule engine
 lands. They must preserve source text outside edited ranges, accept adjacent
@@ -437,6 +457,12 @@ level.
 parses the arguments into an immutable `CheckOptions` via
 `cli_args.options_from_args()`, and then calls
 `run_check(options, *, collaborators=None)`.
+
+The `check` and `config` parsers share builders for output-format and isolated
+options. Keep the argument shape and validation in those builders; each command
+supplies only the help text that describes its target. `cli_config_command.py`,
+`cli_dump_ir.py`, and `cli_clean.py` own the command-specific coordination for
+configuration inspection, canonical IR output, and owned-cache cleanup.
 
 The command module keeps four responsibilities: target discovery, rendering,
 handling and printing to the correct streams, and computing the exit status.
@@ -476,6 +502,65 @@ Each factory resolves its target through the module at call time rather than
 capturing the object at import time. That keeps a module-level default
 substitutable: a test that monkeypatches `rules_registry.run_rules` still
 influences the default, exactly as the previous call-time lookup did.
+
+### Cache collaborator injection
+
+The extraction cache is injectable at both command boundaries.
+`CheckCollaborators.extraction_cache` and `DumpIrCollaborators.cache` both
+default to `None`, and `None` means "build the production service". When the
+boundary builds one, it constructs a `CacheExtractionService` for that
+invocation alone, anchored at the invocation cwd with the installed package
+version. Either way it closes the selected service in a `finally` once the
+command finishes. The service owns descriptors, so its lifetime is the
+command's: nothing outlives the invocation that opened it.
+
+An injected service supplies its own identity and extractor. The bypass is not
+part of that identity, because it is a request rather than a capability: when
+`--no-cache` is given, the boundary calls `without_persistent_cache()` on
+whichever service it selected. The flag then means the same thing whether the
+service was built here or injected, and a caller cannot accidentally re-enable
+storage by supplying its own. A service that had already opened storage keeps
+those descriptors until `close` and simply performs no further operations
+through them.
+
+Tests that inject a service to observe cache traffic still see the reads and
+publishes they inject it for; they opt into the bypass by passing `--no-cache`,
+which is the same switch a user has.
+
+The invocation directory is injectable for the same reason.
+`CheckCollaborators.invocation_cwd` and `DumpIrCollaborators.invocation_cwd`
+both default to `None`, and `None` means "read the process working directory".
+Only `cli_extraction_cache._ambient_directory` reads it, so the ambient
+dependency has exactly one call site and a test can exercise both commands
+against a temporary tree without changing process-global state. Pass the
+directory, not the cache, when the point of the test is where the command
+anchors a cache it builds itself.
+
+### Cache lookup is a query; publication is a command
+
+`CacheExtractionService.lookup` answers "what should this request return?" and
+`publish` stores it. The split exists because the read path used to persist as
+a side effect of a query-named call: opening the root with `create=True`,
+writing `owner.json`, and publishing the miss entry were all reachable from
+`extract`.
+
+`lookup` returns a `CacheLookup`: the extraction result, plus a `Publication`
+describing the bytes to store when the request was a miss worth caching. It
+opens the configured parent and namespace only when they already exist and
+brings nothing into being when they do not, so a cold lookup leaves the
+filesystem exactly as it found it. `publish` is the only route by which a store
+creates storage; `CacheStore.create_namespace` creates the parent, the
+namespace and the marker, and a store that never had one reports `read` as
+`None` and refuses `write`.
+
+Both command boundaries call the pair, in order, at the point where a document
+is extracted. A cache hit carries no publication, so the second call is a
+no-op. A miss carries the key and bytes derived from the same reading of the
+request, which is what keeps the stored key and the stored payload from
+diverging. Callers must not treat `lookup` as if it returned something already
+stored: a result the command returns may never have reached the cache, and a
+`publish` failure is a counted `write_failure` that leaves the run's output
+intact.
 
 ### Configuration resolution
 
@@ -592,8 +677,8 @@ the requested targets.
 
 Discovery is a single deterministic pass, sorted by resolved path, that skips
 known build-noise directories and does not follow symlinked directories. The
-registered suffixes are `.md`, `.markdown`, `.py`, and `.rs`; unregistered
-source candidates are counted as skipped. `check_execution` defines
+registered suffixes are `.md`, `.markdown`, `.mdc`, `.py`, and `.rs`;
+unregistered source candidates are counted as skipped. `check_execution` defines
 `_resolve_discovery_config`, which resolves configuration for the current
 working directory rather than per individual file.
 `check_targets.discover_targets` may call this helper during command
@@ -613,12 +698,14 @@ Each discovered file becomes a `check_inputs.CheckInput` through
 `CheckInput.from_discovered`, which carries the `reported_path`,
 `resolved_path`, and selected `syntax`. Standard-input runs build their
 `CheckInput` directly: `--stdin-filename` selects the syntax by final suffix
-(defaulting to Markdown when omitted), and an unregistered stdin filename is
-logged and counted as skipped rather than checked. Per-file dispatch then goes
-through `check_execution._check_one_file`, which reads Python source using its
-declared encoding and other source as UTF-8, stripping a leading byte-order
-mark. It extracts through the bridge, resolves the per-file config, and reports
-operational failures with exit code `2`.
+(including `.mdc`, and defaulting to Markdown when omitted), and an
+unregistered stdin filename is logged and counted as skipped rather than
+checked. Per-file dispatch then goes through `check_execution.check_one_file`,
+which reads Python source using its declared encoding and other source as
+UTF-8, stripping a leading byte-order mark. It resolves the per-file config
+first, so the cache key carries the same effective values as the rule run, and
+then extracts through the bridge. It reports operational failures with exit code
+`2`.
 
 For filesystem targets, `check_targets.discover_targets` carries the result's
 notices and failures in `DiscoveryInputs`. After the query returns,
@@ -657,8 +744,8 @@ per-file checking, and run aggregation:
 
 `python/stilyagi/check_execution.py` owns the per-file execution stage:
 `_read_source` reads or decodes one input, and `check_one_file` runs
-extraction, configuration resolution, and rules for it. The module records
-phase timings around read, extract, config, and rules; `cli.py` owns the
+configuration resolution, extraction, and rules for it. The module records
+phase timings around read, config, extract, and rules; `cli.py` owns the
 discovery and render phases around its command orchestration.
 
 `python/stilyagi/check_paths.py` resolves the glob anchor for the file being
@@ -709,6 +796,19 @@ local snapshot. Each check resets these snapshot values. Existing
 metrics-facade calls still reach a recorder installed by an embedding host,
 without changing its ownership or lifetime. The standalone `--verbose` JSON
 snapshot is independent of that recorder and is written to stderr.
+
+The setter helpers in `check_metrics/snapshot.rs` (`set_categories`,
+`set_run_counters`, `set_failure_counters`, `set_extraction_totals` and
+`set_extraction_fatal_errors`) are private to that file. `set_check_counters`
+calls `set_run_counters` and `set_failure_counters`, and
+`set_extraction_counters` calls `set_extraction_totals` and
+`set_extraction_fatal_errors`; the three groups that record categories
+(`set_run_counters`, `set_failure_counters` and `set_extraction_fatal_errors`)
+call `set_categories`. They exist to keep each function's branching low, so a
+new counter joins the group it belongs to rather than growing one long setter.
+Likewise `list_child_node_ids` and `table_child_node_ids` in
+`crates/stilyagi-markdown/src/builder.rs` are private to `child_node_ids`,
+which dispatches to them by node kind.
 
 `check_execution.py` records per-file `read`, `extract`, `config`, and `rules`
 durations; `cli.py` records the `discovery` and `render` phases. These are the
@@ -793,6 +893,16 @@ reach a host-installed recorder; Stilyagi does not install or replace it.
     rendering, and exit-code computation) emits log records through a
     per-module `logging` logger, so runs can be traced without changing any
     user-facing output.
+- `config/provenance.py` owns the recursive config-table merge and the
+  per-leaf source ledger used by `stilyagi config`. Its scope is config values
+  and their source layers; it is not a reusable provenance framework and does
+  not perform discovery or filesystem writes. `config/inspection.py` projects
+  validated schema values, defaults and preserved settings into the command's
+  output shape. Inspection reuses the resolver's discovery and raw-table caches.
+- `cli_config._build_rule_selection_overrides` is the one translation for
+  `--select`, `--ignore` and `--extend-select`, shared by `check` and `config`.
+  Keep those flag semantics here; unrelated override sources use their own
+  explicit layer handling.
 - `config/schema.py` holds the frozen config dataclasses (`StilyagiConfig`,
   `LintConfig`, `MarkdownExtractConfig`, `NlpConfig`) and the shared
   `ConfigError` base class, with `InvalidCacheDirError` and
@@ -811,8 +921,9 @@ reach a host-installed recorder; Stilyagi does not install or replace it.
 ### Diagnostics
 
 `check_execution.check_one_file` owns the per-file path. For each discovered
-file it extracts the document through the Rust bridge, resolves the per-file
-config, and collects diagnostics from two sources:
+file it resolves the per-file config before requesting Markdown extraction, so
+the cache key uses the same effective values as the rule run. It then collects
+diagnostics from two sources:
 
 - `engine/checker.py` `map_ir_errors(document, reported_path)` maps the
   canonical IR error envelope on `Document.ir` into `diagnostics.Diagnostic`
@@ -922,6 +1033,18 @@ small package, one module per concern:
   not. `source_backed_spans(document)` returns sorted, merged, disjoint spans,
   and `segment_for_span(document, span)` returns the source-backed segment that
   wholly contains a span, or `None`.
+- `offset_view.py` `OffsetView.of(source_bytes)` splits a leading UTF-8
+  byte-order mark from the bytes IR offsets address, and `restore` puts it
+  back. It exists because the reader decodes Markdown with `utf-8-sig`: every
+  IR offset counts from the byte after the mark, while the source bytes still
+  carry it, so validating one view against the other refuses every edit in a
+  buffer-marked file. Keeping it separate from `plan.py` gives the planner one
+  view to work in without re-deriving the mark width at each call site.
+- `frontmatter.py` keeps `_source_segments(region)` local to YAML-frontmatter
+  provenance. It shares segment/source mapping checks between span selection
+  and source-text matching; those callers retain their distinct validation
+  rules. Do not generalize it into a replacement for document-wide segment
+  iteration.
 - `admissibility.py` `classify_edit(edit, source_bytes, document, rule_code)`
   returns an `EditRejection` or `None`. A span is admissible when it is bounded
   by the source, aligned to UTF-8 boundaries, wholly inside one source-backed
@@ -940,7 +1063,16 @@ small package, one module per concern:
   byte position, refuses overlaps that are not exact duplicates, and produces a
   `PlannedFile`. A plan that loses any edit carries no replacement bytes at
   all, so a conflict leaves the file with nothing to write rather than a
-  partial result.
+  partial result. Its frontmatter guard reaches an extractor only through
+  `FixPlanRequest.verify_markdown`: re-extracting the repaired text is what
+  proves the metadata prefix survived. That field defaults to
+  `markdown_verifier()`, the production adapter over `_re_extract_markdown` in
+  `verification.py` -- not in `plan.py`, which imports it. It is a request
+  field rather than a module-level import so the guard can be exercised with a
+  fake and an embedding caller can supply the extractor it already owns. A
+  verifier signals an unreadable document by raising `FixVerificationError`;
+  the planner treats that as "the prefix cannot be vouched for" and refuses the
+  whole plan rather than writing bytes it never verified.
 - `splice.py` `apply_edits(source_bytes, edits)` is the normative kernel for
   splice semantics. It is deliberately narrow: it assumes its input is already
   validated and does nothing but give admitted edits deterministic byte
@@ -998,6 +1130,22 @@ expected failures; it logs the message and prints a `stilyagi check:` line to
 standard error, distinguishing a `SourceReadError` from an extraction or
 configuration failure, and accepting `None` for a failure that has no single
 path.
+
+`cli_command_shell.py` states the failure shape the read-only commands share.
+`command_streams(output, error)` resolves the optional result and failure
+streams every command accepts, replacing each ``None`` with the process's own
+stream, and returns them as a `CommandStreams` pair so a command names its two
+parameters and nothing else.
+`write_command_failure(error, command=…, failure=…)` renders the one
+`stilyagi <command>: <reason>` sentence and returns status two, tying the
+sentence to the status so a new command cannot pick a different prefix or a
+different code. The `command` argument is the subcommand the user typed, and
+the reason is the typed error's own message, so no message table is duplicated.
+`config`, `dump-ir`, and `clean` all report through these helpers; a new
+command should import this module rather than render its own prefix. This is
+policy rather than byte handling, which is why it is not part of `cli_io.py`,
+and it holds the shared shape only — each command still decides which of its
+own typed errors are expected failures.
 
 `check_execution.check_one_file` builds a `FixRequest` for a file from its
 already-read bytes and text, the extracted document, the diagnostics collected
@@ -1185,7 +1333,8 @@ particular.
 - Syntax and locale scope
   - Current implemented extraction support covers Markdown, Python
     docstrings, and Rust documentation comments.
-  - Default command discovery covers `.md`, `.markdown`, `.py`, and `.rs`.
+  - Default command discovery covers `.md`, `.markdown`, `.mdc`, `.py`, and
+    `.rs`.
     Keep the fixed extension-to-syntax table in `stilyagi.discovery_targets`;
     `stilyagi.discovery` remains the facade/query until a deliberate Rust
     discovery migration replaces it. Do not add configuration or flags for
@@ -1355,7 +1504,7 @@ The first real extraction path is now:
 
 ```plaintext
 python/stilyagi/engine/extraction.py
-  -> stilyagi._stilyagi_rs.extract_document(source, syntax)
+  -> stilyagi._stilyagi_rs.extract_document(source, syntax[, source_path])
   -> crates/stilyagi-pyext/src/lib.rs
   -> crates/stilyagi-extract/src/lib.rs
 ```
@@ -1370,9 +1519,85 @@ crate.
 
 String-only extraction uses anonymous IR source identity: `document.path` and
 `document.uri` are serialized as `null` instead of synthetic memory paths or
-URIs. Callers with real file context should use the identity-aware extraction
-API once the relevant adapter or CLI surface exposes it, so source identity is
-supplied at the boundary rather than invented inside the IR domain.
+URIs. Callers with file context may pass `source_path` to
+`engine.extract_document` or `engine.extract_document_result`. The latter
+returns an `ExtractionResult` containing both the typed `document` and Rust's
+original `canonical_json`; use it when framing debug output without
+re-serializing the IR.
+
+The extension's `hydrate_ir_json` entrypoint restores canonical IR through the
+same Rust schema and region conversion used by extraction. Cache callers must
+validate the cache key and canonical-byte checksum before hydration; hydration
+does not represent a new extraction and does not increment extraction metrics.
+
+`cache/extraction.py` owns invocation-scoped cache selection. It receives the
+already-resolved per-file configuration, source text, syntax and reported
+identity; it does not discover targets or load configuration. Its complete
+identity includes the normalized effective values, the loaded extension digest,
+package version, enabled built-in rule signature and explicit inactive NLP
+signature. It validates the canonical JSON envelope before asking Rust to
+hydrate it. Check and dump share this service; check still runs current rules
+and fix planning after a hit, and written files are re-extracted during
+post-fix verification.
+
+`cache/storage_primitives.py` owns descriptor-relative no-follow operations and
+normalizes filesystem faults as `CacheStorageError`. Its scope is limited to
+operations shared by cache storage and cleanup; request policy belongs in the
+adapters. `cache/storage.py` owns reads and atomic writes beneath a marked
+`stilyagi-v1` namespace. `cache/model.py` owns the exact filename classifier
+shared with `cache/clean.py`. Cleanup traverses from the invocation directory,
+prunes `.git`, skips directory symlinks, and removes only marked namespaces and
+recognized disposable files. It never owns the configured parent directory.
+Unknown entries keep their namespace in place. If a platform lacks the
+no-follow or non-blocking descriptor operations, cleanup refuses the operation
+rather than falling back to resolved-path checks. Regular-file candidates are
+opened non-blocking before their type is checked, so a FIFO cannot stall a
+cache read. If a concurrent writer repopulates a namespace after its marker is
+removed, cleanup restores the exact marker only while the same namespace
+identity remains.
+
+Extraction-cache tests use `tests/support/cache_extraction.py` for independent
+parser-call counters and forbidden cache callbacks. Keep fault adapters,
+assertions and expected outcomes in each test so shared helpers do not hide the
+contract being checked.
+
+`--no-cache` and stdin reach the extraction service's direct path before it
+constructs a storage adapter or hashes the extension. The post-fix check also
+sets `force_fresh`. These paths perform no persistent-cache reads, writes,
+directory creation, or cache-path stats. The fixed cache counters are logged
+without file paths; keep their names in `cli_log.STRUCTURED_FIELDS` so verbose
+output exposes them.
+
+Each storage operation is timed as a completed span at INFO: one
+`extraction_cache_storage` record carrying a fixed `outcome` (open, read or
+write) and an `elapsed_ms`. INFO rather than DEBUG is deliberate, because
+`--verbose` raises the root to INFO and no higher, so a DEBUG record would be
+computed and discarded. The record's attribute set is exactly those fields plus
+the counters above: no path, no key, and no error text, so the timing can be
+logged on every invocation without leaking user input into a log. A storage
+failure is reported separately as a bounded category from
+`StorageFailureCategory`; parent-directory open and creation failures are
+`LEASE_UNAVAILABLE` rather than `ENTRY_INVALID`, because no entry was reached
+and the caller should remember the root as unusable rather than retry it.
+
+`cli_clean.py` invokes cleanup from the current working directory without
+loading project configuration. Cleanup owns only marked cache namespaces and
+recognized disposable entries; a configured cache parent, unknown files and
+symlink targets remain outside its deletion boundary.
+
+The `cli_dump_ir` coordinator reuses `check_targets.parse_target_operands`,
+shared configuration resolution, discovery and source reading. It filters the
+discovered set to Markdown, carries each reported path into Rust source
+identity, and builds the complete canonical output in a 1 MiB spooled stream
+before writing stdout. Check-only rule and fix options do not belong on the
+command, but it is not read-only with respect to its own extraction cache: it
+publishes a miss exactly as `check` does, so a second run reuses the entry.
+
+The private `_write_chunk` lives in `cli_dump_ir_output`, beside the framing
+and spool helpers it belongs with, and `cli_dump_ir` imports it: its callers
+write canonical JSON framing or stdout chunks. Its error-code argument shares
+the complete-write check while keeping spool and stdout failures distinct. Do
+not promote it to a general stream API.
 
 Table: Current Markdown, Python, and Rust extraction differences.
 
@@ -1437,6 +1662,8 @@ and `[build-system].requires`. Keep those pins in sync when updating maturin.
 The Python tests in `tests/test_maturin_build.py` validate that contract,
 assert that the installed maturin module matches the pin, and build a native
 wheel whose normalized metadata and layout are compared with a syrupy snapshot.
+The shared wheel fixture allows 1,200 seconds for that release build because
+compiler admission can add substantial wall time on a busy host.
 
 To refresh the native wheel snapshot after a maturin or PyO3 update, run:
 
@@ -1517,9 +1744,11 @@ There are also three concrete cross-boundary rules worth preserving:
   scope. Syntax-vocabulary validation is protected by a module lock so
   concurrent callers share one validated state, and bridge-patching tests must
   reset that state through the dedicated test helper before observing patched
-  vocabularies. Its public `extract_document(source, syntax)` adapter validates
-  the bridge vocabulary, converts the Rust payload into a `model.Document`, and
-  preserves the optional IR JSON mapping on that document.
+  vocabularies. Its `extract_document(source, syntax, *, source_path=None)`
+  adapter validates the bridge vocabulary, converts the Rust payload into a
+  `model.Document`, and preserves the optional IR JSON mapping on that document.
+  `extract_document_result` additionally retains Rust's canonical JSON string
+  for callers such as `dump-ir`.
 - The Rust workspace should not depend on Python package modules for policy or
   plugin decisions. Python owns orchestration and registration; Rust owns
   extraction and source fidelity.
@@ -1632,13 +1861,14 @@ behaviourally identical to `release`.
 
 The `.github/workflows/smoke.yml` workflow is the bounded CI smoke path for
 this repository. Its `lint-test` job (on an Ubicloud runner, with a hosted
-fallback for a fork's pull request) installs Python, Rust, `uv`, the pinned
-build tools (`make install-build-tools`), and the support tools required by the
-checked targets, then runs `make check-fmt`, `make markdownlint`, `make nixie`,
-`make typecheck`, `make lint`, and `make test-doc`. Its `release-smoke` matrix
-builds and smoke-tests release wheels on Ubuntu, macOS, and Windows. The
-workflow is not release publishing automation; it proves that local development
-installs and release wheels exercise the same PyO3 boundary.
+fallback for a fork's or Dependabot's pull request) installs Python, Rust,
+`uv`, the pinned build tools (`make install-build-tools`), and the support
+tools required by the checked targets, then runs `make check-fmt`,
+`make markdownlint`, `make nixie`, `make typecheck`, `make lint`, and
+`make test-doc`. Its `release-smoke` matrix builds and smoke-tests release
+wheels on Ubuntu, macOS, and Windows. The workflow is not release publishing
+automation; it proves that local development installs and release wheels
+exercise the same PyO3 boundary.
 
 CI runs `make test-doc` rather than `make test` because every other part of
 `make test` already runs once per event. The coverage step in `smoke.yml` on a
@@ -1875,11 +2105,21 @@ confirm `-C instrument-coverage` appears without `-Zthreads=8`, `mold`, or a
 
 ### Why Cranelift is not part of the standard
 
-The Cranelift codegen backend is the estate default for development builds
-where the full suite passes under it. This repository has a reproduced
-incompatibility on the pinned channel, `nightly-2026-10-18`, so the dev profile
-keeps the default LLVM backend and `.cargo/config.toml` carries no
-`codegen-backend` key.
+LLVM is the default codegen backend for every profile in this repository.
+Cranelift is disabled here and is opt-in only. On 14 November 2026 the estate
+decided that Cranelift is not part of the Rust build standard for now
+([concordat decision record](https://github.com/leynos/concordat/blob/main/docs/adrs/adr-0004-cranelift-is-not-part-of-the-rust-build-standard.md)).
+That decision is scheduled for review on 14 May 2027. Cranelift is disabled,
+not removed: the toolchain component stays installed for requalification.
+
+This repository selects no codegen backend. `.cargo/config.toml` carries no
+`codegen-backend` key and no `[unstable] codegen-backend` switch, so the dev
+profile keeps the default LLVM backend. The pinned channel,
+`nightly-2026-10-18`, also reproduces an incompatibility with Cranelift, which
+is recorded below.
+
+The unwind probe described below (`unwind_probe.rs`) was removed when the
+estate abandoned Cranelift; the reproduction is kept as history.
 
 The reproduction, on the pinned channel with the two backend keys added:
 
@@ -1903,7 +2143,10 @@ interpreter, or escape PyO3's wrapper, instead of raising `PanicException`.
 
 The exception is scoped to `nightly-2026-10-18`, to `x86_64-unknown-linux-gnu`
 (the only platform measured), and to the dev and test profiles. It goes stale
-on every pin move: a bump that wants to retire it adds
+on every pin move: a bump that wants to retire it restores the probe from git
+history
+(`git restore --source=509d7d0^ -- crates/stilyagi-pyext/tests/unwind_probe.rs`,
+because PR #285 removed it in `509d7d0`), adds
 `[unstable] codegen-backend = true` and
 `[profile.dev] codegen-backend = "cranelift"` to `.cargo/config.toml`, runs
 `cargo nextest run -p stilyagi-pyext --test unwind_probe` (each case runs in
@@ -1967,14 +2210,14 @@ Their responsibilities are:
     warnings denied
   - run Whitaker for all workspace crates, targets, and features with warnings
     denied
-  - run Skylos as the final strict production dead-code check over
-    `python/stilyagi`, excluding `tests`
-  - install the pinned `nose` duplication detector if needed, then run the
-    blocking code-duplication gate over `python/stilyagi`
+  - run `make skylos`, the strict production dead-code check over
+    `python/stilyagi`, excluding `tests`, through the installed `df12-skylos`
+    command
+  - run `make duplication`, which provisions the pinned `nose` detector and
+    runs the blocking code-duplication gate over `python/stilyagi` through the
+    installed `df12-duplication` command
 - `make typecheck`
   - It rebuilds the editable environment when needed.
-  - It stages the gate's PEP 723 dependencies through the `TY_GATE_DEPS`
-    stamp, so the checker can resolve the imports of `scripts/duplication_gate.py`.
   - It runs `cargo check` for all workspace crates, targets, and features with
     warnings denied.
   - It runs the pinned `ty` 0.0.74 release through `uv tool run` with
@@ -1988,23 +2231,15 @@ Their responsibilities are:
   - run Rust tests with `cargo-nextest` when available, otherwise `cargo test`
   - run Rust doc tests explicitly with Rustdoc warnings denied
   - run Python tests through `.venv/bin/python -m pytest -v`
-  - run `make duplication-test`, because the gate's helper tests live outside
-    `pyproject.toml` `testpaths` and a bare pytest run never collects them
 - `make test-doc`
   - run Rust doc tests with Rustdoc warnings denied
   - run the Python docstring examples through `pytest --doctest-modules`
 
+- `make skylos`
+  - run the strict production dead-code scan through `df12-skylos check`
 - `make duplication`
-  - install the pinned `nose` detector if needed
+  - install the pinned `nose` detector if needed (`df12-duplication install`)
   - run the blocking duplication gate over `python/stilyagi`
-- `make duplication-test`
-  - run the duplication-gate helper tests, which use injected runners and stub
-    executables rather than downloading the detector
-  - run under `--no-project` with the gate's own pinned dependencies, and name
-    the test files explicitly rather than globbing, so a new helper-test module
-    must be added to the list or it is silently uncollected
-  - accept `DUPLICATION_TEST_ARGS` for one-off pytest flags, such as
-    `--snapshot-update` when a pinned report intentionally changes
 - `make duplication-allow`
   - record one reasoned duplication exception in `pyproject.toml`; requires
     `FIRST` and `REASON`, and accepts several `SECOND` keys in one quoted,
@@ -2168,7 +2403,7 @@ structure without YAML type coercion. The helper accepts only a top-level
 mapping and raises `TypeError` with the message
 `A workflow must parse to a top-level mapping` for other document shapes.
 
-Both `tests/test_ci_workflow_units.py` and `tests/test_skylos_lint_contract.py`
+Both `tests/test_ci_workflow_units.py` and `tests/test_makeutil_ci_contract.py`
 reuse this helper instead of maintaining separate workflow parsers.
 
 ### 6a. Python linting architecture
@@ -2201,14 +2436,10 @@ the shipped package. `ty` reads the same three trees plus `.github` (which
 holds no Python files today); the overlap with lint is deliberate, so lint and
 type checking read one scope.
 
-One consequence is worth stating for the gate scripts specifically: a
-third-party package a script declares only in its PEP 723 `# /// script` block
-is not in the project environment, so `ty` cannot resolve it from there.
-`TY_GATE_STAGE_DIR` stages those packages for the checker at the versions the
-script declares, and `TY_EXTRA_PATHS` adds both `scripts/` and the staging
-directory to the checker's search path (`make typecheck` depends on the stamp
-that builds it). Widen the staging rather than the application environment: a
-dependency only a gate script uses does not belong in `pyproject.toml`.
+`TY_EXTRA_PATHS` adds `scripts/` to the checker's search path. A third-party
+package a script declares only in its PEP 723 `# /// script` block is not in
+the project environment, so keep such a dependency out of `pyproject.toml` and
+give the checker a staging path of its own if a new script needs one.
 
 `make lint` composes two stages. `make lint-clippy` runs the Python tiers above
 and then the Rust lint tiers owned by the repository:
@@ -2218,9 +2449,9 @@ and then the Rust lint tiers owned by the repository:
    and appends `RUSTDOC_FLAGS_EXTRA`; an environment `RUSTDOC_FLAGS` replaces
    the default outright.
 2. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-3. Skylos through its pinned CPython 3.14 tool environment, scanning production
+3. `df12-skylos` through its CPython 3.14 tool environment, scanning production
    dead code strictly
-4. the blocking `nose` duplication gate
+4. the blocking `nose` duplication gate through `df12-duplication`
 
 `make lint-whitaker` then runs
 `whitaker $(WHITAKER_LIBRARIES) -- --workspace --all-targets --all-features`
@@ -2262,42 +2493,33 @@ The Makefile exposes the lint runner through these variables:
 
 Table: Lint runner Makefile variables.
 
-| Variable                       | Default                                                                                                                         | Purpose                                                                      |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `UV`                           | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                                   | Selects the `uv` executable used by Makefile Python commands.                |
-| `UV_ENV`                       | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                                  | Keeps `uv` cache and tool state inside the repository worktree.              |
-| `UV_RUN`                       | `$(UV_ENV) $(UV) run --group dev`                                                                                               | Runs commands in the locked development dependency group.                    |
-| `RUFF_VERSION`                 | `0.16.4`                                                                                                                        | Pins the Ruff version shared by the Makefile and CI.                         |
-| `RUFF`                         | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                                             | Builds the pinned Ruff command used by formatting and lint gates.            |
-| `INTERROGATE`                  | `$(UV_RUN) interrogate`                                                                                                         | Selects the docstring-coverage command used by `make lint`.                  |
-| `INTERROGATE_TARGETS`          | `python/stilyagi tests scripts`                                                                                                 | Selects the directories checked by Interrogate.                              |
-| `INTERROGATE_FLAGS`            | `--fail-under 100`                                                                                                              | Requires complete Python docstring coverage.                                 |
-| `PYLINT_PYTHON`                | `3.14`                                                                                                                          | Selects the interpreter passed to `uv tool run` for Pylint.                  |
-| `PYLINT_TARGETS`               | `python/stilyagi tests scripts`                                                                                                 | Selects the directories checked by the Pylint and df12 tiers.                |
-| `PYLINT_VERSION`               | `4.0.9`                                                                                                                         | Pins the Pylint release used by the focused Pylint tier.                     |
-| `PYLINT`                       | `$(UV_ENV) $(UV) tool run --managed-python --python $(PYLINT_PYTHON) --from 'pylint==$(PYLINT_VERSION)' pylint --load-plugins=` | Builds the focused Pylint command used by `make lint`.                       |
-| `DF12_PYTHON`                  | `3.14`                                                                                                                          | Selects CPython for the df12 Pylint and scanner tiers.                       |
-| `DF12_PYLINT_MESSAGES`         | all thirteen v0.3.0 message IDs                                                                                                 | Selects the df12 Pylint diagnostics.                                         |
-| `DF12_PYLINT`                  | project-backed Pylint with `df12_python_lints` loaded                                                                           | Builds the CPython df12 Pylint command.                                      |
-| `AMBRLEAKS`                    | locked `uv run --group dev --python 3.14` environment                                                                           | Builds the snapshot leak scanner command from the locked commit.             |
-| `AMBRLEAKS_TARGETS`            | `tests scripts`                                                                                                                 | Selects the directories the snapshot leak scanner reads.                     |
-| `SKYLOS_VERSION`               | `4.33.2`                                                                                                                        | Pins the dead-code detector used by `make lint`.                             |
-| `SKYLOS_CLI`                   | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'skylos==$(SKYLOS_VERSION)' skylos`                                              | Builds the command-only Skylos CLI.                                          |
-| `SKYLOS`                       | `$(SKYLOS_CLI) --config-file pyproject.toml`                                                                                    | Adds scan-only configuration to the Skylos CLI.                              |
-| `SKYLOS_PRODUCTION_TARGETS`    | `python/stilyagi`                                                                                                               | Limits dead-code analysis to production Python sources.                      |
-| `SKYLOS_EXCLUDE_FOLDERS`       | `tests`                                                                                                                         | Excludes tests from the production liveness graph.                           |
-| `CARGO_BINSTALL`               | `cargo-binstall`                                                                                                                | Selects the installer used to provision the pinned detector.                 |
-| `NOSE_VERSION`                 | `0.20.0`                                                                                                                        | Pins the duplication detector shared by the Makefile, CI, and `[tool.nose]`. |
-| `NOSE_TOOLS_DIR`               | `.tools/nose`                                                                                                                   | Selects the detector install directory, cached in CI and ignored by Git.     |
-| `NOSE_BIN`                     | `$(NOSE_TOOLS_DIR)/nose`                                                                                                        | Selects the detector binary the gate runs, and the version check reads.      |
-| `DUPLICATION_GATE`             | `$(UV_ENV) NOSE_BIN=$(NOSE_BIN) $(UV) run scripts/duplication_gate.py`                                                          | Builds the gate command run by `make lint` and `make duplication`.           |
-| `TY_VERSION`                   | `0.0.74`                                                                                                                        | Pins the `ty` version shared by the Makefile and CI.                         |
-| `TY`                           | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                                                 | Builds the pinned type-checking command.                                     |
-| `TY_EXTRA_PATHS`               | `--extra-search-path scripts --extra-search-path $(TY_GATE_STAGE_DIR)`                                                          | Adds the gate's modules and their staged dependencies to the checker path.   |
-| `TY_GATE_STAGE_DIR`            | `.uv-tools/ty-gate-deps`                                                                                                        | Stages the gate's PEP 723 dependencies for the checker at pinned versions.   |
-| `TY_GATE_DEPS`                 | `$(TY_GATE_STAGE_DIR)/stamp`                                                                                                    | Stamp target that rebuilds the staging directory when the gate changes.      |
-| `TYPOS_CONFIG_BUILDER_VERSION` | `v0.1.3`                                                                                                                        | Pins the spelling gate, and the `typos` binary it runs.                      |
-| `TYPOS_CONFIG_BUILDER`         | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'git+...@$(TYPOS_CONFIG_BUILDER_VERSION)' typos-config-builder`                  | Builds the spelling gate command used by `make markdownlint`.                |
+| Variable                       | Default                                                                                                                         | Purpose                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `UV`                           | first `uv` on `PATH`, falling back to `$(HOME)/.local/bin/uv`                                                                   | Selects the `uv` executable used by Makefile Python commands.              |
+| `UV_ENV`                       | `UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools`                                                                                  | Keeps `uv` cache and tool state inside the repository worktree.            |
+| `UV_RUN`                       | `$(UV_ENV) $(UV) run --group dev`                                                                                               | Runs commands in the locked development dependency group.                  |
+| `RUFF_VERSION`                 | `0.16.4`                                                                                                                        | Pins the Ruff version shared by the Makefile and CI.                       |
+| `RUFF`                         | `env $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION)`                                                                             | Builds the pinned Ruff command used by formatting and lint gates.          |
+| `INTERROGATE`                  | `$(UV_RUN) interrogate`                                                                                                         | Selects the docstring-coverage command used by `make lint`.                |
+| `INTERROGATE_TARGETS`          | `python/stilyagi tests scripts`                                                                                                 | Selects the directories checked by Interrogate.                            |
+| `INTERROGATE_FLAGS`            | `--fail-under 100`                                                                                                              | Requires complete Python docstring coverage.                               |
+| `PYLINT_PYTHON`                | `3.14`                                                                                                                          | Selects the interpreter passed to `uv tool run` for Pylint.                |
+| `PYLINT_TARGETS`               | `python/stilyagi tests scripts`                                                                                                 | Selects the directories checked by the Pylint and df12 tiers.              |
+| `PYLINT_VERSION`               | `4.0.9`                                                                                                                         | Pins the Pylint release used by the focused Pylint tier.                   |
+| `PYLINT`                       | `$(UV_ENV) $(UV) tool run --managed-python --python $(PYLINT_PYTHON) --from 'pylint==$(PYLINT_VERSION)' pylint --load-plugins=` | Builds the focused Pylint command used by `make lint`.                     |
+| `DF12_PYTHON`                  | `3.14`                                                                                                                          | Selects CPython for the df12 Pylint and scanner tiers.                     |
+| `DF12_PYLINT_MESSAGES`         | all thirteen v0.3.0 message IDs                                                                                                 | Selects the df12 Pylint diagnostics.                                       |
+| `DF12_PYLINT`                  | project-backed Pylint with `df12_python_lints` loaded                                                                           | Builds the CPython df12 Pylint command.                                    |
+| `AMBRLEAKS`                    | locked `uv run --group dev --python 3.14` environment                                                                           | Builds the snapshot leak scanner command from the locked commit.           |
+| `AMBRLEAKS_TARGETS`            | `tests scripts`                                                                                                                 | Selects the directories the snapshot leak scanner reads.                   |
+| `DF12_GATES_SHA`               | `56ad71721c3f1f2164ec84b69150582488f1a927`                                                                                      | Pins the df12-python-lints commit that provides both gates.                |
+| `SKYLOS`                       | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'df12-python-lints[skylos] @ ...' df12-skylos`                                   | Runs the dead-code gate; the `skylos` extra carries the one Skylos pin.    |
+| `DUPLICATION`                  | `$(UV_ENV) $(UV) tool run --from 'df12-python-lints[duplication] @ ...' df12-duplication`                                       | Runs the duplication gate; `[tool.nose] version` is the only detector pin. |
+| `TY_VERSION`                   | `0.0.74`                                                                                                                        | Pins the `ty` version shared by the Makefile and CI.                       |
+| `TY`                           | `env $(UV_ENV) $(UV) tool run ty@$(TY_VERSION)`                                                                                 | Builds the pinned type-checking command.                                   |
+| `TY_EXTRA_PATHS`               | `--extra-search-path scripts`                                                                                                   | Adds the repository scripts to the checker path.                           |
+| `TYPOS_CONFIG_BUILDER_VERSION` | `v0.1.3`                                                                                                                        | Pins the spelling gate, and the `typos` binary it runs.                    |
+| `TYPOS_CONFIG_BUILDER`         | `$(UV_ENV) $(UV) tool run --python 3.14 --from 'git+...@$(TYPOS_CONFIG_BUILDER_VERSION)' typos-config-builder`                  | Builds the spelling gate command used by `make markdownlint`.              |
 
 Override these variables only for local diagnosis unless the project-wide lint
 policy is intentionally changing. For example:
@@ -2367,10 +2589,10 @@ one tool's suppression syntax to hide the other tool's finding.
 
 `make lint` runs a blocking Skylos scan after the existing Python and Rust
 linters. It analyses dead code only over `python/stilyagi`, excludes `tests`,
-and uses the strict configuration in `pyproject.toml`. `SKYLOS_CLI` pins the
-tool under CPython 3.14; `SKYLOS` adds `--config-file` for scans, while the
-`skylos-allow` target uses the command-only CLI so its `whitelist` subcommand
-is placed before the arguments.
+and uses the strict configuration in `pyproject.toml`. The `SKYLOS` macro runs
+the installed `df12-skylos` command from df12-python-lints under CPython 3.14.
+The production roots live in `[tool.df12_skylos]` and the exclusions in
+`[tool.skylos]`; CI runs the shared-actions `df12-skylos` action.
 
 Treat every Skylos finding as a candidate for removal until its caller is
 verified. Prefer a typed `[tool.skylos.dead_code]` entry-point rule for an
@@ -2382,10 +2604,10 @@ make skylos-allow SYMBOL=registered_handler \
   REASON="Loaded by the plugin registry; verified in the registry contract test"
 ```
 
-The target rejects empty `SYMBOL` or `REASON` values with status 2 and records
-the explanation under `[tool.skylos.whitelist.documented]`. `SYMBOL` is
-required explicitly so WSL's injected `NAME` variable cannot satisfy the
-contract.
+`df12-skylos allow` rejects empty `SYMBOL` or `REASON` values with status 2 and
+records the explanation under `[tool.skylos.whitelist.documented]`, holding the
+ignored `.pyproject.toml.df12.lock` while it does. `SYMBOL` is required
+explicitly so WSL's injected `NAME` variable cannot satisfy the contract.
 
 ### 6c. Fallibility in Rust test helpers
 
@@ -2618,8 +2840,8 @@ as a test assertion on the SHA string.
 
 `.github/workflows/smoke.yml` provisions Whitaker through the shared
 `leynos/shared-actions/.github/actions/install-whitaker` action, pinned to full
-SHA `5a99aed78ce68dcebd3052b75c31e6f173162b1e` (shared-actions commit
-`5a99aed7`, which pins whitaker-installer 0.2.11), and passing only
+SHA `0eabb6bc07148981de5da395e30cd78d83f5c7c2` (shared-actions commit
+`0eabb6bc`, which pins whitaker-installer 0.2.12), and passing only
 `cranelift: true`. The action owns the installer version, the digest-verified
 download, the cache and the `--no-source-fallback` rule, so the workflow
 carries no install script, no suite pin, no source-build fallback and no
@@ -2684,7 +2906,7 @@ two builds rather than between two commits, and it does so silently.
 from two lanes race.
 
 **The runner is part of that selection.** Both lanes pin the same
-`generate-coverage` action commit, and at shared-actions `6cec89ba` that
+`generate-coverage` action commit, and at shared-actions `6f53870b` that
 action's `scripts/install_cargo_nextest.py` declares
 `CARGO_NEXTEST_VERSION = "0.9.145"` and reuses a preinstalled `cargo-nextest`
 rather than installing its own. `smoke.yml` therefore preinstalls exactly
@@ -2916,12 +3138,25 @@ doctest run and the failure never reaches the recipe's exit status.
 
 ### 6i. Runner placement
 
-`smoke.yml`'s `lint-test` and `coverage-main.yml`'s `coverage-upload` run on
-`ubicloud-standard-4`. `runs-on` selects it with the runner-selection
-expression:
+`smoke.yml`'s `lint-test` runs on `ubicloud-standard-4`. `coverage-main.yml`
+splits three ways. `coverage-upload` runs the tests and coverage and uploads to
+CodeScene on `ubuntu-latest`: a hosted runner cannot write Ubicloud's cache
+store, so it carries no compiler cache and hands the measured ratchet figures
+over as an artefact (`publish-baseline: never`). `coverage-baseline`
+(`ubicloud-standard-2`) saves that baseline into the store the Ubicloud
+pull-request lane reads, and `coverage-warmup` (`ubicloud-standard-4`) compiles
+the instrumented tests so their compiler-cache entries sit in main's scope. The
+two Ubicloud jobs run on pushes to main only and name their class outright,
+with no fork fallback.
+
+`smoke.yml`'s `lint-test` runs on pull requests, so its expression also sends
+Dependabot's pull requests to the hosted pool:
 
 ```yaml
-runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
+runs-on: >-
+  ${{ (github.event.pull_request.head.repo.fork
+  || github.event.pull_request.user.login == 'dependabot[bot]')
+  && 'ubuntu-latest' || 'ubicloud-standard-4' }}
 ```
 
 It is `standard-4` rather than the estate's `standard-2` on a measured
@@ -2930,25 +3165,42 @@ shortfall: `lint-test` took 12.4 and 13.5 minutes on two vCPUs (runs
 
 A pull request from a fork cannot obtain an Ubicloud runner, so it falls back to
 `ubuntu-latest`; a push and a dispatch have no pull request, so the fork value
-is null and they select Ubicloud. A push to `main` runs both lanes, so main
-writes the Ubicloud cache scope a pull request reads, on the same class as the
-reader. Ubicloud's cache proxy is scoped by ref, so a pull request's lane reads
+is null and they select Ubicloud. A push to `main` runs `lint-test` and the two
+Ubicloud coverage jobs, so main writes the Ubicloud cache scope a pull request
+reads. Ubicloud's cache proxy is scoped by ref, so a pull request's lane reads
 a warm main scope only when a main job on Ubicloud writes it. A fork's pull
 request restores a hosted cache that main no longer refreshes; fork pull
 requests are rare here, and a second hosted writer would pay double on every
 main push. `release-smoke` stays hosted: its runner comes from an operating
 system matrix.
 
-Both jobs keep their 60-minute ceilings. An Ubicloud runner is a self-hosted
+`lint-test` also sends Dependabot's pull requests to the hosted pool. Hosted
+minutes are free on a public repository, so a bot's pull request costs nothing
+there, whereas an Ubicloud runner is billed. The cache trade-off is the fork's:
+a Dependabot run restores a hosted cache that main no longer refreshes, which
+costs it a slower cold build and nothing else, while a second hosted writer
+would pay double on every main push. The expression tests the pull request's
+author, not the actor, so a person re-running or pushing to a Dependabot branch
+does not move the run onto Ubicloud.
+
+`lint-test`, `coverage-upload` and `coverage-warmup` keep 100-minute ceilings
+(`coverage-baseline` states 15). An Ubicloud runner is a self-hosted
 just-in-time runner, so GitHub's six-hour cap for hosted jobs does not bound it
-and each job must state its own; section 12 holds these two above the 1,800 s
-cargo watchdog, so neither can be set to twice a warm run.
+and each job must state its own; section 12 holds every job invoking the
+coverage action above the 4,080 s cargo watchdog, so none can be set to twice a
+warm run. `coverage-baseline` invokes no coverage action and inherits no
+watchdog, so its 15-minute ceiling bounds only the baseline handover.
+`tests/test_coverage_main_runners.py` names each `coverage-main.yml` job's
+runner outright and admits no other job.
 
 `tests/test_runner_placement_contract.py` holds the placement to the files. It
-evaluates the expression for a push or dispatch, a same-repository pull request
-and a fork, rejects a literal label, inverted arms, another label and another
-condition, inventories and refuses a runner named through the matrix, and
-asserts an exact inventory of the jobs that can land on Ubicloud with their
+models the two accepted expressions rather than evaluating them in GitHub
+Actions. It reads the placement each expression gives a push or dispatch, a
+same-repository pull request, a Dependabot pull request and a fork, expects the
+Dependabot arm only on the lanes listed in its `DEPENDABOT_HOSTED` inventory
+(today `lint-test`), rejects a literal label, inverted arms, another label and
+another condition, inventories and refuses a runner named through the matrix,
+and asserts an exact inventory of the jobs that can land on Ubicloud with their
 runner class and ceiling. A change that adds, removes or re-times such a job
 fails it until the inventory is updated in the same commit.
 
@@ -2969,7 +3221,7 @@ complete parse. It compares versions and never names one, so a default bump in
 the action needs no edit here.
 
 `tests/support/makeutil_contract.py` owns the assertions, and
-`tests/test_skylos_lint_contract.py` calls them for each workflow: the exact
+`tests/test_makeutil_ci_contract.py` calls them for each workflow: the exact
 action reference, no `run` or `with` on the install step, the from-source
 variables gone, the smoke step directly after the install, and no literal
 version in it. Bump the pinned action reference in that module and the two
@@ -2981,7 +3233,7 @@ workflows together.
 tool gate in this repository, after the Skylos dead-code scan in section 6b,
 and it is covered by
 [ADR 0010](adrs/adr-0010-adopt-the-nose-code-duplication-gate.md). Run it alone
-with `make duplication`, and its own helper tests with `make duplication-test`.
+with `make duplication`.
 
 The detector is `nose` (`corca-ai/nose`), the Rust-built `nose-cli` binary, not
 the PyPI test framework of the same name. It lowers every supported language
@@ -2993,12 +3245,10 @@ Two units need stating plainly, because both are easy to misread:
 
 - **`min-size` counts IL tokens, not Python lines and not AST nodes.** The
   configured floor of 24 is neither a line count nor a node count.
-- **Ranking is bounded.** The gate adjudicates the ranked surface, not every
-  family the detector can find. Stilyagi's ranking currently saturates at nine
-  families, which is well below the configured `top = 30`, so nothing is hidden
-  today. That is a measurement of the present tree, not a guarantee: if the
-  ranked surface ever fills, families below the cutoff stop blocking, and the
-  bound has to be revisited rather than assumed safe.
+- **Ranking is unbounded.** The configured `top = 0` asks the detector for
+  every family, so the gate adjudicates all of them however many the package
+  grows to (nine at present). concordat's `python-duplication-gate` rule
+  (NS-001) requires `top = 0`.
 
 #### Scan scope
 
@@ -3063,7 +3313,7 @@ make duplication-allow FIRST=python/stilyagi/a.py \
 Repeating `SECOND` does not add keys: GNU `make` keeps only the last
 command-line assignment to a variable, so an earlier one is dropped without
 warning. The writer is atomic and holds a sidecar advisory lock
-(`.*.duplication-gate.lock`) so concurrent `allow` runs do not lose updates.
+(`.pyproject.toml.df12.lock`) so concurrent `allow` runs do not lose updates.
 That lock coordinates processes that participate in the protocol; it does not
 constrain an editor writing `pyproject.toml` directly.
 
@@ -3074,18 +3324,15 @@ schema allows for those families is the whole file. That means each such entry
 also silences any later fragment-level family in the same file. Use a
 `path::name` key whenever the detector does supply a name.
 
-A key that would cover every repository path is refused at validation, not
-merely discouraged. Validation rejects an all-`**` glob and the recursive
-variants `**/**` and `**/*`, because any of them would silence every finding in
-the scan. This is a scope argument rather than a style one: a plain `**`
-carries no information about which family is intended, so accepting it would
-defeat the gate for the whole repository. A recursive prefix that still names a
-real segment, such as `python/stilyagi/**/models.py` or `**/*/*`, stays
-narrowed to paths of that shape and is accepted. Patterns such as `*/**` and
-`**/*/**` look like a catch-all but behave identically to `**/*/*`: each
-requires at least one named segment below the recursion, so none of them covers
-a single-segment path such as `Makefile`, and all are accepted. Refusing them
-would reject keys that legitimately scope a family to a subtree.
+Never record a key that would cover every repository path, such as `**`,
+`**/**` or `**/*`: any of them would silence every finding in the scan, and a
+plain `**` carries no information about which family is intended. The installed
+`df12-duplication` command does not yet refuse these keys at validation (the
+vendored gate did); that gap is tracked in
+[df12-python-lints#80](https://github.com/leynos/df12-python-lints/issues/80),
+so review any new entry's keys by hand until it is closed. A recursive prefix
+that still names a real segment, such as `python/stilyagi/**/models.py`, stays
+narrowed to paths of that shape and is fine.
 
 When the gate reports an entry as stale, confirm the duplication is actually
 gone before removing it. A family can drop out of the ranking because it fell
@@ -3140,40 +3387,18 @@ qualified name.
 
 #### Provisioning
 
-`make install-nose` installs the pinned detector into `.tools/nose` with
-`cargo-binstall`, and is a no-op when the installed binary already reports the
-pinned version. It passes `--disable-strategies compile,quick-install`, so a
-missing prebuilt artefact fails provisioning rather than starting a costly Rust
-build or falling back to an unapproved third-party build service. When the
-strategies are exhausted, the correct response is to fix provisioning, not to
-widen them.
-
-The pin is declared in the Makefile `NOSE_VERSION`, the workflow-level
-`NOSE_VERSION` in `smoke.yml`, and `[tool.nose] version` in `pyproject.toml`.
-`tests/test_toolchain_contract.py` asserts all three agree without asserting
-any particular version, so a routine bump stays green. CI caches `.tools/nose`
-on a key carrying the runner OS, architecture, and pinned version, and installs
-through `make install-nose` rather than assembling its own `cargo-binstall`
-invocation, so the provisioning contract lives in one place.
-
-A bare `pytest` run would otherwise collect `scripts/tests/`, whose modules
-import the gate's own PEP 723 dependencies (`cyclopts`, `tomlkit`) rather than
-the application's `dev` group, and would fail at import.
-`testpaths = ["tests"]` in `[tool.pytest.ini_options]` scopes the bare run to
-the application suite. `make duplication-test` names its files explicitly, and
-a path argument overrides `testpaths`, so that lane still collects them.
-
-The lane runs with `--no-project`, so its dependencies are pinned in the recipe
-itself: `pytest`, `cyclopts`, `tomlkit`, `hypothesis`, and `syrupy`. The
-snapshot assertions that keep the gate's report wording and argument vectors
-readable need the last of these; a new dependency for that lane belongs in the
-same `--with` list, not in the application's `dev` group alone.
-
-`DUPLICATION_TEST_ARGS` carries extra arguments into that lane and is empty by
-default. Pass `DUPLICATION_TEST_ARGS=--snapshot-update` after an intentional
-change to a pinned report, then re-run the lane without the flag and commit the
-regenerated `.ambr` files under `scripts/tests/__snapshots__/`, so the diff
-shows what changed.
+The gate is the installed `df12-duplication` command from
+[df12-python-lints](https://github.com/leynos/df12-python-lints), pinned by
+commit in the Makefile (`DF12_GATES_SHA`). `make duplication` runs
+`df12-duplication install` first, which downloads the `nose` release named by
+`[tool.nose] version` into `.tools/nose` and verifies it against the digest
+table shipped in the package; it is a no-op when the binary is already present
+and correct. Source compilation never happens, so a missing prebuilt artefact
+fails provisioning rather than starting a costly build. `[tool.nose] version`
+is the only detector pin. The command's behaviour, tests and benchmarks live in
+df12-python-lints, and CI runs it through the shared-actions `df12-duplication`
+action. Bumping the package means editing `DF12_GATES_SHA` and the action SHAs
+in `.github/workflows/smoke.yml` together.
 
 ## 7. Development responsibilities
 
@@ -3536,19 +3761,19 @@ they must be ordered lives in the `generate-coverage` README in
 `leynos/shared-actions`.[^6] Before the nextest file was added exactly one of
 the four was set here.
 
-| Tier                     | What it bounds                     | Where it is set                                  | Current value             |
-| ------------------------ | ---------------------------------- | ------------------------------------------------ | ------------------------- |
-| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | 180 s; 600 s for trybuild |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 18 m                      |
-| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 1,800 s (30 m)            |
-| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 60 m, new                 |
+| Tier                     | What it bounds                     | Where it is set                                  | Current value               |
+| ------------------------ | ---------------------------------- | ------------------------------------------------ | --------------------------- |
+| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                           | 180 s; 1,500 s for trybuild |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                           | 56 m                        |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` at workflow level  | 4,080 s (68 m)              |
+| Job `timeout-minutes`    | the whole job                      | job level in `smoke.yml` and `coverage-main.yml` | 100 m                       |
 
 *Table: the timers that can end a run, innermost first.*
 
 ### What the watchdog does and does not cover
 
 The watchdog is the only inner bound. It kills the `cargo` invocation after
-1,800 s, so a hung test is caught, but by a timer that names `cargo` rather
+4,080 s, so a hung test is caught, but by a timer that names `cargo` rather
 than the test. Nothing hung outside `cargo` was bounded at all before the job
 ceilings landed: those jobs declared no `timeout-minutes` and so inherited
 GitHub's six-hour default.
@@ -3557,22 +3782,37 @@ GitHub's six-hour default.
 
 `.config/nextest.toml` sets both. The default profile keeps the 180 s per-test
 budget that `generate-coverage` writes when the file is absent, with a 5 s
-grace period and `terminate-after = 1`, and adds an 18 minute `global-timeout`,
-which sits above the largest per-test budget and below the 1,800 s watchdog.
+grace period and `terminate-after = 1`, and adds a 56-minute `global-timeout`.
+That leaves both serial trybuild tests their full allowance, one after the
+other, before the 4,080 s watchdog.
 
 One override widens the budget for the two trybuild binaries, `stilyagi-ir`'s
-`ui` and `stilyagi-pyext`'s `compile_tests`, to 600 s. They build a scratch
+`ui` and `stilyagi-pyext`'s `compile_tests`, to 1,500 s. They build a scratch
 crate per case, so their duration is a compile, not a computation. On a pull
 request whose workflow change left the Cargo cache cold, both were terminated
-at 180 s in the `Generate coverage` step (exit code 100), although the same
-tests pass in well under that with a warm cache. Every other test keeps 180 s,
-so a hung test is still reported as one rather than absorbed by a generous
-default.
+at 180 s in the `Generate coverage` step (exit code 100). A later local run
+also exceeded 600 s while shared compiler admission was heavily queued. In the
+preceding run, the first UI test passed in 260 s; the second spent 8 minutes
+compiling its dev profile and timed out at 900 s while compiling its first UI
+fixture. The next full run passed both UI tests in 143 s and 464 s, with all
+357 Nextest tests passing in 607 s. The per-test allowance is now 1,500 s. The
+two binaries share a serial `trybuild` test group because their nested Cargo
+builds use the same target-directory lock. A 2026-11-05 rebased run spent 1,137
+s in the first UI test, then hit the 33-minute whole-run timeout 842 s into the
+second UI test; 373/374 tests had passed while trybuild was compiling another
+fixture. The 56-minute whole-run allowance covers both serial 1,500 s per-test
+allowances, with six minutes for suite overhead and reporting. Sizing it from
+one allowance plus that observed prefix was the mistake the pair corrects: a
+run slow for both builds can spend 3,000 s before either test reaches its own
+limit, and a budget derived from a 1,137 s prefix cancels the second one for
+being slow rather than for overrunning. Every other test keeps 180 s, so a hung
+test is still reported as one rather than absorbed by a generous default.
 
 `tests/test_trybuild_timeout_contract.py` asserts the override names both
-binaries with a budget of at least 600 s, below the whole-run budget, and that
-the profile default is unchanged; `tests/test_timeout_ordering_contract.py`
-holds the ordering against the watchdog and the job ceiling.
+binaries with a budget of at least 1,500 s, below the 56-minute whole-run
+budget, and that the profile default is unchanged;
+`tests/test_timeout_ordering_contract.py` holds the ordering against the
+68-minute watchdog and 100-minute job ceiling.
 
 [Issue 137](https://github.com/leynos/stilyagi/issues/137) recorded the
 measurements that a later pass needed to choose these values.
@@ -3598,15 +3838,22 @@ The sample is the last 60 runs of `smoke.yml`, 43 successful and 17 failed, and
 all 25 runs of `coverage-main.yml`, all successful. Neither history contains a
 cancelled or timeout-terminated run, so no run in the sample was ended by any
 of these four timers, and the measurements are of work that completed.
+`coverage-baseline` and `coverage-warmup` are absent from the table because
+they postdate that history: they have no runs to measure yet, so they take the
+same 15-minute allowance and the same margin as the lanes that do.
 
-The widest gap is 541 s, so the contract allows 15 minutes, making the
-requirement 45 minutes, and the ceilings are 60: fifteen above it, which is the
-margin the estate asks for above every requirement. A ceiling equal to the sum
-it contains cancels the job at the moment the watchdog would have reported the
-overrun, and the report is the only thing that makes an overrun actionable, so
-the margin is a term of the requirement rather than slack that happens to be
-there. On the pull-request lane most of that gap is the linting and the Python
-suite, which run outside the coverage step and so outside the watchdog.
+The widest gap is 541 s, so the contract allows 15 minutes, and a further 15 is
+the estate's margin above the requirement. Against the 68-minute watchdog that
+is 4,080 + 900 + 900 = 5,880 s, or 98 minutes, so the ceilings are 100: two
+minutes above it. A ceiling equal to the sum it contains cancels the job at the
+moment the watchdog would have reported the overrun, and the report is the only
+thing that makes an overrun actionable, so the margin is a term of the
+requirement rather than slack that happens to be there. The two-minute excess
+is thin by design: the ceiling is sized to the watchdog, and the watchdog is
+what has headroom. A longer job ceiling would only let a job that has already
+outlived every timer above it run unattended. On the pull-request lane most of
+that gap is the linting and the Python suite, which run outside the coverage
+step and so outside the watchdog.
 
 None of those runs was genuinely cold. One run is the coldest seen so far, not
 a measurement of the cold case.
@@ -3886,8 +4133,8 @@ plausible number the ordering is then checked against.
 
 There is no `act` run behind any of this. `act` does not implement
 `timeout-minutes`, which GitHub enforces in the runner scheduler rather than in
-the job, and proving a 60-minute ceiling by observation would take a 60-minute
-run. What can be checked statically is checked statically.
+the job, and proving a 100-minute ceiling by observation would take a
+100-minute run. What can be checked statically is checked statically.
 
 It pins the condition each lane carries as well as its budgets. A skipped step
 runs no `cargo`, so its watchdog never arms and every assertion about the tiers
@@ -3905,9 +4152,9 @@ does not, so its coverage step is conditional on the pull-request event;
 `coverage-main.yml` is the trunk lane and runs unconditionally. A lane gaining,
 losing or changing a condition has to change this section with it.
 
-It pins each ceiling to the documented 60 minutes as well as deriving the 45
+It pins each ceiling to the documented 100 minutes as well as deriving the 98
 minutes required. The derivation alone would accept a ceiling anywhere above
-45, including one that had drifted away from this guide without anything
+98, including one that had drifted away from this guide without anything
 failing; the pin makes the table above the source of the value.
 
 The termination allowance it demands between a whole-run budget and the

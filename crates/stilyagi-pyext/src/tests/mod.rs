@@ -1,6 +1,9 @@
 //! Tests for the Python extension bridge payload and error mapping.
 
+mod hydration;
+mod identity;
 pub(crate) mod payload;
+mod python_docstring;
 mod rust_doc_comment;
 
 use payload::{
@@ -13,7 +16,7 @@ use payload::{
 };
 use pyo3::{
     exceptions::{PyRuntimeError, PyTypeError, PyValueError},
-    prelude::{Py, PyResult, Python},
+    prelude::{Py, PyErr, PyResult, Python},
     types::{PyAnyMethods, PyDict, PyListMethods, PyTuple},
 };
 use rstest::rstest;
@@ -31,16 +34,43 @@ use super::{
     extract_document_function,
     extract_document_py,
     hello,
+    hydrate_ir_json_function,
     map_extract_error,
     supported_region_kinds_py,
     supported_syntaxes_py,
 };
 
-fn bridge_extract_document(source: &str, syntax: &str) -> PyResult<Py<PyDict>> {
+/// Keep one bridge test invocation's strings behind a single request argument.
+struct BridgeExtractRequest<'a> {
+    source: &'a str,
+    syntax: &'a str,
+    source_path: Option<&'a str>,
+}
+
+fn bridge_extract_document(request: &BridgeExtractRequest<'_>) -> PyResult<Py<PyDict>> {
     Python::attach(|py| {
-        let args = PyTuple::new(py, [source, syntax])?;
+        let args = match request.source_path {
+            Some(source_path) => PyTuple::new(py, [request.source, request.syntax, source_path])?,
+            None => PyTuple::new(py, [request.source, request.syntax])?,
+        };
         extract_document_py(py, &args)
     })
+}
+
+/// Pair an unrecognized syntax with the expected public error fragment.
+#[derive(Clone, Copy)]
+struct InvalidSyntaxCase {
+    syntax: &'static str,
+    expected_fragment: &'static str,
+}
+
+fn invalid_syntax_error(case: InvalidSyntaxCase) -> PyErr {
+    bridge_extract_document(&BridgeExtractRequest {
+        source: "Example",
+        syntax: case.syntax,
+        source_path: None,
+    })
+    .expect_err(&format!("expected an error for syntax {:?}", case.syntax))
 }
 
 /// Name every violated clause of the canonical IR JSON envelope contract.
@@ -175,53 +205,19 @@ fn extract_document_py_exposes_markdown_document() {
     });
 }
 
-#[rstest]
-fn extract_document_py_exposes_python_docstrings() {
-    let source = "\"\"\"Module docs.\"\"\"\n\ndef example():\n    \"\"\"Function docs.\"\"\"\n";
-    let document = bridge_extract_document(source, "python_docstring")
-        .expect("Python docstring extraction should succeed");
-
-    Python::attach(|py| {
-        let document_dict = document.bind(py);
-        let regions = dict_list(document_dict, "regions").expect("Python regions should be a list");
-        let region_summaries = (0..regions.len())
-            .map(|index| {
-                let region = list_dict_at(&regions, index).expect("region should be a dict");
-                region_kind_and_text(&region).expect("region should carry kind and text")
-            })
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            dict_string(document_dict, "syntax").expect("syntax payload should be a string"),
-            ExtractSyntax::PythonDocstring.as_str(),
-        );
-        assert_eq!(
-            region_summaries,
-            [
-                ("python_docstring".to_owned(), "Module docs.".to_owned()),
-                ("python_docstring".to_owned(), "Function docs.".to_owned()),
-            ],
-        );
-
-        let ir_json = dict_string(document_dict, "ir_json").expect("IR payload should be a string");
-        let parsed = parse_ir_json(&ir_json).expect("expected parseable IR JSON");
-        assert_ir_json_contract(&parsed);
-    });
-}
-
 /// Keep rejection behaviour stable for both unsupported and unknown syntax
 /// strings.
 #[rstest]
-#[case("not_a_syntax", "not_a_syntax")]
-fn extract_document_py_rejects_invalid_syntaxes(
-    #[case] syntax: &str,
-    #[case] expected_fragment: &str,
-) {
-    let err = bridge_extract_document("Example", syntax)
-        .expect_err(&format!("expected an error for syntax {syntax:?}"));
+#[case(InvalidSyntaxCase {
+    syntax: "not_a_syntax",
+    expected_fragment: "not_a_syntax",
+})]
+fn extract_document_py_rejects_invalid_syntaxes(#[case] case: InvalidSyntaxCase) {
+    let err = invalid_syntax_error(case);
     assert!(
-        err.to_string().contains(expected_fragment),
-        "error message {err:?} did not contain {expected_fragment:?}"
+        err.to_string().contains(case.expected_fragment),
+        "error message {err:?} did not contain {:?}",
+        case.expected_fragment
     );
 }
 
@@ -230,8 +226,12 @@ fn extract_document_py_rejects_invalid_syntaxes(
 /// syntax strings.
 #[rstest]
 fn bridge_extract_document_rejects_unknown_syntaxes() {
-    let error = bridge_extract_document("example", "not_a_real_syntax")
-        .expect_err("expected unknown syntax error");
+    let error = bridge_extract_document(&BridgeExtractRequest {
+        source: "example",
+        syntax: "not_a_real_syntax",
+        source_path: None,
+    })
+    .expect_err("expected unknown syntax error");
 
     Python::attach(|py| {
         assert!(error.is_instance_of::<PyValueError>(py));

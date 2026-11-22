@@ -21,41 +21,62 @@ from tests.support.workflows import WorkflowDocument, load_workflow
 
 HOSTED_LABEL: typ.Final = "ubuntu-latest"
 FORK_CONDITION: typ.Final = "github.event.pull_request.head.repo.fork"
+DEPENDABOT_CONDITION: typ.Final = (
+    "github.event.pull_request.user.login == 'dependabot[bot]'"
+)
+#: The condition of a lane that sends Dependabot's pull requests to the hosted
+#: pool as well as a fork's.
+FORK_OR_DEPENDABOT_CONDITION: typ.Final = (
+    f"({FORK_CONDITION} || {DEPENDABOT_CONDITION})"
+)
 
 #: Every job that can land on Ubicloud: workflow, job, runner class and the
 #: ceiling it states in minutes. The inventory is exact, so a new Ubicloud lane
 #: without a ceiling, or a class or ceiling changed, fails until reviewed.
 PLACEMENTS: typ.Final = (
-    ("coverage-main.yml", "coverage-upload", "ubicloud-standard-4", "60"),
-    ("smoke.yml", "lint-test", "ubicloud-standard-4", "60"),
+    ("coverage-main.yml", "coverage-baseline", "ubicloud-standard-2", "15"),
+    ("coverage-main.yml", "coverage-warmup", "ubicloud-standard-4", "100"),
+    ("smoke.yml", "lint-test", "ubicloud-standard-4", "100"),
 )
+
+#: The lanes that send Dependabot's pull requests to the hosted pool as well.
+DEPENDABOT_HOSTED: typ.Final = frozenset({("smoke.yml", "lint-test")})
 
 #: The runner-selection shape: a condition, a quoted hosted arm and a quoted
 #: other arm.
 _SHAPE: typ.Final = re.compile(
-    r"\$\{\{\s*(?P<condition>[^&|]+?)\s*&&\s*'(?P<hosted>[^']*)'"
+    r"\$\{\{\s*(?P<condition>.+?)\s*&&\s*'(?P<hosted>[^']*)'"
     r"\s*\|\|\s*'(?P<other>[^']*)'\s*\}\}"
 )
 
-type Origin = typ.Literal["push", "same-repository", "fork"]
-ORIGINS: typ.Final[tuple[Origin, ...]] = ("push", "same-repository", "fork")
+type Origin = typ.Literal["push", "same-repository", "dependabot", "fork"]
+ORIGINS: typ.Final[tuple[Origin, ...]] = (
+    "push",
+    "same-repository",
+    "dependabot",
+    "fork",
+)
 
 
-def runner_selection_expression(label: str) -> str:
+def runner_selection_expression(label: str, *, dependabot_hosted: bool = False) -> str:
     """Return the runner-selection expression for an Ubicloud `label`.
 
     Parameters
     ----------
     label
         The Ubicloud runner class a non-fork run selects.
+    dependabot_hosted
+        Whether Dependabot's pull requests also fall back to the hosted pool.
 
     Returns
     -------
     str
         A `${{ ... }}` expression selecting `label` unless the run is a pull
-        request from a fork, which falls back to the hosted pool.
+        request from a fork (or, when `dependabot_hosted`, from Dependabot),
+        which falls back to the hosted pool.
     """
-    return f"${{{{ {FORK_CONDITION} && '{HOSTED_LABEL}' || '{label}' }}}}"
+    condition = FORK_OR_DEPENDABOT_CONDITION if dependabot_hosted else FORK_CONDITION
+    return f"${{{{ {condition} && '{HOSTED_LABEL}' || '{label}' }}}}"
 
 
 def selected_runner(runs_on: object, origin: Origin) -> str | None:
@@ -67,7 +88,8 @@ def selected_runner(runs_on: object, origin: Origin) -> str | None:
         The job's `runs-on` value as parsed.
     origin
         The kind of run: a push or dispatch (no pull request), a pull request
-        from this repository, or a pull request from a fork.
+        from this repository, a pull request from Dependabot, or a pull
+        request from a fork.
 
     Returns
     -------
@@ -77,12 +99,20 @@ def selected_runner(runs_on: object, origin: Origin) -> str | None:
         cannot serve a fork.
     """
     shape = _SHAPE.fullmatch(runs_on.strip()) if isinstance(runs_on, str) else None
-    if shape is None or shape["condition"] != FORK_CONDITION:
+    if shape is None or shape["condition"] not in {
+        FORK_CONDITION,
+        FORK_OR_DEPENDABOT_CONDITION,
+    }:
         return None
-    return shape["hosted" if origin == "fork" else "other"]
+    is_hosted = origin == "fork" or (
+        origin == "dependabot" and shape["condition"] == FORK_OR_DEPENDABOT_CONDITION
+    )
+    return shape["hosted" if is_hosted else "other"]
 
 
-def placement_faults(runs_on: object, label: str) -> list[str]:
+def placement_faults(
+    runs_on: object, label: str, *, dependabot_hosted: bool = False
+) -> list[str]:
     """Return one entry per kind of run the expression places wrongly.
 
     Parameters
@@ -91,14 +121,22 @@ def placement_faults(runs_on: object, label: str) -> list[str]:
         The job's `runs-on` value as parsed.
     label
         The Ubicloud runner class every non-fork run must select.
+    dependabot_hosted
+        Whether the lane must send Dependabot's pull requests to the hosted
+        pool; otherwise they must select `label`.
 
     Returns
     -------
     list[str]
         Empty when a fork falls back to hosted and every other run is on
-        `label`.
+        `label`, bar Dependabot's when the lane sends them to the hosted pool.
     """
-    wanted = {"push": label, "same-repository": label, "fork": HOSTED_LABEL}
+    wanted = {
+        "push": label,
+        "same-repository": label,
+        "dependabot": HOSTED_LABEL if dependabot_hosted else label,
+        "fork": HOSTED_LABEL,
+    }
     return [
         f"{origin} selects {selected_runner(runs_on, origin)}, wanted {wanted[origin]}"
         for origin in ORIGINS
@@ -177,6 +215,7 @@ def placed_jobs(
     [
         ("push", "ubicloud-standard-2"),
         ("same-repository", "ubicloud-standard-2"),
+        ("dependabot", "ubicloud-standard-2"),
         ("fork", "ubuntu-latest"),
     ],
 )
@@ -200,19 +239,19 @@ def test_the_expression_places_each_run(origin: Origin, wanted: str) -> None:
     ("runs_on", "expected"),
     [
         (runner_selection_expression("ubicloud-standard-2"), 0),
-        ("ubuntu-latest", 3),
-        ("ubicloud-standard-2", 3),
+        ("ubuntu-latest", 4),
+        ("ubicloud-standard-2", 4),
         (
             f"${{{{ {FORK_CONDITION} && 'ubicloud-standard-2' || 'ubuntu-latest' }}}}",
-            3,
+            4,
         ),
-        (runner_selection_expression("ubicloud-standard-4"), 2),
+        (runner_selection_expression("ubicloud-standard-4"), 3),
         (
             (
                 "${{ github.event_name == 'pull_request' && 'ubuntu-latest' "
                 "|| 'ubicloud-standard-2' }}"
             ),
-            3,
+            4,
         ),
         (
             (
@@ -221,8 +260,9 @@ def test_the_expression_places_each_run(origin: Origin, wanted: str) -> None:
             ),
             1,
         ),
-        (["ubicloud-standard-2"], 3),
-        (None, 3),
+        (["ubicloud-standard-2"], 4),
+        (None, 4),
+        (runner_selection_expression("ubicloud-standard-2", dependabot_hosted=True), 1),
     ],
     ids=[
         "runner-selection",
@@ -234,6 +274,7 @@ def test_the_expression_places_each_run(origin: Origin, wanted: str) -> None:
         "fork-kept-on-ubicloud",
         "sequence",
         "not-a-string",
+        "dependabot-hosted-without-being-wanted",
     ],
 )
 def test_a_misplaced_lane_is_reported(runs_on: object, expected: int) -> None:
@@ -247,6 +288,39 @@ def test_a_misplaced_lane_is_reported(runs_on: object, expected: int) -> None:
         How many kinds of run it places wrongly.
     """
     faults = placement_faults(runs_on, "ubicloud-standard-2")
+    assert len(faults) == expected, f"expected {expected}, saw {faults}"
+
+
+@pytest.mark.parametrize(
+    ("has_dependabot_arm", "wants_dependabot_arm", "expected"),
+    [
+        (True, True, 0),
+        (False, True, 1),
+        (True, False, 1),
+        (False, False, 0),
+    ],
+    ids=["present", "missing", "unwanted", "neither"],
+)
+def test_the_dependabot_arm_is_held_to_the_inventory(
+    *, has_dependabot_arm: bool, wants_dependabot_arm: bool, expected: int
+) -> None:
+    """Report a Dependabot arm that is missing or that a lane does not want.
+
+    Parameters
+    ----------
+    has_dependabot_arm
+        Whether the constructed expression sends Dependabot to the hosted pool.
+    wants_dependabot_arm
+        Whether the lane's inventory entry says it must.
+    expected
+        How many kinds of run the expression places wrongly.
+    """
+    expression = runner_selection_expression(
+        "ubicloud-standard-2", dependabot_hosted=has_dependabot_arm
+    )
+    faults = placement_faults(
+        expression, "ubicloud-standard-2", dependabot_hosted=wants_dependabot_arm
+    )
     assert len(faults) == expected, f"expected {expected}, saw {faults}"
 
 
@@ -302,7 +376,12 @@ def test_every_ubicloud_lane_is_placed_by_the_expression_and_states_a_ceiling(
     for (name, job, runs_on, _), (_, _, label, _) in zip(
         placed, PLACEMENTS, strict=True
     ):
-        assert not placement_faults(runs_on, label), f"{name}: {job} is misplaced"
+        if name == "coverage-main.yml":  # push-only; its jobs are checked outright
+            continue
+        faults = placement_faults(
+            runs_on, label, dependabot_hosted=(name, job) in DEPENDABOT_HOSTED
+        )
+        assert not faults, f"{name}: {job} is misplaced: {faults}"
 
 
 def test_an_indirect_ubicloud_runner_is_inventoried_and_rejected() -> None:

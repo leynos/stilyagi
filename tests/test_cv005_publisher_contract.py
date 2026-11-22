@@ -72,7 +72,7 @@ COVERAGE_ACTION: typ.Final[str] = (
 #: ``CARGO_NEXTEST_VERSION = "0.9.145"`` and reuses a preinstalled
 #: ``cargo-nextest`` rather than installing its own. Re-read that constant
 #: when this pin moves; ``COVERAGE_NEXTEST_VERSION`` must move with it.
-SHARED_ACTIONS_PIN: typ.Final[str] = "6cec89bac47a21cf756d68d638a9a510998e57f8"
+SHARED_ACTIONS_PIN: typ.Final[str] = "6f53870bc36cfac0c0c9893daaee77a5eb4327f4"
 COVERAGE_NEXTEST_VERSION: typ.Final[str] = "0.9.145"
 
 #: The pull-request lane whose ratchet compares against the publisher.
@@ -123,12 +123,22 @@ def _publisher() -> tuple[str, WorkflowDocument, str, WorkflowJob]:
 
 
 def _coverage_step(document: WorkflowDocument) -> WorkflowStep:
-    """Return the one step invoking the shared coverage action."""
+    """Return the one measuring step invoking the shared coverage action.
+
+    A build-only step compiles for the compiler cache and measures nothing, so
+    it is not the step whose selection the ratchet compares.
+
+    Returns
+    -------
+    WorkflowStep
+        The sole measuring step in the document.
+    """
     found = [
         step
         for job in _jobs(document).values()
         for step in _steps(job)
         if _action_of(step) == COVERAGE_ACTION
+        and (step.get("with") or {}).get("build-only") != "true"
     ]
     assert len(found) == 1, f"expected one coverage step, found {found}"
     return found[0]

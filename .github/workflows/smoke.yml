@@ -19,25 +19,24 @@ env:
   BUILD_PROFILE: debug
   RUFF_VERSION: '0.16.4'
   TY_VERSION: '0.0.74'
-  # Keep this pin in sync with NOSE_VERSION in the Makefile and with
-  # [tool.nose] version in pyproject.toml;
-  # tests/test_toolchain_contract.py enforces the match.
-  NOSE_VERSION: '0.20.0'
-  # The 927edd4 shared-actions pin adds a 600s cargo wall-clock cap;
-  # stilyagi's trybuild-heavy suite and the maturin extension build need
-  # more headroom under cold coverage instrumentation.
-  RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+  # The 56-minute Nextest budget, termination allowance and cold build need
+  # headroom under the shared-actions cargo wall-clock cap.
+  RUN_RUST_CARGO_WAIT_TIMEOUT: '4080'
 
 jobs:
   lint-test:
     # Ubicloud, to avoid the hosted queue. A pull request from a fork cannot
-    # obtain an Ubicloud runner, so it falls back to the hosted pool. A push
+    # obtain an Ubicloud runner, so it falls back to the hosted pool; so do
+    # Dependabot's pull requests, which go to the hosted pool as well. A push
     # to main runs here too, so main writes the Ubicloud cache scope this
     # reads; coverage-main.yml's coverage-upload is on the same class.
     # standard-4, not standard-2: standard-2 runs took 12.4 and 13.5 min against
     # a hosted median of 6.3 (runs 36599858297 and 36601811696, the same lane on standard-2).
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'ubicloud-standard-4' }}
-    # Above the 1,800 s cargo watchdog on the coverage step plus the work
+    runs-on: >-
+      ${{ (github.event.pull_request.head.repo.fork
+      || github.event.pull_request.user.login == 'dependabot[bot]')
+      && 'ubuntu-latest' || 'ubicloud-standard-4' }}
+    # Above the 4,080 s cargo watchdog on the coverage step plus the work
     # either side of it, which reached 541 s on run 34069884428, counting
     # every second the watchdog does not bound rather than the coverage
     # steps as a group; the narrower reading gives 526 s and understates
@@ -46,7 +45,7 @@ jobs:
     # ceiling merely above the watchdog would cancel the job before the
     # watchdog could report an overrun, and a cancellation discards the
     # log that would have explained it.
-    timeout-minutes: 60
+    timeout-minutes: 100
     permissions:
       contents: read
     steps:
@@ -65,7 +64,7 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@2f47859bcf82ae8b5bc10b457683fbd589ca2e41
+        uses: leynos/shared-actions/.github/actions/setup-rust@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
@@ -75,7 +74,7 @@ jobs:
       - name: Install test runner
         # The generate-coverage action below reuses a preinstalled
         # cargo-nextest rather than installing its own; at shared-actions
-        # 6cec89ba it pins CARGO_NEXTEST_VERSION = "0.9.145". This version
+        # 6f53870b it pins CARGO_NEXTEST_VERSION = "0.9.145". This version
         # must equal that constant, or this lane and the main baseline run
         # different test runners and the ratchet compares two builds rather
         # than two commits. Re-read the constant when the shared-actions pin
@@ -99,7 +98,7 @@ jobs:
       - name: Install makeutil
         id: makeutil
         # A digest-verified prebuilt release rather than a from-source build.
-        uses: leynos/shared-actions/.github/actions/install-makeutil@ebe2f3105334283441f4c915eb979a0f4b9f2c04
+        uses: leynos/shared-actions/.github/actions/install-makeutil@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
 
       - name: Verify makeutil
         # Prove the installed binary runs, matches the release the action
@@ -132,7 +131,7 @@ jobs:
       - name: Install mdtablefix
         # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.
-        uses: leynos/shared-actions/.github/actions/install-mdtablefix@d99a5e2aeba9c2164a70549f00540d0bd12a573b
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
         with:
           version: "0.6.1"
 
@@ -159,56 +158,21 @@ jobs:
 
 
       - name: Install Whitaker
-        uses: leynos/shared-actions/.github/actions/install-whitaker@5a99aed78ce68dcebd3052b75c31e6f173162b1e # shared-actions 5a99aed7 (whitaker-installer 0.2.11)
+        uses: leynos/shared-actions/.github/actions/install-whitaker@0eabb6bc07148981de5da395e30cd78d83f5c7c2 # shared-actions 0eabb6bc (whitaker-installer 0.2.12)
         with:
           cranelift: true
-
-      - name: Cache the pinned nose duplication detector
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: .tools/nose
-          key: nose-${{ runner.os }}-${{ runner.arch }}-${{ env.NOSE_VERSION }}
-
-      - name: Install nose duplication detector
-        # `make lint` runs the duplication gate, which needs the detector.
-        # The binary is a prebuilt release artefact fetched by cargo-binstall
-        # and installed through the same Make target developers use, so the
-        # gate cannot differ between local runs and CI.
-        #
-        # cargo-binstall is itself downloaded rather than assumed present, and
-        # is verified against the checksum GitHub publishes for its release
-        # asset. The Makefile's install-nose passes
-        # `--disable-strategies compile,quick-install`, so a missing prebuilt
-        # binary fails provisioning loudly instead of starting a Rust build.
-        env:
-          BINSTALL_VERSION: "v1.22.0"
-          # SHA-256 of cargo-binstall-x86_64-unknown-linux-musl.tgz at that
-          # tag, read from the release metadata. This runner is x86-64 Linux;
-          # another platform needs its own asset and its own digest.
-          BINSTALL_SHA256: "df2921254924066627685ee09f6c8b9acd7acef68a338668f879d2b033c09458"
-        run: |
-          if [ "$(.tools/nose/nose --version 2>/dev/null)" = "nose ${NOSE_VERSION}" ]; then
-            echo "nose ${NOSE_VERSION} restored from cache"
-            exit 0
-          fi
-          binstall_archive="$(mktemp)"
-          binstall_directory="$(mktemp -d)"
-          curl -fsSL --proto '=https' --tlsv1.2 -o "$binstall_archive" \
-            "https://github.com/cargo-bins/cargo-binstall/releases/download/${BINSTALL_VERSION}/cargo-binstall-x86_64-unknown-linux-musl.tgz"
-          echo "${BINSTALL_SHA256}  ${binstall_archive}" | sha256sum -c -
-          tar -xzf "$binstall_archive" -C "$binstall_directory"
-          mkdir -p .tools/nose
-          make install-nose CARGO_BINSTALL="$binstall_directory/cargo-binstall"
-          .tools/nose/nose --version
-
-      - name: Duplication-gate helper tests
-        run: make duplication-test
 
       - name: Typecheck
         run: make typecheck
 
       - name: Lint and dead-code detection
         run: make lint
+
+      - name: Dead-code gate
+        uses: leynos/shared-actions/.github/actions/df12-skylos@a0519a1476ab769ca7b8badfa794f3751213f1ea
+
+      - name: Duplication gate
+        uses: leynos/shared-actions/.github/actions/df12-duplication@a0519a1476ab769ca7b8badfa794f3751213f1ea
 
       # The docstring examples only. The coverage step below, and
       # coverage-main.yml on a push, run the Rust and Python suites, and the
@@ -247,7 +211,7 @@ jobs:
         # holds the value free of development flags.
         env:
           RUSTFLAGS: -D warnings
-        uses: leynos/shared-actions/.github/actions/generate-coverage@6cec89bac47a21cf756d68d638a9a510998e57f8
+        uses: leynos/shared-actions/.github/actions/generate-coverage@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
         with:
           output-path: coverage.xml
           format: cobertura
@@ -280,7 +244,7 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@2f47859bcf82ae8b5bc10b457683fbd589ca2e41
+        uses: leynos/shared-actions/.github/actions/setup-rust@6f53870bc36cfac0c0c9893daaee77a5eb4327f4
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2

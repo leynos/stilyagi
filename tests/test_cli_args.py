@@ -1,8 +1,11 @@
-"""Argument-parser coverage for the `check` command's options.
+"""Argument-parser coverage for the `check` and `dump-ir` commands' options.
 
 These tests exercise `build_parser` and `options_from_args` directly, with no
 `run_check` and no filesystem, so they say nothing about what a run does with
-an option once it has been parsed.
+an option once it has been parsed. The `dump-ir` cases pin the same boundary
+one command further along: `dump_ir_options_from_args` converts the parsed
+namespace, and a flag that `check` accepts -- or one that only `check` owns --
+must be handled the way that command expects.
 
 The `--diff` switch is pinned here too, but its *behaviour* -- the preview, the
 three empty-patch cases, and the rendering counters -- lives in
@@ -120,3 +123,53 @@ def test_check_parser_defaults_explicit_config_to_empty() -> None:
     assert not options.explicit_config, (
         "expected no explicit configuration source by default"
     )
+
+
+def test_dump_ir_parser_accepts_only_its_inspection_options() -> None:
+    """Keep dump-ir read-only and limit its output format to canonical JSON."""
+    parsed = cli.build_parser().parse_args([
+        "dump-ir",
+        "--config",
+        "lint.select=['MD']",
+        "--isolated",
+        "--no-cache",
+        "--output-format",
+        "json",
+        "notes.mdc",
+    ])
+
+    options = cli.dump_ir_options_from_args(parsed)
+
+    assert options.targets == ("notes.mdc",), "expected the explicit target"
+    assert options.explicit_config == ("lint.select=['MD']",), (
+        "expected the inline config value"
+    )
+    assert options.isolated, "expected isolated config discovery"
+    assert options.no_cache, "expected the no-cache flag"
+    assert options.output_format == "json", "expected canonical JSON output"
+
+
+@pytest.mark.parametrize("flag", ["--fix", "--diff", "--select"])
+def test_dump_ir_parser_rejects_check_only_options(flag: str) -> None:
+    """Do not expose rule selection or mutation controls on dump-ir."""
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["dump-ir", flag, "PUN201", "notes.md"])
+
+
+def test_dump_ir_parser_reaches_the_cache_counters() -> None:
+    """Expose the one switch that makes dump-ir log its cache counters.
+
+    The cache logs hits, misses and bypasses at INFO. `run_dump_ir` computes
+    them and calls `log_summary`, but without a verbosity flag the invocation
+    has no way to raise the level, so the counters are written and never shown.
+    Both halves are pinned: the flag parses, and it reaches the options object
+    that `run_dump_ir` reads before configuring logging.
+    """
+    parsed = cli.build_parser().parse_args(["dump-ir", "--verbose", "notes.md"])
+
+    assert cli.dump_ir_options_from_args(parsed).verbose, (
+        "expected --verbose to reach DumpIrOptions.verbose"
+    )
+    assert not cli.dump_ir_options_from_args(
+        cli.build_parser().parse_args(["dump-ir", "notes.md"])
+    ).verbose, "expected dump-ir to stay quiet by default"
