@@ -35,6 +35,7 @@ from stilyagi.cli_shared_args import (
 )
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     import pathlib
 
 PROGRAM_NAME = "stilyagi"
@@ -114,51 +115,31 @@ def build_parser() -> argparse.ArgumentParser:
     'stilyagi'
     """
     parser = argparse.ArgumentParser(prog=PROGRAM_NAME)
-    parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
-    )
+    _add_version_argument(parser)
     subparsers = parser.add_subparsers(dest="command")
-    check_parser = subparsers.add_parser(
+    _add_subcommand(
+        subparsers.add_parser,
         "check",
-        help="Check Markdown, Python, and Rust source files.",
+        help_text="Check Markdown, Python, and Rust source files.",
+        add_arguments=_add_check_arguments,
     )
-    check_parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
-    )
-    _add_check_arguments(check_parser)
-    config_parser = subparsers.add_parser(
+    _add_subcommand(
+        subparsers.add_parser,
         "config",
-        help="Inspect the effective configuration without linting files.",
+        help_text="Inspect the effective configuration without linting files.",
+        add_arguments=_add_config_inspection_arguments,
     )
-    config_parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
-    )
-    _add_config_inspection_arguments(config_parser)
-    dump_ir_parser = subparsers.add_parser(
+    _add_subcommand(
+        subparsers.add_parser,
         "dump-ir",
-        help="Emit canonical JSON IR for Markdown files.",
-    )
-    dump_ir_parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
-    )
-    _add_dump_ir_arguments(
-        dump_ir_parser,
-        add_config_argument=add_config_argument,
-        add_isolated_argument=partial(
-            add_isolated_argument,
-            help_text="Skip config discovery for the requested Markdown targets.",
+        help_text="Emit canonical JSON IR for Markdown files.",
+        add_arguments=partial(
+            _add_dump_ir_arguments,
+            add_config_argument=add_config_argument,
+            add_isolated_argument=partial(
+                add_isolated_argument,
+                help_text=("Skip config discovery for the requested Markdown targets."),
+            ),
         ),
     )
     subparsers.add_parser(
@@ -170,6 +151,30 @@ def build_parser() -> argparse.ArgumentParser:
         version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
     )
     return parser
+
+
+def _add_subcommand(
+    add_parser: cabc.Callable[..., argparse.ArgumentParser],
+    name: str,
+    *,
+    help_text: str,
+    add_arguments: cabc.Callable[[argparse.ArgumentParser], None],
+) -> argparse.ArgumentParser:
+    """Register one subcommand with its version flag and own arguments."""
+    subparser = add_parser(name, help=help_text)
+    _add_version_argument(subparser)
+    add_arguments(subparser)
+    return subparser
+
+
+def _add_version_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the shared `-V`/`--version` action to one parser."""
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"{PROGRAM_NAME} {PACKAGE_VERSION}",
+    )
 
 
 def options_from_args(args: argparse.Namespace) -> CheckOptions:

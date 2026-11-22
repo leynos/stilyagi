@@ -173,6 +173,31 @@ class RuleExample:
     expected_codes: tuple[str, ...] = ()
 
 
+def _require_capabilities(requires: tuple[str, ...]) -> None:
+    """Reject capabilities that are unsorted, duplicated, or unknown."""
+    if requires != tuple(sorted(set(requires))):
+        message = "requires must be sorted and unique"
+        raise ValueError(message)
+    unknown = set(requires) - CAPABILITIES
+    if unknown:
+        message = f"unsupported capability: {min(unknown)}"
+        raise ValueError(message)
+
+
+def _require_fix_mode(fix_mode: str) -> None:
+    """Reject a fix mode outside the published vocabulary."""
+    if fix_mode not in FIX_MODES:
+        message = f"unsupported fix mode: {fix_mode}"
+        raise ValueError(message)
+
+
+def _require_preview(*, preview: bool) -> None:
+    """Reject a preview flag that is not a boolean."""
+    if not isinstance(preview, bool):
+        message = "preview must be a boolean"
+        raise TypeError(message)
+
+
 @dc.dataclass(frozen=True, slots=True)
 class RuleDescription:
     """The policy and documentation a builtin rule publishes.
@@ -218,19 +243,9 @@ class RuleDescription:
 
     def __post_init__(self) -> None:
         """Reject capability or fix-mode metadata the catalogue cannot honour."""
-        if self.requires != tuple(sorted(set(self.requires))):
-            message = "requires must be sorted and unique"
-            raise ValueError(message)
-        unknown = set(self.requires) - CAPABILITIES
-        if unknown:
-            message = f"unsupported capability: {min(unknown)}"
-            raise ValueError(message)
-        if self.fix_mode not in FIX_MODES:
-            message = f"unsupported fix mode: {self.fix_mode}"
-            raise ValueError(message)
-        if not isinstance(self.preview, bool):
-            message = "preview must be a boolean"
-            raise TypeError(message)
+        _require_capabilities(self.requires)
+        _require_fix_mode(self.fix_mode)
+        _require_preview(preview=self.preview)
 
     @property
     def fixable(self) -> bool:

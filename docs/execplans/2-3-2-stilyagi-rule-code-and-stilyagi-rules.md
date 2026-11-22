@@ -133,6 +133,15 @@ before continuing.
   under its parent task, which the grammar rejects), so the equivalent
   one-character checkbox edit was made directly and verified by
   `make markdownlint`. Roadmap 2.3.3 is untouched.
+- [x] (2026-11-22) First hosted `lint-test` failed on the Python coverage
+  ratchet: 91.85% against a 92.88% baseline with ±1.00 tolerance. Repair:
+  refactored `build_parser`, `RuleDescription.__post_init__`, `_matches`, and
+  the generated-test oracle to clear the four hosted CodeScene findings, added
+  description-record validation contracts and parser/renderer edge cases, and
+  marked the new typing-only blocks with the repository's existing
+  `# pragma: no cover - typing only` convention. Local statement coverage over
+  `stilyagi` rose to 95%; CodeScene's working-tree delta reports all four
+  findings fixed. Hosted re-validation is pending the repaired push.
 - [x] (2026-11-22) M3: E5 walkthrough, user/developer/design/RFC
   documentation, and roadmap 2.3.2 completion are recorded above.
 

@@ -16,7 +16,7 @@ from stilyagi import cli_command_shell
 from stilyagi.rule_rendering import render_rule_detail, render_rule_list
 from stilyagi.rules import catalogue
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from stilyagi.cli_rule_args import RuleDetailOptions, RuleListOptions
 
 __all__ = ["run_rule_detail", "run_rule_list"]

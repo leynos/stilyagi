@@ -83,17 +83,52 @@ def _oracle(
     registry: cabc.Sequence[RuleMetadata],
     filters: RuleFilters,
 ) -> tuple[str, ...]:
-    """Select matching codes with an independent comprehension."""
-    selected = {
-        rule.code
-        for rule in registry
-        if (filters.prefix is None or rule.code.startswith(filters.prefix))
-        and (filters.pack is None or rule.pack == filters.pack)
-        and (filters.severity is None or rule.default_severity == filters.severity)
-        and (filters.preview is None or rule.description.preview is filters.preview)
-        and (filters.fixable is None or rule.description.fixable is filters.fixable)
-    }
+    """Select matching codes by intersecting one set per filter.
+
+    The formulation is deliberately unlike the production predicate: it
+    starts from the whole registry and narrows by one set intersection per
+    supplied dimension, so an error shared by a predicate and the query that
+    applies it cannot agree with itself here.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Matching codes in ascending order.
+    """
+    by_prefix = {rule.code for rule in registry}
+    if filters.prefix is not None:
+        by_prefix = {code for code in by_prefix if code.startswith(filters.prefix)}
+    by_pack = _codes_where(registry, lambda rule: rule.pack, filters.pack)
+    by_severity = _codes_where(
+        registry, lambda rule: rule.default_severity, filters.severity
+    )
+    by_preview = _codes_where(
+        registry, lambda rule: rule.description.preview, filters.preview
+    )
+    by_fixable = _codes_where(
+        registry, lambda rule: rule.description.fixable, filters.fixable
+    )
+    selected = by_prefix & by_pack & by_severity & by_preview & by_fixable
     return tuple(sorted(selected))
+
+
+def _codes_where(
+    registry: cabc.Sequence[RuleMetadata],
+    value_of: cabc.Callable[[RuleMetadata], object],
+    wanted: object,
+) -> set[str]:
+    """Return every code whose ``value_of`` equals ``wanted``.
+
+    ``None`` means the dimension is unfiltered, so every code is admitted.
+
+    Returns
+    -------
+    set[str]
+        Codes admitted by this filter dimension.
+    """
+    if wanted is None:
+        return {rule.code for rule in registry}
+    return {rule.code for rule in registry if value_of(rule) == wanted}
 
 
 @settings(max_examples=150, deadline=None)

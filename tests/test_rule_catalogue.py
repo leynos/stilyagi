@@ -241,6 +241,16 @@ def test_catalogue_queries_leave_the_inventory_unchanged() -> None:
             "severity",
             id="bad-severity",
         ),
+        pytest.param(
+            functools.partial(RuleFilters, preview="yes"),
+            "preview",
+            id="preview-not-boolean",
+        ),
+        pytest.param(
+            functools.partial(RuleFilters, fixable="no"),
+            "fixable",
+            id="fixable-not-boolean",
+        ),
     ],
 )
 def test_catalogue_rejects_unusable_filter_values(

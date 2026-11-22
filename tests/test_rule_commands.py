@@ -14,6 +14,7 @@ import json
 
 import pytest
 from stilyagi import cli
+from stilyagi.rule_rendering import render_rule_detail, render_rule_list
 from stilyagi.rules import catalogue
 from stilyagi.rules.catalogue import RuleFilters
 
@@ -349,6 +350,17 @@ def test_text_output_is_deterministic() -> None:
     assert detail_result("MD001") == detail_result("MD001"), (
         "expected deterministic detail text"
     )
+
+
+@pytest.mark.parametrize("output_format", ["yaml", "sarif", ""])
+def test_renderers_reject_an_unsupported_format(output_format: str) -> None:
+    """A caller that bypasses the parser still cannot request a format."""
+    rule = catalogue.get_rule("MD001")
+
+    with pytest.raises(ValueError, match="output format"):
+        render_rule_list([rule], output_format)
+    with pytest.raises(ValueError, match="output format"):
+        render_rule_detail(rule, output_format)
 
 
 def test_check_dispatch_is_preserved(

@@ -17,7 +17,7 @@ import typing as typ
 from stilyagi.rules.description import SEVERITY_NAMES
 from stilyagi.rules.registry import builtin_metadata
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
     from stilyagi.rules.base import RuleMetadata
@@ -210,10 +210,13 @@ def _lookup_rule(
 def _matches(rule: RuleMetadata, filters: RuleFilters) -> bool:
     """Return whether one descriptor satisfies every supplied filter."""
     description = rule.description
-    return (
-        (filters.prefix is None or rule.code.startswith(filters.prefix))
-        and (filters.pack is None or rule.pack == filters.pack)
-        and (filters.severity is None or rule.default_severity == filters.severity)
-        and (filters.preview is None or description.preview == filters.preview)
-        and (filters.fixable is None or description.fixable == filters.fixable)
+    wanted = (
+        (filters.pack, rule.pack),
+        (filters.severity, rule.default_severity),
+        (filters.preview, description.preview),
+        (filters.fixable, description.fixable),
+    )
+    prefix_matches = filters.prefix is None or rule.code.startswith(filters.prefix)
+    return prefix_matches and all(
+        expected is None or value == expected for expected, value in wanted
     )

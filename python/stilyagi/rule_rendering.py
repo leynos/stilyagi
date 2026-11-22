@@ -12,7 +12,7 @@ guessing. Every successful rendering ends in exactly one newline.
 import json
 import typing as typ
 
-if typ.TYPE_CHECKING:
+if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc
 
     from stilyagi.rules.base import RegionTarget, RuleMetadata

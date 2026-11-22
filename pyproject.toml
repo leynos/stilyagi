@@ -509,6 +509,9 @@ names = [
     "_coerce_path",
     "_coerce_string_to_string_tuple_map",
     "_copy_mapping",
+    "_require_capabilities",
+    "_require_fix_mode",
+    "_require_preview",
     "_require_strict_int",
     "reset_extraction_state_for_tests",
     "extract_document",
@@ -519,6 +522,9 @@ InvalidSpacyModelError = "Raised by SpacyProviderConfig validation for blank mod
 _coerce_path = "Called by StilyagiConfig post-initialization to normalize cache directories."
 _coerce_string_to_string_tuple_map = "Called by LintConfig post-initialization to normalize per-file ignore mappings."
 _copy_mapping = "Called by configuration dataclass post-initialization to copy reserved mappings."
+_require_capabilities = "Called by RuleDescription post-initialization to validate the capability declaration."
+_require_fix_mode = "Called by RuleDescription post-initialization to validate the published fix mode."
+_require_preview = "Called by RuleDescription post-initialization to validate the preview flag."
 _require_strict_int = "Called by StilyagiConfig post-initialization to validate the line-length setting."
 reset_extraction_state_for_tests = "Called by extraction tests that reset process-wide bridge caches."
 extract_document = "PyO3 exports this stubbed API; its signature parameters mirror the compiled extension."
