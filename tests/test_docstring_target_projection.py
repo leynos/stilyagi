@@ -59,33 +59,37 @@ def _ownerless(kind: str, syntax: str) -> RegionView:
 class TestOwnerProjection:
     """The projection carries the extractor's owner metadata verbatim."""
 
-    def test_python_docstrings_project_their_owner(self) -> None:
-        """Module, class, and function owners survive with their names."""
+    @pytest.mark.parametrize(
+        ("source", "syntax", "expected"),
+        [
+            pytest.param(
+                _PYTHON_SOURCE,
+                model.Syntax.PYTHON_DOCSTRING,
+                [("module", None), ("class", "Widget"), ("function", "reader")],
+                id="python",
+            ),
+            pytest.param(
+                _RUST_SOURCE,
+                model.Syntax.RUST_DOC_COMMENT,
+                [("module", None), ("struct", "Widget"), ("function", "reader")],
+                id="rust",
+            ),
+        ],
+    )
+    def test_documentation_regions_project_their_owner(
+        self,
+        source: str,
+        syntax: model.Syntax,
+        expected: list[tuple[str, str | None]],
+    ) -> None:
+        """Module, class, struct, and function owners survive with their names."""
         owners = [
             (region.owner.kind, region.owner.name)
-            for region in _regions(_PYTHON_SOURCE, model.Syntax.PYTHON_DOCSTRING)
+            for region in _regions(source, syntax)
             if region.owner is not None
         ]
 
-        assert owners == [
-            ("module", None),
-            ("class", "Widget"),
-            ("function", "reader"),
-        ], f"unexpected Python owner projection: {owners}"
-
-    def test_rust_doc_comments_project_their_owner(self) -> None:
-        """A doc comment on a named item records its kind and name."""
-        owners = [
-            (region.owner.kind, region.owner.name)
-            for region in _regions(_RUST_SOURCE, model.Syntax.RUST_DOC_COMMENT)
-            if region.owner is not None
-        ]
-
-        assert owners == [
-            ("module", None),
-            ("struct", "Widget"),
-            ("function", "reader"),
-        ], f"unexpected Rust owner projection: {owners}"
+        assert owners == expected, f"unexpected owner projection: {owners}"
 
     def test_markdown_regions_have_no_owner(self) -> None:
         """A Markdown region never invents owner metadata."""

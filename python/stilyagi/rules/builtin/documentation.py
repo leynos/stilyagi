@@ -16,6 +16,7 @@ docstring regions, and the analysis skips any candidate it cannot judge
 without a Markdown parser.
 """
 
+import functools
 import typing as typ
 
 from stilyagi import diagnostics
@@ -36,6 +37,7 @@ if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     from stilyagi.rules.base import RuleContext
 
 __all__ = [
+    "check_documentation",
     "check_owner_summary",
     "check_summary_punctuation",
     "check_summary_separation",
@@ -51,133 +53,48 @@ _TERMINAL_PUNCTUATION: frozenset[str] = frozenset(".!?")
 _FUNCTION_OWNER_KINDS: frozenset[str] = frozenset({"function"})
 
 
-def check_summary_separation(
+def check_documentation(
     context: RuleContext[DocRuleConfig],
-) -> tuple[diagnostics.Diagnostic, ...]:
-    """Report Python summaries that touch their explanation without a blank.
-
-    The first nonblank physical line is the summary. A single content line, or
-    one followed by a blank line, passes. Blank-only content is skipped because
-    missing documentation is not in this slice.
-
-    Parameters
-    ----------
-    context:
-        Rule context whose regions are Python docstrings owned by a module,
-        class, or function.
-
-    Returns
-    -------
-    tuple[diagnostics.Diagnostic, ...]
-        One warning per offending docstring, in document order.
-
-    Examples
-    --------
-    >>> from stilyagi import model
-    >>> from stilyagi.config.rules import DocRuleConfig
-    >>> from stilyagi.rules.base import RuleContext
-    >>> check_summary_separation(
-    ...     RuleContext(
-    ...         rule_config=DocRuleConfig(),
-    ...         document=model.Document(syntax=model.Syntax.PYTHON_DOCSTRING),
-    ...         source_bytes=b"",
-    ...         reported_path="example.py",
-    ...     )
-    ... )
-    ()
-    """
-    return _enabled_findings(context, _separation_diagnostic)
-
-
-def check_summary_punctuation(
-    context: RuleContext[DocRuleConfig],
-) -> tuple[diagnostics.Diagnostic, ...]:
-    """Report plain documentation summaries missing terminal punctuation.
-
-    The candidate is the Python summary line or the Rust first paragraph.
-    A candidate containing markup, or any constituent line starting with a
-    structural marker, is skipped rather than parsed.
-
-    Parameters
-    ----------
-    context:
-        Rule context whose regions are Python docstrings or Rust
-        documentation comments.
-
-    Returns
-    -------
-    tuple[diagnostics.Diagnostic, ...]
-        At most one warning per region, in document order.
-
-    Examples
-    --------
-    >>> from stilyagi import model
-    >>> from stilyagi.config.rules import DocRuleConfig
-    >>> from stilyagi.rules.base import RuleContext
-    >>> check_summary_punctuation(
-    ...     RuleContext(
-    ...         rule_config=DocRuleConfig(),
-    ...         document=model.Document(syntax=model.Syntax.RUST_DOC_COMMENT),
-    ...         source_bytes=b"",
-    ...         reported_path="example.rs",
-    ...     )
-    ... )
-    ()
-    """
-    return _enabled_findings(context, _punctuation_diagnostic)
-
-
-def check_owner_summary(
-    context: RuleContext[DocRuleConfig],
-) -> tuple[diagnostics.Diagnostic, ...]:
-    """Report a summary that only repeats its documented owner's name.
-
-    Matching is whole-summary and case-sensitive. A name may be followed by
-    ``()`` for a function owner and by a single final period; anything else is
-    content and passes.
-
-    Parameters
-    ----------
-    context:
-        Rule context whose regions are named Python classes or functions, or
-        named Rust items.
-
-    Returns
-    -------
-    tuple[diagnostics.Diagnostic, ...]
-        One warning per redundant summary, in document order.
-
-    Examples
-    --------
-    >>> from stilyagi import model
-    >>> from stilyagi.config.rules import DocRuleConfig
-    >>> from stilyagi.rules.base import RuleContext
-    >>> check_owner_summary(
-    ...     RuleContext(
-    ...         rule_config=DocRuleConfig(),
-    ...         document=model.Document(syntax=model.Syntax.PYTHON_DOCSTRING),
-    ...         source_bytes=b"",
-    ...         reported_path="example.py",
-    ...     )
-    ... )
-    ()
-    """
-    return _enabled_findings(context, _redundancy_diagnostic)
-
-
-def _enabled_findings(
-    context: RuleContext[DocRuleConfig],
+    *,
     find: cabc.Callable[
         [RuleContext[DocRuleConfig], RegionView],
         diagnostics.Diagnostic | None,
     ],
 ) -> tuple[diagnostics.Diagnostic, ...]:
-    """Return one rule's findings for every selected region while enabled.
+    """Report one documentation rule's findings for every selected region.
+
+    The finding selector decides what the rule reports. This function applies
+    the shared opt-in gate and the document order, so every rule in the family
+    behaves the same way when it is not configured.
+
+    Parameters
+    ----------
+    context:
+        Rule context whose regions the rule's target already selected.
+    find:
+        The rule's finding selector, returning one diagnostic or ``None`` for
+        a region.
 
     Returns
     -------
     tuple[diagnostics.Diagnostic, ...]
         Findings in document order, empty while the rule is not opted in.
+
+    Examples
+    --------
+    >>> from stilyagi import model
+    >>> from stilyagi.config.rules import DocRuleConfig
+    >>> from stilyagi.rules.base import RuleContext
+    >>> check_documentation(
+    ...     RuleContext(
+    ...         rule_config=DocRuleConfig(),
+    ...         document=model.Document(syntax=model.Syntax.PYTHON_DOCSTRING),
+    ...         source_bytes=b"",
+    ...         reported_path="example.py",
+    ...     ),
+    ...     find=_separation_finding,
+    ... )
+    ()
     """
     if not context.rule_config.enabled:
         return ()
@@ -188,7 +105,7 @@ def _enabled_findings(
     )
 
 
-def _separation_diagnostic(
+def _separation_finding(
     context: RuleContext[DocRuleConfig],
     region: RegionView,
 ) -> diagnostics.Diagnostic | None:
@@ -213,7 +130,7 @@ def _separation_diagnostic(
     )
 
 
-def _punctuation_diagnostic(
+def _punctuation_finding(
     context: RuleContext[DocRuleConfig],
     region: RegionView,
 ) -> diagnostics.Diagnostic | None:
@@ -236,7 +153,7 @@ def _punctuation_diagnostic(
     )
 
 
-def _redundancy_diagnostic(
+def _redundancy_finding(
     context: RuleContext[DocRuleConfig],
     region: RegionView,
 ) -> diagnostics.Diagnostic | None:
@@ -329,3 +246,17 @@ def _diagnostic(
         column=column,
         span=span,
     )
+
+
+#: The ``DOC001`` hook: report a Python summary with no blank separator.
+check_summary_separation = functools.partial(
+    check_documentation, find=_separation_finding
+)
+
+#: The ``DOC002`` hook: report a plain summary with no terminal punctuation.
+check_summary_punctuation = functools.partial(
+    check_documentation, find=_punctuation_finding
+)
+
+#: The ``DOC003`` hook: report a summary that repeats its owner's name.
+check_owner_summary = functools.partial(check_documentation, find=_redundancy_finding)

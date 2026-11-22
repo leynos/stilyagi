@@ -325,24 +325,53 @@ def _physical_lines(
     tuple[PhysicalLine, ...]
         At least one line, in text order.
     """
-    lines: list[PhysicalLine] = []
-    start = 0
-    cursor = 0
+    splitter = _LineSplitter()
     for segment in segments:
         if _is_line_break(segment):
-            lines.append(PhysicalLine(start, cursor))
-            cursor += len(segment.text)
-            start = cursor
-            continue
-        for offset, character in enumerate(segment.text):
+            splitter.break_line(len(segment.text))
+        else:
+            splitter.append(segment.text)
+    return splitter.finish(text_length)
+
+
+@dc.dataclass(slots=True)
+class _LineSplitter:
+    """Accumulate physical lines while the region text is walked once.
+
+    The splitter owns the running character cursor and the current line's
+    start, so the walk has one branch per segment instead of a conditional
+    nested inside a per-character scan.
+    """
+
+    lines: list[PhysicalLine] = dc.field(default_factory=list)
+    start: int = 0
+    cursor: int = 0
+
+    def append(self, text: str) -> None:
+        """Append ordinary segment text, ending a line at every LF."""
+        for offset, character in enumerate(text):
             if character != "\n":
                 continue
-            end = cursor + offset
-            lines.append(PhysicalLine(start, end))
-            start = end + 1
-        cursor += len(segment.text)
-    lines.append(PhysicalLine(start, text_length))
-    return tuple(lines)
+            self.lines.append(PhysicalLine(self.start, self.cursor + offset))
+            self.start = self.cursor + offset + 1
+        self.cursor += len(text)
+
+    def break_line(self, width: int) -> None:
+        """End the current line at a synthetic separator of ``width`` units."""
+        self.lines.append(PhysicalLine(self.start, self.cursor))
+        self.cursor += width
+        self.start = self.cursor
+
+    def finish(self, text_length: int) -> tuple[PhysicalLine, ...]:
+        """Close the final line and return every line in text order.
+
+        Returns
+        -------
+        tuple[PhysicalLine, ...]
+            At least one line, in text order.
+        """
+        self.lines.append(PhysicalLine(self.start, text_length))
+        return tuple(self.lines)
 
 
 def _is_line_break(segment: RegionSegment) -> bool:

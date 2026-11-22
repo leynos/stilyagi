@@ -35,6 +35,15 @@ def _rust(
     return (setup or doc_setup("doc.rs")).run(source, model.Syntax.RUST_DOC_COMMENT)
 
 
+def _run(
+    source: str | bytes,
+    syntax: model.Syntax,
+) -> list[diagnostics.Diagnostic]:
+    """Run the documentation rules over one source in its own syntax."""
+    reported_path = "doc.py" if syntax is model.Syntax.PYTHON_DOCSTRING else "doc.rs"
+    return doc_setup(reported_path).run(source, syntax)
+
+
 def _codes(result: list[diagnostics.Diagnostic]) -> tuple[str, ...]:
     """Return the diagnostic codes in order."""
     return tuple(diagnostic.code for diagnostic in result)
@@ -43,10 +52,28 @@ def _codes(result: list[diagnostics.Diagnostic]) -> tuple[str, ...]:
 class TestOwnerOnlySummary:
     """``DOC003`` reports a summary that only restates the owner's name."""
 
-    def test_a_class_named_summary_warns(self) -> None:
-        """A class documenting itself by name is redundant."""
-        source = 'class Widget:\n    """Widget."""\n'
-        result = _python(source)
+    @pytest.mark.parametrize(
+        ("source", "syntax"),
+        [
+            pytest.param(
+                'class Widget:\n    """Widget."""\n',
+                model.Syntax.PYTHON_DOCSTRING,
+                id="python",
+            ),
+            pytest.param(
+                "/// Widget.\npub struct Widget;\n",
+                model.Syntax.RUST_DOC_COMMENT,
+                id="rust",
+            ),
+        ],
+    )
+    def test_a_named_owner_summary_warns(
+        self,
+        source: str,
+        syntax: model.Syntax,
+    ) -> None:
+        """A class or struct documenting itself by name is redundant."""
+        result = _run(source, syntax)
 
         assert _codes(result) == ("DOC003",), (
             f"expected one DOC003 finding, got {_codes(result)}"
@@ -129,18 +156,6 @@ class TestOwnerOnlySummary:
         """A module has no name a summary could repeat."""
         assert _python('"""__doc__."""\n') == [], (
             "expected an unnamed module owner to be skipped"
-        )
-
-    def test_rust_named_struct_warns(self) -> None:
-        """A named Rust item's doc comment is checked."""
-        source = "/// Widget.\npub struct Widget;\n"
-        result = _rust(source)
-
-        assert _codes(result) == ("DOC003",), (
-            f"expected one DOC003 finding, got {_codes(result)}"
-        )
-        assert marked_span(source.encode(), result) == b"W", (
-            "expected the anchor to be the name's first character"
         )
 
     def test_rust_summary_with_content_on_the_same_paragraph_passes(self) -> None:
@@ -228,35 +243,50 @@ class TestOptIn:
 
         assert _python(source, setup) == [], "expected an unselected rule not to run"
 
-    def test_ignore_removes_an_enabled_rule(self) -> None:
-        """Shared ignore precedence still applies."""
-        setup = LintSetup(
-            select=("DOC",), ignore=("DOC",), rules=ALL_ENABLED, reported_path="doc.py"
-        )
+    @pytest.mark.parametrize(
+        ("setup", "reason"),
+        [
+            pytest.param(
+                LintSetup(
+                    select=("DOC",),
+                    ignore=("DOC",),
+                    rules=ALL_ENABLED,
+                    reported_path="doc.py",
+                ),
+                "expected lint.ignore to win",
+                id="ignore",
+            ),
+            pytest.param(
+                LintSetup(
+                    select=("DOC",),
+                    per_file_ignores={"*.py": ("DOC",)},
+                    rules=ALL_ENABLED,
+                    reported_path="doc.py",
+                ),
+                "expected the per-file glob to win",
+                id="per-file-ignore",
+            ),
+            pytest.param(
+                LintSetup(
+                    select=("DOC",),
+                    plugins=(),
+                    rules=ALL_ENABLED,
+                    reported_path="doc.py",
+                ),
+                "expected the plugin gate to win",
+                id="plugin-disabled",
+            ),
+        ],
+    )
+    def test_shared_policy_removes_an_enabled_rule(
+        self,
+        setup: LintSetup,
+        reason: str,
+    ) -> None:
+        """Ignore, per-file ignore, and the plugin gate all precede opt-in."""
         source = 'class Widget:\n    """Widget"""\n'
 
-        assert _python(source, setup) == [], "expected lint.ignore to win"
-
-    def test_a_per_file_ignore_removes_an_enabled_rule(self) -> None:
-        """Shared per-file globs still apply."""
-        setup = LintSetup(
-            select=("DOC",),
-            per_file_ignores={"*.py": ("DOC",)},
-            rules=ALL_ENABLED,
-            reported_path="doc.py",
-        )
-        source = 'class Widget:\n    """Widget"""\n'
-
-        assert _python(source, setup) == [], "expected the per-file glob to win"
-
-    def test_disabling_the_builtin_pack_removes_every_rule(self) -> None:
-        """The plugin gate precedes per-rule opt-in."""
-        setup = LintSetup(
-            select=("DOC",), plugins=(), rules=ALL_ENABLED, reported_path="doc.py"
-        )
-        source = 'class Widget:\n    """Widget"""\n'
-
-        assert _python(source, setup) == [], "expected the plugin gate to win"
+        assert _python(source, setup) == [], reason
 
     def test_a_malformed_flag_is_rejected_even_when_unselected(self) -> None:
         """An option error cannot hide behind selection."""
