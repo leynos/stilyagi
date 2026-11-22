@@ -953,8 +953,9 @@ positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 records the contract; this section is the maintainer's map of where it lives.
 
 `rules/base.py` defines the typed boundary. A `RuleMetadata` declares a code,
-name, severity, and `RegionTarget`; the target selects by region kind, syntax,
-and required scope entries.
+name, severity, `RegionTarget`, owning pack, and an immutable
+`RuleDescription`; the target selects by region kind, syntax, and required
+scope entries.
 
 `RuleRunRequest` is the application-level packet the check pipeline constructs.
 It carries the extracted document, the original source bytes, the reported
@@ -1016,6 +1017,42 @@ with shared text helpers in `rules/builtin/text.py`. `MD001` is manual-only,
 `STY001` proposes an unsafe suffix edit, and `TERM001` never fixes. No builtin
 imports an NLP library; `tests/test_builtin_rules_no_nlp.py` runs a full pass
 in a fresh interpreter with spaCy blocked at the import system.
+
+#### Builtin rule catalogue and discovery commands
+
+`rules/description.py` holds the immutable documentation records a rule
+publishes: prose, capability names, fix mode, default enablement, preview
+status, typed options, examples, limitations, and references. Fixability is
+derived from the stored fix mode, so a record cannot claim `fixable = true`
+while declaring a mode that applies no edits. `rules/builtin/descriptions.py`
+is the one authored source for the three shipped rules, and the pack binds each
+record to its existing `RuleMetadata`.
+
+`rules/catalogue.py` is a pure query over `registry.builtin_metadata()`. It
+never resolves configuration, extracts a document, runs a rule, discovers a
+plugin, or writes cache state. `list_rules` filters the complete inventory and
+sorts by code; `get_rule` requires an exact, case-sensitive code and raises
+`RuleNotFoundError`. Both return the inventory's own descriptor objects.
+
+The command side is an adapter and must stay outside the domain:
+`cli_rule_args.py` parses the two commands, `rule_commands.py` orchestrates
+them, and `rule_rendering.py` owns the text columns and the schema-version-1
+JSON envelopes. `stilyagi.cli` dispatches `rule` and `rules` before it builds
+`CheckOptions`; `check` remains the fallthrough command.
+
+Re-use policy: do not add a second list of rule codes or a second option
+parser. Extend the description record and the existing typed parser together,
+and let the catalogue read the inventory. The contract tests in
+`tests/test_rule_catalogue_contracts.py` and
+`tests/test_rule_catalogue_fix_contracts.py` parse every documented TOML
+example through the production configuration pipeline and run every documented
+source example through the production rule engine; a prose claim that drifts
+from behaviour fails there. `tests/test_rule_commands_isolation.py` installs
+sentinels on configuration loading, discovery, extraction, rule running, plugin
+entry points, and cache access, so a future command change that starts reading
+project state fails immediately. Presentation snapshots live in
+`tests/test_rule_rendering_snapshots.py`, and each is paired with a semantic
+assertion so an approved snapshot cannot hide a contradictory value.
 
 ### Fix planning
 

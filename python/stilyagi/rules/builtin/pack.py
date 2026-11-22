@@ -20,7 +20,13 @@ from stilyagi import diagnostics_location
 from stilyagi.config import rules as rule_options
 from stilyagi.engine import ir_view, rule_view
 from stilyagi.rules.base import RegionTarget, RuleContext, RuleMetadata
-from stilyagi.rules.builtin import banned_term, heading_depth, repeated_word, text
+from stilyagi.rules.builtin import (
+    banned_term,
+    descriptions,
+    heading_depth,
+    repeated_word,
+    text,
+)
 from stilyagi.rules.inline_code import InlineCodeIndex
 
 if typ.TYPE_CHECKING:  # pragma: no cover - typing only
@@ -71,6 +77,7 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             name="heading-depth",
             target=RegionTarget(kinds=("heading",)),
             default_severity="error",
+            description=descriptions.MD001_DESCRIPTION,
         ),
         parser=functools.partial(
             rule_options.parse_optionless, config_type=rule_options.Md001Config
@@ -83,6 +90,7 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             name="repeated-word",
             target=_TEXT_TARGET,
             default_severity="warning",
+            description=descriptions.STY001_DESCRIPTION,
         ),
         parser=functools.partial(
             rule_options.parse_optionless, config_type=rule_options.Sty001Config
@@ -96,6 +104,7 @@ _BUILTIN_RULES: tuple[BuiltinRule, ...] = (
             name="banned-term",
             target=_TEXT_TARGET,
             default_severity="error",
+            description=descriptions.TERM001_DESCRIPTION,
         ),
         parser=rule_options.parse_term001,
         hook=banned_term.check_banned_term,

@@ -80,28 +80,54 @@ Guaranteed options in v1:
 
 ### 3.2 `stilyagi rule CODE`
 
-Print full documentation for one rule.
+Print full documentation for one builtin rule.
 
-The output SHALL include at least:
+`CODE` SHALL be one complete, case-sensitive rule code. A prefix, a lower-case
+spelling, or an unknown code SHALL exit with status `2`, write an actionable
+message identifying the code to standard error, and leave standard output
+empty. The command SHALL accept `--output-format text|json`, defaulting to
+text; errors remain text on standard error even when JSON was requested.
 
-- code
-- name
-- summary
-- long explanation
-- default severity
-- whether the rule is fixable
-- fix safety
-- configuration keys
-- examples
-- references
+The output SHALL include:
+
+- code, name, summary, and long explanation;
+- default severity and owning pack;
+- whether the rule is enabled by default and whether it is preview-only;
+- whether it is fixable and its fix mode (`safe`, `unsafe`, `manual`, or
+  `none`);
+- targets, with syntax, region kinds, and required scope tags;
+- capability requirements from RFC 0002;
+- configuration keys, typed options, defaults, constraints, and documented
+  boolean variants;
+- executable examples, limitations, and references.
+
+Sections SHALL remain visible when empty, with an explicit `None` value.
+
+The command SHALL answer from the static installed inventory. It SHALL NOT read
+project configuration, extract a document, run a rule, discover plugins, or
+write persistent cache state.
 
 ### 3.3 `stilyagi rules`
 
-List installed rules.
+List installed builtin rules.
 
-The command SHALL support filtering by prefix, pack, severity, preview status,
-and fixability. It SHOULD support both human-readable and JavaScript Object
-Notation (JSON) output.
+The command SHALL support filtering by prefix (`--select`), pack (`--pack`),
+severity (`--severity`), preview status (`--preview`), and fixability
+(`--fixable`). Filters SHALL combine with logical AND. Each filter is
+single-valued, and a repeated occurrence SHALL use its last value. Prefix
+matching SHALL be case-sensitive. An unknown nonempty prefix or pack SHALL
+produce an empty successful result, not an error. `--preview` and `--fixable`
+SHALL accept `all`, `yes`, and `no`, with `all` as the default.
+
+The command SHALL support both human-readable text and JavaScript Object
+Notation (JSON) output through `--output-format text|json`, defaulting to text.
+An empty result SHALL exit `0` and state that no builtin rules match. JSON
+output SHALL use a schema-versioned envelope:
+`{"schema_version": 1, "rules": […]}` for the list and
+`{"schema_version": 1, "rule": {…}}` for one rule. Each descriptor SHALL carry
+the same fields in both commands. The list describes the shipped inventory, not
+effective enablement for a file, and SHALL NOT read project configuration or
+extract a document.
 
 ### 3.4 `stilyagi config [KEY]`
 

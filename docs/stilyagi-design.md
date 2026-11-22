@@ -1032,6 +1032,16 @@ The pack itself is `MD001` heading depth, `STY001` repeated word, and opt-in
 `TERM001` banned term. Only `STY001` proposes an edit, and only as an unsafe
 suffix removal.
 
+Rule discovery (roadmap 2.3.2) publishes that contract without executing it.
+Each builtin carries an immutable description record with typed options,
+examples, limitations, and references. `rules/catalogue.py` answers list and
+exact-code queries from the static inventory, and `stilyagi rules` plus
+`stilyagi rule CODE` render text or schema-version-1 JSON. The commands never
+resolve effective configuration or extract a document, so they remain usable in
+a broken repository; effective enablement stays a policy question answered
+during a check. The catalogue is the single metadata source: it introduces no
+second code list, option parser, or plugin schema.
+
 #### Grammar-capability extension
 
 Strong points in RFC 0005:

@@ -11,6 +11,11 @@ import dataclasses as dc
 import typing as typ
 
 from stilyagi.model.source import SourceSpan
+from stilyagi.rules.description import (
+    CAPABILITY_NLP,
+    SEVERITY_NAMES,
+    RuleDescription,
+)
 from stilyagi.rules.inline_code import InlineCodeIndex
 
 if typ.TYPE_CHECKING:  # pragma: no cover - typing only
@@ -127,15 +132,63 @@ class RuleMetadata:
         The IR regions this rule reads.
     default_severity:
         Severity applied when the rule reports.
+    description:
+        The policy, typed options, examples, and limits the catalogue
+        publishes.
     requires_nlp:
-        Whether the rule needs NLP services. The starter pack never does.
+        Whether the rule needs NLP services. The starter pack never does. It
+        must agree with the description's capability declaration.
+    pack:
+        The owning rule pack. Builtin rules all belong to ``builtin``.
+
+    Examples
+    --------
+    >>> from stilyagi.rules.description import RuleConfiguration, RuleDescription
+    >>> metadata = RuleMetadata(
+    ...     code="MD001",
+    ...     name="heading-depth",
+    ...     target=RegionTarget(kinds=("heading",)),
+    ...     default_severity="error",
+    ...     description=RuleDescription(
+    ...         summary="Report heading depth jumps greater than one.",
+    ...         explanation="A skipped level obscures the outline.",
+    ...         requires=("STRUCTURE",),
+    ...         fix_mode="manual",
+    ...         enabled_by_default=True,
+    ...         configuration=RuleConfiguration("Selected by default."),
+    ...         fixes="No edit is applied.",
+    ...     ),
+    ... )
+    >>> metadata.pack
+    'builtin'
+    >>> metadata.description.fixable
+    False
     """
 
     code: str
     name: str
     target: RegionTarget
     default_severity: str
+    description: RuleDescription
     requires_nlp: bool = False
+    pack: str = "builtin"
+
+    def __post_init__(self) -> None:
+        """Reject contradictory identity, severity, or capability metadata."""
+        for field_name, value in (
+            ("code", self.code),
+            ("name", self.name),
+            ("pack", self.pack),
+        ):
+            if not value:
+                message = f"{field_name} must be non-empty"
+                raise ValueError(message)
+        if self.default_severity not in SEVERITY_NAMES:
+            message = f"unsupported default severity: {self.default_severity}"
+            raise ValueError(message)
+        if (CAPABILITY_NLP in self.description.requires) is not self.requires_nlp:
+            message = "requires_nlp must match the NLP capability declaration"
+            raise ValueError(message)
 
 
 @dc.dataclass(frozen=True, slots=True)

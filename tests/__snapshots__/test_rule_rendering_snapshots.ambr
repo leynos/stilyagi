@@ -1,0 +1,266 @@
+# serializer version: 1
+# name: test_text_detail_matches_snapshot[MD001]
+  '''
+  MD001 heading-depth
+  Default severity: error
+  Pack: builtin
+  Enabled by default: yes
+  Preview: no
+  Fixable: no
+  Fix mode: manual
+  
+  Summary:
+    Report heading depth jumps greater than one.
+  
+  Explanation:
+    The first heading may use any depth. A later heading may descend by any amount but may not increase by more than one level at a time, because a skipped level makes the document outline ambiguous for readers and assistive technology. The diagnostic covers the whole heading node, marker included.
+  
+  Targets:
+    syntax: markdown
+    kinds: heading
+    scope requires: None
+  
+  Capabilities:
+    STRUCTURE
+  
+  Policy/enablement:
+    Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = ["MD001"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable MD001` directive, or removing `builtin` from `plugins` prevents it running for a file.
+    TOML:
+    [tool.stilyagi.lint]
+    select = ["MD"]
+  
+  Fixes:
+    The rule reports a manual suggestion. The correct heading level is a prose decision, so no edit is applied automatically and neither `--fix` nor `--unsafe-fixes` changes the heading.
+  
+  Options:
+    None
+  
+  Examples:
+    A skipped level is reported
+      source:
+        # Start
+        ### Detail
+      configuration:
+        defaults
+      expected codes: MD001
+    Consecutive levels are accepted
+      source:
+        # Start
+        ## Detail
+        ### Example
+      configuration:
+        defaults
+      expected codes: None
+  
+  Limitations:
+    Only headings with a locatable node span are reported; a heading the extractor cannot map to source bytes is skipped.
+    The rule compares depth only: it does not enforce a document outline or a maximum depth, and a document may begin at any level.
+    Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file.
+  
+  References:
+    docs/rfcs/rfc-0002-stilyagi-python-rule-api.md
+    docs/stilyagi-design.md#72-python-rule-api
+    docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md
+  
+  '''
+# ---
+# name: test_text_detail_matches_snapshot[STY001]
+  '''
+  STY001 repeated-word
+  Default severity: warning
+  Pack: builtin
+  Enabled by default: yes
+  Preview: no
+  Fixable: yes
+  Fix mode: unsafe
+  
+  Summary:
+    Report an immediately repeated word in prose.
+  
+  Explanation:
+    Two or more identical alphabetic tokens separated only by spaces or tabs are reported as a repeated run. Comparison is exact, so `the the` is a run and `The the` is not. A run never crosses markup, a region boundary, a line break, or a synthetic region, and inline code is excluded.
+  
+  Targets:
+    syntax: markdown
+    kinds: heading, paragraph, table_cell
+    scope requires: None
+  
+  Capabilities:
+    STRUCTURE
+    TOKENS
+  
+  Policy/enablement:
+    Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = ["STY001"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable STY001` directive, or removing `builtin` from `plugins` prevents it running for a file.
+    TOML:
+    [tool.stilyagi.lint]
+    select = ["STY"]
+  
+  Fixes:
+    The rule may propose an unsafe edit that removes the repeated suffix. Apply it only with `stilyagi check --fix --unsafe-fixes`; `--fix` alone skips it, and the `lint.fixable` policy still decides whether the code may contribute an edit. Review the diff before applying it, because a deliberate repetition such as `had had` is removed just as an accidental one is.
+  
+  Options:
+    None
+  
+  Examples:
+    An adjacent repeat is reported
+      source:
+        the the plan is clear.
+      configuration:
+        defaults
+      expected codes: STY001
+    Exact spelling is required
+      source:
+        The the plan is clear.
+      configuration:
+        defaults
+      expected codes: None
+    A line break ends the run
+      source:
+        the
+        the
+      configuration:
+        defaults
+      expected codes: None
+  
+  Limitations:
+    Matching is exact and adjacent: `the the` is a run, but `the plan the plan` is not because other words intervene.
+    A deliberate repetition is reported the same way as an accidental one, and the unsafe edit cannot tell them apart.
+    Only headings, paragraphs, and table cells are inspected; inline code, code blocks, and unsupported regions are not.
+    Synthetic segment text that cannot be mapped to source bytes is not editable, so no edit is offered for it.
+    Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file.
+  
+  References:
+    docs/rfcs/rfc-0002-stilyagi-python-rule-api.md
+    docs/stilyagi-design.md#72-python-rule-api
+    docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md
+  
+  '''
+# ---
+# name: test_text_detail_matches_snapshot[TERM001]
+  '''
+  TERM001 banned-term
+  Default severity: error
+  Pack: builtin
+  Enabled by default: no
+  Preview: no
+  Fixable: no
+  Fix mode: none
+  
+  Summary:
+    Report configured banned terms in prose.
+  
+  Explanation:
+    Every configured term is matched against whole alphabetic tokens, so `obviously` never matches inside `unobviously`. When `case_sensitive` is false, which is the default, both the configured term and the token are compared with Unicode `casefold()`; when it is true, the exact spelling is compared. Duplicate terms coalesce under the chosen comparison. The rule is opt-in and does nothing until terms are configured.
+  
+  Targets:
+    syntax: markdown
+    kinds: heading, paragraph, table_cell
+    scope requires: None
+  
+  Capabilities:
+    STRUCTURE
+    TOKENS
+  
+  Policy/enablement:
+    Disabled by default. Select `TERM001`, or the `TERM` prefix, and configure `terms` under `[tool.stilyagi.rule.TERM001]`. The builtin plugin gate still applies: `plugins = []` disables all builtin rules, and `lint.ignore`, per-file ignores, and suppression directives still apply. Without a nonempty `terms` list the rule is inactive even when selected.
+    TOML:
+    [tool.stilyagi.lint]
+    select = ["MD", "STY", "TERM001"]
+    [tool.stilyagi.rule.TERM001]
+    terms = ["obviously"]
+    case_sensitive = false
+  
+  Fixes:
+    The rule offers no fix. Choosing a replacement for a banned term is editorial, so no edit is planned and `--fix` leaves the source unchanged.
+  
+  Options:
+    terms
+      type: array[string]
+      default: []
+      description: Words to report when they appear as whole prose tokens.
+      constraints:
+        - Must be an array of strings.
+        - Each entry must be exactly one alphabetic word under `str.isalpha`; spaces, punctuation, numerals, and empty strings are rejected.
+        - Duplicates coalesce after the configured comparison.
+      variants:
+        None
+    case_sensitive
+      type: boolean
+      default: false
+      description: Compare configured terms against tokens using exact case instead of Unicode case folding.
+      constraints:
+        - Must be a boolean.
+      variants:
+        false: Use Unicode `casefold()` for the configured term and the candidate token. This is the default.
+        true: Compare the configured spelling exactly. Neither mode promises Unicode normalization or locale-aware matching.
+  
+  Examples:
+    The rule is inactive by default
+      source:
+        This is obviously fine.
+      configuration:
+        defaults
+      expected codes: None
+    A selected and configured term is reported
+      source:
+        This is obviously fine.
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["MD", "STY", "TERM001"]
+        [tool.stilyagi.rule.TERM001]
+        terms = ["obviously"]
+        case_sensitive = false
+      expected codes: TERM001
+    Case-insensitive matching folds case
+      source:
+        Obviously, this is fine.
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["TERM001"]
+        [tool.stilyagi.rule.TERM001]
+        terms = ["obviously"]
+      expected codes: TERM001
+    Case-sensitive matching requires the exact spelling
+      source:
+        obviously fine.
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["TERM001"]
+        [tool.stilyagi.rule.TERM001]
+        terms = ["Obviously"]
+        case_sensitive = true
+      expected codes: None
+    Unicode case folding applies to whole tokens
+      source:
+        STRASSE matters.
+      configuration:
+        [tool.stilyagi.lint]
+        select = ["TERM001"]
+        [tool.stilyagi.rule.TERM001]
+        terms = ["straße"]
+        case_sensitive = false
+      expected codes: TERM001
+  
+  Limitations:
+    Only headings, paragraphs, and table cells are inspected; code blocks, inline code, link destinations, and frontmatter are not.
+    Matching is whole-token only, so a hyphenated or punctuated form is not split into words a term could match.
+    The opposite editorial policy, requiring a term rather than banning it, is not supported; no inverse rule or option exists in this slice.
+    Neither case mode promises locale-aware matching or Unicode normalization; use `case_sensitive = true` when exact spelling matters.
+    Configuration, per-file ignores, and suppression directives can stop a finding; static metadata does not describe effective enablement for a particular file.
+  
+  References:
+    docs/rfcs/rfc-0002-stilyagi-python-rule-api.md
+    docs/stilyagi-design.md#72-python-rule-api
+    docs/adrs/adr-0012-adopt-the-source-backed-builtin-rule-contract.md
+  
+  '''
+# ---
+# name: test_text_list_matches_snapshot
+  '''
+  CODE     NAME           SEVERITY  FIX-MODE  DEFAULT  PREVIEW
+  MD001    heading-depth  error     manual    yes      no
+  STY001   repeated-word  warning   unsafe    yes      no
+  TERM001  banned-term    error     none      no       no
+  
+  '''
+# ---

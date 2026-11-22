@@ -882,6 +882,74 @@ outcome instead of the underlying system message, so a cache directory path
 never reaches the log. Each cache read, write, and open is timed in the debug
 log under the same bounded operation name.
 
+### Discovering builtin rules with `stilyagi rules`
+
+`stilyagi rules` lists the builtin rule inventory without reading project
+configuration, extracting a document, or running a rule. It works in an empty
+directory and in a repository whose configuration is malformed, which makes it
+useful when a check fails before it can explain itself.
+
+```shell
+stilyagi rules
+stilyagi rules --output-format json
+stilyagi rules --select TERM
+stilyagi rules --severity warning
+stilyagi rules --preview no --fixable yes
+```
+
+Filters combine with logical AND. `--select` matches a case-sensitive code
+prefix; `--pack` matches an exact pack name; `--severity` accepts `error`,
+`warning`, or `info`; `--preview` and `--fixable` accept `all` (the default),
+`yes`, or `no`. An unknown prefix or pack is an empty result, not an error. A
+repeated single-valued filter uses its last value. The command exits `0` even
+when nothing matches, printing `No builtin rules match the supplied filters.`.
+
+The list describes the shipped inventory, not the effective configuration of a
+particular file. A listed rule may still be unselected, ignored, suppressed, or
+disabled by the `plugins` gate. `--fixable yes` selects only `STY001`, because
+`MD001` reports a manual suggestion without editing and `TERM001` offers no fix.
+
+#### Inspecting one rule with `stilyagi rule CODE`
+
+`stilyagi rule CODE` prints the complete documentation for one exact,
+case-sensitive code:
+
+```shell
+stilyagi rule TERM001
+stilyagi rule STY001 --output-format json
+```
+
+The detail states the default severity, pack, default enablement, preview and
+fix status, fix mode, targets, capability requirements, configuration guidance
+with TOML, typed options and their boolean variants, executable examples,
+limitations, and references. An unknown code, a prefix, or a lower-case
+spelling exits `2` with an actionable message on standard error and nothing on
+standard output, even when JSON output was requested.
+
+```shell
+$ stilyagi rule MD
+stilyagi rule: unknown rule code: MD
+$ echo $?
+2
+```
+
+#### Machine-readable catalogue output
+
+Both commands accept `--output-format text|json`. The text list has fixed
+`CODE`, `NAME`, `SEVERITY`, `FIX-MODE`, `DEFAULT`, and `PREVIEW` columns. The
+JSON envelopes are schema version 1: `{"schema_version": 1, "rules": [...]}`
+for a list and `{"schema_version": 1, "rule": {...}}` for a detail. Each
+descriptor carries `code`, `name`, `pack`, `summary`, `explanation`,
+`default_severity`, `targets`, `requires`, `requires_nlp`, `fixable`,
+`fix_mode`, `enabled_by_default`, `preview`, `configuration`, `examples`,
+`limitations`, and `references`. Empty collections are arrays; booleans are
+JSON booleans. Errors always use standard error as text, so a consumer can
+treat standard output as the machine-readable result alone.
+
+Fixability describes a capability, not a guarantee. `STY001` can propose an
+unsafe edit, which `--fix` applies only with `--unsafe-fixes`; `MD001` reports
+manual guidance and never edits; `TERM001` offers no fix at all.
+
 ## 4. Locale policy in v1
 
 English is the only formally supported v1 locale. The design keeps locale and
@@ -911,12 +979,13 @@ Python docstring plus Rust doc-comment inputs expose `python_docstring` and
 `engine.supported_region_kinds()` returns the region-kind vocabulary supported
 by the installed package version.
 
-The `check`, `config`, `dump-ir`, and `clean` commands are available. Markdown
-extraction caching reuses only canonical IR; each run still evaluates its
-current rules and fix plan. `--no-cache` bypasses persistent cache access, and
-`clean` removes only recognized Stilyagi cache data beneath the working
-directory. Treat this guide as a record of the settled user-facing v1 contract
-rather than as a complete operating manual.
+The `check`, `config`, `dump-ir`, `clean`, `rule`, and `rules` commands are
+available. Markdown extraction caching reuses only canonical IR; each run still
+evaluates its current rules and fix plan. `--no-cache` bypasses persistent
+cache access, and `clean` removes only recognized Stilyagi cache data beneath
+the working directory. The `rule` and `rules` commands read the static builtin
+catalogue and never load project configuration. Treat this guide as a record of
+the settled user-facing v1 contract rather than as a complete operating manual.
 
 Readers moving from v0.1.0 to v0.2.0 should follow the
 [v0.2.0 migration guide](v0-2-0-migration-guide.md), which sets out what must

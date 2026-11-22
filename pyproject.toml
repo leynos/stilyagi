@@ -453,6 +453,9 @@ reason = "CacheStore.read and CacheStore.write each verify their retained parent
 [[tool.duplication_gate.allow]]
 members = ["python/stilyagi/engine/fix_planning/frontmatter.py", "python/stilyagi/engine/rule_projection.py"]
 reason = "Two unrelated two-line None guards with no shared contract. edit_conflicts_with_frontmatter returns False when frontmatter is None, because a document with no protected prefix refuses nothing; _addresses_source returns True when source_bytes is None, because a span with no source bytes cannot be bounds-checked. The opposite sentinels are the point: one guard's permissive answer is False and the other's is True, so a shared helper would have to be told which polarity to use. One vocabulary is edit admissibility against a protected frontmatter prefix; the other is span addressability against source length and UTF-8 alignment. The only shared content is `if <argument> is None: return <boolean>`, and a helper would have to take both the None test and the sentinel as arguments, which is a boolean-mode wrapper around an if statement. The same guard shape is already recorded between config/resolve.py and engine/extraction.py, and between engine/fix_pipeline.py and engine/fix_planning/plan.py. Both keys are whole-file because nose reports this family at fragment level and supplies no unit name, so no narrower key can match; the file-wide key is scoped to these two files, neither of which carries another family in this run."
+[[tool.duplication_gate.allow]]
+members = ["python/stilyagi/rule_rendering.py", "python/stilyagi/cli_fix.py", "python/stilyagi/engine/fix_pipeline.py", "python/stilyagi/check_inputs.py", "python/stilyagi/rules/builtin/repeated_word.py", "python/stilyagi/rules/builtin/text.py", "python/stilyagi/rules/registry.py"]
+reason = "Each member is the module's own `if TYPE_CHECKING:` block: a guard followed by imports that exist only to annotate that module. There is no shared runtime behaviour to extract. A single shared block is impossible because each module must name the collaborators it annotates, and a shared module that imported every one of them would couple unrelated packages and risk an import cycle. The predicate holds across the family, but each member holds its own independent annotation contract, so a shared helper would have to be parameterised by the import list it is meant to replace."
 [tool.ty.environment]
 python-version = "3.14"
 
@@ -497,6 +500,7 @@ strict = true
 [tool.skylos.dead_code]
 entrypoints = [
     { type = "function", name = "hydrate_ir_json", path = "python/stilyagi/_stilyagi_rs.pyi", reason = "Public PyO3 function registered on stilyagi._stilyagi_rs for Python callers." },
+    { type = "function", name = "_require_optional_bool", path = "python/stilyagi/rules/catalogue.py", reason = "Called unconditionally by RuleFilters post-initialization in its filter-validation loop; Skylos does not follow that keyword-only call shape." },
 ]
 
 [tool.skylos.whitelist]
