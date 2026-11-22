@@ -314,7 +314,7 @@ extractor surface grows. See [Stilyagi design](stilyagi-design.md) §§3-4, 7.2,
     execplans/3-2-1-expand-discovery-defaults-to-md-py-and-rs.md): the command
     selects each file's extractor, classifies recoverable anomalies as warnings,
     and reports checked, skipped, unreadable, error, and warning totals.
-- [ ] 3.2.2. Add builtin docstring and documentation-comment rules that reuse
+- [x] 3.2.2. Add builtin docstring and documentation-comment rules that reuse
   the shared region-oriented API. See Stilyagi design (stilyagi-design.md) §7.2.
   - Requires 3.1.1, 3.1.2, and 2.3.1.
   - Focus on summary-line, punctuation, and owner-aware rules that benefit from

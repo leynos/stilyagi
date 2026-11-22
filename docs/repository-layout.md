@@ -120,6 +120,18 @@ new maintainer needs to recognize quickly and omits transient cache contents.
 - `python/stilyagi/cache/`
   - Owns Markdown IR cache identity, checksummed serialization, descriptor-
     anchored storage and cleanup. It does not cache rule analysis or fix plans.
+- `python/stilyagi/engine/`
+  - Owns the projection from canonical IR into the typed facts rules consume.
+    `rule_projection.py` runs the per-document pass, `region_views.py` converts
+    one raw region (including its owner metadata) into a `RegionView`, and
+    `rule_view.py` is the read-only façade other modules import.
+- `python/stilyagi/rules/`
+  - Owns the typed rule boundary (`base.py`), selection and suppression policy,
+    and the builtin pack. `rules/builtin/` holds one module per rule family plus
+    `text.py` for shared token and byte-offset helpers and `summary.py` for the
+    documentation rules' physical-line, summary-selection, and source-anchor
+    analysis. Markdown and documentation rules share the same registry,
+    inventory order, and policy path.
 - `python/stilyagi/cli_config_command.py`, `cli_dump_ir.py`, and `cli_clean.py`
   - Coordinate configuration inspection, canonical Markdown IR output, and
     removal of Stilyagi-owned cache data.

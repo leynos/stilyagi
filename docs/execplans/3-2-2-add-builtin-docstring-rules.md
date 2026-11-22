@@ -4,8 +4,9 @@ This execution plan (ExecPlan) is a living document. Keep its constraints,
 progress, discoveries, decisions, conformance basis, verification, and outcomes
 current at every milestone boundary.
 
-Status: APPROVED (2026-11-19). Implementation has begun against this revision.
-The prerequisite 2.3.1 merged as commit
+Status: IMPLEMENTED (2026-11-22). All three milestones are complete and roadmap
+3.2.2 is ticked; final gate evidence for the delivery commit is recorded in the
+Progress section. The prerequisite 2.3.1 merged as commit
 `a6ba33a1985b75bdcd07513f1b9cffb2559a5d17` (pull request 240). The
 implementation baseline is `fc28da93080eb0b0bfd094de283f74dd53d62586`, the main
 tip this branch was rebased onto.
@@ -104,7 +105,6 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       (`tests/test_builtin_docstring_properties.py`) pass: 85 focused tests.
       Mutations for character-for-byte anchoring (5 failures) and reversed
       rule order (4 failures) were killed and reverted.
-- [ ] EP-M2: prove mixed-source workflow behaviour and document delivery.
 - [x] (2026-11-22) Duplication, typecheck, and wheel-snapshot failures from
       the first full gate chain are fixed: the shared `utf8_offsets` helper is
       reused, one boolean-option parser serves both flags, the three hooks
@@ -112,9 +112,24 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       was re-recorded across all eight modules, the property test's rule table
       is annotated, and the wheel snapshot gained the three new modules.
       `make duplication` passes with 12 reasoned exceptions and `ty` passes.
-- [ ] Run the full gate chain against the EP-M0+EP-M1 candidate and record the
-      evidence directory (pending; gates are slow under host compile
-      queueing).
+- [x] (2026-11-22) Full gate chain green on the EP-M0+EP-M1 candidate:
+      `check-fmt`, `typecheck`, `lint`, `test`, `markdownlint`, and `nixie`
+      all passed (evidence `/tmp/stilyagi-322-M1b.nJLB6H`). Committed as
+      `8cf596b5`.
+- [x] (2026-11-22) EP-M2 implemented: `features/builtin_docstring_rules.feature`
+      with eight scenarios, `tests/steps/builtin_docstring_rules.py`,
+      `tests/test_builtin_docstring_rules_bdd.py`, and
+      `tests/test_builtin_docstring_cli.py` (fresh `python -m stilyagi`
+      processes, a normalised `syrupy` JSON snapshot, ordering, warning-only
+      exit 0, false/absent opt-in, and malformed-option exit 2). One Rust
+      `rstest` case was added to `rust_doc_comment_bdd.rs` proving merged
+      doc-comment lines keep one source-backed segment each around a
+      `softbreak_space`. Documentation updated: users' guide (codes, matrix,
+      opt-in, exclusions), developers' guide (target and owner projection,
+      documentation rule authoring), design §7.2, repository layout, and the
+      roadmap tick for 3.2.2.
+- [ ] Re-run the full gate chain on the EP-M2 candidate and record the
+      evidence directory before publishing.
 
 ## Surprises & discoveries
 
@@ -156,12 +171,38 @@ graph-derived relationships are assumed by this plan.
 
 ## Outcomes & retrospective
 
-The current deliverable is a pre-implementation plan, not completed 3.2.2
-behaviour. The shared rule substrate is delivered; its remaining projection and
-targeting gaps are assigned to EP-M0. Implementation outcomes, exact gate logs,
-commits, and any approved deviations must replace this paragraph as milestones
-complete. Do not mark the plan COMPLETE while acceptance or upstream
-documentation work remains.
+Roadmap 3.2.2 is implemented. The rule-facing projection now carries typed
+owner metadata and a target that names several syntaxes and owner kinds; three
+opt-in, diagnostic-only rules (`DOC001`, `DOC002`, `DOC003`) run through the
+same registry, inventory order, and policy path as the Markdown starter pack,
+over Python docstrings and Rust documentation comments only.
+
+Evidence, by milestone:
+
+- EP-M0 and EP-M1 were committed together as `8cf596b5` after the whole gate
+  chain passed (`/tmp/stilyagi-322-M1b.nJLB6H`: `check-fmt`, `typecheck`,
+  `lint` including the blocking duplication and dead-code gates, `test` with
+  370/370 nextest and 1787 pytest cases, `markdownlint`, `nixie`).
+- Three mutations were killed and reverted: disabling `matches_region` (22
+  failures), mapping character indices onto byte offsets (5 failures), and
+  reversing the inventory (4 failures).
+- EP-M2 adds the mixed-tree BDD feature (eight scenarios), a fresh-process CLI
+  suite with a normalised snapshot, and one Rust extraction case proving merged
+  doc-comment lines keep per-line source segments around the recorded
+  `softbreak_space`.
+
+Two deviations are recorded. First, `engine/region_views.py` was extracted from
+`engine/rule_projection.py` when the owner projection pushed the module past
+the 400-line ceiling; the private API changed atomically with its callers and
+no compatibility wrapper was added. Second, the duplication gate required two
+Python refactors rather than exceptions: the shared `text.utf8_offsets` table
+replaced a private copy, and one boolean-option parser now serves both
+`case_sensitive` and `enabled`. The conditional-import prologue family grew to
+eight modules and one reasoned exception covers exactly that family.
+
+Not delivered, and not in scope: automatic fixes (none of the three rules
+proposes an edit), Markdown or ordinary-comment surfaces, NLP, and any
+extractor or wire-schema change.
 
 ## Context and orientation
 
@@ -601,3 +642,12 @@ required by default `DOC`/`PYDOC` selection, current CLI exits, canonical
 reference paths, and current testing harness. PR #225 contains the planning
 draft. The plan remains DRAFT; implementation and roadmap completion remain
 approval- and evidence-gated.
+
+Revision note (2026-11-22): Implementation delivered against baseline
+`fc28da93080eb0b0bfd094de283f74dd53d62586`. EP-M0 and EP-M1 landed as one gated
+commit, `8cf596b5`, after the whole gate chain passed; EP-M2 added the
+mixed-tree BDD feature, the fresh-process CLI suite, one Rust extraction case,
+and the user, developer, design, layout, and roadmap updates. Two deviations
+are recorded in Outcomes: the `engine/region_views.py` extraction forced by the
+file-size ceiling, and the two Python refactors the duplication gate required
+instead of exceptions. The plan status is now IMPLEMENTED.

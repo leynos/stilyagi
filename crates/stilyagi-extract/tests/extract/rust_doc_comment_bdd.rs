@@ -218,3 +218,54 @@ fn recover_from_a_malformed_rust_file(
     #[from(rust_doc_comment_state)] _rust_doc_comment_state: RustDocCommentState,
 ) {
 }
+
+/// A merged documentation comment keeps a source-backed segment per line.
+///
+/// The 3.2.2 documentation rules split Rust summaries at the extractor's
+/// synthetic line breaks and map each chosen character back through the
+/// segment it came from. That contract only holds if each comment line remains
+/// its own source-backed segment and the separator in between is the recorded
+/// softbreak, so it is asserted here rather than inferred from the region text.
+#[test]
+fn merged_doc_comment_lines_keep_source_segments_and_a_synthetic_break()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = "/// Read records\n/// and continue.\npub fn read() {}\n";
+    let document = extract_document(source, ExtractSyntax::RustDocComment)?;
+    let ir = document.ir().ok_or("expected an extracted IR payload")?;
+    let region = rust_doc_comment_regions(ir)
+        .into_iter()
+        .next()
+        .ok_or("expected one doc-comment region")?;
+
+    ensure(
+        region.segments_reconstruct_text(),
+        "segments must reconstruct the doc-comment region text",
+    )?;
+    ensure_eq(
+        &region.text.as_str(),
+        &" Read records  and continue.",
+        "merged doc-comment text did not join its lines with one space",
+    )?;
+    let shapes = region
+        .segments
+        .iter()
+        .map(|segment| {
+            segment
+                .source
+                .as_ref()
+                .map_or(("synthetic", segment.synthetic.as_deref(), None), |span| {
+                    ("source", None, source.get(span.byte_start..span.byte_end))
+                })
+        })
+        .collect::<Vec<_>>();
+    ensure_eq(
+        &shapes,
+        &vec![
+            ("source", None, Some(" Read records")),
+            ("synthetic", Some("softbreak_space"), None),
+            ("source", None, Some(" and continue.")),
+        ],
+        "merged doc-comment segments did not match the source-backed shape",
+    )?;
+    Ok(())
+}
