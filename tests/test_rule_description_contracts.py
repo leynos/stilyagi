@@ -74,6 +74,28 @@ def _array_option() -> RuleOption:
     )
 
 
+def test_valid_records_construct_without_error() -> None:
+    """The valid counterparts of every rejection case construct successfully.
+
+    The negative cases above only prove that a validator fires. This positive
+    control proves the checks accept the shapes the catalogue actually ships,
+    so a validator that rejected everything would not pass unnoticed.
+    """
+    description = _description()
+    metadata = _metadata()
+    boolean = _boolean_option()
+    array = _array_option()
+
+    assert description.fixable is False, "expected manual mode not to be fixable"
+    assert metadata.code == "MD001", "expected the descriptor to retain its code"
+    assert boolean.variants[0].value is False, "expected false then true"
+    assert array.default == (), "expected the empty array default"
+    assert RuleConfiguration("selected", options=(boolean, array)).options == (
+        boolean,
+        array,
+    ), "expected distinct option names to be accepted"
+
+
 @pytest.mark.parametrize(
     ("factory", "error"),
     [

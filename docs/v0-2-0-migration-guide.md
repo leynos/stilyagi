@@ -3,9 +3,10 @@
 ## Who should read this
 
 Read this if you run `stilyagi check`, keep a `stilyagi.toml`, or have a
-Markdown-heavy repository. v0.2.0 adds three commands, turns Markdown
-extraction caching on by default, claims `.mdc` files during discovery, and
-refuses a planned fix that would disturb YAML frontmatter.
+Markdown-heavy repository. v0.2.0 adds five commands (`config`, `dump-ir`,
+`clean`, `rule`, and `rules`), turns Markdown extraction caching on by default,
+claims `.mdc` files during discovery, and refuses a planned fix that would
+disturb YAML frontmatter.
 
 Nothing here removes an existing command or option. Every change is either an
 addition you can ignore or a new default you can turn off. The one behaviour a
@@ -14,13 +15,14 @@ tree without being asked for.
 
 ## Impact at a glance
 
-| Priority           | Area            | What to do                                                                                                      |
-| ------------------ | --------------- | --------------------------------------------------------------------------------------------------------------- |
-| Required           | Cache directory | Add `.stilyagi_cache` to your version-control ignore file, or set `cache-dir` to a path you already ignore.     |
-| Required if called | Discovery       | Confirm that claiming `.mdc` files in `check` and `dump-ir` does not lint files you meant to exclude.           |
-| Review if enabled  | Fix planning    | Re-read your frontmatter expectations: a fix that cannot be shown to preserve those bytes is now refused whole. |
-| Recommended        | Command surface | Use `stilyagi config` and `stilyagi dump-ir` when you need to inspect effective configuration or canonical IR.  |
-| Optional           | Cache           | Pass `--no-cache` if you want fresh extraction for a run, or run `stilyagi clean` to remove cache data.         |
+| Priority           | Area            | What to do                                                                                                            |
+| ------------------ | --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Required           | Cache directory | Add `.stilyagi_cache` to your version-control ignore file, or set `cache-dir` to a path you already ignore.           |
+| Required if called | Discovery       | Confirm that claiming `.mdc` files in `check` and `dump-ir` does not lint files you meant to exclude.                 |
+| Review if enabled  | Fix planning    | Re-read your frontmatter expectations: a fix that cannot be shown to preserve those bytes is now refused whole.       |
+| Recommended        | Command surface | Use `stilyagi config` and `stilyagi dump-ir` when you need to inspect effective configuration or canonical IR.        |
+| Recommended        | Rule discovery  | Use `stilyagi rules` and `stilyagi rule CODE` to inspect the builtin catalogue without loading project configuration. |
+| Optional           | Cache           | Pass `--no-cache` if you want fresh extraction for a run, or run `stilyagi clean` to remove cache data.               |
 
 _Table 1: Obligations when moving from v0.1.0 to v0.2.0._
 
@@ -97,6 +99,23 @@ A refusal is per file and all-or-nothing. If any planned fix in a file cannot
 be shown to preserve the frontmatter, that file is refused whole: no edits and
 no replacement bytes are produced, so an otherwise valid body fix in the same
 file does not apply either. Fix the frontmatter conflict, then re-run.
+
+## 4. Discover the shipped rules
+
+Two read-only commands expose the builtin catalogue without loading project
+configuration:
+
+```shell
+stilyagi rules
+stilyagi rule TERM001
+```
+
+`rules` lists the shipped rules and accepts prefix, pack, severity, preview,
+and fixability filters. `rule CODE` prints one rule's policy, typed options,
+examples, limitations, and references. Both accept `--output-format json` and
+exit `2` on an unknown code. See the
+[user's guide](users-guide.md#discovering-builtin-rules-with-stilyagi-rules)
+for the output contract and examples.
 
 ## What does not need to change
 
