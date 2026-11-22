@@ -4,10 +4,11 @@ This execution plan (ExecPlan) is a living document. Keep its constraints,
 progress, discoveries, decisions, conformance basis, verification, and outcomes
 current at every milestone boundary.
 
-Status: DRAFT. Planning is complete enough for review; implementation still
-requires approval. Prerequisite 2.3.1 merged as
-`a6ba33a1985b75bdcd07513f1b9cffb2559a5d17` (PR #240). No feature is implemented
-here.
+Status: APPROVED (2026-11-19). Implementation has begun against this revision.
+The prerequisite 2.3.1 merged as commit
+`a6ba33a1985b75bdcd07513f1b9cffb2559a5d17` (pull request 240). The
+implementation baseline is `fc28da93080eb0b0bfd094de283f74dd53d62586`, the main
+tip this branch was rebased onto.
 
 ## Purpose / big picture
 
@@ -87,10 +88,33 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
 - [x] (2026-10-13) Publish the validated planning commit as draft PR #225.
 - [x] (2026-11-16) Rebase onto the refreshed target and reconcile the plan
   with the merged 2.3.1 rule substrate.
-- [ ] EP-M0: verify the merged substrate and add typed owner and multi-target
-      projection capabilities.
-- [ ] EP-M1: deliver three registered rules with focused verification.
+- [x] (2026-11-22) EP-M0 implemented: `RegionOwner` projected onto
+      `RegionView`; `RegionTarget.syntaxes` and `owner_kinds` replace the
+      scalar syntax; `engine/region_views.py` extracted to keep the projection
+      modules under the file-size ceiling. Focused tests in
+      `tests/test_docstring_target_projection.py` pass (10), the existing
+      extraction, projection, policy, and Markdown-rule suites pass, and a
+      mutation disabling `matches_region` was killed by 22 negative cases.
+- [x] (2026-11-22) EP-M1 implemented: `DocRuleConfig` with validated
+      `enabled`; `rules/builtin/summary.py` (physical lines, summary
+      selection, anchor mapping) and `rules/builtin/documentation.py` (the
+      three hooks); `DOC001`–`DOC003` registered in the pack. The finite
+      matrix (`tests/test_builtin_docstring_rules.py`,
+      `tests/test_builtin_owner_summary_rules.py`) and property suite
+      (`tests/test_builtin_docstring_properties.py`) pass: 85 focused tests.
+      Mutations for character-for-byte anchoring (5 failures) and reversed
+      rule order (4 failures) were killed and reverted.
 - [ ] EP-M2: prove mixed-source workflow behaviour and document delivery.
+- [x] (2026-11-22) Duplication, typecheck, and wheel-snapshot failures from
+      the first full gate chain are fixed: the shared `utf8_offsets` helper is
+      reused, one boolean-option parser serves both flags, the three hooks
+      share one enabled-findings driver, the conditional-import prologue entry
+      was re-recorded across all eight modules, the property test's rule table
+      is annotated, and the wheel snapshot gained the three new modules.
+      `make duplication` passes with 12 reasoned exceptions and `ty` passes.
+- [ ] Run the full gate chain against the EP-M0+EP-M1 candidate and record the
+      evidence directory (pending; gates are slow under host compile
+      queueing).
 
 ## Surprises & discoveries
 
