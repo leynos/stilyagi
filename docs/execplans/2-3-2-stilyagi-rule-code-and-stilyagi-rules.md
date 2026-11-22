@@ -140,8 +140,17 @@ before continuing.
   description-record validation contracts and parser/renderer edge cases, and
   marked the new typing-only blocks with the repository's existing
   `# pragma: no cover - typing only` convention. Local statement coverage over
-  `stilyagi` rose to 95%; CodeScene's working-tree delta reports all four
-  findings fixed. Hosted re-validation is pending the repaired push.
+  `stilyagi` rose to 95%.
+- [x] (2026-11-22) Hosted re-validation at `17b601fb` is green: `lint-test`
+  passes the coverage ratchet, all three `release-smoke` jobs pass, CodeScene
+  reports no outstanding issue, and Gecko Security Review passes.
+- [x] (2026-11-22) Reconcile CodeRabbit's pre-merge table at `81a9bbd7`: the
+  Testing (Overall) error is repaired by
+  `tests/test_rule_description_contracts.py` (every construction-time rejection
+  plus a positive control), and the User-Facing Documentation warning is
+  repaired in `docs/v0-2-0-migration-guide.md` (all five commands named, a
+  rule-discovery impact row, and a new section 4). Hosted `lint-test` and
+  CodeScene pass again at that head.
 - [x] (2026-11-22) M3: E5 walkthrough, user/developer/design/RFC
   documentation, and roadmap 2.3.2 completion are recorded above.
 
@@ -253,13 +262,16 @@ scenarios, subprocess end-to-end coverage through the console script, and
 isolation sentinels for config, discovery, extraction, rule running, plugin
 entry points, and cache access.
 
-The full Python suite reached `1840 passed, 1 failed`; the one failure was the
-wheel file-list snapshot, which legitimately gained the five new packaged
-modules and has been updated. `make check-fmt`, `make typecheck`, and
-`make lint` passed on the staged candidate. The outstanding `make test` verdict
-is blocked only by compile-queue timeouts inside Rust-compiling tests under
-300+ waiting admission requests; do not record it as passed until a run on a
-quiet admission window exits zero.
+The wheel file-list snapshot legitimately gained the five new packaged modules
+and was updated. The first hosted `lint-test` then failed the Python coverage
+ratchet by 1.03 points, and CodeScene reported four findings in the new code;
+both were repaired by refactoring the argument builder, description validation,
+catalogue predicate, and generated-test oracle, and by adding construction-time
+rejection tests. Hosted CI is green at `17b601fb` and again at `81a9bbd7`,
+including `lint-test`, all `release-smoke` jobs, CodeScene, and Gecko. Local
+full-gate runs required relaxed per-test budgets only for Rust-compiling tests
+while the shared claim queue was saturated; the hosted lane ran the repository
+defaults and passed.
 
 ## Context and orientation
 
