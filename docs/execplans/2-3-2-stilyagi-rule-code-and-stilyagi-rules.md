@@ -174,8 +174,8 @@ before continuing.
   its configured 1500 s budget while the shared admission queue held 200–394
   waiting compiler requests. The nested trybuild builds themselves finished
   successfully; no assertion, lint, or compile failure occurred, and the
-  doctest and pytest stages were not reached. Retry when
-  `build-limits-status` shows a shallow queue.
+  doctest and pytest stages were not reached. Retry when `build-limits-status`
+  shows a shallow queue.
 
 ## Surprises & discoveries
 
