@@ -37,9 +37,14 @@ PULL_REQUEST_TRIGGER: typ.Final = "pull_request"
 #: the contract requires the guarded expression, not a truthy setting.
 CANCEL_IN_PROGRESS: typ.Final = "${{ github.event_name == 'pull_request' }}"
 
-#: A group keyed on the run identifier is unique per run, so it
-#: serializes nothing and can never cancel a predecessor.
+#: A group keyed on the run identifier alone is unique per run, so it
+#: serializes nothing and can never cancel a predecessor. The run identifier
+#: is the fallback after the pull request number, which gives each non-PR run a
+#: group of its own, so it is only refused when the number is absent.
 RUN_ID_EXPRESSION: typ.Final = "github.run_id"
+
+#: The expression that makes successive pushes to one pull request share a group.
+PULL_REQUEST_NUMBER_EXPRESSION: typ.Final = "github.event.pull_request.number"
 
 
 class WorkflowShapeError(AssertionError):
@@ -195,8 +200,8 @@ def _group_violations(group: object) -> list[str]:
     """
     if not isinstance(group, str) or not group.strip():
         return ["declares no concurrency group"]
-    if RUN_ID_EXPRESSION in group:
-        return [f"keys its concurrency group on {RUN_ID_EXPRESSION}"]
+    if RUN_ID_EXPRESSION in group and PULL_REQUEST_NUMBER_EXPRESSION not in group:
+        return [f"keys its concurrency group on {RUN_ID_EXPRESSION} alone"]
     return []
 
 
