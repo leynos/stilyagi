@@ -12,7 +12,6 @@ real extractor and registry. A property that never produced a finding would
 prove nothing, so each one asserts a matching witness exists.
 """
 
-import collections.abc as cabc
 import itertools
 import keyword
 import string
@@ -126,31 +125,38 @@ def test_doc001_anchor_covers_one_complete_character(character: str) -> None:
     )
 
 
-@hyp.given(word=_WORDS, character=_NON_ASCII_LETTERS)
+@hyp.given(first=_WORDS, last=_NON_ASCII_LETTERS)
 def test_doc002_rust_anchor_survives_synthetic_line_breaks(
-    word: str,
-    character: str,
+    first: str,
+    last: str,
 ) -> None:
-    """Merged Rust comment lines keep their own source offsets."""
-    hyp.assume(character.isalpha())
-    source = f"/// Read {word}{character}\npub fn read() {{}}\n"
+    """A wrapped Rust summary anchors through the second line's segment."""
+    hyp.assume(last.isalpha())
+    source = f"/// Read {first}\n/// and {last}\npub fn read() {{}}\n"
 
     result = _rust(source)
 
     assert _codes(result) == ("DOC002",), f"expected one DOC002, got {_codes(result)}"
-    assert marked_span(source.encode(), result) == character.encode(), (
-        "expected the anchor to be the word's final character"
+    assert marked_span(source.encode(), result) == last.encode(), (
+        "expected the anchor to be the final character of the second line"
     )
     span = result[0].span
     assert span is not None, "expected the finding to carry a span"
     assert span.byte_start >= 4, "expected the anchor to sit after the comment marker"
+    assert result[0].line == 2, (
+        f"expected the finding on the second comment line, got {result[0].line}"
+    )
 
 
-@hyp.given(order=st.permutations(("DOC001", "DOC002", "DOC003")))
-def test_rule_order_does_not_depend_on_configuration_order(
-    order: cabc.Sequence[str],
+@pytest.mark.parametrize(
+    "order",
+    list(itertools.permutations(("DOC001", "DOC002", "DOC003"))),
+    ids="-".join,
+)
+def test_every_configuration_order_reports_the_same_findings(
+    order: tuple[str, ...],
 ) -> None:
-    """Assembly order of the per-rule tables cannot change the report order."""
+    """Each of the six table orders yields the same ordered findings."""
     rules: dict[str, dict[str, object]] = {code: {"enabled": True} for code in order}
     setup = LintSetup(select=("DOC",), rules=rules, reported_path="doc.py")
     source = 'class Widget:\n    """Widget"""\n'
@@ -158,18 +164,5 @@ def test_rule_order_does_not_depend_on_configuration_order(
     result = setup.run(source, model.Syntax.PYTHON_DOCSTRING)
 
     assert _codes(result) == ("DOC002", "DOC003"), (
-        f"expected inventory order regardless of table order {order}, "
-        f"got {_codes(result)}"
-    )
-
-
-def test_the_order_permutations_are_distinct() -> None:
-    """Guard the property above: it must actually exercise every order."""
-    permutations = list(itertools.permutations(("DOC001", "DOC002", "DOC003")))
-
-    assert len(permutations) == 6, (
-        f"expected six rule-table orders, got {len(permutations)}"
-    )
-    assert len(set(permutations)) == 6, (
-        "expected the permutation strategy to yield distinct orders"
+        f"expected inventory order for table order {order}, got {_codes(result)}"
     )

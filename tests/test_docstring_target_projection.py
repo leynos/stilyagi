@@ -100,7 +100,18 @@ class TestOwnerProjection:
             "expected every Markdown region to project no owner"
         )
 
-    def test_malformed_owner_is_counted_and_the_region_survives(self) -> None:
+    @pytest.mark.parametrize(
+        "owner",
+        [
+            pytest.param({"kind": 7}, id="non-string-kind"),
+            pytest.param({"kind": "class", "name": 7}, id="non-string-name"),
+            pytest.param({"kind": "class", "qualname": 7}, id="non-string-qualname"),
+        ],
+    )
+    def test_malformed_owner_is_counted_and_the_region_survives(
+        self,
+        owner: dict[str, object],
+    ) -> None:
         """An unusable owner field is reported without discarding the text."""
         document = model.Document(
             syntax=model.Syntax.PYTHON_DOCSTRING,
@@ -110,7 +121,7 @@ class TestOwnerProjection:
                         "id": "r1",
                         "kind": "python_docstring",
                         "syntax": "python",
-                        "owner": {"kind": 7},
+                        "owner": owner,
                         "segments": [{"text": "Doc."}],
                     }
                 ]
@@ -120,7 +131,7 @@ class TestOwnerProjection:
         view = rule_projection.project(document)
 
         assert [region.owner for region in view.regions] == [None], (
-            "expected an unusable owner to project as absent"
+            f"expected {owner!r} to project as absent"
         )
         assert view.anomaly_counts == (("malformed_region", 1),), (
             f"expected one malformed_region recovery, got {view.anomaly_counts}"

@@ -148,6 +148,50 @@ class TestSummaryPunctuation:
 
         assert _python(source) == [], f"expected {terminal!r} to be accepted"
 
+    def test_a_python_multi_line_summary_is_the_first_line_only(self) -> None:
+        """A first line without punctuation reports, though later lines have it."""
+        source = 'def read():\n    """Read records\n    More detail."""\n'
+        result = _python(source)
+
+        assert _codes(result) == ("DOC001", "DOC002"), (
+            f"expected separation and punctuation findings, got {_codes(result)}"
+        )
+        punctuation = [item for item in result if item.code == "DOC002"]
+        assert marked_span(source.encode(), punctuation) == b"s", (
+            "expected the DOC002 anchor to be the final 's' of the first line"
+        )
+
+    @pytest.mark.parametrize(
+        ("summary", "expected"),
+        [
+            pytest.param("Read records. ", (), id="terminal-before-space"),
+            pytest.param("Read records ", ("DOC002",), id="trailing-space"),
+        ],
+    )
+    def test_trailing_whitespace_is_trimmed_before_the_terminal_check(
+        self,
+        summary: str,
+        expected: tuple[str, ...],
+    ) -> None:
+        """Only the trimmed summary's final character decides the finding."""
+        source = f'def read():\n    """{summary}"""\n'
+
+        assert _codes(_python(source)) == expected, (
+            f"expected {expected} for {summary!r}, got {_codes(_python(source))}"
+        )
+
+    def test_leading_blank_lines_are_skipped(self) -> None:
+        """The first content line is the summary even after a blank line."""
+        source = 'def read():\n    """\n    Read records.\n    More detail.\n    """\n'
+        result = _python(source)
+
+        assert _codes(result) == ("DOC001",), (
+            f"expected one DOC001 finding, got {_codes(result)}"
+        )
+        assert marked_span(source.encode(), result) == b"M", (
+            "expected the anchor on the first character of the second content line"
+        )
+
     def test_rust_line_comment_anchor_is_source_backed(self) -> None:
         """A Rust summary anchors on the final source byte of the paragraph."""
         source = "/// Read records\npub fn read() {}\n"
@@ -167,6 +211,21 @@ class TestSummaryPunctuation:
         source = "/// Read records\n/// and continue.\npub fn read() {}\n"
 
         assert _rust(source) == [], "expected a wrapped paragraph ending in '.' to pass"
+
+    def test_rust_wrapped_paragraph_anchors_its_final_character(self) -> None:
+        """The anchor maps through the second line's own source segment."""
+        source = "/// Read records\n/// and continue\npub fn read() {}\n"
+        result = _rust(source)
+
+        assert _codes(result) == ("DOC002",), (
+            f"expected one DOC002 finding, got {_codes(result)}"
+        )
+        assert marked_span(source.encode(), result) == b"e", (
+            "expected the anchor to be the final 'e' of the second line"
+        )
+        assert result[0].line == 2, (
+            f"expected the finding on the second comment line, got {result[0].line}"
+        )
 
     def test_rust_summary_immediately_followed_by_a_heading_is_skipped(self) -> None:
         """A structural line makes the candidate unsupported, not reported."""

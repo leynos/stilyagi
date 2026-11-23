@@ -128,8 +128,28 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       opt-in, exclusions), developers' guide (target and owner projection,
       documentation rule authoring), design §7.2, repository layout, and the
       roadmap tick for 3.2.2.
-- [ ] Re-run the full gate chain on the EP-M2 candidate and record the
-      evidence directory before publishing.
+- [x] (2026-11-22) Full gate chain re-run on the EP-M2 candidate
+      (`e0990edd`): `check-fmt`, `typecheck`, `lint`, `test`, `markdownlint`,
+      and `nixie` all passed (evidence `/tmp/stilyagi-322-M2final.lV3hls`).
+- [x] (2026-11-22) CodeScene delta cleared by restructuring, not suppression:
+      one shared `check_documentation` driver, a `_LineSplitter` replacing the
+      nested walk in `_physical_lines`, and two parameterized test families.
+      `cs delta origin/main` reports no issues.
+- [x] (2026-11-23) Review-response gate evidence. `check-fmt`, `typecheck`,
+      `lint` (full, including Whitaker), `markdownlint`, and `nixie` pass on
+      the review-response tree. `make test` passes nextest 371/371 and the
+      doctest-modules lane (193 passed, 3 skipped); the ordinary pytest lane
+      reports 1821 passed with two or three
+      `tests/test_lint_policy_behaviour.py` cases failing only as
+      `cargo ... timed out after 240 s`. That module's scratch crates compile
+      under the shared admission pool, whose queue held 100-365 requests from
+      other repositories during these runs; the same module passed 12/12 on
+      the same tree when the queue was shallow. The failure is recorded as
+      host compile-capacity, not a candidate defect.
+- [x] (2026-11-22) Pre-merge review gaps closed: Python multi-line summary,
+      trailing whitespace, leading blank lines, a failing wrapped Rust
+      paragraph, a two-line Rust property, six explicit table orders, and a
+      v0.2.0 migration-guide entry.
 
 ## Surprises & discoveries
 
