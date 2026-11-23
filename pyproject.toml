@@ -510,6 +510,7 @@ names = [
     "_coerce_string_to_string_tuple_map",
     "_copy_mapping",
     "_require_capabilities",
+    "_require_exit_code",
     "_require_fix_mode",
     "_require_preview",
     "_require_strict_int",
@@ -523,6 +524,7 @@ _coerce_path = "Called by StilyagiConfig post-initialization to normalize cache 
 _coerce_string_to_string_tuple_map = "Called by LintConfig post-initialization to normalize per-file ignore mappings."
 _copy_mapping = "Called by configuration dataclass post-initialization to copy reserved mappings."
 _require_capabilities = "Called by RuleDescription post-initialization to validate the capability declaration."
+_require_exit_code = "Called by RuleExample post-initialization to validate the authored exit status."
 _require_fix_mode = "Called by RuleDescription post-initialization to validate the published fix mode."
 _require_preview = "Called by RuleDescription post-initialization to validate the preview flag."
 _require_strict_int = "Called by StilyagiConfig post-initialization to validate the line-length setting."
