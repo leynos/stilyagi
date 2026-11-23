@@ -68,6 +68,9 @@ def test_documented_example_produces_its_expected_codes(
     assert tuple(finding.code for finding in produced) == example.expected_codes, (
         f"expected {rule.code}'s documented example to produce its stated codes"
     )
+    assert type(example.exit_code) is int, (
+        "expected the authored exit status to be an integer, not a bool or float"
+    )
     assert compute_exit_code(produced) == example.exit_code, (
         "expected the documented exit status to follow the real severity policy"
     )

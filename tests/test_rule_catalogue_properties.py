@@ -206,19 +206,29 @@ def test_lookup_agrees_with_listing(
         )
 
 
+def _absent_prefix(registry: cabc.Sequence[RuleMetadata]) -> str:
+    """Return a non-empty prefix longer than every code in ``registry``.
+
+    A string cannot be a prefix of a shorter one, so a prefix longer than the
+    longest code is absent by construction. Appending a fixed suffix to one
+    code does not have that guarantee: with codes ``A`` and ``AZZZ``, the
+    suffix ``ZZZ`` selects ``AZZZ``.
+
+    Returns
+    -------
+    str
+        A prefix that cannot start any code in ``registry``.
+    """
+    return "Z" * (max(len(rule.code) for rule in registry) + 1)
+
+
 @settings(max_examples=100, deadline=None)
 @given(registry=_registries)
 def test_lookup_misses_every_absent_code(
     registry: tuple[RuleMetadata, ...],
 ) -> None:
     """A code absent from the registry always raises the named miss."""
-    known = {rule.code for rule in registry}
-    absent = next(
-        (candidate for candidate in ("ZZZ", "QQQQ", "00000") if candidate not in known),
-        None,
-    )
-    if absent is None:  # pragma: no cover - the generated alphabet cannot fill three
-        return
+    absent = "Z" * (max((len(rule.code) for rule in registry), default=0) + 1)
 
     with pytest.raises(catalogue.RuleNotFoundError) as raised:
         catalogue._lookup_rule(registry, absent)
@@ -299,19 +309,40 @@ def test_generated_filters_produce_a_match_and_a_miss(
 ) -> None:
     """A generated registry yields a guaranteed match and a guaranteed miss.
 
-    The prefixes are derived from the generated registry, so both classes are
-    produced directly: the rule's own code always matches, and the same code
-    with an impossible suffix never does.
+    The matching prefix is the rule's own code, which always selects at least
+    that rule. The miss is derived from every code's length, so no generated
+    registry can turn it into a match.
     """
     rule = registry[0]
 
     matching = catalogue._select_rules(registry, RuleFilters(prefix=rule.code))
-    missing = catalogue._select_rules(registry, RuleFilters(prefix=f"{rule.code}ZZZ"))
+    missing = catalogue._select_rules(
+        registry, RuleFilters(prefix=_absent_prefix(registry))
+    )
 
     assert rule.code in {item.code for item in matching}, (
         "expected the generated rule to match its own code prefix"
     )
-    assert not missing, "expected the impossible prefix to select nothing"
+    assert not missing, "expected the derived absent prefix to select nothing"
+
+
+def test_derived_miss_prefix_ignores_a_longer_extension() -> None:
+    """A derived miss stays absent when a code extends the first code.
+
+    This is the regression for the suffix derivation: appending `ZZZ` to `A`
+    selected the unrelated code `AZZZ`, so the property could fail on a
+    registry the generator permits.
+    """
+    registry = (_synthetic("A"), _synthetic("AZZZ"))
+
+    assert [
+        rule.code
+        for rule in catalogue._select_rules(registry, RuleFilters(prefix="AZZZ"))
+    ] == ["AZZZ"], "expected the naive suffix derivation to select the extension"
+
+    assert not catalogue._select_rules(
+        registry, RuleFilters(prefix=_absent_prefix(registry))
+    ), "expected the length-derived prefix to remain absent"
 
 
 def test_generated_case_space_contains_both_outcomes() -> None:

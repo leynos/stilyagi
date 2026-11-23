@@ -7,10 +7,12 @@ access -- and then runs the discovery commands in-process. A boundary that is
 touched fails the test immediately, so the isolation claim is observed rather
 than assumed.
 
-One test deliberately runs `check` against the same sentinels. It proves the
-guard is live: a command that legitimately reads configuration trips the
-sentinel, so a future `rules` regression that starts reading config cannot
-pass because the sentinel was silently ineffective.
+Two fresh-process probes cover what an in-process sentinel cannot: a config
+read whose error is swallowed still reaches the filesystem, so an audit hook
+records every file operation under the project directory, and a plugin lookup
+is recorded even when the caller catches the failure. Targeted controls run
+`check` against the config-loading and cache boundaries to prove those sentinels
+are live call sites rather than decorative patches.
 """
 
 import importlib.metadata
@@ -57,6 +59,60 @@ _SENTINEL_FUNCTIONS: typ.Final[tuple[str, ...]] = (
 )
 
 
+_PROBE_PREAMBLE = """\
+import importlib.metadata
+import os
+import sys
+
+root = os.path.realpath(os.getcwd())
+side_effects = []
+
+
+def _watch(event, args):
+    if event not in {"open", "os.mkdir", "os.rename", "os.remove", "os.rmdir"}:
+        return
+    first = args[0] if args else None
+    if not isinstance(first, (str, bytes, os.PathLike)):
+        return
+    path = os.path.realpath(os.fsdecode(first))
+    if path == root or path.startswith(root + os.sep):
+        side_effects.append((event, path))
+
+
+def _forbidden(name):
+    def note(*args, **kwargs):
+        side_effects.append(("call", name))
+        raise AssertionError(name)
+
+    return note
+
+
+sys.addaudithook(_watch)
+importlib.metadata.entry_points = _forbidden("entry_points")
+
+import stilyagi.config.resolve
+import stilyagi.discovery
+import stilyagi.engine
+import stilyagi.rules.builtin.pack
+import stilyagi.rules.builtin.text
+import stilyagi.rules.registry
+
+stilyagi.config.resolve.load_config_table = _forbidden("load_config_table")
+stilyagi.discovery.discover_files = _forbidden("discover_files")
+stilyagi.engine.extract_document = _forbidden("extract_document")
+stilyagi.rules.builtin.pack.run_selected = _forbidden("run_selected")
+stilyagi.rules.builtin.text.tokenize_segments = _forbidden("tokenize_segments")
+stilyagi.rules.registry.run_rules = _forbidden("run_rules")
+
+import stilyagi.cli
+"""
+
+_PROBE_EPILOGUE = """
+if side_effects:
+    raise SystemExit(f"import side effects: {side_effects!r}")
+"""
+
+
 def _forbidden(name: str) -> cabc.Callable[..., typ.NoReturn]:
     """Return a sentinel that fails the test when ``name`` is invoked."""
 
@@ -91,6 +147,32 @@ def _valid_project(root: pathlib.Path) -> None:
     """Write a source file and a valid minimal configuration."""
     (root / "notes.md").write_text("# Notes\n", encoding="utf-8")
     (root / "stilyagi.toml").write_text("[lint]\n", encoding="utf-8")
+
+
+def _tree_snapshot(root: pathlib.Path) -> dict[pathlib.Path, bytes]:
+    """Return every file under ``root`` keyed by its relative path."""
+    return {
+        path.relative_to(root): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+
+def _run_import_probe(
+    root: pathlib.Path,
+    extra: str = "",
+) -> subprocess.CompletedProcess[bytes]:
+    """Import the command line in a fresh interpreter and detect side effects."""
+    script = f"{_PROBE_PREAMBLE}{extra}{_PROBE_EPILOGUE}"
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted interpreter, fixed argv, no shell.
+        [sys.executable, "-c", script],
+        cwd=root,
+        env=python_module_environment(),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        check=False,
+        timeout=60,
+    )
 
 
 def test_rules_command_succeeds_without_any_runtime_boundary(
@@ -139,6 +221,11 @@ def test_rule_detail_succeeds_without_any_runtime_boundary(
     [
         pytest.param("stilyagi.cli.discover_targets", id="discovery-alias"),
         pytest.param("stilyagi.cli.collect_checked_files", id="check-loop-alias"),
+        pytest.param(
+            "stilyagi.config.ConfigResolver.resolve_with_provenance",
+            id="config-loading",
+        ),
+        pytest.param("stilyagi.cli.open_extraction_cache", id="cache-alias"),
     ],
 )
 def test_check_trips_a_command_boundary_alias(
@@ -146,12 +233,11 @@ def test_check_trips_a_command_boundary_alias(
     monkeypatch: pytest.MonkeyPatch,
     target: str,
 ) -> None:
-    """A command-boundary alias is a real call site, not a decorative patch.
+    """Every check boundary is a real call site, not a decorative patch.
 
-    The cache alias cannot be exercised here: `check` builds the extraction
-    cache only after discovery succeeds, so a malformed project would return
-    two before reaching it. The cache boundary is covered by the all-sentinels
-    control below, which fails on the first alias reached.
+    A valid project lets discovery succeed, so `check` reaches the config
+    resolver and the extraction cache. Patching each boundary in turn proves
+    the sentinels on the discovery tests guard live call sites.
     """
     monkeypatch.chdir(tmp_path)
     _valid_project(tmp_path)
@@ -161,29 +247,52 @@ def test_check_trips_a_command_boundary_alias(
         cli.main(["check", "."])
 
 
-def test_importing_the_command_line_ignores_malformed_config(
+def test_importing_the_command_line_has_no_runtime_side_effects(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Importing the CLI has no configuration side effect.
+    """Importing the CLI performs no config, extraction, provider, or cache work.
 
-    Every `stilyagi.*` import first runs the package `__init__`, which imports
-    `engine` and `model`; that pre-existing package boundary is not rule
-    execution. What this probe checks is that the import does not *read* the
-    malformed configuration beside it.
+    The probe watches every file operation under the project directory and
+    forbids the provider and execution entry points before `stilyagi.cli` is
+    imported. A config read whose error is caught still reaches the
+    filesystem, and a plugin lookup whose error is caught still records the
+    call, so neither can hide behind an exception handler.
     """
     _malformed_project(tmp_path)
+    before = _tree_snapshot(tmp_path)
 
-    completed = subprocess.run(
-        [sys.executable, "-c", "import stilyagi.cli"],
-        cwd=tmp_path,
-        env=python_module_environment(),
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=60,
+    completed = _run_import_probe(tmp_path)
+
+    assert completed.returncode == 0, completed.stderr.decode()
+    assert not completed.stdout, "expected the import probe to print nothing"
+    assert not completed.stderr, "expected the import to report no side effect"
+    assert _tree_snapshot(tmp_path) == before, (
+        "expected the import to leave the project untouched"
     )
 
-    assert completed.returncode == 0, completed.stderr
+
+def test_import_probe_reports_a_swallowed_config_read(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A read whose error is caught is still recorded, so the probe is live."""
+    _malformed_project(tmp_path)
+    extra = (
+        "\ntry:\n"
+        "    with open('stilyagi.toml', encoding='utf-8') as stream:\n"
+        "        stream.read()\n"
+        "except OSError:\n"
+        "    pass\n"
+    )
+
+    completed = _run_import_probe(tmp_path, extra)
+
+    assert completed.returncode != 0, "expected the probe to reject the side effect"
+    assert b"import side effects" in completed.stderr, (
+        "expected the probe's failure report"
+    )
+    assert b"stilyagi.toml" in completed.stderr, (
+        "expected the report to name the config file"
+    )
 
 
 def test_discovery_commands_leave_the_directory_unchanged(
@@ -194,11 +303,7 @@ def test_discovery_commands_leave_the_directory_unchanged(
     """Both commands leave every file and directory exactly as they found it."""
     monkeypatch.chdir(tmp_path)
     _malformed_project(tmp_path)
-    before = {
-        path.relative_to(tmp_path): path.read_bytes()
-        for path in tmp_path.rglob("*")
-        if path.is_file()
-    }
+    before = _tree_snapshot(tmp_path)
 
     assert cli.main(["rules"]) == 0, "expected the list command to succeed"
     assert cli.main(["rule", "MD001", "--output-format", "json"]) == 0, (
@@ -206,9 +311,6 @@ def test_discovery_commands_leave_the_directory_unchanged(
     )
     capsys.readouterr()
 
-    after = {
-        path.relative_to(tmp_path): path.read_bytes()
-        for path in tmp_path.rglob("*")
-        if path.is_file()
-    }
-    assert after == before, "expected rule discovery to write no file"
+    assert _tree_snapshot(tmp_path) == before, (
+        "expected rule discovery to write no file"
+    )

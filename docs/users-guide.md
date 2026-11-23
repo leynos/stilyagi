@@ -944,10 +944,10 @@ descriptor carries `code`, `name`, `pack`, `summary`, `explanation`,
 `default_severity`, `targets`, `requires`, `requires_nlp`, `fixable`,
 `fix_mode`, `fixes`, `enabled_by_default`, `preview`, `configuration`,
 `examples`, `limitations`, and `references`. Each example carries `title`,
-`source`, `configuration`, `expected_codes`, and the documented `exit_code`.
-Empty collections are arrays; booleans are JSON booleans. Errors always use
-standard error as text, so a consumer can treat standard output as the
-machine-readable result alone.
+`source`, `configuration`, `expected_codes`, and the documented `exit_code`,
+which is always the integer `0` or `1`. Empty collections are arrays; booleans
+are JSON booleans. Errors always use standard error as text, so a consumer can
+treat standard output as the machine-readable result alone.
 
 Fixability describes a capability, not a guarantee. `STY001` can propose an
 unsafe edit, which `--fix` applies only with `--unsafe-fixes`; `MD001` reports

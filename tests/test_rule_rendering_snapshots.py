@@ -65,6 +65,10 @@ def test_json_detail_matches_snapshot(
 
     payload = json.loads(output)
     assert payload["rule"]["code"] == code, "expected the requested rule"
+    assert payload["rule"]["examples"], "expected the shipped rule to publish examples"
+    assert all(
+        type(example["exit_code"]) is int for example in payload["rule"]["examples"]
+    ), "expected every JSON example exit status to be an integer"
     assert payload == snapshot(extension_class=JSONSnapshotExtension), (
         f"expected the stable JSON detail for {code}"
     )

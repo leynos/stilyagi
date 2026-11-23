@@ -182,7 +182,22 @@ class RuleExample:
     exit_code: int = 0
 
     def __post_init__(self) -> None:
-        """Reject an exit code outside the check policy's 0/1 outcomes."""
+        """Reject an exit code that is not an integer 0 or 1.
+
+        Equality alone is not enough: ``True`` and ``1.0`` both compare equal to
+        ``1``, and a renderer would then publish a JSON boolean or a float where
+        the schema promises an integer.
+
+        Raises
+        ------
+        TypeError
+            When the value is a boolean or another non-integer type.
+        ValueError
+            When the integer falls outside the ``0``/``1`` exit policy.
+        """
+        if isinstance(self.exit_code, bool) or not isinstance(self.exit_code, int):
+            message = "example exit_code must be an integer"
+            raise TypeError(message)
         if self.exit_code not in {0, 1}:
             message = "example exit_code must be 0 or 1"
             raise ValueError(message)

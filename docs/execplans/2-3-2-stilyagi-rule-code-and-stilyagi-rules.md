@@ -154,6 +154,14 @@ before continuing.
   CodeScene pass again at that head.
 - [x] (2026-11-22) M3: E5 walkthrough, user/developer/design/RFC
   documentation, and roadmap 2.3.2 completion are recorded above.
+- [x] (2026-11-23) Address the third completeness assessment. The generated
+  catalogue miss is now derived from the longest generated code, and the
+  `A`/`AZZZ` registry that defeated the old suffix is a regression test.
+  `RuleExample.exit_code` rejects booleans and floats at construction, and the
+  executable and JSON contracts assert the integer type. The isolation suite
+  gains an audit-hook fresh-import probe (file operations, swallowed reads,
+  provider lookup, extraction, tokenization) with a swallowed-read control, and
+  targeted `check` controls now cover config loading and the cache alias.
 
 ## Surprises & discoveries
 
@@ -256,6 +264,18 @@ assuming that this session's tool availability persists.
   suite patches the command-boundary aliases `cli` actually binds and adds an
   import probe that checks for a configuration side effect without treating the
   pre-existing package `__init__` imports as rule execution.
+- 2026-11-23: the third assessment found the earlier generated miss was not
+  guaranteed absent: appending `ZZZ` to `A` selects a registry entry `AZZZ`.
+  The miss now comes from a prefix longer than every generated code, which no
+  shorter code can match, and the `A`/`AZZZ` registry is pinned. An equality
+  check on the authored exit status also admitted `True` and `1.0`; the record
+  now rejects anything but an integer `0` or `1`, and both the executable
+  contract and the JSON snapshot assert the type. The fresh-import probe now
+  installs an audit hook and execution-boundary sentinels before importing the
+  command line, so a swallowed config read, extraction, tokenization, provider
+  lookup, or cache write is recorded, and a swallowed-read control proves the
+  probe fails when one occurs. Targeted `check` controls cover config loading
+  and the cache alias, which a valid project reaches.
 
 ## Outcomes & retrospective
 
