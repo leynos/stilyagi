@@ -171,11 +171,18 @@ before continuing.
 - [ ] (2026-11-23) Default `make test` at `06e34d33` is pending an unstarved
   compile queue. Two runs with repository defaults completed every preceding
   phase and ran all 370 nextest tests, but one trybuild UI test timed out at
-  its configured 1500 s budget while the shared admission queue held 200–394
+  its configured 1500 s budget while the shared admission queue held 200–694
   waiting compiler requests. The nested trybuild builds themselves finished
   successfully; no assertion, lint, or compile failure occurred, and the
-  doctest and pytest stages were not reached. Retry when `build-limits-status`
-  shows a shallow queue.
+  doctest and pytest stages were not reached. A diagnostic warm-up with a
+  relaxed 5400 s trybuild budget showed `stilyagi-ir::ui` passing in 3110 s
+  under the same load, confirming the default 1500 s budget is queue-bound.
+- [x] (2026-11-23) Fourth assessment: the only code finding was an import-time
+  ordering gap in the fresh-import probe. The probe now installs each execution
+  sentinel through an import hook immediately after the defining module
+  executes, and a negative control calls a forbidden function during the
+  probe's import phase and proves it is recorded. The remaining finding is the
+  queue-blocked default `make test`.
 
 ## Surprises & discoveries
 

@@ -59,7 +59,8 @@ _SENTINEL_FUNCTIONS: typ.Final[tuple[str, ...]] = (
 )
 
 
-_PROBE_PREAMBLE = """\
+_PROBE_SETUP = """\
+import importlib.abc
 import importlib.metadata
 import os
 import sys
@@ -82,29 +83,57 @@ def _watch(event, args):
 def _forbidden(name):
     def note(*args, **kwargs):
         side_effects.append(("call", name))
-        raise AssertionError(name)
 
     return note
 
 
+_TARGETS = {
+    "stilyagi.config.resolve": ("load_config_table",),
+    "stilyagi.discovery": ("discover_files",),
+    "stilyagi.engine": ("extract_document",),
+    "stilyagi.rules.builtin.pack": ("run_selected",),
+    "stilyagi.rules.builtin.text": ("tokenize_segments",),
+    "stilyagi.rules.registry": ("run_rules",),
+}
+
+
+class _SentinelLoader(importlib.abc.Loader):
+    def __init__(self, inner, fullname):
+        self._inner = inner
+        self._fullname = fullname
+
+    def create_module(self, spec):
+        create = getattr(self._inner, "create_module", None)
+        return None if create is None else create(spec)
+
+    def exec_module(self, module):
+        self._inner.exec_module(module)
+        for attribute in _TARGETS[self._fullname]:
+            setattr(module, attribute, _forbidden(attribute))
+
+
+class _SentinelFinder(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname not in _TARGETS:
+            return None
+        for finder in sys.meta_path:
+            if finder is self:
+                continue
+            find = getattr(finder, "find_spec", None)
+            if find is None:
+                continue
+            spec = find(fullname, path, target)
+            if spec is not None:
+                break
+        else:
+            return None
+        spec.loader = _SentinelLoader(spec.loader, fullname)
+        return spec
+
+
 sys.addaudithook(_watch)
+sys.meta_path.insert(0, _SentinelFinder())
 importlib.metadata.entry_points = _forbidden("entry_points")
-
-import stilyagi.config.resolve
-import stilyagi.discovery
-import stilyagi.engine
-import stilyagi.rules.builtin.pack
-import stilyagi.rules.builtin.text
-import stilyagi.rules.registry
-
-stilyagi.config.resolve.load_config_table = _forbidden("load_config_table")
-stilyagi.discovery.discover_files = _forbidden("discover_files")
-stilyagi.engine.extract_document = _forbidden("extract_document")
-stilyagi.rules.builtin.pack.run_selected = _forbidden("run_selected")
-stilyagi.rules.builtin.text.tokenize_segments = _forbidden("tokenize_segments")
-stilyagi.rules.registry.run_rules = _forbidden("run_rules")
-
-import stilyagi.cli
 """
 
 _PROBE_EPILOGUE = """
@@ -160,10 +189,15 @@ def _tree_snapshot(root: pathlib.Path) -> dict[pathlib.Path, bytes]:
 
 def _run_import_probe(
     root: pathlib.Path,
-    extra: str = "",
+    *,
+    before_cli: str = "",
+    after_cli: str = "",
 ) -> subprocess.CompletedProcess[bytes]:
     """Import the command line in a fresh interpreter and detect side effects."""
-    script = f"{_PROBE_PREAMBLE}{extra}{_PROBE_EPILOGUE}"
+    script = (
+        f"{_PROBE_SETUP}{before_cli}\nimport stilyagi.cli\n{after_cli}\n"
+        f"{_PROBE_EPILOGUE}"
+    )
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted interpreter, fixed argv, no shell.
         [sys.executable, "-c", script],
         cwd=root,
@@ -252,11 +286,13 @@ def test_importing_the_command_line_has_no_runtime_side_effects(
 ) -> None:
     """Importing the CLI performs no config, extraction, provider, or cache work.
 
-    The probe watches every file operation under the project directory and
-    forbids the provider and execution entry points before `stilyagi.cli` is
-    imported. A config read whose error is caught still reaches the
-    filesystem, and a plugin lookup whose error is caught still records the
-    call, so neither can hide behind an exception handler.
+    The probe watches every file operation under the project directory. Its
+    import hook installs each execution sentinel as soon as the defining
+    module finishes executing, before any importer can call it, and forbids
+    plugin entry-point lookup before `stilyagi.cli` is imported. A config read
+    whose error is caught still reaches the filesystem, and a plugin lookup
+    whose error is caught still records the call, so neither can hide behind
+    an exception handler.
     """
     _malformed_project(tmp_path)
     before = _tree_snapshot(tmp_path)
@@ -284,7 +320,7 @@ def test_import_probe_reports_a_swallowed_config_read(
         "    pass\n"
     )
 
-    completed = _run_import_probe(tmp_path, extra)
+    completed = _run_import_probe(tmp_path, after_cli=extra)
 
     assert completed.returncode != 0, "expected the probe to reject the side effect"
     assert b"import side effects" in completed.stderr, (
@@ -292,6 +328,33 @@ def test_import_probe_reports_a_swallowed_config_read(
     )
     assert b"stilyagi.toml" in completed.stderr, (
         "expected the report to name the config file"
+    )
+
+
+def test_import_probe_detects_execution_during_an_import_phase(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A sentinel is installed as part of its module's import, before callers run.
+
+    The control imports a sentinel-protected module and calls its forbidden
+    function while the probe is still importing, before `stilyagi.cli`. The
+    import hook installs the sentinel at the end of that module's execution,
+    so the call is recorded even though it happens during the import phase.
+    """
+    _malformed_project(tmp_path)
+    before = (
+        "import stilyagi.rules.builtin.text\n"
+        "stilyagi.rules.builtin.text.tokenize_segments('the the')\n"
+    )
+
+    completed = _run_import_probe(tmp_path, before_cli=before)
+
+    assert completed.returncode != 0, "expected the probe to reject the execution"
+    assert b"import side effects" in completed.stderr, (
+        "expected the probe's failure report"
+    )
+    assert b"tokenize_segments" in completed.stderr, (
+        "expected the report to name the forbidden execution boundary"
     )
 
 
