@@ -162,6 +162,20 @@ before continuing.
   gains an audit-hook fresh-import probe (file operations, swallowed reads,
   provider lookup, extraction, tokenization) with a swallowed-read control, and
   targeted `check` controls now cover config loading and the cache alias.
+- [x] (2026-11-23) Static gates on the repair tree pass: `make check-fmt`,
+  `make markdownlint` (including spelling), `make nixie`, `make lint` (Ruff,
+  Interrogate, Pylint, df12 Pylint, ambrleaks, Skylos, duplication, Rustdoc,
+  Clippy, Whitaker), and `make typecheck` (`ty 0.0.74`). Focused coverage for
+  the three repairs is 200 passing tests, including the new regression,
+  constructor, JSON-type, probe-control, and boundary-control cases.
+- [ ] (2026-11-23) Default `make test` at `06e34d33` is pending an unstarved
+  compile queue. Two runs with repository defaults completed every preceding
+  phase and ran all 370 nextest tests, but one trybuild UI test timed out at
+  its configured 1500 s budget while the shared admission queue held 200–394
+  waiting compiler requests. The nested trybuild builds themselves finished
+  successfully; no assertion, lint, or compile failure occurred, and the
+  doctest and pytest stages were not reached. Retry when
+  `build-limits-status` shows a shallow queue.
 
 ## Surprises & discoveries
 
