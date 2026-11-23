@@ -69,6 +69,9 @@ _metadata = st.builds(
     pack=st.sampled_from(("builtin", "extra")),
 )
 _registries = st.lists(_metadata, max_size=8).map(_with_unique_codes)
+_nonempty_registries = st.lists(_metadata, min_size=1, max_size=8).map(
+    _with_unique_codes
+)
 _filters = st.builds(
     RuleFilters,
     prefix=st.sampled_from(_PREFIXES),
@@ -287,6 +290,28 @@ def test_generated_cases_cover_matching_and_nonmatching_classes(
 
     event("empty registry" if not registry else "non-empty registry")
     event("empty selection" if not selected else "matching selection")
+
+
+@settings(max_examples=150, deadline=None)
+@given(registry=_nonempty_registries)
+def test_generated_filters_produce_a_match_and_a_miss(
+    registry: tuple[RuleMetadata, ...],
+) -> None:
+    """A generated registry yields a guaranteed match and a guaranteed miss.
+
+    The prefixes are derived from the generated registry, so both classes are
+    produced directly: the rule's own code always matches, and the same code
+    with an impossible suffix never does.
+    """
+    rule = registry[0]
+
+    matching = catalogue._select_rules(registry, RuleFilters(prefix=rule.code))
+    missing = catalogue._select_rules(registry, RuleFilters(prefix=f"{rule.code}ZZZ"))
+
+    assert rule.code in {item.code for item in matching}, (
+        "expected the generated rule to match its own code prefix"
+    )
+    assert not missing, "expected the impossible prefix to select nothing"
 
 
 def test_generated_case_space_contains_both_outcomes() -> None:

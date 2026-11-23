@@ -241,6 +241,21 @@ assuming that this session's tool availability persists.
 - 2026-11-22: validate that an `array[string]` option default contains only
   strings. The description records could previously render JSON that
   contradicted their declared type.
+- 2026-11-22: the second assessment found the derived exit status was wrong for
+  warning-only examples. Exit status is now an authored `exit_code` field on
+  `RuleExample`, validated to `0` or `1`, and asserted against the real
+  `compute_exit_code` policy. It is additive in the schema-version-1 example
+  object, matching the RFC's requirement that rule output include it.
+- 2026-11-22: the enablement prose now distinguishes a rule removed from the
+  enabled set (ignore lists, per-file ignores, the plugin gate) from a finding
+  suppressed after evaluation (a `stilyagi: disable` directive). Only the
+  latter leaves MD001's depth state intact.
+- 2026-11-22: escape control characters in an unknown code so one failure stays
+  one stderr line, and cover it in unit and console-script tests. Generated
+  catalogue properties now construct a guaranteed match and miss. The isolation
+  suite patches the command-boundary aliases `cli` actually binds and adds an
+  import probe that checks for a configuration side effect without treating the
+  pre-existing package `__init__` imports as rule execution.
 
 ## Outcomes & retrospective
 
@@ -424,8 +439,10 @@ type, `description: string`, `constraints: string[]`, and
 `description: string`; the array option has no variants, and the boolean option
 has false then true. This intentionally models only shipped option types.
 `examples` is an array of objects with `title: string`, `source: string`,
-`configuration: string` (complete TOML, or empty for defaults), and
-`expected_codes: string[]` (ordered observed diagnostics). `limitations` and
+`configuration: string` (complete TOML, or empty for defaults),
+`expected_codes: string[]` (ordered observed diagnostics), and
+`exit_code: integer` (the check status the example documents: `1` when an
+error-severity finding is produced, otherwise `0`). `limitations` and
 `references` are string arrays. Preserve authored order for prose, options,
 examples, and references. All top-level identity/prose/severity/mode fields are
 strings, and default/preview/NLP/fixability fields are booleans.

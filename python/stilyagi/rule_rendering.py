@@ -294,6 +294,7 @@ def _descriptor(rule: RuleMetadata) -> dict[str, object]:
                 "source": example.source,
                 "configuration": example.configuration,
                 "expected_codes": list(example.expected_codes),
+                "exit_code": example.exit_code,
             }
             for example in description.examples
         ],

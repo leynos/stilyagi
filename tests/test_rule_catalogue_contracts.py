@@ -14,6 +14,7 @@ import typing as typ
 
 import pytest
 from stilyagi import config
+from stilyagi.check_outcome import compute_exit_code
 from stilyagi.config.rules import Term001Config, parse_term001
 from stilyagi.rules import catalogue
 from stilyagi.rules.builtin import enabled_codes
@@ -66,6 +67,9 @@ def test_documented_example_produces_its_expected_codes(
 
     assert tuple(finding.code for finding in produced) == example.expected_codes, (
         f"expected {rule.code}'s documented example to produce its stated codes"
+    )
+    assert compute_exit_code(produced) == example.exit_code, (
+        "expected the documented exit status to follow the real severity policy"
     )
 
 

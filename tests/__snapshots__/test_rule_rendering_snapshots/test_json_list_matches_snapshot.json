@@ -3,7 +3,7 @@
     {
       "code": "MD001",
       "configuration": {
-        "enablement": "Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = [\"MD001\"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable MD001` directive, or removing `builtin` from `plugins` suppresses reported findings for the covered region. The rule still evaluates, so a suppressed heading remains the depth the next heading compares against.",
+        "enablement": "Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = [\"MD001\"]`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs. A `stilyagi: disable MD001` directive instead suppresses reported findings after evaluation, so a suppressed heading remains the depth the next heading compares against.",
         "options": [],
         "toml": "[tool.stilyagi.lint]\nselect = [\"MD\"]\n"
       },
@@ -12,6 +12,7 @@
       "examples": [
         {
           "configuration": "",
+          "exit_code": 1,
           "expected_codes": [
             "MD001"
           ],
@@ -20,6 +21,7 @@
         },
         {
           "configuration": "",
+          "exit_code": 0,
           "expected_codes": [],
           "source": "# Start\n## Detail\n### Example\n",
           "title": "Consecutive levels are accepted"
@@ -60,7 +62,7 @@
     {
       "code": "STY001",
       "configuration": {
-        "enablement": "Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = [\"STY001\"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable STY001` directive, or removing `builtin` from `plugins` suppresses reported findings for the covered region. The rule still evaluates over the document.",
+        "enablement": "Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = [\"STY001\"]`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs. A `stilyagi: disable STY001` directive instead suppresses reported findings after evaluation; the rule still evaluates over the document.",
         "options": [],
         "toml": "[tool.stilyagi.lint]\nselect = [\"STY\"]\n"
       },
@@ -69,6 +71,7 @@
       "examples": [
         {
           "configuration": "",
+          "exit_code": 0,
           "expected_codes": [
             "STY001"
           ],
@@ -77,12 +80,14 @@
         },
         {
           "configuration": "",
+          "exit_code": 0,
           "expected_codes": [],
           "source": "The the plan is clear.\n",
           "title": "Exact spelling is required"
         },
         {
           "configuration": "",
+          "exit_code": 0,
           "expected_codes": [],
           "source": "the\nthe\n",
           "title": "A line break ends the run"
@@ -169,12 +174,14 @@
       "examples": [
         {
           "configuration": "",
+          "exit_code": 0,
           "expected_codes": [],
           "source": "This is obviously fine.\n",
           "title": "The rule is inactive by default"
         },
         {
           "configuration": "[tool.stilyagi.lint]\nselect = [\"MD\", \"STY\", \"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\ncase_sensitive = false\n",
+          "exit_code": 1,
           "expected_codes": [
             "TERM001"
           ],
@@ -183,6 +190,7 @@
         },
         {
           "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\n",
+          "exit_code": 1,
           "expected_codes": [
             "TERM001"
           ],
@@ -191,12 +199,14 @@
         },
         {
           "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"Obviously\"]\ncase_sensitive = true\n",
+          "exit_code": 0,
           "expected_codes": [],
           "source": "obviously fine.\n",
           "title": "Case-sensitive matching requires the exact spelling"
         },
         {
           "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\n",
+          "exit_code": 1,
           "expected_codes": [
             "TERM001"
           ],
@@ -205,6 +215,7 @@
         },
         {
           "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"straße\"]\ncase_sensitive = false\n",
+          "exit_code": 1,
           "expected_codes": [
             "TERM001"
           ],

@@ -43,12 +43,14 @@
     "examples": [
       {
         "configuration": "",
+        "exit_code": 0,
         "expected_codes": [],
         "source": "This is obviously fine.\n",
         "title": "The rule is inactive by default"
       },
       {
         "configuration": "[tool.stilyagi.lint]\nselect = [\"MD\", \"STY\", \"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\ncase_sensitive = false\n",
+        "exit_code": 1,
         "expected_codes": [
           "TERM001"
         ],
@@ -57,6 +59,7 @@
       },
       {
         "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\n",
+        "exit_code": 1,
         "expected_codes": [
           "TERM001"
         ],
@@ -65,12 +68,14 @@
       },
       {
         "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"Obviously\"]\ncase_sensitive = true\n",
+        "exit_code": 0,
         "expected_codes": [],
         "source": "obviously fine.\n",
         "title": "Case-sensitive matching requires the exact spelling"
       },
       {
         "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"obviously\"]\n",
+        "exit_code": 1,
         "expected_codes": [
           "TERM001"
         ],
@@ -79,6 +84,7 @@
       },
       {
         "configuration": "[tool.stilyagi.lint]\nselect = [\"TERM001\"]\n\n[tool.stilyagi.rule.TERM001]\nterms = [\"straße\"]\ncase_sensitive = false\n",
+        "exit_code": 1,
         "expected_codes": [
           "TERM001"
         ],

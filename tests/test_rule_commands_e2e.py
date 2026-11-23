@@ -129,6 +129,18 @@ def test_console_rule_errors_own_stderr_and_exit_two(
     )
 
 
+def test_console_rule_escapes_control_characters_in_the_code(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A code containing a newline cannot break the one-line failure contract."""
+    completed = _run_console(tmp_path, "rule", "BAD\nCODE")
+
+    assert completed.returncode == 2, "expected the operational-failure status"
+    assert not completed.stdout, "expected empty standard output"
+    assert completed.stderr.count(b"\n") == 1, "expected exactly one stderr line"
+    assert b"BAD\\nCODE" in completed.stderr, "expected the newline to be escaped"
+
+
 def test_console_rules_filters_conjoin_to_an_empty_result(
     tmp_path: pathlib.Path,
 ) -> None:

@@ -168,34 +168,24 @@ class RuleExample:
         when the default configuration demonstrates the behaviour.
     expected_codes:
         Diagnostic codes the example produces, in observed order.
+    exit_code:
+        The check exit status the example documents: ``1`` when an
+        error-severity diagnostic is produced, otherwise ``0``. It is authored
+        because a warning-only example is not a failing check, and a rendering
+        adapter has no severity policy of its own.
     """
 
     title: str
     source: str
     configuration: str = ""
     expected_codes: tuple[str, ...] = ()
+    exit_code: int = 0
 
-    @property
-    def exit_code(self) -> int:
-        r"""The check exit status this example documents.
-
-        Returns
-        -------
-        int
-            ``1`` when the example reports at least one finding, otherwise
-            ``0``. The example contract assumes a check over a document whose
-            only findings are the documented ones.
-
-        Examples
-        --------
-        >>> RuleExample(title="clean", source="x\n").exit_code
-        0
-        >>> RuleExample(
-        ...     title="finding", source="x\n", expected_codes=("MD001",)
-        ... ).exit_code
-        1
-        """
-        return 1 if self.expected_codes else 0
+    def __post_init__(self) -> None:
+        """Reject an exit code outside the check policy's 0/1 outcomes."""
+        if self.exit_code not in {0, 1}:
+            message = "example exit_code must be 0 or 1"
+            raise ValueError(message)
 
 
 def _require_capabilities(requires: tuple[str, ...]) -> None:

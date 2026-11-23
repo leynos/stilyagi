@@ -124,8 +124,8 @@ for the output contract and examples.
 ## What does not need to change
 
 - Existing `stilyagi check` invocations, their arguments, and their exit codes.
-  The exit-code contract is unchanged: `0` for a clean run, `1` when
-  diagnostics exist, `2` for an operational error.
+  The exit-code contract is unchanged: `0` for a clean or warning-only run, `1`
+  when error-severity diagnostics exist, `2` for an operational error.
 - Existing `stilyagi.toml` files. This release adds no required key and
   renames none.
 - Rules, rule selection, and suppression directives. A cache hit reuses only

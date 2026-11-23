@@ -43,7 +43,12 @@ class RuleNotFoundError(LookupError):
     def __init__(self, code: str) -> None:
         """Record the missing code in the message and on the exception."""
         self.code = code
-        super().__init__(f"unknown rule code: {code}")
+        super().__init__(f"unknown rule code: {_one_line(code)}")
+
+
+def _one_line(value: str) -> str:
+    """Escape control characters so one failure stays on one stderr line."""
+    return value.encode("unicode_escape").decode("ascii")
 
 
 @dc.dataclass(frozen=True, slots=True)

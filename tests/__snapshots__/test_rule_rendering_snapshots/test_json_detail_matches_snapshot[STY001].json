@@ -2,7 +2,7 @@
   "rule": {
     "code": "STY001",
     "configuration": {
-      "enablement": "Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = [\"STY001\"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable STY001` directive, or removing `builtin` from `plugins` suppresses reported findings for the covered region. The rule still evaluates over the document.",
+      "enablement": "Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = [\"STY001\"]`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs. A `stilyagi: disable STY001` directive instead suppresses reported findings after evaluation; the rule still evaluates over the document.",
       "options": [],
       "toml": "[tool.stilyagi.lint]\nselect = [\"STY\"]\n"
     },
@@ -11,6 +11,7 @@
     "examples": [
       {
         "configuration": "",
+        "exit_code": 0,
         "expected_codes": [
           "STY001"
         ],
@@ -19,12 +20,14 @@
       },
       {
         "configuration": "",
+        "exit_code": 0,
         "expected_codes": [],
         "source": "The the plan is clear.\n",
         "title": "Exact spelling is required"
       },
       {
         "configuration": "",
+        "exit_code": 0,
         "expected_codes": [],
         "source": "the\nthe\n",
         "title": "A line break ends the run"

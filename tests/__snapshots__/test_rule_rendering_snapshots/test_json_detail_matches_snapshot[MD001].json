@@ -2,7 +2,7 @@
   "rule": {
     "code": "MD001",
     "configuration": {
-      "enablement": "Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = [\"MD001\"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable MD001` directive, or removing `builtin` from `plugins` suppresses reported findings for the covered region. The rule still evaluates, so a suppressed heading remains the depth the next heading compares against.",
+      "enablement": "Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = [\"MD001\"]`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs. A `stilyagi: disable MD001` directive instead suppresses reported findings after evaluation, so a suppressed heading remains the depth the next heading compares against.",
       "options": [],
       "toml": "[tool.stilyagi.lint]\nselect = [\"MD\"]\n"
     },
@@ -11,6 +11,7 @@
     "examples": [
       {
         "configuration": "",
+        "exit_code": 1,
         "expected_codes": [
           "MD001"
         ],
@@ -19,6 +20,7 @@
       },
       {
         "configuration": "",
+        "exit_code": 0,
         "expected_codes": [],
         "source": "# Start\n## Detail\n### Example\n",
         "title": "Consecutive levels are accepted"

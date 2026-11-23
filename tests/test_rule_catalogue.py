@@ -152,6 +152,19 @@ def test_catalogue_lookup_rejects_anything_but_an_exact_code(code: str) -> None:
     assert code in str(raised.value), "expected the message to name the code"
 
 
+def test_unknown_code_control_characters_stay_on_one_line() -> None:
+    """A code containing a newline cannot forge a second error line."""
+    code = "BAD\nCODE"
+
+    with pytest.raises(catalogue.RuleNotFoundError) as raised:
+        catalogue.get_rule(code)
+
+    message = str(raised.value)
+    assert "\n" not in message, "expected the message to stay on one line"
+    assert "BAD\\nCODE" in message, "expected the newline to be escaped"
+    assert raised.value.code == code, "expected the miss to retain the raw code"
+
+
 def test_catalogue_lookup_error_is_a_lookup_error() -> None:
     """The miss is a `LookupError`, so callers can catch it generically."""
     with pytest.raises(LookupError):

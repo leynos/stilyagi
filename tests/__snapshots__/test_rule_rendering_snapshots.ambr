@@ -24,7 +24,7 @@
     STRUCTURE
   
   Policy/enablement:
-    Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = ["MD001"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable MD001` directive, or removing `builtin` from `plugins` suppresses reported findings for the covered region. The rule still evaluates, so a suppressed heading remains the depth the next heading compares against.
+    Selected by default. `MD` selects this rule and `MD001` selects only it. `lint.ignore = ["MD001"]`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs. A `stilyagi: disable MD001` directive instead suppresses reported findings after evaluation, so a suppressed heading remains the depth the next heading compares against.
     TOML:
     [tool.stilyagi.lint]
     select = ["MD"]
@@ -92,7 +92,7 @@
     TOKENS
   
   Policy/enablement:
-    Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = ["STY001"]`, a matching `lint.per-file-ignores` entry, a `stilyagi: disable STY001` directive, or removing `builtin` from `plugins` suppresses reported findings for the covered region. The rule still evaluates over the document.
+    Selected by default. `STY` selects this rule and `STY001` selects only it. `lint.ignore = ["STY001"]`, a matching `lint.per-file-ignores` entry, or removing `builtin` from `plugins` removes the rule from the enabled set before it runs. A `stilyagi: disable STY001` directive instead suppresses reported findings after evaluation; the rule still evaluates over the document.
     TOML:
     [tool.stilyagi.lint]
     select = ["STY"]
@@ -110,7 +110,7 @@
       configuration:
         defaults
       expected codes: STY001
-      expected exit status: 1
+      expected exit status: 0
     Exact spelling is required
       source:
         The the plan is clear.

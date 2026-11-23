@@ -81,11 +81,11 @@ _MD001_EXPLANATION = (
 )
 _MD001_ENABLEMENT = (
     "Selected by default. `MD` selects this rule and `MD001` selects only it. "
-    '`lint.ignore = ["MD001"]`, a matching `lint.per-file-ignores` entry, a '
-    "`stilyagi: disable MD001` directive, or removing `builtin` from `plugins` "
-    "suppresses reported findings for the covered region. The rule still "
-    "evaluates, so a suppressed heading remains the depth the next heading "
-    "compares against."
+    '`lint.ignore = ["MD001"]`, a matching `lint.per-file-ignores` entry, or '
+    "removing `builtin` from `plugins` removes the rule from the enabled set "
+    "before it runs. A `stilyagi: disable MD001` directive instead suppresses "
+    "reported findings after evaluation, so a suppressed heading remains the "
+    "depth the next heading compares against."
 )
 _MD001_FIXES = (
     "The rule reports a manual suggestion. The correct heading level is a "
@@ -112,9 +112,10 @@ _STY001_EXPLANATION = (
 _STY001_ENABLEMENT = (
     "Selected by default. `STY` selects this rule and `STY001` selects only "
     'it. `lint.ignore = ["STY001"]`, a matching `lint.per-file-ignores` entry, '
-    "a `stilyagi: disable STY001` directive, or removing `builtin` from "
-    "`plugins` suppresses reported findings for the covered region. The rule "
-    "still evaluates over the document."
+    "or removing `builtin` from `plugins` removes the rule from the enabled "
+    "set before it runs. A `stilyagi: disable STY001` directive instead "
+    "suppresses reported findings after evaluation; the rule still evaluates "
+    "over the document."
 )
 _STY001_FIXES = (
     "The rule may propose an unsafe edit that removes the repeated suffix. "
@@ -219,6 +220,7 @@ MD001_DESCRIPTION = RuleDescription(
             title="A skipped level is reported",
             source="# Start\n### Detail\n",
             expected_codes=("MD001",),
+            exit_code=1,
         ),
         RuleExample(
             title="Consecutive levels are accepted",
@@ -316,12 +318,14 @@ TERM001_DESCRIPTION = RuleDescription(
             source="This is obviously fine.\n",
             configuration=_TERM_ENABLE_TOML,
             expected_codes=("TERM001",),
+            exit_code=1,
         ),
         RuleExample(
             title="Case-insensitive matching folds case",
             source="Obviously, this is fine.\n",
             configuration=_TERM_SELECTION_TOML,
             expected_codes=("TERM001",),
+            exit_code=1,
         ),
         RuleExample(
             title="Case-sensitive matching requires the exact spelling",
@@ -334,12 +338,14 @@ TERM001_DESCRIPTION = RuleDescription(
             source="This is obviously-not fine.\n",
             configuration=_TERM_SELECTION_TOML,
             expected_codes=("TERM001",),
+            exit_code=1,
         ),
         RuleExample(
             title="Unicode case folding applies to whole tokens",
             source="STRASSE matters.\n",
             configuration=_TERM_UNICODE_TOML,
             expected_codes=("TERM001",),
+            exit_code=1,
         ),
     ),
     limitations=(

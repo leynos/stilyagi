@@ -15,10 +15,14 @@ pass because the sentinel was silently ineffective.
 
 import importlib.metadata
 import json
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - a trusted local interpreter runs the import probe.
+import sys
 import typing as typ
 
 import pytest
 from stilyagi import cli
+
+from tests.support.subprocess_env import python_module_environment
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -42,7 +46,11 @@ _SENTINEL_FUNCTIONS: typ.Final[tuple[str, ...]] = (
     "stilyagi.cli_extraction_cache.open_extraction_cache",
     # Aliases imported into the command modules are the actual call sites for
     # the check path, so patching only their defining modules would leave a
-    # sentinel that the command never consults.
+    # sentinel the command never consults. `cli` binds
+    # `open_extraction_cache` at import, which is why its own alias is listed
+    # separately from the defining module above.
+    "stilyagi.cli.open_extraction_cache",
+    "stilyagi.cli.cache_policy_for",
     "stilyagi.cli.discover_targets",
     "stilyagi.cli.collect_checked_files",
     "stilyagi.cli_apply.apply_fixes",
@@ -77,6 +85,12 @@ def _malformed_project(root: pathlib.Path) -> None:
     """Write a source file and a configuration no parser can read."""
     (root / "notes.md").write_text("# Notes\n", encoding="utf-8")
     (root / "stilyagi.toml").write_text("[lint\n", encoding="utf-8")
+
+
+def _valid_project(root: pathlib.Path) -> None:
+    """Write a source file and a valid minimal configuration."""
+    (root / "notes.md").write_text("# Notes\n", encoding="utf-8")
+    (root / "stilyagi.toml").write_text("[lint]\n", encoding="utf-8")
 
 
 def test_rules_command_succeeds_without_any_runtime_boundary(
@@ -120,17 +134,56 @@ def test_rule_detail_succeeds_without_any_runtime_boundary(
     assert not captured.err, "expected an isolated command to write no errors"
 
 
-def test_check_trips_the_config_sentinel(
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("stilyagi.cli.discover_targets", id="discovery-alias"),
+        pytest.param("stilyagi.cli.collect_checked_files", id="check-loop-alias"),
+    ],
+)
+def test_check_trips_a_command_boundary_alias(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,
+    target: str,
 ) -> None:
-    """The sentinels are effective: a config-reading command trips them."""
+    """A command-boundary alias is a real call site, not a decorative patch.
+
+    The cache alias cannot be exercised here: `check` builds the extraction
+    cache only after discovery succeeds, so a malformed project would return
+    two before reaching it. The cache boundary is covered by the all-sentinels
+    control below, which fails on the first alias reached.
+    """
     monkeypatch.chdir(tmp_path)
-    _malformed_project(tmp_path)
-    _install_sentinels(monkeypatch)
+    _valid_project(tmp_path)
+    monkeypatch.setattr(target, _forbidden(target))
 
     with pytest.raises(AssertionError, match="rule discovery must not call"):
         cli.main(["check", "."])
+
+
+def test_importing_the_command_line_ignores_malformed_config(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Importing the CLI has no configuration side effect.
+
+    Every `stilyagi.*` import first runs the package `__init__`, which imports
+    `engine` and `model`; that pre-existing package boundary is not rule
+    execution. What this probe checks is that the import does not *read* the
+    malformed configuration beside it.
+    """
+    _malformed_project(tmp_path)
+
+    completed = subprocess.run(
+        [sys.executable, "-c", "import stilyagi.cli"],
+        cwd=tmp_path,
+        env=python_module_environment(),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_discovery_commands_leave_the_directory_unchanged(
