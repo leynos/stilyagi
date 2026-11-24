@@ -186,6 +186,15 @@ before continuing.
 - [x] (2026-11-23) Second reconciliation qualification: the exit-status check
   now requires exactly a built-in `int`, so an `int` subclass cannot pass, with
   a regression case.
+- [x] (2026-11-24) Fifth assessment: the remaining isolation gap was a call a
+  protected module makes while its own body is executing, which the
+  post-execution attribute swap cannot see. The loader now traces calls for the
+  duration of each protected module's execution and records a guarded name
+  invoked from that module; a control defines and calls a guarded function at
+  module level and requires it to be reported. The probe and its runner moved to
+  `tests/support/import_probe.py` when the added control took the isolation
+  test module past the repository's 400-line limit; Ruff, Interrogate, Pylint,
+  duplication, and Skylos pass on the split.
 - [ ] (2026-11-23) Default `make test` at `a86775e1` (five attempts, all
   repository defaults, `.venv` restored to the pinned CPython 3.14). The build,
   smoke, `cargo fmt --check`, Clippy, and all 370 nextest tests plus every Rust
