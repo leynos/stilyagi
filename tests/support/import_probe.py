@@ -97,9 +97,10 @@ class _SentinelLoader(importlib.abc.Loader):
         # calls made by later importers; the post-exec attribute swap alone
         # would miss a function the module calls while defining itself. A
         # protected module may import another protected module, so preserve
-        # the outer trace across the inner import. `sys.settrace` returns the
-        # caller's *local* trace rather than the global one, so the guard is
-        # tracked explicitly instead of being read back from that call.
+        # the outer trace across the inner import. `sys.settrace` returns
+        # None here rather than the installed function, so a `finally` that
+        # restored its return value would disable tracing; the guard is
+        # re-installed explicitly from the tracked flag instead.
         global _guarding
         previous = _guarding
         _guarding = True

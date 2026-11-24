@@ -213,10 +213,11 @@ before continuing.
   and hosted `lint-test` runs the identical clippy/rustdoc fixtures in
   `make lint` on a clean runner.
 - [x] (2026-11-24) Sixth assessment: a protected module importing another
-  protected module disarmed the outer module's call trace, because
-  `sys.settrace` returns the calling frame's local trace rather than the
-  thread's global one, so restoring its value cleared tracing. The loader now
-  restores the guard explicitly while an outer import is in progress, and a
+  protected module disarmed the outer module's call trace. The cause is that
+  `sys.settrace` returns `None` on CPython 3.14 even while a trace function is
+  installed, so the loader's `finally` restoring that return value called
+  `settrace(None)` and disabled tracing. The loader now re-installs the guard
+  explicitly from its tracked flag while an outer import is in progress, and a
   control has one protected module import another before calling its own
   guarded function. The control was verified to fail against the pre-fix loader
   and pass after it.
@@ -322,14 +323,13 @@ assuming that this session's tool availability persists.
   suite patches the command-boundary aliases `cli` actually binds and adds an
   import probe that checks for a configuration side effect without treating the
   pre-existing package `__init__` imports as rule execution.
-- 2026-11-24: keep the roadmap 2.3.2 checkbox checked while the plan status
-  reads IMPLEMENTED rather than COMPLETE. The roadmap's success statement is
-  that maintainers can discover and debug the shipped rules, which the
-  delivered commands and hosted CI establish; E6 is this plan's local
-  verification record, and it remains pending only because the shared compile
-  queue makes the unrelated lint-policy scratch crates exceed their fixed 240 s
-  subprocess budget. Unchecking the roadmap item would report the feature as
-  undelivered, which the hosted evidence contradicts.
+- 2026-11-24: uncheck roadmap 2.3.2 until E6 passes. The repository's planning
+  guidance says a roadmap item is marked complete only after its acceptance
+  criteria pass, and that a done checkbox must not outlive missing evidence.
+  The feature and its hosted verification are delivered, but the plan's own E6
+  record is pending, so the checkbox follows the recorded rule rather than the
+  delivery state. The 2026-11-22 E6 pass recorded above is preserved as history
+  at its own candidate and does not cover later commits.
 - 2026-11-23: the third assessment found the earlier generated miss was not
   guaranteed absent: appending `ZZZ` to `A` selects a registry entry `AZZZ`.
   The miss now comes from a prefix longer than every generated code, which no
