@@ -130,8 +130,9 @@ new maintainer needs to recognize quickly and omits transient cache contents.
     and the builtin pack. `rules/builtin/` holds one module per rule family plus
     `text.py` for shared token and byte-offset helpers, `summary.py` for
     the documentation rules' physical-line, summary-selection, and
-    source-anchor analysis, and `markup.py` for the conservative Markdown
-    exclusion predicates that analysis consults. Markdown and documentation
+    source-anchor analysis, `line_split.py` for the physical-line walk, and
+    `markup.py` for the conservative Markdown exclusion predicates that
+    analysis consults. Markdown and documentation
     rules share the same registry, inventory order, and policy path.
 - `python/stilyagi/cli_config_command.py`, `cli_dump_ir.py`, and `cli_clean.py`
   - Coordinate configuration inspection, canonical Markdown IR output, and

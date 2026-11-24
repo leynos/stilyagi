@@ -1064,6 +1064,8 @@ suppression policy still applies. Internal boundaries:
   lines, first-line and first-paragraph selection, and character-to-source-byte
   anchoring. It never decodes Python string escapes, strips block-comment
   asterisks, or parses Markdown.
+- `rules/builtin/line_split.py` owns the physical-line walk, including the
+  CR-LF and synthetic-separator rules.
 - `rules/builtin/markup.py` holds the conservative Markdown exclusion
   predicates the punctuation rule consults; it is a predicate module, not a
   parser.

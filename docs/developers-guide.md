@@ -1052,6 +1052,9 @@ the parts of the boundary Markdown rules never touch.
   multibyte character is reported as one complete character, never as one byte
   and never at a synthetic separator. If the anchor cannot be mapped, the
   finding is omitted rather than relocated.
+- `rules/builtin/line_split.py` owns the physical-line walk: it splits at LF
+  and at the extractor's recorded line break, keeps the CR of a CR-LF pair out
+  of the line range, and treats a lone CR as ordinary text.
 - `rules/builtin/markup.py` owns the conservative Markdown exclusions the
   punctuation rule applies: the character set a candidate may not contain and
   the structural line starts that make a line non-prose. It is a predicate
@@ -1060,9 +1063,9 @@ the parts of the boundary Markdown rules never touch.
   with synthetic spaces, so region offsets are not source offsets. Reuse the
   segment mapping rather than assuming otherwise.
 
-Sweep `rules/builtin/text.py`, `summary.py`, and `markup.py` before adding
-another helper; the shared UTF-8 offset table, the source segment iterator, and
-the location mapper already exist for both families.
+Sweep `rules/builtin/text.py`, `summary.py`, `line_split.py`, and `markup.py`
+before adding another helper; the shared UTF-8 offset table, the source segment
+iterator, and the location mapper already exist for both families.
 
 ### Fix planning
 

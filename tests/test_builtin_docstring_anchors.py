@@ -184,3 +184,57 @@ class TestSummarySourceEdges:
     def test_a_blank_line_starts_no_markup(self) -> None:
         """Whitespace-only text is not a structural line."""
         assert not starts_with_markup("   "), "expected a blank line to start no markup"
+
+
+class TestLineTerminators:
+    """CR-LF, lone CR, and a CR-LF pair split across segments."""
+
+    def test_crlf_excludes_the_cr_from_the_line_range(self) -> None:
+        """The CR belongs to the terminator, so the range stops before it."""
+        source = SummarySource.of(
+            _region_with(RegionSegment(SourceSpan(0, 6), "A.\r\nB."))
+        )
+
+        assert_with_context(
+            [(line.start, line.end) for line in source.lines] == [(0, 2), (4, 6)],
+            f"expected the CR excluded from the first line, got {source.lines}",
+        )
+        assert_with_context(
+            [source.line_text(line) for line in source.lines] == ["A.", "B."],
+            f"unexpected line texts: "
+            f"{[source.line_text(line) for line in source.lines]}",
+        )
+
+    def test_a_lone_cr_is_ordinary_text(self) -> None:
+        """A lone CR neither starts a line nor is stripped from one."""
+        source = SummarySource.of(
+            _region_with(RegionSegment(SourceSpan(0, 4), "A.\rB"))
+        )
+
+        assert_with_context(
+            len(source.lines) == 1, f"expected one line, got {source.lines}"
+        )
+        assert_with_context(
+            source.line_text(source.lines[0]) == "A.\rB",
+            f"expected the lone CR preserved, got "
+            f"{source.line_text(source.lines[0])!r}",
+        )
+
+    def test_a_crlf_pair_split_across_segments_is_still_one_terminator(self) -> None:
+        """A trailing CR and a leading LF in the next segment pair up."""
+        source = SummarySource.of(
+            _region_with(
+                RegionSegment(SourceSpan(0, 3), "A.\r"),
+                RegionSegment(SourceSpan(3, 5), "\nB."),
+            )
+        )
+
+        assert_with_context(
+            [(line.start, line.end) for line in source.lines] == [(0, 2), (4, 6)],
+            f"expected the split pair to act as one terminator, got {source.lines}",
+        )
+        assert_with_context(
+            [source.line_text(line) for line in source.lines] == ["A.", "B."],
+            f"unexpected line texts: "
+            f"{[source.line_text(line) for line in source.lines]}",
+        )

@@ -17,6 +17,7 @@ import dataclasses as dc
 import typing as typ
 
 from stilyagi.model.source import SourceSpan
+from stilyagi.rules.builtin.line_split import PhysicalLine, physical_lines
 from stilyagi.rules.builtin.text import utf8_offsets
 
 if typ.TYPE_CHECKING:  # pragma: no cover - typing only
@@ -28,33 +29,6 @@ __all__ = [
     "PhysicalLine",
     "SummarySource",
 ]
-
-#: The synthetic reason the extractor records for a flattened line break.
-_LINE_BREAK_REASON = "softbreak_space"
-
-
-@dc.dataclass(frozen=True, slots=True)
-class PhysicalLine:
-    """One physical line's half-open character range in the region text.
-
-    Parameters
-    ----------
-    start:
-        Offset of the line's first character in the reconstructed region text.
-    end:
-        Offset just past the line's last character. A CR that terminates a
-        CR-LF pair is excluded from the range.
-
-    Examples
-    --------
-    >>> PhysicalLine(0, 4)
-    PhysicalLine(start=0, end=4)
-    >>> "Doc."[0:4]
-    'Doc.'
-    """
-
-    start: int
-    end: int
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -118,7 +92,7 @@ class SummarySource:
         return cls(
             text=text,
             segments=region.segments,
-            lines=_physical_lines(region.segments, len(text)),
+            lines=physical_lines(region.segments, len(text)),
         )
 
     def line_text(self, line: PhysicalLine) -> str:
@@ -132,8 +106,10 @@ class SummarySource:
         Returns
         -------
         str
-            The line's text. Python Unicode whitespace semantics apply to any
-            later ``strip`` the caller performs.
+            The line's text. The CR of a CR-LF pair is already excluded from
+            the range, and a lone CR is ordinary text, so nothing is stripped
+            here. Python Unicode whitespace semantics apply to any later
+            ``strip`` the caller performs.
 
         Examples
         --------
@@ -146,7 +122,7 @@ class SummarySource:
         >>> [source.line_text(line) for line in source.lines]
         ['A.', 'B.']
         """
-        return self.text[line.start : line.end].removesuffix("\r")
+        return self.text[line.start : line.end]
 
     def is_blank(self, line: PhysicalLine) -> bool:
         r"""Return whether a line holds only Unicode whitespace.
@@ -164,7 +140,7 @@ class SummarySource:
         >>> from stilyagi.model.region import RegionSegment, RegionView
         >>> region = RegionView(
         ...     "r0", "python_docstring", "python", (), {},
-        ...     (RegionSegment(SourceSpan(3, 9), "\n  \nDoc."),),
+        ...     (RegionSegment(SourceSpan(3, 11), "\n  \nDoc."),),
         ... )
         >>> source = SummarySource.of(region)
         >>> [source.is_blank(line) for line in source.lines]
@@ -211,7 +187,7 @@ class SummarySource:
         >>> from stilyagi.model.region import RegionSegment, RegionView
         >>> region = RegionView(
         ...     "r0", "python_docstring", "python", (), {},
-        ...     (RegionSegment(SourceSpan(3, 15), "One.\nTwo.\n\nMore."),),
+        ...     (RegionSegment(SourceSpan(3, 19), "One.\nTwo.\n\nMore."),),
         ... )
         >>> source = SummarySource.of(region)
         >>> [source.line_text(line) for line in source.first_paragraph()]
@@ -272,7 +248,7 @@ class SummarySource:
         >>> from stilyagi.model.region import RegionSegment, RegionView
         >>> region = RegionView(
         ...     "r0", "python_docstring", "python", (), {},
-        ...     (RegionSegment(SourceSpan(3, 14), "  One.\nTwo. "),),
+        ...     (RegionSegment(SourceSpan(3, 15), "  One.\nTwo. "),),
         ... )
         >>> source = SummarySource.of(region)
         >>> source.trimmed(source.first_paragraph())
@@ -309,7 +285,7 @@ class SummarySource:
         >>> from stilyagi.model.region import RegionSegment, RegionView
         >>> region = RegionView(
         ...     "r0", "python_docstring", "python", (), {},
-        ...     (RegionSegment(SourceSpan(10, 14), "a\u00e9"),),
+        ...     (RegionSegment(SourceSpan(10, 13), "a\u00e9"),),
         ... )
         >>> source = SummarySource.of(region)
         >>> source.anchor(1)
@@ -338,61 +314,3 @@ class SummarySource:
                 )
             cursor = end
         return None
-
-
-def _physical_lines(
-    segments: cabc.Sequence[RegionSegment],
-    text_length: int,
-) -> tuple[PhysicalLine, ...]:
-    """Split the reconstructed text at LF and synthetic line breaks.
-
-    A lone CR and the Unicode line separators do not start a new line. The CR
-    of a CR-LF pair belongs to the terminator, so the line range stops before
-    it.
-
-    Returns
-    -------
-    tuple[PhysicalLine, ...]
-        At least one line, in text order.
-    """
-    splitter = _LineSplitter()
-    for segment in segments:
-        if _is_line_break(segment):
-            splitter.break_line(len(segment.text))
-        else:
-            splitter.append(segment.text)
-    return splitter.finish(text_length)
-
-
-@dc.dataclass(slots=True)
-class _LineSplitter:
-    """Accumulate physical lines while the region text is walked once."""
-
-    lines: list[PhysicalLine] = dc.field(default_factory=list)
-    start: int = 0
-    cursor: int = 0
-
-    def append(self, text: str) -> None:
-        """Append ordinary segment text, ending a line at every LF."""
-        for offset, character in enumerate(text):
-            if character != "\n":
-                continue
-            self.lines.append(PhysicalLine(self.start, self.cursor + offset))
-            self.start = self.cursor + offset + 1
-        self.cursor += len(text)
-
-    def break_line(self, width: int) -> None:
-        """End the current line at a synthetic separator of ``width`` units."""
-        self.lines.append(PhysicalLine(self.start, self.cursor))
-        self.cursor += width
-        self.start = self.cursor
-
-    def finish(self, text_length: int) -> tuple[PhysicalLine, ...]:
-        """Close the final line and return every line in text order."""
-        self.lines.append(PhysicalLine(self.start, text_length))
-        return tuple(self.lines)
-
-
-def _is_line_break(segment: RegionSegment) -> bool:
-    """Return whether a segment is the extractor's flattened line break."""
-    return segment.span is None and segment.synthetic_reason == _LINE_BREAK_REASON
