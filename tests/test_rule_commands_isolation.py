@@ -68,6 +68,10 @@ import sys
 root = os.path.realpath(os.getcwd())
 side_effects = []
 
+# The probe's own fixture modules may live beside the project; the
+# interpreter's bytecode cache write is not the rule execution this proves.
+sys.dont_write_bytecode = True
+
 
 def _watch(event, args):
     if event not in {"open", "os.mkdir", "os.rename", "os.remove", "os.rmdir"}:
@@ -96,6 +100,20 @@ _TARGETS = {
     "stilyagi.rules.registry": ("run_rules",),
 }
 
+_guarding = False
+
+
+def _guard_calls(frame, event, arg):
+    if not _guarding:
+        return None
+    if event != "call":
+        return _guard_calls
+    name = frame.f_code.co_name
+    module = frame.f_globals.get("__name__")
+    if module in _TARGETS and name in _TARGETS[module]:
+        side_effects.append(("call", name))
+    return _guard_calls
+
 
 class _SentinelLoader(importlib.abc.Loader):
     def __init__(self, inner, fullname):
@@ -107,7 +125,18 @@ class _SentinelLoader(importlib.abc.Loader):
         return None if create is None else create(spec)
 
     def exec_module(self, module):
-        self._inner.exec_module(module)
+        # Guard calls made from inside the module's own body as well as
+        # calls made by later importers; the post-exec attribute swap alone
+        # would miss a function the module calls while defining itself.
+        global _guarding
+        previous = _guarding
+        _guarding = True
+        try:
+            sys.settrace(_guard_calls)
+            self._inner.exec_module(module)
+        finally:
+            sys.settrace(None)
+            _guarding = previous
         for attribute in _TARGETS[self._fullname]:
             setattr(module, attribute, _forbidden(attribute))
 
@@ -192,10 +221,12 @@ def _run_import_probe(
     *,
     before_cli: str = "",
     after_cli: str = "",
+    extra_targets: dict[str, tuple[str, ...]] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Import the command line in a fresh interpreter and detect side effects."""
+    targets = f"_TARGETS.update({extra_targets!r})\n" if extra_targets else ""
     script = (
-        f"{_PROBE_SETUP}{before_cli}\nimport stilyagi.cli\n{after_cli}\n"
+        f"{_PROBE_SETUP}{targets}{before_cli}\nimport stilyagi.cli\n{after_cli}\n"
         f"{_PROBE_EPILOGUE}"
     )
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted interpreter, fixed argv, no shell.
@@ -355,6 +386,40 @@ def test_import_probe_detects_execution_during_an_import_phase(
     )
     assert b"tokenize_segments" in completed.stderr, (
         "expected the report to name the forbidden execution boundary"
+    )
+
+
+def test_import_probe_detects_a_call_made_inside_its_own_module_body(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A protected call from the defining module's own body is recorded.
+
+    The post-execution attribute swap cannot see a function the module calls
+    while it is still executing, so the loader also traces calls. This
+    control defines and calls a guarded name at module level and requires the
+    probe to report it.
+    """
+    _malformed_project(tmp_path)
+    (tmp_path / "probe_self_call.py").write_text(
+        "def tokenize_segments(*_args, **_kwargs):\n"
+        "    return None\n"
+        "\n"
+        "tokenize_segments('the the')\n",
+        encoding="utf-8",
+    )
+
+    completed = _run_import_probe(
+        tmp_path,
+        before_cli="import probe_self_call\n",
+        extra_targets={"probe_self_call": ("tokenize_segments",)},
+    )
+
+    assert completed.returncode != 0, "expected the probe to reject the execution"
+    assert b"import side effects" in completed.stderr, (
+        "expected the probe's failure report"
+    )
+    assert b"'call', 'tokenize_segments'" in completed.stderr, (
+        "expected the report to record the call made during module execution"
     )
 
 
