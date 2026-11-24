@@ -278,9 +278,11 @@ def test_extractor_diagnostics_survive_either_opt_in(
             encoding="utf-8",
         )
         (root / "broken.py").write_text(_MALFORMED_PYTHON, encoding="utf-8")
-        # A well-formed document in the same tree, so the enabled run also
-        # carries documentation findings beside the extractor diagnostics.
+        # A mixed tree, so the enabled run also carries documentation findings
+        # beside the extractor diagnostics on the malformed Python file.
         (root / "pkg.py").write_text(_PYTHON, encoding="utf-8")
+        (root / "lib.rs").write_text(_RUST, encoding="utf-8")
+        (root / "notes.md").write_text(_MARKDOWN, encoding="utf-8")
         result = _run(root, "--output-format", "json")
         payload = typ.cast("dict[str, object]", json.loads(result.stdout))
         observed[label] = [

@@ -22,7 +22,6 @@ import hypothesis.strategies as st
 import pytest
 from stilyagi import diagnostics, model
 from stilyagi.engine import rule_view
-from stilyagi.model.source import SourceSpan
 from stilyagi.rules.registry import run_rules
 
 from tests.support.assertions import assert_with_context
@@ -50,6 +49,9 @@ _PLAIN_TEXT = st.text(
 _TERMINALS = st.sampled_from([".", "!", "?", ",", ";", "9", "…"])
 _WORDS = st.text(alphabet=string.ascii_letters, min_size=1, max_size=10)
 _NON_ASCII_LETTERS = st.sampled_from(["é", "ß", "λ", "字", "🧭"])
+#: Alphabetic characters from outside ASCII, filtered at strategy level so
+#: no generated case is rejected by the test body.
+_UNICODE_LETTERS = st.sampled_from(["é", "ß", "λ", "字", "ø", "ñ", "Ж", "я", "ω", "џ"])
 
 
 def _python(source: str) -> list[diagnostics.Diagnostic]:
@@ -136,13 +138,12 @@ def test_doc001_anchor_covers_one_complete_character(character: str) -> None:
     )
 
 
-@hyp.given(first=_WORDS, last=_NON_ASCII_LETTERS)
+@hyp.given(first=_WORDS, last=_UNICODE_LETTERS)
 def test_doc002_rust_anchor_survives_synthetic_line_breaks(
     first: str,
     last: str,
 ) -> None:
     """A wrapped Rust summary anchors through the second line's segment."""
-    hyp.assume(last.isalpha())
     source = f"/// Read {first}\n/// and {last}\npub fn read() {{}}\n"
 
     result = _rust(source)
@@ -259,39 +260,46 @@ def test_a_run_leaves_the_extracted_request_unchanged() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "select",
-    list(itertools.permutations(("DOC001", "DOC002", "DOC003"))),
-    ids="-".join,
-)
-def test_rule_selection_order_does_not_change_the_findings(
-    select: tuple[str, ...],
+@hyp.given(body=_PLAIN_TEXT, terminal=st.sampled_from([".", "!", "?"]))
+def test_generated_summaries_produce_identical_diagnostics_across_selections(
+    body: str,
+    terminal: str,
 ) -> None:
-    """Selection order, not only table order, leaves the report unchanged."""
-    setup = LintSetup(select=select, rules=ALL_ENABLED, reported_path="doc.py")
-    source = 'class Widget:\n    """Widget"""\n'
+    """Independent runs compare complete ordered diagnostics, not just codes."""
+    source = (
+        f'def read():\n    """{body}{terminal}"""\n\nclass Widget:\n    """Widget"""\n'
+    )
+    results = []
+    for select in itertools.permutations(("DOC001", "DOC002", "DOC003")):
+        setup = LintSetup(select=select, rules=ALL_ENABLED, reported_path="doc.py")
+        results.append(setup.run(source, model.Syntax.PYTHON_DOCSTRING))
 
-    result = setup.run(source, model.Syntax.PYTHON_DOCSTRING)
-
+    expected = results[0]
     assert_with_context(
-        [(item.code, item.line, item.column, item.span) for item in result]
-        == [
-            ("DOC002", 2, 13, SourceSpan(26, 27)),
-            ("DOC003", 2, 8, SourceSpan(21, 22)),
-        ],
-        f"expected identical ordered findings for selection {select}, "
-        f"got {[(i.code, i.line, i.column) for i in result]}",
+        all(
+            [(i.code, i.path, i.severity, i.line, i.column, i.span) for i in result]
+            == [
+                (i.code, i.path, i.severity, i.line, i.column, i.span) for i in expected
+            ]
+            for result in results[1:]
+        ),
+        f"expected identical diagnostics across selections for {source!r}",
+    )
+    assert_with_context(
+        [item.code for item in expected] == ["DOC002", "DOC003"],
+        f"expected the widget findings in inventory order, got "
+        f"{[item.code for item in expected]}",
     )
 
 
-@hyp.given(first=_WORDS, character=_NON_ASCII_LETTERS)
+@hyp.given(first=_WORDS, prefix=_PLAIN_TEXT, character=_UNICODE_LETTERS)
 def test_rust_anchor_matches_an_independently_computed_source_position(
     first: str,
+    prefix: str,
     character: str,
 ) -> None:
     """A merged Rust summary's span equals the fixture-computed position."""
-    hyp.assume(character.isalpha())
-    source = f"/// Read {first}\n/// and {character}\npub fn read() {{}}\n"
+    source = f"/// Read {first}\n/// {prefix}and {character}\npub fn read() {{}}\n"
     # Independently computed: the anchor is the final character of the second
     # comment line, located by scanning the fixture text itself.
     lines = source.splitlines()
