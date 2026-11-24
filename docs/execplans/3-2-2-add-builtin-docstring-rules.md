@@ -179,15 +179,21 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       introduces no CrossHair, Kani, Verus, or LemmaScript asset. The
       original-issue assessment is not applicable: the PR implements a
       roadmap item rather than a GitHub issue.
-- [x] (2026-11-24) Codex review finding repaired. It reported that the
-      exported `SummarySource` methods lacked the usage examples `AGENTS.md`
-      requires of public APIs. Every public method now has a NumPy-style
-      `Examples` section; `anchor` distinguishes a character index from a byte
-      offset and shows a synthetic segment yielding `None`. The added examples
-      pushed `summary.py` past the file-size ceiling, so the conservative
-      Markdown exclusion predicates moved to `rules/builtin/markup.py`, named
-      in the layout, design, and developer guidance and added to the wheel
-      snapshot.
+- [x] (2026-11-24) Ready-for-review findings repaired. The Codex P1 was valid:
+      the exported `SummarySource` methods and the `PhysicalLine` class lacked
+      the usage examples `AGENTS.md` requires of public APIs. Every public
+      method now has a NumPy-style `Examples` section; `anchor` distinguishes a
+      character index from a byte offset, shows an out-of-range index, and
+      shows a synthetic segment yielding `None`. The examples pushed
+      `summary.py` past the file-size ceiling, so the conservative Markdown
+      exclusion predicates moved to `rules/builtin/markup.py`, named in the
+      layout, design, and developer guidance and added to the wheel snapshot.
+      Three CodeRabbit findings were also repaired: the wheel snapshot now
+      lists `markup.py` in the sorted position the runner produces (the hosted
+      `lint-test` had failed on exactly this order), the Rust extraction test
+      pins each segment's stored text as well as its shape, the users' guide
+      says `DOC001` anchors on the first non-whitespace character, and the
+      mixed-tree CLI test checks both runs' exit status inside its loop.
 
 ## Surprises & discoveries
 
