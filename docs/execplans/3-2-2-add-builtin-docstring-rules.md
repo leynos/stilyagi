@@ -205,6 +205,16 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       regression tests pin those cases. The walk moved with `PhysicalLine`
       into `rules/builtin/line_split.py` so `summary.py` stays inside the
       ceiling, and the doctest spans now match their segment text.
+- [x] (2026-11-24) Delivery reached equilibrium on head `7c510256`. All four
+      hosted `Smoke` jobs pass, with the coverage ratchet inside tolerance for
+      both languages (Rust 92.13% against a 91.48% baseline; Python 92.39%
+      against 92.88%). CodeScene reports no issues and reports a passing
+      quality gate; Gecko reports no vulnerabilities. CodeRabbit approved the
+      head and its fourteen pre-merge checks all pass. The remaining Codex
+      thread, anchored at the superseded head `c8e1e0a0`, asks for the public
+      API examples that `1c71aa13` added; CodeRabbit confirmed the finding is
+      addressed at `7c510256` and left thread resolution to the originating
+      reviewer.
 
 ## Surprises & discoveries
 
