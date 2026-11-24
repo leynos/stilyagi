@@ -3,7 +3,7 @@
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use stilyagi_extract::{ExtractDocument, ExtractSyntax, extract_document};
-use stilyagi_ir::IrRegion;
+use stilyagi_ir::{IrRegion, IrSegment};
 use stilyagi_test_support::{
     FixtureReadError,
     MALFORMED_RUST_FIXTURE_PATH,
@@ -270,7 +270,7 @@ fn merged_doc_comment_lines_keep_source_segments_and_a_synthetic_break()
     let payloads = region
         .segments
         .iter()
-        .map(|segment| segment.text())
+        .map(IrSegment::text)
         .collect::<Vec<_>>();
     ensure_eq(
         &payloads,

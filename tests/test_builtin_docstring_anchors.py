@@ -225,7 +225,7 @@ class TestLineTerminators:
         source = SummarySource.of(
             _region_with(
                 RegionSegment(SourceSpan(0, 3), "A.\r"),
-                RegionSegment(SourceSpan(3, 5), "\nB."),
+                RegionSegment(SourceSpan(3, 6), "\nB."),
             )
         )
 
@@ -237,4 +237,24 @@ class TestLineTerminators:
             [source.line_text(line) for line in source.lines] == ["A.", "B."],
             f"unexpected line texts: "
             f"{[source.line_text(line) for line in source.lines]}",
+        )
+
+    def test_a_synthetic_break_does_not_pair_with_a_previous_cr(self) -> None:
+        """A CR before a synthetic break cannot terminate the next LF."""
+        source = SummarySource.of(
+            _region_with(
+                RegionSegment(SourceSpan(0, 3), "A\r"),
+                RegionSegment(None, " ", synthetic_reason="softbreak_space"),
+                RegionSegment(SourceSpan(3, 6), "\nB."),
+            )
+        )
+
+        assert_with_context(
+            [(line.start, line.end) for line in source.lines]
+            == [(0, 2), (3, 3), (4, 6)],
+            f"expected three ordered lines, got {source.lines}",
+        )
+        assert_with_context(
+            all(line.start <= line.end for line in source.lines),
+            f"expected no inverted range, got {source.lines}",
         )

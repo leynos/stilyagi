@@ -26,16 +26,45 @@ def physical_lines(
     segments: cabc.Sequence[RegionSegment],
     text_length: int,
 ) -> tuple[PhysicalLine, ...]:
-    """Split the reconstructed text at LF and synthetic line breaks.
+    r"""Split the reconstructed text at LF and synthetic line breaks.
 
     A lone CR and the Unicode line separators do not start a new line. The CR
     of a CR-LF pair belongs to the terminator, so the line range stops before
-    it.
+    it, even when the pair is split across two segments. A synthetic break is
+    a terminator in its own right, so nothing pairs across it.
+
+    Parameters
+    ----------
+    segments:
+        The region's segments in document order; their texts concatenate to
+        the region text.
+    text_length:
+        Length in characters of that concatenation, used to close the final
+        line.
 
     Returns
     -------
     tuple[PhysicalLine, ...]
         At least one line, in text order.
+
+    Examples
+    --------
+    >>> from stilyagi.model.region import RegionSegment
+    >>> from stilyagi.model.source import SourceSpan
+    >>> physical_lines((RegionSegment(SourceSpan(0, 6), "A.\r\nB."),), 6)
+    (PhysicalLine(start=0, end=2), PhysicalLine(start=4, end=6))
+
+    A synthetic separator ends a line without being part of either:
+
+    >>> physical_lines(
+    ...     (
+    ...         RegionSegment(SourceSpan(0, 3), "One"),
+    ...         RegionSegment(None, " ", synthetic_reason="softbreak_space"),
+    ...         RegionSegment(SourceSpan(3, 6), "Two"),
+    ...     ),
+    ...     7,
+    ... )
+    (PhysicalLine(start=0, end=3), PhysicalLine(start=4, end=7))
     """
     splitter = _LineSplitter()
     for segment in segments:
@@ -85,10 +114,15 @@ class _LineSplitter:
         return text[offset - 1] == "\r" if offset else self.last_char == "\r"
 
     def break_line(self, width: int) -> None:
-        """End the current line at a synthetic separator of ``width`` units."""
+        """End the current line at a synthetic separator of ``width`` units.
+
+        The separator is itself the terminator, so no CR from the previous line
+        may pair with an LF that follows it.
+        """
         self.lines.append(PhysicalLine(self.start, self.cursor))
         self.cursor += width
         self.start = self.cursor
+        self.last_char = ""
 
     def finish(self, text_length: int) -> tuple[PhysicalLine, ...]:
         """Close the final line and return every line in text order."""
