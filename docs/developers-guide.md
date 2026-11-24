@@ -953,8 +953,13 @@ positions. `diagnostics.py` defines the `Diagnostic` dataclass and the
 records the contract; this section is the maintainer's map of where it lives.
 
 `rules/base.py` defines the typed boundary. A `RuleMetadata` declares a code,
-name, severity, and `RegionTarget`; the target selects by region kind, syntax,
-and required scope entries.
+name, severity, and `RegionTarget`; the target selects by region kinds, source
+syntaxes, required scope entries, and owner kinds. `syntaxes` is a tuple, so a
+rule may read more than one language; `owner_kinds=()` places no requirement on
+owner metadata, while a nonempty tuple requires a present owner whose kind is
+listed. `RegionView.owner` carries the extractor's `IrOwner` as the typed
+`RegionOwner`; a present-but-unusable owner is counted as `malformed_region`
+and projected as absent rather than as half-validated metadata.
 
 `RuleRunRequest` is the application-level packet the check pipeline constructs.
 It carries the extracted document, the original source bytes, the reported
@@ -974,10 +979,11 @@ it does not own.
 
 - `_node_facts` walks `ir["nodes"]` once, producing the node-id-to-span index
   and the inline-code spans;
-- `_region_view` projects each canonical region into a `RegionView`;
-- `_segment_view` keeps an advertised span only when the source slice decodes
-  to exactly the segment text, otherwise demoting it to synthetic with
-  `synthetic_reason="source_mismatch"`;
+- `region_views.region_view` projects each canonical region into a
+  `RegionView`, including its typed owner;
+- `region_views._segment_view` keeps an advertised span only when the source
+  slice decodes to exactly the segment text, otherwise demoting it to synthetic
+  with `synthetic_reason="source_mismatch"`;
 - `prose_units` records the heading, paragraph, and table-cell spans that
   `ignore-next` may consume;
 - `anomaly_counts` carries an immutable snapshot of every recovery the pass
@@ -985,6 +991,11 @@ it does not own.
   single reporting boundary: it turns the snapshot into one metric increment
   and one `INFO` record naming the document's reported path, so repeating a
   query cannot count the same document twice.
+
+`engine/region_views.py` owns the single-region conversion, so the collection
+loop in `rule_projection.py` stays legible and both modules stay under the
+file-size ceiling. A new recovery path adds a drop site there and a label to
+`projection_anomalies.ANOMALY_KINDS`; it never invents a metric name inline.
 
 `engine/rule_view.py` is the façade other modules import, and every helper it
 exposes is a read-only query. `rules/tokens.py` holds the shared `Token` and
@@ -1011,11 +1022,50 @@ anchor with `Path.relative_to(..., walk_up=True)` and falls back to the
 absolute POSIX path when no relative spelling exists, as on a different Windows
 drive.
 
-The pack itself is `rules/builtin/{heading_depth,repeated_word,banned_term}.py`
-with shared text helpers in `rules/builtin/text.py`. `MD001` is manual-only,
+The pack itself is
+`rules/builtin/{heading_depth,repeated_word,banned_term,documentation}.py` with
+shared text helpers in `rules/builtin/text.py`. `MD001` is manual-only,
 `STY001` proposes an unsafe suffix edit, and `TERM001` never fixes. No builtin
 imports an NLP library; `tests/test_builtin_rules_no_nlp.py` runs a full pass
 in a fresh interpreter with spaCy blocked at the import system.
+
+#### Documentation rule authoring
+
+`DOC001`, `DOC002`, and `DOC003` read docstring regions, so they demonstrate
+the parts of the boundary Markdown rules never touch.
+
+- Per-rule opt-in lives in the rule hook, not in the registry. The default
+  `lint.select` already includes `DOC`, so a hook returns `()` unless
+  `context.rule_config.enabled` is true. The flag is validated by
+  `config.rules.parse_documentation` even when policy ignores the rule, so a
+  misspelled or mistyped option fails instead of leaving the rule inert.
+- `rules/builtin/summary.py` is the only summary-analysis helper. It rebuilds a
+  region's text from its segments, splits physical lines at LF and at the
+  extractor's synthetic `softbreak_space`, selects the first line or first
+  paragraph, applies the conservative Markdown exclusions, and maps one chosen
+  character to its half-open source byte span through
+  `rules/builtin/text.utf8_offsets`. It never decodes Python string escapes,
+  strips block-comment asterisks, or parses Markdown; a candidate it cannot
+  vouch for is skipped rather than guessed at.
+- Anchors are character-precise. `SummarySource.anchor` converts a character
+  index into source bytes through the owning segment's UTF-8 prefix table, so a
+  multibyte character is reported as one complete character, never as one byte
+  and never at a synthetic separator. If the anchor cannot be mapped, the
+  finding is omitted rather than relocated.
+- `rules/builtin/line_split.py` owns the physical-line walk: it splits at LF
+  and at the extractor's recorded line break, keeps the CR of a CR-LF pair out
+  of the line range, and treats a lone CR as ordinary text.
+- `rules/builtin/markup.py` owns the conservative Markdown exclusions the
+  punctuation rule applies: the character set a candidate may not contain and
+  the structural line starts that make a line non-prose. It is a predicate
+  module, not a parser, and no rule outside the documentation family reads it.
+- Rust documentation comments are flattened: consecutive `///` lines are joined
+  with synthetic spaces, so region offsets are not source offsets. Reuse the
+  segment mapping rather than assuming otherwise.
+
+Sweep `rules/builtin/text.py`, `summary.py`, `line_split.py`, and `markup.py`
+before adding another helper; the shared UTF-8 offset table, the source segment
+iterator, and the location mapper already exist for both families.
 
 ### Fix planning
 

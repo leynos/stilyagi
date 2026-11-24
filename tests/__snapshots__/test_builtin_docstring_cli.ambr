@@ -1,0 +1,9 @@
+# serializer version: 1
+# name: test_the_text_renderer_reports_documentation_rules
+  list([
+    "lib.rs:1:18: warning DOC002 Summary must end with '.', '!' or '?'",
+    "pkg.py:2:8: warning DOC003 Summary only repeats the documented name 'Widget'",
+    'pkg.py:6:5: warning DOC001 Docstring summary needs a blank line before further explanation',
+    'checked 3 files (1 skipped, 0 unreadable); 0 errors, 3 warnings',
+  ])
+# ---

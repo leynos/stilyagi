@@ -357,10 +357,15 @@ class TestBuiltinPack:
     """The pack reports its inventory and honours an explicit selection."""
 
     def test_enabled_codes_lists_the_starter_pack(self) -> None:
-        """The pack's inventory is the three starter rules in order."""
-        assert enabled_codes() == ("MD001", "STY001", "TERM001"), (
-            "expected the starter pack to list its three rules"
-        )
+        """The pack's inventory is its rules in deterministic order."""
+        assert enabled_codes() == (
+            "MD001",
+            "STY001",
+            "TERM001",
+            "DOC001",
+            "DOC002",
+            "DOC003",
+        ), "expected the starter pack to list its rules in inventory order"
 
     def test_an_unselected_rule_does_not_run(self) -> None:
         """A rule outside the selected prefixes is skipped entirely."""

@@ -68,6 +68,10 @@
     execplans/3-1-1-python-docstring-extraction.md)
     plans owner-aware Python docstring extraction for modules, classes, and
     functions, including IR bridge coverage and validation evidence.
+  - [3.2.2 builtin documentation rules](
+    execplans/3-2-2-add-builtin-docstring-rules.md)
+    plans opt-in documentation rules over the rule substrate delivered in
+    2.3.1, including bounded owner projection and syntax-target extensions.
   - [maturin and PyO3 compatibility tests](
     execplans/maturin-pyo3-test-upgrade.md)
     plans the maturin pin update, native wheel snapshot coverage, and PyO3

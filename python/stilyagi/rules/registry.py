@@ -108,7 +108,7 @@ def builtin_metadata() -> tuple[RuleMetadata, ...]:
     Examples
     --------
     >>> [metadata.code for metadata in builtin_metadata()]
-    ['MD001', 'STY001', 'TERM001']
+    ['MD001', 'STY001', 'TERM001', 'DOC001', 'DOC002', 'DOC003']
     """
     from stilyagi.rules.builtin import inventory
 
