@@ -197,21 +197,30 @@ before continuing.
   `tests/support/import_probe.py` when the added control took the isolation
   test module past the repository's 400-line limit; Ruff, Interrogate, Pylint,
   duplication, and Skylos pass on the split.
-- [ ] (2026-11-23) Default `make test` at `a86775e1` (five attempts, all
-  repository defaults, `.venv` restored to the pinned CPython 3.14). The build,
-  smoke, `cargo fmt --check`, Clippy, and all 370 nextest tests plus every Rust
-  doctest pass. Two environment faults were found and one was fixed: editing
-  `pyproject.toml` had made `.venv` stale, and the Makefile's bare `uv venv`
-  then selected CPython 3.15t, which failed the `cp314` wheel snapshot —
-  recreating the venv at 3.14 fixed that test. What remains is the
-  `test_lint_policy_behaviour.py` scratch-crate subprocesses: each runs `cargo`
-  in a fresh unique `target/` directory under a fixed 240 s
+- [ ] (2026-11-23) Default `make test` at `a86775e1` and `2f384563` (six
+  attempts, all repository defaults, `.venv` restored to the pinned CPython
+  3.14). The build, smoke, `cargo fmt --check`, Clippy, and all 370 nextest
+  tests plus every Rust doctest pass. Two environment faults were found and one
+  was fixed: editing `pyproject.toml` had made `.venv` stale, and the
+  Makefile's bare `uv venv` then selected CPython 3.15t, which failed the
+  `cp314` wheel snapshot — recreating the venv at 3.14 fixed that test. What
+  remains is the `test_lint_policy_behaviour.py` scratch-crate subprocesses:
+  each runs `cargo` in a fresh unique `target/` directory under a fixed 240 s
   `COMPILE_TIMEOUT_SECONDS`, and with 250–700 compiler requests queued every
-  invocation needs longer, so 8 of 1 894 pytest tests fail with an empty lint
+  invocation needs longer, so 8 of 1 896 pytest tests fail with an empty lint
   set or the explicit `timed out after 240 s` message. These are queue
   scheduling, not code defects; the same tests pass when the queue is shallow,
   and hosted `lint-test` runs the identical clippy/rustdoc fixtures in
   `make lint` on a clean runner.
+- [ ] (2026-11-24) The final flag-off attempt also hit the module-scoped wheel
+  fixture's own 1 200 s `maturin build --release` limit, so
+  `test_maturin_wheel_build_snapshot` and
+  `test_maturin_wheel_executes_correctly` errored at setup rather than failing
+  their assertions. Every affected test file and budget is unchanged from
+  `origin/main`; nothing in this branch touches the lint-policy fixtures, the
+  wheel fixture, or their timeouts. The queue has been continuously saturated
+  for over a day, so these fixed per-subprocess budgets cannot be met locally;
+  hosted CI, which runs the same fixtures on a clean runner, is green.
 - [x] (2026-11-24) Sixth assessment: a protected module importing another
   protected module disarmed the outer module's call trace. The cause is that
   `sys.settrace` returns `None` on CPython 3.14 even while a trace function is
