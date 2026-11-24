@@ -8,6 +8,14 @@
 #   No flag is named for other platforms, so macOS and Windows keep their
 #   default linkers.
 #
+# Neither selector can tell a development host from a manylinux container: a
+# wheel build is the same `x86_64-unknown-linux-gnu` triple as the host, and
+# `target_os` is set inside the container too, while the images carry no mold
+# (`cc` then reports `cannot find 'ld'`). A wheel lane therefore states its own
+# `RUSTFLAGS`, which displaces these tables; the flagless value in
+# `.github/workflows/build-wheels.yml` is held by
+# `tests/test_build_standard_exclusions.py`.
+#
 # Cargo selects ONE `rustflags` source and never merges them, so the
 # Linux-scoped table repeats `-Zthreads=8` rather than inheriting it from
 # `[build]`. tests/test_build_standard_config.py holds both sources equal.

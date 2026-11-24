@@ -1,0 +1,5 @@
+[
+  "::notice::Skipping a.whl: already on PyPI",
+  "::notice::Uploading the GitHub Release's bytes for b.whl",
+  "::notice::Skipping c.whl: already on PyPI"
+]

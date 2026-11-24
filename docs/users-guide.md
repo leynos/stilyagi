@@ -1,7 +1,7 @@
 # User's guide
 
 This guide is for people who use Stilyagi rather than modify its internals. It
-describes the settled user-visible promises for Stilyagi 0.1.0, an
+describes the settled user-visible promises for Stilyagi 0.2.0, an
 early-adopter release whose interfaces may change while the linter is under
 construction.
 
@@ -21,9 +21,17 @@ For users, that means:
 - normal execution does not depend on launching a helper process for every
   extraction call.
 
+Released versions install from the Python Package Index with
+`pip install "stilyagi>=0.2.0"`; the floor keeps out the unrelated 0.1.0
+upload. A wheel is published for every platform the release builds — Linux
+`x86_64` and `aarch64`, macOS `arm64` and `x86_64`, and Windows — together with
+one source distribution, so a platform without a wheel installs from the sdist
+and needs a Rust toolchain. Python 3.14 or newer is required either way.[^5]
+
 Building from a source checkout needs `uv`, `rustup`, and, on Linux, the pinned
-`mold` linker. The [README quick start](../README.md#quick-start) lists the
-genuine prerequisites and the one command that installs them.
+`mold` linker. The
+[README section on building from source](../README.md#building-from-source)
+lists the prerequisites and the commands that install them.
 
 In editable development installs, the embedded extension now lives under the
 package as `stilyagi._stilyagi_rs` rather than as a separate top-level module.
@@ -269,7 +277,8 @@ It does not yet promise:
 - the final release command set or release channels;
 - full Markdown with JSX (MDX) support as part of the stable v1 syntax matrix;
 - support for locales beyond English;
-- installation instructions for every platform; or
+- installation routes outside the Python Package Index and the sdist, such as
+  a system package or a standalone installer; or
 - broader rule-debugging workflows beyond canonical IR inspection.[^3]
 
 ## 3. Supported surfaces in v1
@@ -933,3 +942,4 @@ without claiming a release boundary.
 [^2]: [Developer's guide](developers-guide.md)
 [^3]: [Roadmap](roadmap.md)
 [^4]: [ADR 0003: Ratify the v1 contract scope](adrs/adr-0003-ratify-the-v1-contract-scope.md)
+[^5]: [ADR 0015: Publish the sdist and make releases idempotent](adrs/adr-0015-release-pipeline.md)
