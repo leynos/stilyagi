@@ -91,3 +91,34 @@ def run_rust(
     []
     """
     return (setup or doc_setup("doc.rs")).run(source, model.Syntax.RUST_DOC_COMMENT)
+
+
+def run_source(
+    source: str | bytes,
+    syntax: model.Syntax,
+    setup: LintSetup | None = None,
+) -> list[diagnostics.Diagnostic]:
+    r"""Run the documentation rules over one source in its own syntax.
+
+    Parameters
+    ----------
+    source:
+        Source text, or its UTF-8 bytes.
+    syntax:
+        The registered extractor syntax to read ``source`` with.
+    setup:
+        The configuration to run under; the all-enabled default when omitted.
+
+    Returns
+    -------
+    list[diagnostics.Diagnostic]
+        Diagnostics that survived selection and suppression.
+
+    Examples
+    --------
+    >>> source = 'class A:\n    "A."\n'
+    >>> [item.code for item in run_source(source, model.Syntax.PYTHON_DOCSTRING)]
+    ['DOC003']
+    """
+    path = "doc.py" if syntax is model.Syntax.PYTHON_DOCSTRING else "doc.rs"
+    return (setup or doc_setup(path)).run(source, syntax)

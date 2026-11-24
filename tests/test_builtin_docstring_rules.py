@@ -14,6 +14,7 @@ setup through ``tests.support.docstring_rule_fixtures``.
 import pytest
 from stilyagi import diagnostics, model
 
+from tests.support.assertions import assert_with_context
 from tests.support.docstring_rule_fixtures import doc_setup
 from tests.support.rule_fixtures import LintSetup, marked_span
 
@@ -43,6 +44,25 @@ def _codes(result: list[diagnostics.Diagnostic]) -> tuple[str, ...]:
     return tuple(diagnostic.code for diagnostic in result)
 
 
+def _assert_anchor(
+    source: str | bytes,
+    result: list[diagnostics.Diagnostic],
+    codes: tuple[str, ...],
+    anchor: bytes,
+) -> None:
+    """Assert the reported codes and the bytes the first finding addresses."""
+    encoded = source.encode() if isinstance(source, str) else source
+
+    assert_with_context(
+        _codes(result) == codes,
+        f"expected {codes}, got {_codes(result)}",
+    )
+    assert_with_context(
+        marked_span(encoded, result[:1]) == anchor,
+        f"expected the anchor {anchor!r}, got {marked_span(encoded, result[:1])!r}",
+    )
+
+
 class TestSummarySeparation:
     """``DOC001`` reports a Python summary touching its explanation."""
 
@@ -64,11 +84,13 @@ class TestSummarySeparation:
         """Module, class, and function docstrings are all checked."""
         result = _python(declaration)
 
-        assert _codes(result) == ("DOC001",), (
-            f"expected one DOC001 finding, got {_codes(result)}"
+        assert_with_context(
+            _codes(result) == ("DOC001",),
+            f"expected one DOC001 finding, got {_codes(result)}",
         )
-        assert marked_span(declaration.encode(), result) == b"M", (
-            "expected the finding to anchor the second line's first character"
+        assert_with_context(
+            marked_span(declaration.encode(), result) == b"M",
+            "expected the finding to anchor the second line's first character",
         )
 
     def test_a_blank_separator_passes(self) -> None:
@@ -79,22 +101,25 @@ class TestSummarySeparation:
 
     def test_a_single_content_line_passes(self) -> None:
         """A one-line docstring has nothing to separate."""
-        assert _python('def read():\n    """Read records."""\n') == [], (
-            "expected a single content line to pass"
+        assert_with_context(
+            _python('def read():\n    """Read records."""\n') == [],
+            "expected a single content line to pass",
         )
 
     def test_blank_only_content_is_skipped(self) -> None:
         """Missing documentation is outside this slice."""
-        assert _python('def read():\n    """   """\n') == [], (
-            "expected blank-only content to be skipped"
+        assert_with_context(
+            _python('def read():\n    """   """\n') == [],
+            "expected blank-only content to be skipped",
         )
 
     def test_a_literal_escape_does_not_split_a_line(self) -> None:
         r"""A two-character ``\n`` escape is text, not a physical line break."""
         source = 'def read():\n    """Read records.\\nMore detail."""\n'
 
-        assert _python(source) == [], (
-            "expected a literal escape not to create a second content line"
+        assert_with_context(
+            _python(source) == [],
+            "expected a literal escape not to create a second content line",
         )
 
     def test_crlf_is_a_single_line_terminator(self) -> None:
@@ -102,11 +127,13 @@ class TestSummarySeparation:
         source = b'def read():\r\n    """Read records.\r\n    More detail."""\r\n'
         result = _python(source)
 
-        assert _codes(result) == ("DOC001",), (
-            f"expected a CR-LF docstring to report DOC001, got {_codes(result)}"
+        assert_with_context(
+            _codes(result) == ("DOC001",),
+            f"expected a CR-LF docstring to report DOC001, got {_codes(result)}",
         )
-        assert marked_span(source, result) == b"M", (
-            "expected the anchor to be the second line's first character"
+        assert_with_context(
+            marked_span(source, result) == b"M",
+            "expected the anchor to be the second line's first character",
         )
 
     def test_a_unicode_first_character_spans_its_whole_bytes(self) -> None:
@@ -114,15 +141,18 @@ class TestSummarySeparation:
         source = 'def read():\n    """Read records.\n    élan continues.\n    """\n'
         result = _python(source)
 
-        assert _codes(result) == ("DOC001",), (
-            f"expected one DOC001 finding, got {_codes(result)}"
+        assert_with_context(
+            _codes(result) == ("DOC001",),
+            f"expected one DOC001 finding, got {_codes(result)}",
         )
-        assert marked_span(source.encode(), result) == "é".encode(), (
-            "expected the anchor to cover the whole multibyte character"
+        assert_with_context(
+            marked_span(source.encode(), result) == "é".encode(),
+            "expected the anchor to cover the whole multibyte character",
         )
         assert result[0].span is not None, "expected the finding to carry a span"
-        assert result[0].span.byte_end - result[0].span.byte_start == 2, (
-            "expected a two-byte UTF-8 anchor"
+        assert_with_context(
+            result[0].span.byte_end - result[0].span.byte_start == 2,
+            "expected a two-byte UTF-8 anchor",
         )
 
 
@@ -134,12 +164,7 @@ class TestSummaryPunctuation:
         source = 'def read():\n    """Read records"""\n'
         result = _python(source)
 
-        assert _codes(result) == ("DOC002",), (
-            f"expected one DOC002 finding, got {_codes(result)}"
-        )
-        assert marked_span(source.encode(), result) == b"s", (
-            "expected the anchor to be the final visible character"
-        )
+        _assert_anchor(source, result, ("DOC002",), b"s")
 
     @pytest.mark.parametrize("terminal", [".", "!", "?"])
     def test_accepts_each_terminal_character(self, terminal: str) -> None:
@@ -153,12 +178,14 @@ class TestSummaryPunctuation:
         source = 'def read():\n    """Read records\n    More detail."""\n'
         result = _python(source)
 
-        assert _codes(result) == ("DOC001", "DOC002"), (
-            f"expected separation and punctuation findings, got {_codes(result)}"
+        assert_with_context(
+            _codes(result) == ("DOC001", "DOC002"),
+            f"expected separation and punctuation findings, got {_codes(result)}",
         )
         punctuation = [item for item in result if item.code == "DOC002"]
-        assert marked_span(source.encode(), punctuation) == b"s", (
-            "expected the DOC002 anchor to be the final 's' of the first line"
+        assert_with_context(
+            marked_span(source.encode(), punctuation) == b"s",
+            "expected the DOC002 anchor to be the final 's' of the first line",
         )
 
     @pytest.mark.parametrize(
@@ -176,8 +203,9 @@ class TestSummaryPunctuation:
         """Only the trimmed summary's final character decides the finding."""
         source = f'def read():\n    """{summary}"""\n'
 
-        assert _codes(_python(source)) == expected, (
-            f"expected {expected} for {summary!r}, got {_codes(_python(source))}"
+        assert_with_context(
+            _codes(_python(source)) == expected,
+            f"expected {expected} for {summary!r}, got {_codes(_python(source))}",
         )
 
     def test_leading_blank_lines_are_skipped(self) -> None:
@@ -185,24 +213,14 @@ class TestSummaryPunctuation:
         source = 'def read():\n    """\n    Read records.\n    More detail.\n    """\n'
         result = _python(source)
 
-        assert _codes(result) == ("DOC001",), (
-            f"expected one DOC001 finding, got {_codes(result)}"
-        )
-        assert marked_span(source.encode(), result) == b"M", (
-            "expected the anchor on the first character of the second content line"
-        )
+        _assert_anchor(source, result, ("DOC001",), b"M")
 
     def test_rust_line_comment_anchor_is_source_backed(self) -> None:
         """A Rust summary anchors on the final source byte of the paragraph."""
         source = "/// Read records\npub fn read() {}\n"
         result = _rust(source)
 
-        assert _codes(result) == ("DOC002",), (
-            f"expected one DOC002 finding, got {_codes(result)}"
-        )
-        assert marked_span(source.encode(), result) == b"s", (
-            "expected the anchor to be the final 's' of 'records'"
-        )
+        _assert_anchor(source, result, ("DOC002",), b"s")
         assert result[0].line == 1, "expected the finding on the comment's line"
         assert result[0].column == 16, f"expected column 16, got {result[0].column}"
 
@@ -217,22 +235,19 @@ class TestSummaryPunctuation:
         source = "/// Read records\n/// and continue\npub fn read() {}\n"
         result = _rust(source)
 
-        assert _codes(result) == ("DOC002",), (
-            f"expected one DOC002 finding, got {_codes(result)}"
-        )
-        assert marked_span(source.encode(), result) == b"e", (
-            "expected the anchor to be the final 'e' of the second line"
-        )
-        assert result[0].line == 2, (
-            f"expected the finding on the second comment line, got {result[0].line}"
+        _assert_anchor(source, result, ("DOC002",), b"e")
+        assert_with_context(
+            result[0].line == 2,
+            f"expected the finding on the second comment line, got {result[0].line}",
         )
 
     def test_rust_summary_immediately_followed_by_a_heading_is_skipped(self) -> None:
         """A structural line makes the candidate unsupported, not reported."""
         source = "/// Summary without punctuation\n/// # Heading\npub fn read() {}\n"
 
-        assert _rust(source) == [], (
-            "expected a summary followed by a heading to be skipped"
+        assert_with_context(
+            _rust(source) == [],
+            "expected a summary followed by a heading to be skipped",
         )
 
     @pytest.mark.parametrize(
@@ -284,10 +299,25 @@ class TestSummaryPunctuation:
 
         assert _rust(source) == [], "expected a decorative block comment to be skipped"
 
+    def test_a_plain_block_comment_is_checked(self) -> None:
+        """A block comment without decorative prefixes is ordinary prose."""
+        source = "/** Read records */\npub struct S;\n"
+        result = _rust(source)
+
+        assert_with_context(
+            _codes(result) == ("DOC002",),
+            f"expected a plain block comment to be checked, got {_codes(result)}",
+        )
+        assert_with_context(
+            marked_span(source.encode(), result) == b"s",
+            "expected the anchor to be the final 's' of 'records'",
+        )
+
     def test_an_empty_summary_is_skipped(self) -> None:
         """A blank-only region produces no punctuation finding."""
-        assert _rust("//!\n\npub fn read() {}\n") == [], (
-            "expected an empty documentation comment to be skipped"
+        assert_with_context(
+            _rust("//!\n\npub fn read() {}\n") == [],
+            "expected an empty documentation comment to be skipped",
         )
 
     def test_a_unicode_terminal_character_spans_its_bytes(self) -> None:
@@ -295,11 +325,13 @@ class TestSummaryPunctuation:
         source = "/// Résumé\npub fn read() {}\n"
         result = _rust(source)
 
-        assert _codes(result) == ("DOC002",), (
-            f"expected one DOC002 finding, got {_codes(result)}"
+        assert_with_context(
+            _codes(result) == ("DOC002",),
+            f"expected one DOC002 finding, got {_codes(result)}",
         )
-        assert marked_span(source.encode(), result) == "é".encode(), (
-            "expected the anchor to cover the final multibyte character"
+        assert_with_context(
+            marked_span(source.encode(), result) == "é".encode(),
+            "expected the anchor to cover the final multibyte character",
         )
 
     def test_no_unicode_normalization_is_applied(self) -> None:
@@ -310,15 +342,19 @@ class TestSummaryPunctuation:
         composed_result = _rust(composed)
         decomposed_result = _rust(decomposed)
 
-        assert _codes(composed_result) == ("DOC002",), (
-            "expected the composed summary to be reported"
+        assert_with_context(
+            _codes(composed_result) == ("DOC002",),
+            "expected the composed summary to be reported",
         )
-        assert _codes(decomposed_result) == ("DOC002",), (
-            "expected the decomposed summary to be reported"
+        assert_with_context(
+            _codes(decomposed_result) == ("DOC002",),
+            "expected the decomposed summary to be reported",
         )
-        assert marked_span(composed.encode(), composed_result) == b"\xc3\xa8", (
-            "expected the composed anchor to be one two-byte character"
+        assert_with_context(
+            marked_span(composed.encode(), composed_result) == b"\xc3\xa8",
+            "expected the composed anchor to be one two-byte character",
         )
-        assert marked_span(decomposed.encode(), decomposed_result) == b"\xcc\x80", (
-            "expected the decomposed anchor to be the combining mark alone"
+        assert_with_context(
+            marked_span(decomposed.encode(), decomposed_result) == b"\xcc\x80",
+            "expected the decomposed anchor to be the combining mark alone",
         )

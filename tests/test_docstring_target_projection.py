@@ -17,6 +17,8 @@ from stilyagi.engine import rule_projection, rule_view
 from stilyagi.model.region import RegionOwner, RegionView
 from stilyagi.rules.base import RegionTarget
 
+from tests.support.assertions import assert_with_context
+
 pytest_plugins = ("tests.package_skeleton_support",)
 
 pytestmark = pytest.mark.usefixtures("reset_extraction_state")
@@ -96,8 +98,9 @@ class TestOwnerProjection:
         regions = _regions("# Title\n\nBody.\n", model.Syntax.MARKDOWN)
 
         assert regions, "expected the Markdown source to project regions"
-        assert [region.owner for region in regions] == [None] * len(regions), (
-            "expected every Markdown region to project no owner"
+        assert_with_context(
+            [region.owner for region in regions] == [None] * len(regions),
+            "expected every Markdown region to project no owner",
         )
 
     @pytest.mark.parametrize(
@@ -130,11 +133,13 @@ class TestOwnerProjection:
 
         view = rule_projection.project(document)
 
-        assert [region.owner for region in view.regions] == [None], (
-            f"expected {owner!r} to project as absent"
+        assert_with_context(
+            [region.owner for region in view.regions] == [None],
+            f"expected {owner!r} to project as absent",
         )
-        assert view.anomaly_counts == (("malformed_region", 1),), (
-            f"expected one malformed_region recovery, got {view.anomaly_counts}"
+        assert_with_context(
+            view.anomaly_counts == (("malformed_region", 1),),
+            f"expected one malformed_region recovery, got {view.anomaly_counts}",
         )
 
 
@@ -145,8 +150,9 @@ class TestSyntaxTargeting:
         """The default syntax list keeps existing Markdown rules unchanged."""
         heading = RegionView("r0", "heading", "markdown", (), {"depth": 1}, ())
 
-        assert RegionTarget(kinds=("heading",)).matches_region(heading), (
-            "expected the default target to claim a Markdown heading"
+        assert_with_context(
+            RegionTarget(kinds=("heading",)).matches_region(heading),
+            "expected the default target to claim a Markdown heading",
         )
         assert not RegionTarget(kinds=("heading",)).matches_region(
             _ownerless("heading", "python")
@@ -165,8 +171,9 @@ class TestSyntaxTargeting:
 
         claimed = [region.syntax for region in target_filter(target, regions)]
 
-        assert sorted(set(claimed)) == ["python", "rust"], (
-            f"expected both syntaxes to be claimed, got {claimed}"
+        assert_with_context(
+            sorted(set(claimed)) == ["python", "rust"],
+            f"expected both syntaxes to be claimed, got {claimed}",
         )
 
     def test_markdown_is_not_claimed_by_a_documentation_target(self) -> None:
@@ -179,8 +186,9 @@ class TestSyntaxTargeting:
 
         claimed = target_filter(target, markdown)
 
-        assert not claimed, (
-            f"expected a documentation target to claim no Markdown region: {claimed}"
+        assert_with_context(
+            not claimed,
+            f"expected a documentation target to claim no Markdown region: {claimed}",
         )
 
 
@@ -209,8 +217,9 @@ class TestOwnerKindTargeting:
             syntaxes=("python",),
         )
 
-        assert target_filter(target, self._docstring(None)), (
-            "expected an ownerless region to satisfy an unrestricted target"
+        assert_with_context(
+            target_filter(target, self._docstring(None)),
+            "expected an ownerless region to satisfy an unrestricted target",
         )
 
     def test_a_declared_owner_kind_requires_a_present_owner(self) -> None:
@@ -221,8 +230,9 @@ class TestOwnerKindTargeting:
             owner_kinds=("class", "function"),
         )
 
-        assert not target_filter(target, self._docstring(None)), (
-            "expected an ownerless region to fail a kind-restricted target"
+        assert_with_context(
+            not target_filter(target, self._docstring(None)),
+            "expected an ownerless region to fail a kind-restricted target",
         )
 
     def test_a_matching_owner_kind_satisfies_the_target(self) -> None:
@@ -233,11 +243,13 @@ class TestOwnerKindTargeting:
             owner_kinds=("class", "function"),
         )
 
-        assert target_filter(target, self._docstring(RegionOwner("class", "Widget"))), (
-            "expected a matching owner kind to satisfy the target"
+        assert_with_context(
+            target_filter(target, self._docstring(RegionOwner("class", "Widget"))),
+            "expected a matching owner kind to satisfy the target",
         )
-        assert not target_filter(target, self._docstring(RegionOwner("module"))), (
-            "expected a nonmatching owner kind to be refused"
+        assert_with_context(
+            not target_filter(target, self._docstring(RegionOwner("module"))),
+            "expected a nonmatching owner kind to be refused",
         )
 
 

@@ -150,6 +150,21 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       trailing whitespace, leading blank lines, a failing wrapped Rust
       paragraph, a two-line Rust property, six explicit table orders, and a
       v0.2.0 migration-guide entry.
+- [x] (2026-11-23) ExecPlan completeness assessment answered. CodeRabbit found
+      four in-scope gaps, all now closed. (1) The users' guide wrongly claimed
+      every Rust block comment is skipped; the exclusion is content-based, and
+      a plain `/** Read records */` does report. The guide now says so and
+      `tests/test_builtin_docstring_rules.py` carries a plain-block witness.
+      (2) The guide gained the per-rule syntax and owner-kind matrix, including
+      the nine Rust item kinds `DOC003` accepts. (3) Command-boundary coverage
+      now includes the text renderer, an error-severity exit 1 alongside
+      documentation warnings, and malformed-source extractor diagnostics with
+      the rules enabled and disabled. (4) V2 and V3 evidence gained an
+      independently computed anchor position, an IR/source immutability check,
+      selection-order permutations, and a Rust-function `DOC003` witness.
+      Multi-line assert messages became `assert_with_context` calls, matching
+      the repository idiom and keeping the new test files' executable line
+      share high for the coverage ratchet.
 
 ## Surprises & discoveries
 

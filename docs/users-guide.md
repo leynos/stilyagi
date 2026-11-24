@@ -478,6 +478,14 @@ comments (`///` and `//!`). Standalone Markdown and ordinary comments are
 outside their surface: an ordinary `#` comment in Python, a `//` comment in
 Rust, and any Markdown paragraph never earns one of these codes.
 
+| Code     | Syntaxes                              | Owner kinds                                                                                                         |
+| -------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `DOC001` | Python `python_docstring`             | `module`, `class`, `function`                                                                                       |
+| `DOC002` | Python and Rust documentation regions | Any owner state, including an absent owner                                                                          |
+| `DOC003` | Python and Rust documentation regions | Python `class`, `function`; Rust `struct`, `enum`, `union`, `trait`, `function`, `const`, `static`, `type`, `macro` |
+
+*Table 3: The documentation rules' supported syntaxes and owner kinds.*
+
 Each rule is inert until its own table sets `enabled = true`. The default
 `lint.select` already includes the `DOC` prefix, so selection alone cannot
 express opt-in.
@@ -505,9 +513,11 @@ Rust documentation comment. The finding anchors on the summary's final visible
 character. The check is deliberately conservative and is not a Markdown parser:
 a candidate containing a backtick, backslash, square or angle bracket, emphasis
 marker, or double quote is skipped, as is any whose lines begin with a Markdown
-heading, block quote, list marker, fence, thematic break, or doctest prompt. A
-Rust block comment (`/** ... */`) is skipped for the same reason, because its
-decorative asterisks are not stripped.
+heading, block quote, list marker, fence, thematic break, or doctest prompt.
+The exclusion is by content, not by comment form: a plain Rust block comment
+such as `/** Read records */` is checked like any other candidate, while one
+whose lines carry the conventional decorative `*` prefix is skipped because
+that asterisk is an emphasis marker. Decorative prefixes are never stripped.
 
 `DOC003` reports a summary that only repeats the documented owner's name.
 Matching is whole-summary and case-sensitive. A function's summary may name

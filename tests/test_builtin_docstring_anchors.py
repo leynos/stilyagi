@@ -18,6 +18,8 @@ from stilyagi.rules.base import RuleContext
 from stilyagi.rules.builtin import documentation
 from stilyagi.rules.builtin.summary import SummarySource, starts_with_markup
 
+from tests.support.assertions import assert_with_context
+
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
@@ -151,8 +153,9 @@ class TestUnsupportedShapes:
             regions=(_synthetic_region(owner=RegionOwner("class", "Widget")),),
         )
 
-        assert not documentation.check_owner_summary(disabled), (
-            "expected a disabled rule to report nothing"
+        assert_with_context(
+            not documentation.check_owner_summary(disabled),
+            "expected a disabled rule to report nothing",
         )
 
 
@@ -163,16 +166,18 @@ class TestSummarySourceEdges:
         """An index past the reconstructed text has no span."""
         source = SummarySource.of(_synthetic_region())
 
-        assert source.anchor(len(source.text)) is None, (
-            "expected an out-of-range index to map to no span"
+        assert_with_context(
+            source.anchor(len(source.text)) is None,
+            "expected an out-of-range index to map to no span",
         )
 
     def test_an_empty_trimmed_range_is_absent(self) -> None:
         """A range with no lines trims to an empty candidate."""
         source = SummarySource.of(_synthetic_region())
 
-        assert source.trimmed(()) == ("", -1), (
-            "expected an empty line range to trim to empty text"
+        assert_with_context(
+            source.trimmed(()) == ("", -1),
+            "expected an empty line range to trim to empty text",
         )
 
     def test_a_blank_line_starts_no_markup(self) -> None:

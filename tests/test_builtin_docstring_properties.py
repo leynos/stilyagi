@@ -21,6 +21,7 @@ import hypothesis.strategies as st
 import pytest
 from stilyagi import diagnostics, model
 
+from tests.support.assertions import assert_with_context
 from tests.support.rule_fixtures import LintSetup, marked_span
 
 pytest_plugins = ("tests.package_skeleton_support",)
@@ -76,14 +77,17 @@ def test_doc003_reports_only_the_matching_owner(name: str, other: str) -> None:
 
     result = _python(source)
 
-    assert _codes(result) == ("DOC003",), (
-        f"expected one DOC003 for {name!r}, got {_codes(result)}"
+    assert_with_context(
+        _codes(result) == ("DOC003",),
+        f"expected one DOC003 for {name!r}, got {_codes(result)}",
     )
-    assert marked_span(source.encode(), result) == name[0].encode(), (
-        "expected the anchor to be the documented name's first character"
+    assert_with_context(
+        marked_span(source.encode(), result) == name[0].encode(),
+        "expected the anchor to be the documented name's first character",
     )
-    assert result[0].line == 2, (
-        f"expected the finding on the matching class, got line {result[0].line}"
+    assert_with_context(
+        result[0].line == 2,
+        f"expected the finding on the matching class, got line {result[0].line}",
     )
 
 
@@ -98,12 +102,13 @@ def test_doc002_presence_follows_terminal_punctuation(
     codes = _codes(_python(source))
 
     if terminal in ".!?":
-        assert "DOC002" not in codes, (
-            f"expected {terminal!r} to be accepted, got {codes}"
+        assert_with_context(
+            "DOC002" not in codes, f"expected {terminal!r} to be accepted, got {codes}"
         )
     else:
-        assert codes.count("DOC002") == 1, (
-            f"expected one DOC002 for terminal {terminal!r}, got {codes}"
+        assert_with_context(
+            codes.count("DOC002") == 1,
+            f"expected one DOC002 for terminal {terminal!r}, got {codes}",
         )
 
 
@@ -115,13 +120,15 @@ def test_doc001_anchor_covers_one_complete_character(character: str) -> None:
     result = _python(source)
 
     assert _codes(result) == ("DOC001",), f"expected one DOC001, got {_codes(result)}"
-    assert marked_span(source.encode(), result) == character.encode(), (
-        "expected the anchor to decode to the first character of line two"
+    assert_with_context(
+        marked_span(source.encode(), result) == character.encode(),
+        "expected the anchor to decode to the first character of line two",
     )
     span = result[0].span
     assert span is not None, "expected the finding to carry a span"
-    assert span.byte_end - span.byte_start == len(character.encode()), (
-        "expected the span to cover exactly one character's bytes"
+    assert_with_context(
+        span.byte_end - span.byte_start == len(character.encode()),
+        "expected the span to cover exactly one character's bytes",
     )
 
 
@@ -137,14 +144,16 @@ def test_doc002_rust_anchor_survives_synthetic_line_breaks(
     result = _rust(source)
 
     assert _codes(result) == ("DOC002",), f"expected one DOC002, got {_codes(result)}"
-    assert marked_span(source.encode(), result) == last.encode(), (
-        "expected the anchor to be the final character of the second line"
+    assert_with_context(
+        marked_span(source.encode(), result) == last.encode(),
+        "expected the anchor to be the final character of the second line",
     )
     span = result[0].span
     assert span is not None, "expected the finding to carry a span"
     assert span.byte_start >= 4, "expected the anchor to sit after the comment marker"
-    assert result[0].line == 2, (
-        f"expected the finding on the second comment line, got {result[0].line}"
+    assert_with_context(
+        result[0].line == 2,
+        f"expected the finding on the second comment line, got {result[0].line}",
     )
 
 
@@ -163,6 +172,84 @@ def test_every_configuration_order_reports_the_same_findings(
 
     result = setup.run(source, model.Syntax.PYTHON_DOCSTRING)
 
-    assert _codes(result) == ("DOC002", "DOC003"), (
-        f"expected inventory order for table order {order}, got {_codes(result)}"
+    assert_with_context(
+        _codes(result) == ("DOC002", "DOC003"),
+        f"expected inventory order for table order {order}, got {_codes(result)}",
+    )
+
+
+@hyp.given(prefix=_PLAIN_TEXT, character=_NON_ASCII_LETTERS)
+def test_anchor_matches_an_independently_computed_source_position(
+    prefix: str,
+    character: str,
+) -> None:
+    """Both span boundaries equal the position computed from the fixture text."""
+    detail = f"{prefix}{character} continues."
+    docstring = f'"""Module summary.\n{detail}"""\n'
+    # Independently computed: the anchor is the first non-whitespace character
+    # of the second content line, found by scanning the fixture itself.
+    second_line = docstring.splitlines()[1]
+    anchor_char = second_line.lstrip()[0]
+    line_start = len(docstring[: docstring.index(second_line)].encode("utf-8"))
+    leading = len(second_line) - len(second_line.lstrip())
+    expected_start = line_start + len(second_line[:leading].encode("utf-8"))
+    expected_end = expected_start + len(anchor_char.encode("utf-8"))
+
+    result = LintSetup(select=("DOC",), rules=ALL_ENABLED, reported_path="doc.py").run(
+        docstring, model.Syntax.PYTHON_DOCSTRING
+    )
+
+    assert_with_context(
+        _codes(result) == ("DOC001",),
+        f"expected one DOC001 finding, got {_codes(result)}",
+    )
+    span = result[0].span
+    assert span is not None, "expected the finding to carry a span"
+    assert_with_context(
+        (span.byte_start, span.byte_end) == (expected_start, expected_end),
+        f"expected the span {expected_start}..{expected_end}, got "
+        f"{span.byte_start}..{span.byte_end}",
+    )
+    assert_with_context(
+        docstring.encode()[span.byte_start : span.byte_end].decode() == anchor_char,
+        "expected the span to address the independently located character",
+    )
+
+
+def test_a_run_leaves_the_ir_and_source_unchanged() -> None:
+    """Rules are queries: extraction output and source bytes do not change."""
+    source = 'class Widget:\n    """Widget"""\n'
+    setup = LintSetup(select=("DOC",), rules=ALL_ENABLED, reported_path="doc.py")
+    document = model.Document(syntax=model.Syntax.PYTHON_DOCSTRING)
+    before_ir = dict(document.ir) if document.ir is not None else None
+    before_source = source.encode("utf-8")
+
+    setup.run(source, model.Syntax.PYTHON_DOCSTRING)
+
+    assert_with_context(
+        document.ir == before_ir, "expected the document IR to be unchanged"
+    )
+    assert_with_context(
+        source.encode("utf-8") == before_source,
+        "expected the source bytes to be unchanged",
+    )
+
+
+@pytest.mark.parametrize(
+    "select",
+    list(itertools.permutations(("DOC001", "DOC002", "DOC003"))),
+    ids="-".join,
+)
+def test_rule_selection_order_does_not_change_the_findings(
+    select: tuple[str, ...],
+) -> None:
+    """Selection order, not only table order, leaves the report unchanged."""
+    setup = LintSetup(select=select, rules=ALL_ENABLED, reported_path="doc.py")
+    source = 'class Widget:\n    """Widget"""\n'
+
+    result = setup.run(source, model.Syntax.PYTHON_DOCSTRING)
+
+    assert_with_context(
+        _codes(result) == ("DOC002", "DOC003"),
+        f"expected inventory order for selection {select}, got {_codes(result)}",
     )

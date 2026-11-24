@@ -17,10 +17,12 @@ import typing as typ
 import pytest
 from syrupy.extensions.json import JSONSnapshotExtension
 
+from tests.support.assertions import assert_with_context
 from tests.support.subprocess_env import run_python_module
 
 if typ.TYPE_CHECKING:
     import pathlib
+    import subprocess
 
     from syrupy.assertion import SnapshotAssertion
 
@@ -86,8 +88,9 @@ def test_mixed_tree_reports_every_documentation_rule(
     """One run reports the three codes over Python, Rust, and Markdown."""
     payload = _check(_tree(tmp_path))
 
-    assert snapshot(extension_class=JSONSnapshotExtension) == _records(payload), (
-        "the stable diagnostic records changed"
+    assert_with_context(
+        snapshot(extension_class=JSONSnapshotExtension) == _records(payload),
+        "the stable diagnostic records changed",
     )
 
 
@@ -96,16 +99,18 @@ def test_codes_are_reported_in_source_order(tmp_path: pathlib.Path) -> None:
     records = _records(_check(_tree(tmp_path)))
     paths = [record["path"] for record in records]
 
-    assert paths == ["lib.rs", "pkg.py", "pkg.py"], (
-        f"expected lib.rs before pkg.py, got {paths}"
+    assert_with_context(
+        paths == ["lib.rs", "pkg.py", "pkg.py"],
+        f"expected lib.rs before pkg.py, got {paths}",
     )
     located = [
         (typ.cast("dict[str, int]", record["location"])["line"], record["code"])
         for record in records
         if record["path"] == "pkg.py"
     ]
-    assert located == [(2, "DOC003"), (6, "DOC001")], (
-        f"expected the class finding before the function finding, got {located}"
+    assert_with_context(
+        located == [(2, "DOC003"), (6, "DOC001")],
+        f"expected the class finding before the function finding, got {located}",
     )
 
 
@@ -115,11 +120,13 @@ def test_every_finding_is_a_warning_without_a_fix(
     """These rules are diagnostic-only, so the run exits 0."""
     records = _records(_check(_tree(tmp_path)))
 
-    assert {record["severity"] for record in records} == {"warning"}, (
-        f"expected warning severity throughout, got {records}"
+    assert_with_context(
+        {record["severity"] for record in records} == {"warning"},
+        f"expected warning severity throughout, got {records}",
     )
-    assert all(record["fix"] is None for record in records), (
-        "expected no documentation rule to offer a fix"
+    assert_with_context(
+        all(record["fix"] is None for record in records),
+        "expected no documentation rule to offer a fix",
     )
 
 
@@ -127,8 +134,9 @@ def test_markdown_receives_no_documentation_rule(tmp_path: pathlib.Path) -> None
     """The Markdown document is checked but earns none of these codes."""
     records = _records(_check(_tree(tmp_path)))
 
-    assert [record for record in records if record["path"] == "notes.md"] == [], (
-        "expected no documentation finding in Markdown"
+    assert_with_context(
+        [record for record in records if record["path"] == "notes.md"] == [],
+        "expected no documentation finding in Markdown",
     )
 
 
@@ -137,8 +145,9 @@ def test_disabled_rules_report_nothing(tmp_path: pathlib.Path) -> None:
     payload = _check(_tree(tmp_path, config=_CONFIG.replace("true", "false")))
 
     assert payload["diagnostics"] == [], "expected false opt-in to be inert"
-    assert typ.cast("dict[str, int]", payload["summary"])["checked_files"] == 3, (
-        "expected all three documents to still be extracted and checked"
+    assert_with_context(
+        typ.cast("dict[str, int]", payload["summary"])["checked_files"] == 3,
+        "expected all three documents to still be extracted and checked",
     )
 
 
@@ -146,8 +155,9 @@ def test_absent_configuration_reports_nothing(tmp_path: pathlib.Path) -> None:
     """A tree with no configuration file cannot opt the rules in."""
     payload = _check(_tree(tmp_path, config=None))
 
-    assert payload["diagnostics"] == [], (
-        "expected no findings without a configuration file"
+    assert_with_context(
+        payload["diagnostics"] == [],
+        "expected no findings without a configuration file",
     )
 
 
@@ -172,9 +182,113 @@ def test_malformed_opt_in_exits_two(tmp_path: pathlib.Path) -> None:
         root, "check", ".", "--output-format", "json", "--no-cache", timeout=120
     )
 
-    assert result.returncode == 2, (
-        f"expected exit 2 for a bad option, got {result.returncode}"
+    assert_with_context(
+        result.returncode == 2,
+        f"expected exit 2 for a bad option, got {result.returncode}",
     )
-    assert b"rule.DOC001.enabled" in result.stderr, (
-        f"expected the error to name the option, got {result.stderr!r}"
+    assert_with_context(
+        b"rule.DOC001.enabled" in result.stderr,
+        f"expected the error to name the option, got {result.stderr!r}",
+    )
+
+
+def _run(
+    root: pathlib.Path,
+    *arguments: str,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run ``python -m stilyagi`` in ``root`` with the given arguments."""
+    return run_python_module(root, "check", ".", "--no-cache", *arguments, timeout=120)
+
+
+_MALFORMED_PYTHON = (
+    '"""Module docstring before malformed Python source."""\n'
+    "\n"
+    "\n"
+    "def broken_function(\n"
+    '    """A docstring in a function whose signature never closes."""\n'
+    '    return "unreachable"\n'
+)
+
+
+def _mixed_error_tree(tmp_path: pathlib.Path) -> pathlib.Path:
+    """Write a tree holding one error-severity and two documentation findings."""
+    root = _tree(
+        tmp_path,
+        config='[lint]\nselect = ["DOC", "MD"]\n\n'
+        "[rule.DOC001]\nenabled = true\n\n"
+        "[rule.DOC002]\nenabled = true\n\n"
+        "[rule.DOC003]\nenabled = true\n",
+    )
+    (root / "notes.md").write_text("# Start\n\n### Jump\n", encoding="utf-8")
+    return root
+
+
+def test_the_text_renderer_reports_documentation_rules(
+    tmp_path: pathlib.Path,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """The human renderer names each documentation code at its own location."""
+    result = _run(_tree(tmp_path))
+    lines = [
+        line
+        for line in result.stdout.decode().splitlines()
+        if "DOC00" in line or line.startswith("checked ")
+    ]
+
+    assert result.returncode == 0, (
+        f"expected a warning-only run to exit 0, got {result.returncode}"
+    )
+    assert_with_context(
+        snapshot == lines,
+        "the text renderer's documentation lines changed",
+    )
+
+
+def test_error_findings_exit_one_alongside_documentation_warnings(
+    tmp_path: pathlib.Path,
+) -> None:
+    """An error-severity finding fails the run; documentation warnings do not."""
+    result = _run(_mixed_error_tree(tmp_path), "--output-format", "json")
+    payload = typ.cast("dict[str, object]", json.loads(result.stdout))
+
+    assert result.returncode == 1, (
+        f"expected exit 1 for an error finding, got {result.returncode}"
+    )
+    severities = {
+        typ.cast("dict[str, object]", record)["severity"]
+        for record in typ.cast("list[object]", payload["diagnostics"])
+    }
+    assert severities == {"error", "warning"}, (
+        f"expected both severities in one run, got {severities}"
+    )
+
+
+def test_extractor_diagnostics_survive_either_opt_in(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Malformed-source diagnostics are identical with the rules on and off."""
+    observed: dict[str, list[dict[str, object]]] = {}
+    for label, enabled in (("enabled", "true"), ("disabled", "false")):
+        root = tmp_path / label
+        root.mkdir()
+        (root / "stilyagi.toml").write_text(
+            f'[lint]\nselect = ["DOC"]\n\n[rule.DOC001]\nenabled = {enabled}\n'
+            f"\n[rule.DOC002]\nenabled = {enabled}\n"
+            f"\n[rule.DOC003]\nenabled = {enabled}\n",
+            encoding="utf-8",
+        )
+        (root / "broken.py").write_text(_MALFORMED_PYTHON, encoding="utf-8")
+        result = _run(root, "--output-format", "json")
+        payload = typ.cast("dict[str, object]", json.loads(result.stdout))
+        observed[label] = [
+            typ.cast("dict[str, object]", record)
+            for record in typ.cast("list[object]", payload["diagnostics"])
+        ]
+
+    assert observed["enabled"], "expected the malformed source to be diagnosed"
+    assert observed["enabled"] == observed["disabled"], (
+        "expected extractor diagnostics to be independent of the rule opt-in"
+    )
+    assert result.returncode == 0, (
+        f"expected recovery warnings to exit 0, got {result.returncode}"
     )
