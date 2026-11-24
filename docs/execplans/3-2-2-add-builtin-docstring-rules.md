@@ -194,6 +194,17 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       pins each segment's stored text as well as its shape, the users' guide
       says `DOC001` anchors on the first non-whitespace character, and the
       mixed-tree CLI test checks both runs' exit status inside its loop.
+- [x] (2026-11-24) A further assessment round found two real defects in the
+      physical-line walk, both reproduced before fixing. A CR-LF pair left its
+      CR inside the `PhysicalLine` range, so `line_text` had to strip it and
+      the range contradicted its documented contract; a lone CR was stripped
+      although it does not terminate a line; and a CR ending one segment with
+      the LF starting the next was not recognised as one terminator. The walk
+      now excludes the CR of a CR-LF pair, keeps a lone CR as text, pairs a
+      split terminator, and returns ranges verbatim from `line_text`. Three
+      regression tests pin those cases. The walk moved with `PhysicalLine`
+      into `rules/builtin/line_split.py` so `summary.py` stays inside the
+      ceiling, and the doctest spans now match their segment text.
 
 ## Surprises & discoveries
 
