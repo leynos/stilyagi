@@ -12,6 +12,7 @@ real extractor and registry. A property that never produced a finding would
 prove nothing, so each one asserts a matching witness exists.
 """
 
+import copy
 import itertools
 import keyword
 import string
@@ -20,6 +21,9 @@ import hypothesis as hyp
 import hypothesis.strategies as st
 import pytest
 from stilyagi import diagnostics, model
+from stilyagi.engine import rule_view
+from stilyagi.model.source import SourceSpan
+from stilyagi.rules.registry import run_rules
 
 from tests.support.assertions import assert_with_context
 from tests.support.rule_fixtures import LintSetup, marked_span
@@ -216,22 +220,42 @@ def test_anchor_matches_an_independently_computed_source_position(
     )
 
 
-def test_a_run_leaves_the_ir_and_source_unchanged() -> None:
-    """Rules are queries: extraction output and source bytes do not change."""
-    source = 'class Widget:\n    """Widget"""\n'
+def test_a_run_leaves_the_extracted_request_unchanged() -> None:
+    """Rules are queries: the extracted document and source bytes do not change."""
+    source = (
+        'class Widget:\n    """Widget"""\n\n'
+        'def read():\n    """Read records.\n    More detail.\n    """\n'
+    )
     setup = LintSetup(select=("DOC",), rules=ALL_ENABLED, reported_path="doc.py")
-    document = model.Document(syntax=model.Syntax.PYTHON_DOCSTRING)
-    before_ir = dict(document.ir) if document.ir is not None else None
-    before_source = source.encode("utf-8")
+    request = setup.request_for(source, model.Syntax.PYTHON_DOCSTRING)
+    before_ir = copy.deepcopy(dict(request.document.ir or {}))
+    before_segments = copy.deepcopy([
+        (region.region_id, tuple(region.scope), tuple(s.text for s in region.segments))
+        for region in rule_view.project(
+            request.document, source_bytes=request.source_bytes
+        ).regions
+    ])
+    before_source = request.source_bytes
 
-    setup.run(source, model.Syntax.PYTHON_DOCSTRING)
+    run_rules(request)
 
     assert_with_context(
-        document.ir == before_ir, "expected the document IR to be unchanged"
+        dict(request.document.ir or {}) == before_ir,
+        "expected the extracted IR to be unchanged by a run",
+    )
+    after_segments = [
+        (region.region_id, tuple(region.scope), tuple(s.text for s in region.segments))
+        for region in rule_view.project(
+            request.document, source_bytes=request.source_bytes
+        ).regions
+    ]
+    assert_with_context(
+        after_segments == before_segments,
+        "expected the projected regions to be unchanged by a run",
     )
     assert_with_context(
-        source.encode("utf-8") == before_source,
-        "expected the source bytes to be unchanged",
+        request.source_bytes == before_source,
+        "expected the source bytes to be unchanged by a run",
     )
 
 
@@ -250,6 +274,48 @@ def test_rule_selection_order_does_not_change_the_findings(
     result = setup.run(source, model.Syntax.PYTHON_DOCSTRING)
 
     assert_with_context(
-        _codes(result) == ("DOC002", "DOC003"),
-        f"expected inventory order for selection {select}, got {_codes(result)}",
+        [(item.code, item.line, item.column, item.span) for item in result]
+        == [
+            ("DOC002", 2, 13, SourceSpan(26, 27)),
+            ("DOC003", 2, 8, SourceSpan(21, 22)),
+        ],
+        f"expected identical ordered findings for selection {select}, "
+        f"got {[(i.code, i.line, i.column) for i in result]}",
+    )
+
+
+@hyp.given(first=_WORDS, character=_NON_ASCII_LETTERS)
+def test_rust_anchor_matches_an_independently_computed_source_position(
+    first: str,
+    character: str,
+) -> None:
+    """A merged Rust summary's span equals the fixture-computed position."""
+    hyp.assume(character.isalpha())
+    source = f"/// Read {first}\n/// and {character}\npub fn read() {{}}\n"
+    # Independently computed: the anchor is the final character of the second
+    # comment line, located by scanning the fixture text itself.
+    lines = source.splitlines()
+    anchor_char = lines[1][-1]
+    expected_start = len(lines[0].encode("utf-8")) + 1
+    expected_start += len(lines[1][:-1].encode("utf-8"))
+    expected_end = expected_start + len(anchor_char.encode("utf-8"))
+
+    result = LintSetup(select=("DOC",), rules=ALL_ENABLED, reported_path="doc.rs").run(
+        source, model.Syntax.RUST_DOC_COMMENT
+    )
+
+    assert_with_context(
+        _codes(result) == ("DOC002",),
+        f"expected one DOC002 finding, got {_codes(result)}",
+    )
+    span = result[0].span
+    assert span is not None, "expected the finding to carry a span"
+    assert_with_context(
+        (span.byte_start, span.byte_end) == (expected_start, expected_end),
+        f"expected the span {expected_start}..{expected_end}, got "
+        f"{span.byte_start}..{span.byte_end}",
+    )
+    assert_with_context(
+        source.encode()[span.byte_start : span.byte_end].decode() == anchor_char,
+        "expected the span to address the final character of the second line",
     )

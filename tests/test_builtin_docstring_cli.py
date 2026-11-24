@@ -266,7 +266,7 @@ def test_error_findings_exit_one_alongside_documentation_warnings(
 def test_extractor_diagnostics_survive_either_opt_in(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Malformed-source diagnostics are identical with the rules on and off."""
+    """Extractor diagnostics persist unchanged while documentation findings vary."""
     observed: dict[str, list[dict[str, object]]] = {}
     for label, enabled in (("enabled", "true"), ("disabled", "false")):
         root = tmp_path / label
@@ -278,6 +278,9 @@ def test_extractor_diagnostics_survive_either_opt_in(
             encoding="utf-8",
         )
         (root / "broken.py").write_text(_MALFORMED_PYTHON, encoding="utf-8")
+        # A well-formed document in the same tree, so the enabled run also
+        # carries documentation findings beside the extractor diagnostics.
+        (root / "pkg.py").write_text(_PYTHON, encoding="utf-8")
         result = _run(root, "--output-format", "json")
         payload = typ.cast("dict[str, object]", json.loads(result.stdout))
         observed[label] = [
@@ -285,10 +288,44 @@ def test_extractor_diagnostics_survive_either_opt_in(
             for record in typ.cast("list[object]", payload["diagnostics"])
         ]
 
-    assert observed["enabled"], "expected the malformed source to be diagnosed"
-    assert observed["enabled"] == observed["disabled"], (
-        "expected extractor diagnostics to be independent of the rule opt-in"
+    extractor = {
+        label: [
+            record for record in records if not str(record["code"]).startswith("DOC")
+        ]
+        for label, records in observed.items()
+    }
+    documentation = [
+        record
+        for record in observed["enabled"]
+        if str(record["code"]).startswith("DOC")
+    ]
+
+    assert_with_context(
+        extractor["enabled"],
+        "expected the malformed source to be diagnosed",
     )
-    assert result.returncode == 0, (
-        f"expected recovery warnings to exit 0, got {result.returncode}"
+    assert_with_context(
+        {record["code"] for record in extractor["enabled"]}
+        == {"python-parse-recovery"},
+        f"expected only extractor codes, got {extractor['enabled']}",
+    )
+    assert_with_context(
+        extractor["enabled"] == extractor["disabled"],
+        "expected extractor diagnostics to be independent of the rule opt-in",
+    )
+    assert_with_context(
+        documentation,
+        "expected documentation findings in the enabled mixed tree",
+    )
+    assert_with_context(
+        not [
+            record
+            for record in observed["disabled"]
+            if str(record["code"]).startswith("DOC")
+        ],
+        "expected no documentation findings while the rules are disabled",
+    )
+    assert_with_context(
+        result.returncode == 0,
+        f"expected recovery warnings to exit 0, got {result.returncode}",
     )
