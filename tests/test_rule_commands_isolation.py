@@ -285,6 +285,47 @@ def test_import_probe_detects_a_call_made_inside_its_own_module_body(
     )
 
 
+def test_import_probe_keeps_the_outer_trace_across_a_nested_import(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A nested protected import does not disarm the outer module's guard.
+
+    The inner loader must restore the trace function it replaced, not clear
+    it. This control has one protected module import another and then call a
+    guarded function from its own body; only correct nesting reports the call.
+    """
+    _malformed_project(tmp_path)
+    (tmp_path / "probe_inner.py").write_text(
+        "def run_rules(*_args, **_kwargs):\n    return None\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "probe_outer.py").write_text(
+        "import probe_inner\n"
+        "\n"
+        "\n"
+        "def tokenize_segments(*_args, **_kwargs):\n"
+        "    return None\n"
+        "\n"
+        "\n"
+        "tokenize_segments('the the')\n",
+        encoding="utf-8",
+    )
+
+    completed = _run_import_probe(
+        tmp_path,
+        before_cli="import probe_outer\n",
+        extra_targets={
+            "probe_inner": ("run_rules",),
+            "probe_outer": ("tokenize_segments",),
+        },
+    )
+
+    assert completed.returncode != 0, "expected the probe to reject the execution"
+    assert b"'call', 'tokenize_segments'" in completed.stderr, (
+        "expected the outer module's guarded call after its nested import"
+    )
+
+
 def test_discovery_commands_leave_the_directory_unchanged(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,

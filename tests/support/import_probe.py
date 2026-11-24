@@ -95,7 +95,11 @@ class _SentinelLoader(importlib.abc.Loader):
     def exec_module(self, module):
         # Guard calls made from inside the module's own body as well as
         # calls made by later importers; the post-exec attribute swap alone
-        # would miss a function the module calls while defining itself.
+        # would miss a function the module calls while defining itself. A
+        # protected module may import another protected module, so preserve
+        # the outer trace across the inner import. `sys.settrace` returns the
+        # caller's *local* trace rather than the global one, so the guard is
+        # tracked explicitly instead of being read back from that call.
         global _guarding
         previous = _guarding
         _guarding = True
@@ -103,7 +107,7 @@ class _SentinelLoader(importlib.abc.Loader):
             sys.settrace(_guard_calls)
             self._inner.exec_module(module)
         finally:
-            sys.settrace(None)
+            sys.settrace(_guard_calls if previous else None)
             _guarding = previous
         for attribute in _TARGETS[self._fullname]:
             setattr(module, attribute, _forbidden(attribute))
