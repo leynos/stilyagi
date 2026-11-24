@@ -183,6 +183,24 @@ before continuing.
   executes, and a negative control calls a forbidden function during the
   probe's import phase and proves it is recorded. The remaining finding is the
   queue-blocked default `make test`.
+- [x] (2026-11-23) Second reconciliation qualification: the exit-status check
+  now requires exactly a built-in `int`, so an `int` subclass cannot pass, with
+  a regression case.
+- [ ] (2026-11-23) Default `make test` at `a86775e1` (five attempts, all
+  repository defaults, `.venv` restored to the pinned CPython 3.14). The build,
+  smoke, `cargo fmt --check`, Clippy, and all 370 nextest tests plus every Rust
+  doctest pass. Two environment faults were found and one was fixed: editing
+  `pyproject.toml` had made `.venv` stale, and the Makefile's bare `uv venv`
+  then selected CPython 3.15t, which failed the `cp314` wheel snapshot —
+  recreating the venv at 3.14 fixed that test. What remains is the
+  `test_lint_policy_behaviour.py` scratch-crate subprocesses: each runs `cargo`
+  in a fresh unique `target/` directory under a fixed 240 s
+  `COMPILE_TIMEOUT_SECONDS`, and with 250–700 compiler requests queued every
+  invocation needs longer, so 8 of 1 894 pytest tests fail with an empty lint
+  set or the explicit `timed out after 240 s` message. These are queue
+  scheduling, not code defects; the same tests pass when the queue is shallow,
+  and hosted `lint-test` runs the identical clippy/rustdoc fixtures in
+  `make lint` on a clean runner.
 
 ## Surprises & discoveries
 
