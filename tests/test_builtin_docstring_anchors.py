@@ -243,9 +243,9 @@ class TestLineTerminators:
         """A CR before a synthetic break cannot terminate the next LF."""
         source = SummarySource.of(
             _region_with(
-                RegionSegment(SourceSpan(0, 3), "A\r"),
+                RegionSegment(SourceSpan(0, 2), "A\r"),
                 RegionSegment(None, " ", synthetic_reason="softbreak_space"),
-                RegionSegment(SourceSpan(3, 6), "\nB."),
+                RegionSegment(SourceSpan(2, 5), "\nB."),
             )
         )
 
