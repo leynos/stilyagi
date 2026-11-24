@@ -190,14 +190,14 @@ def test_every_configuration_order_reports_the_same_findings(
     )
 
 
-@hyp.given(prefix=_MULTIBYTE_PREFIX, character=_NON_ASCII_LETTERS)
+@hyp.given(summary=_MULTIBYTE_PREFIX, character=_UNICODE_LETTERS)
 def test_anchor_matches_an_independently_computed_source_position(
-    prefix: str,
+    summary: str,
     character: str,
 ) -> None:
     """Both span boundaries equal the position computed from the fixture text."""
-    detail = f"{prefix}{character} continues."
-    docstring = f'"""Module summary.\n{detail}"""\n'
+    detail = f"{character} continues."
+    docstring = f'"""Module {summary}summary.\n{detail}"""\n'
     # Independently computed: the anchor is the first non-whitespace character
     # of the second content line, found by scanning the fixture itself.
     second_line = docstring.splitlines()[1]
@@ -283,14 +283,8 @@ def test_generated_summaries_produce_identical_diagnostics_across_selections(
 
     expected = results[0]
     assert_with_context(
-        all(
-            [(i.code, i.path, i.severity, i.line, i.column, i.span) for i in result]
-            == [
-                (i.code, i.path, i.severity, i.line, i.column, i.span) for i in expected
-            ]
-            for result in results[1:]
-        ),
-        f"expected identical diagnostics across selections for {source!r}",
+        all(result == expected for result in results[1:]),
+        f"expected identical complete diagnostics across selections for {source!r}",
     )
     assert_with_context(
         [item.code for item in expected] == ["DOC002", "DOC003"],
