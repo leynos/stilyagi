@@ -256,6 +256,10 @@ def test_example_preserves_authored_order_and_codes() -> None:
     assert type(example.exit_code) is int, "expected the default status to be an int"
 
 
+class _IntSubclass(int):
+    """An integer subclass that must not pass the exact type check."""
+
+
 @pytest.mark.parametrize(
     ("changes", "error", "match"),
     [
@@ -270,6 +274,12 @@ def test_example_preserves_authored_order_and_codes() -> None:
             TypeError,
             "must be an integer",
             id="float-is-not-an-int",
+        ),
+        pytest.param(
+            {"exit_code": _IntSubclass(1)},
+            TypeError,
+            "must be an integer",
+            id="int-subclass-is-not-an-int",
         ),
         pytest.param(
             {"exit_code": 2},

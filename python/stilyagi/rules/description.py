@@ -191,16 +191,19 @@ def _require_exit_code(exit_code: int) -> None:
 
     Equality alone is not enough: ``True`` and ``1.0`` both compare equal to
     ``1``, and a renderer would then publish a JSON boolean or a float where
-    the schema promises an integer.
+    the schema promises an integer. The type test is exact rather than an
+    ``isinstance`` check because a subclass can override comparison or
+    serialization, and only a plain integer serializes as the JSON schema
+    promises.
 
     Raises
     ------
     TypeError
-        When the value is a boolean or another non-integer type.
+        When the value is not exactly a built-in ``int``.
     ValueError
         When the integer falls outside the ``0``/``1`` exit policy.
     """
-    if isinstance(exit_code, bool) or not isinstance(exit_code, int):
+    if type(exit_code) is not int:
         message = "example exit_code must be an integer"
         raise TypeError(message)
     if exit_code not in {0, 1}:
