@@ -46,6 +46,13 @@ _PLAIN_TEXT = st.text(
     min_size=0,
     max_size=20,
 )
+#: Text that may carry multibyte characters, so a generated fixture exercises
+#: byte offsets before the anchor as well as at it.
+_MULTIBYTE_PREFIX = st.text(
+    alphabet=string.ascii_letters + " " + "éßλ字øñЖяωџ",
+    min_size=0,
+    max_size=12,
+)
 _TERMINALS = st.sampled_from([".", "!", "?", ",", ";", "9", "…"])
 _WORDS = st.text(alphabet=string.ascii_letters, min_size=1, max_size=10)
 _NON_ASCII_LETTERS = st.sampled_from(["é", "ß", "λ", "字", "🧭"])
@@ -183,7 +190,7 @@ def test_every_configuration_order_reports_the_same_findings(
     )
 
 
-@hyp.given(prefix=_PLAIN_TEXT, character=_NON_ASCII_LETTERS)
+@hyp.given(prefix=_MULTIBYTE_PREFIX, character=_NON_ASCII_LETTERS)
 def test_anchor_matches_an_independently_computed_source_position(
     prefix: str,
     character: str,
@@ -292,7 +299,9 @@ def test_generated_summaries_produce_identical_diagnostics_across_selections(
     )
 
 
-@hyp.given(first=_WORDS, prefix=_PLAIN_TEXT, character=_UNICODE_LETTERS)
+@hyp.given(
+    first=_MULTIBYTE_PREFIX, prefix=_MULTIBYTE_PREFIX, character=_UNICODE_LETTERS
+)
 def test_rust_anchor_matches_an_independently_computed_source_position(
     first: str,
     prefix: str,
