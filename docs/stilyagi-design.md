@@ -1061,9 +1061,12 @@ suppression policy still applies. Internal boundaries:
 - `engine/region_views.py` owns the raw-to-typed region conversion;
   `engine/rule_projection.py` keeps the per-document collection pass.
 - `rules/builtin/summary.py` is the only summary-analysis helper: physical
-  lines, first-line and first-paragraph selection, conservative Markdown
-  exclusions, and character-to-source-byte anchoring. It never decodes Python
-  string escapes, strips block-comment asterisks, or parses Markdown.
+  lines, first-line and first-paragraph selection, and character-to-source-byte
+  anchoring. It never decodes Python string escapes, strips block-comment
+  asterisks, or parses Markdown.
+- `rules/builtin/markup.py` holds the conservative Markdown exclusion
+  predicates the punctuation rule consults; it is a predicate module, not a
+  parser.
 - `config/rules.py::parse_documentation` validates each rule's `enabled` flag,
   so a malformed option fails even when policy ignores the rule.
 

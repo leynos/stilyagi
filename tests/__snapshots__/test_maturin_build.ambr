@@ -108,6 +108,7 @@
       'stilyagi/rules/builtin/documentation.py',
       'stilyagi/rules/builtin/heading_depth.py',
       'stilyagi/rules/builtin/pack.py',
+      'stilyagi/rules/builtin/markup.py',
       'stilyagi/rules/builtin/repeated_word.py',
       'stilyagi/rules/builtin/summary.py',
       'stilyagi/rules/builtin/text.py',

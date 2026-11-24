@@ -27,26 +27,10 @@ if typ.TYPE_CHECKING:  # pragma: no cover - typing only
 __all__ = [
     "PhysicalLine",
     "SummarySource",
-    "has_excluded_markup",
-    "starts_with_markup",
 ]
 
 #: The synthetic reason the extractor records for a flattened line break.
 _LINE_BREAK_REASON = "softbreak_space"
-
-#: Plain-summary candidates containing one of these are not checked. The set is
-#: deliberately conservative: it covers inline code, escapes, links, HTML, and
-#: emphasis markers, all of which need a Markdown parser to judge.
-_EXCLUDED_MARKUP_CHARACTERS: frozenset[str] = frozenset('`\\[]<>*_"')
-
-#: Line-initial markers that make a line structure rather than prose.
-_LINE_MARKERS: tuple[str, ...] = ("#", ">", "-", "+", "*", "```", "~~~")
-
-#: Characters a thematic break may repeat.
-_THEMATIC_BREAK_CHARACTERS: frozenset[str] = frozenset("-_*=")
-
-#: How many repeated characters a thematic break needs.
-_MIN_THEMATIC_BREAK_LENGTH = 3
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -247,69 +231,6 @@ class SummarySource:
         return None
 
 
-def starts_with_markup(text: str) -> bool:
-    """Return whether a line begins with a Markdown structure marker.
-
-    The test is deliberately conservative and is not a Markdown parser: a line
-    it cannot vouch for is skipped by the punctuation policy rather than
-    guessed at.
-
-    Parameters
-    ----------
-    text:
-        One physical line's text.
-
-    Returns
-    -------
-    bool
-        ``True`` for a heading, block quote, list marker, fence, doctest
-        prompt, or thematic break after leading whitespace.
-
-    Examples
-    --------
-    >>> starts_with_markup("  - item")
-    True
-    >>> starts_with_markup("Read records.")
-    False
-    >>> starts_with_markup("---")
-    True
-    >>> starts_with_markup("1. step")
-    True
-    """
-    candidate = text.lstrip()
-    if not candidate:
-        return False
-    if candidate.startswith(_LINE_MARKERS):
-        return True
-    if _is_ordered_list_marker(candidate):
-        return True
-    return _is_thematic_break(candidate)
-
-
-def has_excluded_markup(text: str) -> bool:
-    """Return whether a candidate contains markup this slice cannot judge.
-
-    Parameters
-    ----------
-    text:
-        The trimmed summary candidate.
-
-    Returns
-    -------
-    bool
-        ``True`` when the candidate contains a backtick, backslash, bracket,
-        angle bracket, emphasis marker, or double quote.
-
-    Examples
-    --------
-    >>> has_excluded_markup("Read records.")
-    False
-    >>> has_excluded_markup("Read `records`.")
-    True
-    """
-    return any(character in _EXCLUDED_MARKUP_CHARACTERS for character in text)
-
-
 def _physical_lines(
     segments: cabc.Sequence[RegionSegment],
     text_length: int,
@@ -336,12 +257,7 @@ def _physical_lines(
 
 @dc.dataclass(slots=True)
 class _LineSplitter:
-    """Accumulate physical lines while the region text is walked once.
-
-    The splitter owns the running character cursor and the current line's
-    start, so the walk has one branch per segment instead of a conditional
-    nested inside a per-character scan.
-    """
+    """Accumulate physical lines while the region text is walked once."""
 
     lines: list[PhysicalLine] = dc.field(default_factory=list)
     start: int = 0
@@ -363,13 +279,7 @@ class _LineSplitter:
         self.start = self.cursor
 
     def finish(self, text_length: int) -> tuple[PhysicalLine, ...]:
-        """Close the final line and return every line in text order.
-
-        Returns
-        -------
-        tuple[PhysicalLine, ...]
-            At least one line, in text order.
-        """
+        """Close the final line and return every line in text order."""
         self.lines.append(PhysicalLine(self.start, text_length))
         return tuple(self.lines)
 
@@ -377,21 +287,3 @@ class _LineSplitter:
 def _is_line_break(segment: RegionSegment) -> bool:
     """Return whether a segment is the extractor's flattened line break."""
     return segment.span is None and segment.synthetic_reason == _LINE_BREAK_REASON
-
-
-def _is_ordered_list_marker(candidate: str) -> bool:
-    """Return whether a line starts with ``digits`` then ``.`` or ``)``."""
-    digits = 0
-    while digits < len(candidate) and candidate[digits].isdigit():
-        digits += 1
-    return digits > 0 and candidate[digits : digits + 1] in {".", ")"}
-
-
-def _is_thematic_break(candidate: str) -> bool:
-    """Return whether a line is three or more identical break characters."""
-    body = candidate.rstrip()
-    return (
-        len(body) >= _MIN_THEMATIC_BREAK_LENGTH
-        and body[0] in _THEMATIC_BREAK_CHARACTERS
-        and body.count(body[0]) == len(body)
-    )

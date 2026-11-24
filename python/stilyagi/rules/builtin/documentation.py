@@ -21,12 +21,8 @@ import typing as typ
 
 from stilyagi import diagnostics
 from stilyagi.rules.builtin import text
-from stilyagi.rules.builtin.summary import (
-    PhysicalLine,
-    SummarySource,
-    has_excluded_markup,
-    starts_with_markup,
-)
+from stilyagi.rules.builtin.markup import has_excluded_markup, starts_with_markup
+from stilyagi.rules.builtin.summary import PhysicalLine, SummarySource
 
 if typ.TYPE_CHECKING:  # pragma: no cover - typing only
     import collections.abc as cabc

@@ -16,7 +16,8 @@ from stilyagi.model.region import RegionOwner, RegionSegment, RegionView
 from stilyagi.model.source import SourceSpan
 from stilyagi.rules.base import RuleContext
 from stilyagi.rules.builtin import documentation
-from stilyagi.rules.builtin.summary import SummarySource, starts_with_markup
+from stilyagi.rules.builtin.markup import starts_with_markup
+from stilyagi.rules.builtin.summary import SummarySource
 
 from tests.support.assertions import assert_with_context
 
