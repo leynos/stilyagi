@@ -214,7 +214,10 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       thread, anchored at the superseded head `c8e1e0a0`, asks for the public
       API examples that `1c71aa13` added; CodeRabbit confirmed the finding is
       addressed at `7c510256` and left thread resolution to the originating
-      reviewer.
+      reviewer. One fixture defect remained and is fixed on `34980147`: the
+      synthetic-break test claimed three source bytes for a two-byte `"A\r"`,
+      and a synthetic separator contributes none, so the coherent source is
+      `A\r\nB.` with spans `(0, 2)` and `(2, 5)`.
 
 ## Surprises & discoveries
 
