@@ -3,9 +3,9 @@
 This ExecPlan is a living design and delivery document. Keep its constraints,
 progress, decisions, conformance basis, and verification evidence current.
 
-Status: IMPLEMENTED — feature, documentation, and static gates complete; the
-default `make test` acceptance record (E6) is pending a shallow compile queue
-(2026-11-24).
+Status: IMPLEMENTED — feature, documentation, static gates, and hosted CI
+complete; the default `make test` acceptance record (E6) is blocked by the
+shared compile queue and reported as an intractable impasse (2026-11-24).
 
 Planning base: `48c24f9d18bbd340a893a4fce11bbb3c08ec47a2` (2026-11-08). Working
 branch: `2-3-2-stilyagi-rule-code-and-stilyagi-rules`, tracking
@@ -221,6 +221,20 @@ before continuing.
   wheel fixture, or their timeouts. The queue has been continuously saturated
   for over a day, so these fixed per-subprocess budgets cannot be met locally;
   hosted CI, which runs the same fixtures on a clean runner, is green.
+- [ ] (2026-11-24) E6 at `1b5e50d5`, seventh attempt, with every cache warm:
+  the release wheel prebuilt, both trybuild scratch targets warm, and the
+  default `make test` unchanged. It reached nextest and passed 368/370 before
+  `stilyagi-ir::ui` exceeded its fixed 1500 s budget in the queue; the same
+  test passed in 239 s in an earlier warm run. This is recorded as an
+  **intractable impasse** under the plan's own stopping condition: the gate
+  runs, but two repository-fixed subprocess budgets cannot be met while the
+  shared compile-admission queue holds 400–570 requests, and the queue is
+  controlled by other agents on the host. Clearing it needs the host operator,
+  not a repository change; raising those budgets or editing `main`'s test files
+  to manufacture a local pass would weaken the gate rather than satisfy it.
+  Hosted `lint-test`, all three `release-smoke` jobs, CodeScene, and Gecko pass
+  at this head (run
+  <https://github.com/leynos/stilyagi/actions/runs/45458734508>).
 - [x] (2026-11-24) Sixth assessment: a protected module importing another
   protected module disarmed the outer module's call trace. The cause is that
   `sys.settrace` returns `None` on CPython 3.14 even while a trace function is
