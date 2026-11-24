@@ -165,6 +165,20 @@ impact); skip the owner-dependent rule when a trustworthy name is absent.
       Multi-line assert messages became `assert_with_context` calls, matching
       the repository idiom and keeping the new test files' executable line
       share high for the coverage ratchet.
+- [x] (2026-11-24) ExecPlan completeness assessment cleared after four
+      evidence rounds: CodeRabbit found no remaining in-scope defect on head
+      `099b3b66`. Its later findings, all repaired: content-based block-comment
+      documentation; the per-rule target matrix; a mixed Python/Rust/Markdown
+      extractor comparison across both opt-in states; generated multibyte
+      content before the anchor in both the Python and Rust properties;
+      immutability checked on the request that was actually run; and
+      whole-`Diagnostic` equality across rule-selection permutations. Hosted
+      `Smoke` on `cb62f58f` was fully green, with the coverage ratchet at
+      Python 92.34% (floor 91.88%) and Rust 92.13% (floor 90.48%); CodeScene
+      reports no issues. The proof assessment is not applicable: this plan
+      introduces no CrossHair, Kani, Verus, or LemmaScript asset. The
+      original-issue assessment is not applicable: the PR implements a
+      roadmap item rather than a GitHub issue.
 
 ## Surprises & discoveries
 
