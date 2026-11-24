@@ -504,8 +504,9 @@ enabled = true
 `DOC001` reports a Python docstring whose summary line runs straight into
 further explanation. The first nonblank line is the summary; a one-line
 docstring, or one followed by a blank line, passes. The finding anchors on the
-first character of the second content line. Blank-only docstrings are skipped,
-because missing documentation is not checked.
+first non-whitespace character of the second content line, so an indented
+second line reports its first visible character. Blank-only docstrings are
+skipped, because missing documentation is not checked.
 
 `DOC002` reports a summary that does not end in `.`, `!`, or `?`. The candidate
 is the first nonblank line of a Python docstring or the first paragraph of a

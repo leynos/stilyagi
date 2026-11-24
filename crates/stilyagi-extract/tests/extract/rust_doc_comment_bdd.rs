@@ -267,5 +267,15 @@ fn merged_doc_comment_lines_keep_source_segments_and_a_synthetic_break()
         ],
         "merged doc-comment segments did not match the source-backed shape",
     )?;
+    let payloads = region
+        .segments
+        .iter()
+        .map(|segment| segment.text())
+        .collect::<Vec<_>>();
+    ensure_eq(
+        &payloads,
+        &vec![" Read records", " ", " and continue."],
+        "each segment must store its own payload, including the separator",
+    )?;
     Ok(())
 }

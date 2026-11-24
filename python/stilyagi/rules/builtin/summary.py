@@ -44,6 +44,13 @@ class PhysicalLine:
     end:
         Offset just past the line's last character. A CR that terminates a
         CR-LF pair is excluded from the range.
+
+    Examples
+    --------
+    >>> PhysicalLine(0, 4)
+    PhysicalLine(start=0, end=4)
+    >>> "Doc."[0:4]
+    'Doc.'
     """
 
     start: int
@@ -94,6 +101,18 @@ class SummarySource:
         -------
         SummarySource
             The reconstructed text, its segments, and its physical lines.
+
+        Examples
+        --------
+        >>> from stilyagi.model.region import RegionSegment, RegionView
+        >>> region = RegionView(
+        ...     "r0", "python_docstring", "python", (), {},
+        ...     (RegionSegment(SourceSpan(3, 7), "Doc."),),
+        ... )
+        >>> SummarySource.of(region).text
+        'Doc.'
+        >>> SummarySource.of(region).lines
+        (PhysicalLine(start=0, end=4),)
         """
         text = "".join(segment.text for segment in region.segments)
         return cls(
@@ -103,7 +122,7 @@ class SummarySource:
         )
 
     def line_text(self, line: PhysicalLine) -> str:
-        """Return one physical line's text, without its CR-LF terminator.
+        r"""Return one physical line's text, without its CR-LF terminator.
 
         Parameters
         ----------
@@ -115,31 +134,61 @@ class SummarySource:
         str
             The line's text. Python Unicode whitespace semantics apply to any
             later ``strip`` the caller performs.
+
+        Examples
+        --------
+        >>> from stilyagi.model.region import RegionSegment, RegionView
+        >>> region = RegionView(
+        ...     "r0", "python_docstring", "python", (), {},
+        ...     (RegionSegment(SourceSpan(3, 9), "A.\r\nB."),),
+        ... )
+        >>> source = SummarySource.of(region)
+        >>> [source.line_text(line) for line in source.lines]
+        ['A.', 'B.']
         """
         return self.text[line.start : line.end].removesuffix("\r")
 
     def is_blank(self, line: PhysicalLine) -> bool:
-        """Return whether a line holds only Unicode whitespace.
+        r"""Return whether a line holds only Unicode whitespace.
 
-        Parameters
-        ----------
-        line:
-            A line from :attr:`lines`.
+        The check is :meth:`line_text` followed by ``strip``, so it shares that
+        method's Unicode whitespace semantics and its CR-LF handling.
 
         Returns
         -------
         bool
             ``True`` when the line's text strips to the empty string.
+
+        Examples
+        --------
+        >>> from stilyagi.model.region import RegionSegment, RegionView
+        >>> region = RegionView(
+        ...     "r0", "python_docstring", "python", (), {},
+        ...     (RegionSegment(SourceSpan(3, 9), "\n  \nDoc."),),
+        ... )
+        >>> source = SummarySource.of(region)
+        >>> [source.is_blank(line) for line in source.lines]
+        [True, True, False]
         """
         return not self.line_text(line).strip()
 
     def first_content_index(self) -> int | None:
-        """Return the index of the first nonblank line, or ``None``.
+        r"""Return the index of the first nonblank line, or ``None``.
 
         Returns
         -------
         int | None
             The first line index whose text is not blank.
+
+        Examples
+        --------
+        >>> from stilyagi.model.region import RegionSegment, RegionView
+        >>> region = RegionView(
+        ...     "r0", "python_docstring", "python", (), {},
+        ...     (RegionSegment(SourceSpan(3, 9), "\n\nDoc."),),
+        ... )
+        >>> SummarySource.of(region).first_content_index()
+        2
         """
         return next(
             (index for index, line in enumerate(self.lines) if not self.is_blank(line)),
@@ -147,7 +196,7 @@ class SummarySource:
         )
 
     def first_paragraph(self) -> tuple[PhysicalLine, ...]:
-        """Return the lines from the first content line up to a blank line.
+        r"""Return the lines from the first content line up to a blank line.
 
         Leading blank lines are skipped. A blank line ends the paragraph, and
         so does the end of the region.
@@ -156,6 +205,17 @@ class SummarySource:
         -------
         tuple[PhysicalLine, ...]
             The paragraph's lines, empty when the region has no content.
+
+        Examples
+        --------
+        >>> from stilyagi.model.region import RegionSegment, RegionView
+        >>> region = RegionView(
+        ...     "r0", "python_docstring", "python", (), {},
+        ...     (RegionSegment(SourceSpan(3, 15), "One.\nTwo.\n\nMore."),),
+        ... )
+        >>> source = SummarySource.of(region)
+        >>> [source.line_text(line) for line in source.first_paragraph()]
+        ['One.', 'Two.']
         """
         first = self.first_content_index()
         if first is None:
@@ -168,18 +228,29 @@ class SummarySource:
         return tuple(paragraph)
 
     def first_content_line(self) -> tuple[PhysicalLine, ...]:
-        """Return the first nonblank line as a one-line tuple.
+        r"""Return the first nonblank line as a one-line tuple.
 
         Returns
         -------
         tuple[PhysicalLine, ...]
             The first content line, empty when the region has no content.
+
+        Examples
+        --------
+        >>> from stilyagi.model.region import RegionSegment, RegionView
+        >>> region = RegionView(
+        ...     "r0", "python_docstring", "python", (), {},
+        ...     (RegionSegment(SourceSpan(3, 12), "One.\nTwo."),),
+        ... )
+        >>> source = SummarySource.of(region)
+        >>> [source.line_text(line) for line in source.first_content_line()]
+        ['One.']
         """
         first = self.first_content_index()
         return () if first is None else (self.lines[first],)
 
     def trimmed(self, lines: cabc.Sequence[PhysicalLine]) -> tuple[str, int]:
-        """Return a line range's trimmed text and its start character offset.
+        r"""Return a line range's trimmed text and its start character offset.
 
         The range spans from the first line's start to the last line's end, so
         the separator characters between lines are part of the candidate. A
@@ -195,6 +266,19 @@ class SummarySource:
         tuple[str, int]
             The trimmed text and the character offset it starts at. Both are
             empty and ``-1`` when ``lines`` is empty.
+
+        Examples
+        --------
+        >>> from stilyagi.model.region import RegionSegment, RegionView
+        >>> region = RegionView(
+        ...     "r0", "python_docstring", "python", (), {},
+        ...     (RegionSegment(SourceSpan(3, 14), "  One.\nTwo. "),),
+        ... )
+        >>> source = SummarySource.of(region)
+        >>> source.trimmed(source.first_paragraph())
+        ('One.\nTwo.', 2)
+        >>> source.trimmed(())
+        ('', -1)
         """
         if not lines:
             return "", -1
@@ -204,7 +288,7 @@ class SummarySource:
         return stripped, lines[0].start + leading
 
     def anchor(self, index: int) -> SourceSpan | None:
-        """Map one region-text character to its source byte span.
+        r"""Map one region-text character to its source byte span.
 
         Parameters
         ----------
@@ -216,6 +300,31 @@ class SummarySource:
         SourceSpan | None
             The half-open byte span of that one character, or ``None`` when
             the character is synthetic or outside the reconstructed text.
+
+        Examples
+        --------
+        A character index is not a byte offset: the accented character is
+        character 1 but starts at byte 11.
+
+        >>> from stilyagi.model.region import RegionSegment, RegionView
+        >>> region = RegionView(
+        ...     "r0", "python_docstring", "python", (), {},
+        ...     (RegionSegment(SourceSpan(10, 14), "a\u00e9"),),
+        ... )
+        >>> source = SummarySource.of(region)
+        >>> source.anchor(1)
+        SourceSpan(byte_start=11, byte_end=13)
+        >>> source.anchor(5) is None
+        True
+
+        A synthetic segment has no source bytes, so it maps to ``None``.
+
+        >>> synthetic = RegionView(
+        ...     "r0", "rust_doc_comment", "rust", (), {},
+        ...     (RegionSegment(None, "x", synthetic_reason="decoded_text"),),
+        ... )
+        >>> SummarySource.of(synthetic).anchor(0) is None
+        True
         """
         cursor = 0
         for segment in self.segments:

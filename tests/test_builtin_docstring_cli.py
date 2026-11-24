@@ -284,6 +284,9 @@ def test_extractor_diagnostics_survive_either_opt_in(
         (root / "lib.rs").write_text(_RUST, encoding="utf-8")
         (root / "notes.md").write_text(_MARKDOWN, encoding="utf-8")
         result = _run(root, "--output-format", "json")
+        assert result.returncode == 0, (
+            f"expected recovery warnings to exit 0 for {label}, got {result.returncode}"
+        )
         payload = typ.cast("dict[str, object]", json.loads(result.stdout))
         observed[label] = [
             typ.cast("dict[str, object]", record)
@@ -326,8 +329,4 @@ def test_extractor_diagnostics_survive_either_opt_in(
             if str(record["code"]).startswith("DOC")
         ],
         "expected no documentation findings while the rules are disabled",
-    )
-    assert_with_context(
-        result.returncode == 0,
-        f"expected recovery warnings to exit 0, got {result.returncode}",
     )
