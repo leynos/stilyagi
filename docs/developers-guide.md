@@ -2306,10 +2306,16 @@ a narrow scope and a reason. Recognized test bodies may use descriptive
 steps, remain fallible. A test-related module alone does not establish that
 recognition.
 
-Clippy limits cognitive complexity to 9, arguments to 4, function lines to 70,
-and nesting to 4. The seven environment-method restrictions in `clippy.toml`
-require injected readers, stub environments in tests, and explicit base paths;
-child-process working directories use `Command::current_dir`.
+Whitaker's experimental `macro_aware_cognitive_complexity` gates cognitive
+complexity at `max_complexity = 9`, CodeScene's ceiling; `dylint.toml` opts in
+with `[whitaker] experimental = ["macro_aware_cognitive_complexity"]`. Clippy
+no longer gates it, because its `cognitive_complexity` scores code after macro
+expansion and counts branching a macro generated. Fix a finding by extracting
+named helpers, never by raising the threshold. Clippy limits arguments to 4,
+function lines to 70, and nesting to 4. The seven environment-method
+restrictions in `clippy.toml` require injected readers, stub environments in
+tests, and explicit base paths; child-process working directories use
+`Command::current_dir`.
 
 `rust-toolchain.toml` pins the nightly and its `clippy`, `rustfmt`,
 `rust-analyzer`, `llvm-tools-preview`, and `rustc-codegen-cranelift-preview`
